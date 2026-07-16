@@ -1,0 +1,12 @@
+{
+  "name": "@timurproko/addone",
+  "version": "0.0.1",
+  "description": "CLI multiplexer — add one tool at a time (placeholder, WIP)",
+  "main": "index.js",
+  "keywords": ["cli", "tui", "terminal", "multiplexer"],
+  "author": "Timur Prokopiev",
+  "license": "MIT",
+  "type": "commonjs",
+  "bin": { "addone": "bin/addone.js" },
+  "publishConfig": { "access": "public" }
+}
