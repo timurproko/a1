@@ -16,6 +16,15 @@
   html,body{margin:0;height:100%;background:#14161c;overflow:hidden}
   a{color:var(--blue);text-decoration:none}
   a:hover{color:var(--cyan)}
+  .tui-scroll{scrollbar-width:thin;scrollbar-color:var(--cyan) var(--line)}
+  .tui-scroll::-webkit-scrollbar{width:6px;height:6px}
+  .tui-scroll::-webkit-scrollbar-track{background:var(--line)}
+  .tui-scroll::-webkit-scrollbar-thumb{background:var(--cyan);border-radius:0}
+  .tui-scroll::-webkit-scrollbar-button,
+  .tui-scroll::-webkit-scrollbar-button:single-button,
+  .tui-scroll::-webkit-scrollbar-button:start:decrement,
+  .tui-scroll::-webkit-scrollbar-button:end:increment{display:none;width:0;height:0}
+  .tui-scroll::-webkit-scrollbar-corner{background:transparent}
   input{font:inherit;color:inherit}
   button{font:inherit;color:inherit}
   @keyframes tui-boot{from{opacity:0}to{opacity:1}}
@@ -27,22 +36,33 @@
   <div style="height:100vh;display:flex;flex-direction:column;background:var(--bg);color:var(--fg);overflow:hidden">
 
     <!-- ============ MAIN TABS ============ -->
-    <div style="position:sticky;top:0;z-index:40;flex:none;display:flex;align-items:center;padding:0 16px;user-select:none;background:#14161b;border-bottom:1px solid #262b34;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif">
+    <div style="position:sticky;top:0;z-index:40;flex:none;display:flex;align-items:center;justify-content:center;padding:0 16px;user-select:none;background:#14161b;border-bottom:1px solid #262b34;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif">
       <div onClick="{{ goSystem }}" style="{{ mainTabSystem }}">Design System</div>
       <div onClick="{{ goProto }}" style="{{ mainTabProto }}">Prototype</div>
-      <span style="flex:1"></span>
     </div>
 
     <!-- ============ PROTOTYPE VIEW ============ -->
     <sc-if value="{{ isProto }}" hint-placeholder-val="{{ false }}">
-      <div ref="{{ panelRef }}" tabindex="0" onKeyDown="{{ onKey }}" style="position:relative;flex:1;display:flex;flex-direction:column;min-height:0;outline:none">
+      <div style="flex:1;min-height:0;background:#2b2d31;padding:18px 22px 22px;display:flex;justify-content:center;align-items:center">
+        <div style="width:min(1050px,70vw);height:90%;min-height:0;display:flex;flex-direction:column;background:#14161b;border:1px solid #3a3f4b;border-radius:8px;box-shadow:0 18px 48px rgba(0,0,0,.35);overflow:hidden">
+          <div style="height:44px;flex:none;display:flex;align-items:stretch;background:#2d2d2d;border-bottom:1px solid #3a3f4b;color:#e7eaf0;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;font-size:13px;font-weight:600">
+            <div style="display:flex;align-items:stretch;min-width:0;flex:1">
+              <div style="width:260px;display:flex;align-items:center;gap:9px;padding:0 10px;background:#2a2d33;border-right:1px solid #3a3f4b;border-radius:7px 7px 0 0;margin:6px 0 0 8px;min-width:0"><span style="color:var(--green);font-size:14px">❖</span><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Git Bash</span><span style="flex:1"></span><span style="color:#c9ced8;font-size:18px;font-weight:400;line-height:1">×</span></div>
+            </div>
+            <div style="display:flex;align-items:stretch;color:#c9ced8;font-weight:400">
+              <div style="width:46px;height:44px;display:flex;align-items:center;justify-content:center;font-size:15px;line-height:1;transform:translateY(-1px)">–</div>
+              <div style="width:46px;height:44px;display:flex;align-items:center;justify-content:center;font-size:15px;line-height:1;transform:translateY(-1px)">□</div>
+              <div style="width:46px;height:44px;display:flex;align-items:center;justify-content:center;font-size:18px;line-height:1;color:#c9ced8;transform:translateY(-1px)">×</div>
+            </div>
+          </div>
+          <div ref="{{ panelRef }}" tabindex="0" onKeyDown="{{ onKey }}" style="position:relative;flex:1;display:flex;flex-direction:column;min-height:0;outline:none">
 
         <sc-if value="{{ scan }}" hint-placeholder-val="{{ false }}">
           <div style="position:absolute;left:0;right:0;top:0;height:4em;background:linear-gradient(var(--green),transparent);opacity:.12;pointer-events:none;z-index:5"></div>
         </sc-if>
 
         <div style="flex:1;min-height:0;position:relative;display:flex;flex-direction:column">
-        <div ref="{{ scrollRef }}" onScroll="{{ onScroll }}" style="{{ contentStyle }}">
+        <div ref="{{ scrollRef }}" onScroll="{{ onScroll }}" className="tui-scroll" style="{{ contentStyle }}">
 
           <sc-if value="{{ isAgent }}" hint-placeholder-val="{{ true }}">
           <div>&nbsp;</div>
@@ -83,7 +103,7 @@
               <sc-for list="{{ rows }}" as="row" hint-placeholder-count="6">
                 <div style="{{ row.wrap }}">
                   <sc-if value="{{ row.ts }}" hint-placeholder-val="{{ null }}">
-                    <span style="position:absolute;right:2ch;top:0;color:var(--fg-mute)">{{ row.ts }}</span>
+                    <span style="position:absolute;right:2ch;top:50%;transform:translateY(-50%);color:var(--fg-mute)">{{ row.ts }}</span>
                   </sc-if>
                   <sc-for list="{{ row.lines }}" as="ln" hint-placeholder-count="1">
                     <div style="display:flex;gap:1ch;word-break:break-word"><span style="{{ ln.gutterStyle }}">{{ ln.gutter }}</span><span style="{{ ln.lineStyle }}"><sc-for list="{{ ln.parts }}" as="p" hint-placeholder-count="1"><span style="{{ p.style }}">{{ p.t }}</span></sc-for></span></div>
@@ -113,7 +133,7 @@
               <div style="color:var(--line);white-space:nowrap;overflow:hidden">{{ dashes }}</div>
               <div style="padding:0 2ch">
                 <sc-for list="{{ slashItems }}" as="s" hint-placeholder-count="5">
-                  <div onClick="{{ s.onClick }}" onMouseEnter="{{ s.onEnter }}" style="{{ s.style }}"><span style="{{ s.arrowStyle }}">{{ s.arrow }}</span><span style="color:var(--green);width:16ch;flex:none">{{ s.name }}</span><span style="color:var(--fg-dim);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ s.desc }}</span></div>
+                  <div style="{{ s.style }}"><span style="{{ s.arrowStyle }}">{{ s.arrow }}</span><span style="color:var(--green);width:16ch;flex:none">{{ s.name }}</span><span style="color:var(--fg-dim);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ s.desc }}</span></div>
                 </sc-for>
                 <div style="color:var(--fg-mute);padding-left:3ch;margin-top:.2em">{{ slashCount }}</div>
               </div>
@@ -249,6 +269,8 @@
             </sc-if>
           </div>
         </sc-if>
+          </div>
+        </div>
       </div>
       </div>
     </sc-if>
@@ -320,6 +342,10 @@
           <div style="color:var(--line);white-space:nowrap;overflow:hidden">{{ dashes }}</div>
 
           <!-- TAB BAR -->
+          </div>
+          <h3 style="font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;font-size:15px;font-weight:600;color:#161616;margin:2em 0 .1em">Scrollbar</h3>
+          <div className="tui-scroll" style="height:170px;background:var(--bg);border:1px solid #d9dce1;border-radius:6px;padding:22px 24px;font-family:'JetBrains Mono',ui-monospace,Menlo,monospace;font-size:14px;line-height:1.55;color:var(--fg);overflow-y:scroll;margin:0 0 1.6em">
+            <div><div>Scroll to see the thumb move. Line 1 of many.</div><div>Line 2 · the quick brown fox jumps over the lazy dog</div><div>Line 3 · agentic coding, in your terminal</div><div>Line 4 · gpt-5.5 (copilot) · medium</div><div>Line 5 · unity\SpatialHand on ⎇develop</div><div>Line 6 · mcp: 0 / 5 servers connected</div><div>Line 7 · context 0.0% of 1.0M · auto-compact on</div><div>Line 8 · Working… (2m 11s · esc to interrupt)</div><div>Line 9 · ↑37k ↓533 R267k W0 $0.577 (sub)</div><div>Line 10 · Describe a task or ask a question</div><div>Line 11 · Type / for commands · @ to attach files</div><div>Line 12 · ! to run a shell command</div><div>Line 13 · esc interrupts · ctrl+k command palette</div><div>Line 14 · the quick brown fox jumps over the lazy dog</div><div>Line 15 · end of sample content.</div></div>
           </div>
           <h3 style="font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;font-size:15px;font-weight:600;color:#161616;margin:2em 0 .1em">Working status</h3>
           <div style="background:var(--bg);border:1px solid #d9dce1;border-radius:6px;padding:22px 24px;font-family:'JetBrains Mono',ui-monospace,Menlo,monospace;font-size:14px;line-height:1.55;color:var(--fg);overflow-x:auto;margin:0 0 1.6em">
@@ -579,7 +605,7 @@ class Component extends DCLogic {
   row(lines, opts) {
     opts = opts || {};
     let wrap = 'margin:0';
-    if (opts.band === 'prompt') wrap = 'background:var(--sel);margin:0 -2ch;padding:0 2ch;position:sticky;top:0;z-index:2';
+    if (opts.band === 'prompt') wrap = 'background:var(--sel);margin:0 -2ch;padding:0 2ch;position:sticky;top:0;z-index:2;height:1.55em;display:flex;align-items:center;line-height:1.55';
     else if (opts.band === 'tool') wrap = 'background:var(--band);margin:0 -2ch;padding:1.55em 2ch;overflow-x:auto';
     return { wrap, ts: opts.ts || null, lines };
   }
@@ -803,7 +829,7 @@ class Component extends DCLogic {
     const slashItems = sF.map((s, i) => {
       const sel = i === Math.min(st.ovIndex, sF.length-1);
       return { name:s.name, desc:s.desc, arrow: sel?'→':' ', arrowStyle:'color:'+(sel?'var(--green)':'transparent')+';flex:none;width:2ch',
-        style:this.rowStyle(sel), onClick:()=>this.runSlash(s.name), onEnter:()=>this.setState({ ovIndex:i }) };
+        style:this.rowStyle(sel) };
     });
 
     const settingsOpen = isProto && isSession && st.dock === 'settings';
@@ -855,7 +881,7 @@ class Component extends DCLogic {
       dsScrollRef:this.dsScrollRef, dsNavOpen:st.dsNavOpen, dsNavClosed:!st.dsNavOpen, toggleDsNav:this.toggleDsNav, dsNavToggleLabel: st.dsNavOpen ? '✕' : '☰',
 
       navGroups: (st.dsToc||[]).map(g => ({ group:g.group, items:g.items.map(l => ({ label:l, onClick:()=>this.scrollDs(l), style:'font-size:13px;padding:3px 0 3px 12px;cursor:pointer;border-radius:4px;'+(l===st.dsActive?'background:rgba(99,200,200,.24);box-shadow:inset 3px 0 0 var(--cyan);color:#ffffff;font-weight:600':'color:#9aa3b8') })) })),
-      dsGroupItems: (function(){ const o={}; (st.dsToc||[]).forEach(g => { o[g.group] = g.items.map(l => ({ label:l, onClick:()=>this.scrollDs(l), style:'display:inline-flex;align-items:center;padding:9px 0 8px;cursor:pointer;color:#5f6470' })); }); return o; }).call(this),
+      dsGroupItems: (function(){ const o={Core:[],Generic:[],Agent:[],Modals:[]}; (st.dsToc||[]).forEach(g => { o[g.group] = g.items.map(l => ({ label:l, onClick:()=>this.scrollDs(l), style:'display:inline-flex;align-items:center;padding:9px 0 8px;cursor:pointer;color:#5f6470' })); }); return o; }).call(this),
       onDsScroll:this.onDsScroll,
       dsTabAgent:'padding:0 2ch;cursor:pointer;'+(st.dsTab==='agent'?'background:var(--sel);color:var(--fg)':'color:var(--fg-dim)'),
       dsTabGit:'padding:0 2ch;cursor:pointer;'+(st.dsTab==='git'?'background:var(--sel);color:var(--fg)':'color:var(--fg-dim)'),
