@@ -28,7 +28,6 @@
 
     <!-- ============ MAIN TABS ============ -->
     <div style="position:sticky;top:0;z-index:40;flex:none;display:flex;align-items:center;padding:0 16px;user-select:none;background:#14161b;border-bottom:1px solid #262b34;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif">
-      <button onClick="{{ toggleDsNav }}" style="{{ dsNavButtonStyle }}" style-hover="color:#ffffff">{{ dsNavToggleLabel }}</button>
       <div onClick="{{ goSystem }}" style="{{ mainTabSystem }}">Design System</div>
       <div onClick="{{ goProto }}" style="{{ mainTabProto }}">Prototype</div>
       <span style="flex:1"></span>
@@ -166,9 +165,9 @@
         <div style="flex:none;color:var(--line);white-space:nowrap;overflow:hidden">{{ dashes }}</div>
         <!-- bottom tabs -->
         <div style="display:flex;justify-content:center;flex:none;position:relative">
-          <div onClick="{{ goAgent }}" style="{{ tabAgent }}" style-hover="background:var(--sel);color:var(--fg)"><span style="color:var(--violet)">⠿</span> Agent</div>
-          <div onClick="{{ goGit }}" style="{{ tabGit }}" style-hover="background:var(--sel);color:var(--fg)"><span style="color:var(--green)">✓</span> Git</div>
-          <div style="position:relative;display:flex"><div onClick="{{ togglePlus }}" style="{{ tabPlus }}" style-hover="background:var(--sel);color:var(--fg)" style-active="background:var(--sel);color:var(--fg)">+</div><sc-if value="{{ plusOpen }}" hint-placeholder-val="{{ false }}"><div onClick="{{ onScrim }}" style="position:fixed;inset:0;z-index:60"></div><div onClick="{{ stop }}" style="position:absolute;bottom:100%;left:0;z-index:70;background:var(--bg2);width:max-content"><div style="display:flex;gap:1ch;padding:0 1ch;cursor:pointer" style-hover="background:var(--sel)"><span style="color:var(--fg)">✓</span><span>Agent</span></div><div style="display:flex;gap:1ch;padding:0 1ch;cursor:pointer" style-hover="background:var(--sel)"><span style="color:var(--fg)">✓</span><span>Git</span></div><div onClick="{{ openSettingsFromPlus }}" style="display:flex;gap:1ch;padding:0 1ch;cursor:pointer" style-hover="background:var(--sel)"><span style="width:1ch"> </span><span>Settings</span></div></div></sc-if></div>
+          <div onClick="{{ goAgent }}" style="{{ tabAgent }}" style-hover="background:var(--sel);color:var(--fg)"><span ref="{{ tabAgentDotsRef }}" style="color:var(--violet);width:1ch;text-align:center;display:inline-block">⠋</span> Agent</div>
+          <div onClick="{{ goGit }}" style="{{ tabGit }}" style-hover="background:var(--sel);color:var(--fg)"><span style="color:var(--green);font-size:18px;font-weight:700;line-height:1;width:1ch;text-align:center;display:inline-block;transform:translateY(-1px)">✓</span> Git</div>
+          <div style="position:relative;display:flex"><div onClick="{{ togglePlus }}" style="{{ tabPlus }}" style-hover="background:var(--sel);color:var(--fg)" style-active="background:var(--sel);color:var(--fg)">+</div><sc-if value="{{ plusOpen }}" hint-placeholder-val="{{ false }}"><div onClick="{{ onScrim }}" style="position:fixed;inset:0;z-index:60"></div><div onClick="{{ stop }}" style="position:absolute;bottom:100%;left:0;z-index:70;background:var(--bg2);width:max-content"><div style="display:flex;gap:1ch;padding:0 1ch;cursor:pointer" style-hover="background:var(--sel)"><span style="color:var(--fg);font-size:18px;font-weight:700;line-height:1;display:inline-block;transform:translateY(-1px)">✓</span><span>Agent</span></div><div style="display:flex;gap:1ch;padding:0 1ch;cursor:pointer" style-hover="background:var(--sel)"><span style="color:var(--fg);font-size:18px;font-weight:700;line-height:1;display:inline-block;transform:translateY(-1px)">✓</span><span>Git</span></div><div onClick="{{ openSettingsFromPlus }}" style="display:flex;gap:1ch;padding:0 1ch;cursor:pointer" style-hover="background:var(--sel)"><span style="width:1ch"> </span><span>Settings</span></div></div></sc-if></div>
         </div>
 
         <!-- ===== FRAMED MODALS ===== -->
@@ -257,16 +256,14 @@
     <!-- ============ DESIGN SYSTEM VIEW ============ -->
     <sc-if value="{{ isSystem }}" hint-placeholder-val="{{ true }}">
       <div style="flex:1;display:flex;min-height:0;background:#ffffff">
-        <sc-if value="{{ dsNavOpen }}" hint-placeholder-val="{{ false }}">
-          <div style="width:250px;flex:none;overflow-y:auto;background:#14161b;border-right:1px solid #262b34;padding:12px 14px;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif">
-            <sc-for list="{{ navGroups }}" as="g" hint-placeholder-count="3">
-              <div style="font-weight:700;color:#c9cee2;font-size:13px;margin-top:12px">{{ g.group }}</div>
-              <sc-for list="{{ g.items }}" as="it" hint-placeholder-count="4">
-                <div onClick="{{ it.onClick }}" style="{{ it.style }}" style-hover="background:rgba(255,255,255,.07);color:#ffffff">{{ it.label }}</div>
-              </sc-for>
+        <div style="width:250px;flex:none;overflow-y:auto;background:#14161b;border-right:1px solid #262b34;padding:12px 14px;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif">
+          <sc-for list="{{ navGroups }}" as="g" hint-placeholder-count="3">
+            <div style="font-weight:700;color:#c9cee2;font-size:13px;margin-top:12px">{{ g.group }}</div>
+            <sc-for list="{{ g.items }}" as="it" hint-placeholder-count="4">
+              <div onClick="{{ it.onClick }}" style="{{ it.style }}" style-hover="background:rgba(255,255,255,.07);color:#ffffff">{{ it.label }}</div>
             </sc-for>
-          </div>
-        </sc-if>
+          </sc-for>
+        </div>
         <div ref="{{ dsScrollRef }}" onScroll="{{ onDsScroll }}" style="flex:1;overflow-y:auto;min-height:0">
           <div style="max-width:960px;margin:0 auto;padding:14px 32px 96px;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;color:#393939">
 
@@ -330,7 +327,7 @@
           </div>
           <h3 style="font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;font-size:15px;font-weight:600;color:#161616;margin:2em 0 .1em">Mode tabs</h3>
           <div tabindex="0" onKeyDown="{{ onModeKey }}" style="background:var(--bg);border:1px solid #d9dce1;border-radius:6px;padding:84px 24px 22px;font-family:'JetBrains Mono',ui-monospace,Menlo,monospace;font-size:14px;line-height:1.55;color:var(--fg);overflow:visible;margin:0 0 1.6em;outline:none" style-focus="border-color:var(--cyan);box-shadow:0 0 0 3px var(--cyan)">
-          <div style="display:flex;justify-content:center;position:relative"><div onClick="{{ goAgent }}" style="{{ tabAgent }}" style-hover="background:var(--sel);color:var(--fg)"><span style="color:var(--violet)">⠿</span> Agent</div><div onClick="{{ goGit }}" style="{{ tabGit }}" style-hover="background:var(--sel);color:var(--fg)"><span style="color:var(--green)">✓</span> Git</div><div style="position:relative;display:flex"><div onClick="{{ togglePlus }}" style="{{ tabPlus }}" style-hover="background:var(--sel);color:var(--fg)" style-active="background:var(--sel);color:var(--fg)">+</div><sc-if value="{{ plusOpen }}" hint-placeholder-val="{{ false }}"><div onClick="{{ onScrim }}" style="position:fixed;inset:0;z-index:60"></div><div onClick="{{ stop }}" style="position:absolute;bottom:100%;left:0;z-index:70;background:var(--bg2);width:max-content"><div style="display:flex;gap:1ch;padding:0 1ch;cursor:pointer" style-hover="background:var(--sel)"><span style="color:var(--fg)">✓</span><span>Agent</span></div><div style="display:flex;gap:1ch;padding:0 1ch;cursor:pointer" style-hover="background:var(--sel)"><span style="color:var(--fg)">✓</span><span>Git</span></div><div onClick="{{ openSettingsFromPlus }}" style="display:flex;gap:1ch;padding:0 1ch;cursor:pointer" style-hover="background:var(--sel)"><span style="width:1ch"> </span><span>Settings</span></div></div></sc-if></div></div>
+          <div style="display:flex;justify-content:center;position:relative"><div onClick="{{ goAgent }}" style="{{ tabAgent }}" style-hover="background:var(--sel);color:var(--fg)"><span ref="{{ dsTabAgentDotsRef }}" style="color:var(--violet);width:1ch;text-align:center;display:inline-block">⠋</span> Agent</div><div onClick="{{ goGit }}" style="{{ tabGit }}" style-hover="background:var(--sel);color:var(--fg)"><span style="color:var(--green);font-size:18px;font-weight:700;line-height:1;width:1ch;text-align:center;display:inline-block;transform:translateY(-1px)">✓</span> Git</div><div style="position:relative;display:flex"><div onClick="{{ togglePlus }}" style="{{ tabPlus }}" style-hover="background:var(--sel);color:var(--fg)" style-active="background:var(--sel);color:var(--fg)">+</div><sc-if value="{{ plusOpen }}" hint-placeholder-val="{{ false }}"><div onClick="{{ onScrim }}" style="position:fixed;inset:0;z-index:60"></div><div onClick="{{ stop }}" style="position:absolute;bottom:100%;left:0;z-index:70;background:var(--bg2);width:max-content"><div style="display:flex;gap:1ch;padding:0 1ch;cursor:pointer" style-hover="background:var(--sel)"><span style="color:var(--fg);font-size:18px;font-weight:700;line-height:1;display:inline-block;transform:translateY(-1px)">✓</span><span>Agent</span></div><div style="display:flex;gap:1ch;padding:0 1ch;cursor:pointer" style-hover="background:var(--sel)"><span style="color:var(--fg);font-size:18px;font-weight:700;line-height:1;display:inline-block;transform:translateY(-1px)">✓</span><span>Git</span></div><div onClick="{{ openSettingsFromPlus }}" style="display:flex;gap:1ch;padding:0 1ch;cursor:pointer" style-hover="background:var(--sel)"><span style="width:1ch"> </span><span>Settings</span></div></div></sc-if></div></div>
 
           <!-- INPUT -->
           </div>
@@ -438,7 +435,7 @@ class Component extends DCLogic {
     modelSel: 'gpt-5.5 (copilot)', promptText: '',
     thinking: false, elapsed: 0, atBottom: true, scan: false,
     msgs: [], settings: [], turns: 0,
-    dsTab: 'agent', dsRow: 0, dsSlash: 0, dsSettings: [], dsNavOpen: false, dsActive: '', dsToc: [], dsInputFocused: false,
+    dsTab: 'agent', dsRow: 0, dsSlash: 0, dsSettings: [], dsNavOpen: true, dsActive: '', dsToc: [], dsInputFocused: false,
   };
   onDsScroll = (e) => {
     if (this.dsActiveLockUntil && Date.now() < this.dsActiveLockUntil) return;
@@ -463,6 +460,8 @@ class Component extends DCLogic {
   dotsRef = React.createRef();
   sysDotsRef = React.createRef();
   sysDots2Ref = React.createRef();
+  tabAgentDotsRef = React.createRef();
+  dsTabAgentDotsRef = React.createRef();
   dsScrollRef = React.createRef();
   toggleDsNav = () => this.setState(s => ({ dsNavOpen: !s.dsNavOpen }), () => { if (this.state.dsNavOpen) this.buildDsToc(); });
   scrollDs = (label) => {
@@ -531,6 +530,8 @@ class Component extends DCLogic {
       if (this.state.thinking && this.dotsRef.current) this.dotsRef.current.textContent = g;
       if (this.sysDotsRef.current) this.sysDotsRef.current.textContent = g;
       if (this.sysDots2Ref.current) this.sysDots2Ref.current.textContent = g;
+      if (this.tabAgentDotsRef.current) this.tabAgentDotsRef.current.textContent = g;
+      if (this.dsTabAgentDotsRef.current) this.dsTabAgentDotsRef.current.textContent = g;
     }, 90);
     setTimeout(() => { if (this.state.view === 'prototype' && this.inputRef.current) this.inputRef.current.focus(); }, 60);
     this.attachWheel();
@@ -843,21 +844,18 @@ class Component extends DCLogic {
     const dsSlashRows = [{name:'settings',desc:'Open the settings menu'},{name:'export',desc:'Export session (.html / .jsonl)'},{name:'plan',desc:'Browse and resume saved plans'}].map((s,i)=>{const sel=i===st.dsSlash;return {name:s.name,desc:s.desc,arrow:sel?'→':' ',arrowStyle:'color:'+(sel?'var(--green)':'transparent')+';flex:none;width:2ch',style:dsRowStyle(sel)};});
     const dsSettingsRows = st.settings.map((s,i)=>{const vc=s.type==='bool'?(s.val?'var(--green)':'var(--fg-mute)'):'var(--amber)';return {key:s.key,val:String(s.val),arrow:' ',arrowStyle:'width:2ch;flex:none',valStyle:'color:'+vc+';width:8ch;text-align:right;flex:none',style:'display:flex;gap:1ch;align-items:center;padding:0 1ch;cursor:pointer',onClick:()=>this.toggleSetting(i)};});
     const dsSettingsCount = '('+st.settings.filter(x=>x.type==='bool'&&x.val).length+' enabled / '+st.settings.length+')';
-    const dsViewportWidth = st.dsNavOpen ? 'calc(100vw - 250px)' : '100vw';
-    const dsViewportPad = st.dsNavOpen ? 'max(32px, calc((100vw - 250px - 960px)/2))' : 'max(32px, calc((100vw - 960px)/2))';
 
     return {
       rootStyle, contentStyle,
       dsInputBlockStyle:'background:var(--bg);border:1px solid '+(st.dsInputFocused?'var(--cyan)':'#d9dce1')+';border-radius:6px;padding:22px 24px;font-family:\'JetBrains Mono\',ui-monospace,Menlo,monospace;font-size:14px;line-height:1.55;color:var(--fg);overflow-x:auto;margin:0 0 1.6em;outline:none'+(st.dsInputFocused?';box-shadow:0 0 0 3px var(--cyan)':''),
-      dsNavButtonStyle:'font-family:inherit;font-size:18px;line-height:1;border:none;background:transparent;color:#c9cee2;width:44px;height:44px;padding:0;margin:0 16px 0 0;cursor:pointer;transform:translateY(1px)'+(isSystem?'':';visibility:hidden;pointer-events:none'),
-      dsGroupNavStyle:'position:sticky;top:0;left:50%;transform:translateX(-50%);width:'+dsViewportWidth+';z-index:12;background:#ffffff;padding:0 '+dsViewportPad+' 8px;box-shadow:0 1px 0 #ffffff;margin:0 0 1.15em;display:flex;flex-wrap:wrap;gap:0 18px;align-items:center;font-family:system-ui,-apple-system,\'Segoe UI\',Roboto,sans-serif;font-size:13px;color:#6f6f6f',
+      dsGroupNavStyle:'background:#ffffff;padding:0 0 8px;margin:0 0 1.15em;display:flex;flex-wrap:wrap;gap:0 18px;align-items:center;font-family:system-ui,-apple-system,\'Segoe UI\',Roboto,sans-serif;font-size:13px;color:#6f6f6f',
       dashes: '─'.repeat(320), dashesEq: '═'.repeat(320), vbar: Array(90).fill('│').join('\n'),
-      isSystem, isProto, sysDots2Ref:this.sysDots2Ref,
+      isSystem, isProto, sysDots2Ref:this.sysDots2Ref, tabAgentDotsRef:this.tabAgentDotsRef, dsTabAgentDotsRef:this.dsTabAgentDotsRef,
       setDsTab:this.setDsTab, dsRows, dsSlashRows, dsSettingsRows, dsSettingsCount, onDsSlashKey:this.onDsSlashKey, onModeKey:this.onModeKey,
       dsScrollRef:this.dsScrollRef, dsNavOpen:st.dsNavOpen, dsNavClosed:!st.dsNavOpen, toggleDsNav:this.toggleDsNav, dsNavToggleLabel: st.dsNavOpen ? '✕' : '☰',
 
       navGroups: (st.dsToc||[]).map(g => ({ group:g.group, items:g.items.map(l => ({ label:l, onClick:()=>this.scrollDs(l), style:'font-size:13px;padding:3px 0 3px 12px;cursor:pointer;border-radius:4px;'+(l===st.dsActive?'background:rgba(99,200,200,.24);box-shadow:inset 3px 0 0 var(--cyan);color:#ffffff;font-weight:600':'color:#9aa3b8') })) })),
-      dsGroupItems: (function(){ const o={}; (st.dsToc||[]).forEach(g => { o[g.group] = g.items.map((l,i) => { const active = l===st.dsActive || (i===0 && g.group===st.dsActive); return { label:l, onClick:()=>this.scrollDs(l), style:'display:inline-flex;align-items:center;padding:9px 0 8px;cursor:pointer;box-shadow:inset 0 -2px 0 '+(active?'var(--cyan)':'transparent')+';color:'+(active?'#161616':'#5f6470')+(active?';font-weight:600':'') }; }); }); return o; }).call(this),
+      dsGroupItems: (function(){ const o={}; (st.dsToc||[]).forEach(g => { o[g.group] = g.items.map(l => ({ label:l, onClick:()=>this.scrollDs(l), style:'display:inline-flex;align-items:center;padding:9px 0 8px;cursor:pointer;color:#5f6470' })); }); return o; }).call(this),
       onDsScroll:this.onDsScroll,
       dsTabAgent:'padding:0 2ch;cursor:pointer;'+(st.dsTab==='agent'?'background:var(--sel);color:var(--fg)':'color:var(--fg-dim)'),
       dsTabGit:'padding:0 2ch;cursor:pointer;'+(st.dsTab==='git'?'background:var(--sel);color:var(--fg)':'color:var(--fg-dim)'),
@@ -869,7 +867,7 @@ class Component extends DCLogic {
       setNoc:this.setNoc, setIce:this.setIce, palNoc: palTog(st.palette==='nocturne'), palIce: palTog(st.palette==='iceberg'),
       isWelcome, isSession, rows, welcomePlans,
       scan: st.scan, thinking:st.thinking, elapsed:st.elapsed, showJump:isSession && !st.atBottom,
-      input:st.input, dsInputText:st.input || 'ask or terminal commands', dsInputTextStyle:'white-space:pre;font-kerning:none;font-variant-ligatures:none;letter-spacing:0;color:'+(st.input?'var(--fg)':'var(--fg-mute)'), caretStyle:'position:absolute;left:calc('+st.input.length+'ch);top:50%;transform:translateY(-50%);width:1ch;height:1.25em;background:var(--fg);opacity:.85;animation:tui-caret 1.06s step-end infinite;pointer-events:none',
+      input:st.input, dsInputText:st.input || 'ask or terminal commands', dsInputTextStyle:'white-space:pre;font-kerning:none;font-variant-ligatures:none;letter-spacing:0;color:'+(st.input?'var(--fg)':'var(--fg-mute)'), caretStyle:'position:absolute;left:calc('+st.input.length+'ch);top:50%;transform:translateY(-50%);width:1ch;height:1.25em;background:#fff;mix-blend-mode:difference;opacity:1;animation:none;pointer-events:none;z-index:2',
       slashOpen, slashItems, slashCount:'('+sF.length+'/'+this.slashAll.length+')',
       settingsOpen, settingsRows, settingsCount:'('+st.settings.length+')', settingsDesc: settingsSel ? settingsSel.desc : '',
       overlayOpen, isPalette:overlay==='palette', isModel:overlay==='model', isConfirm:overlay==='confirm', isPrompt:overlay==='prompt',
