@@ -1,0 +1,23 @@
+{
+  "scenarioId": "WS-INTRO-001",
+  "source": {
+    "repositoryHead": "59619623e1eeb7c290649eeaf3a269284ce8adef",
+    "fileCommit": "6bd51d4ad32aefe59081eb335af5ef09953dc2a8",
+    "path": "packages/coding-agent/src/modes/components/welcome.ts"
+  },
+  "logo": {
+    "columns": 12,
+    "rows": 5,
+    "cells": ["▀██████████▀", " ╘██    ██  ", "  ██    ██  ", "  ██    ██  ", " ▄██▄  ▄██▄ "]
+  },
+  "timing": { "durationMs": 3000, "tickMs": 33, "gradientSweeps": 2.5, "shineTraversals": 3 },
+  "palette": ["#ff5cc8", "#c86eff", "#7882ff", "#3cc8ff", "#78ffdc"],
+  "checkpoints": [
+    { "name": "intro-start", "elapsedMs": 0, "progress": 0, "gradientPhase": 0.5, "shinePosition": 0, "shineStrength": 1, "complete": false },
+    { "name": "intro-quarter", "elapsedMs": 750, "progress": 0.25, "gradientPhase": 0.0546875, "shinePosition": 0.75, "shineStrength": 0.27401585, "complete": false },
+    { "name": "intro-half", "elapsedMs": 1500, "progress": 0.5, "gradientPhase": 0.3125, "shinePosition": 0.5, "shineStrength": 0.04419417, "complete": false },
+    { "name": "intro-three-quarter", "elapsedMs": 2250, "progress": 0.75, "gradientPhase": 0.0390625, "shinePosition": 0.25, "shineStrength": 0.00195313, "complete": false },
+    { "name": "intro-last", "elapsedMs": 2999, "progress": 0.99966667, "gradientPhase": 0.00000000009, "shinePosition": 0.999, "shineStrength": 0, "complete": false },
+    { "name": "intro-complete", "elapsedMs": 3000, "progress": 1, "gradientPhase": 0, "shinePosition": null, "shineStrength": 0, "complete": true, "nextState": "shell" }
+  ]
+}

@@ -1,12 +1,55 @@
 {
   "name": "@timurproko/addone",
-  "version": "0.0.1",
-  "description": "CLI multiplexer — add one tool at a time (placeholder, WIP)",
-  "main": "index.js",
-  "keywords": ["cli", "tui", "terminal", "multiplexer"],
+  "version": "0.1.0",
+  "description": "Standalone terminal workspace for supervised native and managed agents",
+  "type": "module",
+  "packageManager": "npm@11.13.0",
+  "bin": {
+    "addone": "bin/addone.js",
+    "a1": "bin/addone.js",
+    "addone-supervisor": "bin/addone-supervisor.js"
+  },
+  "files": [
+    "bin",
+    "dist",
+    "README.md",
+    "LICENSE",
+    "docs"
+  ],
+  "engines": {
+    "node": ">=22.19.0 <25"
+  },
+  "scripts": {
+    "clean": "node scripts/clean.mjs",
+    "build": "npm run clean && tsc -p tsconfig.build.json && node scripts/copy-assets.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "check:architecture": "node scripts/check-architecture.mjs",
+    "check": "npm run typecheck && npm run check:architecture && npm test && npm run test:scenario",
+    "test": "vitest run --exclude test/scenarios/**",
+    "test:unit": "vitest run test/unit",
+    "test:integration": "vitest run test/integration",
+    "test:scenario": "npm run build && vitest run test/scenarios/walking-skeleton.test.ts --testTimeout=30000",
+    "test:smoke:native-pi": "npm run build && vitest run test/scenarios/native-pi-smoke.test.ts --testTimeout=30000",
+    "start": "npm run build && node bin/addone.js",
+    "prepare": "npm run build"
+  },
+  "dependencies": {
+    "@earendil-works/pi-tui": "0.84.1",
+    "@xterm/headless": "6.0.0",
+    "better-sqlite3": "12.4.1",
+    "node-pty": "1.1.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "7.6.13",
+    "@types/node": "24.2.1",
+    "tsx": "4.20.3",
+    "typescript": "5.9.2",
+    "vitest": "3.2.7"
+  },
+  "keywords": ["cli", "tui", "terminal", "multiplexer", "agents"],
   "author": "Timur Prokopiev",
   "license": "MIT",
-  "type": "commonjs",
-  "bin": { "addone": "bin/addone.js" },
-  "publishConfig": { "access": "public" }
+  "publishConfig": {
+    "access": "public"
+  }
 }

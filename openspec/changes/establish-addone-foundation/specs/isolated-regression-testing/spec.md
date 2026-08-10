@@ -37,6 +37,21 @@ AddOne acceptance scenarios SHALL be able to launch the real AddOne CLI in a PTY
 - **WHEN** a scenario resizes the CLI to a narrow supported width
 - **THEN** it SHALL verify that required navigation and add-agent actions remain reachable
 
+### Requirement: The first walking skeleton has deterministic nested-PTY visual validation
+The test system SHALL exercise the real AddOne command, UI-to-supervisor boundary, and child-terminal path in PTYs while substituting a deterministic native-agent fixture for release-gating visual scenarios. It SHALL support keyboard, mouse, resize, normalized-cell, and cursor observations without model or network access.
+
+#### Scenario: Validate intro and Native Pi tab creation
+- **WHEN** the walking-skeleton scenario launches `addone`, observes the completed intro, and activates the `+` control
+- **THEN** it SHALL verify from normalized terminal frames that the AddOne shell remains visible and a selected terminal tab presents the deterministic Pi fixture
+
+#### Scenario: Validate nested terminal interaction
+- **WHEN** the scenario sends input and resize events after the deterministic Pi fixture starts in the child PTY
+- **THEN** it SHALL verify that unclaimed input reaches the child, shell input is consumed only by AddOne, and both outer chrome and the child surface reach their expected visual states
+
+#### Scenario: Child fixture exits
+- **WHEN** the deterministic Pi fixture exits with a configured status
+- **THEN** the scenario SHALL verify that AddOne remains operational and presents the retained final surface and exit state
+
 ### Requirement: Every failed scenario preserves reproducible evidence
 A failed scenario SHALL preserve its scenario definition, input timeline, runtime and profile versions, relevant process logs, supervisor events, normalized terminal frames, session references, assertions, and failure summary.
 

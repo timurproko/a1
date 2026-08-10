@@ -16,7 +16,8 @@ Pi's documented RPC mode provides structured session, message, tool, queue, comp
 - Establish AddOne as an independent terminal application rather than a Pi extension.
 - Make UI-process replacement independent from agent-process lifetime.
 - Define a durable logical-agent model and a capability-based driver contract.
-- Deliver one architectural vertical slice containing basic v2-derived tabs/sidebar UX, a structured Managed Pi agent, a generic PTY agent, exact Managed Pi recovery, and hermetic full-system tests.
+- Deliver progress through gated vertical increments, beginning with a user-visible walking skeleton that runs from the `addone` command through the real UI/supervisor/terminal-driver boundaries to vanilla Native Pi in a child PTY.
+- Complete the broader architectural vertical slice with basic v2-derived tabs/sidebar UX, a structured Managed Pi agent, a generic PTY agent, exact Managed Pi recovery, and hermetic full-system tests.
 - Constrain Pi-specific knowledge to the Managed Pi adapter and PTY-specific knowledge to the terminal adapter.
 - Make Pi and extension updates side-by-side, certifiable, reversible process replacements.
 - Preserve v2 behavior by harvesting pure models, render calculations, PTY knowledge, and tests rather than importing its host dependency graph.
@@ -24,7 +25,7 @@ Pi's documented RPC mode provides structured session, message, tool, queue, comp
 **Non-Goals:**
 
 - Full visual or feature parity with v2 in the first change.
-- Migration of the v2 Git app, plans, answer/refinement, advanced paste/chips, modes, intro/outro, asset store, or specialized project integrations.
+- Migration of the v2 Git app, plans, answer/refinement, advanced paste/chips, modes, outro behavior, intro variants beyond the v2-derived launch animation, asset store, or specialized project integrations.
 - A universal semantic automation layer for arbitrary PTY programs.
 - Full Managed-mode support for Pi extensions that require Pi's native TUI.
 - Hot-swapping AddOne supervisor code, Pi code, or extensions inside running worker processes.
@@ -38,12 +39,12 @@ Pi's documented RPC mode provides structured session, message, tool, queue, comp
 The initial process topology is:
 
 ```text
-horde/addone UI process
-        │ local additive protocol
-        ▼
-addone supervisor process
-        ├── Managed Pi RPC child per managed agent
-        └── PTY child per terminal agent
+addone command → AddOne UI process
+                    │ local additive protocol
+                    ▼
+              addone supervisor process
+                    ├── Managed Pi RPC child per managed agent
+                    └── PTY child per terminal agent
 ```
 
 The UI process owns presentation and can be killed, upgraded, or reloaded without stopping agents. The supervisor owns durable state and worker handles. A supervisor restart reconstructs durable control state and recovers runtimes according to driver capability; the initial design does not promise that every non-resumable generic PTY survives supervisor failure.
@@ -51,6 +52,16 @@ The UI process owns presentation and can be killed, upgraded, or reloaded withou
 Alternative considered: keep the shell as a Pi extension. Rejected because it recreates the host-version and reload coupling this change exists to remove.
 
 Alternative considered: put UI and supervisor in one process. Rejected because UI development reloads and rendering crashes would regain authority over agent lifetime.
+
+#### First implementation increment: Native Pi walking skeleton
+
+The first acceptance gate uses the same process and ownership boundaries as the completed architecture. The `addone` command starts the UI and connects to the supervisor; the UI never spawns or owns Pi directly. The supervisor creates a terminal-agent generation through the driver contract and owns the child PTY. The initial protocol subset covers handshake and snapshot, create-terminal-agent, input, resize, terminal-surface updates, exit, stop, and UI reconnection, while retaining the protocol's request identity, revision, generation, and additive-evolution rules.
+
+The first terminal profile intentionally resolves the user's `pi` command from `PATH` because it is the Native Pi compatibility path; the rule forbidding global Pi resolution applies to Managed Pi runtimes. The initial persistence subset may cover only the workspace, selected tab, agent, generation, and resident terminal metadata needed by this slice, but it uses the same control-store boundary and additive migrations as later supervisor work.
+
+The v2-derived intro is an AddOne presentation state that runs to completion before the shell is revealed. It is driven by an injectable monotonic clock so production animation timing is smooth and PTY tests can advance it deterministically. Once the shell is visible, keyboard and supported mouse input over the `+` chrome is consumed by AddOne before any unclaimed bytes or mouse data can reach a child PTY.
+
+Alternative considered: build a temporary single-process demo that directly spawns `pi` from the UI. Rejected because it would demonstrate the desired pixels while invalidating the central process-lifetime and driver boundaries.
 
 ### 2. Use a capability-based driver boundary rather than a lowest-common-denominator agent API
 
@@ -208,7 +219,9 @@ Architecture checks enforce that Pi imports exist only in Pi adapter/profile too
 
 ### 13. Build the test harness with the first shell slice
 
-Testing is not deferred until feature parity. The first UI components run against deterministic fake drivers. The real CLI runs in an isolated PTY with temporary home/config/database/runtime/session/socket/workspace/artifact paths.
+Testing is not deferred until feature parity. The first UI components run against deterministic fake drivers. The real CLI runs in an isolated outer PTY with temporary home/config/database/runtime/session/socket/workspace/artifact paths. For the walking-skeleton release gate, the supervisor still creates a real child PTY, but the harness prepends a deterministic fixture executable named `pi` to `PATH`. This exercises command resolution, process ownership, terminal emulation, keyboard and mouse routing, resize, exit handling, and rendering without credentials, network access, or model nondeterminism.
+
+The fixture paints known terminal states and acknowledges received input and dimensions. Scenario actions advance the intro clock, inject terminal input and supported mouse reports, resize the outer PTY, and capture normalized cells and cursor state at named checkpoints. Assertions prioritize semantic regions and required controls; a small set of normalized golden frames protects the intended composition without making every ANSI byte a release contract. Failures retain the frame timeline, supervisor events, outer and child process logs, input timeline, and final surfaces. A separate non-gating smoke scenario may use an actually installed Native Pi in an isolated offline profile.
 
 Test layers are:
 
@@ -232,6 +245,7 @@ Deterministic assertions remain authoritative. The evaluator runs under a separa
 - **[Risk] SQLite/native packaging can complicate distribution.** → Select a maintained binding with prebuilt Windows/Linux/macOS support and test packaged binaries in CI; keep storage behind a port.
 - **[Risk] V2 code carries hidden Pi assumptions even in apparently reusable views.** → Migrate only code that passes dependency checks and new fake-state/render tests; prefer rewriting integration seams over compatibility wrappers.
 - **[Risk] Visual parity can consume the project.** → Use behavior-oriented UX scenarios and prioritize reachability, focus, continuity, status clarity, and performance over exact cell equality.
+- **[Risk] Animation and mouse assertions can become timing- or coordinate-fragile.** → Drive the intro with an injectable clock, address mouse actions through normalized terminal coordinates, assert semantic regions first, and retain named golden frames only for stable compositions.
 - **[Risk] Generic PTY agents offer weak recovery and status.** → Advertise capability honestly, add specialized drivers incrementally, and never convert screen text into semantic guarantees.
 - **[Risk] Multiple agents can modify the same repository concurrently.** → Keep cwd/worktree as an explicit agent property and introduce per-agent worktree policy in a follow-up capability before autonomous parallel editing is enabled by default.
 
@@ -243,9 +257,18 @@ Deterministic assertions remain authoritative. The evaluator runs under a separa
 - Catalogue key flows with stable IDs and capture normalized frames, timings, and expected state transitions.
 - Mark each v2 feature as harvest, redesign, defer, or retire.
 
-Rollback: none required; no v2 behavior changes.
+Rollback: none required; no v2 behavior changes. This catalogue can continue in parallel and does not block the walking skeleton once the intro reference is available.
 
-### Stage 1: Shell and fake-driver slice
+### Stage 1: Native Pi walking skeleton
+
+- Establish the package command, dependency boundaries, minimal domain/driver/protocol contracts, separate UI and supervisor processes, and isolated control-store path.
+- Reproduce the v2-derived launch intro, then show an AddOne-owned tab strip with an always-reachable keyboard- and mouse-activatable `+` control.
+- Route add-tab through the supervisor and terminal driver to a vanilla Native Pi child PTY; support terminal frames, input, resize, exit retention, and UI reconnection without a direct UI-owned spawn path.
+- Gate the increment with the real outer AddOne PTY, a real nested child PTY containing a deterministic `pi` fixture, normalized visual checkpoints, and retained failure artifacts.
+
+Rollback: remove the standalone experimental entry point and isolated supervisor state; v2 remains untouched.
+
+### Stage 2: Shell and fake-driver expansion
 
 - Establish dependency boundaries and architecture checks.
 - Build the AddOne state/update/view shell with basic tabs, sidebar, status, notifications, conversation surface, and terminal surface.
@@ -253,21 +276,21 @@ Rollback: none required; no v2 behavior changes.
 
 Rollback: remove the standalone experimental entry point; v2 remains untouched.
 
-### Stage 2: Persistent supervisor
+### Stage 3: Persistent supervisor
 
 - Add the local protocol, SQLite control store, logical-agent model, generations, leases, snapshots, event revisions, and UI reconnection.
 - Continue using fake workers until UI restart and command idempotency scenarios pass.
 
 Rollback: use an isolated development database and retain v2 as the production path.
 
-### Stage 3: Generic PTY slice
+### Stage 4: Generic PTY expansion
 
 - Harvest bounded PTY spawn, terminal emulation, resize, input, resident surface, exit, and crash-artifact behavior.
 - Add generic command, Native Pi, Claude Code, and Codex profiles without semantic screen parsing.
 
 Rollback: disable PTY profile creation; no Managed Pi sessions are affected.
 
-### Stage 4: Managed Pi slice
+### Stage 5: Managed Pi slice
 
 - Install one exact Pi runtime under AddOne control.
 - Implement strict RPC framing, normalization, conversation rendering, command correlation, and session-reference persistence.
@@ -275,27 +298,27 @@ Rollback: disable PTY profile creation; no Managed Pi sessions are affected.
 
 Rollback: retain the runtime and session artifacts, disable Managed profile creation, and continue using Native Pi PTY or v2.
 
-### Stage 5: Extension profiles and portable UI
+### Stage 6: Extension profiles and portable UI
 
 - Add profile revisions, package/resource discovery, diagnostics, safe mode, portable extension UI mapping, and compatibility labels.
 - Test representative tool, permission, provider, command, and dialog extensions.
 
 Rollback: pin agents to the last approved profile revision.
 
-### Stage 6: Candidate updates and evaluator tests
+### Stage 7: Candidate updates and evaluator tests
 
 - Add side-by-side runtime installation, certification, explicit migration, rollback, full PTY artifact bundles, and independent evaluator execution.
 - Do not automatically migrate existing agents when a candidate is approved.
 
 Rollback: select the prior approved runtime/profile and recover the same verified sessions under one-writer leases.
 
-### Stage 7: Follow-up UX harvesting
+### Stage 8: Follow-up UX harvesting
 
-- Propose separate changes for paste/history/editor polish, models/settings, Git, modes/plans/answer, intro/outro, and eventual v2 retirement.
+- Propose separate changes for paste/history/editor polish, models/settings, Git, modes/plans/answer, advanced intro/outro behavior, and eventual v2 retirement.
 - Each follow-up uses the same behavior-test and dependency-boundary migration method.
 
 ## Open Questions
 
 - Which maintained SQLite binding and packaging strategy best satisfies the supported Node and operating-system matrix?
-- Whether the product command, package scopes, and config directory should use `addone` immediately or retain a neutral internal identifier while AddOne remains a working name.
+- Which package scopes and config/runtime directory names should accompany the now-selected `addone` product command.
 - Whether reconnectable per-agent host processes are justified after measuring supervisor-upgrade frequency and PTY recovery limitations; this does not change the initial UI/supervisor/driver boundary.

@@ -4,6 +4,13 @@ Defines the standalone AddOne terminal experience that presents and controls het
 
 ## ADDED Requirements
 
+### Requirement: The AddOne command plays the launch intro before the shell
+The installed application SHALL expose an `addone` terminal command that plays the v2-derived AddOne intro animation before revealing an operational shell, without requiring an agent runtime to be ready.
+
+#### Scenario: Launch the command
+- **WHEN** the user runs `addone` in a supported terminal
+- **THEN** AddOne SHALL play the launch intro animation to completion and then reveal the shell with application-level controls
+
 ### Requirement: AddOne owns the application shell
 AddOne SHALL run as a standalone terminal application and SHALL own workspace navigation, tabs, sidebar presentation, global input routing, drafts, statuses, dialogs, and notifications independently of any selected agent runtime.
 
@@ -25,6 +32,17 @@ AddOne SHALL let users create, select, rename, reorder, and close workspaces and
 #### Scenario: Reorder and rename tabs
 - **WHEN** the user renames or reorders agent tabs
 - **THEN** the tab strip and sidebar SHALL reflect the updated names and order consistently
+
+### Requirement: The add control creates a Native Pi terminal tab
+The shell SHALL keep an always-reachable `+` add control that can be activated by keyboard or mouse to create and select a terminal tab running the configured vanilla Native Pi command through the terminal-agent runtime.
+
+#### Scenario: Add Native Pi with the keyboard
+- **WHEN** the user focuses the `+` control and activates it with the documented keyboard input
+- **THEN** AddOne SHALL create and select a Native Pi terminal tab without surrendering ownership of the outer shell
+
+#### Scenario: Add Native Pi with the mouse
+- **WHEN** the user clicks the `+` control in a terminal with supported mouse reporting
+- **THEN** AddOne SHALL consume the click once and create and select a Native Pi terminal tab without forwarding that click to another child PTY
 
 ### Requirement: The shell adapts to driver capabilities
 AddOne SHALL expose only controls supported by the selected agent driver and SHALL not imply unavailable semantic state or operations.
