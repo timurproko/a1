@@ -107,6 +107,7 @@ No Milestone 2 or later product work SHALL proceed until tasks 1.80–1.92 pass 
 - [x] 1.93 Remove the AddOne launch intro, intro timer/configuration, startup alternate-screen frame, logo/version presentation, and intro tests; request Native Pi immediately and make its first ready frame the first published application content without weakening readiness or host ownership.
 - [x] 1.94 Preserve Native Pi's final normal-screen cursor and child-produced line breaks exactly and remove AddOne's synthetic restoration newline. Close the spacing investigation after instrumented identical-dimension Windows Terminal runs proved vanilla Pi itself produces both a roomy layout with a preceding blank and a full-frame layout with statistics immediately before `To resume this session:`; require state-for-state direct equivalence for both and no AddOne whitespace adjustment.
 - [x] 1.95 Give every default repository-local `npm start` invocation a unique development-instance identity, supervisor endpoint, database, runtime state, and Native Pi generation while preserving an explicit shared-instance selector for intentional reconnection.
+- [x] 1.96 Restore mouse modes consumed by Windows ConPTY through an explicit generic terminal-profile fallback limited to alternate-screen sessions, preserve normal-screen host selection by default, and pass the packaged representative-extension mouse parity gate.
 
 ## 2. Deferred Executable v2 Behavior Oracle
 

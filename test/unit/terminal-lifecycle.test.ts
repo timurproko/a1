@@ -12,6 +12,7 @@ const shell: ShellTerminalProfile = {
   terminalType: "xterm-256color",
   dimensions: { columns: 80, rows: 24 },
   projection: FULL_VIEWPORT_NATIVE_PROJECTION,
+  conptyMouseFallback: "none",
   resume: "none",
   shellIntegration: "none",
 };

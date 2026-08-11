@@ -212,6 +212,9 @@ export class SupervisorServer {
       terminalType: "xterm-256color",
       dimensions,
       projection: FULL_VIEWPORT_NATIVE_PROJECTION,
+      // ConPTY consumes Pi's DEC mouse modes. This explicit profile policy
+      // restores equivalent SGR mouse semantics only while Pi is alternate-screen.
+      conptyMouseFallback: "sgr-any-on-alternate-screen",
       resume: "none",
     };
     const generation: ProcessGeneration = {

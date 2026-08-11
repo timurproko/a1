@@ -78,6 +78,7 @@ export function defaultShellProfile(
     terminalType: "xterm-256color",
     dimensions,
     projection: FULL_VIEWPORT_NATIVE_PROJECTION,
+    conptyMouseFallback: "none",
     resume: "none",
     shellIntegration: "none",
   };
