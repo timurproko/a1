@@ -6,7 +6,7 @@ context: |
   - develop is the default integration and development branch.
   - Large milestones use milestone/<name> branches created from develop.
   - Use Conventional Commits.
-  - Commit after each completed OpenSpec task or coherent tested subtask.
+  - Commit automatically after each completed OpenSpec task or coherent tested subtask without requesting confirmation.
   - Never include unrelated working-tree changes in a task commit.
   - Merge milestone branches into develop only after milestone gates pass.
   - Merge develop into master only after all mandatory release gates pass.
@@ -24,5 +24,5 @@ operations:
       - Never implement directly on master.
       - Create or switch to the appropriate milestone branch for substantial work.
       - Run targeted validation before marking a task complete.
-      - Commit each completed task with its tests and OpenSpec evidence.
+      - Commit each completed task with its tests and OpenSpec evidence without asking for confirmation.
       - Do not stage unrelated or pre-existing changes.
