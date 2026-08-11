@@ -81,7 +81,13 @@ export class PtyTerminalDriver implements TerminalDriver {
         cursorVisible: modeTracker.cursorVisible,
         cursorStyle: modeTracker.cursorStyle,
         cursorBlinking: modeTracker.cursorBlinking,
-        modes: terminalModes(terminal.modes, modeTracker, processBackend.platform === "win32"),
+        modes: terminalModes(
+          terminal.modes,
+          modeTracker,
+          processBackend.platform === "win32",
+          terminal.buffer.active === terminal.buffer.alternate,
+          profile.conptyMouseFallback,
+        ),
       });
       return lastSurface;
     };
@@ -337,15 +343,23 @@ function sameCell(left: TerminalSurface["cells"][number][number] | undefined, ri
     && left?.background?.value === right?.background?.value;
 }
 
-function terminalModes(modes: InstanceType<typeof Terminal>["modes"], tracker: TerminalModeTracker, conpty: boolean): TerminalModes {
+function terminalModes(
+  modes: InstanceType<typeof Terminal>["modes"],
+  tracker: TerminalModeTracker,
+  conpty: boolean,
+  alternateScreen: boolean,
+  conptyMouseFallback: TerminalAgentProfile["conptyMouseFallback"],
+): TerminalModes {
+  const fallbackMouse = conpty && alternateScreen && conptyMouseFallback === "sgr-any-on-alternate-screen"
+    && modes.mouseTrackingMode === "none";
   return {
     applicationCursorKeys: modes.applicationCursorKeysMode,
     applicationKeypad: modes.applicationKeypadMode,
     alternateScroll: tracker.alternateScroll,
     bracketedPaste: modes.bracketedPasteMode,
     focusReporting: modes.sendFocusMode,
-    mouseTracking: modes.mouseTrackingMode,
-    mouseProtocol: tracker.mouseProtocol,
+    mouseTracking: fallbackMouse ? "any" : modes.mouseTrackingMode,
+    mouseProtocol: fallbackMouse ? "sgr" : tracker.mouseProtocol,
     synchronizedOutput: modes.synchronizedOutputMode || tracker.synchronizedOutput,
     wraparound: modes.wraparoundMode,
     // ConPTY consumes DECSET 9001 and translates host-facing VT input for the

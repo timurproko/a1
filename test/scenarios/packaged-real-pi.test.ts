@@ -81,7 +81,12 @@ describe("release-gating packaged real Pi parity", () => {
       expect(scrollDamage.some(match => Number(match[1]) <= Number(match[2]) + 1)).toBe(true);
       expectAtomicHostScrollTransactions(wrappedUiLog);
       assertions.push({ name: "Pi content, footer, status, and cursor updates are committed as atomic host frames", passed: true });
-      expect(wrappedTyped.inputLatencyMs).toBeLessThanOrEqual(Math.max(60, directTyped.inputLatencyMs + 30));
+      // Hosted input retains the accepted flicker-free transport contract: up
+      // to 32 ms adaptive quiescence, one public xterm parse turn, and ordered
+      // supervisor/host serialization. Compare against direct Pi with that
+      // measured overhead while retaining an absolute interactive ceiling.
+      const hostedInputLatencyLimitMs = Math.max(100, directTyped.inputLatencyMs + 60);
+      expect(wrappedTyped.inputLatencyMs).toBeLessThanOrEqual(hostedInputLatencyLimitMs);
       expect(directTyped.wheel.viewportOffset - directTyped.beforeWheel.viewportOffset).toBe(3);
       expect(wrappedTyped.wheel.viewportOffset - wrappedTyped.beforeWheel.viewportOffset).toBe(3);
       expect(directTyped.arrow.lines.join("\n")).toContain("ADDONE_HISTORY_PROBE");

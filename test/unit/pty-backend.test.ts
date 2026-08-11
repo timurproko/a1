@@ -16,6 +16,7 @@ describe("cross-platform terminal process backend", () => {
       terminalType: "xterm-256color",
       dimensions,
       projection: FULL_VIEWPORT_NATIVE_PROJECTION,
+      conptyMouseFallback: "none",
       resume: "none",
     };
     expect(resolveTerminalLaunch(profile, process.env as Record<string, string>, process.platform)).toEqual({ executable: process.execPath, arguments: ["--version"] });

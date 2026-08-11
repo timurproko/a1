@@ -19,8 +19,8 @@ class FakeTerminalProcess implements TerminalProcess {
 }
 
 class FakeBackend implements TerminalProcessBackend {
-  readonly platform = "linux" as const;
   readonly process = new FakeTerminalProcess();
+  constructor(readonly platform: NodeJS.Platform = "linux") {}
   spawn(): TerminalProcess { return this.process; }
   stop(): void {}
 }
@@ -28,7 +28,7 @@ class FakeBackend implements TerminalProcessBackend {
 const profile: CommandTerminalProfile = {
   id: "generic-command", kind: "command", executable: "ignored", arguments: [], cwd: "/work",
   environment: {}, terminalType: "xterm-256color", dimensions: { columns: 8, rows: 3 },
-  projection: FULL_VIEWPORT_NATIVE_PROJECTION, resume: "none",
+  projection: FULL_VIEWPORT_NATIVE_PROJECTION, conptyMouseFallback: "none", resume: "none",
 };
 
 async function settle(): Promise<void> {
@@ -66,6 +66,26 @@ describe("application-agnostic PTY terminal driver transactions", () => {
       revision: 2,
     });
     expect(transactions[0]?.transaction.dirtyRanges).toHaveLength(1);
+  });
+
+  it("applies an explicit alternate-screen SGR mouse fallback when ConPTY consumes child modes", async () => {
+    const backend = new FakeBackend("win32");
+    const events: TerminalDriverEvent[] = [];
+    const handle = await new PtyTerminalDriver(backend).start("agent", "generation", {
+      ...profile,
+      conptyMouseFallback: "sgr-any-on-alternate-screen",
+    }, event => events.push(event));
+
+    backend.process.emitData("\x1b[?1049hALT");
+    await settle();
+
+    const surface = events.find((event): event is Extract<TerminalDriverEvent, { type: "surface" }> => event.type === "surface")?.surface;
+    expect(surface).toMatchObject({ activeScreen: "alternate", modes: { mouseTracking: "any", mouseProtocol: "sgr" } });
+    handle.input({
+      type: "mouse", action: "press", button: "left", modifiers: { shift: false, alt: false, control: false, meta: false },
+      column: 4, row: 1, wheelDelta: 0,
+    });
+    expect(backend.process.writes).toContain("\x1b[<0;5;2M");
   });
 
   it("orders pending output before resize resynchronization", async () => {

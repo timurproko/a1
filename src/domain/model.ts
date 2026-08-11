@@ -96,6 +96,8 @@ export interface TerminalProfileBase {
   readonly terminalType: string;
   readonly dimensions: TerminalDimensions;
   readonly projection: TerminalProjectionPolicy;
+  /** Explicit fallback for terminal modes consumed by Windows ConPTY. */
+  readonly conptyMouseFallback: "none" | "sgr-any-on-alternate-screen";
   readonly resume: "none" | "best-effort" | "exact";
 }
 
