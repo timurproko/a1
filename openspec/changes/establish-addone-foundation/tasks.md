@@ -110,6 +110,7 @@ No Milestone 2 or later product work SHALL proceed until tasks 1.80–1.92 pass 
 - [x] 1.96 Restore mouse modes consumed by Windows ConPTY through an explicit generic terminal-profile fallback limited to alternate-screen sessions, preserve normal-screen host selection by default, and pass the packaged representative-extension mouse parity gate.
 - [x] 1.97 Reconcile the packaged real-Pi median input-latency gate with the accepted atomic pipeline budget—32 ms adaptive quiescence, one public xterm parse turn, and ordered process/host serialization—while retaining a 100 ms absolute ceiling and the unchanged zero-flicker baseline.
 - [x] 1.98 Pass the complete Windows x64 development-preview gate for the exact `0.1.5-dev.0` candidate, including unit, architecture, dependency, walking-skeleton, 50-question flicker, packaged real-Pi, extension, multi-CLI, and update-transition verdicts, while retaining Linux/macOS stable certification under task 1.91.
+- [x] 1.99 Publish the immutable Windows-tested `0.1.5-dev.0` package under npm tag `next`, verify that `next` resolves to the candidate, retain `latest` at stable `0.1.4`, and document explicit preview-channel installation.
 
 ## 2. Deferred Executable v2 Behavior Oracle
 

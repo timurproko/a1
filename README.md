@@ -53,7 +53,13 @@ addone update
 a1 update
 ```
 
-The command asks the configured npm registry for `@timurproko/addone@latest`, compares it with the running AddOne version, and installs that exact newer version globally. It needs network access to the configured registry and permission to write npm's global package root. npm's proxy, authentication, certificate, registry, and global-prefix settings remain authoritative, and npm diagnostics are streamed to the terminal.
+The command asks the configured npm registry for `@timurproko/addone@latest`, compares it with the running AddOne version, and installs that exact newer version globally. It does not opt a stable installation into development previews. To install or update to the Windows-tested preview channel explicitly, run:
+
+```sh
+npm install --global @timurproko/addone@next
+```
+
+The updater needs network access to the configured registry and permission to write npm's global package root. npm's proxy, authentication, certificate, registry, and global-prefix settings remain authoritative, and npm diagnostics are streamed to the terminal.
 
 Automatic replacement is limited to an AddOne package canonically contained in the active npm installation's global package root. A repository checkout, `npm link`, or another package manager's installation is refused without modification; use the manual npm command printed by AddOne if replacement is intentional. An already-current or newer running version is left unchanged.
 
