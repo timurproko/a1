@@ -1,4 +1,4 @@
-import Database from "better-sqlite3";
+import { DatabaseSync } from "node:sqlite";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import type {
@@ -20,18 +20,19 @@ interface AgentRow { id: string; workspace_id: string; name: string; profile_jso
 interface GenerationRow { id: string; agent_id: string; sequence: number; profile_id: string; state: LifecycleState; capabilities_json: string; started_at: string; exited_at: string | null; exit_code: number | null; signal: number | null; error: string | null }
 
 export class ControlStore {
-  readonly database: Database.Database;
+  readonly database: DatabaseSync;
 
   constructor(path: string) {
     mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
-    this.database = new Database(path);
-    this.database.pragma("journal_mode = WAL");
-    this.database.pragma("foreign_keys = ON");
+    this.database = new DatabaseSync(path);
+    this.database.exec("PRAGMA journal_mode = WAL");
+    this.database.exec("PRAGMA foreign_keys = ON");
     this.migrate();
   }
 
   migrate(): void {
-    const version = this.database.pragma("user_version", { simple: true }) as number;
+    const versionRow = this.database.prepare("PRAGMA user_version").get() as { user_version: number };
+    const version = versionRow.user_version;
     if (version > 1) throw new Error(`control database version ${version} is newer than supported version 1`);
     if (version === 0) {
       this.database.exec(`
@@ -96,7 +97,7 @@ export class ControlStore {
   }
 
   loadAgents(): LogicalTerminalAgent[] {
-    const rows = this.database.prepare("SELECT * FROM terminal_agents ORDER BY created_at").all() as AgentRow[];
+    const rows = this.database.prepare("SELECT * FROM terminal_agents ORDER BY created_at").all() as unknown as AgentRow[];
     return rows.map(row => {
       const generation = this.database.prepare("SELECT * FROM process_generations WHERE agent_id = ? ORDER BY sequence DESC LIMIT 1").get(row.id) as GenerationRow | undefined;
       if (!generation) throw new Error(`agent ${row.id} has no generation`);
@@ -114,7 +115,7 @@ export class ControlStore {
   }
 
   createTerminalAgent(agent: LogicalTerminalAgent): void {
-    const run = this.database.transaction(() => {
+    this.#transaction(() => {
       this.database.prepare("INSERT INTO driver_profiles (id, kind, profile_json, created_at) VALUES (?, 'native-pi', ?, ?)")
         .run(agent.profile.id, JSON.stringify(agent.profile), agent.createdAt);
       this.database.prepare("INSERT INTO terminal_agents (id, workspace_id, name, profile_id, profile_json, surface_json, created_at) VALUES (?, ?, ?, ?, ?, NULL, ?)")
@@ -126,7 +127,6 @@ export class ControlStore {
         .run(generation.id, agent.id, generation.sequence, generation.profileId, generation.state, JSON.stringify(generation.capabilities), generation.startedAt);
       this.database.prepare("UPDATE workspaces SET selected_agent_id = ? WHERE id = ?").run(agent.id, agent.workspaceId);
     });
-    run();
   }
 
   saveSurface(agentId: AgentId, generationId: GenerationId, surface: TerminalSurface): boolean {
@@ -147,7 +147,7 @@ export class ControlStore {
       SET state = ?, exited_at = ?, exit_code = ?, signal = ?, error = ?
       WHERE id = ? AND agent_id = ? AND id = (SELECT id FROM process_generations WHERE agent_id = ? ORDER BY sequence DESC LIMIT 1)`)
       .run(state, terminal ? new Date().toISOString() : null, details.exitCode ?? null, details.signal ?? null, details.error ?? null, generationId, agentId, agentId);
-    return result.changes === 1;
+    return Number(result.changes) === 1;
   }
 
   selectAgent(workspaceId: WorkspaceId, agentId: AgentId | null): void {
@@ -156,6 +156,17 @@ export class ControlStore {
 
   close(): void {
     this.database.close();
+  }
+
+  #transaction(operation: () => void): void {
+    this.database.exec("BEGIN IMMEDIATE");
+    try {
+      operation();
+      this.database.exec("COMMIT");
+    } catch (error) {
+      this.database.exec("ROLLBACK");
+      throw error;
+    }
   }
 }
 

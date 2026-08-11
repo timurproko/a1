@@ -44,6 +44,26 @@ for (const file of await walk(sourceRoot)) {
   if (/\bglobalThis\s*[.[]/.test(source)) {
     errors.push(`${path}: durable globalThis state is forbidden`);
   }
+  if (/^src\/(?:domain\/model|protocol\/messages)\.ts$/.test(path) && /["']terminal-output["']/.test(source)) {
+    errors.push(`${path}: raw child terminal output is forbidden in the UI-facing control contract`);
+  }
+  if (path.startsWith("src/ui/") && /\.write\(\s*(?:bytes|chunk|data)\s*\)/.test(source)) {
+    errors.push(`${path}: UI may render virtual terminal state but may not relay opaque child bytes`);
+  }
+
+  const terminalCore = /^(?:src\/drivers\/terminal\/(?:pty-terminal-driver|resident-terminal-state|output-transaction-assembler)|src\/presentation\/terminal(?:-projection)?|src\/ui\/host-(?:terminal-renderer|frame-writer))\.ts$/.test(path);
+  if (terminalCore) {
+    const identityPatterns = [
+      { pattern: /native[\s_-]*pi|ADDONE_NATIVE_PI|PI_CODING_AGENT|PI_CONFIG|--tui-mode/i, label: "CLI identity or CLI-named configuration" },
+      { pattern: /profile\.(?:executable|arguments)\b/, label: "executable or argument inspection" },
+      { pattern: /process\.env\[(?:"|')?(?:PI_|CLAUDE_|CODEX_)/i, label: "CLI-named environment inspection" },
+      { pattern: /(?:if|switch)\s*\([^\n]*(?:includes|match|test)\s*\(\s*["'`][A-Za-z][^\n]*\)/i, label: "visible-content rendering branch" },
+      { pattern: /(?:conpty|windows|unix)[A-Za-z]*(?:Pi|Claude|Codex|Cli)[A-Za-z]*Fallback/i, label: "CLI-specific input-mode fallback" },
+    ];
+    for (const { pattern, label } of identityPatterns) {
+      if (pattern.test(source)) errors.push(`${path}: terminal core contains forbidden ${label}`);
+    }
+  }
 }
 
 if (errors.length > 0) {

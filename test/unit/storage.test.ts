@@ -12,8 +12,8 @@ describe("control-store migration", () => {
     const root = await mkdtemp(join(tmpdir(), "addone-store-"));
     roots.push(root);
     const store = new ControlStore(join(root, "state", "control.sqlite3"));
-    expect(store.database.pragma("user_version", { simple: true })).toBe(1);
-    expect(store.database.pragma("journal_mode", { simple: true })).toBe("wal");
+    expect(store.database.prepare("PRAGMA user_version").get()).toMatchObject({ user_version: 1 });
+    expect(store.database.prepare("PRAGMA journal_mode").get()).toMatchObject({ journal_mode: "wal" });
     expect(store.loadWorkspace()).toMatchObject({ id: "workspace-default", selectedAgentId: null, agentIds: [] });
     store.close();
   });

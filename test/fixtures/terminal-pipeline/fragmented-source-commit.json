@@ -1,0 +1,26 @@
+{
+  "schema": "addone-terminal-pipeline-trace-v1",
+  "scenario": "GENERIC-FRAME-AMPLIFICATION-001",
+  "description": "Permanent pre-1C evidence: one synchronized source render and its cursor epilogue were split across PTY reads, virtual updates, host writes, and delayed committed outer frames.",
+  "events": [
+    { "stage": "source-write", "atMs": 0, "sequence": 1, "sourceCommitId": "commit-1", "detail": { "bytes": 42, "part": "content" } },
+    { "stage": "synchronized-commit", "atMs": 0, "sequence": 2, "sourceCommitId": "commit-1", "detail": { "boundary": "DECSET-2026" } },
+    { "stage": "source-write", "atMs": 1, "sequence": 3, "sourceCommitId": "commit-1", "detail": { "bytes": 12, "part": "footer" } },
+    { "stage": "cursor-epilogue", "atMs": 2, "sequence": 4, "sourceCommitId": "commit-1", "detail": { "bytes": 9 } },
+    { "stage": "pty-read", "atMs": 4, "sequence": 5, "sourceCommitId": "commit-1", "detail": { "read": 1, "bytes": 42 } },
+    { "stage": "pty-read", "atMs": 7, "sequence": 6, "sourceCommitId": "commit-1", "detail": { "read": 2, "bytes": 21 } },
+    { "stage": "virtual-transaction", "atMs": 8, "sequence": 7, "sourceCommitId": "commit-1", "detail": { "revision": 10, "partial": true } },
+    { "stage": "supervisor-event", "atMs": 10, "sequence": 8, "sourceCommitId": "commit-1", "detail": { "revision": 31 } },
+    { "stage": "host-write", "atMs": 12, "sequence": 9, "sourceCommitId": "commit-1", "detail": { "hostFrame": 1 } },
+    { "stage": "outer-frame", "atMs": 14, "sequence": 10, "sourceCommitId": "commit-1", "detail": { "frame": 1, "state": "content-with-stale-cursor" } },
+    { "stage": "virtual-transaction", "atMs": 19, "sequence": 11, "sourceCommitId": "commit-1", "detail": { "revision": 11, "partial": false } },
+    { "stage": "supervisor-event", "atMs": 21, "sequence": 12, "sourceCommitId": "commit-1", "detail": { "revision": 32 } },
+    { "stage": "host-write", "atMs": 24, "sequence": 13, "sourceCommitId": "commit-1", "detail": { "hostFrame": 2 } },
+    { "stage": "outer-frame", "atMs": 27, "sequence": 14, "sourceCommitId": "commit-1", "detail": { "frame": 2, "state": "final-cursor" } }
+  ],
+  "expectedViolation": {
+    "sourceCommitId": "commit-1",
+    "outerFrameCount": 2,
+    "latencyMs": 27
+  }
+}

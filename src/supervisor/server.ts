@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, rename, rm, writeFile } from "node:fs/promises";
 import { createConnection, createServer, type Server, type Socket } from "node:net";
 import { platform } from "node:os";
 import type {
@@ -7,6 +7,7 @@ import type {
   AgentId,
   CommandResult,
   GenerationId,
+  HostTerminalInputEvent,
   LogicalTerminalAgent,
   LogicalWorkspace,
   NativePiProfile,
@@ -18,13 +19,17 @@ import type {
   TerminalDriverEvent,
   TerminalDriverHandle,
 } from "../domain/index.js";
-import { assertDimensions } from "../domain/index.js";
-import { encodeFrame, isClientMessage, LineFrameDecoder, PROTOCOL_VERSION, type ServerMessage } from "../protocol/index.js";
+import { assertDimensions, FULL_VIEWPORT_NATIVE_PROJECTION } from "../domain/index.js";
+import { encodeFrame, isCommandMessage, isControlHello, LineFrameDecoder, localControlHello, MAX_CONTROL_FRAME_BYTES, negotiateControlFeatures, type ServerMessage } from "../protocol/index.js";
 import { ControlStore } from "../storage/index.js";
+import type { MaterializedRelease } from "../release-store.js";
 import { resolveAddOnePaths, type AddOnePaths } from "./paths.js";
 
 export class SupervisorServer {
   readonly id = randomUUID();
+  readonly bootNonce = randomUUID();
+  readonly pidStartIdentity = `${process.pid}:${Math.floor(Date.now() - process.uptime() * 1_000)}`;
+  readonly startedAt = new Date().toISOString();
   readonly paths: AddOnePaths;
   #server: Server | null = null;
   #workspace: LogicalWorkspace;
@@ -33,11 +38,14 @@ export class SupervisorServer {
   #clients = new Set<Socket>();
   #handles = new Map<AgentId, TerminalDriverHandle>();
   #results = new Map<string, CommandResult>();
+  #ensuringInitialAgent: Promise<void> | null = null;
+  #metadataWrites: Promise<void> = Promise.resolve();
 
   constructor(
     readonly store: ControlStore,
     readonly driver: TerminalDriver,
     paths = resolveAddOnePaths(),
+    readonly release: MaterializedRelease,
   ) {
     this.paths = paths;
     this.#workspace = store.loadWorkspace();
@@ -64,14 +72,7 @@ export class SupervisorServer {
         resolve();
       });
     });
-    await writeFile(this.paths.endpointMetadataPath, JSON.stringify({
-      protocolVersion: PROTOCOL_VERSION,
-      supervisorId: this.id,
-      pid: process.pid,
-      endpoint: this.paths.endpoint,
-      databasePath: this.paths.databasePath,
-      startedAt: new Date().toISOString(),
-    }, null, 2), { mode: 0o600 });
+    await this.#writeEndpointMetadata();
   }
 
   async close(stopAgents = false): Promise<void> {
@@ -80,6 +81,7 @@ export class SupervisorServer {
     if (this.#server) await new Promise<void>(resolve => this.#server?.close(() => resolve()));
     this.#server = null;
     this.store.close();
+    await this.#metadataWrites;
     await rm(this.paths.endpointMetadataPath, { force: true });
     if (platform() !== "win32") await rm(this.paths.endpoint, { force: true });
   }
@@ -91,19 +93,50 @@ export class SupervisorServer {
     socket.on("data", chunk => {
       try {
         for (const value of decoder.push(chunk)) {
-          if (!isClientMessage(value)) {
-            socket.write(encodeFrame({ type: "protocol-error", code: "malformed-message", message: "invalid client message" }));
-            socket.destroy();
-            return;
-          }
           if (!welcomed) {
-            if (value.type !== "client-hello") throw new Error("client-hello must be the first message");
+            if (typeof value === "object" && value !== null && "type" in value && value.type === "identity-probe") {
+              this.#send(socket, { type: "identity", supervisorId: this.id, bootNonce: this.bootNonce, pidStartIdentity: this.pidStartIdentity, releaseId: this.release.releaseId });
+              continue;
+            }
+            if (typeof value === "object" && value !== null && "type" in value && value.type === "release-idle-ownership") {
+              const request = value as { bootNonce?: unknown; candidateReleaseId?: unknown };
+              const liveGenerationIds = this.#agents
+                .filter(agent => !["exited", "stopped", "error"].includes(agent.currentGeneration.state))
+                .map(agent => agent.currentGeneration.id);
+              const released = request.bootNonce === this.bootNonce && typeof request.candidateReleaseId === "string" && liveGenerationIds.length === 0;
+              this.#send(socket, {
+                type: "release-ownership-result",
+                released,
+                reason: released ? "idle cohort released ownership" : request.bootNonce !== this.bootNonce ? "boot nonce mismatch" : "live generations prevent ownership release",
+                liveGenerationIds,
+              });
+              if (released) setTimeout(() => void this.close(false), 25);
+              continue;
+            }
+            if (!isControlHello(value)) {
+              this.#send(socket, {
+                type: "protocol-error",
+                code: "invalid-control-handshake",
+                message: "the first message must be a valid AddOne control feature handshake",
+                diagnostics: { received: value },
+              });
+              socket.destroy();
+              return;
+            }
+            const serverHello = localControlHello();
+            const negotiation = negotiateControlFeatures(value, serverHello);
+            if (!negotiation.ok) {
+              this.#send(socket, { type: "protocol-error", code: "incompatible-control-features", message: negotiation.diagnostic, diagnostics: negotiation });
+              socket.destroy();
+              return;
+            }
             welcomed = true;
             this.#clients.add(socket);
-            this.#send(socket, { type: "server-hello", protocolVersion: PROTOCOL_VERSION, supervisorId: this.id, snapshot: this.snapshot() });
-          } else if (value.type === "command") {
+            this.#send(socket, { type: "server-hello", ...serverHello, releaseId: this.release.releaseId, supervisorId: this.id, bootNonce: this.bootNonce, pidStartIdentity: this.pidStartIdentity, negotiatedFeatures: negotiation.negotiatedFeatures, snapshot: this.snapshot() });
+          } else if (isCommandMessage(value)) {
             void this.#execute(value.command, socket);
           }
+          // Unknown post-handshake message types are additive and ignored safely.
         }
       } catch (error) {
         this.#send(socket, { type: "protocol-error", code: "framing-error", message: error instanceof Error ? error.message : String(error) });
@@ -125,8 +158,16 @@ export class SupervisorServer {
       if (command.type === "create-terminal-agent") {
         assertDimensions(command.dimensions);
         await this.#createAgent(command.cwd, command.dimensions);
+      } else if (command.type === "ensure-initial-terminal-agent") {
+        assertDimensions(command.dimensions);
+        await this.#ensureInitialAgent(command.cwd, command.dimensions);
       } else if (command.type === "terminal-input") {
-        this.#currentHandle(command.agentId, command.generationId).input(command.data);
+        assertHostInputEvent(command.event);
+        this.#currentHandle(command.agentId, command.generationId).input(command.event);
+      } else if (command.type === "terminal-input-batch") {
+        if (command.events.length === 0 || command.events.length > 4_096) throw new Error("terminal input batch size is invalid");
+        for (const event of command.events) assertHostInputEvent(event);
+        this.#currentHandle(command.agentId, command.generationId).inputBatch(command.events);
       } else if (command.type === "terminal-resize") {
         assertDimensions(command.dimensions);
         this.#currentHandle(command.agentId, command.generationId).resize(command.dimensions);
@@ -145,18 +186,32 @@ export class SupervisorServer {
     this.#send(socket, { type: "command-result", result });
   }
 
+  async #ensureInitialAgent(cwd: string, dimensions: { columns: number; rows: number }): Promise<void> {
+    const selected = this.#agents.find(agent => agent.id === this.#workspace.selectedAgentId);
+    const resident = selected ? this.#handles.get(selected.id) : undefined;
+    if (selected && resident && !["exited", "stopped", "error"].includes(selected.currentGeneration.state)) {
+      resident.resize(dimensions);
+      return;
+    }
+    if (!this.#ensuringInitialAgent) {
+      this.#ensuringInitialAgent = this.#createAgent(cwd, dimensions).finally(() => { this.#ensuringInitialAgent = null; });
+    }
+    await this.#ensuringInitialAgent;
+  }
+
   async #createAgent(cwd: string, dimensions: { columns: number; rows: number }): Promise<void> {
     const agentId = randomUUID();
     const generationId = randomUUID();
     const profile: NativePiProfile = {
       id: randomUUID(),
       kind: "native-pi",
-      executable: "pi",
-      arguments: [],
+      executable: process.env.ADDONE_NATIVE_PI_EXECUTABLE ?? "pi",
+      arguments: nativePiArguments(process.env.ADDONE_NATIVE_PI_ARGUMENTS),
       cwd,
-      environment: pickEnvironment(["PATH", "PATHEXT", "SystemRoot", "ComSpec", "HOME", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "PI_CONFIG_DIR", "NO_COLOR"]),
+      environment: pickEnvironment(["PATH", "PATHEXT", "SystemRoot", "ComSpec", "HOME", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "PI_CODING_AGENT_DIR", "PI_CONFIG_DIR", "PI_OFFLINE", "NO_COLOR"]),
       terminalType: "xterm-256color",
       dimensions,
+      projection: FULL_VIEWPORT_NATIVE_PROJECTION,
       resume: "none",
     };
     const generation: ProcessGeneration = {
@@ -185,6 +240,7 @@ export class SupervisorServer {
     this.store.createTerminalAgent(agent);
     this.#agents = [...this.#agents, agent];
     this.#workspace = { ...this.#workspace, agentIds: [...this.#workspace.agentIds, agentId], selectedAgentId: agentId };
+    void this.#writeEndpointMetadata();
     this.#publish({ type: "agent-created", agent });
     this.#publish({ type: "selection-changed", workspaceId: this.#workspace.id, agentId });
     try {
@@ -198,6 +254,7 @@ export class SupervisorServer {
       this.store.markGeneration(agentId, generationId, "error", { error: message });
       this.#replaceAgent(agentId, current => ({ ...current, currentGeneration: { ...current.currentGeneration, state: "error", error: message, exitedAt: new Date().toISOString() } }));
       this.#publish({ type: "generation-failed", agentId, generationId, message });
+      void this.#writeEndpointMetadata();
       throw error;
     }
   }
@@ -209,8 +266,15 @@ export class SupervisorServer {
       if (!this.store.saveSurface(event.agentId, event.generationId, event.surface)) return;
       this.#replaceAgent(event.agentId, current => ({ ...current, surface: event.surface }));
       this.#publish({ type: "terminal-surface-updated", agentId: event.agentId, generationId: event.generationId, surface: event.surface });
+    } else if (event.type === "transaction") {
+      // Render transactions are latency-sensitive and the live supervisor is
+      // authoritative for non-resumable PTYs. Persist bounded snapshots only at
+      // handoff, resynchronization, resize, and exit boundaries.
+      this.#replaceAgent(event.agentId, current => ({ ...current, surface: event.surface }));
+      this.#publish({ type: "terminal-render-transaction", agentId: event.agentId, generationId: event.generationId, transaction: event.transaction });
     } else if (event.type === "exit") {
       this.#handles.delete(event.agentId);
+      if (event.surface) this.store.saveSurface(event.agentId, event.generationId, event.surface);
       this.store.markGeneration(event.agentId, event.generationId, "exited", { exitCode: event.exitCode, signal: event.signal });
       this.#replaceAgent(event.agentId, current => ({
         ...current,
@@ -218,6 +282,7 @@ export class SupervisorServer {
         currentGeneration: { ...current.currentGeneration, state: "exited", exitedAt: new Date().toISOString(), exitCode: event.exitCode, signal: event.signal },
       }));
       this.#publish({ type: "generation-exited", agentId: event.agentId, generationId: event.generationId, exitCode: event.exitCode, signal: event.signal, surface: event.surface });
+      void this.#writeEndpointMetadata();
     } else {
       this.store.markGeneration(event.agentId, event.generationId, "error", { error: event.message });
       this.#publish({ type: "generation-failed", agentId: event.agentId, generationId: event.generationId, message: event.message });
@@ -242,9 +307,64 @@ export class SupervisorServer {
     for (const client of this.#clients) this.#send(client, { type: "event", ordered });
   }
 
-  #send(socket: Socket, message: ServerMessage): void {
-    if (!socket.destroyed) socket.write(encodeFrame(message));
+  #writeEndpointMetadata(): Promise<void> {
+    const liveGenerationIds = this.#agents
+      .filter(agent => !["exited", "stopped", "error"].includes(agent.currentGeneration.state))
+      .map(agent => agent.currentGeneration.id);
+    const metadata = {
+      ...localControlHello(this.release.releaseId),
+      supervisorId: this.id,
+      pid: process.pid,
+      pidStartIdentity: this.pidStartIdentity,
+      bootNonce: this.bootNonce,
+      endpoint: this.paths.endpoint,
+      databasePath: this.paths.databasePath,
+      startedAt: this.startedAt,
+      releaseId: this.release.releaseId,
+      releaseRoot: this.release.releaseRoot,
+      contentDigest: this.release.contentDigest,
+      ownership: {
+        state: liveGenerationIds.length > 0 ? "busy" : "idle",
+        liveGenerationIds,
+        nonResumableGenerationIds: liveGenerationIds,
+      },
+    };
+    const temporary = `${this.paths.endpointMetadataPath}.${process.pid}.tmp`;
+    this.#metadataWrites = this.#metadataWrites.then(async () => {
+      await writeFile(temporary, JSON.stringify(metadata, null, 2), { mode: 0o600 });
+      await rename(temporary, this.paths.endpointMetadataPath);
+    });
+    return this.#metadataWrites;
   }
+
+  #send(socket: Socket, message: ServerMessage): void {
+    if (socket.destroyed) return;
+    const frame = encodeFrame(message);
+    const bytes = Buffer.byteLength(frame, "utf8");
+    if (bytes > MAX_CONTROL_FRAME_BYTES || socket.writableLength + bytes > MAX_CONTROL_FRAME_BYTES * 2) {
+      socket.destroy(new Error("slow client exceeded the bounded control/output queue"));
+      return;
+    }
+    socket.write(frame);
+  }
+}
+
+function assertHostInputEvent(event: unknown): asserts event is HostTerminalInputEvent {
+  if (typeof event !== "object" || event === null || !("type" in event) || !["key", "paste", "focus", "mouse", "resize"].includes(String(event.type))) {
+    throw new Error("terminal input is not a recognized semantic host event");
+  }
+  if ("text" in event && typeof event.text === "string" && Buffer.byteLength(event.text, "utf8") > 1024 * 1024) {
+    throw new Error("terminal input text exceeds the bounded payload size");
+  }
+}
+
+export function nativePiArguments(value: string | undefined): readonly string[] {
+  if (value === undefined) return [];
+  const parsed = JSON.parse(value) as unknown;
+  if (!Array.isArray(parsed) || parsed.some(argument => typeof argument !== "string" || argument.includes("\0"))) {
+    throw new Error("ADDONE_NATIVE_PI_ARGUMENTS must be a JSON array of safe strings");
+  }
+  return parsed;
 }
 
 function pickEnvironment(keys: readonly string[]): Record<string, string> {

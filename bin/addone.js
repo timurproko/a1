@@ -1,46 +1,20 @@
 #!/usr/bin/env node
-import { spawn } from "node:child_process";
-import { access } from "node:fs/promises";
-import { connect } from "node:net";
-import { fileURLToPath } from "node:url";
-import { runUi } from "../dist/src/ui/app.js";
-import { resolveAddOnePaths } from "../dist/src/supervisor/paths.js";
 
-const paths = resolveAddOnePaths();
-if (!await endpointIsLive(paths.endpoint)) {
-  const supervisor = spawn(process.execPath, [fileURLToPath(new URL("./addone-supervisor.js", import.meta.url))], {
-    detached: true,
-    env: process.env,
-    stdio: "ignore",
-    windowsHide: true,
-  });
-  supervisor.unref();
-  await waitForEndpoint(paths.endpoint, 8_000);
-}
-await runUi(paths.endpoint);
+const packageRoot = new URL("..", import.meta.url);
 
-async function endpointIsLive(endpoint) {
-  return await new Promise(resolve => {
-    const socket = connect(endpoint);
-    let settled = false;
-    const finish = live => {
-      if (settled) return;
-      settled = true;
-      socket.destroy();
-      resolve(live);
-    };
-    socket.once("connect", () => finish(true));
-    socket.once("error", () => finish(false));
-    setTimeout(() => finish(false), 200).unref();
-  });
-}
-
-async function waitForEndpoint(endpoint, timeoutMs) {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    if (await endpointIsLive(endpoint)) return;
-    await new Promise(resolve => setTimeout(resolve, 40));
-  }
-  try { await access(paths.supervisorLogPath); } catch {}
-  throw new Error(`AddOne supervisor did not start within ${timeoutMs}ms; inspect ${paths.supervisorLogPath}`);
+if (process.argv[2] === "update") {
+  const [{ fileURLToPath }, { runSelfUpdate }] = await Promise.all([
+    import("node:url"),
+    import("../dist/src/update.js"),
+  ]);
+  process.exitCode = await runSelfUpdate({ packageRoot: fileURLToPath(packageRoot) });
+} else {
+  // The mutable npm entry point imports only the dependency-light coordinator.
+  // UI, supervisor, PTY, TUI, and native-addon code is loaded by a verified
+  // child entry point inside the selected immutable release.
+  const [{ fileURLToPath }, { runBootstrap }] = await Promise.all([
+    import("node:url"),
+    import("../dist/src/bootstrap.js"),
+  ]);
+  process.exitCode = await runBootstrap({ packageRoot: fileURLToPath(packageRoot) });
 }

@@ -1,27 +1,32 @@
 import { access } from "node:fs/promises";
 import { delimiter, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { createScenarioContext } from "../../src/test-harness/context.js";
 import { OuterPtyRunner } from "../../src/test-harness/pty-runner.js";
 
 const enabled = process.env.ADDONE_NATIVE_PI_SMOKE === "1";
 const repository = resolve(fileURLToPath(new URL("../..", import.meta.url)));
 
-describe.skipIf(!enabled)("non-gating installed Native Pi smoke", () => {
-  it("starts installed Native Pi with isolated offline configuration and sends no model request", async () => {
+describe.skipIf(!enabled)("installed Native Pi readiness smoke", () => {
+  it("reaches a recognizable editor with isolated offline configuration and sends no model request", async () => {
     const context = await createScenarioContext("native-pi-smoke");
     context.environment.PATH = process.env.PATH?.split(delimiter).filter(path => path !== context.fixtureBin).join(delimiter);
-    context.environment.NO_COLOR = "1";
+    if (process.env.ADDONE_NATIVE_PI_EXECUTABLE) context.environment.ADDONE_NATIVE_PI_EXECUTABLE = process.env.ADDONE_NATIVE_PI_EXECUTABLE;
+    context.environment.ADDONE_NATIVE_PI_ARGUMENTS = JSON.stringify(["--offline", "--approve", "--no-session"]);
+    delete context.environment.NO_COLOR;
     await access(resolve(repository, "bin/addone.js"));
     const runner = new OuterPtyRunner(context, 90, 28);
     try {
       runner.launch(process.execPath, [resolve(repository, "bin/addone.js")]);
-      await runner.waitFor("AddOne", 8_000, "smoke-shell");
-      runner.keyboard("\r");
-      await runner.waitFor("Native Pi 1", 8_000, "installed-pi-started");
+      const frame = await runner.waitFor("escape interrupt", 25_000, "installed-pi-ready");
+      const text = frame.lines.join("\n");
+      expect(text).toMatch(/pi v\d/i);
+      expect(text).toMatch(/0\.0%|tokens?|model/i);
+      expect(text).not.toContain("[ + ]");
+      expect(runner.rawLog).not.toContain("Native Pi 1");
     } finally {
       await runner.cleanup();
     }
-  }, 30_000);
+  }, 35_000);
 });

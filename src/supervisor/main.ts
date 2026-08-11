@@ -1,5 +1,6 @@
 import { appendFileSync, mkdirSync } from "node:fs";
-import { NativePiTerminalDriver } from "../drivers/terminal/index.js";
+import { PtyTerminalDriver } from "../drivers/terminal/index.js";
+import { readMaterializedRelease } from "../release-store.js";
 import { ControlStore } from "../storage/index.js";
 import { resolveAddOnePaths } from "./paths.js";
 import { SupervisorServer } from "./server.js";
@@ -8,8 +9,12 @@ export async function runSupervisor(): Promise<void> {
   const paths = resolveAddOnePaths();
   mkdirSync(paths.runtimeDir, { recursive: true, mode: 0o700 });
   const log = (message: string) => appendFileSync(paths.supervisorLogPath, `${new Date().toISOString()} ${message}\n`);
+  const releaseRoot = process.env.ADDONE_RELEASE_ROOT;
+  if (!releaseRoot) throw new Error("supervisor must be launched from a verified immutable AddOne release");
+  const release = await readMaterializedRelease(releaseRoot);
+  if (process.env.ADDONE_RELEASE_ID !== release.releaseId) throw new Error("selected AddOne release identity does not match its verified manifest");
   const store = new ControlStore(paths.databasePath);
-  const server = new SupervisorServer(store, new NativePiTerminalDriver(), paths);
+  const server = new SupervisorServer(store, new PtyTerminalDriver(), paths, release);
   await server.listen();
   log(`supervisor ${server.id} listening at ${paths.endpoint} (pid ${process.pid})`);
 

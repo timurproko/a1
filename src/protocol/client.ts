@@ -2,7 +2,7 @@ import { EventEmitter } from "node:events";
 import { connect, type Socket } from "node:net";
 import { randomUUID } from "node:crypto";
 import type { CommandResult, OrderedEvent, SupervisorCommand, SupervisorSnapshot } from "../domain/index.js";
-import { encodeFrame, LineFrameDecoder, PROTOCOL_VERSION, type ServerMessage } from "./messages.js";
+import { CONTROL_ENVELOPE, CONTROL_ENVELOPE_REVISION, encodeFrame, LineFrameDecoder, localControlHello, negotiateControlFeatures, type ControlHello, type ServerMessage } from "./messages.js";
 
 interface ClientEvents {
   snapshot: [SupervisorSnapshot];
@@ -12,26 +12,55 @@ interface ClientEvents {
 
 export class SupervisorClient extends EventEmitter<ClientEvents> {
   readonly clientId = randomUUID();
+  readonly releaseId?: string;
+
+  constructor(releaseId?: string) {
+    super();
+    if (releaseId !== undefined) this.releaseId = releaseId;
+  }
   #socket: Socket | null = null;
   #pending = new Map<string, { resolve: (result: CommandResult) => void; reject: (error: Error) => void }>();
 
   async connect(endpoint: string, timeoutMs = 5_000): Promise<SupervisorSnapshot> {
     if (this.#socket) throw new Error("client is already connected");
+    const deadline = Date.now() + timeoutMs;
+    let lastError: Error | null = null;
+    while (Date.now() < deadline) {
+      try {
+        return await this.#connectOnce(endpoint, Math.max(1, deadline - Date.now()));
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        if (!isTransientEndpointError(lastError)) throw lastError;
+        await new Promise(resolve => setTimeout(resolve, Math.min(40, Math.max(1, deadline - Date.now()))));
+      }
+    }
+    throw new Error(`supervisor endpoint ${endpoint} remained unavailable for ${timeoutMs}ms`, { cause: lastError ?? undefined });
+  }
+
+  #connectOnce(endpoint: string, timeoutMs: number): Promise<SupervisorSnapshot> {
     const socket = connect(endpoint);
     this.#socket = socket;
     socket.setNoDelay(true);
     const decoder = new LineFrameDecoder();
 
-    return await new Promise<SupervisorSnapshot>((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error(`supervisor connection timed out after ${timeoutMs}ms`)), timeoutMs);
+    return new Promise<SupervisorSnapshot>((resolve, reject) => {
       let welcomed = false;
+      const timeout = setTimeout(() => {
+        const error = transientError(`supervisor connection timed out after ${timeoutMs}ms`, "ETIMEDOUT");
+        fail(error);
+        socket.destroy();
+      }, timeoutMs);
       const fail = (error: Error) => {
         clearTimeout(timeout);
         if (!welcomed) reject(error);
       };
       socket.once("error", fail);
       socket.on("close", () => {
-        this.#socket = null;
+        if (this.#socket === socket) this.#socket = null;
+        if (!welcomed) {
+          fail(transientError("supervisor disconnected before completing its handshake", "ECONNRESET"));
+          return;
+        }
         for (const pending of this.#pending.values()) pending.reject(new Error("supervisor disconnected"));
         this.#pending.clear();
         this.emit("disconnect");
@@ -40,7 +69,19 @@ export class SupervisorClient extends EventEmitter<ClientEvents> {
         try {
           for (const value of decoder.push(chunk)) {
             const message = value as Partial<ServerMessage>;
-            if (message.type === "server-hello" && message.protocolVersion === PROTOCOL_VERSION && message.snapshot) {
+            if (message.type === "server-hello" && message.snapshot) {
+              const hello = message as Partial<ControlHello>;
+              if (hello.envelope !== CONTROL_ENVELOPE || hello.envelopeRevision !== CONTROL_ENVELOPE_REVISION || !Array.isArray(hello.requiredFeatures) || !Array.isArray(hello.optionalFeatures) || typeof hello.contractDigest !== "string") {
+                fail(new Error("supervisor returned an invalid control handshake"));
+                socket.destroy();
+                continue;
+              }
+              const negotiation = negotiateControlFeatures(localControlHello(this.releaseId), hello as ControlHello);
+              if (!negotiation.ok) {
+                fail(new Error(negotiation.diagnostic));
+                socket.destroy();
+                continue;
+              }
               welcomed = true;
               clearTimeout(timeout);
               resolve(message.snapshot);
@@ -63,7 +104,7 @@ export class SupervisorClient extends EventEmitter<ClientEvents> {
           socket.destroy();
         }
       });
-      socket.once("connect", () => socket.write(encodeFrame({ type: "client-hello", protocolVersion: PROTOCOL_VERSION, clientId: this.clientId })));
+      socket.once("connect", () => socket.write(encodeFrame({ type: "client-hello", clientId: this.clientId, ...localControlHello(this.releaseId) })));
     });
   }
 
@@ -79,4 +120,13 @@ export class SupervisorClient extends EventEmitter<ClientEvents> {
     this.#socket?.end();
     this.#socket = null;
   }
+}
+
+function isTransientEndpointError(error: Error): boolean {
+  const code = "code" in error ? String(error.code) : "";
+  return ["ENOENT", "ECONNREFUSED", "ECONNRESET", "EPIPE", "ETIMEDOUT"].includes(code);
+}
+
+function transientError(message: string, code: string): Error & { code: string } {
+  return Object.assign(new Error(message), { code });
 }

@@ -13,23 +13,19 @@ export interface WalkingSkeletonScenario {
 
 export const WALKING_SKELETON_SCENARIO: WalkingSkeletonScenario = {
   id: "WS-NATIVE-PI-001",
-  description: "Launch AddOne, create Native Pi tabs by keyboard and mouse, exercise nested PTY input/resize/exit, and reconnect the UI.",
+  description: "Compare direct and AddOne-hosted Native Pi fixtures, then exercise automatic fullscreen handoff, styled output, complete input, resize, reconnect, stability, and exit propagation.",
   initialDimensions: { columns: 90, rows: 28 },
   actions: [
-    { type: "wait-for", text: "AddOne", deadlineMs: 8_000, frame: "shell-after-intro" },
-    { type: "keyboard", data: "\r" },
-    { type: "wait-for", text: "PI FIXTURE", deadlineMs: 8_000, frame: "keyboard-created" },
-    { type: "keyboard", data: "hello fixture\r" },
-    { type: "wait-for", text: "INPUT", deadlineMs: 5_000, frame: "input-echo" },
+    { type: "wait-for", text: "PI FIXTURE", deadlineMs: 8_000, frame: "automatic-fullscreen" },
+    { type: "keyboard", data: "hello π\r" },
+    { type: "keyboard", data: "\u0003" },
+    { type: "keyboard", data: "\u001b[200~pasted π\u001b[201~" },
+    { type: "mouse", column: 20, row: 10 },
     { type: "resize", columns: 72, rows: 22 },
-    { type: "wait-for", text: "RESIZED", deadlineMs: 5_000, frame: "child-resized" },
+    { type: "wait-for", text: "RESIZED:72x22", deadlineMs: 5_000, frame: "full-viewport-resize" },
     { type: "restart-ui" },
-    { type: "wait-for", text: "PI FIXTURE", deadlineMs: 8_000, frame: "resident-after-ui-restart" },
+    { type: "wait-for", text: "PI FIXTURE", deadlineMs: 8_000, frame: "resident-snapshot" },
     { type: "keyboard", data: "exit 7\r" },
-    { type: "wait-for", text: "FINAL SURFACE", deadlineMs: 5_000, frame: "child-final-output" },
-    { type: "wait-for", text: "exited (7)", deadlineMs: 5_000, frame: "retained-final-surface" },
-    { type: "keyboard", data: "\t" },
-    { type: "mouse", column: 4, row: 1 },
-    { type: "wait-for", text: "Native Pi 2", deadlineMs: 8_000, frame: "mouse-created" }
+    { type: "wait-for", text: "FINAL SURFACE", deadlineMs: 5_000, frame: "child-final-output" }
   ]
 };
