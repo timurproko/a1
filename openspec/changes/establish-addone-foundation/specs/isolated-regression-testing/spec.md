@@ -241,6 +241,21 @@ The release gate SHALL exercise candidate installation and launch while a retain
 - **WHEN** the packaged-candidate scenarios start
 - **THEN** their process inventory and release metadata SHALL prove that the bootstrap, UI, supervisor, and workers execute from the intended immutable release content rather than the development checkout
 
+### Requirement: Development previews use one immutable publish-and-update workflow
+AddOne SHALL provide one repository command that, from clean `develop`, selects the next unpublished `-dev.N` SemVer version, commits the package and lockfile bump, runs the available development-preview gates once, packs one exact tarball, publishes that tarball under npm tag `next` without recursively rerunning lifecycle gates, verifies the registry tag, and removes the local tarball only after success. The installed CLI SHALL support an explicit `next` update channel mapped to npm `next`; the default update channel SHALL remain mapped to stable `latest`.
+
+#### Scenario: Publish another development preview
+- **WHEN** a developer invokes the documented development-preview publication command from clean `develop`
+- **THEN** AddOne SHALL create and commit the next immutable `-dev.N` version, validate once, publish its exact validated tarball under `next`, and report the command or artifact retained for retry if validation, authentication, or publication fails
+
+#### Scenario: Update an installed preview
+- **WHEN** the user runs `addone update next` or `a1 update next`
+- **THEN** AddOne SHALL resolve npm tag `next`, compare its exact version with the installed version, and install that exact newer preview through npm's active global installation
+
+#### Scenario: Stable update remains stable
+- **WHEN** the user runs `addone update` or `a1 update` without a channel
+- **THEN** AddOne SHALL resolve npm tag `latest` and SHALL NOT opt the installation into development previews
+
 ### Requirement: Every failed scenario preserves reproducible evidence
 A failed scenario SHALL preserve its scenario definition, semantic host-input timeline, encoded child-input timeline, package and immutable release identities, negotiated control features, runtime and profile identities, platform and terminal identity, process inventory, activation and ownership metadata, relevant process logs, supervisor events, child PTY output, host renderer output, virtual terminal frames and mode timeline, captured host console modes where applicable, session references, assertions, and failure summary.
 

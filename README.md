@@ -45,19 +45,19 @@ npm start
 
 ## Update
 
-Both public aliases provide the same non-interactive self-update:
+Both public aliases provide the same non-interactive stable and preview updates:
 
 ```sh
-addone update
+addone update       # stable npm latest channel
 # or
 a1 update
+
+addone update next  # Windows-tested npm next channel
+# or
+a1 update next
 ```
 
-The command asks the configured npm registry for `@timurproko/addone@latest`, compares it with the running AddOne version, and installs that exact newer version globally. It does not opt a stable installation into development previews. To install or update to the Windows-tested preview channel explicitly, run:
-
-```sh
-npm install --global @timurproko/addone@next
-```
+The no-argument command asks the configured npm registry for `@timurproko/addone@latest`; the explicit `next` form asks for `@timurproko/addone@next`. Each compares the exact resolved version with the running AddOne version and installs it globally only when newer. A stable installation is never opted into development previews implicitly.
 
 The updater needs network access to the configured registry and permission to write npm's global package root. npm's proxy, authentication, certificate, registry, and global-prefix settings remain authoritative, and npm diagnostics are streamed to the terminal.
 
