@@ -1,32 +1,28 @@
 schema: spec-driven
 
-# Project context (optional)
-# This is shown to AI when creating artifacts.
-# Add your tech stack, conventions, style guides, domain knowledge, etc.
-# Example:
-#   context: |
-#     Tech stack: TypeScript, React, Node.js
-#     We use conventional commits
-#     Domain: e-commerce platform
+context: |
+  Git workflow:
+  - master contains release-ready builds only.
+  - develop is the default integration and development branch.
+  - Large milestones use milestone/<name> branches created from develop.
+  - Use Conventional Commits.
+  - Commit after each completed OpenSpec task or coherent tested subtask.
+  - Never include unrelated working-tree changes in a task commit.
+  - Merge milestone branches into develop only after milestone gates pass.
+  - Merge develop into master only after all mandatory release gates pass.
+  - Tag releases only from master.
 
-# Per-artifact rules (optional)
-# Add custom rules for specific artifacts.
-# Example:
-#   rules:
-#     proposal:
-#       - Keep proposals under 500 words
-#       - Always include a "Non-goals" section
-#     tasks:
-#       - Break tasks into chunks of max 2 hours
+rules:
+  tasks:
+    - Define coherent task boundaries suitable for individual commits.
+    - Identify mandatory validation required before completing each task.
 
-# Per-operation guidance (optional)
-# Add advisory guidance for how apply and archive work should be conducted.
-# This is separate from artifact rules above.
-# Example:
-#   operations:
-#     apply:
-#       guidance:
-#         - Keep test summaries concise
-#     archive:
-#       guidance:
-#         - Summarize the archive outcome before finishing
+operations:
+  apply:
+    guidance:
+      - Check the current Git branch before editing.
+      - Never implement directly on master.
+      - Create or switch to the appropriate milestone branch for substantial work.
+      - Run targeted validation before marking a task complete.
+      - Commit each completed task with its tests and OpenSpec evidence.
+      - Do not stage unrelated or pre-existing changes.
