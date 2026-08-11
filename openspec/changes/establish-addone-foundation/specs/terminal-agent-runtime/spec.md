@@ -214,9 +214,13 @@ The accepted Windows ConPTY baseline SHALL apply cadence-derived transport quies
 ### Requirement: Terminal exit restores a usable parent terminal
 Child process exit and AddOne client exit SHALL be separate lifecycle events. When the initial direct-executable Pi session ends, AddOne SHALL stop input, commit its final virtual state, restore the exact physical input/cursor state, retain default-mode Pi's normal-screen output, scrollback, final cursor position, and line spacing as direct Pi does, restore pre-launch normal-screen content for an explicitly fullscreen alternate projection, and exit with Pi's outcome. Child cleanup sequences SHALL remain virtual and SHALL NOT be relied upon to restore the physical terminal. AddOne SHALL NOT append, remove, redistribute, or otherwise compensate for child-produced spaces or line breaks during normal-screen restoration.
 
-#### Scenario: Pi prints a resume hint before exit
-- **WHEN** Native Pi leaves one blank row before and one blank row after its `To resume this session:` message in direct execution
+#### Scenario: Pi prints a resume hint with surrounding blank rows
+- **WHEN** Native Pi leaves one blank row before and one blank row after its `To resume this session:` message in an otherwise identical direct execution
 - **THEN** AddOne-hosted Pi SHALL retain those exact child-produced rows and the parent prompt SHALL begin at the same relative row without an AddOne-generated newline
+
+#### Scenario: Pi prints a resume hint after a full final frame
+- **WHEN** Native Pi's direct final TUI occupies the row immediately before `To resume this session:` while retaining a child-produced blank row after it
+- **THEN** AddOne-hosted Pi SHALL preserve that adjacency and trailing blank row without inventing preceding whitespace
 
 #### Scenario: Clear and exit with repeated Ctrl+C
 - **WHEN** the user invokes Native Pi's repeated Ctrl+C clear-and-exit interaction
