@@ -10,7 +10,9 @@ context: |
   - Never include unrelated working-tree changes in a task commit.
   - Merge milestone branches into develop only after milestone gates pass.
   - Merge develop into master only after all mandatory release gates pass.
-  - Tag releases only from master.
+  - Every npm publication increments the package SemVer version on develop before candidate validation: patch for compatible fixes, minor for compatible features, and major for breaking changes.
+  - Run release gates against the exact bumped package content and verify that the version is not already published before merging to master.
+  - Tag releases only from master, require the tag and package version to match, and publish only from a clean tagged master commit.
 
 rules:
   tasks:
@@ -25,4 +27,5 @@ operations:
       - Create or switch to the appropriate milestone branch for substantial work.
       - Run targeted validation before marking a task complete.
       - Commit each completed task with its tests and OpenSpec evidence without asking for confirmation.
+      - For a publication task, bump and commit the package version before running candidate release gates; never publish an already registered version.
       - Do not stage unrelated or pre-existing changes.
