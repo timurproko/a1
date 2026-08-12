@@ -97,6 +97,8 @@ Frequent Windows testing uses a first-class development channel rather than manu
 
 Installed clients select only the npm channel: `addone update` and `a1 update` resolve stable `latest`; `addone update:next` and `a1 update:next` resolve preview `next`. Both execute the identical immediate stop-install-activate transaction. The colon form mirrors `publish:next` while avoiding an extra argument. Each update command is complete: there is no required `status`, `shutdown`, `--restart`, PID lookup, process-kill command, or state-directory deletion.
 
+`addone version` and `a1 version` are equivalent dependency-light read-only commands. They read `Installed` from the invoked package manifest and query exact npm `latest` and `next` versions concurrently for `Release` and `Next`. They do not materialize a release, start/connect/stop a supervisor, or load UI, PTY, TUI, or native-addon modules. Registry failure retains a successful exit with `Installed` and reports the affected remote field as unavailable plus concise diagnostics, because local version inspection remains useful offline.
+
 Alternative considered: move `latest` for every Windows build. Rejected because it would misrepresent uncertified Linux/macOS builds as stable. Alternative considered: rerun `prepublishOnly` and `prepack` after an already successful release gate. Rejected because duplicated long-running PTY scenarios are both wasteful and vulnerable to unrelated timing variance; publication uploads the exact artifact produced after the single authoritative gate.
 
 #### First implementation increment: Native Pi walking skeleton

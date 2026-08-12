@@ -43,7 +43,18 @@ npm start
 
 `npm start` builds the checkout and creates an independent development instance for that invocation. Each simultaneous launch receives its own UI, supervisor, Native Pi process, database, runtime endpoint, and immutable release state, isolated from globally installed, older-development, and other concurrent instances. Set the same explicit `ADDONE_DEV_INSTANCE_ID` in multiple invocations only when intentional reconnection to one development instance is desired. Explicit `ADDONE_CONFIG_DIR`, `ADDONE_DATA_DIR`, `ADDONE_RUNTIME_DIR`, `ADDONE_DATABASE_PATH`, or `ADDONE_DEV_ROOT` values still override the generated instance paths.
 
-## Update
+## Version and update
+
+Inspect the installed, stable-release, and preview versions without starting AddOne runtime processes:
+
+```sh
+a1 version
+# Installed: 0.1.5-dev.2
+# Release:   0.1.4
+# Next:      0.1.5-dev.1
+```
+
+`addone version` is equivalent. If npm is unavailable, `Installed` is still shown while `Release` or `Next` is marked unavailable.
 
 Both public aliases provide the same non-interactive stable and preview updates:
 

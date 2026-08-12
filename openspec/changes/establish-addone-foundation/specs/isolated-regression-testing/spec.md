@@ -256,6 +256,10 @@ AddOne SHALL provide one repository command that, from clean `develop`, selects 
 - **WHEN** the user runs `addone update` or `a1 update`
 - **THEN** AddOne SHALL resolve npm tag `latest`, perform the same immediate stop-install-activate transaction, and SHALL NOT opt the installation into development previews
 
+#### Scenario: Inspect installed and channel versions hermetically
+- **WHEN** unit and CLI-isolation tests invoke `addone version` and `a1 version` with deterministic npm responses or failures
+- **THEN** both aliases SHALL report `Installed`, `Release`, and `Next` consistently without importing or creating interactive runtime, supervisor, PTY, native-module, database, endpoint, or release-state artifacts
+
 ### Requirement: Windows package replacement needs no manual cleanup
 The packaged update suite SHALL exercise publication-equivalent stable and preview installation with immediate activation on Windows while the old installed cohort has loaded `conpty.node` and owns multiple terminal generations. It SHALL prove that mutable npm package files are replaceable after verified shutdown, old native modules came from immutable release content, stale prior-boot generation rows cannot block candidate activation, and the next launch uses the new release presentation. The scenario SHALL fail if success requires `taskkill`, PID discovery, global package surgery, release-state deletion, database deletion, or removal of the AddOne data directory outside the product command.
 

@@ -37,7 +37,7 @@ describe("update CLI dispatch", () => {
     await writeFile(loader, `
 import { appendFileSync } from "node:fs";
 export async function resolve(specifier, context, nextResolve) {
-  if (specifier === "node-pty" || specifier.includes("/dist/src/ui/") || specifier.includes("/dist/src/supervisor/")) {
+  if (specifier === "node-pty" || specifier.includes("/dist/src/ui/") || specifier.includes("/dist/src/supervisor/") || (process.argv.includes("version") && (specifier.includes("/dist/src/update.js") || specifier.includes("/dist/src/bootstrap.js") || specifier.includes("/dist/src/cohort-state.js")))) {
     appendFileSync(${JSON.stringify(forbiddenImportLog)}, specifier + "\\n");
     throw new Error("Update imported forbidden interactive runtime module: " + specifier);
   }
@@ -97,6 +97,32 @@ else process.exitCode = 64;
     }
 
     await expect(access(npmLog)).rejects.toThrow();
+
+    for (const alias of ["addone", "a1"] as const) {
+      const cli = resolve(repository, packageJson.bin[alias] ?? "missing");
+      const result = await execFileAsync(process.execPath, [cli, "version"], {
+        cwd: temporaryRoot,
+        env: {
+          ...process.env,
+          ADDONE_RUNTIME_DIR: runtimeDirectory,
+          FAKE_NPM_LOG: npmLog,
+          FAKE_NPM_ROOT: dirname(repository),
+          FAKE_NPM_LATEST_TARGET: latestTarget!,
+          FAKE_NPM_NEXT_TARGET: nextTarget!,
+          NODE_OPTIONS: `--no-warnings --experimental-loader=${pathToFileURL(loader).href}`,
+          PATH: fakeBin,
+        },
+        timeout: 15_000,
+      });
+      expect(result.stdout).toContain(`Installed: ${packageJson.version}`);
+      expect(result.stdout).toContain(`Release:   ${latestTarget}`);
+      expect(result.stdout).toContain(`Next:      ${nextTarget}`);
+    }
+    const versionCalls = (await readFile(npmLog, "utf8")).trim().split("\n").map(line => JSON.parse(line) as string[]);
+    expect(versionCalls).toHaveLength(4);
+    expect(versionCalls.filter(call => call[1] === `${ADDONE_PACKAGE}@latest`)).toHaveLength(2);
+    expect(versionCalls.filter(call => call[1] === `${ADDONE_PACKAGE}@next`)).toHaveLength(2);
+    expect(versionCalls.every(call => call[0] === "view" && call[2] === "version")).toBe(true);
     await expect(access(forbiddenImportLog)).rejects.toThrow();
     await expect(access(runtimeDirectory)).rejects.toThrow();
   }, 30_000);
