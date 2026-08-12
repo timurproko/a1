@@ -28,11 +28,11 @@ The installed application SHALL expose `addone update`/`a1 update` as equivalent
 - **THEN** the next invocation SHALL reconcile the transaction journal and continue or roll back to one verified active cohort without requiring manual cleanup
 
 ### Requirement: Installed and channel versions are visible without runtime startup
-The installed application SHALL expose `addone version` and `a1 version` as equivalent non-interactive read-only commands. Each SHALL report `Installed` from the invoked AddOne package metadata, `Release` from npm tag `latest`, and `Next` from npm tag `next`, and SHALL NOT start, connect to, stop, or otherwise mutate an AddOne UI, supervisor, PTY, agent, release cohort, database, or update transaction.
+The installed application SHALL expose `addone version` and `a1 version` as equivalent non-interactive read-only commands. Each SHALL report, in exact display order, `Installed` from the invoked AddOne package metadata, `Release` from npm tag `latest`, and `Next` from npm tag `next`, and SHALL NOT start, connect to, stop, or otherwise mutate an AddOne UI, supervisor, PTY, agent, release cohort, database, or update transaction.
 
 #### Scenario: Registry versions are available
 - **WHEN** the user runs `a1 version` while npm `latest` and `next` are reachable
-- **THEN** AddOne SHALL display valid exact semantic versions for `Installed`, `Release`, and `Next`
+- **THEN** AddOne SHALL display valid exact semantic versions in the order `Installed`, `Release`, and `Next`
 
 #### Scenario: Registry is unavailable
 - **WHEN** the installed package metadata is readable but one or both npm tag queries fail

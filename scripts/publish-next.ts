@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import crossSpawn from "cross-spawn";
 import {
   developmentPreviewTarballName,
+  publishDevelopmentPreviewWithRecovery,
   selectDevelopmentPreviewCandidate,
   verifyDevelopmentPreviewRegistry,
 } from "../src/development-preview-release.js";
@@ -82,8 +83,13 @@ async function publishNext() {
 }
 
 async function publishAndVerify(packageName, version, tarball) {
-  await interactive(npm, ["publish", tarball, "--tag", "next", "--ignore-scripts"]);
-  await ensureNextTag(packageName, version);
+  const result = await publishDevelopmentPreviewWithRecovery(
+    async () => await interactive(npm, ["publish", tarball, "--tag", "next", "--ignore-scripts"]),
+    async () => await ensureNextTag(packageName, version),
+  );
+  if (result.recoveredPublishError) {
+    process.stdout.write("npm reported an authentication completion error after upload; registry verification confirmed the exact candidate.\n");
+  }
   process.stdout.write(`Published and verified ${packageName}@${version} under npm next.\n`);
 }
 

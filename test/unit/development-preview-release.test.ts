@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   developmentPreviewTarballName,
+  publishDevelopmentPreviewWithRecovery,
   selectDevelopmentPreviewCandidate,
   verifyDevelopmentPreviewRegistry,
 } from "../../src/development-preview-release.js";
@@ -29,6 +30,27 @@ describe("development preview release planning", () => {
   it("advances from a newer registry version without moving next backward", () => {
     expect(selectDevelopmentPreviewCandidate("0.1.5-dev.0", ["0.1.5", "0.1.6-dev.2"]))
       .toEqual({ version: "0.1.6-dev.3", requiresVersionCommit: true });
+  });
+
+  it("accepts exact registry verification when browser auth reports failure after upload", async () => {
+    const publishError = new Error("403 Forbidden - GET /-/v1/done?authId=redacted");
+    let verified = 0;
+    await expect(publishDevelopmentPreviewWithRecovery(
+      async () => { throw publishError; },
+      async () => { verified += 1; },
+    )).resolves.toEqual({ published: true, recoveredPublishError: publishError });
+    expect(verified).toBe(1);
+  });
+
+  it("preserves publish and verification failures when no immutable upload appears", async () => {
+    await expect(publishDevelopmentPreviewWithRecovery(
+      async () => { throw new Error("web auth failed"); },
+      async () => { throw new Error("version absent from registry"); },
+    )).rejects.toMatchObject({
+      name: "AggregateError",
+      message: "npm publish failed and the exact version could not be verified in the registry",
+      errors: [expect.objectContaining({ message: "web auth failed" }), expect.objectContaining({ message: "version absent from registry" })],
+    });
   });
 
   it("retries stale npm reads after a successful upload until next propagates", async () => {

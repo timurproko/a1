@@ -248,6 +248,10 @@ AddOne SHALL provide one repository command that, from clean `develop`, selects 
 - **WHEN** a developer invokes the documented development-preview publication command from clean `develop`
 - **THEN** AddOne SHALL create and commit the next immutable `-dev.N` version, validate once, publish its exact validated tarball under `next`, and report the command or artifact retained for retry if validation, authentication, or publication fails
 
+#### Scenario: Browser authentication reports failure after upload
+- **WHEN** npm uploads the exact immutable candidate and moves `next` but its browser-auth completion poll subsequently exits with an authentication error
+- **THEN** the publication workflow SHALL verify exact version, tag, and artifact identity from the registry, treat the verified upload as successful, and SHALL NOT instruct the developer to republish the immutable version
+
 #### Scenario: Update an installed preview
 - **WHEN** the user runs `addone update:next` or `a1 update:next`
 - **THEN** AddOne SHALL resolve npm tag `next` and complete the exact newer preview's immediate verified stop-install-activate transaction through npm's active global installation
