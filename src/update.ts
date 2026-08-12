@@ -186,7 +186,7 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
     output.stderr(`AddOne received a malformed ${distTag} version from npm: ${JSON.stringify(targetLookup.result.stdout.trim())}.\n`);
     return 1;
   }
-  output.stdout(`AddOne update (${channel}): running ${runningVersion}; npm ${distTag} is ${targetVersion}.\n`);
+  output.stdout(`AddOne update (${channel}): ${runningVersion} → ${targetVersion}.\n`);
 
   const rootLookup = await runNpm(runner, ["root", "--global"], true, output, "resolve npm's global package root");
   if (rootLookup.result === null) return rootLookup.exitCode;
@@ -247,7 +247,7 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
     await transactionStore.advance("supervisor-verified");
     await transactionStore.finish("completed");
     await transactionStore.clearCompleted();
-    output.stdout(`AddOne updated and activated successfully from ${runningVersion} to ${targetVersion} on the ${channel} channel.\n`);
+    output.stdout(`AddOne updated successfully: ${targetVersion} (${channel}).\n`);
     return 0;
   } catch (error) {
     const message = errorMessage(error);

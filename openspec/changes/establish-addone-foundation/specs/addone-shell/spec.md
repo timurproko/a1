@@ -14,6 +14,7 @@ The installed application SHALL expose `addone update`/`a1 update` as equivalent
 #### Scenario: Replace the current preview immediately
 - **WHEN** the user runs `a1 update:next` while an older AddOne cohort owns terminal sessions
 - **THEN** AddOne SHALL perform the same replacement transaction using the exact npm `next` version
+- **AND** SHALL report `AddOne update (next): <old> → <new>.` before replacement and `AddOne updated successfully: <new> (next).` after verified activation
 
 #### Scenario: Selected channel is already active
 - **WHEN** the selected npm tag resolves to the exact active AddOne release version

@@ -88,6 +88,7 @@ describe("release-gating N-1 update transitions", () => {
     await mkdir(packageRoot, { recursive: true });
     await writeFile(resolve(packageRoot, "package.json"), JSON.stringify({ name: "@timurproko/addone", version: "1.0.0" }));
     const calls: string[] = [];
+    const stdout: string[] = [];
     const lifecycle: UpdateLifecycleCoordinator = {
       targetIsActive: async () => false,
       shutdownVerifiedOwners: async target => { calls.push(`shutdown:${target}:owned-ui,supervisor,pty,pi`); return { priorActiveVersion: "1.0.0" }; },
@@ -111,7 +112,7 @@ describe("release-gating N-1 update transitions", () => {
         if (arguments_[0] === "root") return { code: 0, stdout: resolve(root, "global") + "\n" };
         return { code: 0, stdout: "installed" };
       },
-      output: { stdout: () => {}, stderr: () => {} },
+      output: { stdout: message => stdout.push(message), stderr: () => {} },
     });
 
     expect(result).toBe(0);
@@ -123,6 +124,8 @@ describe("release-gating N-1 update transitions", () => {
       "npm:install --global @timurproko/addone@1.1.0",
       "activate:1.1.0:no-intro",
     ]);
+    expect(stdout.join("")).toContain(`AddOne update (${channel}): 1.0.0 → 1.1.0.`);
+    expect(stdout.join("")).toContain(`AddOne updated successfully: 1.1.0 (${channel}).`);
     expect(JSON.stringify(calls)).not.toMatch(/taskkill|Remove-Item|release-state deletion|database deletion/i);
   });
 });
