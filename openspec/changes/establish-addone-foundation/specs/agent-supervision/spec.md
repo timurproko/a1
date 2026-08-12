@@ -74,6 +74,32 @@ UI and supervisor peers SHALL negotiate stable control-envelope identity and req
 - **WHEN** either peer requires a control feature the other does not advertise
 - **THEN** no application command SHALL be accepted and the release coordinator SHALL select a matching cohort or perform a safe replacement instead of reporting a generic malformed-message failure
 
+### Requirement: Immediate preview replacement is ownership-safe and atomic
+For `update:next`, AddOne SHALL coordinate shutdown, npm installation, immutable materialization, certification, stale-generation reconciliation, active-reference commit, and rollback through a durable transaction. The command itself SHALL authorize interruption of all verified AddOne-owned non-resumable generations. A preview update SHALL complete with exactly one active release cohort or retain/restore one verified prior cohort; installed, pending, and transaction phases MAY exist internally for crash recovery but SHALL NOT require separate user operations.
+
+#### Scenario: Active terminal generations exist
+- **WHEN** `update:next` begins while a verified supervisor owns live terminal generations
+- **THEN** the coordinator SHALL stop input, request bounded graceful child shutdown, stop the supervisor and process tree, verify endpoint and native-module ownership release, and only then replace the npm package and activate the candidate
+
+#### Scenario: Native dependency is loaded
+- **WHEN** the old cohort has loaded a native dependency such as `conpty.node`
+- **THEN** that dependency SHALL resolve from the old immutable release root rather than npm's mutable global package root, and the coordinator SHALL verify release before npm replacement
+
+#### Scenario: Installation or activation fails
+- **WHEN** npm installation, materialization, certification, or activation fails
+- **THEN** the transaction SHALL retain diagnostics, avoid mixed-release ownership, and restore or retain a single verified runnable cohort when possible without deleting user control or conversation data
+
+### Requirement: Generation liveness is boot-scoped and observed
+A process generation SHALL be considered live only when it is owned by a currently verified supervisor boot and backed by that supervisor's in-memory driver handle or another authenticated runtime ownership record. Persisted generation state alone SHALL NOT prove liveness. Every supervisor start SHALL transactionally reconcile nonterminal generation rows from prior boot identities as exited, interrupted, orphaned, or otherwise non-live before publishing ownership metadata.
+
+#### Scenario: Supervisor was forcibly terminated
+- **WHEN** the owning supervisor process is dead and its database contains generations previously marked starting, ready, or stopping
+- **THEN** the next coordinator or supervisor boot SHALL mark those generations non-live, clear them as activation blockers, and SHALL NOT restart the old release merely because those rows exist
+
+#### Scenario: New supervisor starts from existing control data
+- **WHEN** a supervisor boots after an unclean exit
+- **THEN** its endpoint ownership SHALL contain only generations with handles established by that boot and SHALL never accumulate prior-boot generation identifiers
+
 ### Requirement: Stale supervisor ownership is reconciled automatically
 AddOne SHALL validate endpoint ownership using live handshake identity, process identity, release identity, and a per-boot nonce rather than treating an accepting socket or metadata file as sufficient evidence. It SHALL perform bounded graceful cleanup and platform-native process-tree termination when stale ownership is proven safe to remove.
 
