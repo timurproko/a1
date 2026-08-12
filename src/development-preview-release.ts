@@ -5,6 +5,17 @@ export interface DevelopmentPreviewCandidate {
   readonly requiresVersionCommit: boolean;
 }
 
+export interface DevelopmentPreviewRegistryState {
+  readonly published: boolean;
+  readonly nextVersion: string | null;
+}
+
+export interface DevelopmentPreviewVerificationOptions {
+  readonly attempts?: number;
+  readonly delayMs?: number;
+  readonly delay?: (milliseconds: number) => Promise<void>;
+}
+
 /** Selects a monotonic, unpublished dev prerelease without moving npm next backward. */
 export function selectDevelopmentPreviewCandidate(
   currentVersion: string,
@@ -39,6 +50,32 @@ export function selectDevelopmentPreviewCandidate(
     if (candidate === null) throw new Error(`could not increment development preview from ${base}`);
   }
   return { version: candidate, requiresVersionCommit: candidate !== currentVersion };
+}
+
+/** Tolerates npm registry propagation after a successful immutable upload. */
+export async function verifyDevelopmentPreviewRegistry(
+  version: string,
+  observe: () => Promise<DevelopmentPreviewRegistryState>,
+  repairNextTag: () => Promise<void>,
+  options: DevelopmentPreviewVerificationOptions = {},
+): Promise<void> {
+  const attempts = options.attempts ?? 12;
+  const delayMs = options.delayMs ?? 2_000;
+  const delay = options.delay ?? (async milliseconds => await new Promise(resolvePromise => setTimeout(resolvePromise, milliseconds)));
+  if (!Number.isInteger(attempts) || attempts < 1) throw new Error(`invalid registry verification attempts: ${attempts}`);
+  let repaired = false;
+  let last: DevelopmentPreviewRegistryState = { published: false, nextVersion: null };
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    last = await observe();
+    if (last.published && last.nextVersion === version) return;
+    if (last.published && !repaired) {
+      await repairNextTag();
+      repaired = true;
+    }
+    if (attempt < attempts) await delay(delayMs);
+  }
+  if (!last.published) throw new Error(`npm registry did not expose published version ${version} after ${attempts} attempts`);
+  throw new Error(`npm next resolved ${last.nextVersion ?? "nothing"}; expected ${version} after ${attempts} attempts`);
 }
 
 export function developmentPreviewTarballName(packageName: string, version: string): string {
