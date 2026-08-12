@@ -50,7 +50,7 @@ export async function resolve(specifier, context, nextResolve) {
 import { appendFileSync } from "node:fs";
 const args = process.argv.slice(2);
 appendFileSync(process.env.FAKE_NPM_LOG, JSON.stringify(args) + "\\n");
-if (args[0] === "view") console.log(process.env.FAKE_NPM_TARGET);
+if (args[0] === "view") console.log(args[1].endsWith("@next") ? process.env.FAKE_NPM_NEXT_TARGET : process.env.FAKE_NPM_LATEST_TARGET);
 else if (args[0] === "root") console.log(process.env.FAKE_NPM_ROOT);
 else if (args[0] === "install") console.log("fake npm install completed");
 else process.exitCode = 64;
@@ -72,37 +72,50 @@ else process.exitCode = 64;
       version: string;
       bin: Record<string, string>;
     };
-    const target = inc(packageJson.version, "patch");
-    expect(target).not.toBeNull();
+    const latestTarget = inc(packageJson.version, "patch");
+    const nextTarget = inc(packageJson.version, "prerelease", "dev");
+    expect(latestTarget).not.toBeNull();
+    expect(nextTarget).not.toBeNull();
     expect(packageJson.bin.addone).toBe(packageJson.bin.a1);
 
     for (const alias of ["addone", "a1"] as const) {
-      const cli = resolve(repository, packageJson.bin[alias] ?? "missing");
-      const result = await execFileAsync(process.execPath, [cli, "update"], {
-        cwd: temporaryRoot,
-        env: {
-          ...process.env,
-          ADDONE_RUNTIME_DIR: runtimeDirectory,
-          FAKE_NPM_LOG: npmLog,
-          FAKE_NPM_ROOT: dirname(repository),
-          FAKE_NPM_TARGET: target!,
-          NODE_OPTIONS: `--no-warnings --experimental-loader=${pathToFileURL(loader).href}`,
-          PATH: fakeBin,
-        },
-        timeout: 15_000,
-      });
-      expect(result.stdout).toContain(`AddOne updated successfully from ${packageJson.version} to ${target}`);
-      expect(result.stdout).toContain("fake npm install completed");
+      for (const channel of ["stable", "next"] as const) {
+        const cli = resolve(repository, packageJson.bin[alias] ?? "missing");
+        const target = channel === "next" ? nextTarget! : latestTarget!;
+        const result = await execFileAsync(process.execPath, [cli, "update", ...(channel === "next" ? ["next"] : [])], {
+          cwd: temporaryRoot,
+          env: {
+            ...process.env,
+            ADDONE_RUNTIME_DIR: runtimeDirectory,
+            FAKE_NPM_LOG: npmLog,
+            FAKE_NPM_ROOT: dirname(repository),
+            FAKE_NPM_LATEST_TARGET: latestTarget!,
+            FAKE_NPM_NEXT_TARGET: nextTarget!,
+            NODE_OPTIONS: `--no-warnings --experimental-loader=${pathToFileURL(loader).href}`,
+            PATH: fakeBin,
+          },
+          timeout: 15_000,
+        });
+        expect(result.stdout).toContain(`AddOne updated successfully from ${packageJson.version} to ${target}`);
+        expect(result.stdout).toContain(`on the ${channel} channel`);
+        expect(result.stdout).toContain("fake npm install completed");
+      }
     }
 
     const calls = (await readFile(npmLog, "utf8")).trim().split("\n").map(line => JSON.parse(line) as string[]);
     expect(calls).toEqual([
       ["view", `${ADDONE_PACKAGE}@latest`, "version"],
       ["root", "--global"],
-      ["install", "--global", `${ADDONE_PACKAGE}@${target}`],
+      ["install", "--global", `${ADDONE_PACKAGE}@${latestTarget}`],
+      ["view", `${ADDONE_PACKAGE}@next`, "version"],
+      ["root", "--global"],
+      ["install", "--global", `${ADDONE_PACKAGE}@${nextTarget}`],
       ["view", `${ADDONE_PACKAGE}@latest`, "version"],
       ["root", "--global"],
-      ["install", "--global", `${ADDONE_PACKAGE}@${target}`],
+      ["install", "--global", `${ADDONE_PACKAGE}@${latestTarget}`],
+      ["view", `${ADDONE_PACKAGE}@next`, "version"],
+      ["root", "--global"],
+      ["install", "--global", `${ADDONE_PACKAGE}@${nextTarget}`],
     ]);
     await expect(access(forbiddenImportLog)).rejects.toThrow();
     await expect(access(runtimeDirectory)).rejects.toThrow();

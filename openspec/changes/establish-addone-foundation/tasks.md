@@ -111,6 +111,8 @@ No Milestone 2 or later product work SHALL proceed until tasks 1.80–1.92 pass 
 - [x] 1.97 Reconcile the packaged real-Pi median input-latency gate with the accepted atomic pipeline budget—32 ms adaptive quiescence, one public xterm parse turn, and ordered process/host serialization—while retaining a 100 ms absolute ceiling and the unchanged zero-flicker baseline.
 - [x] 1.98 Pass the complete Windows x64 development-preview gate for the exact `0.1.5-dev.0` candidate, including unit, architecture, dependency, walking-skeleton, 50-question flicker, packaged real-Pi, extension, multi-CLI, and update-transition verdicts, while retaining Linux/macOS stable certification under task 1.91.
 - [x] 1.99 Publish the immutable Windows-tested `0.1.5-dev.0` package under npm tag `next`, verify that `next` resolves to the candidate, retain `latest` at stable `0.1.4`, and document explicit preview-channel installation.
+- [x] 1.100 Add explicit stable/preview self-update channel parsing so `addone update next` and `a1 update next` resolve npm `next`, install its exact newer version, and preserve no-argument `latest` behavior with unit, CLI-isolation, and documentation coverage.
+- [x] 1.101 Add one `npm run publish:next` workflow that requires clean `develop`, selects and commits the next unpublished `-dev.N` version, validates once, packs and publishes one exact lifecycle-disabled tarball under `next`, verifies the tag, retains failed artifacts for immediate retry, and has deterministic workflow tests.
 
 ## 2. Deferred Executable v2 Behavior Oracle
 

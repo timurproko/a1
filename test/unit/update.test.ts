@@ -100,6 +100,27 @@ describe("AddOne self-update orchestration", () => {
     expect(harness.stderr).toEqual([]);
   });
 
+  it("resolves and installs the exact npm next version for the preview channel", async () => {
+    const harness = createHarness({ current: "1.3.0-dev.0" });
+    harness.fileSystem.realpath = async path => path;
+    harness.runner = async (command, arguments_, request) => {
+      harness.invocations.push({ command, arguments: arguments_, request });
+      if (arguments_[0] === "view") return success("1.3.0-dev.1\n");
+      if (arguments_[0] === "root") return success(`${harness.globalRoot}\n`);
+      return success();
+    };
+
+    await expect(runSelfUpdate({ ...harness, channel: "next" })).resolves.toBe(0);
+
+    expect(harness.invocations).toEqual([
+      { command: "npm", arguments: ["view", `${ADDONE_PACKAGE}@next`, "version"], request: { captureStdout: true } },
+      { command: "npm", arguments: ["root", "--global"], request: { captureStdout: true } },
+      { command: "npm", arguments: ["install", "--global", `${ADDONE_PACKAGE}@1.3.0-dev.1`], request: { captureStdout: false } },
+    ]);
+    expect(harness.stdout.join("")).toContain("npm next is 1.3.0-dev.1");
+    expect(harness.stdout.join("")).toContain("on the next channel");
+  });
+
   it("refuses an unmanaged checkout and prints the pinned fallback", async () => {
     const harness = createHarness({
       packageRoot: resolve("fixtures", "checkout"),
@@ -141,7 +162,7 @@ describe("AddOne self-update orchestration", () => {
 
     await expect(runSelfUpdate(harness)).resolves.toBe(23);
 
-    expect(harness.stderr.join("")).toContain("query the npm registry");
+    expect(harness.stderr.join("")).toContain("query the npm latest channel");
     expect(harness.stderr.join("")).toContain("status 23");
   });
 

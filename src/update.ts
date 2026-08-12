@@ -6,6 +6,13 @@ import { compare as compareSemver, valid as validSemver } from "semver";
 
 export const ADDONE_PACKAGE = "@timurproko/addone";
 
+export type UpdateChannel = "stable" | "next";
+
+const UPDATE_DIST_TAGS: Readonly<Record<UpdateChannel, "latest" | "next">> = {
+  stable: "latest",
+  next: "next",
+};
+
 export interface ProcessRequest {
   captureStdout: boolean;
 }
@@ -33,6 +40,7 @@ export interface UpdateOutput {
 
 export interface SelfUpdateOptions {
   packageRoot: string;
+  channel?: UpdateChannel;
   fileSystem?: UpdateFileSystem;
   output?: UpdateOutput;
   runner?: UpdateProcessRunner;
@@ -82,6 +90,8 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
   const fileSystem = options.fileSystem ?? defaultFileSystem;
   const output = options.output ?? defaultOutput;
   const runner = options.runner ?? createNpmProcessRunner();
+  const channel = options.channel ?? "stable";
+  const distTag = UPDATE_DIST_TAGS[channel];
 
   let runningVersion: string;
   try {
@@ -91,29 +101,30 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
     runningVersion = parsedVersion;
   } catch (error) {
     output.stderr(`AddOne could not read its running package version: ${errorMessage(error)}\n`);
-    printManualFallback(output);
+    printManualFallback(output, undefined, distTag);
     return 1;
   }
 
-  const latestLookup = await runNpm(
+  const targetLookup = await runNpm(
     runner,
-    ["view", `${ADDONE_PACKAGE}@latest`, "version"],
+    ["view", `${ADDONE_PACKAGE}@${distTag}`, "version"],
     true,
     output,
-    "query the npm registry",
+    `query the npm ${distTag} channel`,
+    distTag,
   );
-  if (latestLookup.result === null) return latestLookup.exitCode;
+  if (targetLookup.result === null) return targetLookup.exitCode;
 
-  const latestVersion = validSemver(latestLookup.result.stdout.trim());
-  if (latestVersion === null) {
-    output.stderr(`AddOne received a malformed latest version from npm: ${JSON.stringify(latestLookup.result.stdout.trim())}.\n`);
-    printManualFallback(output);
+  const targetVersion = validSemver(targetLookup.result.stdout.trim());
+  if (targetVersion === null) {
+    output.stderr(`AddOne received a malformed ${distTag} version from npm: ${JSON.stringify(targetLookup.result.stdout.trim())}.\n`);
+    printManualFallback(output, undefined, distTag);
     return 1;
   }
 
-  output.stdout(`AddOne update: running ${runningVersion}; npm latest is ${latestVersion}.\n`);
-  if (compareSemver(latestVersion, runningVersion) <= 0) {
-    output.stdout("AddOne is already current; no installation was changed.\n");
+  output.stdout(`AddOne update (${channel}): running ${runningVersion}; npm ${distTag} is ${targetVersion}.\n`);
+  if (compareSemver(targetVersion, runningVersion) <= 0) {
+    output.stdout("AddOne is already current for this channel; no installation was changed.\n");
     return 0;
   }
 
@@ -123,14 +134,14 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
     true,
     output,
     "resolve npm's global package root",
-    latestVersion,
+    targetVersion,
   );
   if (rootLookup.result === null) return rootLookup.exitCode;
 
   const globalRootOutput = rootLookup.result.stdout.trim();
   if (globalRootOutput.length === 0) {
     output.stderr("AddOne could not verify its installation because npm returned an empty global package root.\n");
-    printManualFallback(output, latestVersion);
+    printManualFallback(output, targetVersion, distTag);
     return 1;
   }
 
@@ -143,37 +154,37 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
     ]);
   } catch (error) {
     output.stderr(`AddOne could not canonicalize the running and global npm paths: ${errorMessage(error)}\n`);
-    printManualFallback(output, latestVersion);
+    printManualFallback(output, targetVersion, distTag);
     return 1;
   }
 
   if (!isContainedBy(globalRoot, packageRoot)) {
     output.stderr(`AddOne refused to update automatically because ${packageRoot} is not managed beneath npm's global package root ${globalRoot}.\n`);
     output.stderr("This can happen in a local checkout, an npm-linked tree, or an installation managed by another package manager.\n");
-    printManualFallback(output, latestVersion);
+    printManualFallback(output, targetVersion, distTag);
     return 1;
   }
 
-  const installArguments = ["install", "--global", `${ADDONE_PACKAGE}@${latestVersion}`];
-  output.stdout(`AddOne is installing ${ADDONE_PACKAGE}@${latestVersion} globally.\n`);
+  const installArguments = ["install", "--global", `${ADDONE_PACKAGE}@${targetVersion}`];
+  output.stdout(`AddOne is installing ${ADDONE_PACKAGE}@${targetVersion} globally from the ${channel} channel.\n`);
   const installation = await runNpm(
     runner,
     installArguments,
     false,
     output,
     "start the global npm installation",
-    latestVersion,
+    targetVersion,
     false,
   );
   if (installation.result === null) return installation.exitCode;
 
   if (installation.result.code !== 0) {
     output.stderr(`AddOne update failed because npm exited with status ${formatExitCode(installation.result.code)}. Review npm's diagnostics above for network, registry, or permission errors.\n`);
-    printManualFallback(output, latestVersion);
+    printManualFallback(output, targetVersion, distTag);
     return unsuccessfulCode(installation.result.code);
   }
 
-  output.stdout(`AddOne updated successfully from ${runningVersion} to ${latestVersion}. Start a new AddOne process to use it.\n`);
+  output.stdout(`AddOne updated successfully from ${runningVersion} to ${targetVersion} on the ${channel} channel. Start a new AddOne process to use it.\n`);
   return 0;
 }
 
@@ -211,8 +222,8 @@ function isContainedBy(parent: string, child: string): boolean {
     && !isAbsolute(pathFromParent);
 }
 
-function printManualFallback(output: UpdateOutput, version?: string): void {
-  output.stderr(`Manual fallback: npm install --global ${ADDONE_PACKAGE}@${version ?? "latest"}\n`);
+function printManualFallback(output: UpdateOutput, version?: string, distTag: "latest" | "next" = "latest"): void {
+  output.stderr(`Manual fallback: npm install --global ${ADDONE_PACKAGE}@${version ?? distTag}\n`);
 }
 
 function unsuccessfulCode(code: number | null): number {

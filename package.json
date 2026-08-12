@@ -27,6 +27,7 @@
     "check:deprecated": "node scripts/check-deprecated-dependencies.mjs",
     "check": "npm run typecheck && npm run check:architecture && npm run check:deprecated && npm test && npm run test:release",
     "validate:agent": "npm run check",
+    "publish:next": "tsx scripts/publish-next.ts",
     "test": "vitest run --exclude test/scenarios/**",
     "test:unit": "vitest run test/unit",
     "test:integration": "vitest run test/integration",
