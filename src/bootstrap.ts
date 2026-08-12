@@ -72,7 +72,11 @@ export async function runBootstrap(options: BootstrapOptions): Promise<number> {
       output.write("AddOne could not verify idle cohort ownership release; the retained release remains selected.\n");
       return 1;
     }
-    await waitForProcessExit(endpoint.pid, 3_000);
+    if (!await releaseVerifiedIdleOwner(endpoint, paths.dataDir)) {
+      await stateStore.blockPending("idle supervisor acknowledged release but did not terminate", endpoint.ownership.liveGenerationIds);
+      output.write("AddOne could not complete bounded idle cohort shutdown; the candidate remains pending.\n");
+      return 1;
+    }
     await removeEndpointArtifacts(paths.endpointMetadataPath, paths.endpoint);
     await stateStore.activate(candidate.releaseId);
     decision = { action: "activate-candidate", releaseId: candidate.releaseId, releaseRoot: candidate.releaseRoot, reason: "idle cohort released ownership" };
@@ -225,11 +229,26 @@ async function activatePendingAfterBlockerExit(
   const diagnosticsPath = await certifyMaterializedRelease(candidate, paths.dataDir);
   await stateStore.approve(candidate.releaseId, diagnosticsPath);
   if (!await requestIdleOwnershipRelease(endpoint, candidate.releaseId, 2_000)) return;
-  await waitForProcessExit(endpoint.pid, 3_000);
+  if (!await releaseVerifiedIdleOwner(endpoint, paths.dataDir)) return;
   await removeEndpointArtifacts(paths.endpointMetadataPath, paths.endpoint);
   await stateStore.activate(candidate.releaseId);
   await startSupervisor(candidate, environment);
   await waitForVerifiedEndpoint(paths.endpointMetadataPath, candidate, 8_000);
+}
+
+async function releaseVerifiedIdleOwner(metadata: SupervisorEndpointMetadata, dataDir: string): Promise<boolean> {
+  try {
+    await waitForProcessExit(metadata.pid, 3_000);
+    return true;
+  } catch {
+    // The release handshake authenticated this exact boot and confirmed it had
+    // no live handles. If a native/platform handle keeps the dedicated process
+    // alive, finish the already-authorized idle cleanup through the same bounded
+    // ownership-safe path used for an unresponsive stale owner.
+    const diagnostics = await cleanupProvenIdleOwner(metadata);
+    await writeFile(resolve(dataDir, `cleanup-${Date.now()}.json`), JSON.stringify(diagnostics, null, 2));
+    return diagnostics.terminated;
+  }
 }
 
 async function requestIdleOwnershipRelease(metadata: SupervisorEndpointMetadata, candidateReleaseId: string, timeoutMs: number): Promise<boolean> {

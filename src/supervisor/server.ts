@@ -47,6 +47,7 @@ export class SupervisorServer {
     paths = resolveAddOnePaths(),
     readonly release: MaterializedRelease,
     bootNonce = randomUUID(),
+    readonly terminateProcess: (code: number) => void = code => process.exit(code),
   ) {
     this.bootNonce = bootNonce;
     this.paths = paths;
@@ -88,6 +89,15 @@ export class SupervisorServer {
     if (platform() !== "win32") await rm(this.paths.endpoint, { force: true });
   }
 
+  async closeForReleaseReplacement(stopAgents: boolean): Promise<void> {
+    await this.close(stopAgents);
+    // A detached supervisor is a dedicated process. Closing its server and
+    // database is not sufficient proof that every native/platform handle lets
+    // Node's event loop drain promptly, so release replacement terminates only
+    // after owned resources and endpoint metadata have been closed.
+    this.terminateProcess(0);
+  }
+
   #attach(socket: Socket): void {
     socket.setNoDelay(true);
     const decoder = new LineFrameDecoder();
@@ -110,7 +120,7 @@ export class SupervisorServer {
                 reason: released ? "idle cohort released ownership" : request.bootNonce !== this.bootNonce ? "boot nonce mismatch" : "live generations prevent ownership release",
                 liveGenerationIds,
               });
-              if (released) setTimeout(() => void this.close(false), 25);
+              if (released) setTimeout(() => void this.closeForReleaseReplacement(false), 25);
               continue;
             }
             if (typeof value === "object" && value !== null && "type" in value && value.type === "release-update-ownership") {
@@ -123,7 +133,7 @@ export class SupervisorServer {
                 reason: accepted ? "verified AddOne owner accepted immediate update shutdown" : "boot nonce or target version mismatch",
                 liveGenerationIds,
               });
-              if (accepted) setTimeout(() => void this.close(true), 25);
+              if (accepted) setTimeout(() => void this.closeForReleaseReplacement(true), 25);
               continue;
             }
             if (!isControlHello(value)) {
