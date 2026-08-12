@@ -17,4 +17,23 @@ describe("control-store migration", () => {
     expect(store.loadWorkspace()).toMatchObject({ id: "workspace-default", selectedAgentId: null, agentIds: [] });
     store.close();
   });
+
+  it("transactionally interrupts nonterminal generations from prior supervisor boots", async () => {
+    const root = await mkdtemp(join(tmpdir(), "addone-store-reconcile-"));
+    roots.push(root);
+    const path = join(root, "control.sqlite3");
+    const first = new ControlStore(path, "boot-old");
+    const now = new Date(0).toISOString();
+    const profile = { id: "profile", kind: "native-pi", executable: "pi", arguments: [], cwd: ".", environment: {}, terminalType: "xterm-256color", dimensions: { columns: 80, rows: 24 }, projection: { kind: "native-full-viewport" }, conptyMouseFallback: "none", resume: "none" };
+    first.database.prepare("INSERT INTO driver_profiles (id, kind, profile_json, created_at) VALUES (?, ?, ?, ?)").run(profile.id, profile.kind, JSON.stringify(profile), now);
+    first.database.prepare("INSERT INTO terminal_agents (id, workspace_id, name, profile_id, profile_json, surface_json, created_at) VALUES (?, ?, ?, ?, ?, NULL, ?)")
+      .run("agent", "workspace-default", "stale", profile.id, JSON.stringify(profile), now);
+    first.database.prepare("INSERT INTO process_generations (id, agent_id, sequence, profile_id, state, capabilities_json, started_at, owner_boot_nonce) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+      .run("generation", "agent", 1, profile.id, "ready", "[]", now, "boot-old");
+    first.close();
+
+    const second = new ControlStore(path, "boot-new");
+    expect(second.loadAgents()[0]?.currentGeneration).toMatchObject({ state: "interrupted", ownerBootNonce: "boot-old" });
+    second.close();
+  });
 });

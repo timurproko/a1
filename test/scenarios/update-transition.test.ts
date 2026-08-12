@@ -7,6 +7,7 @@ import { selectCohortLaunch } from "../../src/cohort-selection.js";
 import { CohortStateStore, type SupervisorEndpointMetadata } from "../../src/cohort-state.js";
 import { cleanupProvenIdleOwner } from "../../src/process-cleanup.js";
 import { materializeRelease, verifyMaterializedRelease, type MaterializedRelease } from "../../src/release-store.js";
+import { runSelfUpdate, type UpdateLifecycleCoordinator, type UpdateTransactionJournal } from "../../src/update.js";
 
 const cleanupRoots: string[] = [];
 afterEach(async () => Promise.all(cleanupRoots.splice(0).map(root => rm(root, { recursive: true, force: true }))));
@@ -75,6 +76,55 @@ describe("release-gating N-1 update transitions", () => {
       throw error;
     }
   }, 30_000);
+
+  it.each([
+    ["stable", "latest"],
+    ["next", "next"],
+  ] as const)("uses identical immediate replacement semantics for %s", async (channel, tag) => {
+    const root = await mkdtemp(resolve(tmpdir(), `addone-update-${channel}-`));
+    cleanupRoots.push(root);
+    const packageRoot = resolve(root, "global", "@timurproko", "addone");
+    const dataDir = resolve(root, "data");
+    await mkdir(packageRoot, { recursive: true });
+    await writeFile(resolve(packageRoot, "package.json"), JSON.stringify({ name: "@timurproko/addone", version: "1.0.0" }));
+    const calls: string[] = [];
+    const lifecycle: UpdateLifecycleCoordinator = {
+      targetIsActive: async () => false,
+      shutdownVerifiedOwners: async target => { calls.push(`shutdown:${target}:owned-ui,supervisor,pty,pi`); return { priorActiveVersion: "1.0.0" }; },
+      verifyPackageUnlocked: async () => { calls.push("unlock:conpty.node"); },
+      activateInstalled: async (_path, target, phase) => {
+        for (const value of ["materialized", "certified", "active-reference-committed"] as const) await phase(value);
+        calls.push(`activate:${target}:no-intro`);
+      },
+    };
+    const transaction = memoryTransaction(root);
+    const result = await runSelfUpdate({
+      packageRoot,
+      channel,
+      environment: { ADDONE_DATA_DIR: dataDir, ADDONE_RUNTIME_DIR: resolve(root, "runtime") },
+      fileSystem: { readFile: async path => await import("node:fs/promises").then(fs => fs.readFile(path, "utf8")), realpath: async path => resolve(path) },
+      lifecycle,
+      transactionStore: transaction,
+      runner: async (_command, arguments_) => {
+        calls.push(`npm:${arguments_.join(" ")}`);
+        if (arguments_[0] === "view") return { code: 0, stdout: "1.1.0\n" };
+        if (arguments_[0] === "root") return { code: 0, stdout: resolve(root, "global") + "\n" };
+        return { code: 0, stdout: "installed" };
+      },
+      output: { stdout: () => {}, stderr: () => {} },
+    });
+
+    expect(result).toBe(0);
+    expect(calls).toEqual([
+      `npm:view @timurproko/addone@${tag} version`,
+      "npm:root --global",
+      "shutdown:1.1.0:owned-ui,supervisor,pty,pi",
+      "unlock:conpty.node",
+      "npm:install --global @timurproko/addone@1.1.0",
+      "activate:1.1.0:no-intro",
+    ]);
+    expect(JSON.stringify(calls)).not.toMatch(/taskkill|Remove-Item|release-state deletion|database deletion/i);
+  });
 });
 
 async function fixturePackage(root: string, version: string, payload: string): Promise<string> {
@@ -84,6 +134,18 @@ async function fixturePackage(root: string, version: string, payload: string): P
   await writeFile(resolve(packageRoot, "dist/app.js"), payload);
   return packageRoot;
 }
+function memoryTransaction(root: string): UpdateTransactionJournal {
+  let value: Awaited<ReturnType<UpdateTransactionJournal["read"]>> = null;
+  return {
+    path: resolve(root, "update-transaction.json"),
+    read: async () => value,
+    begin: async input => value ??= { schemaVersion: 1, transactionId: "scenario", ...input, phase: "shutdown-intent", status: "active", error: null, startedAt: new Date(0).toISOString(), updatedAt: new Date(0).toISOString() },
+    advance: async phase => { if (!value) throw new Error("missing transaction"); return value = { ...value, phase }; },
+    finish: async (status, error = null) => { if (!value) throw new Error("missing transaction"); return value = { ...value, status, error }; },
+    clearCompleted: async () => { if (value?.status !== "active") value = null; },
+  };
+}
+
 function metadata(release: MaterializedRelease, pid: number, generations: readonly string[]): SupervisorEndpointMetadata {
   return {
     supervisorId: "n-minus-one", endpoint: "isolated-endpoint", pid, pidStartIdentity: `${pid}:fixture`, bootNonce: "fixture-boot", startedAt: new Date(0).toISOString(),

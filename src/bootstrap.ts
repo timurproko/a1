@@ -96,7 +96,7 @@ export async function runBootstrap(options: BootstrapOptions): Promise<number> {
   return await launchUi(selected, environment);
 }
 
-async function certifyMaterializedRelease(release: MaterializedRelease, dataDir: string): Promise<string> {
+export async function certifyMaterializedRelease(release: MaterializedRelease, dataDir: string): Promise<string> {
   await verifyMaterializedRelease(release.releaseRoot, release, resolve(dataDir, "releases"));
   const path = resolve(dataDir, `certification-${release.releaseId}.json`);
   await writeFile(path, JSON.stringify({
@@ -108,7 +108,7 @@ async function certifyMaterializedRelease(release: MaterializedRelease, dataDir:
   return path;
 }
 
-async function startSupervisor(release: MaterializedRelease, environment: NodeJS.ProcessEnv): Promise<void> {
+export async function startSupervisor(release: MaterializedRelease, environment: NodeJS.ProcessEnv): Promise<void> {
   const entry = await resolveReleaseEntryPoint(release, "bin/addone-supervisor.js");
   const child = spawn(process.execPath, [entry], {
     detached: true,
@@ -136,7 +136,7 @@ async function launchUi(release: MaterializedRelease, environment: NodeJS.Proces
   });
 }
 
-function releaseEnvironment(environment: NodeJS.ProcessEnv, release: MaterializedRelease): NodeJS.ProcessEnv {
+export function releaseEnvironment(environment: NodeJS.ProcessEnv, release: MaterializedRelease): NodeJS.ProcessEnv {
   return {
     ...environment,
     ADDONE_RELEASE_ID: release.releaseId,
@@ -145,7 +145,7 @@ function releaseEnvironment(environment: NodeJS.ProcessEnv, release: Materialize
   };
 }
 
-async function waitForVerifiedEndpoint(path: string, release: MaterializedRelease, timeoutMs: number): Promise<void> {
+export async function waitForVerifiedEndpoint(path: string, release: MaterializedRelease, timeoutMs: number): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const metadata = await readEndpointMetadata(path);
@@ -155,7 +155,7 @@ async function waitForVerifiedEndpoint(path: string, release: MaterializedReleas
   throw new Error(`AddOne supervisor did not publish verified endpoint metadata within ${timeoutMs}ms`);
 }
 
-async function readEndpointMetadata(path: string): Promise<SupervisorEndpointMetadata | null> {
+export async function readEndpointMetadata(path: string): Promise<SupervisorEndpointMetadata | null> {
   try {
     const value = JSON.parse(await readFile(path, "utf8")) as SupervisorEndpointMetadata;
     if (!value || typeof value.supervisorId !== "string" || typeof value.endpoint !== "string" || !Number.isSafeInteger(value.pid)
@@ -170,7 +170,7 @@ async function readEndpointMetadata(path: string): Promise<SupervisorEndpointMet
   }
 }
 
-async function probeOwnership(metadata: SupervisorEndpointMetadata): Promise<OwnershipProbe> {
+export async function probeOwnership(metadata: SupervisorEndpointMetadata): Promise<OwnershipProbe> {
   if (!processIsAlive(metadata.pid)) return "dead";
   const identity = await requestIdentity(metadata.endpoint, 500);
   if (!identity) return "unresponsive";
@@ -255,7 +255,7 @@ async function requestIdleOwnershipRelease(metadata: SupervisorEndpointMetadata,
   });
 }
 
-async function waitForProcessExit(pid: number, timeoutMs: number): Promise<void> {
+export async function waitForProcessExit(pid: number, timeoutMs: number): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     if (!processIsAlive(pid)) return;
@@ -264,7 +264,7 @@ async function waitForProcessExit(pid: number, timeoutMs: number): Promise<void>
   throw new Error(`AddOne supervisor ${pid} did not release process ownership within ${timeoutMs}ms`);
 }
 
-async function removeEndpointArtifacts(metadataPath: string, endpoint: string): Promise<void> {
+export async function removeEndpointArtifacts(metadataPath: string, endpoint: string): Promise<void> {
   await rm(metadataPath, { force: true });
   if (platform() !== "win32") await rm(endpoint, { force: true });
 }

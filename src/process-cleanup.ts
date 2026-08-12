@@ -19,7 +19,15 @@ export function processIsAlive(pid: number): boolean {
 }
 
 export async function cleanupProvenIdleOwner(metadata: SupervisorEndpointMetadata, graceMs = 1_500): Promise<CleanupDiagnostics> {
-  if (metadata.ownership.liveGenerationIds.length > 0 || metadata.ownership.nonResumableGenerationIds.length > 0) {
+  return await cleanupVerifiedOwner(metadata, { graceMs, allowLiveGenerations: false });
+}
+
+export async function cleanupVerifiedOwner(
+  metadata: SupervisorEndpointMetadata,
+  options: { readonly graceMs?: number; readonly allowLiveGenerations?: boolean; readonly reason?: "stale-idle-owner" | "explicit-update" | "legacy-mutable-install" } = {},
+): Promise<CleanupDiagnostics> {
+  const graceMs = options.graceMs ?? 1_500;
+  if (!options.allowLiveGenerations && (metadata.ownership.liveGenerationIds.length > 0 || metadata.ownership.nonResumableGenerationIds.length > 0)) {
     throw new Error("refusing to terminate an owner with recorded live generations");
   }
   const started = Date.now();

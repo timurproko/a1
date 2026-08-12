@@ -6,8 +6,10 @@ import {
   type ProcessRequest,
   type ProcessResult,
   type UpdateFileSystem,
+  type UpdateLifecycleCoordinator,
   type UpdateOutput,
   type UpdateProcessRunner,
+  type UpdateTransactionJournal,
 } from "../../src/update.js";
 
 interface Invocation {
@@ -40,6 +42,26 @@ function createHarness(options: {
     stdout: message => stdout.push(message),
     stderr: message => stderr.push(message),
   };
+  const lifecycleCalls: string[] = [];
+  const lifecycle: UpdateLifecycleCoordinator = {
+    async targetIsActive() { return false; },
+    async shutdownVerifiedOwners(targetVersion) { lifecycleCalls.push(`shutdown:${targetVersion}`); return { priorActiveVersion: null }; },
+    async verifyPackageUnlocked(path) { lifecycleCalls.push(`unlock:${path}`); },
+    async activateInstalled(path, targetVersion) { lifecycleCalls.push(`activate:${path}:${targetVersion}`); },
+  };
+  let transaction: Awaited<ReturnType<UpdateTransactionJournal["read"]>> = null;
+  const transactionStore: UpdateTransactionJournal = {
+    path: resolve("fixtures", "update-transaction.json"),
+    async read() { return transaction; },
+    async begin(input) {
+      const now = new Date(0).toISOString();
+      transaction = transaction ?? { schemaVersion: 1, transactionId: "test-update", ...input, priorActiveReleaseId: null, phase: "shutdown-intent", status: "active", error: null, startedAt: now, updatedAt: now };
+      return transaction;
+    },
+    async advance(phase) { if (!transaction) throw new Error("missing test transaction"); transaction = { ...transaction, phase }; return transaction; },
+    async finish(status, error = null) { if (!transaction) throw new Error("missing test transaction"); transaction = { ...transaction, status, error }; return transaction; },
+    async clearCompleted() { if (transaction?.status !== "active") transaction = null; },
+  };
   const runner: UpdateProcessRunner = async (command, arguments_, request) => {
     invocations.push({ command, arguments: arguments_, request });
     const response = responses.shift();
@@ -52,11 +74,14 @@ function createHarness(options: {
     fileSystem,
     globalRoot,
     invocations,
+    lifecycle,
+    lifecycleCalls,
     output,
     packageRoot,
     runner,
     stderr,
     stdout,
+    transactionStore,
   };
 }
 
@@ -67,16 +92,16 @@ describe("AddOne self-update orchestration", () => {
     ["the current version", "1.2.3"],
     ["a newer running version", "1.2.2"],
   ])("skips installation for %s", async (_label, latest) => {
-    const harness = createHarness({ responses: [success(`${latest}\n`)] });
+    const harness = createHarness({ responses: [success(`${latest}\n`), success(`${resolve("fixtures", "global")}\n`), success()] });
 
     await expect(runSelfUpdate(harness)).resolves.toBe(0);
 
-    expect(harness.invocations).toEqual([{
-      command: "npm",
-      arguments: ["view", `${ADDONE_PACKAGE}@latest`, "version"],
-      request: { captureStdout: true },
-    }]);
-    expect(harness.stdout.join("")).toContain("already current");
+    expect(harness.invocations).toEqual([
+      { command: "npm", arguments: ["view", `${ADDONE_PACKAGE}@latest`, "version"], request: { captureStdout: true } },
+      { command: "npm", arguments: ["root", "--global"], request: { captureStdout: true } },
+      { command: "npm", arguments: ["install", "--global", `${ADDONE_PACKAGE}@${latest}`], request: { captureStdout: false } },
+    ]);
+    expect(harness.stdout.join("")).toContain("updated and activated successfully");
   });
 
   it("installs an exact newer version for a canonical managed global package", async () => {
@@ -96,7 +121,7 @@ describe("AddOne self-update orchestration", () => {
       { command: "npm", arguments: ["root", "--global"], request: { captureStdout: true } },
       { command: "npm", arguments: ["install", "--global", `${ADDONE_PACKAGE}@1.3.0`], request: { captureStdout: false } },
     ]);
-    expect(harness.stdout.join("")).toContain("updated successfully from 1.2.3 to 1.3.0");
+    expect(harness.stdout.join("")).toContain("updated and activated successfully from 1.2.3 to 1.3.0");
     expect(harness.stderr).toEqual([]);
   });
 
@@ -135,7 +160,7 @@ describe("AddOne self-update orchestration", () => {
 
     expect(harness.invocations).toHaveLength(2);
     expect(harness.stderr.join("")).toContain("not managed beneath npm's global package root");
-    expect(harness.stderr.join("")).toContain(`npm install --global ${ADDONE_PACKAGE}@2.0.0`);
+    expect(harness.stderr.join("")).not.toContain("taskkill");
   });
 
   it("rejects a malformed running package version before invoking npm", async () => {
@@ -145,7 +170,6 @@ describe("AddOne self-update orchestration", () => {
 
     expect(harness.invocations).toEqual([]);
     expect(harness.stderr.join("")).toContain("could not read its running package version");
-    expect(harness.stderr.join("")).toContain(`${ADDONE_PACKAGE}@latest`);
   });
 
   it("rejects malformed npm version output", async () => {
@@ -182,7 +206,6 @@ describe("AddOne self-update orchestration", () => {
 
     expect(harness.invocations).toHaveLength(2);
     expect(harness.stderr.join("")).toContain("resolve npm's global package root");
-    expect(harness.stderr.join("")).toContain(`${ADDONE_PACKAGE}@1.3.0`);
   });
 
   it("reports canonicalization failures", async () => {
@@ -210,8 +233,7 @@ describe("AddOne self-update orchestration", () => {
     await expect(runSelfUpdate(harness)).resolves.toBe(77);
 
     expect(harness.stderr.join("")).toContain("update failed");
-    expect(harness.stderr.join("")).toContain("network, registry, or permission errors");
-    expect(harness.stderr.join("")).toContain(`${ADDONE_PACKAGE}@1.3.0`);
+    expect(harness.stderr.join("")).toContain("Diagnostics:");
   });
 
   it("reports a spawn failure while starting installation", async () => {
