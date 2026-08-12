@@ -333,3 +333,18 @@ Every confirmed regression discovered in production, manual validation, evaluato
 #### Scenario: Regression is fixed
 - **WHEN** a regression fix is accepted
 - **THEN** its deterministic regression SHALL pass on the fixed build, remain in the applicable suite, and execute through the mandatory gate protecting that requirement
+
+### Requirement: Authored tests are executed before completion
+Every test added or modified during implementation SHALL be executed and pass before its task or coherent tested subtask is marked complete or committed. Validation SHALL include the focused test and the containing integration, build, check, release, packaging, or publication command that users and automation rely on. A passing related test, an unexecuted new assertion, or a focused pass while the containing command fails SHALL NOT count as completion evidence.
+
+#### Scenario: A test is added or changed
+- **WHEN** implementation adds or modifies a unit, integration, scenario, architecture, packaging, publication, or release-gate test
+- **THEN** the implementer SHALL run that exact test and its containing required command successfully before marking the work complete or committing it
+
+#### Scenario: Containing build fails another test
+- **WHEN** focused changed tests pass but the containing build or gate reports any failure
+- **THEN** the work SHALL remain incomplete, the failure SHALL be investigated under the regression-first workflow, and no successful-build claim SHALL be made
+
+#### Scenario: Optional test evidence delays process exit
+- **WHEN** a packaged CLI child has exited and host state has been restored
+- **THEN** optional evidence collection SHALL NOT synchronously launch external probes or keep the foreground CLI alive beyond its bounded exit contract
