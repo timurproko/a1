@@ -4,7 +4,7 @@ import { applyTerminalRenderTransaction, type AddOneEvent, type HostTerminalInpu
 import { createHostTerminalAdapter } from "../host-terminal/index.js";
 import { SupervisorClient } from "../protocol/index.js";
 import { inspectNativePiReadiness, type NativePiReadinessEvidence } from "./native-pi-readiness.js";
-import { captureWindowsConsoleInputMode, drainPendingTerminalInput } from "./terminal-input-cleanup.js";
+import { drainPendingTerminalInput } from "./terminal-input-cleanup.js";
 import { TerminalOwnershipTransaction, terminalExitDisposition } from "./terminal-lifecycle.js";
 
 export interface UiDependencies {
@@ -248,7 +248,10 @@ export async function runUi(endpoint: string, overrides: Partial<UiDependencies>
     await ownership.close();
     hostTerminal.restore(capturedHostState);
     removeExitCleanup();
-    recordHostMode("observed-after-restore", captureWindowsConsoleInputMode());
+    // Do not synchronously launch a second PowerShell probe after restoration.
+    // The Windows adapter has already restored this captured mode; optional
+    // evidence collection must not keep the foreground CLI alive after exit.
+    recordHostMode("restored-target-after-ui", capturedHostState.inputMode);
     resolveStopped?.(code);
   }
 

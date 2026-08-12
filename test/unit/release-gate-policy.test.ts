@@ -18,6 +18,13 @@ describe("release gate regression policy", () => {
     expect(releaseRunner).toContain("--no-file-parallelism");
   });
 
+  it("keeps optional post-restore evidence off the foreground exit path", async () => {
+    const ui = await readFile(resolve(repository, "src/ui/app.ts"), "utf8");
+
+    expect(ui).toContain('recordHostMode("restored-target-after-ui", capturedHostState.inputMode)');
+    expect(ui).not.toContain('recordHostMode("observed-after-restore", captureWindowsConsoleInputMode())');
+  });
+
   it("retains strict latency, transaction, and settled-status assertions", async () => {
     const packagedPi = await readFile(resolve(repository, "test/scenarios/packaged-real-pi.test.ts"), "utf8");
     const conversation = await readFile(resolve(repository, "test/scenarios/conversation-stability.test.ts"), "utf8");
