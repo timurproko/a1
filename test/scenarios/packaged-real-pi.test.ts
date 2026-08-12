@@ -17,7 +17,13 @@ describe("release-gating packaged real Pi parity", () => {
   it("proves editor readiness, wheel/history separation, and repeated-Ctrl+C cleanup through immutable packaged content", async () => {
     const context = await createScenarioContext("packaged-real-pi");
     const piExecutable = await findPiExecutable();
-    const candidate = await preparePackagedCandidate({ packageRoot: repository, piExecutable, artifacts: context.artifacts, environment: context.environment });
+    const candidate = await preparePackagedCandidate({
+      packageRoot: repository,
+      piExecutable,
+      artifacts: context.artifacts,
+      environment: context.environment,
+      ...(process.env.ADDONE_CERTIFICATION_TARBALL ? { tarball: process.env.ADDONE_CERTIFICATION_TARBALL } : {}),
+    });
     Object.assign(context.environment, candidate.environment, {
       ADDONE_POST_EXIT_SHELL_PROBE: "1",
     });

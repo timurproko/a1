@@ -21,6 +21,7 @@ describe("release-gating representative Native Pi extension parity", () => {
       piExecutable: await findPiExecutable(),
       artifacts: context.artifacts,
       environment: context.environment,
+      ...(process.env.ADDONE_CERTIFICATION_TARBALL ? { tarball: process.env.ADDONE_CERTIFICATION_TARBALL } : {}),
     });
     const extension = await realpath(resolve(candidate.packageRoot, "dist/src/test-harness/fixtures/pi/baseline-extension.js"));
     const piArguments = ["--tui-mode", "fullscreen", ...candidate.pi.arguments, "--extension", extension];

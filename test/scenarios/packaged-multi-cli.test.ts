@@ -22,6 +22,7 @@ describe("packaged application-agnostic multi-CLI parity", () => {
       piExecutable: process.execPath,
       artifacts: preparation.artifacts,
       environment: preparation.environment,
+      ...(process.env.ADDONE_CERTIFICATION_TARBALL ? { tarball: process.env.ADDONE_CERTIFICATION_TARBALL } : {}),
     });
     const fixture = resolve(candidate.packageRoot, "dist/src/test-harness/fixtures/terminal-workload.js");
     const verdicts: unknown[] = [];

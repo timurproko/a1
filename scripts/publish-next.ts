@@ -55,10 +55,8 @@ async function publishNext() {
   }
 
   await requireCleanDevelop();
-  process.stdout.write("Running the authoritative development-preview gate once.\n");
-  await interactive(npm, ["run", "check"]);
-  await requireCleanDevelop();
-
+  process.stdout.write("Building candidate bytes before immutable packing.\n");
+  await interactive(npm, ["run", "build"]);
   const packResult = normalizePackResult(JSON.parse(await capture(npm, ["pack", "--ignore-scripts", "--json"])));
   const expectedTarball = developmentPreviewTarballName(manifest.name, candidate.version);
   if (packResult.filename !== expectedTarball) throw new Error(`npm packed ${packResult.filename}; expected ${expectedTarball}`);
@@ -66,18 +64,27 @@ async function publishNext() {
   const integrity = await sha512Integrity(tarball);
   if (integrity !== packResult.integrity) throw new Error(`tarball integrity mismatch for ${packResult.filename}`);
 
-  await mkdir(resolve(repository, "artifacts"), { recursive: true });
-  await writeFile(statePath, JSON.stringify({
-    schema: "addone-development-preview-candidate-v1",
+  process.stdout.write("Running simulation-first certification against the exact packed tarball.\n");
+  await interactiveWithEnvironment(npm, ["run", "check"], { ADDONE_CERTIFICATION_TARBALL: tarball });
+  await requireCleanDevelop();
+  const certification = {
+    schema: "addone-development-preview-certification-v1",
     packageName: manifest.name,
     version: candidate.version,
     commit: head,
     tarball,
     integrity,
     shasum: packResult.shasum,
-  }, null, 2));
+    platform: process.platform,
+    architecture: process.arch,
+    productionDefaults: { nativePiReadinessMs: 15_000 },
+    overrides: { ADDONE_CERTIFICATION_TARBALL: tarball },
+    certifiedAt: new Date().toISOString(),
+  };
+  await mkdir(resolve(repository, "artifacts"), { recursive: true });
+  await writeFile(statePath, JSON.stringify(certification, null, 2));
 
-  process.stdout.write(`Validated exact candidate: ${tarball}\n`);
+  process.stdout.write(`Certified exact candidate: ${tarball}\n`);
   await publishAndVerify(manifest.name, candidate.version, tarball);
   await cleanup(tarball);
 }
@@ -124,7 +131,7 @@ async function requireCleanDevelop() {
 async function readRetainedCandidate() {
   try {
     const value = JSON.parse(await readFile(statePath, "utf8"));
-    if (value?.schema !== "addone-development-preview-candidate-v1") return null;
+    if (value?.schema !== "addone-development-preview-certification-v1") return null;
     if ([value.version, value.commit, value.tarball, value.integrity].every(item => typeof item === "string")) return value;
     return null;
   } catch {
@@ -172,11 +179,15 @@ function interactive(command, args) {
   return run(command, args, false);
 }
 
-function run(command, args, captureOutput) {
+function interactiveWithEnvironment(command, args, environment) {
+  return run(command, args, false, environment);
+}
+
+function run(command, args, captureOutput, environment = {}) {
   return new Promise((resolvePromise, rejectPromise) => {
     const child = crossSpawn(command, args, {
       cwd: repository,
-      env: process.env,
+      env: { ...process.env, ...environment },
       stdio: captureOutput ? ["ignore", "pipe", "inherit"] : "inherit",
       windowsHide: false,
     });

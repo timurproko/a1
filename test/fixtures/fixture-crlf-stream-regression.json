@@ -1,0 +1,8 @@
+{
+  "sourceArtifacts": "addone-vanilla-scroll-selection-wrapped-lHI4pO",
+  "inputHex": "73747265616d0d0a",
+  "decodedInput": "stream\r\n",
+  "observedOutput": ["INPUT:\"stream\\r\\n\"", "READY>"],
+  "missingOutput": "STREAM:2",
+  "cause": "fixture stream matcher accepted an optional CR but not the LF produced by the Win32 keyboard protocol"
+}

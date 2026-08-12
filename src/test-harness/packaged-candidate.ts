@@ -32,6 +32,8 @@ export interface PreparePackagedCandidateOptions {
   readonly artifacts: string;
   readonly environment?: NodeJS.ProcessEnv;
   readonly root?: string;
+  /** Publication certification installs this already-packed immutable artifact. */
+  readonly tarball?: string;
 }
 
 const REAL_PI_ARGUMENTS = ["--offline", "--approve", "--no-session"] as const;
@@ -42,22 +44,9 @@ export async function preparePackagedCandidate(options: PreparePackagedCandidate
   const packs = resolve(root, "packs");
   await Promise.all([prefix, packs, options.artifacts].map(path => mkdir(path, { recursive: true, mode: 0o700 })));
 
-  const releasePackageLock = await acquirePackageLock(options.packageRoot);
-  let pack: { stdout: string; stderr: string };
-  try {
-    pack = await run("npm", ["pack", "--json", "--pack-destination", packs], options.packageRoot, {
-      ...(options.environment ?? process.env),
-      ADDONE_INTERNAL_PACKAGING: "1",
-    });
-  } finally {
-    await releasePackageLock();
-  }
-  const jsonStart = Math.max(pack.stdout.lastIndexOf("\n["), pack.stdout.startsWith("[") ? 0 : -1);
-  if (jsonStart < 0) throw new Error(`npm pack did not emit a JSON result: ${pack.stdout}`);
-  const packResult = JSON.parse(pack.stdout.slice(jsonStart === 0 ? 0 : jsonStart + 1)) as { filename?: unknown }[];
-  const filename = packResult[0]?.filename;
-  if (typeof filename !== "string") throw new Error(`npm pack did not identify its tarball: ${pack.stdout}`);
-  const tarball = resolve(packs, filename);
+  const tarball = options.tarball
+    ? await realpath(options.tarball)
+    : await packCandidate(options.packageRoot, packs, options.environment);
   await run("npm", ["install", "--prefix", prefix, "--install-strategy=nested", "--no-audit", "--no-fund", tarball], root, options.environment);
 
   const packageRoot = resolve(prefix, "node_modules", "@timurproko", "addone");
@@ -102,8 +91,29 @@ export async function preparePackagedCandidate(options: PreparePackagedCandidate
       immutableSupervisor: "selected at runtime from endpoint/release metadata",
       nativePi: pi.executable,
     },
+    exactCertificationTarball: options.tarball ? tarball : null,
+    tarballSha512: `sha512-${createHash("sha512").update(await readFile(tarball)).digest("base64")}`,
   }, null, 2));
   return candidate;
+}
+
+async function packCandidate(packageRoot: string, packs: string, environment?: NodeJS.ProcessEnv): Promise<string> {
+  const releasePackageLock = await acquirePackageLock(packageRoot);
+  let pack: { stdout: string; stderr: string };
+  try {
+    pack = await run("npm", ["pack", "--json", "--pack-destination", packs], packageRoot, {
+      ...(environment ?? process.env),
+      ADDONE_INTERNAL_PACKAGING: "1",
+    });
+  } finally {
+    await releasePackageLock();
+  }
+  const jsonStart = Math.max(pack.stdout.lastIndexOf("\n["), pack.stdout.startsWith("[") ? 0 : -1);
+  if (jsonStart < 0) throw new Error(`npm pack did not emit a JSON result: ${pack.stdout}`);
+  const packResult = JSON.parse(pack.stdout.slice(jsonStart === 0 ? 0 : jsonStart + 1)) as { filename?: unknown }[];
+  const filename = packResult[0]?.filename;
+  if (typeof filename !== "string") throw new Error(`npm pack did not identify its tarball: ${pack.stdout}`);
+  return resolve(packs, filename);
 }
 
 async function acquirePackageLock(packageRoot: string): Promise<() => Promise<void>> {
