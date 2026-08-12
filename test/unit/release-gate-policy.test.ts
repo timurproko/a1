@@ -18,6 +18,18 @@ describe("release gate regression policy", () => {
     expect(releaseRunner).toContain("--no-file-parallelism");
   });
 
+  it("runs real-Pi release scenarios with the production readiness default", async () => {
+    const readiness = await readFile(resolve(repository, "src/ui/native-pi-readiness.ts"), "utf8");
+    const packagedPi = await readFile(resolve(repository, "test/scenarios/packaged-real-pi.test.ts"), "utf8");
+    const packagedExtension = await readFile(resolve(repository, "test/scenarios/packaged-extension.test.ts"), "utf8");
+
+    expect(readiness).toContain("NATIVE_PI_READINESS_DEADLINE_MS = 15_000");
+    expect(packagedPi).not.toContain('ADDONE_NATIVE_PI_READINESS_MS: "15_000"');
+    expect(packagedExtension).not.toContain('ADDONE_NATIVE_PI_READINESS_MS: "15_000"');
+    expect(packagedPi).toContain("delete context.environment.ADDONE_NATIVE_PI_READINESS_MS");
+    expect(packagedExtension).toContain("delete context.environment.ADDONE_NATIVE_PI_READINESS_MS");
+  });
+
   it("keeps optional post-restore evidence off the foreground exit path", async () => {
     const ui = await readFile(resolve(repository, "src/ui/app.ts"), "utf8");
 

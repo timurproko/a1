@@ -3,7 +3,7 @@ import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 import { applyTerminalRenderTransaction, type AddOneEvent, type HostTerminalInputEvent, type LogicalTerminalAgent, type OrderedEvent, type SupervisorSnapshot, type TerminalRenderTransaction, type TerminalSurface } from "../domain/index.js";
 import { createHostTerminalAdapter, queryHostCursorPosition } from "../host-terminal/index.js";
 import { SupervisorClient } from "../protocol/index.js";
-import { inspectNativePiReadiness, type NativePiReadinessEvidence } from "./native-pi-readiness.js";
+import { inspectNativePiReadiness, NATIVE_PI_READINESS_DEADLINE_MS, type NativePiReadinessEvidence } from "./native-pi-readiness.js";
 import { drainPendingTerminalInput } from "./terminal-input-cleanup.js";
 import { TerminalOwnershipTransaction, terminalExitDisposition } from "./terminal-lifecycle.js";
 
@@ -43,7 +43,7 @@ export async function runUi(endpoint: string, overrides: Partial<UiDependencies>
   let stopHostInput = () => {};
   let removeExitCleanup = () => {};
   let readinessStartedAt = 0;
-  const readinessDeadlineMs = parsePositiveDuration(process.env.ADDONE_NATIVE_PI_READINESS_MS, 8_000);
+  const readinessDeadlineMs = parsePositiveDuration(process.env.ADDONE_NATIVE_PI_READINESS_MS, NATIVE_PI_READINESS_DEADLINE_MS);
   let lastReadiness: NativePiReadinessEvidence | null = null;
   let resolveStopped: ((code: number) => void) | null = null;
   const stoppedPromise = new Promise<number>(resolve => { resolveStopped = resolve; });

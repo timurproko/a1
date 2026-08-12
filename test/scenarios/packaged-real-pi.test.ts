@@ -19,9 +19,9 @@ describe("release-gating packaged real Pi parity", () => {
     const piExecutable = await findPiExecutable();
     const candidate = await preparePackagedCandidate({ packageRoot: repository, piExecutable, artifacts: context.artifacts, environment: context.environment });
     Object.assign(context.environment, candidate.environment, {
-      ADDONE_NATIVE_PI_READINESS_MS: "15_000",
       ADDONE_POST_EXIT_SHELL_PROBE: "1",
     });
+    delete context.environment.ADDONE_NATIVE_PI_READINESS_MS;
     const recorder = resolve(candidate.packageRoot, "dist/src/test-harness/fixtures/terminal-write-recorder.js");
     context.environment.NODE_OPTIONS = [context.environment.NODE_OPTIONS, `--import=${pathToFileURL(recorder).href}`].filter(Boolean).join(" ");
     delete context.environment.NO_COLOR;
