@@ -112,7 +112,10 @@ export class FullscreenHostRenderer {
       this.#normalSnapshotInitialized = true;
       // Reproduce vanilla first-render behavior from the physical cursor: no
       // home, no clear, and natural terminal scrolling at the bottom edge.
-      snapshot = renderTerminalInitialNormalSnapshot(surface);
+      const initial = renderTerminalInitialNormalSnapshot(surface);
+      snapshot = initial.output;
+      const naturallyConsumedOriginRows = Math.max(0, this.#normalRowOffset + initial.appendedRows - surface.rows);
+      this.#normalRowOffset = Math.max(0, this.#normalRowOffset - naturallyConsumedOriginRows);
     } else {
       snapshot = renderTerminalSnapshot(surface, !firstChildSnapshot);
       if (firstChildSnapshot && !this.#normalProjection) snapshot = insertAfterSynchronizedOutputStart(snapshot, "\x1b[2J\x1b[H");
@@ -141,7 +144,7 @@ export class FullscreenHostRenderer {
       ? scrollRows + this.#normalRowOffset
       : 0;
     const hostScroll = hostScrollRows > 0 ? renderTerminalNormalScroll(transaction.dimensions.rows, hostScrollRows) : "";
-    if (this.#normalProjection && scrollRows > 0) this.#normalRowOffset = Math.max(0, this.#normalRowOffset - scrollRows);
+    if (this.#normalProjection && scrollRows > 0) this.#normalRowOffset = 0;
     const payload = `${framePrefix}${hostScroll}${renderTerminalDamage(
       { ...damage, scrollRows },
       this.#normalProjection ? this.#normalRowOffset : 0,
