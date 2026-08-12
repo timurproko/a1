@@ -108,9 +108,16 @@ export function createUpdateLifecycleCoordinator(
       const identity = ownership === "dead"
         ? { accepted: false, reason: "recorded owner is dead" }
         : await requestUpdateShutdown(endpoint, targetVersion, 2_000);
-      if (!identity.accepted) {
-        if (processIsAlive(endpoint.pid)) throw new Error(`AddOne refused to stop an unverified owner: ${identity.reason}`);
-      } else {
+      if (!identity.accepted && processIsAlive(endpoint.pid)) {
+        // N−1 supervisors do not know the update-shutdown control message. The
+        // identity probe above still proves exact AddOne ownership, and invoking
+        // update explicitly authorizes stopping its generations.
+        const cleanup = await cleanupVerifiedOwner(endpoint, {
+          allowLiveGenerations: true,
+          reason: legacyMutableInstall ? "legacy-mutable-install" : "explicit-update",
+        });
+        if (!cleanup.terminated) throw new Error(`verified AddOne owner ${endpoint.pid} rejected shutdown and could not be terminated: ${identity.reason}`);
+      } else if (identity.accepted) {
         await waitForProcessExit(endpoint.pid, 3_000).catch(async () => {
           const cleanup = await cleanupVerifiedOwner(endpoint, {
             allowLiveGenerations: true,
