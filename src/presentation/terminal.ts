@@ -47,7 +47,12 @@ export function renderTerminalNormalSnapshot(surface: TerminalSurface): string {
 }
 
 /** First normal-screen handoff: append from the current physical cursor. */
-export function renderTerminalInitialNormalSnapshot(surface: TerminalSurface): string {
+export interface InitialNormalSnapshotRender {
+  readonly output: string;
+  readonly appendedRows: number;
+}
+
+export function renderTerminalInitialNormalSnapshot(surface: TerminalSurface): InitialNormalSnapshotRender {
   const lastOccupiedRow = Math.max(surface.cursor.row, lastVisuallyOccupiedRow(surface.cells));
   let output = "\x1b[?2026h\x1b[?25l\x1b[?7l";
   for (let row = 0; row <= lastOccupiedRow; row++) {
@@ -59,7 +64,7 @@ export function renderTerminalInitialNormalSnapshot(surface: TerminalSurface): s
   const rowsBack = Math.max(0, lastOccupiedRow - surface.cursor.row);
   if (rowsBack > 0) output += `\x1b[${rowsBack}A`;
   output += `\r\x1b[${surface.cursor.column + 1}C${cursorStyle(surface.cursor.style, surface.cursor.blinking)}${surface.cursor.visible ? "\x1b[?25h" : "\x1b[?25l"}\x1b[?7h\x1b[?2026l`;
-  return output;
+  return { output, appendedRows: lastOccupiedRow + 1 };
 }
 
 export function renderTerminalDamage(damage: TerminalDamage, rowOffset = 0): string {

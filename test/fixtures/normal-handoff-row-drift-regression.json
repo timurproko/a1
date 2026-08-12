@@ -1,0 +1,24 @@
+{
+  "sourceArtifacts": "addone-packaged-real-pi-WnfQ0d",
+  "terminal": {
+    "columns": 90,
+    "rows": 28,
+    "callerCursorRow": 1
+  },
+  "passingStartupVariant": {
+    "firstReadyRevision": 7,
+    "initialSnapshotLineFeeds": 25,
+    "firstFullViewportScrollRows": 14
+  },
+  "failingStartupVariant": {
+    "firstReadyRevision": 6,
+    "initialSnapshotLineFeeds": 27,
+    "firstFullViewportScrollRows": 16
+  },
+  "observedMismatch": {
+    "directEditorRow": 24,
+    "hostedEditorRow": 25,
+    "directRows": ["release parity", "──────────────────────────────────────────────────────────────────────────────────────────"],
+    "hostedRows": ["", "release parity ───────────────────────────────────────────────────────────────────────────"]
+  }
+}

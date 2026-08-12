@@ -1,3 +1,5 @@
+import { Terminal } from "@xterm/headless";
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type { TerminalSurface } from "../../src/domain/index.js";
 import { FullscreenHostRenderer } from "../../src/ui/host-terminal-renderer.js";
@@ -96,6 +98,63 @@ describe("fullscreen host terminal ownership", () => {
     expect(writes).not.toContain("Pi \x1b[0m");
     expect(writes).toContain("UI");
     expect(writes).toContain("\r\x1b[2C");
+  });
+
+  const handoffRegression = JSON.parse(readFileSync(new URL("../fixtures/normal-handoff-row-drift-regression.json", import.meta.url), "utf8")) as {
+    terminal: { rows: number; callerCursorRow: number };
+    passingStartupVariant: { initialSnapshotLineFeeds: number; firstFullViewportScrollRows: number };
+    failingStartupVariant: { initialSnapshotLineFeeds: number; firstFullViewportScrollRows: number };
+  };
+  it.each([
+    { occupiedRows: handoffRegression.passingStartupVariant.initialSnapshotLineFeeds + 1, scrollRows: handoffRegression.passingStartupVariant.firstFullViewportScrollRows },
+    { occupiedRows: handoffRegression.failingStartupVariant.initialSnapshotLineFeeds + 1, scrollRows: handoffRegression.failingStartupVariant.firstFullViewportScrollRows },
+  ])("keeps editor rows aligned after a $scrollRows-row first scroll from a $occupiedRows-row handoff", async ({ occupiedRows, scrollRows }) => {
+    const columns = 12;
+    const rows = handoffRegression.terminal.rows;
+    const terminal = new Terminal({ cols: columns, rows, allowProposedApi: true, scrollback: 100 });
+    let writes = "";
+    const renderer = new FullscreenHostRenderer(
+      { write: value => { writes += String(value); return true; } },
+      0, "", "", undefined, undefined, undefined, handoffRegression.terminal.callerCursorRow,
+    );
+    const blank = { character: " ", width: 1 as const, attributes: 0 };
+    const cell = (character: string) => ({ character, width: 1 as const, attributes: 0 });
+    const initialCells = Array.from({ length: rows }, (_, row) => row < occupiedRows
+      ? Array.from(`ROW${String(row).padStart(2, "0")}`.padEnd(columns), cell)
+      : Array.from({ length: columns }, () => blank));
+    const vanilla = {
+      ...childSurface,
+      columns,
+      rows,
+      cells: initialCells,
+      cursor: { ...childSurface.cursor, row: occupiedRows - 1, column: 5 },
+      activeScreen: "normal" as const,
+      modes: { ...childSurface.modes, mouseTracking: "none" as const },
+      revision: 1,
+    };
+    renderer.enter();
+    renderer.renderSnapshot(vanilla);
+    await flushHostWrites();
+
+    const editorRow = rows - 4;
+    renderer.renderDamage({
+      generationId: "g", baseRevision: 1, revision: 2, outputSequence: 2,
+      dimensions: { columns, rows }, scrollRows,
+      spans: [
+        { row: editorRow, startColumn: 0, cells: Array.from("release     ", cell) },
+        { row: editorRow + 1, startColumn: 0, cells: Array.from("------------", cell) },
+      ],
+      cursor: { ...vanilla.cursor, row: editorRow, column: 7 }, activeScreen: "normal", modes: vanilla.modes,
+      synchronized: true, final: false,
+    });
+    await flushHostWrites();
+    await xtermWrite(terminal, `PRELUDE\r\n${writes}`);
+    expect(writes).not.toContain("\x1b[2J");
+    expect(bufferLine(terminal, editorRow).trimEnd()).toBe("release");
+    expect(bufferLine(terminal, editorRow + 1)).toBe("------------");
+    expect(terminal.buffer.active.cursorY).toBe(editorRow);
+    expect(terminal.buffer.active.cursorX).toBe(7);
+    terminal.dispose();
   });
 
   it("uses normal-screen scrolling for vanilla surfaces without repainting shifted rows", async () => {
@@ -234,3 +293,17 @@ describe("fullscreen host terminal ownership", () => {
     expect(damageWrites.endsWith("\x1b[?2026l")).toBe(true);
   });
 });
+
+async function xtermWrite(terminal: Terminal, value: string): Promise<void> {
+  await new Promise<void>(resolve => terminal.write(value, resolve));
+}
+
+async function flushHostWrites(): Promise<void> {
+  await new Promise<void>(resolve => setImmediate(resolve));
+  await new Promise<void>(resolve => setImmediate(resolve));
+}
+
+function bufferLine(terminal: Terminal, row: number): string {
+  const viewportRow = terminal.buffer.active.viewportY + row;
+  return terminal.buffer.active.getLine(viewportRow)?.translateToString(true) ?? "";
+}

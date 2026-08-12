@@ -326,6 +326,10 @@ Every confirmed regression discovered in production, manual validation, evaluato
 - **WHEN** a timing-sensitive release gate exposes a cursor, latency, transaction-assembly, process-lifecycle, or test-synchronization defect
 - **THEN** implementation SHALL add a deterministic model or oracle regression for the cause as well as rerun the isolated affected platform scenario, without weakening its assertions or thresholds
 
+#### Scenario: Initial handoff boundary changes before later scrolling
+- **WHEN** equivalent normal-screen startup output yields different valid first-ready snapshots and correspondingly different later full-viewport scroll distances
+- **THEN** deterministic renderer coverage SHALL prove that each variant consumes the actual appended physical origin and leaves subsequent editor, separator, cursor, and fixed rows aligned with the direct terminal
+
 #### Scenario: Only a rerun passes
 - **WHEN** an observed failure disappears on a subsequent run but no cause-specific regression has been added
 - **THEN** the correction SHALL remain incomplete and publication SHALL remain blocked
