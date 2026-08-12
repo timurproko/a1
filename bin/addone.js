@@ -2,7 +2,18 @@
 
 const packageRoot = new URL("..", import.meta.url);
 
-if (process.argv[2] === "update" || process.argv[2] === "update:next") {
+if (process.argv[2] === "version") {
+  if (process.argv.length > 3) {
+    process.stderr.write("Usage: addone version\n");
+    process.exitCode = 2;
+  } else {
+    const [{ fileURLToPath }, { runVersionStats }] = await Promise.all([
+      import("node:url"),
+      import("../dist/src/version-stats.js"),
+    ]);
+    process.exitCode = await runVersionStats({ packageRoot: fileURLToPath(packageRoot) });
+  }
+} else if (process.argv[2] === "update" || process.argv[2] === "update:next") {
   if (process.argv.length > 3) {
     process.stderr.write("Usage: addone update | addone update:next\n");
     process.exitCode = 2;
