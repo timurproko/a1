@@ -203,6 +203,10 @@ The accepted Windows ConPTY baseline SHALL apply cadence-derived transport quies
 - **WHEN** one committed terminal-application update scrolls content and redraws generated text, a fixed footer, progress or status row, and the cursor
 - **THEN** AddOne SHALL make the host scroll and all associated damage visible as one AddOne-owned synchronized-output transaction, without exposing an intermediate shifted, blank, stale, or partially redrawn state and without adding a timer-based input delay
 
+#### Scenario: Resize resynchronization moves fixed rows
+- **WHEN** a resize or reconnect snapshot moves footer, status, editor, or other fixed rows and their former physical rows are now blank
+- **THEN** AddOne SHALL atomically replace those former rows with the snapshot's blank cells and SHALL expose exactly one copy of each fixed row without a stale duplicate, whole-screen flicker, or CLI-specific cleanup
+
 #### Scenario: ConPTY releases one synchronized repaint in delayed bursts
 - **WHEN** ConPTY delivers synchronized markers, cursor-hide or mode prefixes, printable cells, footer/input cells, cursor restoration, or the remainder of a large repaint in separate transport bursts
 - **THEN** AddOne SHALL retain one pending source transaction through cadence-derived quiescence and SHALL NOT publish a marker-only, cursor-only, mixed old/new, or truncated text frame

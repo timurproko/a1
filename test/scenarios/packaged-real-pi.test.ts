@@ -46,7 +46,9 @@ describe("release-gating packaged real Pi parity", () => {
       const wrappedReady = await stableFrame(wrapped, "wrapped-ready");
       assertRecognizablePi(wrappedReady);
       expectCheckpointParity(directReady, wrappedReady);
-      assertions.push({ name: "direct and packaged AddOne reach recognizable Pi readiness", passed: true });
+      expectNoDuplicatePiStatusRows(directReady);
+      expectNoDuplicatePiStatusRows(wrappedReady);
+      assertions.push({ name: "direct and packaged AddOne reach recognizable Pi readiness with one status/footer pair", passed: true });
 
       const wrappedTyped = await typeEditorOpenSettingsAndNavigate(wrapped);
       const wrappedShell = await exerciseParentShell(wrapped);
@@ -162,6 +164,7 @@ async function typeEditorOpenSettingsAndNavigate(runner: OuterPtyRunner): Promis
   runner.resize(90, 12);
   await new Promise(resolvePromise => setTimeout(resolvePromise, 200));
   const beforeWheel = runner.capture("before-physical-wheel");
+  expectNoDuplicatePiStatusRows(beforeWheel);
   const wheelAction = runner.wheel(20, 3, "up");
   await new Promise(resolvePromise => setTimeout(resolvePromise, 200));
   const wheel = runner.capture("transcript-wheel");
@@ -230,6 +233,14 @@ function assertRecognizablePi(frame: NormalizedFrame): void {
   expect(text).toMatch(/pi v\d/i);
   expect(text).toMatch(/escape interrupt/i);
   expect(text).toMatch(/0\.0%|tokens?|model/i);
+}
+function expectNoDuplicatePiStatusRows(frame: NormalizedFrame): void {
+  const lines = frame.lines.map(line => line.trimEnd());
+  const statusRows = lines.filter(line => /(?:\$\d+\.\d{3}.*)?\d+\.\d%\/\d+.*(?:gpt-|unknown)/i.test(line));
+  expect(statusRows).toHaveLength(1);
+  const statusIndex = lines.indexOf(statusRows[0] ?? "");
+  const cwd = statusIndex > 0 ? lines[statusIndex - 1] : "";
+  if (cwd) expect(lines.filter(line => line === cwd)).toHaveLength(1);
 }
 function expectCheckpointParity(direct: NormalizedFrame, wrapped: NormalizedFrame): void {
   const directOrigin = direct.lines.findIndex(line => /pi v\d/i.test(line));

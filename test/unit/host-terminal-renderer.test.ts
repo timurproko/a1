@@ -101,6 +101,52 @@ describe("fullscreen host terminal ownership", () => {
     expect(restoration).not.toContain("\r\n");
   });
 
+  it("clears stale fixed rows when a replacement snapshot moves them", async () => {
+    let writes = "";
+    const renderer = new FullscreenHostRenderer({ write: value => { writes += String(value); return true; } });
+    const blank = { character: " ", width: 1 as const, attributes: 0 };
+    const cell = (character: string) => ({ character, width: 1 as const, attributes: 0 });
+    const surface = {
+      ...childSurface,
+      columns: 6,
+      rows: 4,
+      activeScreen: "normal" as const,
+      modes: { ...childSurface.modes, mouseTracking: "none" as const },
+      cells: [
+        Array.from("HEADER", cell),
+        [blank, blank, blank, blank, blank, blank],
+        Array.from("STATUS", cell),
+        Array.from("FOOTER", cell),
+      ],
+      cursor: { ...childSurface.cursor, row: 3 },
+    };
+    renderer.enter();
+    renderer.renderSnapshot(surface);
+    await new Promise<void>(resolve => setImmediate(resolve));
+    const before = writes.length;
+
+    renderer.renderSnapshot({
+      ...surface,
+      revision: 2,
+      cells: [
+        Array.from("HEADER", cell),
+        Array.from("STATUS", cell),
+        Array.from("FOOTER", cell),
+        [blank, blank, blank, blank, blank, blank],
+      ],
+      cursor: { ...surface.cursor, row: 2 },
+    });
+    await new Promise<void>(resolve => setImmediate(resolve));
+    await new Promise<void>(resolve => setImmediate(resolve));
+
+    const replacement = writes.slice(before);
+    expect(replacement).toContain("\x1b[4;1H\x1b[0m\x1b[2K");
+    expect(replacement.match(/STATUS/g) ?? []).toHaveLength(1);
+    expect(replacement.match(/FOOTER/g) ?? []).toHaveLength(1);
+    expect(replacement.match(/\x1b\[\?2026h/g) ?? []).toHaveLength(1);
+    expect(replacement.match(/\x1b\[\?2026l/g) ?? []).toHaveLength(1);
+  });
+
   it("emits one balanced host write for each already-assembled render transaction", async () => {
     const writes: string[] = [];
     const renderer = new FullscreenHostRenderer({ write: value => { writes.push(String(value)); return true; } });

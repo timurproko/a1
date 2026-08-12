@@ -3,13 +3,19 @@ import { TERMINAL_ATTRIBUTES } from "../domain/index.js";
 
 export const RESET_TERMINAL_MODES = "\x1b[?1l\x1b[?9l\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1004l\x1b[?1005l\x1b[?1006l\x1b[?1007l\x1b[?1015l\x1b[?2004l\x1b[?2026l\x1b[?9001l\x1b[?7h\x1b>";
 
-export function renderTerminalSnapshot(surface: TerminalSurface): string {
+export function renderTerminalSnapshot(surface: TerminalSurface, replaceBlankRows = false): string {
   // The outer screen belongs to AddOne. A child's active screen and input modes
   // affect its virtual state and input encoder, never the physical host.
   let output = "\x1b[?2026h\x1b[?25l";
   for (let row = 0; row < surface.rows; row++) {
     const cells = surface.cells[row] ?? [];
-    if (isVisuallyBlankRow(cells)) continue;
+    if (isVisuallyBlankRow(cells)) {
+      // A later snapshot is a complete replacement boundary. Its blank rows
+      // must erase stale physical cells from a prior layout or resize; skipping
+      // them leaves duplicated footers/status rows outside resident state.
+      if (replaceBlankRows) output += `\x1b[${row + 1};1H\x1b[0m\x1b[2K`;
+      continue;
+    }
     output += `\x1b[${row + 1};1H`;
     let style = "";
     for (const cell of cells) {

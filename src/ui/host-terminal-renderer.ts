@@ -106,7 +106,7 @@ export class FullscreenHostRenderer {
       snapshot = (surface.scrollbackCells?.length ?? 0) > 0 ? renderTerminalNormalSnapshot(surface) : renderTerminalSnapshot(surface);
       snapshot = insertAfterSynchronizedOutputStart(snapshot, "\x1b[2J\x1b[H");
     } else {
-      snapshot = renderTerminalSnapshot(surface);
+      snapshot = renderTerminalSnapshot(surface, !firstChildSnapshot);
       if (firstChildSnapshot) snapshot = insertAfterSynchronizedOutputStart(snapshot, "\x1b[2J\x1b[H");
     }
     this.#writer.enqueue({
