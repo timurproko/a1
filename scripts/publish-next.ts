@@ -2,7 +2,11 @@ import { createHash } from "node:crypto";
 import { access, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import crossSpawn from "cross-spawn";
-import { developmentPreviewTarballName, selectDevelopmentPreviewCandidate } from "../src/development-preview-release.js";
+import {
+  developmentPreviewTarballName,
+  selectDevelopmentPreviewCandidate,
+  verifyDevelopmentPreviewRegistry,
+} from "../src/development-preview-release.js";
 
 const repository = resolve(process.cwd());
 const npm = process.platform === "win32" ? "npm.cmd" : "npm";
@@ -84,14 +88,18 @@ async function publishAndVerify(packageName, version, tarball) {
 }
 
 async function ensureNextTag(packageName, version) {
-  let resolved = await viewNextVersion(packageName);
-  if (resolved !== version) {
-    const published = normalizeVersions(JSON.parse(await capture(npm, ["view", packageName, "versions", "--json"])));
-    if (!published.includes(version)) throw new Error(`npm next resolved ${resolved ?? "nothing"}; ${version} is not published`);
-    await interactive(npm, ["dist-tag", "add", `${packageName}@${version}`, "next"]);
-    resolved = await viewNextVersion(packageName);
-  }
-  if (resolved !== version) throw new Error(`npm next resolved ${resolved ?? "nothing"}; expected ${version}`);
+  await verifyDevelopmentPreviewRegistry(
+    version,
+    async () => {
+      const [publishedVersions, nextVersion] = await Promise.all([
+        capture(npm, ["view", packageName, "versions", "--json"])
+          .then(output => normalizeVersions(JSON.parse(output))),
+        viewNextVersion(packageName),
+      ]);
+      return { published: publishedVersions.includes(version), nextVersion };
+    },
+    async () => await interactive(npm, ["dist-tag", "add", `${packageName}@${version}`, "next"]),
+  );
 }
 
 async function viewNextVersion(packageName) {
