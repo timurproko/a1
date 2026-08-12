@@ -142,7 +142,7 @@ process.stdin.on("data", data => {
     queueMicrotask(() => process.stdout.write("\x1b[8;7H3\x1b[4;8H"));
     command = "";
   }
-  if (/^stream\r?$/.test(command)) {
+  if (/^stream\r?\n?$/.test(command)) {
     command = "";
     let row = 0;
     const timer = setInterval(() => {

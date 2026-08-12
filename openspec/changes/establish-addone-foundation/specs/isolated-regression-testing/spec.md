@@ -338,6 +338,21 @@ Every confirmed regression discovered in production, manual validation, evaluato
 - **WHEN** a regression fix is accepted
 - **THEN** its deterministic regression SHALL pass on the fixed build, remain in the applicable suite, and execute through the mandatory gate protecting that requirement
 
+### Requirement: Bug fixes pass simulation-first exact-artifact certification
+Every bug correction SHALL preserve the observed evidence, produce a deterministic cause-specific simulation that fails before the correction, pass that simulation and neighboring affected-boundary simulations under production defaults after correction, install and launch the exact packed candidate tarball in isolation, and run the complete containing release gate before publication. Publication SHALL upload only the exact certified tarball. A test-only timeout, environment, argument, dimension, or configuration override SHALL NOT substitute for the production-default simulation, and repeated live reruns SHALL NOT substitute for deterministic reproduction.
+
+#### Scenario: Release tests override a production default
+- **WHEN** an affected scenario uses a timeout, environment, arguments, dimensions, or configuration different from an ordinary installed launch
+- **THEN** candidate certification SHALL additionally run the exact tarball with the production default and fail publication if that launch does not reach the required ready and usable state
+
+#### Scenario: Fix passes only its focused test
+- **WHEN** the cause-specific simulation passes but an affected neighboring simulation, exact-tarball launch, or containing release gate fails
+- **THEN** the correction SHALL remain incomplete and publication SHALL remain blocked
+
+#### Scenario: Exact artifact differs after certification
+- **WHEN** package content, source commit, lockfile, version, tarball integrity, platform identity, runtime identity, or production-default inventory differs from recorded certification
+- **THEN** prior certification SHALL be invalid and the exact changed artifact SHALL be certified again before upload
+
 ### Requirement: Authored tests are executed before completion
 Every test added or modified during implementation SHALL be executed and pass before its task or coherent tested subtask is marked complete or committed. Validation SHALL include the focused test and the containing integration, build, check, release, packaging, or publication command that users and automation rely on. A passing related test, an unexecuted new assertion, or a focused pass while the containing command fails SHALL NOT count as completion evidence.
 

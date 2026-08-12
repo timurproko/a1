@@ -21,14 +21,15 @@ describe("release-gating representative Native Pi extension parity", () => {
       piExecutable: await findPiExecutable(),
       artifacts: context.artifacts,
       environment: context.environment,
+      ...(process.env.ADDONE_CERTIFICATION_TARBALL ? { tarball: process.env.ADDONE_CERTIFICATION_TARBALL } : {}),
     });
     const extension = await realpath(resolve(candidate.packageRoot, "dist/src/test-harness/fixtures/pi/baseline-extension.js"));
     const piArguments = ["--tui-mode", "fullscreen", ...candidate.pi.arguments, "--extension", extension];
     Object.assign(context.environment, candidate.environment, {
-      ADDONE_NATIVE_PI_READINESS_MS: "15_000",
       ADDONE_NATIVE_PI_ARGUMENTS: JSON.stringify(piArguments),
       ADDONE_POST_EXIT_SHELL_PROBE: "1",
     });
+    delete context.environment.ADDONE_NATIVE_PI_READINESS_MS;
     const recorder = resolve(candidate.packageRoot, "dist/src/test-harness/fixtures/terminal-write-recorder.js");
     context.environment.NODE_OPTIONS = [context.environment.NODE_OPTIONS, `--import=${pathToFileURL(recorder).href}`].filter(Boolean).join(" ");
     delete context.environment.NO_COLOR;

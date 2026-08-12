@@ -1,6 +1,7 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type { TerminalSurface } from "../../src/domain/index.js";
-import { inspectNativePiReadiness } from "../../src/ui/native-pi-readiness.js";
+import { inspectNativePiReadiness, NATIVE_PI_READINESS_DEADLINE_MS } from "../../src/ui/native-pi-readiness.js";
 
 describe("Native Pi readiness regression", () => {
   it("never treats an empty or cursor-only live surface as ready and retains deadline evidence", () => {
@@ -20,6 +21,27 @@ describe("Native Pi readiness regression", () => {
       deadlineMs: 1_000,
     });
     expect(failed.reason).toMatch(/empty or cursor-only/);
+  });
+
+  it("keeps the observed constrained cold start pending at 8 seconds under the production deadline", () => {
+    const regression = JSON.parse(readFileSync(new URL("../fixtures/installed-dev5-cursor-only-readiness-regression.json", import.meta.url), "utf8")) as {
+      observedProductionDefaultMs: number;
+      releaseScenarioOverrideMs: number;
+      observedMessage: string;
+    };
+    expect(regression.observedProductionDefaultMs).toBe(8_000);
+    expect(regression.releaseScenarioOverrideMs).toBe(15_000);
+    expect(regression.observedMessage).toMatch(/empty or cursor-only/);
+    expect(NATIVE_PI_READINESS_DEADLINE_MS).toBe(regression.releaseScenarioOverrideMs);
+    const empty = surface(["", ""]);
+    expect(inspectNativePiReadiness(empty, regression.observedProductionDefaultMs, NATIVE_PI_READINESS_DEADLINE_MS)).toMatchObject({
+      status: "pending",
+      cursorOnly: true,
+    });
+    expect(inspectNativePiReadiness(empty, NATIVE_PI_READINESS_DEADLINE_MS, NATIVE_PI_READINESS_DEADLINE_MS)).toMatchObject({
+      status: "failed",
+      cursorOnly: true,
+    });
   });
 
   it("requires recognizable editor and startup/footer evidence", () => {

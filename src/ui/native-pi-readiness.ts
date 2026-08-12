@@ -1,5 +1,7 @@
 import type { TerminalSurface } from "../domain/index.js";
 
+export const NATIVE_PI_READINESS_DEADLINE_MS = 15_000;
+
 export interface NativePiReadinessEvidence {
   readonly status: "pending" | "ready" | "failed";
   readonly reason: string;

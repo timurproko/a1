@@ -1,0 +1,21 @@
+{
+  "reportedPackageVersion": "0.1.5-dev.5",
+  "installedReleaseId": "0.1.5-dev.5-88f195e1d81809cda92d",
+  "supervisorBootNonce": "5e2a912f-94d8-45ac-85f0-c0fb58682f07",
+  "failedGeneration": {
+    "id": "20a34b0e-e50f-479b-a602-40c6616885ea",
+    "startedAt": "2026-08-12T14:26:28.550Z",
+    "exitedAt": "2026-08-12T14:26:43.000Z",
+    "exitCode": -1073741510,
+    "finalVisibleText": "^C"
+  },
+  "observedMessage": "Native Pi remained empty or cursor-only until the readiness deadline",
+  "observedProductionDefaultMs": 8000,
+  "releaseScenarioOverrideMs": 15000,
+  "nextLaunch": {
+    "startedAt": "2026-08-12T14:26:50.367Z",
+    "reachedReadySurface": true,
+    "visibleMarkers": ["pi v0.84.1", "escape interrupt", "gpt-5.6-sol"]
+  },
+  "classification": "release scenario masked the ordinary installed-launch deadline by overriding the production default"
+}
