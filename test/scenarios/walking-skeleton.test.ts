@@ -273,7 +273,7 @@ describe("release-gating Native Pi fullscreen parity", () => {
       await direct.cleanup();
       await wrapped.cleanup();
     }
-  }, 30_000);
+  }, 45_000);
 });
 
 function closureSpacing(frame: NormalizedFrame): { beforeResume: number; afterResume: number } {

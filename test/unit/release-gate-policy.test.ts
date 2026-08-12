@@ -69,5 +69,7 @@ describe("release gate regression policy", () => {
     expect(conversation).toContain("cursor/mode-only frame exposed before conversation cells");
     expect(conversation).toContain("question-${label}-settled");
     expect(conversation).toContain("STATUS ${expectedStatus}");
+    expect(await readFile(resolve(repository, "test/scenarios/walking-skeleton.test.ts"), "utf8"))
+      .toContain('}, 45_000);');
   });
 });
