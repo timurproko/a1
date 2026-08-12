@@ -6,7 +6,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { SupervisorClient } from "../../src/protocol/client.js";
-import { encodeFrame, GENERATED_CONTRACT_DIGEST, LineFrameDecoder, localControlHello, negotiateControlFeatures } from "../../src/protocol/messages.js";
+import { boundInitialSupervisorSnapshot } from "../../src/supervisor/server.js";
+import { encodeFrame, GENERATED_CONTRACT_DIGEST, LineFrameDecoder, localControlHello, MAX_CONTROL_FRAME_BYTES, negotiateControlFeatures } from "../../src/protocol/messages.js";
 
 describe("additive protocol framing", () => {
   it("decodes partial and combined LF frames", () => {
@@ -62,6 +63,35 @@ describe("additive protocol framing", () => {
   it("retains unknown additive fields", () => {
     const decoder = new LineFrameDecoder();
     expect(decoder.push('{"type":"future-event","newField":true}\n')).toEqual([{ type: "future-event", newField: true }]);
+  });
+
+  it("keeps accumulated exited-session handshakes below the bounded control frame", () => {
+    const surface = {
+      columns: 123,
+      rows: 29,
+      cells: Array.from({ length: 29 }, () => Array.from({ length: 123 }, () => ({ character: "X", width: 1 as const, foreground: { mode: "rgb" as const, value: 0x666666 }, attributes: 0 }))),
+      cursor: { column: 0, row: 0, visible: true, style: "block" as const, blinking: true },
+      activeScreen: "normal" as const,
+      modes: { applicationCursorKeys: false, applicationKeypad: false, alternateScroll: false, bracketedPaste: false, focusReporting: false, mouseTracking: "none" as const, mouseProtocol: "x10" as const, synchronizedOutput: false, wraparound: true, keyboardProtocol: "legacy" as const, modifyOtherKeys: 0 as const, kittyKeyboardFlags: 0, win32InputMode: false },
+      outputSequence: 1,
+      revision: 1,
+      final: true,
+    };
+    const agents = Array.from({ length: 21 }, (_, index) => ({
+      id: `agent-${index}`, workspaceId: "workspace-test", name: `Native Pi ${index + 1}`, driverKind: "terminal" as const,
+      profile: { id: `profile-${index}`, kind: "native-pi" as const, executable: "pi", arguments: [], cwd: ".", environment: {}, terminalType: "xterm-256color", dimensions: { columns: 123, rows: 29 }, projection: { layout: "full-viewport-native" as const, screen: "auto" as const, preserveHostScrollback: true }, conptyMouseFallback: "none" as const, resume: "none" as const },
+      currentGeneration: { id: `generation-${index}`, agentId: `agent-${index}`, sequence: 1, profileId: `profile-${index}`, state: "exited" as const, capabilities: ["terminal-surface" as const], startedAt: new Date(0).toISOString(), exitedAt: new Date(0).toISOString(), exitCode: 0, signal: null, error: null, ownerBootNonce: "old" },
+      surface,
+      createdAt: new Date(0).toISOString(),
+    }));
+    const accumulated = { revision: 0, workspace: { id: "workspace-test", name: "Test", agentIds: agents.map(agent => agent.id), selectedAgentId: agents.at(-1)?.id ?? null, createdAt: new Date(0).toISOString() }, agents };
+    const frame = encodeFrame({ type: "server-hello", ...localControlHello(), snapshot: boundInitialSupervisorSnapshot(accumulated) });
+
+    expect(boundInitialSupervisorSnapshot(accumulated)).toMatchObject({
+      workspace: { selectedAgentId: null, agentIds: [] },
+      agents: [],
+    });
+    expect(Buffer.byteLength(frame, "utf8")).toBeLessThanOrEqual(MAX_CONTROL_FRAME_BYTES);
   });
 
   it("retries when the verified supervisor endpoint disappears before the UI connects", async () => {

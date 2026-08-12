@@ -62,6 +62,8 @@ describe("semantic terminal input", () => {
     expect(Buffer.from(encoder.encode(key, { ...legacyModes, keyboardProtocol: "win32", win32InputMode: true }, "alternate").bytes).toString()).toBe("\x1b[67;0;3;1;8;1_");
 
     const decoder = new VtHostInputDecoder();
+    expect(decoder.push(Buffer.from("\x1b[67;0;3;1;8;1_"))).toEqual([{ ...key, text: null }]);
+    expect(Buffer.from(encoder.encode(decoder.push(Buffer.from("\x1b[67;0;3;1;8;1_"))[0]!, { ...legacyModes, keyboardProtocol: "win32", win32InputMode: true }, "normal").bytes).toString()).toBe("\x1b[67;0;3;1;8;1_");
     expect(decoder.push(Buffer.from("\x1b[27;5;99~\x1b[99;5:1u"))).toMatchObject([
       { type: "key", key: "c", modifiers: { control: true } },
       { type: "key", key: "c", modifiers: { control: true } },

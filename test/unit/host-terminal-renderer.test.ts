@@ -39,6 +39,8 @@ describe("fullscreen host terminal ownership", () => {
     expect(writes).not.toContain("\x1b[?1049h");
     expect(writes).not.toContain("\x1b[2J");
     expect(writes).not.toContain("\x1b[?1003h");
+    expect(writes).not.toContain("\x1b[?2004l");
+    expect(writes).not.toContain("\x1b[?1004l");
 
     renderer.renderSnapshot(childSurface);
     await new Promise<void>(resolve => setImmediate(resolve));
