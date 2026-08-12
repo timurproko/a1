@@ -188,11 +188,9 @@ async function measureMedianEditorLatency(runner: OuterPtyRunner): Promise<numbe
   const latencies: number[] = [];
   let visible = "";
   for (const character of "zxqvkj") {
-    const startedAt = performance.now();
     visible += character;
-    runner.keyboard(character);
-    await runner.waitFor(visible, 2_000, "editor-latency-probe", 2);
-    latencies.push(performance.now() - startedAt);
+    latencies.push(await runner.measureKeyboardVisibility(character, visible));
+    runner.capture("editor-latency-probe");
   }
   runner.keyboard("\x15");
   await new Promise(resolvePromise => setTimeout(resolvePromise, 50));

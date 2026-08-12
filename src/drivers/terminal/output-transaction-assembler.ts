@@ -126,9 +126,14 @@ export class PtyOutputTransactionAssembler {
     // consuming terminal modes. Use the measured burst cadence, bounded to one
     // short interval, rather than a CLI rule or fixed repaint timer.
     this.#cancelScheduled();
-    const adaptiveDelay = !useAdaptiveTransportQuiescence || this.#observedCadenceMs === null
+    const adaptiveDelay = !useAdaptiveTransportQuiescence
       ? null
-      : Math.max(2, Math.min(this.#maxAdaptiveQuiescenceMs, Math.ceil(this.#observedCadenceMs * 1.75)));
+      : this.#observedCadenceMs === null || this.#awaitingPostBoundaryVisualPayload
+        // Until cadence is known, or while a synchronized close still has no
+        // restorative cells/cursor show, retain the bounded maximum. A shorter
+        // learned marker cadence cannot prove that later visual payload arrived.
+        ? this.#maxAdaptiveQuiescenceMs
+        : Math.max(2, Math.min(this.#maxAdaptiveQuiescenceMs, Math.ceil(this.#observedCadenceMs * 1.75)));
     if (adaptiveDelay !== null && this.#scheduler.scheduleAfterQuiescence) {
       this.#scheduled = this.#scheduler.scheduleAfterQuiescence(adaptiveDelay, () => {
         this.#scheduled = null;

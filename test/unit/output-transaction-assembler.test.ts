@@ -107,6 +107,22 @@ describe("generic PTY output transaction assembler", () => {
     })]);
   });
 
+  it("uses bounded maximum quiescence before synchronized transport cadence is known", () => {
+    const scheduler = new ManualAdaptiveScheduler();
+    const transactions: AssembledPtyOutput[] = [];
+    const assembler = new PtyOutputTransactionAssembler(transaction => transactions.push(transaction), { scheduler });
+
+    assembler.push("\x1b[?2026h\x1b[?25l\x1b[?2026l");
+    expect(scheduler.delayed.at(-1)?.delayMs).toBe(32);
+    scheduler.flush();
+    scheduler.flush();
+    expect(transactions).toEqual([]);
+    assembler.push("\x1b[HSIMULATED CONVERSATION");
+    scheduler.flushDelayed();
+    expect(transactions).toHaveLength(1);
+    expect(transactions[0]?.data).toContain("SIMULATED CONVERSATION");
+  });
+
   it("keeps the accepted cadence-derived synchronized baseline and ignores same-burst fragments", () => {
     const scheduler = new ManualAdaptiveScheduler();
     const transactions: AssembledPtyOutput[] = [];
@@ -123,18 +139,37 @@ describe("generic PTY output transaction assembler", () => {
 
     now = 16;
     assembler.push("\x1b[?2026h\x1b[?25l\x1b[?2026l");
-    expect(scheduler.delayed.at(-1)?.delayMs).toBe(28);
-    now = 17; // Same ConPTY burst; must not collapse cadence to a 2 ms wait.
+    expect(scheduler.delayed.at(-1)?.delayMs).toBe(32);
+    now = 17; // Same ConPTY burst; must not collapse marker-only wait.
     assembler.push("\x1b[1;1H");
-    expect(scheduler.delayed.at(-1)?.delayMs).toBe(28);
+    expect(scheduler.delayed.at(-1)?.delayMs).toBe(32);
     now = 32;
     assembler.push("FRAME\x1b[?25h");
+    expect(scheduler.delayed.at(-1)?.delayMs).toBe(28);
     scheduler.flushDelayed();
 
     expect(transactions).toHaveLength(2);
     expect(transactions[1]).toMatchObject({ atomicBoundary: "synchronized-output" });
     expect(transactions[1]?.data).toContain("\x1b[?25l");
     expect(transactions[1]?.data).toContain("FRAME\x1b[?25h");
+  });
+
+  it("retains maximum quiescence for marker-only commits after cadence is learned", () => {
+    const scheduler = new ManualAdaptiveScheduler();
+    const transactions: AssembledPtyOutput[] = [];
+    let now = 0;
+    const assembler = new PtyOutputTransactionAssembler(transaction => transactions.push(transaction), { scheduler, now: () => now });
+    assembler.push("seed");
+    scheduler.flush();
+    scheduler.flush();
+    now = 16;
+    assembler.push("\x1b[?2026h\x1b[?25l\x1b[?2026l");
+    expect(scheduler.delayed.at(-1)?.delayMs).toBe(32);
+    now = 17;
+    assembler.push("RESTORATIVE CELLS\x1b[?25h");
+    expect(scheduler.delayed.at(-1)?.delayMs).toBe(28);
+    scheduler.flushDelayed();
+    expect(transactions[1]?.data).toContain("RESTORATIVE CELLS");
   });
 
   it("applies transport quiescence after a synchronized commit even when printable cells arrived", () => {
