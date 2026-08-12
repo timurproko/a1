@@ -142,6 +142,18 @@ $env:ADDONE_NATIVE_PI_SMOKE = "1"
 npm run test:smoke:native-pi
 ```
 
+## Development preview publication
+
+From a clean `develop` branch, publish the next Windows-tested preview with one command:
+
+```sh
+npm run publish:next
+```
+
+The workflow selects the next unpublished immutable `-dev.N` version, updates and commits `package.json` plus `package-lock.json`, runs the preview gate once, packs one exact tarball, publishes it under npm tag `next`, verifies the tag, and removes the tarball after success. npm authentication remains interactive. If validation fails, fix the issue and rerun the same command with the same candidate version. If authentication or upload fails after validation, the next invocation reuses the retained verified tarball instead of rebuilding or rerunning the gate.
+
+Installed preview users then update with `a1 update next` or `addone update next`; stable users continue to use the no-argument updater.
+
 ## Development checks
 
 ```sh
@@ -151,4 +163,4 @@ npm test
 npm run validate:agent
 ```
 
-`npm run validate:agent` (and `npm run check`) includes the zero-deprecated-dependency policy, deterministic PTY parity, packaged real-Pi parity, representative Native Pi extension parity, and N−1 update-transition gates. `npm pack` and publishing run the same checks; only the release harness's explicitly marked inner package operation bypasses recursive prepack execution. Every run writes a machine-readable platform verdict under `artifacts/release-verdicts/`. The mandatory CI matrix is Windows 11 x64 with Windows Terminal/system ConPTY, current Ubuntu LTS x64, and current/previous macOS arm64; a failure on any required runner blocks parity claims. The architecture check prevents Pi, PTY, TUI, private-distribution, raw-child-output, process-global, and UI-spawn boundary regressions.
+`npm run validate:agent` (and `npm run check`) includes the zero-deprecated-dependency policy, deterministic PTY parity, packaged real-Pi parity, representative Native Pi extension parity, and N−1 update-transition gates. Direct `npm pack` and `npm publish` retain defensive lifecycle checks; `npm run publish:next` runs the authoritative gate once and then packs and publishes that exact artifact with redundant lifecycle execution disabled. Only the release harness's explicitly marked inner package operation otherwise bypasses recursive prepack execution. Every run writes a machine-readable platform verdict under `artifacts/release-verdicts/`. The mandatory CI matrix is Windows 11 x64 with Windows Terminal/system ConPTY, current Ubuntu LTS x64, and current/previous macOS arm64; a failure on any required runner blocks parity claims. The architecture check prevents Pi, PTY, TUI, private-distribution, raw-child-output, process-global, and UI-spawn boundary regressions.
