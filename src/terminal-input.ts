@@ -123,7 +123,7 @@ function encodeMouse(event: TerminalMouseEvent, modes: EffectiveTerminalModes, a
 }
 
 function encodeKey(event: TerminalKeyEvent, modes: EffectiveTerminalModes): string {
-  if (event.action === "release" && modes.keyboardProtocol === "legacy") return "";
+  if (event.action === "release" && modes.keyboardProtocol !== "kitty" && modes.keyboardProtocol !== "win32") return "";
   if (modes.keyboardProtocol === "win32") return encodeWin32Key(event);
   if (modes.keyboardProtocol === "kitty") {
     const codepoint = keyCodepoint(event);
@@ -152,9 +152,9 @@ function encodeKey(event: TerminalKeyEvent, modes: EffectiveTerminalModes): stri
     PageDown: "\x1b[6~",
   };
   if (named[event.key]) return named[event.key] as string;
-  if (event.modifiers.control && event.key.length === 1) {
-    const code = event.key.toUpperCase().charCodeAt(0);
-    if (code >= 64 && code <= 95) return String.fromCharCode(code - 64);
+  if (event.modifiers.control) {
+    const controlCode = legacyControlCode(event.key);
+    if (controlCode !== null) return String.fromCharCode(controlCode);
   }
   const text = event.text ?? event.key;
   return event.modifiers.alt ? `\x1b${text}` : text;
@@ -167,7 +167,8 @@ function encodeWin32Key(event: TerminalKeyEvent): string {
     Home: [36, 71, 0], End: [35, 79, 0], PageUp: [33, 73, 0], PageDown: [34, 81, 0],
   };
   const text = event.text ?? "";
-  const codepoint = event.modifiers.control && event.key.length === 1 ? event.key.toUpperCase().charCodeAt(0) - 64 : text.codePointAt(0) ?? 0;
+  const controlCode = event.modifiers.control ? legacyControlCode(event.key) : null;
+  const codepoint = controlCode ?? text.codePointAt(0) ?? 0;
   const [virtualKey, scanCode, unicode] = named[event.key] ?? [event.key.length === 1 ? event.key.toUpperCase().charCodeAt(0) : 0, 0, codepoint];
   const controlState = (event.modifiers.alt ? 2 : 0) | (event.modifiers.control ? 8 : 0) | (event.modifiers.shift ? 16 : 0) | (unicode === 0 ? 256 : 0);
   return `\x1b[${virtualKey};${scanCode};${unicode};${event.action === "release" ? 0 : 1};${controlState};1_`;
@@ -193,18 +194,31 @@ function decodeWin32Key(match: RegExpExecArray): TerminalKeyEvent {
   const unicode = Number(match[3]);
   const down = match[4] === "1";
   const controlState = Number(match[5]);
-  const named: Record<number, string> = { 8: "Backspace", 9: "Tab", 13: "Enter", 27: "Escape", 33: "PageUp", 34: "PageDown", 35: "End", 36: "Home", 37: "ArrowLeft", 38: "ArrowUp", 39: "ArrowRight", 40: "ArrowDown", 46: "Delete" };
-  const text = unicode >= 32 ? String.fromCodePoint(unicode) : null;
-  const controlKey = unicode > 0 && unicode < 32 && virtualKey >= 65 && virtualKey <= 90
-    ? String.fromCharCode(virtualKey).toLowerCase()
-    : null;
+  const modifiers = { shift: (controlState & 16) !== 0, alt: (controlState & 3) !== 0, control: (controlState & 12) !== 0, meta: false };
+  const identity = decodeWindowsKeyIdentity(virtualKey, unicode, modifiers.control);
   return {
     type: "key",
-    key: named[virtualKey] ?? controlKey ?? text ?? String.fromCharCode(virtualKey).toLowerCase(),
-    text,
-    modifiers: { shift: (controlState & 16) !== 0, alt: (controlState & 3) !== 0, control: (controlState & 12) !== 0, meta: false },
+    key: identity.key,
+    text: identity.text,
+    modifiers,
     action: down ? Number(match[6]) > 1 ? "repeat" : "press" : "release",
   };
+}
+
+export function decodeWindowsKeyIdentity(virtualKey: number, unicode: number, control: boolean): { key: string; text: string | null } {
+  const named: Record<number, string> = { 8: "Backspace", 9: "Tab", 13: "Enter", 27: "Escape", 33: "PageUp", 34: "PageDown", 35: "End", 36: "Home", 37: "ArrowLeft", 38: "ArrowUp", 39: "ArrowRight", 40: "ArrowDown", 46: "Delete" };
+  // Windows control records can retain a layout-dependent or remapped virtual
+  // key. The Unicode control value is the semantic Ctrl+A..Z identity and must
+  // win over that physical-key metadata (for example U+0003 is always Ctrl+C).
+  if (control && unicode >= 1 && unicode <= 26) return { key: String.fromCharCode(unicode + 96), text: null };
+  if (control && unicode >= 27 && unicode <= 31) return { key: String.fromCharCode(unicode + 64), text: null };
+  if (control && unicode === 0 && virtualKey === 32) return { key: " ", text: null };
+  const namedKey = named[virtualKey];
+  if (namedKey) return { key: namedKey, text: null };
+  const text = unicode >= 32 ? String.fromCodePoint(unicode) : null;
+  if (text) return { key: text, text };
+  if (virtualKey >= 65 && virtualKey <= 90) return { key: String.fromCharCode(virtualKey).toLowerCase(), text: null };
+  return { key: String.fromCodePoint(Math.max(0, virtualKey)), text: null };
 }
 
 function decodeLegacyKey(value: string): { event: TerminalKeyEvent; length: number } | null {
@@ -217,14 +231,21 @@ function decodeLegacyKey(value: string): { event: TerminalKeyEvent; length: numb
     if (value.startsWith(sequence)) return { event: { type: "key", key, text: null, modifiers: NONE, action: "press" }, length: sequence.length };
   }
   const code = value.charCodeAt(0);
-  if (code > 0 && code < 27) {
-    return { event: { type: "key", key: String.fromCharCode(code + 96), text: null, modifiers: { ...NONE, control: true }, action: "press" }, length: 1 };
+  if (code >= 0 && code < 32) {
+    const key = code === 0 ? " " : code <= 26 ? String.fromCharCode(code + 96) : String.fromCharCode(code + 64);
+    return { event: { type: "key", key, text: null, modifiers: { ...NONE, control: true }, action: "press" }, length: 1 };
   }
   return null;
 }
 
 function isIncompleteEscape(value: string): boolean {
   return value === "\x1b" || /^\x1b\[[?<>=]?[0-9;:]*$/.test(value) || value === "\x1bO";
+}
+function legacyControlCode(key: string): number | null {
+  if (key === " ") return 0;
+  if (key.length !== 1) return null;
+  const code = key.toUpperCase().charCodeAt(0);
+  return code >= 64 && code <= 95 ? code - 64 : null;
 }
 function modifiersFromKitty(value: number): KeyModifiers {
   return { shift: (value & 1) !== 0, alt: (value & 2) !== 0, control: (value & 4) !== 0, meta: (value & 8) !== 0 };

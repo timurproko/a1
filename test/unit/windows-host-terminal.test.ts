@@ -34,6 +34,9 @@ describe("Windows host terminal adapter", () => {
   });
 
   it("decodes ReadConsoleInputW key, repeat, wheel, focus, and resize records", () => {
+    expect(decodeInputRecord({ type: "key", keyDown: true, repeatCount: 1, virtualKey: 80, scanCode: 46, unicode: 3, controlKeyState: 0x0008 })).toEqual([
+      { type: "key", key: "c", text: null, modifiers: { shift: false, alt: false, control: true, meta: false }, action: "press" },
+    ]);
     expect(decodeInputRecord({ type: "key", keyDown: true, repeatCount: 2, virtualKey: 38, scanCode: 72, unicode: 0, controlKeyState: 0x0110 })).toEqual([
       { type: "key", key: "ArrowUp", text: null, modifiers: { shift: true, alt: false, control: false, meta: false }, action: "press" },
       { type: "key", key: "ArrowUp", text: null, modifiers: { shift: true, alt: false, control: false, meta: false }, action: "repeat" },

@@ -54,20 +54,41 @@ describe("semantic terminal input", () => {
     expect(encoder.encode({ type: "focus", focused: true }, legacyModes, "alternate").route).toBe("ignored");
   });
 
-  it("translates Kitty, modifyOtherKeys, and Win32 key protocols", () => {
+  it("preserves every Ctrl+letter identity across Win32 host decoding and child protocols", () => {
     const encoder = new ModeAwareTerminalInputEncoder();
-    const key: TerminalKeyEvent = { type: "key", key: "c", text: "c", modifiers: { ...noModifiers, control: true }, action: "press" };
-    expect(Buffer.from(encoder.encode(key, { ...legacyModes, keyboardProtocol: "kitty", kittyKeyboardFlags: 7 }, "alternate").bytes).toString()).toBe("\x1b[99;5:1u");
-    expect(Buffer.from(encoder.encode(key, { ...legacyModes, keyboardProtocol: "modify-other-keys", modifyOtherKeys: 2 }, "alternate").bytes).toString()).toBe("\x1b[27;5;99~");
-    expect(Buffer.from(encoder.encode(key, { ...legacyModes, keyboardProtocol: "win32", win32InputMode: true }, "alternate").bytes).toString()).toBe("\x1b[67;0;3;1;8;1_");
-
     const decoder = new VtHostInputDecoder();
-    expect(decoder.push(Buffer.from("\x1b[67;0;3;1;8;1_"))).toEqual([{ ...key, text: null }]);
-    expect(Buffer.from(encoder.encode(decoder.push(Buffer.from("\x1b[67;0;3;1;8;1_"))[0]!, { ...legacyModes, keyboardProtocol: "win32", win32InputMode: true }, "normal").bytes).toString()).toBe("\x1b[67;0;3;1;8;1_");
-    expect(decoder.push(Buffer.from("\x1b[27;5;99~\x1b[99;5:1u"))).toMatchObject([
-      { type: "key", key: "c", modifiers: { control: true } },
-      { type: "key", key: "c", modifiers: { control: true } },
-    ]);
+    for (let offset = 1; offset <= 26; offset++) {
+      const letter = String.fromCharCode(96 + offset);
+      const virtualKey = 64 + offset;
+      const [event] = decoder.push(Buffer.from(`\x1b[${virtualKey};0;${offset};1;8;1_`));
+      expect(event).toEqual({ type: "key", key: letter, text: null, modifiers: { ...noModifiers, control: true }, action: "press" });
+      expect(Buffer.from(encoder.encode(event!, legacyModes, "normal").bytes).toString("hex")).toBe(offset.toString(16).padStart(2, "0"));
+      expect(Buffer.from(encoder.encode(event!, { ...legacyModes, keyboardProtocol: "modify-other-keys", modifyOtherKeys: 2 }, "normal").bytes).toString()).toBe(`\x1b[27;5;${letter.codePointAt(0)}~`);
+      expect(Buffer.from(encoder.encode(event!, { ...legacyModes, keyboardProtocol: "kitty", kittyKeyboardFlags: 7 }, "normal").bytes).toString()).toBe(`\x1b[${letter.codePointAt(0)};5:1u`);
+      expect(Buffer.from(encoder.encode(event!, { ...legacyModes, keyboardProtocol: "win32", win32InputMode: true }, "normal").bytes).toString()).toBe(`\x1b[${virtualKey};0;${offset};1;8;1_`);
+    }
+  });
+
+  it("round-trips legacy C0 controls while retaining canonical Tab, Enter, and Escape ambiguity", () => {
+    const encoder = new ModeAwareTerminalInputEncoder();
+    const expectedKeys = [" ", ...Array.from({ length: 26 }, (_, index) => String.fromCharCode(97 + index)), "[", "\\", "]", "^", "_"];
+    for (let code = 0; code < 32; code++) {
+      const decoder = new VtHostInputDecoder();
+      const pushed = decoder.push(Buffer.from([code]));
+      const [event] = code === 27 ? decoder.flushPendingEscape() : pushed;
+      const canonical = code === 9 ? "Tab" : code === 13 ? "Enter" : code === 27 ? "Escape" : expectedKeys[code];
+      expect(event).toMatchObject({ type: "key", key: canonical, text: null, action: "press" });
+      expect(Buffer.from(encoder.encode(event!, legacyModes, "normal").bytes)).toEqual(Buffer.from([code]));
+    }
+  });
+
+  it("does not turn Win32 key releases into duplicate legacy or modifyOtherKeys presses", () => {
+    const encoder = new ModeAwareTerminalInputEncoder();
+    const decoder = new VtHostInputDecoder();
+    const [release] = decoder.push(Buffer.from("\x1b[80;46;3;0;8;1_"));
+    expect(release).toMatchObject({ type: "key", key: "c", text: null, action: "release" });
+    expect(encoder.encode(release!, legacyModes, "normal").bytes).toHaveLength(0);
+    expect(encoder.encode(release!, { ...legacyModes, keyboardProtocol: "modify-other-keys", modifyOtherKeys: 2 }, "normal").bytes).toHaveLength(0);
   });
 
   it("routes wheel as mouse, alternate scroll, or virtual scrollback without becoming an ordinary key", () => {
