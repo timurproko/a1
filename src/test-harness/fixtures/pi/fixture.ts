@@ -63,16 +63,20 @@ const answerConversationQuestion = (question: string) => {
   const label = String(conversationTurn).padStart(2, "0");
   conversationTranscript.push(`YOU ${label}: ${question}`);
   paintConversation(`QUESTION ${label} ACCEPTED`);
-  setTimeout(() => paintConversation(`THINKING ${label} ...`), 60);
+  // Keep explicit full-viewport source commits farther apart than two accepted
+  // 32 ms transport-quiescence windows. Under host contention, 60 ms allowed
+  // ConPTY to collapse marker-only thinking/generating commits before their
+  // cells drained, making the 201-commit oracle nondeterministic.
+  setTimeout(() => paintConversation(`THINKING ${label} ...`), 100);
   setTimeout(() => {
     conversationTranscript.push(`ASSISTANT ${label}: streaming response`);
     paintConversation(`GENERATING ${label}`);
-  }, 120);
+  }, 200);
   setTimeout(() => {
     conversationTranscript[conversationTranscript.length - 1] = `ASSISTANT ${label}: ANSWER ${label} COMPLETE`;
     conversationBusy = false;
     paintConversation(conversationTurn >= 50 ? "50 QUESTIONS COMPLETE" : "READY");
-  }, 180);
+  }, 300);
 };
 if (process.stdin.isTTY) process.stdin.setRawMode?.(true);
 process.stdin.setEncoding("utf8");
