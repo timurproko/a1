@@ -242,7 +242,7 @@ The release gate SHALL exercise candidate installation and launch while a retain
 - **THEN** their process inventory and release metadata SHALL prove that the bootstrap, UI, supervisor, and workers execute from the intended immutable release content rather than the development checkout
 
 ### Requirement: Development previews use one immutable publish-and-update workflow
-AddOne SHALL provide one repository command that, from clean `develop`, selects the next unpublished `-dev.N` SemVer version, commits the package and lockfile bump, runs the available development-preview gates once, packs one exact tarball, publishes that tarball under npm tag `next` without recursively rerunning lifecycle gates, verifies the registry tag, and removes the local tarball only after success. The installed CLI SHALL support the explicit `update:next` command mapped to npm `next`; the default update command SHALL remain mapped to stable `latest`.
+AddOne SHALL provide one repository command that, from clean `develop`, selects the next unpublished `-dev.N` SemVer version, commits the package and lockfile bump, runs the available development-preview gates once, packs one exact tarball, publishes that tarball under npm tag `next` without recursively rerunning lifecycle gates, verifies the registry tag, and removes the local tarball only after success. The installed CLI SHALL map `update` to npm `latest` and `update:next` to npm `next`, and both SHALL use the same immediate replacement transaction.
 
 #### Scenario: Publish another development preview
 - **WHEN** a developer invokes the documented development-preview publication command from clean `develop`
@@ -252,16 +252,16 @@ AddOne SHALL provide one repository command that, from clean `develop`, selects 
 - **WHEN** the user runs `addone update:next` or `a1 update:next`
 - **THEN** AddOne SHALL resolve npm tag `next` and complete the exact newer preview's immediate verified stop-install-activate transaction through npm's active global installation
 
-#### Scenario: Stable update remains stable
+#### Scenario: Stable update selects only stable content
 - **WHEN** the user runs `addone update` or `a1 update`
-- **THEN** AddOne SHALL resolve npm tag `latest` and SHALL NOT opt the installation into development previews
+- **THEN** AddOne SHALL resolve npm tag `latest`, perform the same immediate stop-install-activate transaction, and SHALL NOT opt the installation into development previews
 
-### Requirement: Windows preview replacement needs no manual cleanup
-The packaged update suite SHALL exercise publication-equivalent installation and immediate preview activation on Windows while the old installed cohort has loaded `conpty.node` and owns multiple terminal generations. It SHALL prove that mutable npm package files are replaceable after verified shutdown, old native modules came from immutable release content, stale prior-boot generation rows cannot block candidate activation, and the next launch uses the new release presentation. The scenario SHALL fail if success requires `taskkill`, PID discovery, global package surgery, release-state deletion, database deletion, or removal of the AddOne data directory outside the product command.
+### Requirement: Windows package replacement needs no manual cleanup
+The packaged update suite SHALL exercise publication-equivalent stable and preview installation with immediate activation on Windows while the old installed cohort has loaded `conpty.node` and owns multiple terminal generations. It SHALL prove that mutable npm package files are replaceable after verified shutdown, old native modules came from immutable release content, stale prior-boot generation rows cannot block candidate activation, and the next launch uses the new release presentation. The scenario SHALL fail if success requires `taskkill`, PID discovery, global package surgery, release-state deletion, database deletion, or removal of the AddOne data directory outside the product command.
 
-#### Scenario: Replace a running Windows preview
-- **WHEN** a packaged N−1 AddOne preview owns terminal generations and the test invokes `a1 update:next`
-- **THEN** the command SHALL terminate only verified AddOne-owned processes, replace the npm package, activate the candidate, preserve durable data, and launch the new release without an old intro or retained old UI
+#### Scenario: Replace a running Windows stable or preview release
+- **WHEN** a packaged N−1 AddOne release owns terminal generations and the test invokes either `a1 update` or `a1 update:next`
+- **THEN** each command SHALL terminate only verified AddOne-owned processes, replace the npm package from its selected tag, activate the candidate, preserve durable data, and launch the new release without an old intro or retained old UI
 
 #### Scenario: Prior supervisor died uncleanly
 - **WHEN** update begins with dead endpoint ownership and nonterminal generation rows from the prior supervisor boot
@@ -269,7 +269,7 @@ The packaged update suite SHALL exercise publication-equivalent installation and
 
 #### Scenario: Update transaction is interrupted at every durable phase
 - **WHEN** faults are injected after shutdown intent, ownership release, npm replacement, materialization, certification, or active-reference commit
-- **THEN** rerunning `a1 update:next` SHALL converge to one verified active cohort or one verified rollback cohort without mixed ownership or manual cleanup
+- **THEN** rerunning the same update command SHALL converge to one verified active cohort or one verified rollback cohort without mixed ownership or manual cleanup
 
 ### Requirement: Every failed scenario preserves reproducible evidence
 A failed scenario SHALL preserve its scenario definition, semantic host-input timeline, encoded child-input timeline, package and immutable release identities, negotiated control features, runtime and profile identities, platform and terminal identity, process inventory, activation and ownership metadata, relevant process logs, supervisor events, child PTY output, host renderer output, virtual terminal frames and mode timeline, captured host console modes where applicable, session references, assertions, and failure summary.

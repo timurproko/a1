@@ -4,23 +4,27 @@ Defines the standalone AddOne terminal experience that presents and controls het
 
 ## ADDED Requirements
 
-### Requirement: Preview update is one immediate replacement command
-The installed application SHALL expose `addone update:next` and `a1 update:next` as equivalent non-interactive development-preview update commands. Invocation SHALL constitute explicit consent to stop every process and non-resumable terminal session whose ownership AddOne verifies, install the exact version resolved from npm tag `next`, materialize and certify that immutable release, reconcile stale generation ownership, activate the new release atomically, and verify the resulting active version. The command SHALL NOT require a separate status command, shutdown command, restart flag, process identifier, manual process kill, state-directory deletion, or subsequent activation command.
+### Requirement: Every package update is one immediate replacement command
+The installed application SHALL expose `addone update`/`a1 update` as equivalent stable update commands resolving npm tag `latest`, and `addone update:next`/`a1 update:next` as equivalent development-preview update commands resolving npm tag `next`. The selected tag SHALL be the only lifecycle difference. Invocation of either command SHALL constitute explicit consent to stop every process and non-resumable terminal session whose ownership AddOne verifies, install the exact resolved version, materialize and certify that immutable release, reconcile stale generation ownership, activate the new release atomically, and verify the resulting active version. Neither command SHALL require a separate status command, shutdown command, restart flag, process identifier, manual process kill, state-directory deletion, or subsequent activation command.
+
+#### Scenario: Replace the current stable release immediately
+- **WHEN** the user runs `a1 update` while an older AddOne cohort owns terminal sessions
+- **THEN** AddOne SHALL gracefully stop those verified AddOne-owned sessions and processes, apply bounded owned-process cleanup if necessary, install and activate the exact npm `latest` version, and report the old and newly active versions
 
 #### Scenario: Replace the current preview immediately
 - **WHEN** the user runs `a1 update:next` while an older AddOne cohort owns terminal sessions
-- **THEN** AddOne SHALL gracefully stop those verified AddOne-owned sessions and processes, apply bounded owned-process cleanup if necessary, install and activate the exact npm `next` version, and report the old and newly active versions
+- **THEN** AddOne SHALL perform the same replacement transaction using the exact npm `next` version
 
-#### Scenario: Preview is already active
-- **WHEN** npm `next` resolves to the exact active AddOne release version
-- **THEN** `a1 update:next` SHALL report that the preview is current without stopping or reinstalling it
+#### Scenario: Selected channel is already active
+- **WHEN** the selected npm tag resolves to the exact active AddOne release version
+- **THEN** the update command SHALL report that the selected channel is current without stopping or reinstalling it
 
 #### Scenario: Ownership cannot be verified
 - **WHEN** a process or endpoint might be related to AddOne but ownership cannot be proved from process identity, boot identity, endpoint identity, and durable metadata
 - **THEN** `a1 update:next` SHALL fail safely without terminating that process, deleting control state, or claiming activation success
 
 #### Scenario: Update is interrupted
-- **WHEN** `a1 update:next` is interrupted after shutdown, installation, or candidate materialization
+- **WHEN** either update command is interrupted after shutdown, installation, or candidate materialization
 - **THEN** the next invocation SHALL reconcile the transaction journal and continue or roll back to one verified active cohort without requiring manual cleanup
 
 ### Requirement: The AddOne command launches vanilla Native Pi immediately

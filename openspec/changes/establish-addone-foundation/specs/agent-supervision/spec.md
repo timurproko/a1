@@ -74,11 +74,11 @@ UI and supervisor peers SHALL negotiate stable control-envelope identity and req
 - **WHEN** either peer requires a control feature the other does not advertise
 - **THEN** no application command SHALL be accepted and the release coordinator SHALL select a matching cohort or perform a safe replacement instead of reporting a generic malformed-message failure
 
-### Requirement: Immediate preview replacement is ownership-safe and atomic
-For `update:next`, AddOne SHALL coordinate shutdown, npm installation, immutable materialization, certification, stale-generation reconciliation, active-reference commit, and rollback through a durable transaction. The command itself SHALL authorize interruption of all verified AddOne-owned non-resumable generations. A preview update SHALL complete with exactly one active release cohort or retain/restore one verified prior cohort; installed, pending, and transaction phases MAY exist internally for crash recovery but SHALL NOT require separate user operations.
+### Requirement: Immediate package replacement is ownership-safe and atomic
+For both stable `update` and preview `update:next`, AddOne SHALL coordinate shutdown, npm installation, immutable materialization, certification, stale-generation reconciliation, active-reference commit, and rollback through the same durable transaction. The command itself SHALL authorize interruption of all verified AddOne-owned non-resumable generations. An update SHALL complete with exactly one active release cohort or retain/restore one verified prior cohort; installed, pending, and transaction phases MAY exist internally for crash recovery but SHALL NOT require separate user operations. The npm tag (`latest` or `next`) SHALL select only the exact target version and SHALL NOT change shutdown, ownership, activation, verification, or rollback semantics.
 
 #### Scenario: Active terminal generations exist
-- **WHEN** `update:next` begins while a verified supervisor owns live terminal generations
+- **WHEN** either update command begins while a verified supervisor owns live terminal generations
 - **THEN** the coordinator SHALL stop input, request bounded graceful child shutdown, stop the supervisor and process tree, verify endpoint and native-module ownership release, and only then replace the npm package and activate the candidate
 
 #### Scenario: Native dependency is loaded
