@@ -6,7 +6,9 @@ import { resolve } from "node:path";
 const startedAt = new Date().toISOString();
 const commands = [
   [process.platform === "win32" ? "npm.cmd" : "npm", ["run", "test:scenario"]],
-  [process.platform === "win32" ? "npx.cmd" : "npx", ["vitest", "run", "test/scenarios/packaged-real-pi.test.ts", "test/scenarios/packaged-extension.test.ts", "test/scenarios/packaged-multi-cli.test.ts", "test/scenarios/update-transition.test.ts", "--testTimeout=120000"]],
+  // Packaged PTY usability and latency certification must not contend with
+  // other package installs and real terminal workloads in parallel workers.
+  [process.platform === "win32" ? "npx.cmd" : "npx", ["vitest", "run", "test/scenarios/packaged-real-pi.test.ts", "test/scenarios/packaged-extension.test.ts", "test/scenarios/packaged-multi-cli.test.ts", "test/scenarios/update-transition.test.ts", "--no-file-parallelism", "--testTimeout=120000"]],
 ];
 let failure;
 for (const [command, args] of commands) {
