@@ -54,7 +54,9 @@ export class OuterPtyRunner {
   #hostSelectionActive = false;
   #hostSelectionInitialRow = 0;
   #hostSelectionBaseY = 0;
-  #modeTail = "";
+  #incompleteControl = "";
+  #parsedOutputRevision = 0;
+  #parsedOutputWaiters = new Set<() => void>();
 
   constructor(readonly context: ScenarioContext, columns = 90, rows = 28) {
     this.#terminal = new Terminal({ cols: columns, rows, scrollback: 1_000, allowProposedApi: true });
@@ -94,32 +96,49 @@ export class OuterPtyRunner {
         })}\n`);
       } catch {}
       this.#rawLog += data;
-      this.#modeTail = `${this.#modeTail}${data}`.slice(-256);
-      for (const match of this.#modeTail.matchAll(/\x1b\[\?([0-9;]+)([hl])/g)) {
-        const enabled = match[2] === "h";
-        for (const value of (match[1] ?? "").split(";").map(Number)) {
-          if (value === 25) this.#cursorVisible = enabled;
-          if (value === 1007) this.#alternateScroll = enabled;
-          if (value === 9001) {
-            this.#win32InputMode = enabled;
-            if (enabled && this.#conptyMouseFallback) this.#mouseProtocol = "sgr";
-          }
-          if (enabled && value === 1005) this.#mouseProtocol = "utf8";
-          if (enabled && value === 1006) this.#mouseProtocol = "sgr";
-          if (enabled && value === 1015) this.#mouseProtocol = "urxvt";
-          if (!enabled && [1005, 1006, 1015].includes(value)) this.#mouseProtocol = "x10";
-        }
-      }
-      for (const match of this.#modeTail.matchAll(/\x1b\[([0-6]?) q/g)) {
-        const value = Number(match[1] || 0);
-        this.#cursorStyle = value === 0 ? "default" : value >= 5 ? "bar" : value >= 3 ? "underline" : "block";
-      }
-      this.#terminal.write(data);
+      this.#parseHostControls(data);
+      this.#terminal.write(data, () => {
+        this.#parsedOutputRevision += 1;
+        for (const resolve of this.#parsedOutputWaiters) resolve();
+        this.#parsedOutputWaiters.clear();
+      });
     });
     this.#exit = new Promise(resolve => child.onExit(event => {
       this.#exited = true;
       resolve(event);
     }));
+  }
+
+  #parseHostControls(data: string): void {
+    const combined = this.#incompleteControl + data;
+    // Preserve only a final incomplete CSI sequence. Complete controls are
+    // consumed exactly once; rescanning a rolling tail can resurrect stale
+    // cursor/mode state from an earlier frame.
+    const trailingEscape = combined.lastIndexOf("\x1b");
+    const trailing = trailingEscape >= 0 ? combined.slice(trailingEscape) : "";
+    const incomplete = /^\x1b(?:\[[?0-9; ]*)?$/.test(trailing);
+    const complete = incomplete ? combined.slice(0, trailingEscape) : combined;
+    this.#incompleteControl = incomplete ? trailing : "";
+
+    for (const match of complete.matchAll(/\x1b\[\?([0-9;]+)([hl])/g)) {
+      const enabled = match[2] === "h";
+      for (const value of (match[1] ?? "").split(";").map(Number)) {
+        if (value === 25) this.#cursorVisible = enabled;
+        if (value === 1007) this.#alternateScroll = enabled;
+        if (value === 9001) {
+          this.#win32InputMode = enabled;
+          if (enabled && this.#conptyMouseFallback) this.#mouseProtocol = "sgr";
+        }
+        if (enabled && value === 1005) this.#mouseProtocol = "utf8";
+        if (enabled && value === 1006) this.#mouseProtocol = "sgr";
+        if (enabled && value === 1015) this.#mouseProtocol = "urxvt";
+        if (!enabled && [1005, 1006, 1015].includes(value)) this.#mouseProtocol = "x10";
+      }
+    }
+    for (const match of complete.matchAll(/\x1b\[([0-6]?) q/g)) {
+      const value = Number(match[1] || 0);
+      this.#cursorStyle = value === 0 ? "default" : value >= 5 ? "bar" : value >= 3 ? "underline" : "block";
+    }
   }
 
   keyboard(data: string): void {
@@ -259,6 +278,44 @@ export class OuterPtyRunner {
     };
     this.frames.push(frame);
     return frame;
+  }
+
+  async measureKeyboardVisibility(data: string, expectedText: string, deadlineMs = 2_000): Promise<number> {
+    const startedAt = performance.now();
+    this.keyboard(data);
+    await this.#waitForParsedText(expectedText, deadlineMs);
+    return performance.now() - startedAt;
+  }
+
+  async #waitForParsedText(text: string, deadlineMs: number): Promise<void> {
+    const deadline = performance.now() + deadlineMs;
+    while (performance.now() < deadline) {
+      if (this.#visibleText().includes(text)) return;
+      const revision = this.#parsedOutputRevision;
+      await new Promise<void>((resolvePromise, rejectPromise) => {
+        const remaining = Math.max(1, deadline - performance.now());
+        const timeout = setTimeout(() => {
+          this.#parsedOutputWaiters.delete(onOutput);
+          rejectPromise(new Error(`terminal condition ${JSON.stringify(text)} not reached after ${deadlineMs}ms`));
+        }, remaining);
+        const onOutput = () => {
+          clearTimeout(timeout);
+          resolvePromise();
+        };
+        this.#parsedOutputWaiters.add(onOutput);
+        // Avoid sleeping if parsing completed between the state check and waiter registration.
+        if (this.#parsedOutputRevision !== revision) {
+          this.#parsedOutputWaiters.delete(onOutput);
+          onOutput();
+        }
+      });
+    }
+    throw new Error(`terminal condition ${JSON.stringify(text)} not reached after ${deadlineMs}ms`);
+  }
+
+  #visibleText(): string {
+    const buffer = this.#terminal.buffer.active;
+    return Array.from({ length: this.#terminal.rows }, (_, row) => buffer.getLine(buffer.viewportY + row)?.translateToString(true) ?? "").join("\n");
   }
 
   async waitFor(text: string, deadlineMs: number, frameName?: string, pollMs = 25): Promise<NormalizedFrame> {

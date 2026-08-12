@@ -88,8 +88,10 @@ async function exerciseFiftyQuestions(runner: OuterPtyRunner, readinessMs: numbe
     if (turn > 1) await new Promise(resolve => setTimeout(resolve, 60));
     const label = String(turn).padStart(2, "0");
     runner.keyboard(`Question ${label}: explain repaint stability\r`);
-    const frame = await runner.waitFor(`ANSWER ${label} COMPLETE`, 5_000, `question-${label}`);
-    expectAnchored(frame.lines, turn === 50 ? "50 QUESTIONS COMPLETE" : "READY");
+    await runner.waitFor(`ANSWER ${label} COMPLETE`, 5_000, `question-${label}-answer`);
+    const expectedStatus = turn === 50 ? "50 QUESTIONS COMPLETE" : "READY";
+    const frame = await runner.waitFor(`STATUS ${expectedStatus}`, 5_000, `question-${label}-settled`);
+    expectAnchored(frame.lines, expectedStatus);
   }
 }
 
