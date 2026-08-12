@@ -194,10 +194,13 @@ function decodeWin32Key(match: RegExpExecArray): TerminalKeyEvent {
   const down = match[4] === "1";
   const controlState = Number(match[5]);
   const named: Record<number, string> = { 8: "Backspace", 9: "Tab", 13: "Enter", 27: "Escape", 33: "PageUp", 34: "PageDown", 35: "End", 36: "Home", 37: "ArrowLeft", 38: "ArrowUp", 39: "ArrowRight", 40: "ArrowDown", 46: "Delete" };
-  const text = unicode > 0 ? String.fromCodePoint(unicode) : null;
+  const text = unicode >= 32 ? String.fromCodePoint(unicode) : null;
+  const controlKey = unicode > 0 && unicode < 32 && virtualKey >= 65 && virtualKey <= 90
+    ? String.fromCharCode(virtualKey).toLowerCase()
+    : null;
   return {
     type: "key",
-    key: named[virtualKey] ?? text ?? String.fromCharCode(virtualKey).toLowerCase(),
+    key: named[virtualKey] ?? controlKey ?? text ?? String.fromCharCode(virtualKey).toLowerCase(),
     text,
     modifiers: { shift: (controlState & 16) !== 0, alt: (controlState & 3) !== 0, control: (controlState & 12) !== 0, meta: false },
     action: down ? Number(match[6]) > 1 ? "repeat" : "press" : "release",

@@ -46,6 +46,10 @@ The installed application SHALL expose an `addone` terminal command that immedia
 - **WHEN** the user runs `addone` in a supported terminal
 - **THEN** AddOne SHALL start the configured Native Pi executable immediately and the first application content published by AddOne SHALL be the first ready Pi frame
 
+#### Scenario: Launch again after a prior Native Pi exit
+- **WHEN** the user runs `addone` after one or more prior fullscreen Native Pi generations have exited
+- **THEN** AddOne SHALL start a fresh Native Pi generation, preserve the invoking command and prior terminal history without an intermediate blank or clear frame, and SHALL NOT replay retained exited surfaces or fail its control handshake because of their accumulated state
+
 ### Requirement: AddOne owns the application shell
 AddOne SHALL run as a standalone terminal application and SHALL own workspace navigation, tabs, sidebar presentation, global input routing, drafts, statuses, dialogs, and notifications independently of any selected agent runtime.
 

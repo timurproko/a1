@@ -12,6 +12,7 @@ import { projectTerminalRenderTransaction, projectTerminalSnapshot, renderTermin
 import { HostFrameWriter, type DrainAwareHostOutput } from "./host-frame-writer.js";
 
 const HOST_BASE_INPUT_MODES_ON = "\x1b[?1004h\x1b[?2004h";
+const PRE_HANDOFF_TERMINAL_MODES_OFF = "\x1b[?1l\x1b[?9l\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1005l\x1b[?1006l\x1b[?1007l\x1b[?1015l\x1b[?2026l\x1b[?9001l\x1b[?7h\x1b>";
 const HOST_MOUSE_MODES_ON = "\x1b[?1000h\x1b[?1002h\x1b[?1003h\x1b[?1006h";
 const HOST_MOUSE_MODES_OFF = "\x1b[?1003l\x1b[?1002l\x1b[?1000l\x1b[?1006l";
 const RESET_TERMINAL_MODES_INSIDE_SYNCHRONIZED_FRAME = RESET_TERMINAL_MODES.replace("\x1b[?2026l", "");
@@ -78,7 +79,7 @@ export class FullscreenHostRenderer {
     // alternate-screen transition and clear, when required, are then enclosed
     // in that same synchronized child frame.
     this.#outerAlternate = false;
-    this.#write("lifecycle", `${RESET_TERMINAL_MODES}\x1b[?25l${HOST_BASE_INPUT_MODES_ON}`);
+    this.#write("lifecycle", `${PRE_HANDOFF_TERMINAL_MODES_OFF}\x1b[?25l${HOST_BASE_INPUT_MODES_ON}`);
   }
 
   setInitialNormalCursorRow(row: number): void {

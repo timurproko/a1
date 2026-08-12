@@ -56,7 +56,7 @@ export class SupervisorServer {
   }
 
   snapshot(): SupervisorSnapshot {
-    return { revision: this.#revision, workspace: this.#workspace, agents: this.#agents };
+    return boundInitialSupervisorSnapshot({ revision: this.#revision, workspace: this.#workspace, agents: this.#agents });
   }
 
   async listen(): Promise<void> {
@@ -382,6 +382,22 @@ export class SupervisorServer {
     }
     socket.write(frame);
   }
+}
+
+export function boundInitialSupervisorSnapshot(snapshot: SupervisorSnapshot): SupervisorSnapshot {
+  // The initial fullscreen shell presents one selected terminal. Historical
+  // exited agents remain durable evidence, but sending every retained full
+  // surface makes the handshake grow without bound across ordinary launches.
+  const selected = snapshot.agents.find(agent => agent.id === snapshot.workspace.selectedAgentId);
+  const active = selected && !["exited", "stopped", "interrupted", "error"].includes(selected.currentGeneration.state)
+    ? selected
+    : null;
+  const agents = active ? [active] : [];
+  return {
+    ...snapshot,
+    workspace: { ...snapshot.workspace, selectedAgentId: active?.id ?? null, agentIds: agents.map(agent => agent.id) },
+    agents,
+  };
 }
 
 function assertHostInputEvent(event: unknown): asserts event is HostTerminalInputEvent {
