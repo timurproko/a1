@@ -34,6 +34,68 @@ export interface NormalizedFrame {
 }
 export interface TimelineEntry { readonly atMs: number; readonly type: "keyboard" | "paste" | "focus" | "mouse" | "resize" | "launch" | "stop"; readonly detail: unknown }
 export interface OuterOutputChunk { readonly atMs: number; readonly data: string }
+export interface ParsedOutputWaiter {
+  currentRevision(): number;
+  waitForRevisionAfter(revision: number, deadlineMs: number): Promise<void>;
+}
+export interface ParsedHostControlState {
+  readonly cursorVisible: boolean;
+  readonly cursorStyle: "default" | "block" | "underline" | "bar";
+  readonly alternateScroll: boolean;
+  readonly mouseProtocol: "x10" | "utf8" | "sgr" | "urxvt";
+  readonly win32InputMode: boolean;
+}
+
+export class HostControlOracle {
+  #cursorVisible = true;
+  #cursorStyle: ParsedHostControlState["cursorStyle"] = "default";
+  #alternateScroll = false;
+  #mouseProtocol: ParsedHostControlState["mouseProtocol"] = "x10";
+  #win32InputMode = false;
+  #incompleteControl = "";
+
+  push(data: string, conptyMouseFallback = false): void {
+    const combined = this.#incompleteControl + data;
+    // Preserve only a final incomplete CSI sequence. Complete controls are
+    // consumed exactly once; rescanning a rolling tail can resurrect stale
+    // cursor/mode state from an earlier frame.
+    const trailingEscape = combined.lastIndexOf("\x1b");
+    const trailing = trailingEscape >= 0 ? combined.slice(trailingEscape) : "";
+    const incomplete = /^\x1b(?:\[[?0-9; ]*)?$/.test(trailing);
+    const complete = incomplete ? combined.slice(0, trailingEscape) : combined;
+    this.#incompleteControl = incomplete ? trailing : "";
+
+    for (const match of complete.matchAll(/\x1b\[\?([0-9;]+)([hl])/g)) {
+      const enabled = match[2] === "h";
+      for (const value of (match[1] ?? "").split(";").map(Number)) {
+        if (value === 25) this.#cursorVisible = enabled;
+        if (value === 1007) this.#alternateScroll = enabled;
+        if (value === 9001) {
+          this.#win32InputMode = enabled;
+          if (enabled && conptyMouseFallback) this.#mouseProtocol = "sgr";
+        }
+        if (enabled && value === 1005) this.#mouseProtocol = "utf8";
+        if (enabled && value === 1006) this.#mouseProtocol = "sgr";
+        if (enabled && value === 1015) this.#mouseProtocol = "urxvt";
+        if (!enabled && [1005, 1006, 1015].includes(value)) this.#mouseProtocol = "x10";
+      }
+    }
+    for (const match of complete.matchAll(/\x1b\[([0-6]?) q/g)) {
+      const value = Number(match[1] || 0);
+      this.#cursorStyle = value === 0 ? "default" : value >= 5 ? "bar" : value >= 3 ? "underline" : "block";
+    }
+  }
+
+  snapshot(): ParsedHostControlState {
+    return {
+      cursorVisible: this.#cursorVisible,
+      cursorStyle: this.#cursorStyle,
+      alternateScroll: this.#alternateScroll,
+      mouseProtocol: this.#mouseProtocol,
+      win32InputMode: this.#win32InputMode,
+    };
+  }
+}
 
 export class OuterPtyRunner {
   readonly frames: NormalizedFrame[] = [];
@@ -45,16 +107,11 @@ export class OuterPtyRunner {
   #rawLog = "";
   #exit: Promise<{ exitCode: number; signal?: number }> | null = null;
   #exited = false;
-  #cursorVisible = true;
-  #cursorStyle: "default" | "block" | "underline" | "bar" = "default";
-  #alternateScroll = false;
-  #mouseProtocol: "x10" | "utf8" | "sgr" | "urxvt" = "x10";
-  #win32InputMode = false;
+  #hostControlOracle = new HostControlOracle();
   #conptyMouseFallback = false;
   #hostSelectionActive = false;
   #hostSelectionInitialRow = 0;
   #hostSelectionBaseY = 0;
-  #incompleteControl = "";
   #parsedOutputRevision = 0;
   #parsedOutputWaiters = new Set<() => void>();
 
@@ -110,35 +167,7 @@ export class OuterPtyRunner {
   }
 
   #parseHostControls(data: string): void {
-    const combined = this.#incompleteControl + data;
-    // Preserve only a final incomplete CSI sequence. Complete controls are
-    // consumed exactly once; rescanning a rolling tail can resurrect stale
-    // cursor/mode state from an earlier frame.
-    const trailingEscape = combined.lastIndexOf("\x1b");
-    const trailing = trailingEscape >= 0 ? combined.slice(trailingEscape) : "";
-    const incomplete = /^\x1b(?:\[[?0-9; ]*)?$/.test(trailing);
-    const complete = incomplete ? combined.slice(0, trailingEscape) : combined;
-    this.#incompleteControl = incomplete ? trailing : "";
-
-    for (const match of complete.matchAll(/\x1b\[\?([0-9;]+)([hl])/g)) {
-      const enabled = match[2] === "h";
-      for (const value of (match[1] ?? "").split(";").map(Number)) {
-        if (value === 25) this.#cursorVisible = enabled;
-        if (value === 1007) this.#alternateScroll = enabled;
-        if (value === 9001) {
-          this.#win32InputMode = enabled;
-          if (enabled && this.#conptyMouseFallback) this.#mouseProtocol = "sgr";
-        }
-        if (enabled && value === 1005) this.#mouseProtocol = "utf8";
-        if (enabled && value === 1006) this.#mouseProtocol = "sgr";
-        if (enabled && value === 1015) this.#mouseProtocol = "urxvt";
-        if (!enabled && [1005, 1006, 1015].includes(value)) this.#mouseProtocol = "x10";
-      }
-    }
-    for (const match of complete.matchAll(/\x1b\[([0-6]?) q/g)) {
-      const value = Number(match[1] || 0);
-      this.#cursorStyle = value === 0 ? "default" : value >= 5 ? "bar" : value >= 3 ? "underline" : "block";
-    }
+    this.#hostControlOracle.push(data, this.#conptyMouseFallback);
   }
 
   keyboard(data: string): void {
@@ -148,13 +177,13 @@ export class OuterPtyRunner {
       return;
     }
     const alreadyWin32 = /^\x1b\[\d+;\d+;\d+;[01];\d+;\d+_$/.test(data);
-    const encoded = this.#win32InputMode && !alreadyWin32 ? encodeWin32PhysicalInput(data) : data;
+    const encoded = this.#hostControlOracle.snapshot().win32InputMode && !alreadyWin32 ? encodeWin32PhysicalInput(data) : data;
     this.#requireChild().write(encoded);
     this.timeline.push({ atMs: this.#elapsed(), type: "keyboard", detail: { data: JSON.stringify(data), encoded: JSON.stringify(encoded) } });
   }
 
   selectHostText(row = this.#terminal.buffer.active.cursorY): boolean {
-    const selected = this.#terminal.modes.mouseTrackingMode === "none" && !(this.#win32InputMode && this.#conptyMouseFallback);
+    const selected = this.#terminal.modes.mouseTrackingMode === "none" && !(this.#hostControlOracle.snapshot().win32InputMode && this.#conptyMouseFallback);
     this.#hostSelectionActive = selected;
     this.#hostSelectionInitialRow = row;
     this.#hostSelectionBaseY = this.#terminal.buffer.active.baseY;
@@ -175,12 +204,12 @@ export class OuterPtyRunner {
       right: "\x1b[39;77;0;1;256;1_",
     };
     const legacy: Record<typeof direction, string> = { up: "\x1b[A", down: "\x1b[B", left: "\x1b[D", right: "\x1b[C" };
-    this.keyboard(this.#win32InputMode ? win32[direction] : legacy[direction]);
+    this.keyboard(this.#hostControlOracle.snapshot().win32InputMode ? win32[direction] : legacy[direction]);
   }
 
   paste(text: string): void {
     const data = this.#terminal.modes.bracketedPasteMode ? `\x1b[200~${text}\x1b[201~` : text;
-    this.#requireChild().write(this.#win32InputMode ? encodeWin32PhysicalInput(data) : data);
+    this.#requireChild().write(this.#hostControlOracle.snapshot().win32InputMode ? encodeWin32PhysicalInput(data) : data);
     this.timeline.push({ atMs: this.#elapsed(), type: "paste", detail: { text, bracketed: this.#terminal.modes.bracketedPasteMode } });
   }
 
@@ -188,16 +217,17 @@ export class OuterPtyRunner {
     const delivered = this.#terminal.modes.sendFocusMode;
     if (delivered) {
       const data = focused ? "\x1b[I" : "\x1b[O";
-      this.#requireChild().write(this.#win32InputMode ? encodeWin32PhysicalInput(data) : data);
+      this.#requireChild().write(this.#hostControlOracle.snapshot().win32InputMode ? encodeWin32PhysicalInput(data) : data);
     }
     this.timeline.push({ atMs: this.#elapsed(), type: "focus", detail: { focused, delivered } });
   }
 
   mouse(column: number, row: number, button = 0, release = false): void {
     const tracking = this.#terminal.modes.mouseTrackingMode;
+    const controls = this.#hostControlOracle.snapshot();
     let data: string | null = null;
-    if (tracking !== "none" || (this.#win32InputMode && this.#conptyMouseFallback)) {
-      data = this.#mouseProtocol === "sgr"
+    if (tracking !== "none" || (controls.win32InputMode && this.#conptyMouseFallback)) {
+      data = controls.mouseProtocol === "sgr"
         ? `\x1b[<${button};${column};${row}${release ? "m" : "M"}`
         : `\x1b[M${String.fromCharCode(button + 32, column + 32, row + 32)}`;
       this.#requireChild().write(data);
@@ -207,16 +237,17 @@ export class OuterPtyRunner {
 
   wheel(column: number, row: number, direction: "up" | "down"): { generatedAs: "mouse-report" | "alternate-scroll-arrow" | "terminal-scrollback"; rows: number } {
     const tracking = this.#terminal.modes.mouseTrackingMode;
+    const controls = this.#hostControlOracle.snapshot();
     let data: string | null = null;
     let generatedAs: "mouse-report" | "alternate-scroll-arrow" | "terminal-scrollback";
-    if (tracking !== "none" || (this.#win32InputMode && this.#conptyMouseFallback)) {
+    if (tracking !== "none" || (controls.win32InputMode && this.#conptyMouseFallback)) {
       const button = direction === "up" ? 64 : 65;
-      data = this.#mouseProtocol === "sgr"
+      data = controls.mouseProtocol === "sgr"
         ? `\x1b[<${button};${column};${row}M`
         : `\x1b[M${String.fromCharCode(button + 32, column + 32, row + 32)}`;
       generatedAs = "mouse-report";
-    } else if (this.#alternateScroll && this.#terminal.buffer.active === this.#terminal.buffer.alternate) {
-      data = this.#win32InputMode
+    } else if (controls.alternateScroll && this.#terminal.buffer.active === this.#terminal.buffer.alternate) {
+      data = controls.win32InputMode
         ? direction === "up" ? "\x1b[38;72;0;1;256;3_" : "\x1b[40;80;0;1;256;3_"
         : direction === "up" ? "\x1b[A" : "\x1b[B";
       generatedAs = "alternate-scroll-arrow";
@@ -257,6 +288,7 @@ export class OuterPtyRunner {
         };
       });
     });
+    const controls = this.#hostControlOracle.snapshot();
     const frame = {
       name,
       capturedAtMs: this.#elapsed(),
@@ -264,14 +296,14 @@ export class OuterPtyRunner {
       rows: this.#terminal.rows,
       lines,
       cells,
-      cursor: { column: buffer.cursorX, row: buffer.cursorY, visible: this.#cursorVisible, style: this.#cursorStyle },
+      cursor: { column: buffer.cursorX, row: buffer.cursorY, visible: controls.cursorVisible, style: controls.cursorStyle },
       activeScreen: buffer === this.#terminal.buffer.alternate ? "alternate" as const : "normal" as const,
       scrollbackLines: buffer === this.#terminal.buffer.normal ? buffer.baseY : 0,
       viewportOffset: buffer === this.#terminal.buffer.normal ? buffer.baseY - buffer.viewportY : 0,
       modes: {
         bracketedPaste: this.#terminal.modes.bracketedPasteMode,
         focusReporting: this.#terminal.modes.sendFocusMode,
-        mouseTracking: this.#terminal.modes.mouseTrackingMode === "none" && this.#win32InputMode && this.#conptyMouseFallback
+        mouseTracking: this.#terminal.modes.mouseTrackingMode === "none" && controls.win32InputMode && this.#conptyMouseFallback
           ? "any"
           : this.#terminal.modes.mouseTrackingMode,
       },
@@ -288,29 +320,30 @@ export class OuterPtyRunner {
   }
 
   async #waitForParsedText(text: string, deadlineMs: number): Promise<void> {
-    const deadline = performance.now() + deadlineMs;
-    while (performance.now() < deadline) {
-      if (this.#visibleText().includes(text)) return;
-      const revision = this.#parsedOutputRevision;
-      await new Promise<void>((resolvePromise, rejectPromise) => {
-        const remaining = Math.max(1, deadline - performance.now());
-        const timeout = setTimeout(() => {
-          this.#parsedOutputWaiters.delete(onOutput);
-          rejectPromise(new Error(`terminal condition ${JSON.stringify(text)} not reached after ${deadlineMs}ms`));
-        }, remaining);
-        const onOutput = () => {
-          clearTimeout(timeout);
-          resolvePromise();
-        };
-        this.#parsedOutputWaiters.add(onOutput);
-        // Avoid sleeping if parsing completed between the state check and waiter registration.
-        if (this.#parsedOutputRevision !== revision) {
-          this.#parsedOutputWaiters.delete(onOutput);
-          onOutput();
-        }
-      });
-    }
-    throw new Error(`terminal condition ${JSON.stringify(text)} not reached after ${deadlineMs}ms`);
+    await waitForParsedCondition(
+      () => this.#visibleText().includes(text),
+      {
+        currentRevision: () => this.#parsedOutputRevision,
+        waitForRevisionAfter: async (revision, remainingMs) => await new Promise<void>((resolvePromise, rejectPromise) => {
+          const timeout = setTimeout(() => {
+            this.#parsedOutputWaiters.delete(onOutput);
+            rejectPromise(new Error(`terminal condition ${JSON.stringify(text)} not reached after ${deadlineMs}ms`));
+          }, remainingMs);
+          const onOutput = () => {
+            clearTimeout(timeout);
+            resolvePromise();
+          };
+          this.#parsedOutputWaiters.add(onOutput);
+          // Avoid sleeping if parsing completed between the state check and waiter registration.
+          if (this.#parsedOutputRevision !== revision) {
+            this.#parsedOutputWaiters.delete(onOutput);
+            onOutput();
+          }
+        }),
+      },
+      deadlineMs,
+      `terminal condition ${JSON.stringify(text)} not reached after ${deadlineMs}ms`,
+    );
   }
 
   #visibleText(): string {
@@ -359,6 +392,21 @@ export class OuterPtyRunner {
     return this.#child;
   }
   #elapsed(): number { return Math.round(performance.now() - this.#startedAt); }
+}
+
+export async function waitForParsedCondition(
+  condition: () => boolean,
+  output: ParsedOutputWaiter,
+  deadlineMs: number,
+  failureMessage = `parsed terminal condition not reached after ${deadlineMs}ms`,
+): Promise<void> {
+  const deadline = performance.now() + deadlineMs;
+  while (performance.now() < deadline) {
+    if (condition()) return;
+    const revision = output.currentRevision();
+    await output.waitForRevisionAfter(revision, Math.max(1, deadline - performance.now()));
+  }
+  throw new Error(failureMessage);
 }
 
 function encodeWin32PhysicalInput(data: string): string {

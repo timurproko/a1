@@ -36,7 +36,7 @@ export async function runVersionStats(options: VersionStatsOptions): Promise<num
     queryTag(runner, "latest"),
     queryTag(runner, "next"),
   ]);
-  output.stdout(`Installed: ${installed}\nRelease:   ${release.version ?? "unavailable"}\nNext:      ${next.version ?? "unavailable"}\n`);
+  output.stdout(`Release:   ${release.version ?? "unavailable"}\nNext:      ${next.version ?? "unavailable"}\nInstalled: ${installed}\n`);
   for (const result of [release, next]) {
     if (result.error) output.stderr(`AddOne could not resolve npm ${result.tag}: ${result.error}\n`);
   }

@@ -333,7 +333,15 @@ Test layers are:
 - full AddOne PTY scenarios;
 - independent evaluator-agent scenarios for visual-semantic or usability findings.
 
-Deterministic assertions remain authoritative. The evaluator runs under a separately pinned known-good runtime and produces a structured verdict with frame references. Confirmed regressions become permanent fixtures.
+Deterministic assertions remain authoritative. The evaluator runs under a separately pinned known-good runtime and produces a structured verdict with frame references. Confirmed regressions follow one mandatory correction workflow regardless of whether they are found in production, manual validation, deterministic automation, or a timing-sensitive release gate:
+
+1. Preserve the smallest sufficient failure evidence and classify the violated requirement.
+2. Add a deterministic regression that fails for the observed cause rather than merely rerunning the previously flaky scenario.
+3. Implement the correction without weakening the requirement or acceptance threshold.
+4. Run the focused regression and affected integration scenario, then retain the test permanently.
+5. Add the regression to the applicable mandatory unit, scenario, packaged, update-transition, architecture, or publication gate before declaring the correction complete or publishing it.
+
+A passing rerun, manual confirmation, or implementation-only change is not completion evidence. If exact platform behavior cannot be made deterministic at unit level, a deterministic model/oracle test plus the isolated platform scenario is required. The user does not need to request regression coverage separately.
 
 ### 14. Reject deprecated AddOne-owned dependencies
 
