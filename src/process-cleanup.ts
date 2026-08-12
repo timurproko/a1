@@ -24,7 +24,7 @@ export async function cleanupProvenIdleOwner(metadata: SupervisorEndpointMetadat
 
 export async function cleanupVerifiedOwner(
   metadata: SupervisorEndpointMetadata,
-  options: { readonly graceMs?: number; readonly allowLiveGenerations?: boolean } = {},
+  options: { readonly graceMs?: number; readonly allowLiveGenerations?: boolean; readonly reason?: "stale-idle-owner" | "explicit-update" | "legacy-mutable-install" } = {},
 ): Promise<CleanupDiagnostics> {
   const graceMs = options.graceMs ?? 1_500;
   if (!options.allowLiveGenerations && (metadata.ownership.liveGenerationIds.length > 0 || metadata.ownership.nonResumableGenerationIds.length > 0)) {

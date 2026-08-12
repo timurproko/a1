@@ -93,6 +93,8 @@ export function createUpdateLifecycleCoordinator(
       if (ownership !== "live-verified" && ownership !== "dead") {
         throw new Error(`AddOne refused update shutdown because supervisor ownership is ${ownership}`);
       }
+      const immutableRoot = await canonicalImmutableRoot(paths.dataDir, endpoint.releaseRoot);
+      const legacyMutableInstall = ownership === "live-verified" && !immutableRoot;
       const identity = ownership === "dead"
         ? { accepted: false, reason: "recorded owner is dead" }
         : await requestUpdateShutdown(endpoint, targetVersion, 2_000);
@@ -100,7 +102,10 @@ export function createUpdateLifecycleCoordinator(
         if (processIsAlive(endpoint.pid)) throw new Error(`AddOne refused to stop an unverified owner: ${identity.reason}`);
       } else {
         await waitForProcessExit(endpoint.pid, 3_000).catch(async () => {
-          const cleanup = await cleanupVerifiedOwner(endpoint, { allowLiveGenerations: true });
+          const cleanup = await cleanupVerifiedOwner(endpoint, {
+            allowLiveGenerations: true,
+            reason: legacyMutableInstall ? "legacy-mutable-install" : "explicit-update",
+          });
           if (!cleanup.terminated) throw new Error(`verified AddOne owner ${endpoint.pid} did not terminate`);
         });
       }
@@ -247,6 +252,16 @@ async function runNpm(runner: UpdateProcessRunner, arguments_: readonly string[]
   }
   return { result, exitCode: 0 };
 }
+async function canonicalImmutableRoot(dataDir: string, releaseRoot: string): Promise<boolean> {
+  try {
+    const [store, selected] = await Promise.all([realpath(resolve(dataDir, "releases")), realpath(releaseRoot)]);
+    const fromStore = relative(store, selected);
+    return fromStore.length > 0 && fromStore !== ".." && !fromStore.startsWith(`..${sep}`) && !isAbsolute(fromStore);
+  } catch {
+    return false;
+  }
+}
+
 function isContainedBy(parent: string, child: string): boolean {
   const pathFromParent = relative(parent, child);
   return pathFromParent.length > 0 && pathFromParent !== ".." && !pathFromParent.startsWith(`..${sep}`) && !isAbsolute(pathFromParent);

@@ -65,6 +65,13 @@ export async function verifyMaterializedRelease(
   return { ...manifest, releaseRoot: canonical };
 }
 
+export async function assertImmutableExecutionRoot(release: MaterializedRelease, dataDir: string): Promise<void> {
+  await verifyMaterializedRelease(release.releaseRoot, release, resolve(dataDir, "releases"));
+  if (!process.env.ADDONE_RELEASE_ROOT) throw new Error("persistent AddOne process has no immutable release root");
+  const selected = await realpath(process.env.ADDONE_RELEASE_ROOT);
+  if (selected !== release.releaseRoot) throw new Error("persistent AddOne process selected a different immutable release root");
+}
+
 export async function resolveReleaseEntryPoint(release: MaterializedRelease, entryPoint: string): Promise<string> {
   const normalized = entryPoint.split("\\").join("/").replace(/^\.\//, "");
   if (!release.files.some(file => file.path === normalized)) throw new Error(`entry point is not in the verified release manifest: ${entryPoint}`);

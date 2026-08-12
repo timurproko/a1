@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { appendFileSync, mkdirSync } from "node:fs";
 import { PtyTerminalDriver } from "../drivers/terminal/index.js";
-import { readMaterializedRelease } from "../release-store.js";
+import { assertImmutableExecutionRoot, readMaterializedRelease } from "../release-store.js";
 import { ControlStore } from "../storage/index.js";
 import { resolveAddOnePaths } from "./paths.js";
 import { SupervisorServer } from "./server.js";
@@ -14,6 +14,7 @@ export async function runSupervisor(): Promise<void> {
   if (!releaseRoot) throw new Error("supervisor must be launched from a verified immutable AddOne release");
   const release = await readMaterializedRelease(releaseRoot);
   if (process.env.ADDONE_RELEASE_ID !== release.releaseId) throw new Error("selected AddOne release identity does not match its verified manifest");
+  await assertImmutableExecutionRoot(release, paths.dataDir);
   const bootNonce = randomUUID();
   const store = new ControlStore(paths.databasePath, bootNonce);
   const server = new SupervisorServer(store, new PtyTerminalDriver(), paths, release, bootNonce);
