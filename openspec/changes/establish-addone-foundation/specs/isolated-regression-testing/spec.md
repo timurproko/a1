@@ -311,9 +311,21 @@ The test system SHALL support a known-good evaluator agent that is isolated from
 - **WHEN** the candidate's embedded or managed agent cannot operate correctly
 - **THEN** the independent evaluator SHALL remain operational because it runs under a separately pinned known-good runtime
 
-### Requirement: Regressions become permanent scenarios
-A confirmed production or evaluator-discovered regression SHALL be representable as a reproducible fixture or scenario that runs independently of the original user environment.
+### Requirement: Every confirmed regression is reproduced before correction completion
+Every confirmed regression discovered in production, manual validation, evaluator inspection, or an automated/release gate SHALL preserve sufficient failure evidence and SHALL be represented by a deterministic failing test for the observed cause before its correction is considered complete. The correction SHALL retain that test permanently in the applicable mandatory unit, scenario, packaged, update-transition, architecture, or publication gate. A passing rerun, manual confirmation, or implementation change without cause-specific regression coverage SHALL NOT count as completion evidence, and the user SHALL NOT need to request test coverage separately.
+
+#### Scenario: Production or manual regression is corrected
+- **WHEN** a user or operator reports a reproducible failure
+- **THEN** implementation SHALL preserve the relevant evidence, add a test that fails for that cause, make the correction, and retain the passing regression in the mandatory gate that protects the violated requirement
+
+#### Scenario: Intermittent release gate fails
+- **WHEN** a timing-sensitive release gate exposes a cursor, latency, transaction-assembly, process-lifecycle, or test-synchronization defect
+- **THEN** implementation SHALL add a deterministic model or oracle regression for the cause as well as rerun the isolated affected platform scenario, without weakening its assertions or thresholds
+
+#### Scenario: Only a rerun passes
+- **WHEN** an observed failure disappears on a subsequent run but no cause-specific regression has been added
+- **THEN** the correction SHALL remain incomplete and publication SHALL remain blocked
 
 #### Scenario: Regression is fixed
 - **WHEN** a regression fix is accepted
-- **THEN** its scenario SHALL pass on the fixed build and remain in the applicable regression suite
+- **THEN** its deterministic regression SHALL pass on the fixed build, remain in the applicable suite, and execute through the mandatory gate protecting that requirement

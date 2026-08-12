@@ -236,16 +236,23 @@ async function activatePendingAfterBlockerExit(
   await waitForVerifiedEndpoint(paths.endpointMetadataPath, candidate, 8_000);
 }
 
-async function releaseVerifiedIdleOwner(metadata: SupervisorEndpointMetadata, dataDir: string): Promise<boolean> {
+export async function releaseVerifiedIdleOwner(
+  metadata: SupervisorEndpointMetadata,
+  dataDir: string,
+  operations: {
+    readonly waitForExit?: typeof waitForProcessExit;
+    readonly cleanup?: typeof cleanupProvenIdleOwner;
+  } = {},
+): Promise<boolean> {
   try {
-    await waitForProcessExit(metadata.pid, 3_000);
+    await (operations.waitForExit ?? waitForProcessExit)(metadata.pid, 3_000);
     return true;
   } catch {
     // The release handshake authenticated this exact boot and confirmed it had
     // no live handles. If a native/platform handle keeps the dedicated process
     // alive, finish the already-authorized idle cleanup through the same bounded
     // ownership-safe path used for an unresponsive stale owner.
-    const diagnostics = await cleanupProvenIdleOwner(metadata);
+    const diagnostics = await (operations.cleanup ?? cleanupProvenIdleOwner)(metadata);
     await writeFile(resolve(dataDir, `cleanup-${Date.now()}.json`), JSON.stringify(diagnostics, null, 2));
     return diagnostics.terminated;
   }

@@ -2,6 +2,8 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { releaseVerifiedIdleOwner } from "../../src/bootstrap.js";
+import type { SupervisorEndpointMetadata } from "../../src/cohort-state.js";
 import type { TerminalDriver } from "../../src/domain/index.js";
 import type { MaterializedRelease } from "../../src/release-store.js";
 import { ControlStore } from "../../src/storage/control-store.js";
@@ -11,6 +13,21 @@ const cleanupRoots: string[] = [];
 afterEach(async () => Promise.all(cleanupRoots.splice(0).map(root => rm(root, { recursive: true, force: true }))));
 
 describe("supervisor release replacement exit", () => {
+  it("falls back to bounded verified idle cleanup when graceful exit exceeds its deadline", async () => {
+    const root = await mkdtemp(resolve(tmpdir(), "addone-supervisor-slow-exit-"));
+    cleanupRoots.push(root);
+    const cleanup = vi.fn(async () => ({ pid: 20740, attempted: ["graceful-termination", "forced-process-tree-termination"], terminated: true, elapsedMs: 1500 }));
+
+    const released = await releaseVerifiedIdleOwner(metadata(), root, {
+      waitForExit: async () => { throw new Error("AddOne supervisor 20740 did not release process ownership within 3000ms"); },
+      cleanup,
+    });
+
+    expect(released).toBe(true);
+    expect(cleanup).toHaveBeenCalledOnce();
+    expect(cleanup).toHaveBeenCalledWith(expect.objectContaining({ pid: 20740, ownership: { state: "idle", liveGenerationIds: [], nonResumableGenerationIds: [] } }));
+  });
+
   it("terminates the dedicated supervisor only after owned resources close", async () => {
     const root = await mkdtemp(resolve(tmpdir(), "addone-supervisor-release-exit-"));
     cleanupRoots.push(root);
@@ -41,6 +58,27 @@ describe("supervisor release replacement exit", () => {
     expect(terminate).toHaveBeenCalledWith(0);
   });
 });
+
+function metadata(): SupervisorEndpointMetadata {
+  const value = release();
+  return {
+    supervisorId: "old-supervisor",
+    endpoint: "verified-endpoint",
+    pid: 20740,
+    pidStartIdentity: "20740:verified-start",
+    bootNonce: "verified-boot",
+    startedAt: new Date(0).toISOString(),
+    releaseId: value.releaseId,
+    releaseRoot: value.releaseRoot,
+    contentDigest: value.contentDigest,
+    ownership: { state: "idle", liveGenerationIds: [], nonResumableGenerationIds: [] },
+    envelope: "addone-control-envelope",
+    envelopeRevision: 1,
+    requiredFeatures: [],
+    optionalFeatures: [],
+    contractDigest: "contract",
+  };
+}
 
 function release(): MaterializedRelease {
   const digest = "a".repeat(64);

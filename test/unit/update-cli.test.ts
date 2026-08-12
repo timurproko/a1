@@ -114,9 +114,7 @@ else process.exitCode = 64;
         },
         timeout: 15_000,
       });
-      expect(result.stdout).toContain(`Installed: ${packageJson.version}`);
-      expect(result.stdout).toContain(`Release:   ${latestTarget}`);
-      expect(result.stdout).toContain(`Next:      ${nextTarget}`);
+      expect(result.stdout).toBe(`Release:   ${latestTarget}\nNext:      ${nextTarget}\nInstalled: ${packageJson.version}\n`);
     }
     const versionCalls = (await readFile(npmLog, "utf8")).trim().split("\n").map(line => JSON.parse(line) as string[]);
     expect(versionCalls).toHaveLength(4);
