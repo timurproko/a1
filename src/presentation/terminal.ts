@@ -39,30 +39,38 @@ export function renderTerminalNormalSnapshot(surface: TerminalSurface): string {
   const rows = [...(surface.scrollbackCells ?? []), ...surface.cells];
   let output = "\x1b[?2026h\x1b[?25l\x1b[?7l\x1b[H";
   for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
-    let style = "";
-    for (const cell of rows[rowIndex] ?? []) {
-      if (cell.width === 0) continue;
-      const nextStyle = cellStyle(cell);
-      if (nextStyle !== style) {
-        output += nextStyle;
-        style = nextStyle;
-      }
-      output += cell.character || " ";
-    }
-    output += "\x1b[0m";
+    output += renderTerminalRow(rows[rowIndex] ?? []);
     if (rowIndex < rows.length - 1) output += "\r\n";
   }
   output += `${renderTerminalCursor(surface)}\x1b[?7h\x1b[?2026l`;
   return output;
 }
 
-export function renderTerminalDamage(damage: TerminalDamage): string {
+/** First normal-screen handoff: append from the current physical cursor. */
+export function renderTerminalInitialNormalSnapshot(surface: TerminalSurface): string {
+  const lastOccupiedRow = Math.max(surface.cursor.row, lastVisuallyOccupiedRow(surface.cells));
+  let output = "\x1b[?2026h\x1b[?25l\x1b[?7l";
+  for (let row = 0; row <= lastOccupiedRow; row++) {
+    // Direct first renders do not pad each line to the viewport width. Avoid a
+    // pending-wrap edge and let CRLF produce the same natural row placement.
+    output += renderTerminalRow(trimVisuallyBlankTail(surface.cells[row] ?? []));
+    if (row < lastOccupiedRow) output += "\r\n";
+  }
+  const rowsBack = Math.max(0, lastOccupiedRow - surface.cursor.row);
+  if (rowsBack > 0) output += `\x1b[${rowsBack}A`;
+  output += `\r\x1b[${surface.cursor.column + 1}C${cursorStyle(surface.cursor.style, surface.cursor.blinking)}${surface.cursor.visible ? "\x1b[?25h" : "\x1b[?25l"}\x1b[?7h\x1b[?2026l`;
+  return output;
+}
+
+export function renderTerminalDamage(damage: TerminalDamage, rowOffset = 0): string {
   // The resident terminal publishes only committed damage. The host renderer
   // encloses this payload in its own synchronized-output transaction so cursor,
   // scroll, content, and fixed-row updates become visible as one frame.
   let output = "\x1b[?25l";
   for (const span of damage.spans) {
-    output += `\x1b[${span.row + 1};${span.startColumn + 1}H`;
+    const targetRow = span.row + rowOffset;
+    if (targetRow < 0 || targetRow >= damage.dimensions.rows) continue;
+    output += `\x1b[${targetRow + 1};${span.startColumn + 1}H`;
     let style = "";
     for (const cell of span.cells) {
       if (cell.width === 0) continue;
@@ -74,10 +82,14 @@ export function renderTerminalDamage(damage: TerminalDamage): string {
       output += cell.character || " ";
     }
   }
-  const row = Math.max(1, Math.min(damage.dimensions.rows, damage.cursor.row + 1));
+  const row = Math.max(1, Math.min(damage.dimensions.rows, damage.cursor.row + rowOffset + 1));
   const column = Math.max(1, Math.min(damage.dimensions.columns, damage.cursor.column + 1));
   output += `\x1b[0m\x1b[${row};${column}H${cursorStyle(damage.cursor.style, damage.cursor.blinking)}${damage.cursor.visible ? "\x1b[?25h" : "\x1b[?25l"}`;
   return output;
+}
+
+export function renderTerminalNormalScroll(rows: number, scrollRows: number): string {
+  return `\x1b[${rows};1H${"\r\n".repeat(scrollRows)}`;
 }
 
 export function renderTerminalCursor(surface: TerminalSurface): string {
@@ -97,6 +109,32 @@ export function renderTerminalModes(modes: TerminalModes): string {
   output += mouseTrackingSequence(modes.mouseTracking);
   if (modes.mouseTracking !== "none") output += mouseProtocolSequence(modes.mouseProtocol);
   return output;
+}
+
+function renderTerminalRow(cells: readonly TerminalCell[]): string {
+  let output = "";
+  let style = "";
+  for (const cell of cells) {
+    if (cell.width === 0) continue;
+    const nextStyle = cellStyle(cell);
+    if (nextStyle !== style) {
+      output += nextStyle;
+      style = nextStyle;
+    }
+    output += cell.character || " ";
+  }
+  return `${output}\x1b[0m`;
+}
+
+function trimVisuallyBlankTail(cells: readonly TerminalCell[]): readonly TerminalCell[] {
+  let end = cells.length;
+  while (end > 0 && isVisuallyBlankRow([cells[end - 1]!])) end -= 1;
+  return cells.slice(0, end);
+}
+
+function lastVisuallyOccupiedRow(rows: readonly (readonly TerminalCell[])[]): number {
+  for (let row = rows.length - 1; row >= 0; row--) if (!isVisuallyBlankRow(rows[row] ?? [])) return row;
+  return 0;
 }
 
 function isVisuallyBlankRow(cells: readonly TerminalCell[]): boolean {

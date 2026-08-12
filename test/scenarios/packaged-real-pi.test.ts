@@ -43,6 +43,8 @@ describe("release-gating packaged real Pi parity", () => {
       await writeFile(context.terminalSizePath, JSON.stringify({ columns: 90, rows: 28 }));
       wrapped.launch(process.execPath, [preludeLauncher, preLaunchMarker, process.execPath, candidate.cli]);
       await wrapped.waitFor("escape interrupt", 30_000, "wrapped-ready-visible");
+      const wrappedHandoffOutput = wrapped.rawLog.slice(wrapped.rawLog.indexOf(preLaunchMarker) + preLaunchMarker.length);
+      expect(wrappedHandoffOutput).not.toContain("\x1b[2J");
       const wrappedReady = await stableFrame(wrapped, "wrapped-ready");
       assertRecognizablePi(wrappedReady);
       expectCheckpointParity(directReady, wrappedReady);

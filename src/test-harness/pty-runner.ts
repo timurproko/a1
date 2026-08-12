@@ -114,9 +114,11 @@ export class OuterPtyRunner {
   #hostSelectionBaseY = 0;
   #parsedOutputRevision = 0;
   #parsedOutputWaiters = new Set<() => void>();
+  #terminalReplies = "";
 
   constructor(readonly context: ScenarioContext, columns = 90, rows = 28) {
     this.#terminal = new Terminal({ cols: columns, rows, scrollback: 1_000, allowProposedApi: true });
+    this.#terminal.onData(data => { this.#terminalReplies += data; });
     writeFileSync(context.terminalSizePath, JSON.stringify({ columns, rows }));
   }
 
@@ -155,6 +157,11 @@ export class OuterPtyRunner {
       this.#rawLog += data;
       this.#parseHostControls(data);
       this.#terminal.write(data, () => {
+        if (this.#terminalReplies) {
+          const replies = this.#terminalReplies;
+          this.#terminalReplies = "";
+          child.write(replies);
+        }
         this.#parsedOutputRevision += 1;
         for (const resolve of this.#parsedOutputWaiters) resolve();
         this.#parsedOutputWaiters.clear();

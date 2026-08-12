@@ -40,8 +40,9 @@ export class WindowsHostTerminalAdapter implements HostTerminalAdapter {
     output: Pick<NodeJS.WriteStream, "write">,
     private readonly consoleApi: WindowsConsoleApi = defaultWindowsConsoleApi(),
     onRendererTransaction: (transaction: HostRendererTransaction) => void = () => {},
+    initialNormalCursorRow = 0,
   ) {
-    this.#renderer = new FullscreenHostRenderer(output, 0, WINDOWS_HOST_KEYBOARD_AND_SCROLL_MODES, WINDOWS_HOST_KEYBOARD_AND_SCROLL_MODES_OFF, undefined, onRendererTransaction);
+    this.#renderer = new FullscreenHostRenderer(output, 0, WINDOWS_HOST_KEYBOARD_AND_SCROLL_MODES, WINDOWS_HOST_KEYBOARD_AND_SCROLL_MODES_OFF, undefined, onRendererTransaction, undefined, initialNormalCursorRow);
   }
 
   capture(): HostTerminalState {
@@ -125,6 +126,7 @@ export class WindowsHostTerminalAdapter implements HostTerminalAdapter {
     };
   }
 
+  setInitialNormalCursorRow(row: number): void { this.#renderer.setInitialNormalCursorRow(row); }
   renderSnapshot(surface: TerminalSurface): void { this.#renderer.renderSnapshot(surface); }
   renderTransaction(transaction: TerminalRenderTransaction): void { this.#renderer.renderTransaction(transaction); }
   writeApplicationFrame(frame: string): void { this.#renderer.writeApplicationFrame(frame); }

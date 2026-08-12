@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 import { applyTerminalRenderTransaction, type AddOneEvent, type HostTerminalInputEvent, type LogicalTerminalAgent, type OrderedEvent, type SupervisorSnapshot, type TerminalRenderTransaction, type TerminalSurface } from "../domain/index.js";
-import { createHostTerminalAdapter } from "../host-terminal/index.js";
+import { createHostTerminalAdapter, queryHostCursorPosition } from "../host-terminal/index.js";
 import { SupervisorClient } from "../protocol/index.js";
 import { inspectNativePiReadiness, type NativePiReadinessEvidence } from "./native-pi-readiness.js";
 import { drainPendingTerminalInput } from "./terminal-input-cleanup.js";
@@ -26,13 +26,14 @@ export async function runUi(endpoint: string, overrides: Partial<UiDependencies>
   };
   const hostTerminal = createHostTerminalAdapter(input, output, process.platform, transaction => {
     log(`host-frame revision=${transaction.revision} spans=${transaction.spanCount} scrollRows=${transaction.scrollRows} synchronized=${transaction.synchronized}`);
-  });
+  }, 0);
   const recordHostMode = (phase: string, mode: number | null) => {
     const path = process.env.ADDONE_HOST_MODE_EVIDENCE;
     if (path) appendFileSync(path, `${JSON.stringify({ at: new Date().toISOString(), pid: process.pid, phase, mode })}\n`);
   };
   const capturedHostState = hostTerminal.capture();
   recordHostMode("captured-before-ui", capturedHostState.inputMode);
+  const initialHostCursorPromise = queryHostCursorPosition(input, output);
   let snapshot = await client.connect(endpoint);
   let stopped = false;
   let startingTerminal = false;
@@ -73,9 +74,12 @@ export async function runUi(endpoint: string, overrides: Partial<UiDependencies>
     restoreHost: () => restoreHostScreen(),
   });
 
-  const paintSnapshot = (surface: TerminalSurface) => {
+  const paintSnapshot = async (surface: TerminalSurface) => {
     if (stopped) return;
     handedOff = true;
+    const initialHostCursor = await initialHostCursorPromise;
+    log(`initial-host-cursor row=${initialHostCursor?.row ?? "unknown"} column=${initialHostCursor?.column ?? "unknown"}`);
+    hostTerminal.setInitialNormalCursorRow(initialHostCursor?.row ?? 0);
     hostTerminal.renderSnapshot(surface);
     log(`virtual-snapshot-rendered revision=${surface.revision} sequence=${surface.outputSequence} scrollbackBase=${surface.scrollbackBase ?? 0} scrollbackRows=${surface.scrollbackCells?.length ?? 0}`);
   };
@@ -101,7 +105,7 @@ export async function runUi(endpoint: string, overrides: Partial<UiDependencies>
     if (lastReadiness.status !== "ready") return;
     if (readinessTimer) clearTimeout(readinessTimer);
     readinessTimer = null;
-    paintSnapshot(surface);
+    void paintSnapshot(surface);
     log(`first-ready-virtual-snapshot revision=${surface.revision} sequence=${surface.outputSequence}`);
   };
 
@@ -176,7 +180,7 @@ export async function runUi(endpoint: string, overrides: Partial<UiDependencies>
     }
     snapshot = applyEvent({ ...snapshot, revision: ordered.revision }, ordered.event);
     if (ordered.event.type === "terminal-surface-updated") {
-      if (handedOff) paintSnapshot(ordered.event.surface);
+      if (handedOff) void paintSnapshot(ordered.event.surface);
       else handoffWhenReady(ordered.event.surface);
     }
     if (ordered.event.type === "terminal-render-transaction") {

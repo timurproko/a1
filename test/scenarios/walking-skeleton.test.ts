@@ -223,6 +223,9 @@ describe("release-gating Native Pi fullscreen parity", () => {
 
       wrapped.launch(process.execPath, [preludeLauncher, "CLOSURE PRELUDE", process.execPath, cli]);
       await wrapped.waitFor("READY>", 15_000, "vanilla-wrapped-ready");
+      const wrappedHandoffOutput = wrapped.rawLog.slice(wrapped.rawLog.indexOf("CLOSURE PRELUDE") + "CLOSURE PRELUDE".length);
+      expect(wrappedHandoffOutput).not.toContain("\x1b[2J");
+      expect(wrapped.rawLog.indexOf("CLOSURE PRELUDE")).toBeLessThan(wrapped.rawLog.indexOf("PI FIXTURE"));
       const wrappedOutputBeforeStream = wrapped.rawLog.length;
       wrapped.keyboard("stream\r");
       const wrappedAnchor = await wrapped.waitFor("STREAM:2", 5_000, "vanilla-wrapped-anchor");

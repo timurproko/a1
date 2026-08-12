@@ -63,6 +63,41 @@ describe("fullscreen host terminal ownership", () => {
     expect(writes.lastIndexOf("\x1b[0 q")).toBeLessThan(writes.lastIndexOf("\x1b[?1049l"));
   });
 
+  it("appends the first normal-screen snapshot from the caller cursor without clearing history", async () => {
+    let writes = "";
+    const renderer = new FullscreenHostRenderer(
+      { write: value => { writes += String(value); return true; } },
+      0, "", "", undefined, undefined, undefined, 3,
+    );
+    const vanilla = {
+      ...childSurface,
+      columns: 2,
+      rows: 6,
+      cells: [
+        [{ character: "P", width: 1 as const, attributes: 0 }, { character: "i", width: 1 as const, attributes: 0 }],
+        [{ character: "U", width: 1 as const, attributes: 0 }, { character: "I", width: 1 as const, attributes: 0 }],
+        ...Array.from({ length: 4 }, () => [
+          { character: " ", width: 1 as const, attributes: 0 },
+          { character: " ", width: 1 as const, attributes: 0 },
+        ]),
+      ],
+      cursor: { ...childSurface.cursor, row: 1, column: 1 },
+      activeScreen: "normal" as const,
+      modes: { ...childSurface.modes, mouseTracking: "none" as const },
+    };
+    renderer.enter();
+    renderer.renderSnapshot(vanilla);
+    await new Promise<void>(resolve => setImmediate(resolve));
+
+    expect(writes).not.toContain("\x1b[2J");
+    expect(writes).not.toContain("\x1b[H");
+    expect(writes).not.toContain("\x1b[1;1H");
+    expect(writes).toContain("Pi\x1b[0m\r\n");
+    expect(writes).not.toContain("Pi \x1b[0m");
+    expect(writes).toContain("UI");
+    expect(writes).toContain("\r\x1b[2C");
+  });
+
   it("uses normal-screen scrolling for vanilla surfaces without repainting shifted rows", async () => {
     let writes = "";
     const renderer = new FullscreenHostRenderer({ write: value => { writes += String(value); return true; } });
@@ -86,7 +121,8 @@ describe("fullscreen host terminal ownership", () => {
     await new Promise<void>(resolve => setImmediate(resolve));
     await new Promise<void>(resolve => setImmediate(resolve));
     const damageWrites = writes.slice(before);
-    expect(damageWrites).toContain("\x1b[1;1H\r\n");
+    expect(damageWrites).toContain("\r\n");
+    expect(damageWrites).toContain("\x1b[1;1H");
     expect(damageWrites).toContain("N");
     expect(damageWrites.startsWith("\x1b[?2026h")).toBe(true);
     expect(damageWrites.endsWith("\x1b[?2026l")).toBe(true);
