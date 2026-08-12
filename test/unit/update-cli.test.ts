@@ -37,7 +37,7 @@ describe("update CLI dispatch", () => {
     await writeFile(loader, `
 import { appendFileSync } from "node:fs";
 export async function resolve(specifier, context, nextResolve) {
-  if (specifier === "node-pty" || specifier.includes("/dist/src/ui/") || specifier.includes("/dist/src/supervisor/")) {
+  if (specifier === "node-pty" || specifier.includes("/dist/src/ui/") || specifier.includes("/dist/src/supervisor/") || (process.argv.includes("version") && (specifier.includes("/dist/src/update.js") || specifier.includes("/dist/src/bootstrap.js") || specifier.includes("/dist/src/cohort-state.js")))) {
     appendFileSync(${JSON.stringify(forbiddenImportLog)}, specifier + "\\n");
     throw new Error("Update imported forbidden interactive runtime module: " + specifier);
   }

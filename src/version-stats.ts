@@ -1,22 +1,28 @@
+import { spawn } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import crossSpawn from "cross-spawn";
 import { valid as validSemver } from "semver";
-import { ADDONE_PACKAGE, createNpmProcessRunner, type UpdateOutput, type UpdateProcessRunner } from "./update.js";
+
+const ADDONE_PACKAGE = "@timurproko/addone";
+interface VersionProcessResult { readonly code: number | null; readonly stdout: string }
+type VersionProcessRunner = (command: string, arguments_: readonly string[]) => Promise<VersionProcessResult>;
+interface VersionOutput { stdout(message: string): void; stderr(message: string): void }
 
 export interface VersionStatsOptions {
   readonly packageRoot: string;
-  readonly output?: UpdateOutput;
-  readonly runner?: UpdateProcessRunner;
+  readonly output?: VersionOutput;
+  readonly runner?: VersionProcessRunner;
 }
 
-const defaultOutput: UpdateOutput = {
+const defaultOutput: VersionOutput = {
   stdout(message) { process.stdout.write(message); },
   stderr(message) { process.stderr.write(message); },
 };
 
 export async function runVersionStats(options: VersionStatsOptions): Promise<number> {
   const output = options.output ?? defaultOutput;
-  const runner = options.runner ?? createNpmProcessRunner();
+  const runner = options.runner ?? createVersionProcessRunner();
   let installed: string;
   try {
     const manifest = JSON.parse(await readFile(resolve(options.packageRoot, "package.json"), "utf8")) as { version?: unknown };
@@ -37,15 +43,27 @@ export async function runVersionStats(options: VersionStatsOptions): Promise<num
   return 0;
 }
 
-async function queryTag(runner: UpdateProcessRunner, tag: "latest" | "next"): Promise<{ tag: string; version: string | null; error: string | null }> {
+async function queryTag(runner: VersionProcessRunner, tag: "latest" | "next"): Promise<{ tag: string; version: string | null; error: string | null }> {
   try {
-    const result = await runner("npm", ["view", `${ADDONE_PACKAGE}@${tag}`, "version"], { captureStdout: true });
+    const result = await runner("npm", ["view", `${ADDONE_PACKAGE}@${tag}`, "version"]);
     if (result.code !== 0) return { tag, version: null, error: `npm exited with status ${result.code ?? "unknown"}` };
     try { return { tag, version: parseVersion(result.stdout.trim(), `npm ${tag}`), error: null }; }
     catch (error) { return { tag, version: null, error: message(error) }; }
   } catch (error) {
     return { tag, version: null, error: message(error) };
   }
+}
+
+function createVersionProcessRunner(): VersionProcessRunner {
+  return async (command, arguments_) => await new Promise((resolvePromise, rejectPromise) => {
+    const child = process.platform === "win32"
+      ? crossSpawn(command, [...arguments_], { stdio: ["ignore", "pipe", "ignore"] })
+      : spawn(command, [...arguments_], { stdio: ["ignore", "pipe", "ignore"] });
+    const stdout: Buffer[] = [];
+    child.stdout?.on("data", chunk => stdout.push(Buffer.from(chunk)));
+    child.once("error", rejectPromise);
+    child.once("close", code => resolvePromise({ code, stdout: Buffer.concat(stdout).toString("utf8") }));
+  });
 }
 
 function parseVersion(value: unknown, source: string): string {
