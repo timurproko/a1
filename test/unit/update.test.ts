@@ -9,6 +9,7 @@ import {
   type UpdateLifecycleCoordinator,
   type UpdateOutput,
   type UpdateProcessRunner,
+  type UpdateTransactionJournal,
 } from "../../src/update.js";
 
 interface Invocation {
@@ -48,6 +49,19 @@ function createHarness(options: {
     async verifyPackageUnlocked(path) { lifecycleCalls.push(`unlock:${path}`); },
     async activateInstalled(path, targetVersion) { lifecycleCalls.push(`activate:${path}:${targetVersion}`); },
   };
+  let transaction: Awaited<ReturnType<UpdateTransactionJournal["read"]>> = null;
+  const transactionStore: UpdateTransactionJournal = {
+    path: resolve("fixtures", "update-transaction.json"),
+    async read() { return transaction; },
+    async begin(input) {
+      const now = new Date(0).toISOString();
+      transaction = transaction ?? { schemaVersion: 1, transactionId: "test-update", ...input, priorActiveReleaseId: null, phase: "shutdown-intent", status: "active", error: null, startedAt: now, updatedAt: now };
+      return transaction;
+    },
+    async advance(phase) { if (!transaction) throw new Error("missing test transaction"); transaction = { ...transaction, phase }; return transaction; },
+    async finish(status, error = null) { if (!transaction) throw new Error("missing test transaction"); transaction = { ...transaction, status, error }; return transaction; },
+    async clearCompleted() { if (transaction?.status !== "active") transaction = null; },
+  };
   const runner: UpdateProcessRunner = async (command, arguments_, request) => {
     invocations.push({ command, arguments: arguments_, request });
     const response = responses.shift();
@@ -67,6 +81,7 @@ function createHarness(options: {
     runner,
     stderr,
     stdout,
+    transactionStore,
   };
 }
 
@@ -218,7 +233,7 @@ describe("AddOne self-update orchestration", () => {
     await expect(runSelfUpdate(harness)).resolves.toBe(77);
 
     expect(harness.stderr.join("")).toContain("update failed");
-    expect(harness.stderr.join("")).toContain("Review npm's diagnostics");
+    expect(harness.stderr.join("")).toContain("Diagnostics:");
   });
 
   it("reports a spawn failure while starting installation", async () => {

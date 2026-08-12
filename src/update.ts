@@ -17,7 +17,8 @@ import { CohortStateStore, type SupervisorEndpointMetadata } from "./cohort-stat
 import { resolveAddOnePaths } from "./paths.js";
 import { cleanupVerifiedOwner, processIsAlive } from "./process-cleanup.js";
 import { encodeFrame, LineFrameDecoder } from "./protocol/messages.js";
-import { materializeRelease } from "./release-store.js";
+import { materializeRelease, readMaterializedRelease } from "./release-store.js";
+import { UpdateTransactionStore, type UpdateTransaction, type UpdateTransactionPhase } from "./update-transaction.js";
 
 export const ADDONE_PACKAGE = "@timurproko/addone";
 export type UpdateChannel = "stable" | "next";
@@ -40,12 +41,21 @@ export interface SelfUpdateOptions {
   output?: UpdateOutput;
   runner?: UpdateProcessRunner;
   lifecycle?: UpdateLifecycleCoordinator;
+  transactionStore?: UpdateTransactionJournal;
 }
 export interface UpdateLifecycleCoordinator {
   targetIsActive(targetVersion: string): Promise<boolean>;
   shutdownVerifiedOwners(targetVersion: string): Promise<{ priorActiveVersion: string | null }>;
   verifyPackageUnlocked(packageRoot: string): Promise<void>;
-  activateInstalled(packageRoot: string, targetVersion: string): Promise<void>;
+  activateInstalled(packageRoot: string, targetVersion: string, phase: (phase: UpdateTransactionPhase) => Promise<void>): Promise<void>;
+}
+export interface UpdateTransactionJournal {
+  readonly path: string;
+  read(): Promise<UpdateTransaction | null>;
+  begin(input: { channel: UpdateChannel; targetVersion: string; packageRoot: string; priorActiveReleaseId: string | null }): Promise<UpdateTransaction>;
+  advance(phase: UpdateTransactionPhase): Promise<UpdateTransaction>;
+  finish(status: "completed" | "rolled-back" | "failed", error?: string | null): Promise<UpdateTransaction>;
+  clearCompleted(): Promise<void>;
 }
 
 const defaultFileSystem: UpdateFileSystem = {
@@ -128,13 +138,16 @@ export function createUpdateLifecycleCoordinator(
         throw new Error(`AddOne package remains locked after verified shutdown: ${errorMessage(error)}`);
       }
     },
-    async activateInstalled(packageRoot, targetVersion) {
+    async activateInstalled(packageRoot, targetVersion, phase) {
       const candidate = await materializeRelease(packageRoot, paths.dataDir);
       if (candidate.packageVersion !== targetVersion) throw new Error(`installed AddOne version ${candidate.packageVersion} does not match target ${targetVersion}`);
       await stateStore.recordCandidate(candidate);
+      await phase("materialized");
       const diagnostics = await certifyMaterializedRelease(candidate, paths.dataDir);
       await stateStore.approve(candidate.releaseId, diagnostics);
+      await phase("certified");
       await stateStore.activate(candidate.releaseId);
+      await phase("active-reference-committed");
       await startSupervisor(candidate, environment);
       await waitForVerifiedEndpoint(paths.endpointMetadataPath, candidate, 8_000);
     },
@@ -187,35 +200,57 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
     return 1;
   }
 
-  const lifecycle = options.lifecycle ?? createUpdateLifecycleCoordinator(options.environment, fileSystem);
+  const environment = options.environment ?? process.env;
+  const paths = resolveAddOnePaths(environment);
+  const lifecycle = options.lifecycle ?? createUpdateLifecycleCoordinator(environment, fileSystem);
+  const transactionStore = options.transactionStore ?? new UpdateTransactionStore(paths.dataDir);
+  let transaction = await transactionStore.read();
   try {
     if (await lifecycle.targetIsActive(targetVersion)) {
+      if (transaction?.status === "active") {
+        await transactionStore.advance("supervisor-verified");
+        await transactionStore.finish("completed");
+      }
+      await transactionStore.clearCompleted();
       output.stdout("AddOne is already current and active for this channel; no installation was changed.\n");
       return 0;
     }
-    await lifecycle.shutdownVerifiedOwners(targetVersion);
-    await lifecycle.verifyPackageUnlocked(packageRoot);
-  } catch (error) {
-    output.stderr(`AddOne could not safely prepare the package update: ${errorMessage(error)}\n`);
-    return 1;
-  }
+    const cohortState = await new CohortStateStore(paths.dataDir).read();
+    transaction = await transactionStore.begin({
+      channel,
+      targetVersion,
+      packageRoot,
+      priorActiveReleaseId: cohortState.references.active,
+    });
+    if (phaseBefore(transaction.phase, "ownership-released")) {
+      await lifecycle.shutdownVerifiedOwners(targetVersion);
+      await lifecycle.verifyPackageUnlocked(packageRoot);
+      transaction = await transactionStore.advance("ownership-released");
+    }
 
-  output.stdout(`AddOne is installing ${ADDONE_PACKAGE}@${targetVersion} globally from the ${channel} channel.\n`);
-  const installation = await runNpm(runner, ["install", "--global", `${ADDONE_PACKAGE}@${targetVersion}`], false, output, "start the global npm installation", false);
-  if (installation.result === null) return installation.exitCode;
-  if (installation.result.code !== 0) {
-    output.stderr(`AddOne update failed because npm exited with status ${formatExitCode(installation.result.code)}. Review npm's diagnostics above.\n`);
-    return unsuccessfulCode(installation.result.code);
-  }
+    if (phaseBefore(transaction.phase, "package-installed")) {
+      output.stdout(`AddOne is installing ${ADDONE_PACKAGE}@${targetVersion} globally from the ${channel} channel.\n`);
+      const installation = await runNpm(runner, ["install", "--global", `${ADDONE_PACKAGE}@${targetVersion}`], false, output, "start the global npm installation", false);
+      if (installation.result === null) throw new UpdateFailure(installation.exitCode, "npm process failed");
+      if (installation.result.code !== 0) throw new UpdateFailure(unsuccessfulCode(installation.result.code), `npm exited with status ${formatExitCode(installation.result.code)}`);
+      transaction = await transactionStore.advance("package-installed");
+    }
 
-  try {
-    await lifecycle.activateInstalled(packageRoot, targetVersion);
+    await lifecycle.activateInstalled(packageRoot, targetVersion, async phase => { transaction = await transactionStore.advance(phase); });
+    await transactionStore.advance("supervisor-verified");
+    await transactionStore.finish("completed");
+    await transactionStore.clearCompleted();
+    output.stdout(`AddOne updated and activated successfully from ${runningVersion} to ${targetVersion} on the ${channel} channel.\n`);
+    return 0;
   } catch (error) {
-    output.stderr(`AddOne installed ${targetVersion} but could not certify and activate it: ${errorMessage(error)}\n`);
-    return 1;
+    const message = errorMessage(error);
+    const rollback = options.lifecycle
+      ? "previous test lifecycle retained"
+      : await rollbackPriorCohort(paths.dataDir, environment, transaction?.priorActiveReleaseId ?? null).catch(rollbackError => `rollback failed: ${errorMessage(rollbackError)}`);
+    if (transaction) await transactionStore.finish(rollback === "rolled back" ? "rolled-back" : "failed", `${message}; ${rollback}`);
+    output.stderr(`AddOne update failed: ${message}. ${rollback}. Diagnostics: ${transactionStore.path}\n`);
+    return error instanceof UpdateFailure ? error.exitCode : 1;
   }
-  output.stdout(`AddOne updated and activated successfully from ${runningVersion} to ${targetVersion} on the ${channel} channel.\n`);
-  return 0;
 }
 
 async function requestUpdateShutdown(metadata: SupervisorEndpointMetadata, targetVersion: string, timeoutMs: number): Promise<{ accepted: boolean; reason: string }> {
@@ -252,6 +287,32 @@ async function runNpm(runner: UpdateProcessRunner, arguments_: readonly string[]
   }
   return { result, exitCode: 0 };
 }
+async function rollbackPriorCohort(dataDir: string, environment: NodeJS.ProcessEnv, priorReleaseId: string | null): Promise<string> {
+  if (!priorReleaseId) return "no prior cohort was available for rollback";
+  const stateStore = new CohortStateStore(dataDir);
+  const state = await stateStore.read();
+  const prior = state.releases[priorReleaseId];
+  if (!prior || prior.approval !== "approved") return "prior cohort is not a verified rollback candidate";
+  if (state.references.active !== priorReleaseId) {
+    if (state.references.rollback === priorReleaseId) await stateStore.rollback(true);
+    else throw new Error(`prior release ${priorReleaseId} is not the recorded rollback cohort`);
+  }
+  const release = await readMaterializedRelease(prior.releaseRoot);
+  const paths = resolveAddOnePaths(environment);
+  await startSupervisor(release, environment);
+  await waitForVerifiedEndpoint(paths.endpointMetadataPath, release, 8_000);
+  return "rolled back";
+}
+
+function phaseBefore(current: UpdateTransactionPhase, target: UpdateTransactionPhase): boolean {
+  const phases = ["shutdown-intent", "ownership-released", "package-installed", "materialized", "certified", "active-reference-committed", "supervisor-verified"] as const;
+  return phases.indexOf(current) < phases.indexOf(target);
+}
+
+class UpdateFailure extends Error {
+  constructor(readonly exitCode: number, message: string) { super(message); }
+}
+
 async function canonicalImmutableRoot(dataDir: string, releaseRoot: string): Promise<boolean> {
   try {
     const [store, selected] = await Promise.all([realpath(resolve(dataDir, "releases")), realpath(releaseRoot)]);

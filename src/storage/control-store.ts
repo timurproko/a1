@@ -34,7 +34,7 @@ export class ControlStore {
   migrate(): void {
     const versionRow = this.database.prepare("PRAGMA user_version").get() as { user_version: number };
     const version = versionRow.user_version;
-    if (version > 2) throw new Error(`control database version ${version} is newer than supported version 2`);
+    if (version > 1) throw new Error(`control database version ${version} is newer than supported version 1`);
     if (version === 0) {
       this.database.exec(`
         BEGIN IMMEDIATE;
@@ -71,10 +71,12 @@ export class ControlStore {
           exit_code INTEGER,
           signal INTEGER,
           error TEXT,
+          owner_boot_nonce TEXT,
           UNIQUE(agent_id, sequence)
         );
         CREATE INDEX idx_agents_workspace ON terminal_agents(workspace_id, created_at);
         CREATE INDEX idx_generations_agent ON process_generations(agent_id, sequence DESC);
+        CREATE INDEX idx_generations_owner_boot ON process_generations(owner_boot_nonce, state);
         PRAGMA user_version = 1;
         COMMIT;
       `);
@@ -82,14 +84,12 @@ export class ControlStore {
       this.database.prepare("INSERT INTO workspaces (id, name, selected_agent_id, created_at) VALUES (?, ?, NULL, ?)")
         .run(INITIAL_WORKSPACE_ID, "Workspace", now);
     }
-    if (version < 2) {
-      this.database.exec(`
-        BEGIN IMMEDIATE;
-        ALTER TABLE process_generations ADD COLUMN owner_boot_nonce TEXT;
-        CREATE INDEX idx_generations_owner_boot ON process_generations(owner_boot_nonce, state);
-        PRAGMA user_version = 2;
-        COMMIT;
-      `);
+    if (version === 1) {
+      const columns = this.database.prepare("PRAGMA table_info(process_generations)").all() as unknown as { name: string }[];
+      if (!columns.some(column => column.name === "owner_boot_nonce")) {
+        this.database.exec("ALTER TABLE process_generations ADD COLUMN owner_boot_nonce TEXT");
+      }
+      this.database.exec("CREATE INDEX IF NOT EXISTS idx_generations_owner_boot ON process_generations(owner_boot_nonce, state)");
     }
   }
 
