@@ -183,6 +183,10 @@ The fullscreen terminal path SHALL render every supported CLI through the same v
 
 The accepted Windows ConPTY baseline SHALL apply cadence-derived transport quiescence after every synchronized source commit, bounded at 32 milliseconds with a 1.75× measured inter-burst margin, and SHALL write the host synchronized-output end boundary only after payload write completion followed by one I/O turn. These values MAY change only when permanent direct-versus-hosted evidence proves zero cursor/mode-only, blank, mixed, stale, shifted, or partial repaint frames under the replacement policy; latency-only optimization SHALL NOT weaken visible atomicity.
 
+#### Scenario: Initial normal-screen handoff preserves the caller
+- **WHEN** Native Pi or another normal-screen CLI produces its first ready surface after being launched below an existing shell prompt
+- **THEN** AddOne SHALL append that surface from the current physical cursor with natural bottom-edge scrolling, SHALL preserve the invoking command and earlier terminal history, and SHALL NOT home or clear the physical normal screen before repainting the same interface
+
 #### Scenario: Native Pi streams rapid updates
 - **WHEN** Native Pi emits multiple output chunks within one visual refresh interval
 - **THEN** AddOne SHALL preserve their order and present the latest committed state without exposing an intermediate blank or stale whole-screen frame

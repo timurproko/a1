@@ -8,7 +8,7 @@ import {
   type TerminalRenderTransaction,
   type TerminalSurface,
 } from "../domain/index.js";
-import { projectTerminalRenderTransaction, projectTerminalSnapshot, renderTerminalDamage, renderTerminalNormalSnapshot, renderTerminalSnapshot, RESET_TERMINAL_MODES, selectTerminalProjection, type TerminalProjectionPlan, type TerminalViewport } from "../presentation/index.js";
+import { projectTerminalRenderTransaction, projectTerminalSnapshot, renderTerminalDamage, renderTerminalInitialNormalSnapshot, renderTerminalNormalScroll, renderTerminalSnapshot, RESET_TERMINAL_MODES, selectTerminalProjection, type TerminalProjectionPlan, type TerminalViewport } from "../presentation/index.js";
 import { HostFrameWriter, type DrainAwareHostOutput } from "./host-frame-writer.js";
 
 const HOST_BASE_INPUT_MODES_ON = "\x1b[?1004h\x1b[?2004h";
@@ -36,6 +36,7 @@ export class FullscreenHostRenderer {
   #childSnapshotInitialized = false;
   #outerAlternate = false;
   #projectionPlan: TerminalProjectionPlan | null = null;
+  #normalRowOffset = 0;
   readonly #writer: HostFrameWriter;
 
   constructor(
@@ -46,6 +47,7 @@ export class FullscreenHostRenderer {
     private readonly projectionPolicy: TerminalProjectionPolicy = FULL_VIEWPORT_NATIVE_PROJECTION,
     private readonly onTransaction: (transaction: HostRendererTransaction) => void = () => {},
     private readonly viewport?: TerminalViewport,
+    private readonly initialNormalCursorRow = 0,
   ) {
     this.#writer = new HostFrameWriter(output, {
       onWrite: (frame, serialized) => {
@@ -70,12 +72,17 @@ export class FullscreenHostRenderer {
     this.#normalSnapshotInitialized = false;
     this.#childSnapshotInitialized = false;
     this.#projectionPlan = null;
+    this.#normalRowOffset = Math.max(0, this.initialNormalCursorRow);
     // Startup does not publish an AddOne-owned frame. Keep the caller's normal
     // screen intact until the first child snapshot selects its projection; the
     // alternate-screen transition and clear, when required, are then enclosed
     // in that same synchronized child frame.
     this.#outerAlternate = false;
     this.#write("lifecycle", `${RESET_TERMINAL_MODES}\x1b[?25l${HOST_BASE_INPUT_MODES_ON}`);
+  }
+
+  setInitialNormalCursorRow(row: number): void {
+    if (!this.#childSnapshotInitialized) this.#normalRowOffset = Math.max(0, row);
   }
 
   renderSnapshot(sourceSurface: TerminalSurface): void {
@@ -103,11 +110,12 @@ export class FullscreenHostRenderer {
     let snapshot: string;
     if (this.#normalProjection && !this.#normalSnapshotInitialized) {
       this.#normalSnapshotInitialized = true;
-      snapshot = (surface.scrollbackCells?.length ?? 0) > 0 ? renderTerminalNormalSnapshot(surface) : renderTerminalSnapshot(surface);
-      snapshot = insertAfterSynchronizedOutputStart(snapshot, "\x1b[2J\x1b[H");
+      // Reproduce vanilla first-render behavior from the physical cursor: no
+      // home, no clear, and natural terminal scrolling at the bottom edge.
+      snapshot = renderTerminalInitialNormalSnapshot(surface);
     } else {
       snapshot = renderTerminalSnapshot(surface, !firstChildSnapshot);
-      if (firstChildSnapshot) snapshot = insertAfterSynchronizedOutputStart(snapshot, "\x1b[2J\x1b[H");
+      if (firstChildSnapshot && !this.#normalProjection) snapshot = insertAfterSynchronizedOutputStart(snapshot, "\x1b[2J\x1b[H");
     }
     this.#writer.enqueue({
       kind: "snapshot",
@@ -129,10 +137,15 @@ export class FullscreenHostRenderer {
       .filter((operation): operation is Extract<typeof operation, { type: "scroll" }> => operation.type === "scroll")
       .filter(operation => operation.top === 0 && operation.bottom === transaction.dimensions.rows - 1)
       .reduce((total, operation) => total + operation.rows, 0);
-    const hostScroll = this.#normalProjection && scrollRows > 0
-      ? `\x1b[${transaction.dimensions.rows};1H${"\r\n".repeat(scrollRows)}`
-      : "";
-    const payload = `${framePrefix}${hostScroll}${renderTerminalDamage({ ...damage, scrollRows })}`;
+    const hostScrollRows = this.#normalProjection && scrollRows > 0
+      ? scrollRows + this.#normalRowOffset
+      : 0;
+    const hostScroll = hostScrollRows > 0 ? renderTerminalNormalScroll(transaction.dimensions.rows, hostScrollRows) : "";
+    if (this.#normalProjection && scrollRows > 0) this.#normalRowOffset = Math.max(0, this.#normalRowOffset - scrollRows);
+    const payload = `${framePrefix}${hostScroll}${renderTerminalDamage(
+      { ...damage, scrollRows },
+      this.#normalProjection ? this.#normalRowOffset : 0,
+    )}`;
     this.#writer.enqueue({
       kind: "transaction",
       payload,

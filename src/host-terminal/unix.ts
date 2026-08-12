@@ -23,8 +23,9 @@ export class UnixHostTerminalAdapter implements HostTerminalAdapter {
     output: Pick<NodeJS.WriteStream, "write">,
     private readonly platform: "linux" | "darwin" = process.platform === "darwin" ? "darwin" : "linux",
     onRendererTransaction: (transaction: HostRendererTransaction) => void = () => {},
+    initialNormalCursorRow = 0,
   ) {
-    this.#renderer = new FullscreenHostRenderer(output, 0, "", "", undefined, onRendererTransaction);
+    this.#renderer = new FullscreenHostRenderer(output, 0, "", "", undefined, onRendererTransaction, undefined, initialNormalCursorRow);
   }
 
   capture(): HostTerminalState {
@@ -88,6 +89,8 @@ export class UnixHostTerminalAdapter implements HostTerminalAdapter {
     target.on("exit", cleanup);
     return () => target.off("exit", cleanup);
   }
+
+  setInitialNormalCursorRow(row: number): void { this.#renderer.setInitialNormalCursorRow(row); }
 
   renderSnapshot(surface: TerminalSurface): void {
     this.#renderer.renderSnapshot(surface);
