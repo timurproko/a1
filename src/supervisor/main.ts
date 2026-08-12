@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { appendFileSync, mkdirSync } from "node:fs";
 import { PtyTerminalDriver } from "../drivers/terminal/index.js";
 import { readMaterializedRelease } from "../release-store.js";
@@ -13,8 +14,9 @@ export async function runSupervisor(): Promise<void> {
   if (!releaseRoot) throw new Error("supervisor must be launched from a verified immutable AddOne release");
   const release = await readMaterializedRelease(releaseRoot);
   if (process.env.ADDONE_RELEASE_ID !== release.releaseId) throw new Error("selected AddOne release identity does not match its verified manifest");
-  const store = new ControlStore(paths.databasePath);
-  const server = new SupervisorServer(store, new PtyTerminalDriver(), paths, release);
+  const bootNonce = randomUUID();
+  const store = new ControlStore(paths.databasePath, bootNonce);
+  const server = new SupervisorServer(store, new PtyTerminalDriver(), paths, release, bootNonce);
   await server.listen();
   log(`supervisor ${server.id} listening at ${paths.endpoint} (pid ${process.pid})`);
 

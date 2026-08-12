@@ -17,23 +17,24 @@ const INITIAL_WORKSPACE_ID = "workspace-default";
 
 interface WorkspaceRow { id: string; name: string; selected_agent_id: string | null; created_at: string }
 interface AgentRow { id: string; workspace_id: string; name: string; profile_json: string; surface_json: string | null; created_at: string }
-interface GenerationRow { id: string; agent_id: string; sequence: number; profile_id: string; state: LifecycleState; capabilities_json: string; started_at: string; exited_at: string | null; exit_code: number | null; signal: number | null; error: string | null }
+interface GenerationRow { id: string; agent_id: string; sequence: number; profile_id: string; state: LifecycleState; capabilities_json: string; started_at: string; exited_at: string | null; exit_code: number | null; signal: number | null; error: string | null; owner_boot_nonce: string | null }
 
 export class ControlStore {
   readonly database: DatabaseSync;
 
-  constructor(path: string) {
+  constructor(path: string, readonly bootNonce: string | null = null) {
     mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
     this.database = new DatabaseSync(path);
     this.database.exec("PRAGMA journal_mode = WAL");
     this.database.exec("PRAGMA foreign_keys = ON");
     this.migrate();
+    if (bootNonce !== null) this.reconcilePriorBootGenerations(bootNonce);
   }
 
   migrate(): void {
     const versionRow = this.database.prepare("PRAGMA user_version").get() as { user_version: number };
     const version = versionRow.user_version;
-    if (version > 1) throw new Error(`control database version ${version} is newer than supported version 1`);
+    if (version > 2) throw new Error(`control database version ${version} is newer than supported version 2`);
     if (version === 0) {
       this.database.exec(`
         BEGIN IMMEDIATE;
@@ -81,6 +82,27 @@ export class ControlStore {
       this.database.prepare("INSERT INTO workspaces (id, name, selected_agent_id, created_at) VALUES (?, ?, NULL, ?)")
         .run(INITIAL_WORKSPACE_ID, "Workspace", now);
     }
+    if (version < 2) {
+      this.database.exec(`
+        BEGIN IMMEDIATE;
+        ALTER TABLE process_generations ADD COLUMN owner_boot_nonce TEXT;
+        CREATE INDEX idx_generations_owner_boot ON process_generations(owner_boot_nonce, state);
+        PRAGMA user_version = 2;
+        COMMIT;
+      `);
+    }
+  }
+
+  reconcilePriorBootGenerations(bootNonce: string): number {
+    const now = new Date().toISOString();
+    return this.#transaction(() => {
+      const result = this.database.prepare(`UPDATE process_generations
+        SET state = 'interrupted', exited_at = ?, error = COALESCE(error, 'supervisor ownership ended before a terminal outcome')
+        WHERE state NOT IN ('exited', 'stopped', 'interrupted', 'error')
+          AND (owner_boot_nonce IS NULL OR owner_boot_nonce <> ?)`)
+        .run(now, bootNonce);
+      return Number(result.changes);
+    });
   }
 
   loadWorkspace(): LogicalWorkspace {
@@ -122,9 +144,9 @@ export class ControlStore {
         .run(agent.id, agent.workspaceId, agent.name, agent.profile.id, JSON.stringify(agent.profile), agent.createdAt);
       const generation = agent.currentGeneration;
       this.database.prepare(`INSERT INTO process_generations
-        (id, agent_id, sequence, profile_id, state, capabilities_json, started_at, exited_at, exit_code, signal, error)
-        VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, NULL)`)
-        .run(generation.id, agent.id, generation.sequence, generation.profileId, generation.state, JSON.stringify(generation.capabilities), generation.startedAt);
+        (id, agent_id, sequence, profile_id, state, capabilities_json, started_at, exited_at, exit_code, signal, error, owner_boot_nonce)
+        VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, NULL, ?)`)
+        .run(generation.id, agent.id, generation.sequence, generation.profileId, generation.state, JSON.stringify(generation.capabilities), generation.startedAt, this.bootNonce);
       this.database.prepare("UPDATE workspaces SET selected_agent_id = ? WHERE id = ?").run(agent.id, agent.workspaceId);
     });
   }
@@ -142,7 +164,7 @@ export class ControlStore {
     state: LifecycleState,
     details: { exitCode?: number | null; signal?: number | null; error?: string | null } = {},
   ): boolean {
-    const terminal = state === "exited" || state === "stopped" || state === "error";
+    const terminal = state === "exited" || state === "stopped" || state === "interrupted" || state === "error";
     const result = this.database.prepare(`UPDATE process_generations
       SET state = ?, exited_at = ?, exit_code = ?, signal = ?, error = ?
       WHERE id = ? AND agent_id = ? AND id = (SELECT id FROM process_generations WHERE agent_id = ? ORDER BY sequence DESC LIMIT 1)`)
@@ -158,11 +180,12 @@ export class ControlStore {
     this.database.close();
   }
 
-  #transaction(operation: () => void): void {
+  #transaction<T>(operation: () => T): T {
     this.database.exec("BEGIN IMMEDIATE");
     try {
-      operation();
+      const result = operation();
       this.database.exec("COMMIT");
+      return result;
     } catch (error) {
       this.database.exec("ROLLBACK");
       throw error;
@@ -183,5 +206,6 @@ function generationFromRow(row: GenerationRow): ProcessGeneration {
     exitCode: row.exit_code,
     signal: row.signal,
     error: row.error,
+    ownerBootNonce: row.owner_boot_nonce,
   };
 }

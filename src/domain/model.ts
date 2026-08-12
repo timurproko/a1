@@ -76,7 +76,7 @@ export interface TerminalSurface {
   readonly final: boolean;
 }
 
-export type LifecycleState = "starting" | "ready" | "running" | "exited" | "stopped" | "error";
+export type LifecycleState = "starting" | "ready" | "running" | "exited" | "stopped" | "interrupted" | "error";
 export type Capability = "terminal-surface" | "terminal-input" | "terminal-resize" | "process-stop";
 
 export interface LogicalWorkspace {
@@ -129,6 +129,8 @@ export interface ProcessGeneration {
   readonly exitCode: number | null;
   readonly signal: number | null;
   readonly error: string | null;
+  /** Supervisor boot that established the live runtime handle, when known. */
+  readonly ownerBootNonce?: string | null;
 }
 
 export interface LogicalTerminalAgent {

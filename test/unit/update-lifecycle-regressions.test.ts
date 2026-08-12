@@ -34,17 +34,18 @@ describe("observed immediate-update lifecycle regressions", () => {
     expect(capture.stderr.join("")).not.toMatch(/EBUSY|manual fallback/i);
   });
 
-  it.fails("reconciles prior-boot nonterminal generations before they can become live blockers", async () => {
+  it("reconciles prior-boot nonterminal generations before they can become live blockers", async () => {
     const root = await mkdtemp(resolve(tmpdir(), "addone-stale-generation-regression-"));
     roots.push(root);
     const path = resolve(root, "control.sqlite3");
     seedReadyGeneration(path);
 
-    const reopened = new (ControlStore as unknown as new (path: string, bootNonce: string) => ControlStore)(path, "boot-new");
+    const reopened = new ControlStore(path, "boot-new");
     const [agent] = reopened.loadAgents();
     reopened.close();
 
     expect(agent?.currentGeneration.state).toBe("interrupted");
+    expect(agent?.currentGeneration.ownerBootNonce).toBeNull();
   });
 
   it.fails("does not restart an old cohort solely because its dead owner left generation rows", () => {

@@ -27,7 +27,7 @@ import { resolveAddOnePaths, type AddOnePaths } from "./paths.js";
 
 export class SupervisorServer {
   readonly id = randomUUID();
-  readonly bootNonce = randomUUID();
+  readonly bootNonce: string;
   readonly pidStartIdentity = `${process.pid}:${Math.floor(Date.now() - process.uptime() * 1_000)}`;
   readonly startedAt = new Date().toISOString();
   readonly paths: AddOnePaths;
@@ -46,7 +46,9 @@ export class SupervisorServer {
     readonly driver: TerminalDriver,
     paths = resolveAddOnePaths(),
     readonly release: MaterializedRelease,
+    bootNonce = randomUUID(),
   ) {
+    this.bootNonce = bootNonce;
     this.paths = paths;
     this.#workspace = store.loadWorkspace();
     this.#agents = store.loadAgents();
@@ -100,9 +102,7 @@ export class SupervisorServer {
             }
             if (typeof value === "object" && value !== null && "type" in value && value.type === "release-idle-ownership") {
               const request = value as { bootNonce?: unknown; candidateReleaseId?: unknown };
-              const liveGenerationIds = this.#agents
-                .filter(agent => !["exited", "stopped", "error"].includes(agent.currentGeneration.state))
-                .map(agent => agent.currentGeneration.id);
+              const liveGenerationIds = this.#liveHandleGenerationIds();
               const released = request.bootNonce === this.bootNonce && typeof request.candidateReleaseId === "string" && liveGenerationIds.length === 0;
               this.#send(socket, {
                 type: "release-ownership-result",
@@ -229,6 +229,7 @@ export class SupervisorServer {
       exitCode: null,
       signal: null,
       error: null,
+      ownerBootNonce: this.bootNonce,
     };
     const agent: LogicalTerminalAgent = {
       id: agentId,
@@ -252,6 +253,7 @@ export class SupervisorServer {
       this.#replaceAgent(agentId, current => ({ ...current, currentGeneration: { ...current.currentGeneration, state: "ready" } }));
       this.store.markGeneration(agentId, generationId, "ready");
       this.#publish({ type: "generation-ready", agentId, generationId });
+      void this.#writeEndpointMetadata();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.store.markGeneration(agentId, generationId, "error", { error: message });
@@ -310,10 +312,17 @@ export class SupervisorServer {
     for (const client of this.#clients) this.#send(client, { type: "event", ordered });
   }
 
+  #liveHandleGenerationIds(): string[] {
+    const live: string[] = [];
+    for (const [agentId] of this.#handles) {
+      const agent = this.#agents.find(candidate => candidate.id === agentId);
+      if (agent) live.push(agent.currentGeneration.id);
+    }
+    return live;
+  }
+
   #writeEndpointMetadata(): Promise<void> {
-    const liveGenerationIds = this.#agents
-      .filter(agent => !["exited", "stopped", "error"].includes(agent.currentGeneration.state))
-      .map(agent => agent.currentGeneration.id);
+    const liveGenerationIds = this.#liveHandleGenerationIds();
     const metadata = {
       ...localControlHello(this.release.releaseId),
       supervisorId: this.id,
