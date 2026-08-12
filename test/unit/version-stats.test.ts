@@ -8,14 +8,14 @@ const roots: string[] = [];
 afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))));
 
 describe("version stats", () => {
-  it("reports release, next preview, and installed versions in channel-first order", async () => {
+  it("reports installed, stable release, and next preview versions in exact order", async () => {
     const harness = await createHarness();
     const code = await runVersionStats({ ...harness.options, runner: async (_command, arguments_) => ({
       code: 0,
       stdout: arguments_[1]?.endsWith("@next") ? "1.2.0-dev.3\n" : "1.1.4\n",
     }) });
     expect(code).toBe(0);
-    expect(harness.stdout.join("")).toBe("Release:   1.1.4\nNext:      1.2.0-dev.3\nInstalled: 1.1.0\n");
+    expect(harness.stdout.join("")).toBe("Installed: 1.1.0\nRelease:   1.1.4\nNext:      1.2.0-dev.3\n");
     expect(harness.stderr).toEqual([]);
   });
 
@@ -26,7 +26,7 @@ describe("version stats", () => {
       return { code: 17, stdout: "" };
     } });
     expect(code).toBe(0);
-    expect(harness.stdout.join("")).toBe("Release:   unavailable\nNext:      unavailable\nInstalled: 1.1.0\n");
+    expect(harness.stdout.join("")).toBe("Installed: 1.1.0\nRelease:   unavailable\nNext:      unavailable\n");
     expect(harness.stderr.join("")).toContain("npm latest: registry offline");
     expect(harness.stderr.join("")).toContain("npm next: npm exited with status 17");
   });

@@ -16,6 +16,11 @@ export interface DevelopmentPreviewVerificationOptions {
   readonly delay?: (milliseconds: number) => Promise<void>;
 }
 
+export interface DevelopmentPreviewPublishResult {
+  readonly published: boolean;
+  readonly recoveredPublishError: unknown | null;
+}
+
 /** Selects a monotonic, unpublished dev prerelease without moving npm next backward. */
 export function selectDevelopmentPreviewCandidate(
   currentVersion: string,
@@ -50,6 +55,26 @@ export function selectDevelopmentPreviewCandidate(
     if (candidate === null) throw new Error(`could not increment development preview from ${base}`);
   }
   return { version: candidate, requiresVersionCommit: candidate !== currentVersion };
+}
+
+/**
+ * Treats npm's process result as provisional: browser-auth completion can fail
+ * after the immutable upload succeeds. Registry identity remains authoritative.
+ */
+export async function publishDevelopmentPreviewWithRecovery(
+  publish: () => Promise<void>,
+  verify: () => Promise<void>,
+): Promise<DevelopmentPreviewPublishResult> {
+  let publishError: unknown | null = null;
+  try { await publish(); }
+  catch (error) { publishError = error; }
+  try {
+    await verify();
+    return { published: true, recoveredPublishError: publishError };
+  } catch (verificationError) {
+    if (publishError !== null) throw new AggregateError([publishError, verificationError], "npm publish failed and the exact version could not be verified in the registry");
+    throw verificationError;
+  }
 }
 
 /** Tolerates npm registry propagation after a successful immutable upload. */

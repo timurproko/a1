@@ -114,7 +114,7 @@ else process.exitCode = 64;
         },
         timeout: 15_000,
       });
-      expect(result.stdout).toBe(`Release:   ${latestTarget}\nNext:      ${nextTarget}\nInstalled: ${packageJson.version}\n`);
+      expect(result.stdout).toBe(`Installed: ${packageJson.version}\nRelease:   ${latestTarget}\nNext:      ${nextTarget}\n`);
     }
     const versionCalls = (await readFile(npmLog, "utf8")).trim().split("\n").map(line => JSON.parse(line) as string[]);
     expect(versionCalls).toHaveLength(4);
