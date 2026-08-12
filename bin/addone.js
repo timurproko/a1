@@ -2,10 +2,9 @@
 
 const packageRoot = new URL("..", import.meta.url);
 
-if (process.argv[2] === "update") {
-  const channelArgument = process.argv[3];
-  if ((channelArgument !== undefined && channelArgument !== "next") || process.argv.length > 4) {
-    process.stderr.write("Usage: addone update [next]\n");
+if (process.argv[2] === "update" || process.argv[2] === "update:next") {
+  if (process.argv.length > 3) {
+    process.stderr.write("Usage: addone update | addone update:next\n");
     process.exitCode = 2;
   } else {
     const [{ fileURLToPath }, { runSelfUpdate }] = await Promise.all([
@@ -14,7 +13,7 @@ if (process.argv[2] === "update") {
     ]);
     process.exitCode = await runSelfUpdate({
       packageRoot: fileURLToPath(packageRoot),
-      channel: channelArgument === "next" ? "next" : "stable",
+      channel: process.argv[2] === "update:next" ? "next" : "stable",
     });
   }
 } else {

@@ -12,12 +12,13 @@ const roots: string[] = [];
 afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))));
 
 describe("observed immediate-update lifecycle regressions", () => {
-  it.fails("does not leave conpty.node loaded from the mutable npm package before replacement", async () => {
+  it("releases mutable conpty.node before npm replacement", async () => {
     const capture = captureOutput();
+    let unlocked = false;
     const runner: UpdateProcessRunner = async (_command, arguments_) => {
       if (arguments_[0] === "view") return { code: 0, stdout: "1.1.0\n" };
       if (arguments_[0] === "root") return { code: 0, stdout: resolve("fixtures", "global") + "\n" };
-      return { code: 32, stdout: "EBUSY: resource busy or locked, copyfile 'conpty.node'" };
+      return unlocked ? { code: 0, stdout: "installed" } : { code: 32, stdout: "EBUSY: resource busy or locked, copyfile 'conpty.node'" };
     };
 
     const code = await runSelfUpdate({
@@ -25,6 +26,12 @@ describe("observed immediate-update lifecycle regressions", () => {
       fileSystem: {
         readFile: async () => JSON.stringify({ version: "1.0.0" }),
         realpath: async path => resolve(path),
+      },
+      lifecycle: {
+        targetIsActive: async () => false,
+        shutdownVerifiedOwners: async () => ({ priorActiveVersion: "1.0.0" }),
+        verifyPackageUnlocked: async () => { unlocked = true; },
+        activateInstalled: async () => {},
       },
       output: capture.output,
       runner,

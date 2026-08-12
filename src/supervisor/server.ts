@@ -113,6 +113,19 @@ export class SupervisorServer {
               if (released) setTimeout(() => void this.close(false), 25);
               continue;
             }
+            if (typeof value === "object" && value !== null && "type" in value && value.type === "release-update-ownership") {
+              const request = value as { bootNonce?: unknown; targetVersion?: unknown };
+              const liveGenerationIds = this.#liveHandleGenerationIds();
+              const accepted = request.bootNonce === this.bootNonce && typeof request.targetVersion === "string";
+              this.#send(socket, {
+                type: "release-update-result",
+                accepted,
+                reason: accepted ? "verified AddOne owner accepted immediate update shutdown" : "boot nonce or target version mismatch",
+                liveGenerationIds,
+              });
+              if (accepted) setTimeout(() => void this.close(true), 25);
+              continue;
+            }
             if (!isControlHello(value)) {
               this.#send(socket, {
                 type: "protocol-error",
