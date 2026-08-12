@@ -4,6 +4,25 @@ Defines the standalone AddOne terminal experience that presents and controls het
 
 ## ADDED Requirements
 
+### Requirement: Preview update is one immediate replacement command
+The installed application SHALL expose `addone update:next` and `a1 update:next` as equivalent non-interactive development-preview update commands. Invocation SHALL constitute explicit consent to stop every process and non-resumable terminal session whose ownership AddOne verifies, install the exact version resolved from npm tag `next`, materialize and certify that immutable release, reconcile stale generation ownership, activate the new release atomically, and verify the resulting active version. The command SHALL NOT require a separate status command, shutdown command, restart flag, process identifier, manual process kill, state-directory deletion, or subsequent activation command.
+
+#### Scenario: Replace the current preview immediately
+- **WHEN** the user runs `a1 update:next` while an older AddOne cohort owns terminal sessions
+- **THEN** AddOne SHALL gracefully stop those verified AddOne-owned sessions and processes, apply bounded owned-process cleanup if necessary, install and activate the exact npm `next` version, and report the old and newly active versions
+
+#### Scenario: Preview is already active
+- **WHEN** npm `next` resolves to the exact active AddOne release version
+- **THEN** `a1 update:next` SHALL report that the preview is current without stopping or reinstalling it
+
+#### Scenario: Ownership cannot be verified
+- **WHEN** a process or endpoint might be related to AddOne but ownership cannot be proved from process identity, boot identity, endpoint identity, and durable metadata
+- **THEN** `a1 update:next` SHALL fail safely without terminating that process, deleting control state, or claiming activation success
+
+#### Scenario: Update is interrupted
+- **WHEN** `a1 update:next` is interrupted after shutdown, installation, or candidate materialization
+- **THEN** the next invocation SHALL reconcile the transaction journal and continue or roll back to one verified active cohort without requiring manual cleanup
+
 ### Requirement: The AddOne command launches vanilla Native Pi immediately
 The installed application SHALL expose an `addone` terminal command that immediately starts the configured vanilla Native Pi command in Pi's default interactive mode without requiring user activation and without publishing an AddOne intro, logo, version frame, blank alternate-screen prelude, or other application frame before Pi. AddOne MAY project that terminal over its complete viewport but SHALL NOT force a Pi interaction mode that changes vanilla selection, scrolling, copy, Ctrl+C, startup, or closure behavior.
 
