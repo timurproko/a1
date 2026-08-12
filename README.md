@@ -52,22 +52,16 @@ addone update       # stable npm latest channel
 # or
 a1 update
 
-addone update next  # Windows-tested npm next channel
+addone update:next  # Windows-tested npm next channel
 # or
-a1 update next
+a1 update:next
 ```
 
-The no-argument command asks the configured npm registry for `@timurproko/addone@latest`; the explicit `next` form asks for `@timurproko/addone@next`. Each compares the exact resolved version with the running AddOne version and installs it globally only when newer. A stable installation is never opted into development previews implicitly.
+The stable command asks the configured npm registry for `@timurproko/addone@latest`; `update:next` asks for `@timurproko/addone@next`. Both immediately stop only verified AddOne-owned sessions and processes, unlock the mutable npm package, install the exact selected version, materialize and certify it, activate it atomically, and verify its supervisor. A stable installation is never opted into development previews implicitly.
 
 The updater needs network access to the configured registry and permission to write npm's global package root. npm's proxy, authentication, certificate, registry, and global-prefix settings remain authoritative, and npm diagnostics are streamed to the terminal.
 
-Automatic replacement is limited to an AddOne package canonically contained in the active npm installation's global package root. A repository checkout, `npm link`, or another package manager's installation is refused without modification; use the manual npm command printed by AddOne if replacement is intentional. An already-current or newer running version is left unchanged.
-
-Updating does not overwrite code used by a resident cohort. The next launch materializes the candidate under AddOne's immutable release store. If an older supervisor owns a live non-resumable PTY, AddOne launches that supervisor's retained matching UI and keeps activation pending; activation completes after the blocker exits. An idle cohort is replaced only after certification and verified ownership release. To request a package-level rollback manually, globally install an explicit published version, for example:
-
-```sh
-npm install --global @timurproko/addone@0.1.1
-```
+Automatic replacement is limited to an AddOne package canonically contained in npm's active global package root. A repository checkout, `npm link`, or another package manager's installation is refused without modification. If the exact selected release is already active, no process is interrupted and no installation changes. Update failures retain a durable transaction journal and automatically converge to the selected release or a verified prior immutable cohort; routine recovery requires no PID lookup, `taskkill`, state-directory deletion, restart flag, or separate activation command.
 
 ## Milestone 1 interaction
 
@@ -152,7 +146,7 @@ npm run publish:next
 
 The workflow selects the next unpublished immutable `-dev.N` version, updates and commits `package.json` plus `package-lock.json`, runs the preview gate once, packs one exact tarball, publishes it under npm tag `next`, verifies the tag, and removes the tarball after success. npm authentication remains interactive. If validation fails, fix the issue and rerun the same command with the same candidate version. If authentication or upload fails after validation, the next invocation reuses the retained verified tarball instead of rebuilding or rerunning the gate.
 
-Installed preview users then update with `a1 update next` or `addone update next`; stable users continue to use the no-argument updater.
+Installed preview users update with `a1 update:next` or `addone update:next`; stable users use `a1 update` or `addone update`. Both commands use the same no-manual-cleanup lifecycle.
 
 ## Development checks
 
