@@ -81,6 +81,10 @@ describe("release-gating packaged real Pi parity", () => {
       expect(wrappedTyped.selectionCtrlC.lines.join("\n")).toContain("release parity");
       expect(direct.rawLog).not.toContain("Copied!");
       expect(wrapped.rawLog).not.toContain("Copied!");
+      // This timeline sends Ctrl+C but never Ctrl+P. Any model-cycle status
+      // proves that physical control-key identity changed in the hosted path.
+      expect(direct.rawLog).not.toContain("Only one model in scope");
+      expect(wrapped.rawLog).not.toContain("Only one model in scope");
       expect(directTyped.wheelRows).toBe(3);
       expect(wrappedTyped.wheelRows).toBe(3);
       expect(directTyped.scrollbackLines).toBeGreaterThan(0);

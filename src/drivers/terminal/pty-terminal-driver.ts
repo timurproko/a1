@@ -179,6 +179,7 @@ export class PtyTerminalDriver implements TerminalDriver {
       };
       for (const event of events) {
         const encoded = inputEncoder.encode(event, lastSurface.modes, lastSurface.activeScreen);
+        trace("semantic-input", { event, keyboardProtocol: lastSurface.modes.keyboardProtocol, activeScreen: lastSurface.activeScreen, route: encoded.route, bytesHex: Buffer.from(encoded.bytes).toString("hex") });
         if (encoded.route === "child" && encoded.bytes.length > 0) {
           pendingChildBytes.push(Buffer.from(encoded.bytes));
           continue;

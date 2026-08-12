@@ -104,6 +104,11 @@ During the initial fullscreen Native Pi iteration, AddOne SHALL reserve no appli
 #### Scenario: Ctrl+C in fullscreen mode
 - **WHEN** the user presses Ctrl+C after Native Pi starts
 - **THEN** Native Pi SHALL receive exactly one Ctrl+C event and AddOne SHALL not terminate the UI as a result of intercepting that input
+- **AND** the event SHALL NOT be converted into Ctrl+P or trigger Pi's model-cycle action
+
+#### Scenario: Windows control-key identity crosses negotiated protocols
+- **WHEN** Windows reports any Ctrl+A through Ctrl+Z key through a native input record or Win32 VT input record and the child uses legacy, modifyOtherKeys, Kitty, or Win32 input
+- **THEN** AddOne SHALL preserve the same control-letter identity exactly once regardless of layout-dependent virtual-key metadata and SHALL NOT encode a key release as another press
 
 #### Scenario: Repeated Ctrl+C follows Native Pi clear and exit behavior
 - **WHEN** the user performs Native Pi's repeated Ctrl+C clear-and-exit interaction after handoff

@@ -1,5 +1,5 @@
 import type { HostTerminalAdapter, HostTerminalInputEvent, HostTerminalState, KeyModifiers, TerminalMouseEvent, TerminalRenderTransaction, TerminalSurface } from "../domain/index.js";
-import { VtHostInputDecoder } from "../terminal-input.js";
+import { decodeWindowsKeyIdentity, VtHostInputDecoder } from "../terminal-input.js";
 import { FullscreenHostRenderer, type HostRendererTransaction } from "../ui/host-terminal-renderer.js";
 import { getWindowsConsoleInputMode, setWindowsConsoleInputMode, type PowerShellRunner } from "../windows-console-mode.js";
 import { startWindowsRecordReader } from "./windows-record-reader.js";
@@ -150,10 +150,9 @@ export function decodeInputRecord(record: WindowsInputRecord): readonly HostTerm
   if (record.type === "focus") return [{ type: "focus", focused: record.focused }];
   if (record.type === "resize") return [{ type: "resize", dimensions: { columns: record.columns, rows: record.rows } }];
   if (record.type === "key") {
-    const text = record.unicode > 0 ? String.fromCodePoint(record.unicode) : null;
-    const named: Record<number, string> = { 8: "Backspace", 9: "Tab", 13: "Enter", 27: "Escape", 33: "PageUp", 34: "PageDown", 35: "End", 36: "Home", 37: "ArrowLeft", 38: "ArrowUp", 39: "ArrowRight", 40: "ArrowDown", 46: "Delete" };
-    const key = named[record.virtualKey] ?? text ?? String.fromCharCode(record.virtualKey).toLowerCase();
-    const base = { type: "key" as const, key, text, modifiers: decodeModifiers(record.controlKeyState) };
+    const modifiers = decodeModifiers(record.controlKeyState);
+    const identity = decodeWindowsKeyIdentity(record.virtualKey, record.unicode, modifiers.control);
+    const base = { type: "key" as const, ...identity, modifiers };
     if (!record.keyDown) return [{ ...base, action: "release" }];
     return Array.from({ length: Math.max(1, record.repeatCount) }, (_, index) => ({ ...base, action: index === 0 ? "press" as const : "repeat" as const }));
   }

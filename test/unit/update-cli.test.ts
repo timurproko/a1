@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { access, chmod, mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { access, chmod, cp, mkdtemp, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -13,12 +13,23 @@ const repository = resolve(fileURLToPath(new URL("../..", import.meta.url)));
 let temporaryRoot = "";
 
 beforeAll(async () => {
+  temporaryRoot = await mkdtemp(resolve(tmpdir(), "addone-update-cli-"));
+  const isolatedBuildRoot = resolve(temporaryRoot, "build");
+  await mkdir(isolatedBuildRoot, { recursive: true });
+  await Promise.all([
+    cp(resolve(repository, "src"), resolve(isolatedBuildRoot, "src"), { recursive: true }),
+    cp(resolve(repository, "tsconfig.json"), resolve(isolatedBuildRoot, "tsconfig.json")),
+    cp(resolve(repository, "tsconfig.build.json"), resolve(isolatedBuildRoot, "tsconfig.build.json")),
+    cp(resolve(repository, "package.json"), resolve(isolatedBuildRoot, "package.json")),
+  ]);
+  await symlink(resolve(repository, "node_modules"), resolve(isolatedBuildRoot, "node_modules"), "junction");
   await execFileAsync(process.execPath, [
     resolve(repository, "node_modules", "typescript", "bin", "tsc"),
     "-p",
-    resolve(repository, "tsconfig.build.json"),
-  ], { cwd: repository, timeout: 30_000 });
-  temporaryRoot = await mkdtemp(resolve(tmpdir(), "addone-update-cli-"));
+    resolve(isolatedBuildRoot, "tsconfig.build.json"),
+    "--outDir",
+    resolve(isolatedBuildRoot, "dist", "src"),
+  ], { cwd: isolatedBuildRoot, timeout: 30_000 });
 });
 
 afterAll(async () => {

@@ -88,6 +88,34 @@ describe("application-agnostic PTY terminal driver transactions", () => {
     expect(backend.process.writes).toContain("\x1b[<0;5;2M");
   });
 
+  it("preserves distinct Ctrl+C and Ctrl+P identities after a Windows child requests modifyOtherKeys", async () => {
+    const backend = new FakeBackend("win32");
+    const events: TerminalDriverEvent[] = [];
+    const handle = await new PtyTerminalDriver(backend).start("agent", "generation", profile, event => events.push(event));
+    backend.process.emitData("\x1b[>4;2mREADY");
+    await settle();
+
+    handle.inputBatch?.([
+      { type: "key", key: "c", text: null, modifiers: { shift: false, alt: false, control: true, meta: false }, action: "press" },
+      { type: "key", key: "p", text: null, modifiers: { shift: false, alt: false, control: true, meta: false }, action: "press" },
+    ]);
+
+    expect(backend.process.writes.at(-1)).toBe("\x1b[27;5;99~\x1b[27;5;112~");
+  });
+
+  it("uses structured Win32 child input when the PTY exposes that negotiated mode", async () => {
+    const backend = new FakeBackend("linux");
+    const events: TerminalDriverEvent[] = [];
+    const handle = await new PtyTerminalDriver(backend).start("agent", "generation", profile, event => events.push(event));
+    backend.process.emitData("\x1b[?9001hREADY");
+    await settle();
+    expect(events.at(-1)).toMatchObject({ type: "surface", surface: { modes: { keyboardProtocol: "win32", win32InputMode: true } } });
+
+    handle.input({ type: "key", key: "c", text: null, modifiers: { shift: false, alt: false, control: true, meta: false }, action: "press" });
+    handle.input({ type: "key", key: "p", text: null, modifiers: { shift: false, alt: false, control: true, meta: false }, action: "press" });
+    expect(backend.process.writes.slice(-2)).toEqual(["\x1b[67;0;3;1;8;1_", "\x1b[80;0;16;1;8;1_"]);
+  });
+
   it("orders pending output before resize resynchronization", async () => {
     const backend = new FakeBackend();
     const events: TerminalDriverEvent[] = [];
