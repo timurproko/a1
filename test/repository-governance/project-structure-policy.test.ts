@@ -4,7 +4,7 @@ import { inspectProjectStructureImports, PROJECT_OWNERS, projectOwnerForPath, te
 describe("project structure ownership policy", () => {
   it("declares every production and test owner with one public entry", () => {
     expect(Object.keys(PROJECT_OWNERS)).toEqual([
-      "cli", "launch", "lifecycle", "protocol", "release", "storage", "supervision", "transparent-terminal",
+      "cli", "launch", "lifecycle", "protocol", "release", "storage", "supervision", "workspace-contracts", "transparent-terminal",
     ]);
     for (const owner of Object.values(PROJECT_OWNERS)) {
       expect(owner.publicEntry).toBe(`${owner.sourceRoot}/index.ts`);

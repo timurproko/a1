@@ -15,6 +15,7 @@ src/
     release/                   immutable releases, cohorts, update, rollback, cleanup
     storage/                   control-store persistence
     supervision/               endpoint and foreground-lease ownership
+    workspace-contracts/       dependency-free workspace, adapter, topology, host, and recovery contracts
     transparent-terminal/      exact command resolution and native attachment
 ```
 
