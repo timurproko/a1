@@ -1,0 +1,123 @@
+{
+  "schema": "addone-multi-agent-milestone-baseline-v1",
+  "recordedAt": "2026-08-13T17:49:35.803Z",
+  "branch": "milestone/multi-agent-workspace",
+  "source": {
+    "commit": "8f4a45b907c8ccfca9b6fad52bd12c2bfe7b1172",
+    "tree": "f702a5cc6fba92a430d00634504039f0d8f4a304",
+    "developCommitAtBranchCreation": "8f4a45b907c8ccfca9b6fad52bd12c2bfe7b1172",
+    "originDevelopAtBranchCreation": "a526a63062b2f93db821c631548da885e20dc41d",
+    "tagAtCommit": null,
+    "cleanAtBranchCreation": true
+  },
+  "runtime": {
+    "platform": "win32",
+    "architecture": "x64",
+    "osRelease": "10.0.26200",
+    "node": "v24.16.0",
+    "npm": "11.13.0"
+  },
+  "package": {
+    "name": "@timurproko/addone",
+    "version": "0.1.5-dev.10",
+    "packageManager": "npm@11.13.0",
+    "nodeRange": ">=22.19.0 <25",
+    "lockfileVersion": 3,
+    "packageJsonSha256": "fb5966d03c9efb8d7aa726cc0582f34227aa525bf28baaa492c0a8af7fa0b617",
+    "packageLockSha256": "626b54ca5b5619c71a2dc7d667d49e4746bdea268be6fafa0635011f97824b80",
+    "localTarball": {
+      "filename": "timurproko-addone-0.1.5-dev.10.tgz",
+      "integrity": "sha512-7gLuq3Ec8uU76jXNWiBYUYMdK9O8roRROjs36xOnhJ+M9jboSRLdSBc0zQQXNqmsD6xa9b/87o/UqymmkbsFlg==",
+      "shasum": "370482e37ba171f7bd52f57eb6969c6c5940c2f4",
+      "sha256": "1046f005802bd1372ae232d5301d038511f7c9f072d1e0cb1a4ea1965b5f112f",
+      "size": 80121,
+      "unpackedSize": 370136,
+      "fileCount": 167,
+      "note": "Locally packed milestone source; it intentionally differs from the already-published dev.10 bytes because later documentation and update wording commits are present."
+    },
+    "registry": {
+      "latest": "0.1.4",
+      "next": "0.1.5-dev.10",
+      "nextIntegrity": "sha512-XjwhIsCbZjJbAwFQjWLnSsSS6Lb21Uls1MhkQUXOAiJh5Fg7IfQI4Ol4gMUGuzxSzOf38Cor+F+zB8nHLh79Dg==",
+      "nextShasum": "4af9a7697ad79209214889a8c56f3bb19228fb65"
+    }
+  },
+  "launchProfiles": {
+    "terminalCapability": "transparent",
+    "addone": {
+      "invocation": "a1",
+      "configurationRoot": "~/.a1/agent",
+      "projectTrust": "pi-default"
+    },
+    "pi": {
+      "invocation": "a1 pi",
+      "configurationRoot": "~/.pi/agent",
+      "environmentRule": "PI_CODING_AGENT_DIR removed",
+      "projectTrust": "pi-default"
+    },
+    "sandbox": {
+      "invocation": "a1 sandbox",
+      "configurationRoot": "~/.a1/sandbox",
+      "projectTrust": "ignore",
+      "arguments": [
+        "--no-approve"
+      ]
+    },
+    "evidenceHashes": {
+      "documentationSha256": "0fcc0a7823dcdad2f00d6e2c82ba117d14b7cb2a2fcebfbb2615eafd94413003",
+      "contractsSha256": "bc63eeacdc65b89b0b4d84c2e25a4fb8f937d1864ab4275119a4a0aec707a38c",
+      "pathsSha256": "5a263fa07d3ccfd21a71721b43a99844d46f7cc15ed8f36caa556c1cc0cbbdfa",
+      "preparationSha256": "b5eb00f3c6ebbfda0dd9e8e793b6553b00720a4d24f24d5bcacf1d0f7183687d",
+      "isolationTestSha256": "9c72d63d2a4bcc143d73afbbe921821c3d813e10a4b0297288dff93bcb77d07e"
+    }
+  },
+  "gates": [
+    {
+      "command": "npm ci",
+      "passed": true,
+      "detail": "68 packages installed; 0 vulnerabilities"
+    },
+    {
+      "command": "npm run build",
+      "passed": true
+    },
+    {
+      "command": "npm run check",
+      "passed": true,
+      "detail": "typecheck, architecture, deprecated-dependency policy, 31 Vitest files/155 tests, and 1 release file/3 tests"
+    },
+    {
+      "command": "npm audit --audit-level=high --json",
+      "passed": true,
+      "detail": "0 vulnerabilities"
+    },
+    {
+      "command": "openspec validate --specs --strict --no-interactive",
+      "passed": true,
+      "detail": "7 main specifications"
+    },
+    {
+      "command": "openspec validate evolve-bare-a1-into-multi-agent-workspace --strict --no-interactive",
+      "passed": true
+    },
+    {
+      "command": "npm pack --ignore-scripts --json",
+      "passed": true,
+      "detail": "exact local tarball metadata and SHA-256 recorded"
+    }
+  ],
+  "releaseVerdict": {
+    "schema": "addone-development-preview-platform-verdict-v2",
+    "passed": true,
+    "certificationStatus": "uncertified-development-preview",
+    "terminalCapability": "transparent",
+    "physicalHostCertification": "deferred",
+    "crossPlatformCertification": "deferred",
+    "stableReleaseEligible": false
+  },
+  "desktopAutomation": "not-run",
+  "terminalApplicationsLaunched": false,
+  "physicalCertification": "deferred",
+  "stableReleaseEligible": false,
+  "passed": true
+}

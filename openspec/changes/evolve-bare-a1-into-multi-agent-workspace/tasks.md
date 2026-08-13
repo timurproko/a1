@@ -1,6 +1,6 @@
 ## 1. Establish the Milestone and Contracts
 
-- [ ] 1.1 Create `milestone/multi-agent-workspace` from clean `develop`, record exact baseline package/tag/profile evidence, and pass build, architecture, release, and strict OpenSpec gates without desktop automation.
+- [x] 1.1 Create `milestone/multi-agent-workspace` from clean `develop`, record exact baseline package/tag/profile evidence, and pass build, architecture, release, and strict OpenSpec gates without desktop automation.
 - [ ] 1.2 Define dependency-free workspace identity, lifecycle, capability, command, event, snapshot, terminal window/tab/pane/session, topology-revision, native-host, and recovery contracts; pass compatibility and invalid-contract fixtures.
 - [ ] 1.3 Extend architecture governance with owners and dependency directions for workspace, structured adapters, native-host protocol, native packaging, certification, and transparent terminal; reject terminal-to-structured inference, terminal-byte transport through Node, foundation-to-feature imports, and explicit-mode imports of composed infrastructure.
 - [ ] 1.4 Design versioned control-store migrations for workspace/agent/tab/pane/session identity, lifecycle, capability negotiation, host/topology revisions, bounded recovery references, and rollback metadata; pass forward, restart, rollback, and interrupted-migration tests.
