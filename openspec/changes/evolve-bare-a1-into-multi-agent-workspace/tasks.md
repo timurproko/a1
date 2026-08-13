@@ -9,7 +9,7 @@
 ## 2. Build the Structured Agent Runtime Independently
 
 - [x] 2.1 Implement protocol handshake and capability negotiation with version, identity, commands, event types, snapshot/resume, cancellation, attachments, and flow-control limits; pass valid/incompatible adapter tests.
-- [ ] 2.2 Implement validated ordered event reduction and authoritative snapshot replacement without terminal parsing; pass duplicate, gap, malformed, oversized, and resynchronization tests.
+- [x] 2.2 Implement validated ordered event reduction and authoritative snapshot replacement without terminal parsing; pass duplicate, gap, malformed, oversized, and resynchronization tests.
 - [ ] 2.3 Implement correlated command lifecycle, cancellation races, timeout, idempotent terminal outcomes, and per-agent concurrency limits; pass deterministic state-machine/property tests.
 - [ ] 2.4 Implement bounded backpressure for events, commands, snapshots, attachments, and reconnect replay so one adapter cannot block or exhaust others; pass high-rate and memory-budget fixtures.
 - [ ] 2.5 Implement ownership-proven structured reconnection and non-reconnectable termination semantics; pass stale-token, process-mismatch, version-mismatch, replay, and snapshot-recovery tests.
