@@ -2,17 +2,27 @@
 
 This checkpoint is intentionally manual. No AddOne test or agent should launch a terminal, focus a window, inject input, resize a window, close an application, or clean up processes on your desktop.
 
-## Build
+## Build and install in isolated paths
 
-From the checkout, run these commands yourself in the terminal where you want Native Pi to appear:
+From the checkout, run these commands yourself. They install the exact tarball under `artifacts/manual-transparent/install` rather than replacing your global AddOne package:
 
-```sh
+```powershell
 npm ci
 npm run build
-npm link
+npm install --prefix artifacts/manual-transparent/install --ignore-scripts artifacts/manual-transparent/timurproko-addone-0.1.5-dev.7.tgz
 ```
 
-By default, `addone` launches `pi` from your `PATH` with no added arguments. To select another exact command for generic testing, set:
+Before launch, give the candidate isolated config, data, runtime, and database paths so it cannot reuse or mutate your normal AddOne state:
+
+```powershell
+$manualRoot = (Resolve-Path "artifacts/manual-transparent").Path
+$env:ADDONE_CONFIG_DIR = "$manualRoot\state\config"
+$env:ADDONE_DATA_DIR = "$manualRoot\state\data"
+$env:ADDONE_RUNTIME_DIR = "$manualRoot\state\runtime"
+$env:ADDONE_DATABASE_PATH = "$manualRoot\state\data\control.sqlite3"
+```
+
+By default, the candidate launches `pi` from your `PATH` with no added arguments. To select another exact command for generic testing, set:
 
 - `ADDONE_TERMINAL_EXECUTABLE` to the executable;
 - `ADDONE_TERMINAL_ARGUMENTS_JSON` to a JSON array of exact arguments.
@@ -22,7 +32,7 @@ Example in PowerShell, entered manually:
 ```powershell
 $env:ADDONE_TERMINAL_EXECUTABLE = "pi"
 $env:ADDONE_TERMINAL_ARGUMENTS_JSON = '[]'
-addone
+& "artifacts/manual-transparent/install/node_modules/.bin/addone.cmd"
 ```
 
 Do not run `npm run test:physical:windows*` on your workstation. Those commands are blocked unless a disposable isolated worker attestation is present.

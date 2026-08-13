@@ -34,7 +34,7 @@ npm run build
 npm link
 ```
 
-`npm start` builds and launches a unique isolated AddOne development instance. For the manual-first transparent validation workflow, follow [`docs/manual-transparent-checkpoint.md`](docs/manual-transparent-checkpoint.md) and enter all launch/interaction commands yourself. Do not run physical automation on your workstation.
+`npm start` builds and launches a unique isolated AddOne development instance. For the manual-first transparent validation workflow, follow [`docs/manual-transparent-checkpoint.md`](docs/manual-transparent-checkpoint.md); it uses an isolated package prefix and state paths, and you enter all launch/interaction commands yourself. Do not run physical automation on your workstation.
 
 ## Version and update
 

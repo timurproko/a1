@@ -17,6 +17,9 @@ describe("transparent CLI composition", () => {
   it("documents an exclusively user-controlled manual checkpoint", async () => {
     const source = await readFile("docs/manual-transparent-checkpoint.md", "utf8");
     expect(source).toContain("run these commands yourself");
+    expect(source).toContain("--prefix artifacts/manual-transparent/install");
+    expect(source).toContain("ADDONE_DATA_DIR");
+    expect(source).toContain("install/node_modules/.bin/addone.cmd");
     expect(source).toContain("Do not run `npm run test:physical:windows*");
     expect(source).toContain("Ctrl+C and Ctrl+P remain distinct");
     expect(source).toContain("returns a usable parent prompt");
