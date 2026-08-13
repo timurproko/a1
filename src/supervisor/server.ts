@@ -5,14 +5,8 @@ import { platform } from "node:os";
 import {
   assertNativeProcessIdentity,
   assertTransparentTerminalLaunchProfile,
-  type AddOneEvent,
-  type AgentId,
   type CommandResult,
   type ForegroundTerminalLease,
-  type GenerationId,
-  type LogicalTerminalAgent,
-  type LogicalWorkspace,
-  type OrderedEvent,
   type SupervisorCommand,
   type SupervisorSnapshot,
 } from "../domain/index.js";
@@ -21,7 +15,6 @@ import type { MaterializedRelease } from "../release-store.js";
 import { ControlStore } from "../storage/index.js";
 import { resolveAddOnePaths, type AddOnePaths } from "./paths.js";
 
-/** Lifecycle-only supervisor used while terminal execution is unavailable. */
 export class SupervisorServer {
   readonly id = randomUUID();
   readonly bootNonce: string;
@@ -29,8 +22,6 @@ export class SupervisorServer {
   readonly startedAt = new Date().toISOString();
   readonly paths: AddOnePaths;
   #server: Server | null = null;
-  #workspace: LogicalWorkspace;
-  #agents: LogicalTerminalAgent[];
   #foregroundLease: ForegroundTerminalLease | null;
   #revision = 0;
   #clients = new Set<Socket>();
@@ -46,13 +37,11 @@ export class SupervisorServer {
   ) {
     this.bootNonce = bootNonce;
     this.paths = paths;
-    this.#workspace = store.loadWorkspace();
-    this.#agents = store.loadAgents();
     this.#foregroundLease = store.loadLiveForegroundTerminalLease();
   }
 
   snapshot(): SupervisorSnapshot {
-    return boundInitialSupervisorSnapshot({ revision: this.#revision, workspace: this.#workspace, agents: this.#agents });
+    return { revision: this.#revision };
   }
 
   async listen(): Promise<void> {
@@ -164,22 +153,16 @@ export class SupervisorServer {
     }
     let result: CommandResult;
     try {
-      if (command.type === "create-terminal-agent" || command.type === "ensure-initial-terminal-agent") {
-        throw new Error("terminal capability is unavailable during redesign");
-      }
       if (command.type === "acquire-foreground-terminal-lease") this.#acquireForegroundLease(command);
       if (command.type === "activate-foreground-terminal-lease") this.#activateForegroundLease(command);
       if (command.type === "heartbeat-foreground-terminal-lease") this.#heartbeatForegroundLease(command);
       if (command.type === "release-foreground-terminal-lease") this.#releaseForegroundLease(command);
-      if (command.type === "stop-agent") this.#stopRecordedGeneration(command.agentId, command.generationId);
       if (command.type === "resynchronize") this.#send(socket, { type: "snapshot", snapshot: this.snapshot() });
       await this.#metadataWrites;
       result = { requestId: command.requestId, ok: true, revision: this.#revision };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      const code = /capability is unavailable/i.test(message) ? "capability-error"
-        : /stale generation/i.test(message) ? "stale-generation"
-          : /not found/i.test(message) ? "not-found" : "driver-error";
+      const code = /not found/i.test(message) ? "not-found" : "driver-error";
       result = { requestId: command.requestId, ok: false, revision: this.#revision, error: { code, message } };
     }
     this.#results.set(command.requestId, result);
@@ -244,24 +227,6 @@ export class SupervisorServer {
     return this.#foregroundLease?.generationId ? [this.#foregroundLease.generationId] : [];
   }
 
-  #stopRecordedGeneration(agentId: AgentId, generationId: GenerationId): void {
-    const agent = this.#agents.find(candidate => candidate.id === agentId);
-    if (!agent) throw new Error(`agent ${agentId} not found`);
-    if (agent.currentGeneration.id !== generationId) throw new Error(`stale generation ${generationId}`);
-    if (["exited", "stopped", "interrupted", "error"].includes(agent.currentGeneration.state)) return;
-    this.store.markGeneration(agentId, generationId, "stopped");
-    this.#agents = this.#agents.map(candidate => candidate.id === agentId ? {
-      ...candidate,
-      currentGeneration: { ...candidate.currentGeneration, state: "stopped", exitedAt: new Date().toISOString() },
-    } : candidate);
-    this.#publish({ type: "generation-exited", agentId, generationId, exitCode: null, signal: null });
-  }
-
-  #publish(event: AddOneEvent): void {
-    const ordered: OrderedEvent = { revision: ++this.#revision, event };
-    for (const client of this.#clients) this.#send(client, { type: "event", ordered });
-  }
-
   #writeEndpointMetadata(): Promise<void> {
     const metadata = {
       ...localControlHello(this.release.releaseId),
@@ -299,13 +264,6 @@ export class SupervisorServer {
     }
     socket.write(frame);
   }
-}
-
-export function boundInitialSupervisorSnapshot(snapshot: SupervisorSnapshot): SupervisorSnapshot {
-  const selected = snapshot.agents.find(agent => agent.id === snapshot.workspace.selectedAgentId);
-  const active = selected && !["exited", "stopped", "interrupted", "error"].includes(selected.currentGeneration.state) ? selected : null;
-  const agents = active ? [active] : [];
-  return { ...snapshot, workspace: { ...snapshot.workspace, selectedAgentId: active?.id ?? null, agentIds: agents.map(agent => agent.id) }, agents };
 }
 
 function isMessageType(value: unknown, type: string): value is Record<string, unknown> {

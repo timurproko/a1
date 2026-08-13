@@ -14,7 +14,7 @@ describe("control-store migration", () => {
     const store = new ControlStore(join(root, "state", "control.sqlite3"));
     expect(store.database.prepare("PRAGMA user_version").get()).toMatchObject({ user_version: 2 });
     expect(store.database.prepare("PRAGMA journal_mode").get()).toMatchObject({ journal_mode: "wal" });
-    expect(store.loadWorkspace()).toMatchObject({ id: "workspace-default", selectedAgentId: null, agentIds: [] });
+    expect(store.database.prepare("SELECT id, selected_agent_id FROM workspaces").get()).toEqual({ id: "workspace-default", selected_agent_id: null });
     store.close();
   });
 
@@ -72,7 +72,8 @@ describe("control-store migration", () => {
     first.close();
 
     const second = new ControlStore(path, "boot-new");
-    expect(second.loadAgents()[0]?.currentGeneration).toMatchObject({ state: "interrupted", ownerBootNonce: "boot-old" });
+    expect(second.database.prepare("SELECT state, owner_boot_nonce FROM process_generations WHERE id = ?").get("generation"))
+      .toEqual({ state: "interrupted", owner_boot_nonce: "boot-old" });
     second.close();
   });
 });

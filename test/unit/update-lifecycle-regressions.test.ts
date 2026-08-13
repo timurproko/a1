@@ -48,11 +48,10 @@ describe("observed immediate-update lifecycle regressions", () => {
     seedReadyGeneration(path);
 
     const reopened = new ControlStore(path, "boot-new");
-    const [agent] = reopened.loadAgents();
+    const generation = reopened.database.prepare("SELECT state, owner_boot_nonce FROM process_generations WHERE id = ?").get("generation-stale");
     reopened.close();
 
-    expect(agent?.currentGeneration.state).toBe("interrupted");
-    expect(agent?.currentGeneration.ownerBootNonce).toBeNull();
+    expect(generation).toEqual({ state: "interrupted", owner_boot_nonce: null });
   });
 
   it.fails("does not restart an old cohort solely because its dead owner left generation rows", () => {

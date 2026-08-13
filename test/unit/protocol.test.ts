@@ -6,8 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { SupervisorClient } from "../../src/protocol/client.js";
-import { boundInitialSupervisorSnapshot } from "../../src/supervisor/server.js";
-import { encodeFrame, GENERATED_CONTRACT_DIGEST, LineFrameDecoder, localControlHello, MAX_CONTROL_FRAME_BYTES, negotiateControlFeatures } from "../../src/protocol/messages.js";
+import { encodeFrame, GENERATED_CONTRACT_DIGEST, LineFrameDecoder, localControlHello, negotiateControlFeatures } from "../../src/protocol/messages.js";
 
 describe("additive protocol framing", () => {
   it("decodes partial and combined LF frames", () => {
@@ -21,9 +20,9 @@ describe("additive protocol framing", () => {
     const decoder = new LineFrameDecoder();
     const [decoded] = decoder.push(encodeFrame({
       type: "command",
-      command: { type: "stop-agent", requestId: "stop-1", agentId: "agent-1", generationId: "generation-1" },
+      command: { type: "resynchronize", requestId: "sync-1" },
     })) as [{ command: Record<string, unknown> }];
-    expect(decoded.command).toMatchObject({ type: "stop-agent", requestId: "stop-1" });
+    expect(decoded.command).toMatchObject({ type: "resynchronize", requestId: "sync-1" });
     expect(JSON.stringify(decoded)).not.toMatch(/terminal-input|render-transaction|surface|dataBase64/);
   });
 
@@ -47,21 +46,6 @@ describe("additive protocol framing", () => {
     expect(decoder.push('{"type":"future-event","newField":true}\n')).toEqual([{ type: "future-event", newField: true }]);
   });
 
-  it("bounds the initial handshake to the selected live lifecycle record", () => {
-    const agents = Array.from({ length: 2_000 }, (_, index) => ({
-      id: `agent-${index}`, workspaceId: "workspace-test", name: `Agent ${index + 1}`, driverKind: "terminal" as const,
-      profile: { id: `profile-${index}`, kind: "native-pi" as const, executable: "pi", arguments: [], cwd: ".", environment: {}, terminalType: "xterm-256color", dimensions: { columns: 123, rows: 29 }, resume: "none" as const },
-      currentGeneration: { id: `generation-${index}`, agentId: `agent-${index}`, sequence: 1, profileId: `profile-${index}`, state: "exited" as const, capabilities: ["process-stop" as const], startedAt: new Date(0).toISOString(), exitedAt: new Date(0).toISOString(), exitCode: 0, signal: null, error: null, ownerBootNonce: "old" },
-      createdAt: new Date(0).toISOString(),
-    }));
-    const accumulated = { revision: 0, workspace: { id: "workspace-test", name: "Test", agentIds: agents.map(agent => agent.id), selectedAgentId: agents.at(-1)?.id ?? null, createdAt: new Date(0).toISOString() }, agents };
-    const bounded = boundInitialSupervisorSnapshot(accumulated);
-    const frame = encodeFrame({ type: "server-hello", ...localControlHello(), snapshot: bounded });
-
-    expect(bounded).toMatchObject({ workspace: { selectedAgentId: null, agentIds: [] }, agents: [] });
-    expect(Buffer.byteLength(frame, "utf8")).toBeLessThanOrEqual(MAX_CONTROL_FRAME_BYTES);
-  });
-
   it("retries when the verified supervisor endpoint disappears before the client connects", async () => {
     const identity = randomUUID();
     const endpoint = process.platform === "win32" ? `\\\\.\\pipe\\addone-client-retry-${identity}` : join(tmpdir(), `addone-client-retry-${identity}.sock`);
@@ -69,7 +53,7 @@ describe("additive protocol framing", () => {
       socket.once("data", () => socket.write(encodeFrame({
         type: "server-hello",
         ...localControlHello(),
-        snapshot: { revision: 0, workspace: { id: "workspace-test", name: "Test", agentIds: [], selectedAgentId: null, createdAt: "2026-01-01T00:00:00.000Z" }, agents: [] },
+        snapshot: { revision: 0 },
       })));
     });
     const client = new SupervisorClient();
@@ -80,7 +64,7 @@ describe("additive protocol framing", () => {
     try {
       const connected = client.connect(endpoint, 1_000);
       await listening;
-      await expect(connected).resolves.toMatchObject({ revision: 0, agents: [] });
+      await expect(connected).resolves.toEqual({ revision: 0 });
     } finally {
       client.close();
       if (server.listening) {

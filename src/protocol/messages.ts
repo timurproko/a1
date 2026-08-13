@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { CommandResult, OrderedEvent, SupervisorCommand, SupervisorSnapshot } from "../domain/index.js";
+import type { CommandResult, SupervisorCommand, SupervisorSnapshot } from "../domain/index.js";
 
 export const CONTROL_ENVELOPE = "addone-control-envelope" as const;
 export const CONTROL_ENVELOPE_REVISION = 1 as const;
@@ -45,7 +45,6 @@ export type ServerMessage =
   | { readonly type: "release-update-result"; readonly accepted: boolean; readonly reason: string; readonly liveGenerationIds: readonly string[] }
   | ({ readonly type: "server-hello"; readonly supervisorId: string; readonly bootNonce: string; readonly pidStartIdentity: string; readonly negotiatedFeatures: readonly string[]; readonly snapshot: SupervisorSnapshot } & ControlHello)
   | { readonly type: "snapshot"; readonly snapshot: SupervisorSnapshot }
-  | { readonly type: "event"; readonly ordered: OrderedEvent }
   | { readonly type: "command-result"; readonly result: CommandResult }
   | { readonly type: "protocol-error"; readonly code: string; readonly message: string; readonly diagnostics?: unknown };
 

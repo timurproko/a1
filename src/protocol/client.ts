@@ -1,12 +1,11 @@
 import { EventEmitter } from "node:events";
 import { connect, type Socket } from "node:net";
 import { randomUUID } from "node:crypto";
-import type { CommandResult, OrderedEvent, SupervisorCommand, SupervisorSnapshot } from "../domain/index.js";
+import type { CommandResult, SupervisorCommand, SupervisorSnapshot } from "../domain/index.js";
 import { CONTROL_ENVELOPE, CONTROL_ENVELOPE_REVISION, encodeFrame, LineFrameDecoder, localControlHello, negotiateControlFeatures, type ControlHello, type ServerMessage } from "./messages.js";
 
 interface ClientEvents {
   snapshot: [SupervisorSnapshot];
-  event: [OrderedEvent];
   disconnect: [];
 }
 
@@ -87,8 +86,6 @@ export class SupervisorClient extends EventEmitter<ClientEvents> {
               resolve(message.snapshot);
             } else if (message.type === "snapshot" && message.snapshot) {
               this.emit("snapshot", message.snapshot);
-            } else if (message.type === "event" && message.ordered) {
-              this.emit("event", message.ordered);
             } else if (message.type === "command-result" && message.result) {
               const pending = this.#pending.get(message.result.requestId);
               if (pending) {
