@@ -199,9 +199,13 @@ The strongest structural invariant is that AddOne does not execute on the ordina
 
 Structural proof is supplemented by independent physical-host comparison.
 
+#### Isolated physical-host execution
+
+Every physical-host driver and every terminal, shell, workload, automation helper, recorder, and cleanup process it creates runs inside a dedicated disposable worker or virtual machine with an exclusive interactive test desktop and no user-owned applications. The developer workstation may submit a non-interactive job and collect artifacts from an already isolated worker, but it does not launch, focus, drive, resize, or close test terminals and does not receive injected desktop input. Before launch, the runner proves the worker and desktop are dedicated; if it cannot, the gate reports a blocked verdict without spawning a terminal. Every process is recorded by PID plus start identity, cleanup is limited to that exact owned tree, and broad process-name, wildcard, or terminal-application termination is prohibited. Resetting the disposable worker is the final containment mechanism after failed cleanup.
+
 #### Windows physical-host driver
 
-A separate test tool launches controlled Windows Terminal profiles and originates actions through operating-system automation rather than AddOne's encoder. Its responsibilities are:
+Inside the dedicated isolated Windows worker, a separate test tool launches controlled Windows Terminal profiles and originates actions through operating-system automation rather than AddOne's encoder. Its responsibilities are:
 
 - send real key down/up and text input, including Ctrl+A-Z, Ctrl+C, Ctrl+P, modifiers, repeats, arrows, and IME-relevant text where automation permits;
 - drive clipboard paste, focus, mouse buttons, wheel, selection, and resize through physical host behavior;
@@ -344,7 +348,7 @@ Architecture checks reject:
 - **[Risk] Direct attachment weakens the original persistent-supervisor promise.** → Advertise transparent sessions as foreground/non-reconnectable; reserve persistent visual sessions for composed mode.
 - **[Risk] Foreground broker ownership complicates update shutdown.** → Register exact PID/start identity and lease ownership with the supervisor; reuse verified update cleanup without putting terminal bytes through the supervisor.
 - **[Risk] Direct child terminal modes can survive a crash.** → Prefer the child's native cleanup, retain a small bounded platform failsafe, and test abnormal exit against the parent terminal. The failsafe must not become a normal-path emulator.
-- **[Risk] Physical UI automation can be flaky.** → Use fixed terminal profiles, repeated paired trials, stable checkpoints, structural invariants, independent child recorders, retained screenshots/video, and manual acceptance for release candidates.
+- **[Risk] Physical UI automation can be flaky or interfere with the user's desktop.** → Run it only on dedicated disposable workers/VMs with exclusive test desktops, refuse execution when isolation is unproven, use ownership-scoped cleanup, fixed terminal profiles, repeated paired trials, stable checkpoints, structural invariants, independent child recorders, retained screenshots/video, and explicitly user-initiated manual acceptance for release candidates.
 - **[Risk] Pixel equality is sensitive to font and GPU state.** → Pin font, DPI, scale, theme, dimensions, renderer settings, and terminal version; separate deterministic fixture image gates from behavioral real-Pi checkpoints.
 - **[Risk] The WezTerm workspace is large and not all components are published crates.** → Pin one reviewed commit, minimize features, generate lockfiles/SBOM, cache reproducible toolchains, and reject the candidate if package size or maintenance burden is unacceptable.
 - **[Risk] Rust/native packaging increases release complexity.** → Prove standalone cross-platform builds before AddOne integration and retain libvterm/public-xterm fallbacks.
@@ -376,8 +380,9 @@ Rollback: revert cleanup commits on the milestone branch; do not publish the rev
 
 ### Stage 2: Independent physical-host oracle
 
+- Provision dedicated disposable per-platform workers or VMs with exclusive interactive test desktops, isolation preflight, exact process/start-identity tracking, ownership-scoped cleanup, and blocked verdicts when isolation is unavailable; never run physical-host automation on the user's active workstation.
 - Build the standalone child input/output recorder without importing AddOne terminal code.
-- Implement Windows Terminal OS-level action and screenshot driver first.
+- Implement the Windows Terminal OS-level action and screenshot driver only inside the isolated Windows worker first.
 - Record direct Native Pi and generic terminal baselines.
 - Add Linux and macOS host drivers after Windows criteria stabilize.
 

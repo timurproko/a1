@@ -15,6 +15,21 @@ Each full-system scenario SHALL isolate application state, supervisor storage, r
 - **WHEN** the machine contains normal Pi settings, extensions, sessions, and credentials
 - **THEN** a hermetic scenario SHALL not load or mutate them unless explicitly imported as identified input
 
+### Requirement: Physical-host automation is isolated from the user's desktop
+Any automated scenario that launches, focuses, drives, resizes, captures, or closes a terminal window, injects operating-system input, changes interactive desktop state, or cleans up terminal processes SHALL execute only inside a dedicated disposable worker or virtual machine with an exclusive interactive test desktop and no user-owned applications. The runner SHALL verify that isolation before the first process launch. It SHALL track test-owned processes by exact process and start identity, limit cleanup to that owned process tree, and SHALL NOT terminate processes by broad executable name, wildcard, terminal application identity, or unverified ownership.
+
+#### Scenario: Safe isolation is unavailable
+- **WHEN** a physical-host scenario cannot prove that it owns a dedicated isolated worker and exclusive interactive desktop
+- **THEN** it SHALL produce a blocked or skipped verdict with diagnostics without launching, focusing, driving, resizing, or closing any terminal or injecting any desktop input
+
+#### Scenario: Development workstation is active
+- **WHEN** an agent invokes a physical-host gate from a workstation containing the user's interactive session and applications
+- **THEN** the workstation MAY act only as a non-interactive controller for an already isolated worker and SHALL NOT host any terminal window or application process created by the gate
+
+#### Scenario: Physical-host cleanup runs
+- **WHEN** a physical-host scenario completes, fails, or times out
+- **THEN** cleanup SHALL stop only the exact process tree created and recorded by that scenario inside its isolated worker and SHALL leave every pre-existing or unverified process untouched
+
 ### Requirement: Architecture-independent tests survive terminal replacement
 Domain, storage, release-cohort, update-transaction, protocol framing, package identity, dependency-policy, and non-terminal lifecycle tests SHALL remain mandatory when they do not encode assumptions from the retired terminal pipeline.
 

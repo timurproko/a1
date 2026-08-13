@@ -2,7 +2,8 @@ param(
   [Parameter(Mandatory = $true)][string]$ArtifactRoot,
   [Parameter(Mandatory = $true)][string]$RepositoryRoot,
   [string]$ProfileName = "AddOne Physical Smoke",
-  [int]$TimeoutSeconds = 20
+  [int]$TimeoutSeconds = 20,
+  [string]$IsolationAttestationPath = $env:ADDONE_PHYSICAL_ISOLATION_ATTESTATION
 )
 
 $ErrorActionPreference = "Stop"
@@ -18,23 +19,49 @@ $ScreenshotAfter = Join-Path $ArtifactRoot "focused-after-input.png"
 $VerdictPath = Join-Path $ArtifactRoot "smoke-verdict.json"
 $FragmentRoot = Join-Path $env:LOCALAPPDATA "Microsoft\Windows Terminal\Fragments\AddOnePhysicalSmoke"
 $FragmentPath = Join-Path $FragmentRoot "AddOnePhysicalSmoke.json"
+$IsolationScript = Join-Path $PSScriptRoot "physical-worker-isolation.ps1"
 $ProfileGuid = "{6bde4698-e9a2-5b0f-9970-14064f7d50f5}"
 $Process = $null
 $Window = $null
 $Handle = [IntPtr]::Zero
 $WindowProcessId = $null
+$WindowProcessStartTimeUtc = $null
+$LauncherProcessId = $null
+$LauncherProcessStartTimeUtc = $null
+$ChildProcessId = $null
+$ChildProcessStartTimeUtc = $null
+$Isolation = $null
 $UiAutomationName = $null
 $Bounds = $null
 $terminalPackage = $null
 $Passed = $false
 $Failure = $null
-$Cleanup = [ordered]@{ attempted = $false; windowClosed = $false; childExited = $null; forced = $false; processId = $null }
+$Cleanup = [ordered]@{ attempted = $false; windowClosed = $false; childExited = $null; forced = $false; processId = $null; processStartTimeUtc = $null; ownershipVerified = $false }
 $Actions = New-Object System.Collections.Generic.List[object]
 
-New-Item -ItemType Directory -Force -Path $ArtifactRoot, $FragmentRoot | Out-Null
+New-Item -ItemType Directory -Force -Path $ArtifactRoot | Out-Null
 foreach ($path in @($LogPath, $ActionPath, $ScreenshotBefore, $ScreenshotAfter, $VerdictPath)) {
   Remove-Item -LiteralPath $path -Force -ErrorAction SilentlyContinue
 }
+
+# This preflight must run before creating a Terminal fragment, loading UI automation,
+# or spawning any process. A local developer desktop therefore produces only a
+# blocked verdict and cannot be disturbed by this gate.
+try {
+  . $IsolationScript
+  $Isolation = Assert-AddOnePhysicalWorkerIsolation -AttestationPath $IsolationAttestationPath -RepositoryRoot $RepositoryRoot
+} catch {
+  $blockedVerdict = [ordered]@{
+    schema = "addone-windows-native-ui-smoke-v2"; passed = $false; outcome = "blocked"; driver = $DriverVersion;
+    isolationVerified = $false; terminalSpawnAttempted = $false; failure = $_.Exception.Message;
+    completedAt = [DateTime]::UtcNow.ToString("o")
+  }
+  $blockedVerdict | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath $VerdictPath -Encoding UTF8
+  [Console]::Error.WriteLine($_.Exception.Message)
+  exit 2
+}
+
+New-Item -ItemType Directory -Force -Path $FragmentRoot | Out-Null
 
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
@@ -166,11 +193,14 @@ try {
   Record-Action "launch" "launch" ([ordered]@{ profile = $ProfileName; title = $WindowTitle })
   $terminalArguments = "-w new nt -p `"$ProfileName`" --title `"$WindowTitle`""
   $Process = Start-Process -FilePath "wt.exe" -ArgumentList $terminalArguments -PassThru
+  $LauncherProcessId = $Process.Id
+  $LauncherProcessStartTimeUtc = Get-AddOneProcessStartIdentity -ProcessId $LauncherProcessId
   $Window = Find-Window $WindowTitle $TimeoutSeconds
   $Handle = [IntPtr]$Window.Current.NativeWindowHandle
   if ($Handle -eq [IntPtr]::Zero) { throw "UI Automation returned no native window handle" }
   $UiAutomationName = $Window.Current.Name
   $WindowProcessId = [uint32]$Window.Current.ProcessId
+  $WindowProcessStartTimeUtc = Get-AddOneProcessStartIdentity -ProcessId $WindowProcessId
   if ($UiAutomationName -ne $WindowTitle) { throw "UI Automation window identity changed from '$WindowTitle' to '$UiAutomationName'" }
   [void][AddOneNativeUi]::ShowWindow($Handle, 9)
   [void][AddOneNativeUi]::MoveWindow($Handle, 80, 80, 1200, 760, $true)
@@ -194,6 +224,10 @@ try {
     if (Test-Path -LiteralPath $LogPath) { $logSource = Get-Content -LiteralPath $LogPath -Raw -ErrorAction SilentlyContinue } else { $logSource = "" }
   } while ($logSource -notmatch [Regex]::Escape($Text) -and [DateTime]::UtcNow -lt $deadline)
   if ($logSource -notmatch [Regex]::Escape($Text)) { throw "child recorder did not observe injected text" }
+  $startedChild = Get-Content -LiteralPath $LogPath | ForEach-Object { $_ | ConvertFrom-Json } | Where-Object kind -eq "recorder-started" | Select-Object -First 1
+  if (-not $startedChild) { throw "child recorder process identity was not recorded" }
+  $ChildProcessId = [int]$startedChild.pid
+  $ChildProcessStartTimeUtc = Get-AddOneProcessStartIdentity -ProcessId $ChildProcessId
   Start-Sleep -Milliseconds 300
   [void](Capture-Window $Handle $ScreenshotAfter)
   foreach ($path in @($ScreenshotBefore, $ScreenshotAfter)) {
@@ -207,6 +241,9 @@ try {
     try {
       $Cleanup.attempted = $true
       $Cleanup.processId = $WindowProcessId
+      $Cleanup.processStartTimeUtc = $WindowProcessStartTimeUtc
+      $Cleanup.ownershipVerified = Test-AddOneProcessStartIdentity -ProcessId $WindowProcessId -StartTimeUtc $WindowProcessStartTimeUtc
+      if (-not $Cleanup.ownershipVerified) { throw "refusing cleanup because Windows Terminal process ownership changed" }
       if ([AddOneNativeUi]::IsWindow($Handle)) {
         if (-not [AddOneNativeUi]::PostMessage($Handle, [AddOneNativeUi]::WM_CLOSE, [UIntPtr]::Zero, [IntPtr]::Zero)) {
           throw "PostMessage(WM_CLOSE) failed with Win32 error $([Runtime.InteropServices.Marshal]::GetLastWin32Error())"
@@ -223,9 +260,12 @@ try {
       if (Test-Path -LiteralPath $LogPath) {
         $started = Get-Content -LiteralPath $LogPath | ForEach-Object { $_ | ConvertFrom-Json } | Where-Object kind -eq "recorder-started" | Select-Object -First 1
         if ($started) {
+          if ($ChildProcessId -ne [int]$started.pid -or [string]::IsNullOrWhiteSpace($ChildProcessStartTimeUtc)) {
+            throw "refusing child cleanup verification because recorder ownership was not captured"
+          }
           $childDeadline = [DateTime]::UtcNow.AddSeconds(5)
-          while ((Get-Process -Id $started.pid -ErrorAction SilentlyContinue) -and [DateTime]::UtcNow -lt $childDeadline) { Start-Sleep -Milliseconds 100 }
-          $Cleanup.childExited = -not [bool](Get-Process -Id $started.pid -ErrorAction SilentlyContinue)
+          while ((Test-AddOneProcessStartIdentity -ProcessId $ChildProcessId -StartTimeUtc $ChildProcessStartTimeUtc) -and [DateTime]::UtcNow -lt $childDeadline) { Start-Sleep -Milliseconds 100 }
+          $Cleanup.childExited = -not (Test-AddOneProcessStartIdentity -ProcessId $ChildProcessId -StartTimeUtc $ChildProcessStartTimeUtc)
         }
       }
       if (-not $Cleanup.windowClosed -or $Cleanup.childExited -eq $false) { throw "exact Windows Terminal window or child remained after cleanup" }
@@ -236,19 +276,25 @@ try {
   } elseif ($Process) {
     $Cleanup.attempted = $true
     $Cleanup.forced = $true
-    $Cleanup.processId = $Process.Id
-    Stop-Process -Id $Process.Id -Force -ErrorAction SilentlyContinue
+    $Cleanup.processId = $LauncherProcessId
+    $Cleanup.processStartTimeUtc = $LauncherProcessStartTimeUtc
+    $Cleanup.ownershipVerified = Test-AddOneProcessStartIdentity -ProcessId $LauncherProcessId -StartTimeUtc $LauncherProcessStartTimeUtc
+    if ($Cleanup.ownershipVerified) { Stop-Process -Id $LauncherProcessId -Force -ErrorAction SilentlyContinue }
+    elseif (-not $Failure) { $Failure = "refusing cleanup because launcher process ownership changed"; $Passed = $false }
   }
   Record-Action "cleanup" "exit" ([ordered]@{ handle = $Handle.ToInt64(); processId = $Cleanup.processId; windowClosed = $Cleanup.windowClosed; childExited = $Cleanup.childExited; forced = $Cleanup.forced })
   Remove-Item -LiteralPath $FragmentPath -Force -ErrorAction SilentlyContinue
   if ((Test-Path $FragmentRoot) -and -not (Get-ChildItem $FragmentRoot -Force)) { Remove-Item $FragmentRoot -Force -ErrorAction SilentlyContinue }
 
   $verdict = [ordered]@{
-    schema = "addone-windows-native-ui-smoke-v1"; passed = $Passed; driver = $DriverVersion;
+    schema = "addone-windows-native-ui-smoke-v2"; passed = $Passed; outcome = if ($Passed) { "passed" } else { "failed" }; driver = $DriverVersion;
+    isolationVerified = $true; terminalSpawnAttempted = $true; isolation = $Isolation;
     windows = [Environment]::OSVersion.Version.ToString(); sessionId = (Get-Process -Id $PID).SessionId;
     windowsTerminalVersion = if ($terminalPackage) { $terminalPackage.Version.ToString() } else { $null };
     profile = $ProfileName; profileGuid = $ProfileGuid; title = $WindowTitle;
     uiAutomationName = $UiAutomationName; nativeWindowHandle = $Handle.ToInt64(); windowProcessId = $WindowProcessId;
+    windowProcessStartTimeUtc = $WindowProcessStartTimeUtc; launcherProcessId = $LauncherProcessId; launcherProcessStartTimeUtc = $LauncherProcessStartTimeUtc;
+    childProcessId = $ChildProcessId; childProcessStartTimeUtc = $ChildProcessStartTimeUtc;
     bounds = if ($Bounds) { $Bounds } else { $null }; actions = $Actions; cleanup = $Cleanup;
     screenshots = @([IO.Path]::GetFileName($ScreenshotBefore), [IO.Path]::GetFileName($ScreenshotAfter));
     childLog = [IO.Path]::GetFileName($LogPath); failure = $Failure; completedAt = [DateTime]::UtcNow.ToString("o")
