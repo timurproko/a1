@@ -1,0 +1,79 @@
+import { dirname, posix } from "node:path";
+
+export const PROJECT_OWNERS = Object.freeze({
+  cli: owner("cli", "entry", "src/cli", "test/cli", ["launch", "release"]),
+  launch: owner("launch", "feature", "src/features/launch", "test/features/launch", ["lifecycle", "transparent-terminal"]),
+  lifecycle: owner("lifecycle", "foundation", "src/foundation/lifecycle", "test/foundation/lifecycle", []),
+  protocol: owner("protocol", "foundation", "src/foundation/protocol", "test/foundation/protocol", ["lifecycle"]),
+  release: owner("release", "foundation", "src/foundation/release", "test/foundation/release", ["lifecycle", "protocol"]),
+  storage: owner("storage", "foundation", "src/foundation/storage", "test/foundation/storage", ["lifecycle"]),
+  supervision: owner("supervision", "foundation", "src/foundation/supervision", "test/foundation/supervision", ["lifecycle", "protocol", "release", "storage"]),
+  "transparent-terminal": owner(
+    "transparent-terminal",
+    "foundation",
+    "src/foundation/transparent-terminal",
+    "test/foundation/transparent-terminal",
+    ["lifecycle", "protocol", "supervision"],
+  ),
+});
+
+export const TEST_OWNERS = Object.freeze({
+  ...Object.fromEntries(Object.values(PROJECT_OWNERS).map(value => [value.id, value.testRoot])),
+  "repository-governance": "test/repository-governance",
+});
+
+export function inspectProjectStructureImports(files) {
+  const errors = [];
+  for (const [rawPath, source] of Object.entries(files)) {
+    const path = normalize(rawPath);
+    const consumer = projectOwnerForPath(path);
+    if (!consumer) continue;
+    for (const specifier of importsFrom(source)) {
+      if (!specifier.startsWith(".")) continue;
+      const targetPath = resolveTypeScriptImport(path, specifier);
+      const provider = projectOwnerForPath(targetPath);
+      if (!provider) {
+        errors.push(`${path}: relative import '${specifier}' resolves outside a declared production owner (${targetPath})`);
+        continue;
+      }
+      if (provider.id === consumer.id) continue;
+      if (!consumer.mayImport.includes(provider.id)) {
+        errors.push(`${path}: ${consumer.id} may not import ${provider.id} (${specifier})`);
+        continue;
+      }
+      if (targetPath !== provider.publicEntry) {
+        errors.push(`${path}: cross-owner import '${specifier}' must use ${provider.publicEntry}`);
+      }
+    }
+  }
+  return errors;
+}
+
+export function projectOwnerForPath(path) {
+  const normalized = normalize(path);
+  return Object.values(PROJECT_OWNERS).find(value => normalized === value.sourceRoot || normalized.startsWith(`${value.sourceRoot}/`)) ?? null;
+}
+
+export function testOwnerForPath(path) {
+  const normalized = normalize(path);
+  return Object.entries(TEST_OWNERS).find(([, root]) => normalized === root || normalized.startsWith(`${root}/`))?.[0] ?? null;
+}
+
+function owner(id, layer, sourceRoot, testRoot, mayImport) {
+  return Object.freeze({ id, layer, sourceRoot, testRoot, publicEntry: `${sourceRoot}/index.ts`, mayImport: Object.freeze(mayImport) });
+}
+
+function importsFrom(source) {
+  return [...source.matchAll(/(?:from\s+|import\s*\()(["'])([^"']+)\1/g)].map(match => match[2]);
+}
+
+function resolveTypeScriptImport(importer, specifier) {
+  const resolved = normalize(posix.normalize(posix.join(dirname(importer), specifier)));
+  if (resolved.endsWith(".js")) return `${resolved.slice(0, -3)}.ts`;
+  if (resolved.endsWith(".mjs")) return `${resolved.slice(0, -4)}.mts`;
+  return resolved;
+}
+
+function normalize(path) {
+  return path.replaceAll("\\", "/").replace(/^\.\//, "");
+}
