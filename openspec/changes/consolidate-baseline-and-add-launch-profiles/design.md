@@ -13,7 +13,8 @@ Pi provides the supported `PI_CODING_AGENT_DIR` configuration-root override. Lea
 - Establish a measured clean baseline where every retained artifact has one current owner.
 - Make project structure and documentation rules executable rather than aspirational.
 - Introduce deterministic normal, vanilla Pi, and sandbox launch profiles without changing terminal attachment.
-- Close the terminal-redesign decision and separate physical certification, composed terminal work, and later product features into future changes.
+- Keep bare `a1` as the stable product entry point that will evolve from the initial single-foreground agent experience into the later multi-agent UX.
+- Close the terminal-redesign decision, separate physical certification from product work, and produce the follow-up plan for multi-agent/composed-terminal implementation after this baseline.
 - Preserve release/update/protocol/storage behavior while modules move under clearer owners.
 
 **Non-Goals:**
@@ -23,7 +24,7 @@ Pi provides the supported `PI_CODING_AGENT_DIR` configuration-root override. Lea
 - Running or completing deferred physical desktop automation.
 - Importing implementation from `Desktop\v2` or retaining compatibility with its private Pi host patches.
 - Treating `sandbox` as a process, filesystem, credential, network, VM, or container security boundary.
-- Adding an `a1 agent` alias or defining wrapper-specific Pi flags as AddOne product commands.
+- Adding an `a1 agent` alias or defining wrapper-specific Pi flags as AddOne product commands; bare `a1` is the agent product surface.
 - Automatically migrating, copying, or sharing credentials among Pi profiles.
 
 ## Decisions
@@ -130,10 +131,11 @@ sandbox         -> profile sandbox
 version         -> maintenance
 update          -> maintenance
 update:next     -> maintenance
+agent           -> usage error explaining bare a1 is the agent experience
 other           -> usage error
 ```
 
-Both binaries use the same dispatcher. The selected interactive profile becomes a typed descriptor passed through bootstrap to the immutable release foreground entry. It contains profile identity and child environment changes, not terminal behavior. The release/supervisor handshake stays profile-agnostic except where launch identity is required for diagnostics.
+Both binaries use the same dispatcher. The initial bare invocation selects one transparent foreground profile, but its command identity is intentionally stable so the later multi-agent shell can replace that presentation without adding a new top-level command. The selected interactive profile becomes a typed descriptor passed through bootstrap to the immutable release foreground entry. It contains profile identity and child environment changes, not terminal behavior. The release/supervisor handshake stays profile-agnostic except where launch identity is required for diagnostics.
 
 No shell command string is constructed. The existing generic executable resolution continues to resolve the exact `pi` executable/npm shim safely. Interactive launch remains one foreground lease.
 
@@ -163,17 +165,17 @@ Alternative: symlink `.a1` authentication to `.pi`. Rejected because it violates
 
 Alternative: sandbox automatically trusts project files. Rejected because it weakens the expected isolation between the selected sandbox profile and a repository's executable resources.
 
-### 8. Keep transparent mode frozen and create future changes only from feature need
+### 8. Keep transparent mode frozen and require the next bare-`a1` multi-agent plan
 
 Transparent mode remains:
 
 ```text
-AddOne lifecycle/lease -> one foreground child -> inherited physical terminal
+bare a1 (initial) -> AddOne lifecycle/lease -> one foreground child -> inherited physical terminal
 ```
 
-It can launch arbitrary commands but cannot retain multiple internal terminal surfaces. A future AddOne multi-agent UI should prefer structured/RPC agents where possible. If product scope requires multiple arbitrary interactive CLI tabs, create a dedicated composed-terminal proposal covering PTY ownership, authoritative state, input routing, inactive surfaces, and cross-platform certification. Do not start candidate evaluation during this consolidation.
+It can launch arbitrary commands but cannot retain multiple internal terminal surfaces. After this change passes manual acceptance, create the next OpenSpec change for evolving bare `a1` into the multi-agent UX; do not introduce `a1 agent`. That follow-up should prefer structured/RPC surfaces for managed agents and separately design composed terminal ownership for arbitrary CLI tabs, covering PTYs, authoritative terminal state, rendering, input routing, inactive surfaces, reconnection, process isolation, and cross-platform certification. Candidate selection and implementation remain outside this consolidation.
 
-This prevents cleanup/profile work from reopening the architecture that the user has accepted while keeping the true multi-agent requirement visible.
+`a1 pi` remains the always-available vanilla Pi comparison path and `a1 sandbox` remains isolated profile experimentation after bare `a1` gains multi-agent UX. This prevents profile/cleanup work from reopening the accepted architecture while making the next product milestone explicit.
 
 ## Risks / Trade-offs
 
@@ -196,5 +198,6 @@ This prevents cleanup/profile work from reopening the architecture that the user
 6. Pass focused CLI/profile tests, hermetic profile-resource integration tests, architecture/type/dependency/unit/integration/update/package/release gates, and strict OpenSpec validation.
 7. Provide manual commands for the user to launch bare AddOne, vanilla Pi, and sandbox without agent-driven desktop interaction; correct findings and repeat applicable gates.
 8. Publish a new immutable `next` preview only after explicit acceptance.
+9. Create a separate proposal/design/spec/task plan for bare `a1` multi-agent UX and its composed arbitrary-CLI tab capability, using the accepted baseline as a non-regression path.
 
 Rollback is commit-granular. Before publication, revert the affected phase. After preview publication, retain stable `latest`, restore the prior `next` tag if necessary, and issue a new immutable preview rather than replacing published bytes.

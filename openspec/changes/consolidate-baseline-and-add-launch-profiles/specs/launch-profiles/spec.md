@@ -5,7 +5,7 @@ Defines the stable AddOne command grammar and isolated Pi profile roots used for
 ## ADDED Requirements
 
 ### Requirement: AddOne exposes exactly three interactive launch forms
-The `a1` and `addone` binaries SHALL be behaviorally equivalent. Bare invocation SHALL launch the normal AddOne profile, the `pi` subcommand SHALL launch the vanilla Pi baseline, and the `sandbox` subcommand SHALL launch the isolated sandbox profile. AddOne SHALL NOT expose an `agent` subcommand alias.
+The `a1` and `addone` binaries SHALL be behaviorally equivalent. Bare invocation SHALL be the AddOne agent product surface and initially launch the normal single-foreground AddOne profile, the `pi` subcommand SHALL launch the vanilla Pi baseline, and the `sandbox` subcommand SHALL launch the isolated sandbox profile. AddOne SHALL NOT expose an `agent` subcommand alias; future multi-agent UX SHALL evolve bare invocation.
 
 #### Scenario: Launch normal AddOne
 - **WHEN** the user runs `a1` or `addone` without a subcommand
@@ -21,7 +21,11 @@ The `a1` and `addone` binaries SHALL be behaviorally equivalent. Bare invocation
 
 #### Scenario: Agent alias is requested
 - **WHEN** the user runs `a1 agent` or `addone agent`
-- **THEN** AddOne SHALL reject the unknown subcommand and display concise usage without launching Pi
+- **THEN** AddOne SHALL reject the unknown subcommand, explain that bare `a1`/`addone` is the agent experience, and display concise usage without launching Pi
+
+#### Scenario: Multi-agent UX is introduced later
+- **WHEN** a separately approved multi-agent change replaces the initial single-foreground AddOne presentation
+- **THEN** bare `a1`/`addone` SHALL remain the entry point and `a1 pi` plus `a1 sandbox` SHALL retain their explicit baseline/profile meanings
 
 ### Requirement: Launch profiles use explicit user roots
 The normal AddOne profile SHALL use `<home>/.a1/agent`, the sandbox profile SHALL use `<home>/.a1/sandbox`, and the vanilla Pi profile SHALL preserve Pi's ordinary `<home>/.pi/agent` behavior. Path resolution SHALL use the effective user home consistently across Windows, macOS, and Linux and SHALL remain overrideable in hermetic tests.

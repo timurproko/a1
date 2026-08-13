@@ -97,8 +97,12 @@ Architecture and hygiene rules SHALL be enforced by deterministic checks that re
 - **THEN** every production file, test, document, workflow, and dependency SHALL have a current owner and all mandatory architecture, type, unit, integration, update, package, and release checks SHALL pass
 
 ### Requirement: Transparent and composed scope remain explicit
-The accepted transparent baseline SHALL support one direct full-viewport foreground terminal session and SHALL not claim AddOne-managed arbitrary-CLI tabs, resident terminal surfaces, input routing among internal tabs, or visual reconnection. Any such arbitrary-CLI multi-tab capability SHALL require a separate composed-terminal change with its own authority and certification plan.
+The accepted transparent baseline SHALL support one direct full-viewport foreground terminal session and SHALL not claim AddOne-managed arbitrary-CLI tabs, resident terminal surfaces, input routing among internal tabs, or visual reconnection. After the baseline/profile change completes, AddOne SHALL create a separate follow-up plan for evolving bare `a1` into the multi-agent UX. That plan SHALL distinguish structured/RPC agent surfaces from arbitrary interactive CLI tabs and SHALL define a composed-terminal authority and certification plan for the latter.
 
 #### Scenario: Product planning requests multiple arbitrary CLI tabs
-- **WHEN** a future feature needs inactive interactive CLIs to remain resident and switchable inside AddOne
+- **WHEN** the future bare-`a1` multi-agent UX needs inactive interactive CLIs to remain resident and switchable inside AddOne
 - **THEN** planning SHALL introduce a separate composed-terminal capability rather than modifying transparent mode or reactivating raw relay experiments implicitly
+
+#### Scenario: Multi-agent planning begins
+- **WHEN** the accepted baseline and three launch profiles are complete
+- **THEN** the next change SHALL plan bare `a1` as the multi-agent UX entry point while preserving `a1 pi` as vanilla Pi and `a1 sandbox` as isolated profile experimentation
