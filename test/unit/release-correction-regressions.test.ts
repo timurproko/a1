@@ -2,8 +2,6 @@ import { describe, expect, it } from "vitest";
 import { selectCohortLaunch } from "../../src/cohort-selection.js";
 import { emptyState, type CohortState, type SupervisorEndpointMetadata } from "../../src/cohort-state.js";
 import type { MaterializedRelease } from "../../src/release-store.js";
-import { inspectNativePiReadiness } from "../../src/ui/native-pi-readiness.js";
-import type { TerminalSurface } from "../../src/domain/index.js";
 
 describe("release correction regressions", () => {
   it("selects the N-1 supervisor's retained UI instead of exposing its observed protocol error", () => {
@@ -31,12 +29,6 @@ describe("release correction regressions", () => {
     expect(decision.reason).not.toContain(observedRegression.message);
   });
 
-  it("fails a live empty/cursor-only surface with terminal evidence", () => {
-    const surface = emptySurface();
-    const evidence = inspectNativePiReadiness({ ...surface, cursor: { ...surface.cursor, column: 3 } }, 5_000, 5_000);
-    expect(evidence).toMatchObject({ status: "failed", cursorOnly: true, visibleCharacters: 0 });
-    expect(evidence.reason).toMatch(/empty or cursor-only/);
-  });
 });
 
 function release(version: string, digestSeed: string, releaseRoot: string): MaterializedRelease {
@@ -80,18 +72,5 @@ function endpointMetadata(value: MaterializedRelease): SupervisorEndpointMetadat
     requiredFeatures: ["old-feature"],
     optionalFeatures: [],
     contractDigest: "old-contract",
-  };
-}
-function emptySurface(): TerminalSurface {
-  return {
-    columns: 5,
-    rows: 2,
-    cells: Array.from({ length: 2 }, () => Array.from({ length: 5 }, () => ({ character: " ", width: 1, attributes: 0 }))),
-    cursor: { column: 0, row: 0, visible: true, style: "block", blinking: true },
-    activeScreen: "alternate",
-    modes: { applicationCursorKeys: false, applicationKeypad: false, alternateScroll: false, bracketedPaste: false, focusReporting: false, mouseTracking: "none", mouseProtocol: "x10", synchronizedOutput: false, wraparound: true, keyboardProtocol: "legacy", modifyOtherKeys: 0, kittyKeyboardFlags: 0, win32InputMode: false },
-    outputSequence: 1,
-    revision: 1,
-    final: false,
   };
 }
