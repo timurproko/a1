@@ -166,6 +166,7 @@ jobs:
           node --input-type=module <<'NODE'
           const packageUrl = "https://registry.npmjs.org/@timurproko%2faddone";
           let lastError;
+          let verified = false;
           for (let attempt = 1; attempt <= 12; attempt += 1) {
             try {
               const response = await fetch(`${packageUrl}?verify=${Date.now()}`, {
@@ -180,13 +181,14 @@ jobs:
               if (metadata["dist-tags"]?.next !== process.env.version) throw new Error("next tag has not propagated");
               if (metadata["dist-tags"]?.latest !== "0.1.4") throw new Error("latest tag changed unexpectedly");
               console.log(`Verified: ${process.env.version}\nnext: ${metadata["dist-tags"].next}\nlatest: ${metadata["dist-tags"].latest}`);
-              process.exit(0);
+              verified = true;
+              break;
             } catch (error) {
               lastError = error;
               if (attempt < 12) await new Promise(resolve => setTimeout(resolve, 5000));
             }
           }
-          throw lastError;
+          if (!verified) throw lastError;
           NODE
 
       - name: Upload publication evidence
