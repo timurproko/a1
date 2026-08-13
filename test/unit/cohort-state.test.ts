@@ -62,9 +62,9 @@ describe("atomic release references", () => {
     const store = new CohortStateStore(root);
     const candidate = release("2.0.0", "3");
     await store.recordCandidate(candidate);
-    const blocked = await store.blockPending("busy non-resumable PTY", ["generation-live"]);
+    const blocked = await store.blockPending("busy non-resumable foreground generation", ["generation-live"]);
     expect(blocked.activation).toMatchObject({ state: "blocked", blockerGenerationIds: ["generation-live"] });
-    expect((await store.read()).activation.reason).toBe("busy non-resumable PTY");
+    expect((await store.read()).activation.reason).toBe("busy non-resumable foreground generation");
   });
 });
 

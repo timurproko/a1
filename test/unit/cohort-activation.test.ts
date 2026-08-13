@@ -5,14 +5,14 @@ import { emptyState, type CohortState, type SupervisorEndpointMetadata } from ".
 import type { MaterializedRelease } from "../../src/release-store.js";
 
 describe("cohort activation and stale ownership", () => {
-  it("drains an idle old cohort but defers around a live non-resumable generation", () => {
+  it("replaces an idle cohort but retains a verified busy foreground generation", () => {
     const old = release("1.0.0", "a");
     const candidate = release("1.1.0", "b");
     const state = stateWith(old, candidate);
     const idle = metadata(old, []);
     expect(selectCohortLaunch(candidate, state, idle, "live-verified")).toMatchObject({ action: "replace-idle-cohort", pid: idle.pid });
 
-    const busy = metadata(old, ["pty-generation"]);
+    const busy = metadata(old, ["foreground-generation"]);
     expect(selectCohortLaunch(candidate, state, busy, "live-verified")).toMatchObject({
       action: "launch-retained-ui",
       releaseId: old.releaseId,
@@ -24,7 +24,7 @@ describe("cohort activation and stale ownership", () => {
     const old = release("1.0.0", "c");
     const candidate = release("1.1.0", "d");
     const state = stateWith(old, candidate);
-    const busy = metadata(old, ["pty-generation"]);
+    const busy = metadata(old, ["foreground-generation"]);
     expect(selectCohortLaunch(candidate, state, busy, "unresponsive")).toMatchObject({ action: "blocked" });
     await expect(cleanupProvenIdleOwner(busy)).rejects.toThrow(/recorded live generations/);
 
