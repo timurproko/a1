@@ -31,6 +31,8 @@
     "test": "vitest run",
     "test:unit": "vitest run test/unit",
     "test:integration": "vitest run test/integration",
+    "test:physical:windows": "npm run test:physical:windows:smoke",
+    "test:physical:windows:smoke": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File test/physical-host/windows/native-ui-smoke.ps1 -ArtifactRoot artifacts/windows-native-ui-smoke -RepositoryRoot .",
     "test:release": "node scripts/run-release-gates.mjs",
     "start": "npm run build && node scripts/start-local.mjs",
     "prepack": "node scripts/prepack-gate.mjs",
