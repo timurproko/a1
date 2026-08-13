@@ -35,7 +35,7 @@ $env:ADDONE_TERMINAL_ARGUMENTS_JSON = '[]'
 & "artifacts/manual-transparent/install/node_modules/.bin/addone.cmd"
 ```
 
-Do not run `npm run test:physical:windows*` on your workstation. Those commands are blocked unless a disposable isolated worker attestation is present.
+Physical terminal automation is not part of this repository baseline. Any future certification tooling must run only on dedicated disposable workers or VMs with exclusive test desktops, never on this workstation.
 
 ## Checklist
 

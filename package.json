@@ -31,8 +31,6 @@
     "test": "vitest run",
     "test:unit": "vitest run test/unit",
     "test:integration": "vitest run test/integration",
-    "test:physical:windows": "npm run test:physical:windows:smoke",
-    "test:physical:windows:smoke": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File test/physical-host/windows/native-ui-smoke.ps1 -ArtifactRoot artifacts/windows-native-ui-smoke -RepositoryRoot .",
     "test:release": "node scripts/run-release-gates.mjs",
     "start": "npm run build && node scripts/start-local.mjs",
     "prepack": "node scripts/prepack-gate.mjs",
@@ -47,7 +45,6 @@
     "@types/cross-spawn": "6.0.6",
     "@types/node": "24.2.1",
     "@types/semver": "7.8.0",
-    "ajv": "8.20.0",
     "tsx": "4.20.3",
     "typescript": "5.9.2",
     "vitest": "3.2.7"
