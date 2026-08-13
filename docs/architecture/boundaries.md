@@ -42,3 +42,5 @@ The workspace feature may depend on workspace contracts and the structured/nativ
 The structured-agent runtime must use typed events, commands, snapshots, cancellation, and recovery evidence. It must not infer structured semantics from terminal text, terminal timing, or visual content and must not own pseudoterminals or renderer state.
 
 The native-host protocol boundary may carry only bounded typed control and semantic lifecycle messages. Pseudoterminal bytes, per-event child input, rendered cells, cell grids, framebuffers, and screen buffers are forbidden across it. Native host executables and packaging live outside the current JavaScript production owners and remain unavailable until the isolated Windows 2×2 proof passes; replacing them with a lightweight custom parser/renderer is forbidden.
+
+Resource queues, retained state, evidence, logs, and diagnostics follow `docs/architecture/resource-and-data-policy.md`. Terminal content and authentication material are never control-store records. Unknown data is potentially sensitive by default and must be rejected or redacted before persistence.
