@@ -15,8 +15,8 @@ src/
     protocol/                  control framing and client contracts
     release/                   immutable releases, cohorts, update, rollback, cleanup
     storage/                   control-store persistence
-    structured-agent-runtime/  dormant structured/RPC event, command, and recovery semantics
-    native-host-protocol/      dormant native-host identity, topology, lifecycle, and recovery protocol
+    structured-agent-runtime/  structured/RPC handshake, event, command, and recovery semantics
+    native-host-protocol/      planned native-host identity, topology, lifecycle, and recovery protocol
     supervision/               endpoint and foreground-lease ownership
     workspace-contracts/       dependency-free workspace, adapter, topology, host, and recovery contracts
     transparent-terminal/      exact command resolution and native attachment

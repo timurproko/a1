@@ -39,7 +39,7 @@ The repository has no production PTY or terminal-emulator dependency. Reintroduc
 
 The workspace feature may depend on workspace contracts and the structured/native-host foundations. Those foundations may depend only on dependency-free workspace contracts, never on product features, launch profiles, or each other unless an approved capability adds the dependency. Explicit launch profiles and transparent fallback may not import, initialize, launch, or connect to composed native-host infrastructure.
 
-The structured-agent runtime must use typed events, commands, snapshots, cancellation, and recovery evidence. It must not infer structured semantics from terminal text, terminal timing, or visual content and must not own pseudoterminals or renderer state.
+The structured-agent runtime uses a versioned adapter hello and feature negotiation before readiness. Runtime state must use typed events, commands, snapshots, cancellation, and recovery evidence. It must not infer structured semantics from terminal text, terminal timing, or visual content and must not own pseudoterminals or renderer state.
 
 The native-host protocol boundary may carry only bounded typed control and semantic lifecycle messages. Pseudoterminal bytes, per-event child input, rendered cells, cell grids, framebuffers, and screen buffers are forbidden across it. Native host executables and packaging live outside the current JavaScript production owners and remain unavailable until the isolated Windows 2×2 proof passes; replacing them with a lightweight custom parser/renderer is forbidden.
 
