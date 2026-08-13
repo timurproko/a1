@@ -23,10 +23,22 @@ import type {
   TransparentTerminalLifecycleOutcome,
 } from "../lifecycle/index.js";
 
-const INITIAL_WORKSPACE_ID = "workspace-default";
+export const DEFAULT_WORKSPACE_ID = "workspace-default";
+const INITIAL_WORKSPACE_ID = DEFAULT_WORKSPACE_ID;
+
+export interface WorkspaceAgentPresentation {
+  readonly unreadActivity: number;
+  readonly attention: boolean;
+  readonly failure: { readonly code: string; readonly message: string } | null;
+}
+
+export interface StoredWorkspaceAgent {
+  readonly agent: ManagedAgentDescriptor;
+  readonly presentation: WorkspaceAgentPresentation;
+}
 
 interface ForegroundLeaseRow { id: string; owner_id: string; profile_json: string; state: ForegroundTerminalLease["state"]; generation_id: string | null; process_identity_json: string | null; acquired_at: string; heartbeat_at: string | null; released_at: string | null; outcome_json: string | null; owner_boot_nonce: string }
-interface WorkspaceAgentRow { id: string; workspace_id: string; display_name: string; adapter_id: string; runtime_kind: string; lifecycle: string; capability_json: string; recovery_reference_id: string | null; created_at: string; updated_at: string }
+interface WorkspaceAgentRow { id: string; workspace_id: string; display_name: string; adapter_id: string; runtime_kind: string; lifecycle: string; capability_json: string; recovery_reference_id: string | null; unread_count: number; attention: number; failure_json: string | null; created_at: string; updated_at: string }
 interface HostTopologyRow { host_instance_id: string; protocol_version: number; revision: number; topology_json: string; rollback_json: string; updated_at: string }
 interface TerminalSessionRow { id: string; host_instance_id: string; pane_id: string; lifecycle: string; launch_json: string; recovery_reference_id: string | null; updated_at: string }
 interface RecoveryReferenceRow { id: string; agent_id: string; authority_json: string; status: "pending" | "accepted" | "rejected" | "discontinuous"; rollback_json: string; created_at: string; updated_at: string }
@@ -49,7 +61,7 @@ export class ControlStore {
   migrate(): void {
     const versionRow = this.database.prepare("PRAGMA user_version").get() as { user_version: number };
     const version = versionRow.user_version;
-    if (version > 3) throw new Error(`control database version ${version} is newer than supported version 3`);
+    if (version > 4) throw new Error(`control database version ${version} is newer than supported version 4`);
     if (version === 0) {
       this.database.exec(`
         BEGIN IMMEDIATE;
@@ -180,6 +192,17 @@ export class ControlStore {
         COMMIT;
       `);
     }
+    if (version <= 3) {
+      this.database.exec(`
+        BEGIN IMMEDIATE;
+        ALTER TABLE workspace_agents ADD COLUMN unread_count INTEGER NOT NULL DEFAULT 0 CHECK (unread_count >= 0);
+        ALTER TABLE workspace_agents ADD COLUMN attention INTEGER NOT NULL DEFAULT 0 CHECK (attention IN (0, 1));
+        ALTER TABLE workspace_agents ADD COLUMN failure_json TEXT CHECK (failure_json IS NULL OR json_valid(failure_json));
+        ALTER TABLE workspaces ADD COLUMN revision INTEGER NOT NULL DEFAULT 0 CHECK (revision >= 0);
+        PRAGMA user_version = 4;
+        COMMIT;
+      `);
+    }
   }
 
   reconcilePriorBootGenerations(bootNonce: string): number {
@@ -253,10 +276,69 @@ export class ControlStore {
   }
 
   persistWorkspaceAgent(agent: ManagedAgentDescriptor, updatedAt = new Date().toISOString()): void {
-    assertManagedAgentDescriptor(agent);
+    const existing = this.loadWorkspaceAgentRecord(agent.id);
+    this.persistWorkspaceAgentRecord({
+      agent,
+      presentation: existing?.presentation ?? { unreadActivity: 0, attention: false, failure: null },
+    }, updatedAt);
+  }
+
+  persistWorkspaceAgentRecord(record: StoredWorkspaceAgent, updatedAt = new Date().toISOString()): void {
+    assertManagedAgentDescriptor(record.agent);
+    assertWorkspaceAgentPresentation(record.presentation);
+    this.#upsertWorkspaceAgentRecord(record, updatedAt);
+  }
+
+  replaceWorkspaceAgentRecords(records: readonly StoredWorkspaceAgent[], selectedAgentId: string | null, revision: number, updatedAt = new Date().toISOString()): void {
+    if (!Number.isSafeInteger(revision) || revision < 0) throw new RangeError("workspace revision must be a non-negative safe integer");
+    const ids = new Set<string>();
+    for (const record of records) {
+      assertManagedAgentDescriptor(record.agent);
+      assertWorkspaceAgentPresentation(record.presentation);
+      if (ids.has(record.agent.id)) throw new TypeError(`duplicate workspace agent id: ${record.agent.id}`);
+      ids.add(record.agent.id);
+    }
+    if (selectedAgentId !== null && !ids.has(selectedAgentId)) throw new TypeError("selected workspace agent must exist in the replacement set");
+    this.#transaction(() => {
+      if (records.length === 0) this.database.prepare("DELETE FROM workspace_agents").run();
+      else {
+        const placeholders = records.map(() => "?").join(", ");
+        this.database.prepare(`DELETE FROM workspace_agents WHERE id NOT IN (${placeholders})`).run(...records.map(record => record.agent.id));
+      }
+      for (const record of records) this.#upsertWorkspaceAgentRecord(record, updatedAt);
+      this.database.prepare("UPDATE workspaces SET selected_agent_id = ?, revision = ? WHERE id = ?").run(selectedAgentId, revision, INITIAL_WORKSPACE_ID);
+    });
+  }
+
+  loadWorkspaceAgents(): ManagedAgentDescriptor[] {
+    return this.loadWorkspaceAgentRecords().map(record => record.agent);
+  }
+
+  loadWorkspaceAgentRecord(agentId: string): StoredWorkspaceAgent | null {
+    const row = this.database.prepare("SELECT * FROM workspace_agents WHERE id = ?").get(agentId) as WorkspaceAgentRow | undefined;
+    return row ? workspaceAgentFromRow(row) : null;
+  }
+
+  loadWorkspaceAgentRecords(): StoredWorkspaceAgent[] {
+    const rows = this.database.prepare("SELECT * FROM workspace_agents ORDER BY created_at, id").all() as unknown as WorkspaceAgentRow[];
+    return rows.map(workspaceAgentFromRow);
+  }
+
+  loadSelectedWorkspaceAgentId(): string | null {
+    const row = this.database.prepare("SELECT selected_agent_id FROM workspaces WHERE id = ?").get(INITIAL_WORKSPACE_ID) as { selected_agent_id: string | null } | undefined;
+    return row?.selected_agent_id ?? null;
+  }
+
+  loadWorkspaceRevision(): number {
+    const row = this.database.prepare("SELECT revision FROM workspaces WHERE id = ?").get(INITIAL_WORKSPACE_ID) as { revision: number } | undefined;
+    return row?.revision ?? 0;
+  }
+
+  #upsertWorkspaceAgentRecord(record: StoredWorkspaceAgent, updatedAt: string): void {
+    const agent = record.agent;
     this.database.prepare(`INSERT INTO workspace_agents
-      (id, workspace_id, display_name, adapter_id, runtime_kind, lifecycle, capability_json, recovery_reference_id, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      (id, workspace_id, display_name, adapter_id, runtime_kind, lifecycle, capability_json, recovery_reference_id, unread_count, attention, failure_json, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
         workspace_id = excluded.workspace_id,
         display_name = excluded.display_name,
@@ -265,26 +347,25 @@ export class ControlStore {
         lifecycle = excluded.lifecycle,
         capability_json = excluded.capability_json,
         recovery_reference_id = excluded.recovery_reference_id,
+        unread_count = excluded.unread_count,
+        attention = excluded.attention,
+        failure_json = excluded.failure_json,
         updated_at = excluded.updated_at`)
-      .run(agent.id, INITIAL_WORKSPACE_ID, agent.displayName, agent.adapterId, agent.runtime, agent.lifecycle, JSON.stringify(agent.capability), agent.recoveryReferenceId, agent.createdAt, updatedAt);
-  }
-
-  loadWorkspaceAgents(): ManagedAgentDescriptor[] {
-    const rows = this.database.prepare("SELECT * FROM workspace_agents ORDER BY created_at, id").all() as unknown as WorkspaceAgentRow[];
-    return rows.map(row => {
-      const descriptor: ManagedAgentDescriptor = {
-        id: row.id,
-        displayName: row.display_name,
-        adapterId: row.adapter_id,
-        runtime: row.runtime_kind as ManagedAgentDescriptor["runtime"],
-        lifecycle: row.lifecycle as ManagedAgentDescriptor["lifecycle"],
-        capability: JSON.parse(row.capability_json) as ManagedAgentDescriptor["capability"],
-        createdAt: row.created_at,
-        recoveryReferenceId: row.recovery_reference_id,
-      };
-      assertManagedAgentDescriptor(descriptor);
-      return descriptor;
-    });
+      .run(
+        agent.id,
+        INITIAL_WORKSPACE_ID,
+        agent.displayName,
+        agent.adapterId,
+        agent.runtime,
+        agent.lifecycle,
+        JSON.stringify(agent.capability),
+        agent.recoveryReferenceId,
+        record.presentation.unreadActivity,
+        record.presentation.attention ? 1 : 0,
+        record.presentation.failure === null ? null : JSON.stringify(record.presentation.failure),
+        agent.createdAt,
+        updatedAt,
+      );
   }
 
   saveNativeHostTopology(topology: TerminalTopologySnapshot, rollbackTopology: TerminalTopologySnapshot | null, updatedAt = new Date().toISOString()): void {
@@ -395,6 +476,43 @@ export class ControlStore {
     } catch (error) {
       this.database.exec("ROLLBACK");
       throw error;
+    }
+  }
+}
+
+function workspaceAgentFromRow(row: WorkspaceAgentRow): StoredWorkspaceAgent {
+  const descriptor: ManagedAgentDescriptor = {
+    id: row.id,
+    displayName: row.display_name,
+    adapterId: row.adapter_id,
+    runtime: row.runtime_kind as ManagedAgentDescriptor["runtime"],
+    lifecycle: row.lifecycle as ManagedAgentDescriptor["lifecycle"],
+    capability: JSON.parse(row.capability_json) as ManagedAgentDescriptor["capability"],
+    createdAt: row.created_at,
+    recoveryReferenceId: row.recovery_reference_id,
+  };
+  assertManagedAgentDescriptor(descriptor);
+  const failure = row.failure_json === null ? null : JSON.parse(row.failure_json) as WorkspaceAgentPresentation["failure"];
+  const presentation: WorkspaceAgentPresentation = {
+    unreadActivity: row.unread_count,
+    attention: row.attention === 1,
+    failure,
+  };
+  assertWorkspaceAgentPresentation(presentation);
+  return { agent: descriptor, presentation };
+}
+
+function assertWorkspaceAgentPresentation(presentation: WorkspaceAgentPresentation): void {
+  if (!Number.isSafeInteger(presentation.unreadActivity) || presentation.unreadActivity < 0) {
+    throw new RangeError("workspace unread activity must be a non-negative safe integer");
+  }
+  if (typeof presentation.attention !== "boolean") throw new TypeError("workspace attention must be boolean");
+  if (presentation.failure !== null) {
+    if (!presentation.failure.code || presentation.failure.code.length > 128 || presentation.failure.code.includes("\0")) {
+      throw new TypeError("workspace failure code is invalid");
+    }
+    if (!presentation.failure.message || presentation.failure.message.length > 4_096 || presentation.failure.message.includes("\0")) {
+      throw new TypeError("workspace failure message is invalid");
     }
   }
 }

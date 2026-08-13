@@ -9,7 +9,7 @@ src/
   cli/                         public command helpers and dispatch
   features/
     launch/                    product launch profiles and profile settings
-    workspace/                 dormant multi-agent workspace presentation and orchestration
+    workspace/                 multi-agent workspace presentation, reducer state, and persistence orchestration
   foundation/
     lifecycle/                 dependency-free launch/lifecycle contracts and paths
     protocol/                  control framing and client contracts

@@ -4,7 +4,7 @@ export const PROJECT_OWNERS = Object.freeze({
   cli: owner("cli", "entry", "src/cli", "test/cli", ["launch", "release"]),
   launch: owner("launch", "feature", "src/features/launch", "test/features/launch", ["lifecycle", "transparent-terminal"]),
   workspace: owner("workspace", "feature", "src/features/workspace", "test/features/workspace", [
-    "workspace-contracts", "structured-agent-runtime", "native-host-protocol",
+    "storage", "workspace-contracts", "structured-agent-runtime", "native-host-protocol",
   ]),
   lifecycle: owner("lifecycle", "foundation", "src/foundation/lifecycle", "test/foundation/lifecycle", []),
   protocol: owner("protocol", "foundation", "src/foundation/protocol", "test/foundation/protocol", ["lifecycle"]),

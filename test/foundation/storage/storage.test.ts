@@ -17,7 +17,7 @@ describe("control-store migration", () => {
     const root = await mkdtemp(join(tmpdir(), "addone-store-"));
     roots.push(root);
     const store = new ControlStore(join(root, "state", "control.sqlite3"));
-    expect(store.database.prepare("PRAGMA user_version").get()).toMatchObject({ user_version: 3 });
+    expect(store.database.prepare("PRAGMA user_version").get()).toMatchObject({ user_version: 4 });
     expect(store.database.prepare("PRAGMA journal_mode").get()).toMatchObject({ journal_mode: "wal" });
     expect(store.database.prepare("SELECT id, selected_agent_id FROM workspaces").get()).toEqual({ id: "workspace-default", selected_agent_id: null });
     store.close();
@@ -110,7 +110,7 @@ describe("control-store migration", () => {
     first.close();
 
     const second = new ControlStore(path, "boot-new");
-    expect(second.database.prepare("PRAGMA user_version").get()).toMatchObject({ user_version: 3 });
+    expect(second.database.prepare("PRAGMA user_version").get()).toMatchObject({ user_version: 4 });
     expect(second.loadWorkspaceAgents()).toEqual([agent]);
     expect(second.loadNativeHostTopology("host-1")?.topology).toEqual(topology);
     expect(second.loadTerminalSessions()).toHaveLength(4);

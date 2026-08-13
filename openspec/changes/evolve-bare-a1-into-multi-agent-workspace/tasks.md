@@ -17,7 +17,7 @@
 
 ## 3. Build the Structured Multi-Agent Workspace Slice
 
-- [ ] 3.1 Implement durable create, unique label, select, rename, stop, restart, remove, unread activity, attention, and failure state over stable agent identities; pass reducer and storage integration tests.
+- [x] 3.1 Implement durable create, unique label, select, rename, stop, restart, remove, unread activity, attention, and failure state over stable agent identities; pass reducer and storage integration tests.
 - [ ] 3.2 Implement capability-gated workspace actions that keep structured and composed-terminal semantics disjoint; prove no structured feature derives from ANSI text, timing, terminal content, or native-host availability.
 - [ ] 3.3 Implement a single ordered structured selection/command router so switching cannot cross-route commands; pass race/property tests with concurrent activity and agent removal.
 - [ ] 3.4 Implement workspace process restart reconciliation, verified ownership cleanup, degraded/discontinuous states, and rollback-readable records; pass abnormal-exit and N-1 update-transition tests.
