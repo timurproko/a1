@@ -1,0 +1,16 @@
+{
+  "schema": "addone-manual-profile-candidate-v1",
+  "version": "0.1.5-dev.9",
+  "commit": "3bfafa3e9d83dd038d047f984543c8eb18aaa99a",
+  "tarball": "artifacts/manual-profile-candidate/timurproko-addone-0.1.5-dev.9.tgz",
+  "integrity": "sha512-o8Kfdl7aM1Lfsx7EJeZTlPmftTAuYd8r1ZUC5vw74eHI7SdgRWHQTOGTcECrBNDu65VOpnSo/WNRzma2SnlOlw==",
+  "shasum": "6edc8866ffe31a0d91bdb21256f17ca6dd5ce5c5",
+  "sha256": "9f32433a3e3ac86dd388291fc6cef751dabe985b47fd46e0a0f243f779fa5b1f",
+  "size": 80112,
+  "unpackedSize": 369808,
+  "fileCount": 167,
+  "nonDesktopGates": "passed",
+  "manualAcceptance": "pending",
+  "physicalCertification": "deferred",
+  "stableReleaseEligible": false
+}
