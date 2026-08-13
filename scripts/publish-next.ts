@@ -3,8 +3,10 @@ import { access, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import crossSpawn from "cross-spawn";
 import {
+  createUncertifiedDevelopmentPreviewEvidence,
   developmentPreviewTarballName,
   publishDevelopmentPreviewWithRecovery,
+  requireManuallyAcceptedDevelopmentPreview,
   selectDevelopmentPreviewCandidate,
   verifyDevelopmentPreviewRegistry,
 } from "../src/development-preview-release.js";
@@ -12,6 +14,7 @@ import {
 const repository = resolve(process.cwd());
 const npm = process.platform === "win32" ? "npm.cmd" : "npm";
 const statePath = resolve(repository, "artifacts", "development-preview-candidate.json");
+const manuallyAcceptedVersion = "0.1.5-dev.8";
 
 try {
   await publishNext();
@@ -22,7 +25,6 @@ try {
 }
 
 async function publishNext() {
-  throw new Error("terminal preview publication is frozen until transparent capability certification completes");
   await requireCleanDevelop();
   const manifest = JSON.parse(await readFile(resolve(repository, "package.json"), "utf8"));
   if (typeof manifest.name !== "string" || typeof manifest.version !== "string") throw new Error("package.json has no valid name/version");
@@ -45,6 +47,7 @@ async function publishNext() {
   }
 
   const candidate = selectDevelopmentPreviewCandidate(manifest.version, publishedVersions);
+  requireManuallyAcceptedDevelopmentPreview(candidate.version, manuallyAcceptedVersion);
   if (candidate.requiresVersionCommit) {
     process.stdout.write(`Preparing immutable AddOne preview ${candidate.version}.\n`);
     await interactive(npm, ["version", candidate.version, "--no-git-tag-version"]);
@@ -65,11 +68,10 @@ async function publishNext() {
   const integrity = await sha512Integrity(tarball);
   if (integrity !== packResult.integrity) throw new Error(`tarball integrity mismatch for ${packResult.filename}`);
 
-  process.stdout.write("Running architecture-independent certification against the exact packed tarball.\n");
+  process.stdout.write("Running non-desktop release gates against the exact packed preview.\n");
   await interactive(npm, ["run", "check"]);
   await requireCleanDevelop();
-  const certification = {
-    schema: "addone-development-preview-certification-v1",
+  const evidence = createUncertifiedDevelopmentPreviewEvidence({
     packageName: manifest.name,
     version: candidate.version,
     commit: head,
@@ -78,13 +80,13 @@ async function publishNext() {
     shasum: packResult.shasum,
     platform: process.platform,
     architecture: process.arch,
-    terminalCapability: "unavailable-during-redesign",
-    certifiedAt: new Date().toISOString(),
-  };
+    recordedAt: new Date().toISOString(),
+  });
   await mkdir(resolve(repository, "artifacts"), { recursive: true });
-  await writeFile(statePath, JSON.stringify(certification, null, 2));
+  await writeFile(statePath, JSON.stringify(evidence, null, 2));
 
-  process.stdout.write(`Certified exact candidate: ${tarball}\n`);
+  process.stdout.write(`Validated exact uncertified next candidate: ${tarball}\n`);
+  process.stdout.write("Physical-host and cross-platform terminal certification are deferred; this preview is not eligible for npm latest or stable support claims.\n");
   await publishAndVerify(manifest.name, candidate.version, tarball);
   await cleanup(tarball);
 }
@@ -131,7 +133,11 @@ async function requireCleanDevelop() {
 async function readRetainedCandidate() {
   try {
     const value = JSON.parse(await readFile(statePath, "utf8"));
-    if (value?.schema !== "addone-development-preview-certification-v1") return null;
+    if (value?.schema !== "addone-development-preview-certification-v2") return null;
+    if (value.channel !== "next" || value.certificationStatus !== "uncertified-development-preview") return null;
+    if (value.terminalCapability !== "transparent" || value.manualAcceptance !== "accepted") return null;
+    if (value.physicalHostCertification !== "deferred" || value.crossPlatformCertification !== "deferred") return null;
+    if (value.stableReleaseEligible !== false) return null;
     if ([value.version, value.commit, value.tarball, value.integrity].every(item => typeof item === "string")) return value;
     return null;
   } catch {

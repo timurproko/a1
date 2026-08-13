@@ -63,10 +63,10 @@ npm test
 npm run test:release
 ```
 
-The current release gate covers architecture-independent lifecycle and N−1 update transitions only. Terminal input/rendering certification will be rebuilt from independent physical-host evidence after cleanup.
+The current preview release gate covers architecture-independent lifecycle, structural zero-interception, and N−1 update transitions. Independent physical-host and cross-platform terminal certification is deferred and remains mandatory before stable publication or platform support/parity claims.
 
-## Preview publication freeze
+## Uncertified preview publication
 
-`npm run publish:next` intentionally fails during redesign. Preview publication resumes only after transparent capability certification and explicit user validation.
+After explicit manual acceptance, `npm run publish:next` may publish an exact `-dev.N` candidate under npm tag `next`. Its evidence records transparent physical-host and cross-platform certification as deferred. This workflow never moves `latest` and does not certify stable terminal support.
 
-Historical details of the retired `0.1.5-dev.7` pipeline remain available in Git and OpenSpec history rather than active documentation or tests.
+Historical details of the retired `0.1.5-dev.7` pipeline remain available in Git and OpenSpec history rather than active tests.

@@ -1,12 +1,57 @@
 import { describe, expect, it } from "vitest";
 import {
+  createUncertifiedDevelopmentPreviewEvidence,
   developmentPreviewTarballName,
   publishDevelopmentPreviewWithRecovery,
+  requireManuallyAcceptedDevelopmentPreview,
   selectDevelopmentPreviewCandidate,
   verifyDevelopmentPreviewRegistry,
 } from "../../src/development-preview-release.js";
 
 describe("development preview release planning", () => {
+  it("records a manually accepted preview as explicitly uncertified and stable-ineligible", () => {
+    expect(createUncertifiedDevelopmentPreviewEvidence({
+      packageName: "@timurproko/addone",
+      version: "0.1.5-dev.8",
+      commit: "abc123",
+      tarball: "candidate.tgz",
+      integrity: "sha512-example",
+      shasum: "example",
+      platform: "win32",
+      architecture: "x64",
+      recordedAt: "2026-08-13T00:00:00.000Z",
+    })).toMatchObject({
+      schema: "addone-development-preview-certification-v2",
+      channel: "next",
+      certificationStatus: "uncertified-development-preview",
+      terminalCapability: "transparent",
+      manualAcceptance: "accepted",
+      physicalHostCertification: "deferred",
+      crossPlatformCertification: "deferred",
+      stableReleaseEligible: false,
+    });
+  });
+
+  it("rejects stable versions as uncertified next previews", () => {
+    expect(() => createUncertifiedDevelopmentPreviewEvidence({
+      packageName: "@timurproko/addone",
+      version: "0.1.5",
+      commit: "abc123",
+      tarball: "candidate.tgz",
+      integrity: "sha512-example",
+      shasum: "example",
+      platform: "win32",
+      architecture: "x64",
+      recordedAt: "2026-08-13T00:00:00.000Z",
+    })).toThrow(/requires a development prerelease/);
+  });
+
+  it("requires exact manual acceptance for the selected candidate", () => {
+    expect(() => requireManuallyAcceptedDevelopmentPreview("0.1.5-dev.8", "0.1.5-dev.8")).not.toThrow();
+    expect(() => requireManuallyAcceptedDevelopmentPreview("0.1.5-dev.9", "0.1.5-dev.8"))
+      .toThrow(/has no exact manual acceptance/);
+  });
+
   it("resumes a leading unpublished dev candidate without another version bump", () => {
     expect(selectDevelopmentPreviewCandidate("0.1.5-dev.0", ["0.1.4"]))
       .toEqual({ version: "0.1.5-dev.0", requiresVersionCommit: false });

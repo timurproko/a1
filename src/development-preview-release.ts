@@ -21,6 +21,61 @@ export interface DevelopmentPreviewPublishResult {
   readonly recoveredPublishError: unknown | null;
 }
 
+export interface UncertifiedDevelopmentPreviewEvidenceInput {
+  readonly packageName: string;
+  readonly version: string;
+  readonly commit: string;
+  readonly tarball: string;
+  readonly integrity: string;
+  readonly shasum: string;
+  readonly platform: NodeJS.Platform;
+  readonly architecture: string;
+  readonly recordedAt: string;
+}
+
+export interface UncertifiedDevelopmentPreviewEvidence extends UncertifiedDevelopmentPreviewEvidenceInput {
+  readonly schema: "addone-development-preview-certification-v2";
+  readonly channel: "next";
+  readonly certificationStatus: "uncertified-development-preview";
+  readonly terminalCapability: "transparent";
+  readonly manualAcceptance: "accepted";
+  readonly physicalHostCertification: "deferred";
+  readonly crossPlatformCertification: "deferred";
+  readonly stableReleaseEligible: false;
+}
+
+/** Records the deliberately limited claims allowed for a manually accepted preview. */
+export function createUncertifiedDevelopmentPreviewEvidence(
+  input: UncertifiedDevelopmentPreviewEvidenceInput,
+): UncertifiedDevelopmentPreviewEvidence {
+  const prereleaseParts = prerelease(input.version);
+  if (valid(input.version) === null || prereleaseParts?.[0] !== "dev") {
+    throw new Error(`uncertified preview requires a development prerelease: ${input.version}`);
+  }
+  return {
+    schema: "addone-development-preview-certification-v2",
+    channel: "next",
+    certificationStatus: "uncertified-development-preview",
+    terminalCapability: "transparent",
+    manualAcceptance: "accepted",
+    physicalHostCertification: "deferred",
+    crossPlatformCertification: "deferred",
+    stableReleaseEligible: false,
+    ...input,
+  };
+}
+
+/** Prevents a workflow from extending one manual acceptance to different bytes/version. */
+export function requireManuallyAcceptedDevelopmentPreview(version: string, acceptedVersion: string): void {
+  const acceptedPrerelease = prerelease(acceptedVersion);
+  if (valid(acceptedVersion) === null || acceptedPrerelease?.[0] !== "dev") {
+    throw new Error(`invalid manually accepted development preview: ${acceptedVersion}`);
+  }
+  if (version !== acceptedVersion) {
+    throw new Error(`development preview ${version} has no exact manual acceptance; accepted version is ${acceptedVersion}`);
+  }
+}
+
 /** Selects a monotonic, unpublished dev prerelease without moving npm next backward. */
 export function selectDevelopmentPreviewCandidate(
   currentVersion: string,

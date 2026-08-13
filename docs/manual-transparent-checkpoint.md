@@ -9,7 +9,7 @@ From the checkout, run these commands yourself. They install the exact tarball u
 ```powershell
 npm ci
 npm run build
-npm install --prefix artifacts/manual-transparent/install --ignore-scripts artifacts/manual-transparent/timurproko-addone-0.1.5-dev.7.tgz
+npm install --prefix artifacts/manual-transparent/install --ignore-scripts artifacts/manual-transparent/timurproko-addone-0.1.5-dev.8.tgz
 ```
 
 Before launch, give the candidate isolated config, data, runtime, and database paths so it cannot reuse or mutate your normal AddOne state:
@@ -68,4 +68,4 @@ Report each failed checklist item with:
 - whether the failure occurs every time;
 - screenshot or video only if you choose to capture it manually.
 
-Manual acceptance authorizes work on isolated automated physical-host gates. It does not replace those later release gates.
+Manual acceptance authorizes continued development and publication of the exact candidate as an explicitly uncertified npm `next` preview after applicable non-desktop gates pass. Physical-host and cross-platform certification remains deferred and mandatory before stable publication or corresponding support/parity claims.

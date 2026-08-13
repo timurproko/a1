@@ -19,19 +19,19 @@ AddOne remains a terminal application. Browser and desktop-GUI substitutes are o
 - npm 11 with lockfile v3.
 - `node:sqlite` `DatabaseSync` in WAL mode for control state.
 - `cross-spawn` 7.0.6 and `semver` 7.8.5 for package/update workflows.
-- No production PTY, terminal emulator, semantic input relay, or TUI dependency exists during cleanup.
-- `addone` fails explicitly while terminal capability is unavailable; `version`, `update`, release selection, storage, and update-transition validation remain functional.
-- Preview publication is frozen until transparent capability certification completes.
+- No production PTY, terminal emulator, semantic input relay, or TUI dependency exists in transparent mode.
+- `addone` launches the manually accepted transparent foreground capability; `version`, `update`, release selection, storage, and update-transition validation remain functional.
+- An exact manually accepted `-dev.N` candidate may publish under npm tag `next` with physical-host and cross-platform certification explicitly deferred. It is not stable-release eligible and cannot move `latest`.
 
 The retired `node-pty`, `@xterm/headless`, custom Win32/VT input, mode/query parsing, cell reconstruction, and PTY simulation stack is removed rather than retained as a fallback.
 
 ## Replacement rule
 
-Transparent capability will use native attached terminal/process facilities on Windows, Linux, and macOS with no ordinary AddOne input/output byte path. Any future composed capability must use one independently certified authoritative terminal core and may not reintroduce per-application hacks.
+Transparent capability uses native attached terminal/process facilities on Windows, Linux, and macOS with no ordinary AddOne input/output byte path. Any future composed capability must use one independently certified authoritative terminal core and may not reintroduce per-application hacks.
 
 ## Packaging
 
-Milestone cleanup remains one npm package with `addone`, `a1`, and the internal supervisor executable. Packaging runs architecture-independent type, architecture, dependency, unit, release/update, and exact-artifact checks. Terminal capability verdicts are added only by the replacement milestones.
+The package contains `addone`, `a1`, and the internal supervisor executable. Packaging runs architecture-independent type, architecture, dependency, unit, release/update, structural transparent, and exact-artifact checks. Uncertified `next` evidence records physical-host and cross-platform terminal verdicts as deferred; stable terminal publication requires those independent verdicts to pass.
 
 ## Directories
 

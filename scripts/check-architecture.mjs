@@ -135,4 +135,14 @@ async function inspectReleasePolicy() {
   for (const [path, source] of values) {
     if (obsoleteGate.test(source)) errors.push(`${path}: obsolete retired-pipeline release gate is forbidden`);
   }
+  const publishNext = values.find(([path]) => path === "scripts/publish-next.ts")?.[1] ?? "";
+  if (/publication is frozen until transparent capability certification/i.test(publishNext)) {
+    errors.push("scripts/publish-next.ts: obsolete uncertified-preview publication freeze is forbidden");
+  }
+  if (/uncertified-development-preview/.test(publishNext) && !/stableReleaseEligible\s*!==\s*false/.test(publishNext)) {
+    errors.push("scripts/publish-next.ts: uncertified next evidence must prohibit stable release eligibility");
+  }
+  if (/createUncertifiedDevelopmentPreviewEvidence/.test(publishNext) && !/requireManuallyAcceptedDevelopmentPreview/.test(publishNext)) {
+    errors.push("scripts/publish-next.ts: uncertified next publication must require exact manual acceptance");
+  }
 }

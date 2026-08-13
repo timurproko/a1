@@ -13,7 +13,7 @@ const verdictDirectory = resolve("artifacts", "release-verdicts");
 await mkdir(verdictDirectory, { recursive: true });
 const verdictPath = resolve(verdictDirectory, `${platform()}-${arch()}.json`);
 await writeFile(verdictPath, JSON.stringify({
-  schema: "addone-cleanup-platform-verdict-v1",
+  schema: "addone-development-preview-platform-verdict-v2",
   platform: platform(),
   architecture: arch(),
   osRelease: release(),
@@ -21,7 +21,12 @@ await writeFile(verdictPath, JSON.stringify({
   startedAt,
   completedAt: new Date().toISOString(),
   passed: failure === undefined,
-  terminalCapability: "unavailable-during-redesign",
+  channel: "next",
+  certificationStatus: "uncertified-development-preview",
+  terminalCapability: "transparent",
+  physicalHostCertification: "deferred",
+  crossPlatformCertification: "deferred",
+  stableReleaseEligible: false,
   requiredGates: ["architecture-independent-n-minus-one-update-transition"],
   ...(failure ? { failure } : {}),
 }, null, 2));

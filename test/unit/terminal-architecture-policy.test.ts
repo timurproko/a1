@@ -56,6 +56,31 @@ describe("terminal-core architecture policy", () => {
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("obsolete retired-pipeline release gate");
   });
+
+  it("rejects restoring the obsolete next publication freeze", async () => {
+    const root = await fixture({ "scripts/publish-next.ts": "throw new Error('terminal preview publication is frozen until transparent capability certification completes');" });
+    const result = runPolicy(root);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("obsolete uncertified-preview publication freeze");
+  });
+
+  it("rejects next publication evidence that can imply stable eligibility", async () => {
+    const root = await fixture({
+      "scripts/publish-next.ts": "const certificationStatus = 'uncertified-development-preview'; const physicalHostCertification = 'deferred'; const stableReleaseEligible = true;",
+    });
+    const result = runPolicy(root);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("uncertified next evidence must prohibit stable release eligibility");
+  });
+
+  it("requires exact manual acceptance in the uncertified next workflow", async () => {
+    const root = await fixture({
+      "scripts/publish-next.ts": "createUncertifiedDevelopmentPreviewEvidence({ stableReleaseEligible: false }); if (value.stableReleaseEligible !== false) throw new Error();",
+    });
+    const result = runPolicy(root);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("uncertified next publication must require exact manual acceptance");
+  });
 });
 
 async function fixture(files: Record<string, string>): Promise<string> {
