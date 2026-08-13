@@ -1,48 +1,66 @@
-# AddOne terminal-redesign toolchain contract
+# Toolchain and release contract
 
-Recorded: 2026-08-13. Versions are exact in `package-lock.json`.
+Exact package versions are recorded in `package-lock.json`.
 
-## Supported matrix
+## Runtime and build
 
-| Component | Supported |
+| Component | Contract |
 |---|---|
-| Node.js | 22.19+ LTS and 24.x, below 25 |
-| Windows | Windows 11 x64 with native Windows Terminal/process facilities |
-| Linux | Current Ubuntu LTS x64 with a native UTF-8 terminal |
-| macOS | Current and previous macOS arm64 with a native UTF-8 terminal |
+| Node.js | `>=22.19.0 <25` |
+| Package manager | npm 11, lockfile v3 |
+| Language | TypeScript, strict native ESM, `NodeNext`, ES2023 |
+| Control storage | Built-in `node:sqlite` `DatabaseSync`, WAL mode |
+| Process/version helpers | `cross-spawn`, `semver` |
+| Tests | Vitest |
 
-AddOne remains a terminal application. Browser and desktop-GUI substitutes are outside the product contract.
+The repository has one root package manifest, lockfile, dependency tree, TypeScript configuration, and test configuration. Feature folders must not introduce nested package installations or generated runtime state.
 
-## Cleanup baseline
+## Platform policy
 
-- TypeScript 5.9.2, strict native ESM, `NodeNext`, ES2023 output.
-- npm 11 with lockfile v3.
-- `node:sqlite` `DatabaseSync` in WAL mode for control state.
-- `cross-spawn` 7.0.6 and `semver` 7.8.5 for package/update workflows.
-- No production PTY, terminal emulator, semantic input relay, or TUI dependency exists in transparent mode.
-- `addone` launches the manually accepted transparent foreground capability; `version`, `update`, release selection, storage, and update-transition validation remain functional.
-- An exact manually accepted `-dev.N` candidate may publish under npm tag `next` with physical-host and cross-platform certification explicitly deferred. It is not stable-release eligible and cannot move `latest`.
+Transparent launch uses inherited native terminal/process facilities on Windows, Linux, and macOS. The architecture is platform-neutral, but stable parity/support claims are platform-specific and require deferred physical certification against exact package bytes. An uncertified `next` preview is not evidence of stable cross-platform support.
 
-The retired `node-pty`, `@xterm/headless`, custom Win32/VT input, mode/query parsing, cell reconstruction, and PTY simulation stack is removed rather than retained as a fallback.
+Physical desktop automation is absent from the active repository baseline. Any future implementation must run only on dedicated disposable workers or VMs with exclusive interactive desktops and exact process ownership.
 
-## Replacement rule
+## Package contents
 
-Transparent capability uses native attached terminal/process facilities on Windows, Linux, and macOS with no ordinary AddOne input/output byte path. Any future composed capability must use one independently certified authoritative terminal core and may not reintroduce per-application hacks.
+The published package contains:
 
-## Packaging
+- `addone` and `a1` public command aliases;
+- the internal supervisor entry;
+- immutable release/bootstrap, lifecycle, protocol, storage, update, and transparent-launch modules;
+- current user and architecture documentation.
 
-The package contains `addone`, `a1`, and the internal supervisor executable. Packaging runs architecture-independent type, architecture, dependency, unit, release/update, structural transparent, and exact-artifact checks. Uncertified `next` evidence records physical-host and cross-platform terminal verdicts as deferred; stable terminal publication requires those independent verdicts to pass.
+It contains no PTY, terminal emulator, browser/desktop GUI, custom renderer, input translator, physical automation driver, or generated runtime data.
 
-## Directories
+## Gates
 
-Paths remain overrideable for hermetic execution.
+```sh
+npm run build
+npm run typecheck
+npm run check:architecture
+npm run check:deprecated
+npm test
+npm run test:release
+```
+
+`check:deprecated` verifies the complete lockfile graph against registry metadata. The release gate exercises durable stable/preview update transitions and writes an ignored machine-readable verdict under `artifacts/release-verdicts/`.
+
+## Preview publication
+
+A preview candidate must use a unique `-dev.N` version and exact manually accepted bytes. Publication packs once, binds evidence to source commit/version/integrity, runs applicable non-desktop gates, publishes under npm `next`, and verifies registry identity. It must keep `latest` unchanged and record physical/cross-platform certification as deferred.
+
+The GitHub trusted-publishing workflow is `.github/workflows/publish-next.yml`. Stable publication remains a separate release process from a clean tagged `master` commit after all mandatory platform gates pass.
+
+## AddOne state paths
+
+These paths are AddOne control and release state, not Pi profile roots. All are overrideable for hermetic tests.
 
 | Purpose | Override | Windows default | Unix default |
 |---|---|---|---|
 | Config | `ADDONE_CONFIG_DIR` | `%APPDATA%\\AddOne` | `$XDG_CONFIG_HOME/addone` or `~/.config/addone` |
-| Durable data/database | `ADDONE_DATA_DIR` | `%LOCALAPPDATA%\\AddOne` | `$XDG_DATA_HOME/addone` or `~/.local/share/addone` |
-| Runtime/socket/PID/logs | `ADDONE_RUNTIME_DIR` | `%LOCALAPPDATA%\\AddOne\\runtime` | `$XDG_RUNTIME_DIR/addone` or `<data>/runtime` |
-| Database file | `ADDONE_DATABASE_PATH` | `<data>/control.sqlite3` | `<data>/control.sqlite3` |
-| Supervisor endpoint | `ADDONE_ENDPOINT` | per-runtime-dir named pipe | `<runtime>/supervisor.sock` |
+| Durable data | `ADDONE_DATA_DIR` | `%LOCALAPPDATA%\\AddOne` | `$XDG_DATA_HOME/addone` or `~/.local/share/addone` |
+| Runtime | `ADDONE_RUNTIME_DIR` | `%LOCALAPPDATA%\\AddOne\\runtime` | `$XDG_RUNTIME_DIR/addone` or `<data>/runtime` |
+| Database | `ADDONE_DATABASE_PATH` | `<data>/control.sqlite3` | `<data>/control.sqlite3` |
+| Endpoint | `ADDONE_ENDPOINT` | runtime-scoped named pipe | `<runtime>/supervisor.sock` |
 
-Herdr remains AGPL architectural prior art only; no implementation is copied.
+The launch-profile feature separately owns Pi roots: `~/.a1/agent`, ordinary `~/.pi/agent`, and `~/.a1/sandbox`.

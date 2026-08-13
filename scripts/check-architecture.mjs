@@ -31,10 +31,10 @@ for (const file of await walk(sourceRoot)) {
       errors.push(`${path}: private Pi distribution import '${specifier}' is forbidden`);
     }
     if (["node-pty", "@xterm/headless"].includes(specifier)) {
-      errors.push(`${path}: retired PTY/emulator import '${specifier}' is forbidden during redesign`);
+      errors.push(`${path}: PTY/emulator import '${specifier}' is forbidden in the transparent baseline`);
     }
     if (/pi-tui/.test(specifier)) {
-      errors.push(`${path}: retired terminal presentation import '${specifier}' is forbidden during redesign`);
+      errors.push(`${path}: terminal presentation import '${specifier}' is forbidden in the transparent baseline`);
     }
     if (path.startsWith("src/ui/") && ["node:child_process", "child_process", "node-pty"].includes(specifier)) {
       errors.push(`${path}: UI may not spawn agent processes`);
