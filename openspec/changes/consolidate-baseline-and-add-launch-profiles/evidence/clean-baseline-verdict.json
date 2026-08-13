@@ -1,0 +1,51 @@
+{
+  "schema": "addone-clean-baseline-verdict-v1",
+  "recordedAt": "2026-08-13T14:48:30.765Z",
+  "commit": "f93731336881d4ee193889be055738a50a9e34ed",
+  "branch": "milestone/baseline-launch-profiles",
+  "package": {
+    "name": "@timurproko/addone",
+    "version": "0.1.5-dev.8",
+    "filename": "timurproko-addone-0.1.5-dev.8.tgz",
+    "integrity": "sha512-JczeMfnQYwjTWto7shZ5IiQl0+ryMyhy+ThezBHjr5Fv8yiZpgaB6GaUjNWA16QUWrgaWzuqe8Y6AHwYcKn2sA==",
+    "shasum": "fa7112a4297c1213260144b8ba1adc94ac149994",
+    "sha256": "67231216caa78f87f99fab9f9b957f7e889c0f4343f16be4df6fdac838b18126",
+    "size": 80112,
+    "unpackedSize": 369808,
+    "fileCount": 167
+  },
+  "gates": [
+    {
+      "command": "npm ci",
+      "passed": true
+    },
+    {
+      "command": "npm run check",
+      "passed": true,
+      "detail": "31 files/154 tests plus release gate 3 tests"
+    },
+    {
+      "command": "npm audit --audit-level=high --json",
+      "passed": true,
+      "detail": "0 vulnerabilities"
+    },
+    {
+      "command": "openspec validate --specs",
+      "passed": true,
+      "detail": "5 specs"
+    },
+    {
+      "command": "openspec validate consolidate-baseline-and-add-launch-profiles --strict",
+      "passed": true
+    },
+    {
+      "command": "repository tracked-state hygiene",
+      "passed": true,
+      "detail": "only root package.json and package-lock.json matched dependency/generated-state query"
+    }
+  ],
+  "terminalAutomation": "not-run",
+  "physicalCertification": "deferred",
+  "stableReleaseEligible": false,
+  "passed": true
+}

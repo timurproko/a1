@@ -34,7 +34,7 @@
 
 ## 5. Validate and Preview
 
-- [ ] 5.1 Run the complete clean baseline from a clean milestone checkout: build, typecheck, architecture/hygiene, deprecated dependencies, unit/integration, update transitions, exact package content, release verdicts, and strict validation for all active changes; preserve machine-readable evidence.
+- [x] 5.1 Run the complete clean baseline from a clean milestone checkout: build, typecheck, architecture/hygiene, deprecated dependencies, unit/integration, update transitions, exact package content, release verdicts, and strict validation for all active changes; preserve machine-readable evidence.
 - [ ] 5.2 Pack one exact unpublished development candidate and provide user-controlled manual commands/checklists for bare `a1`, `a1 pi`, and `a1 sandbox`, including profile file isolation and unchanged rendering/input/exit behavior; do not launch, focus, drive, resize, or close terminal applications automatically.
 - [ ] 5.3 Correct all manual findings, rerun affected focused and containing gates, and record explicit acceptance of the exact candidate and all three profile mappings.
 - [ ] 5.4 Publish the accepted exact bytes under npm `next` through trusted GitHub publishing, verify registry version/integrity/tag, keep `latest` unchanged, and retain physical/cross-platform certification as deferred without claiming arbitrary-CLI multi-tab support.
