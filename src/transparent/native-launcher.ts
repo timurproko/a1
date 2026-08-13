@@ -1,10 +1,13 @@
 import { spawn, type ChildProcess, type SpawnOptions } from "node:child_process";
 import type { TransparentTerminalLaunchProfile, TransparentTerminalLifecycleOutcome } from "../domain/index.js";
-import type { TransparentChildHandle, TransparentNativeLauncher } from "./foreground-broker.js";
+import type { TransparentChildHandle, TransparentNativeLauncher, TransparentStopReason } from "./foreground-broker.js";
 
 export interface NativeSpawnAdapter {
   spawn(executable: string, arguments_: readonly string[], options: SpawnOptions): ChildProcess;
   observeStartIdentity(child: ChildProcess): Promise<string>;
+  identityMatches(child: ChildProcess, expectedStartIdentity: string): Promise<boolean>;
+  stop(child: ChildProcess, force: boolean): Promise<void>;
+  waitForExit(child: ChildProcess, timeoutMs: number): Promise<boolean>;
 }
 
 export function createPlatformTransparentLauncher(
@@ -58,7 +61,15 @@ async function launchInherited(
   const startIdentity = await adapter.observeStartIdentity(child);
   const processIdentity = { pid: child.pid, startIdentity };
   const outcome = childOutcome(child);
-  return { processIdentity, outcome };
+  let stopOutcome: Promise<TransparentTerminalLifecycleOutcome> | null = null;
+  return {
+    processIdentity,
+    outcome,
+    stop(reason) {
+      stopOutcome ??= stopOwnedChild(child, adapter, processIdentity.startIdentity, reason);
+      return stopOutcome;
+    },
+  };
 }
 
 function spawned(child: ChildProcess): Promise<void> {
@@ -82,6 +93,28 @@ function childOutcome(child: ChildProcess): Promise<TransparentTerminalLifecycle
   });
 }
 
+async function stopOwnedChild(
+  child: ChildProcess,
+  adapter: NativeSpawnAdapter,
+  expectedStartIdentity: string,
+  reason: TransparentStopReason,
+): Promise<TransparentTerminalLifecycleOutcome> {
+  if (!await adapter.identityMatches(child, expectedStartIdentity)) {
+    return { kind: "broker-error", message: "refusing cleanup because transparent child ownership changed", code: "PROCESS_IDENTITY_MISMATCH" };
+  }
+  await adapter.stop(child, false);
+  if (!await adapter.waitForExit(child, 1_500)) {
+    if (!await adapter.identityMatches(child, expectedStartIdentity)) {
+      return { kind: "broker-error", message: "refusing forced cleanup because transparent child ownership changed", code: "PROCESS_IDENTITY_MISMATCH" };
+    }
+    await adapter.stop(child, true);
+    if (!await adapter.waitForExit(child, 1_500)) {
+      return { kind: "broker-error", message: "transparent child did not exit within the bounded cleanup deadline", code: "CLEANUP_TIMEOUT" };
+    }
+  }
+  return { kind: "stopped", reason };
+}
+
 function errorCode(error: Error): string | null {
   return "code" in error && typeof error.code === "string" ? error.code : null;
 }
@@ -92,9 +125,29 @@ const defaultSpawnAdapter: NativeSpawnAdapter = {
   },
   async observeStartIdentity(child) {
     if (!child.pid) throw new Error("transparent child has no PID");
-    // This identity is captured immediately after the spawn event and is never
-    // reconstructed from a later PID-only lookup. Platform-native strengthening
-    // can replace this adapter without changing the broker contract.
+    // Captured immediately after spawn; platform-native strengthening can
+    // replace this adapter without changing the broker contract.
     return `${child.pid}:${Date.now()}`;
+  },
+  async identityMatches(child, expectedStartIdentity) {
+    return child.pid !== undefined && expectedStartIdentity.startsWith(`${child.pid}:`);
+  },
+  async stop(child, force) {
+    if (child.exitCode !== null || child.signalCode !== null) return;
+    child.kill(force ? "SIGKILL" : "SIGTERM");
+  },
+  async waitForExit(child, timeoutMs) {
+    if (child.exitCode !== null || child.signalCode !== null) return true;
+    return await new Promise(resolve => {
+      const timer = setTimeout(() => finish(false), timeoutMs);
+      timer.unref();
+      const finish = (exited: boolean) => {
+        clearTimeout(timer);
+        child.off("close", onClose);
+        resolve(exited);
+      };
+      const onClose = () => finish(true);
+      child.once("close", onClose);
+    });
   },
 };

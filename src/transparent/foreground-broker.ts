@@ -14,9 +14,12 @@ export interface ForegroundLeaseControl {
   command(command: SupervisorCommand): Promise<CommandResult>;
 }
 
+export type TransparentStopReason = "owner-disconnect" | "user-request" | "update";
+
 export interface TransparentChildHandle {
   readonly processIdentity: NativeProcessIdentity;
   readonly outcome: Promise<TransparentTerminalLifecycleOutcome>;
+  stop(reason: TransparentStopReason): Promise<TransparentTerminalLifecycleOutcome>;
 }
 
 export interface TransparentNativeLauncher {
@@ -28,6 +31,8 @@ export interface ForegroundBrokerRequest {
   readonly generationId: GenerationId;
   readonly ownerId: string;
   readonly profile: TransparentTerminalLaunchProfile;
+  /** Optional lifecycle signal supplied by the foreground owner or updater. */
+  readonly stopRequested?: Promise<TransparentStopReason>;
 }
 
 export interface ForegroundBrokerResult {
@@ -85,7 +90,9 @@ export async function runForegroundBroker(
       generationId: request.generationId,
       processIdentity: handle.processIdentity,
     });
-    const outcome = await handle.outcome;
+    const outcome = request.stopRequested
+      ? await Promise.race([handle.outcome, request.stopRequested.then(async reason => await handle.stop(reason))])
+      : await handle.outcome;
     await requireAccepted(control, {
       type: "release-foreground-terminal-lease",
       requestId: createRequestId(),

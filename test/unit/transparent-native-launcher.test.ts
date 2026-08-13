@@ -37,6 +37,32 @@ describe("platform transparent native launchers", () => {
     await expect(handle.outcome).resolves.toEqual({ kind: "signaled", signal: "SIGTERM" });
   });
 
+  it("performs bounded ownership-checked cleanup only after explicit stop", async () => {
+    const fixture = spawnFixture();
+    const handle = await new WindowsTransparentLauncher(fixture.adapter).launch(profile);
+    expect(fixture.stop).not.toHaveBeenCalled();
+    await expect(handle.stop("update")).resolves.toEqual({ kind: "stopped", reason: "update" });
+    expect(fixture.identityMatches).toHaveBeenCalledWith(fixture.child, "8123:native-start");
+    expect(fixture.stop).toHaveBeenCalledWith(fixture.child, false);
+    expect(fixture.stop).not.toHaveBeenCalledWith(fixture.child, true);
+  });
+
+  it("escalates once after the graceful deadline and reports bounded timeout", async () => {
+    const fixture = spawnFixture(true, [false, false]);
+    const handle = await new WindowsTransparentLauncher(fixture.adapter).launch(profile);
+    await expect(handle.stop("user-request")).resolves.toMatchObject({ kind: "broker-error", code: "CLEANUP_TIMEOUT" });
+    expect(fixture.stop.mock.calls).toEqual([[fixture.child, false], [fixture.child, true]]);
+    expect(fixture.waitForExit).toHaveBeenNthCalledWith(1, fixture.child, 1500);
+    expect(fixture.waitForExit).toHaveBeenNthCalledWith(2, fixture.child, 1500);
+  });
+
+  it("refuses cleanup after process identity mismatch", async () => {
+    const fixture = spawnFixture(false);
+    const handle = await new WindowsTransparentLauncher(fixture.adapter).launch(profile);
+    await expect(handle.stop("owner-disconnect")).resolves.toMatchObject({ kind: "broker-error", code: "PROCESS_IDENTITY_MISMATCH" });
+    expect(fixture.stop).not.toHaveBeenCalled();
+  });
+
   it("selects only supported native platform adapters", () => {
     const fixture = spawnFixture();
     expect(createPlatformTransparentLauncher("win32", fixture.adapter)).toBeInstanceOf(WindowsTransparentLauncher);
@@ -53,18 +79,27 @@ describe("platform transparent native launchers", () => {
   });
 });
 
-function spawnFixture() {
+function spawnFixture(identityMatchesResult = true, exitResults: boolean[] = [true]) {
   const child = new EventEmitter() as ChildProcess;
   Object.defineProperty(child, "pid", { value: 8123 });
   const spawn = vi.fn((_executable: string, _arguments: readonly string[], _options: SpawnOptions) => child);
+  const identityMatches = vi.fn(async (_child: ChildProcess, identity: string) => identityMatchesResult && identity === "8123:native-start");
+  const stop = vi.fn(async () => undefined);
+  const waitForExit = vi.fn(async () => exitResults.shift() ?? false);
   const adapter: NativeSpawnAdapter = {
     spawn,
     async observeStartIdentity() { return "8123:native-start"; },
+    identityMatches,
+    stop,
+    waitForExit,
   };
   return {
     child,
     adapter,
     spawn,
+    identityMatches,
+    stop,
+    waitForExit,
     options: () => spawn.mock.calls.at(-1)?.[2],
   };
 }

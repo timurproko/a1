@@ -17,6 +17,7 @@ describe("transparent foreground broker", () => {
       launch: vi.fn(async received => ({
         processIdentity: { pid: 9001, startIdentity: "9001:start" },
         outcome: Promise.resolve({ kind: "exited" as const, exitCode: 0 }),
+        stop: vi.fn(async reason => ({ kind: "stopped" as const, reason })),
         received,
       })),
     };
@@ -35,6 +36,24 @@ describe("transparent foreground broker", () => {
     expect(commands[1]).toMatchObject({ processIdentity: { pid: 9001, startIdentity: "9001:start" } });
     expect(result).toMatchObject({ processIdentity: { pid: 9001 }, outcome: { kind: "exited", exitCode: 0 } });
     expect(JSON.stringify(commands)).not.toMatch(/terminal-input|terminal-output|dataBase64|framebuffer|surface_json/);
+  });
+
+  it("requests bounded child stop only when an explicit lifecycle signal arrives", async () => {
+    const commands: SupervisorCommand[] = [];
+    let requestStop!: (reason: "update") => void;
+    const stopRequested = new Promise<"update">(resolve => { requestStop = resolve; });
+    const stop = vi.fn(async (reason: "owner-disconnect" | "user-request" | "update") => ({ kind: "stopped" as const, reason }));
+    const run = runForegroundBroker(
+      { leaseId: "lease", generationId: "generation", ownerId: "broker", profile, stopRequested },
+      acceptingControl(commands),
+      { launch: async () => ({ processIdentity: { pid: 44, startIdentity: "44:start" }, outcome: new Promise(() => undefined), stop }) },
+      () => `request-${commands.length + 1}`,
+    );
+    await vi.waitFor(() => expect(commands.map(command => command.type)).toContain("activate-foreground-terminal-lease"));
+    expect(stop).not.toHaveBeenCalled();
+    requestStop("update");
+    await expect(run).resolves.toMatchObject({ outcome: { kind: "stopped", reason: "update" } });
+    expect(stop).toHaveBeenCalledWith("update");
   });
 
   it("releases an unactivated lease after a spawn error", async () => {
