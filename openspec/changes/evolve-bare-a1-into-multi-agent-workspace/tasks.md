@@ -12,7 +12,7 @@
 - [x] 2.2 Implement validated ordered event reduction and authoritative snapshot replacement without terminal parsing; pass duplicate, gap, malformed, oversized, and resynchronization tests.
 - [x] 2.3 Implement correlated command lifecycle, cancellation races, timeout, idempotent terminal outcomes, and per-agent concurrency limits; pass deterministic state-machine/property tests.
 - [x] 2.4 Implement bounded backpressure for events, commands, snapshots, attachments, and reconnect replay so one adapter cannot block or exhaust others; pass high-rate and memory-budget fixtures.
-- [ ] 2.5 Implement ownership-proven structured reconnection and non-reconnectable termination semantics; pass stale-token, process-mismatch, version-mismatch, replay, and snapshot-recovery tests.
+- [x] 2.5 Implement ownership-proven structured reconnection and non-reconnectable termination semantics; pass stale-token, process-mismatch, version-mismatch, replay, and snapshot-recovery tests.
 - [ ] 2.6 Add a synthetic structured adapter and hermetic integration harness covering two concurrent agents, independent commands/state, crash isolation, restart, reconnection, and cleanup.
 
 ## 3. Build the Structured Multi-Agent Workspace Slice

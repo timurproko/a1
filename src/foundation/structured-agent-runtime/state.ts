@@ -122,6 +122,18 @@ export class StructuredEventReducer {
     return { kind: "snapshot-applied", view: this.view() };
   }
 
+  restoreResumeBoundary(position: number): StructuredRuntimeView {
+    if (!Number.isSafeInteger(position) || position < 0) throw new RangeError("structured resume position must be a non-negative safe integer");
+    this.#lastAppliedPosition = position;
+    this.#appliedEventCount = 0;
+    this.#lastEventType = null;
+    this.#lastEventPayload = null;
+    this.#snapshotId = null;
+    this.#snapshotPayload = null;
+    this.#revision += 1;
+    return this.view();
+  }
+
   nextEventPosition(): number {
     return this.#lastAppliedPosition === null ? 0 : this.#lastAppliedPosition + 1;
   }
