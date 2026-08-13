@@ -1,0 +1,40 @@
+## 1. Close the Accepted Terminal Baseline
+
+- [ ] 1.1 Update the prior foundation change with registry evidence for exact `0.1.5-dev.8` publication, mark task 1.158 complete, record transparent direct attachment as the selected single-foreground baseline under 1.159, and pass strict validation.
+- [ ] 1.2 Mark raw-relay tasks 1.160–1.161 not applicable because no mandatory PTY ownership constraint was found; move physical certification, composed arbitrary-CLI tabs, and unfinished later product milestones into explicitly named future-change scope without marking unimplemented behavior passed, then pass strict validation.
+- [ ] 1.3 Sync the completed foundation deltas that describe current behavior and archive or otherwise formally close `establish-addone-foundation` according to OpenSpec rules; verify the resulting active-change list and main specs before baseline restructuring.
+
+## 2. Inventory and Clean the Baseline
+
+- [ ] 2.1 Create a machine-readable ownership/disposition inventory covering every tracked production source, test, script/workflow, document, dependency, physical-host artifact, and saved deferred-certification stash item; classify each as retain, move/consolidate, delete, or future change, record the current gate results as before-state evidence, and commit no behavior change.
+- [ ] 2.2 Remove production contracts and branches proven unreachable or superseded by transparent foreground launch, including legacy terminal-agent profile/command forms and stale `unavailable during redesign` behavior; pass focused domain/protocol/supervisor tests plus typecheck and architecture checks.
+- [ ] 2.3 Consolidate or delete tests that prove deleted behavior, historical names without a live cause, duplicate same-boundary outcomes, or deferred physical automation; rename retained regression tests for current invariants and pass every changed focused test plus `npm test`.
+- [ ] 2.4 Remove active deferred physical-worker implementation/workflow assets that have no preview-baseline owner, preserve only current isolation policy or schema guards justified by the inventory, discard the saved WIP stash after confirming Git/OpenSpec history is sufficient, and pass architecture/unit/release gates without launching desktop automation.
+- [ ] 2.5 Rewrite README and architecture/toolchain documents as current production documentation, remove stale milestone/history narration outside OpenSpec/Git, add concise transparent/composed limitation and sandbox terminology, and pass documentation/architecture policy checks.
+- [ ] 2.6 Audit source comments against the approved rationale/safety/platform/public-contract policy; remove narration/history/speculation, improve names or decomposition where comments masked unclear code, retain concise non-obvious safety rationale, and pass focused owner tests plus typecheck.
+
+## 3. Establish Feature and Foundation Ownership
+
+- [ ] 3.1 Define the concrete source/test ownership map from the approved target structure, including public entries and allowed dependency directions for CLI, launch, lifecycle, protocol, release, storage, supervision, and transparent terminal attachment; add deterministic architecture fixtures for valid and invalid imports.
+- [ ] 3.2 Move retained production modules mechanically into `src/cli`, `src/features/launch`, and specifically named `src/foundation/*` owners without semantic changes; update exports/imports/build entry paths and pass build, typecheck, focused tests, and package-content comparison.
+- [ ] 3.3 Move retained tests to mirror their feature/foundation owners, preserve unit versus integration boundary semantics, update Vitest/configuration references, and pass focused moved tests plus `npm test`.
+- [ ] 3.4 Extend architecture governance to reject unowned production paths, feature-private deep imports, foundation-to-feature imports, generic dumping-ground directories, nested manifests/lockfiles/`node_modules`, tracked logs/sessions/caches/browser profiles/generated output, and stale redesign markers; pass focused policy fixtures and `npm run check:architecture`.
+- [ ] 3.5 Add maintained `docs/architecture/project-structure.md` and feature documentation conventions that explain ownership, public entries, settings ownership, test placement, dependency authority, sparse comments, and when a future composed-terminal change is required; verify every retained artifact in the inventory names one current owner.
+
+## 4. Implement Launch Profile Contracts
+
+- [ ] 4.1 Define dependency-free launch intent/profile contracts for `addone`, `pi`, and `sandbox`, including exact profile identity, selected Pi configuration-root policy, project-trust policy, and transparent capability; pass focused contract tests.
+- [ ] 4.2 Implement cross-platform effective-home resolution for `<home>/.a1/agent` and `<home>/.a1/sandbox` with hermetic overrides, path validation, and no dependence on AddOne control/data/runtime directories; pass Windows/Unix path tests.
+- [ ] 4.3 Implement ownership-safe initialization that creates only the selected AddOne profile root and conventional empty resource directories, rejects unsafe non-directory/redirection conflicts, preserves all existing files, and never reads or mutates another profile; pass focused filesystem tests.
+- [ ] 4.4 Refactor the shared `a1`/`addone` CLI dispatcher so bare invocation selects normal AddOne, `pi` selects vanilla Pi, `sandbox` selects sandbox, maintenance commands remain unchanged, `agent`/unknown subcommands fail with concise usage, and no command uses shell interpretation; pass both-alias CLI-isolation tests.
+- [ ] 4.5 Carry the validated launch intent through mutable bootstrap and immutable release selection into the foreground launch entry without changing supervisor cohort or terminal-byte-path behavior; pass bootstrap/release identity and foreground lifecycle tests.
+- [ ] 4.6 Apply Pi's supported environment contract: bare AddOne sets `PI_CODING_AGENT_DIR` to `.a1/agent`, sandbox sets it to `.a1/sandbox` and defaults project-local executable resources to untrusted/ignored, and vanilla Pi removes the override so `.pi/agent` remains authoritative; preserve ordinary provider environment credentials and pass focused environment-selection tests.
+- [ ] 4.7 Add hermetic integration fixtures proving profile-specific settings, authentication absence, sessions, extensions, skills, prompts, themes, packages, and trust state do not leak among `.pi/agent`, `.a1/agent`, and `.a1/sandbox`, while profile selection adds no PTY/parser/renderer/input relay; pass the containing integration and architecture gates.
+- [ ] 4.8 Document first-run profile directories, independent `/login`, extension placement, vanilla baseline use, sandbox's non-security meaning, and the single-foreground transparent limitation; ensure no `a1 agent` alias or wrapper-specific Pi option is documented as an AddOne command.
+
+## 5. Validate and Preview
+
+- [ ] 5.1 Run the complete clean baseline from a clean milestone checkout: build, typecheck, architecture/hygiene, deprecated dependencies, unit/integration, update transitions, exact package content, release verdicts, and strict validation for all active changes; preserve machine-readable evidence.
+- [ ] 5.2 Pack one exact unpublished development candidate and provide user-controlled manual commands/checklists for bare `a1`, `a1 pi`, and `a1 sandbox`, including profile file isolation and unchanged rendering/input/exit behavior; do not launch, focus, drive, resize, or close terminal applications automatically.
+- [ ] 5.3 Correct all manual findings, rerun affected focused and containing gates, and record explicit acceptance of the exact candidate and all three profile mappings.
+- [ ] 5.4 Publish the accepted exact bytes under npm `next` through trusted GitHub publishing, verify registry version/integrity/tag, keep `latest` unchanged, and retain physical/cross-platform certification as deferred without claiming arbitrary-CLI multi-tab support.
