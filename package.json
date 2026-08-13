@@ -30,7 +30,7 @@
     "publish:next": "tsx scripts/publish-next.ts",
     "test": "vitest run",
     "test:unit": "vitest run test/cli test/features test/foundation test/repository-governance --exclude '**/*.integration.test.ts'",
-    "test:integration": "vitest run test/foundation/release/update-transition.integration.test.ts",
+    "test:integration": "vitest run test/foundation/release/update-transition.integration.test.ts test/features/launch/profile-isolation.integration.test.ts",
     "test:release": "node scripts/run-release-gates.mjs",
     "start": "npm run build && node scripts/start-local.mjs",
     "prepack": "node scripts/prepack-gate.mjs",
