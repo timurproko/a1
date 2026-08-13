@@ -101,17 +101,17 @@ function stopSignal() {
     resolveStop(reason);
   };
   const onSigterm = () => request("user-request");
-  // On Windows the console delivers Ctrl+C to every attached process. Keep the
-  // broker alive while the foreground child applies its own Ctrl+C behavior.
-  // Unix foreground process-group routing already targets the child path.
+  // The broker and natively attached child can share a foreground signal
+  // delivery boundary. Keep the broker alive while the child applies its own
+  // Ctrl+C behavior; this handler never translates or forwards the signal.
   const onSigint = () => undefined;
   process.once("SIGTERM", onSigterm);
-  if (process.platform === "win32") process.on("SIGINT", onSigint);
+  process.on("SIGINT", onSigint);
   return {
     requested,
     dispose() {
       process.off("SIGTERM", onSigterm);
-      if (process.platform === "win32") process.off("SIGINT", onSigint);
+      process.off("SIGINT", onSigint);
     },
   };
 }
