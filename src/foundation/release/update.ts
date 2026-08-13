@@ -232,7 +232,7 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
     }
 
     if (phaseBefore(transaction.phase, "package-installed")) {
-      output.stdout(`AddOne is installing ${ADDONE_PACKAGE}@${targetVersion} globally from the ${channel} channel.\n`);
+      output.stdout(`AddOne is installing ${ADDONE_PACKAGE}@${targetVersion}.\n`);
       const installation = await runNpm(runner, ["install", "--global", `${ADDONE_PACKAGE}@${targetVersion}`], false, output, "start the global npm installation", false);
       if (installation.result === null) throw new UpdateFailure(installation.exitCode, "npm process failed");
       if (installation.result.code !== 0) throw new UpdateFailure(unsuccessfulCode(installation.result.code), `npm exited with status ${formatExitCode(installation.result.code)}`);

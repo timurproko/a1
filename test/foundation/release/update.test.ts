@@ -144,6 +144,8 @@ describe("AddOne self-update orchestration", () => {
       { command: "npm", arguments: ["install", "--global", `${ADDONE_PACKAGE}@1.3.0-dev.1`], request: { captureStdout: false } },
     ]);
     expect(harness.stdout.join("")).toContain("AddOne update (next): 1.3.0-dev.0 → 1.3.0-dev.1.");
+    expect(harness.stdout.join("")).toContain(`AddOne is installing ${ADDONE_PACKAGE}@1.3.0-dev.1.\n`);
+    expect(harness.stdout.join("")).not.toContain("globally from the next channel");
     expect(harness.stdout.join("")).toContain("AddOne updated successfully: 1.3.0-dev.1 (next).");
   });
 
