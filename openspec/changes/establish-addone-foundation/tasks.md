@@ -167,7 +167,7 @@ No replacement terminal implementation SHALL begin until tasks 1.122–1.135 com
 - [x] 1.149 Implement Windows transparent direct attachment using inherited native console/terminal handles with no nested ConPTY, `CSI ? 9001`, input helper, or AddOne terminal control output; pass non-desktop handle/process identity and structural tests. Defer paired physical child-recorder input to tasks 1.139 and 1.154.
 - [x] 1.150 Implement Unix transparent direct attachment with inherited controlling TTY and correct foreground process-group/signal restoration on Linux and macOS; pass non-desktop platform lifecycle and structural tests. Defer paired physical input to tasks 1.144, 1.145, and 1.154.
 - [x] 1.151 Implement bounded normal/error/crash/update cleanup for transparent brokers without turning the failsafe into a normal-path mode emulator; pass deterministic owned-process lifecycle tests. Defer physical terminal-usability and parent-shell gates to tasks 1.154–1.157.
-- [ ] 1.152 Add architecture checks proving transparent production code has no terminal application identity/content branch, PTY/emulator dependency, terminal input/output parser, render timer, byte payload in the control protocol, or post-handoff AddOne display write; pass focused policy tests and `npm run check:architecture`.
+- [x] 1.152 Add architecture checks proving transparent production code has no terminal application identity/content branch, PTY/emulator dependency, terminal input/output parser, render timer, byte payload in the control protocol, or post-handoff AddOne display write; pass focused policy tests and `npm run check:architecture`.
 
 ## 1G. Manual-First Transparent Checkpoint
 

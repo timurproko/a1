@@ -30,6 +30,26 @@ describe("terminal-core architecture policy", () => {
     expect(result.stderr).toContain(diagnostic);
   });
 
+  it.each([
+    ["import pty from 'node-pty';", "PTY or terminal emulator dependency"],
+    ["process.stdin.on('data', bytes => relay(bytes));", "terminal input/output read or relay"],
+    ["SetConsoleMode(handle, mode);", "terminal input or mode mediation"],
+    ["render(framebuffer);", "terminal parsing or display reconstruction"],
+  ])("rejects transparent interception: %s", async (source, diagnostic) => {
+    const root = await fixture({ "src/transparent/forbidden.ts": source });
+    const result = runPolicy(root);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(diagnostic);
+  });
+
+  it("requires native transparent launchers to inherit handles without a shell", async () => {
+    const root = await fixture({ "src/transparent/native-launcher.ts": "export function launch() { return spawn('tool'); }" });
+    const result = runPolicy(root);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("must inherit physical standard handles");
+    expect(result.stderr).toContain("must disable shell execution");
+  });
+
   it("rejects obsolete retired-pipeline release gates", async () => {
     const root = await fixture({ "scripts/run-release-gates.mjs": "const suite = 'test/scenarios/packaged-real-pi.test.ts';" });
     const result = runPolicy(root);

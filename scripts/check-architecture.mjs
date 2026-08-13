@@ -66,6 +66,24 @@ for (const file of await walk(sourceRoot)) {
     if (pattern.test(source)) errors.push(`${path}: ${label} is forbidden`);
   }
 
+  if (path.startsWith("src/transparent/")) {
+    const transparentForbidden = [
+      { pattern: /(?:node-pty|@xterm|conpty|portable-pty|wezterm)/i, label: "PTY or terminal emulator dependency" },
+      { pattern: /(?:process\.(?:stdin|stdout|stderr)|\.on\(\s*["']data|\.pipe\(|TextDecoder|StringDecoder)/, label: "terminal input/output read or relay" },
+      { pattern: /(?:setRawMode|ReadConsoleInputW|SendInput|WriteConsole|SetConsoleMode|tcsetpgrp|termios)/i, label: "terminal input or mode mediation" },
+      { pattern: /(?:framebuffer|render|repaint|damage|cell|cursor|escape(?:Sequence)?|terminalQuery)/i, label: "terminal parsing or display reconstruction" },
+    ];
+    for (const { pattern, label } of transparentForbidden) {
+      if (pattern.test(source)) errors.push(`${path}: transparent boundary contains forbidden ${label}`);
+    }
+    if (/native-launcher\.ts$/.test(path) && !/stdio:\s*["']inherit["']/.test(source)) {
+      errors.push(`${path}: transparent native launcher must inherit physical standard handles`);
+    }
+    if (/native-launcher\.ts$/.test(path) && !/shell:\s*false/.test(source)) {
+      errors.push(`${path}: transparent native launcher must disable shell execution`);
+    }
+  }
+
   if (isTerminalBoundary(path)) {
     const identityPatterns = [
       { pattern: /native[\s_-]*pi|ADDONE_NATIVE_PI|PI_CODING_AGENT|PI_CONFIG|--tui-mode|\b(?:Claude|Codex)\b/i, label: "CLI identity or CLI-named configuration" },
