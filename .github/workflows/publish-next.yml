@@ -40,14 +40,14 @@ jobs:
         run: git config --global core.autocrlf false
 
       - name: Check out exact manually accepted source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: 3904de4c879f71a5a02a9bb02a74a1f009d5ec0f
           fetch-depth: 0
           persist-credentials: false
 
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 24
           cache: npm
@@ -69,6 +69,19 @@ jobs:
           test "$PACKAGE_VERSION" = "0.1.5-dev.10"
           echo "version=$PACKAGE_VERSION" >> "$GITHUB_ENV"
           echo "source_commit=$ACCEPTED_SOURCE_COMMIT" >> "$GITHUB_ENV"
+
+      - name: Reproduce accepted candidate line endings
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFile, writeFile } from "node:fs/promises";
+          for (const path of ["package.json", "src/foundation/storage/control-store.ts"]) {
+            const source = await readFile(path, "utf8");
+            if (source.includes("\r")) throw new Error(`${path} checkout was not normalized to LF`);
+            await writeFile(path, source.replaceAll("\n", "\r\n"));
+          }
+          NODE
+          git diff --ignore-space-at-eol --exit-code
 
       - name: Install exact locked dependencies
         run: npm ci
@@ -150,7 +163,7 @@ jobs:
 
       - name: Upload publication evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: npm-next-${{ inputs.version }}-${{ github.sha }}
           path: |
