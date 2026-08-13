@@ -1,3 +1,4 @@
+export type LaunchProfileId = "addone" | "pi" | "sandbox";
 export type GenerationId = string;
 export type DriverProfileId = string;
 export type RequestId = string;
@@ -66,6 +67,10 @@ export interface CommandResult {
   readonly ok: boolean;
   readonly revision: number;
   readonly error?: { readonly code: "invalid-command" | "not-found" | "stale-generation" | "capability-error" | "driver-error"; readonly message: string };
+}
+
+export function assertLaunchProfileId(value: unknown): asserts value is LaunchProfileId {
+  if (value !== "addone" && value !== "pi" && value !== "sandbox") throw new TypeError(`invalid AddOne launch profile: ${String(value)}`);
 }
 
 export function assertDimensions(dimensions: TerminalDimensions): void {

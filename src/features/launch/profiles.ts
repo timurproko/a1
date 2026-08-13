@@ -1,4 +1,6 @@
-export type LaunchProfileId = "addone" | "pi" | "sandbox";
+import type { LaunchProfileId } from "../../foundation/lifecycle/index.js";
+
+export type { LaunchProfileId } from "../../foundation/lifecycle/index.js";
 export type PiConfigurationRootPolicy = "addone-agent" | "pi-default" | "addone-sandbox";
 export type ProjectTrustPolicy = "pi-default" | "ignore";
 

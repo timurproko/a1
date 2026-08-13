@@ -5,19 +5,23 @@ import { platform } from "node:os";
 import { resolve } from "node:path";
 import { selectCohortLaunch, type OwnershipProbe } from "./cohort-selection.js";
 import { CohortStateStore, type SupervisorEndpointMetadata } from "./cohort-state.js";
-import { resolveAddOnePaths } from "../lifecycle/index.js";
+import { assertLaunchProfileId, resolveAddOnePaths, type LaunchProfileId } from "../lifecycle/index.js";
 import { encodeFrame, LineFrameDecoder } from "../protocol/index.js";
 import { cleanupProvenIdleOwner, processIsAlive } from "./process-cleanup.js";
 import { materializeRelease, readMaterializedRelease, resolveReleaseEntryPoint, verifyMaterializedRelease, type MaterializedRelease } from "./release-store.js";
 
 export interface BootstrapOptions {
   readonly packageRoot: string;
+  readonly launchIntent?: { readonly kind: "interactive"; readonly profile: { readonly id: LaunchProfileId } };
   readonly environment?: NodeJS.ProcessEnv;
   readonly output?: Pick<NodeJS.WriteStream, "write">;
 }
 
 export async function runBootstrap(options: BootstrapOptions): Promise<number> {
   const environment = { ...(options.environment ?? process.env) };
+  const launchProfileId = options.launchIntent?.profile.id ?? "addone";
+  assertLaunchProfileId(launchProfileId);
+  environment.ADDONE_LAUNCH_PROFILE = launchProfileId;
   const output = options.output ?? process.stderr;
   const paths = resolveAddOnePaths(environment);
   await mkdir(paths.runtimeDir, { recursive: true, mode: 0o700 });

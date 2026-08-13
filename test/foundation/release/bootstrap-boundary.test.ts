@@ -17,6 +17,13 @@ describe("mutable bootstrap boundary", () => {
     expect(`${bin}\n${ui}`).not.toMatch(/Start-Process|wt\.exe|SendInput|SetForegroundWindow/);
   });
 
+  it("carries selected launch identity without importing terminal implementation", async () => {
+    const bootstrap = await readFile(resolve(repository, "src/foundation/release/bootstrap.ts"), "utf8");
+    expect(bootstrap).toContain("options.launchIntent?.profile.id");
+    expect(bootstrap).toContain("environment.ADDONE_LAUNCH_PROFILE = launchProfileId");
+    expect(bootstrap).not.toMatch(/foundation\/transparent-terminal/);
+  });
+
   it("keeps the dependency-light coordinator free of terminal implementation imports", async () => {
     const bootstrap = await readFile(resolve(repository, "src/foundation/release/bootstrap.ts"), "utf8");
     expect(bootstrap).not.toMatch(/from ["']\.\/(?:ui|supervisor|drivers|presentation)/);

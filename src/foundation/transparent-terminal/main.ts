@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { realpath } from "node:fs/promises";
 import { resolve } from "node:path";
-import type { TransparentTerminalLaunchProfile } from "../lifecycle/index.js";
+import { assertLaunchProfileId, type LaunchProfileId, type TransparentTerminalLaunchProfile } from "../lifecycle/index.js";
 import { SupervisorClient } from "../protocol/index.js";
 import { resolveAddOnePaths } from "../supervision/index.js";
 import { runForegroundBroker, type TransparentStopReason } from "./foreground-broker.js";
@@ -9,6 +9,7 @@ import { createPlatformTransparentLauncher } from "./native-launcher.js";
 
 export interface TransparentForegroundOptions {
   readonly environment?: NodeJS.ProcessEnv;
+  readonly profileId?: LaunchProfileId;
   readonly cwd?: string;
   readonly executable?: string;
   readonly arguments?: readonly string[];
@@ -16,11 +17,13 @@ export interface TransparentForegroundOptions {
 
 export async function runTransparentForeground(options: TransparentForegroundOptions = {}): Promise<number> {
   const environment = { ...(options.environment ?? process.env) };
+  const profileId = options.profileId ?? environment.ADDONE_LAUNCH_PROFILE ?? "addone";
+  assertLaunchProfileId(profileId);
   const paths = resolveAddOnePaths(environment);
   const client = new SupervisorClient(environment.ADDONE_RELEASE_ID);
   await client.connect(paths.endpoint);
   const ownerId = `foreground-broker-${randomUUID()}`;
-  const profile = await launchProfile(environment, options);
+  const profile = await launchProfile(environment, options, profileId);
   const stop = stopSignal();
   try {
     const result = await runForegroundBroker(
@@ -42,13 +45,14 @@ export async function runTransparentForeground(options: TransparentForegroundOpt
 async function launchProfile(
   environment: NodeJS.ProcessEnv,
   options: TransparentForegroundOptions,
+  profileId: LaunchProfileId,
 ): Promise<TransparentTerminalLaunchProfile> {
   const executable = options.executable ?? environment.ADDONE_TERMINAL_EXECUTABLE ?? "pi";
   const arguments_ = options.arguments ?? parseArguments(environment.ADDONE_TERMINAL_ARGUMENTS_JSON);
   const cwd = await realpath(options.cwd ?? process.cwd());
   const terminalType = environment.TERM?.trim() || "xterm-256color";
   return {
-    id: `transparent-${randomUUID()}`,
+    id: `${profileId}-transparent-${randomUUID()}`,
     terminalCapability: "transparent",
     executable,
     arguments: arguments_,

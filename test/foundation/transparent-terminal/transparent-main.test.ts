@@ -10,6 +10,8 @@ describe("transparent CLI composition", () => {
     expect(entry).toContain("runTransparentForeground");
     expect(main).toContain("runForegroundBroker");
     expect(main).toContain("createPlatformTransparentLauncher");
+    expect(main).toContain("environment.ADDONE_LAUNCH_PROFILE");
+    expect(main).toContain("assertLaunchProfileId(profileId)");
     expect(`${entry}\n${main}`).not.toMatch(/Start-Process|wt\.exe|SendInput|SetForegroundWindow|ReadConsoleInputW|node-pty|@xterm/i);
     expect(main).not.toMatch(/process\.(?:stdin|stdout|stderr)|\.on\(["']data|\.pipe\(/);
     const resolution = await readFile("src/foundation/transparent-terminal/command-resolution.ts", "utf8");
