@@ -23,7 +23,7 @@
 
 ## 4. Implement Launch Profile Contracts
 
-- [ ] 4.1 Define dependency-free launch intent/profile contracts for bare AddOne, `pi`, and `sandbox`, including bare `a1` as the stable agent product entry, exact profile identity, selected Pi configuration-root policy, project-trust policy, and initial transparent capability; pass focused contract tests.
+- [x] 4.1 Define dependency-free launch intent/profile contracts for bare AddOne, `pi`, and `sandbox`, including bare `a1` as the stable agent product entry, exact profile identity, selected Pi configuration-root policy, project-trust policy, and initial transparent capability; pass focused contract tests.
 - [ ] 4.2 Implement cross-platform effective-home resolution for `<home>/.a1/agent` and `<home>/.a1/sandbox` with hermetic overrides, path validation, and no dependence on AddOne control/data/runtime directories; pass Windows/Unix path tests.
 - [ ] 4.3 Implement ownership-safe initialization that creates only the selected AddOne profile root and conventional empty resource directories, rejects unsafe non-directory/redirection conflicts, preserves all existing files, and never reads or mutates another profile; pass focused filesystem tests.
 - [ ] 4.4 Refactor the shared `a1`/`addone` CLI dispatcher so bare invocation selects normal AddOne, `pi` selects vanilla Pi, `sandbox` selects sandbox, maintenance commands remain unchanged, `agent` fails with concise guidance that bare invocation is the agent experience, other unknown subcommands fail with usage, and no command uses shell interpretation; pass both-alias CLI-isolation tests.
