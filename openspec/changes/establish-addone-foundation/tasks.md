@@ -151,7 +151,7 @@ No replacement terminal implementation SHALL begin until tasks 1.122–1.135 com
 - [x] 1.132 Reduce supervisor terminal behavior to architecture-independent logical generation and owned-process lifecycle records with no resident surface claim; pass focused supervisor/storage tests and the containing unit gate.
 - [x] 1.133 Replace terminal-emulator blockers in update-transition coverage with a minimal generic owned-process fixture, preserving exact shutdown/unlock/recovery assertions; pass the focused update-transition test and its containing update gate.
 - [x] 1.134 Extend architecture and release-policy checks to reject retired terminal modules, terminal application identity/content branches, cadence inference, custom mode/query/input parsers, and obsolete release gates; pass focused policy tests and `npm run check:architecture`.
-- [ ] 1.135 Run the clean-baseline gate—build, typecheck, architecture, deprecated dependencies, retained unit/integration tests, update transitions, exact package/version checks, and packaging mechanics—and commit evidence that the repository is clean and buildable before adding any replacement terminal code.
+- [x] 1.135 Run the clean-baseline gate—build, typecheck, architecture, deprecated dependencies, retained unit/integration tests, update transitions, exact package/version checks, and packaging mechanics—and commit evidence that the repository is clean and buildable before adding any replacement terminal code.
 
 ## 1E. Build Independent Native-Terminal Oracles
 
