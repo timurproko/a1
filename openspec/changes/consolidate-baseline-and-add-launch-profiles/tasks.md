@@ -19,7 +19,7 @@
 - [x] 3.2 Move retained production modules mechanically into `src/cli`, `src/features/launch`, and specifically named `src/foundation/*` owners without semantic changes; update exports/imports/build entry paths and pass build, typecheck, focused tests, and package-content comparison.
 - [x] 3.3 Move retained tests to mirror their feature/foundation owners, preserve unit versus integration boundary semantics, update Vitest/configuration references, and pass focused moved tests plus `npm test`.
 - [x] 3.4 Extend architecture governance to reject unowned production paths, feature-private deep imports, foundation-to-feature imports, generic dumping-ground directories, nested manifests/lockfiles/`node_modules`, tracked logs/sessions/caches/browser profiles/generated output, and stale redesign markers; pass focused policy fixtures and `npm run check:architecture`.
-- [ ] 3.5 Add maintained `docs/architecture/project-structure.md` and feature documentation conventions that explain ownership, public entries, settings ownership, test placement, dependency authority, sparse comments, and why future bare-`a1` arbitrary-CLI tabs require a composed-terminal change; verify every retained artifact in the inventory names one current owner.
+- [x] 3.5 Add maintained `docs/architecture/project-structure.md` and feature documentation conventions that explain ownership, public entries, settings ownership, test placement, dependency authority, sparse comments, and why future bare-`a1` arbitrary-CLI tabs require a composed-terminal change; verify every retained artifact in the inventory names one current owner.
 
 ## 4. Implement Launch Profile Contracts
 
