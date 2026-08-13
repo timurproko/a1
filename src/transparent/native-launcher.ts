@@ -1,4 +1,5 @@
 import { spawn, type ChildProcess, type SpawnOptions } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import type { TransparentTerminalLaunchProfile, TransparentTerminalLifecycleOutcome } from "../domain/index.js";
 import type { TransparentChildHandle, TransparentNativeLauncher, TransparentStopReason } from "./foreground-broker.js";
 
@@ -52,15 +53,15 @@ async function launchInherited(
   const child = adapter.spawn(profile.executable, profile.arguments, {
     ...platformOptions,
     cwd: profile.cwd,
-    env: { ...process.env, ...profile.environment, TERM: profile.terminalType },
+    env: { ...profile.environment, TERM: profile.terminalType },
     shell: false,
     stdio: "inherit",
   });
   await spawned(child);
   if (!child.pid) throw Object.assign(new Error("transparent child has no process identity"), { code: "NO_PROCESS_ID" });
+  const outcome = childOutcome(child);
   const startIdentity = await adapter.observeStartIdentity(child);
   const processIdentity = { pid: child.pid, startIdentity };
-  const outcome = childOutcome(child);
   let stopOutcome: Promise<TransparentTerminalLifecycleOutcome> | null = null;
   return {
     processIdentity,
@@ -119,18 +120,23 @@ function errorCode(error: Error): string | null {
   return "code" in error && typeof error.code === "string" ? error.code : null;
 }
 
+const observedStartIdentities = new WeakMap<ChildProcess, string>();
+
 const defaultSpawnAdapter: NativeSpawnAdapter = {
   spawn(executable, arguments_, options) {
     return spawn(executable, [...arguments_], options);
   },
   async observeStartIdentity(child) {
     if (!child.pid) throw new Error("transparent child has no PID");
-    // Captured immediately after spawn; platform-native strengthening can
-    // replace this adapter without changing the broker contract.
-    return `${child.pid}:${Date.now()}`;
+    const identity = `${child.pid}:${randomUUID()}`;
+    observedStartIdentities.set(child, identity);
+    return identity;
   },
   async identityMatches(child, expectedStartIdentity) {
-    return child.pid !== undefined && expectedStartIdentity.startsWith(`${child.pid}:`);
+    return child.pid !== undefined
+      && child.exitCode === null
+      && child.signalCode === null
+      && observedStartIdentities.get(child) === expectedStartIdentity;
   },
   async stop(child, force) {
     if (child.exitCode !== null || child.signalCode !== null) return;

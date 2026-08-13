@@ -23,7 +23,7 @@ describe("platform transparent native launchers", () => {
     expect(fixture.spawn).toHaveBeenCalledWith("tool", profile.arguments, expect.objectContaining({
       cwd: "workspace", shell: false, stdio: "inherit", detached: false, windowsHide: true, windowsVerbatimArguments: false,
     }));
-    expect(fixture.options()?.env).toMatchObject({ ADDONE_TEST_VALUE: "exact", TERM: "xterm-256color" });
+    expect(fixture.options()?.env).toEqual({ ADDONE_TEST_VALUE: "exact", TERM: "xterm-256color" });
     expect(handle.processIdentity).toEqual({ pid: 8123, startIdentity: "8123:native-start" });
     fixture.child.emit("close", 0, null);
     await expect(handle.outcome).resolves.toEqual({ kind: "exited", exitCode: 0 });

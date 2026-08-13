@@ -27,15 +27,13 @@ if (process.argv[2] === "version") {
       channel: process.argv[2] === "update:next" ? "next" : "stable",
     });
   }
+} else if (process.argv.length > 2) {
+  process.stderr.write("Usage: addone | addone version | addone update | addone update:next\n");
+  process.exitCode = 2;
 } else {
-  // Interactive terminal execution is deliberately unavailable while the
-  // retired emulation pipeline is removed. Do not materialize or start an old
-  // UI/supervisor as a hidden fallback. Dependency-light maintenance commands
-  // above remain available throughout the redesign.
-  process.stderr.write(
-    "AddOne terminal capability is unavailable during redesign. "
-      + "Run terminal applications directly; maintenance commands remain available: "
-      + "addone version, addone update, addone update:next.\n",
-  );
-  process.exitCode = 1;
+  const [{ fileURLToPath }, { runBootstrap }] = await Promise.all([
+    import("node:url"),
+    import("../dist/src/bootstrap.js"),
+  ]);
+  process.exitCode = await runBootstrap({ packageRoot: fileURLToPath(packageRoot) });
 }

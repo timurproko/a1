@@ -1,7 +1,10 @@
 #!/usr/bin/env node
+import { runTransparentForeground } from "../dist/src/transparent/main.js";
 
-process.stderr.write(
-  "AddOne terminal capability is unavailable during redesign. "
-    + "This retained release entry point will be replaced by the transparent foreground broker.\n",
+runTransparentForeground().then(
+  code => { process.exitCode = code; },
+  error => {
+    console.error(error instanceof Error ? error.stack ?? error.message : String(error));
+    process.exitCode = 1;
+  },
 );
-process.exitCode = 1;

@@ -4,17 +4,11 @@ AddOne is being rebuilt as a cross-platform terminal workspace for Windows, macO
 
 ## Terminal redesign status
 
-The previous PTY/emulation/rendering pipeline was not production-ready and has been removed. Interactive `addone`/`a1` launch currently exits with:
-
-```text
-AddOne terminal capability is unavailable during redesign.
-```
-
-Run terminal applications directly during this cleanup milestone. There is no hidden fallback to the retired renderer or input relay.
+The previous PTY/emulation/rendering pipeline was not production-ready and has been removed. The milestone branch now contains a manual-checkpoint transparent foreground broker. Interactive `addone`/`a1` launches the configured command with inherited native terminal handles and no AddOne terminal byte relay, renderer, parser, PTY, or input translator.
 
 The replacement remains terminal-based:
 
-- transparent mode will attach arbitrary terminal applications through each platform's native terminal/process facilities without AddOne input or rendering translation;
+- transparent mode attaches arbitrary terminal applications through each platform's native terminal/process facilities without AddOne input or rendering translation;
 - any later composed mode must use one independently certified authoritative terminal core;
 - neither mode may add executable-, argument-, environment-, or content-specific terminal hacks.
 
@@ -40,7 +34,7 @@ npm run build
 npm link
 ```
 
-`npm start` builds and launches the checkout, but interactive launch intentionally reports unavailable until the transparent foreground broker is implemented.
+`npm start` builds and launches a unique isolated AddOne development instance. For the manual-first transparent validation workflow, follow [`docs/manual-transparent-checkpoint.md`](docs/manual-transparent-checkpoint.md) and enter all launch/interaction commands yourself. Do not run physical automation on your workstation.
 
 ## Version and update
 
