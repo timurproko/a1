@@ -60,7 +60,7 @@ describe("transparent terminal contracts", () => {
 
   it("round-trips lease lifecycle commands without terminal bytes or surfaces", () => {
     const commands: SupervisorCommand[] = [
-      { type: "acquire-foreground-terminal-lease", requestId: "request-1", ownerId: "broker-1", profile },
+      { type: "acquire-foreground-terminal-lease", requestId: "request-1", leaseId: "lease-1", ownerId: "broker-1", profile },
       { type: "activate-foreground-terminal-lease", requestId: "request-2", leaseId: "lease-1", generationId: "generation-1", processIdentity: identity },
       { type: "heartbeat-foreground-terminal-lease", requestId: "request-3", leaseId: "lease-1", processIdentity: identity },
       { type: "release-foreground-terminal-lease", requestId: "request-4", leaseId: "lease-1", processIdentity: identity, outcome: { kind: "exited", exitCode: 0 } },

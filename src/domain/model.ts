@@ -130,7 +130,7 @@ export interface SupervisorSnapshot {
 export type SupervisorCommand =
   | { readonly type: "create-terminal-agent"; readonly requestId: RequestId; readonly cwd: string; readonly dimensions: TerminalDimensions }
   | { readonly type: "ensure-initial-terminal-agent"; readonly requestId: RequestId; readonly cwd: string; readonly dimensions: TerminalDimensions }
-  | { readonly type: "acquire-foreground-terminal-lease"; readonly requestId: RequestId; readonly ownerId: string; readonly profile: TransparentTerminalLaunchProfile }
+  | { readonly type: "acquire-foreground-terminal-lease"; readonly requestId: RequestId; readonly leaseId: ForegroundTerminalLeaseId; readonly ownerId: string; readonly profile: TransparentTerminalLaunchProfile }
   | { readonly type: "activate-foreground-terminal-lease"; readonly requestId: RequestId; readonly leaseId: ForegroundTerminalLeaseId; readonly generationId: GenerationId; readonly processIdentity: NativeProcessIdentity }
   | { readonly type: "heartbeat-foreground-terminal-lease"; readonly requestId: RequestId; readonly leaseId: ForegroundTerminalLeaseId; readonly processIdentity: NativeProcessIdentity }
   | { readonly type: "release-foreground-terminal-lease"; readonly requestId: RequestId; readonly leaseId: ForegroundTerminalLeaseId; readonly processIdentity: NativeProcessIdentity | null; readonly outcome: TransparentTerminalLifecycleOutcome }
@@ -162,5 +162,26 @@ export function assertDimensions(dimensions: TerminalDimensions): void {
   }
   if (!Number.isInteger(dimensions.rows) || dimensions.rows < 1 || dimensions.rows > 300) {
     throw new RangeError("terminal rows must be an integer from 1 to 300");
+  }
+}
+
+export function assertTransparentTerminalLaunchProfile(profile: TransparentTerminalLaunchProfile): void {
+  if (!profile.id || profile.terminalCapability !== "transparent") throw new TypeError("invalid transparent terminal profile identity");
+  if (!profile.executable || profile.executable.includes("\0")) throw new TypeError("transparent executable must be non-empty and contain no null byte");
+  if (!profile.cwd || profile.cwd.includes("\0")) throw new TypeError("transparent working directory must be non-empty and contain no null byte");
+  if (profile.arguments.some(value => typeof value !== "string" || value.includes("\0"))) throw new TypeError("transparent arguments must contain no null byte");
+  if (Object.entries(profile.environment).some(([name, value]) => !name || name.includes("=") || name.includes("\0") || value.includes("\0"))) {
+    throw new TypeError("transparent environment contains an invalid name or value");
+  }
+  if (!profile.terminalType || profile.terminalType.includes("\0")) throw new TypeError("transparent terminal type is invalid");
+  assertDimensions(profile.dimensions);
+  if (profile.surface !== "none" || profile.visualReconnection !== "none") throw new TypeError("transparent profiles cannot declare a surface or visual reconnection");
+  if (profile.ownerDisconnect === "detach" && profile.recovery !== "detach-only") throw new TypeError("transparent detach policy requires detach-only recovery");
+  if (profile.ownerDisconnect === "stop" && profile.recovery !== "none") throw new TypeError("transparent stop policy requires no recovery claim");
+}
+
+export function assertNativeProcessIdentity(identity: NativeProcessIdentity): void {
+  if (!Number.isSafeInteger(identity.pid) || identity.pid <= 0 || !identity.startIdentity || identity.startIdentity.includes("\0")) {
+    throw new TypeError("invalid native process identity");
   }
 }

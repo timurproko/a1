@@ -2,16 +2,19 @@ import { randomUUID } from "node:crypto";
 import { mkdir, rename, rm, writeFile } from "node:fs/promises";
 import { createConnection, createServer, type Server, type Socket } from "node:net";
 import { platform } from "node:os";
-import type {
-  AddOneEvent,
-  AgentId,
-  CommandResult,
-  GenerationId,
-  LogicalTerminalAgent,
-  LogicalWorkspace,
-  OrderedEvent,
-  SupervisorCommand,
-  SupervisorSnapshot,
+import {
+  assertNativeProcessIdentity,
+  assertTransparentTerminalLaunchProfile,
+  type AddOneEvent,
+  type AgentId,
+  type CommandResult,
+  type ForegroundTerminalLease,
+  type GenerationId,
+  type LogicalTerminalAgent,
+  type LogicalWorkspace,
+  type OrderedEvent,
+  type SupervisorCommand,
+  type SupervisorSnapshot,
 } from "../domain/index.js";
 import { encodeFrame, isCommandMessage, isControlHello, LineFrameDecoder, localControlHello, MAX_CONTROL_FRAME_BYTES, negotiateControlFeatures, type ServerMessage } from "../protocol/index.js";
 import type { MaterializedRelease } from "../release-store.js";
@@ -28,6 +31,7 @@ export class SupervisorServer {
   #server: Server | null = null;
   #workspace: LogicalWorkspace;
   #agents: LogicalTerminalAgent[];
+  #foregroundLease: ForegroundTerminalLease | null;
   #revision = 0;
   #clients = new Set<Socket>();
   #results = new Map<string, CommandResult>();
@@ -37,13 +41,14 @@ export class SupervisorServer {
     readonly store: ControlStore,
     paths = resolveAddOnePaths(),
     readonly release: MaterializedRelease,
-    bootNonce = randomUUID(),
+    bootNonce: string = randomUUID(),
     readonly terminateProcess: (code: number) => void = code => process.exit(code),
   ) {
     this.bootNonce = bootNonce;
     this.paths = paths;
     this.#workspace = store.loadWorkspace();
     this.#agents = store.loadAgents();
+    this.#foregroundLease = store.loadLiveForegroundTerminalLease();
   }
 
   snapshot(): SupervisorSnapshot {
@@ -69,7 +74,8 @@ export class SupervisorServer {
     await this.#writeEndpointMetadata();
   }
 
-  async close(_stopAgents = false): Promise<void> {
+  async close(stopAgents = false): Promise<void> {
+    if (stopAgents && this.#foregroundLease) this.#releaseForegroundLeaseForUpdate();
     for (const client of this.#clients) client.destroy();
     if (this.#server) await new Promise<void>(resolve => this.#server?.close(() => resolve()));
     this.#server = null;
@@ -98,12 +104,14 @@ export class SupervisorServer {
             }
             if (isMessageType(value, "release-idle-ownership")) {
               const request = value as { bootNonce?: unknown; candidateReleaseId?: unknown };
-              const released = request.bootNonce === this.bootNonce && typeof request.candidateReleaseId === "string";
+              const identityMatches = request.bootNonce === this.bootNonce && typeof request.candidateReleaseId === "string";
+              const released = identityMatches && this.#foregroundLease === null;
               this.#send(socket, {
                 type: "release-ownership-result",
                 released,
-                reason: released ? "lifecycle-only cohort released ownership" : "boot nonce or candidate release mismatch",
-                liveGenerationIds: [],
+                reason: released ? "idle cohort released ownership"
+                  : identityMatches ? "foreground terminal lease is still live" : "boot nonce or candidate release mismatch",
+                liveGenerationIds: this.#liveGenerationIds(),
               });
               if (released) setTimeout(() => void this.closeForReleaseReplacement(false), 25);
               continue;
@@ -115,7 +123,7 @@ export class SupervisorServer {
                 type: "release-update-result",
                 accepted,
                 reason: accepted ? "verified AddOne owner accepted immediate update shutdown" : "boot nonce or target version mismatch",
-                liveGenerationIds: [],
+                liveGenerationIds: this.#liveGenerationIds(),
               });
               if (accepted) setTimeout(() => void this.closeForReleaseReplacement(true), 25);
               continue;
@@ -159,8 +167,13 @@ export class SupervisorServer {
       if (command.type === "create-terminal-agent" || command.type === "ensure-initial-terminal-agent") {
         throw new Error("terminal capability is unavailable during redesign");
       }
+      if (command.type === "acquire-foreground-terminal-lease") this.#acquireForegroundLease(command);
+      if (command.type === "activate-foreground-terminal-lease") this.#activateForegroundLease(command);
+      if (command.type === "heartbeat-foreground-terminal-lease") this.#heartbeatForegroundLease(command);
+      if (command.type === "release-foreground-terminal-lease") this.#releaseForegroundLease(command);
       if (command.type === "stop-agent") this.#stopRecordedGeneration(command.agentId, command.generationId);
       if (command.type === "resynchronize") this.#send(socket, { type: "snapshot", snapshot: this.snapshot() });
+      await this.#metadataWrites;
       result = { requestId: command.requestId, ok: true, revision: this.#revision };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -171,6 +184,64 @@ export class SupervisorServer {
     }
     this.#results.set(command.requestId, result);
     this.#send(socket, { type: "command-result", result });
+  }
+
+  #acquireForegroundLease(command: Extract<SupervisorCommand, { type: "acquire-foreground-terminal-lease" }>): void {
+    if (!command.leaseId || !command.ownerId) throw new Error("foreground lease and owner identities are required");
+    assertTransparentTerminalLaunchProfile(command.profile);
+    const lease: ForegroundTerminalLease = {
+      id: command.leaseId,
+      ownerId: command.ownerId,
+      profile: command.profile,
+      state: "requested",
+      generationId: null,
+      processIdentity: null,
+      acquiredAt: new Date().toISOString(),
+      heartbeatAt: null,
+      releasedAt: null,
+      outcome: null,
+    };
+    this.store.acquireForegroundTerminalLease(lease);
+    this.#foregroundLease = lease;
+    void this.#writeEndpointMetadata();
+  }
+
+  #activateForegroundLease(command: Extract<SupervisorCommand, { type: "activate-foreground-terminal-lease" }>): void {
+    assertNativeProcessIdentity(command.processIdentity);
+    if (!this.#foregroundLease || this.#foregroundLease.id !== command.leaseId || this.#foregroundLease.state !== "requested") throw new Error("foreground terminal lease not found or is not requested");
+    const heartbeatAt = new Date().toISOString();
+    if (!this.store.activateForegroundTerminalLease(command.leaseId, command.generationId, command.processIdentity, heartbeatAt)) throw new Error("foreground terminal lease activation was rejected");
+    this.#foregroundLease = { ...this.#foregroundLease, state: "active", generationId: command.generationId, processIdentity: command.processIdentity, heartbeatAt };
+    void this.#writeEndpointMetadata();
+  }
+
+  #heartbeatForegroundLease(command: Extract<SupervisorCommand, { type: "heartbeat-foreground-terminal-lease" }>): void {
+    assertNativeProcessIdentity(command.processIdentity);
+    if (!this.#foregroundLease || this.#foregroundLease.id !== command.leaseId || this.#foregroundLease.state !== "active") throw new Error("active foreground terminal lease not found");
+    const heartbeatAt = new Date().toISOString();
+    if (!this.store.heartbeatForegroundTerminalLease(command.leaseId, command.processIdentity, heartbeatAt)) throw new Error("foreground terminal lease ownership mismatch");
+    this.#foregroundLease = { ...this.#foregroundLease, heartbeatAt };
+  }
+
+  #releaseForegroundLease(command: Extract<SupervisorCommand, { type: "release-foreground-terminal-lease" }>): void {
+    if (command.processIdentity) assertNativeProcessIdentity(command.processIdentity);
+    if (!this.#foregroundLease || this.#foregroundLease.id !== command.leaseId) throw new Error("foreground terminal lease not found");
+    const releasedAt = new Date().toISOString();
+    if (!this.store.releaseForegroundTerminalLease(command.leaseId, command.processIdentity, command.outcome, releasedAt)) throw new Error("foreground terminal lease ownership mismatch");
+    this.#foregroundLease = null;
+    void this.#writeEndpointMetadata();
+  }
+
+  #releaseForegroundLeaseForUpdate(): void {
+    const lease = this.#foregroundLease;
+    if (!lease) return;
+    const outcome = { kind: "stopped", reason: "update" } as const;
+    if (!this.store.releaseForegroundTerminalLease(lease.id, lease.processIdentity, outcome, new Date().toISOString())) throw new Error("foreground terminal lease update shutdown was rejected");
+    this.#foregroundLease = null;
+  }
+
+  #liveGenerationIds(): string[] {
+    return this.#foregroundLease?.generationId ? [this.#foregroundLease.generationId] : [];
   }
 
   #stopRecordedGeneration(agentId: AgentId, generationId: GenerationId): void {
@@ -204,7 +275,11 @@ export class SupervisorServer {
       releaseId: this.release.releaseId,
       releaseRoot: this.release.releaseRoot,
       contentDigest: this.release.contentDigest,
-      ownership: { state: "idle", liveGenerationIds: [], nonResumableGenerationIds: [] },
+      ownership: {
+        state: this.#foregroundLease ? "busy" : "idle",
+        liveGenerationIds: this.#liveGenerationIds(),
+        nonResumableGenerationIds: this.#liveGenerationIds(),
+      },
     };
     const temporary = `${this.paths.endpointMetadataPath}.${process.pid}.tmp`;
     this.#metadataWrites = this.#metadataWrites.then(async () => {
