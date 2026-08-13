@@ -15,6 +15,10 @@ Bare `addone` and `a1` SHALL launch the AddOne-owned multi-agent workspace. The 
 - **WHEN** the user runs `a1 sandbox`
 - **THEN** AddOne SHALL bypass the workspace and transparently attach one Pi process using `~/.a1/sandbox` with project-local executable resources untrusted for that run
 
+#### Scenario: Explicit modes bypass native composed infrastructure
+- **WHEN** the user runs `a1 pi` or `a1 sandbox`
+- **THEN** AddOne SHALL NOT launch, connect to, initialize, or route terminal activity through the composed native host or its parser, renderer, pseudoterminal, topology, or input paths
+
 #### Scenario: Launch after a prior workspace exit
 - **WHEN** the user runs bare AddOne after the workspace process exited
 - **THEN** AddOne SHALL reconcile durable agent identities and reconnect only resources whose capability-specific ownership and continuity can be verified

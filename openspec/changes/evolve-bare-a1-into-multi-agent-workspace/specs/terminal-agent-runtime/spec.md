@@ -13,4 +13,8 @@ A transparent session SHALL advertise no AddOne-authoritative resident surface, 
 
 #### Scenario: Transparent fallback is selected
 - **WHEN** an explicit launch mode or recovery policy selects transparent direct attachment
-- **THEN** the child and physical terminal SHALL retain native rendering and input authority without traversing the composed parser, model, renderer, or input router
+- **THEN** the child and physical terminal SHALL retain native rendering and input authority without traversing or initializing the composed native host, pseudoterminal, parser, model, renderer, topology, or input router
+
+#### Scenario: Composed host is unavailable or fails
+- **WHEN** the composed native host is unsupported, fails its proof gate, or exits abnormally
+- **THEN** transparent direct attachment SHALL remain independently launchable without loading or recovering through composed infrastructure

@@ -59,6 +59,10 @@ The workspace SHALL enable only operations declared by the selected agent's nego
 - **WHEN** an agent does not declare a structured command capability
 - **THEN** the workspace SHALL disable or reject that command with a concise capability explanation
 
-#### Scenario: Terminal-backed CLI is selected
-- **WHEN** an arbitrary interactive CLI tab is selected
-- **THEN** the workspace SHALL route interaction through the composed-terminal contract and SHALL NOT claim structured message, tool, or task semantics
+#### Scenario: Terminal-backed CLI pane is selected
+- **WHEN** an arbitrary interactive CLI pane is selected within a composed tab
+- **THEN** the workspace SHALL delegate native interaction to the composed-terminal host and SHALL NOT claim structured message, tool, or task semantics
+
+#### Scenario: Composed capability has not passed its proof gate
+- **WHEN** the native composed-terminal capability is unavailable, unaccepted, or disabled
+- **THEN** the workspace SHALL keep terminal-pane actions unavailable while preserving structured-agent operations and explicit transparent modes
