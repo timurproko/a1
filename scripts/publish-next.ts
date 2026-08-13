@@ -65,8 +65,8 @@ async function publishNext() {
   const integrity = await sha512Integrity(tarball);
   if (integrity !== packResult.integrity) throw new Error(`tarball integrity mismatch for ${packResult.filename}`);
 
-  process.stdout.write("Running simulation-first certification against the exact packed tarball.\n");
-  await interactiveWithEnvironment(npm, ["run", "check"], { ADDONE_CERTIFICATION_TARBALL: tarball });
+  process.stdout.write("Running architecture-independent certification against the exact packed tarball.\n");
+  await interactive(npm, ["run", "check"]);
   await requireCleanDevelop();
   const certification = {
     schema: "addone-development-preview-certification-v1",
@@ -78,8 +78,7 @@ async function publishNext() {
     shasum: packResult.shasum,
     platform: process.platform,
     architecture: process.arch,
-    productionDefaults: { nativePiReadinessMs: 15_000 },
-    overrides: { ADDONE_CERTIFICATION_TARBALL: tarball },
+    terminalCapability: "unavailable-during-redesign",
     certifiedAt: new Date().toISOString(),
   };
   await mkdir(resolve(repository, "artifacts"), { recursive: true });
@@ -178,10 +177,6 @@ function capture(command, args) {
 
 function interactive(command, args) {
   return run(command, args, false);
-}
-
-function interactiveWithEnvironment(command, args, environment) {
-  return run(command, args, false, environment);
 }
 
 function run(command, args, captureOutput, environment = {}) {

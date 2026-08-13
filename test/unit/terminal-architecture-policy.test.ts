@@ -1,23 +1,58 @@
 import { spawnSync } from "node:child_process";
-import { readFile } from "node:fs/promises";
-import { describe, expect, it } from "vitest";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname, resolve } from "node:path";
+import { afterEach, describe, expect, it } from "vitest";
+
+const policyPath = resolve("scripts/check-architecture.mjs");
+const roots: string[] = [];
+afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))));
 
 describe("terminal-core architecture policy", () => {
-  it("enforces retired-module and application-specific terminal prohibitions", async () => {
-    const policy = await readFile("scripts/check-architecture.mjs", "utf8");
-    for (const diagnostic of [
-      "retired PTY/emulator import",
-      "retired terminal presentation import",
-      "retired terminal module remains",
-      "CLI identity or CLI-named configuration",
-      "executable or argument inspection",
-      "CLI-named environment inspection",
-      "visible-content rendering branch",
-      "CLI-specific input-mode fallback",
-    ]) expect(policy).toContain(diagnostic);
-
-    const result = spawnSync(process.execPath, ["scripts/check-architecture.mjs"], { encoding: "utf8" });
+  it("passes the production tree", () => {
+    const result = spawnSync(process.execPath, [policyPath], { encoding: "utf8" });
     expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
     expect(result.stdout).toContain("Architecture boundaries OK");
   });
+
+  it.each([
+    ["src/host-terminal/legacy.ts", "export const legacy = true;", "retired terminal module remains"],
+    ["src/terminal/core.ts", "if (profile.executable.includes('pi')) route();", "executable or argument inspection"],
+    ["src/terminal/core.ts", "if (profile.arguments.includes('--special')) route();", "executable or argument inspection"],
+    ["src/terminal/core.ts", "if (output.includes('READY')) repaint();", "visible-content rendering branch"],
+    ["src/terminal/core.ts", "const quiescenceTimer = 32;", "cadence-derived frame inference"],
+    ["src/terminal/core.ts", "function parseTerminalQuery(bytes) { return bytes; }", "custom terminal mode/query parser"],
+    ["src/terminal/core.ts", "function encodeKittyKey(key) { return key; }", "custom input encoder"],
+  ])("rejects %s: %s", async (path, source, diagnostic) => {
+    const root = await fixture({ [path]: source });
+    const result = runPolicy(root);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(diagnostic);
+  });
+
+  it("rejects obsolete retired-pipeline release gates", async () => {
+    const root = await fixture({ "scripts/run-release-gates.mjs": "const suite = 'test/scenarios/packaged-real-pi.test.ts';" });
+    const result = runPolicy(root);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("obsolete retired-pipeline release gate");
+  });
 });
+
+async function fixture(files: Record<string, string>): Promise<string> {
+  const root = await mkdtemp(resolve(tmpdir(), "addone-architecture-policy-"));
+  roots.push(root);
+  await writeFixtureFile(root, "package.json", JSON.stringify({ name: "fixture", scripts: {} }));
+  await writeFixtureFile(root, "src/index.ts", "export {};\n");
+  for (const [path, source] of Object.entries(files)) await writeFixtureFile(root, path, source);
+  return root;
+}
+
+async function writeFixtureFile(root: string, path: string, source: string): Promise<void> {
+  const target = resolve(root, path);
+  await mkdir(dirname(target), { recursive: true });
+  await writeFile(target, source);
+}
+
+function runPolicy(root: string) {
+  return spawnSync(process.execPath, [policyPath, "--root", root], { encoding: "utf8" });
+}
