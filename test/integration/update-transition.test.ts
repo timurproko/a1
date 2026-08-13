@@ -30,12 +30,14 @@ describe("release-gating N-1 update transitions", () => {
       await store.activate(old.releaseId);
       await store.recordCandidate(candidate);
 
-      const busy = metadata(old, process.pid, ["non-resumable-pty"]);
+      const blocker = await spawnOwnedProcess();
+      const busy = metadata(old, blocker.pid!, ["owned-process-blocker"]);
       const busyDecision = selectCohortLaunch(candidate, await store.read(), busy, "live-verified");
       expect(busyDecision).toMatchObject({ action: "launch-retained-ui", releaseId: old.releaseId, recordPending: true });
       expect(busyDecision.reason).not.toMatch(/invalid client message|malformed-message|manual|taskkill|kill -9/i);
-      await store.blockPending("busy non-resumable PTY", busy.ownership.liveGenerationIds);
-      assertions.push({ id: "busy-pty-defers-with-retained-ui", passed: true });
+      await store.blockPending("busy generic owned process", busy.ownership.liveGenerationIds);
+      blocker.kill();
+      assertions.push({ id: "busy-owned-process-defers-with-retained-ui", passed: true });
 
       const idle = metadata(old, process.pid, []);
       expect(selectCohortLaunch(candidate, await store.read(), idle, "live-verified")).toMatchObject({ action: "replace-idle-cohort" });
@@ -91,11 +93,11 @@ describe("release-gating N-1 update transitions", () => {
     const stdout: string[] = [];
     const lifecycle: UpdateLifecycleCoordinator = {
       targetIsActive: async () => false,
-      shutdownVerifiedOwners: async target => { calls.push(`shutdown:${target}:owned-ui,supervisor,pty,pi`); return { priorActiveVersion: "1.0.0" }; },
-      verifyPackageUnlocked: async () => { calls.push("unlock:conpty.node"); },
+      shutdownVerifiedOwners: async target => { calls.push(`shutdown:${target}:owned-ui,supervisor,child-process`); return { priorActiveVersion: "1.0.0" }; },
+      verifyPackageUnlocked: async () => { calls.push("unlock:package-root"); },
       activateInstalled: async (_path, target, phase) => {
         for (const value of ["materialized", "certified", "active-reference-committed"] as const) await phase(value);
-        calls.push(`activate:${target}:no-intro`);
+        calls.push(`activate:${target}:maintenance-mode`);
       },
     };
     const transaction = memoryTransaction(root);
@@ -119,16 +121,22 @@ describe("release-gating N-1 update transitions", () => {
     expect(calls).toEqual([
       `npm:view @timurproko/addone@${tag} version`,
       "npm:root --global",
-      "shutdown:1.1.0:owned-ui,supervisor,pty,pi",
-      "unlock:conpty.node",
+      "shutdown:1.1.0:owned-ui,supervisor,child-process",
+      "unlock:package-root",
       "npm:install --global @timurproko/addone@1.1.0",
-      "activate:1.1.0:no-intro",
+      "activate:1.1.0:maintenance-mode",
     ]);
     expect(stdout.join("")).toContain(`AddOne update (${channel}): 1.0.0 → 1.1.0.`);
     expect(stdout.join("")).toContain(`AddOne updated successfully: 1.1.0 (${channel}).`);
     expect(JSON.stringify(calls)).not.toMatch(/taskkill|Remove-Item|release-state deletion|database deletion/i);
   });
 });
+
+async function spawnOwnedProcess() {
+  const child = spawn(process.execPath, ["-e", "setInterval(()=>{},1000)"], { stdio: "ignore", windowsHide: true });
+  await new Promise<void>((resolvePromise, rejectPromise) => { child.once("spawn", resolvePromise); child.once("error", rejectPromise); });
+  return child;
+}
 
 async function fixturePackage(root: string, version: string, payload: string): Promise<string> {
   const packageRoot = resolve(root, `package-${version}`);

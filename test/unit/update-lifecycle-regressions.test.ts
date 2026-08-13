@@ -12,13 +12,13 @@ const roots: string[] = [];
 afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))));
 
 describe("observed immediate-update lifecycle regressions", () => {
-  it("releases mutable conpty.node before npm replacement", async () => {
+  it("releases generic owned package resources before npm replacement", async () => {
     const capture = captureOutput();
     let unlocked = false;
     const runner: UpdateProcessRunner = async (_command, arguments_) => {
       if (arguments_[0] === "view") return { code: 0, stdout: "1.1.0\n" };
       if (arguments_[0] === "root") return { code: 0, stdout: resolve("fixtures", "global") + "\n" };
-      return unlocked ? { code: 0, stdout: "installed" } : { code: 32, stdout: "EBUSY: resource busy or locked, copyfile 'conpty.node'" };
+      return unlocked ? { code: 0, stdout: "installed" } : { code: 32, stdout: "EBUSY: resource busy or locked, copyfile 'runtime-resource'" };
     };
 
     const code = await runSelfUpdate({
@@ -63,7 +63,7 @@ describe("observed immediate-update lifecycle regressions", () => {
     expect(decision).toMatchObject({ action: "activate-candidate", releaseId: candidate.releaseId });
   });
 
-  it.fails("does not leave an installed no-intro candidate pending until state-directory deletion", async () => {
+  it.fails("does not leave an installed maintenance-mode candidate pending until state-directory deletion", async () => {
     const root = await mkdtemp(resolve(tmpdir(), "addone-pending-candidate-regression-"));
     roots.push(root);
     const old = release("1.0.0", "c");
