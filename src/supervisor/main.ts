@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { appendFileSync, mkdirSync } from "node:fs";
-import { PtyTerminalDriver } from "../drivers/terminal/index.js";
+import type { TerminalDriver } from "../domain/index.js";
 import { assertImmutableExecutionRoot, readMaterializedRelease } from "../release-store.js";
 import { ControlStore } from "../storage/index.js";
 import { resolveAddOnePaths } from "./paths.js";
@@ -17,7 +17,12 @@ export async function runSupervisor(): Promise<void> {
   await assertImmutableExecutionRoot(release, paths.dataDir);
   const bootNonce = randomUUID();
   const store = new ControlStore(paths.databasePath, bootNonce);
-  const server = new SupervisorServer(store, new PtyTerminalDriver(), paths, release, bootNonce);
+  const unavailableTerminalDriver: TerminalDriver = {
+    async start() {
+      throw new Error("terminal capability is unavailable during redesign");
+    },
+  };
+  const server = new SupervisorServer(store, unavailableTerminalDriver, paths, release, bootNonce);
   await server.listen();
   log(`supervisor ${server.id} listening at ${paths.endpoint} (pid ${process.pid})`);
 
