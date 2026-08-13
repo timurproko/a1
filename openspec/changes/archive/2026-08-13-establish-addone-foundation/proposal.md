@@ -24,11 +24,10 @@ The v2 prototype proves the value of a multi-agent terminal workspace, but its U
 ## Capabilities
 
 ### New Capabilities
-- `addone-shell`: Standalone AddOne bootstrap and immediate command startup, immutable release selection, transparent full-viewport Native Pi handoff with no AddOne startup frame or translation, exact native closure behavior, and later AddOne-owned workspace surfaces.
-- `agent-supervision`: Durable logical-agent and workspace lifecycle, co-versioned process cohorts, negotiated control contracts, safe activation, generations, leases, and explicit foreground-terminal ownership whose reconnect/recovery promises depend on terminal capability.
-- `managed-pi-runtime`: Planning contract for future Managed Pi RPC execution; no Managed Pi runtime implementation or support claim is delivered by this closed foundation milestone.
-- `terminal-agent-runtime`: Separate transparent and composed terminal capabilities for arbitrary terminal applications on Windows, macOS, and Linux. Transparent mode delegates behavior to the native physical terminal for direct parity; composed mode uses one authoritative mature cross-platform terminal core, remains application-agnostic, and advertises only the behavior it can certify without per-application hacks.
-- `isolated-regression-testing`: Hermetic lifecycle scenarios, exact packaged-candidate and update-transition validation, independent physical-host input/rendering oracles, cross-platform direct-versus-hosted real-runtime comparison, capability-specific verdicts, retained artifacts, and evaluator inspection without self-modelled terminal simulations as acceptance evidence.
+- `addone-shell`: Standalone AddOne bootstrap, version/update commands, immutable release selection, and transparent full-viewport Native Pi handoff with no AddOne startup frame or translation.
+- `agent-supervision`: Co-versioned process cohorts, negotiated control contracts, safe activation, boot-scoped generations, stale-owner reconciliation, and exclusive foreground-terminal leases.
+- `terminal-agent-runtime`: Application-agnostic transparent direct attachment for one foreground command, explicit no-surface/no-reconnect limitations, and bounded lifecycle cleanup.
+- `isolated-regression-testing`: Hermetic lifecycle/update validation, exact preview artifact rules, mandatory workstation isolation, manual-first acceptance, and deferred independent physical certification policy.
 
 ### Modified Capabilities
 
@@ -39,7 +38,7 @@ None. This proposal establishes the first AddOne capabilities; no main specifica
 - Creates a new standalone cross-platform terminal application and supervisor rather than extending the v2 Pi-hosted runtime in place or replacing terminal interaction with a GUI/web shell.
 - Establishes negotiated AddOne control contracts between bootstrap, UI, supervisor, and drivers while allowing the initial chrome-free foreground terminal broker to attach Native Pi transparently instead of serializing input and reconstructed frames through the control protocol.
 - Changes AddOne self-update from in-place replacement of files used by persistent processes to immutable release materialization, package-derived release identity, deferred or drained cohort activation, and automatic stale-owner recovery behind a minimal bootstrap.
-- Removes the current `@xterm/headless`-plus-custom-terminal production path and its invalid architecture-specific tests before selecting a replacement. The composed-mode spike evaluates the MIT-licensed WezTerm Rust stack first through a minimal batched native boundary, with libvterm and a public-API-only xterm.js design as ordered fallbacks. Any selected native stack requires pinned source identity, reproducible Windows/Linux/macOS builds, package integrity, licensing review, and no deprecated AddOne-owned dependencies.
-- Uses executable v2 extension behavior under an exactly identified Pi runtime as the later UX oracle while selectively reproducing pure models, rendering calculations, PTY knowledge, and tests. Archived screenshots may aid diagnosis but do not block the vanilla fullscreen release and are not treated as normative evidence.
+- Removes the `@xterm/headless`-plus-custom-terminal production path and its invalid architecture-specific tests. No composed replacement is selected by this change.
+- Retains v2 and retired-pipeline material only as historical evidence; future UX proposals must define current contracts and independent acceptance.
 - Restricts Pi package imports to Pi driver/adapter boundaries and platform/native terminal dependencies to explicit terminal boundaries. Herdr remains architectural prior art only; its AGPL implementation is not copied into AddOne.
 - Changes the future update model from in-process reload fanout to idle drain, process replacement, exact-session verification, candidate certification, and rollback.
