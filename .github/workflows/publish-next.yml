@@ -1,0 +1,148 @@
+name: Publish npm next preview
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Exact manually accepted development preview version
+        required: true
+        default: 0.1.5-dev.8
+        type: string
+      confirm_uncertified:
+        description: Type "publish-uncertified-next" to confirm physical certification is deferred
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: npm-next-publication
+  cancel-in-progress: false
+
+jobs:
+  publish-next:
+    name: Publish exact uncertified preview
+    if: github.ref == 'refs/heads/develop'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: npm-next
+    steps:
+      - name: Check out requested develop commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Set up Node and npm registry
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org/
+          cache: npm
+
+      - name: Validate manual publication request
+        shell: bash
+        env:
+          REQUESTED_VERSION: ${{ inputs.version }}
+          CONFIRM_UNCERTIFIED: ${{ inputs.confirm_uncertified }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/develop"
+          test "$CONFIRM_UNCERTIFIED" = "publish-uncertified-next"
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+          test "$PACKAGE_VERSION" = "$REQUESTED_VERSION"
+          node -e "const semver=require('semver'); const v=process.argv[1]; const pre=semver.prerelease(v); if (!pre || pre[0] !== 'dev') throw new Error('next publication requires a -dev.N version')" "$PACKAGE_VERSION"
+          test "$PACKAGE_VERSION" = "0.1.5-dev.8"
+          if npm view "@timurproko/addone@$PACKAGE_VERSION" version --json >/dev/null 2>&1; then
+            echo "Version $PACKAGE_VERSION is already registered and cannot be uploaded again." >&2
+            exit 1
+          fi
+          echo "version=$PACKAGE_VERSION" >> "$GITHUB_ENV"
+          echo "source_commit=$GITHUB_SHA" >> "$GITHUB_ENV"
+
+      - name: Install exact locked dependencies
+        run: npm ci
+
+      - name: Run non-desktop release gates
+        run: npm run check
+        env:
+          ADDONE_RELEASE_RUNNER_LABEL: github-ubuntu-24.04-uncertified-next
+
+      - name: Pack exact candidate once
+        id: pack
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run build
+          npm pack --ignore-scripts --json > artifacts/npm-pack-result.json
+          node --input-type=module <<'NODE'
+          import { appendFile, readFile } from "node:fs/promises";
+          const pack = JSON.parse(await readFile("artifacts/npm-pack-result.json", "utf8"));
+          const result = pack[0];
+          if (!result?.filename || !result?.integrity || !result?.shasum) throw new Error("npm pack returned incomplete metadata");
+          await appendFile(process.env.GITHUB_OUTPUT, `tarball=${result.filename}\nintegrity=${result.integrity}\nshasum=${result.shasum}\n`);
+          NODE
+
+      - name: Record uncertified preview evidence
+        shell: bash
+        env:
+          TARBALL: ${{ steps.pack.outputs.tarball }}
+          INTEGRITY: ${{ steps.pack.outputs.integrity }}
+          SHASUM: ${{ steps.pack.outputs.shasum }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { mkdir, writeFile } from "node:fs/promises";
+          import { createUncertifiedDevelopmentPreviewEvidence } from "./dist/src/development-preview-release.js";
+          const evidence = createUncertifiedDevelopmentPreviewEvidence({
+            packageName: "@timurproko/addone",
+            version: process.env.version,
+            commit: process.env.source_commit,
+            tarball: process.env.TARBALL,
+            integrity: process.env.INTEGRITY,
+            shasum: process.env.SHASUM,
+            platform: process.platform,
+            architecture: process.arch,
+            recordedAt: new Date().toISOString(),
+          });
+          await mkdir("artifacts", { recursive: true });
+          await writeFile("artifacts/development-preview-candidate.json", JSON.stringify(evidence, null, 2));
+          NODE
+
+      - name: Publish exact tarball to npm next
+        id: publish
+        uses: JS-DevTools/npm-publish@v4.1.5
+        with:
+          token: ${{ secrets.NPM_TOKEN }}
+          registry: https://registry.npmjs.org/
+          package: ${{ steps.pack.outputs.tarball }}
+          tag: next
+          access: public
+          provenance: true
+          strategy: all
+          ignore-scripts: true
+
+      - name: Verify registry tags and preserve latest
+        shell: bash
+        env:
+          PUBLISHED_VERSION: ${{ steps.publish.outputs.version }}
+        run: |
+          set -euo pipefail
+          test "$PUBLISHED_VERSION" = "$version"
+          NEXT_VERSION="$(npm view @timurproko/addone@next version)"
+          LATEST_VERSION="$(npm view @timurproko/addone@latest version)"
+          test "$NEXT_VERSION" = "$version"
+          test "$LATEST_VERSION" = "0.1.4"
+          printf 'Published: %s\nnext: %s\nlatest: %s\n' "$PUBLISHED_VERSION" "$NEXT_VERSION" "$LATEST_VERSION"
+
+      - name: Upload publication evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-next-${{ inputs.version }}-${{ github.sha }}
+          path: |
+            artifacts/development-preview-candidate.json
+            artifacts/npm-pack-result.json
+            artifacts/release-verdicts/*.json
+          if-no-files-found: error
