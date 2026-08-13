@@ -35,6 +35,10 @@ jobs:
       ACCEPTED_TARBALL_INTEGRITY: sha512-XjwhIsCbZjJbAwFQjWLnSsSS6Lb21Uls1MhkQUXOAiJh5Fg7IfQI4Ol4gMUGuzxSzOf38Cor+F+zB8nHLh79Dg==
       ACCEPTED_TARBALL_SHASUM: 4af9a7697ad79209214889a8c56f3bb19228fb65
     steps:
+      - name: Preserve repository bytes during checkout
+        shell: bash
+        run: git config --global core.autocrlf false
+
       - name: Check out exact manually accepted source
         uses: actions/checkout@v4
         with:
