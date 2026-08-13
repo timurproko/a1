@@ -16,7 +16,6 @@ import type {
   TerminalSurface,
 } from "../../domain/index.js";
 import { assertDimensions } from "../../domain/index.js";
-import { ModeAwareTerminalInputEncoder } from "../../terminal-input.js";
 import { NodePtyProcessBackend, type TerminalProcess, type TerminalProcessBackend } from "./pty-backend.js";
 import { installTerminalResponses, writeTerminalOutput } from "./terminal-responses.js";
 import { PtyOutputTransactionAssembler, type AssembledPtyOutput } from "./output-transaction-assembler.js";
@@ -68,7 +67,6 @@ export class PtyTerminalDriver implements TerminalDriver {
       if (!evidencePath) return;
       try { appendFileSync(evidencePath, `${JSON.stringify({ at: new Date().toISOString(), pid: process.pid, role: "terminal-driver", stage, ...detail })}\n`); } catch {}
     };
-    const inputEncoder = new ModeAwareTerminalInputEncoder();
     const modeTracker = new TerminalModeTracker();
     const sendTerminalResponse = (response: import("../../domain/index.js").TerminalResponse) => {
       if (!exited) child.write(Buffer.from(response.bytes).toString("utf8"));
@@ -169,28 +167,8 @@ export class PtyTerminalDriver implements TerminalDriver {
       });
     });
 
-    const inputBatch = (events: readonly import("../../domain/index.js").HostTerminalInputEvent[]): void => {
-      if (exited || !lastSurface) return;
-      let pendingChildBytes: Buffer[] = [];
-      const flushChildBytes = () => {
-        if (pendingChildBytes.length === 0) return;
-        child.write(Buffer.concat(pendingChildBytes).toString("utf8"));
-        pendingChildBytes = [];
-      };
-      for (const event of events) {
-        const encoded = inputEncoder.encode(event, lastSurface.modes, lastSurface.activeScreen);
-        trace("semantic-input", { event, keyboardProtocol: lastSurface.modes.keyboardProtocol, activeScreen: lastSurface.activeScreen, route: encoded.route, bytesHex: Buffer.from(encoded.bytes).toString("hex") });
-        if (encoded.route === "child" && encoded.bytes.length > 0) {
-          pendingChildBytes.push(Buffer.from(encoded.bytes));
-          continue;
-        }
-        flushChildBytes();
-        if (encoded.route === "virtual-scrollback" && event.type === "mouse" && event.action === "wheel") {
-          terminal.scrollLines(event.wheelDelta > 0 ? -3 : 3);
-          publishTransaction(capture(outputSequence, false), { start: outputSequence, end: outputSequence }, "io-turn");
-        }
-      }
-      flushChildBytes();
+    const inputBatch = (_events: readonly import("../../domain/index.js").HostTerminalInputEvent[]): void => {
+      throw new Error("retired terminal input is unavailable during redesign");
     };
 
     return {
