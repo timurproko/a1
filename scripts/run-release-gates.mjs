@@ -5,7 +5,7 @@ import { resolve } from "node:path";
 
 const startedAt = new Date().toISOString();
 const command = process.platform === "win32" ? "npx.cmd" : "npx";
-const args = ["vitest", "run", "test/integration/update-transition.test.ts", "--no-file-parallelism", "--testTimeout=120000"];
+const args = ["vitest", "run", "test/foundation/release/update-transition.integration.test.ts", "--no-file-parallelism", "--testTimeout=120000"];
 const code = await run(command, args);
 const failure = code === 0 ? undefined : { command: `${command} ${args.join(" ")}`, exitCode: code };
 

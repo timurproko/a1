@@ -2,11 +2,11 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { releaseVerifiedIdleOwner } from "../../src/foundation/release/index.js";
-import type { SupervisorEndpointMetadata } from "../../src/foundation/release/index.js";
-import type { MaterializedRelease } from "../../src/foundation/release/index.js";
-import { ControlStore } from "../../src/foundation/storage/index.js";
-import { SupervisorServer } from "../../src/foundation/supervision/index.js";
+import { releaseVerifiedIdleOwner } from "../../../src/foundation/release/index.js";
+import type { SupervisorEndpointMetadata } from "../../../src/foundation/release/index.js";
+import type { MaterializedRelease } from "../../../src/foundation/release/index.js";
+import { ControlStore } from "../../../src/foundation/storage/index.js";
+import { SupervisorServer } from "../../../src/foundation/supervision/index.js";
 
 const cleanupRoots: string[] = [];
 afterEach(async () => Promise.all(cleanupRoots.splice(0).map(root => rm(root, { recursive: true, force: true }))));

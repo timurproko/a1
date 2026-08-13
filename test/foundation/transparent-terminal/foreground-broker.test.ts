@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it, vi } from "vitest";
-import type { CommandResult, SupervisorCommand, TransparentTerminalLaunchProfile } from "../../src/foundation/lifecycle/index.js";
-import { runForegroundBroker, type ForegroundLeaseControl, type TransparentNativeLauncher } from "../../src/foundation/transparent-terminal/foreground-broker.js";
+import type { CommandResult, SupervisorCommand, TransparentTerminalLaunchProfile } from "../../../src/foundation/lifecycle/index.js";
+import { runForegroundBroker, type ForegroundLeaseControl, type TransparentNativeLauncher } from "../../../src/foundation/transparent-terminal/foreground-broker.js";
 
 const profile: TransparentTerminalLaunchProfile = {
   id: "profile", terminalCapability: "transparent", executable: "pi", arguments: ["--offline"], cwd: ".", environment: {},

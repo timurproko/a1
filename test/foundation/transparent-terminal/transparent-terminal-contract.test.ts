@@ -5,8 +5,8 @@ import type {
   SupervisorCommand,
   TransparentTerminalLaunchProfile,
   TransparentTerminalLifecycleOutcome,
-} from "../../src/foundation/lifecycle/index.js";
-import { encodeFrame, LineFrameDecoder, localControlHello } from "../../src/foundation/protocol/index.js";
+} from "../../../src/foundation/lifecycle/index.js";
+import { encodeFrame, LineFrameDecoder, localControlHello } from "../../../src/foundation/protocol/index.js";
 
 const profile: TransparentTerminalLaunchProfile = {
   id: "profile-transparent",

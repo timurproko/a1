@@ -2,7 +2,7 @@ import { chmod, mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { materializeRelease, readMaterializedRelease, resolveReleaseEntryPoint, verifyMaterializedRelease } from "../../src/foundation/release/index.js";
+import { materializeRelease, readMaterializedRelease, resolveReleaseEntryPoint, verifyMaterializedRelease } from "../../../src/foundation/release/index.js";
 
 const roots: string[] = [];
 afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))));

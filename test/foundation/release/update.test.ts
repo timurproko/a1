@@ -10,7 +10,7 @@ import {
   type UpdateOutput,
   type UpdateProcessRunner,
   type UpdateTransactionJournal,
-} from "../../src/foundation/release/index.js";
+} from "../../../src/foundation/release/index.js";
 
 interface Invocation {
   command: string;

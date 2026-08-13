@@ -3,11 +3,11 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { TransparentTerminalLaunchProfile } from "../../src/foundation/lifecycle/index.js";
-import type { MaterializedRelease } from "../../src/foundation/release/index.js";
-import { ControlStore } from "../../src/foundation/storage/index.js";
-import { SupervisorServer } from "../../src/foundation/supervision/index.js";
-import { SupervisorClient } from "../../src/foundation/protocol/index.js";
+import type { TransparentTerminalLaunchProfile } from "../../../src/foundation/lifecycle/index.js";
+import type { MaterializedRelease } from "../../../src/foundation/release/index.js";
+import { ControlStore } from "../../../src/foundation/storage/index.js";
+import { SupervisorServer } from "../../../src/foundation/supervision/index.js";
+import { SupervisorClient } from "../../../src/foundation/protocol/index.js";
 
 const roots: string[] = [];
 afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))));

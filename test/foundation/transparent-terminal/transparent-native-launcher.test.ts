@@ -2,13 +2,13 @@ import { EventEmitter } from "node:events";
 import { readFile } from "node:fs/promises";
 import type { ChildProcess, SpawnOptions } from "node:child_process";
 import { describe, expect, it, vi } from "vitest";
-import type { TransparentTerminalLaunchProfile } from "../../src/foundation/lifecycle/index.js";
+import type { TransparentTerminalLaunchProfile } from "../../../src/foundation/lifecycle/index.js";
 import {
   createPlatformTransparentLauncher,
   UnixTransparentLauncher,
   WindowsTransparentLauncher,
   type NativeSpawnAdapter,
-} from "../../src/foundation/transparent-terminal/native-launcher.js";
+} from "../../../src/foundation/transparent-terminal/native-launcher.js";
 
 const profile: TransparentTerminalLaunchProfile = {
   id: "profile", terminalCapability: "transparent", executable: "tool", arguments: ["--exact", "value with spaces"], cwd: "workspace",

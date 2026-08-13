@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-const repository = resolve(fileURLToPath(new URL("../..", import.meta.url)));
+const repository = resolve(fileURLToPath(new URL("../../..", import.meta.url)));
 
 describe("mutable bootstrap boundary", () => {
   it("routes interactive launch only through bootstrap and the transparent broker", async () => {

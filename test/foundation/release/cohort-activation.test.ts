@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { selectCohortLaunch } from "../../src/foundation/release/index.js";
-import { cleanupProvenIdleOwner } from "../../src/foundation/release/index.js";
-import { emptyState, type CohortState, type SupervisorEndpointMetadata } from "../../src/foundation/release/index.js";
-import type { MaterializedRelease } from "../../src/foundation/release/index.js";
+import { selectCohortLaunch } from "../../../src/foundation/release/index.js";
+import { cleanupProvenIdleOwner } from "../../../src/foundation/release/index.js";
+import { emptyState, type CohortState, type SupervisorEndpointMetadata } from "../../../src/foundation/release/index.js";
+import type { MaterializedRelease } from "../../../src/foundation/release/index.js";
 
 describe("cohort activation and stale ownership", () => {
   it("replaces an idle cohort but retains a verified busy foreground generation", () => {

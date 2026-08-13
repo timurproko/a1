@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { resolveTransparentCommand } from "../../src/foundation/transparent-terminal/command-resolution.js";
+import { resolveTransparentCommand } from "../../../src/foundation/transparent-terminal/command-resolution.js";
 
 const roots: string[] = [];
 afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))));
