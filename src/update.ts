@@ -109,9 +109,8 @@ export function createUpdateLifecycleCoordinator(
         ? { accepted: false, reason: "recorded owner is dead" }
         : await requestUpdateShutdown(endpoint, targetVersion, 2_000);
       if (!identity.accepted && processIsAlive(endpoint.pid)) {
-        // N−1 supervisors do not know the update-shutdown control message. The
-        // identity probe above still proves exact AddOne ownership, and invoking
-        // update explicitly authorizes stopping its generations.
+        // Explicit update consent permits bounded cleanup of an authenticated
+        // older owner that predates the update-shutdown message.
         const cleanup = await cleanupVerifiedOwner(endpoint, {
           allowLiveGenerations: true,
           reason: legacyMutableInstall ? "legacy-mutable-install" : "explicit-update",

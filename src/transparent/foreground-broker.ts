@@ -31,7 +31,6 @@ export interface ForegroundBrokerRequest {
   readonly generationId: GenerationId;
   readonly ownerId: string;
   readonly profile: TransparentTerminalLaunchProfile;
-  /** Optional lifecycle signal supplied by the foreground owner or updater. */
   readonly stopRequested?: Promise<TransparentStopReason>;
 }
 

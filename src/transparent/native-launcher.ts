@@ -38,9 +38,8 @@ export class UnixTransparentLauncher implements TransparentNativeLauncher {
   constructor(private readonly adapter: NativeSpawnAdapter = defaultSpawnAdapter) {}
 
   async launch(profile: TransparentTerminalLaunchProfile): Promise<TransparentChildHandle> {
-    // detached:false keeps the child in the broker's foreground process group,
-    // preserving inherited controlling-terminal ownership without an intermediary.
-    // AddOne changes no terminal state, so no synthetic restoration is required.
+    // Staying in the foreground process group preserves the inherited controlling
+    // terminal without an intermediary or synthetic terminal restoration.
     return await launchInherited(profile, this.adapter, {
       detached: false,
     });

@@ -44,7 +44,6 @@ export interface UncertifiedDevelopmentPreviewEvidence extends UncertifiedDevelo
   readonly stableReleaseEligible: false;
 }
 
-/** Records the deliberately limited claims allowed for a manually accepted preview. */
 export function createUncertifiedDevelopmentPreviewEvidence(
   input: UncertifiedDevelopmentPreviewEvidenceInput,
 ): UncertifiedDevelopmentPreviewEvidence {
@@ -65,7 +64,6 @@ export function createUncertifiedDevelopmentPreviewEvidence(
   };
 }
 
-/** Prevents a workflow from extending one manual acceptance to different bytes/version. */
 export function requireManuallyAcceptedDevelopmentPreview(version: string, acceptedVersion: string): void {
   const acceptedPrerelease = prerelease(acceptedVersion);
   if (valid(acceptedVersion) === null || acceptedPrerelease?.[0] !== "dev") {
@@ -76,7 +74,6 @@ export function requireManuallyAcceptedDevelopmentPreview(version: string, accep
   }
 }
 
-/** Selects a monotonic, unpublished dev prerelease without moving npm next backward. */
 export function selectDevelopmentPreviewCandidate(
   currentVersion: string,
   publishedVersions: readonly string[],
@@ -132,7 +129,6 @@ export async function publishDevelopmentPreviewWithRecovery(
   }
 }
 
-/** Tolerates npm registry propagation after a successful immutable upload. */
 export async function verifyDevelopmentPreviewRegistry(
   version: string,
   observe: () => Promise<DevelopmentPreviewRegistryState>,

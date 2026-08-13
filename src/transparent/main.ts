@@ -101,9 +101,8 @@ function stopSignal() {
     resolveStop(reason);
   };
   const onSigterm = () => request("user-request");
-  // The broker and natively attached child can share a foreground signal
-  // delivery boundary. Keep the broker alive while the child applies its own
-  // Ctrl+C behavior; this handler never translates or forwards the signal.
+  // The attached child shares foreground signal delivery. Keep the broker alive
+  // without translating or forwarding Ctrl+C.
   const onSigint = () => undefined;
   process.once("SIGTERM", onSigterm);
   process.on("SIGINT", onSigint);

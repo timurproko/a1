@@ -248,10 +248,8 @@ export async function releaseVerifiedIdleOwner(
     await (operations.waitForExit ?? waitForProcessExit)(metadata.pid, 3_000);
     return true;
   } catch {
-    // The release handshake authenticated this exact boot and confirmed it had
-    // no live handles. If a native/platform handle keeps the dedicated process
-    // alive, finish the already-authorized idle cleanup through the same bounded
-    // ownership-safe path used for an unresponsive stale owner.
+    // The authenticated idle-release handshake authorizes bounded cleanup of
+    // this exact boot when a native handle outlives graceful shutdown.
     const diagnostics = await (operations.cleanup ?? cleanupProvenIdleOwner)(metadata);
     await writeFile(resolve(dataDir, `cleanup-${Date.now()}.json`), JSON.stringify(diagnostics, null, 2));
     return diagnostics.terminated;
