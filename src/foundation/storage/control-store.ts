@@ -2,6 +2,20 @@ import { DatabaseSync } from "node:sqlite";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import type {
+  ManagedAgentDescriptor,
+  PaneId,
+  AgentRecoveryAuthority,
+  RecoveryReferenceId,
+  TerminalSessionLaunch,
+  TerminalTopologySnapshot,
+} from "../workspace-contracts/index.js";
+import {
+  assertManagedAgentDescriptor,
+  assertRecoveryAuthority,
+  assertTerminalSessionLaunch,
+  assertTerminalTopologySnapshot,
+} from "../workspace-contracts/index.js";
+import type {
   ForegroundTerminalLease,
   ForegroundTerminalLeaseId,
   GenerationId,
@@ -12,6 +26,10 @@ import type {
 const INITIAL_WORKSPACE_ID = "workspace-default";
 
 interface ForegroundLeaseRow { id: string; owner_id: string; profile_json: string; state: ForegroundTerminalLease["state"]; generation_id: string | null; process_identity_json: string | null; acquired_at: string; heartbeat_at: string | null; released_at: string | null; outcome_json: string | null; owner_boot_nonce: string }
+interface WorkspaceAgentRow { id: string; workspace_id: string; display_name: string; adapter_id: string; runtime_kind: string; lifecycle: string; capability_json: string; recovery_reference_id: string | null; created_at: string; updated_at: string }
+interface HostTopologyRow { host_instance_id: string; protocol_version: number; revision: number; topology_json: string; rollback_json: string; updated_at: string }
+interface TerminalSessionRow { id: string; host_instance_id: string; pane_id: string; lifecycle: string; launch_json: string; recovery_reference_id: string | null; updated_at: string }
+interface RecoveryReferenceRow { id: string; agent_id: string; authority_json: string; status: "pending" | "accepted" | "rejected" | "discontinuous"; rollback_json: string; created_at: string; updated_at: string }
 
 export class ControlStore {
   readonly database: DatabaseSync;
@@ -31,7 +49,7 @@ export class ControlStore {
   migrate(): void {
     const versionRow = this.database.prepare("PRAGMA user_version").get() as { user_version: number };
     const version = versionRow.user_version;
-    if (version > 2) throw new Error(`control database version ${version} is newer than supported version 2`);
+    if (version > 3) throw new Error(`control database version ${version} is newer than supported version 3`);
     if (version === 0) {
       this.database.exec(`
         BEGIN IMMEDIATE;
@@ -108,6 +126,60 @@ export class ControlStore {
         COMMIT;
       `);
     }
+    if (version <= 2) {
+      this.database.exec(`
+        BEGIN IMMEDIATE;
+        CREATE TABLE workspace_agents (
+          id TEXT PRIMARY KEY,
+          workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+          display_name TEXT NOT NULL,
+          adapter_id TEXT NOT NULL,
+          runtime_kind TEXT NOT NULL CHECK (runtime_kind IN ('structured', 'composed-terminal')),
+          lifecycle TEXT NOT NULL,
+          capability_json TEXT NOT NULL,
+          recovery_reference_id TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          CHECK (json_valid(capability_json))
+        );
+        CREATE INDEX idx_workspace_agents_workspace ON workspace_agents(workspace_id, created_at);
+        CREATE INDEX idx_workspace_agents_recovery ON workspace_agents(recovery_reference_id);
+
+        CREATE TABLE native_host_topology (
+          host_instance_id TEXT PRIMARY KEY,
+          protocol_version INTEGER NOT NULL CHECK (protocol_version = 1),
+          revision INTEGER NOT NULL CHECK (revision >= 0),
+          topology_json TEXT NOT NULL CHECK (json_valid(topology_json)),
+          rollback_json TEXT NOT NULL CHECK (json_valid(rollback_json)),
+          updated_at TEXT NOT NULL
+        );
+
+        CREATE TABLE terminal_sessions (
+          id TEXT PRIMARY KEY,
+          host_instance_id TEXT NOT NULL REFERENCES native_host_topology(host_instance_id) ON DELETE CASCADE,
+          pane_id TEXT NOT NULL,
+          lifecycle TEXT NOT NULL,
+          launch_json TEXT NOT NULL CHECK (json_valid(launch_json)),
+          recovery_reference_id TEXT,
+          updated_at TEXT NOT NULL
+        );
+        CREATE UNIQUE INDEX idx_terminal_sessions_pane ON terminal_sessions(host_instance_id, pane_id);
+        CREATE INDEX idx_terminal_sessions_recovery ON terminal_sessions(recovery_reference_id);
+
+        CREATE TABLE recovery_references (
+          id TEXT PRIMARY KEY,
+          agent_id TEXT NOT NULL REFERENCES workspace_agents(id) ON DELETE CASCADE,
+          authority_json TEXT NOT NULL CHECK (json_valid(authority_json)),
+          status TEXT NOT NULL CHECK (status IN ('pending', 'accepted', 'rejected', 'discontinuous')),
+          rollback_json TEXT NOT NULL CHECK (json_valid(rollback_json)),
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        CREATE INDEX idx_recovery_references_agent ON recovery_references(agent_id, status);
+        PRAGMA user_version = 3;
+        COMMIT;
+      `);
+    }
   }
 
   reconcilePriorBootGenerations(bootNonce: string): number {
@@ -178,6 +250,136 @@ export class ControlStore {
       WHERE state IN ('requested', 'active') AND owner_boot_nonce <> ?`)
       .run(reconciledAt, JSON.stringify(outcome), bootNonce);
     return Number(result.changes);
+  }
+
+  persistWorkspaceAgent(agent: ManagedAgentDescriptor, updatedAt = new Date().toISOString()): void {
+    assertManagedAgentDescriptor(agent);
+    this.database.prepare(`INSERT INTO workspace_agents
+      (id, workspace_id, display_name, adapter_id, runtime_kind, lifecycle, capability_json, recovery_reference_id, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        workspace_id = excluded.workspace_id,
+        display_name = excluded.display_name,
+        adapter_id = excluded.adapter_id,
+        runtime_kind = excluded.runtime_kind,
+        lifecycle = excluded.lifecycle,
+        capability_json = excluded.capability_json,
+        recovery_reference_id = excluded.recovery_reference_id,
+        updated_at = excluded.updated_at`)
+      .run(agent.id, INITIAL_WORKSPACE_ID, agent.displayName, agent.adapterId, agent.runtime, agent.lifecycle, JSON.stringify(agent.capability), agent.recoveryReferenceId, agent.createdAt, updatedAt);
+  }
+
+  loadWorkspaceAgents(): ManagedAgentDescriptor[] {
+    const rows = this.database.prepare("SELECT * FROM workspace_agents ORDER BY created_at, id").all() as unknown as WorkspaceAgentRow[];
+    return rows.map(row => {
+      const descriptor: ManagedAgentDescriptor = {
+        id: row.id,
+        displayName: row.display_name,
+        adapterId: row.adapter_id,
+        runtime: row.runtime_kind as ManagedAgentDescriptor["runtime"],
+        lifecycle: row.lifecycle as ManagedAgentDescriptor["lifecycle"],
+        capability: JSON.parse(row.capability_json) as ManagedAgentDescriptor["capability"],
+        createdAt: row.created_at,
+        recoveryReferenceId: row.recovery_reference_id,
+      };
+      assertManagedAgentDescriptor(descriptor);
+      return descriptor;
+    });
+  }
+
+  saveNativeHostTopology(topology: TerminalTopologySnapshot, rollbackTopology: TerminalTopologySnapshot | null, updatedAt = new Date().toISOString()): void {
+    assertTerminalTopologySnapshot(topology);
+    if (rollbackTopology !== null) assertTerminalTopologySnapshot(rollbackTopology);
+    if (rollbackTopology !== null && rollbackTopology.hostInstanceId !== topology.hostInstanceId) {
+      throw new TypeError("topology rollback metadata must identify the same native host");
+    }
+    const prior = this.loadNativeHostTopology(topology.hostInstanceId);
+    if (prior !== null && topology.revision < prior.topology.revision) {
+      throw new RangeError(`stale native-host topology revision ${topology.revision}; persisted revision is ${prior.topology.revision}`);
+    }
+    if (rollbackTopology !== null && rollbackTopology.revision > topology.revision) {
+      throw new RangeError("topology rollback revision cannot be newer than the persisted topology");
+    }
+    const rollbackJson = rollbackTopology === null
+      ? JSON.stringify({ contractVersion: 1, reason: "initial native-host topology", topology: null })
+      : JSON.stringify({ contractVersion: 1, reason: "backward-readable prior authoritative topology", topology: rollbackTopology });
+    this.database.prepare(`INSERT INTO native_host_topology
+      (host_instance_id, protocol_version, revision, topology_json, rollback_json, updated_at)
+      VALUES (?, 1, ?, ?, ?, ?)
+      ON CONFLICT(host_instance_id) DO UPDATE SET
+        revision = excluded.revision,
+        topology_json = excluded.topology_json,
+        rollback_json = excluded.rollback_json,
+        updated_at = excluded.updated_at`)
+      .run(topology.hostInstanceId, topology.revision, JSON.stringify(topology), rollbackJson, updatedAt);
+  }
+
+  loadNativeHostTopology(hostInstanceId: string): { readonly topology: TerminalTopologySnapshot; readonly rollback: unknown; readonly updatedAt: string } | null {
+    const row = this.database.prepare("SELECT * FROM native_host_topology WHERE host_instance_id = ?").get(hostInstanceId) as HostTopologyRow | undefined;
+    if (!row) return null;
+    const topology = JSON.parse(row.topology_json) as TerminalTopologySnapshot;
+    assertTerminalTopologySnapshot(topology);
+    return { topology, rollback: JSON.parse(row.rollback_json) as unknown, updatedAt: row.updated_at };
+  }
+
+  persistTerminalSession(
+    session: TerminalSessionLaunch,
+    hostInstanceId: string,
+    paneId: PaneId,
+    lifecycle: string,
+    recoveryReferenceId: RecoveryReferenceId | null,
+    updatedAt = new Date().toISOString(),
+  ): void {
+    assertTerminalSessionLaunch(session);
+    this.database.prepare(`INSERT INTO terminal_sessions
+      (id, host_instance_id, pane_id, lifecycle, launch_json, recovery_reference_id, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        host_instance_id = excluded.host_instance_id,
+        pane_id = excluded.pane_id,
+        lifecycle = excluded.lifecycle,
+        launch_json = excluded.launch_json,
+        recovery_reference_id = excluded.recovery_reference_id,
+        updated_at = excluded.updated_at`)
+      .run(session.id, hostInstanceId, paneId, lifecycle, JSON.stringify(session), recoveryReferenceId, updatedAt);
+  }
+
+  loadTerminalSessions(): { readonly session: TerminalSessionLaunch; readonly hostInstanceId: string; readonly paneId: PaneId; readonly lifecycle: string; readonly recoveryReferenceId: RecoveryReferenceId | null }[] {
+    const rows = this.database.prepare("SELECT * FROM terminal_sessions ORDER BY id").all() as unknown as TerminalSessionRow[];
+    return rows.map(row => {
+      const session = JSON.parse(row.launch_json) as TerminalSessionLaunch;
+      assertTerminalSessionLaunch(session);
+      return { session, hostInstanceId: row.host_instance_id, paneId: row.pane_id, lifecycle: row.lifecycle, recoveryReferenceId: row.recovery_reference_id };
+    });
+  }
+
+  persistRecoveryReference(
+    authority: AgentRecoveryAuthority,
+    status: "pending" | "accepted" | "rejected" | "discontinuous",
+    rollbackMetadata: Readonly<Record<string, unknown>>,
+    updatedAt = new Date().toISOString(),
+  ): void {
+    assertRecoveryAuthority(authority);
+    const createdAt = typeof rollbackMetadata.createdAt === "string" ? rollbackMetadata.createdAt : updatedAt;
+    const rollbackJson = JSON.stringify({ contractVersion: 1, ...rollbackMetadata });
+    this.database.prepare(`INSERT INTO recovery_references
+      (id, agent_id, authority_json, status, rollback_json, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        agent_id = excluded.agent_id,
+        authority_json = excluded.authority_json,
+        status = excluded.status,
+        rollback_json = excluded.rollback_json,
+        updated_at = excluded.updated_at`)
+      .run(authority.referenceId, authority.agentId, JSON.stringify(authority), status, rollbackJson, createdAt, updatedAt);
+  }
+
+  loadRecoveryReference(id: RecoveryReferenceId): { readonly authority: unknown; readonly status: string; readonly rollback: unknown; readonly updatedAt: string } | null {
+    const row = this.database.prepare("SELECT * FROM recovery_references WHERE id = ?").get(id) as RecoveryReferenceRow | undefined;
+    if (!row) return null;
+    const authority = JSON.parse(row.authority_json) as unknown;
+    assertRecoveryAuthority(authority as AgentRecoveryAuthority);
+    return { authority, status: row.status, rollback: JSON.parse(row.rollback_json) as unknown, updatedAt: row.updated_at };
   }
 
   close(): void {

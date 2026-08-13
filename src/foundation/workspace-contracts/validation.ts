@@ -207,7 +207,7 @@ export function assertRecoveryAuthority(authority: AgentRecoveryAuthority): void
   assertPosition(authority.streamPosition, "recovery stream position");
 }
 
-function assertTerminalSessionLaunch(session: TerminalSessionLaunch): void {
+export function assertTerminalSessionLaunch(session: TerminalSessionLaunch): void {
   assertId(session.id, "terminal session id");
   assertText(session.executable, "terminal executable", 32_768);
   assertText(session.cwd, "terminal working directory", 32_768);
