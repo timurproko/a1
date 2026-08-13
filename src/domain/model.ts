@@ -3,6 +3,7 @@ export type AgentId = string;
 export type GenerationId = string;
 export type DriverProfileId = string;
 export type RequestId = string;
+export type ForegroundTerminalLeaseId = string;
 
 export interface TerminalDimensions {
   readonly columns: number;
@@ -10,7 +11,9 @@ export interface TerminalDimensions {
 }
 
 export type LifecycleState = "starting" | "ready" | "running" | "exited" | "stopped" | "interrupted" | "error";
-export type Capability = "process-stop";
+export type Capability = "process-stop" | "transparent-terminal";
+export type TerminalCapability = "transparent" | "composed";
+export type TerminalRecoveryLevel = "exact" | "best-effort" | "detach-only" | "none";
 
 export interface LogicalWorkspace {
   readonly id: WorkspaceId;
@@ -48,6 +51,50 @@ export interface ShellTerminalProfile extends TerminalProfileBase {
 
 export type TerminalAgentProfile = NativePiProfile | CommandTerminalProfile | ShellTerminalProfile;
 
+/** Exact application-agnostic launch request for native terminal attachment. */
+export interface TransparentTerminalLaunchProfile {
+  readonly id: DriverProfileId;
+  readonly terminalCapability: "transparent";
+  readonly executable: string;
+  readonly arguments: readonly string[];
+  readonly cwd: string;
+  readonly environment: Readonly<Record<string, string>>;
+  readonly terminalType: string;
+  readonly dimensions: TerminalDimensions;
+  readonly ownerDisconnect: "stop" | "detach";
+  readonly recovery: "detach-only" | "none";
+  readonly surface: "none";
+  readonly visualReconnection: "none";
+}
+
+/** Boot-observed identity used to reject stale ownership and PID reuse. */
+export interface NativeProcessIdentity {
+  readonly pid: number;
+  readonly startIdentity: string;
+}
+
+export type TransparentTerminalLifecycleOutcome =
+  | { readonly kind: "exited"; readonly exitCode: number }
+  | { readonly kind: "signaled"; readonly signal: string }
+  | { readonly kind: "stopped"; readonly reason: "owner-disconnect" | "user-request" | "update" }
+  | { readonly kind: "detached"; readonly reason: "owner-disconnect" }
+  | { readonly kind: "spawn-error" | "broker-error"; readonly message: string; readonly code: string | null };
+
+export type ForegroundTerminalLeaseState = "requested" | "active" | "released";
+
+export interface ForegroundTerminalLease {
+  readonly id: ForegroundTerminalLeaseId;
+  readonly ownerId: string;
+  readonly profile: TransparentTerminalLaunchProfile;
+  readonly state: ForegroundTerminalLeaseState;
+  readonly generationId: GenerationId | null;
+  readonly processIdentity: NativeProcessIdentity | null;
+  readonly acquiredAt: string;
+  readonly heartbeatAt: string | null;
+  readonly releasedAt: string | null;
+  readonly outcome: TransparentTerminalLifecycleOutcome | null;
+}
+
 export interface ProcessGeneration {
   readonly id: GenerationId;
   readonly agentId: AgentId;
@@ -83,6 +130,10 @@ export interface SupervisorSnapshot {
 export type SupervisorCommand =
   | { readonly type: "create-terminal-agent"; readonly requestId: RequestId; readonly cwd: string; readonly dimensions: TerminalDimensions }
   | { readonly type: "ensure-initial-terminal-agent"; readonly requestId: RequestId; readonly cwd: string; readonly dimensions: TerminalDimensions }
+  | { readonly type: "acquire-foreground-terminal-lease"; readonly requestId: RequestId; readonly ownerId: string; readonly profile: TransparentTerminalLaunchProfile }
+  | { readonly type: "activate-foreground-terminal-lease"; readonly requestId: RequestId; readonly leaseId: ForegroundTerminalLeaseId; readonly generationId: GenerationId; readonly processIdentity: NativeProcessIdentity }
+  | { readonly type: "heartbeat-foreground-terminal-lease"; readonly requestId: RequestId; readonly leaseId: ForegroundTerminalLeaseId; readonly processIdentity: NativeProcessIdentity }
+  | { readonly type: "release-foreground-terminal-lease"; readonly requestId: RequestId; readonly leaseId: ForegroundTerminalLeaseId; readonly processIdentity: NativeProcessIdentity | null; readonly outcome: TransparentTerminalLifecycleOutcome }
   | { readonly type: "stop-agent"; readonly requestId: RequestId; readonly agentId: AgentId; readonly generationId: GenerationId }
   | { readonly type: "resynchronize"; readonly requestId: RequestId };
 

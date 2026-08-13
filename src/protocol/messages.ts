@@ -8,6 +8,7 @@ export const REQUIRED_CONTROL_FEATURES = [
   "snapshot.revision.v1",
   "commands.request-identity.v1",
   "generation.lifecycle.v1",
+  "terminal.foreground-lease.v1",
 ] as const;
 export const OPTIONAL_CONTROL_FEATURES = [
   "messages.unknown-additive-ignore.v1",
