@@ -16,15 +16,16 @@ const { checkoutId, instanceId, developmentRoot, environment } = resolveDevelopm
   process.env,
 );
 
-if (process.argv.includes("--print-environment")) {
-  process.stdout.write(`${JSON.stringify({ checkoutId, instanceId, releaseId: release.releaseId, developmentRoot, environment: {
+const launchArguments = process.argv.slice(2);
+if (launchArguments[0] === "--print-environment") {
+  process.stdout.write(`${JSON.stringify({ checkoutId, instanceId, releaseId: release.releaseId, developmentRoot, launchArguments: launchArguments.slice(1), environment: {
     ADDONE_CONFIG_DIR: environment.ADDONE_CONFIG_DIR,
     ADDONE_DATA_DIR: environment.ADDONE_DATA_DIR,
     ADDONE_RUNTIME_DIR: environment.ADDONE_RUNTIME_DIR,
     ADDONE_DATABASE_PATH: environment.ADDONE_DATABASE_PATH,
   } }, null, 2)}\n`);
 } else {
-  const child = spawn(process.execPath, [resolve(packageRoot, "bin", "addone.js")], {
+  const child = spawn(process.execPath, [resolve(packageRoot, "bin", "addone.js"), ...launchArguments], {
     cwd: process.cwd(),
     env: environment,
     stdio: "inherit",

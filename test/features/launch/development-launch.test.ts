@@ -1,5 +1,9 @@
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+
+const execute = promisify(execFile);
 import { resolveDevelopmentLaunchEnvironment } from "../../../src/features/launch/index.js";
 import { resolveAddOnePaths } from "../../../src/foundation/lifecycle/index.js";
 
@@ -45,5 +49,13 @@ describe("repository-local development launch", () => {
       ADDONE_RUNTIME_DIR: resolve("D:/custom/runtime"),
       ADDONE_DATABASE_PATH: resolve("D:/custom/database.sqlite3"),
     });
+  });
+
+  it("forwards npm start profile arguments to the local AddOne entry", async () => {
+    const inspection = await execute(process.execPath, ["scripts/start-local.mjs", "--print-environment", "sandbox"]);
+    expect(JSON.parse(inspection.stdout)).toMatchObject({ launchArguments: ["sandbox"] });
+
+    await expect(execute(process.execPath, ["scripts/start-local.mjs", "not-an-addone-command"]))
+      .rejects.toMatchObject({ code: 2, stderr: expect.stringContaining("Unknown AddOne command: not-an-addone-command") });
   });
 });
