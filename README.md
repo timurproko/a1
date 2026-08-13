@@ -1,25 +1,38 @@
 # AddOne
 
-AddOne is a standalone terminal workspace. Milestone 1 launches one supervisor-owned vanilla Native Pi instance immediately and gives it the complete terminal viewport with native terminal behavior.
+AddOne is being rebuilt as a cross-platform terminal workspace for Windows, macOS, and Linux.
+
+## Terminal redesign status
+
+The previous PTY/emulation/rendering pipeline was not production-ready and has been removed. Interactive `addone`/`a1` launch currently exits with:
+
+```text
+AddOne terminal capability is unavailable during redesign.
+```
+
+Run terminal applications directly during this cleanup milestone. There is no hidden fallback to the retired renderer or input relay.
+
+The replacement remains terminal-based:
+
+- transparent mode will attach arbitrary terminal applications through each platform's native terminal/process facilities without AddOne input or rendering translation;
+- any later composed mode must use one independently certified authoritative terminal core;
+- neither mode may add executable-, argument-, environment-, or content-specific terminal hacks.
 
 ## Requirements
 
 - Node.js 22.19+ or 24.x
-- A supported UTF-8 terminal (Windows Terminal/ConPTY, xterm-compatible Linux terminal, or macOS terminal)
-- A `pi` executable on `PATH` for normal Native Pi use
-- Native build prerequisites only if npm cannot obtain a prebuilt `node-pty` binary
+- npm 11
+- Windows 11 x64, current Ubuntu LTS x64, or current/previous macOS arm64 for the planned certified terminal capability
 
-The exact platform and dependency contract is in [`docs/architecture/toolchain.md`](docs/architecture/toolchain.md).
+See [`docs/architecture/toolchain.md`](docs/architecture/toolchain.md) and [`docs/architecture/boundaries.md`](docs/architecture/boundaries.md).
 
-## Install or link
-
-Install the public package globally with npm:
+## Install or develop
 
 ```sh
 npm install --global @timurproko/addone@latest
 ```
 
-For a development checkout instead:
+Development checkout:
 
 ```sh
 npm ci
@@ -27,145 +40,39 @@ npm run build
 npm link
 ```
 
-Then launch from the workspace in which Native Pi should run. Both commands invoke the same application:
-
-```sh
-addone
-# or
-a1
-```
-
-For fast repository-local development without publishing, linking, globally installing, or stopping an installed AddOne supervisor:
-
-```sh
-npm start
-```
-
-`npm start` builds the checkout and creates an independent development instance for that invocation. Each simultaneous launch receives its own UI, supervisor, Native Pi process, database, runtime endpoint, and immutable release state, isolated from globally installed, older-development, and other concurrent instances. Set the same explicit `ADDONE_DEV_INSTANCE_ID` in multiple invocations only when intentional reconnection to one development instance is desired. Explicit `ADDONE_CONFIG_DIR`, `ADDONE_DATA_DIR`, `ADDONE_RUNTIME_DIR`, `ADDONE_DATABASE_PATH`, or `ADDONE_DEV_ROOT` values still override the generated instance paths.
+`npm start` builds and launches the checkout, but interactive launch intentionally reports unavailable until the transparent foreground broker is implemented.
 
 ## Version and update
 
-Inspect the installed, stable-release, and preview versions without starting AddOne runtime processes:
+Architecture-independent maintenance commands remain available:
 
 ```sh
-a1 version
-# Installed: 0.1.5-dev.2
-# Release:   0.1.4
-# Next:      0.1.5-dev.1
+addone version
+# Installed: <local version>
+# Release:   <npm latest>
+# Next:      <npm next>
+
+addone update       # stable latest
+addone update:next  # preview next
 ```
 
-`addone version` is equivalent. If npm is unavailable, `Installed` is still shown while `Release` or `Next` is marked unavailable.
-
-Both public aliases provide the same non-interactive stable and preview updates:
-
-```sh
-addone update       # stable npm latest channel
-# or
-a1 update
-
-addone update:next  # Windows-tested npm next channel
-# or
-a1 update:next
-```
-
-The stable command asks the configured npm registry for `@timurproko/addone@latest`; `update:next` asks for `@timurproko/addone@next`. Both immediately stop only verified AddOne-owned sessions and processes, unlock the mutable npm package, install the exact selected version, materialize and certify it, activate it atomically, and verify its supervisor. A stable installation is never opted into development previews implicitly.
-
-The updater needs network access to the configured registry and permission to write npm's global package root. npm's proxy, authentication, certificate, registry, and global-prefix settings remain authoritative, and npm diagnostics are streamed to the terminal.
-
-Automatic replacement is limited to an AddOne package canonically contained in npm's active global package root. A repository checkout, `npm link`, or another package manager's installation is refused without modification. If the exact selected release is already active, no process is interrupted and no installation changes. Update failures retain a durable transaction journal and automatically converge to the selected release or a verified prior immutable cohort; routine recovery requires no PID lookup, `taskkill`, state-directory deletion, restart flag, or separate activation command.
-
-## Milestone 1 interaction
-
-AddOne launches plain `pi` immediately in its default interactive mode and projects its first ready frame over the complete viewport; it displays no AddOne intro and does not force Pi's alternate fullscreen interaction mode. This iteration has no tabs, `[ + ]` control, status line, focus switch, or AddOne keyboard shortcuts.
-
-Native Pi receives all terminal input exactly as it would when launched directly, including:
-
-- Pi keyboard shortcuts, Up/Down editor-history navigation, and repeated Ctrl+C clear/exit
-- UTF-8 input and escape sequences
-- bracketed paste and focus reports requested by Pi
-- vanilla host-native text selection, including Ctrl+C dismissing the selection without clearing Pi editor text and no false `Copied!` augmentation
-- native normal-screen scrollbar and scrollback in vanilla mode, including three-row-per-notch scrolling and selections that move with generated content
-- atomic generated-text, footer/status, scroll, and cursor frames without timer-driven flicker
-- mouse buttons, movement, and Pi-owned transcript scrolling when Pi explicitly requests mouse tracking
-- the complete outer terminal dimensions on resize
-
-Native Pi controls its virtual colors, text attributes, cursor, alternate screen, and effective input modes. AddOne terminates those protocols in its resident virtual terminal and remains the exclusive owner of the physical screen and input modes. When Pi exits or crashes, AddOne discards child modes and restores the exact input and cursor state. Vanilla default-mode Pi leaves its normal-screen content, scrollback, final cursor position, and child-produced line spacing visible like direct Pi; AddOne does not append a restoration newline. Explicitly fullscreen profiles restore the normal-screen content that preceded launch. AddOne exits with Pi's outcome without printing control messages. If an AddOne UI process is terminated externally while the supervisor and Pi remain alive, running `addone` again reattaches using the resident styled terminal state.
-
-## Deterministic walking-skeleton gate
-
-The gate launches the real `addone` CLI in an outer PTY and starts a deterministic executable named `pi` through the real supervisor-owned child PTY. It uses no model, credentials, or network access.
-
-```sh
-npm run test:scenario
-```
-
-The scenario compares the same deterministic fixture launched directly and through AddOne. It covers immediate launch with no AddOne intro, direct first-frame handoff, absence of shell chrome, truecolor/indexed color and attribute parity, Unicode cells, physical-equivalent wheel scrolling versus explicit Up/Down history input, repeated Ctrl+C and crash restoration over known pre-launch content, UTF-8, bracketed paste, focus and mouse input, terminal queries, synchronized output, full-viewport resize, virtual alternate-screen restoration, resident-state reconnect, and functional parent-shell editing after exit.
-
-This deterministic simulation is mandatory and runs before packaged-real-Pi validation. A failing simulation blocks release testing and manual user acceptance.
-
-Every failed run prints its isolated artifact directory. The bundle contains:
-
-- `scenario.json`, `environment.json`, and `input-timeline.json`
-- named `frames.json` and `final-surface.txt`
-- `supervisor-events.json`
-- `outer.log`, `supervisor.log`, and `child.log`
-- `assertions.json` and `failure-summary.txt`
-
-Each run uses a temporary home, config directory, database, runtime/socket namespace, workspace, fixture-first `PATH`, and artifact directory. The temporary root is intentionally retained after a failure for inspection.
-
-## Packaged release and update-transition gates
-
-The release workflow first runs the deterministic simulation above, then packs AddOne, installs the tarball into a temporary prefix, injects one exactly identified Pi executable, and compares that same vanilla Pi default TUI directly and through immutable packaged AddOne content. It verifies recognizable editor readiness, host-native selection and selection-aware Ctrl+C, absence of false copy UI, bounded per-key latency, typed and pasted content, focus handling, the native settings dialog, three-row physical wheel scrolling versus explicit Up-key history, normal and repeated-Ctrl+C quit flows, restoration of the default parent cursor and input state, absence of visible control reports, cells/styles/cursor/effective modes, and process/release identity without model access. A hermetic public-API Pi extension gate additionally compares a custom component, editor input, theme, overlay/dialog, mouse interaction, and extension-requested shutdown. A separate N−1 matrix covers idle and busy owners, stale metadata, bounded cleanup, failed candidates, pending activation, rollback, and duplicate-owner prevention.
-
-Set `ADDONE_REAL_PI_EXECUTABLE` to the exact Pi executable when `pi` is not discoverable on `PATH`, then run the complete agent validation command:
-
-```sh
-npm run validate:agent
-```
-
-PowerShell example:
-
-```powershell
-$env:ADDONE_REAL_PI_EXECUTABLE = (Get-Command pi).Source
-npm run validate:agent
-```
-
-Failures retain machine-readable `verdict.json`, package/runtime identities, endpoint and process inventory, frames, terminal output, logs, and assertion details in the printed temporary artifact directory. Synthetic fixture parity remains a separate transport oracle and is not treated as proof of real Pi readiness.
-
-## Optional installed-Pi smoke
-
-This is non-gating. It removes the fixture directory from `PATH`, uses isolated Pi/AddOne configuration, automatically starts installed Native Pi in its default interaction mode over AddOne's complete viewport, checks that prototype chrome is absent, and sends no prompt or model request. Use it manually to inspect your installed Pi theme, shortcuts, mouse-wheel scrolling, resize behavior, and exit cleanup through AddOne.
-
-```sh
-ADDONE_NATIVE_PI_SMOKE=1 npm run test:smoke:native-pi
-```
-
-On PowerShell:
-
-```powershell
-$env:ADDONE_NATIVE_PI_SMOKE = "1"
-npm run test:smoke:native-pi
-```
-
-## Development preview publication
-
-From a clean `develop` branch, publish the next Windows-tested preview with one command:
-
-```sh
-npm run publish:next
-```
-
-The workflow selects the next unpublished immutable `-dev.N` version, updates and commits `package.json` plus `package-lock.json`, runs the preview gate once, packs one exact tarball, publishes it under npm tag `next`, verifies the tag, and removes the tarball after success. npm authentication remains interactive. If validation fails, fix the issue and rerun the same command with the same candidate version. If authentication or upload fails after validation, the next invocation reuses the retained verified tarball instead of rebuilding or rerunning the gate.
-
-Installed preview users update with `a1 update:next` or `addone update:next`; stable users use `a1 update` or `addone update`. Both commands use the same no-manual-cleanup lifecycle.
+`a1` is an equivalent alias. Updates use the durable verified stop-install-activate transaction and require a canonical npm-managed global installation.
 
 ## Development checks
 
 ```sh
+npm run build
+npm run typecheck
 npm run check:architecture
 npm run check:deprecated
 npm test
-npm run validate:agent
+npm run test:release
 ```
 
-`npm run validate:agent` (and `npm run check`) includes the zero-deprecated-dependency policy, deterministic PTY parity, packaged real-Pi parity, representative Native Pi extension parity, and N−1 update-transition gates. Direct `npm pack` and `npm publish` retain defensive lifecycle checks; `npm run publish:next` runs the authoritative gate once and then packs and publishes that exact artifact with redundant lifecycle execution disabled. Only the release harness's explicitly marked inner package operation otherwise bypasses recursive prepack execution. Every run writes a machine-readable platform verdict under `artifacts/release-verdicts/`. The mandatory CI matrix is Windows 11 x64 with Windows Terminal/system ConPTY, current Ubuntu LTS x64, and current/previous macOS arm64; a failure on any required runner blocks parity claims. The architecture check prevents Pi, PTY, TUI, private-distribution, raw-child-output, process-global, and UI-spawn boundary regressions.
+The current release gate covers architecture-independent lifecycle and N−1 update transitions only. Terminal input/rendering certification will be rebuilt from independent physical-host evidence after cleanup.
+
+## Preview publication freeze
+
+`npm run publish:next` intentionally fails during redesign. Preview publication resumes only after transparent capability certification and explicit user validation.
+
+Historical details of the retired `0.1.5-dev.7` pipeline remain available in Git and OpenSpec history rather than active documentation or tests.

@@ -1,2 +1,0 @@
-#!/bin/sh
-exec node "$ADDONE_FIXTURE_ENTRY" "$@"

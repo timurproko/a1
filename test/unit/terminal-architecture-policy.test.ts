@@ -3,9 +3,12 @@ import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
 describe("terminal-core architecture policy", () => {
-  it("enforces CLI identity, executable/argument, named-environment, visible-content, and input-fallback prohibitions", async () => {
+  it("enforces retired-module and application-specific terminal prohibitions", async () => {
     const policy = await readFile("scripts/check-architecture.mjs", "utf8");
     for (const diagnostic of [
+      "retired PTY/emulator import",
+      "retired terminal presentation import",
+      "retired terminal module remains",
       "CLI identity or CLI-named configuration",
       "executable or argument inspection",
       "CLI-named environment inspection",

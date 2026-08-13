@@ -21,30 +21,24 @@
   },
   "scripts": {
     "clean": "node scripts/clean.mjs",
-    "build": "npm run clean && tsc -p tsconfig.build.json && node scripts/copy-assets.mjs",
+    "build": "npm run clean && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "check:architecture": "node scripts/check-architecture.mjs",
     "check:deprecated": "node scripts/check-deprecated-dependencies.mjs",
     "check": "npm run typecheck && npm run check:architecture && npm run check:deprecated && npm test && npm run test:release",
     "validate:agent": "npm run check",
     "publish:next": "tsx scripts/publish-next.ts",
-    "test": "vitest run --exclude test/scenarios/**",
+    "test": "vitest run",
     "test:unit": "vitest run test/unit",
     "test:integration": "vitest run test/integration",
-    "test:scenario": "npm run build && vitest run test/scenarios/walking-skeleton.test.ts test/scenarios/conversation-stability.test.ts --no-file-parallelism --testTimeout=60000",
-    "test:flicker-baseline": "npm run build && vitest run test/scenarios/conversation-stability.test.ts --testTimeout=60000",
     "test:release": "node scripts/run-release-gates.mjs",
-    "test:smoke:native-pi": "npm run build && vitest run test/scenarios/native-pi-smoke.test.ts --testTimeout=35000",
     "start": "npm run build && node scripts/start-local.mjs",
     "prepack": "node scripts/prepack-gate.mjs",
     "prepublishOnly": "npm run check",
     "prepare": "npm run build"
   },
   "dependencies": {
-    "@earendil-works/pi-tui": "0.84.1",
-    "@xterm/headless": "6.0.0",
     "cross-spawn": "7.0.6",
-    "node-pty": "1.1.0",
     "semver": "7.8.5"
   },
   "devDependencies": {

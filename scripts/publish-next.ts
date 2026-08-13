@@ -22,6 +22,7 @@ try {
 }
 
 async function publishNext() {
+  throw new Error("terminal preview publication is frozen until transparent capability certification completes");
   await requireCleanDevelop();
   const manifest = JSON.parse(await readFile(resolve(repository, "package.json"), "utf8"));
   if (typeof manifest.name !== "string" || typeof manifest.version !== "string") throw new Error("package.json has no valid name/version");

@@ -130,18 +130,15 @@ export function createUpdateLifecycleCoordinator(
       return { priorActiveVersion };
     },
     async verifyPackageUnlocked(packageRoot) {
-      const nativeModule = resolve(packageRoot, "node_modules", "node-pty", "prebuilds", "win32-x64", "conpty.node");
-      if (fileSystem.access) await fileSystem.access(nativeModule).catch(error => {
-        if (error instanceof Error && "code" in error && error.code === "ENOENT") return;
-        throw error;
-      });
-      const probe = `${nativeModule}.addone-unlock-probe`;
+      if (fileSystem.access) await fileSystem.access(packageRoot);
+      const probe = `${packageRoot}.addone-unlock-probe`;
       const { rename } = await import("node:fs/promises");
       try {
-        await rename(nativeModule, probe);
-        await rename(probe, nativeModule);
+        await rename(packageRoot, probe);
+        await rename(probe, packageRoot);
       } catch (error) {
-        if (error instanceof Error && "code" in error && error.code === "ENOENT") return;
+        // Best-effort rollback if the first rename succeeded and the second did not.
+        await rename(probe, packageRoot).catch(() => {});
         throw new Error(`AddOne package remains locked after verified shutdown: ${errorMessage(error)}`);
       }
     },

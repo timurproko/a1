@@ -29,12 +29,11 @@ for (const file of await walk(sourceRoot)) {
     if (/(?:^|\/)(?:dist|src|build)\//.test(specifier) && /pi/i.test(specifier)) {
       errors.push(`${path}: private Pi distribution import '${specifier}' is forbidden`);
     }
-    if (["node-pty", "@xterm/headless"].includes(specifier)
-      && !/^src\/(drivers\/terminal\/|test-harness\/pty-runner)/.test(path)) {
-      errors.push(`${path}: PTY/emulator import '${specifier}' is outside terminal adapters`);
+    if (["node-pty", "@xterm/headless"].includes(specifier)) {
+      errors.push(`${path}: retired PTY/emulator import '${specifier}' is forbidden during redesign`);
     }
-    if (/pi-tui/.test(specifier) && !path.startsWith("src/presentation/")) {
-      errors.push(`${path}: TUI import '${specifier}' is outside presentation`);
+    if (/pi-tui/.test(specifier)) {
+      errors.push(`${path}: retired terminal presentation import '${specifier}' is forbidden during redesign`);
     }
     if (path.startsWith("src/ui/") && ["node:child_process", "child_process", "node-pty"].includes(specifier)) {
       errors.push(`${path}: UI may not spawn agent processes`);
@@ -49,6 +48,11 @@ for (const file of await walk(sourceRoot)) {
   }
   if (path.startsWith("src/ui/") && /\.write\(\s*(?:bytes|chunk|data)\s*\)/.test(source)) {
     errors.push(`${path}: UI may render virtual terminal state but may not relay opaque child bytes`);
+  }
+
+  if (/^src\/(?:drivers\/terminal|host-terminal|presentation|test-harness)(?:\/|$)/.test(path)
+    || /^(?:src\/terminal-input|src\/windows-console-mode|src\/ui\/host-(?:terminal-renderer|frame-writer))\.ts$/.test(path)) {
+    errors.push(`${path}: retired terminal module remains in production sources`);
   }
 
   const terminalCore = /^(?:src\/drivers\/terminal\/(?:pty-terminal-driver|resident-terminal-state|output-transaction-assembler)|src\/presentation\/terminal(?:-projection)?|src\/ui\/host-(?:terminal-renderer|frame-writer))\.ts$/.test(path);
