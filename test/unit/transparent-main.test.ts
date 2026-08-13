@@ -12,6 +12,8 @@ describe("transparent CLI composition", () => {
     expect(main).toContain("createPlatformTransparentLauncher");
     expect(`${entry}\n${main}`).not.toMatch(/Start-Process|wt\.exe|SendInput|SetForegroundWindow|ReadConsoleInputW|node-pty|@xterm/i);
     expect(main).not.toMatch(/process\.(?:stdin|stdout|stderr)|\.on\(["']data|\.pipe\(/);
+    const resolution = await readFile("src/transparent/command-resolution.ts", "utf8");
+    expect(resolution).not.toMatch(/cmd\.exe|ComSpec|shell:\s*true|Start-Process/i);
   });
 
   it("documents an exclusively user-controlled manual checkpoint", async () => {

@@ -52,6 +52,10 @@ Compare `pi` launched directly with `addone`, using the same terminal, directory
 - [ ] After exit, typing, cursor movement, Backspace, Delete, and command submission work normally.
 - [ ] A missing configured executable reports a concise spawn failure without affecting other applications.
 
+## Manual findings
+
+- First Windows `npm start` attempt: `spawn pi ENOENT`. Cause: the global npm command is a standard `.cmd` shim while transparent launch disables shell execution. Corrected generically by resolving PATH and unwrapping only the audited standard npm Windows shim format to its Node executable and CLI entry point; arbitrary command scripts remain rejected.
+
 ## Report
 
 Report each failed checklist item with:

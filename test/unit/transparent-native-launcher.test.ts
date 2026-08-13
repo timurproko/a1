@@ -87,6 +87,7 @@ function spawnFixture(identityMatchesResult = true, exitResults: boolean[] = [tr
   const stop = vi.fn(async () => undefined);
   const waitForExit = vi.fn(async () => exitResults.shift() ?? false);
   const adapter: NativeSpawnAdapter = {
+    async resolveCommand(received) { return { executable: received.executable, arguments: received.arguments }; },
     spawn,
     async observeStartIdentity() { return "8123:native-start"; },
     identityMatches,

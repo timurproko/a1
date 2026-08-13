@@ -2,8 +2,10 @@ import { spawn, type ChildProcess, type SpawnOptions } from "node:child_process"
 import { randomUUID } from "node:crypto";
 import type { TransparentTerminalLaunchProfile, TransparentTerminalLifecycleOutcome } from "../domain/index.js";
 import type { TransparentChildHandle, TransparentNativeLauncher, TransparentStopReason } from "./foreground-broker.js";
+import { resolveTransparentCommand } from "./command-resolution.js";
 
 export interface NativeSpawnAdapter {
+  resolveCommand(profile: TransparentTerminalLaunchProfile): Promise<{ readonly executable: string; readonly arguments: readonly string[] }>;
   spawn(executable: string, arguments_: readonly string[], options: SpawnOptions): ChildProcess;
   observeStartIdentity(child: ChildProcess): Promise<string>;
   identityMatches(child: ChildProcess, expectedStartIdentity: string): Promise<boolean>;
@@ -50,7 +52,8 @@ async function launchInherited(
   adapter: NativeSpawnAdapter,
   platformOptions: Pick<SpawnOptions, "windowsHide" | "windowsVerbatimArguments" | "detached">,
 ): Promise<TransparentChildHandle> {
-  const child = adapter.spawn(profile.executable, profile.arguments, {
+  const command = await adapter.resolveCommand(profile);
+  const child = adapter.spawn(command.executable, command.arguments, {
     ...platformOptions,
     cwd: profile.cwd,
     env: { ...profile.environment, TERM: profile.terminalType },
@@ -123,6 +126,12 @@ function errorCode(error: Error): string | null {
 const observedStartIdentities = new WeakMap<ChildProcess, string>();
 
 const defaultSpawnAdapter: NativeSpawnAdapter = {
+  async resolveCommand(profile) {
+    return await resolveTransparentCommand(profile.executable, profile.arguments, {
+      cwd: profile.cwd,
+      environment: profile.environment,
+    });
+  },
   spawn(executable, arguments_, options) {
     return spawn(executable, [...arguments_], options);
   },
