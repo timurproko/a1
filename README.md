@@ -69,6 +69,6 @@ The current preview release gate covers architecture-independent lifecycle, stru
 
 After explicit manual acceptance, an exact `-dev.N` candidate may publish under npm tag `next`. Its evidence records transparent physical-host and cross-platform certification as deferred. This workflow never moves `latest` and does not certify stable terminal support.
 
-Local maintainers may run `npm run publish:next` from a clean authenticated `develop` checkout. The manual GitHub Actions workflow **Publish npm next preview** provides the equivalent hosted path: configure the `npm-next` environment, add its `NPM_TOKEN` secret, dispatch the workflow from `develop`, enter the exact accepted version, and confirm `publish-uncertified-next`. It runs only non-desktop gates and publishes one exact packed tarball using `JS-DevTools/npm-publish@v4.1.5` with npm provenance.
+Local maintainers may run `npm run publish:next` from a clean authenticated `develop` checkout. The manual GitHub Actions workflow **Publish npm next preview** provides the equivalent hosted path: authorize `.github/workflows/publish-next.yml` for the `npm-next` environment as an npm trusted publisher, dispatch the workflow from `develop`, enter the exact accepted version, and confirm `publish-uncertified-next`. It runs only non-desktop gates and publishes one exact packed tarball using `JS-DevTools/npm-publish@v4.1.5` with npm provenance.
 
 Historical details of the retired `0.1.5-dev.7` pipeline remain available in Git and OpenSpec history rather than active tests.
