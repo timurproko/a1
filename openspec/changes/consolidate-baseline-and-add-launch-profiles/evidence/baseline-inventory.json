@@ -1,0 +1,1426 @@
+{
+  "schema": "addone-baseline-ownership-inventory-v1",
+  "recordedAt": "2026-08-13T14:05:00Z",
+  "baselineCommit": "9b68a50cbc4fb0671b9d15b0ba5b4e67a6518a87",
+  "branch": "milestone/baseline-launch-profiles",
+  "scope": {
+    "trackedPathCount": 131,
+    "note": "Every path tracked at baselineCommit is listed exactly once. This evidence file was created after that baseline and is not part of the before-state path set."
+  },
+  "gates": [
+    {
+      "command": "npm run build",
+      "outcome": "passed"
+    },
+    {
+      "command": "npm run typecheck",
+      "outcome": "passed"
+    },
+    {
+      "command": "npm run check:architecture",
+      "outcome": "passed"
+    },
+    {
+      "command": "npm run check:deprecated",
+      "outcome": "passed"
+    },
+    {
+      "command": "npm test",
+      "outcome": "passed",
+      "detail": "28 files; 120 tests"
+    },
+    {
+      "command": "npm run test:release",
+      "outcome": "passed",
+      "detail": "1 file; 3 tests; artifacts/release-verdicts/win32-x64.json emitted"
+    },
+    {
+      "command": "npm audit --audit-level=high --json",
+      "outcome": "passed",
+      "detail": "0 vulnerabilities"
+    },
+    {
+      "command": "openspec validate --specs",
+      "outcome": "passed",
+      "detail": "5 main specs"
+    },
+    {
+      "command": "openspec validate consolidate-baseline-and-add-launch-profiles --strict",
+      "outcome": "passed"
+    }
+  ],
+  "generatedArtifacts": [
+    {
+      "path": "dist/",
+      "disposition": "delete",
+      "reason": "Ignored build output regenerated from source."
+    },
+    {
+      "path": "artifacts/release-verdicts/win32-x64.json",
+      "disposition": "delete",
+      "reason": "Ignored before-state gate output summarized above."
+    }
+  ],
+  "savedDeferredWork": {
+    "stash": "stash@{0}",
+    "object": "7d4210d3703a9fdb49169b188d139a532b29bdb2",
+    "baseCommit": "53f80cf0bbe7cfe4b4a1c5ce04c6d09f1c5cad19",
+    "disposition": "delete",
+    "futureChange": "certify-transparent-terminal-physical-parity",
+    "reason": "Deferred recorder/input-gate work has no active preview-baseline owner; committed history and archived OpenSpec preserve context.",
+    "paths": [
+      {
+        "path": "test/integration/generic-child-recorder.test.ts",
+        "status": "modified"
+      },
+      {
+        "path": "test/physical-host/generic-child-recorder.mjs",
+        "status": "modified"
+      },
+      {
+        "path": "test/physical-host/windows/native-input-gate.ps1",
+        "status": "added"
+      }
+    ]
+  },
+  "dependencies": [
+    {
+      "name": "cross-spawn",
+      "version": "7.0.6",
+      "scope": "production",
+      "owner": "release",
+      "disposition": "retain",
+      "reason": "Cross-platform exact executable spawning for update, version, package, and release scripts."
+    },
+    {
+      "name": "semver",
+      "version": "7.8.5",
+      "scope": "production",
+      "owner": "release",
+      "disposition": "retain",
+      "reason": "Validated version/channel and development-preview transitions."
+    },
+    {
+      "name": "@types/cross-spawn",
+      "version": "6.0.6",
+      "scope": "development",
+      "owner": "release",
+      "disposition": "retain",
+      "reason": "Type contract for retained cross-spawn usage."
+    },
+    {
+      "name": "@types/node",
+      "version": "24.2.1",
+      "scope": "development",
+      "owner": "repository",
+      "disposition": "retain",
+      "reason": "Node runtime/build type authority."
+    },
+    {
+      "name": "@types/semver",
+      "version": "7.8.0",
+      "scope": "development",
+      "owner": "release",
+      "disposition": "retain",
+      "reason": "Type contract for retained semver usage."
+    },
+    {
+      "name": "ajv",
+      "version": "8.20.0",
+      "scope": "development",
+      "owner": "future physical certification",
+      "disposition": "delete",
+      "reason": "Used only by deferred physical-host evidence schemas; remove with those active assets.",
+      "futureChange": "certify-transparent-terminal-physical-parity"
+    },
+    {
+      "name": "tsx",
+      "version": "4.20.3",
+      "scope": "development",
+      "owner": "release",
+      "disposition": "retain",
+      "reason": "Runs maintained TypeScript release tooling."
+    },
+    {
+      "name": "typescript",
+      "version": "5.9.2",
+      "scope": "development",
+      "owner": "repository",
+      "disposition": "retain",
+      "reason": "Single root compiler authority."
+    },
+    {
+      "name": "vitest",
+      "version": "3.2.7",
+      "scope": "development",
+      "owner": "repository",
+      "disposition": "retain",
+      "reason": "Single root test runner authority."
+    }
+  ],
+  "entries": [
+    {
+      "path": ".github/workflows/publish-next.yml",
+      "bytes": 6476,
+      "sha256": "389a5b420294ebde4bc3acccf019ba780bedb72052772cc51a31d3590911c4f0",
+      "category": "workflow",
+      "owner": "release",
+      "disposition": "move/consolidate",
+      "target": ".github/workflows/publish-next.yml",
+      "reason": "Retain trusted preview publishing but remove accepted-candidate historical pins for the next candidate."
+    },
+    {
+      "path": ".github/workflows/terminal-baseline.yml",
+      "bytes": 2934,
+      "sha256": "b250330226ba6cb6e99d28e521c05df3cea44f89cb149be66ed5d33d61723f51",
+      "category": "workflow",
+      "owner": "future physical certification",
+      "disposition": "delete",
+      "futureChange": "certify-transparent-terminal-physical-parity",
+      "reason": "Deferred physical-worker implementation has no active preview-baseline owner; policy remains in main specs and implementation history remains in Git/OpenSpec."
+    },
+    {
+      "path": ".gitignore",
+      "bytes": 2940,
+      "sha256": "5776b8e73722a9c7c58a2cead0d672ef3a6b261065e09ca930f0b0747d3d3ee3",
+      "category": "configuration",
+      "owner": "repository-governance",
+      "disposition": "retain",
+      "reason": "Root generated/runtime artifact exclusion policy."
+    },
+    {
+      "path": ".pi/prompts/opsx-apply.md",
+      "bytes": 7428,
+      "sha256": "f3ca49ca90a74fe5388fee0d36ca37f4bea239fe3a9a4479a8c40cd87b246787",
+      "category": "tooling-document",
+      "owner": "OpenSpec tooling",
+      "disposition": "retain",
+      "reason": "Repository-local planning workflow support outside shipped product content."
+    },
+    {
+      "path": ".pi/prompts/opsx-archive.md",
+      "bytes": 11386,
+      "sha256": "38ebe3b6de422c529d148a4d05b54ffc24921730d80888e399ecedbfe94bd500",
+      "category": "tooling-document",
+      "owner": "OpenSpec tooling",
+      "disposition": "retain",
+      "reason": "Repository-local planning workflow support outside shipped product content."
+    },
+    {
+      "path": ".pi/prompts/opsx-explore.md",
+      "bytes": 12147,
+      "sha256": "709a5c43678ab0fd65a5d16c9bb1ccb4fabc2d7d3c3a560740dfc0e2d02a8e5f",
+      "category": "tooling-document",
+      "owner": "OpenSpec tooling",
+      "disposition": "retain",
+      "reason": "Repository-local planning workflow support outside shipped product content."
+    },
+    {
+      "path": ".pi/prompts/opsx-propose.md",
+      "bytes": 10879,
+      "sha256": "714e0af000f625748c62e725d1d9e607786f80bbeb6d07960702ccfd3d8dd4e7",
+      "category": "tooling-document",
+      "owner": "OpenSpec tooling",
+      "disposition": "retain",
+      "reason": "Repository-local planning workflow support outside shipped product content."
+    },
+    {
+      "path": ".pi/prompts/opsx-sync.md",
+      "bytes": 12277,
+      "sha256": "ba4f53370c682456970111263d9225715a690304ca0c57ac43c089cf96a6bd9f",
+      "category": "tooling-document",
+      "owner": "OpenSpec tooling",
+      "disposition": "retain",
+      "reason": "Repository-local planning workflow support outside shipped product content."
+    },
+    {
+      "path": ".pi/prompts/opsx-update.md",
+      "bytes": 6571,
+      "sha256": "bd741324e553c451521b1ad0985bdf852b07d2d17f8e2a2fd4bc2c6b3c175eb1",
+      "category": "tooling-document",
+      "owner": "OpenSpec tooling",
+      "disposition": "retain",
+      "reason": "Repository-local planning workflow support outside shipped product content."
+    },
+    {
+      "path": ".pi/skills/openspec-apply-change/SKILL.md",
+      "bytes": 7660,
+      "sha256": "cccb13131268cf1d830c30b649e695dbc46e42331b9aaff7401dad152d088701",
+      "category": "tooling-document",
+      "owner": "OpenSpec tooling",
+      "disposition": "retain",
+      "reason": "Repository-local planning workflow support outside shipped product content."
+    },
+    {
+      "path": ".pi/skills/openspec-archive-change/SKILL.md",
+      "bytes": 10657,
+      "sha256": "faa510800a1306763f4c3f209345b2ae445942cc8912c2a3052881c1d531a03b",
+      "category": "tooling-document",
+      "owner": "OpenSpec tooling",
+      "disposition": "retain",
+      "reason": "Repository-local planning workflow support outside shipped product content."
+    },
+    {
+      "path": ".pi/skills/openspec-explore/SKILL.md",
+      "bytes": 16221,
+      "sha256": "2f4b8dc5cb4370fe3d73a38fdd24fceb2115230bdbbc7df7158cb5313f4420b0",
+      "category": "tooling-document",
+      "owner": "OpenSpec tooling",
+      "disposition": "retain",
+      "reason": "Repository-local planning workflow support outside shipped product content."
+    },
+    {
+      "path": ".pi/skills/openspec-propose/SKILL.md",
+      "bytes": 11193,
+      "sha256": "874f03a92979dec878627709410f91933fdcb66abddf521b67be23ac117b4645",
+      "category": "tooling-document",
+      "owner": "OpenSpec tooling",
+      "disposition": "retain",
+      "reason": "Repository-local planning workflow support outside shipped product content."
+    },
+    {
+      "path": ".pi/skills/openspec-sync-specs/SKILL.md",
+      "bytes": 12485,
+      "sha256": "cdb1b182315c86b8038c42fce9c65ec7b92627bd9d5c51908f494b2e5af08b87",
+      "category": "tooling-document",
+      "owner": "OpenSpec tooling",
+      "disposition": "retain",
+      "reason": "Repository-local planning workflow support outside shipped product content."
+    },
+    {
+      "path": ".pi/skills/openspec-update-change/SKILL.md",
+      "bytes": 6832,
+      "sha256": "f4ffb89ece3be2a55a95a693ca0a1dbcd2139c17ab45edf796b14c99cb7d5a50",
+      "category": "tooling-document",
+      "owner": "OpenSpec tooling",
+      "disposition": "retain",
+      "reason": "Repository-local planning workflow support outside shipped product content."
+    },
+    {
+      "path": "LICENSE",
+      "bytes": 1072,
+      "sha256": "fae632af7274b7232e5dcecf070af4e06baadd6a00ceca2fe0f5244e101cb0ab",
+      "category": "legal",
+      "owner": "repository",
+      "disposition": "retain",
+      "reason": "Published package license."
+    },
+    {
+      "path": "README.md",
+      "bytes": 3581,
+      "sha256": "c1bdb084a6d0a50aad8db59c28c5042a26ed7ec2792c80275bb088bab394528d",
+      "category": "document",
+      "owner": "architecture",
+      "disposition": "move/consolidate",
+      "target": "README.md",
+      "reason": "Rewrite as concise current production documentation and remove milestone/history narration."
+    },
+    {
+      "path": "bin/addone-supervisor.js",
+      "bytes": 234,
+      "sha256": "1c5b623328e0aabf6956b442c02026130f6686a8f4d4b2a2515497da2d416a68",
+      "category": "production-entry",
+      "owner": "cli",
+      "disposition": "move/consolidate",
+      "target": "bin/addone-supervisor.js",
+      "reason": "Retain as a thin package entry while moving dispatch and policy into src/cli public contracts."
+    },
+    {
+      "path": "bin/addone-ui.js",
+      "bytes": 307,
+      "sha256": "3eefd29cd3de1b857adf382962e9cba1a25c8a0c43d07c65580cb107ed6252da",
+      "category": "production-entry",
+      "owner": "cli",
+      "disposition": "move/consolidate",
+      "target": "bin/addone-ui.js",
+      "reason": "Retain as a thin package entry while moving dispatch and policy into src/cli public contracts."
+    },
+    {
+      "path": "bin/addone.js",
+      "bytes": 1456,
+      "sha256": "3ef4255fec86860dd4fb1556f8614637e479738ffd8ab780dfd6945542847e56",
+      "category": "production-entry",
+      "owner": "cli",
+      "disposition": "move/consolidate",
+      "target": "bin/addone.js",
+      "reason": "Retain as a thin package entry while moving dispatch and policy into src/cli public contracts."
+    },
+    {
+      "path": "docs/architecture/boundaries.md",
+      "bytes": 1363,
+      "sha256": "975f7ceacf06222a93c24648f6eb55c4d77d7fb3d0973064a863e3dbe0aeee2e",
+      "category": "document",
+      "owner": "architecture",
+      "disposition": "move/consolidate",
+      "target": "docs/architecture/boundaries.md",
+      "reason": "Rewrite as concise current production documentation and remove milestone/history narration."
+    },
+    {
+      "path": "docs/architecture/toolchain.md",
+      "bytes": 2978,
+      "sha256": "b3a734a3825bd7b23a39f3f7a303af040de45ba2aeca4e6cdf02258678a10657",
+      "category": "document",
+      "owner": "architecture",
+      "disposition": "move/consolidate",
+      "target": "docs/architecture/toolchain.md",
+      "reason": "Rewrite as concise current production documentation and remove milestone/history narration."
+    },
+    {
+      "path": "docs/manual-transparent-checkpoint.md",
+      "bytes": 3907,
+      "sha256": "df9e79d3f0b37951285ae7c8ca4972cf1893a9696098644bd643f0a5f21919e4",
+      "category": "document",
+      "owner": "launch",
+      "disposition": "move/consolidate",
+      "target": "docs/manual-transparent-checkpoint.md",
+      "reason": "Rewrite as concise current production documentation and remove milestone/history narration."
+    },
+    {
+      "path": "docs/reference/v2-intro/checkpoints.json",
+      "bytes": 1635,
+      "sha256": "87dc3ce6732fb4d0d0ec6c993cab4e97e62f39ae10645b22d08f1857660281ce",
+      "category": "document",
+      "owner": "future multi-agent UX",
+      "disposition": "delete",
+      "futureChange": "build-bare-a1-multi-agent-ux",
+      "reason": "Historical prototype oracle is not a current production contract; future UX planning must establish fresh requirements."
+    },
+    {
+      "path": "docs/reference/v2-intro/reference.md",
+      "bytes": 1793,
+      "sha256": "6832fa44c42f3586d73815538c4292a8c6d834826683016defbfe871469b2ec9",
+      "category": "document",
+      "owner": "future multi-agent UX",
+      "disposition": "delete",
+      "futureChange": "build-bare-a1-multi-agent-ux",
+      "reason": "Historical prototype oracle is not a current production contract; future UX planning must establish fresh requirements."
+    },
+    {
+      "path": "docs/reference/v2-shell/catalogue.md",
+      "bytes": 6326,
+      "sha256": "821f4b199a9b24a5364eb001b2adad321f223639ec34cd0f52bb6a02a9414951",
+      "category": "document",
+      "owner": "future multi-agent UX",
+      "disposition": "delete",
+      "futureChange": "build-bare-a1-multi-agent-ux",
+      "reason": "Historical prototype oracle is not a current production contract; future UX planning must establish fresh requirements."
+    },
+    {
+      "path": "openspec/changes/archive/2026-08-10-add-self-update-command/.openspec.yaml",
+      "bytes": 40,
+      "sha256": "f41f2bc28ec1d7aab73d26bb7222e7e03ea9138b5ac97f86aa97812e52abbef3",
+      "category": "spec-archive",
+      "owner": "OpenSpec history",
+      "disposition": "retain",
+      "reason": "Immutable planning/decision history, not a production implementation owner."
+    },
+    {
+      "path": "openspec/changes/archive/2026-08-10-add-self-update-command/design.md",
+      "bytes": 6598,
+      "sha256": "4a1d65488d7fa3eb95024765b60f1b975550cbcd5f6a61eef8595265d737a833",
+      "category": "spec-archive",
+      "owner": "OpenSpec history",
+      "disposition": "retain",
+      "reason": "Immutable planning/decision history, not a production implementation owner."
+    },
+    {
+      "path": "openspec/changes/archive/2026-08-10-add-self-update-command/proposal.md",
+      "bytes": 1624,
+      "sha256": "515ed5ca9f780d2fc3e12889a67abce12f24dd30047f1ab26b70e61de2f4c17c",
+      "category": "spec-archive",
+      "owner": "OpenSpec history",
+      "disposition": "retain",
+      "reason": "Immutable planning/decision history, not a production implementation owner."
+    },
+    {
+      "path": "openspec/changes/archive/2026-08-10-add-self-update-command/specs/cli-self-update/spec.md",
+      "bytes": 3519,
+      "sha256": "036eefdcd18eddbaa0ac6d9c1e1ff245c29dd946a01025d32776582ccc6ee739",
+      "category": "spec-archive",
+      "owner": "OpenSpec history",
+      "disposition": "retain",
+      "reason": "Immutable planning/decision history, not a production implementation owner."
+    },
+    {
+      "path": "openspec/changes/archive/2026-08-10-add-self-update-command/tasks.md",
+      "bytes": 1475,
+      "sha256": "629856400c2220a73bc595d3522ac9b88718edbd6c3bcc0271b726ec7b4e37cf",
+      "category": "spec-archive",
+      "owner": "OpenSpec history",
+      "disposition": "retain",
+      "reason": "Immutable planning/decision history, not a production implementation owner."
+    },
+    {
+      "path": "openspec/changes/archive/2026-08-13-establish-addone-foundation/.openspec.yaml",
+      "bytes": 40,
+      "sha256": "f41f2bc28ec1d7aab73d26bb7222e7e03ea9138b5ac97f86aa97812e52abbef3",
+      "category": "spec-archive",
+      "owner": "OpenSpec history",
+      "disposition": "retain",
+      "reason": "Immutable planning/decision history, not a production implementation owner."
+    },
+    {
+      "path": "openspec/changes/archive/2026-08-13-establish-addone-foundation/design.md",
+      "bytes": 34491,
+      "sha256": "191e27694ab00bbf2d0a45b691f52b86cf31886f34a4ae6022a82b7f635cd8cf",
+      "category": "spec-archive",
+      "owner": "OpenSpec history",
+      "disposition": "retain",
+      "reason": "Immutable planning/decision history, not a production implementation owner."
+    },
+    {
+      "path": "openspec/changes/archive/2026-08-13-establish-addone-foundation/evidence/clean-baseline.md",
+      "bytes": 1407,
+      "sha256": "8fea4b3794492e44fd4f12327fd725b7750568e1ad1078549103e75787141d39",
+      "category": "spec-archive",
+      "owner": "OpenSpec history",
+      "disposition": "retain",
+      "reason": "Immutable planning/decision history, not a production implementation owner."
+    },
+    {
+      "path": "openspec/changes/archive/2026-08-13-establish-addone-foundation/evidence/transparent-preview-0.1.5-dev.8.md",
+      "bytes": 2248,
+      "sha256": "eb339456680773490cbafb242eceab5d8f9991d89ad1aae13f57ac16e392dc52",
+      "category": "spec-archive",
+      "owner": "OpenSpec history",
+      "disposition": "retain",
+      "reason": "Immutable planning/decision history, not a production implementation owner."
+    },
+    {
+      "path": "openspec/changes/archive/2026-08-13-establish-addone-foundation/proposal.md",
+      "bytes": 9568,
+      "sha256": "6f85b538f6d7f657748bcd164e00690eaf3b3393c11479ec40798e8b13ebce8a",
+      "category": "spec-archive",
+      "owner": "OpenSpec history",
+      "disposition": "retain",
+      "reason": "Immutable planning/decision history, not a production implementation owner."
+    },
+    {
+      "path": "openspec/changes/archive/2026-08-13-establish-addone-foundation/specs/addone-shell/spec.md",
+      "bytes": 5664,
+      "sha256": "58375a6e08be96f3075c2f352a8b4390e368de0490fa96929f05a24aa6ef5fd5",
+      "category": "spec-archive",
+      "owner": "OpenSpec history",
+      "disposition": "retain",
+      "reason": "Immutable planning/decision history, not a production implementation owner."
+    },
+    {
+      "path": "openspec/changes/archive/2026-08-13-establish-addone-foundation/specs/agent-supervision/spec.md",
+      "bytes": 5254,
+      "sha256": "702e08de6ce72e3835610d7988fd67b4acbb3bd75c6a4b8704085015fb487fbc",
+      "category": "spec-archive",
+      "owner": "OpenSpec history",
+      "disposition": "retain",
+      "reason": "Immutable planning/decision history, not a production implementation owner."
+    },
+    {
+      "path": "openspec/changes/archive/2026-08-13-establish-addone-foundation/specs/isolated-regression-testing/spec.md",
+      "bytes": 8777,
+      "sha256": "753060b48dcaae9fcac5a418ea223f3ceb6b0e7837161f434a8d564c0bfd4c42",
+      "category": "spec-archive",
+      "owner": "OpenSpec history",
+      "disposition": "retain",
+      "reason": "Immutable planning/decision history, not a production implementation owner."
+    },
+    {
+      "path": "openspec/changes/archive/2026-08-13-establish-addone-foundation/specs/terminal-agent-runtime/spec.md",
+      "bytes": 5836,
+      "sha256": "7beb7b48eec5a1f3f6c11bb761b9d91748382ab12d51e22d2b25b707bcf14fcd",
+      "category": "spec-archive",
+      "owner": "OpenSpec history",
+      "disposition": "retain",
+      "reason": "Immutable planning/decision history, not a production implementation owner."
+    },
+    {
+      "path": "openspec/changes/archive/2026-08-13-establish-addone-foundation/tasks.md",
+      "bytes": 50377,
+      "sha256": "247cbf9d61739521bf2a909938dacc1d7bd493b35159663d3683f61b944c4bd3",
+      "category": "spec-archive",
+      "owner": "OpenSpec history",
+      "disposition": "retain",
+      "reason": "Immutable planning/decision history, not a production implementation owner."
+    },
+    {
+      "path": "openspec/changes/consolidate-baseline-and-add-launch-profiles/.openspec.yaml",
+      "bytes": 40,
+      "sha256": "f740855436b3c2a28e0536ca9061ceca2f40e0f98cc324b643527bc63b0d9ae2",
+      "category": "active-spec-change",
+      "owner": "baseline consolidation",
+      "disposition": "retain",
+      "reason": "Active implementation and acceptance contract for this milestone."
+    },
+    {
+      "path": "openspec/changes/consolidate-baseline-and-add-launch-profiles/design.md",
+      "bytes": 16108,
+      "sha256": "b5029a34ccec005b7d70b474b7ad36ac555f01327df4e66a6ec11ee4645c1612",
+      "category": "active-spec-change",
+      "owner": "baseline consolidation",
+      "disposition": "retain",
+      "reason": "Active implementation and acceptance contract for this milestone."
+    },
+    {
+      "path": "openspec/changes/consolidate-baseline-and-add-launch-profiles/proposal.md",
+      "bytes": 4588,
+      "sha256": "e1ab7d4a0440859f384eeff663b0b40807e29d97fb6af34a16746e5f649bb3ce",
+      "category": "active-spec-change",
+      "owner": "baseline consolidation",
+      "disposition": "retain",
+      "reason": "Active implementation and acceptance contract for this milestone."
+    },
+    {
+      "path": "openspec/changes/consolidate-baseline-and-add-launch-profiles/specs/launch-profiles/spec.md",
+      "bytes": 6976,
+      "sha256": "b74a1cdaa9fa3587f1eccad95b0d8e2314e55feb7e1ee1aad06dd26933a2f3a5",
+      "category": "active-spec-change",
+      "owner": "baseline consolidation",
+      "disposition": "retain",
+      "reason": "Active implementation and acceptance contract for this milestone."
+    },
+    {
+      "path": "openspec/changes/consolidate-baseline-and-add-launch-profiles/specs/project-structure-governance/spec.md",
+      "bytes": 9240,
+      "sha256": "40ac81aae210ca173f893d261e85213830607486017454694c272c0033d87157",
+      "category": "active-spec-change",
+      "owner": "baseline consolidation",
+      "disposition": "retain",
+      "reason": "Active implementation and acceptance contract for this milestone."
+    },
+    {
+      "path": "openspec/changes/consolidate-baseline-and-add-launch-profiles/tasks.md",
+      "bytes": 8683,
+      "sha256": "a98619166437b445cecb964cd1252b49cbc90adea2260b477f011477e29ddcbe",
+      "category": "active-spec-change",
+      "owner": "baseline consolidation",
+      "disposition": "retain",
+      "reason": "Active implementation and acceptance contract for this milestone."
+    },
+    {
+      "path": "openspec/config.yaml",
+      "bytes": 2422,
+      "sha256": "d8d990446b200e12bda2bb59d95b2176b3b25e30d9932ce68404a70efa702549",
+      "category": "configuration",
+      "owner": "OpenSpec tooling",
+      "disposition": "retain",
+      "reason": "Single repository OpenSpec configuration authority."
+    },
+    {
+      "path": "openspec/specs/addone-shell/spec.md",
+      "bytes": 5688,
+      "sha256": "8e21bab00394141616aa9df09197ade1fb7505a6d5962f112959fe0aa159e161",
+      "category": "main-spec",
+      "owner": "OpenSpec current contracts",
+      "disposition": "retain",
+      "reason": "Current capability contract synced from completed behavior."
+    },
+    {
+      "path": "openspec/specs/agent-supervision/spec.md",
+      "bytes": 5283,
+      "sha256": "7b183d927efe3edcb3202a9096c7e0fcfee3dbf4298a93bd94ba119ca64f260b",
+      "category": "main-spec",
+      "owner": "OpenSpec current contracts",
+      "disposition": "retain",
+      "reason": "Current capability contract synced from completed behavior."
+    },
+    {
+      "path": "openspec/specs/cli-self-update/spec.md",
+      "bytes": 3546,
+      "sha256": "de8d1800ed5f968cab206a672be0ff3fe32d30a1d2ecc508b1a425377ff2aa24",
+      "category": "main-spec",
+      "owner": "OpenSpec current contracts",
+      "disposition": "retain",
+      "reason": "Current capability contract synced from completed behavior."
+    },
+    {
+      "path": "openspec/specs/isolated-regression-testing/spec.md",
+      "bytes": 8816,
+      "sha256": "df07891431a71c83763b450642cd7814b2e33b923e2bdeb1a0be850042f94d33",
+      "category": "main-spec",
+      "owner": "OpenSpec current contracts",
+      "disposition": "retain",
+      "reason": "Current capability contract synced from completed behavior."
+    },
+    {
+      "path": "openspec/specs/terminal-agent-runtime/spec.md",
+      "bytes": 5870,
+      "sha256": "f02d464256899c21ea9623a5f1b48dd3846d8ef6bcb0c2188d0712c2bef61aeb",
+      "category": "main-spec",
+      "owner": "OpenSpec current contracts",
+      "disposition": "retain",
+      "reason": "Current capability contract synced from completed behavior."
+    },
+    {
+      "path": "package-lock.json",
+      "bytes": 78007,
+      "sha256": "8288081e7b3de158744d65423119cef9512778f219cb30798d52a31dd6b87490",
+      "category": "dependency-authority",
+      "owner": "repository",
+      "disposition": "retain",
+      "reason": "Sole repository-level package and lockfile authority; dependency entries are audited separately."
+    },
+    {
+      "path": "package.json",
+      "bytes": 2174,
+      "sha256": "d785e6a06108f75fb639c78abc9ac7f8957cd75a6cee590ab180c8e1989f18c9",
+      "category": "dependency-authority",
+      "owner": "repository",
+      "disposition": "retain",
+      "reason": "Sole repository-level package and lockfile authority; dependency entries are audited separately."
+    },
+    {
+      "path": "scripts/check-architecture.mjs",
+      "bytes": 8787,
+      "sha256": "a74d3798fa0e71f2bc4d7b750ebe9e7209ab49cfeaa563cb0b330bb694a84ecd",
+      "category": "script",
+      "owner": "repository-governance",
+      "disposition": "move/consolidate",
+      "target": "scripts/check-architecture.mjs",
+      "reason": "Retain and extend executable repository policy."
+    },
+    {
+      "path": "scripts/check-deprecated-dependencies.mjs",
+      "bytes": 5733,
+      "sha256": "0bbb32837a51dc8f0f0c860864c5f4c36e677a6aa1291f30ab328d38295d3590",
+      "category": "script",
+      "owner": "repository-governance",
+      "disposition": "move/consolidate",
+      "target": "scripts/check-deprecated-dependencies.mjs",
+      "reason": "Retain and extend executable repository policy."
+    },
+    {
+      "path": "scripts/clean.mjs",
+      "bytes": 121,
+      "sha256": "8541ee79bf51b8eb094d156bd08a9e9bf4e2be35fab07cee47776a57419e9076",
+      "category": "script",
+      "owner": "release",
+      "disposition": "move/consolidate",
+      "target": "scripts/clean.mjs",
+      "reason": "Retain current release/build behavior and consolidate candidate-specific policy."
+    },
+    {
+      "path": "scripts/prepack-gate.mjs",
+      "bytes": 433,
+      "sha256": "f346c5b262e885faecfcb1d9f4fc32e1a33a0314376165dcf008f0f715b799bc",
+      "category": "script",
+      "owner": "release",
+      "disposition": "move/consolidate",
+      "target": "scripts/prepack-gate.mjs",
+      "reason": "Retain current release/build behavior and consolidate candidate-specific policy."
+    },
+    {
+      "path": "scripts/publish-next.ts",
+      "bytes": 9579,
+      "sha256": "7fda7482304631766a3e85f4185c3ce979973b63627ae7cc9d0044f7192b587f",
+      "category": "script",
+      "owner": "release",
+      "disposition": "move/consolidate",
+      "target": "scripts/publish-next.ts",
+      "reason": "Retain current release/build behavior and consolidate candidate-specific policy."
+    },
+    {
+      "path": "scripts/run-release-gates.mjs",
+      "bytes": 1972,
+      "sha256": "8e0bd3e724457c4f9c1fd9834c6d2a3090714d00ec4bfc9976ba20a6c537d6b6",
+      "category": "script",
+      "owner": "release",
+      "disposition": "move/consolidate",
+      "target": "scripts/run-release-gates.mjs",
+      "reason": "Retain current release/build behavior and consolidate candidate-specific policy."
+    },
+    {
+      "path": "scripts/start-local.mjs",
+      "bytes": 1567,
+      "sha256": "622f1fd8553bf0ab18afabc6ffcbc4bedf6ebea72f7b4b8545fc91d9a432f215",
+      "category": "script",
+      "owner": "launch",
+      "disposition": "move/consolidate",
+      "target": "scripts/start-local.mjs",
+      "reason": "Retain local launch behavior under the launch feature contract."
+    },
+    {
+      "path": "src/bootstrap.ts",
+      "bytes": 14699,
+      "sha256": "1a45959616bacfb3980a80f1b10a7cbbc0112d14039993bdc8b63095a5d42f83",
+      "category": "production-source",
+      "owner": "release",
+      "disposition": "move/consolidate",
+      "target": "src/foundation/release/bootstrap.ts",
+      "reason": "Current reachable behavior moves mechanically to its named feature/foundation owner."
+    },
+    {
+      "path": "src/cohort-selection.ts",
+      "bytes": 4337,
+      "sha256": "4bf9e25f43690f2c5dbba4fc044b234225aa1802c30d23231ae29d28f96b7e97",
+      "category": "production-source",
+      "owner": "release",
+      "disposition": "move/consolidate",
+      "target": "src/foundation/release/cohort-selection.ts",
+      "reason": "Current reachable behavior moves mechanically to its named feature/foundation owner."
+    },
+    {
+      "path": "src/cohort-state.ts",
+      "bytes": 10035,
+      "sha256": "c94bab67485730a615551630b0423e0d1be0e030ed757d17e29cd0630d6f5985",
+      "category": "production-source",
+      "owner": "release",
+      "disposition": "move/consolidate",
+      "target": "src/foundation/release/cohort-state.ts",
+      "reason": "Current reachable behavior moves mechanically to its named feature/foundation owner."
+    },
+    {
+      "path": "src/development-launch.ts",
+      "bytes": 1631,
+      "sha256": "5a477a1b4c8e27b2a906038c294615443db740f9355d4b72f3bd84cafafb24cc",
+      "category": "production-source",
+      "owner": "launch",
+      "disposition": "move/consolidate",
+      "target": "src/features/launch/development-launch.ts",
+      "reason": "Current reachable behavior moves mechanically to its named feature/foundation owner."
+    },
+    {
+      "path": "src/development-preview-release.ts",
+      "bytes": 7425,
+      "sha256": "67a7ba58c2a63bfc1c3e99e9e832d23d691248d432cd5e2687d84876149d0684",
+      "category": "production-source",
+      "owner": "release",
+      "disposition": "move/consolidate",
+      "target": "src/foundation/release/development-preview-release.ts",
+      "reason": "Current reachable behavior moves mechanically to its named feature/foundation owner."
+    },
+    {
+      "path": "src/domain/index.ts",
+      "bytes": 28,
+      "sha256": "09e7f29c8bc9637a47686af21ff15cb418b86081e3317dee909d5140c4a1ee91",
+      "category": "production-source",
+      "owner": "lifecycle",
+      "disposition": "move/consolidate",
+      "target": "src/foundation/lifecycle/index.ts",
+      "reason": "Current reachable behavior moves mechanically to its named feature/foundation owner."
+    },
+    {
+      "path": "src/domain/model.ts",
+      "bytes": 9439,
+      "sha256": "9533feea0f9c93a6eac0e73d4d32aefd1cced14f2cd9ca34301443a1175692e3",
+      "category": "production-source",
+      "owner": "lifecycle",
+      "disposition": "move/consolidate",
+      "target": "src/foundation/lifecycle/model.ts",
+      "reason": "Retain current lifecycle/lease contracts under a named owner after deleting unreachable legacy profile types."
+    },
+    {
+      "path": "src/paths.ts",
+      "bytes": 1709,
+      "sha256": "c8c92dd3c6eac48c23280ecee20d4ef4bd5aae0b8bfc82e27b27527befb787ae",
+      "category": "production-source",
+      "owner": "lifecycle",
+      "disposition": "move/consolidate",
+      "target": "src/foundation/lifecycle/paths.ts",
+      "reason": "Current reachable behavior moves mechanically to its named feature/foundation owner."
+    },
+    {
+      "path": "src/process-cleanup.ts",
+      "bytes": 3046,
+      "sha256": "d6f8518e5f9f7c46307a9ac1de20d9baaf2df682799d3b98046227422db76a7f",
+      "category": "production-source",
+      "owner": "lifecycle",
+      "disposition": "move/consolidate",
+      "target": "src/foundation/lifecycle/process-cleanup.ts",
+      "reason": "Current reachable behavior moves mechanically to its named feature/foundation owner."
+    },
+    {
+      "path": "src/protocol/client.ts",
+      "bytes": 5744,
+      "sha256": "e26ad9ae0fe5e72e8faae61e609e31eea5ffd5f51f10c99399746eb82d4bfe3c",
+      "category": "production-source",
+      "owner": "protocol",
+      "disposition": "move/consolidate",
+      "target": "src/foundation/protocol/client.ts",
+      "reason": "Current reachable behavior moves mechanically to its named feature/foundation owner."
+    },
+    {
+      "path": "src/protocol/index.ts",
+      "bytes": 60,
+      "sha256": "ea60f8bf65e4b0a45f53110c04a6fb69c9528ebc93236a0968cf696de8569567",
+      "category": "production-source",
+      "owner": "protocol",
+      "disposition": "move/consolidate",
+      "target": "src/foundation/protocol/index.ts",
+      "reason": "Current reachable behavior moves mechanically to its named feature/foundation owner."
+    },
+    {
+      "path": "src/protocol/messages.ts",
+      "bytes": 7088,
+      "sha256": "dcece8a49ecb73ece29c17658d5e2a28a9ef13292543b0ebd5593a4980961c24",
+      "category": "production-source",
+      "owner": "protocol",
+      "disposition": "move/consolidate",
+      "target": "src/foundation/protocol/messages.ts",
+      "reason": "Current reachable behavior moves mechanically to its named feature/foundation owner."
+    },
+    {
+      "path": "src/release-gc.ts",
+      "bytes": 981,
+      "sha256": "4a439d6ba847f97730b2c3f06e795191dde658a006529dd293a4cffd7411ef3c",
+      "category": "production-source",
+      "owner": "release",
+      "disposition": "move/consolidate",
+      "target": "src/foundation/release/release-gc.ts",
+      "reason": "Current reachable behavior moves mechanically to its named feature/foundation owner."
+    },
+    {
+      "path": "src/release-store.ts",
+      "bytes": 6983,
+      "sha256": "ed8aaa9249f5f72b3e4f1d18d258c5f9871ed81beefbb7ea9958b8460efb821a",
+      "category": "production-source",
+      "owner": "release",
+      "disposition": "move/consolidate",
+      "target": "src/foundation/release/release-store.ts",
+      "reason": "Current reachable behavior moves mechanically to its named feature/foundation owner."
+    },
+    {
+      "path": "src/release.ts",
+      "bytes": 7312,
+      "sha256": "00f3eaf079981d73de216d0610e47f182767eb448ddf53863a26cc889d4e07fc",
+      "category": "production-source",
+      "owner": "release",
+      "disposition": "move/consolidate",
+      "target": "src/foundation/release/release.ts",
+      "reason": "Current reachable behavior moves mechanically to its named feature/foundation owner."
+    },
+    {
+      "path": "src/storage/control-store.ts",
+      "bytes": 15172,
+      "sha256": "91df079522bc6aba41015a8019aa879acbbdf68f9bd4d5ca4386d19d8f0254ab",
+      "category": "production-source",
+      "owner": "storage",
+      "disposition": "move/consolidate",
+      "target": "src/foundation/storage/control-store.ts",
+      "reason": "Current reachable behavior moves mechanically to its named feature/foundation owner."
+    },
+    {
+      "path": "src/storage/index.ts",
+      "bytes": 36,
+      "sha256": "72898bb06f4fb9832185b6c3a1bbe216eb102273359643caa8590e25fbda6e5b",
+      "category": "production-source",
+      "owner": "storage",
+      "disposition": "move/consolidate",
+      "target": "src/foundation/storage/index.ts",
+      "reason": "Current reachable behavior moves mechanically to its named feature/foundation owner."
+    },
+    {
+      "path": "src/supervisor/index.ts",
+      "bytes": 84,
+      "sha256": "a5b0d5d9a9f2bac10b283443654e6ab5c1144b33094d9a49bb0efecd1daa1826",
+      "category": "production-source",
+      "owner": "supervision",
+      "disposition": "move/consolidate",
+      "target": "src/foundation/supervision/index.ts",
+      "reason": "Current reachable behavior moves mechanically to its named feature/foundation owner."
+    },
+    {
+      "path": "src/supervisor/main.ts",
+      "bytes": 1953,
+      "sha256": "9d2d35bf13f4ce9e9a1ac85d9389b5633e96eca716573a1c9f3171c92c5ee69d",
+      "category": "production-source",
+      "owner": "supervision",
+      "disposition": "move/consolidate",
+      "target": "src/foundation/supervision/main.ts",
+      "reason": "Current reachable behavior moves mechanically to its named feature/foundation owner."
+    },
+    {
+      "path": "src/supervisor/paths.ts",
+      "bytes": 68,
+      "sha256": "6f27200bd65082ec522162b0188b322bc0ac163a4bdd7ebc17412584b87c923f",
+      "category": "production-source",
+      "owner": "supervision",
+      "disposition": "move/consolidate",
+      "target": "src/foundation/supervision/paths.ts",
+      "reason": "Current reachable behavior moves mechanically to its named feature/foundation owner."
+    },
+    {
+      "path": "src/supervisor/server.ts",
+      "bytes": 16215,
+      "sha256": "55ba6b5196293aac62c448d2a6d40b7acf9152c7ced72b25e43f561c09b1065c",
+      "category": "production-source",
+      "owner": "supervision",
+      "disposition": "move/consolidate",
+      "target": "src/foundation/supervision/server.ts",
+      "reason": "Current reachable behavior moves mechanically to its named feature/foundation owner."
+    },
+    {
+      "path": "src/transparent/command-resolution.ts",
+      "bytes": 4122,
+      "sha256": "bce7cb9caea5af6347ee44872c827768bc14be1310c4da36a30820467fdaf94f",
+      "category": "production-source",
+      "owner": "transparent-terminal",
+      "disposition": "move/consolidate",
+      "target": "src/foundation/transparent-terminal/command-resolution.ts",
+      "reason": "Current reachable behavior moves mechanically to its named feature/foundation owner."
+    },
+    {
+      "path": "src/transparent/foreground-broker.ts",
+      "bytes": 4918,
+      "sha256": "7b91d2b16dcfc9ab3bd8e88568d4392a4d19dbfed3efff7b31daf79d338e8eb3",
+      "category": "production-source",
+      "owner": "transparent-terminal",
+      "disposition": "move/consolidate",
+      "target": "src/foundation/transparent-terminal/foreground-broker.ts",
+      "reason": "Current reachable behavior moves mechanically to its named feature/foundation owner."
+    },
+    {
+      "path": "src/transparent/index.ts",
+      "bytes": 119,
+      "sha256": "0aaae5c95a5260574fa5fe4f0818810ff628c3a978963d9b9341f1fe35a936d1",
+      "category": "production-source",
+      "owner": "transparent-terminal",
+      "disposition": "move/consolidate",
+      "target": "src/foundation/transparent-terminal/index.ts",
+      "reason": "Current reachable behavior moves mechanically to its named feature/foundation owner."
+    },
+    {
+      "path": "src/transparent/main.ts",
+      "bytes": 4608,
+      "sha256": "3156b2c6ddf1f73338cb5f3fa88a46f7fe0e2179088c56c00f277cdcb8e29abc",
+      "category": "production-source",
+      "owner": "transparent-terminal",
+      "disposition": "move/consolidate",
+      "target": "src/foundation/transparent-terminal/main.ts",
+      "reason": "Current reachable behavior moves mechanically to its named feature/foundation owner."
+    },
+    {
+      "path": "src/transparent/native-launcher.ts",
+      "bytes": 6903,
+      "sha256": "846d9bbdb85012f6518ce725e6a91946430238e2a061026a195e6715e8350d26",
+      "category": "production-source",
+      "owner": "transparent-terminal",
+      "disposition": "move/consolidate",
+      "target": "src/foundation/transparent-terminal/native-launcher.ts",
+      "reason": "Current reachable behavior moves mechanically to its named feature/foundation owner."
+    },
+    {
+      "path": "src/update-transaction.ts",
+      "bytes": 4593,
+      "sha256": "bf89588351a4e19c0aa696bac483400e3c269dd21896f3beef805090fb7cbbe0",
+      "category": "production-source",
+      "owner": "release",
+      "disposition": "move/consolidate",
+      "target": "src/foundation/release/update-transaction.ts",
+      "reason": "Current reachable behavior moves mechanically to its named feature/foundation owner."
+    },
+    {
+      "path": "src/update.ts",
+      "bytes": 18737,
+      "sha256": "4ba76a5f78c908afbcce1144cb99d50f74e5eb48a287aff867373157f621a9ab",
+      "category": "production-source",
+      "owner": "release",
+      "disposition": "move/consolidate",
+      "target": "src/foundation/release/update.ts",
+      "reason": "Current reachable behavior moves mechanically to its named feature/foundation owner."
+    },
+    {
+      "path": "src/version-stats.ts",
+      "bytes": 3508,
+      "sha256": "adcf1de240353f3f75cfc8e25ac2335b70c73fa7c3b7d4250a0d46dea05959b3",
+      "category": "production-source",
+      "owner": "cli",
+      "disposition": "move/consolidate",
+      "target": "src/cli/version-stats.ts",
+      "reason": "Current reachable behavior moves mechanically to its named feature/foundation owner."
+    },
+    {
+      "path": "src/version.ts",
+      "bytes": 1002,
+      "sha256": "f62ffcf872dd7c9dfb6f816581e436c48a8e6d355f8fd64eae6bbfbba0d063e0",
+      "category": "production-source",
+      "owner": "cli",
+      "disposition": "move/consolidate",
+      "target": "src/cli/version.ts",
+      "reason": "Current reachable behavior moves mechanically to its named feature/foundation owner."
+    },
+    {
+      "path": "test/integration/generic-child-recorder.test.ts",
+      "bytes": 8492,
+      "sha256": "83bc0ec2fbdfae98b2ae7a8e0afc87990341bd01694d20e9de728985d11baabf",
+      "category": "test",
+      "owner": "future physical certification",
+      "disposition": "delete",
+      "futureChange": "certify-transparent-terminal-physical-parity",
+      "reason": "Deferred physical-worker implementation has no active preview-baseline owner; policy remains in main specs and implementation history remains in Git/OpenSpec."
+    },
+    {
+      "path": "test/integration/update-transition.test.ts",
+      "bytes": 10501,
+      "sha256": "658667dd34a4acc374a230c17f69551a1a4dcb860a3b95306b1d1b31a7253b62",
+      "category": "test",
+      "owner": "release",
+      "disposition": "move/consolidate",
+      "target": "test/foundation/release/update-transition.test.ts",
+      "reason": "Retain the current contract under its matching owner and consolidate duplicate assertions during the test audit."
+    },
+    {
+      "path": "test/physical-host/generic-child-recorder.mjs",
+      "bytes": 8018,
+      "sha256": "289bfaf92991910fe06270810c52393f0aa258d8cf8467c2f9f102e20f8799ff",
+      "category": "test",
+      "owner": "future physical certification",
+      "disposition": "delete",
+      "futureChange": "certify-transparent-terminal-physical-parity",
+      "reason": "Deferred physical-worker implementation has no active preview-baseline owner; policy remains in main specs and implementation history remains in Git/OpenSpec."
+    },
+    {
+      "path": "test/physical-host/schemas/README.md",
+      "bytes": 1914,
+      "sha256": "3cb99959f60fc9065f4de2902901a5ffec94ff50c918f7b20706ae34b06050c7",
+      "category": "physical-host-artifact",
+      "owner": "future physical certification",
+      "disposition": "delete",
+      "futureChange": "certify-transparent-terminal-physical-parity",
+      "reason": "Deferred physical-worker implementation has no active preview-baseline owner; policy remains in main specs and implementation history remains in Git/OpenSpec."
+    },
+    {
+      "path": "test/physical-host/schemas/physical-host-artifacts.schema.json",
+      "bytes": 2797,
+      "sha256": "63d1e1c2047ff86795a206c38673544b09071548ede3c4b98e0fe352e8c39e5f",
+      "category": "physical-host-artifact",
+      "owner": "future physical certification",
+      "disposition": "delete",
+      "futureChange": "certify-transparent-terminal-physical-parity",
+      "reason": "Deferred physical-worker implementation has no active preview-baseline owner; policy remains in main specs and implementation history remains in Git/OpenSpec."
+    },
+    {
+      "path": "test/physical-host/schemas/physical-host-verdict.schema.json",
+      "bytes": 11609,
+      "sha256": "ea9e723cc2269de102d6323dfa09ab7074d25222d1a4e14a55802615417354b4",
+      "category": "physical-host-artifact",
+      "owner": "future physical certification",
+      "disposition": "delete",
+      "futureChange": "certify-transparent-terminal-physical-parity",
+      "reason": "Deferred physical-worker implementation has no active preview-baseline owner; policy remains in main specs and implementation history remains in Git/OpenSpec."
+    },
+    {
+      "path": "test/physical-host/windows/automation-decision.md",
+      "bytes": 4479,
+      "sha256": "1ae0ff2d28ed369e273d8df401ea3ed96a8955169d6a3463d618e39f8ce5e2ad",
+      "category": "physical-host-artifact",
+      "owner": "future physical certification",
+      "disposition": "delete",
+      "futureChange": "certify-transparent-terminal-physical-parity",
+      "reason": "Deferred physical-worker implementation has no active preview-baseline owner; policy remains in main specs and implementation history remains in Git/OpenSpec."
+    },
+    {
+      "path": "test/physical-host/windows/native-ui-smoke.ps1",
+      "bytes": 18530,
+      "sha256": "1840002a68a84a3a20f0f7ae2022123badb83698237e305a414abab50cf54151",
+      "category": "test",
+      "owner": "future physical certification",
+      "disposition": "delete",
+      "futureChange": "certify-transparent-terminal-physical-parity",
+      "reason": "Deferred physical-worker implementation has no active preview-baseline owner; policy remains in main specs and implementation history remains in Git/OpenSpec."
+    },
+    {
+      "path": "test/physical-host/windows/physical-worker-attestation.example.json",
+      "bytes": 506,
+      "sha256": "3073bf7b1a6d3c3eabf1f0aa3c04cbbdf7926e2bb9bc78309d99bc80e08eab44",
+      "category": "physical-host-artifact",
+      "owner": "future physical certification",
+      "disposition": "delete",
+      "futureChange": "certify-transparent-terminal-physical-parity",
+      "reason": "Deferred physical-worker implementation has no active preview-baseline owner; policy remains in main specs and implementation history remains in Git/OpenSpec."
+    },
+    {
+      "path": "test/physical-host/windows/physical-worker-isolation.ps1",
+      "bytes": 5315,
+      "sha256": "f181fea3560a229d15a73e09c684a331e750c53e7f50be7f9fd5e7489f7424d2",
+      "category": "test",
+      "owner": "future physical certification",
+      "disposition": "delete",
+      "futureChange": "certify-transparent-terminal-physical-parity",
+      "reason": "Deferred physical-worker implementation has no active preview-baseline owner; policy remains in main specs and implementation history remains in Git/OpenSpec."
+    },
+    {
+      "path": "test/unit/bootstrap-boundary.test.ts",
+      "bytes": 1299,
+      "sha256": "5d93dbafa1be90f18f1d6ddd0ec5611f56e1d9872729277c3ad10305f5af2a40",
+      "category": "test",
+      "owner": "release",
+      "disposition": "move/consolidate",
+      "target": "test/foundation/release/bootstrap-boundary.test.ts",
+      "reason": "Retain the current contract under its matching owner and consolidate duplicate assertions during the test audit."
+    },
+    {
+      "path": "test/unit/cohort-activation.test.ts",
+      "bytes": 3764,
+      "sha256": "ad912da9bbd4590254b1caf4e4813cc4ce991d1d452ca05f8c490ed8eaa42afb",
+      "category": "test",
+      "owner": "release",
+      "disposition": "move/consolidate",
+      "target": "test/foundation/release/cohort-activation.test.ts",
+      "reason": "Retain the current contract under its matching owner and consolidate duplicate assertions during the test audit."
+    },
+    {
+      "path": "test/unit/cohort-state.test.ts",
+      "bytes": 3694,
+      "sha256": "7ee6f697256b038ba79fbcdd86a9dac8bf974f3f32108dbaf03da6cf4cc183ce",
+      "category": "test",
+      "owner": "release",
+      "disposition": "move/consolidate",
+      "target": "test/foundation/release/cohort-state.test.ts",
+      "reason": "Retain the current contract under its matching owner and consolidate duplicate assertions during the test audit."
+    },
+    {
+      "path": "test/unit/deprecated-dependencies.test.ts",
+      "bytes": 2499,
+      "sha256": "0e9c59f24eb1079613ebcbc45eb310e488f1e6820f6817d2ebfc6365b2cd330a",
+      "category": "test",
+      "owner": "repository-governance",
+      "disposition": "move/consolidate",
+      "target": "test/repository-governance/deprecated-dependencies.test.ts",
+      "reason": "Retain the current contract under its matching owner and consolidate duplicate assertions during the test audit."
+    },
+    {
+      "path": "test/unit/development-launch.test.ts",
+      "bytes": 2681,
+      "sha256": "f9fc7c50c973899dbcda29565aa5d1fdc522c24ac3eded98da3958de93f8b3f0",
+      "category": "test",
+      "owner": "launch",
+      "disposition": "move/consolidate",
+      "target": "test/features/launch/development-launch.test.ts",
+      "reason": "Retain the current contract under its matching owner and consolidate duplicate assertions during the test audit."
+    },
+    {
+      "path": "test/unit/development-preview-release.test.ts",
+      "bytes": 6254,
+      "sha256": "1c68b586a790d4f6e7103a5e9570c1aae9bf9a929d345b9c58fd347519b2f0d6",
+      "category": "test",
+      "owner": "release",
+      "disposition": "move/consolidate",
+      "target": "test/foundation/release/development-preview-release.test.ts",
+      "reason": "Retain the current contract under its matching owner and consolidate duplicate assertions during the test audit."
+    },
+    {
+      "path": "test/unit/foreground-broker.test.ts",
+      "bytes": 4755,
+      "sha256": "08ecaf5ffd7da4cac7dd57c8529c3001659bcc7f1891f05f4a8697228e37f71f",
+      "category": "test",
+      "owner": "transparent-terminal",
+      "disposition": "move/consolidate",
+      "target": "test/foundation/transparent-terminal/foreground-broker.test.ts",
+      "reason": "Retain the current contract under its matching owner and consolidate duplicate assertions during the test audit."
+    },
+    {
+      "path": "test/unit/foreground-terminal-lease.test.ts",
+      "bytes": 5400,
+      "sha256": "afd056767bcb477ee3ea45b0db00dfc5ee0f279918e074ea672ce204382a0e96",
+      "category": "test",
+      "owner": "transparent-terminal",
+      "disposition": "move/consolidate",
+      "target": "test/foundation/transparent-terminal/foreground-terminal-lease.test.ts",
+      "reason": "Retain the current contract under its matching owner and consolidate duplicate assertions during the test audit."
+    },
+    {
+      "path": "test/unit/physical-host-evidence-schema.test.ts",
+      "bytes": 6240,
+      "sha256": "5dafa7ad78c262a8af06391c591dc40a1ec9649517a0b1023fc30b870fafeb3a",
+      "category": "test",
+      "owner": "future physical certification",
+      "disposition": "delete",
+      "futureChange": "certify-transparent-terminal-physical-parity",
+      "reason": "Deferred physical-worker implementation has no active preview-baseline owner; policy remains in main specs and implementation history remains in Git/OpenSpec."
+    },
+    {
+      "path": "test/unit/physical-worker-isolation-policy.test.ts",
+      "bytes": 3949,
+      "sha256": "20b59146a52390b1c8c23b36ef10d22368ba47aa7eb0fc879efba25aa87600d4",
+      "category": "test",
+      "owner": "future physical certification",
+      "disposition": "delete",
+      "futureChange": "certify-transparent-terminal-physical-parity",
+      "reason": "Deferred physical-worker implementation has no active preview-baseline owner; policy remains in main specs and implementation history remains in Git/OpenSpec."
+    },
+    {
+      "path": "test/unit/protocol.test.ts",
+      "bytes": 5589,
+      "sha256": "61b3b3e13ddd9f3d9ac5e4655aa70f4234487406634f7d2a2fa6e724490d6dff",
+      "category": "test",
+      "owner": "protocol",
+      "disposition": "move/consolidate",
+      "target": "test/foundation/protocol/protocol.test.ts",
+      "reason": "Retain the current contract under its matching owner and consolidate duplicate assertions during the test audit."
+    },
+    {
+      "path": "test/unit/release-correction-regressions.test.ts",
+      "bytes": 3220,
+      "sha256": "a37df79a6cc63735f244ae8faaece3c4a63a953ad96c4fb226482c5ce64589c2",
+      "category": "test",
+      "owner": "release",
+      "disposition": "delete",
+      "reason": "Historical bug-story test duplicates current release identity and package-root contracts at stronger owner boundaries."
+    },
+    {
+      "path": "test/unit/release-store.test.ts",
+      "bytes": 2496,
+      "sha256": "6519c220e637fd81840bfb8d1ef696feacc7777d36a578f25b97148eb0ee2f99",
+      "category": "test",
+      "owner": "release",
+      "disposition": "move/consolidate",
+      "target": "test/foundation/release/release-store.test.ts",
+      "reason": "Retain the current contract under its matching owner and consolidate duplicate assertions during the test audit."
+    },
+    {
+      "path": "test/unit/release.test.ts",
+      "bytes": 2205,
+      "sha256": "5148f48c23a2344dc554d90c561db089d2173b883777c3b83220c7302ab49e71",
+      "category": "test",
+      "owner": "release",
+      "disposition": "move/consolidate",
+      "target": "test/foundation/release/release.test.ts",
+      "reason": "Retain the current contract under its matching owner and consolidate duplicate assertions during the test audit."
+    },
+    {
+      "path": "test/unit/storage.test.ts",
+      "bytes": 5478,
+      "sha256": "7f71036c74c087bba3dd842af98953d384065f9e726749d50d8e96f43e48aac8",
+      "category": "test",
+      "owner": "storage",
+      "disposition": "move/consolidate",
+      "target": "test/foundation/storage/storage.test.ts",
+      "reason": "Retain the current contract under its matching owner and consolidate duplicate assertions during the test audit."
+    },
+    {
+      "path": "test/unit/supervisor-release-exit.test.ts",
+      "bytes": 3805,
+      "sha256": "95afc47c5a4bf736b07a2a03657cb473139418b63b92daf276bc0edf33dc894c",
+      "category": "test",
+      "owner": "supervision",
+      "disposition": "move/consolidate",
+      "target": "test/foundation/supervision/supervisor-release-exit.test.ts",
+      "reason": "Retain the current contract under its matching owner and consolidate duplicate assertions during the test audit."
+    },
+    {
+      "path": "test/unit/terminal-architecture-policy.test.ts",
+      "bytes": 5442,
+      "sha256": "569eeaa5db770558b1b2329ad5fa5bc4ec0959c662920148f476a045222b17fc",
+      "category": "test",
+      "owner": "repository-governance",
+      "disposition": "move/consolidate",
+      "target": "test/repository-governance/terminal-architecture-policy.test.ts",
+      "reason": "Retain the current contract under its matching owner and consolidate duplicate assertions during the test audit."
+    },
+    {
+      "path": "test/unit/transparent-command-resolution.test.ts",
+      "bytes": 2733,
+      "sha256": "329c527698b62ed8d7720ffa7c16d54c46da0e6bc271f026af4a3288201a9b51",
+      "category": "test",
+      "owner": "transparent-terminal",
+      "disposition": "move/consolidate",
+      "target": "test/foundation/transparent-terminal/transparent-command-resolution.test.ts",
+      "reason": "Retain the current contract under its matching owner and consolidate duplicate assertions during the test audit."
+    },
+    {
+      "path": "test/unit/transparent-main.test.ts",
+      "bytes": 1604,
+      "sha256": "285c4479645c5c7cd387ba7d8df9919ab9083b15a40e42a225d333b91ead5e79",
+      "category": "test",
+      "owner": "transparent-terminal",
+      "disposition": "move/consolidate",
+      "target": "test/foundation/transparent-terminal/transparent-main.test.ts",
+      "reason": "Retain the current contract under its matching owner and consolidate duplicate assertions during the test audit."
+    },
+    {
+      "path": "test/unit/transparent-native-launcher.test.ts",
+      "bytes": 5795,
+      "sha256": "6aeefb721cfbd0a3bd914c3a2d3cbafea2fc75149f0802b4876a24258c04df15",
+      "category": "test",
+      "owner": "transparent-terminal",
+      "disposition": "move/consolidate",
+      "target": "test/foundation/transparent-terminal/transparent-native-launcher.test.ts",
+      "reason": "Retain the current contract under its matching owner and consolidate duplicate assertions during the test audit."
+    },
+    {
+      "path": "test/unit/transparent-terminal-contract.test.ts",
+      "bytes": 3609,
+      "sha256": "d99c91eb2d5ce708710a2d85421848078057fcfa747eb96dac2c11f480938a54",
+      "category": "test",
+      "owner": "transparent-terminal",
+      "disposition": "move/consolidate",
+      "target": "test/foundation/transparent-terminal/transparent-terminal-contract.test.ts",
+      "reason": "Retain the current contract under its matching owner and consolidate duplicate assertions during the test audit."
+    },
+    {
+      "path": "test/unit/update-cli.test.ts",
+      "bytes": 6742,
+      "sha256": "629db675e0ce625b7d4e39b54231ffa8481e74814b127122baf1bb63c0f0c48f",
+      "category": "test",
+      "owner": "release",
+      "disposition": "move/consolidate",
+      "target": "test/foundation/release/update-cli.test.ts",
+      "reason": "Retain the current contract under its matching owner and consolidate duplicate assertions during the test audit."
+    },
+    {
+      "path": "test/unit/update-lifecycle-regressions.test.ts",
+      "bytes": 6457,
+      "sha256": "6bd8dc9a156a46ae382b1148f8efef890513be435405ff3c979ea1ba59a65df2",
+      "category": "test",
+      "owner": "release",
+      "disposition": "move/consolidate",
+      "target": "test/foundation/release/update-lifecycle-regressions.test.ts",
+      "reason": "Retain the current contract under its matching owner and consolidate duplicate assertions during the test audit."
+    },
+    {
+      "path": "test/unit/update-transaction.test.ts",
+      "bytes": 2217,
+      "sha256": "2a6c8aaa536c303579faebeef380f9a83781a9f5c89e3cc2addb576dde49f271",
+      "category": "test",
+      "owner": "release",
+      "disposition": "move/consolidate",
+      "target": "test/foundation/release/update-transaction.test.ts",
+      "reason": "Retain the current contract under its matching owner and consolidate duplicate assertions during the test audit."
+    },
+    {
+      "path": "test/unit/update.test.ts",
+      "bytes": 11319,
+      "sha256": "f74b70625d4a3cd919cf52ef83b1fc497992c707fbb841e9bd684c206610b0fd",
+      "category": "test",
+      "owner": "release",
+      "disposition": "move/consolidate",
+      "target": "test/foundation/release/update.test.ts",
+      "reason": "Retain the current contract under its matching owner and consolidate duplicate assertions during the test audit."
+    },
+    {
+      "path": "test/unit/version-stats.test.ts",
+      "bytes": 2216,
+      "sha256": "62af74308b228f586be11ff3d64773603513f210e4e33617f7e1dd63d9ecd77e",
+      "category": "test",
+      "owner": "release",
+      "disposition": "move/consolidate",
+      "target": "test/foundation/release/version-stats.test.ts",
+      "reason": "Retain the current contract under its matching owner and consolidate duplicate assertions during the test audit."
+    },
+    {
+      "path": "tsconfig.build.json",
+      "bytes": 210,
+      "sha256": "b1805017b545b962d6cc7e91546999ef1eca6fe23b28044a74ee9ca980686824",
+      "category": "configuration",
+      "owner": "repository",
+      "disposition": "retain",
+      "reason": "Single root build/test configuration authority."
+    },
+    {
+      "path": "tsconfig.json",
+      "bytes": 576,
+      "sha256": "6fc438aaa5c5c483c70c9c2daabe48d9006ffb00b58f89e3406048f254581995",
+      "category": "configuration",
+      "owner": "repository",
+      "disposition": "retain",
+      "reason": "Single root build/test configuration authority."
+    },
+    {
+      "path": "vitest.config.ts",
+      "bytes": 194,
+      "sha256": "66f6c3dd23034ab4aa1d4add9ffaaa0b20442ebc3ec42dc6b209f857e007eaa1",
+      "category": "configuration",
+      "owner": "repository",
+      "disposition": "retain",
+      "reason": "Single root build/test configuration authority."
+    }
+  ]
+}
