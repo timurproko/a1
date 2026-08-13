@@ -29,7 +29,7 @@ Run the installed candidate yourself:
 & "artifacts/manual-transparent/install/node_modules/.bin/addone.cmd"
 ```
 
-Until launch profiles are implemented, the candidate launches `pi` from `PATH`. Generic command testing may set `ADDONE_TERMINAL_EXECUTABLE` and a JSON array in `ADDONE_TERMINAL_ARGUMENTS_JSON`.
+Test each installed launch form separately: bare `addone`, `addone pi`, and `addone sandbox`. Confirm that files created through `/settings`, `/login`, sessions, and resource directories remain under the selected profile root. Generic command testing may set `ADDONE_TERMINAL_EXECUTABLE` and a JSON array in `ADDONE_TERMINAL_ARGUMENTS_JSON`.
 
 Physical automation is not part of this repository baseline. Future certification tooling may run only on dedicated disposable workers or VMs with exclusive test desktops, never on this workstation.
 

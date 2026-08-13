@@ -30,7 +30,7 @@
 - [x] 4.5 Carry the validated launch intent through mutable bootstrap and immutable release selection into the foreground launch entry without changing supervisor cohort or terminal-byte-path behavior; pass bootstrap/release identity and foreground lifecycle tests.
 - [x] 4.6 Apply Pi's supported environment contract: bare AddOne sets `PI_CODING_AGENT_DIR` to `.a1/agent`, sandbox sets it to `.a1/sandbox` and defaults project-local executable resources to untrusted/ignored, and vanilla Pi removes the override so `.pi/agent` remains authoritative; preserve ordinary provider environment credentials and pass focused environment-selection tests.
 - [x] 4.7 Add hermetic integration fixtures proving profile-specific settings, authentication absence, sessions, extensions, skills, prompts, themes, packages, and trust state do not leak among `.pi/agent`, `.a1/agent`, and `.a1/sandbox`, while profile selection adds no PTY/parser/renderer/input relay; pass the containing integration and architecture gates.
-- [ ] 4.8 Document first-run profile directories, independent `/login`, extension placement, vanilla baseline use, sandbox's non-security meaning, bare `a1` as the agent product surface, and its initial single-foreground transparent limitation; ensure no `a1 agent` alias or wrapper-specific Pi option is documented as an AddOne command.
+- [x] 4.8 Document first-run profile directories, independent `/login`, extension placement, vanilla baseline use, sandbox's non-security meaning, bare `a1` as the agent product surface, and its initial single-foreground transparent limitation; ensure no `a1 agent` alias or wrapper-specific Pi option is documented as an AddOne command.
 
 ## 5. Validate and Preview
 
