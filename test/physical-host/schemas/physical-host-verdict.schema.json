@@ -1,0 +1,241 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://addone.dev/schemas/physical-host-verdict-v1.json",
+  "title": "AddOne physical-host capability verdict",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "scenarioId",
+    "requirementIds",
+    "capability",
+    "platform",
+    "hostTerminal",
+    "runtime",
+    "artifactIdentity",
+    "profile",
+    "runs",
+    "comparisons",
+    "outcome",
+    "failureClassification",
+    "artifactManifest",
+    "startedAt",
+    "completedAt"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "scenarioId": { "$ref": "#/$defs/id" },
+    "requirementIds": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/id" } },
+    "capability": { "enum": ["direct", "transparent", "composed", "raw-relay"] },
+    "platform": { "$ref": "#/$defs/platform" },
+    "hostTerminal": { "$ref": "#/$defs/hostTerminal" },
+    "runtime": { "$ref": "#/$defs/runtime" },
+    "artifactIdentity": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/artifactIdentity" }] },
+    "profile": { "$ref": "#/$defs/profile" },
+    "runs": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/run" } },
+    "comparisons": { "type": "array", "items": { "$ref": "#/$defs/comparison" } },
+    "outcome": { "enum": ["pass", "fail", "flag", "unsupported"] },
+    "failureClassification": {
+      "anyOf": [
+        { "type": "null" },
+        { "enum": ["input-identity", "rendering", "character-presentation", "selection-clipboard", "scrollback-wheel", "mouse-focus", "resize", "terminal-mode", "latency", "process-identity", "lifecycle", "restoration", "evidence-integrity", "automation", "unsupported-capability", "other"] }
+      ]
+    },
+    "firstDivergence": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/divergence" }] },
+    "artifactManifest": { "$ref": "#/$defs/relativePath" },
+    "notes": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "startedAt": { "type": "string", "minLength": 1 },
+    "completedAt": { "type": "string", "minLength": 1 }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "outcome": { "const": "pass" } }, "required": ["outcome"] },
+      "then": { "properties": { "failureClassification": { "type": "null" }, "firstDivergence": { "type": "null" } } },
+      "else": { "properties": { "failureClassification": { "not": { "type": "null" } } } }
+    },
+    {
+      "if": { "properties": { "capability": { "const": "direct" } }, "required": ["capability"] },
+      "then": { "properties": { "artifactIdentity": { "type": "null" } } },
+      "else": { "properties": { "artifactIdentity": { "$ref": "#/$defs/artifactIdentity" } } }
+    }
+  ],
+  "$defs": {
+    "id": { "type": "string", "minLength": 1, "maxLength": 160, "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$" },
+    "relativePath": { "type": "string", "minLength": 1, "pattern": "^(?![A-Za-z]:)(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+" },
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "platform": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["os", "release", "architecture", "hostId"],
+      "properties": {
+        "os": { "enum": ["windows", "linux", "macos"] },
+        "release": { "type": "string", "minLength": 1 },
+        "architecture": { "enum": ["x64", "arm64"] },
+        "hostId": { "$ref": "#/$defs/id" }
+      }
+    },
+    "hostTerminal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version", "profile", "font", "fontSize", "dpiScale", "theme", "renderer", "columns", "rows"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "version": { "type": "string", "minLength": 1 },
+        "profile": { "type": "string", "minLength": 1 },
+        "font": { "type": "string", "minLength": 1 },
+        "fontSize": { "type": "number", "exclusiveMinimum": 0 },
+        "dpiScale": { "type": "number", "exclusiveMinimum": 0 },
+        "theme": { "type": "string", "minLength": 1 },
+        "renderer": { "type": "string", "minLength": 1 },
+        "columns": { "type": "integer", "minimum": 1 },
+        "rows": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "name", "version", "identity"],
+      "properties": {
+        "kind": { "enum": ["generic-recorder", "native-pi", "shell", "editor", "pager", "alternate-screen", "unrelated-cli"] },
+        "name": { "type": "string", "minLength": 1 },
+        "version": { "type": "string", "minLength": 1 },
+        "identity": { "type": "string", "minLength": 1 }
+      }
+    },
+    "artifactIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["packageName", "version", "sourceCommit", "sha512Integrity", "releaseId"],
+      "properties": {
+        "packageName": { "const": "@timurproko/addone" },
+        "version": { "type": "string", "minLength": 1 },
+        "sourceCommit": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+        "sha512Integrity": { "type": "string", "pattern": "^sha512-[A-Za-z0-9+/]+={0,2}$" },
+        "releaseId": { "type": "string", "minLength": 1 }
+      }
+    },
+    "stringMap": { "type": "object", "additionalProperties": { "type": "string" } },
+    "profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["executable", "arguments", "cwd", "environment", "terminalIdentity", "columns", "rows"],
+      "properties": {
+        "executable": { "type": "string", "minLength": 1 },
+        "arguments": { "type": "array", "items": { "type": "string" } },
+        "cwd": { "type": "string", "minLength": 1 },
+        "environment": { "$ref": "#/$defs/stringMap" },
+        "terminalIdentity": { "type": "string", "minLength": 1 },
+        "columns": { "type": "integer", "minimum": 1 },
+        "rows": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "processIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pid", "startIdentity", "parentPid", "foregroundOwner", "standardInputIdentity", "standardOutputIdentity", "standardErrorIdentity"],
+      "properties": {
+        "pid": { "type": "integer", "minimum": 1 },
+        "startIdentity": { "type": "string", "minLength": 1 },
+        "parentPid": { "type": ["integer", "null"], "minimum": 1 },
+        "foregroundOwner": { "type": "boolean" },
+        "standardInputIdentity": { "type": "string", "minLength": 1 },
+        "standardOutputIdentity": { "type": "string", "minLength": 1 },
+        "standardErrorIdentity": { "type": "string", "minLength": 1 }
+      }
+    },
+    "action": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "sequence", "kind", "dispatchedAtNs", "parameters", "artifactIds"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "sequence": { "type": "integer", "minimum": 0 },
+        "kind": { "enum": ["launch", "focus", "key-down", "key-up", "key-repeat", "text", "paste", "mouse-move", "mouse-button", "wheel", "resize", "select", "copy", "wait", "signal", "exit"] },
+        "dispatchedAtNs": { "type": "integer", "minimum": 0 },
+        "parameters": { "type": "object" },
+        "artifactIds": { "type": "array", "items": { "$ref": "#/$defs/id" } }
+      }
+    },
+    "observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "observedAtNs", "actionId", "artifactIds", "summary"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "kind": { "enum": ["child-effect", "visible-effect", "host-state", "process-state", "terminal-query", "signal", "exit", "restoration"] },
+        "observedAtNs": { "type": "integer", "minimum": 0 },
+        "actionId": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/id" }] },
+        "artifactIds": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/id" } },
+        "summary": { "type": "string", "minLength": 1 }
+      }
+    },
+    "timingSample": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["actionId", "metric", "nanoseconds", "artifactIds"],
+      "properties": {
+        "actionId": { "$ref": "#/$defs/id" },
+        "metric": { "enum": ["action-to-child", "action-to-visible-stable"] },
+        "nanoseconds": { "type": "integer", "minimum": 0 },
+        "artifactIds": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/id" } }
+      }
+    },
+    "restoration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["usable", "inputModeRestored", "cursorRestored", "screenRestored", "selectionUsable", "lineEditingUsable", "artifactIds"],
+      "properties": {
+        "usable": { "type": "boolean" },
+        "inputModeRestored": { "type": "boolean" },
+        "cursorRestored": { "type": "boolean" },
+        "screenRestored": { "type": "boolean" },
+        "selectionUsable": { "type": "boolean" },
+        "lineEditingUsable": { "type": "boolean" },
+        "artifactIds": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/id" } }
+      }
+    },
+    "run": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "role", "startedAt", "completedAt", "processIdentity", "actions", "observations", "timingSamples", "restoration", "artifactIds"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "role": { "enum": ["direct", "candidate"] },
+        "startedAt": { "type": "string", "minLength": 1 },
+        "completedAt": { "type": "string", "minLength": 1 },
+        "processIdentity": { "$ref": "#/$defs/processIdentity" },
+        "actions": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/action" } },
+        "observations": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/observation" } },
+        "timingSamples": { "type": "array", "items": { "$ref": "#/$defs/timingSample" } },
+        "restoration": { "$ref": "#/$defs/restoration" },
+        "artifactIds": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/id" } }
+      }
+    },
+    "comparison": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "dimension", "directRunId", "candidateRunId", "outcome", "artifactIds", "explanation"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "dimension": { "enum": ["input-identity", "rendering", "character-presentation", "selection-clipboard", "scrollback-wheel", "mouse-focus", "resize", "terminal-mode", "latency", "process-identity", "lifecycle", "restoration"] },
+        "directRunId": { "$ref": "#/$defs/id" },
+        "candidateRunId": { "$ref": "#/$defs/id" },
+        "outcome": { "enum": ["pass", "fail", "flag"] },
+        "artifactIds": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/id" } },
+        "explanation": { "type": "string", "minLength": 1 }
+      }
+    },
+    "divergence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["actionId", "dimension", "directArtifactIds", "candidateArtifactIds", "explanation"],
+      "properties": {
+        "actionId": { "$ref": "#/$defs/id" },
+        "dimension": { "type": "string", "minLength": 1 },
+        "directArtifactIds": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/id" } },
+        "candidateArtifactIds": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/id" } },
+        "explanation": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}
