@@ -7,14 +7,11 @@ export const REQUIRED_CONTROL_FEATURES = [
   "handshake.features.v1",
   "snapshot.revision.v1",
   "commands.request-identity.v1",
-  "terminal.generation-correlation.v1",
-  "terminal.virtual-state.v1",
-  "terminal.render-transactions.v1",
-  "terminal.input-batch.v1",
+  "generation.lifecycle.v1",
 ] as const;
 export const OPTIONAL_CONTROL_FEATURES = [
   "messages.unknown-additive-ignore.v1",
-  "terminal.resynchronize.v1",
+  "snapshot.resynchronize.v1",
 ] as const;
 export type ControlFeature = string;
 export const GENERATED_CONTRACT_DIGEST = createHash("sha256").update(JSON.stringify({

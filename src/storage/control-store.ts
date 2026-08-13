@@ -9,14 +9,13 @@ import type {
   LogicalWorkspace,
   NativePiProfile,
   ProcessGeneration,
-  TerminalSurface,
   WorkspaceId,
 } from "../domain/index.js";
 
 const INITIAL_WORKSPACE_ID = "workspace-default";
 
 interface WorkspaceRow { id: string; name: string; selected_agent_id: string | null; created_at: string }
-interface AgentRow { id: string; workspace_id: string; name: string; profile_json: string; surface_json: string | null; created_at: string }
+interface AgentRow { id: string; workspace_id: string; name: string; profile_json: string; created_at: string }
 interface GenerationRow { id: string; agent_id: string; sequence: number; profile_id: string; state: LifecycleState; capabilities_json: string; started_at: string; exited_at: string | null; exit_code: number | null; signal: number | null; error: string | null; owner_boot_nonce: string | null }
 
 export class ControlStore {
@@ -130,7 +129,6 @@ export class ControlStore {
         driverKind: "terminal",
         profile: JSON.parse(row.profile_json) as NativePiProfile,
         currentGeneration: generationFromRow(generation),
-        surface: row.surface_json ? JSON.parse(row.surface_json) as TerminalSurface : null,
         createdAt: row.created_at,
       };
     });
@@ -149,13 +147,6 @@ export class ControlStore {
         .run(generation.id, agent.id, generation.sequence, generation.profileId, generation.state, JSON.stringify(generation.capabilities), generation.startedAt, this.bootNonce);
       this.database.prepare("UPDATE workspaces SET selected_agent_id = ? WHERE id = ?").run(agent.id, agent.workspaceId);
     });
-  }
-
-  saveSurface(agentId: AgentId, generationId: GenerationId, surface: TerminalSurface): boolean {
-    const current = this.database.prepare("SELECT id FROM process_generations WHERE agent_id = ? ORDER BY sequence DESC LIMIT 1").get(agentId) as { id: string } | undefined;
-    if (current?.id !== generationId) return false;
-    this.database.prepare("UPDATE terminal_agents SET surface_json = ? WHERE id = ?").run(JSON.stringify(surface), agentId);
-    return true;
   }
 
   markGeneration(

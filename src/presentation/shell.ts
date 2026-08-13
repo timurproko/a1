@@ -1,5 +1,5 @@
 import { visibleWidth } from "@earendil-works/pi-tui";
-import type { LogicalTerminalAgent, SupervisorSnapshot, TerminalSurface } from "../domain/index.js";
+import type { LogicalTerminalAgent, SupervisorSnapshot } from "../domain/index.js";
 
 export interface ShellFrame {
   readonly ansi: string;
@@ -14,7 +14,7 @@ export function renderShell(snapshot: SupervisorSnapshot, columns: number, rows:
   const header = fit(` ${plus}${tabs ? ` ${tabs}` : ""}`, columns);
   const separator = `\x1b[2m${"─".repeat(columns)}\x1b[0m`;
   const contentRows = Math.max(1, rows - 4);
-  const content = selected?.surface ? surfaceLines(selected.surface, columns, contentRows) : emptySurface(columns, contentRows);
+  const content = emptySurface(columns, contentRows);
   const status = selected
     ? ` AddOne · ${selected.name} · ${selected.currentGeneration.state}${selected.currentGeneration.state === "exited" ? ` (${selected.currentGeneration.exitCode ?? "signal"})` : ""} · Tab: chrome/terminal`
     : " AddOne · Enter or click + to start Native Pi · Tab: chrome/terminal";
@@ -30,13 +30,6 @@ export function renderShell(snapshot: SupervisorSnapshot, columns: number, rows:
 function renderTab(agent: LogicalTerminalAgent, selected: boolean): string {
   const label = `[${agent.name}${agent.currentGeneration.state === "exited" ? " ×" : ""}]`;
   return selected ? `\x1b[1;35m${label}\x1b[0m` : `\x1b[2m${label}\x1b[0m`;
-}
-
-function surfaceLines(surface: TerminalSurface, columns: number, rows: number): string[] {
-  return Array.from({ length: rows }, (_, row) => {
-    const cells = surface.cells[row] ?? [];
-    return fit(cells.map(cell => cell.width === 0 ? "" : cell.character).join(""), columns);
-  });
 }
 
 function emptySurface(columns: number, rows: number): string[] {

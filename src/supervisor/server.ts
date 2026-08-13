@@ -7,7 +7,6 @@ import type {
   AgentId,
   CommandResult,
   GenerationId,
-  HostTerminalInputEvent,
   LogicalTerminalAgent,
   LogicalWorkspace,
   NativePiProfile,
@@ -19,7 +18,7 @@ import type {
   TerminalDriverEvent,
   TerminalDriverHandle,
 } from "../domain/index.js";
-import { assertDimensions, FULL_VIEWPORT_NATIVE_PROJECTION } from "../domain/index.js";
+import { assertDimensions } from "../domain/index.js";
 import { encodeFrame, isCommandMessage, isControlHello, LineFrameDecoder, localControlHello, MAX_CONTROL_FRAME_BYTES, negotiateControlFeatures, type ServerMessage } from "../protocol/index.js";
 import { ControlStore } from "../storage/index.js";
 import type { MaterializedRelease } from "../release-store.js";
@@ -184,16 +183,6 @@ export class SupervisorServer {
       } else if (command.type === "ensure-initial-terminal-agent") {
         assertDimensions(command.dimensions);
         await this.#ensureInitialAgent(command.cwd, command.dimensions);
-      } else if (command.type === "terminal-input") {
-        assertHostInputEvent(command.event);
-        this.#currentHandle(command.agentId, command.generationId).input(command.event);
-      } else if (command.type === "terminal-input-batch") {
-        if (command.events.length === 0 || command.events.length > 4_096) throw new Error("terminal input batch size is invalid");
-        for (const event of command.events) assertHostInputEvent(event);
-        this.#currentHandle(command.agentId, command.generationId).inputBatch(command.events);
-      } else if (command.type === "terminal-resize") {
-        assertDimensions(command.dimensions);
-        this.#currentHandle(command.agentId, command.generationId).resize(command.dimensions);
       } else if (command.type === "stop-agent") {
         await this.#currentHandle(command.agentId, command.generationId).stop();
       } else if (command.type === "resynchronize") {
@@ -212,10 +201,7 @@ export class SupervisorServer {
   async #ensureInitialAgent(cwd: string, dimensions: { columns: number; rows: number }): Promise<void> {
     const selected = this.#agents.find(agent => agent.id === this.#workspace.selectedAgentId);
     const resident = selected ? this.#handles.get(selected.id) : undefined;
-    if (selected && resident && !["exited", "stopped", "error"].includes(selected.currentGeneration.state)) {
-      resident.resize(dimensions);
-      return;
-    }
+    if (selected && resident && !["exited", "stopped", "error"].includes(selected.currentGeneration.state)) return;
     if (!this.#ensuringInitialAgent) {
       this.#ensuringInitialAgent = this.#createAgent(cwd, dimensions).finally(() => { this.#ensuringInitialAgent = null; });
     }
@@ -234,10 +220,6 @@ export class SupervisorServer {
       environment: pickEnvironment(["PATH", "PATHEXT", "SystemRoot", "ComSpec", "HOME", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "PI_CODING_AGENT_DIR", "PI_CONFIG_DIR", "PI_OFFLINE", "NO_COLOR"]),
       terminalType: "xterm-256color",
       dimensions,
-      projection: FULL_VIEWPORT_NATIVE_PROJECTION,
-      // ConPTY consumes Pi's DEC mouse modes. This explicit profile policy
-      // restores equivalent SGR mouse semantics only while Pi is alternate-screen.
-      conptyMouseFallback: "sgr-any-on-alternate-screen",
       resume: "none",
     };
     const generation: ProcessGeneration = {
@@ -246,7 +228,7 @@ export class SupervisorServer {
       sequence: 1,
       profileId: profile.id,
       state: "starting",
-      capabilities: ["terminal-surface", "terminal-input", "terminal-resize", "process-stop"],
+      capabilities: ["process-stop"],
       startedAt: new Date().toISOString(),
       exitedAt: null,
       exitCode: null,
@@ -261,7 +243,6 @@ export class SupervisorServer {
       driverKind: "terminal",
       profile,
       currentGeneration: generation,
-      surface: null,
       createdAt: generation.startedAt,
     };
     this.store.createTerminalAgent(agent);
@@ -290,26 +271,14 @@ export class SupervisorServer {
   #onDriverEvent(event: TerminalDriverEvent): void {
     const agent = this.#agents.find(candidate => candidate.id === event.agentId);
     if (!agent || agent.currentGeneration.id !== event.generationId) return;
-    if (event.type === "surface") {
-      if (!this.store.saveSurface(event.agentId, event.generationId, event.surface)) return;
-      this.#replaceAgent(event.agentId, current => ({ ...current, surface: event.surface }));
-      this.#publish({ type: "terminal-surface-updated", agentId: event.agentId, generationId: event.generationId, surface: event.surface });
-    } else if (event.type === "transaction") {
-      // Render transactions are latency-sensitive and the live supervisor is
-      // authoritative for non-resumable PTYs. Persist bounded snapshots only at
-      // handoff, resynchronization, resize, and exit boundaries.
-      this.#replaceAgent(event.agentId, current => ({ ...current, surface: event.surface }));
-      this.#publish({ type: "terminal-render-transaction", agentId: event.agentId, generationId: event.generationId, transaction: event.transaction });
-    } else if (event.type === "exit") {
+    if (event.type === "exit") {
       this.#handles.delete(event.agentId);
-      if (event.surface) this.store.saveSurface(event.agentId, event.generationId, event.surface);
       this.store.markGeneration(event.agentId, event.generationId, "exited", { exitCode: event.exitCode, signal: event.signal });
       this.#replaceAgent(event.agentId, current => ({
         ...current,
-        surface: event.surface ?? current.surface,
         currentGeneration: { ...current.currentGeneration, state: "exited", exitedAt: new Date().toISOString(), exitCode: event.exitCode, signal: event.signal },
       }));
-      this.#publish({ type: "generation-exited", agentId: event.agentId, generationId: event.generationId, exitCode: event.exitCode, signal: event.signal, surface: event.surface });
+      this.#publish({ type: "generation-exited", agentId: event.agentId, generationId: event.generationId, exitCode: event.exitCode, signal: event.signal });
       void this.#writeEndpointMetadata();
     } else {
       this.store.markGeneration(event.agentId, event.generationId, "error", { error: event.message });
@@ -385,9 +354,8 @@ export class SupervisorServer {
 }
 
 export function boundInitialSupervisorSnapshot(snapshot: SupervisorSnapshot): SupervisorSnapshot {
-  // The initial fullscreen shell presents one selected terminal. Historical
-  // exited agents remain durable evidence, but sending every retained full
-  // surface makes the handshake grow without bound across ordinary launches.
+  // During redesign only the selected live lifecycle record belongs in the
+  // initial control handshake. Historical generations remain durable storage.
   const selected = snapshot.agents.find(agent => agent.id === snapshot.workspace.selectedAgentId);
   const active = selected && !["exited", "stopped", "interrupted", "error"].includes(selected.currentGeneration.state)
     ? selected
@@ -398,15 +366,6 @@ export function boundInitialSupervisorSnapshot(snapshot: SupervisorSnapshot): Su
     workspace: { ...snapshot.workspace, selectedAgentId: active?.id ?? null, agentIds: agents.map(agent => agent.id) },
     agents,
   };
-}
-
-function assertHostInputEvent(event: unknown): asserts event is HostTerminalInputEvent {
-  if (typeof event !== "object" || event === null || !("type" in event) || !["key", "paste", "focus", "mouse", "resize"].includes(String(event.type))) {
-    throw new Error("terminal input is not a recognized semantic host event");
-  }
-  if ("text" in event && typeof event.text === "string" && Buffer.byteLength(event.text, "utf8") > 1024 * 1024) {
-    throw new Error("terminal input text exceeds the bounded payload size");
-  }
 }
 
 export function nativePiArguments(value: string | undefined): readonly string[] {

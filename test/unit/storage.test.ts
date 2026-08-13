@@ -24,7 +24,7 @@ describe("control-store migration", () => {
     const path = join(root, "control.sqlite3");
     const first = new ControlStore(path, "boot-old");
     const now = new Date(0).toISOString();
-    const profile = { id: "profile", kind: "native-pi", executable: "pi", arguments: [], cwd: ".", environment: {}, terminalType: "xterm-256color", dimensions: { columns: 80, rows: 24 }, projection: { kind: "native-full-viewport" }, conptyMouseFallback: "none", resume: "none" };
+    const profile = { id: "profile", kind: "native-pi", executable: "pi", arguments: [], cwd: ".", environment: {}, terminalType: "xterm-256color", dimensions: { columns: 80, rows: 24 }, resume: "none" };
     first.database.prepare("INSERT INTO driver_profiles (id, kind, profile_json, created_at) VALUES (?, ?, ?, ?)").run(profile.id, profile.kind, JSON.stringify(profile), now);
     first.database.prepare("INSERT INTO terminal_agents (id, workspace_id, name, profile_id, profile_json, surface_json, created_at) VALUES (?, ?, ?, ?, ?, NULL, ?)")
       .run("agent", "workspace-default", "stale", profile.id, JSON.stringify(profile), now);

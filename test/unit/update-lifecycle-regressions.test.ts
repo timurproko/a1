@@ -83,13 +83,13 @@ function seedReadyGeneration(path: string): void {
   const now = new Date(0).toISOString();
   const profile = {
     id: "profile-stale", kind: "native-pi", executable: "pi", arguments: [], cwd: ".", environment: {}, terminalType: "xterm-256color",
-    dimensions: { columns: 80, rows: 24 }, projection: { kind: "native-full-viewport" }, conptyMouseFallback: "none", resume: "none",
+    dimensions: { columns: 80, rows: 24 }, resume: "none",
   };
   store.database.prepare("INSERT INTO driver_profiles (id, kind, profile_json, created_at) VALUES (?, ?, ?, ?)").run(profile.id, profile.kind, JSON.stringify(profile), now);
   store.database.prepare("INSERT INTO terminal_agents (id, workspace_id, name, profile_id, profile_json, surface_json, created_at) VALUES (?, ?, ?, ?, ?, NULL, ?)")
     .run("agent-stale", "workspace-default", "stale", profile.id, JSON.stringify(profile), now);
   store.database.prepare("INSERT INTO process_generations (id, agent_id, sequence, profile_id, state, capabilities_json, started_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
-    .run("generation-stale", "agent-stale", 1, profile.id, "ready", JSON.stringify(["terminal-surface"]), now);
+    .run("generation-stale", "agent-stale", 1, profile.id, "ready", JSON.stringify(["process-stop"]), now);
   store.database.prepare("UPDATE workspaces SET selected_agent_id = ? WHERE id = ?").run("agent-stale", "workspace-default");
   store.close();
 }

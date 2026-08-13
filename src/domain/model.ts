@@ -1,5 +1,3 @@
-import type { HostTerminalInputEvent, TerminalProjectionPolicy, TerminalRenderTransaction } from "./terminal.js";
-
 export type WorkspaceId = string;
 export type AgentId = string;
 export type GenerationId = string;
@@ -11,73 +9,8 @@ export interface TerminalDimensions {
   readonly rows: number;
 }
 
-export interface TerminalColor {
-  readonly mode: "palette" | "rgb";
-  readonly value: number;
-}
-
-export const TERMINAL_ATTRIBUTES = {
-  bold: 1,
-  italic: 2,
-  underline: 4,
-  inverse: 8,
-  dim: 16,
-  blink: 32,
-  invisible: 64,
-  strikethrough: 128,
-  overline: 256,
-} as const;
-
-export interface TerminalCell {
-  readonly character: string;
-  readonly width: number;
-  readonly foreground?: TerminalColor;
-  readonly background?: TerminalColor;
-  readonly attributes: number;
-}
-
-export interface TerminalCursor {
-  readonly column: number;
-  readonly row: number;
-  readonly visible: boolean;
-  readonly style: "default" | "block" | "underline" | "bar";
-  readonly blinking: boolean;
-}
-
-export interface TerminalModes {
-  readonly applicationCursorKeys: boolean;
-  readonly applicationKeypad: boolean;
-  readonly alternateScroll: boolean;
-  readonly bracketedPaste: boolean;
-  readonly focusReporting: boolean;
-  readonly mouseTracking: "none" | "x10" | "vt200" | "drag" | "any";
-  readonly mouseProtocol: "x10" | "utf8" | "sgr" | "urxvt";
-  readonly synchronizedOutput: boolean;
-  readonly wraparound: boolean;
-  readonly keyboardProtocol: "legacy" | "modify-other-keys" | "kitty" | "win32";
-  readonly modifyOtherKeys: 0 | 1 | 2;
-  readonly kittyKeyboardFlags: number;
-  readonly win32InputMode: boolean;
-}
-
-export interface TerminalSurface {
-  readonly columns: number;
-  readonly rows: number;
-  readonly cells: readonly (readonly TerminalCell[])[];
-  /** Bounded normal-buffer rows preceding the active viewport. */
-  readonly scrollbackCells?: readonly (readonly TerminalCell[])[];
-  readonly cursor: TerminalCursor;
-  readonly activeScreen: "normal" | "alternate";
-  readonly modes: TerminalModes;
-  /** Monotonic primary-buffer rows committed to terminal scrollback. */
-  readonly scrollbackBase?: number;
-  readonly outputSequence: number;
-  readonly revision: number;
-  readonly final: boolean;
-}
-
 export type LifecycleState = "starting" | "ready" | "running" | "exited" | "stopped" | "interrupted" | "error";
-export type Capability = "terminal-surface" | "terminal-input" | "terminal-resize" | "process-stop";
+export type Capability = "process-stop";
 
 export interface LogicalWorkspace {
   readonly id: WorkspaceId;
@@ -87,6 +20,7 @@ export interface LogicalWorkspace {
   readonly createdAt: string;
 }
 
+/** Legacy launch metadata retained only until the transparent profile contract is introduced. */
 export interface TerminalProfileBase {
   readonly id: DriverProfileId;
   readonly executable: string;
@@ -95,9 +29,6 @@ export interface TerminalProfileBase {
   readonly environment: Readonly<Record<string, string>>;
   readonly terminalType: string;
   readonly dimensions: TerminalDimensions;
-  readonly projection: TerminalProjectionPolicy;
-  /** Explicit fallback for terminal modes consumed by Windows ConPTY. */
-  readonly conptyMouseFallback: "none" | "sgr-any-on-alternate-screen";
   readonly resume: "none" | "best-effort" | "exact";
 }
 
@@ -140,7 +71,6 @@ export interface LogicalTerminalAgent {
   readonly driverKind: "terminal";
   readonly profile: TerminalAgentProfile;
   readonly currentGeneration: ProcessGeneration;
-  readonly surface: TerminalSurface | null;
   readonly createdAt: string;
 }
 
@@ -153,9 +83,6 @@ export interface SupervisorSnapshot {
 export type SupervisorCommand =
   | { readonly type: "create-terminal-agent"; readonly requestId: RequestId; readonly cwd: string; readonly dimensions: TerminalDimensions }
   | { readonly type: "ensure-initial-terminal-agent"; readonly requestId: RequestId; readonly cwd: string; readonly dimensions: TerminalDimensions }
-  | { readonly type: "terminal-input"; readonly requestId: RequestId; readonly agentId: AgentId; readonly generationId: GenerationId; readonly event: HostTerminalInputEvent }
-  | { readonly type: "terminal-input-batch"; readonly requestId: RequestId; readonly agentId: AgentId; readonly generationId: GenerationId; readonly events: readonly HostTerminalInputEvent[] }
-  | { readonly type: "terminal-resize"; readonly requestId: RequestId; readonly agentId: AgentId; readonly generationId: GenerationId; readonly dimensions: TerminalDimensions }
   | { readonly type: "stop-agent"; readonly requestId: RequestId; readonly agentId: AgentId; readonly generationId: GenerationId }
   | { readonly type: "resynchronize"; readonly requestId: RequestId };
 
@@ -163,9 +90,7 @@ export type AddOneEvent =
   | { readonly type: "agent-created"; readonly agent: LogicalTerminalAgent }
   | { readonly type: "selection-changed"; readonly workspaceId: WorkspaceId; readonly agentId: AgentId | null }
   | { readonly type: "generation-ready"; readonly agentId: AgentId; readonly generationId: GenerationId }
-  | { readonly type: "terminal-surface-updated"; readonly agentId: AgentId; readonly generationId: GenerationId; readonly surface: TerminalSurface }
-  | { readonly type: "terminal-render-transaction"; readonly agentId: AgentId; readonly generationId: GenerationId; readonly transaction: TerminalRenderTransaction }
-  | { readonly type: "generation-exited"; readonly agentId: AgentId; readonly generationId: GenerationId; readonly exitCode: number | null; readonly signal: number | null; readonly surface: TerminalSurface | null }
+  | { readonly type: "generation-exited"; readonly agentId: AgentId; readonly generationId: GenerationId; readonly exitCode: number | null; readonly signal: number | null }
   | { readonly type: "generation-failed"; readonly agentId: AgentId; readonly generationId: GenerationId; readonly message: string };
 
 export interface OrderedEvent {
