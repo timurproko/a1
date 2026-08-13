@@ -25,7 +25,9 @@ jobs:
   publish-next:
     name: Publish exact uncertified preview
     if: github.ref == 'refs/heads/develop'
-    runs-on: ubuntu-24.04
+    # This is a GitHub-hosted non-interactive runner. It does not execute the
+    # isolated physical-terminal workflow or inject desktop input.
+    runs-on: windows-2025
     timeout-minutes: 30
     environment: npm-next
     env:
@@ -70,7 +72,7 @@ jobs:
       - name: Run non-desktop release gates
         run: npm run check
         env:
-          ADDONE_RELEASE_RUNNER_LABEL: github-ubuntu-24.04-uncertified-next
+          ADDONE_RELEASE_RUNNER_LABEL: github-windows-2025-uncertified-next
 
       - name: Pack exact candidate once
         id: pack
