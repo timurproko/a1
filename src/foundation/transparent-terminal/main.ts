@@ -48,7 +48,10 @@ async function launchProfile(
   profileId: LaunchProfileId,
 ): Promise<TransparentTerminalLaunchProfile> {
   const executable = options.executable ?? environment.ADDONE_TERMINAL_EXECUTABLE ?? "pi";
-  const arguments_ = options.arguments ?? parseArguments(environment.ADDONE_TERMINAL_ARGUMENTS_JSON);
+  const arguments_ = options.arguments
+    ?? parseArguments(environment.ADDONE_LAUNCH_ARGUMENTS_JSON)
+    ?? parseArguments(environment.ADDONE_TERMINAL_ARGUMENTS_JSON)
+    ?? [];
   const cwd = await realpath(options.cwd ?? process.cwd());
   const terminalType = environment.TERM?.trim() || "xterm-256color";
   return {
@@ -67,8 +70,8 @@ async function launchProfile(
   };
 }
 
-function parseArguments(source: string | undefined): readonly string[] {
-  if (!source) return [];
+function parseArguments(source: string | undefined): readonly string[] | null {
+  if (!source) return null;
   const value: unknown = JSON.parse(source);
   if (!Array.isArray(value) || value.some(item => typeof item !== "string")) {
     throw new TypeError("ADDONE_TERMINAL_ARGUMENTS_JSON must be a JSON array of strings");

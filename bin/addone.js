@@ -6,8 +6,12 @@ const { dispatchAddOneCli } = await import("../dist/src/cli/index.js");
 
 process.exitCode = await dispatchAddOneCli(process.argv.slice(2), {
   launch: async intent => {
-    const { runBootstrap } = await import("../dist/src/foundation/release/index.js");
-    return await runBootstrap({ packageRoot: fileURLToPath(packageRoot), launchIntent: intent });
+    const [{ prepareInteractiveLaunch }, { runBootstrap }] = await Promise.all([
+      import("../dist/src/features/launch/index.js"),
+      import("../dist/src/foundation/release/index.js"),
+    ]);
+    const prepared = await prepareInteractiveLaunch(intent);
+    return await runBootstrap({ packageRoot: fileURLToPath(packageRoot), launchIntent: intent, environment: prepared.environment });
   },
   version: async () => {
     const { runVersionStats } = await import("../dist/src/cli/index.js");
