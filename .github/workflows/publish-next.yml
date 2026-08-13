@@ -6,7 +6,7 @@ on:
       version:
         description: Exact manually accepted development preview version
         required: true
-        default: 0.1.5-dev.8
+        default: 0.1.5-dev.10
         type: string
       confirm_uncertified:
         description: Type "publish-uncertified-next" to confirm physical certification is deferred
@@ -31,14 +31,14 @@ jobs:
     timeout-minutes: 30
     environment: npm-next
     env:
-      ACCEPTED_SOURCE_COMMIT: 53f80cf0bbe7cfe4b4a1c5ce04c6d09f1c5cad19
-      ACCEPTED_TARBALL_INTEGRITY: sha512-LXTRmoLa/8M4yl+Qqka4B53hD/ZNVXw+1cw37HCpLSrnGaLRLXSYSBt/Q8mBfl/tJEOTK1gntU7+qLmQIHlklg==
-      ACCEPTED_TARBALL_SHASUM: 74edceab2e702d3dceed8e2bae769407032bed64
+      ACCEPTED_SOURCE_COMMIT: 3904de4c879f71a5a02a9bb02a74a1f009d5ec0f
+      ACCEPTED_TARBALL_INTEGRITY: sha512-XjwhIsCbZjJbAwFQjWLnSsSS6Lb21Uls1MhkQUXOAiJh5Fg7IfQI4Ol4gMUGuzxSzOf38Cor+F+zB8nHLh79Dg==
+      ACCEPTED_TARBALL_SHASUM: 4af9a7697ad79209214889a8c56f3bb19228fb65
     steps:
       - name: Check out exact manually accepted source
         uses: actions/checkout@v4
         with:
-          ref: 53f80cf0bbe7cfe4b4a1c5ce04c6d09f1c5cad19
+          ref: 3904de4c879f71a5a02a9bb02a74a1f009d5ec0f
           fetch-depth: 0
           persist-credentials: false
 
@@ -62,7 +62,7 @@ jobs:
           PACKAGE_VERSION="$(node -p "require('./package.json').version")"
           test "$PACKAGE_VERSION" = "$REQUESTED_VERSION"
           [[ "$PACKAGE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+-dev\.[0-9]+$ ]]
-          test "$PACKAGE_VERSION" = "0.1.5-dev.8"
+          test "$PACKAGE_VERSION" = "0.1.5-dev.10"
           echo "version=$PACKAGE_VERSION" >> "$GITHUB_ENV"
           echo "source_commit=$ACCEPTED_SOURCE_COMMIT" >> "$GITHUB_ENV"
 
@@ -100,7 +100,7 @@ jobs:
         run: |
           node --input-type=module <<'NODE'
           import { mkdir, writeFile } from "node:fs/promises";
-          import { createUncertifiedDevelopmentPreviewEvidence } from "./dist/src/development-preview-release.js";
+          import { createUncertifiedDevelopmentPreviewEvidence } from "./dist/src/foundation/release/index.js";
           const evidence = createUncertifiedDevelopmentPreviewEvidence({
             packageName: "@timurproko/addone",
             version: process.env.version,
