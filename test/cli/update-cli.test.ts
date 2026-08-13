@@ -104,7 +104,7 @@ else process.exitCode = 64;
           PATH: fakeBin,
         },
         timeout: 15_000,
-      })).rejects.toMatchObject({ code: 2, stderr: expect.stringContaining("Usage: addone update | addone update:next") });
+      })).rejects.toMatchObject({ code: 2, stderr: expect.stringContaining("Usage: a1 | a1 pi | a1 sandbox | a1 version | a1 update | a1 update:next") });
     }
 
     await expect(access(npmLog)).rejects.toThrow();
