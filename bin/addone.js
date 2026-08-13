@@ -28,12 +28,14 @@ if (process.argv[2] === "version") {
     });
   }
 } else {
-  // The mutable npm entry point imports only the dependency-light coordinator.
-  // UI, supervisor, PTY, TUI, and native-addon code is loaded by a verified
-  // child entry point inside the selected immutable release.
-  const [{ fileURLToPath }, { runBootstrap }] = await Promise.all([
-    import("node:url"),
-    import("../dist/src/bootstrap.js"),
-  ]);
-  process.exitCode = await runBootstrap({ packageRoot: fileURLToPath(packageRoot) });
+  // Interactive terminal execution is deliberately unavailable while the
+  // retired emulation pipeline is removed. Do not materialize or start an old
+  // UI/supervisor as a hidden fallback. Dependency-light maintenance commands
+  // above remain available throughout the redesign.
+  process.stderr.write(
+    "AddOne terminal capability is unavailable during redesign. "
+      + "Run terminal applications directly; maintenance commands remain available: "
+      + "addone version, addone update, addone update:next.\n",
+  );
+  process.exitCode = 1;
 }
