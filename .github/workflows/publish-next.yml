@@ -134,16 +134,10 @@ jobs:
           NODE
 
       - name: Publish exact tarball to npm next
-        id: publish
-        uses: JS-DevTools/npm-publish@v4.1.5
-        with:
-          registry: https://registry.npmjs.org/
-          package: ${{ steps.pack.outputs.tarball }}
-          tag: next
-          access: public
-          provenance: false
-          strategy: all
-          ignore-scripts: true
+        shell: bash
+        env:
+          TARBALL: ${{ steps.pack.outputs.tarball }}
+        run: npm publish "$TARBALL" --tag next --access public --ignore-scripts --provenance=false --registry https://registry.npmjs.org/
 
       - name: Verify exact registry artifact and preserve latest
         shell: bash
