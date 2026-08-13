@@ -31,7 +31,7 @@ Any automated scenario that launches, focuses, drives, resizes, captures, or clo
 - **THEN** cleanup SHALL stop only the exact process tree created and recorded by that scenario inside its isolated worker and SHALL leave every pre-existing or unverified process untouched
 
 ### Requirement: Transparent replacement receives a manual-first checkpoint
-After the transparent stack passes its non-desktop unit, integration, lifecycle, and structural zero-interception gates, AddOne SHALL produce an exact candidate and a manual validation checklist before implementing or running automated physical-host actions for that stack. The user SHALL launch, interact with, and close the candidate through ordinary terminal use. The manual checkpoint SHALL NOT inject input, focus or resize windows, launch a terminal on the user's behalf, close applications, or perform automated process cleanup. Manual acceptance permits isolated automation development to proceed but SHALL NOT replace mandatory independent automated certification.
+After the transparent stack passes its non-desktop unit, integration, lifecycle, and structural zero-interception gates, AddOne SHALL produce an exact candidate and a manual validation checklist before implementing or running automated physical-host actions for that stack. The user SHALL launch, interact with, and close the candidate through ordinary terminal use. The manual checkpoint SHALL NOT inject input, focus or resize windows, launch a terminal on the user's behalf, close applications, or perform automated process cleanup. Manual acceptance MAY authorize an explicitly uncertified development preview and continued development, but SHALL NOT constitute stable terminal certification or a supported-platform parity claim.
 
 #### Scenario: Transparent implementation becomes manually testable
 - **WHEN** transparent direct attachment and its structural checks are complete
@@ -42,8 +42,19 @@ After the transparent stack passes its non-desktop unit, integration, lifecycle,
 - **THEN** AddOne SHALL preserve the finding, correct the implementation, and repeat applicable non-desktop checks and manual validation before proceeding to automated physical-host certification
 
 #### Scenario: Manual checkpoint passes
-- **WHEN** the user explicitly accepts the manually launched candidate
-- **THEN** AddOne MAY implement and run physical-host automation only on the dedicated isolated workers required by this specification
+- **WHEN** the user explicitly accepts the manually launched candidate after all applicable non-desktop gates pass
+- **THEN** AddOne MAY publish the exact candidate as an explicitly uncertified development preview under npm tag `next`, continue development, and defer physical-host automation to a future certification change
+
+### Requirement: Uncertified development previews are explicit
+An uncertified terminal development preview MAY be published under npm tag `next` after manual acceptance and applicable architecture-independent, structural, lifecycle, update, dependency, build, package-content, and exact-artifact checks pass. Such a preview SHALL identify physical-host and cross-platform certification as deferred, SHALL NOT move npm tag `latest`, SHALL NOT be merged or represented as a stable release, and SHALL NOT claim certified terminal parity or supported-platform coverage. Deferred physical certification SHALL remain mandatory before stable terminal publication or any corresponding support claim.
+
+#### Scenario: Development needs feedback before physical infrastructure exists
+- **WHEN** the transparent candidate passes non-desktop gates and manual acceptance but dedicated physical workers are unavailable
+- **THEN** publication MAY proceed only as an uncertified `-dev.N` version under `next` with the deferred verdict visible in release evidence
+
+#### Scenario: Stable publication is requested
+- **WHEN** a candidate is to move npm tag `latest` or claim terminal support on a platform
+- **THEN** deferred independent physical-host and cross-platform certification SHALL be completed against the exact candidate before publication
 
 ### Requirement: Architecture-independent tests survive terminal replacement
 Domain, storage, release-cohort, update-transaction, protocol framing, package identity, dependency-policy, and non-terminal lifecycle tests SHALL remain mandatory when they do not encode assumptions from the retired terminal pipeline.
@@ -63,8 +74,8 @@ Before a replacement terminal stack is implemented, AddOne SHALL remove executab
 - **WHEN** deleting invalid terminal tests lowers line or branch coverage
 - **THEN** cleanup SHALL remain valid and SHALL NOT retain self-confirming tests solely to preserve a coverage metric
 
-### Requirement: Terminal acceptance uses an independent physical-host oracle
-Transparent terminal rendering, character presentation, input identity, selection, clipboard, scrollback, mouse, resize, modes, latency, and restoration SHALL be validated through actual supported host-terminal behavior. A test-side encoder, mode tracker, framebuffer emulator, or production-equivalent parser SHALL NOT be the sole acceptance oracle for the behavior it models.
+### Requirement: Stable terminal acceptance uses an independent physical-host oracle
+Before stable terminal publication or any terminal parity/support claim, transparent terminal rendering, character presentation, input identity, selection, clipboard, scrollback, mouse, resize, modes, latency, and restoration SHALL be validated through actual supported host-terminal behavior. A test-side encoder, mode tracker, framebuffer emulator, or production-equivalent parser SHALL NOT be the sole acceptance oracle for the behavior it models.
 
 #### Scenario: Validate Windows keyboard identity
 - **WHEN** the Windows parity gate exercises Ctrl+A through Ctrl+Z, modified and printable keys, repeat and release, paste, focus, arrows, mouse, and wheel
@@ -74,8 +85,8 @@ Transparent terminal rendering, character presentation, input identity, selectio
 - **WHEN** direct and AddOne-hosted workloads render text, Unicode graphemes, width-sensitive cells, colors, attributes, cursor changes, scrolls, selection, and alternate-screen content
 - **THEN** the gate SHALL compare independently captured physical-host observations and child effects instead of comparing two instances of the same AddOne terminal model
 
-### Requirement: Cross-platform gates use an application-independent terminal corpus
-Terminal certification SHALL run on Windows 11 x64, current Ubuntu LTS x64, and current and previous macOS arm64 using the native host-terminal path for each platform. The corpus SHALL include Native Pi, an interactive shell, a text editor or equivalent full-input workload, a pager or scrollback workload, an alternate-screen application, and at least one unrelated interactive/fullscreen CLI. No application SHALL receive a weaker assertion or production workaround selected by its identity or content.
+### Requirement: Cross-platform certification uses an application-independent terminal corpus
+Stable terminal certification SHALL run on Windows 11 x64, current Ubuntu LTS x64, and current and previous macOS arm64 using the native host-terminal path for each platform. The corpus SHALL include Native Pi, an interactive shell, a text editor or equivalent full-input workload, a pager or scrollback workload, an alternate-screen application, and at least one unrelated interactive/fullscreen CLI. No application SHALL receive a weaker assertion or production workaround selected by its identity or content.
 
 #### Scenario: Pi passes but another application fails
 - **WHEN** Native Pi passes while a generic corpus application exposes a rendering, character, input, mode, resize, latency, or restoration defect
@@ -126,19 +137,23 @@ Each composed candidate SHALL be evaluated as a complete authoritative terminal 
 - **WHEN** the application supplies a supported synchronized-output boundary
 - **THEN** the candidate SHALL preserve the transaction atomically
 
-### Requirement: Packaged candidates validate exact production artifacts
-Publication validation SHALL pack once, bind evidence to source commit, version, integrity, platform, runtime identity, capability, and default inventory, install that exact artifact, and run applicable architecture-independent plus terminal capability gates before uploading the same bytes.
+### Requirement: Packaged candidates validate exact publication artifacts
+Every publication SHALL pack once and bind evidence to source commit, version, integrity, runtime identity, declared certification status, and default inventory before uploading those same bytes. An uncertified development preview SHALL run applicable architecture-independent, structural, lifecycle, update, dependency, build, and package-content gates and record terminal physical certification as deferred. Stable terminal publication or any certified capability/platform claim SHALL additionally install that exact artifact and run the applicable independent terminal capability gates before upload.
 
-#### Scenario: Packaged transparent Native Pi starts
-- **WHEN** the exact candidate is installed and launches the identified Native Pi runtime under production defaults
+#### Scenario: Packaged uncertified development preview starts
+- **WHEN** an exact manually accepted `-dev.N` candidate is prepared while physical certification is deferred
+- **THEN** its evidence SHALL identify the preview as uncertified, pass all applicable non-desktop publication gates, and make no physical-host or cross-platform support claim
+
+#### Scenario: Packaged transparent Native Pi is certified
+- **WHEN** the exact candidate is prepared for stable terminal publication or a certified platform claim
 - **THEN** its foreground process, terminal attachment, interaction, exit, and parent restoration SHALL pass the transparent physical-host gate
 
 #### Scenario: Candidate bytes change after certification
 - **WHEN** package integrity differs from the certified artifact
 - **THEN** packaging or publication SHALL fail and require certification of the new bytes
 
-### Requirement: Supported platforms receive separate machine-readable verdicts
-Windows 11 x64, current Ubuntu LTS x64, and current and previous macOS arm64 SHALL each produce capability-specific machine-readable verdicts. Transparent success SHALL NOT certify composed mode, and one platform's result SHALL NOT certify another.
+### Requirement: Certified supported platforms receive separate machine-readable verdicts
+Before stable terminal publication or a certified platform claim, Windows 11 x64, current Ubuntu LTS x64, and current and previous macOS arm64 SHALL each produce capability-specific machine-readable verdicts. Transparent success SHALL NOT certify composed mode, and one platform's result SHALL NOT certify another.
 
 #### Scenario: One capability is pending
 - **WHEN** transparent mode passes but composed mode has not completed evaluation

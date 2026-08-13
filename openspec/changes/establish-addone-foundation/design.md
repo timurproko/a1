@@ -57,7 +57,7 @@ The rest of AddOne already has useful architecture-independent foundations: immu
 - Define composition as a separate capability backed by one coherent mature terminal core.
 - Evaluate replacement options in a fixed order with explicit pass/fail criteria.
 - Keep core release, update, storage, protocol, and lifecycle behavior buildable and tested during the redesign.
-- Resume tabs, panes, reconnection, Managed Pi, and later product work only after the applicable terminal capability is certified.
+- Resume non-composed foundation and product work after transparent structural checks and manual acceptance; require composed certification before panes, resident surfaces, or visual reconnection, and require deferred physical certification before stable transparent publication or platform parity/support claims.
 
 **Non-Goals:**
 
@@ -405,15 +405,18 @@ Rollback: interactive launch returns to explicit unavailable status; users conti
 
 Rollback: the user returns to direct Pi or stable `latest`; no automation owns desktop state.
 
-### Stage 5: Isolated automated physical-host certification
+### Stage 5: Uncertified development preview and continued development
 
-- Only after manual acceptance, provision dedicated disposable per-platform workers or VMs with exclusive interactive test desktops.
-- Implement and run the Windows Terminal OS-level action, screenshot, input, rendering, latency, Native Pi, and generic-corpus gates inside the isolated Windows worker.
-- Add equivalent Linux and macOS host drivers and corpus gates after Windows criteria stabilize.
-- Pack and certify exact candidate bytes on those workers; automated certification remains mandatory and manual acceptance does not substitute for it.
-- Publish `next` only after automated and manual transparent acceptance.
+- Record the accepted manual checkpoint and all corrected findings.
+- Pack once, bind the exact `-dev.N` bytes to source/version/integrity and an explicit `terminalCertification: deferred` verdict, and run architecture-independent, structural zero-interception, lifecycle, update, dependency, build, package-content, and exact-artifact checks.
+- Publish those exact bytes only under npm tag `next`; do not move `latest`, merge to stable, or claim physical-host/cross-platform terminal certification.
+- Continue later foundation and product work against transparent mode's declared no-surface/no-reconnect limitations.
 
-Rollback: discard isolated workers and retain stable `latest`; never fall back to the user's desktop.
+Rollback: retain stable `latest`; restore the prior `next` tag or prior immutable preview cohort when needed.
+
+### Deferred future change: Isolated automated physical-host certification
+
+A separate future certification change will provision dedicated disposable Windows, Ubuntu, and macOS workers/VMs with exclusive interactive desktops; implement and run physical smoke, input, rendering, latency, Native Pi, generic-corpus, parent-restoration, and exact-package gates; and produce capability/platform verdicts. This deferred work remains mandatory before stable terminal publication or corresponding support/parity claims, but it does not block explicitly uncertified `next` previews or continued development. No fallback to the user's desktop is permitted.
 
 ### Stage 6: Raw-relay fallback, only if direct attachment fails a required constraint
 
@@ -444,7 +447,7 @@ Rollback: disable composed profile creation; transparent sessions remain unaffec
 
 ### Stage 9: Resume later product work
 
-- Re-plan v2 oracle, tabs/sidebar, Managed Pi, and multi-agent work against the certified capability model.
+- Re-plan v2 oracle, tabs/sidebar, Managed Pi, and multi-agent work against the manually accepted transparent development baseline and separately certified composed capability where those features require composition.
 - Never make later features silently move a transparent session into composed mode.
 
 ## Open Questions
