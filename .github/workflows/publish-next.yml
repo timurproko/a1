@@ -133,7 +133,28 @@ jobs:
           await writeFile("artifacts/development-preview-candidate.json", JSON.stringify(evidence, null, 2));
           NODE
 
+      - name: Check for an existing exact registry version
+        id: registry
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import { appendFile } from "node:fs/promises";
+          const response = await fetch(`https://registry.npmjs.org/@timurproko%2faddone/${process.env.version}`, {
+            headers: { accept: "application/json", "cache-control": "no-cache" },
+          });
+          if (response.status === 404) {
+            await appendFile(process.env.GITHUB_OUTPUT, "exists=false\n");
+          } else {
+            if (!response.ok) throw new Error(`registry lookup failed with HTTP ${response.status}`);
+            const manifest = await response.json();
+            if (manifest.dist?.integrity !== process.env.ACCEPTED_TARBALL_INTEGRITY) throw new Error("existing registry integrity differs from accepted bytes");
+            if (manifest.dist?.shasum !== process.env.ACCEPTED_TARBALL_SHASUM) throw new Error("existing registry shasum differs from accepted bytes");
+            await appendFile(process.env.GITHUB_OUTPUT, "exists=true\n");
+          }
+          NODE
+
       - name: Publish exact tarball to npm next
+        if: steps.registry.outputs.exists != 'true'
         shell: bash
         env:
           TARBALL: ${{ steps.pack.outputs.tarball }}
@@ -142,18 +163,31 @@ jobs:
       - name: Verify exact registry artifact and preserve latest
         shell: bash
         run: |
-          set -euo pipefail
-          REGISTRY_VERSION="$(npm view "@timurproko/addone@$version" version)"
-          REGISTRY_INTEGRITY="$(npm view "@timurproko/addone@$version" dist.integrity)"
-          REGISTRY_SHASUM="$(npm view "@timurproko/addone@$version" dist.shasum)"
-          NEXT_VERSION="$(npm view @timurproko/addone@next version)"
-          LATEST_VERSION="$(npm view @timurproko/addone@latest version)"
-          test "$REGISTRY_VERSION" = "$version"
-          test "$REGISTRY_INTEGRITY" = "$ACCEPTED_TARBALL_INTEGRITY"
-          test "$REGISTRY_SHASUM" = "$ACCEPTED_TARBALL_SHASUM"
-          test "$NEXT_VERSION" = "$version"
-          test "$LATEST_VERSION" = "0.1.4"
-          printf 'Verified: %s\nnext: %s\nlatest: %s\n' "$REGISTRY_VERSION" "$NEXT_VERSION" "$LATEST_VERSION"
+          node --input-type=module <<'NODE'
+          const packageUrl = "https://registry.npmjs.org/@timurproko%2faddone";
+          let lastError;
+          for (let attempt = 1; attempt <= 12; attempt += 1) {
+            try {
+              const response = await fetch(`${packageUrl}?verify=${Date.now()}`, {
+                headers: { accept: "application/json", "cache-control": "no-cache" },
+              });
+              if (!response.ok) throw new Error(`registry returned HTTP ${response.status}`);
+              const metadata = await response.json();
+              const manifest = metadata.versions?.[process.env.version];
+              if (!manifest) throw new Error(`${process.env.version} has not propagated`);
+              if (manifest.dist?.integrity !== process.env.ACCEPTED_TARBALL_INTEGRITY) throw new Error("registry integrity differs from accepted bytes");
+              if (manifest.dist?.shasum !== process.env.ACCEPTED_TARBALL_SHASUM) throw new Error("registry shasum differs from accepted bytes");
+              if (metadata["dist-tags"]?.next !== process.env.version) throw new Error("next tag has not propagated");
+              if (metadata["dist-tags"]?.latest !== "0.1.4") throw new Error("latest tag changed unexpectedly");
+              console.log(`Verified: ${process.env.version}\nnext: ${metadata["dist-tags"].next}\nlatest: ${metadata["dist-tags"].latest}`);
+              process.exit(0);
+            } catch (error) {
+              lastError = error;
+              if (attempt < 12) await new Promise(resolve => setTimeout(resolve, 5000));
+            }
+          }
+          throw lastError;
+          NODE
 
       - name: Upload publication evidence
         if: always()
