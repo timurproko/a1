@@ -5,6 +5,7 @@ import { inspectProjectStructureImports, projectOwnerForPath, testOwnerForPath }
 const rootArgument = process.argv.indexOf("--root");
 const root = resolve(rootArgument >= 0 ? process.argv[rootArgument + 1] : new URL("..", import.meta.url).pathname.replace(/^\/(.:)/, "$1"));
 const sourceRoot = resolve(root, "src");
+const nativeRoots = [resolve(root, "native"), resolve(root, "scripts", "native")];
 const errors = [];
 const sourceFiles = {};
 
@@ -55,9 +56,47 @@ for (const file of await walk(sourceRoot)) {
     errors.push(`${path}: UI may render virtual terminal state but may not relay opaque child bytes`);
   }
 
-  if (/^src\/(?:drivers\/terminal|host-terminal|presentation|test-harness)(?:\/|$)/.test(path)
+    if (/^(?:src\/drivers\/terminal|src\/host-terminal|src\/presentation|src\/test-harness)(?:\/|$)/.test(path)
     || /^(?:src\/terminal-input|src\/windows-console-mode|src\/ui\/host-(?:terminal-renderer|frame-writer))\.ts$/.test(path)) {
     errors.push(`${path}: retired terminal module remains in production sources`);
+  }
+
+  if (path.startsWith("src/foundation/structured-agent-runtime/")) {
+    const structuredForbidden = [
+      { pattern: /(?:\u001b|\u009b|\x1[bB]|\x9[bB]|ansi(?:Escapes?|Regex)|terminalOutput|terminalBytes|framebuffer|renderedCells?|shadowParser)/i, label: "terminal text or screen interpretation" },
+      { pattern: /(?:node-pty|conpty|portable-pty|pty\.|PtyProcess|child terminal)/i, label: "terminal PTY ownership" },
+    ];
+    for (const { pattern, label } of structuredForbidden) {
+      if (pattern.test(source)) errors.push(`${path}: structured runtime contains forbidden ${label}`);
+    }
+  }
+
+  if (path.startsWith("src/foundation/native-host-protocol/")) {
+    const nativeProtocolForbidden = [
+      { pattern: /(?:node-pty|conpty|portable-pty|PtyProcess|pty\.|terminalBytes|terminalOutput|ptyBytes|inputBytes|renderedCells?|framebuffer|cellGrid|screenBuffer|ansiStream)/i, label: "terminal byte, input, or rendered-cell transport" },
+      { pattern: /(?:node:child_process|child_process|execFile|spawn\s*\()/i, label: "native host process ownership" },
+    ];
+    for (const { pattern, label } of nativeProtocolForbidden) {
+      if (pattern.test(source)) errors.push(`${path}: native-host protocol contains forbidden ${label}`);
+    }
+  }
+
+  if (path.startsWith("src/features/launch/")) {
+    const explicitModeForbidden = [
+      { pattern: /(?:native-host-protocol|structured-agent-runtime|features\/workspace|nativeTerminalHost|composedTerminal)/i, label: "composed infrastructure dependency" },
+    ];
+    for (const { pattern, label } of explicitModeForbidden) {
+      if (pattern.test(source)) errors.push(`${path}: launch profile code contains forbidden ${label}`);
+    }
+  }
+
+  if (path.startsWith("native/") || path.startsWith("scripts/native/")) {
+    const nativeForbidden = [
+      { pattern: /(?:node-pty|@xterm\/headless|custom(?:Ansi|Vt)(?:Parser|Renderer)|lightweight(?:Terminal|Ansi)(?:Parser|Renderer))/i, label: "new lightweight terminal parser or renderer" },
+    ];
+    for (const { pattern, label } of nativeForbidden) {
+      if (pattern.test(source)) errors.push(`${path}: native host contains forbidden ${label}`);
+    }
   }
 
   const retiredMechanisms = [
@@ -101,6 +140,22 @@ for (const file of await walk(sourceRoot)) {
     ];
     for (const { pattern, label } of identityPatterns) {
       if (pattern.test(source)) errors.push(`${path}: terminal boundary contains forbidden ${label}`);
+    }
+  }
+}
+
+for (const nativeRoot of nativeRoots) {
+  let nativeFiles = [];
+  try {
+    nativeFiles = await walk(nativeRoot);
+  } catch (error) {
+    if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
+  }
+  for (const file of nativeFiles) {
+    const source = await readFile(file, "utf8");
+    const path = relative(root, file).split(sep).join("/");
+    if (/(?:node-pty|@xterm\/headless|custom(?:Ansi|Vt)(?:Parser|Renderer)|lightweight(?:Terminal|Ansi)(?:Parser|Renderer))/i.test(source)) {
+      errors.push(`${path}: native host contains forbidden new lightweight terminal parser or renderer`);
     }
   }
 }

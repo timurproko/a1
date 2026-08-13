@@ -3,10 +3,15 @@ import { dirname, posix } from "node:path";
 export const PROJECT_OWNERS = Object.freeze({
   cli: owner("cli", "entry", "src/cli", "test/cli", ["launch", "release"]),
   launch: owner("launch", "feature", "src/features/launch", "test/features/launch", ["lifecycle", "transparent-terminal"]),
+  workspace: owner("workspace", "feature", "src/features/workspace", "test/features/workspace", [
+    "workspace-contracts", "structured-agent-runtime", "native-host-protocol",
+  ]),
   lifecycle: owner("lifecycle", "foundation", "src/foundation/lifecycle", "test/foundation/lifecycle", []),
   protocol: owner("protocol", "foundation", "src/foundation/protocol", "test/foundation/protocol", ["lifecycle"]),
   release: owner("release", "foundation", "src/foundation/release", "test/foundation/release", ["lifecycle", "protocol"]),
-  storage: owner("storage", "foundation", "src/foundation/storage", "test/foundation/storage", ["lifecycle"]),
+  storage: owner("storage", "foundation", "src/foundation/storage", "test/foundation/storage", ["lifecycle", "workspace-contracts"]),
+  "structured-agent-runtime": owner("structured-agent-runtime", "foundation", "src/foundation/structured-agent-runtime", "test/foundation/structured-agent-runtime", ["workspace-contracts"]),
+  "native-host-protocol": owner("native-host-protocol", "foundation", "src/foundation/native-host-protocol", "test/foundation/native-host-protocol", ["workspace-contracts"]),
   supervision: owner("supervision", "foundation", "src/foundation/supervision", "test/foundation/supervision", ["lifecycle", "protocol", "release", "storage"]),
   "workspace-contracts": owner("workspace-contracts", "foundation", "src/foundation/workspace-contracts", "test/foundation/workspace-contracts", []),
   "transparent-terminal": owner(

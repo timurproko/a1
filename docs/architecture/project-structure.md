@@ -9,11 +9,14 @@ src/
   cli/                         public command helpers and dispatch
   features/
     launch/                    product launch profiles and profile settings
+    workspace/                 dormant multi-agent workspace presentation and orchestration
   foundation/
     lifecycle/                 dependency-free launch/lifecycle contracts and paths
     protocol/                  control framing and client contracts
     release/                   immutable releases, cohorts, update, rollback, cleanup
     storage/                   control-store persistence
+    structured-agent-runtime/  dormant structured/RPC event, command, and recovery semantics
+    native-host-protocol/      dormant native-host identity, topology, lifecycle, and recovery protocol
     supervision/               endpoint and foreground-lease ownership
     workspace-contracts/       dependency-free workspace, adapter, topology, host, and recovery contracts
     transparent-terminal/      exact command resolution and native attachment
@@ -67,4 +70,8 @@ Build output belongs in ignored `dist/`; release/test evidence belongs in ignore
 
 ## Terminal capability boundary
 
-Transparent terminal attachment owns one foreground child and no AddOne surface. It cannot retain inactive terminal state or switch among arbitrary interactive CLIs inside AddOne. Bare-`a1` multi-agent UX may use structured/RPC surfaces without terminal emulation, but arbitrary-CLI tabs require a separate composed-terminal capability with PTY, authoritative terminal state, rendering, input routing, inactive-surface lifecycle, reconnection, and cross-platform certification. That future capability must not silently intercept or replace the transparent path.
+Transparent terminal attachment owns one foreground child and no AddOne surface. It cannot retain inactive terminal state or switch among arbitrary interactive CLIs inside AddOne. Bare-`a1` multi-agent UX may use structured/RPC surfaces without terminal emulation, but arbitrary-CLI tabs require a separate composed-terminal capability with PTY, authoritative terminal state, rendering, input routing, inactive-surface lifecycle, reconnection, and cross-platform certification. That future capability must not silently intercept or replace the transparent path. Explicit launch profiles and transparent fallback must not import, initialize, launch, or connect to composed native-host infrastructure.
+
+Composed terminals use a separate native terminal host built from pinned mature terminal implementations. The native host owns pseudoterminal bytes, retained terminal state, native keyboard/text/mouse/IME encoding, GPU rendering, frame scheduling, and presentation. AddOne's JavaScript control plane may exchange typed identity, topology revision, capability, lifecycle, status, and recovery messages only; it must not relay terminal output, per-event child input, or rendered cells.
+
+A tab owns a revisioned split tree. Each leaf pane references one PTY-backed terminal session. Structured/RPC agents remain semantically separate and may not derive state from ANSI text, terminal timing, or screen content. Native source ownership lives outside `src/` when introduced; packaged host selection is governed by release/package owners. Existing architecture tests reject native-host hot-path bytes in JavaScript protocol code, terminal inference in structured runtime code, composed imports from explicit launch modes, and replacement lightweight terminal parsers/renderers.

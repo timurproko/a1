@@ -64,6 +64,45 @@ describe("terminal-core architecture policy", () => {
     expect(result.stderr).toContain(diagnostic);
   });
 
+  it.each([
+    ["import pty from 'node-pty';", "terminal PTY ownership"],
+    ["const terminalBytes = Buffer.alloc(0);", "terminal text or screen interpretation"],
+    ["render(framebuffer);", "terminal text or screen interpretation"],
+  ])("rejects structured-runtime terminal inference: %s", async (source, diagnostic) => {
+    const root = await fixture({ "src/foundation/structured-agent-runtime/forbidden.ts": source });
+    const result = runPolicy(root);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(diagnostic);
+  });
+
+  it.each([
+    ["const ptyBytes = Buffer.alloc(0);", "terminal byte, input, or rendered-cell transport"],
+    ["send(renderedCells);", "terminal byte, input, or rendered-cell transport"],
+    ["import { spawn } from 'node:child_process';", "native host process ownership"],
+    ["import pty from 'node-pty';", "terminal byte, input, or rendered-cell transport"],
+  ])("rejects native-host hot-path transport: %s", async (source, diagnostic) => {
+    const root = await fixture({ "src/foundation/native-host-protocol/forbidden.ts": source });
+    const result = runPolicy(root);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(diagnostic);
+  });
+
+  it("rejects composed infrastructure from explicit launch profiles", async () => {
+    const root = await fixture({
+      "src/features/launch/forbidden.ts": "import { protocol } from '../../foundation/native-host-protocol/index.js'; export { protocol };",
+    });
+    const result = runPolicy(root);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("composed infrastructure dependency");
+  });
+
+  it("rejects a replacement lightweight terminal parser or renderer in native sources", async () => {
+    const root = await fixture({ "native/windows/parser.ts": "class LightweightTerminalParser {}" });
+    const result = runPolicy(root);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("new lightweight terminal parser or renderer");
+  });
+
   it("rejects cross-owner private imports through the containing architecture gate", async () => {
     const root = await fixture({
       "src/cli/dispatch.ts": "import { value } from '../features/launch/private.js'; export { value };",
