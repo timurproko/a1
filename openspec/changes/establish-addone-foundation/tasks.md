@@ -171,7 +171,7 @@ No replacement terminal implementation SHALL begin until tasks 1.122–1.135 com
 
 ## 1G. Manual-First Transparent Checkpoint
 
-- [ ] 1.153 After tasks 1.146–1.152 pass, pack one exact local candidate and provide build/install/launch steps plus a checklist for rendering, characters, visual stability, rapid input, Ctrl keys, selection, clipboard, mouse/wheel, dialogs, resize, normal/error exit, and parent-shell behavior. The user SHALL launch, interact with, and close it manually; no test or agent SHALL automate focus, input, window control, application closure, or process cleanup on the active desktop. Preserve explicit user acceptance or findings, correct failures, and repeat this checkpoint before automated physical-host work begins.
+- [x] 1.153 After tasks 1.146–1.152 pass, pack one exact local candidate and provide build/install/launch steps plus a checklist for rendering, characters, visual stability, rapid input, Ctrl keys, selection, clipboard, mouse/wheel, dialogs, resize, normal/error exit, and parent-shell behavior. The user SHALL launch, interact with, and close it manually; no test or agent SHALL automate focus, input, window control, application closure, or process cleanup on the active desktop. Preserve explicit user acceptance or findings, correct failures, and repeat this checkpoint before automated physical-host work begins.
 
 ## 1H. Post-Manual Isolated Physical Automation and Certification
 

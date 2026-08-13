@@ -55,6 +55,7 @@ Compare `pi` launched directly with `addone`, using the same terminal, directory
 ## Manual findings
 
 - First Windows `npm start` attempt: `spawn pi ENOENT`. Cause: the global npm command is a standard `.cmd` shim while transparent launch disables shell execution. Corrected generically by resolving PATH and unwrapping only the audited standard npm Windows shim format to its Node executable and CLI entry point; arbitrary command scripts remain rejected.
+- Manual retest of the corrected Windows development candidate was explicitly accepted by the user: rendering and input behaved as expected, with no observed rendering or input issues.
 
 ## Report
 
