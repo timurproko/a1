@@ -11,14 +11,14 @@ describe("mutable bootstrap boundary", () => {
       readFile(resolve(repository, "bin/addone.js"), "utf8"),
       readFile(resolve(repository, "bin/addone-ui.js"), "utf8"),
     ]);
-    expect(bin).toContain('import("../dist/src/bootstrap.js")');
-    expect(ui).toContain('import { runTransparentForeground } from "../dist/src/transparent/main.js"');
+    expect(bin).toContain('import("../dist/src/foundation/release/index.js")');
+    expect(ui).toContain('import { runTransparentForeground } from "../dist/src/foundation/transparent-terminal/main.js"');
     expect(`${bin}\n${ui}`).not.toMatch(/node-pty|pi-tui|@xterm|host-terminal-renderer|terminal-input/);
     expect(`${bin}\n${ui}`).not.toMatch(/Start-Process|wt\.exe|SendInput|SetForegroundWindow/);
   });
 
   it("keeps the dependency-light coordinator free of terminal implementation imports", async () => {
-    const bootstrap = await readFile(resolve(repository, "src/bootstrap.ts"), "utf8");
+    const bootstrap = await readFile(resolve(repository, "src/foundation/release/bootstrap.ts"), "utf8");
     expect(bootstrap).not.toMatch(/from ["']\.\/(?:ui|supervisor|drivers|presentation)/);
     expect(bootstrap).not.toMatch(/node-pty|pi-tui|@xterm/);
   });

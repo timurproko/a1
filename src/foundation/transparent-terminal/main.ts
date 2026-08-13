@@ -1,9 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { realpath } from "node:fs/promises";
 import { resolve } from "node:path";
-import { SupervisorClient } from "../protocol/client.js";
-import { resolveAddOnePaths } from "../supervisor/paths.js";
-import type { TransparentTerminalLaunchProfile } from "../domain/index.js";
+import type { TransparentTerminalLaunchProfile } from "../lifecycle/index.js";
+import { SupervisorClient } from "../protocol/index.js";
+import { resolveAddOnePaths } from "../supervision/index.js";
 import { runForegroundBroker, type TransparentStopReason } from "./foreground-broker.js";
 import { createPlatformTransparentLauncher } from "./native-launcher.js";
 

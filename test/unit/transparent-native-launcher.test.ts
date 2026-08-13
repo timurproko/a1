@@ -2,13 +2,13 @@ import { EventEmitter } from "node:events";
 import { readFile } from "node:fs/promises";
 import type { ChildProcess, SpawnOptions } from "node:child_process";
 import { describe, expect, it, vi } from "vitest";
-import type { TransparentTerminalLaunchProfile } from "../../src/domain/model.js";
+import type { TransparentTerminalLaunchProfile } from "../../src/foundation/lifecycle/index.js";
 import {
   createPlatformTransparentLauncher,
   UnixTransparentLauncher,
   WindowsTransparentLauncher,
   type NativeSpawnAdapter,
-} from "../../src/transparent/native-launcher.js";
+} from "../../src/foundation/transparent-terminal/native-launcher.js";
 
 const profile: TransparentTerminalLaunchProfile = {
   id: "profile", terminalCapability: "transparent", executable: "tool", arguments: ["--exact", "value with spaces"], cwd: "workspace",
@@ -72,7 +72,7 @@ describe("platform transparent native launchers", () => {
   });
 
   it("contains no PTY, terminal byte read/write, mode, or process-group mutation", async () => {
-    const source = await readFile("src/transparent/native-launcher.ts", "utf8");
+    const source = await readFile("src/foundation/transparent-terminal/native-launcher.ts", "utf8");
     expect(source).not.toMatch(/node-pty|conpty|@xterm|ReadConsoleInputW|\?\s*9001|setRawMode|\.stdin|\.stdout|\.stderr|\.on\(["']data|\.write\(/i);
     expect(source).toContain('stdio: "inherit"');
     expect(source).toContain("shell: false");

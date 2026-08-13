@@ -36,14 +36,14 @@ describe("terminal-core architecture policy", () => {
     ["SetConsoleMode(handle, mode);", "terminal input or mode mediation"],
     ["render(framebuffer);", "terminal parsing or display reconstruction"],
   ])("rejects transparent interception: %s", async (source, diagnostic) => {
-    const root = await fixture({ "src/transparent/forbidden.ts": source });
+    const root = await fixture({ "src/foundation/transparent-terminal/forbidden.ts": source });
     const result = runPolicy(root);
     expect(result.status).toBe(1);
     expect(result.stderr).toContain(diagnostic);
   });
 
   it("requires native transparent launchers to inherit handles without a shell", async () => {
-    const root = await fixture({ "src/transparent/native-launcher.ts": "export function launch() { return spawn('tool'); }" });
+    const root = await fixture({ "src/foundation/transparent-terminal/native-launcher.ts": "export function launch() { return spawn('tool'); }" });
     const result = runPolicy(root);
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("must inherit physical standard handles");

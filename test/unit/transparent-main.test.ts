@@ -5,14 +5,14 @@ describe("transparent CLI composition", () => {
   it("binds bootstrap UI entry to the common broker without desktop automation", async () => {
     const [entry, main] = await Promise.all([
       readFile("bin/addone-ui.js", "utf8"),
-      readFile("src/transparent/main.ts", "utf8"),
+      readFile("src/foundation/transparent-terminal/main.ts", "utf8"),
     ]);
     expect(entry).toContain("runTransparentForeground");
     expect(main).toContain("runForegroundBroker");
     expect(main).toContain("createPlatformTransparentLauncher");
     expect(`${entry}\n${main}`).not.toMatch(/Start-Process|wt\.exe|SendInput|SetForegroundWindow|ReadConsoleInputW|node-pty|@xterm/i);
     expect(main).not.toMatch(/process\.(?:stdin|stdout|stderr)|\.on\(["']data|\.pipe\(/);
-    const resolution = await readFile("src/transparent/command-resolution.ts", "utf8");
+    const resolution = await readFile("src/foundation/transparent-terminal/command-resolution.ts", "utf8");
     expect(resolution).not.toMatch(/cmd\.exe|ComSpec|shell:\s*true|Start-Process/i);
   });
 

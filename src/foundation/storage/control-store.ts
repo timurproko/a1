@@ -7,7 +7,7 @@ import type {
   GenerationId,
   NativeProcessIdentity,
   TransparentTerminalLifecycleOutcome,
-} from "../domain/index.js";
+} from "../lifecycle/index.js";
 
 const INITIAL_WORKSPACE_ID = "workspace-default";
 

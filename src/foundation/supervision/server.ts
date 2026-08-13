@@ -9,9 +9,9 @@ import {
   type ForegroundTerminalLease,
   type SupervisorCommand,
   type SupervisorSnapshot,
-} from "../domain/index.js";
+} from "../lifecycle/index.js";
 import { encodeFrame, isCommandMessage, isControlHello, LineFrameDecoder, localControlHello, MAX_CONTROL_FRAME_BYTES, negotiateControlFeatures, type ServerMessage } from "../protocol/index.js";
-import type { MaterializedRelease } from "../release-store.js";
+import type { MaterializedRelease } from "../release/index.js";
 import { ControlStore } from "../storage/index.js";
 import { resolveAddOnePaths, type AddOnePaths } from "./paths.js";
 

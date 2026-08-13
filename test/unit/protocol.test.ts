@@ -5,8 +5,8 @@ import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { SupervisorClient } from "../../src/protocol/client.js";
-import { encodeFrame, GENERATED_CONTRACT_DIGEST, LineFrameDecoder, localControlHello, negotiateControlFeatures } from "../../src/protocol/messages.js";
+import { SupervisorClient } from "../../src/foundation/protocol/index.js";
+import { encodeFrame, GENERATED_CONTRACT_DIGEST, LineFrameDecoder, localControlHello, negotiateControlFeatures } from "../../src/foundation/protocol/index.js";
 
 describe("additive protocol framing", () => {
   it("decodes partial and combined LF frames", () => {

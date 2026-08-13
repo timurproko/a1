@@ -1,6 +1,6 @@
 import { spawn, type ChildProcess, type SpawnOptions } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import type { TransparentTerminalLaunchProfile, TransparentTerminalLifecycleOutcome } from "../domain/index.js";
+import type { TransparentTerminalLaunchProfile, TransparentTerminalLifecycleOutcome } from "../lifecycle/index.js";
 import type { TransparentChildHandle, TransparentNativeLauncher, TransparentStopReason } from "./foreground-broker.js";
 import { resolveTransparentCommand } from "./command-resolution.js";
 

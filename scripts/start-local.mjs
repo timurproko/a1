@@ -6,8 +6,8 @@ import { fileURLToPath } from "node:url";
 const packageRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const canonicalRoot = await realpath(packageRoot);
 const [{ deriveReleaseIdentity }, { resolveDevelopmentLaunchEnvironment }] = await Promise.all([
-  import("../dist/src/release.js"),
-  import("../dist/src/development-launch.js"),
+  import("../dist/src/foundation/release/index.js"),
+  import("../dist/src/features/launch/index.js"),
 ]);
 const release = await deriveReleaseIdentity(packageRoot);
 const { checkoutId, instanceId, developmentRoot, environment } = resolveDevelopmentLaunchEnvironment(

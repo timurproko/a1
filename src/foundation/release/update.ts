@@ -13,10 +13,10 @@ import {
   waitForProcessExit,
   waitForVerifiedEndpoint,
 } from "./bootstrap.js";
+import { resolveAddOnePaths } from "../lifecycle/index.js";
+import { encodeFrame, LineFrameDecoder } from "../protocol/index.js";
 import { CohortStateStore, type SupervisorEndpointMetadata } from "./cohort-state.js";
-import { resolveAddOnePaths } from "./paths.js";
 import { cleanupVerifiedOwner, processIsAlive } from "./process-cleanup.js";
-import { encodeFrame, LineFrameDecoder } from "./protocol/messages.js";
 import { materializeRelease, readMaterializedRelease } from "./release-store.js";
 import { UpdateTransactionStore, type UpdateTransaction, type UpdateTransactionPhase } from "./update-transaction.js";
 

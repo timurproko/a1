@@ -6,7 +6,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { inc } from "semver";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { ADDONE_PACKAGE } from "../../src/update.js";
+import { ADDONE_PACKAGE } from "../../src/foundation/release/index.js";
 
 const execFileAsync = promisify(execFile);
 const repository = resolve(fileURLToPath(new URL("../..", import.meta.url)));
@@ -48,7 +48,7 @@ describe("update CLI dispatch", () => {
     await writeFile(loader, `
 import { appendFileSync } from "node:fs";
 export async function resolve(specifier, context, nextResolve) {
-  if (specifier === "node-pty" || specifier.includes("/dist/src/ui/") || specifier.includes("/dist/src/supervisor/") || (process.argv.includes("version") && (specifier.includes("/dist/src/update.js") || specifier.includes("/dist/src/bootstrap.js") || specifier.includes("/dist/src/cohort-state.js")))) {
+  if (specifier === "node-pty" || specifier.includes("/dist/src/foundation/supervision/") || specifier.includes("/dist/src/foundation/transparent-terminal/") || (process.argv.includes("version") && specifier.includes("/dist/src/foundation/release/"))) {
     appendFileSync(${JSON.stringify(forbiddenImportLog)}, specifier + "\\n");
     throw new Error("Update imported forbidden interactive runtime module: " + specifier);
   }

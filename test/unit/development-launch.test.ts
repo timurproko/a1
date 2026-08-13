@@ -1,7 +1,7 @@
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { resolveDevelopmentLaunchEnvironment } from "../../src/development-launch.js";
-import { resolveAddOnePaths } from "../../src/paths.js";
+import { resolveDevelopmentLaunchEnvironment } from "../../src/features/launch/index.js";
+import { resolveAddOnePaths } from "../../src/foundation/lifecycle/index.js";
 
 describe("repository-local development launch", () => {
   it("gives simultaneous launches from the same checkout and build independent instances", () => {

@@ -7,8 +7,8 @@ import type {
   SupervisorCommand,
   TransparentTerminalLaunchProfile,
   TransparentTerminalLifecycleOutcome,
-} from "../domain/index.js";
-import { assertNativeProcessIdentity, assertTransparentTerminalLaunchProfile } from "../domain/index.js";
+} from "../lifecycle/index.js";
+import { assertNativeProcessIdentity, assertTransparentTerminalLaunchProfile } from "../lifecycle/index.js";
 
 export interface ForegroundLeaseControl {
   command(command: SupervisorCommand): Promise<CommandResult>;

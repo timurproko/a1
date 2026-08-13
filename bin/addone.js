@@ -9,7 +9,7 @@ if (process.argv[2] === "version") {
   } else {
     const [{ fileURLToPath }, { runVersionStats }] = await Promise.all([
       import("node:url"),
-      import("../dist/src/version-stats.js"),
+      import("../dist/src/cli/index.js"),
     ]);
     process.exitCode = await runVersionStats({ packageRoot: fileURLToPath(packageRoot) });
   }
@@ -20,7 +20,7 @@ if (process.argv[2] === "version") {
   } else {
     const [{ fileURLToPath }, { runSelfUpdate }] = await Promise.all([
       import("node:url"),
-      import("../dist/src/update.js"),
+      import("../dist/src/foundation/release/index.js"),
     ]);
     process.exitCode = await runSelfUpdate({
       packageRoot: fileURLToPath(packageRoot),
@@ -33,7 +33,7 @@ if (process.argv[2] === "version") {
 } else {
   const [{ fileURLToPath }, { runBootstrap }] = await Promise.all([
     import("node:url"),
-    import("../dist/src/bootstrap.js"),
+    import("../dist/src/foundation/release/index.js"),
   ]);
   process.exitCode = await runBootstrap({ packageRoot: fileURLToPath(packageRoot) });
 }

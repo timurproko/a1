@@ -66,7 +66,7 @@ for (const file of await walk(sourceRoot)) {
     if (pattern.test(source)) errors.push(`${path}: ${label} is forbidden`);
   }
 
-  if (path.startsWith("src/transparent/")) {
+  if (path.startsWith("src/foundation/transparent-terminal/")) {
     const transparentForbidden = [
       { pattern: /(?:node-pty|@xterm|conpty|portable-pty|wezterm)/i, label: "PTY or terminal emulator dependency" },
       { pattern: /(?:process\.(?:stdin|stdout|stderr)|\.on\(\s*["']data|\.pipe\(|TextDecoder|StringDecoder)/, label: "terminal input/output read or relay" },

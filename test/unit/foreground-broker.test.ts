@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it, vi } from "vitest";
-import type { CommandResult, SupervisorCommand, TransparentTerminalLaunchProfile } from "../../src/domain/model.js";
-import { runForegroundBroker, type ForegroundLeaseControl, type TransparentNativeLauncher } from "../../src/transparent/foreground-broker.js";
+import type { CommandResult, SupervisorCommand, TransparentTerminalLaunchProfile } from "../../src/foundation/lifecycle/index.js";
+import { runForegroundBroker, type ForegroundLeaseControl, type TransparentNativeLauncher } from "../../src/foundation/transparent-terminal/foreground-broker.js";
 
 const profile: TransparentTerminalLaunchProfile = {
   id: "profile", terminalCapability: "transparent", executable: "pi", arguments: ["--offline"], cwd: ".", environment: {},
@@ -71,7 +71,7 @@ describe("transparent foreground broker", () => {
   });
 
   it("contains no ordinary input/output read, relay, parser, or timer mechanism", async () => {
-    const source = await readFile("src/transparent/foreground-broker.ts", "utf8");
+    const source = await readFile("src/foundation/transparent-terminal/foreground-broker.ts", "utf8");
     expect(source).not.toMatch(/process\.(?:stdin|stdout|stderr)|\.on\(["']data|\.pipe\(|setTimeout|setInterval|Buffer|TextDecoder|parse|encode|relay|render/i);
     expect(source).not.toMatch(/node:child_process|node-pty|conpty|@xterm/);
   });

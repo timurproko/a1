@@ -5,9 +5,9 @@ import { platform } from "node:os";
 import { resolve } from "node:path";
 import { selectCohortLaunch, type OwnershipProbe } from "./cohort-selection.js";
 import { CohortStateStore, type SupervisorEndpointMetadata } from "./cohort-state.js";
-import { resolveAddOnePaths } from "./paths.js";
+import { resolveAddOnePaths } from "../lifecycle/index.js";
+import { encodeFrame, LineFrameDecoder } from "../protocol/index.js";
 import { cleanupProvenIdleOwner, processIsAlive } from "./process-cleanup.js";
-import { encodeFrame, LineFrameDecoder } from "./protocol/messages.js";
 import { materializeRelease, readMaterializedRelease, resolveReleaseEntryPoint, verifyMaterializedRelease, type MaterializedRelease } from "./release-store.js";
 
 export interface BootstrapOptions {

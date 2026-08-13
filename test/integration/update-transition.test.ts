@@ -3,11 +3,11 @@ import { chmod, mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { selectCohortLaunch } from "../../src/cohort-selection.js";
-import { CohortStateStore, type SupervisorEndpointMetadata } from "../../src/cohort-state.js";
-import { cleanupProvenIdleOwner } from "../../src/process-cleanup.js";
-import { materializeRelease, verifyMaterializedRelease, type MaterializedRelease } from "../../src/release-store.js";
-import { runSelfUpdate, type UpdateLifecycleCoordinator, type UpdateTransactionJournal } from "../../src/update.js";
+import { selectCohortLaunch } from "../../src/foundation/release/index.js";
+import { CohortStateStore, type SupervisorEndpointMetadata } from "../../src/foundation/release/index.js";
+import { cleanupProvenIdleOwner } from "../../src/foundation/release/index.js";
+import { materializeRelease, verifyMaterializedRelease, type MaterializedRelease } from "../../src/foundation/release/index.js";
+import { runSelfUpdate, type UpdateLifecycleCoordinator, type UpdateTransactionJournal } from "../../src/foundation/release/index.js";
 
 const cleanupRoots: string[] = [];
 afterEach(async () => Promise.all(cleanupRoots.splice(0).map(root => rm(root, { recursive: true, force: true }))));

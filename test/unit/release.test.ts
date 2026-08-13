@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { deriveReleaseIdentity, resolveWithin } from "../../src/release.js";
+import { deriveReleaseIdentity, resolveWithin } from "../../src/foundation/release/index.js";
 
 const roots: string[] = [];
 

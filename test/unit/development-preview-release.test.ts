@@ -6,7 +6,7 @@ import {
   requireManuallyAcceptedDevelopmentPreview,
   selectDevelopmentPreviewCandidate,
   verifyDevelopmentPreviewRegistry,
-} from "../../src/development-preview-release.js";
+} from "../../src/foundation/release/index.js";
 
 describe("development preview release planning", () => {
   it("records a manually accepted preview as explicitly uncertified and stable-ineligible", () => {

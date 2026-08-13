@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { appendFileSync, mkdirSync } from "node:fs";
-import { assertImmutableExecutionRoot, readMaterializedRelease } from "../release-store.js";
+import { assertImmutableExecutionRoot, readMaterializedRelease } from "../release/index.js";
 import { ControlStore } from "../storage/index.js";
 import { resolveAddOnePaths } from "./paths.js";
 import { SupervisorServer } from "./server.js";

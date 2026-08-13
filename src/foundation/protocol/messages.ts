@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { CommandResult, SupervisorCommand, SupervisorSnapshot } from "../domain/index.js";
+import type { CommandResult, SupervisorCommand, SupervisorSnapshot } from "../lifecycle/index.js";
 
 export const CONTROL_ENVELOPE = "addone-control-envelope" as const;
 export const CONTROL_ENVELOPE_REVISION = 1 as const;
