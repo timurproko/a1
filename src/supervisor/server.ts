@@ -9,21 +9,16 @@ import type {
   GenerationId,
   LogicalTerminalAgent,
   LogicalWorkspace,
-  NativePiProfile,
   OrderedEvent,
-  ProcessGeneration,
   SupervisorCommand,
   SupervisorSnapshot,
-  TerminalDriver,
-  TerminalDriverEvent,
-  TerminalDriverHandle,
 } from "../domain/index.js";
-import { assertDimensions } from "../domain/index.js";
 import { encodeFrame, isCommandMessage, isControlHello, LineFrameDecoder, localControlHello, MAX_CONTROL_FRAME_BYTES, negotiateControlFeatures, type ServerMessage } from "../protocol/index.js";
-import { ControlStore } from "../storage/index.js";
 import type { MaterializedRelease } from "../release-store.js";
+import { ControlStore } from "../storage/index.js";
 import { resolveAddOnePaths, type AddOnePaths } from "./paths.js";
 
+/** Lifecycle-only supervisor used while terminal execution is unavailable. */
 export class SupervisorServer {
   readonly id = randomUUID();
   readonly bootNonce: string;
@@ -35,14 +30,11 @@ export class SupervisorServer {
   #agents: LogicalTerminalAgent[];
   #revision = 0;
   #clients = new Set<Socket>();
-  #handles = new Map<AgentId, TerminalDriverHandle>();
   #results = new Map<string, CommandResult>();
-  #ensuringInitialAgent: Promise<void> | null = null;
   #metadataWrites: Promise<void> = Promise.resolve();
 
   constructor(
     readonly store: ControlStore,
-    readonly driver: TerminalDriver,
     paths = resolveAddOnePaths(),
     readonly release: MaterializedRelease,
     bootNonce = randomUUID(),
@@ -77,8 +69,7 @@ export class SupervisorServer {
     await this.#writeEndpointMetadata();
   }
 
-  async close(stopAgents = false): Promise<void> {
-    if (stopAgents) await Promise.all([...this.#handles.values()].map(handle => handle.stop()));
+  async close(_stopAgents = false): Promise<void> {
     for (const client of this.#clients) client.destroy();
     if (this.#server) await new Promise<void>(resolve => this.#server?.close(() => resolve()));
     this.#server = null;
@@ -90,10 +81,6 @@ export class SupervisorServer {
 
   async closeForReleaseReplacement(stopAgents: boolean): Promise<void> {
     await this.close(stopAgents);
-    // A detached supervisor is a dedicated process. Closing its server and
-    // database is not sufficient proof that every native/platform handle lets
-    // Node's event loop drain promptly, so release replacement terminates only
-    // after owned resources and endpoint metadata have been closed.
     this.terminateProcess(0);
   }
 
@@ -105,43 +92,36 @@ export class SupervisorServer {
       try {
         for (const value of decoder.push(chunk)) {
           if (!welcomed) {
-            if (typeof value === "object" && value !== null && "type" in value && value.type === "identity-probe") {
+            if (isMessageType(value, "identity-probe")) {
               this.#send(socket, { type: "identity", supervisorId: this.id, bootNonce: this.bootNonce, pidStartIdentity: this.pidStartIdentity, releaseId: this.release.releaseId });
               continue;
             }
-            if (typeof value === "object" && value !== null && "type" in value && value.type === "release-idle-ownership") {
+            if (isMessageType(value, "release-idle-ownership")) {
               const request = value as { bootNonce?: unknown; candidateReleaseId?: unknown };
-              const liveGenerationIds = this.#liveHandleGenerationIds();
-              const released = request.bootNonce === this.bootNonce && typeof request.candidateReleaseId === "string" && liveGenerationIds.length === 0;
+              const released = request.bootNonce === this.bootNonce && typeof request.candidateReleaseId === "string";
               this.#send(socket, {
                 type: "release-ownership-result",
                 released,
-                reason: released ? "idle cohort released ownership" : request.bootNonce !== this.bootNonce ? "boot nonce mismatch" : "live generations prevent ownership release",
-                liveGenerationIds,
+                reason: released ? "lifecycle-only cohort released ownership" : "boot nonce or candidate release mismatch",
+                liveGenerationIds: [],
               });
               if (released) setTimeout(() => void this.closeForReleaseReplacement(false), 25);
               continue;
             }
-            if (typeof value === "object" && value !== null && "type" in value && value.type === "release-update-ownership") {
+            if (isMessageType(value, "release-update-ownership")) {
               const request = value as { bootNonce?: unknown; targetVersion?: unknown };
-              const liveGenerationIds = this.#liveHandleGenerationIds();
               const accepted = request.bootNonce === this.bootNonce && typeof request.targetVersion === "string";
               this.#send(socket, {
                 type: "release-update-result",
                 accepted,
                 reason: accepted ? "verified AddOne owner accepted immediate update shutdown" : "boot nonce or target version mismatch",
-                liveGenerationIds,
+                liveGenerationIds: [],
               });
               if (accepted) setTimeout(() => void this.closeForReleaseReplacement(true), 25);
               continue;
             }
             if (!isControlHello(value)) {
-              this.#send(socket, {
-                type: "protocol-error",
-                code: "invalid-control-handshake",
-                message: "the first message must be a valid AddOne control feature handshake",
-                diagnostics: { received: value },
-              });
+              this.#send(socket, { type: "protocol-error", code: "invalid-control-handshake", message: "the first message must be a valid AddOne control feature handshake", diagnostics: { received: value } });
               socket.destroy();
               return;
             }
@@ -158,7 +138,6 @@ export class SupervisorServer {
           } else if (isCommandMessage(value)) {
             void this.#execute(value.command, socket);
           }
-          // Unknown post-handshake message types are additive and ignored safely.
         }
       } catch (error) {
         this.#send(socket, { type: "protocol-error", code: "framing-error", message: error instanceof Error ? error.message : String(error) });
@@ -177,126 +156,34 @@ export class SupervisorServer {
     }
     let result: CommandResult;
     try {
-      if (command.type === "create-terminal-agent") {
-        assertDimensions(command.dimensions);
-        await this.#createAgent(command.cwd, command.dimensions);
-      } else if (command.type === "ensure-initial-terminal-agent") {
-        assertDimensions(command.dimensions);
-        await this.#ensureInitialAgent(command.cwd, command.dimensions);
-      } else if (command.type === "stop-agent") {
-        await this.#currentHandle(command.agentId, command.generationId).stop();
-      } else if (command.type === "resynchronize") {
-        this.#send(socket, { type: "snapshot", snapshot: this.snapshot() });
+      if (command.type === "create-terminal-agent" || command.type === "ensure-initial-terminal-agent") {
+        throw new Error("terminal capability is unavailable during redesign");
       }
+      if (command.type === "stop-agent") this.#stopRecordedGeneration(command.agentId, command.generationId);
+      if (command.type === "resynchronize") this.#send(socket, { type: "snapshot", snapshot: this.snapshot() });
       result = { requestId: command.requestId, ok: true, revision: this.#revision };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      const code = /stale generation/i.test(message) ? "stale-generation" : /not found/i.test(message) ? "not-found" : "driver-error";
+      const code = /capability is unavailable/i.test(message) ? "capability-error"
+        : /stale generation/i.test(message) ? "stale-generation"
+          : /not found/i.test(message) ? "not-found" : "driver-error";
       result = { requestId: command.requestId, ok: false, revision: this.#revision, error: { code, message } };
     }
     this.#results.set(command.requestId, result);
     this.#send(socket, { type: "command-result", result });
   }
 
-  async #ensureInitialAgent(cwd: string, dimensions: { columns: number; rows: number }): Promise<void> {
-    const selected = this.#agents.find(agent => agent.id === this.#workspace.selectedAgentId);
-    const resident = selected ? this.#handles.get(selected.id) : undefined;
-    if (selected && resident && !["exited", "stopped", "error"].includes(selected.currentGeneration.state)) return;
-    if (!this.#ensuringInitialAgent) {
-      this.#ensuringInitialAgent = this.#createAgent(cwd, dimensions).finally(() => { this.#ensuringInitialAgent = null; });
-    }
-    await this.#ensuringInitialAgent;
-  }
-
-  async #createAgent(cwd: string, dimensions: { columns: number; rows: number }): Promise<void> {
-    const agentId = randomUUID();
-    const generationId = randomUUID();
-    const profile: NativePiProfile = {
-      id: randomUUID(),
-      kind: "native-pi",
-      executable: process.env.ADDONE_NATIVE_PI_EXECUTABLE ?? "pi",
-      arguments: nativePiArguments(process.env.ADDONE_NATIVE_PI_ARGUMENTS),
-      cwd,
-      environment: pickEnvironment(["PATH", "PATHEXT", "SystemRoot", "ComSpec", "HOME", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "PI_CODING_AGENT_DIR", "PI_CONFIG_DIR", "PI_OFFLINE", "NO_COLOR"]),
-      terminalType: "xterm-256color",
-      dimensions,
-      resume: "none",
-    };
-    const generation: ProcessGeneration = {
-      id: generationId,
-      agentId,
-      sequence: 1,
-      profileId: profile.id,
-      state: "starting",
-      capabilities: ["process-stop"],
-      startedAt: new Date().toISOString(),
-      exitedAt: null,
-      exitCode: null,
-      signal: null,
-      error: null,
-      ownerBootNonce: this.bootNonce,
-    };
-    const agent: LogicalTerminalAgent = {
-      id: agentId,
-      workspaceId: this.#workspace.id,
-      name: `Native Pi ${this.#agents.length + 1}`,
-      driverKind: "terminal",
-      profile,
-      currentGeneration: generation,
-      createdAt: generation.startedAt,
-    };
-    this.store.createTerminalAgent(agent);
-    this.#agents = [...this.#agents, agent];
-    this.#workspace = { ...this.#workspace, agentIds: [...this.#workspace.agentIds, agentId], selectedAgentId: agentId };
-    void this.#writeEndpointMetadata();
-    this.#publish({ type: "agent-created", agent });
-    this.#publish({ type: "selection-changed", workspaceId: this.#workspace.id, agentId });
-    try {
-      const handle = await this.driver.start(agentId, generationId, profile, event => this.#onDriverEvent(event));
-      this.#handles.set(agentId, handle);
-      this.#replaceAgent(agentId, current => ({ ...current, currentGeneration: { ...current.currentGeneration, state: "ready" } }));
-      this.store.markGeneration(agentId, generationId, "ready");
-      this.#publish({ type: "generation-ready", agentId, generationId });
-      void this.#writeEndpointMetadata();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      this.store.markGeneration(agentId, generationId, "error", { error: message });
-      this.#replaceAgent(agentId, current => ({ ...current, currentGeneration: { ...current.currentGeneration, state: "error", error: message, exitedAt: new Date().toISOString() } }));
-      this.#publish({ type: "generation-failed", agentId, generationId, message });
-      void this.#writeEndpointMetadata();
-      throw error;
-    }
-  }
-
-  #onDriverEvent(event: TerminalDriverEvent): void {
-    const agent = this.#agents.find(candidate => candidate.id === event.agentId);
-    if (!agent || agent.currentGeneration.id !== event.generationId) return;
-    if (event.type === "exit") {
-      this.#handles.delete(event.agentId);
-      this.store.markGeneration(event.agentId, event.generationId, "exited", { exitCode: event.exitCode, signal: event.signal });
-      this.#replaceAgent(event.agentId, current => ({
-        ...current,
-        currentGeneration: { ...current.currentGeneration, state: "exited", exitedAt: new Date().toISOString(), exitCode: event.exitCode, signal: event.signal },
-      }));
-      this.#publish({ type: "generation-exited", agentId: event.agentId, generationId: event.generationId, exitCode: event.exitCode, signal: event.signal });
-      void this.#writeEndpointMetadata();
-    } else {
-      this.store.markGeneration(event.agentId, event.generationId, "error", { error: event.message });
-      this.#publish({ type: "generation-failed", agentId: event.agentId, generationId: event.generationId, message: event.message });
-    }
-  }
-
-  #currentHandle(agentId: AgentId, generationId: GenerationId): TerminalDriverHandle {
+  #stopRecordedGeneration(agentId: AgentId, generationId: GenerationId): void {
     const agent = this.#agents.find(candidate => candidate.id === agentId);
     if (!agent) throw new Error(`agent ${agentId} not found`);
     if (agent.currentGeneration.id !== generationId) throw new Error(`stale generation ${generationId}`);
-    const handle = this.#handles.get(agentId);
-    if (!handle) throw new Error(`driver for agent ${agentId} not found`);
-    return handle;
-  }
-
-  #replaceAgent(agentId: AgentId, update: (agent: LogicalTerminalAgent) => LogicalTerminalAgent): void {
-    this.#agents = this.#agents.map(agent => agent.id === agentId ? update(agent) : agent);
+    if (["exited", "stopped", "interrupted", "error"].includes(agent.currentGeneration.state)) return;
+    this.store.markGeneration(agentId, generationId, "stopped");
+    this.#agents = this.#agents.map(candidate => candidate.id === agentId ? {
+      ...candidate,
+      currentGeneration: { ...candidate.currentGeneration, state: "stopped", exitedAt: new Date().toISOString() },
+    } : candidate);
+    this.#publish({ type: "generation-exited", agentId, generationId, exitCode: null, signal: null });
   }
 
   #publish(event: AddOneEvent): void {
@@ -304,17 +191,7 @@ export class SupervisorServer {
     for (const client of this.#clients) this.#send(client, { type: "event", ordered });
   }
 
-  #liveHandleGenerationIds(): string[] {
-    const live: string[] = [];
-    for (const [agentId] of this.#handles) {
-      const agent = this.#agents.find(candidate => candidate.id === agentId);
-      if (agent) live.push(agent.currentGeneration.id);
-    }
-    return live;
-  }
-
   #writeEndpointMetadata(): Promise<void> {
-    const liveGenerationIds = this.#liveHandleGenerationIds();
     const metadata = {
       ...localControlHello(this.release.releaseId),
       supervisorId: this.id,
@@ -327,11 +204,7 @@ export class SupervisorServer {
       releaseId: this.release.releaseId,
       releaseRoot: this.release.releaseRoot,
       contentDigest: this.release.contentDigest,
-      ownership: {
-        state: liveGenerationIds.length > 0 ? "busy" : "idle",
-        liveGenerationIds,
-        nonResumableGenerationIds: liveGenerationIds,
-      },
+      ownership: { state: "idle", liveGenerationIds: [], nonResumableGenerationIds: [] },
     };
     const temporary = `${this.paths.endpointMetadataPath}.${process.pid}.tmp`;
     this.#metadataWrites = this.#metadataWrites.then(async () => {
@@ -354,33 +227,14 @@ export class SupervisorServer {
 }
 
 export function boundInitialSupervisorSnapshot(snapshot: SupervisorSnapshot): SupervisorSnapshot {
-  // During redesign only the selected live lifecycle record belongs in the
-  // initial control handshake. Historical generations remain durable storage.
   const selected = snapshot.agents.find(agent => agent.id === snapshot.workspace.selectedAgentId);
-  const active = selected && !["exited", "stopped", "interrupted", "error"].includes(selected.currentGeneration.state)
-    ? selected
-    : null;
+  const active = selected && !["exited", "stopped", "interrupted", "error"].includes(selected.currentGeneration.state) ? selected : null;
   const agents = active ? [active] : [];
-  return {
-    ...snapshot,
-    workspace: { ...snapshot.workspace, selectedAgentId: active?.id ?? null, agentIds: agents.map(agent => agent.id) },
-    agents,
-  };
+  return { ...snapshot, workspace: { ...snapshot.workspace, selectedAgentId: active?.id ?? null, agentIds: agents.map(agent => agent.id) }, agents };
 }
 
-export function nativePiArguments(value: string | undefined): readonly string[] {
-  if (value === undefined) return [];
-  const parsed = JSON.parse(value) as unknown;
-  if (!Array.isArray(parsed) || parsed.some(argument => typeof argument !== "string" || argument.includes("\0"))) {
-    throw new Error("ADDONE_NATIVE_PI_ARGUMENTS must be a JSON array of safe strings");
-  }
-  return parsed;
-}
-
-function pickEnvironment(keys: readonly string[]): Record<string, string> {
-  const selected: Record<string, string> = {};
-  for (const key of keys) if (process.env[key] !== undefined) selected[key] = process.env[key] as string;
-  return selected;
+function isMessageType(value: unknown, type: string): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && "type" in value && value.type === type;
 }
 
 async function endpointIsLive(endpoint: string): Promise<boolean> {

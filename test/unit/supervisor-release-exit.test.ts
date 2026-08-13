@@ -4,7 +4,6 @@ import { resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { releaseVerifiedIdleOwner } from "../../src/bootstrap.js";
 import type { SupervisorEndpointMetadata } from "../../src/cohort-state.js";
-import type { TerminalDriver } from "../../src/domain/index.js";
 import type { MaterializedRelease } from "../../src/release-store.js";
 import { ControlStore } from "../../src/storage/control-store.js";
 import { SupervisorServer } from "../../src/supervisor/server.js";
@@ -36,7 +35,6 @@ describe("supervisor release replacement exit", () => {
     const store = new ControlStore(resolve(root, "control.sqlite3"), "boot");
     const server = new SupervisorServer(
       store,
-      {} as TerminalDriver,
       {
         configDir: resolve(root, "config"),
         dataDir: root,
