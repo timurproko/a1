@@ -148,9 +148,11 @@ Cleanup completion requires:
 
 Alternative considered: build the replacement beside the old path, then switch. Rejected because compatibility adapters would preserve old contracts, encourage dual authorities, and make it unclear which tests prove the new architecture.
 
-### 3. Use transparent direct attachment as the first implementation option
+### 3. Use transparent direct attachment as the selected single-foreground baseline
 
-The preferred Native Pi topology is:
+Manual acceptance and exact `0.1.5-dev.8` preview publication selected this topology for one foreground Native Pi or generic CLI process. Physical/cross-platform certification remains deferred, so selection is a development baseline rather than a stable parity/support claim. No mandatory PTY-ownership constraint was found; raw relay is not authorized. A future bare-`a1` multi-agent change must plan composed terminal ownership before adding resident arbitrary-CLI tabs, inactive surfaces, or visual reconnection.
+
+The selected Native Pi topology is:
 
 ```text
 mutable npm bin
@@ -184,7 +186,7 @@ No terminal input event, output frame, cursor, cell, mode, or query response cro
 
 Transparent attachment intentionally gives up visual reconnection, panes, virtual scrollback, and supervisor survival of an attached foreground process unless a later independently certified detach mechanism is added.
 
-Alternative considered: keep supervisor-owned PTY for process longevity. Rejected as the first option because it changes the terminal route and recreates input/output mediation before native parity has been established.
+Alternative considered: keep supervisor-owned PTY for process longevity. Rejected for the selected single-foreground capability because it changes the terminal route and recreates input/output mediation without a mandatory PTY-ownership constraint. Composition remains separate future product scope.
 
 ### 4. Measure transparent parity structurally and physically
 
