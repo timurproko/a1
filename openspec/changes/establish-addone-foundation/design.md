@@ -428,32 +428,10 @@ A separate future certification change will provision dedicated disposable Windo
 
 Rollback: remove the spike; no production contract depends on it.
 
-### Stage 7: Composed-core candidate evaluation
+### Future changes after foundation closure
 
-- Bootstrap a pinned Rust toolchain and WezTerm source revision.
-- Build a standalone conformance runner.
-- Evaluate WezTerm against the generic corpus and platform matrix.
-- If it fails, document the failed criterion and evaluate libvterm; then public-API-only xterm.js.
-- Select no candidate if none meets the authority and behavior requirements.
+- `certify-transparent-terminal-physical-parity` owns isolated disposable-worker physical input/rendering/latency comparison and stable platform support evidence. It must never drive an active workstation desktop.
+- `build-bare-a1-multi-agent-ux` owns the structured/RPC multi-agent product design and the independently selected composed-terminal capability required for resident arbitrary-CLI tabs. It must preserve transparent direct attachment as a single-foreground path and must not introduce `a1 agent`; bare `a1` is the product entry point.
+- `establish-managed-agent-runtime` owns pinned Pi RPC execution, exact-session recovery, resource profiles, extension behavior, runtime certification, migration, and rollback after the multi-agent contracts are approved.
 
-Rollback: transparent mode remains supported; composed features remain unavailable.
-
-### Stage 8: Composed integration
-
-- Select batched N-API or sidecar from measured evidence.
-- Introduce new library-neutral composed contracts and protocol features.
-- Add panes/reconnection only after authoritative snapshots, ordered operations, input, backpressure, and restoration pass.
-- Run generic, packaged multi-CLI, and supported-platform composed verdicts.
-
-Rollback: disable composed profile creation; transparent sessions remain unaffected.
-
-### Stage 9: Resume later product work
-
-- Re-plan v2 oracle, tabs/sidebar, Managed Pi, and multi-agent work against the manually accepted transparent development baseline and separately certified composed capability where those features require composition.
-- Never make later features silently move a transparent session into composed mode.
-
-## Open Questions
-
-- Which Windows UI automation implementation offers the most reliable OS-level key/mouse injection and stable screenshot capture; the oracle task will compare maintained options without changing the physical-host requirement.
-- Whether batched N-API or a native sidecar gives the better composed integration boundary; this is decided only after the standalone WezTerm candidate passes conformance.
-- Whether a future platform-supported detach mechanism can preserve a transparent process without claiming visual reconnection; transparent v1 does not depend on it.
+No candidate terminal core, native boundary, automation driver, detach mechanism, later shell feature, or Managed Pi behavior is selected by this foundation change. Each future proposal must revisit its requirements against current evidence rather than treating historical candidate ordering as authorization.

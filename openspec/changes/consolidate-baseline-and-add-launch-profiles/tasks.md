@@ -1,7 +1,7 @@
 ## 1. Close the Accepted Terminal Baseline
 
 - [x] 1.1 Update the prior foundation change with registry evidence for exact `0.1.5-dev.8` publication, mark task 1.158 complete, record transparent direct attachment as the selected single-foreground baseline under 1.159, and pass strict validation.
-- [ ] 1.2 Mark raw-relay tasks 1.160–1.161 not applicable because no mandatory PTY ownership constraint was found; move physical certification, composed arbitrary-CLI tabs, and unfinished later product milestones into explicitly named future-change scope without marking unimplemented behavior passed, then pass strict validation.
+- [x] 1.2 Mark raw-relay tasks 1.160–1.161 not applicable because no mandatory PTY ownership constraint was found; move physical certification, composed arbitrary-CLI tabs, and unfinished later product milestones into explicitly named future-change scope without marking unimplemented behavior passed, then pass strict validation.
 - [ ] 1.3 Sync the completed foundation deltas that describe current behavior and archive or otherwise formally close `establish-addone-foundation` according to OpenSpec rules; verify the resulting active-change list and main specs before baseline restructuring.
 
 ## 2. Inventory and Clean the Baseline
