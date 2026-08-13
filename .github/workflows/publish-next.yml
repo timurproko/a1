@@ -28,11 +28,16 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     environment: npm-next
+    env:
+      ACCEPTED_SOURCE_COMMIT: 53f80cf0bbe7cfe4b4a1c5ce04c6d09f1c5cad19
+      ACCEPTED_TARBALL_INTEGRITY: sha512-LXTRmoLa/8M4yl+Qqka4B53hD/ZNVXw+1cw37HCpLSrnGaLRLXSYSBt/Q8mBfl/tJEOTK1gntU7+qLmQIHlklg==
+      ACCEPTED_TARBALL_SHASUM: 74edceab2e702d3dceed8e2bae769407032bed64
     steps:
-      - name: Check out requested develop commit
+      - name: Check out exact manually accepted source
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.sha }}
+          ref: 53f80cf0bbe7cfe4b4a1c5ce04c6d09f1c5cad19
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Set up Node
@@ -49,6 +54,8 @@ jobs:
         run: |
           set -euo pipefail
           test "$GITHUB_REF" = "refs/heads/develop"
+          git merge-base --is-ancestor "$ACCEPTED_SOURCE_COMMIT" "$GITHUB_SHA"
+          test "$(git rev-parse HEAD)" = "$ACCEPTED_SOURCE_COMMIT"
           test "$CONFIRM_UNCERTIFIED" = "publish-uncertified-next"
           PACKAGE_VERSION="$(node -p "require('./package.json').version")"
           test "$PACKAGE_VERSION" = "$REQUESTED_VERSION"
@@ -59,7 +66,7 @@ jobs:
             exit 1
           fi
           echo "version=$PACKAGE_VERSION" >> "$GITHUB_ENV"
-          echo "source_commit=$GITHUB_SHA" >> "$GITHUB_ENV"
+          echo "source_commit=$ACCEPTED_SOURCE_COMMIT" >> "$GITHUB_ENV"
 
       - name: Install exact locked dependencies
         run: npm ci
@@ -81,6 +88,8 @@ jobs:
           const pack = JSON.parse(await readFile("artifacts/npm-pack-result.json", "utf8"));
           const result = pack[0];
           if (!result?.filename || !result?.integrity || !result?.shasum) throw new Error("npm pack returned incomplete metadata");
+          if (result.integrity !== process.env.ACCEPTED_TARBALL_INTEGRITY) throw new Error(`packed integrity ${result.integrity} does not match manually accepted bytes`);
+          if (result.shasum !== process.env.ACCEPTED_TARBALL_SHASUM) throw new Error(`packed shasum ${result.shasum} does not match manually accepted bytes`);
           await appendFile(process.env.GITHUB_OUTPUT, `tarball=${result.filename}\nintegrity=${result.integrity}\nshasum=${result.shasum}\n`);
           NODE
 
