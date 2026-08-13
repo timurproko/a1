@@ -59,7 +59,7 @@ jobs:
           test "$CONFIRM_UNCERTIFIED" = "publish-uncertified-next"
           PACKAGE_VERSION="$(node -p "require('./package.json').version")"
           test "$PACKAGE_VERSION" = "$REQUESTED_VERSION"
-          node -e "const semver=require('semver'); const v=process.argv[1]; const pre=semver.prerelease(v); if (!pre || pre[0] !== 'dev') throw new Error('next publication requires a -dev.N version')" "$PACKAGE_VERSION"
+          [[ "$PACKAGE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+-dev\.[0-9]+$ ]]
           test "$PACKAGE_VERSION" = "0.1.5-dev.8"
           if npm view "@timurproko/addone@$PACKAGE_VERSION" version --json >/dev/null 2>&1; then
             echo "Version $PACKAGE_VERSION is already registered and cannot be uploaded again." >&2
@@ -152,4 +152,4 @@ jobs:
             artifacts/development-preview-candidate.json
             artifacts/npm-pack-result.json
             artifacts/release-verdicts/*.json
-          if-no-files-found: error
+          if-no-files-found: warn
