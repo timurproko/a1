@@ -378,37 +378,44 @@ Rollback: planning-only; current Git history remains available.
 
 Rollback: revert cleanup commits on the milestone branch; do not publish the reverted old path as production-ready.
 
-### Stage 2: Independent physical-host oracle
+### Stage 2: Oracle foundations and automation containment
 
-- Provision dedicated disposable per-platform workers or VMs with exclusive interactive test desktops, isolation preflight, exact process/start-identity tracking, ownership-scoped cleanup, and blocked verdicts when isolation is unavailable; never run physical-host automation on the user's active workstation.
 - Build the standalone child input/output recorder without importing AddOne terminal code.
-- Implement the Windows Terminal OS-level action and screenshot driver only inside the isolated Windows worker first.
-- Record direct Native Pi and generic terminal baselines.
-- Add Linux and macOS host drivers after Windows criteria stabilize.
+- Implement and enforce isolation preflight, exact process/start-identity tracking, ownership-scoped cleanup, and blocked verdicts when isolation is unavailable; never run physical-host automation on the user's active workstation.
+- Retain the selected Windows automation driver contract, but defer automated terminal launch, focus, input, capture, and cleanup development until the manual-first transparent checkpoint passes.
 
-Rollback: oracle tooling is isolated and does not alter runtime behavior.
+Rollback: oracle foundations and containment tooling do not alter runtime behavior.
 
 ### Stage 3: Transparent direct attachment
 
 - Add foreground-terminal lease and lifecycle messages.
 - Implement platform direct attachment with inherited terminal handles.
 - Add bounded abnormal cleanup and exact outcome reporting.
-- Prove structural absence from input/output paths.
-- Run physical generic and Native Pi parity gates.
+- Prove structural absence from input/output paths with non-desktop unit and integration tests.
+- Do not run or expand automated physical-host actions in this stage.
 
 Rollback: interactive launch returns to explicit unavailable status; users continue using direct Pi or stable `latest`.
 
-### Stage 4: User validation and transparent preview
+### Stage 4: Manual-first transparent checkpoint
 
-- Pack and install one exact candidate.
-- Run automated physical-host gates.
-- Ask the user to validate rendering, characters, rapid input, control keys, selection, mouse/wheel, dialogs, resize, exit, and parent shell.
-- Convert confirmed findings into independent physical or core tests where appropriate.
+- Pack one exact local candidate after Stage 3 checks pass.
+- Provide exact build/install/launch steps and a checklist for rendering, characters, rapid input, control keys, selection, clipboard, mouse/wheel, dialogs, resize, exit, and parent shell.
+- The user launches, interacts with, and closes the candidate manually; AddOne tooling performs no automated focus, input injection, window management, application closure, or process cleanup on the active desktop.
+- Preserve findings, correct regressions, and repeat structural and manual checks until the user explicitly accepts the candidate.
+
+Rollback: the user returns to direct Pi or stable `latest`; no automation owns desktop state.
+
+### Stage 5: Isolated automated physical-host certification
+
+- Only after manual acceptance, provision dedicated disposable per-platform workers or VMs with exclusive interactive test desktops.
+- Implement and run the Windows Terminal OS-level action, screenshot, input, rendering, latency, Native Pi, and generic-corpus gates inside the isolated Windows worker.
+- Add equivalent Linux and macOS host drivers and corpus gates after Windows criteria stabilize.
+- Pack and certify exact candidate bytes on those workers; automated certification remains mandatory and manual acceptance does not substitute for it.
 - Publish `next` only after automated and manual transparent acceptance.
 
-Rollback: retain stable `latest`; activate the prior immutable preview cohort if needed.
+Rollback: discard isolated workers and retain stable `latest`; never fall back to the user's desktop.
 
-### Stage 5: Raw-relay fallback, only if direct attachment fails a required constraint
+### Stage 6: Raw-relay fallback, only if direct attachment fails a required constraint
 
 - Implement a minimal byte relay in an isolated spike.
 - Run the complete physical matrix.
@@ -416,7 +423,7 @@ Rollback: retain stable `latest`; activate the prior immutable preview cohort if
 
 Rollback: remove the spike; no production contract depends on it.
 
-### Stage 6: Composed-core candidate evaluation
+### Stage 7: Composed-core candidate evaluation
 
 - Bootstrap a pinned Rust toolchain and WezTerm source revision.
 - Build a standalone conformance runner.
@@ -426,7 +433,7 @@ Rollback: remove the spike; no production contract depends on it.
 
 Rollback: transparent mode remains supported; composed features remain unavailable.
 
-### Stage 7: Composed integration
+### Stage 8: Composed integration
 
 - Select batched N-API or sidecar from measured evidence.
 - Introduce new library-neutral composed contracts and protocol features.
@@ -435,7 +442,7 @@ Rollback: transparent mode remains supported; composed features remain unavailab
 
 Rollback: disable composed profile creation; transparent sessions remain unaffected.
 
-### Stage 8: Resume later product work
+### Stage 9: Resume later product work
 
 - Re-plan v2 oracle, tabs/sidebar, Managed Pi, and multi-agent work against the certified capability model.
 - Never make later features silently move a transparent session into composed mode.

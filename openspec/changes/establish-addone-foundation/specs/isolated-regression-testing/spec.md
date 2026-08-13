@@ -30,6 +30,21 @@ Any automated scenario that launches, focuses, drives, resizes, captures, or clo
 - **WHEN** a physical-host scenario completes, fails, or times out
 - **THEN** cleanup SHALL stop only the exact process tree created and recorded by that scenario inside its isolated worker and SHALL leave every pre-existing or unverified process untouched
 
+### Requirement: Transparent replacement receives a manual-first checkpoint
+After the transparent stack passes its non-desktop unit, integration, lifecycle, and structural zero-interception gates, AddOne SHALL produce an exact candidate and a manual validation checklist before implementing or running automated physical-host actions for that stack. The user SHALL launch, interact with, and close the candidate through ordinary terminal use. The manual checkpoint SHALL NOT inject input, focus or resize windows, launch a terminal on the user's behalf, close applications, or perform automated process cleanup. Manual acceptance permits isolated automation development to proceed but SHALL NOT replace mandatory independent automated certification.
+
+#### Scenario: Transparent implementation becomes manually testable
+- **WHEN** transparent direct attachment and its structural checks are complete
+- **THEN** AddOne SHALL provide exact build/install/launch steps and checks for rendering, characters, rapid input, control keys, selection, clipboard, mouse and wheel, dialogs, resize, exit, and parent-shell usability without starting the candidate automatically
+
+#### Scenario: User reports a manual regression
+- **WHEN** the user reports a failure during the manual-first checkpoint
+- **THEN** AddOne SHALL preserve the finding, correct the implementation, and repeat applicable non-desktop checks and manual validation before proceeding to automated physical-host certification
+
+#### Scenario: Manual checkpoint passes
+- **WHEN** the user explicitly accepts the manually launched candidate
+- **THEN** AddOne MAY implement and run physical-host automation only on the dedicated isolated workers required by this specification
+
 ### Requirement: Architecture-independent tests survive terminal replacement
 Domain, storage, release-cohort, update-transaction, protocol framing, package identity, dependency-policy, and non-terminal lifecycle tests SHALL remain mandatory when they do not encode assumptions from the retired terminal pipeline.
 
