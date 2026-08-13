@@ -1,10 +1,12 @@
 import { readFile, readdir } from "node:fs/promises";
 import { extname, relative, resolve, sep } from "node:path";
+import { inspectProjectStructureImports, projectOwnerForPath, testOwnerForPath } from "./project-structure-policy.mjs";
 
 const rootArgument = process.argv.indexOf("--root");
 const root = resolve(rootArgument >= 0 ? process.argv[rootArgument + 1] : new URL("..", import.meta.url).pathname.replace(/^\/(.:)/, "$1"));
 const sourceRoot = resolve(root, "src");
 const errors = [];
+const sourceFiles = {};
 
 async function walk(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
@@ -20,6 +22,8 @@ async function walk(directory) {
 for (const file of await walk(sourceRoot)) {
   const source = await readFile(file, "utf8");
   const path = relative(root, file).split(sep).join("/");
+  sourceFiles[path] = source;
+  if (!projectOwnerForPath(path)) errors.push(`${path}: production source has no declared owner`);
   const imports = [...source.matchAll(/(?:from\s+|import\s*\()(["'])([^"']+)\1/g)].map(match => match[2]);
 
   for (const specifier of imports) {
@@ -101,6 +105,8 @@ for (const file of await walk(sourceRoot)) {
   }
 }
 
+errors.push(...inspectProjectStructureImports(sourceFiles));
+await inspectRepositoryStructure();
 await inspectReleasePolicy();
 
 if (errors.length > 0) {
@@ -112,6 +118,37 @@ if (errors.length > 0) {
 
 function isTerminalBoundary(path) {
   return /^src\//.test(path) && /(?:^|\/)(?:terminal|pty|console|transparent|composed|foreground(?:-terminal)?)(?:[-/_.]|$)/i.test(path);
+}
+
+async function inspectRepositoryStructure() {
+  const paths = await walkRepository(root);
+  const genericSourceSegments = /(?:^|\/)src\/(?:core|common|utils|misc)(?:\/|$)/;
+  const generatedSegments = /(?:^|\/)(?:node_modules|logs?|sessions?|cache|caches|browser-profile|browser-profiles|dist|coverage)(?:\/|$)/i;
+  const nestedAuthority = /(?:^|\/)(?:package(?:-lock)?\.json)$/;
+  for (const path of paths) {
+    if (genericSourceSegments.test(path)) errors.push(`${path}: generic source dumping-ground directory is forbidden`);
+    if (path.startsWith("src/") && generatedSegments.test(path)) errors.push(`${path}: generated or runtime state is forbidden in production source`);
+    if (nestedAuthority.test(path) && !["package.json", "package-lock.json"].includes(path)) errors.push(`${path}: nested package manifest or lockfile is forbidden`);
+    if (path.startsWith("test/") && /\.test\.ts$/.test(path) && !testOwnerForPath(path)) errors.push(`${path}: test has no declared owner`);
+  }
+
+  const staleMarkers = /(?:during (?:the )?redesign|terminal redesign|milestone branch|will be added later|temporary lifecycle-only)/i;
+  for (const path of paths.filter(path => path === "README.md" || path.startsWith("docs/"))) {
+    const source = await readFile(resolve(root, path), "utf8");
+    if (staleMarkers.test(source)) errors.push(`${path}: stale redesign marker is forbidden in current documentation`);
+  }
+}
+
+async function walkRepository(directory, prefix = "") {
+  const entries = await readdir(directory, { withFileTypes: true });
+  const paths = [];
+  for (const entry of entries) {
+    if ([".git", "artifacts", "dist", "node_modules"].includes(entry.name) && prefix === "") continue;
+    const path = prefix ? `${prefix}/${entry.name}` : entry.name;
+    if (entry.isDirectory()) paths.push(...await walkRepository(resolve(directory, entry.name), path));
+    else paths.push(path);
+  }
+  return paths;
 }
 
 async function inspectReleasePolicy() {

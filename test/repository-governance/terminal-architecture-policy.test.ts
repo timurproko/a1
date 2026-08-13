@@ -50,6 +50,30 @@ describe("terminal-core architecture policy", () => {
     expect(result.stderr).toContain("must disable shell execution");
   });
 
+  it.each([
+    ["src/orphan.ts", "export {};", "production source has no declared owner"],
+    ["src/utils/helper.ts", "export {};", "generic source dumping-ground directory"],
+    ["src/foundation/release/cache/state.json", "{}", "generated or runtime state"],
+    ["src/features/launch/package-lock.json", "{}", "nested package manifest or lockfile"],
+    ["test/unknown/contract.test.ts", "export {};", "test has no declared owner"],
+    ["docs/current.md", "Temporary during the redesign.", "stale redesign marker"],
+  ])("rejects repository ownership violation in %s", async (path, source, diagnostic) => {
+    const root = await fixture({ [path]: source });
+    const result = runPolicy(root);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(diagnostic);
+  });
+
+  it("rejects cross-owner private imports through the containing architecture gate", async () => {
+    const root = await fixture({
+      "src/cli/dispatch.ts": "import { value } from '../features/launch/private.js'; export { value };",
+      "src/features/launch/private.ts": "export const value = true;",
+    });
+    const result = runPolicy(root);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("must use src/features/launch/index.ts");
+  });
+
   it("rejects obsolete retired-pipeline release gates", async () => {
     const root = await fixture({ "scripts/run-release-gates.mjs": "const suite = 'test/scenarios/packaged-real-pi.test.ts';" });
     const result = runPolicy(root);
@@ -87,7 +111,7 @@ async function fixture(files: Record<string, string>): Promise<string> {
   const root = await mkdtemp(resolve(tmpdir(), "addone-architecture-policy-"));
   roots.push(root);
   await writeFixtureFile(root, "package.json", JSON.stringify({ name: "fixture", scripts: {} }));
-  await writeFixtureFile(root, "src/index.ts", "export {};\n");
+  await writeFixtureFile(root, "src/foundation/lifecycle/index.ts", "export {};\n");
   for (const [path, source] of Object.entries(files)) await writeFixtureFile(root, path, source);
   return root;
 }
