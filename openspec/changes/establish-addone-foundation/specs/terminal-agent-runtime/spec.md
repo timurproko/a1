@@ -1,276 +1,149 @@
 ## Purpose
 
-Defines the cross-platform virtual terminal runtime that hosts Native Pi, interactive shells, Claude Code, Codex, and arbitrary command-line programs while isolating child terminal protocols from the physical terminal and preserving direct-observable behavior.
+Defines capability-specific terminal execution for transparent native-parity sessions and composed resident sessions without forcing incompatible latency, rendering, and reconnection guarantees through one pipeline.
 
 ## ADDED Requirements
 
-### Requirement: AddOne can launch arbitrary commands in isolated terminal sessions
-The terminal driver SHALL launch a configured executable with explicit arguments, environment, working directory, terminal type, dimensions, and runtime identity inside a platform PTY. A terminal session SHALL support either an exact direct executable or an interactive shell that can launch successive foreground commands without creating another AddOne PTY for each command.
+### Requirement: AddOne can launch arbitrary terminal commands
+AddOne SHALL launch a configured executable or interactive shell with explicit arguments, environment, working directory, dimensions, terminal identity, and terminal capability. A profile SHALL explicitly select `transparent` or `composed`; terminal-core code SHALL NOT select behavior by inspecting an executable name, argument, CLI-named environment variable, or visible content.
 
-#### Scenario: Launch a supported native agent
-- **WHEN** the user creates a terminal agent using a configured Claude Code, Codex, or Native Pi profile
-- **THEN** AddOne SHALL launch the exact configured executable and arguments in an isolated terminal session and present its terminal surface in the selected view
+#### Scenario: Launch an exact command
+- **WHEN** a profile identifies an executable and arguments
+- **THEN** AddOne SHALL launch that exact command using the profile's declared terminal capability and working directory
 
-#### Scenario: Launch the initial vanilla Pi profile
-- **WHEN** AddOne creates the initial Native Pi generation
-- **THEN** it SHALL launch the selected Pi executable in Pi's default interactive mode without forcing an alternate fullscreen interaction mode, deferred v2 migration extension profile, private host bridge, semantic screen scraper, or AddOne rendering substitute for Pi's interface
+#### Scenario: Launch an interactive shell
+- **WHEN** a profile requests a shell-backed session
+- **THEN** AddOne SHALL allow successive foreground commands to run in that same session according to the declared terminal capability
 
-#### Scenario: Launch an interactive shell session
-- **WHEN** the user creates a generic terminal session without a direct command profile
-- **THEN** AddOne SHALL start the configured platform shell and allow that shell to run Pi and other CLIs sequentially in the same terminal session
+### Requirement: Terminal execution is cross-platform and application-agnostic
+Transparent and composed terminal capabilities SHALL support Windows, macOS, and Linux through certified native platform facilities. Terminal behavior SHALL derive only from the selected capability, platform terminal state, declared profile, and terminal protocols. It SHALL NOT depend on executable identity, argument patterns, CLI-named environment variables, visible content, or per-application rendering, input, timing, mouse, mode, query, resize, or cleanup hacks.
 
-#### Scenario: Foreground command returns to its shell
-- **WHEN** a command launched by an interactive shell exits
-- **THEN** the existing shell SHALL regain control of the same terminal session without changing the physical host-terminal ownership
+#### Scenario: Run unrelated terminal applications
+- **WHEN** Pi, a shell, an editor, a pager, a multiplexer, another agent CLI, or an arbitrary interactive/fullscreen command emits the same terminal protocol and receives the same physical actions
+- **THEN** the selected terminal capability SHALL process them through the same production path without an application-specific exception
 
-### Requirement: Terminal sessions have cross-platform behavioral parity
-Terminal session spawn, input, output, resize, screen state, terminal modes, exit, and cleanup behavior required by Native Pi SHALL be release-gated on Windows 11 x64 with system ConPTY, current Ubuntu LTS x64 with a native PTY, and current and previous macOS arm64 with a native PTY. Platform-specific implementations MAY differ internally, but required Native Pi behavior SHALL NOT silently degrade by platform.
+#### Scenario: An application exposes an unsupported protocol behavior
+- **WHEN** correct behavior cannot be provided generically by the selected capability on a platform
+- **THEN** AddOne SHALL report the behavior or capability unsupported and fail certification rather than add an executable- or content-specific workaround
 
-#### Scenario: Platform backend is available
-- **WHEN** AddOne starts a terminal session on a release-gated platform
-- **THEN** it SHALL select the native platform PTY and host-input behavior while exposing the same terminal-session contract to the supervisor and UI
+#### Scenario: Compare with native terminal execution
+- **WHEN** a supported application is launched directly and through AddOne in the same native terminal with identical profile, dimensions, environment, and interactions
+- **THEN** rendering, character presentation, input effects, terminal modes, resize, lifecycle, and restoration SHALL be equivalent within that capability's declared native-parity contract
 
-#### Scenario: Required platform behavior is unavailable
-- **WHEN** a platform backend cannot provide a Native Pi behavior required by this specification
-- **THEN** AddOne SHALL fail the applicable certification or launch with an actionable unsupported-platform result rather than claiming fullscreen parity
+### Requirement: Transparent sessions delegate terminal behavior to the physical terminal
+A transparent full-viewport session SHALL attach the child to the foreground physical terminal without AddOne decoding and re-encoding ordinary input, parsing and reconstructing visible output, inferring visual frame boundaries, synthesizing terminal-query responses, compensating screen origins, or inserting repaint delays. During handoff AddOne SHALL emit no application frame or display-control stream between the child and the physical terminal.
 
-### Requirement: Child terminal protocols are isolated from the physical terminal
-All child output SHALL terminate in an AddOne-owned virtual terminal. Child requests that change primary or alternate screens, mouse reporting, keyboard enhancement, application cursor or keypad behavior, bracketed paste, focus reporting, synchronized output, line wrapping, cursor state, title, palette, clipboard, or platform console input mode SHALL update virtual session state or an explicitly mediated capability and SHALL NOT be replayed as raw child control sequences against the physical terminal.
+#### Scenario: Native Pi receives keyboard input
+- **WHEN** the user sends ordinary, modified, control, repeat, release, paste, focus, mouse, or wheel input during a transparent Native Pi session
+- **THEN** the physical terminal and operating-system terminal path SHALL deliver it without an AddOne semantic input translation round trip
 
-#### Scenario: Child enters or leaves its alternate screen
-- **WHEN** Native Pi emits an alternate-screen transition
-- **THEN** only the virtual terminal's active screen SHALL change and AddOne SHALL render the resulting cells without entering or leaving the AddOne-owned outer screen on the child's behalf
+#### Scenario: Native Pi renders content
+- **WHEN** Native Pi writes text, Unicode graphemes, colors, attributes, cursor changes, synchronized output, alternate-screen controls, scroll operations, terminal queries, or terminal modes
+- **THEN** the physical terminal SHALL interpret the original child interaction without AddOne framebuffer reconstruction or manually generated replacement VT output
 
-#### Scenario: Child enables mouse or keyboard modes
-- **WHEN** a child requests supported mouse tracking, alternate scroll, Kitty keyboard, modifyOtherKeys, bracketed paste, focus, or Win32 input mode
-- **THEN** the terminal session SHALL record or mediate the effective child mode without enabling that child-owned mode directly on the physical terminal
+#### Scenario: Unsynchronized output arrives in multiple writes
+- **WHEN** a transparent child emits an unsynchronized update across multiple writes
+- **THEN** AddOne SHALL introduce no quiescence timer or guessed source-frame boundary and the physical terminal SHALL observe the writes as it would for the same directly launched child
 
-#### Scenario: Child emits an unsupported host-affecting control
-- **WHEN** a child emits a control sequence that is unsupported or not approved for mediation
-- **THEN** AddOne SHALL contain it within the terminal session and SHALL NOT print its payload visibly or pass it through to the parent terminal
+### Requirement: Transparent sessions advertise their limitations
+A transparent session SHALL advertise that it has no AddOne-authoritative resident framebuffer, composited panes, virtual scrollback, replayable display stream, or exact visual reconnection guarantee. AddOne SHALL NOT silently claim those capabilities from a diagnostic shadow parser.
 
-### Requirement: Virtual terminal surfaces preserve terminal behavior and presentation
-The terminal runtime SHALL preserve visible cells, indexed and truecolor foregrounds and backgrounds, default colors, supported text attributes, Unicode grapheme widths, cursor visibility, shape and position, primary and alternate screens, bounded scrollback, erase and scroll behavior, application modes, and synchronized-output behavior produced by the child terminal.
+#### Scenario: Foreground UI disconnects
+- **WHEN** the foreground terminal owner disconnects from a non-detachable transparent session
+- **THEN** AddOne SHALL apply the declared stop or detach lifecycle and report the result rather than reconstructing an apparently continuous surface
 
-#### Scenario: Native Pi renders styled content
-- **WHEN** Native Pi emits indexed or truecolor cells, backgrounds, text attributes, Unicode graphemes, cursor changes, erase operations, or scroll operations
-- **THEN** the AddOne-hosted surface SHALL be visibly equivalent to Native Pi running directly with the same terminal capabilities and dimensions
+#### Scenario: A pane is requested
+- **WHEN** a feature requires clipping, overlays, panes, or AddOne-owned rendering
+- **THEN** AddOne SHALL require a certified composed session instead of partially intercepting the transparent path
 
-#### Scenario: Resize a fullscreen terminal
-- **WHEN** the outer terminal changes size during the initial fullscreen iteration
-- **THEN** the runtime SHALL resize the child PTY and virtual terminal to the complete outer dimensions and publish a matching surface without chrome offsets
+### Requirement: Transparent Native Pi is the compatibility baseline
+The initial Native Pi profile SHALL use transparent full-viewport execution unless the user explicitly selects another certified capability. With the same executable, arguments, environment, dimensions, host terminal, and physical interaction, hosted Native Pi SHALL preserve direct behavior for rendering, character presentation, selection, clipboard, scrollback, keyboard, paste, focus, mouse, wheel, dialogs, extensions, resize, startup, exit, and parent-terminal restoration.
+
+#### Scenario: Compare direct and transparent Native Pi
+- **WHEN** identical Native Pi runs receive identical physical-host interactions directly and through transparent AddOne
+- **THEN** their observable terminal behavior and process outcomes SHALL be equivalent without an AddOne-specific rendering or input exception
+
+#### Scenario: Compare interactive latency
+- **WHEN** direct and transparent Native Pi receive the same timed input workload
+- **THEN** transparent AddOne SHALL add no input batching timer, render timer, terminal emulation turn, or control-protocol input round trip and SHALL remain within the independently measured direct-host tolerance
+
+#### Scenario: Select and scroll text
+- **WHEN** the user selects content or uses terminal scrollback in transparent Native Pi
+- **THEN** painting, copy behavior, selection-aware Ctrl+C, anchoring during output, scrollbar behavior, and wheel distance SHALL remain owned by and equivalent to the physical terminal
+
+### Requirement: Composed sessions use one authoritative terminal core
+A composed session SHALL use one terminal core as the authority for PTY integration, parsed terminal state, effective modes, input encoding, terminal responses, primary and alternate screens, scrollback, cursor, graphemes, cell widths, styles, palette state, and ordered operation or damage reporting. AddOne SHALL NOT combine that authority with a second regex mode tracker, query interceptor, custom protocol encoder, framebuffer-derived scroll inference, or independently reconstructed terminal state.
+
+#### Scenario: Child changes terminal state
+- **WHEN** a composed child emits supported screen, cursor, input-mode, query, scroll, erase, style, color, or Unicode operations
+- **THEN** one authoritative core SHALL update state and produce the corresponding child response or host-facing operation
+
+#### Scenario: Platform transport represents a mode internally
+- **WHEN** a PTY backend consumes, synthesizes, or represents terminal protocol state differently from another platform
+- **THEN** the composed terminal boundary SHALL expose one documented effective state without an AddOne fallback guessed from application identity or visible content
+
+### Requirement: Composed rendering does not invent application commits
+A composed session SHALL preserve explicit synchronized-output transactions atomically. For output without an explicit atomic boundary, AddOne SHALL process ordered terminal operations without cadence-derived waiting or a claim that transport timing identifies one application visual commit. It SHALL avoid AddOne-created clears, stale overwrites, redundant whole-view repaints, reordered operations, and unbounded buffering, but SHALL NOT promise to hide partial updates that are also observable during equivalent direct unsynchronized execution.
 
 #### Scenario: Child uses synchronized output
-- **WHEN** the child begins a synchronized-output transaction
-- **THEN** AddOne SHALL withhold incomplete visual state and reveal the resulting update without an intermediate blank or partially committed frame
+- **WHEN** a child encloses an update in a supported synchronized-output transaction
+- **THEN** composed presentation SHALL reveal the transaction atomically without exposing its intermediate state
 
-### Requirement: Terminal rendering is application-agnostic and transaction-based
-The terminal runtime and host renderer SHALL select behavior only from terminal-session policy, parsed terminal protocols, dimensions, capabilities, virtual state, and host state. They SHALL NOT inspect an executable name, argument vector, environment variable naming a CLI, or visible terminal content to choose projection, mouse fallback, frame boundaries, scrolling, or damage behavior. PTY transport chunks SHALL NOT be treated as visual frames. Explicit synchronized-output boundaries, adjacent same-I/O-turn output, and trailing cursor or mode epilogues SHALL be assembled into generic correlated render transactions, with a bounded application-independent fallback for unsynchronized output.
+#### Scenario: Child does not use synchronized output
+- **WHEN** a child emits multiple unsynchronized writes
+- **THEN** AddOne SHALL preserve their order without delaying for transport cadence or asserting an unknowable source-frame boundary
 
-#### Scenario: Different CLIs produce the same terminal protocol
-- **WHEN** Pi, another agent, a shell application, or a deterministic fixture produces the same terminal operation and timing sequence
-- **THEN** the terminal core SHALL produce the same virtual state and host render transactions without a CLI-specific branch
+#### Scenario: Host output is backpressured
+- **WHEN** host presentation cannot immediately consume composed terminal operations
+- **THEN** AddOne SHALL bound memory, preserve non-supersedable operation order, and resynchronize from authoritative state when necessary
 
-#### Scenario: One application commit spans multiple PTY reads
-- **WHEN** one visual update is delivered across synchronized content, transport fragments, and trailing cursor or mode writes
-- **THEN** AddOne SHALL publish at most one visible host transaction for that source commit rather than exposing each PTY read as a frame
+### Requirement: Composed input is encoded exactly once by the authoritative terminal boundary
+For composed sessions, physical key, text, paste, focus, mouse, wheel, and resize events SHALL retain their identity through a single host-input boundary and SHALL be encoded exactly once from the authoritative effective child state. Unsupported or ambiguous physical input SHALL produce an explicit capability failure rather than an approximate key substitution.
 
-#### Scenario: Unsynchronized application emits a burst
-- **WHEN** an application does not use synchronized output and emits adjacent output within one PTY I/O burst
-- **THEN** AddOne SHALL coalesce that burst through a bounded generic rule without introducing an application-specific delay or waiting for application text
+#### Scenario: Control key is entered on Windows
+- **WHEN** the physical host reports Ctrl+A through Ctrl+Z
+- **THEN** the child SHALL observe the same control-key identity as the equivalent direct terminal path and AddOne SHALL NOT reinterpret it through duplicated mode or keyboard-protocol models
 
-### Requirement: Physical input is delivered according to effective child terminal state
-AddOne SHALL decode physical keyboard, paste, focus, and mouse input into distinct events and encode each accepted event exactly once for the focused terminal session according to its effective application, keyboard, paste, focus, mouse, and alternate-scroll state. Effective state SHALL include state absorbed or represented by a platform PTY transport. Host and child byte representations MAY differ, but the child-observable input and resulting behavior SHALL be equivalent to direct execution.
+#### Scenario: Wheel and arrow input are distinct
+- **WHEN** the user rotates the wheel or presses Up or Down
+- **THEN** the authoritative terminal boundary SHALL preserve those distinct physical actions and apply only the routing required by its effective terminal state
 
-#### Scenario: Keyboard protocol differs between host and child
-- **WHEN** the physical terminal reports a key through one supported keyboard protocol and the child has negotiated another
-- **THEN** AddOne SHALL encode one equivalent child key event with its modifiers and press, repeat, or release semantics preserved
+#### Scenario: Input capability is unavailable
+- **WHEN** a platform adapter cannot preserve a required key, IME, paste, focus, or mouse behavior
+- **THEN** certification SHALL fail or the capability SHALL be reported unsupported instead of silently degrading input
 
-#### Scenario: Bracketed paste is active
-- **WHEN** the user pastes text while the child has enabled bracketed paste
-- **THEN** AddOne SHALL deliver one complete bracketed paste with its UTF-8 content intact and SHALL NOT submit embedded lines as separate key events
-
-#### Scenario: Focus reporting is inactive
-- **WHEN** the physical terminal reports a focus change and the child has not enabled focus reporting
-- **THEN** AddOne SHALL consume the host event without injecting focus-report bytes into the child
-
-### Requirement: Mouse wheel and arrow-key routing remain distinct
-For every physical wheel event, AddOne SHALL first send a protocol-correct mouse report when the effective child state requests mouse reporting; otherwise it SHALL send alternate-scroll input only when the child is on its alternate screen and has enabled alternate scroll; otherwise it SHALL scroll AddOne's virtual terminal viewport. Physical Up and Down keys SHALL remain keyboard events and SHALL never be inferred from wheel input outside the explicit child-requested alternate-scroll case.
-
-#### Scenario: Native Pi requests mouse reporting
-- **WHEN** fullscreen Native Pi effectively requests supported mouse reporting and the user rotates the physical wheel over its viewport
-- **THEN** AddOne SHALL deliver one correctly encoded wheel report at child-relative coordinates and Native Pi SHALL scroll its transcript without recalling editor history
-
-#### Scenario: Child requests alternate scroll without mouse reporting
-- **WHEN** an alternate-screen child has enabled alternate scroll but has not enabled mouse reporting
-- **THEN** AddOne SHALL encode the wheel as the corresponding application cursor input for that child
-
-#### Scenario: Normal shell transcript receives wheel input
-- **WHEN** a primary-screen shell has not requested mouse reporting
-- **THEN** AddOne SHALL scroll retained virtual terminal history without injecting arrow or mouse bytes into the shell
-
-#### Scenario: User presses Up or Down in Pi
-- **WHEN** the user presses Up or Down while Native Pi's editor is focused
-- **THEN** Native Pi SHALL receive one protocol-correct keyboard event and navigate editor-message history as it does during direct execution
-
-### Requirement: Terminal-generated replies return to the child
-When a child queries supported terminal identity, device attributes, cursor position, size, colors, capabilities, keyboard state, or other terminal-owned state, AddOne SHALL return the virtual terminal's ordered protocol response through the child PTY rather than querying or exposing unrelated physical-terminal state.
-
-#### Scenario: Child requests cursor position
-- **WHEN** a child emits a supported cursor-position query
-- **THEN** the virtual terminal SHALL return its current child-local cursor position through the PTY in output order
-
-#### Scenario: Child requests terminal colors or capabilities
-- **WHEN** a child emits a supported color or capability query
-- **THEN** AddOne SHALL provide a deterministic response consistent with the terminal capabilities advertised to that child
-
-### Requirement: Generic terminal output is semantically opaque
-AddOne SHALL not infer tool execution, model state, settled state, conversation state, or successful work from terminal text or screen position unless a specialized driver supplies that information through an explicit supported channel. Terminal escape parsing required to emulate terminal behavior SHALL NOT be treated as agent-semantic screen parsing.
+### Requirement: Generic terminal output remains semantically opaque
+AddOne SHALL not infer tool execution, model state, settled state, conversation state, or successful work from terminal text or screen position unless a specialized driver supplies that information through an explicit structured channel.
 
 #### Scenario: Terminal prints success-like text
 - **WHEN** a generic terminal displays text containing words such as `done` or `success`
-- **THEN** AddOne SHALL not convert that text into a semantic successful-agent status
+- **THEN** AddOne SHALL not convert that text into semantic agent status
 
-#### Scenario: Specialized driver reports status
-- **WHEN** a specialized terminal driver supplies an authenticated or documented structured status event
-- **THEN** AddOne MAY present that status according to the advertised capability without deriving it from screen text
+### Requirement: Terminal capabilities are certified per supported platform
+Transparent and composed capabilities SHALL be certified separately on Windows 11 x64, current Ubuntu LTS x64, and current and previous macOS arm64. Passing one capability or platform SHALL NOT imply another is supported.
 
-### Requirement: Native Pi provides the full interactive compatibility path
-A Native Pi terminal profile SHALL run Pi's normal interactive fullscreen TUI so its editor, shortcuts, mouse interactions, themes, built-in dialogs, custom TUI extensions, editor replacements, and other interactive flows operate under the selected Pi runtime's own compatibility rules. AddOne SHALL publish no application content before Pi's first ready frame, and the hosted path SHALL otherwise be observably equivalent to direct Pi from launch until the parent terminal is restored.
+#### Scenario: One platform fails parity
+- **WHEN** a required capability fails its independent host validation on one supported platform
+- **THEN** AddOne SHALL block that capability's release for the platform and report the unsupported result
 
-#### Scenario: Compare direct and AddOne-hosted Native Pi
-- **WHEN** the same interaction is run with the same absolute Pi executable, arguments including fullscreen mode, environment, terminal capabilities, dimensions, and physical input timeline directly and through AddOne
-- **THEN** both paths SHALL produce equivalent recognizable Pi content, cells, styles, cursor, active child screen, input effects, dialogs, resize behavior, timing stability, and process outcome at stable checkpoints
+### Requirement: Terminal exit returns a usable parent terminal
+On transparent or composed terminal exit, AddOne SHALL stop accepting input, preserve the child-produced final output appropriate to that capability, perform bounded ownership cleanup, and leave the parent terminal usable with its expected input mode, cursor, screen, selection, and line-editing behavior. AddOne SHALL NOT add, remove, or relocate child-produced spacing.
 
-#### Scenario: Pi extension uses a native TUI component
-- **WHEN** an enabled Pi extension uses supported native custom components, editor replacement, terminal input, themes, overlays, or dialogs
-- **THEN** the component SHALL behave through the Native Pi terminal profile as it does in the same directly launched Pi profile
+#### Scenario: Native Pi exits normally
+- **WHEN** Native Pi exits from a terminal session
+- **THEN** the parent SHALL accept typing, cursor movement, Backspace, Delete, command submission, and output without visible protocol leakage or AddOne-generated spacing
 
-#### Scenario: Use Pi editor and native dialog
-- **WHEN** the user types editor text, opens and interacts with a built-in Pi dialog, and returns to the editor through AddOne
-- **THEN** the resulting visible states, focus, cursor, and input effects SHALL be equivalent to the direct run
+#### Scenario: Child exits abnormally
+- **WHEN** a child or foreground broker fails while terminal modes may be active
+- **THEN** AddOne SHALL apply its bounded platform failsafe and retain actionable lifecycle evidence
 
-#### Scenario: Select vanilla Pi text
-- **WHEN** the user selects transcript or editor text using the same pointer interaction used with directly launched vanilla Pi
-- **THEN** the host terminal SHALL paint the same selection without color inversion differences, AddOne SHALL NOT introduce a selection-copy operation or `Copied!` flash, and the selected text SHALL remain subject to the host terminal's normal copy behavior
+### Requirement: Terminal failures and recovery promises are capability-specific
+Spawn errors, exits, signals, transport failures, stop behavior, detach behavior, and recovery SHALL be reported without affecting sibling agents. Each profile SHALL declare `exact`, `best-effort`, `detach-only`, or `none` recovery, and AddOne SHALL not manufacture continuity beyond that declaration.
 
-#### Scenario: Selected content moves when vanilla Pi appends output
-- **WHEN** host-selected vanilla Pi content moves upward because Pi generates additional transcript rows
-- **THEN** the selection SHALL remain attached to that content and move with the terminal scroll operation rather than remaining painted at stale viewport coordinates
+#### Scenario: Transparent process is lost
+- **WHEN** a transparent non-resumable process exits
+- **THEN** AddOne SHALL report it as ended rather than presenting a reconstructed continuous terminal
 
-#### Scenario: Vanilla Pi exposes native terminal scrollback
-- **WHEN** default-mode Pi content exceeds the visible viewport
-- **THEN** the physical terminal SHALL expose its normal scrollbar and scrollback behavior, with the same content movement and wheel distance as directly launched Pi
-
-#### Scenario: Press Ctrl+C over a host selection
-- **WHEN** vanilla Pi editor text is selected by the host terminal and the user presses Ctrl+C
-- **THEN** the host terminal SHALL dismiss the selection as in direct Pi and Pi SHALL NOT receive that Ctrl+C or clear the underlying editor text
-
-#### Scenario: Compare rapid editor input
-- **WHEN** the same rapid typing burst is sent directly and through AddOne
-- **THEN** visible editor updates SHALL remain responsive within the direct run's bounded refresh behavior and SHALL NOT incur an AddOne-specific fixed 50 millisecond delay
-
-#### Scenario: Compare one wheel notch
-- **WHEN** the user rotates one wheel notch over a vanilla Pi transcript
-- **THEN** direct and AddOne-hosted Pi SHALL move the visible transcript by the same three rows
-
-#### Scenario: Compare the later v2 extension profile
-- **WHEN** the same catalogued interaction is run using an exactly identified Pi executable and pinned v2 extension profile directly and through AddOne
-- **THEN** AddOne SHALL preserve the extension-owned interface and terminal behavior at stable executable checkpoints without importing its private host bridge
-
-### Requirement: Fullscreen terminal rendering is visibly stable
-The fullscreen terminal path SHALL render every supported CLI through the same virtual-terminal and host-rendering pipeline without timer-driven whole-screen repainting, visible clearing between frames, stale overwrites, redundant redraws, transport-chunk frames, or child control-sequence passthrough that is observably different from direct execution. Zero visible partial repaint frames is a release requirement: text, status/footer rows, input rows, and final cursor state belonging to one source commit SHALL become visible together. Native Pi is a mandatory parity workload but SHALL receive no rendering-specific production branch.
-
-The accepted Windows ConPTY baseline SHALL apply cadence-derived transport quiescence after every synchronized source commit, bounded at 32 milliseconds with a 1.75× measured inter-burst margin, and SHALL write the host synchronized-output end boundary only after payload write completion followed by one I/O turn. These values MAY change only when permanent direct-versus-hosted evidence proves zero cursor/mode-only, blank, mixed, stale, shifted, or partial repaint frames under the replacement policy; latency-only optimization SHALL NOT weaken visible atomicity.
-
-#### Scenario: Initial normal-screen handoff preserves the caller
-- **WHEN** Native Pi or another normal-screen CLI produces its first ready surface after being launched below an existing shell prompt
-- **THEN** AddOne SHALL append that surface from the current physical cursor with natural bottom-edge scrolling, SHALL preserve the invoking command and earlier terminal history, and SHALL NOT home or clear the physical normal screen before repainting the same interface
-
-#### Scenario: Native Pi streams rapid updates
-- **WHEN** Native Pi emits multiple output chunks within one visual refresh interval
-- **THEN** AddOne SHALL preserve their order and present the latest committed state without exposing an intermediate blank or stale whole-screen frame
-
-#### Scenario: Terminal is idle
-- **WHEN** Native Pi produces no output and no resize or terminal-state change occurs
-- **THEN** AddOne SHALL not periodically repaint the unchanged fullscreen surface
-
-#### Scenario: Small region changes
-- **WHEN** a Native Pi update changes only part of the visible surface
-- **THEN** AddOne SHALL not clear and repaint unrelated unchanged regions in a way visibly distinguishable from direct Pi
-
-#### Scenario: Vanilla Pi appends transcript rows
-- **WHEN** default-mode Pi scrolls existing content upward to reveal newly generated rows
-- **THEN** AddOne SHALL render one corresponding host scroll operation and only the newly exposed or independently changed rows, without repainting every shifted row or visibly flickering
-
-#### Scenario: Generated content updates a fixed row
-- **WHEN** one committed terminal-application update scrolls content and redraws generated text, a fixed footer, progress or status row, and the cursor
-- **THEN** AddOne SHALL make the host scroll and all associated damage visible as one AddOne-owned synchronized-output transaction, without exposing an intermediate shifted, blank, stale, or partially redrawn state and without adding a timer-based input delay
-
-#### Scenario: Resize resynchronization moves fixed rows
-- **WHEN** a resize or reconnect snapshot moves footer, status, editor, or other fixed rows and their former physical rows are now blank
-- **THEN** AddOne SHALL atomically replace those former rows with the snapshot's blank cells and SHALL expose exactly one copy of each fixed row without a stale duplicate, whole-screen flicker, or CLI-specific cleanup
-
-#### Scenario: ConPTY releases one synchronized repaint in delayed bursts
-- **WHEN** ConPTY delivers synchronized markers, cursor-hide or mode prefixes, printable cells, footer/input cells, cursor restoration, or the remainder of a large repaint in separate transport bursts
-- **THEN** AddOne SHALL retain one pending source transaction through cadence-derived quiescence and SHALL NOT publish a marker-only, cursor-only, mixed old/new, or truncated text frame
-
-#### Scenario: Fifty-question conversation repaint baseline
-- **WHEN** the deterministic normal-screen conversation workload submits 50 questions and produces accepted, thinking, generating, and completed states for every question
-- **THEN** the hosted path SHALL publish exactly 201 content-bearing conversation transactions, zero cursor/mode-only transactions, keep the status row and input row at their fixed coordinates in every committed outer frame, preserve direct-equivalent final cells and cursor state, and expose no clear, blank, stale, duplicate, mixed, shifted, or partial repaint frame
-
-### Requirement: Terminal exit restores a usable parent terminal
-Child process exit and AddOne client exit SHALL be separate lifecycle events. When the initial direct-executable Pi session ends, AddOne SHALL stop input, commit its final virtual state, restore the exact physical input/cursor state, retain default-mode Pi's normal-screen output, scrollback, final cursor position, and line spacing as direct Pi does, restore pre-launch normal-screen content for an explicitly fullscreen alternate projection, and exit with Pi's outcome. Child cleanup sequences SHALL remain virtual and SHALL NOT be relied upon to restore the physical terminal. AddOne SHALL NOT append, remove, redistribute, or otherwise compensate for child-produced spaces or line breaks during normal-screen restoration.
-
-#### Scenario: Pi prints a resume hint with surrounding blank rows
-- **WHEN** Native Pi leaves one blank row before and one blank row after its `To resume this session:` message in an otherwise identical direct execution
-- **THEN** AddOne-hosted Pi SHALL retain those exact child-produced rows and the parent prompt SHALL begin at the same relative row without an AddOne-generated newline
-
-#### Scenario: Pi prints a resume hint after a full final frame
-- **WHEN** Native Pi's direct final TUI occupies the row immediately before `To resume this session:` while retaining a child-produced blank row after it
-- **THEN** AddOne-hosted Pi SHALL preserve that adjacency and trailing blank row without inventing preceding whitespace
-
-#### Scenario: Clear and exit with repeated Ctrl+C
-- **WHEN** the user invokes Native Pi's repeated Ctrl+C clear-and-exit interaction
-- **THEN** Pi SHALL clear and exit as in the direct run, AddOne SHALL restore the pre-launch terminal without a normal-screen clear, and no Pi, AddOne, Win32-input, or terminal-control payload SHALL be visibly printed afterward
-
-#### Scenario: Parent shell resumes after AddOne
-- **WHEN** the initial fullscreen AddOne process returns to its parent shell
-- **THEN** the user SHALL be able to type text, move through the line, use Backspace and Delete, submit a command, and observe its output exactly as before AddOne launched, with the parent terminal's default cursor shape and visibility restored
-
-#### Scenario: Child exits without cleaning up
-- **WHEN** a child crashes while its virtual alternate screen, mouse, keyboard, paste, focus, or cursor modes remain active
-- **THEN** AddOne SHALL discard those virtual modes and restore the captured host state without propagating the stale child modes to the parent terminal
-
-### Requirement: Terminal failures are contained
-The terminal driver SHALL report spawn errors, exits, signals, and transport failures without terminating the later AddOne shell or unrelated agents.
-
-#### Scenario: Executable is missing
-- **WHEN** a configured executable cannot be found or started
-- **THEN** the logical agent SHALL enter an actionable error state and sibling agents SHALL remain available
-
-#### Scenario: Child exits with failure
-- **WHEN** a terminal child exits with a non-zero status
-- **THEN** AddOne SHALL retain the final virtual terminal surface and report the exit status according to the active shell lifecycle policy
-
-### Requirement: Resume guarantees are driver-specific
-Each terminal profile SHALL declare whether it supports session discovery and exact resume, best-effort resume, or no resume, and AddOne SHALL present recovery behavior consistent with that declaration.
-
-#### Scenario: Specialized exact resume
-- **WHEN** a Native Pi profile records a valid exact session and advertises exact resume
-- **THEN** its recovery path SHALL validate and resume that session according to the profile contract
-
-#### Scenario: Generic terminal process is lost
-- **WHEN** an opaque generic terminal process exits and has no resume capability
-- **THEN** AddOne SHALL report the session as non-recoverable rather than silently launching a fresh process as the same continuous conversation
-
-### Requirement: Terminal views can reconnect to resident virtual state
-When a UI client reconnects while a supervised terminal session remains resident, the supervisor SHALL provide its current bounded virtual terminal state before newer ordered updates. Reconnection SHALL NOT replay the child's historical raw control stream against the new physical terminal.
-
-#### Scenario: Restart AddOne UI with live terminal session
-- **WHEN** the UI restarts while a terminal agent remains alive under the supervisor
-- **THEN** the restored view SHALL display an equivalent resident surface and continue accepting input without restarting the child
-
-#### Scenario: Update arrives during snapshot handoff
-- **WHEN** child output changes after the reconnect snapshot boundary but before the UI finishes presenting it
-- **THEN** AddOne SHALL apply only later correlated updates or resynchronize on a gap, without duplicating historical child controls
+#### Scenario: Composed session reconnects
+- **WHEN** a certified composed session remains resident while its UI reconnects
+- **THEN** AddOne SHALL provide authoritative bounded state followed by ordered updates or explicitly resynchronize on a gap

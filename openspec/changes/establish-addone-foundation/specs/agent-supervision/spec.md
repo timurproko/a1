@@ -15,16 +15,20 @@ The supervisor SHALL persist each workspace and logical agent independently of a
 - **WHEN** the supervisor restarts after durable state was committed
 - **THEN** it SHALL reconstruct the persisted workspaces, agents, ordering, runtime profiles, and session references
 
-### Requirement: UI lifetime is independent from agent lifetime
-The supervisor SHALL continue supervising configured agents when all UI clients disconnect unless an explicit agent or supervisor shutdown policy requires otherwise.
+### Requirement: UI lifetime independence follows agent capability
+The supervisor SHALL continue supervising Managed and certified resident agents when UI clients disconnect unless explicit policy requires shutdown. Transparent foreground agents SHALL follow their declared stop or detach policy because they do not promise UI-independent terminal attachment or visual continuity.
 
-#### Scenario: Last UI disconnects
-- **WHEN** the last AddOne UI client disconnects
-- **THEN** the supervisor SHALL not stop live agents solely because no UI is attached
+#### Scenario: Last UI disconnects from resident agents
+- **WHEN** the last AddOne UI client disconnects while Managed or certified composed agents remain resident
+- **THEN** the supervisor SHALL not stop those agents solely because no UI is attached
+
+#### Scenario: Last foreground owner disconnects from a transparent agent
+- **WHEN** the transparent terminal owner disconnects
+- **THEN** the supervisor SHALL apply and record the profile's declared stop or detach behavior rather than assuming resident continuity
 
 #### Scenario: New UI attaches
 - **WHEN** a UI client attaches after a period with no connected UI
-- **THEN** the supervisor SHALL provide a current snapshot before delivering newer events
+- **THEN** the supervisor SHALL provide a current capability-aware snapshot before delivering newer events
 
 ### Requirement: Live AddOne processes use one immutable release cohort
 Every live AddOne UI, supervisor, and AddOne-owned worker cohort SHALL have package-derived release identity and SHALL execute from retained immutable release content. Installing a candidate SHALL not overwrite content used by a live cohort or connect a UI from another release to that cohort.
@@ -148,20 +152,24 @@ A worker or driver failure SHALL affect only its logical agent unless the superv
 - **WHEN** one PTY child exits
 - **THEN** the supervisor SHALL publish its exit status without closing sibling agents or their workspaces
 
-### Requirement: Terminal process and host presentation authorities are separate
-The supervisor SHALL own terminal-agent PTYs, process generations, and bounded resident virtual terminal state independently from foreground UI clients. A foreground UI client SHALL own only its attached physical-terminal state and SHALL render supervisor-provided terminal state without granting a child process direct control of that host terminal.
+### Requirement: Terminal ownership and recovery follow declared capability
+The supervisor SHALL retain logical-agent identity, generation ownership, lifecycle records, and terminal capability. A transparent generation SHALL use one exclusive foreground-terminal lease and SHALL NOT claim a resident virtual surface or visual reconnection. A composed generation MAY remain resident and reconnect only when its certified terminal boundary supplies authoritative state.
 
-#### Scenario: UI disconnects from a live terminal session
-- **WHEN** the foreground UI disconnects while a terminal-agent PTY remains alive
-- **THEN** the supervisor SHALL retain the PTY and its virtual terminal state without requiring the child to change modes or repaint for the disconnected physical terminal
+#### Scenario: Start a transparent terminal generation
+- **WHEN** the supervisor authorizes a transparent terminal session
+- **THEN** it SHALL grant one foreground broker an exclusive lease and record that the generation has no AddOne-authoritative reconnectable surface
 
-#### Scenario: UI reconnects to a live terminal session
-- **WHEN** another release-matched UI attaches to the supervisor
-- **THEN** the supervisor SHALL provide a bounded current virtual terminal snapshot and only later ordered updates, without replaying child control sequences against the new physical terminal
+#### Scenario: Foreground transparent owner disconnects
+- **WHEN** the foreground broker disappears while a transparent child is active
+- **THEN** the supervisor SHALL apply the profile's declared stop or detach policy and report the outcome without reconstructing terminal continuity
+
+#### Scenario: UI reconnects to a composed terminal session
+- **WHEN** a release-matched UI attaches to a certified composed generation that remains resident
+- **THEN** the supervisor SHALL provide authoritative bounded state and later ordered updates or explicitly resynchronize on a gap
 
 #### Scenario: Foreground CLI exits inside a shell-backed session
-- **WHEN** Pi or another foreground command exits while its terminal session is rooted in an interactive shell
-- **THEN** the shell and terminal session SHALL remain available for subsequent commands unless an explicit lifecycle policy closes the session
+- **WHEN** a foreground command exits while its composed or transparently attached terminal session remains rooted in an interactive shell
+- **THEN** the shell SHALL remain available if the declared lifecycle capability supports continued attachment
 
 ### Requirement: Control state and conversation state have explicit authorities
 The supervisor SHALL treat its durable control store as authoritative for AddOne workspace and lifecycle metadata while treating each runtime's session store as authoritative for that runtime's conversation history.

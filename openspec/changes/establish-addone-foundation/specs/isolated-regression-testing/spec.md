@@ -1,369 +1,165 @@
 ## Purpose
 
-Defines an automated, isolated regression system that exercises AddOne and its agent drivers in real PTYs, preserves evidence, and lets deterministic checks and an independent evaluator detect failures before the user does.
+Defines independent, isolated validation for AddOne lifecycle, updates, transparent terminal parity, composed terminal behavior, packaged artifacts, and confirmed regressions without treating a product-like simulator as proof of real terminal behavior.
 
 ## ADDED Requirements
 
 ### Requirement: Scenarios run in hermetic instances
-Each full-system scenario SHALL use isolated application state, supervisor storage, runtime paths, Pi configuration, sessions, sockets, workspace, environment, and process tree.
+Each full-system scenario SHALL isolate application state, supervisor storage, runtime paths, Pi configuration, sessions, endpoints, workspace, environment, artifacts, and owned process trees.
 
-#### Scenario: Run two scenarios concurrently
+#### Scenario: Run scenarios concurrently
 - **WHEN** two scenarios execute at the same time
-- **THEN** neither scenario SHALL discover, control, or mutate the other's agents, sessions, sockets, or artifacts
-
-#### Scenario: Run two repository-local development instances
-- **WHEN** the developer invokes `npm start` in two terminals from the same checkout and built release
-- **THEN** each invocation SHALL receive a distinct development-instance identity, supervisor endpoint, database, runtime state, and Native Pi generation without replacing, attaching to, or interrupting the other instance
-
-#### Scenario: Explicitly reconnect a development instance
-- **WHEN** multiple development launches use the same explicit `ADDONE_DEV_INSTANCE_ID`
-- **THEN** they MAY resolve the same development state and endpoint for intentional debugging while generated default identities remain independent
+- **THEN** neither SHALL discover, control, or mutate the other's state or processes
 
 #### Scenario: User configuration exists
-- **WHEN** the developer machine contains normal Pi settings, extensions, sessions, and credentials
-- **THEN** a hermetic scenario SHALL not load or mutate them unless the scenario explicitly imports a fixture
+- **WHEN** the machine contains normal Pi settings, extensions, sessions, and credentials
+- **THEN** a hermetic scenario SHALL not load or mutate them unless explicitly imported as identified input
+
+### Requirement: Architecture-independent tests survive terminal replacement
+Domain, storage, release-cohort, update-transaction, protocol framing, package identity, dependency-policy, and non-terminal lifecycle tests SHALL remain mandatory when they do not encode assumptions from the retired terminal pipeline.
+
+#### Scenario: Legacy terminal implementation is removed
+- **WHEN** the old renderer, mode tracker, input translator, or terminal simulator is deleted
+- **THEN** architecture-independent tests SHALL continue to validate their owned contracts without importing retired terminal modules
+
+### Requirement: Retired terminal tests are removed before replacement implementation
+Before a replacement terminal stack is implemented, AddOne SHALL remove executable tests and fixtures whose purpose is to validate the retired custom renderer, inferred frame scheduler, startup-origin compensation, regex mode/query handling, custom Win32/Kitty/modifyOtherKeys translation, framebuffer-derived damage, manually serialized cells, ConPTY fallbacks, or simulations that reproduce those product assumptions. Historical failure descriptions MAY remain as non-executable evidence, but SHALL NOT impose obsolete implementation details on the replacement.
+
+#### Scenario: A test encodes a retired workaround
+- **WHEN** a test expects a cadence constant, origin offset, reconstructed VT sequence, custom terminal mode, synthetic Win32 record, or old damage shape
+- **THEN** the cleanup phase SHALL delete or archive it as non-executable evidence rather than porting it to the replacement
+
+#### Scenario: Coverage decreases during cleanup
+- **WHEN** deleting invalid terminal tests lowers line or branch coverage
+- **THEN** cleanup SHALL remain valid and SHALL NOT retain self-confirming tests solely to preserve a coverage metric
+
+### Requirement: Terminal acceptance uses an independent physical-host oracle
+Transparent terminal rendering, character presentation, input identity, selection, clipboard, scrollback, mouse, resize, modes, latency, and restoration SHALL be validated through actual supported host-terminal behavior. A test-side encoder, mode tracker, framebuffer emulator, or production-equivalent parser SHALL NOT be the sole acceptance oracle for the behavior it models.
+
+#### Scenario: Validate Windows keyboard identity
+- **WHEN** the Windows parity gate exercises Ctrl+A through Ctrl+Z, modified and printable keys, repeat and release, paste, focus, arrows, mouse, and wheel
+- **THEN** evidence SHALL originate through Windows Terminal and the operating-system input path rather than a test function that synthesizes the expected child encoding
+
+#### Scenario: Validate physical rendering
+- **WHEN** direct and AddOne-hosted workloads render text, Unicode graphemes, width-sensitive cells, colors, attributes, cursor changes, scrolls, selection, and alternate-screen content
+- **THEN** the gate SHALL compare independently captured physical-host observations and child effects instead of comparing two instances of the same AddOne terminal model
+
+### Requirement: Cross-platform gates use an application-independent terminal corpus
+Terminal certification SHALL run on Windows 11 x64, current Ubuntu LTS x64, and current and previous macOS arm64 using the native host-terminal path for each platform. The corpus SHALL include Native Pi, an interactive shell, a text editor or equivalent full-input workload, a pager or scrollback workload, an alternate-screen application, and at least one unrelated interactive/fullscreen CLI. No application SHALL receive a weaker assertion or production workaround selected by its identity or content.
+
+#### Scenario: Pi passes but another application fails
+- **WHEN** Native Pi passes while a generic corpus application exposes a rendering, character, input, mode, resize, latency, or restoration defect
+- **THEN** the affected terminal capability and platform SHALL remain uncertified
+
+#### Scenario: A proposed fix targets one executable
+- **WHEN** implementation or architecture validation detects behavior selected by executable, arguments, CLI-named environment, or visible text
+- **THEN** the generic corpus gate SHALL fail even if that application's focused scenario passes
+
+#### Scenario: Supported platforms differ internally
+- **WHEN** Windows, macOS, and Linux use different native process, terminal, or input facilities
+- **THEN** each platform MAY use its native adapter while preserving the same application-independent observable contract
+
+### Requirement: Transparent parity is compared directly against native execution
+The transparent gate SHALL run the same exact command, arguments, environment, dimensions, host terminal, and physical interaction directly and through AddOne. It SHALL verify that AddOne introduces no input translation, output reconstruction, repaint scheduling, terminal-query synthesis, or application frame after handoff.
+
+#### Scenario: Compare Native Pi interaction
+- **WHEN** direct and transparent Native Pi exercise startup, editor input, Ctrl+C, Ctrl+P, all control keys, paste, focus, arrows, selection, clipboard, mouse, wheel, dialogs, resize, normal exit, repeated-Ctrl+C exit, and parent-shell editing
+- **THEN** independently observed behavior SHALL be equivalent and Ctrl+C SHALL never cause the Ctrl+P model-cycle effect
+
+#### Scenario: Compare latency
+- **WHEN** the gate measures input-to-child and input-to-visible-effect latency over repeated direct and transparent runs
+- **THEN** it SHALL report distributions and fail any AddOne-specific batching, emulation, protocol, or repaint delay outside the declared physical-host tolerance
+
+#### Scenario: Compare character rendering
+- **WHEN** the workload includes combining marks, wide and ambiguous-width graphemes, emoji sequences, indexed and truecolor styles, defaults, erases, and cursor shapes
+- **THEN** physical-host output SHALL remain equivalent to direct execution without an AddOne cell reserializer
+
+### Requirement: Raw-relay experiments must prove parity independently
+A raw PTY relay SHALL remain an experimental alternative until it passes the complete transparent physical-host matrix. A shadow terminal model MAY collect diagnostics but SHALL NOT determine acceptance.
+
+#### Scenario: Nested PTY changes behavior
+- **WHEN** a raw relay changes input identity, selection, scrollback, mouse, character rendering, terminal modes, latency, or restoration compared with direct attachment
+- **THEN** AddOne SHALL reject raw relay as the transparent production baseline
+
+### Requirement: Composed terminal candidates pass a generic conformance matrix
+Each composed candidate SHALL be evaluated as a complete authoritative terminal boundary before integration. The matrix SHALL cover supported control sequences, screens, scrollback, graphemes, widths, colors, styles, cursor, terminal queries, keyboard protocols, paste, focus, mouse, wheel, resize, sustained output, backpressure, exit, and reconnection without application-specific acceptance rules.
+
+#### Scenario: Candidate requires a second terminal model
+- **WHEN** a candidate cannot provide required authoritative state or operations without restoring AddOne regex trackers, custom encoders, query interception, or framebuffer inference
+- **THEN** the candidate SHALL fail evaluation
+
+#### Scenario: Unsynchronized application emits multiple writes
+- **WHEN** a composed candidate receives output without an explicit atomic boundary
+- **THEN** the gate SHALL require ordered direct-compatible progression and no AddOne-created clear, stale overwrite, or redundant repaint, but SHALL NOT require the candidate to infer an unknowable source commit
+
+#### Scenario: Synchronized output is emitted
+- **WHEN** the application supplies a supported synchronized-output boundary
+- **THEN** the candidate SHALL preserve the transaction atomically
+
+### Requirement: Packaged candidates validate exact production artifacts
+Publication validation SHALL pack once, bind evidence to source commit, version, integrity, platform, runtime identity, capability, and default inventory, install that exact artifact, and run applicable architecture-independent plus terminal capability gates before uploading the same bytes.
+
+#### Scenario: Packaged transparent Native Pi starts
+- **WHEN** the exact candidate is installed and launches the identified Native Pi runtime under production defaults
+- **THEN** its foreground process, terminal attachment, interaction, exit, and parent restoration SHALL pass the transparent physical-host gate
+
+#### Scenario: Candidate bytes change after certification
+- **WHEN** package integrity differs from the certified artifact
+- **THEN** packaging or publication SHALL fail and require certification of the new bytes
+
+### Requirement: Supported platforms receive separate machine-readable verdicts
+Windows 11 x64, current Ubuntu LTS x64, and current and previous macOS arm64 SHALL each produce capability-specific machine-readable verdicts. Transparent success SHALL NOT certify composed mode, and one platform's result SHALL NOT certify another.
+
+#### Scenario: One capability is pending
+- **WHEN** transparent mode passes but composed mode has not completed evaluation
+- **THEN** the release SHALL identify transparent support only and later pane or reconnection features SHALL remain blocked
+
+### Requirement: Update transitions remain release-gating scenarios
+Stable and preview update gates SHALL exercise exact target resolution, verified owned-process shutdown, mutable-package unlock, immutable materialization, activation, endpoint verification, transaction recovery, and rollback without manual PID or state deletion.
+
+#### Scenario: Update with live owned processes
+- **WHEN** `a1 update` or `a1 update:next` runs while an older verified cohort is active
+- **THEN** AddOne SHALL complete or safely roll back one durable stop-install-activate transaction without mixed ownership
+
+#### Scenario: Update is interrupted
+- **WHEN** a fault occurs at a durable update phase
+- **THEN** rerunning the command SHALL converge to one verified active or rollback cohort
 
 ### Requirement: AddOne releases contain no deprecated dependencies
-The AddOne package SHALL contain no direct or transitive production, development, build, test, or optional dependency marked deprecated by its package registry. Packaging and publishing SHALL fail until every such dependency is removed, replaced, or upgraded and the exact lockfile is regenerated.
+The exact AddOne production, development, build, test, optional, and native dependency graph SHALL contain no package marked deprecated by its package registry.
 
-#### Scenario: Direct dependency is deprecated
-- **WHEN** the exact AddOne dependency graph contains a direct package whose registry metadata marks it deprecated
-- **THEN** the release dependency check SHALL fail and SHALL identify the package and dependency path
+#### Scenario: A transitive package is deprecated
+- **WHEN** registry metadata marks a reachable dependency deprecated
+- **THEN** packaging and publication SHALL fail with its dependency path
 
-#### Scenario: Transitive dependency is deprecated
-- **WHEN** a non-deprecated direct dependency resolves to a transitive package whose registry metadata marks it deprecated
-- **THEN** the release dependency check SHALL fail rather than treating the transitive warning as acceptable
+### Requirement: Every failed gate preserves reproducible evidence
+A failed gate SHALL preserve its capability, exact artifact identity, platform and host-terminal identity, runtime identity, physical action timeline, process inventory, relevant native observations, output captures, lifecycle events, assertions, and concise failure classification.
 
-#### Scenario: Vulnerability audit is clean but deprecation exists
-- **WHEN** the security audit reports no known vulnerability but the dependency graph contains a deprecated package
-- **THEN** AddOne packaging and publishing SHALL remain blocked because deprecation compliance is independently required
+#### Scenario: Physical parity fails
+- **WHEN** direct and AddOne-hosted observations differ
+- **THEN** evidence SHALL identify the first divergent physical action or visible state without requiring the retired simulator to explain the cause
 
-### Requirement: UI behavior is testable without real model access
-The test system SHALL support deterministic fake or replay drivers that emit normalized lifecycle, conversation, tool, failure, extension-UI, and terminal events.
+### Requirement: Confirmed regressions receive architecture-appropriate coverage
+Every confirmed regression SHALL preserve sufficient evidence and gain the smallest independent test capable of detecting its cause under the active architecture. A unit test SHALL be used for pure contracts; a real integration or physical-host gate SHALL be used when the behavior exists only at that boundary. A synthetic reproduction SHALL NOT be mandatory when synthesis would duplicate the production mechanism being tested.
 
-#### Scenario: Test working decoration
-- **WHEN** a fake driver emits working and settled events
-- **THEN** a test SHALL be able to assert the corresponding tab and sidebar states without contacting a model provider
+#### Scenario: Regression crosses the physical terminal boundary
+- **WHEN** a rendering or input defect cannot be represented independently in a unit test
+- **THEN** AddOne SHALL retain it in the physical-host or packaged integration gate rather than creating a self-modelled terminal simulation
 
-#### Scenario: Test recovery failure
-- **WHEN** a fake driver reports a session identity mismatch during recovery
-- **THEN** a test SHALL be able to assert the exact recovery state and available actions deterministically
+#### Scenario: Regression belongs to core logic
+- **WHEN** a defect is isolated to a deterministic domain, storage, protocol, release, or update contract
+- **THEN** AddOne SHALL add a focused deterministic test and run its containing gate
 
-### Requirement: Real CLI scenarios execute through PTYs
-AddOne acceptance scenarios SHALL be able to launch the real AddOne CLI through the applicable platform terminal boundary, produce semantic keyboard, paste, focus, mouse, and resize events, and inspect normalized terminal cells, cursor state, child effects, host mode state, and application artifacts.
+### Requirement: Every retained or newly added test is executed
+A test changed or introduced during cleanup or replacement SHALL pass both focused execution and its containing mandatory gate before its task is complete. Deleted invalid tests SHALL not require replacement until the new architecture defines an independent contract for that behavior.
 
-#### Scenario: Drive a mixed workspace
-- **WHEN** a scenario creates a Managed Pi tab and a terminal-agent tab through user-visible interactions
-- **THEN** it SHALL verify switching, focus, input routing, and surface restoration through the real CLI process
+#### Scenario: Focused test passes but containing gate fails
+- **WHEN** the focused command succeeds and its required integration, package, or release gate fails
+- **THEN** the task SHALL remain incomplete
 
-#### Scenario: Terminal width regression
-- **WHEN** a scenario resizes the CLI to a narrow supported width
-- **THEN** it SHALL verify that required navigation and add-agent actions remain reachable
+### Requirement: Deterministic assertions remain authoritative where valid
+Architecture-independent deterministic assertions SHALL remain primary for the contracts they can represent. Independent evaluator findings MAY supplement them but SHALL NOT override a deterministic failure.
 
-#### Scenario: Physical wheel-equivalent action
-- **WHEN** a scenario exercises wheel behavior
-- **THEN** it SHALL originate a host wheel event through the same platform input path used by AddOne and SHALL NOT inject a pre-encoded child mouse report as proof of physical-wheel behavior
-
-### Requirement: Generic terminal native parity blocks later product work
-Before later shell, managed-agent, or multi-agent features proceed, the release gate SHALL compare identical terminal workloads launched directly and through AddOne's application-agnostic terminal pipeline. The corpus SHALL include synchronized and unsynchronized output, shell scrolling, rapidly changing progress or status rows, cursor-only epilogues, alternate-screen applications, colors and Unicode, resize, sustained output, and host-output backpressure. Pi SHALL be one mandatory real CLI workload, but no production renderer branch or acceptance exception SHALL depend on Pi identity, arguments, or visible content.
-
-#### Scenario: One source commit arrives in multiple writes
-- **WHEN** a corpus workload emits one logical visual update as multiple PTY writes
-- **THEN** the direct and hosted committed-frame traces SHALL show equivalent visible progression and AddOne SHALL produce at most one visible host transaction for that source commit
-
-#### Scenario: Generic CLI changes fixed and generated rows
-- **WHEN** any corpus application scrolls generated content while updating progress, footer, status, or cursor rows
-- **THEN** direct and hosted runs SHALL expose equivalent committed frames without an intermediate blank, shifted, stale, or partially redrawn row
-
-#### Scenario: Host output applies backpressure
-- **WHEN** sustained terminal output fills the host write queue
-- **THEN** AddOne SHALL bound memory, await host drain, preserve ordered scroll/screen operations, merge only superseded state, and converge to the same terminal state without irregular stale-frame replay
-
-#### Scenario: Renderer has a CLI-specific branch
-- **WHEN** architecture validation finds terminal-core behavior selected from an executable name, CLI argument, CLI-named environment variable, or visible content
-- **THEN** the generic terminal parity gate SHALL fail even if the corresponding Pi scenario appears to pass
-
-### Requirement: Fullscreen Native Pi parity is release-gated across supported platforms
-The terminal-host baseline SHALL be exercised on Windows 11 x64 with Windows Terminal and system ConPTY, current Ubuntu LTS x64 with a UTF-8 xterm-compatible terminal, and current and previous macOS arm64 with a UTF-8 xterm-compatible terminal. Every Native Pi behavior declared cross-platform SHALL have deterministic coverage where possible and a packaged real-Pi gate on each supported platform before release.
-
-#### Scenario: One supported platform fails
-- **WHEN** a release candidate passes Native Pi parity on two supported platforms but fails a required behavior on the third
-- **THEN** the candidate SHALL remain release-blocked and SHALL NOT describe that platform as parity-complete
-
-#### Scenario: Platform-specific encoding differs
-- **WHEN** equivalent physical input uses different host or child byte encodings across platforms
-- **THEN** the parity gate SHALL compare semantic event identity, child-observable behavior, rendered state, and restored host state rather than requiring unrelated host encodings to be byte-identical
-
-### Requirement: The first walking skeleton validates direct-versus-hosted fullscreen terminal parity
-The test system SHALL exercise the real AddOne command, UI-to-supervisor boundary, host-input adapter, virtual terminal, and child PTY path while substituting a deterministic Native Pi fixture for transport scenarios. It SHALL run equivalent direct and AddOne-hosted cases and compare normalized cells, styles, cursor, effective child terminal modes, semantic host inputs, protocol-correct child effects, resize behavior, host-mode isolation, and visible-frame stability without model or network access.
-
-#### Scenario: Validate immediate fullscreen launch without an intro
-- **WHEN** the walking-skeleton scenario launches `addone`
-- **THEN** it SHALL verify that Native Pi starts immediately without a second user action, that no AddOne intro, logo, version, blank alternate-screen prelude, or shell frame is published, and that Pi occupies every terminal row and column
-
-#### Scenario: Validate color and attribute parity
-- **WHEN** the deterministic fixture paints indexed colors, truecolor foregrounds and backgrounds, text attributes, Unicode-width cells, cursor changes, and alternate-screen transitions
-- **THEN** the direct and AddOne-hosted normalized checkpoints SHALL preserve equivalent visible terminal state
-
-#### Scenario: Validate protocol-correct keyboard and paste input
-- **WHEN** the scenario sends ordinary keys, Native Pi shortcuts including Ctrl+C, escape, UTF-8 text, and paste events after handoff
-- **THEN** the fixture SHALL observe each semantic event exactly once, in order, with modifiers and text preserved and with encoding appropriate to the effective child keyboard and bracketed-paste state
-
-#### Scenario: Validate Pi-controlled mouse interaction
-- **WHEN** the fixture enables supported mouse reporting and the scenario originates physical-equivalent clicks, motion, and wheel actions across the viewport
-- **THEN** the fixture SHALL observe equivalent direct and AddOne-hosted child mouse effects and full-viewport coordinates without the test pre-encoding the expected child report
-
-#### Scenario: Simulate wheel scrolling separately from arrow-key history
-- **WHEN** the deterministic fullscreen fixture exposes a scrollable transcript and editor-message history under mouse-reporting, alternate-scroll, and host-scroll states
-- **THEN** equivalent direct and AddOne-hosted physical wheel actions SHALL follow the effective state without becoming ordinary Up or Down keys, while explicit Up and Down key actions SHALL navigate the fixture's editor history
-
-#### Scenario: Simulate repeated Ctrl+C terminal restoration
-- **WHEN** the deterministic direct and AddOne-hosted cases begin over known pre-launch terminal content and the fixture exits through repeated Ctrl+C
-- **THEN** both cases SHALL restore equivalent pre-launch content and modes, and a shell launched afterward through the same host terminal SHALL accept typing, cursor movement, Backspace, Delete, and command submission without visibly leaked control payloads
-
-#### Scenario: Validate full-viewport resize
-- **WHEN** the scenario resizes the outer PTY after Native Pi starts
-- **THEN** the child SHALL receive the same complete dimensions as the outer PTY and the rendered surface SHALL match those dimensions without chrome offsets
-
-#### Scenario: Validate flicker-free output
-- **WHEN** the fixture emits rapid partial updates followed by an idle interval
-- **THEN** captured frames and output diagnostics SHALL show ordered virtual-terminal updates, no intermediate whole-screen clear or stale frame, no raw child control-sequence passthrough, and no unchanged periodic repaint during the idle interval
-
-#### Scenario: Validate atomic generated-content presentation
-- **WHEN** an application-agnostic fixture emits synchronized and unsynchronized multi-write updates that repeatedly scroll generated content while replacing a fixed footer, progress, or status row
-- **THEN** direct and hosted committed-frame timelines SHALL remain equivalent, every physical host scroll and associated exposed text and cursor damage SHALL occur in one balanced AddOne-owned transaction, and no fixed render timer or CLI-specific rule SHALL be used
-
-#### Scenario: Validate child protocol isolation
-- **WHEN** the fixture enters and leaves alternate screen and enables or disables mouse, keyboard, paste, focus, cursor, synchronized-output, and Win32 input modes
-- **THEN** the harness SHALL prove that only the virtual child state changes while the physical host remains under AddOne ownership and returns exactly to its captured state on exit
-
-#### Scenario: Child fixture exits
-- **WHEN** the deterministic Pi fixture exits with a configured status
-- **THEN** the scenario SHALL verify that the foreground AddOne UI restores outer terminal modes and exits with the fixture outcome
-
-### Requirement: Native-terminal corrections pass deterministic simulation before user validation
-Every correction to fullscreen Native Pi input, scrolling, mode handoff, or exit cleanup SHALL first have a deterministic direct-versus-AddOne simulation that fails on the regression and passes on the correction. The applicable simulation SHALL be mandatory in automated validation before packaged-real-Pi comparison or manual user validation is requested.
-
-#### Scenario: Simulation remains failing
-- **WHEN** the deterministic wheel/history or repeated-Ctrl+C restoration scenario fails
-- **THEN** the correction SHALL remain unvalidated and SHALL NOT be handed to the user for manual acceptance
-
-#### Scenario: Simulation passes
-- **WHEN** the deterministic correction scenarios pass with retained input, mode, frame, and raw-output evidence
-- **THEN** validation MAY proceed to the packaged direct-versus-AddOne real-Pi gate before requesting manual user acceptance
-
-### Requirement: Packaged candidates prove real Pi fullscreen usability
-The release gate SHALL install the candidate AddOne package into an isolated temporary prefix and exercise an exactly identified real Pi runtime without model or network access. It SHALL launch the same absolute Pi executable, vanilla default interaction arguments, environment, terminal type, dimensions, and interaction timeline directly and through the packaged AddOne command. Synthetic fixtures SHALL remain terminal-transport oracles but SHALL not be accepted as proof that real Pi is usable.
-
-#### Scenario: Real Pi reaches interactive readiness
-- **WHEN** direct and AddOne-hosted real Pi start in isolated fullscreen, offline, approved, non-session mode
-- **THEN** both SHALL reach a recognizable interactive state containing Pi's editor and applicable startup or footer content before the deadline, and an empty or cursor-only frame SHALL fail
-
-#### Scenario: Real Pi accepts editor input
-- **WHEN** the scenario types deterministic text into direct and AddOne-hosted Pi
-- **THEN** normalized frames SHALL show equivalent editor content, styles, cursor state, active screen, and terminal modes without invoking a model
-
-#### Scenario: Real Pi opens a native dialog
-- **WHEN** the scenario opens and interacts with a built-in Pi dialog such as settings and then returns to the editor
-- **THEN** the direct and AddOne-hosted checkpoints SHALL remain equivalent and every input SHALL be consumed exactly once
-
-#### Scenario: Real Pi distinguishes physical wheel scrolling from arrow-key history
-- **WHEN** direct and AddOne-hosted Pi contain a scrollable transcript and editor history
-- **THEN** physical-wheel-equivalent actions sent through each host-input path SHALL scroll the transcript without recalling prior editor messages, explicit Up and Down keys SHALL retain Pi's history behavior, and stable checkpoints SHALL remain equivalent
-
-#### Scenario: Real Pi exits through repeated Ctrl+C
-- **WHEN** direct and AddOne-hosted Pi are launched over known terminal content and receive the same repeated Ctrl+C clear-and-exit interaction
-- **THEN** both SHALL restore equivalent prior terminal content and modes without visible raw, Win32-input, or terminal-control text
-
-#### Scenario: Parent shell remains usable after packaged Pi
-- **WHEN** packaged AddOne returns after Pi's normal or repeated-Ctrl+C quit flow
-- **THEN** a shell using the same host terminal SHALL accept normal typing, left and right movement, Backspace, Delete, command execution, and output before the scenario may pass
-
-#### Scenario: Packaged Pi exits normally
-- **WHEN** the scenario invokes Pi's normal quit flow
-- **THEN** the packaged AddOne foreground process SHALL restore terminal state and exit without requiring test-process or user cleanup
-
-#### Scenario: Packaged vanilla selection remains host-native
-- **WHEN** the scenario selects vanilla Pi transcript or editor text and presses Ctrl+C while that host selection is active
-- **THEN** direct and AddOne-hosted runs SHALL use equivalent selection painting, show no AddOne-specific or false Pi `Copied!` augmentation, dismiss the selection without clearing editor text, and preserve normal copy behavior
-
-#### Scenario: Packaged interaction speed matches vanilla Pi
-- **WHEN** the scenario sends a timed rapid typing burst and one physical wheel notch
-- **THEN** AddOne SHALL add no fixed 50 millisecond render delay and the wheel SHALL move the same three rows observed in direct vanilla Pi
-
-#### Scenario: Packaged vanilla scrollback remains native and stable
-- **WHEN** generated output pushes selected content beyond its prior viewport row
-- **THEN** direct and AddOne-hosted runs SHALL retain a native host scrollbar, move the selection with its content, emit equivalent scroll distance, and avoid whole-viewport repaint flicker
-
-#### Scenario: Packaged Pi status and text updates are atomic
-- **WHEN** packaged real Pi output causes normal-screen scrolling together with footer, status, text, or cursor damage
-- **THEN** the hosted renderer SHALL enclose each physical scroll and related damage in one balanced host synchronized-output transaction while retaining direct-equivalent rapid editor latency
-
-#### Scenario: Packaged Pi restores cursor shape
-- **WHEN** packaged AddOne exits back to the parent shell
-- **THEN** the parent cursor SHALL use the terminal's default shape and visibility as it does after directly launched Pi
-
-#### Scenario: Packaged Pi preserves native resume-hint spacing
-- **WHEN** direct Pi prints a `To resume this session:` hint with one blank row before it and one blank row after it before the parent prompt
-- **THEN** packaged AddOne SHALL preserve the same row spacing from child output and SHALL NOT inject a restoration newline or relocate blank rows
-
-### Requirement: V2-derived behavior uses a deferred extension-enabled PTY oracle
-The later v2 migration suite SHALL pin an exactly identified Pi runtime and v2 extension profile, launch that combination directly and through AddOne's PTY simulation with identical arguments, environment, terminal type, dimensions, and interaction timeline, and compare normalized terminal and process observations. Historical screenshots MAY be retained as diagnostics but SHALL NOT be required or treated as normative assertions. This suite SHALL remain separate from and SHALL NOT block the initial vanilla Pi fullscreen release gate.
-
-#### Scenario: Capture executable v2 behavior
-- **WHEN** a catalogued v2 interaction is selected for later migration
-- **THEN** the harness SHALL run the pinned extension-enabled Pi profile directly and through AddOne and retain identified checkpoints for cells, styles, cursor, active screen, terminal modes, input effects, timing, and process outcome
-
-#### Scenario: V2 profile has not been prepared yet
-- **WHEN** the pinned v2 extension profile or one of its executable scenarios is not yet available
-- **THEN** the corresponding later migration work SHALL remain pending while the vanilla Pi release remains governed by its deterministic-fixture, packaged-real-Pi, and update-transition gates
-
-#### Scenario: Screenshot differs from executable observation
-- **WHEN** a historical screenshot differs from a reproducible run of the exactly identified v2 extension profile
-- **THEN** the executable run and its retained identity and timeline SHALL define the behavioral baseline
-
-### Requirement: AddOne update transitions are release-gating scenarios
-The release gate SHALL exercise candidate installation and launch while a retained older AddOne supervisor cohort is running. It SHALL inspect process and release identity, negotiated control outcomes, active-generation continuity, activation state, and cleanup without shell-specific manual intervention.
-
-#### Scenario: Update with a live older supervisor
-- **WHEN** a candidate is installed and `addone` is launched while an N−1 supervisor owns a live terminal generation
-- **THEN** AddOne SHALL use the matching retained UI or complete a safe replacement, and the scenario SHALL observe no malformed-message or protocol-version error
-
-#### Scenario: Busy PTY defers candidate activation
-- **WHEN** the N−1 supervisor owns a busy non-resumable PTY
-- **THEN** the scenario SHALL verify that the old cohort remains usable, candidate activation is durably pending, and activation completes automatically after the PTY exits
-
-#### Scenario: Stale endpoint has no live owner
-- **WHEN** stale endpoint metadata or an unresponsive owner with no live generation remains from an older release
-- **THEN** AddOne SHALL reconcile it through bounded platform-native cleanup and launch successfully without requesting a manual PID kill
-
-#### Scenario: Installed files match candidate package
-- **WHEN** the packaged-candidate scenarios start
-- **THEN** their process inventory and release metadata SHALL prove that the bootstrap, UI, supervisor, and workers execute from the intended immutable release content rather than the development checkout
-
-### Requirement: Development previews use one immutable publish-and-update workflow
-AddOne SHALL provide one repository command that, from clean `develop`, selects the next unpublished `-dev.N` SemVer version, commits the package and lockfile bump, runs the available development-preview gates once, packs one exact tarball, publishes that tarball under npm tag `next` without recursively rerunning lifecycle gates, verifies the registry tag, and removes the local tarball only after success. The installed CLI SHALL map `update` to npm `latest` and `update:next` to npm `next`, and both SHALL use the same immediate replacement transaction.
-
-#### Scenario: Publish another development preview
-- **WHEN** a developer invokes the documented development-preview publication command from clean `develop`
-- **THEN** AddOne SHALL create and commit the next immutable `-dev.N` version, validate once, publish its exact validated tarball under `next`, and report the command or artifact retained for retry if validation, authentication, or publication fails
-
-#### Scenario: Browser authentication reports failure after upload
-- **WHEN** npm uploads the exact immutable candidate and moves `next` but its browser-auth completion poll subsequently exits with an authentication error
-- **THEN** the publication workflow SHALL verify exact version, tag, and artifact identity from the registry, treat the verified upload as successful, and SHALL NOT instruct the developer to republish the immutable version
-
-#### Scenario: Update an installed preview
-- **WHEN** the user runs `addone update:next` or `a1 update:next`
-- **THEN** AddOne SHALL resolve npm tag `next` and complete the exact newer preview's immediate verified stop-install-activate transaction through npm's active global installation
-
-#### Scenario: Stable update selects only stable content
-- **WHEN** the user runs `addone update` or `a1 update`
-- **THEN** AddOne SHALL resolve npm tag `latest`, perform the same immediate stop-install-activate transaction, and SHALL NOT opt the installation into development previews
-
-#### Scenario: Inspect installed and channel versions hermetically
-- **WHEN** unit and CLI-isolation tests invoke `addone version` and `a1 version` with deterministic npm responses or failures
-- **THEN** both aliases SHALL report `Installed`, `Release`, and `Next` consistently without importing or creating interactive runtime, supervisor, PTY, native-module, database, endpoint, or release-state artifacts
-
-### Requirement: Windows package replacement needs no manual cleanup
-The packaged update suite SHALL exercise publication-equivalent stable and preview installation with immediate activation on Windows while the old installed cohort has loaded `conpty.node` and owns multiple terminal generations. It SHALL prove that mutable npm package files are replaceable after verified shutdown, old native modules came from immutable release content, stale prior-boot generation rows cannot block candidate activation, and the next launch uses the new release presentation. The scenario SHALL fail if success requires `taskkill`, PID discovery, global package surgery, release-state deletion, database deletion, or removal of the AddOne data directory outside the product command.
-
-#### Scenario: Replace a running Windows stable or preview release
-- **WHEN** a packaged N−1 AddOne release owns terminal generations and the test invokes either `a1 update` or `a1 update:next`
-- **THEN** each command SHALL terminate only verified AddOne-owned processes, replace the npm package from its selected tag, activate the candidate, preserve durable data, and launch the new release without an old intro or retained old UI
-
-#### Scenario: Prior supervisor died uncleanly
-- **WHEN** update begins with dead endpoint ownership and nonterminal generation rows from the prior supervisor boot
-- **THEN** automatic reconciliation SHALL remove those rows from liveness and activation decisions without deleting the control database
-
-#### Scenario: Update transaction is interrupted at every durable phase
-- **WHEN** faults are injected after shutdown intent, ownership release, npm replacement, materialization, certification, or active-reference commit
-- **THEN** rerunning the same update command SHALL converge to one verified active cohort or one verified rollback cohort without mixed ownership or manual cleanup
-
-### Requirement: Every failed scenario preserves reproducible evidence
-A failed scenario SHALL preserve its scenario definition, semantic host-input timeline, encoded child-input timeline, package and immutable release identities, negotiated control features, runtime and profile identities, platform and terminal identity, process inventory, activation and ownership metadata, relevant process logs, supervisor events, child PTY output, host renderer output, virtual terminal frames and mode timeline, captured host console modes where applicable, session references, assertions, and failure summary.
-
-#### Scenario: PTY assertion fails
-- **WHEN** an expected terminal condition is not met before its deadline
-- **THEN** the artifact bundle SHALL include the final surface and preceding relevant frames rather than only a timeout message
-
-### Requirement: Pi compatibility is certified before promotion
-The test system SHALL run a defined compatibility matrix against each candidate Managed Pi runtime and extension profile before that candidate can become approved for new or migrated agents. Runtime and package identity SHALL come from installed manifests, lockfiles, and installation digests rather than a duplicated test version constant.
-
-#### Scenario: Candidate changes RPC event shape
-- **WHEN** the adapter contract suite cannot normalize a candidate Pi event or response
-- **THEN** certification SHALL fail and the approved runtime SHALL remain unchanged
-
-#### Scenario: Candidate preserves compatibility
-- **WHEN** the candidate passes startup, prompt, tool, extension, exact-session recovery, and shutdown scenarios
-- **THEN** the candidate MAY be marked approved without migrating existing agents automatically
-
-### Requirement: Deterministic assertions remain the primary release oracle
-Release-gating requirements with deterministic representations SHALL be asserted by code, while evaluator-agent judgments SHALL supplement those assertions for usability and visual-semantic regressions.
-
-#### Scenario: Deterministic requirement fails but evaluator approves
-- **WHEN** an evaluator agent reports success but a deterministic session-continuity assertion fails
-- **THEN** the scenario SHALL remain failed
-
-### Requirement: An independent evaluator can inspect candidate PTYs
-The test system SHALL support a known-good evaluator agent that is isolated from the candidate process and can observe terminal snapshots, send controlled input, wait for states, request fault injection, and submit a structured verdict with evidence.
-
-#### Scenario: Evaluator detects confusing recovery UX
-- **WHEN** deterministic lifecycle checks pass but the candidate presents an ambiguous recovery interaction
-- **THEN** the evaluator SHALL be able to fail or flag the scenario with referenced frames and a requirement-oriented explanation
-
-#### Scenario: Candidate agent is broken
-- **WHEN** the candidate's embedded or managed agent cannot operate correctly
-- **THEN** the independent evaluator SHALL remain operational because it runs under a separately pinned known-good runtime
-
-### Requirement: Every confirmed regression is reproduced before correction completion
-Every confirmed regression discovered in production, manual validation, evaluator inspection, or an automated/release gate SHALL preserve sufficient failure evidence and SHALL be represented by a deterministic failing test for the observed cause before its correction is considered complete. The correction SHALL retain that test permanently in the applicable mandatory unit, scenario, packaged, update-transition, architecture, or publication gate. A passing rerun, manual confirmation, or implementation change without cause-specific regression coverage SHALL NOT count as completion evidence, and the user SHALL NOT need to request test coverage separately.
-
-#### Scenario: Production or manual regression is corrected
-- **WHEN** a user or operator reports a reproducible failure
-- **THEN** implementation SHALL preserve the relevant evidence, add a test that fails for that cause, make the correction, and retain the passing regression in the mandatory gate that protects the violated requirement
-
-#### Scenario: Intermittent release gate fails
-- **WHEN** a timing-sensitive release gate exposes a cursor, latency, transaction-assembly, process-lifecycle, or test-synchronization defect
-- **THEN** implementation SHALL add a deterministic model or oracle regression for the cause as well as rerun the isolated affected platform scenario, without weakening its assertions or thresholds
-
-#### Scenario: Initial handoff boundary changes before later scrolling
-- **WHEN** equivalent normal-screen startup output yields different valid first-ready snapshots and correspondingly different later full-viewport scroll distances
-- **THEN** deterministic renderer coverage SHALL prove that each variant consumes the actual appended physical origin and leaves subsequent editor, separator, cursor, and fixed rows aligned with the direct terminal
-
-#### Scenario: Only a rerun passes
-- **WHEN** an observed failure disappears on a subsequent run but no cause-specific regression has been added
-- **THEN** the correction SHALL remain incomplete and publication SHALL remain blocked
-
-#### Scenario: Regression is fixed
-- **WHEN** a regression fix is accepted
-- **THEN** its deterministic regression SHALL pass on the fixed build, remain in the applicable suite, and execute through the mandatory gate protecting that requirement
-
-### Requirement: Bug fixes pass simulation-first exact-artifact certification
-Every bug correction SHALL preserve the observed evidence, produce a deterministic cause-specific simulation that fails before the correction, pass that simulation and neighboring affected-boundary simulations under production defaults after correction, install and launch the exact packed candidate tarball in isolation, and run the complete containing release gate before publication. Publication SHALL upload only the exact certified tarball. A test-only timeout, environment, argument, dimension, or configuration override SHALL NOT substitute for the production-default simulation, and repeated live reruns SHALL NOT substitute for deterministic reproduction.
-
-#### Scenario: Release tests override a production default
-- **WHEN** an affected scenario uses a timeout, environment, arguments, dimensions, or configuration different from an ordinary installed launch
-- **THEN** candidate certification SHALL additionally run the exact tarball with the production default and fail publication if that launch does not reach the required ready and usable state
-
-#### Scenario: Fix passes only its focused test
-- **WHEN** the cause-specific simulation passes but an affected neighboring simulation, exact-tarball launch, or containing release gate fails
-- **THEN** the correction SHALL remain incomplete and publication SHALL remain blocked
-
-#### Scenario: Exact artifact differs after certification
-- **WHEN** package content, source commit, lockfile, version, tarball integrity, platform identity, runtime identity, or production-default inventory differs from recorded certification
-- **THEN** prior certification SHALL be invalid and the exact changed artifact SHALL be certified again before upload
-
-### Requirement: Authored tests are executed before completion
-Every test added or modified during implementation SHALL be executed and pass before its task or coherent tested subtask is marked complete or committed. Validation SHALL include the focused test and the containing integration, build, check, release, packaging, or publication command that users and automation rely on. A passing related test, an unexecuted new assertion, or a focused pass while the containing command fails SHALL NOT count as completion evidence.
-
-#### Scenario: A test is added or changed
-- **WHEN** implementation adds or modifies a unit, integration, scenario, architecture, packaging, publication, or release-gate test
-- **THEN** the implementer SHALL run that exact test and its containing required command successfully before marking the work complete or committing it
-
-#### Scenario: Containing build fails another test
-- **WHEN** focused changed tests pass but the containing build or gate reports any failure
-- **THEN** the work SHALL remain incomplete, the failure SHALL be investigated under the regression-first workflow, and no successful-build claim SHALL be made
-
-#### Scenario: Optional test evidence delays process exit
-- **WHEN** a packaged CLI child has exited and host state has been restored
-- **THEN** optional evidence collection SHALL NOT synchronously launch external probes or keep the foreground CLI alive beyond its bounded exit contract
+#### Scenario: Evaluator approves a failing lifecycle transition
+- **WHEN** evaluator inspection reports success but an authoritative update or ownership assertion fails
+- **THEN** the gate SHALL remain failed

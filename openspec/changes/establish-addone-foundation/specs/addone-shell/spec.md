@@ -39,16 +39,16 @@ The installed application SHALL expose `addone version` and `a1 version` as equi
 - **WHEN** the installed package metadata is readable but one or both npm tag queries fail
 - **THEN** AddOne SHALL still display `Installed`, mark each unavailable remote field without claiming a version, emit concise diagnostics, and exit successfully
 
-### Requirement: The AddOne command launches vanilla Native Pi immediately
-The installed application SHALL expose an `addone` terminal command that immediately starts the configured vanilla Native Pi command in Pi's default interactive mode without requiring user activation and without publishing an AddOne intro, logo, version frame, blank alternate-screen prelude, or other application frame before Pi. AddOne MAY project that terminal over its complete viewport but SHALL NOT force a Pi interaction mode that changes vanilla selection, scrolling, copy, Ctrl+C, startup, or closure behavior.
+### Requirement: The AddOne command launches vanilla Native Pi transparently
+The installed application SHALL expose an `addone` terminal command that immediately starts the configured vanilla Native Pi command in Pi's default interactive mode without requiring user activation and without publishing an AddOne intro, logo, version frame, blank alternate-screen prelude, reconstructed readiness frame, or other application output before Pi. The initial transparent path SHALL NOT force a Pi interaction mode or mediate terminal behavior in a way that changes native selection, scrolling, copy, input, startup, or closure.
 
 #### Scenario: Launch the command
 - **WHEN** the user runs `addone` in a supported terminal
-- **THEN** AddOne SHALL start the configured Native Pi executable immediately and the first application content published by AddOne SHALL be the first ready Pi frame
+- **THEN** AddOne SHALL start and attach the configured Native Pi executable immediately and the first application content SHALL be Native Pi's own output delivered through the native terminal path
 
 #### Scenario: Launch again after a prior Native Pi exit
-- **WHEN** the user runs `addone` after one or more prior fullscreen Native Pi generations have exited
-- **THEN** AddOne SHALL start a fresh Native Pi generation, preserve the invoking command and prior terminal history without an intermediate blank or clear frame, and SHALL NOT replay retained exited surfaces or fail its control handshake because of their accumulated state
+- **WHEN** the user runs `addone` after one or more prior Native Pi generations have exited
+- **THEN** AddOne SHALL start a fresh transparent Native Pi generation without replaying retained surfaces, repainting prior output, or failing lifecycle negotiation because of historical generations
 
 ### Requirement: AddOne owns the application shell
 AddOne SHALL run as a standalone terminal application and SHALL own workspace navigation, tabs, sidebar presentation, global input routing, drafts, statuses, dialogs, and notifications independently of any selected agent runtime.
@@ -94,37 +94,28 @@ AddOne SHALL expose only controls supported by the selected agent driver and SHA
 - **WHEN** a selected driver advertises only a terminal surface and process lifecycle
 - **THEN** AddOne SHALL limit its controls to supported terminal and lifecycle operations and SHALL not present inferred model, tool, or conversation state
 
-### Requirement: Input routing is deterministic
-During the initial fullscreen Native Pi iteration, AddOne SHALL reserve no application shortcut after handoff but SHALL retain ownership of the physical host-input protocol. It SHALL decode each keyboard, paste, focus, and supported mouse event once and deliver one protocol-correct equivalent to Native Pi according to the child terminal's negotiated state, including Ctrl+C. Host and child byte encodings MAY differ when their negotiated keyboard or mouse protocols differ, but child-observable behavior SHALL match direct Pi and no event SHALL be duplicated, dropped, or converted into a different input kind. After multi-agent shell controls are introduced, AddOne SHALL route input in the order of documented global shell shortcuts, focused application shortcuts, focused component behavior, and active surface input, with each input consumed at most once.
+### Requirement: Input ownership follows terminal capability
+During the initial transparent Native Pi iteration, AddOne SHALL reserve no application shortcut after handoff and SHALL NOT read, decode, serialize, translate, duplicate, delay, or re-encode ordinary physical terminal input. The native terminal path SHALL deliver input directly to the attached child. After composed multi-agent shell controls are introduced, the one certified composed terminal boundary SHALL route input in the order of documented global shell shortcuts, focused application shortcuts, focused component behavior, and active surface input, with each input consumed at most once.
 
-#### Scenario: Native Pi receives complete control in fullscreen mode
-- **WHEN** a physical input event is received after the initial fullscreen Native Pi session starts
-- **THEN** AddOne SHALL deliver the equivalent event to Native Pi exactly once in its negotiated terminal protocol and SHALL not interpret it as an AddOne shortcut
+#### Scenario: Native Pi receives complete control in transparent mode
+- **WHEN** a physical key, text, paste, focus, mouse, wheel, or resize action occurs after transparent Native Pi handoff
+- **THEN** the physical terminal and operating system SHALL deliver it through the same native path used by direct execution without an AddOne input command
 
-#### Scenario: Ctrl+C in fullscreen mode
-- **WHEN** the user presses Ctrl+C after Native Pi starts
-- **THEN** Native Pi SHALL receive exactly one Ctrl+C event and AddOne SHALL not terminate the UI as a result of intercepting that input
-- **AND** the event SHALL NOT be converted into Ctrl+P or trigger Pi's model-cycle action
+#### Scenario: Ctrl+C and Ctrl+P remain distinct
+- **WHEN** the user presses Ctrl+C or Ctrl+P during transparent Native Pi
+- **THEN** Pi SHALL observe the corresponding native action and AddOne SHALL neither intercept it nor translate one control key into the other
 
-#### Scenario: Windows control-key identity crosses negotiated protocols
-- **WHEN** Windows reports any Ctrl+A through Ctrl+Z key through a native input record or Win32 VT input record and the child uses legacy, modifyOtherKeys, Kitty, or Win32 input
-- **THEN** AddOne SHALL preserve the same control-letter identity exactly once regardless of layout-dependent virtual-key metadata and SHALL NOT encode a key release as another press
+#### Scenario: Repeated Ctrl+C follows Native Pi behavior
+- **WHEN** the user performs Native Pi's repeated Ctrl+C clear-and-exit interaction after transparent handoff
+- **THEN** Native Pi and the native terminal path SHALL handle it as in direct execution without AddOne semantic delivery
 
-#### Scenario: Repeated Ctrl+C follows Native Pi clear and exit behavior
-- **WHEN** the user performs Native Pi's repeated Ctrl+C clear-and-exit interaction after handoff
-- **THEN** AddOne SHALL deliver each Ctrl+C exactly once and SHALL allow Native Pi to clear or exit exactly as it does when launched directly
+#### Scenario: Global shortcut in a later composed terminal tab
+- **WHEN** a documented global workspace shortcut is entered while a composed terminal surface is focused
+- **THEN** AddOne SHALL handle the shortcut without forwarding an equivalent event through the authoritative terminal core
 
-#### Scenario: Physical wheel remains distinct from arrow keys
-- **WHEN** the user rotates the wheel and later presses Up or Down in fullscreen Native Pi
-- **THEN** AddOne SHALL preserve the wheel as a mouse-or-host-scroll event selected from the child terminal state and preserve Up or Down as a keyboard event, without converting either input kind into the other
-
-#### Scenario: Global shortcut in a later PTY tab
-- **WHEN** a documented global workspace shortcut is entered after multi-agent shell controls are introduced while a PTY tab is focused
-- **THEN** AddOne SHALL handle the shortcut without forwarding an equivalent event to the child PTY
-
-#### Scenario: Unclaimed PTY input in the later shell
-- **WHEN** input is not claimed by the later shell or a focused AddOne component and a PTY surface is focused
-- **THEN** AddOne SHALL deliver the event once using the focused terminal session's negotiated input protocol
+#### Scenario: Unclaimed input in the later composed shell
+- **WHEN** input is not claimed by the later shell or a focused AddOne component and a composed terminal surface is focused
+- **THEN** the certified composed terminal boundary SHALL deliver the action once according to authoritative terminal state
 
 ### Requirement: Drafts belong to AddOne
 AddOne SHALL preserve unsent structured-conversation drafts independently of worker process lifetime and SHALL maintain a separate draft for each applicable agent tab.
@@ -152,43 +143,54 @@ After fullscreen vanilla Native Pi parity is established, v2-derived multi-agent
 - **WHEN** a driver reports that an agent starts work, completes, fails, or recovers
 - **THEN** the tab strip and sidebar SHALL update the agent decoration without changing the active selection
 
-### Requirement: The initial Native Pi session owns the complete viewport
-From launch, the initial iteration SHALL present exactly one automatically selected Native Pi fullscreen-TUI terminal surface across the complete outer terminal viewport, with no AddOne intro, tab strip, `+` control, sidebar, status line, border, padding, or reserved rows.
+### Requirement: AddOne remains a cross-platform terminal application
+AddOne SHALL run inside the user's native terminal environment on Windows, macOS, and Linux. Its core shell and terminal-agent interaction SHALL remain terminal-based and SHALL NOT require a browser, desktop GUI, remote canvas, or application-specific display host to provide supported behavior.
 
-#### Scenario: Launch hands directly to Native Pi
-- **WHEN** the Native Pi generation becomes available
-- **THEN** a recognizable ready Pi frame containing its interactive editor and applicable startup or footer content SHALL become the first AddOne-published application frame across the complete viewport without an intro, blank alternate-screen prelude, or intermediate AddOne shell frame
+#### Scenario: Launch AddOne on a supported platform
+- **WHEN** the user launches AddOne from a supported Windows, macOS, or Linux terminal
+- **THEN** AddOne SHALL operate within that terminal using the platform's certified terminal and process facilities
 
-#### Scenario: Cursor-only startup
-- **WHEN** Native Pi remains alive but AddOne observes only an empty surface or cursor movement before the startup deadline
-- **THEN** AddOne SHALL fail readiness with retained terminal and process diagnostics rather than treating the handoff as successful
+#### Scenario: A terminal application is not Pi
+- **WHEN** the user launches a supported shell, editor, pager, multiplexer, agent CLI, or other interactive terminal application
+- **THEN** AddOne SHALL use the same capability contract without requiring an application-specific shell or renderer
+
+### Requirement: The initial Native Pi session uses transparent full-viewport handoff
+From launch, the initial iteration SHALL present exactly one automatically selected transparent Native Pi session across the complete physical terminal viewport, with no AddOne intro, tab strip, `+` control, sidebar, status line, border, padding, reserved rows, reconstructed readiness frame, or AddOne display output after handoff.
+
+#### Scenario: Launch attaches Native Pi transparently
+- **WHEN** AddOne starts the initial Native Pi generation
+- **THEN** it SHALL attach the child to the foreground terminal without an AddOne startup frame, semantic input relay, virtual framebuffer repaint, or inferred readiness-frame delay
 
 #### Scenario: Outer terminal resizes
-- **WHEN** the outer terminal dimensions change during the fullscreen session
-- **THEN** AddOne SHALL resize Native Pi to the same column and row dimensions without subtracting space for application chrome
+- **WHEN** the physical terminal changes size during the transparent session
+- **THEN** Native Pi SHALL observe the same dimensions through the native terminal path without AddOne chrome offsets
 
 #### Scenario: Native Pi exits
-- **WHEN** the initial fullscreen Native Pi process exits
-- **THEN** the foreground AddOne UI SHALL restore the exact host input and cursor state, retain vanilla Pi's normal-screen output, scrollback, final cursor position, and child-produced line spacing exactly as direct Pi does, restore prior normal-screen content when an explicitly fullscreen child used AddOne's alternate projection, emit no synthetic newline or visible raw control-sequence text, and exit with the Native Pi outcome rather than displaying AddOne chrome
+- **WHEN** the transparent Native Pi process exits
+- **THEN** AddOne SHALL retain child-produced output and spacing, perform only bounded ownership cleanup, emit no synthetic newline or reconstructed final frame, and return the Native Pi outcome
 
-### Requirement: AddOne exclusively owns the physical terminal
-While an AddOne UI client is attached, AddOne SHALL be the sole owner of physical-terminal raw mode, alternate-screen state, mouse capture, keyboard enhancement, bracketed paste, focus reporting, cursor policy, and platform console input mode. Terminal-agent control sequences SHALL affect only their virtual terminal session. AddOne SHALL restore the exact pre-launch host state on every normal, error, interruption, and panic exit path.
+### Requirement: Physical-terminal ownership follows terminal capability
+During a transparent session, the attached child and physical terminal SHALL own terminal rendering, input encoding, selection, scrollback, and child-requested terminal modes as they do during direct execution; AddOne SHALL retain only foreground process ownership and bounded abnormal-exit cleanup. During a composed session, AddOne SHALL own physical presentation and isolate child modes through the certified composed terminal boundary. The two ownership models SHALL NOT be mixed within one active session.
 
-#### Scenario: Child changes terminal modes
-- **WHEN** Native Pi enters or leaves its alternate screen or changes mouse, keyboard, paste, focus, cursor, or synchronized-output modes
-- **THEN** AddOne SHALL update the child session's virtual state and rendered result without transferring ownership of the corresponding physical-terminal mode to Pi
+#### Scenario: Transparent child changes terminal modes
+- **WHEN** transparent Native Pi changes screen, mouse, keyboard, paste, focus, cursor, synchronized-output, or Win32 input modes
+- **THEN** the request SHALL travel through the native attached terminal path without AddOne decoding, virtualizing, or replaying it
 
-#### Scenario: Child requests Win32 input mode
-- **WHEN** a Windows child emits a request that would enable Win32 input mode on a directly attached terminal
-- **THEN** that request SHALL remain confined to the child terminal session and SHALL NOT cause encoded Win32 input records to become visible or leak into the parent shell
+#### Scenario: Composed child changes terminal modes
+- **WHEN** a composed child changes a supported terminal mode
+- **THEN** the composed terminal boundary SHALL mediate it without granting the child uncontrolled access to unrelated AddOne shell presentation
 
-#### Scenario: Foreground client exits unexpectedly
-- **WHEN** the AddOne UI exits because of a normal quit, child failure, connection failure, interrupt, or panic
-- **THEN** the physical terminal SHALL return to its captured pre-launch input mode, screen, cursor, wrapping, mouse, paste, focus, and keyboard state before any final diagnostic is printed
+#### Scenario: Foreground transparent broker exits unexpectedly
+- **WHEN** the broker, child, or connection fails during transparent attachment
+- **THEN** AddOne SHALL perform bounded platform cleanup, report that transparent visual reconnection is unavailable, and leave the parent terminal usable before printing a diagnostic
 
-### Requirement: UI clients can reconnect to the supervisor
-A newly started AddOne UI client SHALL reconstruct the current workspace, tab, draft, status, and surface bindings from a supervisor snapshot and subsequent ordered events.
+### Requirement: UI reconnection respects terminal capability
+A newly started AddOne UI client SHALL reconstruct durable workspace, tab, draft, status, and capability bindings from a supervisor snapshot and subsequent ordered events. It SHALL restore resident visual surfaces only for capabilities that provide authoritative reconnectable state.
 
-#### Scenario: Restart the UI
-- **WHEN** the AddOne UI process is terminated and restarted while the supervisor remains running
-- **THEN** the new UI SHALL restore the current workspaces and agents without restarting those agents solely because the UI restarted
+#### Scenario: Restart the UI with managed or composed agents
+- **WHEN** the AddOne UI restarts while Managed agents or certified composed terminal agents remain recoverable or resident
+- **THEN** the new UI SHALL restore their durable bindings and supported state without restarting them solely because the UI restarted
+
+#### Scenario: Restart the UI after transparent ownership is lost
+- **WHEN** a transparent foreground owner disconnects and its profile does not support detach
+- **THEN** the new UI SHALL report the recorded stop or detach outcome and SHALL NOT present a reconstructed continuous terminal surface
