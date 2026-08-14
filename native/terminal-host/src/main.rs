@@ -7,7 +7,7 @@ use std::process::ExitCode;
 use std::sync::mpsc::{self, Receiver, TryRecvError};
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as BASE64;
@@ -291,7 +291,6 @@ fn interactive_loop(
 ) -> Result<(), String> {
     let mut stdout = std::io::stdout().lock();
     let mut output_open = true;
-    let mut last_interrupt: Option<Instant> = None;
     loop {
         loop {
             match output.try_recv() {
@@ -311,23 +310,12 @@ fn interactive_loop(
         {
             match event::read().map_err(|error| format!("read terminal input: {error}"))? {
                 Event::Key(key) => {
-                    let interrupt = matches!(key.code, KeyCode::Char('c') | KeyCode::Char('C'))
-                        && key.modifiers.contains(KeyModifiers::CONTROL);
                     if let Some(encoded) = encode_key(key_encoder, key)? {
                         writer
                             .lock()
                             .map_err(|_| "terminal session writer lock poisoned".to_owned())?
                             .write_all(&encoded)
                             .map_err(|error| format!("write terminal input: {error}"))?;
-                    }
-                    if interrupt {
-                        let now = Instant::now();
-                        if last_interrupt.is_some_and(|previous| {
-                            now.duration_since(previous) < Duration::from_millis(1500)
-                        }) {
-                            break;
-                        }
-                        last_interrupt = Some(now);
                     }
                 }
                 Event::Paste(text) => {

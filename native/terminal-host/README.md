@@ -31,7 +31,7 @@ The initial proof starts the calling shell in one fullscreen pane when possible:
 
 Mouse wheel scrolling is captured by the host and scrolls the retained terminal viewport. Plain left-drag selects terminal text with one uniform white inverted style and copies it through the outer terminal's OSC 52 clipboard support. Keyboard scroll/navigation is not rebound by the host; keys remain owned by the child application until explicit workspace modes are designed. The host preserves the outer terminal's default background and foreground unless the child explicitly sets colors.
 
-The host exits when the child exits or the PTY closes. A second Ctrl+C within 1.5 seconds requests host cleanup if the child does not exit normally.
+The host exits when the child exits or the PTY closes. Ctrl+C is always child-owned; the host does not count interrupts or force a quit from keyboard input.
 
 To choose an exact executable:
 
