@@ -54,10 +54,10 @@ The first artifact had one finding: `Ctrl+Shift+Q` did not exit.
 
 ## Selection and exit artifact
 
-- Artifact SHA-256: `8189720841dcc7dc05ff7f9cdacdc446e3a506a03fb5f6667968000126e9e277`
-- Size: 2,264,064 bytes
+- Artifact SHA-256: `8bbc5ea7c631cc84858f0fd91bf764943d85aa657dcaf1e68450c2097da37061`
+- Size: 2,262,016 bytes
 - Plain left-drag selects terminal content; release emits an OSC 52 clipboard write.
-- Home/End jump to scrollback boundaries; PageUp/PageDown and mouse wheel scroll the retained viewport.
+- Mouse wheel scrolls the retained viewport. Home, End, PageUp, PageDown, and arrow keys remain child-owned; no host keyboard scroll binding is active.
 - PTY output-channel closure exits the host even if process wait state is stale.
 - A second Ctrl+C within 1.5 seconds requests host cleanup instead of leaving a frozen UI.
 - Non-interactive probes pass for terminal rendering, scrollback, selection, and PTY cleanup.

@@ -29,7 +29,7 @@ Run only when you choose to test the current terminal manually:
 
 The initial proof starts the calling shell in one fullscreen pane when possible: Git Bash from Git Bash, PowerShell from PowerShell, and `cmd.exe` from CMD. Leave by exiting the child normally, usually `exit` or `Ctrl+C` until the process closes. There is no host-owned quit shortcut.
 
-Mouse wheel scrolling is captured by the host and scrolls the retained terminal viewport. Plain left-drag selects terminal text and copies it through the outer terminal's OSC 52 clipboard support. Home and End jump to the top and bottom of scrollback; PageUp and PageDown scroll by half a page. The host preserves the outer terminal's default background and foreground unless the child explicitly sets colors.
+Mouse wheel scrolling is captured by the host and scrolls the retained terminal viewport. Plain left-drag selects terminal text and copies it through the outer terminal's OSC 52 clipboard support. Keyboard scroll/navigation is not rebound by the host; keys remain owned by the child application until explicit workspace modes are designed. The host preserves the outer terminal's default background and foreground unless the child explicitly sets colors.
 
 The host exits when the child exits or the PTY closes. A second Ctrl+C within 1.5 seconds requests host cleanup if the child does not exit normally.
 

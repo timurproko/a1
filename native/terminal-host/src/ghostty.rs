@@ -475,23 +475,6 @@ impl GhosttyTerminal {
         )
     }
 
-    pub fn scroll_top(&mut self) -> Result<(), String> {
-        self.scroll_absolute(0)
-    }
-
-    pub fn scroll_bottom(&mut self) -> Result<(), String> {
-        unsafe {
-            ghostty_terminal_scroll_viewport(
-                self.raw,
-                GhosttyTerminalScrollViewport {
-                    tag: 1,
-                    value: GhosttyTerminalScrollViewportValue { _padding: [0, 0] },
-                },
-            );
-        }
-        self.mark_dirty()
-    }
-
     pub fn viewport_active(&self) -> Result<bool, String> {
         let mut active = false;
         check(
@@ -505,19 +488,6 @@ impl GhosttyTerminal {
             "read terminal viewport state",
         )?;
         Ok(active)
-    }
-
-    fn scroll_absolute(&mut self, row: usize) -> Result<(), String> {
-        unsafe {
-            ghostty_terminal_scroll_viewport(
-                self.raw,
-                GhosttyTerminalScrollViewport {
-                    tag: 3,
-                    value: GhosttyTerminalScrollViewportValue { row },
-                },
-            );
-        }
-        self.mark_dirty()
     }
 
     fn grid_ref(&self, x: u16, y: u16) -> Result<GhosttyGridRef, String> {

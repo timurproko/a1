@@ -309,14 +309,12 @@ fn interactive_loop(
                 Event::Key(key) => {
                     let interrupt = matches!(key.code, KeyCode::Char('c') | KeyCode::Char('C'))
                         && key.modifiers.contains(KeyModifiers::CONTROL);
-                    if !handle_scroll_key(terminal, key, *viewport_rows)? {
-                        if let Some(encoded) = encode_key(key_encoder, key)? {
-                            writer
-                                .lock()
-                                .map_err(|_| "terminal session writer lock poisoned".to_owned())?
-                                .write_all(&encoded)
-                                .map_err(|error| format!("write terminal input: {error}"))?;
-                        }
+                    if let Some(encoded) = encode_key(key_encoder, key)? {
+                        writer
+                            .lock()
+                            .map_err(|_| "terminal session writer lock poisoned".to_owned())?
+                            .write_all(&encoded)
+                            .map_err(|error| format!("write terminal input: {error}"))?;
                     }
                     if interrupt {
                         let now = Instant::now();
@@ -486,22 +484,6 @@ fn write_clipboard(stdout: &mut impl Write, bytes: &[u8]) -> Result<(), String> 
     stdout
         .flush()
         .map_err(|error| format!("flush clipboard selection: {error}"))
-}
-
-fn handle_scroll_key(
-    terminal: &mut GhosttyTerminal,
-    key: KeyEvent,
-    rows: u16,
-) -> Result<bool, String> {
-    let page = (rows as isize).max(1) / 2;
-    match key.code {
-        KeyCode::Home => terminal.scroll_top()?,
-        KeyCode::End => terminal.scroll_bottom()?,
-        KeyCode::PageUp => terminal.scroll_delta(-page)?,
-        KeyCode::PageDown => terminal.scroll_delta(page)?,
-        _ => return Ok(false),
-    }
-    Ok(true)
 }
 
 struct TerminalModeGuard;
