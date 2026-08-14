@@ -40,9 +40,16 @@ for (const file of await walk(sourceRoot)) {
   const imports = [...source.matchAll(/(?:from\s+|import\s*\()(["'])([^"']+)\1/g)].map(match => match[2]);
 
   for (const specifier of imports) {
-    const isPi = /(?:^|\/)(?:pi-agent|pi-ai|pi-coding-agent|@mariozechner\/pi-|@oh-my-pi\/pi-)/.test(specifier);
-    if (isPi && !/^src\/(drivers\/pi|profiles\/pi)\//.test(path)) {
-      errors.push(`${path}: Pi import '${specifier}' is outside Pi adapter/profile tooling`);
+    const isPi = /(?:^|\/)(?:pi-agent|pi-ai|pi-coding-agent|pi-tui|@mariozechner\/pi-|@oh-my-pi\/pi-)/.test(specifier);
+    const piAdapterPath = /^src\/(?:foundation\/(?:pi-engine-adapter|pi-component-adapter)|drivers\/pi|profiles\/pi)\//.test(path);
+    if (/@oh-my-pi\//.test(specifier)) {
+      errors.push(`${path}: oh-my-pi fork package import '${specifier}' is forbidden`);
+    }
+    if (specifier === "bun" || specifier.startsWith("bun:")) {
+      errors.push(`${path}: Bun-only dependency '${specifier}' is forbidden`);
+    }
+    if (isPi && !piAdapterPath) {
+      errors.push(`${path}: Pi import '${specifier}' is outside the owned Pi adapter boundary`);
     }
     if (/(?:^|\/)(?:dist|src|build)\//.test(specifier) && /pi/i.test(specifier)) {
       errors.push(`${path}: private Pi distribution import '${specifier}' is forbidden`);
@@ -50,8 +57,8 @@ for (const file of await walk(sourceRoot)) {
     if (["node-pty", "@xterm/headless"].includes(specifier)) {
       errors.push(`${path}: PTY/emulator import '${specifier}' is forbidden in the transparent baseline`);
     }
-    if (/pi-tui/.test(specifier)) {
-      errors.push(`${path}: terminal presentation import '${specifier}' is forbidden in the transparent baseline`);
+    if (/pi-tui/.test(specifier) && !/^src\/foundation\/pi-component-adapter\//.test(path)) {
+      errors.push(`${path}: Pi UI component import '${specifier}' is outside the component adapter boundary`);
     }
     if (path.startsWith("src/ui/") && ["node:child_process", "child_process", "node-pty"].includes(specifier)) {
       errors.push(`${path}: UI may not spawn agent processes`);
@@ -68,7 +75,24 @@ for (const file of await walk(sourceRoot)) {
     errors.push(`${path}: UI may render virtual terminal state but may not relay opaque child bytes`);
   }
 
-    if (/^(?:src\/drivers\/terminal|src\/host-terminal|src\/presentation|src\/test-harness)(?:\/|$)/.test(path)
+    if (/^(?:src\/features\/owned-ui|src\/foundation\/(?:owned-ui-contracts|pi-engine-adapter|pi-component-adapter))\//.test(path)) {
+    const ownedUiForbidden = [
+      { pattern: /\b(?:InteractiveMode|TuiAltScreen|TuiMainScreen|ProcessTerminal)\b.*prototype|prototype\s*\.(?:render|start|stop|handle[A-Za-z]+)\s*=/, label: "stock Pi interactive prototype mutation" },
+      { pattern: /\b(?:previousLines|previousWidth|previousHeight|cursorRow|hardwareCursorRow|maxLinesRendered|previousViewportTop)\b/, label: "private Pi renderer-state inspection" },
+      { pattern: /\bReflect\.getOwnPropertyDescriptor\b|__proto__|\bprototype\b/, label: "host prototype inspection or mutation" },
+      { pattern: /(?:distribution|dist|package)[A-Za-z]*(?:Hash|Integrity)|hashFiles|SHA-256.*(?:Pi|TUI)|(?:Pi|TUI).*SHA-256/i, label: "distribution-hash gating" },
+      { pattern: /native-host-protocol|terminal-host|composedTerminal/i, label: "terminal-host coupling" },
+    ];
+    for (const { pattern, label } of ownedUiForbidden) {
+      if (pattern.test(source)) errors.push(`${path}: owned UI contains forbidden ${label}`);
+    }
+    if (!path.startsWith("src/foundation/pi-component-adapter/")
+      && /\b(?:ExtensionUIContext|setEditorComponent|setWidget|setFooter|onTerminalInput)\b/.test(source)) {
+      errors.push(`${path}: owned UI depends on stock Pi extension UI context`);
+    }
+  }
+
+  if (/^(?:src\/drivers\/terminal|src\/host-terminal|src\/presentation|src\/test-harness)(?:\/|$)/.test(path)
     || /^(?:src\/terminal-input|src\/windows-console-mode|src\/ui\/host-(?:terminal-renderer|frame-writer))\.ts$/.test(path)) {
     errors.push(`${path}: retired terminal module remains in production sources`);
   }

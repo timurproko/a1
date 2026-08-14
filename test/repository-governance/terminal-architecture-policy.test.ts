@@ -76,6 +76,33 @@ describe("terminal-core architecture policy", () => {
   });
 
   it.each([
+    ["src/features/owned-ui/root.ts", "import { createAgentSessionRuntime } from '@earendil-works/pi-coding-agent'; export { createAgentSessionRuntime };", "outside the owned Pi adapter boundary"],
+    ["src/features/owned-ui/root.ts", "InteractiveMode.prototype.render = patched;", "stock Pi interactive prototype mutation"],
+    ["src/foundation/pi-engine-adapter/private-state.ts", "const previousLines = readPrivateState();", "private Pi renderer-state inspection"],
+    ["src/foundation/pi-engine-adapter/profile.ts", "const distributionHash = verifyDistribution();", "distribution-hash gating"],
+    ["src/features/owned-ui/root.ts", "import { Editor } from '@oh-my-pi/pi-tui'; export { Editor };", "oh-my-pi fork package import"],
+    ["src/features/owned-ui/root.ts", "import { sleep } from 'bun'; export { sleep };", "Bun-only dependency"],
+    ["src/features/owned-ui/root.ts", "import { InteractiveMode } from '@earendil-works/pi-coding-agent/dist/modes/index.js'; export { InteractiveMode };", "private Pi distribution import"],
+    ["src/features/owned-ui/root.ts", "const api: ExtensionUIContext = host;", "stock Pi extension UI context"],
+    ["src/features/owned-ui/root.ts", "import { nativeHostCommandResult } from '../../foundation/native-host-protocol/index.js'; export { nativeHostCommandResult };", "terminal-host coupling"],
+  ])("rejects owned-UI boundary violation in %s: %s", async (path, source, diagnostic) => {
+    const root = await fixture({ [path]: source });
+    const result = runPolicy(root);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(diagnostic);
+  });
+
+  it("allows public Pi SDK and UI imports only inside their adapters", async () => {
+    const root = await fixture({
+      "src/foundation/pi-engine-adapter/sdk.ts": "import { createAgentSessionRuntime } from '@earendil-works/pi-coding-agent'; export { createAgentSessionRuntime };",
+      "src/foundation/pi-component-adapter/component.ts": "import { CustomEditor } from '@earendil-works/pi-coding-agent'; import { Component } from '@earendil-works/pi-tui'; export { CustomEditor, Component };",
+    });
+    const result = runPolicy(root);
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("Architecture boundaries OK");
+  });
+
+  it.each([
     ["const ptyBytes = Buffer.alloc(0);", "terminal byte, input, or rendered-cell transport"],
     ["send(renderedCells);", "terminal byte, input, or rendered-cell transport"],
     ["import { spawn } from 'node:child_process';", "native host process ownership"],
