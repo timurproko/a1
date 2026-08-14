@@ -3,6 +3,7 @@ import {
   DEFAULT_WORKSPACE_ID,
   type StoredWorkspaceAgent,
 } from "../../foundation/storage/index.js";
+import type { AgentRecoveryAuthority, RecoveryReferenceId } from "../../foundation/workspace-contracts/index.js";
 import { WorkspaceReducer, type WorkspaceAgentState, type WorkspaceView } from "./reducer.js";
 
 export class WorkspaceStore {
@@ -47,6 +48,19 @@ export class WorkspaceStore {
       },
     }));
     this.#store.replaceWorkspaceAgentRecords(records, view.selectedAgentId, view.revision);
+  }
+
+  loadRecoveryReference(id: RecoveryReferenceId) {
+    return this.#store.loadRecoveryReference(id);
+  }
+
+  persistRecoveryReference(
+    authority: AgentRecoveryAuthority,
+    status: "pending" | "accepted" | "rejected" | "discontinuous",
+    rollbackMetadata: Readonly<Record<string, unknown>>,
+    updatedAt = new Date().toISOString(),
+  ): void {
+    this.#store.persistRecoveryReference(authority, status, rollbackMetadata, updatedAt);
   }
 
   close(): void {

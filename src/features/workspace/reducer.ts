@@ -157,6 +157,30 @@ export class WorkspaceReducer {
     return applied(this.view(), Object.freeze({ ...agent }));
   }
 
+  markRecovered(agentId: string): WorkspaceReducerResult<WorkspaceAgentState> {
+    const agent = this.#agents.get(agentId);
+    if (!agent) return unknownAgent(agentId);
+    agent.lifecycle = "ready";
+    agent.unreadActivity = 0;
+    agent.attention = false;
+    agent.failure = null;
+    this.#revision += 1;
+    return applied(this.view(), Object.freeze({ ...agent }));
+  }
+
+  markDiscontinuous(agentId: string, code: string, message: string): WorkspaceReducerResult<WorkspaceAgentState> {
+    const agent = this.#agents.get(agentId);
+    if (!agent) return unknownAgent(agentId);
+    if (!code || code.length > 128 || code.includes("\0") || !message || message.length > 4_096 || message.includes("\0")) {
+      return rejected("invalid-failure", new Error("workspace discontinuity code and message must be bounded non-empty values"));
+    }
+    agent.lifecycle = "discontinuous";
+    agent.failure = Object.freeze({ code, message });
+    agent.attention = true;
+    this.#revision += 1;
+    return applied(this.view(), Object.freeze({ ...agent }));
+  }
+
   markFailed(agentId: string, code: string, message: string): WorkspaceReducerResult<WorkspaceAgentState> {
     const agent = this.#agents.get(agentId);
     if (!agent) return unknownAgent(agentId);
