@@ -3,7 +3,7 @@
 - [x] 1.0 Create or switch to `milestone/owned-pi-ui-foundation` before implementation and verify the working tree contains only this change's implementation edits.
 - [x] 1.1 Define dependency-free AddOne owned-UI contracts for commands, session events, view models, transcript blocks, editor state, status, dialogs, overlays, themes, component slots, diagnostics, and lifecycle; pass valid, malformed, oversized, and compatibility fixtures.
 - [x] 1.2 Add architecture governance that confines Pi SDK and public Pi component types to adapter modules and rejects `InteractiveMode` mutation, prototype patching, private-field inspection, deep Pi imports, distribution-hash gating, Bun-only dependencies, oh-my-pi package dependencies, terminal-host coupling, and stock-Pi extension UI assumptions.
-- [ ] 1.3 Record the local research baseline for `v2` fragility and `D:\Git\oh-my-pi` architecture: adopted patterns, explicitly rejected scope, source revisions, licenses, and provenance requirements for any future port; pass policy tests.
+- [x] 1.3 Record the local research baseline for `v2` fragility and `D:\Git\oh-my-pi` architecture: adopted patterns, explicitly rejected scope, source revisions, licenses, and provenance requirements for any future port; pass policy tests.
 
 ## 2. Build the Pi Engine Adapter
 

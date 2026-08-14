@@ -1,0 +1,116 @@
+{
+  "schema": "addone-owned-ui-research-baseline-v1",
+  "recordedAt": "2026-08-14T17:33:14.072Z",
+  "change": "build-owned-pi-ui-foundation",
+  "purpose": "Record the research baseline that constrains the AddOne-owned fullscreen Pi UI before implementation proceeds beyond contract and boundary work.",
+  "sources": {
+    "v2Prototype": {
+      "path": "C:/Users/tprokopiev/Desktop/v2",
+      "versionControl": "none-observed",
+      "gitRevision": null,
+      "license": "not-observed",
+      "analyzedSurfaces": [
+        "ARCHITECTURE.md",
+        "core/host/pi host profile and verification",
+        "core/host/pi host bridge and public API providers",
+        "core/API.md",
+        "ui extension entry and agent-view patching"
+      ],
+      "fragilityFindings": [
+        "Patched TuiAltScreen, TuiMainScreen, ProcessTerminal, and InteractiveMode behavior",
+        "Read private renderer state and prototype method ownership",
+        "Hashed published distribution files and pinned exact Pi/TUI package bytes",
+        "Required an exact Pi host profile and migration work after Pi upgrades"
+      ],
+      "reuseDecision": "Do not port implementation code. Preserve only the lesson that an owned root is necessary and private Pi coupling is forbidden."
+    },
+    "ohMyPi": {
+      "path": "D:/Git/oh-my-pi",
+      "gitRevision": "59619623e1eeb7c290649eeaf3a269284ce8adef",
+      "workingTree": "dirty-local-edits-excluded",
+      "dirtyFiles": [
+        "packages/coding-agent/src/config/settings-schema.ts",
+        "packages/coding-agent/src/debug/log-viewer.ts",
+        "packages/coding-agent/src/debug/raw-sse.ts",
+        "packages/coding-agent/src/modes/components/agent-transcript-viewer.ts",
+        "packages/coding-agent/src/modes/components/plan-review-overlay.ts",
+        "packages/coding-agent/src/tui/scroll-speed.test.ts",
+        "packages/coding-agent/src/tui/scroll-speed.ts"
+      ],
+      "license": {
+        "spdx": "MIT",
+        "path": "D:/Git/oh-my-pi/LICENSE",
+        "sha256": "545636e19386d3d4e0ae6d77354527499999c3ebfbca61b9fa5aa4ead7c0b308"
+      },
+      "analyzedSurfaces": [
+        "AGENTS.md and README.md",
+        "packages/coding-agent/package.json and packages/tui/package.json",
+        "docs/tui.md",
+        "docs/tui-runtime-internals.md",
+        "docs/tui-core-renderer.md",
+        "docs/sdk.md",
+        "docs/porting-from-pi-mono.md",
+        "packages/coding-agent/src/modes/interactive-mode.ts",
+        "packages/coding-agent/src/modes/controllers/event-controller.ts",
+        "packages/coding-agent/src/modes/controllers/input-controller.ts",
+        "packages/coding-agent/src/modes/components/transcript-container.ts",
+        "packages/coding-agent/src/modes/components/custom-editor.ts",
+        "packages/coding-agent/src/modes/components/status-line/component.ts",
+        "packages/coding-agent/src/modes/components/agent-dashboard.ts"
+      ],
+      "adoptedPatterns": [
+        "Separate engine events from presentation and interactive orchestration from controllers",
+        "Keep controllers separate from renderable components and components separate from terminal emission",
+        "Treat native-scrollback transcript output as an append-only commit ledger with explicit live and finalized regions",
+        "Use component-owned immutable render results, width-safe sanitization, coalesced rendering, typed input, paste handling, and renderer stress fixtures",
+        "Compose status from explicit segments rather than hidden global renderer mutation",
+        "Use SDK-backed custom sessions for non-stock UI integration"
+      ],
+      "rejectedScope": [
+        "Fork-wide engine, provider, tool, and product scope",
+        "Bun-only runtime and Bun APIs",
+        "Deep package exports, oh-my-pi package dependencies, and native N-API UI dependencies",
+        "Automatic adoption of upstream UI changes or wholesale directory ports",
+        "oh-my-pi's dirty local working-tree edits"
+      ]
+    },
+    "piPublicPackage": {
+      "package": "@earendil-works/pi-coding-agent",
+      "version": "0.84.1",
+      "license": "MIT",
+      "packageRoot": "C:/Users/tprokopiev/AppData/Roaming/npm/node_modules/@earendil-works/pi-coding-agent",
+      "packageManifestSha256": "f9aaa275eac3292508bd9a1325d705a41c2d24c9a34da2b690e400d5a761a985",
+      "publicIntegrationSurfaces": [
+        "createAgentSessionRuntime and AgentSessionRuntime",
+        "typed AgentSession events, snapshots, commands, and services",
+        "root-package exported UI components",
+        "@earendil-works/pi-tui public component primitives"
+      ],
+      "forbiddenIntegrationSurfaces": [
+        "InteractiveMode root composition or mutation",
+        "prototype patching and private renderer state",
+        "deep package imports and distribution-file hash gating",
+        "stock extension UI assumptions inside AddOne's owned root"
+      ]
+    }
+  },
+  "futurePortPolicy": {
+    "allowedOnlyWhenOwnershipIsRequired": true,
+    "requiredRecordFields": [
+      "source repository or package",
+      "exact revision or package version",
+      "license and copyright attribution",
+      "copied file list",
+      "local modifications",
+      "AddOne-owned public contract",
+      "local conformance tests"
+    ],
+    "forbidden": [
+      "runtime patching of installed packages",
+      "private fields or undocumented deep imports",
+      "hash-gated distribution internals",
+      "automatic upstream synchronization requirements",
+      "unrecorded ports"
+    ]
+  }
+}
