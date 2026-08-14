@@ -23,7 +23,10 @@ use crossterm::{
 };
 use portable_pty::{CommandBuilder, NativePtySystem, PtySize, PtySystem};
 
-use crate::ghostty::{GhosttyTerminal, KeyEncoder, SelectionGesture, key_for_character};
+use crate::ghostty::{
+    GhosttyTerminal, KeyEncoder, MouseAction, MouseButton, MouseEncoder, MouseInput,
+    SelectionGesture, key_for_character,
+};
 use crate::workspace::{FixedLayout, FixedWorkspace, SessionLaunch};
 
 const ADDONE_PROTOCOL_VERSION: u32 = 1;
@@ -50,6 +53,7 @@ fn run_from_args(args: Vec<String>) -> Result<(), String> {
         Some("--probe") => probe(),
         Some("--probe-scroll") => probe_scroll(),
         Some("--probe-selection") => probe_selection(),
+        Some("--probe-input") => probe_input(),
         Some("--probe-2x2") => probe_two_by_two(),
         Some("--topology-2x2") => {
             println!(
@@ -71,7 +75,7 @@ fn run_from_args(args: Vec<String>) -> Result<(), String> {
         Some("--run") => run_interactive(&args[1..]),
         _ => {
             eprintln!(
-                "usage: addone-terminal-host --version | --probe | --probe-scroll | --probe-selection | --probe-2x2 | --topology-2x2 | --resolve <command> | --resolve-shell | --run [-- <command> [args...]]"
+                "usage: addone-terminal-host --version | --probe | --probe-scroll | --probe-selection | --probe-input | --probe-2x2 | --topology-2x2 | --resolve <command> | --resolve-shell | --run [-- <command> [args...]]"
             );
             Err("expected a mode".to_owned())
         }
@@ -154,6 +158,59 @@ fn probe_selection() -> Result<(), String> {
         return Err(format!("triple click selected unexpected text: {:?}", line));
     }
     println!("{{\"probe\":\"selection-passed\"}}");
+    Ok(())
+}
+
+fn probe_input() -> Result<(), String> {
+    let mut terminal = GhosttyTerminal::new(20, 4)?;
+    let key_encoder = KeyEncoder::new(&terminal)?;
+    let composed_text = "é";
+    let encoded_text = key_encoder.encode(
+        &terminal,
+        key_for_character('é'),
+        0,
+        Some(composed_text),
+        false,
+    )?;
+    if encoded_text != composed_text.as_bytes() {
+        return Err(format!(
+            "text/IME key encoding produced unexpected bytes: {encoded_text:?}"
+        ));
+    }
+
+    terminal.write(b"\x1b[?1000h\x1b[?1006h");
+    if !terminal.mouse_tracking()? {
+        return Err("mouse tracking mode was not retained".to_owned());
+    }
+    let mouse_encoder = MouseEncoder::new()?;
+    let mouse = mouse_encoder.encode(
+        &terminal,
+        MouseInput {
+            action: MouseAction::Press,
+            button: Some(MouseButton::Left),
+            mods: 0,
+            column: 2,
+            row: 1,
+            columns: 20,
+            rows: 4,
+            any_button_pressed: true,
+        },
+    )?;
+    if mouse != b"\x1b[<0;3;2M" {
+        return Err(format!(
+            "pane-relative mouse encoder produced unexpected bytes: {mouse:?}"
+        ));
+    }
+
+    let mut clipboard = Vec::new();
+    write_clipboard(&mut clipboard, b"native clipboard")?;
+    if clipboard != b"\x1b]52;c;bmF0aXZlIGNsaXBib2FyZA==\x07" {
+        return Err("OSC 52 clipboard encoding did not stay in the native host".to_owned());
+    }
+
+    println!(
+        "{{\"schema\":\"addone-terminal-host-input-probe-v1\",\"keyEncoding\":true,\"textImeEncoding\":true,\"mouseEncoding\":true,\"paneRelativeMouse\":true,\"clipboardEncoding\":true,\"nodeRelay\":false}}"
+    );
     Ok(())
 }
 
@@ -380,6 +437,11 @@ fn probe_two_by_two() -> Result<(), String> {
             thread::sleep(Duration::from_millis(10));
         }
 
+        let initial_frame_bytes = workspace.compose_probe_frame()?;
+        if initial_frame_bytes == 0 {
+            return Err("2x2 native frame composer produced no initial presentation".to_owned());
+        }
+
         for index in 0..4 {
             workspace.focus(index)?;
             workspace.write_to_focused(format!("focused-input-{}\r\n", index + 1).as_bytes())?;
@@ -424,6 +486,11 @@ fn probe_two_by_two() -> Result<(), String> {
             thread::sleep(Duration::from_millis(10));
         }
 
+        let updated_frame_bytes = workspace.compose_probe_frame()?;
+        if updated_frame_bytes == 0 {
+            return Err("2x2 native frame composer produced no updated presentation".to_owned());
+        }
+
         workspace.resize(100, 30)?;
         let expected_layout = FixedLayout::new(100, 30)?;
         for (index, size) in workspace.pty_sizes()?.iter().enumerate() {
@@ -452,10 +519,13 @@ fn probe_two_by_two() -> Result<(), String> {
             }
             thread::sleep(Duration::from_millis(10));
         }
+        workspace.verify_hot_path_isolation()?;
+        let hot_path = workspace.hot_path_json();
         workspace.shutdown();
         println!("{topology}");
+        println!("{hot_path}");
         println!(
-            "{{\"probe\":\"2x2-passed\",\"topologyRevision\":1,\"panes\":4,\"sessions\":4,\"independentProcesses\":4,\"exactCommand\":true,\"environment\":true,\"cwd\":true,\"focusedInputIsolation\":true,\"resize\":true,\"cleanup\":true}}"
+            "{{\"probe\":\"2x2-passed\",\"topologyRevision\":1,\"panes\":4,\"sessions\":4,\"independentProcesses\":4,\"exactCommand\":true,\"environment\":true,\"cwd\":true,\"focusedInputIsolation\":true,\"nativeHotPathIsolation\":true,\"nodeRelay\":false,\"resize\":true,\"cleanup\":true}}"
         );
         Ok(())
     })();
@@ -487,23 +557,15 @@ fn run_interactive(arguments: &[String]) -> Result<(), String> {
     workspace.run_interactive()
 }
 
-fn encode_key(encoder: &KeyEncoder, key: KeyEvent) -> Result<Option<Vec<u8>>, String> {
+fn encode_key(
+    encoder: &KeyEncoder,
+    terminal: &GhosttyTerminal,
+    key: KeyEvent,
+) -> Result<Option<Vec<u8>>, String> {
     if !matches!(key.kind, KeyEventKind::Press | KeyEventKind::Repeat) {
         return Ok(None);
     }
-    let mut mods = 0u16;
-    if key.modifiers.contains(KeyModifiers::SHIFT) {
-        mods |= ghostty::MOD_SHIFT;
-    }
-    if key.modifiers.contains(KeyModifiers::CONTROL) {
-        mods |= ghostty::MOD_CTRL;
-    }
-    if key.modifiers.contains(KeyModifiers::ALT) {
-        mods |= ghostty::MOD_ALT;
-    }
-    if key.modifiers.contains(KeyModifiers::SUPER) {
-        mods |= ghostty::MOD_SUPER;
-    }
+    let mods = modifier_bits(key.modifiers);
 
     let (ghost_key, text) = match key.code {
         KeyCode::Char(character) => (key_for_character(character), Some(character.to_string())),
@@ -526,12 +588,30 @@ fn encode_key(encoder: &KeyEncoder, key: KeyEvent) -> Result<Option<Vec<u8>>, St
     };
     encoder
         .encode(
+            terminal,
             ghost_key,
             mods,
             text.as_deref(),
             key.kind == KeyEventKind::Repeat,
         )
         .map(Some)
+}
+
+fn modifier_bits(modifiers: KeyModifiers) -> u16 {
+    let mut mods = 0u16;
+    if modifiers.contains(KeyModifiers::SHIFT) {
+        mods |= ghostty::MOD_SHIFT;
+    }
+    if modifiers.contains(KeyModifiers::CONTROL) {
+        mods |= ghostty::MOD_CTRL;
+    }
+    if modifiers.contains(KeyModifiers::ALT) {
+        mods |= ghostty::MOD_ALT;
+    }
+    if modifiers.contains(KeyModifiers::SUPER) {
+        mods |= ghostty::MOD_SUPER;
+    }
+    mods
 }
 
 fn resolve_command(program: &str) -> Result<String, String> {

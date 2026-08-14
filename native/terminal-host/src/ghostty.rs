@@ -17,6 +17,7 @@ const RENDER_DATA_CURSOR_X: i32 = 15;
 const RENDER_DATA_CURSOR_Y: i32 = 16;
 const RENDER_OPTION_DIRTY: i32 = 0;
 const TERMINAL_DATA_SCROLLBAR: i32 = 9;
+const TERMINAL_DATA_MOUSE_TRACKING: i32 = 11;
 const TERMINAL_DATA_SCROLLBACK_ROWS: i32 = 15;
 const TERMINAL_DATA_VIEWPORT_ACTIVE: i32 = 32;
 const ROW_DATA_DIRTY: i32 = 1;
@@ -65,6 +66,8 @@ type GhosttyRenderStateRowIteratorRaw = *mut c_void;
 type GhosttyRenderStateRowCellsRaw = *mut c_void;
 type GhosttyKeyEncoderRaw = *mut c_void;
 type GhosttyKeyEventRaw = *mut c_void;
+type GhosttyMouseEncoderRaw = *mut c_void;
+type GhosttyMouseEventRaw = *mut c_void;
 type GhosttySelectionGestureRaw = *mut c_void;
 type GhosttySelectionGestureEventRaw = *mut c_void;
 
@@ -122,6 +125,25 @@ struct GhosttySelection {
 struct GhosttySurfacePosition {
     x: f64,
     y: f64,
+}
+
+#[repr(C)]
+struct GhosttyMousePosition {
+    x: f32,
+    y: f32,
+}
+
+#[repr(C)]
+struct GhosttyMouseEncoderSize {
+    size: usize,
+    screen_width: u32,
+    screen_height: u32,
+    cell_width: u32,
+    cell_height: u32,
+    padding_top: u32,
+    padding_bottom: u32,
+    padding_right: u32,
+    padding_left: u32,
 }
 
 #[repr(C)]
@@ -333,6 +355,40 @@ unsafe extern "C" {
     fn ghostty_key_event_set_key(event: GhosttyKeyEventRaw, key: i32);
     fn ghostty_key_event_set_mods(event: GhosttyKeyEventRaw, mods: u16);
     fn ghostty_key_event_set_utf8(event: GhosttyKeyEventRaw, utf8: *const c_char, len: usize);
+    fn ghostty_mouse_encoder_new(
+        allocator: *const c_void,
+        out: *mut GhosttyMouseEncoderRaw,
+    ) -> GhosttyResult;
+    fn ghostty_mouse_encoder_free(encoder: GhosttyMouseEncoderRaw);
+    fn ghostty_mouse_encoder_setopt(
+        encoder: GhosttyMouseEncoderRaw,
+        option: i32,
+        value: *const c_void,
+    );
+    fn ghostty_mouse_encoder_setopt_from_terminal(
+        encoder: GhosttyMouseEncoderRaw,
+        terminal: GhosttyTerminalRaw,
+    );
+    fn ghostty_mouse_encoder_encode(
+        encoder: GhosttyMouseEncoderRaw,
+        event: GhosttyMouseEventRaw,
+        out_buf: *mut c_char,
+        out_buf_size: usize,
+        out_len: *mut usize,
+    ) -> GhosttyResult;
+    fn ghostty_mouse_event_new(
+        allocator: *const c_void,
+        out: *mut GhosttyMouseEventRaw,
+    ) -> GhosttyResult;
+    fn ghostty_mouse_event_free(event: GhosttyMouseEventRaw);
+    fn ghostty_mouse_event_set_action(event: GhosttyMouseEventRaw, action: i32);
+    fn ghostty_mouse_event_set_button(event: GhosttyMouseEventRaw, button: i32);
+    fn ghostty_mouse_event_clear_button(event: GhosttyMouseEventRaw);
+    fn ghostty_mouse_event_set_mods(event: GhosttyMouseEventRaw, mods: u16);
+    fn ghostty_mouse_event_set_position(
+        event: GhosttyMouseEventRaw,
+        position: GhosttyMousePosition,
+    );
     fn ghostty_selection_gesture_new(
         allocator: *const c_void,
         out_gesture: *mut GhosttySelectionGestureRaw,
@@ -437,6 +493,21 @@ impl GhosttyTerminal {
             },
             "mark scrolled frame dirty",
         )
+    }
+
+    pub fn mouse_tracking(&self) -> Result<bool, String> {
+        let mut active = false;
+        check(
+            unsafe {
+                ghostty_terminal_get(
+                    self.raw,
+                    TERMINAL_DATA_MOUSE_TRACKING,
+                    &mut active as *mut bool as *mut c_void,
+                )
+            },
+            "read terminal mouse tracking state",
+        )?;
+        Ok(active)
     }
 
     pub fn scrollbar(&self) -> Result<TerminalScrollbar, String> {
@@ -1067,11 +1138,13 @@ impl KeyEncoder {
 
     pub fn encode(
         &self,
+        terminal: &GhosttyTerminal,
         key: i32,
         mods: u16,
         utf8: Option<&str>,
         repeat: bool,
     ) -> Result<Vec<u8>, String> {
+        unsafe { ghostty_key_encoder_setopt_from_terminal(self.raw, terminal.raw) };
         let mut event = ptr::null_mut();
         check(
             unsafe { ghostty_key_event_new(ptr::null(), &mut event) },
@@ -1127,6 +1200,155 @@ impl KeyEncoder {
 impl Drop for KeyEncoder {
     fn drop(&mut self) {
         unsafe { ghostty_key_encoder_free(self.raw) };
+    }
+}
+
+#[derive(Clone, Copy)]
+pub enum MouseAction {
+    Press,
+    Release,
+    Motion,
+}
+
+#[derive(Clone, Copy)]
+pub enum MouseButton {
+    Left,
+    Right,
+    Middle,
+    Four,
+    Five,
+}
+
+pub struct MouseInput {
+    pub action: MouseAction,
+    pub button: Option<MouseButton>,
+    pub mods: u16,
+    pub column: u16,
+    pub row: u16,
+    pub columns: u16,
+    pub rows: u16,
+    pub any_button_pressed: bool,
+}
+
+pub struct MouseEncoder {
+    raw: GhosttyMouseEncoderRaw,
+}
+
+impl MouseEncoder {
+    pub fn new() -> Result<Self, String> {
+        let mut raw = ptr::null_mut();
+        check(
+            unsafe { ghostty_mouse_encoder_new(ptr::null(), &mut raw) },
+            "create mouse encoder",
+        )?;
+        let track_last_cell = true;
+        unsafe {
+            ghostty_mouse_encoder_setopt(raw, 4, &track_last_cell as *const bool as *const c_void)
+        };
+        Ok(Self { raw })
+    }
+
+    pub fn encode(&self, terminal: &GhosttyTerminal, input: MouseInput) -> Result<Vec<u8>, String> {
+        unsafe { ghostty_mouse_encoder_setopt_from_terminal(self.raw, terminal.raw) };
+        let size = GhosttyMouseEncoderSize {
+            size: size_of::<GhosttyMouseEncoderSize>(),
+            screen_width: u32::from(input.columns),
+            screen_height: u32::from(input.rows),
+            cell_width: 1,
+            cell_height: 1,
+            padding_top: 0,
+            padding_bottom: 0,
+            padding_right: 0,
+            padding_left: 0,
+        };
+        unsafe {
+            ghostty_mouse_encoder_setopt(
+                self.raw,
+                2,
+                &size as *const GhosttyMouseEncoderSize as *const c_void,
+            );
+            ghostty_mouse_encoder_setopt(
+                self.raw,
+                3,
+                &input.any_button_pressed as *const bool as *const c_void,
+            );
+        }
+
+        let mut event = ptr::null_mut();
+        check(
+            unsafe { ghostty_mouse_event_new(ptr::null(), &mut event) },
+            "create mouse event",
+        )?;
+        unsafe {
+            ghostty_mouse_event_set_action(
+                event,
+                match input.action {
+                    MouseAction::Press => 0,
+                    MouseAction::Release => 1,
+                    MouseAction::Motion => 2,
+                },
+            );
+            if let Some(button) = input.button {
+                ghostty_mouse_event_set_button(
+                    event,
+                    match button {
+                        MouseButton::Left => 1,
+                        MouseButton::Right => 2,
+                        MouseButton::Middle => 3,
+                        MouseButton::Four => 4,
+                        MouseButton::Five => 5,
+                    },
+                );
+            } else {
+                ghostty_mouse_event_clear_button(event);
+            }
+            ghostty_mouse_event_set_mods(event, input.mods);
+            ghostty_mouse_event_set_position(
+                event,
+                GhosttyMousePosition {
+                    x: f32::from(input.column) + 0.5,
+                    y: f32::from(input.row) + 0.5,
+                },
+            );
+        }
+        let result = self.encode_event(event);
+        unsafe { ghostty_mouse_event_free(event) };
+        result
+    }
+
+    fn encode_event(&self, event: GhosttyMouseEventRaw) -> Result<Vec<u8>, String> {
+        let mut required = 0usize;
+        let first = unsafe {
+            ghostty_mouse_encoder_encode(self.raw, event, ptr::null_mut(), 0, &mut required)
+        };
+        if first != GHOSTTY_SUCCESS && first != GHOSTTY_OUT_OF_SPACE {
+            return Err(format!("measure mouse input failed with {first}"));
+        }
+        if required == 0 {
+            return Ok(Vec::new());
+        }
+        let mut bytes = vec![0u8; required];
+        let mut written = 0usize;
+        check(
+            unsafe {
+                ghostty_mouse_encoder_encode(
+                    self.raw,
+                    event,
+                    bytes.as_mut_ptr().cast(),
+                    bytes.len(),
+                    &mut written,
+                )
+            },
+            "encode mouse input",
+        )?;
+        bytes.truncate(written);
+        Ok(bytes)
+    }
+}
+
+impl Drop for MouseEncoder {
+    fn drop(&mut self) {
+        unsafe { ghostty_mouse_encoder_free(self.raw) };
     }
 }
 

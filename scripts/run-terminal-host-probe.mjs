@@ -10,8 +10,10 @@ run(cargo, ["test", "--manifest-path", manifest], environment);
 run(cargo, ["build", "--manifest-path", manifest], environment);
 const executable = resolve("native/terminal-host/target/debug", platform() === "win32" ? "addone-terminal-host.exe" : "addone-terminal-host");
 run(executable, ["--probe"], environment);
+run(executable, ["--probe-selection"], environment);
+run(executable, ["--probe-input"], environment);
 run(executable, ["--probe-2x2"], environment);
-console.log("Terminal host build, unit tests, and one-pane/2x2 integration probes OK");
+console.log("Terminal host build, unit tests, native input/selection, and one-pane/2x2 integration probes OK");
 
 function run(executable, args, env) {
   const result = spawnSync(executable, args, { stdio: "inherit", env, windowsHide: true });

@@ -1,5 +1,6 @@
 use std::io::{Read, Write};
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{self, Receiver, TryRecvError};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
@@ -8,8 +9,11 @@ use std::time::Duration;
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEventKind};
 use portable_pty::{Child, CommandBuilder, MasterPty, NativePtySystem, PtySize, PtySystem};
 
-use crate::ghostty::{GhosttyTerminal, KeyEncoder, SelectionGesture};
-use crate::{encode_key, write_clipboard};
+use crate::ghostty::{
+    GhosttyTerminal, KeyEncoder, MouseAction, MouseButton as GhosttyMouseButton, MouseEncoder,
+    MouseInput, SelectionGesture,
+};
+use crate::{encode_key, modifier_bits, write_clipboard};
 
 pub const TOPOLOGY_REVISION: u64 = 1;
 pub const WINDOW_ID: &str = "window-1";
@@ -18,6 +22,64 @@ const PANE_IDS: [&str; 4] = ["pane-1", "pane-2", "pane-3", "pane-4"];
 const SESSION_IDS: [&str; 4] = ["session-1", "session-2", "session-3", "session-4"];
 const MIN_COLUMNS: u16 = 7;
 const MIN_ROWS: u16 = 7;
+static NEXT_NATIVE_RESOURCE_ID: AtomicU64 = AtomicU64::new(1);
+
+fn next_native_resource_id() -> u64 {
+    NEXT_NATIVE_RESOURCE_ID.fetch_add(1, Ordering::Relaxed)
+}
+
+#[derive(Default)]
+struct HotPathCounters {
+    pty_output_chunks: u64,
+    pty_output_bytes: u64,
+    terminal_model_writes: u64,
+    terminal_model_bytes: u64,
+    input_writes: u64,
+    input_bytes: u64,
+    key_events: u64,
+    text_events: u64,
+    paste_events: u64,
+    mouse_events: u64,
+    mouse_reports: u64,
+    selection_events: u64,
+    clipboard_transfers: u64,
+    render_passes: u64,
+    rendered_bytes: u64,
+}
+
+struct HotPathInstrumentation {
+    stream_identity: u64,
+    input_identity: u64,
+    terminal_model_identity: u64,
+    render_damage_identity: u64,
+    key_encoder_identity: u64,
+    mouse_encoder_identity: u64,
+    selection_identity: u64,
+    counters: HotPathCounters,
+}
+
+impl HotPathInstrumentation {
+    fn new() -> Self {
+        Self {
+            stream_identity: next_native_resource_id(),
+            input_identity: next_native_resource_id(),
+            terminal_model_identity: next_native_resource_id(),
+            render_damage_identity: next_native_resource_id(),
+            key_encoder_identity: next_native_resource_id(),
+            mouse_encoder_identity: next_native_resource_id(),
+            selection_identity: next_native_resource_id(),
+            counters: HotPathCounters::default(),
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+enum InputKind {
+    Routed,
+    Key { text: bool },
+    Paste,
+    Mouse,
+}
 
 #[derive(Clone, Debug)]
 pub struct SessionLaunch {
@@ -127,14 +189,17 @@ impl FixedLayout {
 struct Pane {
     // These pointer-backed helpers must drop before the terminal they reference.
     selection: SelectionGesture,
+    mouse_encoder: MouseEncoder,
     key_encoder: KeyEncoder,
     terminal: GhosttyTerminal,
+    hot_path: HotPathInstrumentation,
     pane_id: &'static str,
     session_id: &'static str,
     rect: PaneRect,
     focused: bool,
     selection_active: bool,
     selection_gesture_active: bool,
+    mouse_button_pressed: bool,
     master: Option<Box<dyn MasterPty + Send>>,
     writer: Option<Arc<Mutex<Box<dyn Write + Send>>>>,
     output: Receiver<Vec<u8>>,
@@ -154,6 +219,7 @@ impl Pane {
         let mut terminal = GhosttyTerminal::new(rect.columns, rect.rows)?;
         terminal.mark_dirty()?;
         let selection = SelectionGesture::new(&terminal)?;
+        let mouse_encoder = MouseEncoder::new()?;
         let key_encoder = KeyEncoder::new(&terminal)?;
         let pty_system = NativePtySystem::default();
         let pair = pty_system
@@ -205,14 +271,17 @@ impl Pane {
 
         Ok(Self {
             selection,
+            mouse_encoder,
             key_encoder,
             terminal,
+            hot_path: HotPathInstrumentation::new(),
             pane_id: PANE_IDS[index],
             session_id: SESSION_IDS[index],
             rect,
             focused,
             selection_active: false,
             selection_gesture_active: false,
+            mouse_button_pressed: false,
             master: Some(pair.master),
             writer: Some(writer),
             output,
@@ -228,7 +297,11 @@ impl Pane {
         loop {
             match self.output.try_recv() {
                 Ok(bytes) => {
+                    self.hot_path.counters.pty_output_chunks += 1;
+                    self.hot_path.counters.pty_output_bytes += bytes.len() as u64;
                     self.terminal.write(&bytes);
+                    self.hot_path.counters.terminal_model_writes += 1;
+                    self.hot_path.counters.terminal_model_bytes += bytes.len() as u64;
                     observed.extend_from_slice(&bytes);
                 }
                 Err(TryRecvError::Empty) => break,
@@ -260,7 +333,7 @@ impl Pane {
         self.child_exited
     }
 
-    fn write(&self, bytes: &[u8]) -> Result<(), String> {
+    fn write(&mut self, bytes: &[u8], kind: InputKind) -> Result<(), String> {
         let writer = self
             .writer
             .as_ref()
@@ -269,7 +342,21 @@ impl Pane {
             .lock()
             .map_err(|_| format!("{} terminal writer lock poisoned", self.pane_id))?
             .write_all(bytes)
-            .map_err(|error| format!("write {} terminal input: {error}", self.pane_id))
+            .map_err(|error| format!("write {} terminal input: {error}", self.pane_id))?;
+        self.hot_path.counters.input_writes += 1;
+        self.hot_path.counters.input_bytes += bytes.len() as u64;
+        match kind {
+            InputKind::Routed => {}
+            InputKind::Key { text } => {
+                self.hot_path.counters.key_events += 1;
+                if text {
+                    self.hot_path.counters.text_events += 1;
+                }
+            }
+            InputKind::Paste => self.hot_path.counters.paste_events += 1,
+            InputKind::Mouse => self.hot_path.counters.mouse_reports += 1,
+        }
+        Ok(())
     }
 
     fn resize(&mut self, rect: PaneRect) -> Result<(), String> {
@@ -326,6 +413,8 @@ pub struct FixedWorkspace {
     panes: Vec<Pane>,
     chrome_dirty: bool,
     surface_dirty: bool,
+    presentation_writes: u64,
+    presentation_bytes: u64,
 }
 
 impl FixedWorkspace {
@@ -341,6 +430,8 @@ impl FixedWorkspace {
             panes,
             chrome_dirty: true,
             surface_dirty: true,
+            presentation_writes: 0,
+            presentation_bytes: 0,
         })
     }
 
@@ -405,15 +496,118 @@ impl FixedWorkspace {
         Ok(sizes)
     }
 
-    pub fn write_to_pane(&self, index: usize, bytes: &[u8]) -> Result<(), String> {
+    pub fn write_to_pane(&mut self, index: usize, bytes: &[u8]) -> Result<(), String> {
         self.panes
-            .get(index)
+            .get_mut(index)
             .ok_or_else(|| format!("pane index {index} is invalid"))?
-            .write(bytes)
+            .write(bytes, InputKind::Routed)
     }
 
-    pub fn write_to_focused(&self, bytes: &[u8]) -> Result<(), String> {
-        self.panes[self.focused_index()].write(bytes)
+    pub fn write_to_focused(&mut self, bytes: &[u8]) -> Result<(), String> {
+        let focused = self.focused_index();
+        self.panes[focused].write(bytes, InputKind::Routed)
+    }
+
+    pub fn compose_probe_frame(&mut self) -> Result<usize, String> {
+        let mut frame = Vec::new();
+        self.render(&mut frame)?;
+        Ok(frame.len())
+    }
+
+    pub fn verify_hot_path_isolation(&self) -> Result<(), String> {
+        let stream_identities: std::collections::HashSet<u64> = self
+            .panes
+            .iter()
+            .map(|pane| pane.hot_path.stream_identity)
+            .collect();
+        let input_identities: std::collections::HashSet<u64> = self
+            .panes
+            .iter()
+            .map(|pane| pane.hot_path.input_identity)
+            .collect();
+        let terminal_identities: std::collections::HashSet<u64> = self
+            .panes
+            .iter()
+            .map(|pane| pane.hot_path.terminal_model_identity)
+            .collect();
+        let damage_identities: std::collections::HashSet<u64> = self
+            .panes
+            .iter()
+            .map(|pane| pane.hot_path.render_damage_identity)
+            .collect();
+        if [
+            stream_identities.len(),
+            input_identities.len(),
+            terminal_identities.len(),
+            damage_identities.len(),
+        ] != [4, 4, 4, 4]
+        {
+            return Err("hot-path instrumentation identities are not pane-isolated".to_owned());
+        }
+        for pane in &self.panes {
+            let counters = &pane.hot_path.counters;
+            if counters.pty_output_chunks == 0
+                || counters.pty_output_bytes == 0
+                || counters.terminal_model_writes != counters.pty_output_chunks
+                || counters.terminal_model_bytes != counters.pty_output_bytes
+                || counters.input_writes == 0
+                || counters.input_bytes == 0
+                || counters.render_passes == 0
+                || counters.rendered_bytes == 0
+            {
+                return Err(format!(
+                    "{} hot-path instrumentation is incomplete",
+                    pane.pane_id
+                ));
+            }
+        }
+        if self.presentation_writes == 0 || self.presentation_bytes == 0 {
+            return Err("buffered native presentation was not observed".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn hot_path_json(&self) -> String {
+        let panes = self
+            .panes
+            .iter()
+            .map(|pane| {
+                let hot_path = &pane.hot_path;
+                let counters = &hot_path.counters;
+                format!(
+                    "{{\"paneId\":\"{}\",\"sessionId\":\"{}\",\"streamIdentity\":{},\"inputIdentity\":{},\"terminalModelIdentity\":{},\"renderDamageIdentity\":{},\"keyEncoderIdentity\":{},\"mouseEncoderIdentity\":{},\"selectionIdentity\":{},\"ptyOutputChunks\":{},\"ptyOutputBytes\":{},\"terminalModelWrites\":{},\"terminalModelBytes\":{},\"inputWrites\":{},\"inputBytes\":{},\"keyEvents\":{},\"textEvents\":{},\"pasteEvents\":{},\"mouseEvents\":{},\"mouseReports\":{},\"selectionEvents\":{},\"clipboardTransfers\":{},\"renderPasses\":{},\"renderedBytes\":{}}}",
+                    pane.pane_id,
+                    pane.session_id,
+                    hot_path.stream_identity,
+                    hot_path.input_identity,
+                    hot_path.terminal_model_identity,
+                    hot_path.render_damage_identity,
+                    hot_path.key_encoder_identity,
+                    hot_path.mouse_encoder_identity,
+                    hot_path.selection_identity,
+                    counters.pty_output_chunks,
+                    counters.pty_output_bytes,
+                    counters.terminal_model_writes,
+                    counters.terminal_model_bytes,
+                    counters.input_writes,
+                    counters.input_bytes,
+                    counters.key_events,
+                    counters.text_events,
+                    counters.paste_events,
+                    counters.mouse_events,
+                    counters.mouse_reports,
+                    counters.selection_events,
+                    counters.clipboard_transfers,
+                    counters.render_passes,
+                    counters.rendered_bytes,
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(",");
+        format!(
+            "{{\"schema\":\"addone-terminal-host-hot-path-v1\",\"authority\":\"native-terminal-host\",\"nodeRelay\":false,\"rawPayloadExported\":false,\"paneCount\":4,\"presentationWrites\":{},\"presentationBytes\":{},\"panes\":[{}]}}",
+            self.presentation_writes, self.presentation_bytes, panes
+        )
     }
 
     pub fn shutdown(&mut self) {
@@ -463,18 +657,32 @@ impl FixedWorkspace {
                     return Ok(false);
                 }
                 let focused = self.focused_index();
-                let pane = &mut self.panes[focused];
-                let clear_selection = pane.selection_active
-                    && matches!(key.code, KeyCode::Char('c') | KeyCode::Char('C'))
-                    && key.modifiers.contains(KeyModifiers::CONTROL);
+                let clear_selection = {
+                    let pane = &self.panes[focused];
+                    pane.selection_active
+                        && matches!(key.code, KeyCode::Char('c') | KeyCode::Char('C'))
+                        && key.modifiers.contains(KeyModifiers::CONTROL)
+                };
                 if clear_selection {
+                    let pane = &mut self.panes[focused];
                     pane.selection.clear(&mut pane.terminal)?;
                     pane.selection_active = false;
-                } else if let Some(encoded) = encode_key(&pane.key_encoder, key)? {
-                    self.write_to_focused(&encoded)?;
+                    pane.hot_path.counters.selection_events += 1;
+                } else {
+                    let encoded = {
+                        let pane = &self.panes[focused];
+                        encode_key(&pane.key_encoder, &pane.terminal, key)?
+                    };
+                    if let Some(encoded) = encoded {
+                        let text = matches!(key.code, KeyCode::Char(_));
+                        self.panes[focused].write(&encoded, InputKind::Key { text })?;
+                    }
                 }
             }
-            Event::Paste(text) => self.write_to_focused(text.as_bytes())?,
+            Event::Paste(text) => {
+                let focused = self.focused_index();
+                self.panes[focused].write(text.as_bytes(), InputKind::Paste)?;
+            }
             Event::Resize(columns, rows) => self.resize(columns, rows)?,
             Event::Mouse(mouse) => {
                 let Some(index) = self.layout.pane_at(mouse.column, mouse.row) else {
@@ -482,6 +690,58 @@ impl FixedWorkspace {
                 };
                 let rect = self.layout.panes[index];
                 let (column, row) = rect.local(mouse.column, mouse.row);
+                if self.panes[index].terminal.mouse_tracking()? {
+                    if matches!(mouse.kind, MouseEventKind::Down(_)) {
+                        self.focus(index)?;
+                    }
+                    let pane = &mut self.panes[index];
+                    pane.hot_path.counters.mouse_events += 1;
+                    match mouse.kind {
+                        MouseEventKind::Down(_) => pane.mouse_button_pressed = true,
+                        MouseEventKind::Up(_) => pane.mouse_button_pressed = false,
+                        _ => {}
+                    }
+                    let input = match mouse.kind {
+                        MouseEventKind::Down(button) => {
+                            Some((MouseAction::Press, ghostty_mouse_button(button)))
+                        }
+                        MouseEventKind::Up(button) => {
+                            Some((MouseAction::Release, ghostty_mouse_button(button)))
+                        }
+                        MouseEventKind::Drag(button) => {
+                            Some((MouseAction::Motion, ghostty_mouse_button(button)))
+                        }
+                        MouseEventKind::Moved => Some((MouseAction::Motion, None)),
+                        MouseEventKind::ScrollUp => {
+                            Some((MouseAction::Press, Some(GhosttyMouseButton::Four)))
+                        }
+                        MouseEventKind::ScrollDown => {
+                            Some((MouseAction::Press, Some(GhosttyMouseButton::Five)))
+                        }
+                        _ => None,
+                    };
+                    if let Some((action, button)) = input {
+                        let encoded = pane.mouse_encoder.encode(
+                            &pane.terminal,
+                            MouseInput {
+                                action,
+                                button,
+                                mods: modifier_bits(mouse.modifiers),
+                                column,
+                                row,
+                                columns: rect.columns,
+                                rows: rect.rows,
+                                any_button_pressed: pane.mouse_button_pressed,
+                            },
+                        )?;
+                        if !encoded.is_empty() {
+                            pane.write(&encoded, InputKind::Mouse)?;
+                        }
+                    }
+                    return Ok(false);
+                }
+
+                self.panes[index].hot_path.counters.mouse_events += 1;
                 match mouse.kind {
                     MouseEventKind::ScrollUp => self.panes[index].terminal.scroll_delta(-3)?,
                     MouseEventKind::ScrollDown => self.panes[index].terminal.scroll_delta(3)?,
@@ -494,6 +754,7 @@ impl FixedWorkspace {
                         pane.selection_gesture_active = true;
                         pane.selection_active =
                             pane.selection.press(&mut pane.terminal, column, row)?;
+                        pane.hot_path.counters.selection_events += 1;
                     }
                     MouseEventKind::Drag(MouseButton::Left) => {
                         let pane = &mut self.panes[index];
@@ -506,6 +767,7 @@ impl FixedWorkspace {
                                 rect.rows,
                             )?;
                             pane.selection_active = true;
+                            pane.hot_path.counters.selection_events += 1;
                         }
                     }
                     MouseEventKind::Up(MouseButton::Left) => {
@@ -516,10 +778,12 @@ impl FixedWorkspace {
                             {
                                 pane.selection_active = true;
                                 write_clipboard(stdout, &selected)?;
+                                pane.hot_path.counters.clipboard_transfers += 1;
                             } else {
                                 pane.selection_active = false;
                             }
                             pane.selection_gesture_active = false;
+                            pane.hot_path.counters.selection_events += 1;
                         }
                     }
                     _ => {}
@@ -546,18 +810,24 @@ impl FixedWorkspace {
         }
         for index in (0..self.panes.len()).filter(|index| *index != focused) {
             let pane = &mut self.panes[index];
-            frame.push_str(
-                &pane
-                    .terminal
-                    .frame_at(pane.rect.column, pane.rect.row, false)?,
-            );
+            let rendered = pane
+                .terminal
+                .frame_at(pane.rect.column, pane.rect.row, false)?;
+            if !rendered.is_empty() {
+                pane.hot_path.counters.render_passes += 1;
+                pane.hot_path.counters.rendered_bytes += rendered.len() as u64;
+                frame.push_str(&rendered);
+            }
         }
         let pane = &mut self.panes[focused];
-        frame.push_str(
-            &pane
-                .terminal
-                .frame_at(pane.rect.column, pane.rect.row, false)?,
-        );
+        let rendered = pane
+            .terminal
+            .frame_at(pane.rect.column, pane.rect.row, false)?;
+        if !rendered.is_empty() {
+            pane.hot_path.counters.render_passes += 1;
+            pane.hot_path.counters.rendered_bytes += rendered.len() as u64;
+            frame.push_str(&rendered);
+        }
         if !frame.is_empty() {
             frame.push_str(
                 &pane
@@ -571,6 +841,8 @@ impl FixedWorkspace {
             stdout
                 .flush()
                 .map_err(|error| format!("flush terminal workspace frame: {error}"))?;
+            self.presentation_writes += 1;
+            self.presentation_bytes += frame.len() as u64;
         }
         Ok(())
     }
@@ -620,6 +892,14 @@ fn chrome_frame(layout: FixedLayout, focused_index: usize, clear_surface: bool) 
         ));
     }
     out
+}
+
+fn ghostty_mouse_button(button: MouseButton) -> Option<GhosttyMouseButton> {
+    match button {
+        MouseButton::Left => Some(GhosttyMouseButton::Left),
+        MouseButton::Right => Some(GhosttyMouseButton::Right),
+        MouseButton::Middle => Some(GhosttyMouseButton::Middle),
+    }
 }
 
 fn focus_shortcut(key: KeyEvent) -> Option<usize> {

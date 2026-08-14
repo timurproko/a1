@@ -42,6 +42,19 @@ describe("native host and transparent-mode executable boundaries", () => {
     expect(dependencies).not.toContain("homebridge-node-pty-prebuilt-multiarch");
   });
 
+  it("keeps pane hot-path instrumentation native and exports metadata only", async () => {
+    const workspace = await readFile("native/terminal-host/src/workspace.rs", "utf8");
+    const runner = await readFile("scripts/run-terminal-host-probe.mjs", "utf8");
+    expect(workspace).toContain("addone-terminal-host-hot-path-v1");
+    expect(workspace).toContain('nodeRelay\\\":false');
+    expect(workspace).toContain('rawPayloadExported\\\":false');
+    expect(workspace).toContain("stream_identity");
+    expect(workspace).toContain("input_identity");
+    expect(runner).toContain('stdio: "inherit"');
+    expect(runner).not.toContain('stdio: "pipe"');
+    expect(runner).not.toContain("encoding:");
+  });
+
   it("bounds the Node-to-native proof frame and preserves exact transparent stdio inheritance", async () => {
     const codec = await readFile("src/foundation/native-host-protocol/codec.ts", "utf8");
     const messages = await readFile("src/foundation/native-host-protocol/messages.ts", "utf8");
