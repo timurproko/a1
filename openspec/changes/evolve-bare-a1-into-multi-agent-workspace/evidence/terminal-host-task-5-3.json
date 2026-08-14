@@ -1,0 +1,139 @@
+{
+  "schema": "addone-terminal-host-task-5-3-v1",
+  "recordedAt": "2026-08-14T16:43:43.397Z",
+  "change": "evolve-bare-a1-into-multi-agent-workspace",
+  "task": "5.3",
+  "sourceCommit": "7611df7efbb4acdf9a8eae6fa17c59a03a413e32",
+  "artifact": {
+    "path": "native/terminal-host/target/debug/addone-terminal-host.exe",
+    "profile": "debug",
+    "sha256": "42a92d095747104685d6862788fca399e1c1e5a8d66698222860a6eeaacee0a1",
+    "sizeBytes": 2394624
+  },
+  "toolchain": {
+    "rust": "1.97.1",
+    "cargo": "1.97.1",
+    "zig": "0.15.2",
+    "platform": "win32",
+    "architecture": "x64"
+  },
+  "authority": {
+    "owner": "native-terminal-host",
+    "nodeRelay": false,
+    "rawPayloadExported": false,
+    "outerPresentationBufferedInNativeHost": true,
+    "controlPlanePayloads": "typed identity, topology, capability, lifecycle, recovery, and bounded diagnostics only"
+  },
+  "identityObservation": {
+    "schema": "addone-terminal-host-hot-path-v1",
+    "paneCount": 4,
+    "streamIdentities": [1, 8, 15, 22],
+    "inputIdentities": [2, 9, 16, 23],
+    "terminalModelIdentities": [3, 10, 17, 24],
+    "renderDamageIdentities": [4, 11, 18, 25],
+    "keyEncoderIdentities": [5, 12, 19, 26],
+    "mouseEncoderIdentities": [6, 13, 20, 27],
+    "selectionIdentities": [7, 14, 21, 28],
+    "allIdentitySetsUnique": true,
+    "presentationWrites": 2,
+    "presentationBytes": 4708,
+    "panes": [
+      {
+        "paneId": "pane-1",
+        "sessionId": "session-1",
+        "ptyOutputChunks": 9,
+        "ptyOutputBytes": 286,
+        "terminalModelWrites": 9,
+        "terminalModelBytes": 286,
+        "inputWrites": 2,
+        "inputBytes": 23,
+        "renderPasses": 2,
+        "renderedBytes": 687
+      },
+      {
+        "paneId": "pane-2",
+        "sessionId": "session-2",
+        "ptyOutputChunks": 8,
+        "ptyOutputBytes": 286,
+        "terminalModelWrites": 8,
+        "terminalModelBytes": 286,
+        "inputWrites": 2,
+        "inputBytes": 23,
+        "renderPasses": 2,
+        "renderedBytes": 668
+      },
+      {
+        "paneId": "pane-3",
+        "sessionId": "session-3",
+        "ptyOutputChunks": 8,
+        "ptyOutputBytes": 286,
+        "terminalModelWrites": 8,
+        "terminalModelBytes": 286,
+        "inputWrites": 2,
+        "inputBytes": 23,
+        "renderPasses": 2,
+        "renderedBytes": 743
+      },
+      {
+        "paneId": "pane-4",
+        "sessionId": "session-4",
+        "ptyOutputChunks": 8,
+        "ptyOutputBytes": 286,
+        "terminalModelWrites": 8,
+        "terminalModelBytes": 286,
+        "inputWrites": 2,
+        "inputBytes": 23,
+        "renderPasses": 2,
+        "renderedBytes": 726
+      }
+    ]
+  },
+  "nativePrimitiveProbe": {
+    "keyEncoding": true,
+    "textImeEncoding": true,
+    "mouseEncoding": true,
+    "paneRelativeMouse": true,
+    "selection": true,
+    "clipboardOsc52Encoding": true,
+    "keyAndMouseModesRefreshedFromRetainedTerminal": true,
+    "nodeRelay": false
+  },
+  "staticBoundaryChecks": {
+    "nodeProtocolHotPathPayloadsAbsent": true,
+    "nativeImplementationDependenciesAbsentFromNodeManifest": true,
+    "probeRunnerUsesInheritedStdio": true,
+    "explicitTransparentModesRemainIndependent": true
+  },
+  "commands": [
+    {
+      "command": "npm run test:terminal-host",
+      "result": "passed"
+    },
+    {
+      "command": "npm run check:architecture",
+      "result": "passed"
+    },
+    {
+      "command": "npx vitest run test/repository-governance/native-host-boundary.test.ts test/repository-governance/terminal-architecture-policy.test.ts",
+      "result": "38 tests passed"
+    },
+    {
+      "command": "npm test",
+      "result": "285 tests passed"
+    },
+    {
+      "command": "npm run typecheck",
+      "result": "passed"
+    },
+    {
+      "command": "openspec validate evolve-bare-a1-into-multi-agent-workspace --strict",
+      "result": "passed"
+    }
+  ],
+  "limitations": [
+    "No physical terminal automation was run on the active workstation.",
+    "The text/IME gate validates the native composed-Unicode input path; operating-system IME behavior remains a task 5.4/5.5 physical workload where supported.",
+    "High-rate workloads, resource and latency measurements, abnormal exits, and exact-artifact physical acceptance remain tasks 5.4 and 5.5."
+  ],
+  "passed": true
+}
