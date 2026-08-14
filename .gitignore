@@ -170,6 +170,7 @@ $RECYCLE.BIN/
 
 # AddOne terminal host build outputs
 /native/terminal-host/target/
+/native/terminal-host/target-check/
 /native/terminal-host/vendor/**/.zig-cache/
 /native/terminal-host/vendor/**/zig-out/
 

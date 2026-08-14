@@ -43,4 +43,13 @@ The first artifact had one finding: `Ctrl+Shift+Q` did not exit.
 - Palette-indexed child colors are emitted as palette indexes (`38;5;n` / `48;5;n`) instead of being converted through Ghostty's default RGB palette.
 - The automated probe asserts default-background and palette-passthrough sequences and passes.
 
-Manual retest should compare vanilla Pi and the terminal-host Pi in the same Git Bash theme. No terminal was launched or driven by automation on the active workstation.
+## Scrollback artifact
+
+- Artifact SHA-256: `6280786d713abe37eb979e309d27b7ed1eb1f1e1e76e485b0bc5f9c357391ca6`
+- Size: 2,246,656 bytes
+- Mouse capture is enabled so wheel events reach the host; wheel and Shift+navigation scroll the retained terminal viewport.
+- Viewport changes mark the frame dirty before composition.
+- The non-interactive probe verifies retained scrollback, viewport movement, and repainted earlier content.
+- Use the outer terminal's modifier-based selection, usually Shift+drag in Windows Terminal, while pointer capture is active.
+
+Manual retest should generate enough Pi output for scrollback, then use mouse wheel and Shift+PageUp/PageDown. No terminal was launched or driven by automation on the active workstation.

@@ -18,7 +18,7 @@ use crossterm::terminal::{
 };
 use crossterm::{
     cursor::{Hide, Show},
-    event::{DisableBracketedPaste, EnableBracketedPaste},
+    event::{DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture},
 };
 use portable_pty::{Child, CommandBuilder, MasterPty, NativePtySystem, PtySize, PtySystem};
 
@@ -46,6 +46,7 @@ fn run_from_args(args: Vec<String>) -> Result<(), String> {
             Ok(())
         }
         Some("--probe") => probe(),
+        Some("--probe-scroll") => probe_scroll(),
         Some("--resolve") if args.len() == 2 => {
             println!("{}", resolve_command(&args[1])?);
             Ok(())
@@ -77,6 +78,26 @@ fn probe_trace(step: &str) {
     }
 }
 
+fn probe_scroll() -> Result<(), String> {
+    let mut terminal = GhosttyTerminal::new(80, 24)?;
+    terminal.write(b"AddOne terminal host probe\r\n\x1b[1;32mterminal model ready\x1b[0m\r\n");
+    terminal.frame()?;
+    for index in 1..=40 {
+        terminal.write(format!("line{index}\r\n").as_bytes());
+    }
+    terminal.frame()?;
+    let rows = terminal.scrollback_rows()?;
+    let scrollbar = terminal.scrollbar()?;
+    println!(
+        "{{\"scrollbackRows\":{rows},\"scrollbar\":{{\"total\":{},\"offset\":{},\"length\":{}}}}}",
+        scrollbar.total, scrollbar.offset, scrollbar.len
+    );
+    if rows == 0 {
+        return Err("expected retained scrollback rows".to_owned());
+    }
+    Ok(())
+}
+
 fn probe() -> Result<(), String> {
     probe_trace("create terminal");
     let mut terminal = GhosttyTerminal::new(80, 24)?;
@@ -91,6 +112,30 @@ fn probe() -> Result<(), String> {
         || !frame.contains("\x1b[38;5;2m")
     {
         return Err("terminal model probe did not produce expected frame content".to_owned());
+    }
+    for index in 0..40 {
+        terminal.write(format!("scroll-check-{index:02}\r\n").as_bytes());
+    }
+    terminal.frame()?;
+    let bottom = terminal.scrollbar()?;
+    let scrollback_rows = terminal.scrollback_rows()?;
+    terminal.scroll_delta(-1_000)?;
+    let top = terminal.scrollbar()?;
+    if env::var_os("ADDONE_PROBE_TRACE").is_some() {
+        eprintln!(
+            "scrollbar bottom={bottom:?} top={top:?} scrollback_rows={scrollback_rows} viewport_active={}",
+            terminal.viewport_active()?
+        );
+    }
+    if top.offset >= bottom.offset {
+        return Err("terminal scrollback probe did not move the viewport".to_owned());
+    }
+    let scrolled = terminal.frame()?;
+    if env::var_os("ADDONE_PROBE_TRACE").is_some() {
+        eprintln!("scrolled frame: {scrolled:?}");
+    }
+    if !scrolled.contains("scroll-check-00") {
+        return Err("terminal scrollback probe did not expose earlier content".to_owned());
     }
 
     let pty_system = NativePtySystem::default();
@@ -222,15 +267,14 @@ fn interactive_loop(
         {
             match event::read().map_err(|error| format!("read terminal input: {error}"))? {
                 Event::Key(key) => {
-                    if handle_scroll_key(terminal, key, *viewport_rows) {
-                        continue;
-                    }
-                    if let Some(encoded) = encode_key(key_encoder, key)? {
-                        writer
-                            .lock()
-                            .map_err(|_| "terminal session writer lock poisoned".to_owned())?
-                            .write_all(&encoded)
-                            .map_err(|error| format!("write terminal input: {error}"))?;
+                    if !handle_scroll_key(terminal, key, *viewport_rows)? {
+                        if let Some(encoded) = encode_key(key_encoder, key)? {
+                            writer
+                                .lock()
+                                .map_err(|_| "terminal session writer lock poisoned".to_owned())?
+                                .write_all(&encoded)
+                                .map_err(|error| format!("write terminal input: {error}"))?;
+                        }
                     }
                 }
                 Event::Paste(text) => {
@@ -253,8 +297,8 @@ fn interactive_loop(
                     *viewport_rows = rows;
                 }
                 Event::Mouse(mouse) => match mouse.kind {
-                    MouseEventKind::ScrollUp => terminal.scroll_delta(-3),
-                    MouseEventKind::ScrollDown => terminal.scroll_delta(3),
+                    MouseEventKind::ScrollUp => terminal.scroll_delta(-3)?,
+                    MouseEventKind::ScrollDown => terminal.scroll_delta(3)?,
                     _ => {}
                 },
                 Event::FocusGained | Event::FocusLost => {}
@@ -363,19 +407,23 @@ fn resolve_command(program: &str) -> Result<String, String> {
     Err(format!("command not found on PATH: {program}"))
 }
 
-fn handle_scroll_key(terminal: &mut GhosttyTerminal, key: KeyEvent, rows: u16) -> bool {
+fn handle_scroll_key(
+    terminal: &mut GhosttyTerminal,
+    key: KeyEvent,
+    rows: u16,
+) -> Result<bool, String> {
     if !key.modifiers.contains(KeyModifiers::SHIFT) {
-        return false;
+        return Ok(false);
     }
     let page = (rows as isize).max(1) / 2;
     match key.code {
-        KeyCode::PageUp => terminal.scroll_delta(-page),
-        KeyCode::PageDown => terminal.scroll_delta(page),
-        KeyCode::Up => terminal.scroll_delta(-1),
-        KeyCode::Down => terminal.scroll_delta(1),
-        _ => return false,
+        KeyCode::PageUp => terminal.scroll_delta(-page)?,
+        KeyCode::PageDown => terminal.scroll_delta(page)?,
+        KeyCode::Up => terminal.scroll_delta(-1)?,
+        KeyCode::Down => terminal.scroll_delta(1)?,
+        _ => return Ok(false),
     }
-    true
+    Ok(true)
 }
 
 struct TerminalModeGuard;
@@ -384,8 +432,14 @@ impl TerminalModeGuard {
     fn enter() -> Result<Self, String> {
         enable_raw_mode().map_err(|error| format!("enable terminal raw mode: {error}"))?;
         let mut stdout = std::io::stdout().lock();
-        execute!(stdout, EnterAlternateScreen, EnableBracketedPaste, Hide)
-            .map_err(|error| format!("enter terminal workspace surface: {error}"))?;
+        execute!(
+            stdout,
+            EnterAlternateScreen,
+            EnableBracketedPaste,
+            EnableMouseCapture,
+            Hide
+        )
+        .map_err(|error| format!("enter terminal workspace surface: {error}"))?;
         Ok(Self)
     }
 }
@@ -393,7 +447,13 @@ impl TerminalModeGuard {
 impl Drop for TerminalModeGuard {
     fn drop(&mut self) {
         let mut stdout = std::io::stdout().lock();
-        let _ = execute!(stdout, DisableBracketedPaste, Show, LeaveAlternateScreen);
+        let _ = execute!(
+            stdout,
+            DisableBracketedPaste,
+            DisableMouseCapture,
+            Show,
+            LeaveAlternateScreen
+        );
         let _ = disable_raw_mode();
     }
 }

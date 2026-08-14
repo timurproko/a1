@@ -14,6 +14,9 @@ const RENDER_DATA_CURSOR_HAS_POSITION: i32 = 14;
 const RENDER_DATA_CURSOR_X: i32 = 15;
 const RENDER_DATA_CURSOR_Y: i32 = 16;
 const RENDER_OPTION_DIRTY: i32 = 0;
+const TERMINAL_DATA_SCROLLBAR: i32 = 9;
+const TERMINAL_DATA_SCROLLBACK_ROWS: i32 = 15;
+const TERMINAL_DATA_VIEWPORT_ACTIVE: i32 = 32;
 const ROW_DATA_DIRTY: i32 = 1;
 const ROW_DATA_CELLS: i32 = 3;
 const ROW_OPTION_DIRTY: i32 = 0;
@@ -64,6 +67,14 @@ struct GhosttyTerminalOptions {
     cols: u16,
     rows: u16,
     max_scrollback: usize,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct TerminalScrollbar {
+    pub total: u64,
+    pub offset: u64,
+    pub len: u64,
 }
 
 #[repr(C)]
@@ -153,6 +164,11 @@ unsafe extern "C" {
         terminal: GhosttyTerminalRaw,
         behavior: GhosttyTerminalScrollViewport,
     );
+    fn ghostty_terminal_get(
+        terminal: GhosttyTerminalRaw,
+        data: i32,
+        out: *mut c_void,
+    ) -> GhosttyResult;
     fn ghostty_render_state_new(
         allocator: *const c_void,
         state: *mut GhosttyRenderStateRaw,
@@ -286,7 +302,7 @@ impl GhosttyTerminal {
         )
     }
 
-    pub fn scroll_delta(&mut self, rows: isize) {
+    pub fn scroll_delta(&mut self, rows: isize) -> Result<(), String> {
         unsafe {
             ghostty_terminal_scroll_viewport(
                 self.raw,
@@ -296,6 +312,62 @@ impl GhosttyTerminal {
                 },
             );
         }
+        let full = 2i32;
+        check(
+            unsafe {
+                ghostty_render_state_set(
+                    self.render,
+                    RENDER_OPTION_DIRTY,
+                    &full as *const i32 as *const c_void,
+                )
+            },
+            "mark scrolled frame dirty",
+        )
+    }
+
+    pub fn scrollbar(&self) -> Result<TerminalScrollbar, String> {
+        let mut scrollbar = TerminalScrollbar::default();
+        check(
+            unsafe {
+                ghostty_terminal_get(
+                    self.raw,
+                    TERMINAL_DATA_SCROLLBAR,
+                    &mut scrollbar as *mut TerminalScrollbar as *mut c_void,
+                )
+            },
+            "read terminal scrollbar",
+        )?;
+        Ok(scrollbar)
+    }
+
+    pub fn scrollback_rows(&self) -> Result<usize, String> {
+        let mut rows = 0usize;
+        check(
+            unsafe {
+                ghostty_terminal_get(
+                    self.raw,
+                    TERMINAL_DATA_SCROLLBACK_ROWS,
+                    &mut rows as *mut usize as *mut c_void,
+                )
+            },
+            "read terminal scrollback rows",
+        )?;
+        Ok(rows)
+    }
+
+    pub fn viewport_active(&self) -> Result<bool, String> {
+        let mut active = false;
+        check(
+            unsafe {
+                ghostty_terminal_get(
+                    self.raw,
+                    TERMINAL_DATA_VIEWPORT_ACTIVE,
+                    &mut active as *mut bool as *mut c_void,
+                )
+            },
+            "read terminal viewport state",
+        )?;
+        Ok(active)
     }
 
     pub fn frame(&mut self) -> Result<String, String> {
