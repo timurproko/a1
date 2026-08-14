@@ -16,8 +16,9 @@ function evidence(overrides: Partial<NativeSpikeEvidence> = {}): NativeSpikeEvid
     artifact: { path: "artifacts/native/addone-host.exe", sha256: "a".repeat(64), sizeBytes: 10_000_000 },
     source: {
       addoneCommit: "b".repeat(40),
-      winghosttyCommit: "6a8353f4ced7124a37993ee2ad08277afa539ae6",
-      ghosttyCommit: "613050ddffbe9e15e538a355e2c6934407113793",
+      libghosttyVtCommit: "c5a21edfcbc2d5b46540ad91b7980aca31f5f1f3",
+      portablePtyVersion: "0.9.0",
+      crosstermVersion: "0.29.0",
     },
     environment: { platform: "windows", architecture: "x64", osRelease: "10.0.26200", zig: "0.15.2", isolatedWorker: true },
     workloads: NATIVE_SPIKE_WORKLOADS.map(id => ({ id, status: "passed", durationMs: 100, details: {} })),

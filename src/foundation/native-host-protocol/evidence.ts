@@ -53,8 +53,9 @@ export interface NativeSpikeEvidence {
   };
   readonly source: {
     readonly addoneCommit: string;
-    readonly winghosttyCommit: string;
-    readonly ghosttyCommit: string;
+    readonly libghosttyVtCommit: string;
+    readonly portablePtyVersion: string;
+    readonly crosstermVersion: string;
   };
   readonly environment: {
     readonly platform: "windows";
@@ -82,8 +83,9 @@ export interface NativeSpikeEvidence {
   };
 }
 
-const EXPECTED_WINGHOSTTY = "6a8353f4ced7124a37993ee2ad08277afa539ae6";
-const EXPECTED_GHOSTTY = "613050ddffbe9e15e538a355e2c6934407113793";
+const EXPECTED_LIBGHOSTTY_VT = "c5a21edfcbc2d5b46540ad91b7980aca31f5f1f3";
+const EXPECTED_PORTABLE_PTY = "0.9.0";
+const EXPECTED_CROSSTERM = "0.29.0";
 const FORBIDDEN_EVIDENCE_KEYS = new Set([
   "pty" + "Bytes",
   "terminal" + "Bytes",
@@ -101,8 +103,10 @@ export function assertNativeSpikeEvidence(value: NativeSpikeEvidence): void {
   if (!/^[a-f0-9]{64}$/.test(value.artifact.sha256)) throw new TypeError("native spike artifact hash must be SHA-256");
   if (!Number.isSafeInteger(value.artifact.sizeBytes) || value.artifact.sizeBytes <= 0) throw new RangeError("native spike artifact size is invalid");
   if (!/^[a-f0-9]{40}$/.test(value.source.addoneCommit)) throw new TypeError("native spike AddOne commit is invalid");
-  if (value.source.winghosttyCommit !== EXPECTED_WINGHOSTTY || value.source.ghosttyCommit !== EXPECTED_GHOSTTY) {
-    throw new TypeError("native spike source commits do not match the pinned provenance");
+  if (value.source.libghosttyVtCommit !== EXPECTED_LIBGHOSTTY_VT ||
+      value.source.portablePtyVersion !== EXPECTED_PORTABLE_PTY ||
+      value.source.crosstermVersion !== EXPECTED_CROSSTERM) {
+    throw new TypeError("native spike terminal-core sources do not match the pinned provenance");
   }
   if (value.environment.platform !== "windows") throw new TypeError("native spike evidence must identify Windows");
   if (!["x64", "arm64"].includes(value.environment.architecture)) throw new TypeError("native spike architecture is invalid");

@@ -17,8 +17,9 @@ function evidence(overrides: Partial<NativeSpikeEvidence> = {}): NativeSpikeEvid
     artifact: { path: "artifacts/native/addone-host.exe", sha256: "a".repeat(64), sizeBytes: 10_000_000 },
     source: {
       addoneCommit: "b".repeat(40),
-      winghosttyCommit: "6a8353f4ced7124a37993ee2ad08277afa539ae6",
-      ghosttyCommit: "613050ddffbe9e15e538a355e2c6934407113793",
+      libghosttyVtCommit: "c5a21edfcbc2d5b46540ad91b7980aca31f5f1f3",
+      portablePtyVersion: "0.9.0",
+      crosstermVersion: "0.29.0",
     },
     environment: {
       platform: "windows",
@@ -67,7 +68,7 @@ describe("native 2x2 spike evidence schema", () => {
 
   it("rejects wrong source pins, malformed hashes, invalid toolchains, and unordered latency metrics", () => {
     expect(() => assertNativeSpikeEvidence(evidence({ artifact: { ...evidence().artifact, sha256: "not-a-hash" } }))).toThrow(/SHA-256/);
-    expect(() => assertNativeSpikeEvidence(evidence({ source: { ...evidence().source, winghosttyCommit: "c".repeat(40) } }))).toThrow(/pinned provenance/);
+    expect(() => assertNativeSpikeEvidence(evidence({ source: { ...evidence().source, libghosttyVtCommit: "c".repeat(40) } }))).toThrow(/pinned provenance/);
     expect(() => assertNativeSpikeEvidence(evidence({ environment: { ...evidence().environment, zig: "0.15.1" } }))).toThrow(/0\.15\.2/);
     expect(() => assertNativeSpikeEvidence(evidence({ latency: { inputToProcessMs: { minimum: 10, p50: 4, p95: 3, maximum: 2, samples: 10 }, outputToPresentMs: metric() } }))).toThrow(/ordered/);
   });
