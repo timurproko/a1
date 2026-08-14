@@ -1,0 +1,125 @@
+{
+  "schema": "addone-native-host-provenance-v1",
+  "recordedAt": "2026-08-14T06:13:24.075Z",
+  "change": "evolve-bare-a1-into-multi-agent-workspace",
+  "verificationHost": {
+    "platform": "win32",
+    "architecture": "x64",
+    "osRelease": "10.0.26200",
+    "node": "v24.16.0",
+    "npm": "11.13.0",
+    "git": "2.53.0.windows.1"
+  },
+  "sources": [
+    {
+      "name": "winghostty",
+      "repository": "https://github.com/amanthanvi/winghostty",
+      "commit": "6a8353f4ced7124a37993ee2ad08277afa539ae6",
+      "commitSubject": "ci: make interactive composite dispatch-only (#115)",
+      "committedAt": "2026-08-13T07:57:07-04:00",
+      "license": "MIT",
+      "licenseNotice": "Copyright (c) 2024 Mitchell Hashimoto, Ghostty contributors",
+      "licenseSha256": "3129de97bc7769d683e52ce02cb4eaecd2b0aab144b09d6325a1b135bdc87cc0",
+      "readmeSha256": "54ef0130fbb86fd5476cb2570b18ee728347bc1bd5749bb84152b36aa592f6f4",
+      "cleanSourceTree": true
+    },
+    {
+      "name": "ghostty",
+      "repository": "https://github.com/ghostty-org/ghostty",
+      "commit": "613050ddffbe9e15e538a355e2c6934407113793",
+      "commitSubject": "i18n - Latvian translation of command palette, typo fixes and more natural translations (#11663)",
+      "committedAt": "2026-08-13T13:48:19Z",
+      "license": "MIT",
+      "licenseNotice": "Copyright (c) 2024 Mitchell Hashimoto, Ghostty contributors",
+      "licenseSha256": "3129de97bc7769d683e52ce02cb4eaecd2b0aab144b09d6325a1b135bdc87cc0",
+      "readmeSha256": "5308d2f58b44262eae03c228278edbf8f97dccb04137f169c41b40a73e7e1ec0",
+      "cleanSourceTree": true
+    }
+  ],
+  "windowsProofComponents": {
+    "retainedFromWinghostty": [
+      "src/apprt/win32.zig",
+      "src/apprt/win32_*.zig",
+      "src/pty.zig",
+      "src/terminal/",
+      "src/termio/",
+      "src/input/",
+      "src/font/",
+      "src/renderer/"
+    ],
+    "referenceFromGhostty": [
+      "src/terminal/",
+      "macos/Sources/",
+      "src/apprt/gtk/"
+    ],
+    "adaptedForAddOne": [
+      "separate AddOne-owned executable entry point",
+      "bounded local proof protocol",
+      "durable AddOne window/tab/pane/session identities",
+      "revision acknowledgements and lifecycle events",
+      "build metadata and evidence emission"
+    ],
+    "forbiddenReplacements": [
+      "lightweight ANSI parser",
+      "custom terminal renderer",
+      "terminal-byte relay through Node",
+      "custom native input translator"
+    ]
+  },
+  "patchPolicy": {
+    "default": "retain upstream behavior without local patches",
+    "requiredPatchFields": [
+      "source revision",
+      "target revision",
+      "reason",
+      "tests",
+      "upstream synchronization decision",
+      "license impact"
+    ],
+    "behavioralTerminalPatchesRequireSeparateReview": true
+  },
+  "buildPrerequisites": {
+    "operatingSystems": ["windows-10", "windows-11"],
+    "architectures": ["x64", "arm64"],
+    "zig": ">=0.15.2 <0.16",
+    "referenceZig": "0.15.2",
+    "compiler": "Visual Studio 2022 MSVC",
+    "git": "Git for Windows",
+    "rendererRuntime": "OpenGL 4.3 or newer",
+    "isolatedPhysicalWorkerRequired": true,
+    "localProbe": {
+      "zigAvailable": false,
+      "nativeBuildAttempted": false,
+      "reason": "Task 4.1 records provenance and prerequisites only; task 5.1 owns the isolated build."
+    }
+  },
+  "artifactManifestRequirements": [
+    "artifactPath",
+    "sha256",
+    "sizeBytes",
+    "signatureStatus",
+    "buildTimestamp",
+    "addoneCommit",
+    "addoneProtocolVersion",
+    "winghosttyCommit",
+    "ghosttyCommit",
+    "retainedComponents",
+    "adaptedComponents",
+    "compilerVersions",
+    "targetTriple",
+    "licenseHashes",
+    "buildCommand",
+    "dependencyCacheProvenance",
+    "cleanSourceTree",
+    "evidenceSchema",
+    "physicalVerdictReference"
+  ],
+  "checks": {
+    "license": "passed",
+    "provenance": "passed",
+    "sourceTreeHygiene": "passed",
+    "binaryBuild": "deferred-to-task-5.1",
+    "physicalAutomation": "not-run"
+  },
+  "passed": true
+}
