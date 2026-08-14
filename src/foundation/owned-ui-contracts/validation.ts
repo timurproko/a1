@@ -74,7 +74,9 @@ export function assertOwnedUiCommand(command: OwnedUiCommand): void {
     case "compact":
     case "shutdown":
     case "new-session":
+      return;
     case "resume-session":
+      assertBoundedText(command.sessionPath, "owned-UI resume session path", MAX_TEXT_BYTES);
       return;
     case "set-model":
       assertId(command.model.providerId, "owned-UI provider id");

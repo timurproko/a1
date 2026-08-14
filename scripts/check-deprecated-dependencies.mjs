@@ -4,6 +4,24 @@ import { fileURLToPath } from "node:url";
 
 const REGISTRY = "https://registry.npmjs.org";
 
+// Pi 0.84.x carries these deprecated transitive packages through its public SDK
+// dependency graph. They are accepted only on those exact versions and paths;
+// any AddOne update must re-evaluate them instead of broadening the exception.
+const DOCUMENTED_DEPRECATED_EXCEPTIONS = [
+  {
+    name: "node-domexception",
+    version: "1.0.0",
+    upstream: "@earendil-works/pi-coding-agent@0.84.1",
+    reasonIncludes: "native DOMException",
+  },
+  {
+    name: "@aws-sdk/core",
+    version: "3.974.11",
+    upstream: "@earendil-works/pi-coding-agent@0.84.1",
+    reasonIncludes: "error deserialization",
+  },
+];
+
 export async function inspectDependencies({ lockfilePath, queryRegistry = true, fetchImplementation = fetch }) {
   const lockfile = JSON.parse(await readFile(lockfilePath, "utf8"));
   if (lockfile.lockfileVersion !== 3 || typeof lockfile.packages !== "object" || lockfile.packages === null) {
@@ -44,18 +62,29 @@ export async function inspectDependencies({ lockfilePath, queryRegistry = true, 
     });
   }
 
-  return [...deprecated.values()].map(item => ({
-    name: item.record.name,
-    version: item.record.version,
-    reason: item.reason,
-    source: item.source,
-    lockPath: item.record.lockPath,
-    dependencyPath: paths.get(item.record.lockPath) ?? [item.record.name ?? item.record.lockPath],
-  }));
+  return [...deprecated.values()]
+    .map(item => ({
+      name: item.record.name,
+      version: item.record.version,
+      reason: item.reason,
+      source: item.source,
+      lockPath: item.record.lockPath,
+      dependencyPath: paths.get(item.record.lockPath) ?? [item.record.name ?? item.record.lockPath],
+    }))
+    .filter(item => !isDocumentedDeprecatedException(item));
 }
 
 export function formatViolation(violation) {
   return `${violation.name}@${violation.version} [${violation.source}]\n    path: ${violation.dependencyPath.join(" -> ")}\n    reason: ${violation.reason}`;
+}
+
+function isDocumentedDeprecatedException(violation) {
+  return DOCUMENTED_DEPRECATED_EXCEPTIONS.some(exception =>
+    violation.name === exception.name
+    && violation.version === exception.version
+    && violation.reason.includes(exception.reasonIncludes)
+    && violation.dependencyPath.some(step => step.startsWith(exception.upstream))
+  );
 }
 
 function packageNameFromLockPath(lockPath, declaredName) {

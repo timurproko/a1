@@ -157,7 +157,13 @@ export type OwnedUiCommand =
     readonly sessionId: OwnedUiSessionId;
     readonly thinkingLevel: OwnedUiThinkingLevel;
   }
-  | { readonly type: "new-session" | "resume-session"; readonly correlationId: OwnedUiCorrelationId; readonly sessionId: OwnedUiSessionId }
+  | { readonly type: "new-session"; readonly correlationId: OwnedUiCorrelationId; readonly sessionId: OwnedUiSessionId }
+  | {
+    readonly type: "resume-session";
+    readonly correlationId: OwnedUiCorrelationId;
+    readonly sessionId: OwnedUiSessionId;
+    readonly sessionPath: string;
+  }
   | {
     readonly type: "apply-customization";
     readonly correlationId: OwnedUiCorrelationId;

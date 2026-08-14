@@ -40,6 +40,7 @@
     "prepare": "npm run build"
   },
   "dependencies": {
+    "@earendil-works/pi-coding-agent": "0.84.1",
     "cross-spawn": "7.0.6",
     "semver": "7.8.5"
   },

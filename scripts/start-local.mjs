@@ -1,15 +1,13 @@
+import { createHash } from "node:crypto";
 import { spawn } from "node:child_process";
-import { realpath } from "node:fs/promises";
-import { resolve } from "node:path";
+import { lstat, readFile, readdir, realpath } from "node:fs/promises";
+import { join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const packageRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const canonicalRoot = await realpath(packageRoot);
-const [{ deriveReleaseIdentity }, { resolveDevelopmentLaunchEnvironment }] = await Promise.all([
-  import("../dist/src/foundation/release/index.js"),
-  import("../dist/src/features/launch/index.js"),
-]);
-const release = await deriveReleaseIdentity(packageRoot);
+const { resolveDevelopmentLaunchEnvironment } = await import("../dist/src/features/launch/index.js");
+const release = await deriveDevelopmentReleaseIdentity(packageRoot);
 const { checkoutId, instanceId, developmentRoot, environment } = resolveDevelopmentLaunchEnvironment(
   canonicalRoot,
   release.releaseId,
@@ -38,4 +36,24 @@ if (launchArguments[0] === "--print-environment") {
   child.once("close", (code, signal) => {
     process.exitCode = code ?? (signal ? 1 : 0);
   });
+}
+
+async function deriveDevelopmentReleaseIdentity(root) {
+  const manifest = JSON.parse(await readFile(resolve(root, "package.json"), "utf8"));
+  const digest = createHash("sha256");
+  digest.update(JSON.stringify({ name: manifest.name, version: manifest.version, files: manifest.files }));
+  for (const entry of manifest.files ?? []) {
+    await collectDevelopmentFileIdentity(root, entry, digest);
+  }
+  return { releaseId: `${manifest.version}-${digest.digest("hex").slice(0, 20)}` };
+}
+
+async function collectDevelopmentFileIdentity(root, path, digest) {
+  const absolute = resolve(root, path);
+  const metadata = await lstat(absolute);
+  digest.update(`${relative(root, absolute)}\0${metadata.size}\0${Math.trunc(metadata.mtimeMs)}\n`);
+  if (!metadata.isDirectory()) return;
+  for (const entry of await readdir(absolute)) {
+    await collectDevelopmentFileIdentity(root, join(path, entry), digest);
+  }
 }
