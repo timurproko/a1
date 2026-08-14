@@ -19,6 +19,10 @@ A composed workspace tab SHALL own a revisioned split-tree layout. Each leaf pan
 - **WHEN** the platform cannot provide a required pseudoterminal, rendering, input, or lifecycle primitive
 - **THEN** AddOne SHALL reject composed launch as unsupported rather than fall back silently to a partial relay
 
+#### Scenario: Production layout is requested before the owned UI prerequisite
+- **WHEN** the fixed proof has completed but the separate AddOne-owned fullscreen UI foundation has not passed base-UX and upgrade-conformance acceptance
+- **THEN** AddOne SHALL keep production tabs and arbitrary layouts disabled even if the terminal host can technically create them
+
 ### Requirement: The terminal host owns the complete terminal data path
 For composed panes, the terminal host SHALL own pseudoterminal bytes, terminal interpretation and retained state, terminal query responses, keyboard/text/mouse/IME encoding, rendering, frame scheduling, and presentation to the containing terminal. AddOne's control plane SHALL exchange typed identity, topology, capability, lifecycle, and recovery messages and SHALL NOT relay terminal bytes, individual child input events, or rendered cell frames.
 
@@ -102,7 +106,7 @@ Process identity, pseudoterminal handles, byte streams, retained terminal state,
 - **THEN** the AddOne control plane and structured agents SHALL remain available and each affected composed pane SHALL enter an explicit discontinuous or failed state
 
 ### Requirement: An in-terminal 2×2 proof gate precedes composed integration
-Before composed-terminal production integration or milestone merge, an isolated proof SHALL demonstrate one fullscreen composed surface inside an existing terminal, one tab, four independently PTY-backed panes in a 2×2 layout, and terminal-hosted rendering and input without routing terminal bytes through AddOne or opening a separate desktop window. The proof SHALL record pinned source revisions, exact artifact integrity, workloads, latency and resource measurements, paint/resize diagnostics, cleanup outcomes, and a user-controlled manual verdict or isolated-worker physical verdict.
+Before composed-terminal production integration or milestone merge, an isolated proof SHALL demonstrate one fullscreen composed surface inside an existing terminal, one tab, four independently PTY-backed panes in a 2×2 layout, and terminal-hosted rendering and input without routing terminal bytes through AddOne or opening a separate desktop window. The fixed geometry and dashed pane chrome SHALL be treated only as disposable proof scaffolding. The proof SHALL record pinned source revisions, exact artifact integrity, workloads, latency and resource measurements, paint/resize diagnostics, cleanup outcomes, and a user-controlled manual verdict or isolated-worker physical verdict.
 
 #### Scenario: Automated proof is technically successful
 - **WHEN** four-pane output, focus/input routing, resize, DPI, IME, paste, mouse, alternate-screen, abnormal-exit, and cleanup checks pass with recorded measurements
@@ -115,6 +119,14 @@ Before composed-terminal production integration or milestone merge, an isolated 
 #### Scenario: Structured work proceeds while proof is pending
 - **WHEN** the terminal-host proof is incomplete or unsuccessful
 - **THEN** structured-agent and non-composed workspace work MAY proceed independently without claiming composed-terminal support
+
+#### Scenario: Proof verdict is recorded
+- **WHEN** task 5.6 records the accepted or failed verdict for the exact 2×2 artifact
+- **THEN** AddOne SHALL preserve the evidence, remove the fixed multipane presentation from the shipping path, and restore a one-session fullscreen path
+
+#### Scenario: Foundation checkpoint is published after acceptance
+- **WHEN** the exact proof passes and the post-proof fullscreen regression gates pass
+- **THEN** AddOne MAY publish a foundation-only development checkpoint under npm `next` only with composed multipane behavior disabled and no composed-terminal support claim
 
 ### Requirement: Composed support is certified per platform and exact package
 After the spike permits integration, stable composed support claims SHALL require hermetic host-protocol, topology, input, lifecycle, and isolation tests plus isolated disposable-worker certification on each claimed platform against exact packaged bytes and application-independent workloads. Desktop automation SHALL NOT run on an active user workstation.

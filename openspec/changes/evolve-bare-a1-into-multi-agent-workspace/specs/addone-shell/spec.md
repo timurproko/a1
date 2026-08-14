@@ -1,7 +1,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Bare AddOne launches the multi-agent workspace
-Bare `addone` and `a1` SHALL launch the AddOne-owned multi-agent workspace. The workspace SHALL own its application output and SHALL expose managed agents according to their negotiated structured or composed-terminal capabilities. `addone pi`/`a1 pi` SHALL remain vanilla Pi using ordinary `~/.pi/agent`, and `addone sandbox`/`a1 sandbox` SHALL remain the isolated `~/.a1/sandbox` profile using transparent direct attachment.
+Bare `addone` and `a1` SHALL launch the AddOne-owned multi-agent workspace through an accepted AddOne-owned UI foundation. The workspace SHALL own its application output and SHALL expose managed agents according to their negotiated structured or composed-terminal capabilities. Pi SHALL be integrated through documented public SDK adapters rather than by modifying its stock interactive UI. `addone pi`/`a1 pi` SHALL remain exact vanilla Pi using ordinary `~/.pi/agent`, and `addone sandbox`/`a1 sandbox` SHALL remain the isolated `~/.a1/sandbox` profile using transparent direct attachment.
 
 #### Scenario: Launch bare AddOne
 - **WHEN** the user runs `a1` in a supported terminal
@@ -9,7 +9,11 @@ Bare `addone` and `a1` SHALL launch the AddOne-owned multi-agent workspace. The 
 
 #### Scenario: Launch vanilla Pi
 - **WHEN** the user runs `a1 pi`
-- **THEN** AddOne SHALL bypass the workspace and transparently attach one vanilla Pi process using ordinary `~/.pi/agent`
+- **THEN** AddOne SHALL bypass the workspace and transparently attach one exact upstream vanilla Pi process using ordinary `~/.pi/agent`
+
+#### Scenario: Select an AddOne vanilla-style preset
+- **WHEN** the user selects a vanilla-style presentation in bare AddOne
+- **THEN** AddOne SHALL use its owned UI composition and public SDK engine adapter without claiming that presentation is the exact upstream Pi interactive UI
 
 #### Scenario: Launch sandbox Pi
 - **WHEN** the user runs `a1 sandbox`

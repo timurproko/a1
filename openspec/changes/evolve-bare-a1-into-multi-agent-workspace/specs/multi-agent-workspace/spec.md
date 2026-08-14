@@ -15,6 +15,27 @@ Bare `addone` and `a1` SHALL open the AddOne-owned multi-agent workspace. `a1 pi
 - **WHEN** the user runs `a1 pi` or `a1 sandbox`
 - **THEN** AddOne SHALL launch the selected explicit mode without creating or attaching to a workspace surface
 
+### Requirement: Workspace presentation is AddOne-owned and SDK-backed
+The production workspace presentation SHALL use an accepted AddOne-owned UI foundation. Pi-backed agents SHALL use Pi's documented public SDK as their engine behind AddOne-owned view state, reducers, input, focus, composition, and customization slots. Pi SDK and UI types SHALL be confined to adapters and SHALL NOT become workspace-domain contracts. The presentation SHALL NOT patch or inspect Pi's stock `InteractiveMode`, prototypes, private fields, deep imports, or distribution-file hashes.
+
+The foundation MAY wrap documented public Pi UI component exports behind AddOne-owned adapters and MAY port tightly coupled MIT-licensed Pi components into provenance-recorded AddOne modules with retained attribution. Exact current upstream Pi SHALL remain available through `a1 pi`.
+
+#### Scenario: Open the first accepted owned UI
+- **WHEN** the user launches the initial accepted AddOne-owned Pi experience
+- **THEN** AddOne SHALL present one fullscreen session with accepted transcript, streaming, tools, editor, queued input, abort/retry/compaction, model and thinking controls, session resume, settings, clipboard, resize, diagnostics, and shutdown behavior
+
+#### Scenario: Customize the owned presentation
+- **WHEN** the user selects an AddOne theme, component, command, or layout customization
+- **THEN** AddOne SHALL resolve it through stable owned slots without mutating installed Pi code or relying on Pi interactive-TUI internals
+
+#### Scenario: Upgrade the Pi engine
+- **WHEN** AddOne evaluates a newer Pi package
+- **THEN** engine and public-component adapters SHALL pass conformance tests before release, and incompatible changes SHALL remain contained at those adapters
+
+#### Scenario: Request production composition before base UX acceptance
+- **WHEN** tabs, arbitrary layouts, or multi-agent presentation are requested before the owned fullscreen base-UX and upgrade-conformance gates pass
+- **THEN** AddOne SHALL keep those presentation capabilities unavailable rather than building them on the stock Pi interactive root or the disposable 2×2 proof UI
+
 ### Requirement: Workspace agents have durable identities and explicit lifecycle
 Each managed agent SHALL have a stable identity, display name, adapter type, capability declaration, creation time, lifecycle state, and latest recoverable state reference. The workspace SHALL expose create, select, rename, stop, restart, and remove operations with explicit outcomes.
 

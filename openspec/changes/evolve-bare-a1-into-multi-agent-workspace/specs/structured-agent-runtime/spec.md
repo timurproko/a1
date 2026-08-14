@@ -11,6 +11,14 @@ A structured agent adapter SHALL negotiate protocol version, identity, supported
 - **WHEN** an adapter declares a supported protocol version and internally consistent capabilities
 - **THEN** AddOne SHALL persist the negotiated contract and expose only those capabilities to the workspace
 
+#### Scenario: Pi SDK adapter connects
+- **WHEN** AddOne creates a Pi-backed structured agent
+- **THEN** the adapter SHALL use documented public Pi SDK entry points, including the session runtime where applicable, and SHALL map Pi-specific types into AddOne-owned versioned contracts before exposing them to the workspace
+
+#### Scenario: Pi interactive internals appear available
+- **WHEN** an installed Pi package exposes stock interactive classes or discoverable private implementation state
+- **THEN** the structured adapter SHALL NOT patch, inspect, deep-import, or hash those internals as a condition of operation
+
 #### Scenario: Adapter claims incompatible capabilities
 - **WHEN** an adapter omits required versioning or declares mutually inconsistent resume and snapshot semantics
 - **THEN** AddOne SHALL reject readiness with an actionable protocol error
