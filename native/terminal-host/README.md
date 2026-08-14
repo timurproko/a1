@@ -27,13 +27,13 @@ Run only when you choose to test the current terminal manually:
 .\native\terminal-host\target\debug\addone-terminal-host.exe --run
 ```
 
-The proof opens one tab with four independent sessions in a fixed revisioned 2×2 split. Each pane starts the calling shell when possible: Git Bash from Git Bash, PowerShell from PowerShell, and `cmd.exe` from CMD. `Alt+1` through `Alt+4` focus a pane; clicking inside a pane also focuses it. Keyboard and paste input route only to the focused pane. `Ctrl+Shift+Q` cleanly shuts down the host and all four owned process trees.
+The proof opens one tab with four independent Pi sessions in a fixed revisioned 2×2 split. `Alt+1` through `Alt+4` focus a pane; clicking inside a pane also focuses it. Keyboard and paste input route only to the focused pane. `Ctrl+Shift+Q` cleanly shuts down the host and all four owned process trees.
 
 Mouse wheel scrolling and left-button selection route only to the pane under the pointer, with pane-relative coordinates. Plain left-drag selects terminal text with one uniform white inverted style and copies it through the outer terminal's OSC 52 clipboard support. Double-click selects a word, and triple-click selects a line. Ctrl+C clears an active selection in the focused pane before it reaches that child; without selection, interrupt keys remain child-owned. Other keyboard scroll/navigation is not rebound by the host. Each pane owns independent retained state, dimensions, selection, render damage, PTY, and cleanup. The host preserves the outer terminal's default background and foreground unless a child explicitly sets colors.
 
 The host exits when all four children exit or when `Ctrl+Shift+Q` requests host cleanup. Ctrl+C remains child-owned except when clearing an active selection.
 
-To launch the same exact executable and argument vector independently in all four panes:
+To launch an executable other than the default `pi`, pass the same exact executable and argument vector to all four independent panes:
 
 ```powershell
 .\native\terminal-host\target\debug\addone-terminal-host.exe --run -- <executable> [args...]

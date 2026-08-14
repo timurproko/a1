@@ -325,6 +325,7 @@ pub struct FixedWorkspace {
     layout: FixedLayout,
     panes: Vec<Pane>,
     chrome_dirty: bool,
+    surface_dirty: bool,
 }
 
 impl FixedWorkspace {
@@ -339,6 +340,7 @@ impl FixedWorkspace {
             layout,
             panes,
             chrome_dirty: true,
+            surface_dirty: true,
         })
     }
 
@@ -391,6 +393,7 @@ impl FixedWorkspace {
         }
         self.layout = layout;
         self.chrome_dirty = true;
+        self.surface_dirty = true;
         Ok(())
     }
 
@@ -443,7 +446,6 @@ impl FixedWorkspace {
         }
         for (pane_index, pane) in self.panes.iter_mut().enumerate() {
             pane.focused = pane_index == index;
-            pane.terminal.mark_dirty()?;
         }
         self.revision += 1;
         self.chrome_dirty = true;
@@ -533,11 +535,14 @@ impl FixedWorkspace {
         let mut frame = String::new();
         if self.chrome_dirty {
             frame.push_str("\x1b[?2026h\x1b[?25l");
-            frame.push_str(&self.chrome_frame());
-            for pane in &mut self.panes {
-                pane.terminal.mark_dirty()?;
+            frame.push_str(&chrome_frame(self.layout, focused, self.surface_dirty));
+            if self.surface_dirty {
+                for pane in &mut self.panes {
+                    pane.terminal.mark_dirty()?;
+                }
             }
             self.chrome_dirty = false;
+            self.surface_dirty = false;
         }
         for index in (0..self.panes.len()).filter(|index| *index != focused) {
             let pane = &mut self.panes[index];
@@ -569,48 +574,52 @@ impl FixedWorkspace {
         }
         Ok(())
     }
-
-    fn chrome_frame(&self) -> String {
-        let mut out = String::from("\x1b[2J\x1b[0m");
-        for row in [0, self.layout.center_row, self.layout.outer_rows - 1] {
-            out.push_str(&format!(
-                "\x1b[{};1H{}",
-                row + 1,
-                "-".repeat(usize::from(self.layout.outer_columns))
-            ));
-        }
-        for row in 0..self.layout.outer_rows {
-            if row == 0 || row == self.layout.center_row || row == self.layout.outer_rows - 1 {
-                continue;
-            }
-            for column in [0, self.layout.center_column, self.layout.outer_columns - 1] {
-                out.push_str(&format!("\x1b[{};{}H|", row + 1, column + 1));
-            }
-        }
-        for row in [0, self.layout.center_row, self.layout.outer_rows - 1] {
-            for column in [0, self.layout.center_column, self.layout.outer_columns - 1] {
-                out.push_str(&format!("\x1b[{};{}H+", row + 1, column + 1));
-            }
-        }
-        for (index, pane) in self.panes.iter().enumerate() {
-            let marker = if pane.focused { '*' } else { ' ' };
-            let border_row = if index < 2 { 0 } else { self.layout.center_row };
-            out.push_str(&format!(
-                "\x1b[{};{}H[{}{}]",
-                border_row + 1,
-                pane.rect.column + 1,
-                index + 1,
-                marker
-            ));
-        }
-        out
-    }
 }
 
 impl Drop for FixedWorkspace {
     fn drop(&mut self) {
         self.shutdown();
     }
+}
+
+fn chrome_frame(layout: FixedLayout, focused_index: usize, clear_surface: bool) -> String {
+    let mut out = if clear_surface {
+        String::from("\x1b[2J\x1b[0m")
+    } else {
+        String::from("\x1b[0m")
+    };
+    for row in [0, layout.center_row, layout.outer_rows - 1] {
+        out.push_str(&format!(
+            "\x1b[{};1H{}",
+            row + 1,
+            "-".repeat(usize::from(layout.outer_columns))
+        ));
+    }
+    for row in 0..layout.outer_rows {
+        if row == 0 || row == layout.center_row || row == layout.outer_rows - 1 {
+            continue;
+        }
+        for column in [0, layout.center_column, layout.outer_columns - 1] {
+            out.push_str(&format!("\x1b[{};{}H|", row + 1, column + 1));
+        }
+    }
+    for row in [0, layout.center_row, layout.outer_rows - 1] {
+        for column in [0, layout.center_column, layout.outer_columns - 1] {
+            out.push_str(&format!("\x1b[{};{}H+", row + 1, column + 1));
+        }
+    }
+    for (index, rect) in layout.panes.iter().enumerate() {
+        let marker = if index == focused_index { '*' } else { ' ' };
+        let border_row = if index < 2 { 0 } else { layout.center_row };
+        out.push_str(&format!(
+            "\x1b[{};{}H[{}{}]",
+            border_row + 1,
+            rect.column + 1,
+            index + 1,
+            marker
+        ));
+    }
+    out
 }
 
 fn focus_shortcut(key: KeyEvent) -> Option<usize> {
@@ -671,6 +680,15 @@ mod tests {
         assert_eq!(layout.pane_at(2, 20), Some(2));
         assert_eq!(layout.pane_at(50, 20), Some(3));
         assert_eq!(layout.pane_at(layout.center_column, 2), None);
+    }
+
+    #[test]
+    fn focus_chrome_does_not_clear_retained_pane_content() {
+        let layout = FixedLayout::new(80, 24).unwrap();
+        assert!(chrome_frame(layout, 0, true).contains("\x1b[2J"));
+        let focused = chrome_frame(layout, 3, false);
+        assert!(!focused.contains("\x1b[2J"));
+        assert!(focused.contains("[4*]"));
     }
 
     #[test]

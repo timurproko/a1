@@ -172,6 +172,13 @@ fn probe() -> Result<(), String> {
     {
         return Err("terminal model probe did not produce expected frame content".to_owned());
     }
+    terminal.mark_dirty()?;
+    let full_repaint = terminal.frame()?;
+    if !full_repaint.contains("AddOne terminal host probe")
+        || !full_repaint.contains("terminal model ready")
+    {
+        return Err("terminal model full repaint lost retained content".to_owned());
+    }
     for index in 0..40 {
         terminal.write(format!("scroll-check-{index:02}\r\n").as_bytes());
     }
@@ -469,7 +476,7 @@ fn run_interactive(arguments: &[String]) -> Result<(), String> {
         }
         (values[0].clone(), values[1..].to_vec())
     } else {
-        shell::default_shell()
+        ("pi".to_owned(), Vec::new())
     };
     let program = resolve_command(&program)?;
     let (columns, rows) =

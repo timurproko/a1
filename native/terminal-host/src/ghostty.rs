@@ -640,6 +640,7 @@ impl GhosttyTerminal {
             origin_column,
             origin_row,
             present_cursor,
+            dirty == 2,
         );
         unsafe {
             ghostty_render_state_row_cells_free(cells);
@@ -656,6 +657,7 @@ impl GhosttyTerminal {
         origin_column: u16,
         origin_row: u16,
         present_cursor: bool,
+        repaint_all_rows: bool,
     ) -> Result<String, String> {
         let mut out = String::from("\u{1b}[?2026h");
         let mut active: Option<ActiveStyle> = None;
@@ -673,7 +675,7 @@ impl GhosttyTerminal {
                 },
                 "read row dirty state",
             )?;
-            if dirty {
+            if dirty || repaint_all_rows {
                 out.push_str(&format!(
                     "\u{1b}[{};{}H",
                     usize::from(origin_row) + row_index + 1,
