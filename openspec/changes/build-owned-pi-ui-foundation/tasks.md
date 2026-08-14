@@ -8,7 +8,7 @@
 ## 2. Build the Pi Engine Adapter
 
 - [x] 2.1 Implement the public-SDK engine adapter over `createAgentSessionRuntime()` for session construction, service ownership, prompt, abort, retry, compaction, model, thinking, session resume, diagnostics, and shutdown; pass synthetic engine conformance fixtures.
-- [ ] 2.2 Map Pi events, state snapshots, and commands into versioned AddOne-owned view models without exposing Pi types above the adapter; pass event sequencing, malformed-event, snapshot, command-correlation, cancellation, and cleanup tests.
+- [x] 2.2 Map Pi events, state snapshots, and commands into versioned AddOne-owned view models without exposing Pi types above the adapter; pass event sequencing, malformed-event, snapshot, command-correlation, cancellation, and cleanup tests.
 - [ ] 2.3 Implement bounded event queues, backpressure, error mapping, restart reconciliation, and terminal cleanup so one engine failure cannot corrupt AddOne UI state; pass high-rate and failure-isolation tests.
 - [ ] 2.4 Add Pi-upgrade conformance suites for SDK construction, service creation, event shape, command behavior, public component constructor/render contracts, and adapter mapping; prove failures remain contained at adapters.
 

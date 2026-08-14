@@ -139,6 +139,13 @@ describe("owned UI command, event, and snapshot contracts", () => {
     }
   });
 
+  it("accepts empty editor and transcript text while bounding oversized content", () => {
+    expect(() => assertOwnedUiSessionViewModel(view({
+      editor: { ...view().editor, text: "", cursorOffset: 0 },
+      transcript: [block({ text: "" })],
+    }))).not.toThrow();
+  });
+
   it("rejects malformed identities, unknown enums, and invalid focus geometry", () => {
     expect(() => assertOwnedUiCommand(command({ correlationId: "bad id" }))).toThrow(/unsupported characters/);
     expect(() => assertOwnedUiEvent(event({ type: "future" } as unknown as OwnedUiEvent))).toThrow(/unknown/);

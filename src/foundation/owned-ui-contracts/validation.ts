@@ -216,12 +216,12 @@ export function assertOwnedUiTranscriptBlock(block: OwnedUiTranscriptBlock): voi
   assertEnum(block.status, BLOCK_STATUSES, "owned-UI transcript block status");
   assertNonNegativeInteger(block.revision, "owned-UI transcript block revision");
   assertOptionalText(block.title, "owned-UI transcript block title", MAX_LABEL_LENGTH);
-  assertBoundedText(block.text, "owned-UI transcript block text", MAX_TEXT_BYTES);
+  assertPossiblyEmptyText(block.text, "owned-UI transcript block text", MAX_TEXT_BYTES);
   assertJsonValue(block.payload, "owned-UI transcript block payload", MAX_PAYLOAD_BYTES);
 }
 
 export function assertOwnedUiEditorState(editor: OwnedUiEditorState): void {
-  assertBoundedText(editor.text, "owned-UI editor text", MAX_TEXT_BYTES);
+  assertPossiblyEmptyText(editor.text, "owned-UI editor text", MAX_TEXT_BYTES);
   assertCollection(editor.queuedSubmissions, "owned-UI queued submissions", MAX_QUEUE);
   let queuedBytes = 0;
   for (const submission of editor.queuedSubmissions) {
@@ -302,6 +302,12 @@ function assertId(value: string, name: string): void {
 
 function assertBoundedText(value: string, name: string, maximumBytes: number): void {
   if (typeof value !== "string" || value.length === 0 || value.includes("\0") || textBytes(value) > maximumBytes) {
+    throw new TypeError(`${name} is invalid`);
+  }
+}
+
+function assertPossiblyEmptyText(value: string, name: string, maximumBytes: number): void {
+  if (typeof value !== "string" || value.includes("\0") || textBytes(value) > maximumBytes) {
     throw new TypeError(`${name} is invalid`);
   }
 }

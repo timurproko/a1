@@ -24,6 +24,10 @@ class FakeSession implements PiSessionLike {
     this.sessionId = sessionId;
   }
 
+  setMessages(messages: readonly unknown[]): void {
+    (this as { messages: readonly unknown[] }).messages = messages;
+  }
+
   subscribe(listener: (event: unknown) => void): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
@@ -232,6 +236,71 @@ describe("Pi engine adapter", () => {
     expect(newSession.listeners.size).toBe(0);
     expect(resumedSession.listeners.size).toBe(1);
     expect(events.some(event => event.type === "session-lifecycle" && event.lifecycle === "busy")).toBe(true);
+  });
+
+  it("maps session snapshots into owned transcript blocks without exporting Pi types or image payloads", async () => {
+    const runtime = new FakeRuntime(new FakeSession("pi-session-1"));
+    const session = runtime.session as FakeSession;
+    const userMessage = {
+      role: "user",
+      content: [{ type: "text", text: "Read the file" }, { type: "image", data: "secret-image-bytes", mimeType: "image/png" }],
+      timestamp: 1,
+    };
+    const assistantMessage = {
+      role: "assistant",
+      content: [
+        { type: "thinking", thinking: "Plan first" },
+        { type: "text", text: "Reading now" },
+        { type: "toolCall", id: "call-1", name: "read", arguments: { path: "README.md" } },
+      ],
+      timestamp: 2,
+    };
+    const toolResult = {
+      role: "toolResult",
+      toolCallId: "call-1",
+      toolName: "read",
+      content: [{ type: "text", text: "file summary" }],
+      isError: false,
+      timestamp: 3,
+    };
+    session.setMessages([userMessage, assistantMessage, toolResult]);
+
+    const { adapter } = await adapterWithRuntime(runtime);
+    const transcript = adapter.view().transcript;
+    expect(transcript.map(block => block.kind)).toEqual(["user", "assistant", "thinking", "tool-call", "tool-result"]);
+    expect(transcript[0]?.payload).toMatchObject({ role: "user", imageCount: 1 });
+    expect(JSON.stringify(transcript)).not.toContain("secret-image-bytes");
+    expect(adapter.snapshot()).toMatchObject({
+      contractVersion: 1,
+      sessionId: "owned-1",
+      view: { sessionId: "owned-1" },
+    });
+  });
+
+  it("maps streaming message and tool execution events while preserving block identity", async () => {
+    const runtime = new FakeRuntime(new FakeSession("pi-session-1"));
+    const { adapter, events } = await adapterWithRuntime(runtime);
+    const session = runtime.session as FakeSession;
+    const message = {
+      role: "assistant",
+      content: [{ type: "text", text: "Hello" }],
+      timestamp: 10,
+    };
+
+    session.emit({ type: "message_start", message });
+    const updatedMessage = { ...message, content: [{ type: "text", text: "Hello world" }] };
+    session.emit({ type: "message_update", message: updatedMessage, assistantMessageEvent: { type: "text_delta", delta: " world" } });
+    session.emit({ type: "tool_execution_start", toolCallId: "tool-1", toolName: "bash", args: { command: "npm test" } });
+    session.emit({ type: "tool_execution_update", toolCallId: "tool-1", toolName: "bash", partialResult: { content: [{ type: "text", text: "running" }] } });
+    session.emit({ type: "tool_execution_end", toolCallId: "tool-1", toolName: "bash", result: { content: [{ type: "text", text: "passed" }] }, isError: false });
+    session.emit({ type: "message_end", message: updatedMessage });
+
+    const transcript = adapter.view().transcript;
+    expect(transcript.find(block => block.kind === "assistant")).toMatchObject({ text: "Hello world", status: "finalized" });
+    expect(transcript.find(block => block.kind === "tool-result")).toMatchObject({ status: "finalized", text: "passed" });
+    expect(events.filter(event => event.type === "transcript-block").length).toBeGreaterThanOrEqual(5);
+    session.emit({ type: "message_start" });
+    expect(adapter.view().transcript).toHaveLength(transcript.length);
   });
 
   it("rejects foreign, duplicate, and unavailable-model commands without corrupting adapter state", async () => {
