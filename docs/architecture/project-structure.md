@@ -66,6 +66,7 @@ Build output belongs in ignored `dist/`; release/test evidence belongs in ignore
 - `docs/architecture` explains cross-cutting ownership and irreversible constraints.
 - `docs/architecture/resource-and-data-policy.md` defines bounded queues, data classes, redaction, terminal-content non-persistence, and proof acceptance rules.
 - `docs/architecture/native-host-provenance.md` records pinned native source revisions, retained components, patch policy, and artifact provenance requirements.
+- `docs/architecture/native-host-spike-evidence.md` defines the mandatory 2×2 proof workloads, measurements, and acceptance invariants.
 - `docs/features` explains maintained user-facing feature behavior.
 - OpenSpec and Git carry planning and implementation history.
 - Source comments explain only non-obvious rationale, safety/security invariants, platform constraints, or public semantic contracts. Names, types, and decomposition explain normal control flow.
