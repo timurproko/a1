@@ -64,3 +64,7 @@ The first artifact had one finding: `Ctrl+Shift+Q` did not exit.
 - Non-interactive probes pass for terminal rendering, scrollback, selection, and PTY cleanup.
 
 Manual retest should verify plain drag selection, double/triple click, mouse wheel, and Ctrl+C selection clearing. No terminal was launched or driven by automation on the active workstation.
+
+## User acceptance
+
+The user manually confirmed that the vanilla-Pi terminal-host proof launches and works after the interaction corrections. The accepted one-pane pipeline includes theme/palette preservation, retained scrollback, mouse wheel scrolling, plain drag selection, word/line click selection, selection clearing with Ctrl+C, and child-owned interrupt behavior. Task 5.1 is accepted; the next gate is the 2×2 multi-pane proof.
