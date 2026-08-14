@@ -142,7 +142,7 @@ Before product composed integration, the milestone implements only enough termin
 
 The proof records pinned source revisions, exact artifact hashes, build provenance, input-to-process and output-to-present measurements, frame diagnostics, CPU/memory observations, cleanup outcomes, and workload results.
 
-Technical success alone is insufficient. The exact artifact also needs a user-controlled manual verdict or isolated disposable-worker physical verdict. No terminal is launched or automated on the active workstation by the agent. If acceptance fails, composed integration stops for redesign; criteria are not weakened to permit merge. Structured work may continue independently.
+Technical success alone is insufficient. The exact artifact also needs a user-controlled manual verdict or isolated disposable-worker physical verdict. No terminal is launched or automated on the active workstation by the agent. If acceptance fails, composed integration stops; criteria are not weakened to permit merge, and this change does not continue investing in custom rendering/input remediation or a desktop-app fallback. Structured work may continue independently.
 
 ### 10. Rendering must be frame-scheduled and damage-aware
 
@@ -184,7 +184,7 @@ Rollback disables workspace cutover or composed capability as applicable, restor
 - **[Background panes consume resources]** → Enforce per-pane and global budgets with explicit visible outcomes.
 - **[A malformed stream or renderer failure attacks host availability]** → Scope terminal resources per pane, preserve host diagnostics, isolate the Node control plane, and report discontinuity rather than fabricate recovery.
 - **[Physical quality cannot be established hermetically]** → Require exact-artifact manual or isolated-worker acceptance and prohibit active-workstation automation.
-- **[The proof may fail]** → Treat failure as useful evidence, stop composed integration, preserve transparent and structured paths, and avoid desktop-app investment.
+- **[The proof may fail]** → Treat failure as useful evidence, stop composed integration, preserve transparent and structured paths, and avoid both custom rendering/input remediation and desktop-app investment.
 
 ## Migration Plan
 
@@ -193,7 +193,7 @@ Rollback disables workspace cutover or composed capability as applicable, restor
 3. Build and gate the structured adapter runtime with a synthetic adapter independently of composed work.
 4. Record provenance for the narrow terminal-core stack and build a minimal one-pane in-terminal host without a desktop window.
 5. Expand to side-by-side panes and then the fixed 2×2 proof inside an existing terminal.
-6. Record exact technical evidence and obtain an accepted manual or isolated-worker physical verdict. Do not merge the milestone or begin production composed integration if this gate fails.
+6. Record exact technical evidence and obtain an accepted manual or isolated-worker physical verdict. Do not merge the milestone or begin production composed integration if this gate fails; a failed proof stops composed work rather than starting a rendering/input remediation loop or desktop-app fallback.
 7. After proof acceptance, finalize component ingestion, protocol, packaging, and platform support for the console host.
 8. Add workspace UI/lifecycle integration, generic terminal fixtures, bounded reconnection, and exact-package certification.
 9. Cut bare `a1` over only after workspace recovery and explicit `pi`/`sandbox` regression gates pass.

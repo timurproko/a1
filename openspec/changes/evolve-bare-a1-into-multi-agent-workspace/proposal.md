@@ -12,7 +12,7 @@ Bare `a1` is reserved as the AddOne agent product surface, but the accepted base
 - Reuse only the terminal-core portions of the Ghostty ecosystem that fit a CLI host, such as `libghostty-vt`, plus a mature PTY layer. Ghostty's GUI application, Winghostty's Win32/OpenGL runtime, Metal, GTK, and other desktop application stacks are postponed and are not part of the proof.
 - Keep terminal bytes, native input, and rendering inside the terminal host while AddOne's control plane exchanges only typed identity, topology, lifecycle, and recovery messages.
 - Require capability negotiation so structured agents do not become terminal panes accidentally and terminal-backed CLIs do not claim structured semantics.
-- Require a successful in-terminal 2×2 proof, measured and manually or isolated-worker accepted, before composed-terminal production integration or milestone merge. A failed proof stops that integration path for redesign without blocking structured-agent work.
+- Require a successful in-terminal 2×2 proof, measured and manually or isolated-worker accepted, before composed-terminal production integration or milestone merge. A failed proof stops composed-terminal work without blocking structured-agent work; it does not trigger custom rendering/input remediation or a desktop-app fallback.
 - Require hermetic automated gates plus isolated disposable-worker certification before composed-terminal support claims; no desktop automation may run on an active workstation.
 - Keep transparent direct attachment as the fallback and comparison baseline rather than silently routing it through the terminal host.
 

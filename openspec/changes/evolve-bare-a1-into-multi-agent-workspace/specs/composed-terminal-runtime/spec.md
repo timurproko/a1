@@ -110,7 +110,7 @@ Before composed-terminal production integration or milestone merge, an isolated 
 
 #### Scenario: Proof fails acceptance criteria
 - **WHEN** the spike exhibits unacceptable flicker, latency, input routing, resizing, rendering, or cleanup behavior
-- **THEN** AddOne SHALL stop the composed integration path for redesign and SHALL NOT merge it by weakening the proof criteria
+- **THEN** AddOne SHALL stop the composed integration path and SHALL NOT merge it by weakening the proof criteria, continuing custom rendering/input remediation, or substituting a desktop application
 
 #### Scenario: Structured work proceeds while proof is pending
 - **WHEN** the terminal-host proof is incomplete or unsuccessful

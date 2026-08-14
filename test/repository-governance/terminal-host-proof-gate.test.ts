@@ -35,6 +35,7 @@ describe("terminal-host proof stop/go policy", () => {
       "forbids milestone merge",
       "structured-agent and transparent-mode work as independently usable",
       "prevents investment in a postponed desktop-native application shell",
+      "custom rendering/input remediation loop",
     ]) {
       expect(policy).toContain(required);
     }
