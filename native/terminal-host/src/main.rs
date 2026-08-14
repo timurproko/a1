@@ -43,10 +43,14 @@ fn run_from_args(args: Vec<String>) -> Result<(), String> {
             Ok(())
         }
         Some("--probe") => probe(),
+        Some("--resolve") if args.len() == 2 => {
+            println!("{}", resolve_command(&args[1])?);
+            Ok(())
+        }
         Some("--run") => run_interactive(&args[1..]),
         _ => {
             eprintln!(
-                "usage: addone-terminal-host --version | --probe | --run [-- <command> [args...]]"
+                "usage: addone-terminal-host --version | --probe | --resolve <command> | --run [-- <command> [args...]]"
             );
             Err("expected a mode".to_owned())
         }
@@ -117,6 +121,7 @@ fn run_interactive(arguments: &[String]) -> Result<(), String> {
     } else {
         ("cmd.exe".to_owned(), vec!["/d".to_owned(), "/q".to_owned()])
     };
+    let program = resolve_command(&program)?;
 
     let (cols, rows) = terminal::size().map_err(|error| format!("read terminal size: {error}"))?;
     let _guard = TerminalModeGuard::enter()?;
@@ -299,6 +304,42 @@ fn encode_key(encoder: &KeyEncoder, key: KeyEvent) -> Result<Option<Vec<u8>>, St
             key.kind == KeyEventKind::Repeat,
         )
         .map(Some)
+}
+
+fn resolve_command(program: &str) -> Result<String, String> {
+    if program.contains(['/', '\\']) || program.contains('.') {
+        return Ok(program.to_owned());
+    }
+    let path = env::var_os("PATH")
+        .ok_or_else(|| "PATH is unavailable for command resolution".to_owned())?;
+    let extensions: Vec<String> = if cfg!(windows) {
+        env::var("PATHEXT")
+            .unwrap_or_else(|_| ".COM;.EXE;.BAT;.CMD".to_owned())
+            .split(';')
+            .map(str::to_owned)
+            .collect()
+    } else {
+        Vec::new()
+    };
+    for directory in env::split_paths(&path) {
+        if cfg!(windows) {
+            for extension in &extensions {
+                let candidate = directory.join(format!("{program}{}", extension.to_lowercase()));
+                if candidate.is_file() {
+                    return Ok(candidate.to_string_lossy().into_owned());
+                }
+                let candidate = directory.join(format!("{program}{extension}"));
+                if candidate.is_file() {
+                    return Ok(candidate.to_string_lossy().into_owned());
+                }
+            }
+        }
+        let direct = directory.join(program);
+        if direct.is_file() {
+            return Ok(direct.to_string_lossy().into_owned());
+        }
+    }
+    Err(format!("command not found on PATH: {program}"))
 }
 
 fn should_exit(key: KeyEvent) -> bool {
