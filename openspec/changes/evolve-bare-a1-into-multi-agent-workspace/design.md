@@ -18,7 +18,7 @@ Ghostty's application runtimes are not the right first stack for that requiremen
 - Validate four-pane latency, flicker, resize, input, resource use, and cleanup before product integration.
 - Preserve transparent direct attachment unchanged for explicit Pi modes and fallback comparison.
 - Dispose of the fixed multipane proof presentation after its verdict and restore a one-session fullscreen checkpoint before any product composition work.
-- Require a separately accepted AddOne-owned Pi UI foundation, using Pi as a public-SDK engine, before production tabs, layouts, or multi-agent presentation.
+- Require a separately accepted AddOne-owned Pi UI foundation, using Pi as a public-SDK engine, before structured multi-agent tabs; separately require the isolated composed proof before arbitrary terminal panes, split layouts, or multiplexer presentation.
 - Produce exact-artifact evidence tied to source revisions, platform, measurements, diagnostics, and physical/manual verdicts.
 
 **Non-Goals:**
@@ -176,11 +176,13 @@ Structured contracts, adapters, and workspace behavior may proceed independently
 
 Rollback disables workspace cutover or composed capability as applicable, restores the accepted bare transparent profile when necessary, and preserves backward-readable versioned records. `a1 pi` and `a1 sandbox` remain unchanged throughout.
 
-### 15. The fixed 2×2 presentation is discarded after the proof verdict
+### 15. The fixed 2×2 presentation is preserved only as a postponed proof artifact
 
-The 2×2 split tree, fixed geometry, and dashed pane chrome exist only to expose four simultaneous terminal sessions to the exact-artifact proof gates. They are not an initial product layout and SHALL NOT become the basis of production tabs or customization.
+The 2×2 split tree, fixed geometry, and dashed pane chrome exist only to expose four simultaneous terminal sessions to the exact-artifact proof gates. They are not an initial product layout and SHALL NOT become the basis of structured agent tabs, product splits, or customization.
 
-After task 5.6 records the verdict, the proof presentation is removed from the shipping path and the terminal host returns to one fullscreen session. Accepted evidence remains immutable and refers to the exact historical artifact. If the proof passes, a clean foundation-only `-dev.N` checkpoint may merge to `develop` and publish under npm `next` with composed multipane behavior disabled and no composed support claim. Production integration continues separately after the owned-UI prerequisite is accepted.
+After task 5.3 establishes native hot-path isolation, remaining automated stress and physical acceptance may be postponed while the owned fullscreen UI and structured-agent tabs are implemented. During that interval the proof path remains development-only, composed capability remains disabled in normal AddOne use, and no arbitrary CLI pane, split, composed merge, or composed release claim is permitted. An independently accepted owned-UI and structured-tab slice may still merge through `develop` and publish under npm `next` because it does not package, launch, or connect to the terminal host.
+
+After task 5.10 records the resumed isolated-worker verdict, the proof presentation is removed from the shipping path and the terminal host returns to one fullscreen session. Accepted evidence remains immutable and refers to the exact historical artifact. Production multiplexer integration then continues separately only if the proof passes.
 
 ### 16. AddOne owns the customizable Pi UI while Pi remains the agent engine
 
@@ -205,7 +207,9 @@ The separate owned-UI change first proves one high-quality fullscreen Pi session
 
 Customization is exposed through stable AddOne component, theme, command, and layout slots rather than host mutation. Non-visual Pi extensions and resources may be adapted where the public SDK supports them. Visual extension compatibility requires an explicit AddOne bridge and SHALL NOT receive implicit access to Pi's absent stock UI context.
 
-Production tabs, arbitrary layouts, and multi-agent presentation remain blocked until the fullscreen base-UX and Pi-upgrade conformance gates pass. The owned UI must be designed as composable views even though its first accepted presentation is a single fullscreen session.
+The owned UI must first pass fullscreen base-UX and Pi-upgrade conformance with one session. It may then expose multiple structured SDK-backed agents as AddOne-owned tabs. Those tabs switch semantic agent views; they do not create PTYs, invoke the terminal host, display arbitrary CLI surfaces, or satisfy the composed-terminal proof.
+
+Arbitrary terminal panes, split layouts, and multiplexer integration remain blocked until the postponed isolated-worker 2×2 gate passes. The owned UI is designed as composable views from the start so structured tabs can later coexist with separately certified composed panes without sharing terminal authority.
 
 ## Risks / Trade-offs
 
@@ -224,6 +228,7 @@ Production tabs, arbitrary layouts, and multi-agent presentation remain blocked 
 - **[Public Pi SDK or component APIs may change]** → Pin release inputs, confine Pi types to adapters, run engine and component conformance suites against upgrade candidates, and keep `a1 pi` as the exact upstream recovery path.
 - **[A port can become an accidental permanent fork]** → Port only tightly coupled components, preserve attribution and provenance, accept deliberate local ownership, and synchronize upstream UI changes only when they provide chosen product value.
 - **[Extension compatibility could recreate host coupling]** → Support only explicitly mapped public runtime/resource behavior and require an AddOne-owned bridge for visual extension surfaces.
+- **[Postponing the VM gate could let proof code drift while UI work proceeds]** → Freeze composed behavior behind a development-only path, prohibit production dependencies on the fixed grid, and rerun every exact-artifact workload after structured tabs are accepted and before multiplexer work begins.
 
 ## Migration Plan
 
@@ -231,14 +236,15 @@ Production tabs, arbitrary layouts, and multi-agent presentation remain blocked 
 2. Add dormant workspace, structured capability, terminal-host protocol, topology, storage, and architecture contracts without changing launch behavior.
 3. Build and gate the structured adapter runtime with a synthetic adapter independently of composed work.
 4. Record provenance for the narrow terminal-core stack and build a minimal one-pane in-terminal host without a desktop window.
-5. Expand to side-by-side panes and then the fixed 2×2 proof inside an existing terminal.
-6. Record exact technical evidence and obtain an accepted manual or isolated-worker physical verdict. Do not merge the milestone or begin production composed integration if this gate fails; a failed proof stops composed work rather than starting a rendering/input remediation loop or desktop-app fallback.
-7. Remove the fixed 2×2 geometry and dashed proof chrome, restore the one-session fullscreen host, preserve exact-artifact evidence, and rerun fullscreen and explicit-mode regressions.
-8. After proof acceptance, merge and publish a clean foundation-only development checkpoint under npm `next` with composed multipane behavior disabled and no composed support claim.
-9. Complete a separate OpenSpec change for the AddOne-owned Pi UI foundation over the documented public SDK. Reach accepted fullscreen vanilla-first base UX and upgrade conformance before resuming production presentation work.
-10. Finalize component ingestion, protocol, packaging, and platform support for the console host, then add workspace UI/lifecycle integration, arbitrary layouts, generic terminal fixtures, bounded reconnection, and exact-package certification through the accepted owned-UI composition boundary.
-11. Cut bare `a1` over only after owned-UI, workspace recovery, and explicit `pi`/`sandbox` regression gates pass.
-12. Publish composed previews and stable support only under existing per-platform exact-package policy.
-13. Reconsider a separate desktop-native application only as a later optional follow-up after the terminal-hosted product is accepted.
+5. Expand to side-by-side panes and then the fixed 2×2 proof inside an existing terminal; establish native hot-path isolation and preserve that development artifact without promoting its presentation.
+6. Complete a separate OpenSpec change for the AddOne-owned Pi UI foundation over the documented public SDK. Reach accepted fullscreen vanilla-first base UX and upgrade conformance with one Pi session.
+7. Integrate the existing structured workspace into AddOne-owned tabs for multiple SDK-backed Pi agents. Prove switching, background activity, lifecycle, failure isolation, recovery, and resource bounds without initializing the terminal host.
+8. Cut bare `a1` over to the accepted structured workspace, then merge the independently accepted owned-UI/structured-tab slice through `develop` and publish a clean development checkpoint under npm `next` with composed multipane behavior disabled and no composed support claim.
+9. Resume the fixed 2×2 proof on an isolated Windows worker. Record every technical measurement and obtain an accepted user-controlled manual or isolated-worker physical verdict against exact bytes. Do not merge composed work or begin production multiplexer integration if this gate fails.
+10. Remove the fixed 2×2 geometry and dashed proof chrome, restore the one-session fullscreen terminal-host path, preserve exact-artifact evidence, and rerun fullscreen and explicit-mode regressions.
+11. Finalize component ingestion, protocol, packaging, and platform support for the console host, then implement arbitrary terminal layouts, generic CLI fixtures, bounded reconnection, and exact-package certification through the accepted owned-UI composition boundary.
+12. Enable composed surfaces inside the already shipped bare workspace only after composed recovery and capability-disable rollback gates pass.
+13. Publish composed previews and stable support only under existing per-platform exact-package policy.
+14. Reconsider a separate desktop-native application only as a later optional follow-up after the terminal-hosted product is accepted.
 
 Rollback disables composed capability and workspace cutover independently, restores the accepted transparent bare launch if needed, preserves explicit modes, and leaves versioned records available for a later compatible retry.

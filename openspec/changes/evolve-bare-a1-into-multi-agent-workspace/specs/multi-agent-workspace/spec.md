@@ -32,9 +32,24 @@ The foundation MAY wrap documented public Pi UI component exports behind AddOne-
 - **WHEN** AddOne evaluates a newer Pi package
 - **THEN** engine and public-component adapters SHALL pass conformance tests before release, and incompatible changes SHALL remain contained at those adapters
 
-#### Scenario: Request production composition before base UX acceptance
-- **WHEN** tabs, arbitrary layouts, or multi-agent presentation are requested before the owned fullscreen base-UX and upgrade-conformance gates pass
-- **THEN** AddOne SHALL keep those presentation capabilities unavailable rather than building them on the stock Pi interactive root or the disposable 2×2 proof UI
+#### Scenario: Request structured tabs before base UX acceptance
+- **WHEN** multi-agent tabs are requested before the owned fullscreen base-UX and upgrade-conformance gates pass
+- **THEN** AddOne SHALL keep structured tabs unavailable rather than building them on the stock Pi interactive root or the disposable 2×2 proof UI
+
+### Requirement: Structured agent tabs do not imply terminal composition
+After fullscreen base-UX acceptance, the workspace MAY present multiple structured SDK-backed agents as AddOne-owned tabs. Each structured tab SHALL bind one durable agent identity to its own semantic transcript, tools, editor state, activity, status, and command target. Creating, selecting, or closing a structured tab SHALL NOT create a pseudoterminal, initialize the terminal host, or claim arbitrary CLI-pane support.
+
+#### Scenario: Open two structured Pi agents in tabs
+- **WHEN** the user creates two Pi SDK-backed agents after fullscreen base-UX acceptance
+- **THEN** AddOne SHALL show two independently identified tabs whose views, commands, activity, and lifecycle remain isolated
+
+#### Scenario: Switch structured tabs while agents are active
+- **WHEN** the user switches tabs while both structured agents continue working
+- **THEN** AddOne SHALL change only the selected semantic view and input target while retaining background activity under the correct agent identity
+
+#### Scenario: Composed proof remains pending
+- **WHEN** structured tabs are accepted but isolated-worker terminal-host proof is incomplete
+- **THEN** AddOne MAY continue structured multi-agent UI work but SHALL keep arbitrary terminal panes, split layouts, and multiplexer controls unavailable
 
 ### Requirement: Workspace agents have durable identities and explicit lifecycle
 Each managed agent SHALL have a stable identity, display name, adapter type, capability declaration, creation time, lifecycle state, and latest recoverable state reference. The workspace SHALL expose create, select, rename, stop, restart, and remove operations with explicit outcomes.

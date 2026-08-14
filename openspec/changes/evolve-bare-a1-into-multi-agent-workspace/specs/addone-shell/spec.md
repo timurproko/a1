@@ -7,6 +7,10 @@ Bare `addone` and `a1` SHALL launch the AddOne-owned multi-agent workspace throu
 - **WHEN** the user runs `a1` in a supported terminal
 - **THEN** AddOne SHALL start or reconnect the multi-agent workspace without silently launching the vanilla or sandbox profile
 
+#### Scenario: Launch the structured-only development preview
+- **WHEN** the user runs bare AddOne after fullscreen UI and structured tabs are accepted but composed proof remains pending
+- **THEN** AddOne SHALL provide the structured SDK-backed workspace without launching or connecting to the terminal host and SHALL keep arbitrary terminal panes and splits unavailable
+
 #### Scenario: Launch vanilla Pi
 - **WHEN** the user runs `a1 pi`
 - **THEN** AddOne SHALL bypass the workspace and transparently attach one exact upstream vanilla Pi process using ordinary `~/.pi/agent`

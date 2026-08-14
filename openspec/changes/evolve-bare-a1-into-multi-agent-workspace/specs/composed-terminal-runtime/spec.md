@@ -19,9 +19,9 @@ A composed workspace tab SHALL own a revisioned split-tree layout. Each leaf pan
 - **WHEN** the platform cannot provide a required pseudoterminal, rendering, input, or lifecycle primitive
 - **THEN** AddOne SHALL reject composed launch as unsupported rather than fall back silently to a partial relay
 
-#### Scenario: Production layout is requested before the owned UI prerequisite
-- **WHEN** the fixed proof has completed but the separate AddOne-owned fullscreen UI foundation has not passed base-UX and upgrade-conformance acceptance
-- **THEN** AddOne SHALL keep production tabs and arbitrary layouts disabled even if the terminal host can technically create them
+#### Scenario: Production multipane layout is requested before isolated proof acceptance
+- **WHEN** the owned fullscreen UI and structured agent tabs are accepted but the isolated-worker composed-terminal proof remains pending
+- **THEN** AddOne SHALL keep arbitrary CLI panes, split layouts, and multiplexer controls disabled even if the development terminal host can technically create them
 
 ### Requirement: The terminal host owns the complete terminal data path
 For composed panes, the terminal host SHALL own pseudoterminal bytes, terminal interpretation and retained state, terminal query responses, keyboard/text/mouse/IME encoding, rendering, frame scheduling, and presentation to the containing terminal. AddOne's control plane SHALL exchange typed identity, topology, capability, lifecycle, and recovery messages and SHALL NOT relay terminal bytes, individual child input events, or rendered cell frames.
@@ -117,16 +117,16 @@ Before composed-terminal production integration or milestone merge, an isolated 
 - **THEN** AddOne SHALL stop the composed integration path and SHALL NOT merge it by weakening the proof criteria, continuing custom rendering/input remediation, or substituting a desktop application
 
 #### Scenario: Structured work proceeds while proof is pending
-- **WHEN** the terminal-host proof is incomplete or unsuccessful
-- **THEN** structured-agent and non-composed workspace work MAY proceed independently without claiming composed-terminal support
+- **WHEN** the terminal-host proof is postponed, incomplete, or unsuccessful
+- **THEN** fullscreen owned-UI and structured-agent-tab work MAY proceed independently without launching the terminal host or claiming composed-terminal support
+
+#### Scenario: Structured UI checkpoint is published while proof is pending
+- **WHEN** fullscreen owned-UI and structured-tab acceptance passes before isolated composed proof
+- **THEN** AddOne MAY publish that independent development checkpoint under npm `next` only with the terminal host absent or disabled in normal use, composed multipane behavior unavailable, and no composed-terminal support claim
 
 #### Scenario: Proof verdict is recorded
-- **WHEN** task 5.6 records the accepted or failed verdict for the exact 2×2 artifact
-- **THEN** AddOne SHALL preserve the evidence, remove the fixed multipane presentation from the shipping path, and restore a one-session fullscreen path
-
-#### Scenario: Foundation checkpoint is published after acceptance
-- **WHEN** the exact proof passes and the post-proof fullscreen regression gates pass
-- **THEN** AddOne MAY publish a foundation-only development checkpoint under npm `next` only with composed multipane behavior disabled and no composed-terminal support claim
+- **WHEN** task 5.10 records the accepted or failed verdict for the exact 2×2 artifact
+- **THEN** AddOne SHALL preserve the evidence, remove the fixed multipane presentation from the shipping path, and restore a one-session fullscreen terminal-host path
 
 ### Requirement: Composed support is certified per platform and exact package
 After the spike permits integration, stable composed support claims SHALL require hermetic host-protocol, topology, input, lifecycle, and isolation tests plus isolated disposable-worker certification on each claimed platform against exact packaged bytes and application-independent workloads. Desktop automation SHALL NOT run on an active user workstation.
