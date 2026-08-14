@@ -42,6 +42,8 @@ for (const excluded of ["Ghostty desktop application", "Winghostty Win32 runtime
 }
 const prerequisites = value?.buildPrerequisites;
 if (prerequisites?.language !== "Rust") errors.push("terminal host prerequisite language must be Rust");
+if (prerequisites?.zig !== ">=0.15.2 <0.16") errors.push("libghostty-vt prerequisite Zig must be >=0.15.2 <0.16");
+if (prerequisites?.cToolchain !== "Visual Studio 2022 Build Tools/MSVC on Windows") errors.push("Windows C toolchain must be Visual Studio 2022 Build Tools/MSVC");
 if (prerequisites?.guiSdkRequired !== false) errors.push("GUI SDK must not be required");
 if (prerequisites?.openGlRequired !== false) errors.push("OpenGL must not be required");
 if (prerequisites?.win32WindowRuntimeRequired !== false) errors.push("Win32 window runtime must not be required");

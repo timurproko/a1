@@ -44,8 +44,9 @@ Do not patch terminal semantics to support a specific CLI. Report unsupported ge
 
 The console proof requires:
 
-- Rust toolchain appropriate for the selected Cargo workspace;
-- platform C toolchain required by the PTY/input crates;
+- Rust/Cargo for the AddOne terminal host;
+- Zig `0.15.x` with patch `>= 0.15.2` to build `libghostty-vt`;
+- the platform C/C++ build toolchain required by Rust and the PTY/input crates (Visual Studio 2022 Build Tools/MSVC on Windows);
 - Windows 10/11 x64 or ARM64 for the first proof;
 - an existing terminal emulator for manual validation;
 - an isolated disposable worker for automated physical validation.
