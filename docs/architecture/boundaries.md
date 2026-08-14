@@ -18,9 +18,9 @@ Transparent mode has no AddOne-authoritative terminal surface, internal pane, vi
 ## Current module responsibilities
 
 - `domain`: dependency-free transparent launch, process identity, lifecycle, and lease contracts.
-- `workspace-contracts`: dependency-free multi-agent identity, capability, command/event/snapshot, terminal window/tab/pane/session topology, native-host, and recovery contracts.
+- `workspace-contracts`: dependency-free multi-agent identity, capability, command/event/snapshot, terminal window/tab/pane/session topology, terminal-host, and recovery contracts.
 - `structured-agent-runtime`: planned typed event/command/snapshot runtime. It must not infer semantics from terminal text, own pseudoterminals, or reconstruct screens.
-- `native-host-protocol`: planned typed local boundary for native-host identity, topology revisions, lifecycle, and recovery. Terminal bytes, per-event child input, and rendered cells are forbidden across it.
+- `native-host-protocol`: bounded typed local boundary for terminal-host identity, topology revisions, lifecycle, and recovery. Terminal bytes, per-event child input, and rendered cells are forbidden across it.
 - `protocol`: additive control handshake, bounded line framing, request identity, snapshots, command results, and foreground-lease messages. Terminal bytes and reconstructed display state are forbidden.
 - `storage`: SQLite migrations, old-generation reconciliation, and exclusive foreground-lease persistence. Historical schema tables remain readable for installed-state compatibility but do not authorize legacy product behavior.
 - `supervisor`: endpoint identity, cohort ownership, foreground leases, and release shutdown coordination. It owns no terminal surface.
@@ -37,10 +37,10 @@ The repository has no production PTY or terminal-emulator dependency. Reintroduc
 
 ## Planned multi-agent boundaries
 
-The workspace feature may depend on workspace contracts and the structured/native-host foundations. Those foundations may depend only on dependency-free workspace contracts, never on product features, launch profiles, or each other unless an approved capability adds the dependency. Explicit launch profiles and transparent fallback may not import, initialize, launch, or connect to composed native-host infrastructure.
+The workspace feature may depend on workspace contracts and the structured/terminal-host foundations. Those foundations may depend only on dependency-free workspace contracts, never on product features, launch profiles, or each other unless an approved capability adds the dependency. Explicit launch profiles and transparent fallback may not import, initialize, launch, or connect to composed terminal-host infrastructure.
 
 The structured-agent runtime uses a versioned adapter hello and feature negotiation before readiness. Runtime state must use typed events, commands, snapshots, cancellation, and recovery evidence. It must not infer structured semantics from terminal text, terminal timing, or visual content and must not own pseudoterminals or renderer state.
 
-The native-host protocol boundary may carry only bounded typed control and semantic lifecycle messages. Pseudoterminal bytes, per-event child input, rendered cells, cell grids, framebuffers, and screen buffers are forbidden across it. Native host executables and packaging live outside the current JavaScript production owners and remain unavailable until the isolated Windows 2×2 proof passes; replacing them with a lightweight custom parser/renderer is forbidden.
+The terminal-host protocol boundary may carry only bounded typed control and semantic lifecycle messages. Pseudoterminal bytes, per-event child input, rendered cells, cell grids, framebuffers, and screen buffers are forbidden across it. Console host executables and packaging live outside the current JavaScript production owners and remain unavailable until the isolated in-terminal 2×2 proof passes; replacing them with a lightweight custom parser/renderer is forbidden. A desktop-native window and GPU application shell are postponed and are not required for the terminal-hosted product.
 
 Resource queues, retained state, evidence, logs, and diagnostics follow `docs/architecture/resource-and-data-policy.md`. Terminal content and authentication material are never control-store records. Unknown data is potentially sensitive by default and must be rejected or redacted before persistence.

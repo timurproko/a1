@@ -1,7 +1,8 @@
 {
-  "schema": "addone-native-spike-acceptance-record-v1",
-  "recordedAt": "2026-08-14T06:35:00.000Z",
+  "schema": "addone-terminal-spike-acceptance-record-v1",
+  "recordedAt": "2026-08-14T07:12:07.445Z",
   "change": "evolve-bare-a1-into-multi-agent-workspace",
+  "hostMode": "console-inside-existing-terminal",
   "artifact": null,
   "technicalVerdict": "pending",
   "physicalVerdict": "pending",
@@ -13,5 +14,5 @@
   "waiverPolicy": "no-waivers-after-evidence",
   "structuredWorkIndependent": true,
   "transparentModesIndependent": true,
-  "notes": "Acceptance is pending the isolated Windows 2x2 spike artifact and a manual or isolated-worker physical verdict."
+  "notes": "Acceptance is pending the isolated in-terminal 2x2 spike artifact and a manual or isolated-worker physical verdict."
 }

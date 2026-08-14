@@ -16,7 +16,7 @@ src/
     release/                   immutable releases, cohorts, update, rollback, cleanup
     storage/                   control-store persistence
     structured-agent-runtime/  structured/RPC handshake, event, command, and recovery semantics
-    native-host-protocol/      bounded native-host identity, topology, lifecycle, and proof protocol
+    native-host-protocol/      bounded terminal-host identity, topology, lifecycle, and proof protocol
     supervision/               endpoint and foreground-lease ownership
     workspace-contracts/       dependency-free workspace, adapter, topology, host, and recovery contracts
     transparent-terminal/      exact command resolution and native attachment
@@ -65,17 +65,17 @@ Build output belongs in ignored `dist/`; release/test evidence belongs in ignore
 - README explains installation, commands, and current limitations.
 - `docs/architecture` explains cross-cutting ownership and irreversible constraints.
 - `docs/architecture/resource-and-data-policy.md` defines bounded queues, data classes, redaction, terminal-content non-persistence, and proof acceptance rules.
-- `docs/architecture/native-host-provenance.md` records pinned native source revisions, retained components, patch policy, and artifact provenance requirements.
-- `docs/architecture/native-host-spike-evidence.md` defines the mandatory 2×2 proof workloads, measurements, and acceptance invariants.
-- `docs/architecture/native-host-proof-gate.md` defines the non-waivable stop/go acceptance policy and current pending record.
+- `docs/architecture/terminal-host-provenance.md` records pinned terminal-component revisions, retained components, patch policy, and artifact provenance requirements.
+- `docs/architecture/terminal-host-spike-evidence.md` defines the mandatory in-terminal 2×2 proof workloads, measurements, and acceptance invariants.
+- `docs/architecture/terminal-host-proof-gate.md` defines the non-waivable stop/go acceptance policy and current pending record.
 - `docs/features` explains maintained user-facing feature behavior.
 - OpenSpec and Git carry planning and implementation history.
 - Source comments explain only non-obvious rationale, safety/security invariants, platform constraints, or public semantic contracts. Names, types, and decomposition explain normal control flow.
 
 ## Terminal capability boundary
 
-Transparent terminal attachment owns one foreground child and no AddOne surface. It cannot retain inactive terminal state or switch among arbitrary interactive CLIs inside AddOne. Bare-`a1` multi-agent UX may use structured/RPC surfaces without terminal emulation, but arbitrary-CLI tabs require a separate composed-terminal capability with PTY, authoritative terminal state, rendering, input routing, inactive-surface lifecycle, reconnection, and cross-platform certification. That future capability must not silently intercept or replace the transparent path. Explicit launch profiles and transparent fallback must not import, initialize, launch, or connect to composed native-host infrastructure.
+Transparent terminal attachment owns one foreground child and no AddOne surface. It cannot retain inactive terminal state or switch among arbitrary interactive CLIs inside AddOne. Bare-`a1` multi-agent UX may use structured/RPC surfaces without terminal emulation, but arbitrary-CLI tabs require a separate composed-terminal capability with PTY, authoritative terminal state, rendering, input routing, inactive-surface lifecycle, reconnection, and cross-platform certification. That future capability must not silently intercept or replace the transparent path. Explicit launch profiles and transparent fallback must not import, initialize, launch, or connect to composed terminal-host infrastructure.
 
-Composed terminals use a separate native terminal host built from pinned mature terminal implementations. The native host owns pseudoterminal bytes, retained terminal state, native keyboard/text/mouse/IME encoding, GPU rendering, frame scheduling, and presentation. AddOne's JavaScript control plane may exchange typed identity, topology revision, capability, lifecycle, status, and recovery messages only; it must not relay terminal output, per-event child input, or rendered cells.
+Composed terminals use a console terminal host that runs inside the user's existing terminal. The host owns pseudoterminal bytes, retained terminal state, keyboard/text/mouse/IME encoding, frame scheduling, and presentation to the containing terminal. AddOne's JavaScript control plane may exchange typed identity, topology revision, capability, lifecycle, status, and recovery messages only; it must not relay terminal output, per-event child input, or rendered cells. A desktop-native window, GPU renderer, Ghostty GUI runtime, Winghostty Win32 runtime, Metal, GTK, and AppKit are postponed and are not required for the in-terminal product.
 
-A tab owns a revisioned split tree. Each leaf pane references one PTY-backed terminal session. Structured/RPC agents remain semantically separate and may not derive state from ANSI text, terminal timing, or screen content. Native source ownership lives outside `src/` when introduced; packaged host selection is governed by release/package owners. Existing architecture tests reject native-host hot-path bytes in JavaScript protocol code, terminal inference in structured runtime code, composed imports from explicit launch modes, and replacement lightweight terminal parsers/renderers.
+A tab owns a revisioned split tree. Each leaf pane references one PTY-backed terminal session. Structured/RPC agents remain semantically separate and may not derive state from ANSI text, terminal timing, or screen content. Native source ownership lives outside `src/` when introduced; packaged host selection is governed by release/package owners. Existing architecture tests reject terminal-host hot-path bytes in JavaScript protocol code, terminal inference in structured runtime code, composed imports from explicit launch modes, and replacement lightweight terminal parsers/renderers.

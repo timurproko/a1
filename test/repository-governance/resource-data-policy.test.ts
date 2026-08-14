@@ -33,7 +33,7 @@ describe("multi-agent resource and data classification policy", () => {
       "Logs and diagnostics",
       "Never persist in AddOne's control store",
       "Unknown or untyped values are potentially sensitive by default",
-      "failed 2×2 native-host proof cannot be waived",
+      "failed in-terminal 2×2 proof cannot be waived",
       "active workstation",
     ];
     for (const term of requiredTerms) expect(policy).toContain(term);

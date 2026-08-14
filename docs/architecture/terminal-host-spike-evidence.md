@@ -1,30 +1,30 @@
-# Windows 2×2 native-host spike evidence
+# In-terminal 2×2 spike evidence
 
-The spike must produce machine-readable evidence with schema `addone-native-host-spike-evidence-v1`. Evidence is valid only when it names the exact artifact, hashes, pinned source commits, isolated Windows worker environment, all mandatory workloads, measurements, paint diagnostics, resources, and physical/manual verdict.
+The spike must produce machine-readable evidence with schema `addone-native-host-spike-evidence-v1`. Evidence is valid only when it names the exact artifact, hashes, pinned source commits, isolated worker environment, all mandatory workloads, measurements, paint diagnostics, resources, and physical/manual verdict. The artifact is a console terminal host that runs inside an existing terminal and does not open a desktop window.
 
 ## Mandatory workloads
 
-1. `four-concurrent-sessions` — one window, one tab, four independent terminal sessions.
+1. `four-concurrent-sessions` — one fullscreen surface, one tab, four independent terminal sessions.
 2. `input-routing` — rapid focus and key/text routing with no cross-pane delivery.
 3. `unicode-cursor-modes` — Unicode width, cursor, and mode behavior.
 4. `alternate-screen` — full-screen and alternate-screen programs.
 5. `paste` — bounded bracketed and plain paste behavior.
 6. `mouse` — pointer and wheel reporting within pane coordinates.
-7. `ime` — composition, preedit, commit, and cancellation.
-8. `live-resize` — active drag resize and settle repaint.
-9. `dpi` — per-monitor scale changes and content-scale updates.
+7. `ime` — composition, preedit, commit, and cancellation where the outer terminal supports it.
+8. `live-resize` — active terminal resize and settle repaint.
+9. `dpi` — terminal font/content-scale changes represented to the host when supported.
 10. `high-rate-output` — simultaneous output in all four panes.
 11. `pane-abnormal-exit` — one pane fails while three remain isolated.
-12. `host-cleanup` — normal and abnormal host termination clean all owned resources.
+12. `host-cleanup` — normal and abnormal host termination clean all owned resources and restore the outer terminal.
 
 ## Measurements
 
 Latency summaries require minimum, p50, p95, maximum, and sample count:
 
-- `inputToProcessMs`: native input acceptance to child process write.
-- `outputToPresentMs`: child output read to presented frame.
+- `inputToProcessMs`: outer-terminal input acceptance to child process write.
+- `outputToPresentMs`: child output read to presented outer-terminal frame.
 
-Paint diagnostics require requested, presented, coalesced, and missed frame counts plus resize paint-gap count. Resource observations require maximum CPU, resident memory, and GPU memory when available.
+Paint diagnostics require requested, presented, coalesced, and missed frame counts plus resize paint-gap count. Resource observations require maximum CPU and resident memory; GPU memory may be null because the console host does not require a GPU renderer.
 
 ## Acceptance invariants
 

@@ -1,11 +1,12 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
-describe("native-host proof stop/go policy", () => {
+describe("terminal-host proof stop/go policy", () => {
   it("keeps the acceptance record pending with integration and merge forbidden", async () => {
-    const record = JSON.parse(await readFile("openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/native-spike-acceptance-record.json", "utf8")) as Record<string, unknown>;
+    const record = JSON.parse(await readFile("openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/terminal-spike-acceptance-record.json", "utf8")) as Record<string, unknown>;
     expect(record).toMatchObject({
-      schema: "addone-native-spike-acceptance-record-v1",
+      schema: "addone-terminal-spike-acceptance-record-v1",
+      hostMode: "console-inside-existing-terminal",
       technicalVerdict: "pending",
       physicalVerdict: "pending",
       physicalMethod: "not-run",
@@ -20,9 +21,10 @@ describe("native-host proof stop/go policy", () => {
   });
 
   it("documents mandatory physical acceptance and non-waivable failure", async () => {
-    const policy = await readFile("docs/architecture/native-host-proof-gate.md", "utf8");
+    const policy = await readFile("docs/architecture/terminal-host-proof-gate.md", "utf8");
     for (const required of [
       "stop/go gate",
+      "inside an existing terminal without creating a desktop window",
       "physical verdict is `accepted`",
       "isolated disposable worker",
       "Input-to-process p95 latency is at most 16 ms",
@@ -32,6 +34,7 @@ describe("native-host proof stop/go policy", () => {
       "cannot be waived",
       "forbids milestone merge",
       "structured-agent and transparent-mode work as independently usable",
+      "prevents investment in a postponed desktop-native application shell",
     ]) {
       expect(policy).toContain(required);
     }

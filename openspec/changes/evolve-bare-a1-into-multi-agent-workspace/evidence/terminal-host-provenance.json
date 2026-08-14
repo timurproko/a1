@@ -1,0 +1,113 @@
+{
+  "schema": "addone-terminal-host-provenance-v1",
+  "recordedAt": "2026-08-14T07:12:07.445Z",
+  "change": "evolve-bare-a1-into-multi-agent-workspace",
+  "hostMode": "console-inside-existing-terminal",
+  "desktopApplicationRequired": false,
+  "sources": [
+    {
+      "name": "libghostty-vt",
+      "repository": "https://github.com/ghostty-org/ghostty",
+      "commit": "c5a21edfcbc2d5b46540ad91b7980aca31f5f1f3",
+      "committedAt": "2026-07-14T20:12:12-07:00",
+      "role": "terminal parsing, retained state, and input semantics",
+      "license": "MIT",
+      "licenseNotice": "Copyright (c) 2024 Mitchell Hashimoto, Ghostty contributors",
+      "licenseSha256": "3129de97bc7769d683e52ce02cb4eaecd2b0aab144b09d6325a1b135bdc87cc0",
+      "cleanSourceTree": true,
+      "licenseVerification": "verified-local-license-file"
+    },
+    {
+      "name": "portable-pty",
+      "version": "0.9.0",
+      "role": "ConPTY and Unix PTY/process ownership",
+      "license": "MIT",
+      "licenseNotice": "Copyright (c) 2018 Wez Furlong",
+      "licenseSha256": "c06f48b2acbbb4bb88345225c6d85264773528fe9fc99241cd255a7e32be632e",
+      "cleanSourceTree": true,
+      "licenseVerification": "verified-local-license-file"
+    },
+    {
+      "name": "crossterm",
+      "version": "0.29.0",
+      "registryChecksum": "d8b9f2e4c67f833b660cdb0a3523065869fb35570177239812ed4c905aeff87b",
+      "role": "outer-terminal raw mode and host input events",
+      "license": "MIT",
+      "cleanSourceTree": true,
+      "licenseVerification": "declared-license-recorded; license notice must be vendored before packaging"
+    }
+  ],
+  "rendererPolicy": {
+    "initial": "AddOne-owned buffered frame composer",
+    "ratatui": "optional evaluation candidate, not selected by default"
+  },
+  "excludedStacks": [
+    "Ghostty desktop application",
+    "Winghostty Win32 runtime",
+    "OpenGL/WGL",
+    "Metal",
+    "GTK",
+    "AppKit",
+    "Herdr",
+    "Node terminal parser",
+    "Node terminal renderer"
+  ],
+  "patchPolicy": {
+    "default": "retain upstream behavior without local patches",
+    "requiredPatchFields": [
+      "source revision",
+      "target revision",
+      "reason",
+      "tests",
+      "upstream synchronization decision",
+      "license impact"
+    ],
+    "behavioralTerminalPatchesRequireSeparateReview": true
+  },
+  "buildPrerequisites": {
+    "operatingSystems": ["windows-10", "windows-11"],
+    "architectures": ["x64", "arm64"],
+    "language": "Rust",
+    "terminal": "user-owned terminal emulator",
+    "isolatedPhysicalWorkerRequired": true,
+    "guiSdkRequired": false,
+    "openGlRequired": false,
+    "win32WindowRuntimeRequired": false,
+    "localProbe": {
+      "rustAvailable": false,
+      "nativeBuildAttempted": false,
+      "reason": "Task 4.1 records provenance and prerequisites only; task 5.1 owns the isolated console-host build."
+    }
+  },
+  "artifactManifestRequirements": [
+    "artifactPath",
+    "sha256",
+    "sizeBytes",
+    "signatureStatus",
+    "buildTimestamp",
+    "addoneCommit",
+    "addoneProtocolVersion",
+    "libghosttyVtCommit",
+    "ptyComponentVersion",
+    "hostInputComponentVersion",
+    "rendererComponentIdentity",
+    "retainedComponents",
+    "adaptedComponents",
+    "compilerVersions",
+    "targetTriple",
+    "licenseHashes",
+    "buildCommand",
+    "dependencyCacheProvenance",
+    "cleanSourceTree",
+    "evidenceSchema",
+    "physicalVerdictReference"
+  ],
+  "checks": {
+    "license": "passed",
+    "provenance": "passed",
+    "sourceTreeHygiene": "passed",
+    "binaryBuild": "deferred-to-task-5.1",
+    "physicalAutomation": "not-run"
+  },
+  "passed": true
+}

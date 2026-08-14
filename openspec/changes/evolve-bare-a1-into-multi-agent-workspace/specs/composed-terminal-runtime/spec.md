@@ -1,6 +1,6 @@
 ## Purpose
 
-Defines the separately gated native terminal authority for AddOne workspace tabs containing independently retained interactive CLI panes.
+Defines the separately gated terminal-hosted authority for AddOne workspace tabs containing independently retained interactive CLI panes inside an existing terminal.
 
 ## ADDED Requirements
 
@@ -19,34 +19,34 @@ A composed workspace tab SHALL own a revisioned split-tree layout. Each leaf pan
 - **WHEN** the platform cannot provide a required pseudoterminal, rendering, input, or lifecycle primitive
 - **THEN** AddOne SHALL reject composed launch as unsupported rather than fall back silently to a partial relay
 
-### Requirement: The native host owns the complete terminal data path
-For composed panes, the native terminal host SHALL own pseudoterminal bytes, terminal interpretation and retained state, terminal query responses, native keyboard/text/mouse/IME encoding, rendering, frame scheduling, and presentation. AddOne's control plane SHALL exchange typed identity, topology, capability, lifecycle, and recovery messages and SHALL NOT relay terminal bytes, individual child input events, or rendered cell frames.
+### Requirement: The terminal host owns the complete terminal data path
+For composed panes, the terminal host SHALL own pseudoterminal bytes, terminal interpretation and retained state, terminal query responses, keyboard/text/mouse/IME encoding, rendering, frame scheduling, and presentation to the containing terminal. AddOne's control plane SHALL exchange typed identity, topology, capability, lifecycle, and recovery messages and SHALL NOT relay terminal bytes, individual child input events, or rendered cell frames.
 
 #### Scenario: Child emits fragmented terminal data
 - **WHEN** a control sequence or Unicode grapheme spans multiple pseudoterminal reads
-- **THEN** the native host SHALL preserve stream state and produce the same declared terminal result as an unfragmented stream
+- **THEN** the terminal host SHALL preserve stream state and produce the same declared terminal result as an unfragmented stream
 
 #### Scenario: Control plane restarts
-- **WHEN** the AddOne control plane restarts while the native host and terminal sessions survive
-- **THEN** terminal I/O and rendering SHALL remain owned by the native host and reconnection SHALL use typed host state rather than replaying terminal bytes through AddOne
+- **WHEN** the AddOne control plane restarts while the terminal host and terminal sessions survive
+- **THEN** terminal I/O and rendering SHALL remain owned by the terminal host and reconnection SHALL use typed host state rather than replaying terminal bytes through AddOne
 
 #### Scenario: A terminal feature is unsupported
 - **WHEN** the selected native terminal implementation cannot provide a required behavior
 - **THEN** AddOne SHALL report the composed capability as unavailable or degraded and SHALL NOT insert a lightweight parser, renderer, or input translator as fallback
 
 ### Requirement: Topology mutations are revisioned and authoritative
-The native host SHALL be authoritative for live composed window, tab, split, pane-focus, and pane-session topology. Mutating requests SHALL identify durable AddOne entities and an expected topology revision, and the host SHALL either commit the complete mutation and publish a newer snapshot or reject it without a partial topology change.
+The terminal host SHALL be authoritative for live composed window, tab, split, pane-focus, and pane-session topology. Mutating requests SHALL identify durable AddOne entities and an expected topology revision, and the host SHALL either commit the complete mutation and publish a newer snapshot or reject it without a partial topology change.
 
 #### Scenario: Apply a valid layout revision
 - **WHEN** AddOne requests a valid layout mutation against the current topology revision
-- **THEN** the native host SHALL atomically commit it and return a newer revision with stable AddOne-to-native identity mappings
+- **THEN** the terminal host SHALL atomically commit it and return a newer revision with stable AddOne-to-native identity mappings
 
 #### Scenario: Apply a stale layout revision
 - **WHEN** AddOne requests a layout mutation against an obsolete revision
-- **THEN** the native host SHALL reject it and return or make available the current authoritative topology without partially applying the request
+- **THEN** the terminal host SHALL reject it and return or make available the current authoritative topology without partially applying the request
 
 ### Requirement: Input routes only to the focused composed pane
-Keyboard, text, paste, focus, mouse, wheel, and resize interactions SHALL be encoded according to the focused pane's retained terminal modes and sent only to that pane's pseudoterminal. The native host SHALL own shortcut arbitration, clipping, overlays, selection, clipboard behavior, and IME composition for composed surfaces.
+Keyboard, text, paste, focus, mouse, wheel, and resize interactions SHALL be encoded according to the focused pane's retained terminal modes and sent only to that pane's pseudoterminal. The terminal host SHALL own shortcut arbitration, clipping, overlays, selection, clipboard behavior, and IME composition for composed surfaces.
 
 #### Scenario: User changes focus while typing
 - **WHEN** pane focus changes between two input events
@@ -54,11 +54,11 @@ Keyboard, text, paste, focus, mouse, wheel, and resize interactions SHALL be enc
 
 #### Scenario: Mouse reporting is enabled
 - **WHEN** the focused terminal declares a supported mouse mode and the user interacts inside its viewport
-- **THEN** the native host SHALL encode the declared mouse protocol with coordinates relative to that pane
+- **THEN** the terminal host SHALL encode the declared mouse protocol with coordinates relative to that pane
 
 #### Scenario: User selects terminal text
 - **WHEN** selection mode consumes pointer or keyboard interaction
-- **THEN** the native host SHALL update pane-scoped selection and clipboard state without leaking the interaction to another pane
+- **THEN** the terminal host SHALL update pane-scoped selection and clipboard state without leaking the interaction to another pane
 
 ### Requirement: Visible and inactive panes have explicit bounded lifecycles
 Every pane SHALL declare whether it remains visible, remains live but unpainted, pauses display processing, suspends where safely supported, or terminates. Non-focused panes that remain visible in a grid SHALL continue independent rendering; hidden panes SHALL retain authority according to policy. Per-pane and global limits SHALL prevent one session from exhausting the workspace.
@@ -76,14 +76,14 @@ Every pane SHALL declare whether it remains visible, remains live but unpainted,
 - **THEN** AddOne SHALL apply a documented compaction, backpressure, pause, or termination outcome and report it without corrupting other panes
 
 ### Requirement: Reconnection uses retained native authority
-A reconnectable composed session SHALL bind durable AddOne tab, pane, and terminal-session identities to a compatible native-host instance, verified pseudoterminal/process ownership, and authoritative retained terminal state. If any required authority is lost, AddOne SHALL report visual reconnection unavailable rather than reconstruct state from logs or lifecycle metadata.
+A reconnectable composed session SHALL bind durable AddOne tab, pane, and terminal-session identities to a compatible terminal-host instance, verified pseudoterminal/process ownership, and authoritative retained terminal state. If any required authority is lost, AddOne SHALL report visual reconnection unavailable rather than reconstruct state from logs or lifecycle metadata.
 
 #### Scenario: Control plane reconnects to a surviving host
 - **WHEN** host protocol compatibility, durable mappings, process ownership, pseudoterminal channels, dimensions, and retained terminal state are verified
 - **THEN** AddOne SHALL restore control of the authoritative topology without replay duplication
 
 #### Scenario: Terminal authority was lost
-- **WHEN** a process survives but its native host, pseudoterminal channel, or retained terminal state is unavailable
+- **WHEN** a process survives but its terminal host, pseudoterminal channel, or retained terminal state is unavailable
 - **THEN** AddOne SHALL refuse visual reconnection and offer only declared cleanup or diagnostic actions
 
 ### Requirement: Composed panes are isolated from each other
@@ -91,18 +91,18 @@ Process identity, pseudoterminal handles, byte streams, retained terminal state,
 
 #### Scenario: One terminal stream is malformed
 - **WHEN** one pane produces unsupported or malformed terminal data
-- **THEN** the native host SHALL bound and isolate the failure to that pane while preserving diagnostics and the other panes
+- **THEN** the terminal host SHALL bound and isolate the failure to that pane while preserving diagnostics and the other panes
 
 #### Scenario: One process tree is stopped
 - **WHEN** the user stops a composed pane
 - **THEN** AddOne SHALL terminate only verified resources owned by that pane and preserve every other pane
 
-#### Scenario: Native host fails
-- **WHEN** the native terminal host exits abnormally
+#### Scenario: Terminal host fails
+- **WHEN** the terminal host exits abnormally
 - **THEN** the AddOne control plane and structured agents SHALL remain available and each affected composed pane SHALL enter an explicit discontinuous or failed state
 
-### Requirement: A Windows 2×2 proof gate precedes composed integration
-Before composed-terminal production integration or milestone merge, an isolated Windows proof SHALL demonstrate one native window, one tab, four independently PTY-backed panes in a 2×2 layout, and native terminal rendering and input without routing terminal bytes through AddOne. The proof SHALL record pinned source revisions, exact artifact integrity, workloads, latency and resource measurements, paint/resize diagnostics, cleanup outcomes, and a user-controlled manual verdict or isolated-worker physical verdict.
+### Requirement: An in-terminal 2×2 proof gate precedes composed integration
+Before composed-terminal production integration or milestone merge, an isolated proof SHALL demonstrate one fullscreen composed surface inside an existing terminal, one tab, four independently PTY-backed panes in a 2×2 layout, and terminal-hosted rendering and input without routing terminal bytes through AddOne or opening a separate desktop window. The proof SHALL record pinned source revisions, exact artifact integrity, workloads, latency and resource measurements, paint/resize diagnostics, cleanup outcomes, and a user-controlled manual verdict or isolated-worker physical verdict.
 
 #### Scenario: Automated proof is technically successful
 - **WHEN** four-pane output, focus/input routing, resize, DPI, IME, paste, mouse, alternate-screen, abnormal-exit, and cleanup checks pass with recorded measurements
@@ -113,7 +113,7 @@ Before composed-terminal production integration or milestone merge, an isolated 
 - **THEN** AddOne SHALL stop the composed integration path for redesign and SHALL NOT merge it by weakening the proof criteria
 
 #### Scenario: Structured work proceeds while proof is pending
-- **WHEN** the native-host proof is incomplete or unsuccessful
+- **WHEN** the terminal-host proof is incomplete or unsuccessful
 - **THEN** structured-agent and non-composed workspace work MAY proceed independently without claiming composed-terminal support
 
 ### Requirement: Composed support is certified per platform and exact package
