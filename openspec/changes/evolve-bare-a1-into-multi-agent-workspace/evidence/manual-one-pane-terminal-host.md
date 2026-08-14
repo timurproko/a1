@@ -52,4 +52,14 @@ The first artifact had one finding: `Ctrl+Shift+Q` did not exit.
 - The non-interactive probe verifies retained scrollback, viewport movement, and repainted earlier content.
 - Use the outer terminal's modifier-based selection, usually Shift+drag in Windows Terminal, while pointer capture is active.
 
-Manual retest should generate enough Pi output for scrollback, then use mouse wheel and Shift+PageUp/PageDown. No terminal was launched or driven by automation on the active workstation.
+## Selection and exit artifact
+
+- Artifact SHA-256: `8189720841dcc7dc05ff7f9cdacdc446e3a506a03fb5f6667968000126e9e277`
+- Size: 2,264,064 bytes
+- Plain left-drag selects terminal content; release emits an OSC 52 clipboard write.
+- Home/End jump to scrollback boundaries; PageUp/PageDown and mouse wheel scroll the retained viewport.
+- PTY output-channel closure exits the host even if process wait state is stale.
+- A second Ctrl+C within 1.5 seconds requests host cleanup instead of leaving a frozen UI.
+- Non-interactive probes pass for terminal rendering, scrollback, selection, and PTY cleanup.
+
+Manual retest should verify plain drag selection, mouse wheel, Home/End, and repeated Ctrl+C recovery. No terminal was launched or driven by automation on the active workstation.

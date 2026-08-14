@@ -6,6 +6,7 @@ use std::ptr;
 
 const GHOSTTY_SUCCESS: i32 = 0;
 const GHOSTTY_OUT_OF_SPACE: i32 = -3;
+const GHOSTTY_NO_VALUE: i32 = -4;
 
 const RENDER_DATA_DIRTY: i32 = 3;
 const RENDER_DATA_ROW_ITERATOR: i32 = 4;
@@ -21,7 +22,9 @@ const ROW_DATA_DIRTY: i32 = 1;
 const ROW_DATA_CELLS: i32 = 3;
 const ROW_OPTION_DIRTY: i32 = 0;
 const CELLS_DATA_STYLE: i32 = 2;
+const CELLS_DATA_SELECTED: i32 = 7;
 const CELLS_DATA_GRAPHEMES_UTF8: i32 = 9;
+const TERMINAL_OPT_SELECTION: i32 = 21;
 
 pub const KEY_UNIDENTIFIED: i32 = 0;
 pub const KEY_A: i32 = 20;
@@ -61,6 +64,8 @@ type GhosttyRenderStateRowIteratorRaw = *mut c_void;
 type GhosttyRenderStateRowCellsRaw = *mut c_void;
 type GhosttyKeyEncoderRaw = *mut c_void;
 type GhosttyKeyEventRaw = *mut c_void;
+type GhosttySelectionGestureRaw = *mut c_void;
+type GhosttySelectionGestureEventRaw = *mut c_void;
 
 #[repr(C)]
 struct GhosttyTerminalOptions {
@@ -75,6 +80,64 @@ pub struct TerminalScrollbar {
     pub total: u64,
     pub offset: u64,
     pub len: u64,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
+struct GhosttyPointCoordinate {
+    x: u16,
+    y: u32,
+}
+
+#[repr(C)]
+union GhosttyPointValue {
+    coordinate: GhosttyPointCoordinate,
+    _padding: [u64; 2],
+}
+
+#[repr(C)]
+struct GhosttyPoint {
+    tag: i32,
+    value: GhosttyPointValue,
+}
+
+#[repr(C)]
+struct GhosttyGridRef {
+    size: usize,
+    node: *mut c_void,
+    x: u16,
+    y: u16,
+}
+
+#[repr(C)]
+struct GhosttySelection {
+    size: usize,
+    start: GhosttyGridRef,
+    end: GhosttyGridRef,
+    rectangle: bool,
+}
+
+#[repr(C)]
+struct GhosttySurfacePosition {
+    x: f64,
+    y: f64,
+}
+
+#[repr(C)]
+struct GhosttySelectionGestureGeometry {
+    columns: u32,
+    cell_width: u32,
+    padding_left: u32,
+    screen_height: u32,
+}
+
+#[repr(C)]
+struct GhosttyTerminalSelectionFormatOptions {
+    size: usize,
+    emit: i32,
+    unwrap: bool,
+    trim: bool,
+    selection: *const GhosttySelection,
 }
 
 #[repr(C)]
@@ -169,6 +232,24 @@ unsafe extern "C" {
         data: i32,
         out: *mut c_void,
     ) -> GhosttyResult;
+    fn ghostty_terminal_set(
+        terminal: GhosttyTerminalRaw,
+        option: i32,
+        value: *const c_void,
+    ) -> GhosttyResult;
+    fn ghostty_terminal_grid_ref(
+        terminal: GhosttyTerminalRaw,
+        point: GhosttyPoint,
+        out_ref: *mut GhosttyGridRef,
+    ) -> GhosttyResult;
+    fn ghostty_terminal_selection_format_alloc(
+        terminal: GhosttyTerminalRaw,
+        allocator: *const c_void,
+        options: GhosttyTerminalSelectionFormatOptions,
+        out_ptr: *mut *mut u8,
+        out_len: *mut usize,
+    ) -> GhosttyResult;
+    fn ghostty_free(allocator: *const c_void, ptr: *mut u8, len: usize);
     fn ghostty_render_state_new(
         allocator: *const c_void,
         state: *mut GhosttyRenderStateRaw,
@@ -244,6 +325,31 @@ unsafe extern "C" {
     fn ghostty_key_event_set_key(event: GhosttyKeyEventRaw, key: i32);
     fn ghostty_key_event_set_mods(event: GhosttyKeyEventRaw, mods: u16);
     fn ghostty_key_event_set_utf8(event: GhosttyKeyEventRaw, utf8: *const c_char, len: usize);
+    fn ghostty_selection_gesture_new(
+        allocator: *const c_void,
+        out_gesture: *mut GhosttySelectionGestureRaw,
+    ) -> GhosttyResult;
+    fn ghostty_selection_gesture_free(
+        gesture: GhosttySelectionGestureRaw,
+        terminal: GhosttyTerminalRaw,
+    );
+    fn ghostty_selection_gesture_event_new(
+        allocator: *const c_void,
+        out_event: *mut GhosttySelectionGestureEventRaw,
+        event_type: i32,
+    ) -> GhosttyResult;
+    fn ghostty_selection_gesture_event_free(event: GhosttySelectionGestureEventRaw);
+    fn ghostty_selection_gesture_event_set(
+        event: GhosttySelectionGestureEventRaw,
+        option: i32,
+        value: *const c_void,
+    ) -> GhosttyResult;
+    fn ghostty_selection_gesture_event(
+        gesture: GhosttySelectionGestureRaw,
+        terminal: GhosttyTerminalRaw,
+        event: GhosttySelectionGestureEventRaw,
+        out_selection: *mut GhosttySelection,
+    ) -> GhosttyResult;
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -355,6 +461,37 @@ impl GhosttyTerminal {
         Ok(rows)
     }
 
+    pub fn mark_dirty(&mut self) -> Result<(), String> {
+        let full = 2i32;
+        check(
+            unsafe {
+                ghostty_render_state_set(
+                    self.render,
+                    RENDER_OPTION_DIRTY,
+                    &full as *const i32 as *const c_void,
+                )
+            },
+            "mark frame dirty",
+        )
+    }
+
+    pub fn scroll_top(&mut self) -> Result<(), String> {
+        self.scroll_absolute(0)
+    }
+
+    pub fn scroll_bottom(&mut self) -> Result<(), String> {
+        unsafe {
+            ghostty_terminal_scroll_viewport(
+                self.raw,
+                GhosttyTerminalScrollViewport {
+                    tag: 1,
+                    value: GhosttyTerminalScrollViewportValue { _padding: [0, 0] },
+                },
+            );
+        }
+        self.mark_dirty()
+    }
+
     pub fn viewport_active(&self) -> Result<bool, String> {
         let mut active = false;
         check(
@@ -368,6 +505,89 @@ impl GhosttyTerminal {
             "read terminal viewport state",
         )?;
         Ok(active)
+    }
+
+    fn scroll_absolute(&mut self, row: usize) -> Result<(), String> {
+        unsafe {
+            ghostty_terminal_scroll_viewport(
+                self.raw,
+                GhosttyTerminalScrollViewport {
+                    tag: 3,
+                    value: GhosttyTerminalScrollViewportValue { row },
+                },
+            );
+        }
+        self.mark_dirty()
+    }
+
+    fn grid_ref(&self, x: u16, y: u16) -> Result<GhosttyGridRef, String> {
+        let mut reference = GhosttyGridRef {
+            size: size_of::<GhosttyGridRef>(),
+            node: ptr::null_mut(),
+            x: 0,
+            y: 0,
+        };
+        let point = GhosttyPoint {
+            tag: 1,
+            value: GhosttyPointValue {
+                coordinate: GhosttyPointCoordinate { x, y: u32::from(y) },
+            },
+        };
+        check(
+            unsafe { ghostty_terminal_grid_ref(self.raw, point, &mut reference) },
+            "resolve selection point",
+        )?;
+        Ok(reference)
+    }
+
+    fn install_selection(&mut self, selection: &GhosttySelection) -> Result<(), String> {
+        check(
+            unsafe {
+                ghostty_terminal_set(
+                    self.raw,
+                    TERMINAL_OPT_SELECTION,
+                    selection as *const GhosttySelection as *const c_void,
+                )
+            },
+            "install terminal selection",
+        )?;
+        self.mark_dirty()
+    }
+
+    fn clear_selection(&mut self) -> Result<(), String> {
+        check(
+            unsafe { ghostty_terminal_set(self.raw, TERMINAL_OPT_SELECTION, ptr::null()) },
+            "clear terminal selection",
+        )?;
+        self.mark_dirty()
+    }
+
+    fn selection_text(&mut self) -> Result<Option<Vec<u8>>, String> {
+        let options = GhosttyTerminalSelectionFormatOptions {
+            size: size_of::<GhosttyTerminalSelectionFormatOptions>(),
+            emit: 0,
+            unwrap: true,
+            trim: true,
+            selection: ptr::null(),
+        };
+        let mut output = ptr::null_mut();
+        let mut length = 0usize;
+        let result = unsafe {
+            ghostty_terminal_selection_format_alloc(
+                self.raw,
+                ptr::null(),
+                options,
+                &mut output,
+                &mut length,
+            )
+        };
+        if result == GHOSTTY_NO_VALUE {
+            return Ok(None);
+        }
+        check(result, "format terminal selection")?;
+        let bytes = unsafe { std::slice::from_raw_parts(output, length).to_vec() };
+        unsafe { ghostty_free(ptr::null(), output, length) };
+        Ok(Some(bytes))
     }
 
     pub fn frame(&mut self) -> Result<String, String> {
@@ -585,6 +805,173 @@ impl Drop for GhosttyTerminal {
     }
 }
 
+pub struct SelectionGesture {
+    raw: GhosttySelectionGestureRaw,
+    terminal: GhosttyTerminalRaw,
+}
+
+impl SelectionGesture {
+    pub fn new(terminal: &GhosttyTerminal) -> Result<Self, String> {
+        let mut raw = ptr::null_mut();
+        check(
+            unsafe { ghostty_selection_gesture_new(ptr::null(), &mut raw) },
+            "create selection gesture",
+        )?;
+        Ok(Self {
+            raw,
+            terminal: terminal.raw,
+        })
+    }
+
+    pub fn press(&mut self, terminal: &mut GhosttyTerminal, x: u16, y: u16) -> Result<(), String> {
+        terminal.clear_selection()?;
+        let event = self.event(0)?;
+        let reference = terminal.grid_ref(x, y)?;
+        self.set_reference(event, &reference)?;
+        self.set_position(event, x, y)?;
+        let result = unsafe {
+            ghostty_selection_gesture_event(self.raw, terminal.raw, event, ptr::null_mut())
+        };
+        unsafe { ghostty_selection_gesture_event_free(event) };
+        if result != GHOSTTY_SUCCESS && result != GHOSTTY_NO_VALUE {
+            return Err(format!("apply selection press failed with {result}"));
+        }
+        Ok(())
+    }
+
+    pub fn drag(
+        &mut self,
+        terminal: &mut GhosttyTerminal,
+        x: u16,
+        y: u16,
+        cols: u16,
+        rows: u16,
+    ) -> Result<(), String> {
+        let event = self.event(2)?;
+        let reference = terminal.grid_ref(x, y)?;
+        self.set_reference(event, &reference)?;
+        self.set_position(event, x, y)?;
+        let geometry = GhosttySelectionGestureGeometry {
+            columns: u32::from(cols),
+            cell_width: 1,
+            padding_left: 0,
+            screen_height: u32::from(rows),
+        };
+        check(
+            unsafe {
+                ghostty_selection_gesture_event_set(
+                    event,
+                    8,
+                    &geometry as *const GhosttySelectionGestureGeometry as *const c_void,
+                )
+            },
+            "set selection geometry",
+        )?;
+        let mut selection = empty_selection();
+        let result = unsafe {
+            ghostty_selection_gesture_event(self.raw, terminal.raw, event, &mut selection)
+        };
+        unsafe { ghostty_selection_gesture_event_free(event) };
+        if result == GHOSTTY_NO_VALUE {
+            return Ok(());
+        }
+        check(result, "apply selection drag")?;
+        terminal.install_selection(&selection)
+    }
+
+    pub fn release(
+        &mut self,
+        terminal: &mut GhosttyTerminal,
+        x: u16,
+        y: u16,
+    ) -> Result<Option<Vec<u8>>, String> {
+        let event = self.event(1)?;
+        let reference = terminal.grid_ref(x, y)?;
+        self.set_reference(event, &reference)?;
+        let result = unsafe {
+            ghostty_selection_gesture_event(self.raw, terminal.raw, event, ptr::null_mut())
+        };
+        unsafe { ghostty_selection_gesture_event_free(event) };
+        if result != GHOSTTY_SUCCESS && result != GHOSTTY_NO_VALUE {
+            return Err(format!("apply selection release failed with {result}"));
+        }
+        terminal.selection_text()
+    }
+
+    fn event(&self, event_type: i32) -> Result<GhosttySelectionGestureEventRaw, String> {
+        let mut event = ptr::null_mut();
+        check(
+            unsafe { ghostty_selection_gesture_event_new(ptr::null(), &mut event, event_type) },
+            "create selection event",
+        )?;
+        Ok(event)
+    }
+
+    fn set_reference(
+        &self,
+        event: GhosttySelectionGestureEventRaw,
+        reference: &GhosttyGridRef,
+    ) -> Result<(), String> {
+        check(
+            unsafe {
+                ghostty_selection_gesture_event_set(
+                    event,
+                    0,
+                    reference as *const GhosttyGridRef as *const c_void,
+                )
+            },
+            "set selection reference",
+        )
+    }
+
+    fn set_position(
+        &self,
+        event: GhosttySelectionGestureEventRaw,
+        x: u16,
+        y: u16,
+    ) -> Result<(), String> {
+        let position = GhosttySurfacePosition {
+            x: f64::from(x) + 0.5,
+            y: f64::from(y) + 0.5,
+        };
+        check(
+            unsafe {
+                ghostty_selection_gesture_event_set(
+                    event,
+                    1,
+                    &position as *const GhosttySurfacePosition as *const c_void,
+                )
+            },
+            "set selection position",
+        )
+    }
+}
+
+impl Drop for SelectionGesture {
+    fn drop(&mut self) {
+        unsafe { ghostty_selection_gesture_free(self.raw, self.terminal) };
+    }
+}
+
+fn empty_selection() -> GhosttySelection {
+    GhosttySelection {
+        size: size_of::<GhosttySelection>(),
+        start: GhosttyGridRef {
+            size: size_of::<GhosttyGridRef>(),
+            node: ptr::null_mut(),
+            x: 0,
+            y: 0,
+        },
+        end: GhosttyGridRef {
+            size: size_of::<GhosttyGridRef>(),
+            node: ptr::null_mut(),
+            x: 0,
+            y: 0,
+        },
+        rectangle: false,
+    }
+}
+
 pub struct KeyEncoder {
     raw: GhosttyKeyEncoderRaw,
 }
@@ -714,12 +1101,23 @@ fn cell_style(
     )?;
     let fg = style_color(&style.fg_color);
     let bg = style_color(&style.bg_color);
+    let mut selected = false;
+    check(
+        unsafe {
+            ghostty_render_state_row_cells_get(
+                cells,
+                CELLS_DATA_SELECTED,
+                &mut selected as *mut bool as *mut c_void,
+            )
+        },
+        "read cell selection",
+    )?;
     Ok(ActiveStyle {
         fg,
         bg,
         bold: style.bold,
         italic: style.italic,
-        inverse: style.inverse,
+        inverse: style.inverse != selected,
         underline: style.underline != 0,
     })
 }

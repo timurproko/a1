@@ -4,13 +4,15 @@ mod shell;
 use std::env;
 use std::io::{Read, Write};
 use std::process::ExitCode;
-use std::sync::mpsc::{self, Receiver};
+use std::sync::mpsc::{self, Receiver, TryRecvError};
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
+use base64::Engine as _;
+use base64::engine::general_purpose::STANDARD as BASE64;
 use crossterm::event::{
-    self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseEventKind,
+    self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseButton, MouseEventKind,
 };
 use crossterm::execute;
 use crossterm::terminal::{
@@ -22,7 +24,7 @@ use crossterm::{
 };
 use portable_pty::{Child, CommandBuilder, MasterPty, NativePtySystem, PtySize, PtySystem};
 
-use crate::ghostty::{GhosttyTerminal, KeyEncoder, key_for_character};
+use crate::ghostty::{GhosttyTerminal, KeyEncoder, SelectionGesture, key_for_character};
 
 const ADDONE_PROTOCOL_VERSION: u32 = 1;
 const GHOSTTY_VT_COMMIT: &str = "c5a21edfcbc2d5b46540ad91b7980aca31f5f1f3";
@@ -47,6 +49,7 @@ fn run_from_args(args: Vec<String>) -> Result<(), String> {
         }
         Some("--probe") => probe(),
         Some("--probe-scroll") => probe_scroll(),
+        Some("--probe-selection") => probe_selection(),
         Some("--resolve") if args.len() == 2 => {
             println!("{}", resolve_command(&args[1])?);
             Ok(())
@@ -59,7 +62,7 @@ fn run_from_args(args: Vec<String>) -> Result<(), String> {
         Some("--run") => run_interactive(&args[1..]),
         _ => {
             eprintln!(
-                "usage: addone-terminal-host --version | --probe | --resolve <command> | --resolve-shell | --run [-- <command> [args...]]"
+                "usage: addone-terminal-host --version | --probe | --probe-scroll | --probe-selection | --resolve <command> | --resolve-shell | --run [-- <command> [args...]]"
             );
             Err("expected a mode".to_owned())
         }
@@ -95,6 +98,25 @@ fn probe_scroll() -> Result<(), String> {
     if rows == 0 {
         return Err("expected retained scrollback rows".to_owned());
     }
+    Ok(())
+}
+
+fn probe_selection() -> Result<(), String> {
+    let mut terminal = GhosttyTerminal::new(20, 4)?;
+    terminal.write(b"hello world\r\nsecond line\r\n");
+    terminal.frame()?;
+    let mut gesture = SelectionGesture::new(&terminal)?;
+    gesture.press(&mut terminal, 0, 0)?;
+    gesture.drag(&mut terminal, 5, 0, 20, 4)?;
+    let selected = gesture.release(&mut terminal, 5, 0)?;
+    let selected = selected.ok_or_else(|| "selection probe produced no text".to_owned())?;
+    if !selected.windows(5).any(|window| window == b"hello") {
+        return Err(format!(
+            "selection probe returned unexpected text: {:?}",
+            selected
+        ));
+    }
+    println!("{{\"probe\":\"selection-passed\"}}");
     Ok(())
 }
 
@@ -184,6 +206,7 @@ fn run_interactive(arguments: &[String]) -> Result<(), String> {
     let _guard = TerminalModeGuard::enter()?;
     let mut terminal = GhosttyTerminal::new(cols, rows)?;
     let key_encoder = KeyEncoder::new(&terminal)?;
+    let mut selection = SelectionGesture::new(&terminal)?;
 
     let pty_system = NativePtySystem::default();
     let pair = pty_system
@@ -226,6 +249,7 @@ fn run_interactive(arguments: &[String]) -> Result<(), String> {
     });
 
     let mut viewport_rows = rows;
+    let mut viewport_cols = cols;
     let result = interactive_loop(
         &mut terminal,
         &key_encoder,
@@ -234,6 +258,8 @@ fn run_interactive(arguments: &[String]) -> Result<(), String> {
         output_receiver,
         child.as_mut(),
         &mut viewport_rows,
+        &mut viewport_cols,
+        &mut selection,
     );
     if child
         .try_wait()
@@ -256,17 +282,33 @@ fn interactive_loop(
     output: Receiver<Vec<u8>>,
     child: &mut dyn Child,
     viewport_rows: &mut u16,
+    viewport_cols: &mut u16,
+    selection: &mut SelectionGesture,
 ) -> Result<(), String> {
     let mut stdout = std::io::stdout().lock();
+    let mut output_open = true;
+    let mut last_interrupt: Option<Instant> = None;
     loop {
-        while let Ok(bytes) = output.try_recv() {
-            terminal.write(&bytes);
+        loop {
+            match output.try_recv() {
+                Ok(bytes) => terminal.write(&bytes),
+                Err(TryRecvError::Empty) => break,
+                Err(TryRecvError::Disconnected) => {
+                    output_open = false;
+                    break;
+                }
+            }
+        }
+        if !output_open {
+            break;
         }
         if event::poll(Duration::from_millis(8))
             .map_err(|error| format!("poll terminal input: {error}"))?
         {
             match event::read().map_err(|error| format!("read terminal input: {error}"))? {
                 Event::Key(key) => {
+                    let interrupt = matches!(key.code, KeyCode::Char('c') | KeyCode::Char('C'))
+                        && key.modifiers.contains(KeyModifiers::CONTROL);
                     if !handle_scroll_key(terminal, key, *viewport_rows)? {
                         if let Some(encoded) = encode_key(key_encoder, key)? {
                             writer
@@ -275,6 +317,15 @@ fn interactive_loop(
                                 .write_all(&encoded)
                                 .map_err(|error| format!("write terminal input: {error}"))?;
                         }
+                    }
+                    if interrupt {
+                        let now = Instant::now();
+                        if last_interrupt.is_some_and(|previous| {
+                            now.duration_since(previous) < Duration::from_millis(1500)
+                        }) {
+                            break;
+                        }
+                        last_interrupt = Some(now);
                     }
                 }
                 Event::Paste(text) => {
@@ -295,10 +346,30 @@ fn interactive_loop(
                         .map_err(|error| format!("resize terminal session: {error}"))?;
                     terminal.resize(cols, rows)?;
                     *viewport_rows = rows;
+                    *viewport_cols = cols;
                 }
                 Event::Mouse(mouse) => match mouse.kind {
                     MouseEventKind::ScrollUp => terminal.scroll_delta(-3)?,
                     MouseEventKind::ScrollDown => terminal.scroll_delta(3)?,
+                    MouseEventKind::Down(MouseButton::Left) => {
+                        selection.press(terminal, mouse.column, mouse.row)?;
+                    }
+                    MouseEventKind::Drag(MouseButton::Left) => {
+                        selection.drag(
+                            terminal,
+                            mouse.column,
+                            mouse.row,
+                            *viewport_cols,
+                            *viewport_rows,
+                        )?;
+                    }
+                    MouseEventKind::Up(MouseButton::Left) => {
+                        if let Some(selected) =
+                            selection.release(terminal, mouse.column, mouse.row)?
+                        {
+                            write_clipboard(&mut stdout, &selected)?;
+                        }
+                    }
                     _ => {}
                 },
                 Event::FocusGained | Event::FocusLost => {}
@@ -407,20 +478,27 @@ fn resolve_command(program: &str) -> Result<String, String> {
     Err(format!("command not found on PATH: {program}"))
 }
 
+fn write_clipboard(stdout: &mut impl Write, bytes: &[u8]) -> Result<(), String> {
+    let encoded = BASE64.encode(bytes);
+    stdout
+        .write_all(format!("\x1b]52;c;{encoded}\x07").as_bytes())
+        .map_err(|error| format!("write clipboard selection: {error}"))?;
+    stdout
+        .flush()
+        .map_err(|error| format!("flush clipboard selection: {error}"))
+}
+
 fn handle_scroll_key(
     terminal: &mut GhosttyTerminal,
     key: KeyEvent,
     rows: u16,
 ) -> Result<bool, String> {
-    if !key.modifiers.contains(KeyModifiers::SHIFT) {
-        return Ok(false);
-    }
     let page = (rows as isize).max(1) / 2;
     match key.code {
+        KeyCode::Home => terminal.scroll_top()?,
+        KeyCode::End => terminal.scroll_bottom()?,
         KeyCode::PageUp => terminal.scroll_delta(-page)?,
         KeyCode::PageDown => terminal.scroll_delta(page)?,
-        KeyCode::Up => terminal.scroll_delta(-1)?,
-        KeyCode::Down => terminal.scroll_delta(1)?,
         _ => return Ok(false),
     }
     Ok(true)
