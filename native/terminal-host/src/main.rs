@@ -302,9 +302,8 @@ fn encode_key(encoder: &KeyEncoder, key: KeyEvent) -> Result<Option<Vec<u8>>, St
 }
 
 fn should_exit(key: KeyEvent) -> bool {
-    key.code == KeyCode::Char('q')
+    matches!(key.code, KeyCode::Char('q') | KeyCode::Char('Q'))
         && key.modifiers.contains(KeyModifiers::CONTROL)
-        && key.modifiers.contains(KeyModifiers::SHIFT)
 }
 
 struct TerminalModeGuard;

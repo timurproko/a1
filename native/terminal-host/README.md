@@ -27,10 +27,16 @@ Run only when you choose to test the current terminal manually:
 .\native\terminal-host\target\debug\addone-terminal-host.exe --run
 ```
 
-The initial proof runs `cmd.exe` in one fullscreen pane. Use `Ctrl+Shift+Q` to leave. To choose an exact executable:
+The initial proof runs `cmd.exe` in one fullscreen pane. Use `Ctrl+Q` or `Ctrl+Shift+Q` to leave. To choose an exact executable:
 
 ```powershell
 .\native\terminal-host\target\debug\addone-terminal-host.exe --run -- <executable> [args...]
+```
+
+For a vanilla-Pi proof without changing `npm start`:
+
+```powershell
+npm run proof:terminal-host -- --run -- pi
 ```
 
 Do not automate this command on an active workstation. Physical acceptance must be manual or run on an attested isolated worker.
