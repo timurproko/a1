@@ -108,6 +108,10 @@ fn probe_selection() -> Result<(), String> {
     let mut gesture = SelectionGesture::new(&terminal)?;
     gesture.press(&mut terminal, 0, 0)?;
     gesture.drag(&mut terminal, 5, 0, 20, 4)?;
+    let frame = terminal.frame()?;
+    if !frame.contains("\x1b[48;2;255;255;255m") || !frame.contains("\x1b[38;2;0;0;0m") {
+        return Err("selection probe did not produce the uniform inverted style".to_owned());
+    }
     let selected = gesture.release(&mut terminal, 5, 0)?;
     let selected = selected.ok_or_else(|| "selection probe produced no text".to_owned())?;
     if !selected.windows(5).any(|window| window == b"hello") {

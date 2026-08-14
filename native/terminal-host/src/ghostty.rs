@@ -1082,12 +1082,26 @@ fn cell_style(
         },
         "read cell selection",
     )?;
+    if selected {
+        return Ok(ActiveStyle {
+            fg: Some(CellColor::Rgb(GhosttyColorRgb { r: 0, g: 0, b: 0 })),
+            bg: Some(CellColor::Rgb(GhosttyColorRgb {
+                r: 255,
+                g: 255,
+                b: 255,
+            })),
+            bold: false,
+            italic: false,
+            inverse: false,
+            underline: false,
+        });
+    }
     Ok(ActiveStyle {
         fg,
         bg,
         bold: style.bold,
         italic: style.italic,
-        inverse: style.inverse != selected,
+        inverse: style.inverse,
         underline: style.underline != 0,
     })
 }
