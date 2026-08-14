@@ -29,4 +29,11 @@ The first artifact had one finding: `Ctrl+Shift+Q` did not exit.
 - Added `Shift+PageUp`/`Shift+PageDown` and `Shift+Up`/`Shift+Down` host scrollback.
 - Non-interactive terminal model and PTY cleanup probes pass.
 
-Manual retest should use `npm run proof:terminal-host -- --run -- pi` from the intended shell. No terminal was launched or driven by automation on the active workstation.
+## Theme-preservation artifact
+
+- Artifact SHA-256: `9989373d1ee28ac42bf7a6b1be02d68b92c23b71f14336db493a93d76df48198`
+- Size: 2,238,464 bytes
+- The frame composer now emits the outer terminal's default foreground/background for unstyled cells instead of forcing black.
+- The automated probe asserts the default-background sequence and passes.
+
+Manual retest should verify that PowerShell keeps its blue background and that explicitly colored child output still renders correctly. No terminal was launched or driven by automation on the active workstation.

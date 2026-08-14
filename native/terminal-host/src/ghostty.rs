@@ -233,8 +233,8 @@ unsafe extern "C" {
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 struct ActiveStyle {
-    fg: GhosttyColorRgb,
-    bg: GhosttyColorRgb,
+    fg: Option<GhosttyColorRgb>,
+    bg: Option<GhosttyColorRgb>,
     bold: bool,
     italic: bool,
     inverse: bool,
@@ -599,7 +599,7 @@ pub fn key_for_character(character: char) -> i32 {
 
 fn cell_style(
     cells: GhosttyRenderStateRowCellsRaw,
-    colors: &GhosttyRenderStateColors,
+    _colors: &GhosttyRenderStateColors,
 ) -> Result<ActiveStyle, String> {
     let mut style = GhosttyStyle {
         size: size_of::<GhosttyStyle>(),
@@ -635,13 +635,13 @@ fn cell_style(
         },
         "read cell style",
     )?;
-    let mut fg = colors.foreground;
-    let mut bg = colors.background;
+    let mut explicit_fg = GhosttyColorRgb::default();
+    let mut explicit_bg = GhosttyColorRgb::default();
     let fg_result = unsafe {
         ghostty_render_state_row_cells_get(
             cells,
             CELLS_DATA_FG_COLOR,
-            &mut fg as *mut GhosttyColorRgb as *mut c_void,
+            &mut explicit_fg as *mut GhosttyColorRgb as *mut c_void,
         )
     };
     if fg_result != GHOSTTY_SUCCESS && fg_result != GHOSTTY_INVALID_VALUE {
@@ -651,12 +651,14 @@ fn cell_style(
         ghostty_render_state_row_cells_get(
             cells,
             CELLS_DATA_BG_COLOR,
-            &mut bg as *mut GhosttyColorRgb as *mut c_void,
+            &mut explicit_bg as *mut GhosttyColorRgb as *mut c_void,
         )
     };
     if bg_result != GHOSTTY_SUCCESS && bg_result != GHOSTTY_INVALID_VALUE {
         return Err(format!("read cell background failed with {bg_result}"));
     }
+    let fg = (fg_result == GHOSTTY_SUCCESS).then_some(explicit_fg);
+    let bg = (bg_result == GHOSTTY_SUCCESS).then_some(explicit_bg);
     Ok(ActiveStyle {
         fg,
         bg,
@@ -717,10 +719,16 @@ fn write_style(out: &mut String, style: ActiveStyle) {
     if style.inverse {
         out.push_str("\u{1b}[7m");
     }
-    out.push_str(&format!(
-        "\u{1b}[38;2;{};{};{}m\u{1b}[48;2;{};{};{}m",
-        style.fg.r, style.fg.g, style.fg.b, style.bg.r, style.bg.g, style.bg.b
-    ));
+    if let Some(fg) = style.fg {
+        out.push_str(&format!("\u{1b}[38;2;{};{};{}m", fg.r, fg.g, fg.b));
+    } else {
+        out.push_str("\u{1b}[39m");
+    }
+    if let Some(bg) = style.bg {
+        out.push_str(&format!("\u{1b}[48;2;{};{};{}m", bg.r, bg.g, bg.b));
+    } else {
+        out.push_str("\u{1b}[49m");
+    }
 }
 
 fn trace(step: &str) {

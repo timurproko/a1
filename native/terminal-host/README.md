@@ -29,7 +29,7 @@ Run only when you choose to test the current terminal manually:
 
 The initial proof starts the calling shell in one fullscreen pane when possible: Git Bash from Git Bash, PowerShell from PowerShell, and `cmd.exe` from CMD. Leave by exiting the child normally, usually `exit` or `Ctrl+C` until the process closes. There is no host-owned quit shortcut.
 
-Selection uses the outer terminal's native selection because the proof does not capture the mouse by default. Use `Shift+PageUp` / `Shift+PageDown` for half-page scrollback and `Shift+Up` / `Shift+Down` for one-row scrollback.
+Selection uses the outer terminal's native selection because the proof does not capture the mouse by default. Use `Shift+PageUp` / `Shift+PageDown` for half-page scrollback and `Shift+Up` / `Shift+Down` for one-row scrollback. The host preserves the outer terminal's default background and foreground unless the child explicitly sets colors.
 
 To choose an exact executable:
 

@@ -85,7 +85,10 @@ fn probe() -> Result<(), String> {
     probe_trace("compose frame");
     let frame = terminal.frame()?;
     probe_trace("validate frame");
-    if !frame.contains("AddOne terminal host probe") || !frame.contains("terminal model ready") {
+    if !frame.contains("AddOne terminal host probe")
+        || !frame.contains("terminal model ready")
+        || !frame.contains("\x1b[49m")
+    {
         return Err("terminal model probe did not produce expected frame content".to_owned());
     }
 
