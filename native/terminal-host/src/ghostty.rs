@@ -6,7 +6,6 @@ use std::ptr;
 
 const GHOSTTY_SUCCESS: i32 = 0;
 const GHOSTTY_OUT_OF_SPACE: i32 = -3;
-const GHOSTTY_INVALID_VALUE: i32 = -2;
 
 const RENDER_DATA_DIRTY: i32 = 3;
 const RENDER_DATA_ROW_ITERATOR: i32 = 4;
@@ -19,8 +18,6 @@ const ROW_DATA_DIRTY: i32 = 1;
 const ROW_DATA_CELLS: i32 = 3;
 const ROW_OPTION_DIRTY: i32 = 0;
 const CELLS_DATA_STYLE: i32 = 2;
-const CELLS_DATA_BG_COLOR: i32 = 5;
-const CELLS_DATA_FG_COLOR: i32 = 6;
 const CELLS_DATA_GRAPHEMES_UTF8: i32 = 9;
 
 pub const KEY_UNIDENTIFIED: i32 = 0;
@@ -50,6 +47,8 @@ pub const MOD_SUPER: u16 = 1 << 3;
 const KEY_ACTION_PRESS: i32 = 1;
 const KEY_ACTION_REPEAT: i32 = 2;
 const STYLE_COLOR_NONE: i32 = 0;
+const STYLE_COLOR_PALETTE: i32 = 1;
+const STYLE_COLOR_RGB: i32 = 2;
 
 #[allow(non_camel_case_types)]
 type GhosttyResult = i32;
@@ -232,9 +231,15 @@ unsafe extern "C" {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
+enum CellColor {
+    Palette(u8),
+    Rgb(GhosttyColorRgb),
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
 struct ActiveStyle {
-    fg: Option<GhosttyColorRgb>,
-    bg: Option<GhosttyColorRgb>,
+    fg: Option<CellColor>,
+    bg: Option<CellColor>,
     bold: bool,
     italic: bool,
     inverse: bool,
@@ -635,30 +640,8 @@ fn cell_style(
         },
         "read cell style",
     )?;
-    let mut explicit_fg = GhosttyColorRgb::default();
-    let mut explicit_bg = GhosttyColorRgb::default();
-    let fg_result = unsafe {
-        ghostty_render_state_row_cells_get(
-            cells,
-            CELLS_DATA_FG_COLOR,
-            &mut explicit_fg as *mut GhosttyColorRgb as *mut c_void,
-        )
-    };
-    if fg_result != GHOSTTY_SUCCESS && fg_result != GHOSTTY_INVALID_VALUE {
-        return Err(format!("read cell foreground failed with {fg_result}"));
-    }
-    let bg_result = unsafe {
-        ghostty_render_state_row_cells_get(
-            cells,
-            CELLS_DATA_BG_COLOR,
-            &mut explicit_bg as *mut GhosttyColorRgb as *mut c_void,
-        )
-    };
-    if bg_result != GHOSTTY_SUCCESS && bg_result != GHOSTTY_INVALID_VALUE {
-        return Err(format!("read cell background failed with {bg_result}"));
-    }
-    let fg = (fg_result == GHOSTTY_SUCCESS).then_some(explicit_fg);
-    let bg = (bg_result == GHOSTTY_SUCCESS).then_some(explicit_bg);
+    let fg = style_color(&style.fg_color);
+    let bg = style_color(&style.bg_color);
     Ok(ActiveStyle {
         fg,
         bg,
@@ -667,6 +650,16 @@ fn cell_style(
         inverse: style.inverse,
         underline: style.underline != 0,
     })
+}
+
+fn style_color(color: &GhosttyStyleColor) -> Option<CellColor> {
+    unsafe {
+        match color.tag {
+            STYLE_COLOR_PALETTE => Some(CellColor::Palette(color.value.palette)),
+            STYLE_COLOR_RGB => Some(CellColor::Rgb(color.value.rgb)),
+            _ => None,
+        }
+    }
 }
 
 fn cell_text(cells: GhosttyRenderStateRowCellsRaw) -> Result<String, String> {
@@ -720,14 +713,23 @@ fn write_style(out: &mut String, style: ActiveStyle) {
         out.push_str("\u{1b}[7m");
     }
     if let Some(fg) = style.fg {
-        out.push_str(&format!("\u{1b}[38;2;{};{};{}m", fg.r, fg.g, fg.b));
+        write_color(out, 38, fg);
     } else {
         out.push_str("\u{1b}[39m");
     }
     if let Some(bg) = style.bg {
-        out.push_str(&format!("\u{1b}[48;2;{};{};{}m", bg.r, bg.g, bg.b));
+        write_color(out, 48, bg);
     } else {
         out.push_str("\u{1b}[49m");
+    }
+}
+
+fn write_color(out: &mut String, base: u8, color: CellColor) {
+    match color {
+        CellColor::Palette(index) => out.push_str(&format!("\u{1b}[{base};5;{index}m")),
+        CellColor::Rgb(rgb) => {
+            out.push_str(&format!("\u{1b}[{base};2;{};{};{}m", rgb.r, rgb.g, rgb.b))
+        }
     }
 }
 

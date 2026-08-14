@@ -36,4 +36,11 @@ The first artifact had one finding: `Ctrl+Shift+Q` did not exit.
 - The frame composer now emits the outer terminal's default foreground/background for unstyled cells instead of forcing black.
 - The automated probe asserts the default-background sequence and passes.
 
-Manual retest should verify that PowerShell keeps its blue background and that explicitly colored child output still renders correctly. No terminal was launched or driven by automation on the active workstation.
+## Palette-preservation artifact
+
+- Artifact SHA-256: `203219f0ee79f3086467dccb5479b5749b09f8bac79623f84682545d374ba2f4`
+- Size: 2,238,976 bytes
+- Palette-indexed child colors are emitted as palette indexes (`38;5;n` / `48;5;n`) instead of being converted through Ghostty's default RGB palette.
+- The automated probe asserts default-background and palette-passthrough sequences and passes.
+
+Manual retest should compare vanilla Pi and the terminal-host Pi in the same Git Bash theme. No terminal was launched or driven by automation on the active workstation.
