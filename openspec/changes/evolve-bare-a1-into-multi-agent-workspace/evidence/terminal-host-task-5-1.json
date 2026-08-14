@@ -1,0 +1,55 @@
+{
+  "schema": "addone-terminal-host-task-5-1-v1",
+  "recordedAt": "2026-08-14T11:12:54.158Z",
+  "change": "evolve-bare-a1-into-multi-agent-workspace",
+  "task": "5.1",
+  "hostMode": "console-inside-existing-terminal",
+  "desktopWindowCreated": false,
+  "fullscreenRun": "not-run-user-controlled-only",
+  "toolchain": {
+    "rust": "1.97.1",
+    "cargo": "1.97.1",
+    "zig": "0.15.2",
+    "platform": "win32",
+    "architecture": "x64"
+  },
+  "artifact": {
+    "path": "native/terminal-host/target/debug/addone-terminal-host.exe",
+    "profile": "debug",
+    "sha256": "8d81db199687a9b8f195b4e40cb4b235de3ea00ffeb9cf55f9c64b1b3582cbba",
+    "sizeBytes": 2214912
+  },
+  "source": {
+    "cargoTomlSha256": "3f7f301e88f254d125f8594deff6755aa92255a4345f9f2aa5d1b2e6b62752b5",
+    "cargoLockSha256": "63b5d6e10e9b54282d9f1c3b4042b31d1c456c9c7cacddd22dbe779a26bd1a61",
+    "buildScriptSha256": "6a903738f467db1247293e065af1d66b94463a4445caafaf2cb8bb039d7fb1d5",
+    "mainSha256": "cb6d5e15f0a18badec6a84860958c5334c6c77b1da20c13b50eb449876b76d83",
+    "ghosttyBindingSha256": "820d5a4819cbbb97a4fce2fe46964dd90295baaf82339c2632fbe30eaf465344",
+    "libghosttyVtCommit": "c5a21edfcbc2d5b46540ad91b7980aca31f5f1f3",
+    "libghosttyVtLicenseSha256": "3129de97bc7769d683e52ce02cb4eaecd2b0aab144b09d6325a1b135bdc87cc0",
+    "portablePtyVersion": "0.9.0",
+    "crosstermVersion": "0.29.0"
+  },
+  "commands": [
+    {
+      "command": "cargo clean && npm run test:terminal-host",
+      "result": "passed"
+    },
+    {
+      "command": "addone-terminal-host.exe --version",
+      "result": "passed"
+    },
+    {
+      "command": "addone-terminal-host.exe --probe",
+      "result": "passed",
+      "detail": "created a retained terminal model, composed a frame, started cmd.exe through a PTY, waited for exit, and cleaned up without entering alternate-screen mode"
+    }
+  ],
+  "limitations": [
+    "No fullscreen interactive run was launched by the agent.",
+    "No user input or physical rendering acceptance is claimed.",
+    "One-pane manual terminal validation remains user-controlled.",
+    "Isolated-worker physical automation remains deferred."
+  ],
+  "passed": true
+}

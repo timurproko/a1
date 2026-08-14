@@ -58,7 +58,7 @@ Physical desktop automation is not an ordinary integration test. It requires a s
 
 The repository has one root `package.json`, `package-lock.json`, TypeScript configuration, Vitest configuration, and dependency installation. Nested manifests, lockfiles, `node_modules`, vendored package caches, logs, sessions, browser profiles, generated output, and runtime state are forbidden under production and feature trees.
 
-Build output belongs in ignored `dist/`; release/test evidence belongs in ignored `artifacts/`. Package contents are selected by the root manifest.
+Build output belongs in ignored `dist/`; release/test evidence belongs in ignored `artifacts/`. Package contents are selected by the root manifest. Native proof code lives under `native/terminal-host/`; its Cargo build output and vendored Zig build output are ignored, and it remains a console terminal host rather than a desktop application.
 
 ## Documentation and comments
 

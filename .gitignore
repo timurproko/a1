@@ -168,4 +168,9 @@ $RECYCLE.BIN/
 # Windows shortcuts
 *.lnk
 
+# AddOne terminal host build outputs
+/native/terminal-host/target/
+/native/terminal-host/vendor/**/.zig-cache/
+/native/terminal-host/vendor/**/zig-out/
+
 # End of https://www.toptal.com/developers/gitignore/api/windows,node
