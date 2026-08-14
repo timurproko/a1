@@ -1,19 +1,18 @@
 mod ghostty;
 mod shell;
+mod workspace;
 
+use std::collections::HashSet;
 use std::env;
-use std::io::{Read, Write};
+use std::fs;
+use std::io::Write;
 use std::process::ExitCode;
-use std::sync::mpsc::{self, Receiver, TryRecvError};
-use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as BASE64;
-use crossterm::event::{
-    self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseButton, MouseEventKind,
-};
+use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use crossterm::execute;
 use crossterm::terminal::{
     self, EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
@@ -22,9 +21,10 @@ use crossterm::{
     cursor::{Hide, Show},
     event::{DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture},
 };
-use portable_pty::{Child, CommandBuilder, MasterPty, NativePtySystem, PtySize, PtySystem};
+use portable_pty::{CommandBuilder, NativePtySystem, PtySize, PtySystem};
 
 use crate::ghostty::{GhosttyTerminal, KeyEncoder, SelectionGesture, key_for_character};
+use crate::workspace::{FixedLayout, FixedWorkspace, SessionLaunch};
 
 const ADDONE_PROTOCOL_VERSION: u32 = 1;
 const GHOSTTY_VT_COMMIT: &str = "c5a21edfcbc2d5b46540ad91b7980aca31f5f1f3";
@@ -50,6 +50,15 @@ fn run_from_args(args: Vec<String>) -> Result<(), String> {
         Some("--probe") => probe(),
         Some("--probe-scroll") => probe_scroll(),
         Some("--probe-selection") => probe_selection(),
+        Some("--probe-2x2") => probe_two_by_two(),
+        Some("--topology-2x2") => {
+            println!(
+                "{}",
+                workspace::topology_json(0, workspace::TOPOLOGY_REVISION)
+            );
+            Ok(())
+        }
+        Some("--fixture-pane") if args.len() == 2 => fixture_pane(&args[1]),
         Some("--resolve") if args.len() == 2 => {
             println!("{}", resolve_command(&args[1])?);
             Ok(())
@@ -62,7 +71,7 @@ fn run_from_args(args: Vec<String>) -> Result<(), String> {
         Some("--run") => run_interactive(&args[1..]),
         _ => {
             eprintln!(
-                "usage: addone-terminal-host --version | --probe | --probe-scroll | --probe-selection | --resolve <command> | --resolve-shell | --run [-- <command> [args...]]"
+                "usage: addone-terminal-host --version | --probe | --probe-scroll | --probe-selection | --probe-2x2 | --topology-2x2 | --resolve <command> | --resolve-shell | --run [-- <command> [args...]]"
             );
             Err("expected a mode".to_owned())
         }
@@ -218,6 +227,240 @@ fn probe() -> Result<(), String> {
     Ok(())
 }
 
+fn fixture_pane(argument: &str) -> Result<(), String> {
+    let pane_id = env::var("ADDONE_PANE_ID")
+        .map_err(|_| "fixture pane identity is unavailable".to_owned())?;
+    let session_id = env::var("ADDONE_TERMINAL_SESSION_ID")
+        .map_err(|_| "fixture terminal-session identity is unavailable".to_owned())?;
+    let token =
+        env::var("ADDONE_FIXTURE_TOKEN").map_err(|_| "fixture token is unavailable".to_owned())?;
+    if token != argument {
+        return Err("fixture exact argument did not match its environment".to_owned());
+    }
+    let cwd = env::current_dir()
+        .map_err(|error| format!("read fixture cwd: {error}"))?
+        .to_string_lossy()
+        .into_owned();
+    println!(
+        "ADDONE_FIXTURE|{pane_id}|{session_id}|{token}|{cwd}|pid={}",
+        std::process::id()
+    );
+    std::io::stdout()
+        .flush()
+        .map_err(|error| format!("flush fixture identity: {error}"))?;
+    let expected_input = env::var("ADDONE_FIXTURE_INPUT")
+        .map_err(|_| "fixture input identity is unavailable".to_owned())?;
+    let mut command = String::new();
+    std::io::stdin()
+        .read_line(&mut command)
+        .map_err(|error| format!("read fixture routed input: {error}"))?;
+    if command.trim() != expected_input {
+        return Err(format!(
+            "fixture received cross-routed input: expected {expected_input}, received {}",
+            command.trim()
+        ));
+    }
+    println!("ADDONE_INPUT_ACK|{pane_id}|{expected_input}");
+    std::io::stdout()
+        .flush()
+        .map_err(|error| format!("flush fixture input acknowledgement: {error}"))?;
+    command.clear();
+    std::io::stdin()
+        .read_line(&mut command)
+        .map_err(|error| format!("read fixture cleanup command: {error}"))?;
+    if command.trim() != "exit" {
+        return Err("fixture received an unexpected cleanup command".to_owned());
+    }
+    Ok(())
+}
+
+fn probe_two_by_two() -> Result<(), String> {
+    let executable =
+        env::current_exe().map_err(|error| format!("resolve 2x2 probe executable: {error}"))?;
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|error| format!("read 2x2 probe clock: {error}"))?
+        .as_nanos();
+    let root = env::temp_dir().join(format!(
+        "addone-terminal-host-2x2-{}-{nonce}",
+        std::process::id()
+    ));
+    fs::create_dir_all(&root)
+        .map_err(|error| format!("create 2x2 probe root {}: {error}", root.display()))?;
+
+    let result = (|| {
+        for index in 0..4 {
+            let cwd = root.join(format!("pane-{}", index + 1));
+            fs::create_dir_all(&cwd).map_err(|error| {
+                format!("create isolated 2x2 fixture cwd {}: {error}", cwd.display())
+            })?;
+        }
+        let launches: [SessionLaunch; 4] = std::array::from_fn(|index| {
+            let cwd = root.join(format!("pane-{}", index + 1));
+            let token = format!("exact-argument-{}", index + 1);
+            SessionLaunch {
+                program: executable.to_string_lossy().into_owned(),
+                arguments: vec!["--fixture-pane".to_owned(), token.clone()],
+                cwd: Some(cwd),
+                environment: vec![
+                    ("ADDONE_FIXTURE_TOKEN".to_owned(), token),
+                    (
+                        "ADDONE_FIXTURE_INPUT".to_owned(),
+                        format!("focused-input-{}", index + 1),
+                    ),
+                ],
+            }
+        });
+        let mut expected = std::array::from_fn::<String, 4, _>(|index| {
+            format!(
+                "ADDONE_FIXTURE|pane-{}|session-{}|exact-argument-{}|{}|pid=",
+                index + 1,
+                index + 1,
+                index + 1,
+                root.join(format!("pane-{}", index + 1)).to_string_lossy()
+            )
+        });
+        if cfg!(windows) {
+            for marker in &mut expected {
+                *marker = marker.to_ascii_lowercase();
+            }
+        }
+
+        let mut workspace = FixedWorkspace::spawn(80, 24, launches)?;
+        let topology = workspace.topology_json();
+        if !topology.contains("\"revision\":1")
+            || (1..=4).any(|index| {
+                !topology.contains(&format!("\"id\":\"pane-{index}\""))
+                    || !topology.contains(&format!("\"sessionId\":\"session-{index}\""))
+            })
+        {
+            return Err("2x2 topology does not contain four durable mappings".to_owned());
+        }
+
+        let process_ids = workspace.process_ids();
+        let unique_processes: HashSet<u32> = process_ids.into_iter().flatten().collect();
+        if unique_processes.len() != 4 {
+            return Err(format!(
+                "2x2 probe expected four independent process identities, received {process_ids:?}"
+            ));
+        }
+
+        let mut transcripts: [Vec<u8>; 4] = std::array::from_fn(|_| Vec::new());
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            let output = workspace.drain_all();
+            for (transcript, bytes) in transcripts.iter_mut().zip(output) {
+                transcript.extend(bytes);
+            }
+            workspace.inspect_all()?;
+            let observed_all = transcripts.iter().enumerate().all(|(index, bytes)| {
+                let text = String::from_utf8_lossy(bytes);
+                let comparable = if cfg!(windows) {
+                    text.to_ascii_lowercase()
+                } else {
+                    text.into_owned()
+                };
+                comparable.contains(&expected[index])
+            });
+            if observed_all {
+                break;
+            }
+            if Instant::now() >= deadline {
+                return Err(format!(
+                    "2x2 exact-command/environment/cwd probe timed out: {transcripts:?}"
+                ));
+            }
+            thread::sleep(Duration::from_millis(10));
+        }
+
+        for index in 0..4 {
+            workspace.focus(index)?;
+            workspace.write_to_focused(format!("focused-input-{}\r\n", index + 1).as_bytes())?;
+        }
+        let focused_topology = workspace.topology_json();
+        if !focused_topology.contains("\"revision\":4")
+            || !focused_topology.contains("\"focusedPaneId\":\"pane-4\"")
+        {
+            return Err("focused-pane topology did not advance atomically".to_owned());
+        }
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            let output = workspace.drain_all();
+            for (transcript, bytes) in transcripts.iter_mut().zip(output) {
+                transcript.extend(bytes);
+            }
+            workspace.inspect_all()?;
+            let isolated = transcripts.iter().enumerate().all(|(index, bytes)| {
+                let text = String::from_utf8_lossy(bytes);
+                let own = format!(
+                    "ADDONE_INPUT_ACK|pane-{}|focused-input-{}",
+                    index + 1,
+                    index + 1
+                );
+                text.contains(&own)
+                    && (0..4).filter(|other| *other != index).all(|other| {
+                        !text.contains(&format!(
+                            "ADDONE_INPUT_ACK|pane-{}|focused-input-{}",
+                            index + 1,
+                            other + 1
+                        ))
+                    })
+            });
+            if isolated {
+                break;
+            }
+            if Instant::now() >= deadline {
+                return Err(format!(
+                    "2x2 focused-input isolation probe timed out: {transcripts:?}"
+                ));
+            }
+            thread::sleep(Duration::from_millis(10));
+        }
+
+        workspace.resize(100, 30)?;
+        let expected_layout = FixedLayout::new(100, 30)?;
+        for (index, size) in workspace.pty_sizes()?.iter().enumerate() {
+            let rect = expected_layout.panes[index];
+            if size.cols != rect.columns || size.rows != rect.rows {
+                return Err(format!(
+                    "{} PTY resize mismatch: expected {}x{}, received {}x{}",
+                    index + 1,
+                    rect.columns,
+                    rect.rows,
+                    size.cols,
+                    size.rows
+                ));
+            }
+        }
+
+        for index in 0..4 {
+            workspace.write_to_pane(index, b"exit\r\n")?;
+        }
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while !workspace.all_finished() {
+            workspace.drain_all();
+            workspace.inspect_all()?;
+            if Instant::now() >= deadline {
+                return Err("2x2 independent-process cleanup timed out".to_owned());
+            }
+            thread::sleep(Duration::from_millis(10));
+        }
+        workspace.shutdown();
+        println!("{topology}");
+        println!(
+            "{{\"probe\":\"2x2-passed\",\"topologyRevision\":1,\"panes\":4,\"sessions\":4,\"independentProcesses\":4,\"exactCommand\":true,\"environment\":true,\"cwd\":true,\"focusedInputIsolation\":true,\"resize\":true,\"cleanup\":true}}"
+        );
+        Ok(())
+    })();
+    let cleanup = fs::remove_dir_all(&root);
+    if let Err(error) = cleanup
+        && result.is_ok()
+    {
+        return Err(format!("remove 2x2 probe root {}: {error}", root.display()));
+    }
+    result
+}
+
 fn run_interactive(arguments: &[String]) -> Result<(), String> {
     let (program, command_args) = if arguments.first().is_some_and(|value| value == "--") {
         let values = &arguments[1..];
@@ -229,195 +472,12 @@ fn run_interactive(arguments: &[String]) -> Result<(), String> {
         shell::default_shell()
     };
     let program = resolve_command(&program)?;
-
-    let (cols, rows) = terminal::size().map_err(|error| format!("read terminal size: {error}"))?;
+    let (columns, rows) =
+        terminal::size().map_err(|error| format!("read terminal size: {error}"))?;
+    let launches = SessionLaunch::repeated(program, command_args);
+    let mut workspace = FixedWorkspace::spawn(columns, rows, launches)?;
     let _guard = TerminalModeGuard::enter()?;
-    let mut terminal = GhosttyTerminal::new(cols, rows)?;
-    let key_encoder = KeyEncoder::new(&terminal)?;
-    let mut selection = SelectionGesture::new(&terminal)?;
-
-    let pty_system = NativePtySystem::default();
-    let pair = pty_system
-        .openpty(PtySize {
-            rows,
-            cols,
-            pixel_width: 0,
-            pixel_height: 0,
-        })
-        .map_err(|error| format!("open terminal session: {error}"))?;
-    let mut command = CommandBuilder::new(program);
-    command.args(command_args);
-    let mut child = pair
-        .slave
-        .spawn_command(command)
-        .map_err(|error| format!("start terminal session: {error}"))?;
-    drop(pair.slave);
-
-    let mut reader = pair
-        .master
-        .try_clone_reader()
-        .map_err(|error| format!("clone terminal session reader: {error}"))?;
-    let writer =
-        Arc::new(Mutex::new(pair.master.take_writer().map_err(|error| {
-            format!("take terminal session writer: {error}")
-        })?));
-    let (output_sender, output_receiver) = mpsc::channel::<Vec<u8>>();
-    let output_thread = thread::spawn(move || {
-        let mut buffer = [0u8; 16 * 1024];
-        loop {
-            match reader.read(&mut buffer) {
-                Ok(0) | Err(_) => break,
-                Ok(count) => {
-                    if output_sender.send(buffer[..count].to_vec()).is_err() {
-                        break;
-                    }
-                }
-            }
-        }
-    });
-
-    let mut viewport_rows = rows;
-    let mut viewport_cols = cols;
-    let result = interactive_loop(
-        &mut terminal,
-        &key_encoder,
-        pair.master.as_ref(),
-        &writer,
-        output_receiver,
-        child.as_mut(),
-        &mut viewport_rows,
-        &mut viewport_cols,
-        &mut selection,
-    );
-    if child
-        .try_wait()
-        .map_err(|error| format!("inspect terminal session: {error}"))?
-        .is_none()
-    {
-        let _ = child.kill();
-        let _ = child.wait();
-    }
-    drop(writer);
-    let _ = output_thread.join();
-    result
-}
-
-fn interactive_loop(
-    terminal: &mut GhosttyTerminal,
-    key_encoder: &KeyEncoder,
-    master: &dyn MasterPty,
-    writer: &Arc<Mutex<Box<dyn Write + Send>>>,
-    output: Receiver<Vec<u8>>,
-    child: &mut dyn Child,
-    viewport_rows: &mut u16,
-    viewport_cols: &mut u16,
-    selection: &mut SelectionGesture,
-) -> Result<(), String> {
-    let mut stdout = std::io::stdout().lock();
-    let mut output_open = true;
-    let mut selection_active = false;
-    loop {
-        loop {
-            match output.try_recv() {
-                Ok(bytes) => terminal.write(&bytes),
-                Err(TryRecvError::Empty) => break,
-                Err(TryRecvError::Disconnected) => {
-                    output_open = false;
-                    break;
-                }
-            }
-        }
-        if !output_open {
-            break;
-        }
-        if event::poll(Duration::from_millis(8))
-            .map_err(|error| format!("poll terminal input: {error}"))?
-        {
-            match event::read().map_err(|error| format!("read terminal input: {error}"))? {
-                Event::Key(key) => {
-                    let clear_selection = selection_active
-                        && matches!(key.code, KeyCode::Char('c') | KeyCode::Char('C'))
-                        && key.modifiers.contains(KeyModifiers::CONTROL);
-                    if clear_selection {
-                        selection.clear(terminal)?;
-                        selection_active = false;
-                    } else if let Some(encoded) = encode_key(key_encoder, key)? {
-                        writer
-                            .lock()
-                            .map_err(|_| "terminal session writer lock poisoned".to_owned())?
-                            .write_all(&encoded)
-                            .map_err(|error| format!("write terminal input: {error}"))?;
-                    }
-                }
-                Event::Paste(text) => {
-                    writer
-                        .lock()
-                        .map_err(|_| "terminal session writer lock poisoned".to_owned())?
-                        .write_all(text.as_bytes())
-                        .map_err(|error| format!("write paste input: {error}"))?;
-                }
-                Event::Resize(cols, rows) => {
-                    master
-                        .resize(PtySize {
-                            rows,
-                            cols,
-                            pixel_width: 0,
-                            pixel_height: 0,
-                        })
-                        .map_err(|error| format!("resize terminal session: {error}"))?;
-                    terminal.resize(cols, rows)?;
-                    *viewport_rows = rows;
-                    *viewport_cols = cols;
-                }
-                Event::Mouse(mouse) => match mouse.kind {
-                    MouseEventKind::ScrollUp => terminal.scroll_delta(-3)?,
-                    MouseEventKind::ScrollDown => terminal.scroll_delta(3)?,
-                    MouseEventKind::Down(MouseButton::Left) => {
-                        selection_active = selection.press(terminal, mouse.column, mouse.row)?;
-                    }
-                    MouseEventKind::Drag(MouseButton::Left) => {
-                        selection.drag(
-                            terminal,
-                            mouse.column,
-                            mouse.row,
-                            *viewport_cols,
-                            *viewport_rows,
-                        )?;
-                        selection_active = true;
-                    }
-                    MouseEventKind::Up(MouseButton::Left) => {
-                        if let Some(selected) =
-                            selection.release(terminal, mouse.column, mouse.row)?
-                        {
-                            selection_active = true;
-                            write_clipboard(&mut stdout, &selected)?;
-                        } else {
-                            selection_active = false;
-                        }
-                    }
-                    _ => {}
-                },
-                Event::FocusGained | Event::FocusLost => {}
-            }
-        }
-        if child
-            .try_wait()
-            .map_err(|error| format!("inspect terminal session: {error}"))?
-            .is_some()
-        {
-            break;
-        }
-        let frame = terminal.frame()?;
-        if !frame.is_empty() {
-            stdout
-                .write_all(frame.as_bytes())
-                .map_err(|error| format!("write terminal frame: {error}"))?;
-            stdout
-                .flush()
-                .map_err(|error| format!("flush terminal frame: {error}"))?;
-        }
-    }
-    Ok(())
+    workspace.run_interactive()
 }
 
 fn encode_key(encoder: &KeyEncoder, key: KeyEvent) -> Result<Option<Vec<u8>>, String> {

@@ -17,7 +17,7 @@ From the repository root, with Rust and Zig 0.15.2 available:
 npm run test:terminal-host
 ```
 
-The probe builds the host, creates a retained terminal model, starts and cleans up a PTY process, and exits. It does not enter alternate-screen mode.
+The non-interactive gate runs Rust layout/topology tests, the original retained-model/one-PTY probe, and a four-PTY integration probe. The 2×2 probe verifies durable pane/session mappings, exact argv, per-pane environment and cwd, distinct process identities, focused-input isolation, all-pane resize, and cleanup. It does not enter alternate-screen mode.
 
 ## Manual fullscreen proof
 
@@ -27,16 +27,22 @@ Run only when you choose to test the current terminal manually:
 .\native\terminal-host\target\debug\addone-terminal-host.exe --run
 ```
 
-The initial proof starts the calling shell in one fullscreen pane when possible: Git Bash from Git Bash, PowerShell from PowerShell, and `cmd.exe` from CMD. Leave by exiting the child normally, usually `exit` or `Ctrl+C` until the process closes. There is no host-owned quit shortcut.
+The proof opens one tab with four independent sessions in a fixed revisioned 2×2 split. Each pane starts the calling shell when possible: Git Bash from Git Bash, PowerShell from PowerShell, and `cmd.exe` from CMD. `Alt+1` through `Alt+4` focus a pane; clicking inside a pane also focuses it. Keyboard and paste input route only to the focused pane. `Ctrl+Shift+Q` cleanly shuts down the host and all four owned process trees.
 
-Mouse wheel scrolling is captured by the host and scrolls the retained terminal viewport. Plain left-drag selects terminal text with one uniform white inverted style and copies it through the outer terminal's OSC 52 clipboard support. Double-click selects a word, and triple-click selects a line. Ctrl+C clears an active host selection before it reaches the child; without selection, interrupt keys remain child-owned. Other keyboard scroll/navigation is not rebound by the host. The host preserves the outer terminal's default background and foreground unless the child explicitly sets colors.
+Mouse wheel scrolling and left-button selection route only to the pane under the pointer, with pane-relative coordinates. Plain left-drag selects terminal text with one uniform white inverted style and copies it through the outer terminal's OSC 52 clipboard support. Double-click selects a word, and triple-click selects a line. Ctrl+C clears an active selection in the focused pane before it reaches that child; without selection, interrupt keys remain child-owned. Other keyboard scroll/navigation is not rebound by the host. Each pane owns independent retained state, dimensions, selection, render damage, PTY, and cleanup. The host preserves the outer terminal's default background and foreground unless a child explicitly sets colors.
 
-The host exits when the child exits or the PTY closes. Ctrl+C is always child-owned; the host does not count interrupts or force a quit from keyboard input.
+The host exits when all four children exit or when `Ctrl+Shift+Q` requests host cleanup. Ctrl+C remains child-owned except when clearing an active selection.
 
-To choose an exact executable:
+To launch the same exact executable and argument vector independently in all four panes:
 
 ```powershell
 .\native\terminal-host\target\debug\addone-terminal-host.exe --run -- <executable> [args...]
+```
+
+To inspect the fixed durable topology without opening an interactive surface:
+
+```powershell
+.\native\terminal-host\target\debug\addone-terminal-host.exe --topology-2x2
 ```
 
 For a vanilla-Pi proof without changing `npm start`:

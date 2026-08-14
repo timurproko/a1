@@ -569,6 +569,15 @@ impl GhosttyTerminal {
     }
 
     pub fn frame(&mut self) -> Result<String, String> {
+        self.frame_at(0, 0, true)
+    }
+
+    pub fn frame_at(
+        &mut self,
+        origin_column: u16,
+        origin_row: u16,
+        present_cursor: bool,
+    ) -> Result<String, String> {
         trace("render update");
         check(
             unsafe { ghostty_render_state_update(self.render, self.raw) },
@@ -624,7 +633,14 @@ impl GhosttyTerminal {
             return Err(error);
         }
         trace("compose frame");
-        let frame = self.compose_frame(row_iterator, cells, colors);
+        let frame = self.compose_frame(
+            row_iterator,
+            cells,
+            colors,
+            origin_column,
+            origin_row,
+            present_cursor,
+        );
         unsafe {
             ghostty_render_state_row_cells_free(cells);
             ghostty_render_state_row_iterator_free(row_iterator);
@@ -637,6 +653,9 @@ impl GhosttyTerminal {
         row_iterator: GhosttyRenderStateRowIteratorRaw,
         mut cells: GhosttyRenderStateRowCellsRaw,
         colors: GhosttyRenderStateColors,
+        origin_column: u16,
+        origin_row: u16,
+        present_cursor: bool,
     ) -> Result<String, String> {
         let mut out = String::from("\u{1b}[?2026h");
         let mut active: Option<ActiveStyle> = None;
@@ -655,7 +674,11 @@ impl GhosttyTerminal {
                 "read row dirty state",
             )?;
             if dirty {
-                out.push_str(&format!("\u{1b}[{};1H\u{1b}[2K", row_index + 1));
+                out.push_str(&format!(
+                    "\u{1b}[{};{}H",
+                    usize::from(origin_row) + row_index + 1,
+                    origin_column + 1
+                ));
                 trace("row cells");
                 check(
                     unsafe {
@@ -693,6 +716,25 @@ impl GhosttyTerminal {
         if active.is_some() {
             out.push_str("\u{1b}[0m");
         }
+        if present_cursor {
+            out.push_str(&self.cursor_frame_at(origin_column, origin_row)?);
+        }
+        out.push_str("\u{1b}[?2026l");
+        let clean = 0i32;
+        check(
+            unsafe {
+                ghostty_render_state_set(
+                    self.render,
+                    RENDER_OPTION_DIRTY,
+                    &clean as *const i32 as *const c_void,
+                )
+            },
+            "clear render dirty state",
+        )?;
+        Ok(out)
+    }
+
+    pub fn cursor_frame_at(&self, origin_column: u16, origin_row: u16) -> Result<String, String> {
         let mut cursor_visible = false;
         check(
             unsafe {
@@ -715,46 +757,36 @@ impl GhosttyTerminal {
             },
             "read cursor position presence",
         )?;
-        if cursor_visible && cursor_has_position {
-            let mut x = 0u16;
-            let mut y = 0u16;
-            check(
-                unsafe {
-                    ghostty_render_state_get(
-                        self.render,
-                        RENDER_DATA_CURSOR_X,
-                        &mut x as *mut u16 as *mut c_void,
-                    )
-                },
-                "read cursor x",
-            )?;
-            check(
-                unsafe {
-                    ghostty_render_state_get(
-                        self.render,
-                        RENDER_DATA_CURSOR_Y,
-                        &mut y as *mut u16 as *mut c_void,
-                    )
-                },
-                "read cursor y",
-            )?;
-            out.push_str(&format!("\u{1b}[{};{}H\u{1b}[?25h", y + 1, x + 1));
-        } else {
-            out.push_str("\u{1b}[?25l");
+        if !cursor_visible || !cursor_has_position {
+            return Ok("\u{1b}[?25l".to_owned());
         }
-        out.push_str("\u{1b}[?2026l");
-        let clean = 0i32;
+        let mut x = 0u16;
+        let mut y = 0u16;
         check(
             unsafe {
-                ghostty_render_state_set(
+                ghostty_render_state_get(
                     self.render,
-                    RENDER_OPTION_DIRTY,
-                    &clean as *const i32 as *const c_void,
+                    RENDER_DATA_CURSOR_X,
+                    &mut x as *mut u16 as *mut c_void,
                 )
             },
-            "clear render dirty state",
+            "read cursor x",
         )?;
-        Ok(out)
+        check(
+            unsafe {
+                ghostty_render_state_get(
+                    self.render,
+                    RENDER_DATA_CURSOR_Y,
+                    &mut y as *mut u16 as *mut c_void,
+                )
+            },
+            "read cursor y",
+        )?;
+        Ok(format!(
+            "\u{1b}[{};{}H\u{1b}[?25h",
+            origin_row + y + 1,
+            origin_column + x + 1
+        ))
     }
 
     fn colors(&self) -> Result<GhosttyRenderStateColors, String> {
