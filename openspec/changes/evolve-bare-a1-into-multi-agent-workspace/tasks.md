@@ -29,7 +29,7 @@
 - [x] 4.2 Define a minimal versioned local proof protocol for host handshake/build identity, durable IDs, fixed 2×2 creation, exact argv/cwd/environment launch, focus, topology snapshot, process exit, shutdown, diagnostics, and bounded failure outcomes; pass codec, version, size, timeout, stale-revision, and malformed-message tests.
 - [x] 4.3 Add executable architecture checks proving pseudoterminal bytes, per-event child input, and rendered cells cannot enter AddOne's Node protocol and proving `a1 pi` and `a1 sandbox` cannot import, initialize, launch, or connect to the native host.
 - [x] 4.4 Define objective Windows spike workloads and evidence schema for four concurrent sessions, input routing, Unicode/cursor/modes, alternate screen, paste, mouse, IME, live resize, DPI, high-rate output, abnormal exits, host cleanup, latency observations, paint diagnostics, and CPU/GPU/memory observations; validate the evidence schema with incomplete and contradictory fixtures.
-- [ ] 4.5 Define the proof's stop/go policy and acceptance record: technical gates plus exact-artifact user-controlled manual or isolated-worker physical verdict are mandatory, failed criteria cannot be waived for merge, and structured work remains independently usable; pass repository policy tests.
+- [x] 4.5 Define the proof's stop/go policy and acceptance record: technical gates plus exact-artifact user-controlled manual or isolated-worker physical verdict are mandatory, failed criteria cannot be waived for merge, and structured work remains independently usable; pass repository policy tests.
 
 ## 5. Implement the Isolated Windows 2×2 Spike
 

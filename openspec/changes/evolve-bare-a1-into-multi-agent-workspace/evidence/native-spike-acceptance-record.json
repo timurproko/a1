@@ -1,0 +1,17 @@
+{
+  "schema": "addone-native-spike-acceptance-record-v1",
+  "recordedAt": "2026-08-14T06:35:00.000Z",
+  "change": "evolve-bare-a1-into-multi-agent-workspace",
+  "artifact": null,
+  "technicalVerdict": "pending",
+  "physicalVerdict": "pending",
+  "physicalMethod": "not-run",
+  "decision": "pending",
+  "integrationAllowed": false,
+  "milestoneMergeAllowedForComposedTerminal": false,
+  "waivers": [],
+  "waiverPolicy": "no-waivers-after-evidence",
+  "structuredWorkIndependent": true,
+  "transparentModesIndependent": true,
+  "notes": "Acceptance is pending the isolated Windows 2x2 spike artifact and a manual or isolated-worker physical verdict."
+}
