@@ -3,6 +3,7 @@
 use std::ffi::{c_char, c_void};
 use std::mem::size_of;
 use std::ptr;
+use std::time::Instant;
 
 const GHOSTTY_SUCCESS: i32 = 0;
 const GHOSTTY_OUT_OF_SPACE: i32 = -3;
@@ -129,6 +130,13 @@ struct GhosttySelectionGestureGeometry {
     cell_width: u32,
     padding_left: u32,
     screen_height: u32,
+}
+
+#[repr(C)]
+struct GhosttySelectionGestureBehaviors {
+    single_click: i32,
+    double_click: i32,
+    triple_click: i32,
 }
 
 #[repr(C)]
@@ -778,6 +786,7 @@ impl Drop for GhosttyTerminal {
 pub struct SelectionGesture {
     raw: GhosttySelectionGestureRaw,
     terminal: GhosttyTerminalRaw,
+    started: Instant,
 }
 
 impl SelectionGesture {
@@ -790,23 +799,37 @@ impl SelectionGesture {
         Ok(Self {
             raw,
             terminal: terminal.raw,
+            started: Instant::now(),
         })
     }
 
-    pub fn press(&mut self, terminal: &mut GhosttyTerminal, x: u16, y: u16) -> Result<(), String> {
+    pub fn press(
+        &mut self,
+        terminal: &mut GhosttyTerminal,
+        x: u16,
+        y: u16,
+    ) -> Result<bool, String> {
         terminal.clear_selection()?;
         let event = self.event(0)?;
         let reference = terminal.grid_ref(x, y)?;
         self.set_reference(event, &reference)?;
         self.set_position(event, x, y)?;
+        self.set_press_options(event)?;
+        let mut selection = empty_selection();
         let result = unsafe {
-            ghostty_selection_gesture_event(self.raw, terminal.raw, event, ptr::null_mut())
+            ghostty_selection_gesture_event(self.raw, terminal.raw, event, &mut selection)
         };
         unsafe { ghostty_selection_gesture_event_free(event) };
-        if result != GHOSTTY_SUCCESS && result != GHOSTTY_NO_VALUE {
-            return Err(format!("apply selection press failed with {result}"));
+        if result == GHOSTTY_NO_VALUE {
+            return Ok(false);
         }
-        Ok(())
+        check(result, "apply selection press")?;
+        terminal.install_selection(&selection)?;
+        Ok(true)
+    }
+
+    pub fn clear(&mut self, terminal: &mut GhosttyTerminal) -> Result<(), String> {
+        terminal.clear_selection()
     }
 
     pub fn drag(
@@ -875,6 +898,57 @@ impl SelectionGesture {
             "create selection event",
         )?;
         Ok(event)
+    }
+
+    fn set_press_options(&self, event: GhosttySelectionGestureEventRaw) -> Result<(), String> {
+        let repeat_distance = 2.0f64;
+        check(
+            unsafe {
+                ghostty_selection_gesture_event_set(
+                    event,
+                    2,
+                    &repeat_distance as *const f64 as *const c_void,
+                )
+            },
+            "set selection repeat distance",
+        )?;
+        let time_ns = self.started.elapsed().as_nanos() as u64;
+        check(
+            unsafe {
+                ghostty_selection_gesture_event_set(
+                    event,
+                    3,
+                    &time_ns as *const u64 as *const c_void,
+                )
+            },
+            "set selection time",
+        )?;
+        let repeat_interval_ns = 500_000_000u64;
+        check(
+            unsafe {
+                ghostty_selection_gesture_event_set(
+                    event,
+                    4,
+                    &repeat_interval_ns as *const u64 as *const c_void,
+                )
+            },
+            "set selection repeat interval",
+        )?;
+        let behaviors = GhosttySelectionGestureBehaviors {
+            single_click: 0,
+            double_click: 1,
+            triple_click: 2,
+        };
+        check(
+            unsafe {
+                ghostty_selection_gesture_event_set(
+                    event,
+                    6,
+                    &behaviors as *const GhosttySelectionGestureBehaviors as *const c_void,
+                )
+            },
+            "set selection click behaviors",
+        )
     }
 
     fn set_reference(

@@ -120,6 +120,30 @@ fn probe_selection() -> Result<(), String> {
             selected
         ));
     }
+    let mut clicks = SelectionGesture::new(&terminal)?;
+    if clicks.press(&mut terminal, 6, 0)? {
+        return Err("single click unexpectedly produced a selection".to_owned());
+    }
+    if !clicks.press(&mut terminal, 6, 0)? {
+        return Err("double click did not select a word".to_owned());
+    }
+    let word = clicks
+        .release(&mut terminal, 6, 0)?
+        .ok_or_else(|| "double click produced no selection text".to_owned())?;
+    if !word.windows(5).any(|window| window == b"world") {
+        return Err(format!("double click selected unexpected text: {:?}", word));
+    }
+    if !clicks.press(&mut terminal, 6, 0)? {
+        return Err("triple click did not select a line".to_owned());
+    }
+    let line = clicks
+        .release(&mut terminal, 6, 0)?
+        .ok_or_else(|| "triple click produced no selection text".to_owned())?;
+    if !line.windows(5).any(|window| window == b"hello")
+        || !line.windows(5).any(|window| window == b"world")
+    {
+        return Err(format!("triple click selected unexpected text: {:?}", line));
+    }
     println!("{{\"probe\":\"selection-passed\"}}");
     Ok(())
 }
@@ -291,6 +315,7 @@ fn interactive_loop(
 ) -> Result<(), String> {
     let mut stdout = std::io::stdout().lock();
     let mut output_open = true;
+    let mut selection_active = false;
     loop {
         loop {
             match output.try_recv() {
@@ -310,7 +335,13 @@ fn interactive_loop(
         {
             match event::read().map_err(|error| format!("read terminal input: {error}"))? {
                 Event::Key(key) => {
-                    if let Some(encoded) = encode_key(key_encoder, key)? {
+                    let clear_selection = selection_active
+                        && matches!(key.code, KeyCode::Char('c') | KeyCode::Char('C'))
+                        && key.modifiers.contains(KeyModifiers::CONTROL);
+                    if clear_selection {
+                        selection.clear(terminal)?;
+                        selection_active = false;
+                    } else if let Some(encoded) = encode_key(key_encoder, key)? {
                         writer
                             .lock()
                             .map_err(|_| "terminal session writer lock poisoned".to_owned())?
@@ -342,7 +373,7 @@ fn interactive_loop(
                     MouseEventKind::ScrollUp => terminal.scroll_delta(-3)?,
                     MouseEventKind::ScrollDown => terminal.scroll_delta(3)?,
                     MouseEventKind::Down(MouseButton::Left) => {
-                        selection.press(terminal, mouse.column, mouse.row)?;
+                        selection_active = selection.press(terminal, mouse.column, mouse.row)?;
                     }
                     MouseEventKind::Drag(MouseButton::Left) => {
                         selection.drag(
@@ -352,12 +383,16 @@ fn interactive_loop(
                             *viewport_cols,
                             *viewport_rows,
                         )?;
+                        selection_active = true;
                     }
                     MouseEventKind::Up(MouseButton::Left) => {
                         if let Some(selected) =
                             selection.release(terminal, mouse.column, mouse.row)?
                         {
+                            selection_active = true;
                             write_clipboard(&mut stdout, &selected)?;
+                        } else {
+                            selection_active = false;
                         }
                     }
                     _ => {}

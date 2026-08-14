@@ -54,12 +54,13 @@ The first artifact had one finding: `Ctrl+Shift+Q` did not exit.
 
 ## Selection and exit artifact
 
-- Artifact SHA-256: `026e9695be2da378b362fb398b0b79869c72ea7c53aada6726e1fbfe8c1c2f39`
-- Size: 2,262,016 bytes
+- Artifact SHA-256: `fc6d9d1ecbaae4718b850a42b5e6868758d1f4c8c8e1a7645237115d1f1d883c`
+- Size: 2,266,624 bytes
 - Plain left-drag selects terminal content with one uniform white background and black foreground; release emits an OSC 52 clipboard write.
+- Double-click selects a word; triple-click selects a line.
+- Ctrl+C clears an active host selection before reaching the child; without selection, interrupt keys remain child-owned.
 - Mouse wheel scrolls the retained viewport. Home, End, PageUp, PageDown, and arrow keys remain child-owned; no host keyboard scroll binding is active.
 - PTY output-channel closure exits the host when the child session ends.
-- Ctrl+C is always child-owned; the host does not count interrupt keys or force-close from keyboard input.
 - Non-interactive probes pass for terminal rendering, scrollback, selection, and PTY cleanup.
 
-Manual retest should verify plain drag selection, mouse wheel, Home/End, and repeated Ctrl+C recovery. No terminal was launched or driven by automation on the active workstation.
+Manual retest should verify plain drag selection, double/triple click, mouse wheel, and Ctrl+C selection clearing. No terminal was launched or driven by automation on the active workstation.
