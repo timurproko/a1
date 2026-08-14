@@ -68,6 +68,19 @@ struct GhosttyTerminalOptions {
 }
 
 #[repr(C)]
+union GhosttyTerminalScrollViewportValue {
+    delta: isize,
+    row: usize,
+    _padding: [u64; 2],
+}
+
+#[repr(C)]
+struct GhosttyTerminalScrollViewport {
+    tag: i32,
+    value: GhosttyTerminalScrollViewportValue,
+}
+
+#[repr(C)]
 struct GhosttyBuffer {
     ptr: *mut u8,
     cap: usize,
@@ -137,6 +150,10 @@ unsafe extern "C" {
         cell_height_px: u32,
     ) -> GhosttyResult;
     fn ghostty_terminal_vt_write(terminal: GhosttyTerminalRaw, data: *const u8, len: usize);
+    fn ghostty_terminal_scroll_viewport(
+        terminal: GhosttyTerminalRaw,
+        behavior: GhosttyTerminalScrollViewport,
+    );
     fn ghostty_render_state_new(
         allocator: *const c_void,
         state: *mut GhosttyRenderStateRaw,
@@ -262,6 +279,18 @@ impl GhosttyTerminal {
             unsafe { ghostty_terminal_resize(self.raw, cols, rows, 0, 0) },
             "resize terminal",
         )
+    }
+
+    pub fn scroll_delta(&mut self, rows: isize) {
+        unsafe {
+            ghostty_terminal_scroll_viewport(
+                self.raw,
+                GhosttyTerminalScrollViewport {
+                    tag: 2,
+                    value: GhosttyTerminalScrollViewportValue { delta: rows },
+                },
+            );
+        }
     }
 
     pub fn frame(&mut self) -> Result<String, String> {

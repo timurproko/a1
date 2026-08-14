@@ -27,7 +27,11 @@ Run only when you choose to test the current terminal manually:
 .\native\terminal-host\target\debug\addone-terminal-host.exe --run
 ```
 
-The initial proof runs `cmd.exe` in one fullscreen pane. Use `Ctrl+Q` or `Ctrl+Shift+Q` to leave. To choose an exact executable:
+The initial proof starts the calling shell in one fullscreen pane when possible: Git Bash from Git Bash, PowerShell from PowerShell, and `cmd.exe` from CMD. Leave by exiting the child normally, usually `exit` or `Ctrl+C` until the process closes. There is no host-owned quit shortcut.
+
+Selection uses the outer terminal's native selection because the proof does not capture the mouse by default. Use `Shift+PageUp` / `Shift+PageDown` for half-page scrollback and `Shift+Up` / `Shift+Down` for one-row scrollback.
+
+To choose an exact executable:
 
 ```powershell
 .\native\terminal-host\target\debug\addone-terminal-host.exe --run -- <executable> [args...]

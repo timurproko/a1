@@ -1,4 +1,5 @@
 mod ghostty;
+mod shell;
 
 use std::env;
 use std::io::{Read, Write};
@@ -8,14 +9,16 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
-use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use crossterm::event::{
+    self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseEventKind,
+};
 use crossterm::execute;
 use crossterm::terminal::{
     self, EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
 };
 use crossterm::{
     cursor::{Hide, Show},
-    event::{DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture},
+    event::{DisableBracketedPaste, EnableBracketedPaste},
 };
 use portable_pty::{Child, CommandBuilder, MasterPty, NativePtySystem, PtySize, PtySystem};
 
@@ -47,10 +50,15 @@ fn run_from_args(args: Vec<String>) -> Result<(), String> {
             println!("{}", resolve_command(&args[1])?);
             Ok(())
         }
+        Some("--resolve-shell") => {
+            let (program, arguments) = shell::default_shell();
+            println!("{program} {}", arguments.join(" "));
+            Ok(())
+        }
         Some("--run") => run_interactive(&args[1..]),
         _ => {
             eprintln!(
-                "usage: addone-terminal-host --version | --probe | --resolve <command> | --run [-- <command> [args...]]"
+                "usage: addone-terminal-host --version | --probe | --resolve <command> | --resolve-shell | --run [-- <command> [args...]]"
             );
             Err("expected a mode".to_owned())
         }
@@ -119,7 +127,7 @@ fn run_interactive(arguments: &[String]) -> Result<(), String> {
         }
         (values[0].clone(), values[1..].to_vec())
     } else {
-        ("cmd.exe".to_owned(), vec!["/d".to_owned(), "/q".to_owned()])
+        shell::default_shell()
     };
     let program = resolve_command(&program)?;
 
@@ -168,6 +176,7 @@ fn run_interactive(arguments: &[String]) -> Result<(), String> {
         }
     });
 
+    let mut viewport_rows = rows;
     let result = interactive_loop(
         &mut terminal,
         &key_encoder,
@@ -175,6 +184,7 @@ fn run_interactive(arguments: &[String]) -> Result<(), String> {
         &writer,
         output_receiver,
         child.as_mut(),
+        &mut viewport_rows,
     );
     if child
         .try_wait()
@@ -196,6 +206,7 @@ fn interactive_loop(
     writer: &Arc<Mutex<Box<dyn Write + Send>>>,
     output: Receiver<Vec<u8>>,
     child: &mut dyn Child,
+    viewport_rows: &mut u16,
 ) -> Result<(), String> {
     let mut stdout = std::io::stdout().lock();
     loop {
@@ -207,8 +218,8 @@ fn interactive_loop(
         {
             match event::read().map_err(|error| format!("read terminal input: {error}"))? {
                 Event::Key(key) => {
-                    if should_exit(key) {
-                        break;
+                    if handle_scroll_key(terminal, key, *viewport_rows) {
+                        continue;
                     }
                     if let Some(encoded) = encode_key(key_encoder, key)? {
                         writer
@@ -235,8 +246,14 @@ fn interactive_loop(
                         })
                         .map_err(|error| format!("resize terminal session: {error}"))?;
                     terminal.resize(cols, rows)?;
+                    *viewport_rows = rows;
                 }
-                Event::Mouse(_) | Event::FocusGained | Event::FocusLost => {}
+                Event::Mouse(mouse) => match mouse.kind {
+                    MouseEventKind::ScrollUp => terminal.scroll_delta(-3),
+                    MouseEventKind::ScrollDown => terminal.scroll_delta(3),
+                    _ => {}
+                },
+                Event::FocusGained | Event::FocusLost => {}
             }
         }
         if child
@@ -342,9 +359,19 @@ fn resolve_command(program: &str) -> Result<String, String> {
     Err(format!("command not found on PATH: {program}"))
 }
 
-fn should_exit(key: KeyEvent) -> bool {
-    matches!(key.code, KeyCode::Char('q') | KeyCode::Char('Q'))
-        && key.modifiers.contains(KeyModifiers::CONTROL)
+fn handle_scroll_key(terminal: &mut GhosttyTerminal, key: KeyEvent, rows: u16) -> bool {
+    if !key.modifiers.contains(KeyModifiers::SHIFT) {
+        return false;
+    }
+    let page = (rows as isize).max(1) / 2;
+    match key.code {
+        KeyCode::PageUp => terminal.scroll_delta(-page),
+        KeyCode::PageDown => terminal.scroll_delta(page),
+        KeyCode::Up => terminal.scroll_delta(-1),
+        KeyCode::Down => terminal.scroll_delta(1),
+        _ => return false,
+    }
+    true
 }
 
 struct TerminalModeGuard;
@@ -353,14 +380,8 @@ impl TerminalModeGuard {
     fn enter() -> Result<Self, String> {
         enable_raw_mode().map_err(|error| format!("enable terminal raw mode: {error}"))?;
         let mut stdout = std::io::stdout().lock();
-        execute!(
-            stdout,
-            EnterAlternateScreen,
-            EnableBracketedPaste,
-            EnableMouseCapture,
-            Hide
-        )
-        .map_err(|error| format!("enter terminal workspace surface: {error}"))?;
+        execute!(stdout, EnterAlternateScreen, EnableBracketedPaste, Hide)
+            .map_err(|error| format!("enter terminal workspace surface: {error}"))?;
         Ok(Self)
     }
 }
@@ -368,13 +389,7 @@ impl TerminalModeGuard {
 impl Drop for TerminalModeGuard {
     fn drop(&mut self) {
         let mut stdout = std::io::stdout().lock();
-        let _ = execute!(
-            stdout,
-            DisableMouseCapture,
-            DisableBracketedPaste,
-            Show,
-            LeaveAlternateScreen
-        );
+        let _ = execute!(stdout, DisableBracketedPaste, Show, LeaveAlternateScreen);
         let _ = disable_raw_mode();
     }
 }
