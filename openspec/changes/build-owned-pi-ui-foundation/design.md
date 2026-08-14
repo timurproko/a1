@@ -177,7 +177,8 @@ If Pi changes public behavior, the change is reviewed and contained in engine/co
 
 ## Migration Plan
 
-1. Add architecture contracts and boundary checks for the owned UI and Pi adapter before exposing a new launch mode.
+1. Create or switch to `milestone/owned-pi-ui-foundation` before editing implementation files; that branch may base on `milestone/multi-agent-workspace` for planning and structured-runtime prerequisites but SHALL NOT implement this change there.
+2. Add architecture contracts and boundary checks for the owned UI and Pi adapter before exposing a new launch mode.
 2. Implement the Pi engine adapter with an in-memory harness and event/command conformance fixtures.
 3. Implement the terminal runtime, state reducers, transcript, editor, status, and diagnostics for one session.
 4. Add vanilla-style component reuse or provenance-recorded ports one surface at a time.
