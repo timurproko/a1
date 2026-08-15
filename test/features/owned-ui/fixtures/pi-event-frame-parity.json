@@ -1,0 +1,393 @@
+{
+  "schema": "addone-pi-event-frame-parity-v1",
+  "generatedFrom": {
+    "repository": "https://github.com/earendil-works/pi.git",
+    "sourceCommit": "53fa77ccd8a279eb87e92294ef3687b03ff80112",
+    "packages": {
+      "@earendil-works/pi-coding-agent": "0.84.1",
+      "@earendil-works/pi-tui": "0.84.1",
+      "@xterm/headless": "5.5.0"
+    }
+  },
+  "tolerance": {
+    "ignored": [
+      "cursor visibility",
+      "synchronized-output envelope",
+      "render timing"
+    ],
+    "preserved": [
+      "visible cells",
+      "state transitions",
+      "row order",
+      "resize reflow"
+    ]
+  },
+  "eventStages": [
+    "initial",
+    "working",
+    "user",
+    "assistant-start",
+    "streaming",
+    "tool-start",
+    "tool-update",
+    "queued",
+    "tool-result",
+    "assistant-end",
+    "completed",
+    "resized"
+  ],
+  "states": [
+    {
+      "stage": "initial",
+      "lifecycle": "ready",
+      "queued": [],
+      "transcript": []
+    },
+    {
+      "stage": "working",
+      "lifecycle": "busy",
+      "queued": [],
+      "transcript": []
+    },
+    {
+      "stage": "user",
+      "lifecycle": "busy",
+      "queued": [],
+      "transcript": [
+        {
+          "kind": "user",
+          "status": "live",
+          "text": "Inspect scripted parity"
+        }
+      ]
+    },
+    {
+      "stage": "assistant-start",
+      "lifecycle": "busy",
+      "queued": [],
+      "transcript": [
+        {
+          "kind": "user",
+          "status": "live",
+          "text": "Inspect scripted parity"
+        },
+        {
+          "kind": "assistant",
+          "status": "live",
+          "text": "Hello"
+        }
+      ]
+    },
+    {
+      "stage": "streaming",
+      "lifecycle": "busy",
+      "queued": [],
+      "transcript": [
+        {
+          "kind": "user",
+          "status": "live",
+          "text": "Inspect scripted parity"
+        },
+        {
+          "kind": "assistant",
+          "status": "live",
+          "text": "Hello world"
+        }
+      ]
+    },
+    {
+      "stage": "tool-start",
+      "lifecycle": "busy",
+      "queued": [],
+      "transcript": [
+        {
+          "kind": "user",
+          "status": "live",
+          "text": "Inspect scripted parity"
+        },
+        {
+          "kind": "assistant",
+          "status": "live",
+          "text": "Hello world"
+        },
+        {
+          "kind": "tool-call",
+          "status": "live",
+          "text": ""
+        }
+      ]
+    },
+    {
+      "stage": "tool-update",
+      "lifecycle": "busy",
+      "queued": [],
+      "transcript": [
+        {
+          "kind": "user",
+          "status": "live",
+          "text": "Inspect scripted parity"
+        },
+        {
+          "kind": "assistant",
+          "status": "live",
+          "text": "Hello world"
+        },
+        {
+          "kind": "tool-call",
+          "status": "live",
+          "text": "partial"
+        }
+      ]
+    },
+    {
+      "stage": "queued",
+      "lifecycle": "busy",
+      "queued": [
+        "Adjust approach",
+        "Then summarize"
+      ],
+      "transcript": [
+        {
+          "kind": "user",
+          "status": "live",
+          "text": "Inspect scripted parity"
+        },
+        {
+          "kind": "assistant",
+          "status": "live",
+          "text": "Hello world"
+        },
+        {
+          "kind": "tool-call",
+          "status": "live",
+          "text": "partial"
+        }
+      ]
+    },
+    {
+      "stage": "tool-result",
+      "lifecycle": "busy",
+      "queued": [
+        "Adjust approach",
+        "Then summarize"
+      ],
+      "transcript": [
+        {
+          "kind": "user",
+          "status": "live",
+          "text": "Inspect scripted parity"
+        },
+        {
+          "kind": "assistant",
+          "status": "live",
+          "text": "Hello world"
+        },
+        {
+          "kind": "tool-result",
+          "status": "finalized",
+          "text": "Read complete"
+        }
+      ]
+    },
+    {
+      "stage": "assistant-end",
+      "lifecycle": "busy",
+      "queued": [
+        "Adjust approach",
+        "Then summarize"
+      ],
+      "transcript": [
+        {
+          "kind": "user",
+          "status": "live",
+          "text": "Inspect scripted parity"
+        },
+        {
+          "kind": "assistant",
+          "status": "finalized",
+          "text": "Hello world"
+        },
+        {
+          "kind": "tool-result",
+          "status": "finalized",
+          "text": "Read complete"
+        }
+      ]
+    },
+    {
+      "stage": "completed",
+      "lifecycle": "ready",
+      "queued": [
+        "Adjust approach",
+        "Then summarize"
+      ],
+      "transcript": [
+        {
+          "kind": "user",
+          "status": "finalized",
+          "text": "Inspect scripted parity"
+        },
+        {
+          "kind": "assistant",
+          "status": "finalized",
+          "text": "Hello world"
+        },
+        {
+          "kind": "tool-result",
+          "status": "finalized",
+          "text": "Read complete"
+        }
+      ]
+    },
+    {
+      "stage": "resized",
+      "lifecycle": "ready",
+      "queued": [
+        "Adjust approach",
+        "Then summarize"
+      ],
+      "transcript": [
+        {
+          "kind": "user",
+          "status": "finalized",
+          "text": "Inspect scripted parity"
+        },
+        {
+          "kind": "assistant",
+          "status": "finalized",
+          "text": "Hello world"
+        },
+        {
+          "kind": "tool-result",
+          "status": "finalized",
+          "text": "Read complete"
+        }
+      ]
+    }
+  ],
+  "frames": [
+    {
+      "stage": "initial",
+      "columns": 64,
+      "rows": 18,
+      "screen": [
+        "────────────────────────────────────────────────────────────────",
+        "                                                                ",
+        "────────────────────────────────────────────────────────────────",
+        "Pi  ·  openai/gpt-5  ·  thinking:medium                         ",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ]
+    },
+    {
+      "stage": "streaming",
+      "columns": 64,
+      "rows": 18,
+      "screen": [
+        "                                                                ",
+        " Inspect scripted parity                                        ",
+        "                                                                ",
+        "                                                                ",
+        " Hello world                                                    ",
+        "────────────────────────────────────────────────────────────────",
+        "                                                                ",
+        "────────────────────────────────────────────────────────────────",
+        "Pi  ·  openai/gpt-5  ·  thinking:medium  ·  Working…            ",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ]
+    },
+    {
+      "stage": "tool-result",
+      "columns": 64,
+      "rows": 18,
+      "screen": [
+        "                                                                ",
+        " Inspect scripted parity                                        ",
+        "                                                                ",
+        "                                                                ",
+        " Hello world                                                    ",
+        "                                                                ",
+        "                                                                ",
+        " read README.md                                                 ",
+        "                                                                ",
+        "queued 1: Adjust approach                                       ",
+        "queued 2: Then summarize                                        ",
+        "────────────────────────────────────────────────────────────────",
+        "                                                                ",
+        "────────────────────────────────────────────────────────────────",
+        "Pi  ·  openai/gpt-5  ·  thinking:medium  ·  Working…            ",
+        "",
+        "",
+        ""
+      ]
+    },
+    {
+      "stage": "completed",
+      "columns": 64,
+      "rows": 18,
+      "screen": [
+        "                                                                ",
+        " Inspect scripted parity                                        ",
+        "                                                                ",
+        "                                                                ",
+        " Hello world                                                    ",
+        "                                                                ",
+        "                                                                ",
+        " read ...                                                       ",
+        "                                                                ",
+        "queued 1: Adjust approach                                       ",
+        "queued 2: Then summarize                                        ",
+        "────────────────────────────────────────────────────────────────",
+        "                                                                ",
+        "────────────────────────────────────────────────────────────────",
+        "Pi  ·  openai/gpt-5  ·  thinking:medium                         ",
+        "",
+        "",
+        ""
+      ]
+    },
+    {
+      "stage": "resized",
+      "columns": 48,
+      "rows": 16,
+      "screen": [
+        "                                                ",
+        " Inspect scripted parity                        ",
+        "                                                ",
+        "                                                ",
+        " Hello world                                    ",
+        "                                                ",
+        "                                                ",
+        " read ...                                       ",
+        "                                                ",
+        "queued 1: Adjust approach                       ",
+        "queued 2: Then summarize                        ",
+        "────────────────────────────────────────────────",
+        "                                                ",
+        "────────────────────────────────────────────────",
+        "Pi  ·  openai/gpt-5  ·  thinking:medium         ",
+        ""
+      ]
+    }
+  ]
+}

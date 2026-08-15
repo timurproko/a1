@@ -34,6 +34,7 @@
     "test:release": "node scripts/run-release-gates.mjs",
     "test:terminal-host": "node scripts/run-terminal-host-probe.mjs",
     "update:pi-component-parity": "tsx scripts/update-pi-component-parity.ts",
+    "update:pi-event-frame-parity": "tsx scripts/update-pi-event-frame-parity.ts",
     "proof:terminal-host": "node scripts/run-terminal-host.mjs",
     "start": "npm run build && node scripts/start-local.mjs",
     "prepack": "node scripts/prepack-gate.mjs",
@@ -50,6 +51,7 @@
     "@types/cross-spawn": "6.0.6",
     "@types/node": "24.2.1",
     "@types/semver": "7.8.0",
+    "@xterm/headless": "5.5.0",
     "tsx": "4.20.3",
     "typescript": "5.9.2",
     "vitest": "3.2.7"
