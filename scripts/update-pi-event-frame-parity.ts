@@ -9,13 +9,12 @@ const output = {
     sourceCommit: "53fa77ccd8a279eb87e92294ef3687b03ff80112",
     packages: {
       "@earendil-works/pi-coding-agent": "0.84.1",
-      "@earendil-works/pi-tui": "0.84.1",
-      "@xterm/headless": "5.5.0"
+      "@earendil-works/pi-tui": "0.84.1"
     }
   },
   tolerance: {
     ignored: ["cursor visibility", "synchronized-output envelope", "render timing"],
-    preserved: ["visible cells", "state transitions", "row order", "resize reflow"]
+    preserved: ["rendered row payloads", "cursor addressing", "state transitions", "resize dimensions"]
   },
   eventStages: ["initial", ...SCRIPTED_PI_EVENTS.map(entry => entry.stage), "resized"],
   ...result

@@ -1,6 +1,3 @@
-import XtermHeadless from "@xterm/headless";
-
-const { Terminal: XtermTerminal } = XtermHeadless;
 import { createPiEngineAdapter, type PiRuntimeLike, type PiSessionLike } from "../../../src/foundation/pi-engine-adapter/index.js";
 import type { PiTuiTerminalPort } from "../../../src/foundation/pi-tui-runtime-adapter/index.js";
 import { PiSessionShell } from "../../../src/features/owned-ui/index.js";
@@ -20,7 +17,7 @@ export interface TerminalFrameParityEntry {
   readonly stage: string;
   readonly columns: number;
   readonly rows: number;
-  readonly screen: readonly string[];
+  readonly capturedAnsi: string;
 }
 
 export interface EventFrameParityResult {
@@ -59,7 +56,6 @@ export async function buildEventFrameParityResult(): Promise<EventFrameParityRes
     createRuntime: async () => engine,
   });
   const physical = new CapturingTerminal(64, 18);
-  const virtual = new XtermTerminal({ cols: physical.columns, rows: physical.rows, allowProposedApi: true });
   const shell = new PiSessionShell({ adapter, cwd: "D:/parity", terminal: physical });
   const states: EventStateParityEntry[] = [];
   const frames: TerminalFrameParityEntry[] = [];
@@ -68,7 +64,8 @@ export async function buildEventFrameParityResult(): Promise<EventFrameParityRes
   const capture = async (stage: string, captureFrame = false): Promise<void> => {
     await adapter.flushEvents();
     shell.runtime.renderNow();
-    writeOffset = await flushWrites(physical, virtual, writeOffset);
+    const capturedAnsi = physical.writes.slice(writeOffset).join("");
+    writeOffset = physical.writes.length;
     const view = shell.view();
     states.push({
       stage,
@@ -81,7 +78,7 @@ export async function buildEventFrameParityResult(): Promise<EventFrameParityRes
         stage,
         columns: physical.columns,
         rows: physical.rows,
-        screen: screenRows(virtual),
+        capturedAnsi: normalizeCapturedFrame(capturedAnsi),
       });
     }
   };
@@ -93,14 +90,12 @@ export async function buildEventFrameParityResult(): Promise<EventFrameParityRes
       engine.session.emit(entry.event);
       await capture(entry.stage, ["streaming", "tool-result", "completed"].includes(entry.stage));
     }
-    virtual.resize(48, 16);
     physical.resize(48, 16);
     await capture("resized", true);
     return { states, frames };
   } finally {
     await shell.dispose();
     if (!adapter.disposed) await adapter.dispose();
-    virtual.dispose();
   }
 }
 
@@ -161,18 +156,12 @@ class CapturingTerminal implements PiTuiTerminalPort {
   setProgress(): void {}
 }
 
-async function flushWrites(physical: CapturingTerminal, virtual: InstanceType<typeof XtermTerminal>, offset: number): Promise<number> {
-  const writes = physical.writes.slice(offset).join("");
-  if (writes.length > 0) await new Promise<void>(resolve => virtual.write(writes, resolve));
-  return physical.writes.length;
-}
-
-function screenRows(terminal: InstanceType<typeof XtermTerminal>): readonly string[] {
-  const rows: string[] = [];
-  for (let row = 0; row < terminal.rows; row += 1) {
-    rows.push(terminal.buffer.active.getLine(row)?.translateToString(true) ?? "");
-  }
-  return rows;
+function normalizeCapturedFrame(frame: string): string {
+  return frame
+    .replaceAll("\x1b[?2026h", "")
+    .replaceAll("\x1b[?2026l", "")
+    .replaceAll("\x1b[?25h", "")
+    .replaceAll("\x1b[?25l", "");
 }
 
 function assistantMessage(text: string, stopReason: string): Record<string, unknown> {

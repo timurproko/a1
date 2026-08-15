@@ -5,8 +5,7 @@
     "sourceCommit": "53fa77ccd8a279eb87e92294ef3687b03ff80112",
     "packages": {
       "@earendil-works/pi-coding-agent": "0.84.1",
-      "@earendil-works/pi-tui": "0.84.1",
-      "@xterm/headless": "5.5.0"
+      "@earendil-works/pi-tui": "0.84.1"
     }
   },
   "tolerance": {
@@ -16,10 +15,10 @@
       "render timing"
     ],
     "preserved": [
-      "visible cells",
+      "rendered row payloads",
+      "cursor addressing",
       "state transitions",
-      "row order",
-      "resize reflow"
+      "resize dimensions"
     ]
   },
   "eventStages": [
@@ -270,124 +269,31 @@
       "stage": "initial",
       "columns": 64,
       "rows": 18,
-      "screen": [
-        "────────────────────────────────────────────────────────────────",
-        "                                                                ",
-        "────────────────────────────────────────────────────────────────",
-        "Pi  ·  openai/gpt-5  ·  thinking:medium                         ",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        ""
-      ]
+      "capturedAnsi": "\u001b[?1049h\u001b[?7l\u001b[?1000h\u001b[?1002h\u001b[?1003h\u001b[?1004h\u001b[?1006h\u001b[2J\u001b[H\u001b[2J\u001b[1;1H\u001b[2K\u001b[0m\u001b]8;;\u0007────────────────────────────────────────────────────────────────\u001b[0m\u001b]8;;\u0007\u001b[0m\u001b]8;;\u0007\u001b[2;1H\u001b[2K\u001b[0m\u001b]8;;\u0007\u001b[7m \u001b[0m                                                               \u001b[0m\u001b]8;;\u0007\u001b[0m\u001b]8;;\u0007\u001b[3;1H\u001b[2K\u001b[0m\u001b]8;;\u0007────────────────────────────────────────────────────────────────\u001b[0m\u001b]8;;\u0007\u001b[0m\u001b]8;;\u0007\u001b[4;1H\u001b[2K\u001b[0m\u001b]8;;\u0007Pi  ·  openai/gpt-5  ·  thinking:medium                         \u001b[0m\u001b]8;;\u0007\u001b[0m\u001b]8;;\u0007\u001b[5;1H\u001b[2K\u001b[0m\u001b]8;;\u0007\u001b[6;1H\u001b[2K\u001b[0m\u001b]8;;\u0007\u001b[7;1H\u001b[2K\u001b[0m\u001b]8;;\u0007\u001b[8;1H\u001b[2K\u001b[0m\u001b]8;;\u0007\u001b[9;1H\u001b[2K\u001b[0m\u001b]8;;\u0007\u001b[10;1H\u001b[2K\u001b[0m\u001b]8;;\u0007\u001b[11;1H\u001b[2K\u001b[0m\u001b]8;;\u0007\u001b[12;1H\u001b[2K\u001b[0m\u001b]8;;\u0007\u001b[13;1H\u001b[2K\u001b[0m\u001b]8;;\u0007\u001b[14;1H\u001b[2K\u001b[0m\u001b]8;;\u0007\u001b[15;1H\u001b[2K\u001b[0m\u001b]8;;\u0007\u001b[16;1H\u001b[2K\u001b[0m\u001b]8;;\u0007\u001b[17;1H\u001b[2K\u001b[0m\u001b]8;;\u0007\u001b[18;1H\u001b[2K\u001b[0m\u001b]8;;\u0007\u001b[2;1H"
     },
     {
       "stage": "streaming",
       "columns": 64,
       "rows": 18,
-      "screen": [
-        "                                                                ",
-        " Inspect scripted parity                                        ",
-        "                                                                ",
-        "                                                                ",
-        " Hello world                                                    ",
-        "────────────────────────────────────────────────────────────────",
-        "                                                                ",
-        "────────────────────────────────────────────────────────────────",
-        "Pi  ·  openai/gpt-5  ·  thinking:medium  ·  Working…            ",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        ""
-      ]
+      "capturedAnsi": "\u001b[5;1H\u001b[2K\u001b[0m\u001b]8;;\u0007 Hello world                                                    \u001b[0m\u001b]8;;\u0007\u001b[0m\u001b]8;;\u0007\u001b[7;1H"
     },
     {
       "stage": "tool-result",
       "columns": 64,
       "rows": 18,
-      "screen": [
-        "                                                                ",
-        " Inspect scripted parity                                        ",
-        "                                                                ",
-        "                                                                ",
-        " Hello world                                                    ",
-        "                                                                ",
-        "                                                                ",
-        " read README.md                                                 ",
-        "                                                                ",
-        "queued 1: Adjust approach                                       ",
-        "queued 2: Then summarize                                        ",
-        "────────────────────────────────────────────────────────────────",
-        "                                                                ",
-        "────────────────────────────────────────────────────────────────",
-        "Pi  ·  openai/gpt-5  ·  thinking:medium  ·  Working…            ",
-        "",
-        "",
-        ""
-      ]
+      "capturedAnsi": "\u001b[7;1H\u001b[2K\u001b[0m\u001b]8;;\u0007\u001b[48;2;40;50;40m                                                                \u001b[0m\u001b]8;;\u0007\u001b[0m\u001b]8;;\u0007\u001b[8;1H\u001b[2K\u001b[0m\u001b]8;;\u0007\u001b[48;2;40;50;40m \u001b[38;2;212;212;212mread\u001b[39m \u001b]8;;file:///D:/parity/README.md\u001b\\\u001b[38;2;138;190;183mREADME.md\u001b[39m\u001b]8;;\u001b\\                                                 \u001b[0m\u001b]8;;\u0007\u001b[0m\u001b]8;;\u0007\u001b[9;1H\u001b[2K\u001b[0m\u001b]8;;\u0007\u001b[48;2;40;50;40m                                                                \u001b[0m\u001b]8;;\u0007\u001b[0m\u001b]8;;\u0007\u001b[13;1H"
     },
     {
       "stage": "completed",
       "columns": 64,
       "rows": 18,
-      "screen": [
-        "                                                                ",
-        " Inspect scripted parity                                        ",
-        "                                                                ",
-        "                                                                ",
-        " Hello world                                                    ",
-        "                                                                ",
-        "                                                                ",
-        " read ...                                                       ",
-        "                                                                ",
-        "queued 1: Adjust approach                                       ",
-        "queued 2: Then summarize                                        ",
-        "────────────────────────────────────────────────────────────────",
-        "                                                                ",
-        "────────────────────────────────────────────────────────────────",
-        "Pi  ·  openai/gpt-5  ·  thinking:medium                         ",
-        "",
-        "",
-        ""
-      ]
+      "capturedAnsi": "\u001b[8;1H\u001b[2K\u001b[0m\u001b]8;;\u0007\u001b[48;2;40;50;40m \u001b[38;2;212;212;212mread\u001b[39m \u001b[38;2;128;128;128m...\u001b[39m                                                       \u001b[0m\u001b]8;;\u0007\u001b[0m\u001b]8;;\u0007\u001b[15;1H\u001b[2K\u001b[0m\u001b]8;;\u0007Pi  ·  openai/gpt-5  ·  thinking:medium                         \u001b[0m\u001b]8;;\u0007\u001b[0m\u001b]8;;\u0007\u001b[13;1H"
     },
     {
       "stage": "resized",
       "columns": 48,
       "rows": 16,
-      "screen": [
-        "                                                ",
-        " Inspect scripted parity                        ",
-        "                                                ",
-        "                                                ",
-        " Hello world                                    ",
-        "                                                ",
-        "                                                ",
-        " read ...                                       ",
-        "                                                ",
-        "queued 1: Adjust approach                       ",
-        "queued 2: Then summarize                        ",
-        "────────────────────────────────────────────────",
-        "                                                ",
-        "────────────────────────────────────────────────",
-        "Pi  ·  openai/gpt-5  ·  thinking:medium         ",
-        ""
-      ]
+      "capturedAnsi": "\u001b[2J\u001b[1;1H\u001b[2K\u001b[0m\u001b]8;;\u0007\u001b[48;2;52;53;65m                                                \u001b[0m\u001b]8;;\u0007\u001b[0m\u001b]8;;\u0007\u001b[2;1H\u001b[2K\u001b[0m\u001b]8;;\u0007\u001b[48;2;52;53;65m \u001b[38;2;212;212;212mInspect scripted parity\u001b[39m                        \u001b[0m\u001b]8;;\u0007\u001b[0m\u001b]8;;\u0007\u001b[3;1H\u001b[2K\u001b[0m\u001b]8;;\u0007\u001b[48;2;52;53;65m                                                \u001b[0m\u001b]8;;\u0007\u001b[0m\u001b]8;;\u0007\u001b[4;1H\u001b[2K\u001b[0m\u001b]8;;\u0007                                                \u001b[0m\u001b]8;;\u0007\u001b[0m\u001b]8;;\u0007\u001b[5;1H\u001b[2K\u001b[0m\u001b]8;;\u0007 Hello world                                    \u001b[0m\u001b]8;;\u0007\u001b[0m\u001b]8;;\u0007\u001b[6;1H\u001b[2K\u001b[0m\u001b]8;;\u0007                                                \u001b[0m\u001b]8;;\u0007\u001b[0m\u001b]8;;\u0007\u001b[7;1H\u001b[2K\u001b[0m\u001b]8;;\u0007\u001b[48;2;40;50;40m                                                \u001b[0m\u001b]8;;\u0007\u001b[0m\u001b]8;;\u0007\u001b[8;1H\u001b[2K\u001b[0m\u001b]8;;\u0007\u001b[48;2;40;50;40m \u001b[38;2;212;212;212mread\u001b[39m \u001b[38;2;128;128;128m...\u001b[39m                                       \u001b[0m\u001b]8;;\u0007\u001b[0m\u001b]8;;\u0007\u001b[9;1H\u001b[2K\u001b[0m\u001b]8;;\u0007\u001b[48;2;40;50;40m                                                \u001b[0m\u001b]8;;\u0007\u001b[0m\u001b]8;;\u0007\u001b[10;1H\u001b[2K\u001b[0m\u001b]8;;\u0007queued 1: Adjust approach                       \u001b[0m\u001b]8;;\u0007\u001b[0m\u001b]8;;\u0007\u001b[11;1H\u001b[2K\u001b[0m\u001b]8;;\u0007queued 2: Then summarize                        \u001b[0m\u001b]8;;\u0007\u001b[0m\u001b]8;;\u0007\u001b[12;1H\u001b[2K\u001b[0m\u001b]8;;\u0007────────────────────────────────────────────────\u001b[0m\u001b]8;;\u0007\u001b[0m\u001b]8;;\u0007\u001b[13;1H\u001b[2K\u001b[0m\u001b]8;;\u0007\u001b[7m \u001b[0m                                               \u001b[0m\u001b]8;;\u0007\u001b[0m\u001b]8;;\u0007\u001b[14;1H\u001b[2K\u001b[0m\u001b]8;;\u0007────────────────────────────────────────────────\u001b[0m\u001b]8;;\u0007\u001b[0m\u001b]8;;\u0007\u001b[15;1H\u001b[2K\u001b[0m\u001b]8;;\u0007Pi  ·  openai/gpt-5  ·  thinking:medium         \u001b[0m\u001b]8;;\u0007\u001b[0m\u001b]8;;\u0007\u001b[16;1H\u001b[2K\u001b[0m\u001b]8;;\u0007\u001b[13;1H"
     }
   ]
 }

@@ -29,19 +29,18 @@ describe("pinned Pi scripted event and terminal-frame parity", () => {
     expect(fixture.generatedFrom.packages).toEqual({
       "@earendil-works/pi-coding-agent": "0.84.1",
       "@earendil-works/pi-tui": "0.84.1",
-      "@xterm/headless": "5.5.0",
     });
     expect(fixture.eventStages).toEqual(["initial", ...SCRIPTED_PI_EVENTS.map(entry => entry.stage), "resized"]);
     expect(result.states).toEqual(fixture.states);
   });
 
-  it("renders captured ANSI into the same virtual-terminal screens", async () => {
+  it("emits the same normalized captured terminal frames", async () => {
     const fixture = await readFixture();
     const result = await buildEventFrameParityResult();
 
     expect(fixture.tolerance).toEqual({
       ignored: ["cursor visibility", "synchronized-output envelope", "render timing"],
-      preserved: ["visible cells", "state transitions", "row order", "resize reflow"],
+      preserved: ["rendered row payloads", "cursor addressing", "state transitions", "resize dimensions"],
     });
     expect(result.frames).toEqual(fixture.frames);
     expect(result.frames.map(frame => frame.stage)).toEqual(["initial", "streaming", "tool-result", "completed", "resized"]);
