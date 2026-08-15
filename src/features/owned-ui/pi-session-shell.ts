@@ -4,7 +4,15 @@ import type {
   OwnedUiSessionViewModel,
   OwnedUiThinkingLevel,
 } from "../../foundation/owned-ui-contracts/index.js";
-import type { AdapterCommandResult, PiEngineAdapter } from "../../foundation/pi-engine-adapter/index.js";
+import {
+  PINNED_PI_HIDDEN_COMMAND_NAMES,
+  PINNED_PI_WORKFLOW_COMMAND_NAMES,
+  type AdapterCommandResult,
+  type PiEngineAdapter,
+  type PiWorkflowRequest,
+  type PiWorkflowResult,
+  type PiWorkflowRoute,
+} from "../../foundation/pi-engine-adapter/index.js";
 import {
   createPiQueuedInputStatus,
   createPiShellDialog,
@@ -49,6 +57,8 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
   readonly #footer: PiShellViewComponentPort;
   readonly #queued: PiShellQueuedInputPort;
   #toolsExpanded = false;
+  #thinkingVisible = true;
+  #workflowRows: string[] = [];
 
   constructor(
     view: OwnedUiSessionViewModel,
@@ -61,7 +71,12 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
       readonly onInterrupt: () => void;
       readonly onExit: () => void;
       readonly onModelSelect: () => void;
+      readonly onModelCycle?: (direction: "forward" | "backward") => void;
       readonly onThinkingCycle: () => void;
+      readonly onThinkingToggle?: () => void;
+      readonly onMessageCopy?: () => void;
+      readonly onFollowUp?: () => void;
+      readonly onDequeue?: () => void;
     },
     startup: PiShellHeaderOptions = {},
   ) {
@@ -90,7 +105,10 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
   }
 
   render(width: number): readonly string[] {
-    const transcript = this.#transcriptOrder.flatMap(id => this.#transcript.get(id)?.render(width) ?? []);
+    const transcript = this.#transcriptOrder.flatMap(id => {
+      if (!this.#thinkingVisible && this.#view.transcript.find(block => block.id === id)?.kind === "thinking") return [];
+      return this.#transcript.get(id)?.render(width) ?? [];
+    });
     const diagnosticRows = this.#view.diagnostics.slice(-3).flatMap(diagnostic =>
       renderPiShellTranscriptBlock({
         id: `diagnostic-${diagnostic.sequence}`,
@@ -106,6 +124,7 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
       ...this.header.render(width),
       ...transcript,
       ...diagnosticRows,
+      ...this.#workflowRows,
       ...queued,
       ...this.#status.render(width),
       ...this.editor.render(width),
@@ -115,6 +134,18 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
 
   transcriptComponent(id: string): PiShellTranscriptComponentPort | undefined {
     return this.#transcript.get(id);
+  }
+
+  appendWorkflowResult(result: PiWorkflowResult): void {
+    const prefix = result.outcome === "failed" ? "Error: " : result.outcome === "cancelled" ? "" : "✓ ";
+    const detail = result.detail?.split(/\r?\n/).slice(0, 32) ?? [];
+    this.#workflowRows = [...this.#workflowRows, `${prefix}${result.message}`, ...detail].slice(-40);
+    this.invalidate();
+  }
+
+  toggleThinkingVisibility(): void {
+    this.#thinkingVisible = !this.#thinkingVisible;
+    this.invalidate();
   }
 
   handleInput(data: string): void {
@@ -186,6 +217,7 @@ export class PiSessionShell {
   #sequence = 0;
   #started = false;
   #disposed = false;
+  #compactionQueue: Array<{ readonly text: string; readonly type: "steer" | "follow-up" }> = [];
 
   constructor(options: PiSessionShellOptions) {
     this.adapter = options.adapter;
@@ -202,15 +234,32 @@ export class PiSessionShell {
       onInterrupt: () => { void this.interrupt(); },
       onExit: () => { void this.shutdown(); },
       onModelSelect: () => this.showModelSelector(),
+      onModelCycle: direction => { void this.cycleModel(direction); },
       onThinkingCycle: () => { void this.cycleThinkingLevel(); },
+      onThinkingToggle: () => {
+        this.root.toggleThinkingVisibility();
+        this.runtime.requestRender();
+      },
+      onMessageCopy: () => { void this.runWorkflow({ command: "copy", argument: "" }); },
+      onFollowUp: () => { void this.queueFollowUp(); },
+      onDequeue: () => this.restoreQueuedInput(),
     }, options.startup);
     const runtimeOptions = options.terminal === undefined
       ? { root: this.root }
       : { root: this.root, terminal: options.terminal };
     runtime = new PiTuiRuntimeAdapter(runtimeOptions);
     this.runtime = runtime;
+    this.adapter.setWorkflowInteractionHost({
+      prompt: request => this.#requestWorkflowInput(request.message),
+      notify: message => {
+        this.root.appendWorkflowResult({ command: "login", outcome: "completed", message });
+        this.runtime.requestRender();
+      },
+    });
+    this.root.editor.setAutocompleteCommands(this.adapter.workflowAutocompleteCommands());
     this.#unsubscribe = this.adapter.onEvent(event => {
       this.#syncView();
+      if (this.view().lifecycle === "ready" && this.#compactionQueue.length > 0) void this.#flushCompactionQueue();
       if (event.type === "session-lifecycle" && event.lifecycle === "stopped") this.#resolveStopped?.();
     });
     if (this.adapter.view().lifecycle === "stopped") this.#resolveStopped?.();
@@ -238,12 +287,44 @@ export class PiSessionShell {
   }
 
   async submit(text: string): Promise<AdapterCommandResult> {
-    if (text.startsWith("/")) return this.#slashCommand(text);
+    const input = text.trim();
+    if (!input) return { outcome: "completed", diagnostic: null };
+    if (input.startsWith("/")) return this.#slashCommand(input);
+    if (input.startsWith("!")) {
+      const excludeFromContext = input.startsWith("!!");
+      const command = input.slice(excludeFromContext ? 2 : 1).trim();
+      if (command) {
+        try {
+          const result = await this.adapter.executeBashWorkflow(command, excludeFromContext);
+          const workflow: PiWorkflowResult = {
+            command: "debug",
+            outcome: result.cancelled ? "cancelled" : result.exitCode === 0 || result.exitCode === undefined ? "completed" : "failed",
+            message: result.cancelled ? "Bash command cancelled" : `Bash exited ${result.exitCode ?? 0}: ${command}`,
+            ...(result.output ? { detail: result.output } : {}),
+          };
+          this.root.appendWorkflowResult(workflow);
+          this.runtime.requestRender();
+          return workflow.outcome === "failed" ? rejected(workflow.message) : { outcome: "completed", diagnostic: null };
+        } catch (error) {
+          const message = `Bash command failed: ${error instanceof Error ? error.message : String(error)}`;
+          this.root.appendWorkflowResult({ command: "debug", outcome: "failed", message });
+          this.runtime.requestRender();
+          return rejected(message);
+        }
+      }
+    }
+    if (this.view().status.workingMessage?.startsWith("Compacting") === true) {
+      this.#compactionQueue.push({ text: input, type: "steer" });
+      this.root.appendWorkflowResult({ command: "compact", outcome: "completed", message: `Queued during compaction: ${input}` });
+      this.runtime.requestRender();
+      return { outcome: "completed", diagnostic: null };
+    }
+    const type = this.view().lifecycle === "busy" ? "steer" as const : "prompt" as const;
     return this.#execute({
-      type: "prompt",
-      correlationId: this.#correlation("prompt"),
+      type,
+      correlationId: this.#correlation(type),
       sessionId: this.adapter.sessionId,
-      text,
+      text: input,
     });
   }
 
@@ -305,7 +386,43 @@ export class PiSessionShell {
     return this.setThinkingLevel(levels[(current + 1) % levels.length] ?? "off");
   }
 
-  showSelector(title: string, options: readonly PiShellSelectorOption[], onSelect: (id: string) => void): PiTuiOverlayHandle {
+  async cycleModel(direction: "forward" | "backward"): Promise<AdapterCommandResult> {
+    const result = await this.adapter.cycleModelWorkflow(direction);
+    this.root.appendWorkflowResult(result);
+    this.runtime.requestRender();
+    return workflowAdapterResult(result);
+  }
+
+  async queueFollowUp(): Promise<AdapterCommandResult> {
+    const text = this.root.editor.getText().trim();
+    if (!text) return rejected("nothing to queue");
+    this.root.editor.setText("");
+    if (this.view().status.workingMessage?.startsWith("Compacting") === true) {
+      this.#compactionQueue.push({ text, type: "follow-up" });
+      return { outcome: "completed", diagnostic: null };
+    }
+    return this.#execute({
+      type: "follow-up",
+      correlationId: this.#correlation("follow-up"),
+      sessionId: this.adapter.sessionId,
+      text,
+    });
+  }
+
+  restoreQueuedInput(): void {
+    const queued = [...this.adapter.clearQueuedWorkflows(), ...this.#compactionQueue.map(item => item.text)];
+    this.#compactionQueue = [];
+    if (queued.length === 0) return;
+    this.root.editor.setText(queued.join("\n"));
+    this.runtime.requestRender();
+  }
+
+  showSelector(
+    title: string,
+    options: readonly PiShellSelectorOption[],
+    onSelect: (id: string) => void,
+    onCancel?: () => void,
+  ): PiTuiOverlayHandle {
     this.#dialogHandle?.hide();
     const component = createPiShellSelector({
       title,
@@ -318,6 +435,7 @@ export class PiSessionShell {
       onCancel: () => {
         this.#dialogHandle?.hide();
         this.#dialogHandle = undefined;
+        onCancel?.();
       },
     });
     const handle = this.runtime.showOverlay(component, { width: "70%", maxHeight: "80%", anchor: "center" });
@@ -326,18 +444,35 @@ export class PiSessionShell {
   }
 
   showModelSelector(): void {
-    const active = this.view().activeModel;
-    const options = active === null
-      ? [{ id: "cancel", label: "No active model", description: "Use /model provider/model" }]
-      : [{ id: `${active.providerId}/${active.modelId}`, label: active.displayName, description: `${active.providerId}/${active.modelId}` }];
-    this.showSelector("Model", options, id => {
-      const [providerId, modelId] = id.split("/");
-      if (providerId && modelId) void this.setModel(providerId, modelId);
-    });
+    void this.runWorkflow({ command: "model", argument: "" });
   }
 
   async shutdown(): Promise<AdapterCommandResult> {
-    return this.#execute(this.#simple("shutdown"));
+    return this.runWorkflow({ command: "quit", argument: "" });
+  }
+
+  async runWorkflow(request: PiWorkflowRequest): Promise<AdapterCommandResult> {
+    const result = await this.adapter.executeWorkflow(request);
+    if (result.outcome === "requires-selection" || result.outcome === "requires-confirmation") {
+      const options = result.options ?? [];
+      this.showSelector(result.selectorTitle ?? result.message, options, id => {
+        const next: PiWorkflowRequest = result.outcome === "requires-confirmation"
+          ? { ...request, confirmed: id === "yes" }
+          : { ...request, selection: id };
+        void this.runWorkflow(next);
+      }, () => {
+        const cancelled: PiWorkflowResult = { command: request.command, outcome: "cancelled", message: `${result.message} cancelled` };
+        this.root.appendWorkflowResult(cancelled);
+        this.runtime.requestRender();
+      });
+      return { outcome: "completed", diagnostic: null };
+    }
+    this.root.appendWorkflowResult(result);
+    if (request.command === "reload" && result.outcome === "completed") {
+      this.root.editor.setAutocompleteCommands(this.adapter.workflowAutocompleteCommands());
+    }
+    this.runtime.requestRender();
+    return workflowAdapterResult(result);
   }
 
   async dispose(): Promise<void> {
@@ -381,24 +516,46 @@ export class PiSessionShell {
   }
 
   async #slashCommand(text: string): Promise<AdapterCommandResult> {
-    const [name = "", ...args] = text.slice(1).trim().split(/\s+/).filter(Boolean);
-    switch (name) {
-      case "abort": return this.abort();
-      case "retry": return this.retry();
-      case "compact": return this.compact();
-      case "new": return this.newSession();
-      case "resume": return args.length === 0 ? rejected("/resume requires a session path") : this.resumeSession(args.join(" "));
-      case "think": {
-        const level = args[0];
-        return isThinkingLevel(level) ? this.setThinkingLevel(level) : rejected("/think requires off, minimal, low, medium, high, or xhigh");
-      }
-      case "model": {
-        const [providerId, modelId] = args.join(" ").split("/");
-        return providerId && modelId ? this.setModel(providerId, modelId) : rejected("/model requires provider/model");
-      }
-      case "exit":
-      case "quit": return this.shutdown();
-      default: return rejected(`unknown owned UI command: /${name}`);
+    const body = text.slice(1).trim();
+    const separator = body.search(/\s/);
+    const name = separator < 0 ? body : body.slice(0, separator);
+    const argument = separator < 0 ? "" : body.slice(separator + 1).trimStart();
+    if (isWorkflowRoute(name)) return this.runWorkflow({ command: name, argument });
+    // Unknown slash input, prompt templates, skills, and extension commands remain Pi prompt input.
+    return this.#execute({
+      type: this.view().lifecycle === "busy" ? "steer" : "prompt",
+      correlationId: this.#correlation("prompt-command"),
+      sessionId: this.adapter.sessionId,
+      text,
+    });
+  }
+
+  #requestWorkflowInput(message: string): Promise<string | null> {
+    this.root.appendWorkflowResult({ command: "login", outcome: "completed", message });
+    this.root.editor.setText("");
+    this.runtime.requestRender();
+    return new Promise(resolve => {
+      const finish = (value: string | null) => {
+        this.root.editor.setText("");
+        this.root.editor.setSubmitHandler(text => { void this.submit(text); });
+        this.root.editor.setInterruptHandler(() => { void this.interrupt(); });
+        resolve(value);
+      };
+      this.root.editor.setSubmitHandler(text => finish(text.trim() || null));
+      this.root.editor.setInterruptHandler(() => finish(null));
+    });
+  }
+
+  async #flushCompactionQueue(): Promise<void> {
+    const queued = this.#compactionQueue;
+    this.#compactionQueue = [];
+    for (const item of queued) {
+      await this.#execute({
+        type: item.type,
+        correlationId: this.#correlation(`compaction-${item.type}`),
+        sessionId: this.adapter.sessionId,
+        text: item.text,
+      });
     }
   }
 
@@ -420,6 +577,13 @@ function rejected(diagnostic: string): AdapterCommandResult {
   return { outcome: "rejected", diagnostic };
 }
 
-function isThinkingLevel(value: string | undefined): value is OwnedUiThinkingLevel {
-  return value === "off" || value === "minimal" || value === "low" || value === "medium" || value === "high" || value === "xhigh";
+function workflowAdapterResult(result: PiWorkflowResult): AdapterCommandResult {
+  if (result.outcome === "completed") return { outcome: "completed", diagnostic: null };
+  if (result.outcome === "failed") return { outcome: "failed", diagnostic: result.message };
+  return { outcome: "rejected", diagnostic: result.message };
+}
+
+function isWorkflowRoute(value: string): value is PiWorkflowRoute {
+  return (PINNED_PI_WORKFLOW_COMMAND_NAMES as readonly string[]).includes(value)
+    || (PINNED_PI_HIDDEN_COMMAND_NAMES as readonly string[]).includes(value);
 }

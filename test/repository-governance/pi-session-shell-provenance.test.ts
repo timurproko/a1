@@ -24,7 +24,7 @@ describe("Pi session shell provenance", () => {
     expect(evidence.publicExports).toContain("FooterComponent");
     expect(evidence.publicExports).toContain("CombinedAutocompleteProvider");
     expect(new Set(evidence.publicExports).size).toBe(evidence.publicExports.length);
-    expect(evidence.orchestrationPorts).toHaveLength(3);
+    expect(evidence.orchestrationPorts).toHaveLength(4);
     expect(evidence.orchestrationPorts.every(port => port.copiedFiles.length === 0 && port.copiedLines === false)).toBe(true);
     expect(evidence.orchestrationPorts.every(port => port.upstreamCommit === evidence.upstream.commit)).toBe(true);
     expect(evidence.orchestrationPorts[0]).toMatchObject({
@@ -35,6 +35,13 @@ describe("Pi session shell provenance", () => {
       upstreamLines: [528, 994],
     });
     expect(evidence.orchestrationPorts[0]?.coverage).toContain("test/features/owned-ui/pi-startup-composition-parity.test.ts");
+    expect(evidence.orchestrationPorts[2]).toMatchObject({
+      localFile: "src/foundation/pi-engine-adapter/adapter.ts",
+      upstreamCommit: "53fa77ccd8a279eb87e92294ef3687b03ff80112",
+      copiedFiles: [],
+      copiedLines: false,
+    });
+    expect(evidence.orchestrationPorts[2]?.coverage).toContain("test/foundation/pi-engine-adapter/workflows.test.ts");
     expect(evidence.rejected).toContain("private field inspection");
   });
 });

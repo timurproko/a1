@@ -1,7 +1,7 @@
 {
   "schema": "addone-pi-session-shell-provenance-v1",
   "change": "build-owned-pi-ui-foundation",
-  "recordedAt": "2026-08-15T17:00:00.000Z",
+  "recordedAt": "2026-08-16T12:00:00.000Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "53fa77ccd8a279eb87e92294ef3687b03ff80112",
@@ -59,6 +59,24 @@
       "copiedLines": false,
       "modifications": "Manifest data was transcribed into an AddOne adapter constant and passed to the public CombinedAutocompleteProvider; routing remains AddOne-owned.",
       "coverage": ["test/foundation/pi-component-adapter/shell-components.test.ts"]
+    },
+    {
+      "upstreamSource": "packages/coding-agent/src/modes/interactive/interactive-mode.ts",
+      "upstreamCommit": "53fa77ccd8a279eb87e92294ef3687b03ff80112",
+      "upstreamLines": [[2870, 3058], [3998, 6205], [6207, 6374]],
+      "localFile": "src/foundation/pi-engine-adapter/adapter.ts",
+      "shellFile": "src/features/owned-ui/pi-session-shell.ts",
+      "contractFile": "src/foundation/pi-engine-adapter/workflows.ts",
+      "behavior": "complete advertised and hidden command routing, prompt/template/skill input, model and thinking controls, settings callbacks, session selectors and replacement, authentication, import/export/share/copy, bash, queued input, reload, diagnostics and shutdown",
+      "copiedFiles": [],
+      "copiedLines": false,
+      "modifications": "Controller behavior was reimplemented as an AddOne-owned exhaustive state machine over public AgentSession, AgentSessionRuntime, SettingsManager, ModelRuntime, SessionManager and clipboard APIs; external command and clipboard effects are host-injected for deterministic conformance.",
+      "independentEvidence": "openspec/changes/build-owned-pi-ui-foundation/evidence/pinned-pi-command-workflow-outcomes.json",
+      "coverage": [
+        "test/foundation/pi-engine-adapter/workflows.test.ts",
+        "test/features/owned-ui/pi-session-shell.test.ts",
+        "test/foundation/pi-component-adapter/shell-components.test.ts"
+      ]
     },
     {
       "upstreamSource": "packages/coding-agent/src/modes/interactive/components/footer.ts",

@@ -1,6 +1,12 @@
 import { readFile } from "node:fs/promises";
-import { describe, expect, it } from "vitest";
-import { createPiEngineAdapter, type PiRuntimeLike, type PiSessionLike } from "../../../src/foundation/pi-engine-adapter/index.js";
+import { describe, expect, it, vi } from "vitest";
+import {
+  createPiEngineAdapter,
+  PINNED_PI_HIDDEN_COMMAND_NAMES,
+  PINNED_PI_WORKFLOW_COMMAND_NAMES,
+  type PiRuntimeLike,
+  type PiSessionLike,
+} from "../../../src/foundation/pi-engine-adapter/index.js";
 import type { PiTuiTerminalPort } from "../../../src/foundation/pi-tui-runtime-adapter/index.js";
 import { PiSessionShell } from "../../../src/features/owned-ui/index.js";
 
@@ -24,6 +30,11 @@ class Session implements PiSessionLike {
   abortRetry(): void { this.calls.push("abortRetry"); }
   abortCompaction(): void { this.calls.push("abortCompaction"); }
   async compact(): Promise<void> { this.calls.push("compact"); }
+  clearQueue(): unknown { this.calls.push("clearQueue"); return { steering: ["queued steer"], followUp: ["queued follow"] }; }
+  async executeBash(command: string, _onChunk: unknown, options: { excludeFromContext: boolean }): Promise<unknown> {
+    this.calls.push(`bash:${command}:${options.excludeFromContext}`);
+    return { output: command, exitCode: 0, cancelled: false, truncated: false };
+  }
   async setModel(model: unknown): Promise<void> { this.model = model; this.calls.push("setModel"); }
   setThinkingLevel(level: unknown): void { this.thinkingLevel = level; this.calls.push(`thinking:${String(level)}`); }
   dispose(): void {}
@@ -107,6 +118,77 @@ describe("PiSessionShell", () => {
     await shell.shutdown();
     await shell.dispose();
     expect(engine.calls).toContain("dispose");
+  });
+
+  it("routes the complete command manifest, hidden routes, prompt resources, bash modes, and streaming queues", async () => {
+    const { engine, adapter, shell } = await fixture();
+    const workflow = vi.spyOn(adapter, "executeWorkflow").mockImplementation(async request => ({
+      command: request.command,
+      outcome: "completed",
+      message: `ran ${request.command}`,
+    }));
+    for (const command of [...PINNED_PI_WORKFLOW_COMMAND_NAMES, ...PINNED_PI_HIDDEN_COMMAND_NAMES]) {
+      await shell.submit(`/${command}`);
+    }
+    expect(workflow.mock.calls.map(([request]) => request.command)).toEqual([
+      ...PINNED_PI_WORKFLOW_COMMAND_NAMES,
+      ...PINNED_PI_HIDDEN_COMMAND_NAMES,
+    ]);
+
+    await shell.submit("/plan release");
+    await shell.submit("/skill:review src");
+    await shell.submit("!echo included");
+    await shell.submit("!!echo excluded");
+    expect(engine.session.calls).toContain("prompt:/plan release");
+    expect(engine.session.calls).toContain("prompt:/skill:review src");
+    expect(engine.session.calls).toContain("bash:echo included:false");
+    expect(engine.session.calls).toContain("bash:echo excluded:true");
+
+    engine.session.emit({ type: "agent_start" });
+    await adapter.flushEvents();
+    await shell.submit("steer now");
+    shell.root.editor.setText("follow later");
+    await shell.queueFollowUp();
+    expect(engine.session.calls).toContain("steer:steer now");
+    expect(engine.session.calls).toContain("followUp:follow later");
+    await shell.dispose();
+  });
+
+  it("retains compaction-time input and restores queued steering and follow-up text", async () => {
+    const { engine, adapter, shell } = await fixture();
+    engine.session.emit({ type: "compaction_start", reason: "manual" });
+    await adapter.flushEvents();
+    await shell.submit("after compaction");
+    expect(engine.session.calls).not.toContain("steer:after compaction");
+    engine.session.emit({ type: "compaction_end", reason: "manual", result: {}, aborted: false, willRetry: false });
+    await adapter.flushEvents();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(engine.session.calls).toContain("steer:after compaction");
+
+    shell.restoreQueuedInput();
+    expect(shell.root.editor.getText()).toBe("queued steer\nqueued follow");
+    await shell.dispose();
+  });
+
+  it("continues selector choices and renders cancellation and failure outcomes", async () => {
+    const { adapter, terminal, shell } = await fixture();
+    const workflow = vi.spyOn(adapter, "executeWorkflow")
+      .mockResolvedValueOnce({
+        command: "model",
+        outcome: "requires-selection",
+        message: "Model",
+        selectorTitle: "Model",
+        options: [{ id: "openai/gpt-5", label: "GPT-5" }],
+      })
+      .mockResolvedValueOnce({ command: "model", outcome: "completed", message: "Selected GPT-5" })
+      .mockResolvedValueOnce({ command: "copy", outcome: "failed", message: "clipboard denied" });
+    await shell.submit("/model");
+    terminal.input("\r");
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(workflow).toHaveBeenNthCalledWith(2, { command: "model", argument: "", selection: "openai/gpt-5" });
+    await shell.submit("/copy");
+    expect(shell.root.render(80).join("\n")).toContain("Error: clipboard denied");
+    await shell.dispose();
   });
 
   it("keeps the production a1 ui path free of the hand-written runtime, editor, and chrome", async () => {

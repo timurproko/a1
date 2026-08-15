@@ -43,6 +43,16 @@ export interface PiShellEditorPort extends PiShellComponentPort {
   setText(text: string): void;
   insertText(text: string): void;
   setSubmitEnabled(enabled: boolean): void;
+  setSubmitHandler(handler: (text: string) => void): void;
+  setInterruptHandler(handler: () => void): void;
+  setAutocompleteCommands(commands: readonly PiShellAutocompleteCommand[]): void;
+}
+
+export interface PiShellAutocompleteCommand {
+  readonly name: string;
+  readonly description?: string;
+  readonly argumentHint?: string;
+  readonly argumentOptions?: readonly PiShellSelectorOption[];
 }
 
 export interface PiShellViewComponentPort extends PiShellComponentPort {
@@ -85,9 +95,15 @@ export interface PiShellEditorOptions {
   readonly onInterrupt?: () => void;
   readonly onExit?: () => void;
   readonly onModelSelect?: () => void;
-  readonly onThinkingCycle?: () => void;
-  readonly onToolsExpand?: () => void;
+  readonly onModelCycle?: ((direction: "forward" | "backward") => void) | undefined;
+  readonly onThinkingCycle?: (() => void) | undefined;
+  readonly onThinkingToggle?: (() => void) | undefined;
+  readonly onToolsExpand?: (() => void) | undefined;
+  readonly onMessageCopy?: (() => void) | undefined;
+  readonly onFollowUp?: (() => void) | undefined;
+  readonly onDequeue?: (() => void) | undefined;
   readonly cwd?: string;
+  readonly autocompleteCommands?: readonly PiShellAutocompleteCommand[];
 }
 
 export interface PiShellSelectorOption {
@@ -161,23 +177,40 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
     borderColor: value => value,
     selectList: getSelectListTheme(),
   }, keybindings as never, { paddingX: 0 });
-  editor.setAutocompleteProvider(new CombinedAutocompleteProvider(
-    PINNED_PI_BUILTIN_SLASH_COMMANDS,
-    options.cwd ?? process.cwd(),
-  ));
-  editor.onSubmit = options.onSubmit;
+  const setAutocompleteCommands = (commands: readonly PiShellAutocompleteCommand[]) => {
+    const additions = new Map(commands.map(command => [command.name, command]));
+    const builtInNames = new Set(PINNED_PI_BUILTIN_SLASH_COMMANDS.map(command => command.name));
+    const builtIns = PINNED_PI_BUILTIN_SLASH_COMMANDS.map(command => autocompleteCommand(command, additions.get(command.name)));
+    const resources = commands.filter(command => !builtInNames.has(command.name)).map(command => autocompleteCommand(command));
+    editor.setAutocompleteProvider(new CombinedAutocompleteProvider(
+      [...builtIns, ...resources],
+      options.cwd ?? process.cwd(),
+    ));
+  };
+  setAutocompleteCommands(options.autocompleteCommands ?? []);
+  let submitHandler = options.onSubmit;
+  let interruptHandler = options.onInterrupt ?? (() => {});
+  editor.onSubmit = text => submitHandler(text);
   if (options.onChange !== undefined) editor.onChange = options.onChange;
   if (options.onInterrupt !== undefined) {
-    editor.onEscape = options.onInterrupt;
-    editor.onAction("app.interrupt", options.onInterrupt);
+    editor.onEscape = () => interruptHandler();
+    editor.onAction("app.interrupt", () => interruptHandler());
   }
   if (options.onExit !== undefined) {
     editor.onCtrlD = options.onExit;
     editor.onAction("app.exit", options.onExit);
   }
   if (options.onModelSelect !== undefined) editor.onAction("app.model.select", options.onModelSelect);
+  if (options.onModelCycle !== undefined) {
+    editor.onAction("app.model.cycleForward", () => options.onModelCycle?.("forward"));
+    editor.onAction("app.model.cycleBackward", () => options.onModelCycle?.("backward"));
+  }
   if (options.onThinkingCycle !== undefined) editor.onAction("app.thinking.cycle", options.onThinkingCycle);
+  if (options.onThinkingToggle !== undefined) editor.onAction("app.thinking.toggle", options.onThinkingToggle);
   if (options.onToolsExpand !== undefined) editor.onAction("app.tools.expand", options.onToolsExpand);
+  if (options.onMessageCopy !== undefined) editor.onAction("app.message.copy", options.onMessageCopy);
+  if (options.onFollowUp !== undefined) editor.onAction("app.message.followUp", options.onFollowUp);
+  if (options.onDequeue !== undefined) editor.onAction("app.message.dequeue", options.onDequeue);
   return {
     render: width => editor.render(width),
     handleInput: data => editor.handleInput(data),
@@ -191,6 +224,9 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
     setSubmitEnabled: enabled => {
       editor.disableSubmit = !enabled;
     },
+    setSubmitHandler: handler => { submitHandler = handler; },
+    setInterruptHandler: handler => { interruptHandler = handler; },
+    setAutocompleteCommands,
   };
 }
 
@@ -452,6 +488,29 @@ function componentFromPort(port: PiShellComponentPort): Component {
     render: width => [...port.render(width)],
     ...(port.handleInput === undefined ? {} : { handleInput: (data: string) => port.handleInput?.(data) }),
     invalidate: () => port.invalidate(),
+  };
+}
+
+function autocompleteCommand(
+  command: PiShellAutocompleteCommand,
+  addition?: PiShellAutocompleteCommand,
+): PiShellAutocompleteCommand & { getArgumentCompletions?: (prefix: string) => Array<{ value: string; label: string; description?: string }> } {
+  const argumentOptions = addition?.argumentOptions ?? command.argumentOptions;
+  return {
+    ...command,
+    ...addition,
+    ...(argumentOptions === undefined ? {} : {
+      getArgumentCompletions: (prefix: string) => {
+        const normalized = prefix.toLowerCase();
+        return argumentOptions
+          .filter(option => option.id.toLowerCase().includes(normalized) || option.label.toLowerCase().includes(normalized))
+          .map(option => ({
+            value: option.id,
+            label: option.label,
+            ...(option.description === undefined ? {} : { description: option.description }),
+          }));
+      },
+    }),
   };
 }
 

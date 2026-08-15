@@ -1,0 +1,59 @@
+{
+  "schema": "addone-pinned-pi-command-workflow-outcomes-v1",
+  "change": "build-owned-pi-ui-foundation",
+  "task": "7.4",
+  "recordedAt": "2026-08-16T12:00:00.000Z",
+  "upstream": {
+    "repository": "https://github.com/earendil-works/pi.git",
+    "commit": "53fa77ccd8a279eb87e92294ef3687b03ff80112",
+    "package": "@earendil-works/pi-coding-agent@0.84.1",
+    "sources": [
+      { "path": "packages/coding-agent/src/core/slash-commands.ts", "lines": [3, 42] },
+      { "path": "packages/coding-agent/src/modes/interactive/interactive-mode.ts", "lines": [2870, 3058] },
+      { "path": "packages/coding-agent/src/modes/interactive/interactive-mode.ts", "lines": [3998, 6205] },
+      { "path": "packages/coding-agent/src/modes/interactive/interactive-mode.ts", "lines": [6207, 6374] }
+    ]
+  },
+  "advertised": [
+    { "name": "settings", "route": "selector", "success": "apply setting and restore editor", "cancel": "restore editor", "failure": "show visible error and restore editor" },
+    { "name": "model", "route": "exact-or-selector", "success": "set model", "cancel": "restore editor", "failure": "show model error" },
+    { "name": "scoped-models", "route": "selector", "success": "save scoped models", "cancel": "restore editor", "failure": "show model error" },
+    { "name": "export", "route": "operation", "success": "show exported path", "cancel": "not-applicable", "failure": "show export error" },
+    { "name": "import", "route": "confirm-operation", "success": "switch imported session", "cancel": "show Import cancelled", "failure": "show import error" },
+    { "name": "share", "route": "cancellable-operation", "success": "show share and gist URLs", "cancel": "show Share cancelled", "failure": "show gh/export/gist error" },
+    { "name": "copy", "route": "operation", "success": "show clipboard confirmation", "cancel": "not-applicable", "failure": "show clipboard/no-message error" },
+    { "name": "name", "route": "argument-operation", "success": "show normalized session name", "cancel": "not-applicable", "failure": "show usage warning" },
+    { "name": "session", "route": "detail", "success": "render complete session stats", "cancel": "not-applicable", "failure": "show stats error" },
+    { "name": "changelog", "route": "detail", "success": "render changelog", "cancel": "not-applicable", "failure": "show changelog error" },
+    { "name": "hotkeys", "route": "detail", "success": "render keyboard shortcuts", "cancel": "not-applicable", "failure": "show keybinding error" },
+    { "name": "fork", "route": "selector", "success": "fork before selected user message", "cancel": "restore editor", "failure": "show fork error" },
+    { "name": "clone", "route": "operation", "success": "fork at current leaf", "cancel": "retain current session", "failure": "show clone error" },
+    { "name": "tree", "route": "selector", "success": "navigate selected entry", "cancel": "restore editor", "failure": "show tree error" },
+    { "name": "trust", "route": "selector", "success": "persist project trust", "cancel": "restore editor", "failure": "show trust error" },
+    { "name": "login", "route": "selector-auth", "success": "persist credential and refresh models", "cancel": "silent Login cancelled", "failure": "show login error" },
+    { "name": "logout", "route": "selector-auth", "success": "remove selected stored credential", "cancel": "restore editor", "failure": "show logout error" },
+    { "name": "new", "route": "operation", "success": "show new session started", "cancel": "retain current session", "failure": "fatal session recovery" },
+    { "name": "compact", "route": "argument-operation", "success": "start compaction with optional instructions", "cancel": "abort through interrupt", "failure": "reported by compaction event" },
+    { "name": "resume", "route": "selector", "success": "switch selected session", "cancel": "restore editor", "failure": "fatal session recovery" },
+    { "name": "reload", "route": "guarded-operation", "success": "reload resources and autocomplete", "cancel": "not-applicable", "failure": "show reload error and restore prior editor" },
+    { "name": "quit", "route": "shutdown", "success": "ordered terminal shutdown", "cancel": "defer until settled when required", "failure": "emergency terminal restoration" }
+  ],
+  "hidden": ["debug", "arminsayshi", "dementedelves"],
+  "inputOutcomes": {
+    "whitespace": "ignored",
+    "unknownSlash": "normal prompt input",
+    "promptTemplate": "expanded by AgentSession.prompt",
+    "skill": "expanded by AgentSession.prompt/steer/followUp",
+    "bang": "bash included in context",
+    "doubleBang": "bash excluded from context",
+    "streamingEnter": "steering queue",
+    "streamingAltEnter": "follow-up queue",
+    "compactingEnter": "retained queue",
+    "dequeue": "restore queued text to editor",
+    "escape": "cancel selector/bash/retry/compaction/stream or clear transient input",
+    "shutdown": "quit, empty Ctrl-D, or double Ctrl-C"
+  },
+  "settingsCallbacks": [
+    "onAutoCompactChange", "onShowImagesChange", "onImageWidthCellsChange", "onAutoResizeImagesChange", "onBlockImagesChange", "onEnableSkillCommandsChange", "onSteeringModeChange", "onFollowUpModeChange", "onTransportChange", "onHttpIdleTimeoutMsChange", "onThinkingLevelChange", "onThemeChange", "onThemePreview", "onHideThinkingBlockChange", "onMermaidRenderingModeChange", "onShowCacheMissNoticesChange", "onCollapseChangelogChange", "onEnableInstallTelemetryChange", "onQuietStartupChange", "onDefaultProjectTrustChange", "onDoubleEscapeActionChange", "onTreeFilterModeChange", "onShowHardwareCursorChange", "onEditorPaddingXChange", "onOutputPadChange", "onAutocompleteMaxVisibleChange", "onClearOnShrinkChange", "onShowTerminalProgressChange", "onTuiModeChange", "onFullscreenScrollbarChange", "onWarningsChange", "onCancel"
+  ]
+}
