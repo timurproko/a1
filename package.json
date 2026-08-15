@@ -33,6 +33,7 @@
     "test:integration": "vitest run test/foundation/release/update-transition.integration.test.ts test/features/launch/profile-isolation.integration.test.ts",
     "test:release": "node scripts/run-release-gates.mjs",
     "test:terminal-host": "node scripts/run-terminal-host-probe.mjs",
+    "update:pi-component-parity": "tsx scripts/update-pi-component-parity.ts",
     "proof:terminal-host": "node scripts/run-terminal-host.mjs",
     "start": "npm run build && node scripts/start-local.mjs",
     "prepack": "node scripts/prepack-gate.mjs",

@@ -1,0 +1,163 @@
+{
+  "schema": "addone-pi-static-component-parity-v1",
+  "generatedFrom": {
+    "repository": "https://github.com/earendil-works/pi.git",
+    "sourceCommit": "53fa77ccd8a279eb87e92294ef3687b03ff80112",
+    "packages": {
+      "@earendil-works/pi-coding-agent": "0.84.1",
+      "@earendil-works/pi-tui": "0.84.1"
+    }
+  },
+  "tolerance": {
+    "ignored": [
+      "ANSI control sequences"
+    ],
+    "preserved": [
+      "visible text",
+      "row order",
+      "row count",
+      "wrapping",
+      "width truncation"
+    ]
+  },
+  "coverage": [
+    "transcript",
+    "streaming",
+    "tools",
+    "editor",
+    "queued-input",
+    "dialogs",
+    "selectors",
+    "status",
+    "errors",
+    "resize"
+  ],
+  "cases": [
+    {
+      "id": "shell-72",
+      "width": 72,
+      "coverage": [
+        "transcript",
+        "streaming",
+        "tools",
+        "editor",
+        "queued-input",
+        "status",
+        "errors"
+      ],
+      "rows": [
+        "                                                                        ",
+        " Inspect parity                                                         ",
+        "                                                                        ",
+        "",
+        " Final assistant response                                               ",
+        "",
+        " Streaming assistant response                                           ",
+        "",
+        " Evaluate fixture coverage                                              ",
+        "",
+        "                                                                        ",
+        " read README.md                                                         ",
+        "                                                                        ",
+        "",
+        "                                                                        ",
+        " read README.md                                                         ",
+        "                                                                        ",
+        "Retry: Retrying request                                                 ",
+        "                                                                        ",
+        " [compaction]                                                           ",
+        "                                                                        ",
+        " Compacted from 2,048 tokens                                            ",
+        "                                                                        ",
+        " Compacted conversation summary                                         ",
+        "                                                                        ",
+        "Error: Synthetic parity error                                           ",
+        "System notice                                                           ",
+        "Parity diagnostic                                                       ",
+        "queued 1: First queued prompt                                           ",
+        "queued 2: Second queued prompt                                          ",
+        "────────────────────────────────────────────────────────────────────────",
+        "Queued-aware editor text                                                ",
+        "────────────────────────────────────────────────────────────────────────",
+        "Pi  ·  busy  ·  openai/gpt-5  ·  thinking:medium  ·  Working            "
+      ]
+    },
+    {
+      "id": "shell-resize-44",
+      "width": 44,
+      "coverage": [
+        "resize",
+        "transcript",
+        "streaming",
+        "tools",
+        "editor",
+        "queued-input",
+        "status",
+        "errors"
+      ],
+      "rows": [
+        "                                            ",
+        " Inspect parity                             ",
+        "                                            ",
+        "",
+        " Final assistant response                   ",
+        "",
+        " Streaming assistant response               ",
+        "",
+        " Evaluate fixture coverage                  ",
+        "",
+        "                                            ",
+        " read README.md                             ",
+        "                                            ",
+        "",
+        "                                            ",
+        " read README.md                             ",
+        "                                            ",
+        "Retry: Retrying request                     ",
+        "                                            ",
+        " [compaction]                               ",
+        "                                            ",
+        " Compacted from 2,048 tokens                ",
+        "                                            ",
+        " Compacted conversation summary             ",
+        "                                            ",
+        "Error: Synthetic parity error               ",
+        "System notice                               ",
+        "Parity diagnostic                           ",
+        "queued 1: First queued prompt               ",
+        "queued 2: Second queued prompt              ",
+        "────────────────────────────────────────────",
+        "Queued-aware editor text                    ",
+        "────────────────────────────────────────────",
+        "Pi  ·  busy  ·  openai/gpt-5  ·             ",
+        "thinking:medium  ·  Working                 "
+      ]
+    },
+    {
+      "id": "dialog-52",
+      "width": 52,
+      "coverage": [
+        "dialogs"
+      ],
+      "rows": [
+        "                                                    ",
+        "  Confirm action                                    ",
+        " → Yes                                              ",
+        "   No                                               ",
+        "                                                    "
+      ]
+    },
+    {
+      "id": "selector-48",
+      "width": 48,
+      "coverage": [
+        "selectors"
+      ],
+      "rows": [
+        " Select model                                   ",
+        "→ GPT-5                           openai/gpt-5",
+        "  Claude                          anthropic/cl"
+      ]
+    }
+  ]
+}
