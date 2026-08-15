@@ -9,7 +9,7 @@ export interface LaunchProfileContract {
   readonly productSurface: "agent" | "vanilla-baseline" | "isolated-profile";
   readonly piConfigurationRoot: PiConfigurationRootPolicy;
   readonly projectTrust: ProjectTrustPolicy;
-  readonly terminalCapability: "transparent";
+  readonly terminalCapability: "owned-ui" | "transparent";
 }
 
 const contracts: Readonly<Record<LaunchProfileId, LaunchProfileContract>> = Object.freeze({
@@ -18,7 +18,7 @@ const contracts: Readonly<Record<LaunchProfileId, LaunchProfileContract>> = Obje
     productSurface: "agent",
     piConfigurationRoot: "addone-agent",
     projectTrust: "pi-default",
-    terminalCapability: "transparent",
+    terminalCapability: "owned-ui",
   }),
   pi: Object.freeze({
     id: "pi",

@@ -37,7 +37,7 @@ export interface UncertifiedDevelopmentPreviewEvidence extends UncertifiedDevelo
   readonly schema: "addone-development-preview-certification-v2";
   readonly channel: "next";
   readonly certificationStatus: "uncertified-development-preview";
-  readonly terminalCapability: "transparent";
+  readonly terminalCapability: "owned-ui";
   readonly manualAcceptance: "accepted";
   readonly physicalHostCertification: "deferred";
   readonly crossPlatformCertification: "deferred";
@@ -55,7 +55,7 @@ export function createUncertifiedDevelopmentPreviewEvidence(
     schema: "addone-development-preview-certification-v2",
     channel: "next",
     certificationStatus: "uncertified-development-preview",
-    terminalCapability: "transparent",
+    terminalCapability: "owned-ui",
     manualAcceptance: "accepted",
     physicalHostCertification: "deferred",
     crossPlatformCertification: "deferred",

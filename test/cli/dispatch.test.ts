@@ -7,7 +7,6 @@ describe("AddOne CLI dispatch", () => {
     [[], { kind: "launch", profileId: "addone" }],
     [["pi"], { kind: "launch", profileId: "pi" }],
     [["sandbox"], { kind: "launch", profileId: "sandbox" }],
-    [["ui"], { kind: "owned-ui" }],
     [["version"], { kind: "version" }],
     [["update"], { kind: "update", channel: "stable" }],
     [["update:next"], { kind: "update", channel: "next" }],
@@ -16,14 +15,13 @@ describe("AddOne CLI dispatch", () => {
   });
 
   it.each([
-    { arguments_: [] as const, profileId: "addone" },
-    { arguments_: ["pi"] as const, profileId: "pi" },
-    { arguments_: ["sandbox"] as const, profileId: "sandbox" },
-  ] as const)("dispatches interactive form $arguments_ as a typed intent", async ({ arguments_, profileId }) => {
+    { arguments_: [] as const, profileId: "addone", terminalCapability: "owned-ui" },
+    { arguments_: ["pi"] as const, profileId: "pi", terminalCapability: "transparent" },
+    { arguments_: ["sandbox"] as const, profileId: "sandbox", terminalCapability: "transparent" },
+  ] as const)("dispatches interactive form $arguments_ as a typed intent", async ({ arguments_, profileId, terminalCapability }) => {
     const launch = vi.fn(async (_intent: InteractiveLaunchIntent) => 17);
     const result = await dispatchAddOneCli(arguments_, {
       launch,
-      ownedUi: vi.fn(async () => 0),
       version: vi.fn(async () => 0),
       update: vi.fn(async () => 0),
     }, { stderr: vi.fn() });
@@ -32,29 +30,27 @@ describe("AddOne CLI dispatch", () => {
     expect(launch).toHaveBeenCalledOnce();
     expect(launch.mock.calls[0]?.[0]).toMatchObject({
       kind: "interactive",
-      profile: { id: String(profileId), terminalCapability: "transparent" },
+      profile: { id: profileId, terminalCapability },
     });
   });
 
-  it("dispatches ui as the explicitly selected owned development surface", async () => {
-    const launch = vi.fn(async () => 0);
-    const ownedUi = vi.fn(async () => 13);
-    const result = await dispatchAddOneCli(["ui"], {
-      launch,
-      ownedUi,
+  it("rejects the removed ui alias without running another profile", async () => {
+    const handlers = {
+      launch: vi.fn(async () => 0),
       version: vi.fn(async () => 0),
       update: vi.fn(async () => 0),
-    }, { stderr: vi.fn() });
+    };
+    const stderr = vi.fn();
 
-    expect(result).toBe(13);
-    expect(ownedUi).toHaveBeenCalledOnce();
-    expect(launch).not.toHaveBeenCalled();
+    expect(await dispatchAddOneCli(["ui"], handlers, { stderr })).toBe(2);
+    expect(stderr).toHaveBeenCalledWith(expect.stringContaining("ui subcommand was removed"));
+    expect(stderr).toHaveBeenCalledWith(expect.stringContaining(ADDONE_USAGE));
+    expect(handlers.launch).not.toHaveBeenCalled();
   });
 
   it("rejects agent with bare-agent guidance before any handler runs", async () => {
     const handlers = {
       launch: vi.fn(async () => 0),
-      ownedUi: vi.fn(async () => 0),
       version: vi.fn(async () => 0),
       update: vi.fn(async () => 0),
     };
@@ -73,7 +69,6 @@ describe("AddOne CLI dispatch", () => {
   ])("rejects invalid grammar $arguments_ without shell or child dispatch", async ({ arguments_ }) => {
     const handlers = {
       launch: vi.fn(async () => 0),
-      ownedUi: vi.fn(async () => 0),
       version: vi.fn(async () => 0),
       update: vi.fn(async () => 0),
     };

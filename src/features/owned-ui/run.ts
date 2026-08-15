@@ -2,14 +2,14 @@ import { createPiEngineAdapter, type PiEngineAdapter } from "../../foundation/pi
 import type { PiTuiTerminalPort } from "../../foundation/pi-tui-runtime-adapter/index.js";
 import { PiSessionShell } from "./pi-session-shell.js";
 
-export interface OwnedUiDevelopmentRunOptions {
+export interface OwnedUiRunOptions {
   readonly cwd?: string;
   readonly terminal?: PiTuiTerminalPort;
   readonly adapter?: PiEngineAdapter;
 }
 
-export async function runOwnedUiDevelopmentMode(
-  options: OwnedUiDevelopmentRunOptions = {},
+export async function runOwnedUi(
+  options: OwnedUiRunOptions = {},
 ): Promise<number> {
   const cwd = options.cwd ?? process.cwd();
   const adapter = options.adapter ?? await createPiEngineAdapter({ cwd });

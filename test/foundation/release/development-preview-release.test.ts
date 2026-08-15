@@ -24,7 +24,7 @@ describe("development preview release planning", () => {
       schema: "addone-development-preview-certification-v2",
       channel: "next",
       certificationStatus: "uncertified-development-preview",
-      terminalCapability: "transparent",
+      terminalCapability: "owned-ui",
       manualAcceptance: "accepted",
       physicalHostCertification: "deferred",
       crossPlatformCertification: "deferred",

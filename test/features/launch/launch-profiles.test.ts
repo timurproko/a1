@@ -7,7 +7,7 @@ const expected = {
     productSurface: "agent",
     piConfigurationRoot: "addone-agent",
     projectTrust: "pi-default",
-    terminalCapability: "transparent",
+    terminalCapability: "owned-ui",
   },
   pi: {
     id: "pi",
@@ -31,8 +31,11 @@ describe("launch profile contracts", () => {
     expect(interactiveLaunchIntent(id)).toEqual({ kind: "interactive", profile: expected[id] });
   });
 
-  it("keeps bare AddOne as the agent surface and sandbox as profile isolation", () => {
-    expect(launchProfileContract("addone").productSurface).toBe("agent");
+  it("keeps bare AddOne as the owned agent surface and sandbox as profile isolation", () => {
+    expect(launchProfileContract("addone")).toMatchObject({
+      productSurface: "agent",
+      terminalCapability: "owned-ui",
+    });
     expect(launchProfileContract("sandbox")).toMatchObject({
       productSurface: "isolated-profile",
       projectTrust: "ignore",

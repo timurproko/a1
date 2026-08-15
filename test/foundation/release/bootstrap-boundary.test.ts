@@ -6,13 +6,16 @@ import { describe, expect, it } from "vitest";
 const repository = resolve(fileURLToPath(new URL("../../..", import.meta.url)));
 
 describe("mutable bootstrap boundary", () => {
-  it("routes interactive launch only through bootstrap and the transparent broker", async () => {
+  it("routes interactive launch through bootstrap and selects the owned or transparent runtime lazily", async () => {
     const [bin, ui] = await Promise.all([
       readFile(resolve(repository, "bin/addone.js"), "utf8"),
       readFile(resolve(repository, "bin/addone-ui.js"), "utf8"),
     ]);
     expect(bin).toContain('import("../dist/src/foundation/release/index.js")');
-    expect(ui).toContain('import { runTransparentForeground } from "../dist/src/foundation/transparent-terminal/main.js"');
+    expect(bin).not.toContain("runOwnedUi");
+    expect(ui).toContain("runSelectedInteractiveRuntime");
+    expect(ui).toContain("runOwnedUi");
+    expect(ui).toContain("runTransparentForeground");
     expect(`${bin}\n${ui}`).not.toMatch(/node-pty|pi-tui|@xterm|host-terminal-renderer|terminal-input/);
     expect(`${bin}\n${ui}`).not.toMatch(/Start-Process|wt\.exe|SendInput|SetForegroundWindow/);
   });

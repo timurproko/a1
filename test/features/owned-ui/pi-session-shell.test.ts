@@ -191,7 +191,7 @@ describe("PiSessionShell", () => {
     await shell.dispose();
   });
 
-  it("keeps the production a1 ui path free of the hand-written runtime, editor, and chrome", async () => {
+  it("keeps the production bare a1 path free of the hand-written runtime, editor, and chrome", async () => {
     const source = await readFile("src/features/owned-ui/run.ts", "utf8");
     expect(source).toContain("PiSessionShell");
     expect(source).not.toMatch(/OwnedTerminalRuntime|OwnedPromptEditor|OwnedSessionRootComponent|createProcessTerminalHost/);

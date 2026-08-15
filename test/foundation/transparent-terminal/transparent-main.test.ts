@@ -2,11 +2,12 @@ import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
 describe("transparent CLI composition", () => {
-  it("binds bootstrap UI entry to the common broker without desktop automation", async () => {
+  it("keeps explicit Pi and sandbox fallback bound to the common broker without desktop automation", async () => {
     const [entry, main] = await Promise.all([
       readFile("bin/addone-ui.js", "utf8"),
       readFile("src/foundation/transparent-terminal/main.ts", "utf8"),
     ]);
+    expect(entry).toContain("runSelectedInteractiveRuntime");
     expect(entry).toContain("runTransparentForeground");
     expect(main).toContain("runForegroundBroker");
     expect(main).toContain("createPlatformTransparentLauncher");

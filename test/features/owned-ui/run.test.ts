@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createPiEngineAdapter, type PiRuntimeLike, type PiSessionLike } from "../../../src/foundation/pi-engine-adapter/index.js";
 import type { PiTuiTerminalPort } from "../../../src/foundation/pi-tui-runtime-adapter/index.js";
-import { runOwnedUiDevelopmentMode } from "../../../src/features/owned-ui/index.js";
+import { runOwnedUi } from "../../../src/features/owned-ui/index.js";
 
 class Session implements PiSessionLike {
   readonly sessionId = "pi-session";
@@ -55,8 +55,8 @@ class Terminal implements PiTuiTerminalPort {
   setProgress(): void {}
 }
 
-describe("owned UI development run", () => {
-  it("uses the Pi-backed shell and restores an explicitly selected disposed session", async () => {
+describe("owned UI run", () => {
+  it("uses the Pi-backed shell and restores a disposed session", async () => {
     const adapter = await createPiEngineAdapter({
       cwd: process.cwd(),
       sessionId: "owned-run-test",
@@ -65,7 +65,7 @@ describe("owned UI development run", () => {
     await adapter.dispose();
     const terminal = new Terminal();
 
-    const result = await runOwnedUiDevelopmentMode({ adapter, terminal });
+    const result = await runOwnedUi({ adapter, terminal });
     expect(result).toBe(0);
     expect(terminal.active).toBe(false);
     expect(terminal.writes.join("")).toContain("\x1b[?1049h");

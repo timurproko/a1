@@ -13,10 +13,6 @@ process.exitCode = await dispatchAddOneCli(process.argv.slice(2), {
     const prepared = await prepareInteractiveLaunch(intent);
     return await runBootstrap({ packageRoot: fileURLToPath(packageRoot), launchIntent: intent, environment: prepared.environment });
   },
-  ownedUi: async () => {
-    const { runOwnedUiDevelopmentMode } = await import("../dist/src/features/owned-ui/index.js");
-    return await runOwnedUiDevelopmentMode({ cwd: process.cwd() });
-  },
   version: async () => {
     const { runVersionStats } = await import("../dist/src/cli/index.js");
     return await runVersionStats({ packageRoot: fileURLToPath(packageRoot) });
