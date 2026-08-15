@@ -9,6 +9,7 @@ import { OwnedPromptEditor } from "./prompt-editor.js";
 import { OwnedTranscriptComponent, type OwnedTranscriptRenderer } from "./transcript-history.js";
 import { createOwnedTranscriptRenderer } from "./transcript-renderer.js";
 import { OwnedDiagnosticsComponent, OwnedStatusComponent } from "./surfaces.js";
+import { createVanillaUiCustomizationRegistry, type OwnedUiCustomizationRegistry } from "./customization.js";
 import type { OwnedTerminalComponent, OwnedTerminalInput, OwnedTerminalViewport } from "./terminal-runtime.js";
 
 export class OwnedSessionRootComponent implements OwnedTerminalComponent {
@@ -67,6 +68,7 @@ export interface OwnedPiSessionControllerOptions {
   readonly adapter: PiEngineAdapter;
   readonly width: number;
   readonly renderBlock?: OwnedTranscriptRenderer;
+  readonly customizations?: OwnedUiCustomizationRegistry;
   readonly onRequestRender?: () => void;
 }
 
@@ -74,14 +76,20 @@ export class OwnedPiSessionController {
   readonly adapter: PiEngineAdapter;
   readonly root: OwnedSessionRootComponent;
   readonly #settings = new Map<string, unknown>();
+  readonly #customizations: OwnedUiCustomizationRegistry;
   readonly #listeners = new Set<(view: OwnedUiSessionViewModel) => void>();
   readonly #unsubscribe: () => void;
 
   constructor(options: OwnedPiSessionControllerOptions) {
     this.adapter = options.adapter;
+    this.#customizations = options.customizations ?? createVanillaUiCustomizationRegistry();
+    const defaultRenderer = options.renderBlock ?? createOwnedTranscriptRenderer();
     this.root = new OwnedSessionRootComponent(
       options.width,
-      options.renderBlock,
+      (block, width) => {
+        const override = this.#customizations.resolve("transcript-block")?.implementation.render;
+        return override ? override(block, width) : defaultRenderer(block, width);
+      },
       options.onRequestRender === undefined ? {} : { onRequestRender: options.onRequestRender },
     );
     this.root.update(this.adapter.view());
@@ -99,6 +107,7 @@ export class OwnedPiSessionController {
     return {
       ...this.adapter.view(),
       editor: this.root.editor.state(),
+      customizations: this.#customizations.all(),
     };
   }
 
@@ -154,6 +163,29 @@ export class OwnedPiSessionController {
     this.#settings.set(key, value);
     this.#publish();
     return { outcome: "completed", diagnostic: null };
+  }
+
+  applyCustomization(
+    customization: Parameters<OwnedUiCustomizationRegistry["register"]>[0],
+    implementation: Parameters<OwnedUiCustomizationRegistry["register"]>[1],
+  ): () => void {
+    const remove = this.#customizations.register(customization, implementation);
+    this.root.transcript.invalidate();
+    this.#publish();
+    return () => {
+      remove();
+      this.root.transcript.invalidate();
+      this.#publish();
+    };
+  }
+
+  removeCustomization(id: string): boolean {
+    const removed = this.#customizations.remove(id);
+    if (removed) {
+      this.root.transcript.invalidate();
+      this.#publish();
+    }
+    return removed;
   }
 
   settings(): ReadonlyMap<string, unknown> {

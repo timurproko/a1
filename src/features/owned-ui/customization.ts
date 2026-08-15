@@ -5,6 +5,7 @@ import {
   type OwnedUiSlotId,
 } from "../../foundation/owned-ui-contracts/index.js";
 import type { OwnedCommandSurface } from "./surfaces.js";
+import { createOwnedTranscriptRenderer } from "./transcript-renderer.js";
 
 export interface OwnedUiSlotImplementation {
   readonly payload: unknown;
@@ -62,6 +63,12 @@ export class OwnedUiCustomizationRegistry {
     return false;
   }
 
+  all(): readonly OwnedUiCustomization[] {
+    return [...this.#registrations.values()]
+      .flatMap(slot => [...slot.values()].map(registration => registration.customization))
+      .sort((left, right) => left.slot.localeCompare(right.slot) || right.precedence - left.precedence || left.id.localeCompare(right.id));
+  }
+
   clear(): void {
     this.#registrations.clear();
   }
@@ -108,7 +115,10 @@ export function createVanillaUiCustomizationRegistry(): OwnedUiCustomizationRegi
   register("theme", "vanilla-theme", "Vanilla Pi style", {
     payload: { background: "terminal", foreground: "terminal", accent: "blue" },
   });
-  register("transcript-block", "vanilla-transcript", "Vanilla transcript");
+  register("transcript-block", "vanilla-transcript", "Vanilla transcript", {
+    payload: {},
+    render: (input, width) => createOwnedTranscriptRenderer()(input as never, width),
+  });
   register("tool-card", "vanilla-tool-card", "Vanilla tool cards");
   register("editor", "vanilla-editor", "Vanilla editor");
   register("status", "vanilla-status", "Vanilla status");

@@ -29,7 +29,7 @@
 ## 5. Add Customization and Diagnostics Foundation
 
 - [x] 5.1 Implement versioned AddOne slots for themes, transcript blocks, tool cards, editor, status surfaces, commands, selectors, overlays, and future layout composition; pass registration, precedence, isolation, and invalid-slot tests.
-- [ ] 5.2 Add a vanilla-style preset and prove customizations resolve without mutating installed Pi code or depending on Pi's stock extension UI context; pass preset replacement and rollback fixtures.
+- [x] 5.2 Add a vanilla-style preset and prove customizations resolve without mutating installed Pi code or depending on Pi's stock extension UI context; pass preset replacement and rollback fixtures.
 - [ ] 5.3 Support public-SDK non-visual Pi resources through the adapter where available and define unavailable visual-extension behavior; pass resource-discovery, diagnostics, and no-partial-capability fixtures.
 - [ ] 5.4 Add bounded logging, redaction, diagnostics capture, CPU/memory/frame observations, and terminal-restoration failure reporting without exporting raw engine payloads through UI controls; pass diagnostics policy tests.
 

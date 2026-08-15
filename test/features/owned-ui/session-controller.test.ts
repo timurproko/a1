@@ -110,4 +110,33 @@ describe("owned Pi session controller", () => {
     expect(controller.root.render({ columns: 40, rows: 10 }).join("\n")).toContain("Working");
     expect(views.length).toBeGreaterThan(1);
   });
+
+  it("applies and rolls back a vanilla preset override without mutating installed Pi components", async () => {
+    const { UserMessageComponent } = await import("@earendil-works/pi-coding-agent");
+    const originalRender = UserMessageComponent.prototype.render;
+    const { adapter, controller, session } = await controllerFixture();
+    expect(controller.view().customizations.some(value => value.id === "vanilla-transcript")).toBe(true);
+
+    const rollback = controller.applyCustomization({
+      id: "custom-transcript",
+      slot: "transcript-block",
+      version: 1,
+      precedence: 100,
+      label: "Custom transcript",
+      payload: {},
+    }, {
+      payload: {},
+      render: (input, width) => [`CUSTOM: ${String((input as { text?: unknown }).text ?? "").slice(0, Math.max(0, width - 8))}`],
+    });
+    session.emit({
+      type: "message_start",
+      message: { role: "assistant", content: [{ type: "text", text: "hello" }], timestamp: 10 },
+    });
+    await adapter.flushEvents();
+    expect(controller.root.render({ columns: 40, rows: 10 }).join("\n")).toContain("CUSTOM: hello");
+
+    rollback();
+    expect(controller.root.render({ columns: 40, rows: 10 }).join("\n")).not.toContain("CUSTOM:");
+    expect(UserMessageComponent.prototype.render).toBe(originalRender);
+  });
 });
