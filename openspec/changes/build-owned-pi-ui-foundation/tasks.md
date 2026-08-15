@@ -35,7 +35,7 @@
 
 ## 6. Accept the Base UI Before Multi-Agent Tabs
 
-- [ ] 6.1 Run complete automated gates: build, typecheck, tests, architecture, adapter conformance, terminal runtime, transcript, editor, input, clipboard, resize, lifecycle, resource, packaging, audit, and strict OpenSpec validation; preserve machine-readable evidence.
+- [x] 6.1 Run complete automated gates: build, typecheck, tests, architecture, adapter conformance, terminal runtime, transcript, editor, input, clipboard, resize, lifecycle, resource, packaging, audit, and strict OpenSpec validation; preserve machine-readable evidence.
 - [ ] 6.2 Run user-controlled manual base-UX acceptance for the exact development artifact: prompt and streaming, tools, editor and queued input, abort/retry/compaction, model and thinking controls, session resume, settings, clipboard, selection, resize, shutdown, and comparison against `a1 pi`; record exact commit and package identity.
 - [ ] 6.3 Correct every manual finding, rerun focused and containing gates, and mark the base UI accepted only when all baseline workflows pass.
 - [ ] 6.4 Merge the accepted slice through `develop` and publish a unique `-dev.N` package under npm `next` as an explicitly selected owned-UI development path, with structured tabs and composed terminal behavior disabled and no stable support claim; keep `latest` unchanged and verify registry/package integrity.
