@@ -113,6 +113,16 @@ The second manual comparison establishes these additional source-port requiremen
 
 These findings reopen any previously completed transcript-component, fullscreen-scroll, or root-composition task they contradict. Independent parity must include identical message payloads, raw ANSI frames, physical wheel sequences, startup resources, and selector-active viewports; comparisons of different model responses or ANSI-stripped rows alone are insufficient.
 
+### 8. Run one automated untouched-Pi versus AddOne terminal gate after each porting slice
+
+Normal interactive development remains `npm start` for AddOne and `npm start -- pi` for the untouched fallback. In addition, a single developer-facing command, `npm run test:pi-terminal-parity`, will automatically launch untouched pinned Pi and the AddOne-owned UI as separate child processes in isolated fixed-size terminal sessions. The command is a test/evidence gate run by the implementing agent after each coherent correction; it does not replace or complicate ordinary user launch commands.
+
+Both producers will receive the same cwd, terminal geometry, color capability, isolated configuration, resources, prepared session state, and scripted inputs. Nondeterministic model responses will not be compared directly: content scenarios will use an identical prepared session replay or deterministic local scripted model stream. Scenario steps may cover startup, key and text input, commands, wheel events, resize, selectors, dialogs, streaming, settlement, and shutdown, but internal scenario partitioning will remain an implementation detail rather than separate required user commands.
+
+The gate will capture comparable terminal checkpoints and report row text, ANSI color/style, spacing, wrapping, cursor/focus, scroll destination, scrollbar, component geometry, footer/status, selector/dialog, startup-resource, and transcript-persistence differences. It will emit a bounded machine-readable diff plus a concise human-readable side-by-side artifact and fail on any divergence outside named terminal-only tolerances. The untouched producer must execute the pinned Pi CLI/package without using AddOne rendering code; the AddOne producer must execute the owned launch path. AddOne-generated snapshots alone remain regression evidence and cannot satisfy this gate.
+
+The harness is test-only and must not add PTY ownership, terminal parsing, captured cell grids, or vanilla-Pi process dependencies to production runtime boundaries. It will run headlessly in an isolated worker/session and clean up both process trees on success, timeout, or failure. Focused internal tests may be used while diagnosing a failure, but the required acceptance interface is the one full `npm run test:pi-terminal-parity` command, which must pass before a corrected slice is marked complete or committed.
+
 ## Risks / Trade-offs
 
 - **[Large mechanical port creates review churn]** → Land coherent upstream units separately, keep transformations mechanical, and attach ledger entries and focused tests to each slice.

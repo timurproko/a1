@@ -93,6 +93,22 @@ The first accepted presentation SHALL match pinned Pi for visible rows, ANSI sty
 - **WHEN** expected and actual results are both derived from AddOne implementation code or AddOne-authored synthetic state
 - **THEN** the result SHALL be classified as regression evidence and SHALL NOT satisfy parity
 
+#### Scenario: Run the automated terminal parity gate
+- **WHEN** a coherent pinned-UI correction is ready to be marked complete or committed
+- **THEN** `npm run test:pi-terminal-parity` SHALL independently launch untouched pinned Pi and the AddOne-owned UI, apply equivalent deterministic terminal state and actions, compare all declared checkpoints, and pass before the correction is accepted
+
+#### Scenario: Compare deterministic terminal sessions
+- **WHEN** a terminal parity scenario depends on resources, prior messages, model output, streaming, tools, or settlement
+- **THEN** both producers SHALL receive the same isolated configuration, cwd, geometry, capabilities, prepared session replay or deterministic scripted model stream, resource set, and input sequence without deriving the untouched expected output from AddOne code
+
+#### Scenario: Detect a terminal divergence
+- **WHEN** equivalent checkpoints differ in visible rows, ANSI colors or styles, spacing, wrapping, focus, cursor, scroll destination, scrollbar, component geometry, startup resources, editor, transcript, footer/status, selector/dialog, error, resize, or lifecycle state outside a named terminal-only tolerance
+- **THEN** the automated terminal parity command SHALL fail and produce bounded machine-readable and human-readable difference artifacts
+
+#### Scenario: Terminal parity producer fails or times out
+- **WHEN** either independent process exits unexpectedly, hangs, fails a checkpoint, or exceeds its bounded deadline
+- **THEN** the gate SHALL fail, preserve diagnostics, restore terminal state, and terminate both isolated process trees without affecting production terminal ownership
+
 ### Requirement: Every pinned interactive behavior has traceable port coverage
 The change SHALL maintain an exhaustive, machine-verifiable mapping from the pinned interactive source baseline to AddOne behavior, tests, provenance, local modifications, and approved deviations. Every copied or adapted MIT-licensed source unit SHALL retain required attribution. Deviations SHALL be limited to public engine/runtime boundaries, AddOne ownership contracts, platform terminal integration, and removal of private mutation or inspection.
 
