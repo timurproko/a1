@@ -16,16 +16,21 @@ const { checkoutId, instanceId, developmentRoot, environment } = resolveDevelopm
 
 const launchArguments = process.argv.slice(2);
 if (launchArguments[0] === "--print-environment") {
-  process.stdout.write(`${JSON.stringify({ checkoutId, instanceId, releaseId: release.releaseId, developmentRoot, launchArguments: launchArguments.slice(1), environment: {
+  const inspectedArguments = launchArguments.slice(1);
+  process.stdout.write(`${JSON.stringify({ checkoutId, instanceId, releaseId: release.releaseId, developmentRoot, launchArguments: inspectedArguments, directProfile: directLaunchProfile(inspectedArguments), environment: {
     ADDONE_CONFIG_DIR: environment.ADDONE_CONFIG_DIR,
     ADDONE_DATA_DIR: environment.ADDONE_DATA_DIR,
     ADDONE_RUNTIME_DIR: environment.ADDONE_RUNTIME_DIR,
     ADDONE_DATABASE_PATH: environment.ADDONE_DATABASE_PATH,
   } }, null, 2)}\n`);
 } else {
-  const child = spawn(process.execPath, [resolve(packageRoot, "bin", "addone.js"), ...launchArguments], {
+  const directProfile = directLaunchProfile(launchArguments);
+  const entry = directProfile === null ? "addone.js" : "addone-ui.js";
+  const childEnvironment = directProfile === null ? environment : { ...environment, ADDONE_LAUNCH_PROFILE: directProfile };
+  const childArguments = directProfile === null ? launchArguments : [];
+  const child = spawn(process.execPath, [resolve(packageRoot, "bin", entry), ...childArguments], {
     cwd: process.cwd(),
-    env: environment,
+    env: childEnvironment,
     stdio: "inherit",
     windowsHide: false,
   });
@@ -36,6 +41,12 @@ if (launchArguments[0] === "--print-environment") {
   child.once("close", (code, signal) => {
     process.exitCode = code ?? (signal ? 1 : 0);
   });
+}
+
+function directLaunchProfile(arguments_) {
+  if (arguments_.length === 0) return "addone";
+  if (arguments_.length === 1 && (arguments_[0] === "pi" || arguments_[0] === "sandbox")) return arguments_[0];
+  return null;
 }
 
 async function deriveDevelopmentReleaseIdentity(root) {

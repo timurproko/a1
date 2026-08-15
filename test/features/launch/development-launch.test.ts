@@ -51,9 +51,15 @@ describe("repository-local development launch", () => {
     });
   });
 
-  it("forwards npm start profile arguments to the local AddOne entry", async () => {
-    const inspection = await execute(process.execPath, ["scripts/start-local.mjs", "--print-environment", "sandbox"]);
-    expect(JSON.parse(inspection.stdout)).toMatchObject({ launchArguments: ["sandbox"] });
+  it("launches interactive development profiles directly and preserves CLI validation", async () => {
+    const [owned, pi, sandbox] = await Promise.all([
+      execute(process.execPath, ["scripts/start-local.mjs", "--print-environment"]),
+      execute(process.execPath, ["scripts/start-local.mjs", "--print-environment", "pi"]),
+      execute(process.execPath, ["scripts/start-local.mjs", "--print-environment", "sandbox"]),
+    ]);
+    expect(JSON.parse(owned.stdout)).toMatchObject({ launchArguments: [], directProfile: "addone" });
+    expect(JSON.parse(pi.stdout)).toMatchObject({ launchArguments: ["pi"], directProfile: "pi" });
+    expect(JSON.parse(sandbox.stdout)).toMatchObject({ launchArguments: ["sandbox"], directProfile: "sandbox" });
 
     await expect(execute(process.execPath, ["scripts/start-local.mjs", "not-an-addone-command"]))
       .rejects.toMatchObject({ code: 2, stderr: expect.stringContaining("Unknown AddOne command: not-an-addone-command") });
