@@ -1,0 +1,209 @@
+import {
+  assertOwnedUiCommand,
+  type OwnedUiCommand,
+  type OwnedUiCommandOutcome,
+  type OwnedUiSessionViewModel,
+} from "../../foundation/owned-ui-contracts/index.js";
+import type { AdapterCommandResult, PiEngineAdapter } from "../../foundation/pi-engine-adapter/index.js";
+import { OwnedPromptEditor } from "./prompt-editor.js";
+import { OwnedTranscriptComponent, type OwnedTranscriptRenderer } from "./transcript-history.js";
+import { createOwnedTranscriptRenderer } from "./transcript-renderer.js";
+import { OwnedDiagnosticsComponent, OwnedStatusComponent } from "./surfaces.js";
+import type { OwnedTerminalComponent, OwnedTerminalInput, OwnedTerminalViewport } from "./terminal-runtime.js";
+
+export class OwnedSessionRootComponent implements OwnedTerminalComponent {
+  readonly id = "owned-session-root";
+  focused = true;
+  readonly transcript: OwnedTranscriptComponent;
+  readonly status: OwnedStatusComponent;
+  readonly diagnostics: OwnedDiagnosticsComponent;
+  readonly editor: OwnedPromptEditor;
+
+  constructor(
+    width: number,
+    renderBlock: OwnedTranscriptRenderer = createOwnedTranscriptRenderer(),
+    editorHandlers: ConstructorParameters<typeof OwnedPromptEditor>[0] = {},
+  ) {
+    this.transcript = new OwnedTranscriptComponent(width, renderBlock);
+    this.status = new OwnedStatusComponent();
+    this.diagnostics = new OwnedDiagnosticsComponent();
+    this.editor = new OwnedPromptEditor(editorHandlers);
+  }
+
+  update(view: OwnedUiSessionViewModel): void {
+    this.transcript.setBlocks(view.transcript);
+    this.status.update(view);
+    this.diagnostics.update(view);
+    this.editor.setBusy(view.lifecycle === "busy");
+    this.editor.setQueuedSubmissions(view.editor.queuedSubmissions);
+  }
+
+  handleInput(input: OwnedTerminalInput): boolean | void {
+    return this.editor.handleInput?.(input);
+  }
+
+  invalidate(): void {
+    this.transcript.invalidate();
+    this.editor.invalidate();
+  }
+
+  dispose(): void {
+    this.editor.dispose();
+  }
+
+  render(viewport: OwnedTerminalViewport): readonly string[] {
+    const statusRows = this.status.render(viewport);
+    const diagnosticRows = this.diagnostics.render(viewport);
+    const editorRows = this.editor.render(viewport);
+    const transcriptRows = this.transcript.render({
+      columns: viewport.columns,
+      rows: Math.max(0, viewport.rows - statusRows.length - diagnosticRows.length - editorRows.length),
+    });
+    return [...statusRows, ...transcriptRows, ...diagnosticRows, ...editorRows].slice(0, viewport.rows);
+  }
+}
+
+export interface OwnedPiSessionControllerOptions {
+  readonly adapter: PiEngineAdapter;
+  readonly width: number;
+  readonly renderBlock?: OwnedTranscriptRenderer;
+  readonly onRequestRender?: () => void;
+}
+
+export class OwnedPiSessionController {
+  readonly adapter: PiEngineAdapter;
+  readonly root: OwnedSessionRootComponent;
+  readonly #settings = new Map<string, unknown>();
+  readonly #listeners = new Set<(view: OwnedUiSessionViewModel) => void>();
+  readonly #unsubscribe: () => void;
+
+  constructor(options: OwnedPiSessionControllerOptions) {
+    this.adapter = options.adapter;
+    this.root = new OwnedSessionRootComponent(
+      options.width,
+      options.renderBlock,
+      options.onRequestRender === undefined ? {} : { onRequestRender: options.onRequestRender },
+    );
+    this.root.update(this.adapter.view());
+    this.#unsubscribe = this.adapter.onEvent(event => {
+      if (event.type === "session-lifecycle" && event.lifecycle === "busy") this.root.editor.setBusy(true);
+      if (event.type === "session-lifecycle" && event.lifecycle === "ready") this.root.editor.setBusy(false);
+      if (event.type === "editor-state") this.root.editor.setQueuedSubmissions(event.editor.queuedSubmissions);
+      if (event.type === "session-view" || event.type === "transcript-block" || event.type === "status" || event.type === "diagnostic") {
+        this.#publish();
+      }
+    });
+  }
+
+  view(): OwnedUiSessionViewModel {
+    return {
+      ...this.adapter.view(),
+      editor: this.root.editor.state(),
+    };
+  }
+
+  onView(listener: (view: OwnedUiSessionViewModel) => void): () => void {
+    this.#listeners.add(listener);
+    listener(this.view());
+    return () => this.#listeners.delete(listener);
+  }
+
+  async submit(text: string): Promise<AdapterCommandResult> {
+    return this.#engineCommand({
+      type: "prompt",
+      correlationId: this.#nextCorrelationId("prompt"),
+      sessionId: this.adapter.sessionId,
+      text,
+    });
+  }
+
+  async abort(): Promise<AdapterCommandResult> {
+    return this.#engineCommand(this.#simpleCommand("abort"));
+  }
+
+  async retry(): Promise<AdapterCommandResult> {
+    return this.#engineCommand(this.#simpleCommand("retry"));
+  }
+
+  async compact(): Promise<AdapterCommandResult> {
+    return this.#engineCommand(this.#simpleCommand("compact"));
+  }
+
+  async newSession(): Promise<AdapterCommandResult> {
+    return this.#engineCommand(this.#simpleCommand("new-session"));
+  }
+
+  async resumeSession(sessionPath: string): Promise<AdapterCommandResult> {
+    return this.#engineCommand({
+      type: "resume-session",
+      correlationId: this.#nextCorrelationId("resume"),
+      sessionId: this.adapter.sessionId,
+      sessionPath,
+    });
+  }
+
+  async setSetting(key: string, value: unknown): Promise<AdapterCommandResult> {
+    const command: OwnedUiCommand = {
+      type: "set-setting",
+      correlationId: this.#nextCorrelationId("setting"),
+      sessionId: this.adapter.sessionId,
+      key,
+      value,
+    };
+    assertOwnedUiCommand(command);
+    this.#settings.set(key, value);
+    this.#publish();
+    return { outcome: "completed", diagnostic: null };
+  }
+
+  settings(): ReadonlyMap<string, unknown> {
+    return new Map(this.#settings);
+  }
+
+  async setModel(model: { providerId: string; modelId: string; displayName: string }): Promise<AdapterCommandResult> {
+    return this.#engineCommand({
+      type: "set-model",
+      correlationId: this.#nextCorrelationId("model"),
+      sessionId: this.adapter.sessionId,
+      model,
+    });
+  }
+
+  async setThinkingLevel(thinkingLevel: OwnedUiSessionViewModel["thinkingLevel"]): Promise<AdapterCommandResult> {
+    return this.#engineCommand({
+      type: "set-thinking-level",
+      correlationId: this.#nextCorrelationId("thinking"),
+      sessionId: this.adapter.sessionId,
+      thinkingLevel,
+    });
+  }
+
+  async shutdown(): Promise<AdapterCommandResult> {
+    const result = await this.#engineCommand(this.#simpleCommand("shutdown"));
+    this.#unsubscribe();
+    return result;
+  }
+
+  #publish(): void {
+    this.root.update(this.view());
+    const view = this.view();
+    for (const listener of this.#listeners) listener(view);
+  }
+
+  async #engineCommand(command: OwnedUiCommand): Promise<AdapterCommandResult> {
+    assertOwnedUiCommand(command);
+    return this.adapter.execute(command);
+  }
+
+  #simpleCommand(type: "abort" | "retry" | "compact" | "shutdown" | "new-session"): OwnedUiCommand {
+    return {
+      type,
+      correlationId: this.#nextCorrelationId(type),
+      sessionId: this.adapter.sessionId,
+    };
+  }
+
+  #nextCorrelationId(prefix: string): string {
+    return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  }
+}

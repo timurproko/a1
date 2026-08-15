@@ -43,6 +43,11 @@ export class OwnedPromptEditor implements OwnedTerminalComponent {
     this.#requestRender();
   }
 
+  setQueuedSubmissions(submissions: readonly string[]): void {
+    this.#queuedSubmissions = [...submissions];
+    this.#requestRender();
+  }
+
   setText(text: string): void {
     this.#replaceText(text, text.length);
   }

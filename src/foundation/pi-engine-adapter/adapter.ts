@@ -77,7 +77,7 @@ export interface PiEngineAdapterOptions {
   readonly createRuntime?: PiEngineRuntimeFactory;
 }
 
-interface AdapterCommandResult {
+export interface AdapterCommandResult {
   readonly outcome: OwnedUiCommandOutcome;
   readonly diagnostic: string | null;
 }
@@ -338,9 +338,10 @@ export class PiEngineAdapter {
       case "shutdown":
         await this.dispose();
         return;
+      case "set-setting":
       case "apply-customization":
       case "remove-customization":
-        throw new Error("customization commands belong to the owned UI layer, not the Pi engine adapter");
+        throw new Error("owned UI state commands belong to the owned UI layer, not the Pi engine adapter");
     }
   }
 

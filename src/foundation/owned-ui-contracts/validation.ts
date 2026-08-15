@@ -86,6 +86,10 @@ export function assertOwnedUiCommand(command: OwnedUiCommand): void {
     case "set-thinking-level":
       assertEnum(command.thinkingLevel, THINKING_LEVELS, "owned-UI thinking level");
       return;
+    case "set-setting":
+      assertId(command.key, "owned-UI setting key");
+      assertJsonValue(command.value, "owned-UI setting value", MAX_PAYLOAD_BYTES);
+      return;
     case "apply-customization":
       assertOwnedUiCustomization(command.customization);
       return;

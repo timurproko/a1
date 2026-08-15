@@ -165,6 +165,13 @@ export type OwnedUiCommand =
     readonly sessionPath: string;
   }
   | {
+    readonly type: "set-setting";
+    readonly correlationId: OwnedUiCorrelationId;
+    readonly sessionId: OwnedUiSessionId;
+    readonly key: string;
+    readonly value: unknown;
+  }
+  | {
     readonly type: "apply-customization";
     readonly correlationId: OwnedUiCorrelationId;
     readonly sessionId: OwnedUiSessionId;
