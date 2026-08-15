@@ -1,9 +1,16 @@
 {
   "schema": "addone-pi-parity-acceptance-v1",
   "change": "build-owned-pi-ui-foundation",
-  "recordedAt": "2026-08-15T17:08:00.000Z",
-  "result": "passed",
-  "manualAcceptanceStatus": "pending",
+  "recordedAt": "2026-08-15T18:00:00.000Z",
+  "result": "invalidated",
+  "manualAcceptanceStatus": "blocked-pending-independent-parity",
+  "evidenceClassification": "regression-only-not-parity",
+  "invalidation": {
+    "reason": "User-controlled smoke testing contradicted the synthetic parity claim: vanilla startup composition and command discovery were absent, ordinary prompt submission produced no visible turn, and most pinned workflows were not implemented.",
+    "invalidatedByTask": "7.2",
+    "replacementInventory": "openspec/changes/build-owned-pi-ui-foundation/evidence/pinned-pi-interactive-baseline.json",
+    "requiredReplacement": "Separate pinned-upstream and AddOne producers must replace every circular fixture before parity can pass."
+  },
   "source": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "53fa77ccd8a279eb87e92294ef3687b03ff80112",
@@ -27,6 +34,7 @@
       "path": "test/features/owned-ui/fixtures/pi-component-parity.json",
       "sha256": "cb7db9ef9bb674e28a2866e2260b8bd7118ecfe41d2bdc874ea5e29cdd5c074b",
       "cases": 4,
+      "classification": "AddOne-generated regression fixture; no independent upstream producer",
       "coverage": [
         "transcript",
         "streaming",
@@ -49,6 +57,7 @@
       "sha256": "d63f0d90981b74fb35466baaac406f114e0bf818df2109bdd8a20d4541d51148",
       "stateTransitions": 12,
       "capturedFrames": 5,
+      "classification": "Synthetic AddOne-session regression fixture; no independent upstream producer",
       "coverage": [
         "initial",
         "working",
@@ -69,7 +78,12 @@
       }
     }
   ],
-  "visualDivergences": [],
+  "visualDivergences": [
+    "Vanilla startup composition absent",
+    "Command discovery and autocomplete absent",
+    "Ordinary prompt submission produced no visible turn",
+    "Most pinned vanilla workflows absent"
+  ],
   "gateCorrections": [
     {
       "id": "javascript-package-authority",

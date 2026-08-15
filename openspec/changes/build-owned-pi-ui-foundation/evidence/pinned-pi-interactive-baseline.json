@@ -1,0 +1,301 @@
+{
+  "schema": "addone-pinned-pi-interactive-baseline-v1",
+  "change": "build-owned-pi-ui-foundation",
+  "task": "7.2",
+  "recordedAt": "2026-08-15T18:00:00.000Z",
+  "upstream": {
+    "repository": "https://github.com/earendil-works/pi.git",
+    "commit": "53fa77ccd8a279eb87e92294ef3687b03ff80112",
+    "license": "MIT",
+    "packages": [
+      {
+        "name": "@earendil-works/pi-coding-agent",
+        "version": "0.84.1",
+        "integrity": "sha512-ncAqFrG+iybuPGOhMiZoEHkEzTpJgz3guYD32pD+M7ucc0WeHmauP6wa7qwP8V/KWvsZDVNa5XGsdZ7fkC7w7A=="
+      },
+      {
+        "name": "@earendil-works/pi-tui",
+        "version": "0.84.1",
+        "integrity": "sha512-udeXFbgEhJ6JiB0uguwNVNkDy2FENfmtQwPcY+/iJ8GWeq18wkal1tKqa5YyeH0IqtX1vG0cGh8zfSYzyzVuLA=="
+      }
+    ]
+  },
+  "sourceProvenance": [
+    { "id": "interactive", "package": "@earendil-works/pi-coding-agent", "path": "packages/coding-agent/src/modes/interactive/interactive-mode.ts", "sourceMap": "modes/interactive/interactive-mode.js.map", "lines": 6396, "sha256": "18cf8a7a34f1b9476f2db1e9a322dd428f5d71f070f4ad01ee0d07c385476f59" },
+    { "id": "commands", "package": "@earendil-works/pi-coding-agent", "path": "packages/coding-agent/src/core/slash-commands.ts", "sourceMap": "core/slash-commands.js.map", "lines": 43, "sha256": "788b87d9bbeb4498f9669de75e8233e63dcb9b6893179f497a1b6db61bd9a6b1" },
+    { "id": "keybindings", "package": "@earendil-works/pi-coding-agent", "path": "packages/coding-agent/src/core/keybindings.ts", "sourceMap": "core/keybindings.js.map", "lines": 371, "sha256": "9b5c4d1cdf84ad98c0b32c9ec9c1d21db9680c6ef49b497edf93fea80fca7c89" },
+    { "id": "tui-keybindings", "package": "@earendil-works/pi-tui", "path": "packages/tui/src/keybindings.ts", "sourceMap": "keybindings.js.map", "lines": 291, "sha256": "f3082e06504db02d22b0cc4608151ab519a4a7b2b116bb57fe6c7bd098cb1a0a" },
+    { "id": "startup", "package": "@earendil-works/pi-coding-agent", "path": "packages/coding-agent/src/cli/startup-ui.ts", "sourceMap": "cli/startup-ui.js.map", "lines": 240, "sha256": "409cfad6ada74bb06c359be77f2ff7478c671a34e6514f4c8f637967b0b74844" },
+    { "id": "editor", "package": "@earendil-works/pi-coding-agent", "path": "packages/coding-agent/src/modes/interactive/components/custom-editor.ts", "sourceMap": "modes/interactive/components/custom-editor.js.map", "lines": 91, "sha256": "bf4f4a5c0a6eb55b1fbc3df376dc4d0aff35db9861a51886b45cade9b612809a" },
+    { "id": "footer", "package": "@earendil-works/pi-coding-agent", "path": "packages/coding-agent/src/modes/interactive/components/footer.ts", "sourceMap": "modes/interactive/components/footer.js.map", "lines": 246, "sha256": "176d2473ccefbc5ff2bf56d986e600a00d5841c38c5854c4c16ecb05d7e70499" },
+    { "id": "status", "package": "@earendil-works/pi-coding-agent", "path": "packages/coding-agent/src/modes/interactive/components/status-indicator.ts", "sourceMap": "modes/interactive/components/status-indicator.js.map", "lines": 115, "sha256": "b463212f7d96514d78ce6a929543b31fd22db0d1fbba8296908c4df117e40573" },
+    { "id": "settings", "package": "@earendil-works/pi-coding-agent", "path": "packages/coding-agent/src/modes/interactive/components/settings-selector.ts", "sourceMap": "modes/interactive/components/settings-selector.js.map", "lines": 881, "sha256": "3e172ef9158a8b8904c23a899d38fe08e898bb197379b4dd6448dc29ef1b1d59" },
+    { "id": "model-selector", "package": "@earendil-works/pi-coding-agent", "path": "packages/coding-agent/src/modes/interactive/components/model-selector.ts", "sourceMap": "modes/interactive/components/model-selector.js.map", "lines": 374, "sha256": "25119fbc271451b69bf35447c5658f2ee8f74b820bc931c0e50875e6e9a027ac" },
+    { "id": "session-selector", "package": "@earendil-works/pi-coding-agent", "path": "packages/coding-agent/src/modes/interactive/components/session-selector.ts", "sourceMap": "modes/interactive/components/session-selector.js.map", "lines": 1032, "sha256": "b6d2f348e6eb68e17914a4936433912155271f0c3199441e14c419cbab21be10" },
+    { "id": "tree-selector", "package": "@earendil-works/pi-coding-agent", "path": "packages/coding-agent/src/modes/interactive/components/tree-selector.ts", "sourceMap": "modes/interactive/components/tree-selector.js.map", "lines": 1428, "sha256": "731ce9fe6c07d0b1a55a11ce2987f21771376b7651e28355c98fbdf1f053a931" },
+    { "id": "clipboard", "package": "@earendil-works/pi-coding-agent", "path": "packages/coding-agent/src/utils/clipboard.ts", "sourceMap": "utils/clipboard.js.map", "lines": 176, "sha256": "03fbbed59a9b46a952a85a8a0fd7cc170b2bc912b477a53066bdfff8f2082947" }
+  ],
+  "requiredCategories": [
+    "startup-composition",
+    "stateful-components",
+    "editor",
+    "autocomplete",
+    "keybindings",
+    "built-in-commands",
+    "prompt-loop",
+    "selectors",
+    "settings",
+    "sessions",
+    "models",
+    "thinking",
+    "events",
+    "tools",
+    "footer-status",
+    "clipboard",
+    "resize",
+    "errors",
+    "shutdown"
+  ],
+  "behaviorInventory": [
+    {
+      "id": "startup.persistent-tree",
+      "category": "startup-composition",
+      "behavior": "Construct one persistent header/resources/chat document, pending/status/widget/editor/footer dock, fullscreen transcript scroll view, focus the editor, and remount the same components when TUI mode changes.",
+      "provenance": { "source": "interactive", "lines": [528, 994], "symbol": "constructor, mountInteractiveTui, switchTuiMode, init", "anchors": ["this.documentContainer.addChild(this.headerContainer)", "this.fullscreenLayoutRoot = new TuiLayouts.VStack", "this.ui.setFocus(this.editor)"] },
+      "acceptance": { "id": "UPSTREAM-STARTUP-TREE", "producer": "pinned-upstream-composition-capture", "assertion": "Capture regular and fullscreen child order, focus, dock sizing, and remount identity independently from AddOne." }
+    },
+    {
+      "id": "startup.header-notices",
+      "category": "startup-composition",
+      "behavior": "Render verbose/quiet vanilla header, compact and expanded key hints, onboarding, loaded-resource ordering, changelog borders/content, project-trust warning, startup warnings, and update notices.",
+      "provenance": { "source": "interactive", "lines": [741, 1101], "symbol": "showStartupNoticesIfNeeded, init, run", "anchors": ["What's New", "Pi can explain its own features", "Render initial messages AFTER showing loaded resources"] },
+      "acceptance": { "id": "UPSTREAM-STARTUP-STATES", "producer": "pinned-upstream-composition-capture", "assertion": "Capture fresh, resumed, quiet, expanded, changelog, untrusted, warning, and update startup states at fixed widths." }
+    },
+    {
+      "id": "startup.preflight",
+      "category": "startup-composition",
+      "behavior": "Preserve startup tool checks, theme initialization/watch, extension binding, model/provider refresh, terminal title, package/version checks, tmux warning, and initial prompt processing.",
+      "provenance": { "source": "interactive", "lines": [839, 1216], "symbol": "init and run", "anchors": ["ensureTool(\"fd\")", "checkForNewPiVersion", "Main interactive loop"] },
+      "acceptance": { "id": "UPSTREAM-STARTUP-PREFLIGHT", "producer": "pinned-upstream-controller-fixture", "assertion": "Record ordered side effects and visible success/failure notices with deterministic service fakes." }
+    },
+    {
+      "id": "components.persistent-lifecycle",
+      "category": "stateful-components",
+      "behavior": "Keep editor, footer, streaming assistant, tool executions, bash execution, active selector, status indicator, expandable transcript blocks, and extension surfaces stateful until their upstream terminal event.",
+      "provenance": { "source": "interactive", "lines": [345, 527], "symbol": "InteractiveMode state fields", "anchors": ["private streamingComponent", "private pendingTools", "private activeStatusIndicator"] },
+      "acceptance": { "id": "UPSTREAM-COMPONENT-LIFECYCLE", "producer": "pinned-upstream-scripted-event-capture", "assertion": "Assert object continuity and visible state across start/update/end, cancellation, selector close, and transcript rebuild." }
+    },
+    {
+      "id": "editor.custom-editor",
+      "category": "editor",
+      "behavior": "Use CustomEditor with configured horizontal padding, autocomplete row limit, history, expanded text, disabled submit, border color, paste insertion, and replacement by selectors/loaders without losing editor state.",
+      "provenance": { "source": "interactive", "lines": [552, 589], "symbol": "constructor editor setup", "anchors": ["new CustomEditor", "autocompleteMaxVisible", "this.editorContainer.addChild"] },
+      "acceptance": { "id": "UPSTREAM-EDITOR-STATE", "producer": "pinned-upstream-component-capture", "assertion": "Exercise text, multiline, history, IME/paste, width, submit-disabled, focus replacement, and restoration states." }
+    },
+    {
+      "id": "editor.application-actions",
+      "category": "editor",
+      "behavior": "Implement escape precedence, double-escape tree/fork action, clear/double-clear exit, empty Ctrl-D exit, suspend, external editor, tool/thinking toggles, queue actions, model controls, session shortcuts, and bash-mode border.",
+      "provenance": { "source": "interactive", "lines": [2763, 2844], "symbol": "setupKeyHandlers", "anchors": ["Double-escape", "app.model.cycleForward", "this.isBashMode"] },
+      "acceptance": { "id": "UPSTREAM-EDITOR-ACTIONS", "producer": "pinned-upstream-input-fixture", "assertion": "Run every application action in eligible and ineligible states and compare side effects and screen output." }
+    },
+    {
+      "id": "autocomplete.combined-provider",
+      "category": "autocomplete",
+      "behavior": "Combine exact built-ins, fuzzy model and login arguments, prompt templates, non-conflicting extension commands, optional skill commands, paths, provenance tags, and extension provider wrappers.",
+      "provenance": { "source": "interactive", "lines": [590, 740], "symbol": "createBaseAutocompleteProvider and setupAutocompleteProvider", "anchors": ["BUILTIN_SLASH_COMMANDS.map", "templateCommands", "skillCommandList"] },
+      "acceptance": { "id": "UPSTREAM-AUTOCOMPLETE-MANIFEST", "producer": "pinned-upstream-autocomplete-probe", "assertion": "Enumerate suggestions and arguments for empty, partial, conflicting, template, skill, extension, login, model, and path inputs." }
+    },
+    {
+      "id": "keybindings.complete-manifest",
+      "category": "keybindings",
+      "behavior": "Preserve every pinned pi-tui editor/input/select/fullscreen keybinding and every Pi application/tree/session/model action, including platform-specific defaults, user overrides, conflict handling, migration, reload, and hotkey rendering.",
+      "provenance": { "source": "keybindings", "lines": [13, 370], "symbol": "KEYBINDINGS and KeybindingsManager", "anchors": ["...TUI_KEYBINDINGS", "KEYBINDING_NAME_MIGRATIONS", "reload(): void"] },
+      "acceptance": { "id": "UPSTREAM-KEYBINDING-MANIFEST", "producer": "pinned-upstream-public-export-probe", "assertion": "Compare canonical names/defaults/descriptions, platform variants, migrations, overrides, conflicts, and displayed hints." }
+    },
+    {
+      "id": "commands.complete-manifest",
+      "category": "built-in-commands",
+      "behavior": "Expose and route every pinned advertised built-in command; retain debug and pinned hidden command routes as explicitly non-advertised controller behavior.",
+      "provenance": { "source": "commands", "lines": [3, 42], "symbol": "BUILTIN_SLASH_COMMANDS", "anchors": ["name: \"settings\"", "name: \"quit\""] },
+      "acceptance": { "id": "UPSTREAM-COMMAND-MANIFEST", "producer": "pinned-upstream-source-manifest", "assertion": "Extract the exact advertised manifest and prove every entry has a controller route and success, cancellation, and failure case." }
+    },
+    {
+      "id": "prompt.command-routing",
+      "category": "prompt-loop",
+      "behavior": "Trim non-empty input; route built-ins before bash or prompt processing; clear or preserve editor exactly per route; execute extension commands immediately where required.",
+      "provenance": { "source": "interactive", "lines": [2870, 3058], "symbol": "setupEditorSubmitHandler", "anchors": ["Handle commands", "Handle bash command", "Normal message submission"] },
+      "acceptance": { "id": "UPSTREAM-PROMPT-ROUTING", "producer": "pinned-upstream-controller-fixture", "assertion": "Submit every command plus whitespace, unknown slash, normal prompt, ! and !! input and compare routing/editor state." }
+    },
+    {
+      "id": "prompt.idle-streaming-compaction",
+      "category": "prompt-loop",
+      "behavior": "Deliver idle input to the main prompt loop, stream-time Enter as steering, Alt-Enter as follow-up, compaction-time messages to a local queue, and restore/abort/dequeue queues without loss.",
+      "provenance": { "source": "interactive", "lines": [2989, 3058], "symbol": "setupEditorSubmitHandler", "anchors": ["streamingBehavior: \"steer\"", "this.pendingUserInputs.push", "queueCompactionMessage"] },
+      "acceptance": { "id": "UPSTREAM-PROMPT-MODES", "producer": "pinned-upstream-controller-fixture", "assertion": "Compare idle, streaming, compacting, retry-pending, extension-command, abort, restore, and failed-flush queue transitions." }
+    },
+    {
+      "id": "prompt.bash",
+      "category": "prompt-loop",
+      "behavior": "Run ! bash with context and !! bash excluded from context, extension interception, streaming pending placement, incremental output, cancellation, truncation path, persistence, and failure rendering.",
+      "provenance": { "source": "interactive", "lines": [6279, 6365], "symbol": "handleBashCommand", "anchors": ["emitUserBash", "pendingBashComponents", "executeBash"] },
+      "acceptance": { "id": "UPSTREAM-BASH-WORKFLOW", "producer": "pinned-upstream-controller-fixture", "assertion": "Compare intercepted and native bash success, streaming output, excluded context, abort, truncation, and failure." }
+    },
+    {
+      "id": "selectors.focus-lifecycle",
+      "category": "selectors",
+      "behavior": "Replace the editor container with one active selector/loader, transfer focus, dispose stale selectors, and restore the same editor on select/cancel/error.",
+      "provenance": { "source": "interactive", "lines": [4340, 4375], "symbol": "disposeActiveSelector and showSelector", "anchors": ["this.editorContainer.clear", "this.ui.setFocus(created.focus)", "dispose?.()"] },
+      "acceptance": { "id": "UPSTREAM-SELECTOR-LIFECYCLE", "producer": "pinned-upstream-component-capture", "assertion": "Capture open, navigate, select, cancel, replacement, stale completion, error, and restored editor states." }
+    },
+    {
+      "id": "settings.complete-surface",
+      "category": "settings",
+      "behavior": "Expose every pinned SettingsSelector value and callback, applying live session, component, theme, transport, editor, renderer, startup, warning, progress, and fullscreen changes with persistence.",
+      "provenance": { "source": "interactive", "lines": [4376, 4584], "symbol": "showSettingsSelector", "anchors": ["new SettingsSelectorComponent", "onAutoCompactChange", "onFullscreenScrollbarChange"] },
+      "acceptance": { "id": "UPSTREAM-SETTINGS-MANIFEST", "producer": "pinned-upstream-settings-probe", "assertion": "Enumerate all settings and invoke every callback for change, persistence, visible update, cancel, and unsupported transition." }
+    },
+    {
+      "id": "sessions.new-resume",
+      "category": "sessions",
+      "behavior": "Create a new session, list cwd/all sessions, filter/sort/path/name/delete, resume selected sessions, recover missing cwd, preserve trust context, allow selector shutdown, and report cancellation/fatal errors.",
+      "provenance": { "source": "interactive", "lines": [5089, 5163], "symbol": "showSessionSelector and handleResumeSession", "anchors": ["SessionManager.listAll", "handleResumeSession", "MissingSessionCwdError"] },
+      "acceptance": { "id": "UPSTREAM-SESSION-WORKFLOWS", "producer": "pinned-upstream-controller-fixture", "assertion": "Exercise new/resume/list/filter/sort/path/rename/delete/missing-cwd/cancel/failure/shutdown outcomes." }
+    },
+    {
+      "id": "sessions.fork-clone-tree",
+      "category": "sessions",
+      "behavior": "Fork from a user message, clone at leaf, navigate tree with filters/labels/copy and optional branch summary/custom prompt, abort streaming before navigation, rebuild transcript, and restore editor text.",
+      "provenance": { "source": "interactive", "lines": [4889, 5088], "symbol": "showUserMessageSelector, handleCloneCommand, showTreeSelector", "anchors": ["getUserMessagesForForking", "position: \"at\"", "navigateTree"] },
+      "acceptance": { "id": "UPSTREAM-TREE-WORKFLOWS", "producer": "pinned-upstream-controller-fixture", "assertion": "Compare fork/clone/tree no-data, select, summarize, custom prompt, cancel, abort, label, copy, same-leaf, success, and failure." }
+    },
+    {
+      "id": "sessions.import-export-share-copy-info",
+      "category": "sessions",
+      "behavior": "Export HTML/JSONL, import with confirmation and missing-cwd recovery, share through cancellable gh gist creation, copy last assistant text, name sessions, and render complete session stats/changelog/hotkeys.",
+      "provenance": { "source": "interactive", "lines": [5766, 6206], "symbol": "session utility command handlers", "anchors": ["exportToJsonl", "importFromJsonl", "Creating gist", "getSessionStats"] },
+      "acceptance": { "id": "UPSTREAM-SESSION-UTILITY-COMMANDS", "producer": "pinned-upstream-controller-fixture", "assertion": "Exercise arguments, quoted paths, confirmations, external-tool absence, cancellation, clipboard, normalization, stats, and all failures." }
+    },
+    {
+      "id": "models.select-cycle-scope",
+      "category": "models",
+      "behavior": "Select exact provider/model or fuzzy selector result, refresh catalogs with timeout/error fallback, cycle scoped models both directions, configure/reorder/save scoped models, update provider count, and display auth warnings.",
+      "provenance": { "source": "interactive", "lines": [4585, 4888], "symbol": "model handlers and selectors", "anchors": ["findExactModelReferenceMatch", "new ModelSelectorComponent", "new ScopedModelsSelectorComponent"] },
+      "acceptance": { "id": "UPSTREAM-MODEL-WORKFLOWS", "producer": "pinned-upstream-controller-fixture", "assertion": "Compare exact/fuzzy/open selector, cycle directions, one-model, scope edits/save, refresh success/timeout/error, auth warning, cancel, and set failure." }
+    },
+    {
+      "id": "thinking.level-and-visibility",
+      "category": "thinking",
+      "behavior": "Cycle/set supported thinking levels, update editor border/footer/status, report unsupported models, independently toggle thinking-block visibility, persist it, and rebuild live/final transcript components.",
+      "provenance": { "source": "interactive", "lines": [3998, 4067], "symbol": "cycleThinkingLevel and toggleThinkingBlockVisibility", "anchors": ["cycleThinkingLevel", "Current model does not support thinking", "setHideThinkingBlock"] },
+      "acceptance": { "id": "UPSTREAM-THINKING-WORKFLOWS", "producer": "pinned-upstream-scripted-event-capture", "assertion": "Compare all levels, unsupported state, visibility toggles during idle/streaming, persistence, border, footer, and rebuilt rows." }
+    },
+    {
+      "id": "events.complete-manifest",
+      "category": "events",
+      "behavior": "Handle every pinned AgentSessionEvent switch case with ordered footer invalidation, terminal progress, status, transcript, queue, tool, retry, compaction, title, and settled-shutdown effects.",
+      "provenance": { "source": "interactive", "lines": [3059, 3395], "symbol": "subscribeToAgent and handleEvent", "anchors": ["case \"agent_start\"", "case \"tool_execution_end\"", "case \"summarization_retry_finished\""] },
+      "acceptance": { "id": "UPSTREAM-EVENT-MANIFEST", "producer": "pinned-upstream-scripted-event-capture", "assertion": "Produce each event independently and in valid sequences; compare state transitions and fixed-width frames." }
+    },
+    {
+      "id": "events.transcript-rebuild",
+      "category": "events",
+      "behavior": "Render user/skill, assistant/thinking, custom, bash, compaction, branch-summary, tools/results and cache-miss notices with upstream spacing; rebuild from context entries after resume, tree, visibility change, and compaction.",
+      "provenance": { "source": "interactive", "lines": [3453, 3729], "symbol": "addMessageToChat, renderSessionItems, renderInitialMessages", "anchors": ["new UserMessageComponent", "new AssistantMessageComponent", "new CompactionSummaryMessageComponent"] },
+      "acceptance": { "id": "UPSTREAM-TRANSCRIPT-COMPOSITION", "producer": "pinned-upstream-composition-capture", "assertion": "Capture every message role/status, spacing, expansion, history population, pending tools, trust warning, compaction count, and rebuild trigger." }
+    },
+    {
+      "id": "tools.streaming-lifecycle",
+      "category": "tools",
+      "behavior": "Create a persistent ToolExecutionComponent when a tool call appears, update partial arguments/results, mark execution start, finalize args/results/errors, expand all tool/custom/summary surfaces, and clear pending tools at terminal events.",
+      "provenance": { "source": "interactive", "lines": [3113, 3264], "symbol": "handleEvent tool and message cases", "anchors": ["component.updateArgs", "component.markExecutionStarted", "component.updateResult"] },
+      "acceptance": { "id": "UPSTREAM-TOOL-LIFECYCLE", "producer": "pinned-upstream-scripted-event-capture", "assertion": "Compare call discovery, arg deltas, execution start/update/end, image options, expansion, aborted/error result, duplicate/missing component, and agent end." }
+    },
+    {
+      "id": "footer.complete-state",
+      "category": "footer-status",
+      "behavior": "Render cwd/git, session/model/thinking, token/context/cost/cache, auto-compaction, provider count, extension statuses, and warning state through persistent FooterComponent and FooterDataProvider updates.",
+      "provenance": { "source": "footer", "lines": [1, 245], "symbol": "FooterComponent", "anchors": ["context usage", "autoCompactEnabled", "render(width"] },
+      "acceptance": { "id": "UPSTREAM-FOOTER-STATES", "producer": "pinned-upstream-component-capture", "assertion": "Capture empty, named, git, model/thinking, usage thresholds, compaction, provider, extension status, warning, narrow, and wide states." }
+    },
+    {
+      "id": "status.indicators-and-notices",
+      "category": "footer-status",
+      "behavior": "Maintain one working/retry/compaction/branch-summary indicator, idle spacing policy, extension working text, coalesced status lines, warnings/errors, queued steering/follow-up rows, and terminal progress.",
+      "provenance": { "source": "status", "lines": [1, 114], "symbol": "StatusIndicator variants and IdleStatus", "anchors": ["WorkingStatusIndicator", "RetryStatusIndicator", "IdleStatus"] },
+      "acceptance": { "id": "UPSTREAM-STATUS-STATES", "producer": "pinned-upstream-component-capture", "assertion": "Capture every indicator, countdown, status replacement, queue row/hint, warning/error, clear-on-shrink, and progress transition." }
+    },
+    {
+      "id": "clipboard.text-image-copy",
+      "category": "clipboard",
+      "behavior": "Support right-click bracketed text paste to current focus, image clipboard to a temporary typed file with path insertion, text fallback, copy last assistant/tree entry, alternate-screen confirmation, and silent unavailable-paste behavior.",
+      "provenance": { "source": "interactive", "lines": [2831, 2869], "symbol": "clipboard input handlers", "anchors": ["readClipboardText", "readClipboardImage", "insertTextAtCursor"] },
+      "acceptance": { "id": "UPSTREAM-CLIPBOARD-WORKFLOWS", "producer": "pinned-upstream-platform-clipboard-probe", "assertion": "Compare text/image/right-click paste, focus race, MIME extension, empty/unavailable clipboard, copy success/failure, and confirmation modes." }
+    },
+    {
+      "id": "resize.renderer-modes",
+      "category": "resize",
+      "behavior": "Use pi-tui differential resize behavior, clear-on-shrink setting, regular/fullscreen mode switching, viewport scroll/follow/scrollbar, stable component identity/focus, terminal dimensions for selectors/debug, and fixed-width reflow.",
+      "provenance": { "source": "interactive", "lines": [771, 838], "symbol": "mountInteractiveTui and switchTuiMode", "anchors": ["captureRenderState", "restoreRenderState", "setClearOnShrink"] },
+      "acceptance": { "id": "UPSTREAM-RESIZE-MODES", "producer": "pinned-upstream-terminal-capture", "assertion": "Capture grow/shrink/reflow, clear enabled/disabled, regular/fullscreen roundtrip, overlays blocking switch, scroll position, focus, and scrollbar." }
+    },
+    {
+      "id": "errors.user-visible",
+      "category": "errors",
+      "behavior": "Present command, prompt, model, auth, session, import/export/share/copy, bash, reload, retry, compaction, tool, resource, startup, and fatal runtime errors at the same visible location with the same recovery policy.",
+      "provenance": { "source": "interactive", "lines": [1939, 1956], "symbol": "handleFatalRuntimeError", "anchors": ["handleFatalRuntimeError", "this.showError(`${prefix}: ${message}`)"] },
+      "acceptance": { "id": "UPSTREAM-ERROR-MATRIX", "producer": "pinned-upstream-controller-fixture", "assertion": "Inject each operation failure and compare text, placement, editor/focus restoration, retained queues, component terminal state, and fatal/nonfatal outcome." }
+    },
+    {
+      "id": "shutdown.interactive-signal-crash",
+      "category": "shutdown",
+      "behavior": "Handle /quit, empty Ctrl-D, double Ctrl-C, extension shutdown, settled deferred shutdown, SIGTERM/SIGHUP, dead terminal, uncaught exception, and suspend/resume with ordered input drain, progress clear, renderer stop, extension/runtime disposal, terminal restoration, resume hint, and listener cleanup.",
+      "provenance": { "source": "interactive", "lines": [3744, 3946], "symbol": "shutdown, emergencyTerminalExit, uncaughtCrash, signal handlers, suspend", "anchors": ["drainInput(1000)", "this.stop()", "uncaughtException"] },
+      "acceptance": { "id": "UPSTREAM-SHUTDOWN-MATRIX", "producer": "pinned-upstream-terminal-lifecycle-probe", "assertion": "Record exact ordering and terminal state for every interactive, signal, dead-terminal, crash, duplicate, and suspend/resume path." }
+    },
+    {
+      "id": "shutdown.dispose-stateful-components",
+      "category": "shutdown",
+      "behavior": "Dispose active selector, status, theme sync, extension input listeners, footer/provider, session subscription, renderer, and signal handlers exactly once, clearing terminal progress before restoration.",
+      "provenance": { "source": "interactive", "lines": [6376, 6395], "symbol": "stop", "anchors": ["disposeActiveSelector", "footer.dispose", "unregisterSignalHandlers"] },
+      "acceptance": { "id": "UPSTREAM-DISPOSAL-ORDER", "producer": "pinned-upstream-terminal-lifecycle-probe", "assertion": "Assert each resource is disposed once in upstream order after normal, partial-init, selector-open, streaming, and failure states." }
+    }
+  ],
+  "manifests": {
+    "advertisedBuiltInCommands": [
+      "settings", "model", "scoped-models", "export", "import", "share", "copy", "name", "session", "changelog", "hotkeys", "fork", "clone", "tree", "trust", "login", "logout", "new", "compact", "resume", "reload", "quit"
+    ],
+    "nonAdvertisedCommandRoutes": ["debug", "arminsayshi", "dementedelves"],
+    "tuiKeybindings": [
+      "tui.editor.cursorUp", "tui.editor.cursorDown", "tui.editor.historyPrevious", "tui.editor.historyNext", "tui.editor.cursorLeft", "tui.editor.cursorRight", "tui.editor.cursorWordLeft", "tui.editor.cursorWordRight", "tui.editor.cursorLineStart", "tui.editor.cursorLineEnd", "tui.editor.jumpForward", "tui.editor.jumpBackward", "tui.editor.pageUp", "tui.editor.pageDown", "tui.editor.deleteCharBackward", "tui.editor.deleteCharForward", "tui.editor.deleteWordBackward", "tui.editor.deleteWordForward", "tui.editor.deleteToLineStart", "tui.editor.deleteToLineEnd", "tui.editor.yank", "tui.editor.yankPop", "tui.editor.undo", "tui.input.newLine", "tui.input.submit", "tui.input.tab", "tui.input.copy", "tui.select.up", "tui.select.down", "tui.select.pageUp", "tui.select.pageDown", "tui.select.confirm", "tui.select.cancel", "tui.altScreen.pageUp", "tui.altScreen.pageDown", "tui.altScreen.halfPageUp", "tui.altScreen.halfPageDown", "tui.altScreen.previousPrompt", "tui.altScreen.nextPrompt", "tui.altScreen.top", "tui.altScreen.bottom"
+    ],
+    "appKeybindings": [
+      "app.interrupt", "app.clear", "app.exit", "app.suspend", "app.thinking.cycle", "app.model.cycleForward", "app.model.cycleBackward", "app.model.select", "app.tools.expand", "app.thinking.toggle", "app.session.toggleNamedFilter", "app.editor.external", "app.message.copy", "app.message.followUp", "app.message.dequeue", "app.clipboard.pasteImage", "app.session.new", "app.session.tree", "app.session.fork", "app.session.resume", "app.tree.foldOrUp", "app.tree.unfoldOrDown", "app.tree.editLabel", "app.tree.toggleLabelTimestamp", "app.session.togglePath", "app.session.toggleSort", "app.session.rename", "app.session.delete", "app.session.deleteNoninvasive", "app.models.save", "app.models.enableAll", "app.models.clearAll", "app.models.toggleProvider", "app.models.reorderUp", "app.models.reorderDown", "app.tree.filter.default", "app.tree.filter.noTools", "app.tree.filter.userOnly", "app.tree.filter.labeledOnly", "app.tree.filter.all", "app.tree.filter.cycleForward", "app.tree.filter.cycleBackward"
+    ],
+    "sessionEvents": [
+      "agent_start", "queue_update", "entry_appended", "session_info_changed", "thinking_level_changed", "message_start", "message_update", "message_end", "bash_execution_update", "tool_execution_start", "tool_execution_update", "tool_execution_end", "agent_end", "agent_settled", "compaction_start", "compaction_end", "auto_retry_start", "auto_retry_end", "summarization_retry_scheduled", "summarization_retry_attempt_start", "summarization_retry_finished"
+    ],
+    "settingsCallbacks": [
+      "onAutoCompactChange", "onShowImagesChange", "onImageWidthCellsChange", "onAutoResizeImagesChange", "onBlockImagesChange", "onEnableSkillCommandsChange", "onSteeringModeChange", "onFollowUpModeChange", "onTransportChange", "onHttpIdleTimeoutMsChange", "onThinkingLevelChange", "onThemeChange", "onThemePreview", "onHideThinkingBlockChange", "onMermaidRenderingModeChange", "onShowCacheMissNoticesChange", "onCollapseChangelogChange", "onEnableInstallTelemetryChange", "onQuietStartupChange", "onDefaultProjectTrustChange", "onDoubleEscapeActionChange", "onTreeFilterModeChange", "onShowHardwareCursorChange", "onEditorPaddingXChange", "onOutputPadChange", "onAutocompleteMaxVisibleChange", "onClearOnShrinkChange", "onShowTerminalProgressChange", "onTuiModeChange", "onFullscreenScrollbarChange", "onWarningsChange", "onCancel"
+    ],
+    "statefulComponents": [
+      "CustomEditor", "FooterComponent", "WorkingStatusIndicator", "RetryStatusIndicator", "CompactionStatusIndicator", "BranchSummaryStatusIndicator", "AssistantMessageComponent", "ToolExecutionComponent", "BashExecutionComponent", "UserMessageComponent", "SkillInvocationMessageComponent", "CustomMessageComponent", "CompactionSummaryMessageComponent", "BranchSummaryMessageComponent", "SettingsSelectorComponent", "ModelSelectorComponent", "ScopedModelsSelectorComponent", "UserMessageSelectorComponent", "TreeSelectorComponent", "SessionSelectorComponent", "TrustSelectorComponent", "OAuthSelectorComponent", "LoginDialogComponent", "BorderedLoader"
+    ]
+  },
+  "demonstrationShellSmoke": {
+    "candidateCommit": "b854210fd4aa69b9664be1e31f7986930416f4ee",
+    "result": "failed",
+    "findings": [
+      "Vanilla startup composition was absent.",
+      "Command discovery and autocomplete were absent.",
+      "Ordinary prompt submission produced no visible turn.",
+      "Most pinned vanilla workflows were absent."
+    ],
+    "invalidatedEvidence": [
+      "test/features/owned-ui/fixtures/pi-component-parity.json",
+      "test/features/owned-ui/fixtures/pi-event-frame-parity.json",
+      "openspec/changes/build-owned-pi-ui-foundation/evidence/pi-parity-acceptance.json"
+    ],
+    "classification": "The fixtures remain AddOne regression fixtures only. They are not independent upstream parity evidence and cannot satisfy tasks 7.3-8.1."
+  }
+}
