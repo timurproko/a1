@@ -88,13 +88,22 @@ export class OwnedPiSessionController {
     this.#customizations = options.customizations ?? createVanillaUiCustomizationRegistry();
     this.#diagnostics = options.diagnostics ?? new OwnedUiDiagnosticsRecorder();
     const defaultRenderer = options.renderBlock ?? createOwnedTranscriptRenderer();
+    const editorHandlers = {
+      ...(options.onRequestRender === undefined ? {} : { onRequestRender: options.onRequestRender }),
+      onSubmit: (text: string) => {
+        void this.submit(text);
+      },
+      onQueue: (text: string) => {
+        void this.submit(text);
+      },
+    };
     this.root = new OwnedSessionRootComponent(
       options.width,
       (block, width) => {
         const override = this.#customizations.resolve("transcript-block")?.implementation.render;
         return override ? override(block, width) : defaultRenderer(block, width);
       },
-      options.onRequestRender === undefined ? {} : { onRequestRender: options.onRequestRender },
+      editorHandlers,
     );
     this.root.update(this.adapter.view());
     this.#unsubscribe = this.adapter.onEvent(event => {

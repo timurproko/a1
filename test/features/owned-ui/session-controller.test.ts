@@ -111,6 +111,15 @@ describe("owned Pi session controller", () => {
     expect(views.length).toBeGreaterThan(1);
   });
 
+  it("submits editor Enter input through the adapter", async () => {
+    const { controller, session } = await controllerFixture();
+    controller.root.editor.setText("Use the editor");
+    controller.root.editor.handleInput({ type: "key", key: "enter", ctrl: false, alt: false, shift: false });
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(session.calls).toContain("prompt:Use the editor");
+    expect(controller.root.editor.getText()).toBe("");
+  });
+
   it("applies and rolls back a vanilla preset override without mutating installed Pi components", async () => {
     const { UserMessageComponent } = await import("@earendil-works/pi-coding-agent");
     const originalRender = UserMessageComponent.prototype.render;
