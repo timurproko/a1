@@ -18,7 +18,9 @@ export function captureAddOneStartup(state: StartupCaptureState): StartupCapture
     expanded: state.expanded,
     notices: state.notices,
   });
-  return { id: state.id, width: state.width, rows: root.render(state.width).map(normalizeRow) };
+  const rows = root.render(state.width).map(normalizeRow);
+  root.dispose();
+  return { id: state.id, width: state.width, rows };
 }
 
 function toView(state: StartupCaptureState): OwnedUiSessionViewModel {

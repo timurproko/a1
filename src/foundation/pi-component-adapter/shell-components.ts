@@ -30,6 +30,7 @@ import type {
   OwnedUiTranscriptBlock,
 } from "../owned-ui-contracts/index.js";
 import { KeybindingsManager } from "./upstream/adjacent/core/keybindings.js";
+import { WorkingStatusIndicator } from "./upstream/components/status-indicator.js";
 import { PINNED_PI_LAYOUT, ensurePiTheme, piTheme } from "./theme.js";
 
 export interface PiShellComponentPort {
@@ -282,15 +283,28 @@ export function createPiShellHeader(options: PiShellHeaderOptions = {}): PiShell
   };
 }
 
-export function createPiShellStatus(view: OwnedUiSessionViewModel): PiShellViewComponentPort {
+export function createPiShellStatus(
+  view: OwnedUiSessionViewModel,
+  runtime?: Pick<PiShellEditorOptions, "getColumns" | "getRows" | "requestRender">,
+): PiShellViewComponentPort {
   ensureTheme();
-  const text = new Text(statusText(view), 1, 0);
+  const statusUi = createTuiFacade(runtime ?? { getColumns: () => 80, getRows: () => 24, requestRender() {} });
+  let component = statusComponent(view, statusUi);
+  let signature = statusSignature(view);
   return {
-    render: width => statusText(view).length === 0 ? [] : text.render(width),
-    invalidate: () => text.invalidate(),
+    render: width => component?.render(width) ?? [],
+    invalidate: () => component?.invalidate(),
     update(next) {
       view = next;
-      text.setText(statusText(next));
+      const nextSignature = statusSignature(next);
+      if (nextSignature === signature) return;
+      if (component !== undefined && "dispose" in component && typeof component.dispose === "function") component.dispose();
+      signature = nextSignature;
+      component = statusComponent(next, statusUi);
+    },
+    dispose() {
+      if (component !== undefined && "dispose" in component && typeof component.dispose === "function") component.dispose();
+      component = undefined;
     },
   };
 }
@@ -642,11 +656,19 @@ function dialogOptions(dialog: OwnedUiDialog): readonly PiShellSelectorOption[] 
   return [{ id: "accept", label: "Accept" }, { id: "cancel", label: "Cancel" }];
 }
 
-function statusText(view: OwnedUiSessionViewModel): string {
-  const theme = piTheme();
-  if (view.lifecycle === "busy") return theme.fg("muted", view.status.workingMessage ?? "Working...");
-  if (view.lifecycle === "failed") return theme.fg("error", view.status.diagnostics.at(-1) ?? "Session failed");
-  return view.status.workingMessage === null ? "" : theme.fg("muted", view.status.workingMessage);
+function statusComponent(view: OwnedUiSessionViewModel, ui: TUI): Component | undefined {
+  if (view.lifecycle === "busy") return new WorkingStatusIndicator(ui, view.status.workingMessage ?? "Working...");
+  if (view.lifecycle === "failed") {
+    return new Text(piTheme().fg("error", view.status.diagnostics.at(-1) ?? "Session failed"), PINNED_PI_LAYOUT.outputPad, 0);
+  }
+  if (view.status.workingMessage !== null) {
+    return new Text(piTheme().fg("muted", view.status.workingMessage), PINNED_PI_LAYOUT.outputPad, 0);
+  }
+  return undefined;
+}
+
+function statusSignature(view: OwnedUiSessionViewModel): string {
+  return `${view.lifecycle}\u0000${view.status.workingMessage ?? ""}\u0000${view.status.diagnostics.at(-1) ?? ""}`;
 }
 
 function queuedInputText(submissions: readonly string[]): string {

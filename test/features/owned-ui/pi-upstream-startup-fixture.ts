@@ -8,6 +8,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import {
   KeybindingsManager,
+  Loader,
   Spacer,
   stripTerminalSequences,
   Text,
@@ -46,10 +47,18 @@ export interface StartupCapture {
 export function capturePinnedUpstreamStartup(state: StartupCaptureState): StartupCapture {
   initTheme("dark", false);
   const header = state.quiet ? [] : renderHeader(state);
-  const status = state.lifecycle === "busy" ? new Text(state.workingMessage ?? "Working...", 1, 0).render(state.width) : [];
+  const status = renderStatus(state);
   const editor = createUpstreamEditor(state.width).render(state.width);
   const footer = createUpstreamFooter(state).render(state.width);
   return { id: state.id, width: state.width, rows: [...header, ...status, ...editor, ...footer].map(normalizeRow) };
+}
+
+function renderStatus(state: StartupCaptureState): string[] {
+  if (state.lifecycle !== "busy") return [];
+  const loader = new Loader(createTui(state.width), value => value, value => value, state.workingMessage ?? "Working...");
+  const rows = loader.render(state.width);
+  loader.stop();
+  return rows;
 }
 
 function renderHeader(state: StartupCaptureState): string[] {

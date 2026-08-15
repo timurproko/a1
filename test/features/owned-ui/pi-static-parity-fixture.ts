@@ -51,12 +51,14 @@ export function buildStaticParityCases(): readonly StaticParityCase[] {
     ],
   });
 
-  return [
+  const cases = [
     parityCase("shell-72", 72, ["transcript", "streaming", "tools", "editor", "queued-input", "status", "errors"], root.render(72)),
     parityCase("shell-resize-44", 44, ["resize", "transcript", "streaming", "tools", "editor", "queued-input", "status", "errors"], root.render(44)),
     parityCase("dialog-52", 52, ["dialogs"], dialog.render(52)),
     parityCase("selector-48", 48, ["selectors"], selector.render(48)),
   ];
+  root.dispose();
+  return cases;
 }
 
 function parityCase(id: string, width: number, coverage: readonly string[], rows: readonly string[]): StaticParityCase {

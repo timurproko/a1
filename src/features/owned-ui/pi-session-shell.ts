@@ -85,7 +85,7 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
     this.#view = view;
     this.#cwd = cwd;
     this.header = createPiShellHeader(startup);
-    this.#status = createPiShellStatus(view);
+    this.#status = createPiShellStatus(view, handlers);
     this.#footer = createPiShellFooter(view, cwd);
     this.#queued = createPiQueuedInputStatus(view.editor.queuedSubmissions);
     this.editor = createPiShellEditor({
