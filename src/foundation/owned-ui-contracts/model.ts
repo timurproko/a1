@@ -54,11 +54,36 @@ export interface OwnedUiEditorState {
   readonly submitEnabled: boolean;
 }
 
+export interface OwnedUiUsageView {
+  readonly input: number;
+  readonly output: number;
+  readonly cacheRead: number;
+  readonly cacheWrite: number;
+  readonly cost: number;
+  readonly latestCacheHitRate: number | null;
+  readonly latestPrompt?: { readonly input: number; readonly cacheRead: number; readonly cacheWrite: number } | null;
+  readonly contextAvailable?: boolean;
+  readonly contextTokens: number | null;
+  readonly contextWindow: number;
+  readonly contextPercent: number | null;
+  readonly usingSubscription: boolean;
+  readonly autoCompactEnabled: boolean;
+}
+
+export interface OwnedUiFooterView {
+  readonly branch: string | null;
+  readonly sessionName: string | null;
+  readonly availableProviderCount: number;
+  readonly extensionStatuses: readonly (readonly [string, string])[];
+}
+
 export interface OwnedUiStatusView {
   readonly title: string;
   readonly workingMessage: string | null;
   readonly diagnostics: readonly string[];
   readonly badges: readonly string[];
+  readonly usage?: OwnedUiUsageView;
+  readonly footer?: OwnedUiFooterView;
 }
 
 export interface OwnedUiDialog {

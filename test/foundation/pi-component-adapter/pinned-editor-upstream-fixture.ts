@@ -22,7 +22,11 @@ export async function createPinnedEditorHarness(agentDir: string) {
   const themePath = resolve("node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/theme/theme.js");
   const themeModule = await import(pathToFileURL(themePath).href) as {
     initTheme(name: string, watcher: boolean): void;
-    theme: { fg(color: string, value: string): string };
+    theme: {
+      fg(color: string, value: string): string;
+      getThinkingBorderColor(level: string): (value: string) => string;
+      getBashModeBorderColor(): (value: string) => string;
+    };
   };
   themeModule.initTheme("dark", false);
   const logs: string[] = [];
@@ -44,7 +48,23 @@ export async function createPinnedEditorHarness(agentDir: string) {
   editor.onAction("app.message.followUp", () => logs.push("follow-up"));
   editor.onAction("app.message.copy", () => logs.push("copy"));
   editor.onAction("app.editor.external", () => logs.push("external"));
-  return { editor, logs, keybindings: module.KeybindingsManager.create(agentDir) };
+  const enableControllerColors = (level: "off" | "minimal" | "low" | "medium" | "high" | "xhigh") => {
+    let bashMode = editor.getExpandedText().trimStart().startsWith("!");
+    const updateBorder = () => {
+      editor.borderColor = bashMode
+        ? themeModule.theme.getBashModeBorderColor()
+        : themeModule.theme.getThinkingBorderColor(level);
+    };
+    editor.onChange = text => {
+      const next = text.trimStart().startsWith("!");
+      if (next !== bashMode) {
+        bashMode = next;
+        updateBorder();
+      }
+    };
+    updateBorder();
+  };
+  return { editor, logs, keybindings: module.KeybindingsManager.create(agentDir), enableControllerColors };
 }
 
 interface PinnedKeybindings {

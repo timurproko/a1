@@ -4,6 +4,7 @@ import {
   CompactionSummaryMessageComponent,
   CustomEditor,
   CustomMessageComponent,
+  FooterComponent,
   getMarkdownTheme,
   getSelectListTheme,
   rawKeyHint,
@@ -19,7 +20,6 @@ import {
   Spacer,
   Text,
   truncateToWidth,
-  visibleWidth,
   type Component,
   type SelectItem,
   type TUI,
@@ -27,6 +27,7 @@ import {
 import type {
   OwnedUiDialog,
   OwnedUiSessionViewModel,
+  OwnedUiThinkingLevel,
   OwnedUiTranscriptBlock,
 } from "../owned-ui-contracts/index.js";
 import { KeybindingsManager } from "./upstream/adjacent/core/keybindings.js";
@@ -49,6 +50,7 @@ export interface PiShellEditorPort extends PiShellComponentPort {
   setSubmitHandler(handler: (text: string) => void): void;
   setInterruptHandler(handler: () => void): void;
   setAutocompleteCommands(commands: readonly PiShellAutocompleteCommand[]): void;
+  setThinkingLevel(level: OwnedUiThinkingLevel): void;
 }
 
 export interface PiShellAutocompleteCommand {
@@ -166,6 +168,14 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
     paddingX: PINNED_PI_LAYOUT.editorPaddingX,
     autocompleteMaxVisible: PINNED_PI_LAYOUT.autocompleteMaxVisible,
   });
+  let thinkingLevel: OwnedUiThinkingLevel = "off";
+  let isBashMode = false;
+  const updateBorderColor = () => {
+    editor.borderColor = isBashMode
+      ? piTheme().getBashModeBorderColor()
+      : piTheme().getThinkingBorderColor(thinkingLevel);
+    tui.requestRender();
+  };
   const setAutocompleteCommands = (commands: readonly PiShellAutocompleteCommand[]) => {
     const additions = new Map(commands.map(command => [command.name, command]));
     const builtInNames = new Set(PINNED_PI_BUILTIN_SLASH_COMMANDS.map(command => command.name));
@@ -180,7 +190,14 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
   let submitHandler = options.onSubmit;
   let interruptHandler = options.onInterrupt ?? (() => {});
   editor.onSubmit = text => submitHandler(text);
-  if (options.onChange !== undefined) editor.onChange = options.onChange;
+  editor.onChange = text => {
+    const nextBashMode = text.trimStart().startsWith("!");
+    if (nextBashMode !== isBashMode) {
+      isBashMode = nextBashMode;
+      updateBorderColor();
+    }
+    options.onChange?.(text);
+  };
   if (options.onInterrupt !== undefined) {
     editor.onEscape = () => interruptHandler();
     editor.onAction("app.interrupt", () => interruptHandler());
@@ -224,6 +241,11 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
     setSubmitHandler: handler => { submitHandler = handler; },
     setInterruptHandler: handler => { interruptHandler = handler; },
     setAutocompleteCommands,
+    setThinkingLevel(level) {
+      if (thinkingLevel === level) return;
+      thinkingLevel = level;
+      updateBorderColor();
+    },
   };
 }
 
@@ -311,10 +333,50 @@ export function createPiShellStatus(
 
 export function createPiShellFooter(view: OwnedUiSessionViewModel, cwd: string): PiShellViewComponentPort {
   ensureTheme();
+  const session = {
+    get state() {
+      const usage = view.status.usage;
+      return {
+        model: view.activeModel === null ? null : {
+          provider: view.activeModel.providerId,
+          id: view.activeModel.modelId,
+          reasoning: view.thinkingLevel !== "off",
+          contextWindow: usage?.contextWindow ?? 0,
+        },
+        thinkingLevel: view.thinkingLevel,
+      };
+    },
+    sessionManager: {
+      getEntries: () => footerUsageEntries(view),
+      getCwd: () => cwd,
+      getSessionName: () => view.status.footer?.sessionName ?? undefined,
+    },
+    getContextUsage: () => {
+      const usage = view.status.usage;
+      return usage === undefined || usage.contextAvailable === false ? undefined : {
+        tokens: usage.contextTokens,
+        contextWindow: usage.contextWindow,
+        percent: usage.contextPercent,
+      };
+    },
+    modelRuntime: {
+      isUsingSubscription: () => view.status.usage?.usingSubscription ?? false,
+    },
+  };
+  const footerData = {
+    getGitBranch: () => view.status.footer?.branch ?? null,
+    getAvailableProviderCount: () => view.status.footer?.availableProviderCount ?? 1,
+    getExtensionStatuses: () => new Map(view.status.footer?.extensionStatuses ?? []),
+  };
+  const footer = new FooterComponent(session as never, footerData as never);
   return {
-    render: width => footerRows(view, cwd, width),
-    invalidate() {},
+    render(width) {
+      footer.setAutoCompactEnabled(view.status.usage?.autoCompactEnabled ?? true);
+      return footer.render(width);
+    },
+    invalidate: () => footer.invalidate(),
     update(next) { view = next; },
+    dispose: () => footer.dispose(),
   };
 }
 
@@ -676,21 +738,26 @@ function queuedInputText(submissions: readonly string[]): string {
   return submissions.map(submission => theme.fg("muted", `Steering: ${submission.replaceAll("\n", " ⏎ ")}`)).join("\n");
 }
 
-function footerRows(view: OwnedUiSessionViewModel, cwd: string, width: number): readonly string[] {
-  const safeWidth = Math.max(1, width);
-  const theme = piTheme();
-  const ellipsis = theme.fg("dim", "...");
-  const pwd = truncateToWidth(theme.fg("dim", cwd), safeWidth, ellipsis);
-  const left = "0.0%/0 (auto)";
-  const model = view.activeModel?.modelId ?? "no-model";
-  const right = view.activeModel === null || view.thinkingLevel === "off"
-    ? model
-    : `${model} • ${view.thinkingLevel}`;
-  const leftWidth = visibleWidth(left);
-  const availableRight = Math.max(0, safeWidth - leftWidth - 2);
-  const fittedRight = truncateToWidth(right, availableRight, "");
-  const padding = " ".repeat(Math.max(2, safeWidth - leftWidth - visibleWidth(fittedRight)));
-  return [pwd, theme.fg("dim", left) + theme.fg("dim", truncateToWidth(`${padding}${fittedRight}`, safeWidth - leftWidth, ""))];
+function footerUsageEntries(view: OwnedUiSessionViewModel): readonly unknown[] {
+  const usage = view.status.usage;
+  if (usage === undefined || (usage.input === 0 && usage.output === 0 && usage.cacheRead === 0
+    && usage.cacheWrite === 0 && usage.cost === 0)) return [];
+  const entry = (input: number, output: number, cacheRead: number, cacheWrite: number, cost: number) => ({
+    type: "message",
+    message: { role: "assistant", usage: { input, output, cacheRead, cacheWrite, cost: { total: cost } } },
+  });
+  const latest = usage.latestPrompt;
+  if (latest === undefined || latest === null) {
+    return [entry(usage.input, usage.output, usage.cacheRead, usage.cacheWrite, usage.cost)];
+  }
+  const prior = entry(
+    Math.max(0, usage.input - latest.input),
+    usage.output,
+    Math.max(0, usage.cacheRead - latest.cacheRead),
+    Math.max(0, usage.cacheWrite - latest.cacheWrite),
+    usage.cost,
+  );
+  return [prior, entry(latest.input, 0, latest.cacheRead, latest.cacheWrite, 0)];
 }
 
 function compactHeaderText(): string {

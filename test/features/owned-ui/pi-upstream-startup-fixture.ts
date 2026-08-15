@@ -26,8 +26,16 @@ export interface StartupCaptureState {
   readonly lifecycle: "ready" | "busy";
   readonly workingMessage: string | null;
   readonly model: { readonly providerId: string; readonly modelId: string } | null;
-  readonly thinkingLevel: "off" | "medium";
+  readonly thinkingLevel: "off" | "minimal" | "low" | "medium" | "high" | "xhigh";
   readonly notices: readonly { readonly kind: "info" | "warning" | "error"; readonly message: string }[];
+  readonly usage?: {
+    readonly input: number; readonly output: number; readonly cacheRead: number; readonly cacheWrite: number;
+    readonly cost: number; readonly contextTokens: number | null; readonly contextWindow: number; readonly contextPercent: number | null;
+    readonly usingSubscription: boolean;
+  };
+  readonly branch?: string;
+  readonly sessionName?: string;
+  readonly availableProviderCount?: number;
 }
 
 export const PINNED_STARTUP_STATES: readonly StartupCaptureState[] = [
@@ -35,6 +43,7 @@ export const PINNED_STARTUP_STATES: readonly StartupCaptureState[] = [
   { id: "busy-expanded-60", width: 60, cwd: "D:/work", quiet: false, expanded: true, lifecycle: "busy", workingMessage: "Working…", model: { providerId: "openai", modelId: "gpt-5" }, thinkingLevel: "medium", notices: [] },
   { id: "quiet-no-model-44", width: 44, cwd: "D:/work", quiet: true, expanded: false, lifecycle: "ready", workingMessage: null, model: null, thinkingLevel: "off", notices: [] },
   { id: "warning-collapsed-72", width: 72, cwd: "D:/work", quiet: false, expanded: false, lifecycle: "ready", workingMessage: null, model: { providerId: "anthropic", modelId: "claude-sonnet" }, thinkingLevel: "off", notices: [{ kind: "warning", message: "Pinned startup warning" }] },
+  { id: "populated-footer-80", width: 80, cwd: "D:/work", quiet: true, expanded: false, lifecycle: "ready", workingMessage: null, model: { providerId: "anthropic", modelId: "claude-opus-4.8" }, thinkingLevel: "high", notices: [], usage: { input: 1_800_000, output: 222_000, cacheRead: 94_000_000, cacheWrite: 0, cost: 72.526, contextTokens: 86_768, contextWindow: 272_000, contextPercent: 31.9, usingSubscription: true }, branch: "milestone/owned-pi-ui-foundation", sessionName: "parity", availableProviderCount: 2 },
 ];
 
 export interface StartupCapture {
@@ -89,6 +98,11 @@ function createUpstreamEditor(width: number): CustomEditor {
   }, keybindings as never, { paddingX: 0 });
 }
 
+export function capturePinnedUpstreamFooterRows(state: StartupCaptureState): readonly string[] {
+  initTheme("dark", false);
+  return createUpstreamFooter(state).render(state.width);
+}
+
 function createUpstreamFooter(state: StartupCaptureState): FooterComponent {
   const model = state.model === null ? null : {
     provider: state.model.providerId,
@@ -98,16 +112,28 @@ function createUpstreamFooter(state: StartupCaptureState): FooterComponent {
   const session = {
     state: { model, thinkingLevel: state.thinkingLevel },
     sessionManager: {
-      getEntries: () => [],
+      getEntries: () => state.usage === undefined ? [] : [{
+        type: "message",
+        message: {
+          role: "assistant",
+          usage: {
+            input: state.usage.input,
+            output: state.usage.output,
+            cacheRead: state.usage.cacheRead,
+            cacheWrite: state.usage.cacheWrite,
+            cost: { total: state.usage.cost },
+          },
+        },
+      }],
       getCwd: () => state.cwd,
-      getSessionName: () => undefined,
+      getSessionName: () => state.sessionName,
     },
-    getContextUsage: () => null,
-    modelRuntime: { isUsingSubscription: () => false },
+    getContextUsage: () => state.usage === undefined ? null : { tokens: state.usage.contextTokens, contextWindow: state.usage.contextWindow, percent: state.usage.contextPercent },
+    modelRuntime: { isUsingSubscription: () => state.usage?.usingSubscription ?? false },
   };
   const footerData = {
-    getGitBranch: () => null,
-    getAvailableProviderCount: () => 1,
+    getGitBranch: () => state.branch ?? null,
+    getAvailableProviderCount: () => state.availableProviderCount ?? 1,
     getExtensionStatuses: () => new Map<string, string>(),
   };
   return new FooterComponent(session as never, footerData as never);

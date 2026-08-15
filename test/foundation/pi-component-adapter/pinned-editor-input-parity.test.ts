@@ -89,6 +89,18 @@ describe("pinned editor and input parity", () => {
       input("\u0003");
       compare("application keybindings");
 
+      actual.setThinkingLevel("high");
+      upstream.enableControllerColors("high");
+      actual.setText("");
+      upstream.editor.setText("");
+      compare("thinking-level editor border");
+      actual.setText("!pwd");
+      upstream.editor.setText("!pwd");
+      compare("bash-mode editor border");
+      actual.setText("plain prompt");
+      upstream.editor.setText("plain prompt");
+      compare("restored thinking editor border");
+
       actual.setText("");
       upstream.editor.setText("");
       input("\u0004");

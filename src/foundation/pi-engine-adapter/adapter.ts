@@ -32,6 +32,7 @@ import {
   type OwnedUiTerminalSurface,
   type OwnedUiThinkingLevel,
   type OwnedUiTranscriptBlock,
+  type OwnedUiUsageView,
 } from "../owned-ui-contracts/index.js";
 import {
   PINNED_PI_SETTINGS_CALLBACKS,
@@ -63,6 +64,8 @@ export interface PiSessionLike {
   readonly isRetrying: boolean;
   readonly isCompacting: boolean;
   readonly messages: readonly unknown[];
+  readonly sessionManager?: { getSessionName(): string | undefined; getEntries(): readonly unknown[] };
+  getContextUsage?(): { readonly tokens: number | null; readonly contextWindow: number; readonly percent: number | null } | undefined;
   subscribe(listener: (event: unknown) => void): () => void;
   prompt(text: string, options?: unknown): Promise<void>;
   steer(text: string): Promise<void>;
@@ -79,7 +82,10 @@ export interface PiSessionLike {
 export interface PiServicesLike {
   readonly modelRuntime: {
     getModel(providerId: string, modelId: string): unknown;
+    isUsingSubscription?(providerId: string): boolean;
+    getAvailableSnapshot?(): readonly { readonly provider?: string }[];
   };
+  readonly settingsManager?: { getCompactionEnabled?: () => boolean };
   readonly resourceLoader?: {
     getSkills(): unknown;
     getPrompts(): unknown;
@@ -195,6 +201,7 @@ export class PiEngineAdapter {
   #eventQueueProcessing: Promise<void> | undefined;
   #droppedEventCount = 0;
   #lastPrompt: string | null = null;
+  #gitBranch: string | null = null;
   #disposed = false;
 
   constructor(options: PiEngineAdapterOptions = {}) {
@@ -234,6 +241,7 @@ export class PiEngineAdapter {
       throw error;
     });
     this.#runtime = runtime;
+    this.#gitBranch = await readGitBranch(this.#cwd);
     runtime.setRebindSession(async session => {
       this.#bindSession(session);
       this.#emitView();
@@ -517,6 +525,13 @@ export class PiEngineAdapter {
         ...this.#status,
         diagnostics: [...this.#status.diagnostics],
         badges: [...this.#status.badges],
+        usage: this.#readUsage(),
+        footer: {
+          branch: this.#gitBranch,
+          sessionName: this.#session?.sessionManager?.getSessionName() ?? null,
+          availableProviderCount: new Set(this.#runtime?.services.modelRuntime.getAvailableSnapshot?.().map(model => model.provider).filter(provider => provider !== undefined) ?? []).size || 1,
+          extensionStatuses: [],
+        },
       },
       terminal: { ...this.#terminal },
       activeModel: this.#activeModel === null ? null : { ...this.#activeModel },
@@ -1065,15 +1080,20 @@ export class PiEngineAdapter {
         this.#upsertToolExecutionBlock(event);
         return;
       case "agent_settled":
-      case "agent_end":
+      case "agent_end": {
         if (event.type === "agent_end" && event.willRetry === true) return;
-        this.#rebuildTranscript(Array.isArray(event.messages) ? event.messages : [], "finalized");
+        const finalMessages = Array.isArray(event.messages) && event.messages.length > 0
+          ? event.messages
+          : this.#session?.messages ?? [];
+        if (finalMessages.length > 0) this.#rebuildTranscript(finalMessages, "finalized");
+        else this.#transcript = this.#transcript.map(block => block.status === "live" ? { ...block, status: "finalized" } : block);
         this.#lifecycle = "ready";
         this.#status = { ...this.#status, workingMessage: null };
         this.#emitEvent({ type: "session-lifecycle", lifecycle: "ready", reason: null });
         this.#emitEvent({ type: "status", status: this.#status });
         this.#emitView();
         return;
+      }
       case "queue_update": {
         const steering = readStringArray(event.steering);
         const followUp = readStringArray(event.followUp);
@@ -1107,6 +1127,59 @@ export class PiEngineAdapter {
       default:
         return;
     }
+  }
+
+  #readUsage(): OwnedUiUsageView {
+    let input = 0;
+    let output = 0;
+    let cacheRead = 0;
+    let cacheWrite = 0;
+    let cost = 0;
+    let latestCacheHitRate: number | null = null;
+    let latestPrompt: OwnedUiUsageView["latestPrompt"] = null;
+    const entries = this.#session?.sessionManager?.getEntries()
+      ?? (this.#session?.messages ?? []).map(message => ({ type: "message", message }));
+    for (const entry of entries) {
+      if (!isRecord(entry)) continue;
+      const message = entry.type === "message" && isRecord(entry.message) ? entry.message : undefined;
+      const usage = message !== undefined && isRecord(message.usage)
+        ? message.usage
+        : (entry.type === "branch_summary" || entry.type === "compaction") && isRecord(entry.usage) ? entry.usage : undefined;
+      if (usage === undefined) continue;
+      input += finiteNumber(usage.input);
+      output += finiteNumber(usage.output);
+      cacheRead += finiteNumber(usage.cacheRead);
+      cacheWrite += finiteNumber(usage.cacheWrite);
+      cost += isRecord(usage.cost) ? finiteNumber(usage.cost.total) : 0;
+      if (message?.role === "assistant") {
+        latestPrompt = {
+          input: finiteNumber(usage.input),
+          cacheRead: finiteNumber(usage.cacheRead),
+          cacheWrite: finiteNumber(usage.cacheWrite),
+        };
+        const promptTokens = latestPrompt.input + latestPrompt.cacheRead + latestPrompt.cacheWrite;
+        latestCacheHitRate = promptTokens > 0 ? (latestPrompt.cacheRead / promptTokens) * 100 : null;
+      }
+    }
+    const context = this.#session?.getContextUsage?.();
+    const providerId = this.#activeModel?.providerId;
+    const usingSubscription = providerId === "kimi-coding"
+      || (providerId !== undefined && this.#runtime?.services.modelRuntime.isUsingSubscription?.(providerId) === true);
+    return {
+      input,
+      output,
+      cacheRead,
+      cacheWrite,
+      cost,
+      latestCacheHitRate,
+      latestPrompt,
+      contextAvailable: context !== undefined,
+      contextTokens: context?.tokens ?? null,
+      contextWindow: context?.contextWindow ?? 0,
+      contextPercent: context?.percent ?? null,
+      usingSubscription,
+      autoCompactEnabled: this.#runtime?.services.settingsManager?.getCompactionEnabled?.() ?? true,
+    };
   }
 
   #rebuildTranscript(messages: readonly unknown[], status: OwnedUiTranscriptBlock["status"]): void {
@@ -1758,6 +1831,20 @@ function sanitizeJson(value: unknown, depth = 0): unknown {
     return output;
   }
   return String(value);
+}
+
+async function readGitBranch(cwd: string): Promise<string | null> {
+  try {
+    const { stdout } = await execFileAsync("git", ["branch", "--show-current"], { cwd, windowsHide: true });
+    const branch = stdout.trim();
+    return branch.length > 0 ? branch : null;
+  } catch {
+    return null;
+  }
+}
+
+function finiteNumber(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : 0;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

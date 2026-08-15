@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
-import { captureAddOneStartup } from "./pi-addone-startup-fixture.js";
-import { capturePinnedUpstreamStartup, PINNED_STARTUP_STATES } from "./pi-upstream-startup-fixture.js";
+import { captureAddOneFooterRows, captureAddOneStartup } from "./pi-addone-startup-fixture.js";
+import { capturePinnedUpstreamFooterRows, capturePinnedUpstreamStartup, PINNED_STARTUP_STATES } from "./pi-upstream-startup-fixture.js";
 
 describe("independent pinned Pi startup composition parity", () => {
   it("matches separate upstream and AddOne captures at fixed widths and startup states", () => {
@@ -11,6 +11,13 @@ describe("independent pinned Pi startup composition parity", () => {
       expect(addOne, state.id).toEqual(upstream);
       expect(upstream.rows.every(row => !row.includes("\u001b")), state.id).toBe(true);
     }
+  });
+
+  it("matches raw ANSI for populated pinned footer usage and status data", () => {
+    const state = PINNED_STARTUP_STATES.find(candidate => candidate.id === "populated-footer-80");
+    expect(state).toBeDefined();
+    expect(captureAddOneFooterRows(state!)).toEqual(capturePinnedUpstreamFooterRows(state!));
+    expect(capturePinnedUpstreamFooterRows(state!).join("\n")).toContain("\u001b[");
   });
 
   it("keeps the two producers independent", async () => {

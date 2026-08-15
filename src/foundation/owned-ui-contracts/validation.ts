@@ -253,6 +253,52 @@ export function assertOwnedUiStatusView(status: OwnedUiStatusView): void {
   }
   assertCollection(status.badges, "owned-UI status badges", MAX_BADGES);
   for (const badge of status.badges) assertBoundedText(badge, "owned-UI status badge", MAX_LABEL_LENGTH);
+  if (status.usage !== undefined) {
+    for (const [name, value] of Object.entries({
+      input: status.usage.input,
+      output: status.usage.output,
+      cacheRead: status.usage.cacheRead,
+      cacheWrite: status.usage.cacheWrite,
+      cost: status.usage.cost,
+      contextWindow: status.usage.contextWindow,
+    })) {
+      if (typeof value !== "number" || !Number.isFinite(value) || value < 0) throw new TypeError(`owned-UI usage ${name} is invalid`);
+    }
+    if (status.usage.latestCacheHitRate !== null
+      && (typeof status.usage.latestCacheHitRate !== "number" || !Number.isFinite(status.usage.latestCacheHitRate))) {
+      throw new TypeError("owned-UI cache-hit rate is invalid");
+    }
+    if (status.usage.latestPrompt !== undefined && status.usage.latestPrompt !== null) {
+      for (const [name, value] of Object.entries(status.usage.latestPrompt)) {
+        if (!Number.isSafeInteger(value) || value < 0) throw new TypeError(`owned-UI latest prompt ${name} is invalid`);
+      }
+    }
+    if (status.usage.contextAvailable !== undefined && typeof status.usage.contextAvailable !== "boolean") {
+      throw new TypeError("owned-UI context availability is invalid");
+    }
+    if (status.usage.contextTokens !== null
+      && (!Number.isSafeInteger(status.usage.contextTokens) || status.usage.contextTokens < 0)) {
+      throw new TypeError("owned-UI context tokens are invalid");
+    }
+    if (status.usage.contextPercent !== null
+      && (typeof status.usage.contextPercent !== "number" || !Number.isFinite(status.usage.contextPercent))) {
+      throw new TypeError("owned-UI context percentage is invalid");
+    }
+    if (typeof status.usage.usingSubscription !== "boolean" || typeof status.usage.autoCompactEnabled !== "boolean") {
+      throw new TypeError("owned-UI usage flags are invalid");
+    }
+  }
+  if (status.footer !== undefined) {
+    assertOptionalText(status.footer.branch, "owned-UI footer branch", MAX_LABEL_LENGTH);
+    assertOptionalText(status.footer.sessionName, "owned-UI footer session name", MAX_LABEL_LENGTH);
+    assertIntegerInRange(status.footer.availableProviderCount, 0, 1_000, "owned-UI footer provider count");
+    assertCollection(status.footer.extensionStatuses, "owned-UI footer extension statuses", MAX_BADGES);
+    for (const entry of status.footer.extensionStatuses) {
+      if (!Array.isArray(entry) || entry.length !== 2) throw new TypeError("owned-UI footer extension status is invalid");
+      assertBoundedText(entry[0], "owned-UI footer extension id", MAX_LABEL_LENGTH);
+      assertBoundedText(entry[1], "owned-UI footer extension value", MAX_LABEL_LENGTH);
+    }
+  }
 }
 
 export function assertOwnedUiTerminalSurface(surface: OwnedUiTerminalSurface): void {

@@ -1,5 +1,6 @@
 import type { OwnedUiSessionViewModel } from "../../../src/foundation/owned-ui-contracts/index.js";
 import { PiSessionShellRoot } from "../../../src/features/owned-ui/index.js";
+import { createPiShellFooter } from "../../../src/foundation/pi-component-adapter/index.js";
 import { normalizeRow, type StartupCapture, type StartupCaptureState } from "./pi-upstream-startup-fixture.js";
 
 /** AddOne producer. It deliberately shares no composition implementation with the upstream producer. */
@@ -23,6 +24,10 @@ export function captureAddOneStartup(state: StartupCaptureState): StartupCapture
   return { id: state.id, width: state.width, rows };
 }
 
+export function captureAddOneFooterRows(state: StartupCaptureState): readonly string[] {
+  return createPiShellFooter(toView(state), state.cwd).render(state.width);
+}
+
 function toView(state: StartupCaptureState): OwnedUiSessionViewModel {
   return {
     contractVersion: 1,
@@ -43,6 +48,19 @@ function toView(state: StartupCaptureState): OwnedUiSessionViewModel {
       workingMessage: state.workingMessage,
       diagnostics: [],
       badges: [state.lifecycle],
+      ...(state.usage === undefined ? {} : { usage: {
+        ...state.usage,
+        latestCacheHitRate: state.usage.cacheRead > 0
+          ? (state.usage.cacheRead / (state.usage.input + state.usage.cacheRead + state.usage.cacheWrite)) * 100
+          : null,
+        autoCompactEnabled: true,
+      } }),
+      footer: {
+        branch: state.branch ?? null,
+        sessionName: state.sessionName ?? null,
+        availableProviderCount: state.availableProviderCount ?? 1,
+        extensionStatuses: [],
+      },
     },
     terminal: { columns: state.width, rows: 24, focusedRegion: "editor", hardwareCursor: false },
     activeModel: state.model === null ? null : {

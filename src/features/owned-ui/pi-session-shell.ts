@@ -94,6 +94,7 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
       ...(agentDir === undefined ? {} : { agentDir }),
       onToolsExpand: () => this.#setToolsExpanded(!this.#toolsExpanded),
     });
+    this.editor.setThinkingLevel(view.thinkingLevel);
     this.#syncTranscript(view.transcript);
   }
 
@@ -104,6 +105,7 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
     this.#queued.update(view.editor.queuedSubmissions);
     this.#syncTranscript(view.transcript);
     this.editor.setSubmitEnabled(view.lifecycle !== "stopping" && view.lifecycle !== "stopped" && view.lifecycle !== "failed");
+    this.editor.setThinkingLevel(view.thinkingLevel);
     this.invalidate();
   }
 

@@ -17,6 +17,11 @@ class FakeSession implements PiSessionLike {
   isRetrying = false;
   isCompacting = false;
   readonly messages: readonly unknown[] = [];
+  contextUsage: { tokens: number | null; contextWindow: number; percent: number | null } | undefined;
+  readonly sessionManager = {
+    getSessionName: () => "adapter-test",
+    getEntries: () => this.messages.map(message => ({ type: "message", message })),
+  };
   readonly calls: string[] = [];
   disposed = false;
 
@@ -26,6 +31,10 @@ class FakeSession implements PiSessionLike {
 
   setMessages(messages: readonly unknown[]): void {
     (this as { messages: readonly unknown[] }).messages = messages;
+  }
+
+  getContextUsage(): { tokens: number | null; contextWindow: number; percent: number | null } | undefined {
+    return this.contextUsage;
   }
 
   subscribe(listener: (event: unknown) => void): () => void {
@@ -95,6 +104,8 @@ class FakeRuntime implements PiRuntimeLike {
           ? { provider: providerId, id: modelId, name: "GPT-5.1" }
           : undefined;
       },
+      getAvailableSnapshot: () => [{ provider: "openai" }, { provider: "anthropic" }],
+      isUsingSubscription: (providerId: string) => providerId === "openai",
     },
     diagnostics: [{ type: "warning", message: "service warning" }],
   };
@@ -169,6 +180,37 @@ describe("Pi engine adapter", () => {
     expect(runtime.calls).toContain("dispose");
     expect(adapter.disposed).toBe(true);
     expect(adapter.view().lifecycle).toBe("stopped");
+  });
+
+  it("maps public session usage and footer state without placeholder statistics", async () => {
+    const session = new FakeSession("pi-session-1");
+    session.contextUsage = { tokens: 86_768, contextWindow: 272_000, percent: 31.9 };
+    session.setMessages([{
+      role: "assistant",
+      usage: {
+        input: 1_800_000,
+        output: 222_000,
+        cacheRead: 94_000_000,
+        cacheWrite: 12_000,
+        cost: { total: 72.526 },
+      },
+    }]);
+    const { adapter } = await adapterWithRuntime(new FakeRuntime(session));
+
+    expect(adapter.view().status).toMatchObject({
+      usage: {
+        input: 1_800_000,
+        output: 222_000,
+        cacheRead: 94_000_000,
+        cacheWrite: 12_000,
+        cost: 72.526,
+        contextTokens: 86_768,
+        contextWindow: 272_000,
+        contextPercent: 31.9,
+        usingSubscription: true,
+      },
+      footer: { sessionName: "adapter-test", availableProviderCount: 2 },
+    });
   });
 
   it("executes prompt, steering, abort, retry, compaction, model, and thinking commands", async () => {
