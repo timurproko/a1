@@ -83,12 +83,19 @@ describe("PiSessionShell", () => {
 
     engine.session.emit({ type: "agent_start" });
     engine.session.emit({ type: "message_start", message: { role: "assistant", content: [{ type: "text", text: "Streaming answer" }], timestamp: 1 } });
+    await adapter.flushEvents();
+    const streamingId = shell.view().transcript.find(block => block.kind === "assistant")?.id;
+    expect(streamingId).toBeDefined();
+    const persistentComponent = shell.root.transcriptComponent(streamingId!);
     engine.session.emit({ type: "message_update", assistantMessageEvent: { type: "text_delta", delta: " complete" } });
     await adapter.flushEvents();
+    expect(shell.root.transcriptComponent(streamingId!)).toBe(persistentComponent);
     shell.runtime.renderNow();
     const rows = shell.root.render(60).join("\n");
     expect(rows).toContain("Streaming answer");
-    expect(rows).toContain("thinking:medium");
+    expect(rows).toContain("gpt-5 • medium");
+    expect(rows).toContain("pi v0.84.1");
+    expect(rows).toContain("commands");
 
     const handle = shell.showSelector("Choose", [{ id: "one", label: "One" }], () => {});
     shell.runtime.renderNow();

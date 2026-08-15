@@ -17,24 +17,60 @@
     "AssistantMessageComponent",
     "ToolExecutionComponent",
     "CompactionSummaryMessageComponent",
+    "FooterComponent",
+    "rawKeyHint",
+    "VERSION",
+    "CombinedAutocompleteProvider",
+    "Spacer",
+    "Text",
     "Box",
     "Container",
     "SelectList",
-    "Text",
     "TuiAltScreen",
     "ProcessTerminal"
   ],
   "orchestrationPorts": [
     {
       "upstreamSource": "packages/coding-agent/src/modes/interactive/interactive-mode.ts",
+      "upstreamCommit": "53fa77ccd8a279eb87e92294ef3687b03ff80112",
+      "upstreamLines": [528, 994],
       "localFile": "src/features/owned-ui/pi-session-shell.ts",
-      "behavior": "session-event subscription, editor command routing, selector/dialog focus, shutdown and terminal restoration",
+      "adapterFile": "src/foundation/pi-component-adapter/shell-components.ts",
+      "behavior": "persistent startup/header/transcript/status/editor/footer composition, session-event subscription, selector/dialog focus, shutdown and terminal restoration",
       "copiedFiles": [],
       "copiedLines": false,
       "modifications": "Reimplemented against AddOne-owned view models and PiEngineAdapter commands; stock InteractiveMode is never instantiated, inspected, or patched.",
       "coverage": [
         "test/features/owned-ui/pi-session-shell.test.ts",
+        "test/features/owned-ui/pi-startup-composition-parity.test.ts",
+        "test/features/owned-ui/pi-upstream-startup-fixture.ts",
+        "test/features/owned-ui/pi-addone-startup-fixture.ts",
         "test/features/owned-ui/run.test.ts",
+        "test/foundation/pi-component-adapter/shell-components.test.ts"
+      ]
+    },
+    {
+      "upstreamSource": "packages/coding-agent/src/core/slash-commands.ts and packages/coding-agent/src/modes/interactive/interactive-mode.ts",
+      "upstreamCommit": "53fa77ccd8a279eb87e92294ef3687b03ff80112",
+      "upstreamLines": [[3, 42], [638, 740]],
+      "localFile": "src/foundation/pi-component-adapter/shell-components.ts",
+      "behavior": "complete advertised built-in command autocomplete, vanilla descriptions and argument hints",
+      "copiedFiles": [],
+      "copiedLines": false,
+      "modifications": "Manifest data was transcribed into an AddOne adapter constant and passed to the public CombinedAutocompleteProvider; routing remains AddOne-owned.",
+      "coverage": ["test/foundation/pi-component-adapter/shell-components.test.ts"]
+    },
+    {
+      "upstreamSource": "packages/coding-agent/src/modes/interactive/components/footer.ts",
+      "upstreamCommit": "53fa77ccd8a279eb87e92294ef3687b03ff80112",
+      "upstreamLines": [60, 245],
+      "localFile": "src/foundation/pi-component-adapter/shell-components.ts",
+      "behavior": "vanilla two-row cwd/context/model/thinking footer over AddOne-owned view state",
+      "copiedFiles": [],
+      "copiedLines": false,
+      "modifications": "Narrow controller reimplementation uses only fields present in OwnedUiSessionViewModel; unavailable usage values retain upstream zero-context startup semantics.",
+      "coverage": [
+        "test/features/owned-ui/pi-startup-composition-parity.test.ts",
         "test/foundation/pi-component-adapter/shell-components.test.ts"
       ]
     }

@@ -3,8 +3,11 @@ import type { OwnedUiDialog, OwnedUiSessionViewModel, OwnedUiTranscriptBlock } f
 import {
   createPiShellDialog,
   createPiShellEditor,
+  createPiShellFooter,
+  createPiShellHeader,
   createPiShellSelector,
   createPiShellStatus,
+  PINNED_PI_BUILTIN_SLASH_COMMANDS,
   renderPiShellTranscriptBlock,
 } from "../../../src/foundation/pi-component-adapter/index.js";
 
@@ -48,6 +51,23 @@ describe("Pi shell public component adapters", () => {
     expect(editor.render(40).length).toBeGreaterThan(0);
   });
 
+  it("binds the pinned built-in command manifest to public editor autocomplete", async () => {
+    expect(PINNED_PI_BUILTIN_SLASH_COMMANDS.map(command => command.name)).toHaveLength(22);
+    const editor = createPiShellEditor({
+      getColumns: () => 80,
+      getRows: () => 24,
+      requestRender() {},
+      onSubmit() {},
+      cwd: "D:/work",
+    });
+    editor.handleInput?.("/");
+    await new Promise(resolve => setTimeout(resolve, 0));
+    const rows = editor.render(80).join("\n");
+    expect(rows).toContain("settings");
+    expect(rows).toContain("model");
+    expect(rows).toContain("scoped-models");
+  });
+
   it("uses public message and tool components for all transcript states", () => {
     const fixtures = [
       block("user", "user text"),
@@ -74,6 +94,8 @@ describe("Pi shell public component adapters", () => {
 
     const dialog: OwnedUiDialog = { id: "dialog", title: "Choose", kind: "choice", payload: { options: [{ id: "yes", label: "Yes" }] } };
     expect(createPiShellDialog(dialog).render(50).join("\n")).toContain("Choose");
-    expect(createPiShellStatus(view()).render(80).join("\n")).toContain("openai/gpt-5");
+    expect(createPiShellStatus(view()).render(80)).toEqual([]);
+    expect(createPiShellFooter(view(), "D:/work").render(80).join("\n")).toContain("gpt-5 • medium");
+    expect(createPiShellHeader().render(80).join("\n")).toContain("pi v0.84.1");
   });
 });

@@ -4,16 +4,22 @@ import {
   CustomEditor,
   getSelectListTheme,
   initTheme,
+  rawKeyHint,
   ToolExecutionComponent,
   UserMessageComponent,
+  VERSION,
 } from "@earendil-works/pi-coding-agent";
 import {
   Box,
+  CombinedAutocompleteProvider,
   Container,
   KeybindingsManager,
   SelectList,
+  Spacer,
   Text,
+  truncateToWidth,
   TUI_KEYBINDINGS,
+  visibleWidth,
   type Component,
   type SelectItem,
   type TUI,
@@ -39,6 +45,37 @@ export interface PiShellEditorPort extends PiShellComponentPort {
   setSubmitEnabled(enabled: boolean): void;
 }
 
+export interface PiShellViewComponentPort extends PiShellComponentPort {
+  update(view: OwnedUiSessionViewModel): void;
+}
+
+export interface PiShellQueuedInputPort extends PiShellComponentPort {
+  update(submissions: readonly string[]): void;
+}
+
+export interface PiShellHeaderPort extends PiShellComponentPort {
+  readonly expanded: boolean;
+  setExpanded(expanded: boolean): void;
+}
+
+export interface PiShellTranscriptComponentPort extends PiShellComponentPort {
+  readonly id: string;
+  readonly revision: number;
+  update(block: OwnedUiTranscriptBlock): void;
+  setExpanded(expanded: boolean): void;
+}
+
+export interface PiShellStartupNotice {
+  readonly kind: "info" | "warning" | "error";
+  readonly message: string;
+}
+
+export interface PiShellHeaderOptions {
+  readonly quiet?: boolean;
+  readonly expanded?: boolean;
+  readonly notices?: readonly PiShellStartupNotice[];
+}
+
 export interface PiShellEditorOptions {
   readonly getColumns: () => number;
   readonly getRows: () => number;
@@ -49,6 +86,8 @@ export interface PiShellEditorOptions {
   readonly onExit?: () => void;
   readonly onModelSelect?: () => void;
   readonly onThinkingCycle?: () => void;
+  readonly onToolsExpand?: () => void;
+  readonly cwd?: string;
 }
 
 export interface PiShellSelectorOption {
@@ -65,21 +104,67 @@ export interface PiShellSelectorOptions {
   readonly onCancel?: () => void;
 }
 
+// Pinned from packages/coding-agent/src/core/slash-commands.ts at 53fa77c.
+export const PINNED_PI_BUILTIN_SLASH_COMMANDS = [
+  { name: "settings", description: "Open settings menu" },
+  { name: "model", description: "Select model (opens selector UI)", argumentHint: "<provider/model>" },
+  { name: "scoped-models", description: "Enable/disable models for Ctrl+P cycling" },
+  { name: "export", description: "Export session (HTML default, or specify path: .html/.jsonl)" },
+  { name: "import", description: "Import and resume a session from a JSONL file" },
+  { name: "share", description: "Share session as a secret GitHub gist" },
+  { name: "copy", description: "Copy last agent message to clipboard" },
+  { name: "name", description: "Set session display name" },
+  { name: "session", description: "Show session info and stats" },
+  { name: "changelog", description: "Show changelog entries" },
+  { name: "hotkeys", description: "Show all keyboard shortcuts" },
+  { name: "fork", description: "Create a new fork from a previous user message" },
+  { name: "clone", description: "Duplicate the current session at the current position" },
+  { name: "tree", description: "Navigate session tree (switch branches)" },
+  { name: "trust", description: "Save project trust decision for future sessions" },
+  { name: "login", description: "Configure provider authentication", argumentHint: "<provider>" },
+  { name: "logout", description: "Remove provider authentication" },
+  { name: "new", description: "Start a new session" },
+  { name: "compact", description: "Manually compact the session context" },
+  { name: "resume", description: "Resume a different session" },
+  { name: "reload", description: "Reload keybindings, extensions, skills, prompts, themes, and context files" },
+  { name: "quit", description: "Quit pi" },
+];
+
+const PI_SHELL_APP_KEYBINDINGS = {
+  "app.interrupt": { defaultKeys: "escape", description: "Cancel or abort" },
+  "app.clear": { defaultKeys: "ctrl+c", description: "Clear editor" },
+  "app.exit": { defaultKeys: "ctrl+d", description: "Exit when editor is empty" },
+  "app.thinking.cycle": { defaultKeys: "shift+tab", description: "Cycle thinking level" },
+  "app.model.cycleForward": { defaultKeys: "ctrl+p", description: "Cycle to next model" },
+  "app.model.cycleBackward": { defaultKeys: "shift+ctrl+p", description: "Cycle to previous model" },
+  "app.model.select": { defaultKeys: "ctrl+l", description: "Open model selector" },
+  "app.tools.expand": { defaultKeys: "ctrl+o", description: "Toggle tool output" },
+  "app.thinking.toggle": { defaultKeys: "ctrl+t", description: "Toggle thinking blocks" },
+  "app.editor.external": { defaultKeys: "ctrl+g", description: "Open external editor" },
+  "app.message.copy": { defaultKeys: "ctrl+x", description: "Copy message to clipboard" },
+  "app.message.followUp": { defaultKeys: "alt+enter", description: "Queue follow-up message" },
+  "app.message.dequeue": { defaultKeys: "alt+up", description: "Restore queued messages" },
+  "app.clipboard.pasteImage": {
+    defaultKeys: process.platform === "win32" ? "alt+v" : "ctrl+v",
+    description: "Paste image from clipboard (text fallback)",
+  },
+};
+
 export function createPiShellEditor(options: PiShellEditorOptions): PiShellEditorPort {
   ensureTheme();
   const tui = createTuiFacade(options);
   const keybindings = new KeybindingsManager({
     ...TUI_KEYBINDINGS,
-    "app.interrupt": { defaultKeys: "escape", description: "Abort current operation" },
-    "app.clear": { defaultKeys: "ctrl+c", description: "Clear editor" },
-    "app.exit": { defaultKeys: "ctrl+d", description: "Exit" },
-    "app.model.select": { defaultKeys: "ctrl+l", description: "Select model" },
-    "app.thinking.cycle": { defaultKeys: "shift+tab", description: "Cycle thinking" },
-  });
+    ...PI_SHELL_APP_KEYBINDINGS,
+  } as never);
   const editor = new CustomEditor(tui, {
     borderColor: value => value,
     selectList: getSelectListTheme(),
   }, keybindings as never, { paddingX: 0 });
+  editor.setAutocompleteProvider(new CombinedAutocompleteProvider(
+    PINNED_PI_BUILTIN_SLASH_COMMANDS,
+    options.cwd ?? process.cwd(),
+  ));
   editor.onSubmit = options.onSubmit;
   if (options.onChange !== undefined) editor.onChange = options.onChange;
   if (options.onInterrupt !== undefined) {
@@ -92,6 +177,7 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
   }
   if (options.onModelSelect !== undefined) editor.onAction("app.model.select", options.onModelSelect);
   if (options.onThinkingCycle !== undefined) editor.onAction("app.thinking.cycle", options.onThinkingCycle);
+  if (options.onToolsExpand !== undefined) editor.onAction("app.tools.expand", options.onToolsExpand);
   return {
     render: width => editor.render(width),
     handleInput: data => editor.handleInput(data),
@@ -138,16 +224,89 @@ export function createPiShellDialog(
   return componentPort(box, data => selector.handleInput?.(data));
 }
 
-export function createPiShellStatus(view: OwnedUiSessionViewModel): PiShellComponentPort {
+export function createPiShellHeader(options: PiShellHeaderOptions = {}): PiShellHeaderPort {
   ensureTheme();
-  return componentPort(new Text(statusText(view), 0, 0));
+  let expanded = options.expanded ?? false;
+  const compact = new Text(compactHeaderText(), 1, 0);
+  const full = new Text(expandedHeaderText(), 1, 0);
+  const notices = (options.notices ?? []).map(notice => new Text(noticeText(notice), 1, 0));
+  return {
+    get expanded() { return expanded; },
+    setExpanded(value) { expanded = value; },
+    render(width) {
+      if (options.quiet) return [];
+      return [
+        ...new Spacer(1).render(width),
+        ...(expanded ? full : compact).render(width),
+        ...notices.flatMap(notice => ["", ...notice.render(width)]),
+        ...new Spacer(1).render(width),
+      ];
+    },
+    invalidate() {
+      compact.invalidate();
+      full.invalidate();
+      for (const notice of notices) notice.invalidate();
+    },
+  };
 }
 
-export function createPiQueuedInputStatus(submissions: readonly string[]): PiShellComponentPort {
-  const text = submissions.length === 0
-    ? ""
-    : submissions.map((submission, index) => `queued ${index + 1}: ${submission.replaceAll("\n", " ⏎ ")}`).join("\n");
-  return componentPort(new Text(text, 0, 0));
+export function createPiShellStatus(view: OwnedUiSessionViewModel): PiShellViewComponentPort {
+  ensureTheme();
+  const text = new Text(statusText(view), 1, 0);
+  return {
+    render: width => statusText(view).length === 0 ? [] : text.render(width),
+    invalidate: () => text.invalidate(),
+    update(next) {
+      view = next;
+      text.setText(statusText(next));
+    },
+  };
+}
+
+export function createPiShellFooter(view: OwnedUiSessionViewModel, cwd: string): PiShellViewComponentPort {
+  ensureTheme();
+  return {
+    render: width => footerRows(view, cwd, width),
+    invalidate() {},
+    update(next) { view = next; },
+  };
+}
+
+export function createPiQueuedInputStatus(submissions: readonly string[]): PiShellQueuedInputPort {
+  const text = new Text(queuedInputText(submissions), 1, 0);
+  return {
+    render: width => submissions.length === 0 ? [] : text.render(width),
+    invalidate: () => text.invalidate(),
+    update(next) {
+      submissions = next;
+      text.setText(queuedInputText(next));
+    },
+  };
+}
+
+export function createPiShellTranscriptComponent(
+  initial: OwnedUiTranscriptBlock,
+  cwd: string,
+): PiShellTranscriptComponentPort {
+  let block = initial;
+  let expanded = false;
+  let component = transcriptComponent(block, cwd, expanded);
+  return {
+    get id() { return block.id; },
+    get revision() { return block.revision; },
+    render: width => component.render(width),
+    invalidate: () => component.invalidate(),
+    update(next) {
+      if (next.id !== block.id) throw new TypeError("Pi transcript component identity cannot change");
+      block = next;
+      component = transcriptComponent(block, cwd, expanded);
+    },
+    setExpanded(next) {
+      if (expanded === next) return;
+      expanded = next;
+      component = transcriptComponent(block, cwd, expanded);
+    },
+  };
 }
 
 export function renderPiShellTranscriptBlock(
@@ -156,15 +315,22 @@ export function renderPiShellTranscriptBlock(
   cwd: string,
 ): readonly string[] {
   ensureTheme();
+  return transcriptComponent(block, cwd, true).render(width);
+}
+
+function transcriptComponent(block: OwnedUiTranscriptBlock, cwd: string, expanded: boolean): Component {
   switch (block.kind) {
     case "user":
-      return new UserMessageComponent(block.text).render(width);
+      return new UserMessageComponent(block.text);
     case "assistant":
     case "thinking":
-      return assistantComponent(block).render(width);
+      return assistantComponent(block);
     case "tool-call":
-    case "tool-result":
-      return toolComponent(block, cwd).render(width);
+    case "tool-result": {
+      const component = toolComponent(block, cwd);
+      component.setExpanded(expanded);
+      return component;
+    }
     case "compaction": {
       const component = new CompactionSummaryMessageComponent({
         role: "compactionSummary",
@@ -172,15 +338,15 @@ export function renderPiShellTranscriptBlock(
         tokensBefore: numericPayload(block, "tokensBefore"),
         timestamp: Date.now(),
       });
-      component.setExpanded(true);
-      return component.render(width);
+      component.setExpanded(expanded);
+      return component;
     }
     case "retry":
-      return new Text(`Retry: ${block.text}`, 0, 0).render(width);
+      return new Text(`Retry: ${block.text}`, 0, 0);
     case "error":
-      return new Text(`Error: ${block.text}`, 0, 0).render(width);
+      return new Text(`Error: ${block.text}`, 0, 0);
     case "system":
-      return new Text(block.text, 0, 0).render(width);
+      return new Text(block.text, 0, 0);
   }
 }
 
@@ -313,14 +479,70 @@ function dialogOptions(dialog: OwnedUiDialog): readonly PiShellSelectorOption[] 
 }
 
 function statusText(view: OwnedUiSessionViewModel): string {
-  return [
-    view.status.title,
-    ...view.status.badges,
-    view.activeModel === null ? "" : `${view.activeModel.providerId}/${view.activeModel.modelId}`,
-    `thinking:${view.thinkingLevel}`,
-    view.status.workingMessage ?? "",
-    view.status.diagnostics.at(-1) ?? "",
-  ].filter(Boolean).join("  ·  ");
+  if (view.lifecycle === "busy") return view.status.workingMessage ?? "Working...";
+  if (view.lifecycle === "failed") return view.status.diagnostics.at(-1) ?? "Session failed";
+  return view.status.workingMessage ?? "";
+}
+
+function queuedInputText(submissions: readonly string[]): string {
+  return submissions.map(submission => `Steering: ${submission.replaceAll("\n", " ⏎ ")}`).join("\n");
+}
+
+function footerRows(view: OwnedUiSessionViewModel, cwd: string, width: number): readonly string[] {
+  const safeWidth = Math.max(1, width);
+  const pwd = truncateToWidth(cwd, safeWidth, "...");
+  const left = "0.0%/0 (auto)";
+  const model = view.activeModel?.modelId ?? "no-model";
+  const right = view.activeModel === null || view.thinkingLevel === "off"
+    ? model
+    : `${model} • ${view.thinkingLevel}`;
+  const leftWidth = visibleWidth(left);
+  const availableRight = Math.max(0, safeWidth - leftWidth - 2);
+  const fittedRight = truncateToWidth(right, availableRight, "");
+  const padding = " ".repeat(Math.max(2, safeWidth - leftWidth - visibleWidth(fittedRight)));
+  return [pwd, truncateToWidth(`${left}${padding}${fittedRight}`, safeWidth, "")];
+}
+
+function compactHeaderText(): string {
+  const instructions = [
+    rawKeyHint("escape", "interrupt"),
+    rawKeyHint("ctrl+c/ctrl+d", "clear/exit"),
+    rawKeyHint("/", "commands"),
+    rawKeyHint("!", "bash"),
+    rawKeyHint("ctrl+o", "more"),
+  ].join(" · ");
+  return `pi v${VERSION}\n${instructions}\nPress ctrl+o to show full startup help and loaded resources.\n\nPi can explain its own features and look up its docs. Ask it how to use or extend Pi.`;
+}
+
+function expandedHeaderText(): string {
+  const instructions = [
+    rawKeyHint("escape", "to interrupt"),
+    rawKeyHint("ctrl+c", "to clear"),
+    rawKeyHint("ctrl+c twice", "to exit"),
+    rawKeyHint("ctrl+d", "to exit (empty)"),
+    rawKeyHint(process.platform === "win32" ? "" : "ctrl+z", "to suspend"),
+    rawKeyHint("ctrl+k", "to delete to end"),
+    rawKeyHint("shift+tab", "to cycle thinking level"),
+    rawKeyHint("ctrl+p/shift+ctrl+p", "to cycle models"),
+    rawKeyHint("ctrl+l", "to select model"),
+    rawKeyHint("ctrl+o", "to expand tools"),
+    rawKeyHint("ctrl+t", "to expand thinking"),
+    rawKeyHint("ctrl+g", "for external editor"),
+    rawKeyHint("/", "for commands"),
+    rawKeyHint("!", "to run bash"),
+    rawKeyHint("!!", "to run bash (no context)"),
+    rawKeyHint("alt+enter", "to queue follow-up"),
+    rawKeyHint("alt+up", "to edit all queued messages"),
+    rawKeyHint(process.platform === "win32" ? "alt+v" : "ctrl+v", "to paste image (with text fallback)"),
+    rawKeyHint("drop files", "to attach"),
+  ].join("\n");
+  return `pi v${VERSION}\n${instructions}\n\nPi can explain its own features and look up its docs. Ask it how to use or extend Pi.`;
+}
+
+function noticeText(notice: PiShellStartupNotice): string {
+  if (notice.kind === "info") return notice.message;
+  const prefix = notice.kind === "warning" ? "Warning" : "Error";
+  return `${prefix}: ${notice.message}`;
 }
 
 function blockPayload(block: OwnedUiTranscriptBlock): Record<string, unknown> {

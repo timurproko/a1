@@ -9,12 +9,20 @@ import {
   createPiQueuedInputStatus,
   createPiShellDialog,
   createPiShellEditor,
+  createPiShellFooter,
+  createPiShellHeader,
   createPiShellSelector,
   createPiShellStatus,
+  createPiShellTranscriptComponent,
   renderPiShellTranscriptBlock,
   type PiShellComponentPort,
   type PiShellEditorPort,
+  type PiShellHeaderOptions,
+  type PiShellHeaderPort,
+  type PiShellQueuedInputPort,
   type PiShellSelectorOption,
+  type PiShellTranscriptComponentPort,
+  type PiShellViewComponentPort,
 } from "../../foundation/pi-component-adapter/index.js";
 import {
   PiTuiRuntimeAdapter,
@@ -27,14 +35,20 @@ export interface PiSessionShellOptions {
   readonly adapter: PiEngineAdapter;
   readonly cwd: string;
   readonly terminal?: PiTuiTerminalPort;
+  readonly startup?: PiShellHeaderOptions;
 }
 
 export class PiSessionShellRoot implements PiTuiComponentPort {
   readonly editor: PiShellEditorPort;
+  readonly header: PiShellHeaderPort;
   readonly #cwd: string;
+  readonly #transcript = new Map<string, PiShellTranscriptComponentPort>();
+  #transcriptOrder: string[] = [];
   #view: OwnedUiSessionViewModel;
-  #status: PiShellComponentPort;
-  #queued: PiShellComponentPort;
+  readonly #status: PiShellViewComponentPort;
+  readonly #footer: PiShellViewComponentPort;
+  readonly #queued: PiShellQueuedInputPort;
+  #toolsExpanded = false;
 
   constructor(
     view: OwnedUiSessionViewModel,
@@ -49,24 +63,34 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
       readonly onModelSelect: () => void;
       readonly onThinkingCycle: () => void;
     },
+    startup: PiShellHeaderOptions = {},
   ) {
     this.#view = view;
     this.#cwd = cwd;
+    this.header = createPiShellHeader(startup);
     this.#status = createPiShellStatus(view);
+    this.#footer = createPiShellFooter(view, cwd);
     this.#queued = createPiQueuedInputStatus(view.editor.queuedSubmissions);
-    this.editor = createPiShellEditor(handlers);
+    this.editor = createPiShellEditor({
+      ...handlers,
+      cwd,
+      onToolsExpand: () => this.#setToolsExpanded(!this.#toolsExpanded),
+    });
+    this.#syncTranscript(view.transcript);
   }
 
   update(view: OwnedUiSessionViewModel): void {
     this.#view = view;
-    this.#status = createPiShellStatus(view);
-    this.#queued = createPiQueuedInputStatus(view.editor.queuedSubmissions);
+    this.#status.update(view);
+    this.#footer.update(view);
+    this.#queued.update(view.editor.queuedSubmissions);
+    this.#syncTranscript(view.transcript);
     this.editor.setSubmitEnabled(view.lifecycle !== "stopping" && view.lifecycle !== "stopped" && view.lifecycle !== "failed");
     this.invalidate();
   }
 
   render(width: number): readonly string[] {
-    const transcript = this.#view.transcript.flatMap(block => renderPiShellTranscriptBlock(block, width, this.#cwd));
+    const transcript = this.#transcriptOrder.flatMap(id => this.#transcript.get(id)?.render(width) ?? []);
     const diagnosticRows = this.#view.diagnostics.slice(-3).flatMap(diagnostic =>
       renderPiShellTranscriptBlock({
         id: `diagnostic-${diagnostic.sequence}`,
@@ -79,12 +103,18 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
       }, width, this.#cwd));
     const queued = this.#view.editor.queuedSubmissions.length === 0 ? [] : this.#queued.render(width);
     return [
+      ...this.header.render(width),
       ...transcript,
       ...diagnosticRows,
       ...queued,
-      ...this.editor.render(width),
       ...this.#status.render(width),
+      ...this.editor.render(width),
+      ...this.#footer.render(width),
     ];
+  }
+
+  transcriptComponent(id: string): PiShellTranscriptComponentPort | undefined {
+    return this.#transcript.get(id);
   }
 
   handleInput(data: string): void {
@@ -92,8 +122,11 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
   }
 
   invalidate(): void {
+    this.header.invalidate();
+    for (const component of this.#transcript.values()) component.invalidate();
     this.editor.invalidate();
     this.#status.invalidate();
+    this.#footer.invalidate();
     this.#queued.invalidate();
   }
 
@@ -102,9 +135,40 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
   }
 
   dispose(): void {
+    this.header.dispose?.();
+    for (const component of this.#transcript.values()) component.dispose?.();
+    this.#transcript.clear();
     this.editor.dispose?.();
     this.#status.dispose?.();
+    this.#footer.dispose?.();
     this.#queued.dispose?.();
+  }
+
+  #syncTranscript(blocks: OwnedUiSessionViewModel["transcript"]): void {
+    const nextIds = new Set(blocks.map(block => block.id));
+    for (const [id, component] of this.#transcript) {
+      if (nextIds.has(id)) continue;
+      component.dispose?.();
+      this.#transcript.delete(id);
+    }
+    for (const block of blocks) {
+      const component = this.#transcript.get(block.id);
+      if (component === undefined) {
+        const created = createPiShellTranscriptComponent(block, this.#cwd);
+        created.setExpanded(this.#toolsExpanded);
+        this.#transcript.set(block.id, created);
+      } else if (component.revision !== block.revision) {
+        component.update(block);
+      }
+    }
+    this.#transcriptOrder = blocks.map(block => block.id);
+  }
+
+  #setToolsExpanded(expanded: boolean): void {
+    this.#toolsExpanded = expanded;
+    this.header.setExpanded(expanded);
+    for (const component of this.#transcript.values()) component.setExpanded(expanded);
+    this.invalidate();
   }
 }
 
@@ -139,7 +203,7 @@ export class PiSessionShell {
       onExit: () => { void this.shutdown(); },
       onModelSelect: () => this.showModelSelector(),
       onThinkingCycle: () => { void this.cycleThinkingLevel(); },
-    });
+    }, options.startup);
     const runtimeOptions = options.terminal === undefined
       ? { root: this.root }
       : { root: this.root, terminal: options.terminal };

@@ -9,7 +9,8 @@ describe("Pi session shell provenance", () => {
     )) as {
       schema: string;
       upstream: { commit: string; license: string; packages: { name: string; version: string }[] };
-      orchestrationPorts: { copiedFiles: string[]; copiedLines: boolean; localFile: string; coverage: string[] }[];
+      publicExports: string[];
+      orchestrationPorts: { copiedFiles: string[]; copiedLines: boolean; localFile: string; upstreamCommit: string; upstreamLines: unknown; coverage: string[] }[];
       rejected: string[];
     };
 
@@ -20,13 +21,20 @@ describe("Pi session shell provenance", () => {
       { name: "@earendil-works/pi-coding-agent", version: "0.84.1" },
       { name: "@earendil-works/pi-tui", version: "0.84.1" },
     ]);
-    expect(evidence.orchestrationPorts).toHaveLength(1);
+    expect(evidence.publicExports).toContain("FooterComponent");
+    expect(evidence.publicExports).toContain("CombinedAutocompleteProvider");
+    expect(new Set(evidence.publicExports).size).toBe(evidence.publicExports.length);
+    expect(evidence.orchestrationPorts).toHaveLength(3);
+    expect(evidence.orchestrationPorts.every(port => port.copiedFiles.length === 0 && port.copiedLines === false)).toBe(true);
+    expect(evidence.orchestrationPorts.every(port => port.upstreamCommit === evidence.upstream.commit)).toBe(true);
     expect(evidence.orchestrationPorts[0]).toMatchObject({
       copiedFiles: [],
       copiedLines: false,
       localFile: "src/features/owned-ui/pi-session-shell.ts",
+      upstreamCommit: "53fa77ccd8a279eb87e92294ef3687b03ff80112",
+      upstreamLines: [528, 994],
     });
-    expect(evidence.orchestrationPorts[0]?.coverage.length).toBeGreaterThanOrEqual(3);
+    expect(evidence.orchestrationPorts[0]?.coverage).toContain("test/features/owned-ui/pi-startup-composition-parity.test.ts");
     expect(evidence.rejected).toContain("private field inspection");
   });
 });
