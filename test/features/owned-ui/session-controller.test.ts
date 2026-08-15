@@ -40,7 +40,7 @@ class Runtime implements PiRuntimeLike {
   readonly services = {
     modelRuntime: {
       getModel(providerId: string, modelId: string): unknown {
-        return { provider: providerId, id: modelId, name: modelId };
+        return modelId === "missing" ? undefined : { provider: providerId, id: modelId, name: modelId };
       },
     },
     diagnostics: [],
@@ -138,5 +138,13 @@ describe("owned Pi session controller", () => {
     rollback();
     expect(controller.root.render({ columns: 40, rows: 10 }).join("\n")).not.toContain("CUSTOM:");
     expect(UserMessageComponent.prototype.render).toBe(originalRender);
+  });
+
+  it("records failed engine commands in bounded owned diagnostics", async () => {
+    const { controller } = await controllerFixture();
+    const result = await controller.setModel({ providerId: "openai", modelId: "missing", displayName: "Missing" });
+    expect(result.outcome).toBe("failed");
+    expect(controller.diagnostics().entries().some(entry => entry.code === "engine-command")).toBe(true);
+    expect(controller.view().diagnostics.some(entry => entry.code === "engine-command")).toBe(true);
   });
 });

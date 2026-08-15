@@ -5,4 +5,5 @@ export * from "./surfaces.js";
 export * from "./transcript-renderer.js";
 export * from "./session-controller.js";
 export * from "./customization.js";
+export * from "./diagnostics.js";
 export * from "./run.js";

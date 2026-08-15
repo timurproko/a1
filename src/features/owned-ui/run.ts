@@ -1,5 +1,6 @@
 import { createPiEngineAdapter, type PiEngineAdapter } from "../../foundation/pi-engine-adapter/index.js";
 import { OwnedPiSessionController } from "./session-controller.js";
+import { OwnedUiDiagnosticsRecorder } from "./diagnostics.js";
 import { createProcessTerminalHost, OwnedTerminalRuntime, type OwnedTerminalHost } from "./terminal-runtime.js";
 
 export interface OwnedUiDevelopmentRunOptions {
@@ -18,7 +19,8 @@ export async function runOwnedUiDevelopmentMode(
     width: host.columns,
     onRequestRender: () => {},
   });
-  const runtime = new OwnedTerminalRuntime({ host, root: controller.root });
+  const diagnostics = controller.diagnostics();
+  const runtime = new OwnedTerminalRuntime({ host, root: controller.root, diagnostics });
 
   let resolveStopped: (() => void) | undefined;
   const stopped = new Promise<void>(resolve => {
@@ -45,6 +47,7 @@ export async function runOwnedUiDevelopmentMode(
   await adapter.flushEvents();
   if (!adapter.disposed) await stopped;
   await runtime.dispose();
+  diagnostics.captureResources();
   unsubscribe();
   return 0;
 }

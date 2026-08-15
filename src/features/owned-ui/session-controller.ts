@@ -5,6 +5,7 @@ import {
   type OwnedUiSessionViewModel,
 } from "../../foundation/owned-ui-contracts/index.js";
 import type { AdapterCommandResult, PiEngineAdapter } from "../../foundation/pi-engine-adapter/index.js";
+import { OwnedUiDiagnosticsRecorder } from "./diagnostics.js";
 import { OwnedPromptEditor } from "./prompt-editor.js";
 import { OwnedTranscriptComponent, type OwnedTranscriptRenderer } from "./transcript-history.js";
 import { createOwnedTranscriptRenderer } from "./transcript-renderer.js";
@@ -69,6 +70,7 @@ export interface OwnedPiSessionControllerOptions {
   readonly width: number;
   readonly renderBlock?: OwnedTranscriptRenderer;
   readonly customizations?: OwnedUiCustomizationRegistry;
+  readonly diagnostics?: OwnedUiDiagnosticsRecorder;
   readonly onRequestRender?: () => void;
 }
 
@@ -77,12 +79,14 @@ export class OwnedPiSessionController {
   readonly root: OwnedSessionRootComponent;
   readonly #settings = new Map<string, unknown>();
   readonly #customizations: OwnedUiCustomizationRegistry;
+  readonly #diagnostics: OwnedUiDiagnosticsRecorder;
   readonly #listeners = new Set<(view: OwnedUiSessionViewModel) => void>();
   readonly #unsubscribe: () => void;
 
   constructor(options: OwnedPiSessionControllerOptions) {
     this.adapter = options.adapter;
     this.#customizations = options.customizations ?? createVanillaUiCustomizationRegistry();
+    this.#diagnostics = options.diagnostics ?? new OwnedUiDiagnosticsRecorder();
     const defaultRenderer = options.renderBlock ?? createOwnedTranscriptRenderer();
     this.root = new OwnedSessionRootComponent(
       options.width,
@@ -108,6 +112,7 @@ export class OwnedPiSessionController {
       ...this.adapter.view(),
       editor: this.root.editor.state(),
       customizations: this.#customizations.all(),
+      diagnostics: [...this.adapter.view().diagnostics, ...this.#diagnostics.entries()],
     };
   }
 
@@ -192,6 +197,10 @@ export class OwnedPiSessionController {
     return new Map(this.#settings);
   }
 
+  diagnostics(): OwnedUiDiagnosticsRecorder {
+    return this.#diagnostics;
+  }
+
   async setModel(model: { providerId: string; modelId: string; displayName: string }): Promise<AdapterCommandResult> {
     return this.#engineCommand({
       type: "set-model",
@@ -224,7 +233,11 @@ export class OwnedPiSessionController {
 
   async #engineCommand(command: OwnedUiCommand): Promise<AdapterCommandResult> {
     assertOwnedUiCommand(command);
-    return this.adapter.execute(command);
+    const result = await this.adapter.execute(command);
+    if (result.outcome === "failed" || result.outcome === "rejected") {
+      this.#diagnostics.record("error", "engine-command", result.diagnostic ?? result.outcome, true);
+    }
+    return result;
   }
 
   #simpleCommand(type: "abort" | "retry" | "compact" | "shutdown" | "new-session"): OwnedUiCommand {

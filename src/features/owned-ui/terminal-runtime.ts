@@ -1,3 +1,5 @@
+import type { OwnedUiDiagnosticsRecorder } from "./diagnostics.js";
+
 export type OwnedTerminalInput =
   | { readonly type: "text"; readonly text: string }
   | { readonly type: "key"; readonly key: string; readonly ctrl: boolean; readonly alt: boolean; readonly shift: boolean }
@@ -31,6 +33,7 @@ export interface OwnedTerminalRuntimeOptions {
   readonly host: OwnedTerminalHost;
   readonly root: OwnedTerminalComponent;
   readonly synchronizedOutput?: boolean;
+  readonly diagnostics?: OwnedUiDiagnosticsRecorder;
 }
 
 interface OverlayEntry {
@@ -45,6 +48,7 @@ export class OwnedTerminalRuntime {
   readonly #host: OwnedTerminalHost;
   readonly #root: OwnedTerminalComponent;
   readonly #synchronizedOutput: boolean;
+  readonly #diagnostics: OwnedUiDiagnosticsRecorder | undefined;
   readonly #overlays: OverlayEntry[] = [];
   #active = false;
   #renderQueued = false;
@@ -59,6 +63,7 @@ export class OwnedTerminalRuntime {
     this.#host = options.host;
     this.#root = options.root;
     this.#synchronizedOutput = options.synchronizedOutput ?? true;
+    this.#diagnostics = options.diagnostics;
   }
 
   get active(): boolean {
@@ -127,7 +132,11 @@ export class OwnedTerminalRuntime {
     this.#unsubscribeResize?.();
     for (const entry of this.#overlays.splice(0)) entry.component.dispose?.();
     this.#root.dispose?.();
-    this.#host.write("\x1b[?1000l\x1b[?2004l\x1b[?25h\x1b[?1049l");
+    try {
+      this.#host.write("\x1b[?1000l\x1b[?2004l\x1b[?25h\x1b[?1049l");
+    } catch (error) {
+      this.#diagnostics?.noteTerminalRestorationFailure(error);
+    }
     this.#host.setActive(false);
     this.#active = false;
   }
@@ -218,7 +227,14 @@ export class OwnedTerminalRuntime {
     }
     const frame = lines.slice(0, viewport.rows).join("\r\n");
     const body = this.#synchronizedOutput ? `\x1b[?2026h${frame}\x1b[?2026l` : frame;
-    this.#host.write(`${body}\x1b[0m`);
+    try {
+      this.#host.write(`${body}\x1b[0m`);
+      this.#diagnostics?.noteFrame(Buffer.byteLength(`${body}\x1b[0m`, "utf8"));
+    } catch (error) {
+      this.#diagnostics?.noteFrame(Buffer.byteLength(`${body}\x1b[0m`, "utf8"), true);
+      this.#diagnostics?.record("error", "terminal-frame", error instanceof Error ? error.message : String(error), true);
+      throw error;
+    }
     const pending = this.#renderPending;
     this.#renderPending = undefined;
     pending?.();
