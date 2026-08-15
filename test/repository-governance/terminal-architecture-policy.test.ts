@@ -79,6 +79,7 @@ describe("terminal-core architecture policy", () => {
     ["src/features/owned-ui/root.ts", "import { createAgentSessionRuntime } from '@earendil-works/pi-coding-agent'; export { createAgentSessionRuntime };", "outside the owned Pi adapter boundary"],
     ["src/features/owned-ui/root.ts", "InteractiveMode.prototype.render = patched;", "stock Pi interactive prototype mutation"],
     ["src/foundation/pi-engine-adapter/private-state.ts", "const previousLines = readPrivateState();", "private Pi renderer-state inspection"],
+    ["src/foundation/pi-tui-runtime-adapter/private-state.ts", "const previousViewportTop = readPrivateState();", "private Pi renderer-state inspection"],
     ["src/foundation/pi-engine-adapter/profile.ts", "const distributionHash = verifyDistribution();", "distribution-hash gating"],
     ["src/features/owned-ui/root.ts", "import { Editor } from '@oh-my-pi/pi-tui'; export { Editor };", "oh-my-pi fork package import"],
     ["src/features/owned-ui/root.ts", "import { sleep } from 'bun'; export { sleep };", "Bun-only dependency"],
@@ -96,10 +97,20 @@ describe("terminal-core architecture policy", () => {
     const root = await fixture({
       "src/foundation/pi-engine-adapter/sdk.ts": "import { createAgentSessionRuntime } from '@earendil-works/pi-coding-agent'; export { createAgentSessionRuntime };",
       "src/foundation/pi-component-adapter/component.ts": "import { CustomEditor } from '@earendil-works/pi-coding-agent'; import { Component } from '@earendil-works/pi-tui'; export { CustomEditor, Component };",
+      "src/foundation/pi-tui-runtime-adapter/runtime.ts": "import { TuiAltScreen } from '@earendil-works/pi-tui'; export { TuiAltScreen };",
     });
     const result = runPolicy(root);
     expect(result.status).toBe(0);
     expect(result.stdout).toContain("Architecture boundaries OK");
+  });
+
+  it("rejects public Pi TUI imports outside the runtime and component adapters", async () => {
+    const root = await fixture({
+      "src/features/owned-ui/forbidden.ts": "import { TuiAltScreen } from '@earendil-works/pi-tui'; export { TuiAltScreen };",
+    });
+    const result = runPolicy(root);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("outside the runtime or component adapter boundary");
   });
 
   it.each([

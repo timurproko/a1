@@ -39,7 +39,7 @@
 
 ## 7. Build the Public Pi Shell and Prove Current-Version Parity
 
-- [ ] 7.1 Add the exact pinned public `@earendil-works/pi-tui` dependency and implement `PiTuiRuntimeAdapter` over public TUI, terminal lifecycle, input, focus, overlays, differential rendering, resize, and restoration; pass runtime conformance and architecture-boundary tests without private fields or patches.
+- [x] 7.1 Add the exact pinned public `@earendil-works/pi-tui` dependency and implement `PiTuiRuntimeAdapter` over public TUI, terminal lifecycle, input, focus, overlays, differential rendering, resize, and restoration; pass runtime conformance and architecture-boundary tests without private fields or patches.
 - [ ] 7.2 Implement `PiSessionShell` from public Pi editor, transcript, tool, selector, dialog, and status components plus provenance-recorded orchestration ports; remove the hand-written runtime/editor/chrome from the `a1 ui` production path while preserving explicit transparent modes.
 - [ ] 7.3 Build static component parity fixtures comparing the owned shell and pinned Pi components at fixed widths and states for transcript, streaming, tools, editor, queued input, dialogs, selectors, status, errors, and resize; fail on row divergence outside documented tolerance.
 - [ ] 7.4 Build scripted event-sequence and terminal-frame parity fixtures for the pinned Pi version: drive equivalent session events through Pi and AddOne, render emitted ANSI into a virtual terminal or captured frame, and compare resulting screens.

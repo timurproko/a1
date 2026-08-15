@@ -7,7 +7,7 @@ export const PROJECT_OWNERS = Object.freeze({
     "storage", "workspace-contracts", "structured-agent-runtime", "native-host-protocol",
   ]),
   "owned-ui": owner("owned-ui", "feature", "src/features/owned-ui", "test/features/owned-ui", [
-    "owned-ui-contracts", "pi-engine-adapter", "pi-component-adapter",
+    "owned-ui-contracts", "pi-engine-adapter", "pi-component-adapter", "pi-tui-runtime-adapter",
   ]),
   lifecycle: owner("lifecycle", "foundation", "src/foundation/lifecycle", "test/foundation/lifecycle", []),
   protocol: owner("protocol", "foundation", "src/foundation/protocol", "test/foundation/protocol", ["lifecycle"]),
@@ -18,6 +18,7 @@ export const PROJECT_OWNERS = Object.freeze({
   "owned-ui-contracts": owner("owned-ui-contracts", "foundation", "src/foundation/owned-ui-contracts", "test/foundation/owned-ui-contracts", []),
   "pi-engine-adapter": owner("pi-engine-adapter", "foundation", "src/foundation/pi-engine-adapter", "test/foundation/pi-engine-adapter", ["owned-ui-contracts"]),
   "pi-component-adapter": owner("pi-component-adapter", "foundation", "src/foundation/pi-component-adapter", "test/foundation/pi-component-adapter", ["owned-ui-contracts"]),
+  "pi-tui-runtime-adapter": owner("pi-tui-runtime-adapter", "foundation", "src/foundation/pi-tui-runtime-adapter", "test/foundation/pi-tui-runtime-adapter", []),
   supervision: owner("supervision", "foundation", "src/foundation/supervision", "test/foundation/supervision", ["lifecycle", "protocol", "release", "storage"]),
   "workspace-contracts": owner("workspace-contracts", "foundation", "src/foundation/workspace-contracts", "test/foundation/workspace-contracts", []),
   "transparent-terminal": owner(

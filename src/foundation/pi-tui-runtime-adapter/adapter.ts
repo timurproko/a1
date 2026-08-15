@@ -1,0 +1,331 @@
+import {
+  ProcessTerminal,
+  TuiAltScreen,
+  type Component,
+  type Focusable,
+  type OverlayHandle,
+  type OverlayOptions,
+  type TUI,
+  type TuiAltScreenOptions,
+} from "@earendil-works/pi-tui";
+import type {
+  PiTuiComponentPort,
+  PiTuiInputListener,
+  PiTuiOverlayHandle,
+  PiTuiOverlayOptions,
+  PiTuiOverlayUnfocusOptions,
+  PiTuiRuntimeAdapterOptions,
+  PiTuiRuntimeState,
+  PiTuiStopOptions,
+  PiTuiTerminalPort,
+  PiTuiViewport,
+} from "./contracts.js";
+
+export type PiTuiRuntimeErrorStage = "construction" | "start" | "input-drain" | "restoration";
+
+export class PiTuiRuntimeError extends Error {
+  constructor(readonly stage: PiTuiRuntimeErrorStage, cause: unknown) {
+    super(`Pi TUI runtime failed during ${stage}: ${cause instanceof Error ? cause.message : String(cause)}`, { cause });
+    this.name = "PiTuiRuntimeError";
+  }
+}
+
+class ComponentBridge implements Component, Focusable {
+  #focused = false;
+
+  constructor(readonly port: PiTuiComponentPort) {}
+
+  get focused(): boolean {
+    return this.#focused;
+  }
+
+  set focused(value: boolean) {
+    this.#focused = value;
+    this.port.setFocused?.(value);
+  }
+
+  get wantsKeyRelease(): boolean {
+    return this.port.wantsKeyRelease ?? false;
+  }
+
+  render(width: number): string[] {
+    return [...this.port.render(width)];
+  }
+
+  handleInput(data: string): void {
+    this.port.handleInput?.(data);
+  }
+
+  invalidate(): void {
+    this.port.invalidate();
+  }
+}
+
+class OverlayHandleBridge implements PiTuiOverlayHandle {
+  #disposed = false;
+
+  constructor(
+    private readonly handle: OverlayHandle,
+    private readonly bridgeFor: (component: PiTuiComponentPort | null) => ComponentBridge | null,
+    private readonly dispose: () => void,
+  ) {}
+
+  hide(): void {
+    if (this.#disposed) return;
+    this.handle.hide();
+    this.#disposed = true;
+    this.dispose();
+  }
+
+  setHidden(hidden: boolean): void {
+    if (!this.#disposed) this.handle.setHidden(hidden);
+  }
+
+  isHidden(): boolean {
+    return this.#disposed || this.handle.isHidden();
+  }
+
+  focus(): void {
+    if (!this.#disposed) this.handle.focus();
+  }
+
+  unfocus(options?: PiTuiOverlayUnfocusOptions): void {
+    if (this.#disposed) return;
+    if (options === undefined) {
+      this.handle.unfocus();
+      return;
+    }
+    this.handle.unfocus({ target: this.bridgeFor(options.target) });
+  }
+
+  isFocused(): boolean {
+    return !this.#disposed && this.handle.isFocused();
+  }
+}
+
+export class PiTuiRuntimeAdapter {
+  readonly #terminal: PiTuiTerminalPort;
+  readonly #tui: TUI;
+  readonly #root: PiTuiComponentPort;
+  readonly #rootBridge: ComponentBridge;
+  readonly #bridges = new WeakMap<PiTuiComponentPort, ComponentBridge>();
+  readonly #overlayDisposers = new Set<() => void>();
+  #state: PiTuiRuntimeState = "idle";
+  #stopPromise: Promise<void> | undefined;
+  #rootDisposed = false;
+
+  constructor(options: PiTuiRuntimeAdapterOptions) {
+    this.#root = options.root;
+    this.#terminal = options.terminal ?? new ProcessTerminal();
+    this.#rootBridge = new ComponentBridge(options.root);
+    this.#bridges.set(options.root, this.#rootBridge);
+
+    try {
+      const tuiOptions: TuiAltScreenOptions = {};
+      if (options.mouse !== undefined) tuiOptions.mouse = options.mouse;
+      if (options.wheelScrollLines !== undefined) tuiOptions.wheelScrollLines = options.wheelScrollLines;
+      if (options.openUrl !== undefined) tuiOptions.openUrl = options.openUrl;
+      if (options.onRightClickPaste !== undefined) tuiOptions.onRightClickPaste = options.onRightClickPaste;
+      this.#tui = new TuiAltScreen(
+        this.#terminal,
+        options.hardwareCursor ?? false,
+        options.logDirectory,
+        tuiOptions,
+      );
+      this.#tui.addChild(this.#rootBridge);
+    } catch (error) {
+      this.#state = "failed";
+      throw new PiTuiRuntimeError("construction", error);
+    }
+  }
+
+  get state(): PiTuiRuntimeState {
+    return this.#state;
+  }
+
+  get active(): boolean {
+    return this.#state === "running";
+  }
+
+  get mode(): "fullscreen" {
+    return "fullscreen";
+  }
+
+  get fullRedraws(): number {
+    return this.#tui.fullRedraws;
+  }
+
+  viewport(): PiTuiViewport {
+    return {
+      columns: Math.max(1, this.#terminal.columns),
+      rows: Math.max(1, this.#terminal.rows),
+    };
+  }
+
+  start(): void {
+    if (this.#state === "running") return;
+    if (this.#state !== "idle") throw new PiTuiRuntimeError("start", new Error(`runtime cannot start from ${this.#state}`));
+    try {
+      this.#tui.setFocus(this.#rootBridge);
+      this.#tui.start();
+      this.#state = "running";
+    } catch (error) {
+      this.#state = "failed";
+      this.#restoreAfterFailedStart();
+      this.#disposeRoot();
+      throw new PiTuiRuntimeError("start", error);
+    }
+  }
+
+  setFocus(component: PiTuiComponentPort | null): void {
+    this.#assertRunning("focus");
+    this.#tui.setFocus(this.#bridgeFor(component));
+  }
+
+  showOverlay(component: PiTuiComponentPort, options?: PiTuiOverlayOptions): PiTuiOverlayHandle {
+    this.#assertRunning("overlay");
+    if (this.#bridges.has(component)) throw new TypeError("Pi TUI component is already mounted");
+    const bridge = new ComponentBridge(component);
+    this.#bridges.set(component, bridge);
+    let hidden = false;
+    const dispose = () => {
+      if (hidden) return;
+      hidden = true;
+      this.#overlayDisposers.delete(dispose);
+      this.#bridges.delete(component);
+      component.dispose?.();
+    };
+    this.#overlayDisposers.add(dispose);
+    const handle = this.#tui.showOverlay(bridge, toOverlayOptions(options));
+    return new OverlayHandleBridge(handle, target => this.#bridgeFor(target), dispose);
+  }
+
+  hasOverlay(): boolean {
+    return this.#tui.hasOverlay();
+  }
+
+  addInputListener(listener: PiTuiInputListener): () => void {
+    this.#assertRunning("input listener");
+    return this.#tui.addInputListener(data => listener(data));
+  }
+
+  setHardwareCursor(enabled: boolean): void {
+    this.#tui.setShowHardwareCursor(enabled);
+    if (this.active) this.#tui.requestRender();
+  }
+
+  getHardwareCursor(): boolean {
+    return this.#tui.getShowHardwareCursor();
+  }
+
+  invalidate(): void {
+    this.#tui.invalidate();
+    if (this.active) this.#tui.requestRender();
+  }
+
+  requestRender(force = false): void {
+    if (this.active) this.#tui.requestRender(force);
+  }
+
+  renderNow(force = false): void {
+    this.#assertRunning("render");
+    this.#tui.renderNow(force);
+  }
+
+  stop(options: PiTuiStopOptions = {}): Promise<void> {
+    if (this.#stopPromise) return this.#stopPromise;
+    if (this.#state === "idle") {
+      this.#state = "stopped";
+      this.#disposeRoot();
+      return Promise.resolve();
+    }
+    if (this.#state === "stopped") return Promise.resolve();
+    this.#stopPromise = this.#stop(options);
+    return this.#stopPromise;
+  }
+
+  async dispose(options: PiTuiStopOptions = {}): Promise<void> {
+    await this.stop(options);
+  }
+
+  async #stop(options: PiTuiStopOptions): Promise<void> {
+    this.#state = "stopping";
+    let failure: PiTuiRuntimeError | undefined;
+    if (options.drainInput !== false) {
+      try {
+        await this.#terminal.drainInput(options.drainMaxMs, options.drainIdleMs);
+      } catch (error) {
+        failure = new PiTuiRuntimeError("input-drain", error);
+      }
+    }
+
+    try {
+      const stopOptions = options.preserveScreen === undefined ? undefined : { preserveScreen: options.preserveScreen };
+      this.#tui.stop(stopOptions);
+    } catch (error) {
+      failure ??= new PiTuiRuntimeError("restoration", error);
+      this.#bestEffortTerminalRestore();
+    } finally {
+      this.#disposeComponents();
+    }
+
+    this.#state = failure === undefined ? "stopped" : "failed";
+    if (failure) throw failure;
+  }
+
+  #bridgeFor(component: PiTuiComponentPort | null): ComponentBridge | null {
+    if (component === null) return null;
+    const bridge = this.#bridges.get(component);
+    if (!bridge) throw new TypeError("Pi TUI focus target is not mounted");
+    return bridge;
+  }
+
+  #assertRunning(operation: string): void {
+    if (!this.active) throw new Error(`Pi TUI ${operation} requires a running runtime`);
+  }
+
+  #restoreAfterFailedStart(): void {
+    try {
+      this.#tui.stop();
+    } catch {
+      this.#bestEffortTerminalRestore();
+    }
+  }
+
+  #bestEffortTerminalRestore(): void {
+    try {
+      this.#terminal.showCursor();
+    } catch {}
+    try {
+      this.#terminal.stop();
+    } catch {}
+  }
+
+  #disposeRoot(): void {
+    if (this.#rootDisposed) return;
+    this.#rootDisposed = true;
+    this.#root.dispose?.();
+  }
+
+  #disposeComponents(): void {
+    for (const dispose of [...this.#overlayDisposers]) dispose();
+    this.#disposeRoot();
+  }
+}
+
+function toOverlayOptions(options: PiTuiOverlayOptions | undefined): OverlayOptions | undefined {
+  if (options === undefined) return undefined;
+  const mapped: OverlayOptions = {};
+  if (options.width !== undefined) mapped.width = options.width;
+  if (options.minWidth !== undefined) mapped.minWidth = options.minWidth;
+  if (options.maxHeight !== undefined) mapped.maxHeight = options.maxHeight;
+  if (options.anchor !== undefined) mapped.anchor = options.anchor;
+  if (options.offsetX !== undefined) mapped.offsetX = options.offsetX;
+  if (options.offsetY !== undefined) mapped.offsetY = options.offsetY;
+  if (options.row !== undefined) mapped.row = options.row;
+  if (options.col !== undefined) mapped.col = options.col;
+  if (options.margin !== undefined) mapped.margin = options.margin;
+  if (options.visible !== undefined) mapped.visible = options.visible;
+  if (options.nonCapturing !== undefined) mapped.nonCapturing = options.nonCapturing;
+  return mapped;
+}

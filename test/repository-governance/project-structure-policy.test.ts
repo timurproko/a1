@@ -4,7 +4,7 @@ import { inspectProjectStructureImports, PROJECT_OWNERS, projectOwnerForPath, te
 describe("project structure ownership policy", () => {
   it("declares every production and test owner with one public entry", () => {
     expect(Object.keys(PROJECT_OWNERS)).toEqual([
-      "cli", "launch", "workspace", "owned-ui", "lifecycle", "protocol", "release", "storage", "structured-agent-runtime", "native-host-protocol", "owned-ui-contracts", "pi-engine-adapter", "pi-component-adapter", "supervision", "workspace-contracts", "transparent-terminal",
+      "cli", "launch", "workspace", "owned-ui", "lifecycle", "protocol", "release", "storage", "structured-agent-runtime", "native-host-protocol", "owned-ui-contracts", "pi-engine-adapter", "pi-component-adapter", "pi-tui-runtime-adapter", "supervision", "workspace-contracts", "transparent-terminal",
     ]);
     for (const owner of Object.values(PROJECT_OWNERS)) {
       expect(owner.publicEntry).toBe(`${owner.sourceRoot}/index.ts`);
