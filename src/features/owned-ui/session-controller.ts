@@ -132,6 +132,7 @@ export class OwnedPiSessionController {
   }
 
   async submit(text: string): Promise<AdapterCommandResult> {
+    if (text.startsWith("/")) return this.#slashCommand(text);
     return this.#engineCommand({
       type: "prompt",
       correlationId: this.#nextCorrelationId("prompt"),
@@ -247,6 +248,54 @@ export class OwnedPiSessionController {
       this.#diagnostics.record("error", "engine-command", result.diagnostic ?? result.outcome, true);
     }
     return result;
+  }
+
+  async #slashCommand(text: string): Promise<AdapterCommandResult> {
+    const [name = "", ...arguments_] = text.slice(1).trim().split(/\s+/).filter(Boolean);
+    switch (name) {
+      case "abort":
+        return this.abort();
+      case "retry":
+        return this.retry();
+      case "compact":
+        return this.compact();
+      case "new":
+        return this.newSession();
+      case "resume": {
+        const sessionPath = arguments_.join(" ");
+        if (!sessionPath) return this.#localFailure("usage", "/resume requires a session path");
+        return this.resumeSession(sessionPath);
+      }
+      case "think": {
+        const level = arguments_[0];
+        if (level !== "off" && level !== "minimal" && level !== "low" && level !== "medium" && level !== "high" && level !== "xhigh") {
+          return this.#localFailure("usage", "/think requires off, minimal, low, medium, high, or xhigh");
+        }
+        return this.setThinkingLevel(level);
+      }
+      case "model": {
+        const value = arguments_.join(" ");
+        const [providerId, modelId] = value.split("/");
+        if (!providerId || !modelId) return this.#localFailure("usage", "/model requires provider/model");
+        return this.setModel({ providerId, modelId, displayName: modelId });
+      }
+      case "set": {
+        const [key, ...valueParts] = arguments_;
+        if (!key || valueParts.length === 0) return this.#localFailure("usage", "/set requires a key and value");
+        return this.setSetting(key, valueParts.join(" "));
+      }
+      case "exit":
+      case "quit":
+        return this.shutdown();
+      default:
+        return this.#localFailure("unknown-command", `unknown owned UI command: /${name}`);
+    }
+  }
+
+  #localFailure(code: string, diagnostic: string): AdapterCommandResult {
+    this.#diagnostics.record("warning", code, diagnostic, true);
+    this.#publish();
+    return { outcome: "rejected", diagnostic };
   }
 
   #simpleCommand(type: "abort" | "retry" | "compact" | "shutdown" | "new-session"): OwnedUiCommand {

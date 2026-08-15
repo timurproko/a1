@@ -149,6 +149,24 @@ describe("owned Pi session controller", () => {
     expect(UserMessageComponent.prototype.render).toBe(originalRender);
   });
 
+  it("exposes manual base controls through owned slash commands", async () => {
+    const { controller, runtime, session } = await controllerFixture();
+    await controller.submit("/abort");
+    await controller.submit("/retry");
+    await controller.submit("/compact");
+    await controller.submit("/think high");
+    await controller.submit("/model openai/gpt-5.1");
+    await controller.submit("/resume C:/sessions/one.jsonl");
+    await controller.submit("/set tui.tight true");
+    const rejected = await controller.submit("/unknown");
+
+    expect(session.calls).toEqual(expect.arrayContaining(["abort", "compact", "thinking:high", "setModel"]));
+    expect(runtime.calls).toContain("switch:C:/sessions/one.jsonl");
+    expect(controller.settings().get("tui.tight")).toBe("true");
+    expect(rejected.outcome).toBe("rejected");
+    expect(controller.diagnostics().entries().some(entry => entry.code === "unknown-command")).toBe(true);
+  });
+
   it("records failed engine commands in bounded owned diagnostics", async () => {
     const { controller } = await controllerFixture();
     const result = await controller.setModel({ providerId: "openai", modelId: "missing", displayName: "Missing" });
