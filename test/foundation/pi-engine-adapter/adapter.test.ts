@@ -213,6 +213,7 @@ describe("Pi engine adapter", () => {
     session.emit({ type: "agent_start" });
     session.emit({ type: "queue_update", steering: ["steer"], followUp: ["later"] });
     session.emit({ type: "agent_settled" });
+    await adapter.flushEvents();
 
     expect(events.some(event => event.type === "session-lifecycle" && event.lifecycle === "busy")).toBe(true);
     expect(events.some(event => event.type === "session-lifecycle" && event.lifecycle === "ready")).toBe(true);
@@ -230,6 +231,7 @@ describe("Pi engine adapter", () => {
     await adapter.execute(command("resume-session", "resume-1", { sessionPath: "C:/sessions/resume.jsonl" }));
     const resumedSession = runtime.session as FakeSession;
     resumedSession.emit({ type: "agent_start" });
+    await adapter.flushEvents();
 
     expect(runtime.calls).toEqual(["newSession", "switch:C:/sessions/resume.jsonl"]);
     expect(oldSession.listeners.size).toBe(0);
@@ -294,6 +296,7 @@ describe("Pi engine adapter", () => {
     session.emit({ type: "tool_execution_update", toolCallId: "tool-1", toolName: "bash", partialResult: { content: [{ type: "text", text: "running" }] } });
     session.emit({ type: "tool_execution_end", toolCallId: "tool-1", toolName: "bash", result: { content: [{ type: "text", text: "passed" }] }, isError: false });
     session.emit({ type: "message_end", message: updatedMessage });
+    await adapter.flushEvents();
 
     const transcript = adapter.view().transcript;
     expect(transcript.find(block => block.kind === "assistant")).toMatchObject({ text: "Hello world", status: "finalized" });
@@ -319,6 +322,42 @@ describe("Pi engine adapter", () => {
     }));
     expect(missing.outcome).toBe("failed");
     expect(adapter.view().lifecycle).toBe("ready");
+    expect(adapter.view().activeCommandIds).toEqual([]);
+  });
+
+  it("coalesces high-rate engine events under a bounded queue without terminal failures", async () => {
+    const runtime = new FakeRuntime(new FakeSession("pi-session-1"));
+    const { adapter, events } = await adapterWithRuntime(runtime);
+    const session = runtime.session as FakeSession;
+
+    for (let index = 0; index < 2_048; index += 1) session.emit({ type: "agent_start" });
+    await adapter.flushEvents();
+
+    expect(events.length).toBeLessThanOrEqual(1_100);
+    expect(adapter.view().diagnostics.some(diagnostic => diagnostic.code === "event-backpressure")).toBe(true);
+    expect(adapter.view().lifecycle).toBe("busy");
+  });
+
+  it("fails startup without producing a partial session and resets transient state on replacement", async () => {
+    await expect(createPiEngineAdapter({
+      cwd: "D:/work",
+      agentDir: "D:/agent",
+      sessionId: "owned-1",
+      createRuntime: async () => {
+        throw new Error("synthetic startup failure");
+      },
+    })).rejects.toThrow("synthetic startup failure");
+
+    const runtime = new FakeRuntime(new FakeSession("pi-session-old"));
+    const { adapter } = await adapterWithRuntime(runtime);
+    const oldSession = runtime.session as FakeSession;
+    oldSession.emit({ type: "queue_update", steering: ["old steering"], followUp: ["old follow-up"] });
+    await adapter.flushEvents();
+    expect(adapter.view().editor.queuedSubmissions).toEqual(["old steering", "old follow-up"]);
+
+    await adapter.execute(command("new-session", "replace-1"));
+    expect(adapter.view().editor.queuedSubmissions).toEqual([]);
+    expect(adapter.view().transcript).toEqual([]);
     expect(adapter.view().activeCommandIds).toEqual([]);
   });
 });

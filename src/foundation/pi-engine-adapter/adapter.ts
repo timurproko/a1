@@ -126,6 +126,9 @@ export class PiEngineAdapter {
   readonly #toolBlockIds = new Map<string, string>();
   #nextBlockSequence = 0;
   #diagnostics: OwnedUiDiagnostics[] = [];
+  readonly #eventQueue: OwnedUiEvent[] = [];
+  #eventQueueProcessing: Promise<void> | undefined;
+  #droppedEventCount = 0;
   #lastPrompt: string | null = null;
   #disposed = false;
 
@@ -150,6 +153,10 @@ export class PiEngineAdapter {
       cwd: this.#cwd,
       agentDir: this.#agentDir,
       sessionId: this.#sessionId,
+    }).catch(error => {
+      this.#lifecycle = "failed";
+      this.#addDiagnostic("error", "engine-startup", error instanceof Error ? error.message : String(error), false);
+      throw error;
     });
     this.#runtime = runtime;
     runtime.setRebindSession(async session => {
@@ -176,6 +183,10 @@ export class PiEngineAdapter {
     this.#listeners.add(listener);
     listener(this.#event({ type: "session-view", view: this.view() }));
     return () => this.#listeners.delete(listener);
+  }
+
+  async flushEvents(): Promise<void> {
+    while (this.#eventQueueProcessing) await this.#eventQueueProcessing;
   }
 
   view(): OwnedUiSessionViewModel {
@@ -258,6 +269,7 @@ export class PiEngineAdapter {
     this.#lifecycle = "stopped";
     this.#emitEvent({ type: "session-lifecycle", lifecycle: "stopped", reason: null });
     this.#emitView();
+    await this.flushEvents();
   }
 
   async #perform(command: OwnedUiCommand): Promise<void> {
@@ -335,6 +347,18 @@ export class PiEngineAdapter {
   #bindSession(session: PiSessionLike): void {
     this.#unsubscribe?.();
     this.#session = session;
+    this.#activeCommandIds = [];
+    this.#completedCommands.clear();
+    this.#lastPrompt = null;
+    this.#editor = {
+      text: "",
+      queuedSubmissions: [],
+      selection: null,
+      cursorOffset: 0,
+      historyRevision: this.#editor.historyRevision + 1,
+      submitEnabled: true,
+    };
+    this.#status = { ...this.#status, workingMessage: null, badges: [] };
     this.#activeModel = readModel(session.model);
     this.#thinkingLevel = readThinkingLevel(session.thinkingLevel);
     this.#rebuildTranscript(session.messages, "finalized");
@@ -617,18 +641,7 @@ export class PiEngineAdapter {
     message: string,
     recoverable: boolean,
   ): void {
-    const diagnostic: OwnedUiDiagnostics = {
-      sequence: this.#diagnostics.length,
-      code,
-      severity,
-      message,
-      recoverable,
-    };
-    this.#diagnostics.push(diagnostic);
-    this.#status = {
-      ...this.#status,
-      diagnostics: [...this.#status.diagnostics, message].slice(-8),
-    };
+    const diagnostic = this.#recordDiagnostic(severity, code, message, recoverable);
     this.#emitEvent({ type: "diagnostic", diagnostic });
   }
 
@@ -650,7 +663,80 @@ export class PiEngineAdapter {
   ): void {
     const event = this.#event(value);
     if (event.type !== "session-view") this.#viewRevision += 1;
-    for (const listener of this.#listeners) listener(event);
+    this.#enqueueEvent(event);
+  }
+
+  #enqueueEvent(event: OwnedUiEvent): void {
+    const capacity = 1_024;
+    if (this.#eventQueue.length >= capacity) {
+      const coalescible = this.#eventQueue.findIndex(queued =>
+        queued.type === "session-view"
+        || queued.type === "status"
+        || queued.type === "editor-state"
+        || queued.type === "transcript-block"
+      );
+      if (coalescible >= 0) this.#eventQueue.splice(coalescible, 1);
+      else this.#eventQueue.shift();
+      this.#droppedEventCount += 1;
+      if (this.#droppedEventCount === 1 || this.#droppedEventCount % 128 === 0) {
+        this.#recordDiagnostic(
+          "warning",
+          "event-backpressure",
+          `owned UI coalesced ${this.#droppedEventCount} engine events under backpressure`,
+          true,
+        );
+      }
+    }
+    this.#eventQueue.push(event);
+    this.#eventQueueProcessing ??= Promise.resolve().then(() => this.#processEventQueue());
+  }
+
+  async #processEventQueue(): Promise<void> {
+    try {
+      while (this.#eventQueue.length > 0) {
+        const event = this.#eventQueue.shift();
+        if (!event) continue;
+        for (const listener of this.#listeners) {
+          try {
+            listener(event);
+          } catch (error) {
+            this.#recordDiagnostic(
+              "warning",
+              "event-listener",
+              error instanceof Error ? error.message : String(error),
+              true,
+            );
+          }
+        }
+      }
+    } finally {
+      this.#eventQueueProcessing = undefined;
+      if (this.#eventQueue.length > 0) {
+        this.#eventQueueProcessing = Promise.resolve().then(() => this.#processEventQueue());
+      }
+    }
+  }
+
+  #recordDiagnostic(
+    severity: OwnedUiDiagnostics["severity"],
+    code: string,
+    message: string,
+    recoverable: boolean,
+  ): OwnedUiDiagnostics {
+    const diagnostic: OwnedUiDiagnostics = {
+      sequence: this.#diagnostics.length,
+      code,
+      severity,
+      message,
+      recoverable,
+    };
+    this.#diagnostics.push(diagnostic);
+    if (this.#diagnostics.length > 100) this.#diagnostics.shift();
+    this.#status = {
+      ...this.#status,
+      diagnostics: [...this.#status.diagnostics, message].slice(-8),
+    };
+    return diagnostic;
   }
 
   #event(
