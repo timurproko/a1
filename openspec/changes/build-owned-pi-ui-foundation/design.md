@@ -85,6 +85,23 @@ CLI routing will be:
 
 This forces normal development to exercise the target architecture instead of allowing it to remain an optional demo. `a1 pi` remains the exact oracle and operational fallback, but failures in the owned UI are corrected by reverting or repairing the responsible implementation slice rather than restoring bare AddOne to the old transparent route.
 
+### 7. Drive each remaining slice from visible-route source traces and manual divergences
+
+The next port iteration will treat each visible route in pinned Pi as the unit of analysis. Before changing AddOne behavior, the implementation record will identify the pinned command/input entry point, controller methods, live component classes, state read/write paths, event sequence, focus and scrolling behavior, footer/status invalidations, and disposal path. A generic AddOne selector, dialog, transcript block, or text summary is not an acceptable substitute for a specialized pinned surface.
+
+The current manual comparison establishes the following mandatory correction set:
+
+- port `updateEditorBorderColor()` and the editor change handling that selects thinking-level or bash-mode border colors instead of leaving the focused editor at `borderMuted`;
+- port `FooterComponent` data flow and formatting for cumulative input/output/cache/cost totals, context usage, auto-compaction state, provider/model/thinking display, branch, session name, and extension statuses instead of rendering literal placeholder statistics;
+- preserve finalized user, assistant, thinking, and tool content when `agent_end` or settlement events omit a message array by following pinned session-authoritative transcript rebuilding and component-lifetime behavior;
+- replace the generic settings callback selector with the pinned `SettingsSelectorComponent`, settings values, descriptions, search, instructions, nested selectors, change callbacks, cancellation, and focus restoration;
+- replace the abbreviated `/hotkeys` text with the complete pinned keybinding-derived Markdown tables, heading, spacing, colors, wrapping, scrolling, and transcript insertion behavior;
+- reproduce the surrounding root composition for these routes, including viewport anchoring, status/footer placement, focus transitions, invalidation, and resize behavior.
+
+Each corrected route requires an independent untouched-pinned producer and an AddOne producer covering open, active, navigation or streaming, completion or selection, cancellation, resize, and focus restoration as applicable. Raw ANSI, rows, styles, state outcomes, and component persistence will be compared. Manual findings remain open until the corresponding source trace, implementation, focused parity, containing suite, and fresh user comparison all pass.
+
+Narrow symptom patches are rejected when they preserve an approximate controller boundary. If a finding exposes that the wrong AddOne abstraction owns the behavior, the coherent pinned controller/component unit will replace that abstraction before the task can be completed. The interrupted local footer/transcript patch is therefore work in progress only and cannot satisfy this decision without the source trace and parity evidence above.
+
 ## Risks / Trade-offs
 
 - **[Large mechanical port creates review churn]** → Land coherent upstream units separately, keep transformations mechanical, and attach ledger entries and focused tests to each slice.

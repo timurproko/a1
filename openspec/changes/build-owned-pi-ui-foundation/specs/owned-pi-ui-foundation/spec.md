@@ -19,6 +19,26 @@ The AddOne-owned UI SHALL reproduce the complete visible and interactive behavio
 - **WHEN** a visible pinned interactive behavior has no AddOne implementation or an AddOne approximation behaves differently
 - **THEN** the 1:1 baseline gate SHALL fail and the owned UI SHALL remain unaccepted
 
+#### Scenario: Change editor input mode
+- **WHEN** the active thinking level changes or editor input enters or leaves pinned bash mode
+- **THEN** the editor border color SHALL update through the pinned thinking-level or bash-mode color mapping with the same invalidation timing as pinned Pi
+
+#### Scenario: Settle a completed agent turn
+- **WHEN** an agent turn finishes and its settlement event omits, replaces, or supplies the authoritative message collection
+- **THEN** every finalized visible user, assistant, thinking, and tool surface SHALL remain present and SHALL reconcile from pinned session-authoritative state rather than disappearing
+
+#### Scenario: Render footer usage
+- **WHEN** the session has model usage, cache activity, cost, context usage, compaction state, provider state, branch, session name, or extension statuses
+- **THEN** the footer SHALL compute, format, color, truncate, and align those values exactly as pinned `FooterComponent` rather than showing placeholder statistics
+
+#### Scenario: Open settings
+- **WHEN** the user invokes `/settings`
+- **THEN** the owned UI SHALL present the pinned specialized settings selector with current values, descriptions, search, instructions, nested flows, navigation, cancellation, change callbacks, focus restoration, and resize behavior, and SHALL NOT expose internal callback names as settings values
+
+#### Scenario: Show keyboard shortcuts
+- **WHEN** the user invokes `/hotkeys`
+- **THEN** the owned UI SHALL append the complete pinned keybinding-derived heading and styled Markdown tables with equivalent categories, keys, descriptions, spacing, wrapping, scrolling, colors, and transcript behavior rather than an abbreviated text summary
+
 ### Requirement: Visible Pi extension UI is part of the 1:1 baseline
 The owned UI SHALL support the visible behavior exposed by pinned Pi extensions, including widgets, custom editors and inputs, selectors, dialogs, notifications, status and footer contributions, custom message and tool renderers, terminal input hooks, working indicators, and lifecycle cleanup. Extension UI behavior SHALL cross AddOne-owned versioned boundaries and SHALL NOT require mutation of installed Pi code or private interactive state.
 
