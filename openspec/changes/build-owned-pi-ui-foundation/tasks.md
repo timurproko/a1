@@ -30,7 +30,7 @@
 
 - [x] 5.1 Implement versioned AddOne slots for themes, transcript blocks, tool cards, editor, status surfaces, commands, selectors, overlays, and future layout composition; pass registration, precedence, isolation, and invalid-slot tests.
 - [x] 5.2 Add a vanilla-style preset and prove customizations resolve without mutating installed Pi code or depending on Pi's stock extension UI context; pass preset replacement and rollback fixtures.
-- [ ] 5.3 Extend the public-SDK resource adapter with complete AddOne-owned contracts for pinned visible extension UI callbacks while retaining non-visual resource discovery; pass exhaustive callback-shape, unsupported-path, diagnostics, malformed-extension, and no-private-context architecture tests.
+- [x] 5.3 Extend the public-SDK resource adapter with complete AddOne-owned contracts for pinned visible extension UI callbacks while retaining non-visual resource discovery; pass exhaustive callback-shape, unsupported-path, diagnostics, malformed-extension, and no-private-context architecture tests.
 - [x] 5.4 Add bounded logging, redaction, diagnostics capture, CPU/memory/frame observations, and terminal-restoration failure reporting without exporting raw engine payloads through UI controls; pass diagnostics policy tests.
 
 ## 6. Record the Custom Renderer Spike

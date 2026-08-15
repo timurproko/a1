@@ -325,7 +325,7 @@ describe("Pi engine adapter", () => {
     expect(adapter.view().activeCommandIds).toEqual([]);
   });
 
-  it("exposes non-visual public SDK resources and declares visual extension surfaces unavailable", async () => {
+  it("exposes public SDK resources and the complete unbound visual extension contract", async () => {
     const runtime = new FakeRuntime(new FakeSession("pi-session-1"));
     (runtime.services as { resourceLoader?: unknown }).resourceLoader = {
       getSkills: () => ({ skills: [{ name: "review", path: "skills/review.md" }], diagnostics: [{ path: "skills/bad.md", message: "bad skill" }] }),
@@ -333,6 +333,17 @@ describe("Pi engine adapter", () => {
       getAgentsFiles: () => ({ agentsFiles: [{ path: "AGENTS.md", content: "rules" }] }),
       getSystemPromptSource: () => ({ path: "system.md" }),
       getAppendSystemPromptSources: () => [{ path: "append.md" }],
+      getExtensions: () => ({
+        extensions: [
+          { path: "extensions/visible.ts", resolvedPath: "D:/agent/extensions/visible.ts", hidden: false },
+          { path: "extensions/hidden.ts", resolvedPath: "D:/agent/extensions/hidden.ts", hidden: true },
+          { path: "extensions/malformed.ts" },
+        ],
+        errors: [
+          { path: "extensions/broken.ts", error: "factory threw" },
+          { path: 42, error: null },
+        ],
+      }),
     };
     const { adapter } = await adapterWithRuntime(runtime);
 
@@ -343,10 +354,47 @@ describe("Pi engine adapter", () => {
       expect.objectContaining({ kind: "agent-context", sourcePath: "AGENTS.md" }),
       expect.objectContaining({ kind: "system-prompt", sourcePath: "system.md" }),
     ]));
+    expect(adapter.extensionResources()).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: "extension", sourcePath: "extensions/visible.ts", loaded: true, hidden: false }),
+      expect.objectContaining({ kind: "extension", sourcePath: "extensions/hidden.ts", loaded: true, hidden: true }),
+      expect.objectContaining({ loaded: false, diagnostic: "factory threw" }),
+      expect.objectContaining({ loaded: false, diagnostic: expect.stringContaining("malformed extension metadata") }),
+      expect.objectContaining({ loaded: false, diagnostic: expect.stringContaining("malformed error metadata") }),
+    ]));
     expect(adapter.visualExtensionSupport()).toMatchObject({
       available: false,
-      diagnostic: expect.stringContaining("AddOne-owned slots"),
+      contractComplete: true,
+      contractVersion: 1,
+      binding: "unbound",
+      uiCallbacks: expect.arrayContaining(["custom", "setWidget", "setEditorComponent", "onTerminalInput"]),
+      uiProperties: ["theme"],
+      renderCallbacks: ["tool.renderCall", "tool.renderResult", "message", "entry", "markdownTransformer"],
+      diagnostic: expect.stringContaining("runtime binding remains unavailable"),
     });
+  });
+
+  it("contains malformed and throwing extension discovery as diagnostics", async () => {
+    const runtime = new FakeRuntime(new FakeSession("pi-session-1"));
+    const loader = {
+      getSkills: () => ({ skills: [], diagnostics: [] }),
+      getPrompts: () => ({ prompts: [], diagnostics: [] }),
+      getAgentsFiles: () => ({ agentsFiles: [] }),
+      getSystemPromptSource: () => undefined,
+      getAppendSystemPromptSources: () => [],
+      getExtensions: (): unknown => { throw new Error("extension loader crashed"); },
+    };
+    (runtime.services as { resourceLoader?: unknown }).resourceLoader = loader;
+    const { adapter } = await adapterWithRuntime(runtime);
+
+    expect(adapter.extensionResources()).toEqual([
+      expect.objectContaining({ loaded: false, diagnostic: "Extension discovery failed: extension loader crashed" }),
+    ]);
+
+    loader.getExtensions = () => ({ extensions: "invalid", errors: null });
+    expect(adapter.extensionResources()).toEqual([
+      expect.objectContaining({ diagnostic: expect.stringContaining("malformed extensions collection") }),
+      expect.objectContaining({ diagnostic: expect.stringContaining("malformed errors collection") }),
+    ]);
   });
 
   it("coalesces high-rate engine events under a bounded queue without terminal failures", async () => {

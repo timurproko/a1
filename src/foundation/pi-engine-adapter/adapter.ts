@@ -14,6 +14,10 @@ import {
   type CreateAgentSessionRuntimeFactory,
 } from "@earendil-works/pi-coding-agent";
 import {
+  OWNED_UI_EXTENSION_CONTRACT_VERSION,
+  OWNED_UI_EXTENSION_RENDER_CALLBACKS,
+  OWNED_UI_EXTENSION_UI_CALLBACKS,
+  OWNED_UI_EXTENSION_UI_PROPERTIES,
   assertOwnedUiCommand,
   assertOwnedUiSnapshot,
   type OwnedUiCommand,
@@ -82,6 +86,7 @@ export interface PiServicesLike {
     getAgentsFiles(): unknown;
     getSystemPromptSource(): unknown;
     getAppendSystemPromptSources(): unknown;
+    getExtensions?(): unknown;
   };
   readonly diagnostics: readonly { readonly type: string; readonly message: string }[];
 }
@@ -106,8 +111,24 @@ export interface OwnedPiResourceSummary {
   readonly diagnostic: string | null;
 }
 
+export interface OwnedPiExtensionResourceSummary {
+  readonly kind: "extension";
+  readonly id: string;
+  readonly sourcePath: string | null;
+  readonly resolvedPath: string | null;
+  readonly loaded: boolean;
+  readonly hidden: boolean;
+  readonly diagnostic: string | null;
+}
+
 export interface OwnedPiVisualExtensionSupport {
   readonly available: false;
+  readonly contractComplete: true;
+  readonly contractVersion: typeof OWNED_UI_EXTENSION_CONTRACT_VERSION;
+  readonly binding: "unbound";
+  readonly uiCallbacks: typeof OWNED_UI_EXTENSION_UI_CALLBACKS;
+  readonly uiProperties: typeof OWNED_UI_EXTENSION_UI_PROPERTIES;
+  readonly renderCallbacks: typeof OWNED_UI_EXTENSION_RENDER_CALLBACKS;
   readonly diagnostic: string;
 }
 
@@ -312,10 +333,64 @@ export class PiEngineAdapter {
     return resources;
   }
 
+  extensionResources(): readonly OwnedPiExtensionResourceSummary[] {
+    const loader = this.#runtime?.services.resourceLoader;
+    if (loader?.getExtensions === undefined) return [];
+    let result: unknown;
+    try {
+      result = loader.getExtensions();
+    } catch (error) {
+      return [extensionResourceDiagnostic(0, null, `Extension discovery failed: ${error instanceof Error ? error.message : String(error)}`)];
+    }
+    if (!isRecord(result)) return [extensionResourceDiagnostic(0, null, "Extension discovery returned a malformed result")];
+
+    const resources: OwnedPiExtensionResourceSummary[] = [];
+    if (!Array.isArray(result.extensions)) {
+      resources.push(extensionResourceDiagnostic(resources.length, null, "Extension discovery returned a malformed extensions collection"));
+    } else {
+      for (const extension of result.extensions) {
+        if (!isRecord(extension) || typeof extension.path !== "string" || extension.path.length === 0
+          || typeof extension.resolvedPath !== "string" || extension.resolvedPath.length === 0
+          || (extension.hidden !== undefined && typeof extension.hidden !== "boolean")) {
+          resources.push(extensionResourceDiagnostic(resources.length, null, "Extension discovery returned malformed extension metadata"));
+          continue;
+        }
+        resources.push({
+          kind: "extension",
+          id: `extension-${resources.length}`,
+          sourcePath: extension.path,
+          resolvedPath: extension.resolvedPath,
+          loaded: true,
+          hidden: extension.hidden === true,
+          diagnostic: null,
+        });
+      }
+    }
+
+    if (!Array.isArray(result.errors)) {
+      resources.push(extensionResourceDiagnostic(resources.length, null, "Extension discovery returned a malformed errors collection"));
+    } else {
+      for (const error of result.errors) {
+        if (!isRecord(error) || typeof error.path !== "string" || typeof error.error !== "string") {
+          resources.push(extensionResourceDiagnostic(resources.length, null, "Extension discovery returned malformed error metadata"));
+          continue;
+        }
+        resources.push(extensionResourceDiagnostic(resources.length, error.path, error.error));
+      }
+    }
+    return resources;
+  }
+
   visualExtensionSupport(): OwnedPiVisualExtensionSupport {
     return {
       available: false,
-      diagnostic: "Stock Pi visual extension surfaces are unavailable in the AddOne-owned UI; use AddOne-owned slots or non-visual public SDK resources.",
+      contractComplete: true,
+      contractVersion: OWNED_UI_EXTENSION_CONTRACT_VERSION,
+      binding: "unbound",
+      uiCallbacks: OWNED_UI_EXTENSION_UI_CALLBACKS,
+      uiProperties: OWNED_UI_EXTENSION_UI_PROPERTIES,
+      renderCallbacks: OWNED_UI_EXTENSION_RENDER_CALLBACKS,
+      diagnostic: "The complete AddOne-owned extension UI contract is available, but runtime binding remains unavailable until the pinned extension lifecycle port is complete.",
     };
   }
 
@@ -1532,6 +1607,18 @@ function readStringArray(value: unknown): readonly string[] {
 
 function stringValue(value: unknown): string | undefined {
   return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function extensionResourceDiagnostic(index: number, sourcePath: string | null, diagnostic: string): OwnedPiExtensionResourceSummary {
+  return {
+    kind: "extension",
+    id: `extension-diagnostic-${index}`,
+    sourcePath,
+    resolvedPath: null,
+    loaded: false,
+    hidden: false,
+    diagnostic,
+  };
 }
 
 function collectionResult(value: unknown, key: string): { values: readonly unknown[]; diagnostics: readonly string[] } {
