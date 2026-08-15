@@ -213,6 +213,53 @@ async function sourceMapRecord(pkg, sourceMapPath, scope) {
   const upstreamPath = `${pkg.sourceRoot}/${sourceRelative}`;
   const disposition = classify(pkg.name, upstreamPath);
   const categories = behaviorCategories(upstreamPath);
+  const portedThemeUnit = upstreamPath === "packages/coding-agent/src/modes/interactive/theme/theme.ts"
+    ? {
+        localDestination: "src/foundation/pi-component-adapter/upstream/theme/theme.ts",
+        modifications: "Source-synchronized theme port: retain pinned theme schema, variable/color resolution, built-in and custom loading, terminal detection, and layout defaults while constructing the public package-root Theme class.",
+        approvedDeviations: [
+          {
+            id: "theme-public-api-boundary",
+            reason: "Use public package-root Theme, initTheme, configuration-directory, TUI capability, markdown, selector, and syntax helpers instead of private module imports.",
+            upstreamBehavior: "Pinned dark/light/custom color resolution, 256/truecolor selection, fallback, automatic terminal detection, and component styling remain acceptance-tested.",
+            acceptanceTest: "test/foundation/pi-component-adapter/pinned-theme-parity.test.ts",
+          },
+          {
+            id: "theme-owned-watcher-boundary",
+            reason: "Mirror custom-theme reload with an AddOne-owned file watcher because the public API exposes no theme-change callback and private watcher imports are forbidden.",
+            upstreamBehavior: "Debounced valid changes replace the active custom theme and notify rendering; invalid or temporarily missing files retain the last valid theme.",
+            acceptanceTest: "test/foundation/pi-component-adapter/pinned-theme-parity.test.ts",
+          },
+        ],
+      }
+    : upstreamPath === "packages/coding-agent/src/modes/interactive/theme/theme-controller.ts"
+      ? {
+          localDestination: "src/foundation/pi-component-adapter/upstream/theme/theme-controller.ts",
+          modifications: "Source-synchronized controller port: renamed owner class, injected dependency-free settings/runtime ports, remapped private theme helpers to the public-backed AddOne theme adapter, and added explicit disposal.",
+          approvedDeviations: [
+            {
+              id: "theme-controller-owned-boundaries",
+              reason: "Replace private SettingsManager/theme-module coupling with public theme APIs and AddOne-owned runtime/settings ports.",
+              upstreamBehavior: "Theme initialization, auto detection, preview, switching, render invalidation, and terminal color-scheme synchronization remain ordered as pinned.",
+              acceptanceTest: "test/foundation/pi-component-adapter/pinned-theme-parity.test.ts",
+            },
+            {
+              id: "theme-controller-explicit-disposal",
+              reason: "AddOne lifecycle ownership requires explicit listener disposal instead of relying on stock InteractiveMode teardown.",
+              upstreamBehavior: "The terminal color-scheme listener and automatic notifications are released when the owned shell stops.",
+              acceptanceTest: "test/foundation/pi-component-adapter/pinned-theme-parity.test.ts",
+            },
+          ],
+        }
+      : undefined;
+  const localDestination = portedThemeUnit?.localDestination ?? disposition.localDestination;
+  const classification = portedThemeUnit === undefined ? disposition.classification : "owned-source-port";
+  const implementationStatus = portedThemeUnit === undefined ? disposition.implementationStatus : "ported";
+  const modifications = portedThemeUnit?.modifications ?? disposition.modifications;
+  const localSha256 = portedThemeUnit === undefined
+    ? undefined
+    : createHash("sha256").update(await readFile(join(repository, localDestination))).digest("hex");
+  const approvedDeviations = portedThemeUnit?.approvedDeviations ?? [];
   return {
     id: `${packageSlug(pkg.name)}:${sourceRelative.replace(/\.ts$/, "")}`,
     kind: "source",
@@ -222,12 +269,13 @@ async function sourceMapRecord(pkg, sourceMapPath, scope) {
     sourceMap: relative(pkg.distRoot, sourceMapPath).replaceAll("\\", "/"),
     lines: content.split("\n").length,
     sha256: createHash("sha256").update(content).digest("hex"),
-    classification: disposition.classification,
-    localDestination: disposition.localDestination,
-    implementationStatus: disposition.implementationStatus,
+    classification,
+    localDestination,
+    implementationStatus,
     attribution: "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-    modifications: disposition.modifications,
-    approvedDeviations: [],
+    modifications,
+    ...(localSha256 === undefined ? {} : { localSha256 }),
+    approvedDeviations,
     behaviorCategories: categories,
     behaviorIds: categories.flatMap(category => behaviorByCategory.get(category) ?? []),
     acceptanceTasks: acceptanceTasks(upstreamPath, categories),
@@ -351,6 +399,7 @@ function behaviorCategories(path) {
 
 function acceptanceTasks(path, categories) {
   const tasks = new Set();
+  if (path.includes("/theme/")) tasks.add("7.4");
   if (categories.includes("startup-composition")) tasks.add("7.7");
   if (categories.includes("stateful-components")) tasks.add("7.5");
   if (categories.some(category => ["editor", "autocomplete", "keybindings", "clipboard"].includes(category))) tasks.add("7.6");
@@ -365,6 +414,7 @@ function acceptanceTasks(path, categories) {
 
 function testTargets(path, categories) {
   const tests = new Set();
+  if (path.includes("/theme/")) tests.add("test/foundation/pi-component-adapter/pinned-theme-parity.test.ts");
   if (path.includes("/theme/") || categories.includes("startup-composition")) tests.add("test/foundation/pi-component-adapter/pinned-theme-composition-parity.test.ts");
   if (categories.includes("stateful-components")) tests.add("test/foundation/pi-component-adapter/pinned-component-lifecycle-parity.test.ts");
   if (categories.some(category => ["editor", "autocomplete", "keybindings", "clipboard"].includes(category))) tests.add("test/features/owned-ui/pinned-input-parity.test.ts");

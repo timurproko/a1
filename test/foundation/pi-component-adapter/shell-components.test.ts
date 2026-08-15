@@ -96,6 +96,6 @@ describe("Pi shell public component adapters", () => {
     expect(createPiShellDialog(dialog).render(50).join("\n")).toContain("Choose");
     expect(createPiShellStatus(view()).render(80)).toEqual([]);
     expect(createPiShellFooter(view(), "D:/work").render(80).join("\n")).toContain("gpt-5 • medium");
-    expect(createPiShellHeader().render(80).join("\n")).toContain("pi v0.84.1");
+    expect(createPiShellHeader().render(80).join("\n")).toContain("v0.84.1");
   });
 });

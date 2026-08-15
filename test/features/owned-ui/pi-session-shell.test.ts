@@ -105,7 +105,7 @@ describe("PiSessionShell", () => {
     const rows = shell.root.render(60).join("\n");
     expect(rows).toContain("Streaming answer");
     expect(rows).toContain("gpt-5 • medium");
-    expect(rows).toContain("pi v0.84.1");
+    expect(rows).toContain("v0.84.1");
     expect(rows).toContain("commands");
 
     const handle = shell.showSelector("Choose", [{ id: "one", label: "One" }], () => {});

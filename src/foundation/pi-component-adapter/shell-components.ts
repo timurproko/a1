@@ -3,7 +3,6 @@ import {
   CompactionSummaryMessageComponent,
   CustomEditor,
   getSelectListTheme,
-  initTheme,
   rawKeyHint,
   ToolExecutionComponent,
   UserMessageComponent,
@@ -29,6 +28,7 @@ import type {
   OwnedUiSessionViewModel,
   OwnedUiTranscriptBlock,
 } from "../owned-ui-contracts/index.js";
+import { PINNED_PI_LAYOUT, ensurePiTheme, piTheme } from "./theme.js";
 
 export interface PiShellComponentPort {
   render(width: number): readonly string[];
@@ -174,9 +174,12 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
     ...PI_SHELL_APP_KEYBINDINGS,
   } as never);
   const editor = new CustomEditor(tui, {
-    borderColor: value => value,
+    borderColor: value => piTheme().fg("borderMuted", value),
     selectList: getSelectListTheme(),
-  }, keybindings as never, { paddingX: 0 });
+  }, keybindings as never, {
+    paddingX: PINNED_PI_LAYOUT.editorPaddingX,
+    autocompleteMaxVisible: PINNED_PI_LAYOUT.autocompleteMaxVisible,
+  });
   const setAutocompleteCommands = (commands: readonly PiShellAutocompleteCommand[]) => {
     const additions = new Map(commands.map(command => [command.name, command]));
     const builtInNames = new Set(PINNED_PI_BUILTIN_SLASH_COMMANDS.map(command => command.name));
@@ -233,12 +236,12 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
 export function createPiShellSelector(options: PiShellSelectorOptions): PiShellComponentPort {
   ensureTheme();
   const items = options.options.map(toSelectItem);
-  const list = new SelectList(items, options.maxVisible ?? Math.min(10, Math.max(1, items.length)), getSelectListTheme());
+  const list = new SelectList(items, options.maxVisible ?? Math.min(PINNED_PI_LAYOUT.selectorMaxVisible, Math.max(1, items.length)), getSelectListTheme());
   if (options.onSelect !== undefined) list.onSelect = item => options.onSelect?.(item.value);
   if (options.onCancel !== undefined) list.onCancel = options.onCancel;
   if (!options.title) return componentPort(list);
   const container = new Container();
-  container.addChild(new Text(options.title, 1, 0));
+  container.addChild(new Text(piTheme().fg("accent", piTheme().bold(options.title)), PINNED_PI_LAYOUT.contentPaddingX, 0));
   container.addChild(list);
   return componentPort(container, data => list.handleInput(data));
 }
@@ -378,11 +381,11 @@ function transcriptComponent(block: OwnedUiTranscriptBlock, cwd: string, expande
       return component;
     }
     case "retry":
-      return new Text(`Retry: ${block.text}`, 0, 0);
+      return new Text(piTheme().fg("warning", `Retry: ${block.text}`), 0, 0);
     case "error":
-      return new Text(`Error: ${block.text}`, 0, 0);
+      return new Text(piTheme().fg("error", `Error: ${block.text}`), 0, 0);
     case "system":
-      return new Text(block.text, 0, 0);
+      return new Text(piTheme().fg("dim", block.text), 0, 0);
   }
 }
 
@@ -538,18 +541,22 @@ function dialogOptions(dialog: OwnedUiDialog): readonly PiShellSelectorOption[] 
 }
 
 function statusText(view: OwnedUiSessionViewModel): string {
-  if (view.lifecycle === "busy") return view.status.workingMessage ?? "Working...";
-  if (view.lifecycle === "failed") return view.status.diagnostics.at(-1) ?? "Session failed";
-  return view.status.workingMessage ?? "";
+  const theme = piTheme();
+  if (view.lifecycle === "busy") return theme.fg("muted", view.status.workingMessage ?? "Working...");
+  if (view.lifecycle === "failed") return theme.fg("error", view.status.diagnostics.at(-1) ?? "Session failed");
+  return view.status.workingMessage === null ? "" : theme.fg("muted", view.status.workingMessage);
 }
 
 function queuedInputText(submissions: readonly string[]): string {
-  return submissions.map(submission => `Steering: ${submission.replaceAll("\n", " ⏎ ")}`).join("\n");
+  const theme = piTheme();
+  return submissions.map(submission => theme.fg("muted", `Steering: ${submission.replaceAll("\n", " ⏎ ")}`)).join("\n");
 }
 
 function footerRows(view: OwnedUiSessionViewModel, cwd: string, width: number): readonly string[] {
   const safeWidth = Math.max(1, width);
-  const pwd = truncateToWidth(cwd, safeWidth, "...");
+  const theme = piTheme();
+  const ellipsis = theme.fg("dim", "...");
+  const pwd = truncateToWidth(theme.fg("dim", cwd), safeWidth, ellipsis);
   const left = "0.0%/0 (auto)";
   const model = view.activeModel?.modelId ?? "no-model";
   const right = view.activeModel === null || view.thinkingLevel === "off"
@@ -559,18 +566,22 @@ function footerRows(view: OwnedUiSessionViewModel, cwd: string, width: number): 
   const availableRight = Math.max(0, safeWidth - leftWidth - 2);
   const fittedRight = truncateToWidth(right, availableRight, "");
   const padding = " ".repeat(Math.max(2, safeWidth - leftWidth - visibleWidth(fittedRight)));
-  return [pwd, truncateToWidth(`${left}${padding}${fittedRight}`, safeWidth, "")];
+  return [pwd, theme.fg("dim", left) + theme.fg("dim", truncateToWidth(`${padding}${fittedRight}`, safeWidth - leftWidth, ""))];
 }
 
 function compactHeaderText(): string {
+  const theme = piTheme();
   const instructions = [
     rawKeyHint("escape", "interrupt"),
     rawKeyHint("ctrl+c/ctrl+d", "clear/exit"),
     rawKeyHint("/", "commands"),
     rawKeyHint("!", "bash"),
     rawKeyHint("ctrl+o", "more"),
-  ].join(" · ");
-  return `pi v${VERSION}\n${instructions}\nPress ctrl+o to show full startup help and loaded resources.\n\nPi can explain its own features and look up its docs. Ask it how to use or extend Pi.`;
+  ].join(theme.fg("muted", " · "));
+  const logo = theme.bold(theme.fg("accent", "pi")) + theme.fg("dim", ` v${VERSION}`);
+  const compactOnboarding = theme.fg("dim", "Press ctrl+o to show full startup help and loaded resources.");
+  const onboarding = theme.fg("dim", "Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.");
+  return `${logo}\n${instructions}\n${compactOnboarding}\n\n${onboarding}`;
 }
 
 function expandedHeaderText(): string {
@@ -595,13 +606,17 @@ function expandedHeaderText(): string {
     rawKeyHint(process.platform === "win32" ? "alt+v" : "ctrl+v", "to paste image (with text fallback)"),
     rawKeyHint("drop files", "to attach"),
   ].join("\n");
-  return `pi v${VERSION}\n${instructions}\n\nPi can explain its own features and look up its docs. Ask it how to use or extend Pi.`;
+  const theme = piTheme();
+  const logo = theme.bold(theme.fg("accent", "pi")) + theme.fg("dim", ` v${VERSION}`);
+  const onboarding = theme.fg("dim", "Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.");
+  return `${logo}\n${instructions}\n\n${onboarding}`;
 }
 
 function noticeText(notice: PiShellStartupNotice): string {
-  if (notice.kind === "info") return notice.message;
+  const theme = piTheme();
+  if (notice.kind === "info") return theme.fg("dim", notice.message);
   const prefix = notice.kind === "warning" ? "Warning" : "Error";
-  return `${prefix}: ${notice.message}`;
+  return theme.fg(notice.kind, `${prefix}: ${notice.message}`);
 }
 
 function blockPayload(block: OwnedUiTranscriptBlock): Record<string, unknown> {
@@ -633,9 +648,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-let themeInitialized = false;
 function ensureTheme(): void {
-  if (themeInitialized) return;
-  initTheme("dark", false);
-  themeInitialized = true;
+  ensurePiTheme();
 }

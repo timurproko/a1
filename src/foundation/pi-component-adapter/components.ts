@@ -1,22 +1,20 @@
 import {
   AssistantMessageComponent,
-  initTheme,
   ToolExecutionComponent,
   UserMessageComponent,
 } from "@earendil-works/pi-coding-agent";
 import type { OwnedUiTranscriptBlock } from "../owned-ui-contracts/index.js";
-
-let themeInitialized = false;
+import { ensurePiTheme } from "./theme.js";
 
 export function adaptPiUserMessage(block: OwnedUiTranscriptBlock, width: number): readonly string[] {
   requireBlock(block, "user");
-  ensureTheme();
+  ensurePiTheme();
   return new UserMessageComponent(block.text).render(width);
 }
 
 export function adaptPiAssistantMessage(block: OwnedUiTranscriptBlock, width: number): readonly string[] {
   requireBlock(block, "assistant");
-  ensureTheme();
+  ensurePiTheme();
   const message = {
     role: "assistant",
     content: [{ type: "text", text: block.text }],
@@ -38,7 +36,7 @@ export function adaptPiToolExecution(
   if (block.kind !== "tool-call" && block.kind !== "tool-result") {
     throw new TypeError("Pi tool execution adaptation requires a tool block");
   }
-  ensureTheme();
+  ensurePiTheme();
   const payload = blockPayload(block);
   const toolCallId = stringPayload(payload, "toolCallId") ?? block.id;
   const toolName = stringPayload(payload, "toolName") ?? block.title ?? "tool";
@@ -61,12 +59,6 @@ export function adaptPiToolExecution(
     });
   }
   return component.render(width);
-}
-
-function ensureTheme(): void {
-  if (themeInitialized) return;
-  initTheme("dark", false);
-  themeInitialized = true;
 }
 
 function requireBlock(block: OwnedUiTranscriptBlock, kind: OwnedUiTranscriptBlock["kind"]): void {

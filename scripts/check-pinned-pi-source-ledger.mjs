@@ -174,6 +174,11 @@ async function validatePortDestinations(records) {
     const exists = await pathExists(path);
     if (record.implementationStatus === "not-ported" && exists) fail(`owned source destination exists but remains marked not-ported: ${record.id}`);
     if (record.implementationStatus !== "not-ported" && !exists) fail(`mapped owned source destination is missing: ${record.id}`);
+    if (record.implementationStatus !== "not-ported") {
+      requiredString(record.localSha256, `${record.id}.localSha256`);
+      const localHash = createHash("sha256").update(await readFile(path)).digest("hex");
+      if (record.localSha256 !== localHash) fail(`mapped owned source destination hash is stale: ${record.id}`);
+    }
   }
   for (const record of records.filter(value => value.classification !== "owned-source-port")) {
     if (!await pathExists(resolve(repository, record.localDestination))) fail(`adapter destination is missing: ${record.id}`);

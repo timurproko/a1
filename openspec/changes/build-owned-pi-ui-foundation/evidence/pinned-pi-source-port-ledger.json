@@ -2,7 +2,7 @@
   "schema": "addone-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-08-15T16:44:09.321Z",
+  "recordedAt": "2026-08-15T17:04:19.636Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "53fa77ccd8a279eb87e92294ef3687b03ff80112",
@@ -38,8 +38,8 @@
     "sourceModules": 103,
     "assets": 4,
     "classifications": {
-      "public-reuse": 67,
-      "owned-source-port": 18,
+      "public-reuse": 66,
+      "owned-source-port": 19,
       "host-adapter": 22
     },
     "requiredBehaviorIds": 29,
@@ -2608,11 +2608,13 @@
         "resize.renderer-modes"
       ],
       "acceptanceTasks": [
+        "7.4",
         "7.7",
         "7.5",
         "7.21"
       ],
       "tests": [
+        "test/foundation/pi-component-adapter/pinned-theme-parity.test.ts",
         "test/foundation/pi-component-adapter/pinned-theme-composition-parity.test.ts",
         "test/foundation/pi-component-adapter/pinned-component-lifecycle-parity.test.ts",
         "test/foundation/pi-tui-runtime-adapter/pinned-lifecycle-parity.test.ts"
@@ -2646,11 +2648,13 @@
         "resize.renderer-modes"
       ],
       "acceptanceTasks": [
+        "7.4",
         "7.7",
         "7.5",
         "7.21"
       ],
       "tests": [
+        "test/foundation/pi-component-adapter/pinned-theme-parity.test.ts",
         "test/foundation/pi-component-adapter/pinned-theme-composition-parity.test.ts",
         "test/foundation/pi-component-adapter/pinned-component-lifecycle-parity.test.ts",
         "test/foundation/pi-tui-runtime-adapter/pinned-lifecycle-parity.test.ts"
@@ -2667,10 +2671,24 @@
       "sha256": "e32ab319379178e10a8b5ac96ae20c30ab1a9db7dcaf30f8098e0fbbcd460103",
       "classification": "owned-source-port",
       "localDestination": "src/foundation/pi-component-adapter/upstream/theme/theme-controller.ts",
-      "implementationStatus": "not-ported",
+      "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Mechanical port planned: remap imports, inject AddOne engine/runtime ownership, preserve control flow and state, and record every deviation.",
-      "approvedDeviations": [],
+      "modifications": "Source-synchronized controller port: renamed owner class, injected dependency-free settings/runtime ports, remapped private theme helpers to the public-backed AddOne theme adapter, and added explicit disposal.",
+      "localSha256": "4ce6222f379f4acbbab0a60dc3a8f20227bb5723012155009b16b20476c0e1f5",
+      "approvedDeviations": [
+        {
+          "id": "theme-controller-owned-boundaries",
+          "reason": "Replace private SettingsManager/theme-module coupling with public theme APIs and AddOne-owned runtime/settings ports.",
+          "upstreamBehavior": "Theme initialization, auto detection, preview, switching, render invalidation, and terminal color-scheme synchronization remain ordered as pinned.",
+          "acceptanceTest": "test/foundation/pi-component-adapter/pinned-theme-parity.test.ts"
+        },
+        {
+          "id": "theme-controller-explicit-disposal",
+          "reason": "AddOne lifecycle ownership requires explicit listener disposal instead of relying on stock InteractiveMode teardown.",
+          "upstreamBehavior": "The terminal color-scheme listener and automatic notifications are released when the owned shell stops.",
+          "acceptanceTest": "test/foundation/pi-component-adapter/pinned-theme-parity.test.ts"
+        }
+      ],
       "behaviorCategories": [
         "startup-composition",
         "stateful-components",
@@ -2684,11 +2702,13 @@
         "resize.renderer-modes"
       ],
       "acceptanceTasks": [
+        "7.4",
         "7.7",
         "7.5",
         "7.21"
       ],
       "tests": [
+        "test/foundation/pi-component-adapter/pinned-theme-parity.test.ts",
         "test/foundation/pi-component-adapter/pinned-theme-composition-parity.test.ts",
         "test/foundation/pi-component-adapter/pinned-component-lifecycle-parity.test.ts",
         "test/foundation/pi-tui-runtime-adapter/pinned-lifecycle-parity.test.ts"
@@ -2722,11 +2742,13 @@
         "resize.renderer-modes"
       ],
       "acceptanceTasks": [
+        "7.4",
         "7.7",
         "7.5",
         "7.21"
       ],
       "tests": [
+        "test/foundation/pi-component-adapter/pinned-theme-parity.test.ts",
         "test/foundation/pi-component-adapter/pinned-theme-composition-parity.test.ts",
         "test/foundation/pi-component-adapter/pinned-component-lifecycle-parity.test.ts",
         "test/foundation/pi-tui-runtime-adapter/pinned-lifecycle-parity.test.ts"
@@ -2741,12 +2763,26 @@
       "sourceMap": "modes/interactive/theme/theme.js.map",
       "lines": 1317,
       "sha256": "a5aac5e2f78341e0f8d24b04e7e3e07466a499a60e44cf24c9c092a7f44335ce",
-      "classification": "public-reuse",
-      "localDestination": "src/foundation/pi-component-adapter/index.ts",
-      "implementationStatus": "available-through-pinned-package",
+      "classification": "owned-source-port",
+      "localDestination": "src/foundation/pi-component-adapter/upstream/theme/theme.ts",
+      "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "None planned; use pinned public theme exports and package-owned built-in assets.",
-      "approvedDeviations": [],
+      "modifications": "Source-synchronized theme port: retain pinned theme schema, variable/color resolution, built-in and custom loading, terminal detection, and layout defaults while constructing the public package-root Theme class.",
+      "localSha256": "c6d0d288a6aebe8803d0ee15ba5b146f04b95c63e7d9e0198536a1d0c9a39ecc",
+      "approvedDeviations": [
+        {
+          "id": "theme-public-api-boundary",
+          "reason": "Use public package-root Theme, initTheme, configuration-directory, TUI capability, markdown, selector, and syntax helpers instead of private module imports.",
+          "upstreamBehavior": "Pinned dark/light/custom color resolution, 256/truecolor selection, fallback, automatic terminal detection, and component styling remain acceptance-tested.",
+          "acceptanceTest": "test/foundation/pi-component-adapter/pinned-theme-parity.test.ts"
+        },
+        {
+          "id": "theme-owned-watcher-boundary",
+          "reason": "Mirror custom-theme reload with an AddOne-owned file watcher because the public API exposes no theme-change callback and private watcher imports are forbidden.",
+          "upstreamBehavior": "Debounced valid changes replace the active custom theme and notify rendering; invalid or temporarily missing files retain the last valid theme.",
+          "acceptanceTest": "test/foundation/pi-component-adapter/pinned-theme-parity.test.ts"
+        }
+      ],
       "behaviorCategories": [
         "startup-composition",
         "stateful-components",
@@ -2760,11 +2796,13 @@
         "resize.renderer-modes"
       ],
       "acceptanceTasks": [
+        "7.4",
         "7.7",
         "7.5",
         "7.21"
       ],
       "tests": [
+        "test/foundation/pi-component-adapter/pinned-theme-parity.test.ts",
         "test/foundation/pi-component-adapter/pinned-theme-composition-parity.test.ts",
         "test/foundation/pi-component-adapter/pinned-component-lifecycle-parity.test.ts",
         "test/foundation/pi-tui-runtime-adapter/pinned-lifecycle-parity.test.ts"
