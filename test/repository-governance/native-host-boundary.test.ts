@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const FORBIDDEN_NODE_PROTOCOL_PAYLOADS = /ptyBytes|terminalBytes|terminalOutput|inputBytes|renderedCells?|cellGrid|screenBuffer|ansiStream|framebuffer|base64Terminal|rawTerminal|opaqueChild/i;
-const FORBIDDEN_EXPLICIT_MODE_COMPOSED = /native-host-protocol|structured-agent-runtime|features\/workspace|NativeHost|composedTerminal|createFixedTwoByTwo/i;
+const FORBIDDEN_EXPLICIT_MODE_COMPOSED = /native-host-protocol|structured-agent-runtime|features\/workspace|features\/owned-ui|NativeHost|composedTerminal|createFixedTwoByTwo/i;
 
 describe("native host and transparent-mode executable boundaries", () => {
   it("keeps hot-path payload fields out of every Node-facing protocol and workspace source", async () => {

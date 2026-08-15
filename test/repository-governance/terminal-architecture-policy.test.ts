@@ -114,13 +114,13 @@ describe("terminal-core architecture policy", () => {
     expect(result.stderr).toContain(diagnostic);
   });
 
-  it("rejects composed infrastructure from explicit launch profiles", async () => {
+  it("rejects composed and owned-UI infrastructure from explicit launch profiles", async () => {
     const root = await fixture({
-      "src/features/launch/forbidden.ts": "import { protocol } from '../../foundation/native-host-protocol/index.js'; export { protocol };",
+      "src/features/launch/forbidden.ts": "import { runOwnedUiDevelopmentMode } from '../owned-ui/index.js'; export { runOwnedUiDevelopmentMode };",
     });
     const result = runPolicy(root);
     expect(result.status).toBe(1);
-    expect(result.stderr).toContain("composed infrastructure dependency");
+    expect(result.stderr).toContain("launch may not import owned-ui");
   });
 
   it("rejects a replacement lightweight terminal parser or renderer in native sources", async () => {

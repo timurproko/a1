@@ -119,7 +119,7 @@ for (const file of await walk(sourceRoot)) {
 
   if (path.startsWith("src/features/launch/")) {
     const explicitModeForbidden = [
-      { pattern: /(?:native-host-protocol|structured-agent-runtime|features\/workspace|nativeTerminalHost|composedTerminal)/i, label: "composed infrastructure dependency" },
+      { pattern: /(?:native-host-protocol|structured-agent-runtime|features\/workspace|features\/owned-ui|nativeTerminalHost|composedTerminal)/i, label: "composed infrastructure dependency" },
     ];
     for (const { pattern, label } of explicitModeForbidden) {
       if (pattern.test(source)) errors.push(`${path}: launch profile code contains forbidden ${label}`);
