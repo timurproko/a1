@@ -62,7 +62,7 @@ export class OwnedTerminalRuntime {
   constructor(options: OwnedTerminalRuntimeOptions) {
     this.#host = options.host;
     this.#root = options.root;
-    this.#synchronizedOutput = options.synchronizedOutput ?? true;
+    this.#synchronizedOutput = options.synchronizedOutput ?? false;
     this.#diagnostics = options.diagnostics;
   }
 
@@ -79,7 +79,7 @@ export class OwnedTerminalRuntime {
     if (this.#active || this.#disposed) return;
     this.#active = true;
     this.#host.setActive(true);
-    this.#host.write("\x1b[?1049h\x1b[?2004h\x1b[?1000h\x1b[?25l");
+    this.#host.write("\x1b[?1049h\x1b[?2004h\x1b[?25l");
     this.#unsubscribeInput = this.#host.onInput(text => this.#receiveRawInput(text));
     this.#unsubscribeResize = this.#host.onResize((columns, rows) => this.#resize(columns, rows));
     this.#root.focused = true;
@@ -133,7 +133,7 @@ export class OwnedTerminalRuntime {
     for (const entry of this.#overlays.splice(0)) entry.component.dispose?.();
     this.#root.dispose?.();
     try {
-      this.#host.write("\x1b[?1000l\x1b[?2004l\x1b[?25h\x1b[?1049l");
+      this.#host.write("\x1b[?2004l\x1b[?25h\x1b[?1049l");
     } catch (error) {
       this.#diagnostics?.noteTerminalRestorationFailure(error);
     }

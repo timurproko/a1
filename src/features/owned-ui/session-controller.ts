@@ -68,7 +68,8 @@ export class OwnedSessionRootComponent implements OwnedTerminalComponent {
 }
 
 function frameEditor(statusText: string, editorRows: readonly string[], width: number): readonly string[] {
-  const innerWidth = Math.max(10, width - 2);
+  const frameWidth = Math.max(10, width - 1);
+  const innerWidth = frameWidth - 2;
   const topLabel = truncateVisible(statusText, Math.max(1, innerWidth - 4));
   const top = `╭─ ${topLabel} ${"─".repeat(Math.max(0, innerWidth - displayWidth(topLabel) - 3))}╮`;
   const middle = editorRows.map(row => `│ ${padVisible(truncateVisible(row, innerWidth - 1), innerWidth - 1)}│`);

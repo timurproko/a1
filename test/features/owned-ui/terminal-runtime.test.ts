@@ -95,16 +95,26 @@ describe("owned terminal runtime", () => {
 
     expect(host.active).toBe(true);
     expect(root.focused).toBe(true);
-    expect(host.writes[0]).toBe("\x1b[?1049h\x1b[?2004h\x1b[?1000h\x1b[?25l");
+    expect(host.writes[0]).toBe("\x1b[?1049h\x1b[?2004h\x1b[?25l");
+    expect(host.writes[0]).not.toContain("?1000h");
     expect(host.writes.filter(write => write.includes("hello"))).toHaveLength(1);
-    expect(host.writes.at(-1)).toContain("\x1b[?2026h");
     expect(host.writes.at(-1)).toContain("\x1b[H\x1b[0J");
-    expect(host.writes.at(-1)).toContain("\x1b[?2026l");
+    expect(host.writes.at(-1)).not.toContain("\x1b[?2026");
 
     await runtime.dispose();
     expect(host.active).toBe(false);
     expect(root.disposed).toBe(true);
-    expect(host.writes.at(-1)).toBe("\x1b[?1000l\x1b[?2004l\x1b[?25h\x1b[?1049l");
+    expect(host.writes.at(-1)).toBe("\x1b[?2004l\x1b[?25h\x1b[?1049l");
+  });
+
+  it("keeps synchronized output explicitly opt-in", async () => {
+    const host = new FakeHost();
+    const runtime = new OwnedTerminalRuntime({ host, root: new TestComponent("root", ["sync"]), synchronizedOutput: true });
+    runtime.start();
+    await runtime.requestRender();
+    expect(host.writes.at(-1)).toContain("\x1b[?2026h");
+    expect(host.writes.at(-1)).toContain("\x1b[?2026l");
+    await runtime.dispose();
   });
 
   it("normalizes text, split keys, paste, and resize before routing to focus", async () => {
