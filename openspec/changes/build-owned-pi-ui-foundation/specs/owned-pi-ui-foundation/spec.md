@@ -39,6 +39,30 @@ The AddOne-owned UI SHALL reproduce the complete visible and interactive behavio
 - **WHEN** the user invokes `/hotkeys`
 - **THEN** the owned UI SHALL append the complete pinned keybinding-derived heading and styled Markdown tables with equivalent categories, keys, descriptions, spacing, wrapping, scrolling, colors, and transcript behavior rather than an abbreviated text summary
 
+#### Scenario: Render consecutive Markdown content
+- **WHEN** an assistant message contains consecutive list rows, paragraphs, links, code, or other Markdown with a fixed source payload
+- **THEN** the owned UI SHALL preserve the pinned ordered content array, Markdown transform, theme, padding, and vertical-spacing rules and SHALL NOT introduce blank rows that untouched pinned Pi does not render
+
+#### Scenario: Render mixed assistant content
+- **WHEN** one assistant message interleaves thinking, text, and tool calls or settles with a stop, error, or abort state
+- **THEN** the owned UI SHALL preserve source order, streaming state, component identity, adjacent-content spacing, tool boundaries, and terminal status content exactly as pinned `AssistantMessageComponent`
+
+#### Scenario: Scroll with a physical wheel event
+- **WHEN** an equivalent terminal sends the same physical wheel sequence over the same active content and viewport
+- **THEN** AddOne SHALL route the event through the equivalent active and primary scroll views, overscroll policy, scrollbar state, and event batching so the same visible rows become active as in pinned Pi
+
+#### Scenario: Show loaded startup resources
+- **WHEN** pinned Pi discovers context files, skills, prompt templates, extensions, custom themes, or resource diagnostics during startup
+- **THEN** the owned UI SHALL render the equivalent Context, Skills, Prompts, Extensions, Themes, and conflict sections with pinned grouping, sorting, labels, colors, spacing, compact/expanded state, and source formatting before initial session messages
+
+#### Scenario: Preserve loaded resources across a chat clear
+- **WHEN** the transcript is cleared or a fresh chat state is rendered without rebinding resources
+- **THEN** the loaded-resource sections SHALL remain in their separate pinned root container and SHALL NOT disappear with chat transcript rows
+
+#### Scenario: Compose a specialized selector
+- **WHEN** settings or another pinned specialized selector is active over a populated transcript
+- **THEN** its root-container placement, editor replacement, focus, viewport allocation, scrolling, instruction rows, footer relationship, cancellation, and restoration SHALL match pinned Pi rather than generic overlay composition
+
 ### Requirement: Visible Pi extension UI is part of the 1:1 baseline
 The owned UI SHALL support the visible behavior exposed by pinned Pi extensions, including widgets, custom editors and inputs, selectors, dialogs, notifications, status and footer contributions, custom message and tool renderers, terminal input hooks, working indicators, and lifecycle cleanup. Extension UI behavior SHALL cross AddOne-owned versioned boundaries and SHALL NOT require mutation of installed Pi code or private interactive state.
 

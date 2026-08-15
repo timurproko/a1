@@ -102,6 +102,17 @@ Each corrected route requires an independent untouched-pinned producer and an Ad
 
 Narrow symptom patches are rejected when they preserve an approximate controller boundary. If a finding exposes that the wrong AddOne abstraction owns the behavior, the coherent pinned controller/component unit will replace that abstraction before the task can be completed. The interrupted local footer/transcript patch is therefore work in progress only and cannot satisfy this decision without the source trace and parity evidence above.
 
+Every new user-controlled parity finding pauses implementation before correction. The affected pinned source path is analyzed first; scope, requirements, design, and task completion are reconciled; contradicted tasks are reopened; and implementation resumes only after the planning revision is approved. Passing synthetic or normalized tests does not override a deeper manual route finding.
+
+The second manual comparison establishes these additional source-port requirements:
+
+- preserve the complete ordered assistant message content array and pinned `AssistantMessageComponent` lifecycle instead of flattening text and thinking into independently reconstructed blocks; preserve `createMarkdownTransform()`, settings-aware Markdown themes, streaming state, and the exact placement rules for initial message spacing, adjacent list rows, mixed thinking/text runs, tools, and terminal stop/error content;
+- trace physical wheel input through pinned `TuiAltScreen.routeWheel()`, active `ScrollView` selection, primary-scroll fallback, overscroll policy, scrollbar state, and terminal event batching; compare wheel notches as well as direct `scrollBy()` calls so AddOne advances the same visible rows as untouched Pi;
+- port `showLoadedResources()` and its initialization order before initial messages, including Context, Skills, Prompts, Extensions, Themes, conflicts/diagnostics, compact and expanded labels, source grouping, sorting, colors, spacing, and persistence across chat clears;
+- compose specialized selector components such as `SettingsSelectorComponent` through the same pinned root-container, focus, viewport, scrolling, instructions, footer, cancellation, and restoration path rather than drawing a generic overlay over transcript rows.
+
+These findings reopen any previously completed transcript-component, fullscreen-scroll, or root-composition task they contradict. Independent parity must include identical message payloads, raw ANSI frames, physical wheel sequences, startup resources, and selector-active viewports; comparisons of different model responses or ANSI-stripped rows alone are insufficient.
+
 ## Risks / Trade-offs
 
 - **[Large mechanical port creates review churn]** → Land coherent upstream units separately, keep transformations mechanical, and attach ledger entries and focused tests to each slice.
