@@ -228,7 +228,7 @@ export class OwnedTerminalRuntime {
       lines.push(...sanitizeLines(overlay.component.render(viewport), viewport.columns));
     }
     const frame = lines.slice(0, viewport.rows).join("\r\n");
-    const body = this.#synchronizedOutput ? `\x1b[?2026h${frame}\x1b[?2026l` : frame;
+    const body = this.#synchronizedOutput ? `\x1b[?2026h\x1b[H\x1b[0J${frame}\x1b[?2026l` : `\x1b[H\x1b[0J${frame}`;
     try {
       this.#host.write(`${body}\x1b[0m`);
       this.#diagnostics?.noteFrame(Buffer.byteLength(`${body}\x1b[0m`, "utf8"));

@@ -108,6 +108,11 @@ describe("owned Pi session controller", () => {
     expect(controller.root.editor.state().queuedSubmissions).toEqual(["adjust"]);
     expect(controller.view().lifecycle).toBe("busy");
     expect(controller.root.render({ columns: 40, rows: 10 }).join("\n")).toContain("Working");
+    const frame = controller.root.render({ columns: 40, rows: 10 });
+    expect(frame.some(row => row.includes("╭─"))).toBe(true);
+    expect(frame.some(row => row.includes("│ "))).toBe(true);
+    expect(frame.at(-1)).toContain("╰");
+    expect(frame.every(row => row.length <= 40)).toBe(true);
     expect(views.length).toBeGreaterThan(1);
   });
 

@@ -98,6 +98,7 @@ describe("owned terminal runtime", () => {
     expect(host.writes[0]).toBe("\x1b[?1049h\x1b[?2004h\x1b[?1000h\x1b[?25l");
     expect(host.writes.filter(write => write.includes("hello"))).toHaveLength(1);
     expect(host.writes.at(-1)).toContain("\x1b[?2026h");
+    expect(host.writes.at(-1)).toContain("\x1b[H\x1b[0J");
     expect(host.writes.at(-1)).toContain("\x1b[?2026l");
 
     await runtime.dispose();

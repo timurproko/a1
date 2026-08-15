@@ -12,6 +12,7 @@ import { createOwnedTranscriptRenderer } from "./transcript-renderer.js";
 import { OwnedDiagnosticsComponent, OwnedStatusComponent } from "./surfaces.js";
 import { createVanillaUiCustomizationRegistry, type OwnedUiCustomizationRegistry } from "./customization.js";
 import type { OwnedTerminalComponent, OwnedTerminalInput, OwnedTerminalViewport } from "./terminal-runtime.js";
+import { displayWidth, truncateVisible } from "./terminal-runtime.js";
 
 export class OwnedSessionRootComponent implements OwnedTerminalComponent {
   readonly id = "owned-session-root";
@@ -54,15 +55,30 @@ export class OwnedSessionRootComponent implements OwnedTerminalComponent {
   }
 
   render(viewport: OwnedTerminalViewport): readonly string[] {
-    const statusRows = this.status.render(viewport);
+    const statusText = this.status.render(viewport)[0] ?? "Pi";
     const diagnosticRows = this.diagnostics.render(viewport);
     const editorRows = this.editor.render(viewport);
+    const editorCard = frameEditor(statusText, editorRows, viewport.columns);
     const transcriptRows = this.transcript.render({
       columns: viewport.columns,
-      rows: Math.max(0, viewport.rows - statusRows.length - diagnosticRows.length - editorRows.length),
+      rows: Math.max(0, viewport.rows - diagnosticRows.length - editorCard.length),
     });
-    return [...statusRows, ...transcriptRows, ...diagnosticRows, ...editorRows].slice(0, viewport.rows);
+    return [...transcriptRows, ...diagnosticRows, ...editorCard].slice(0, viewport.rows);
   }
+}
+
+function frameEditor(statusText: string, editorRows: readonly string[], width: number): readonly string[] {
+  const innerWidth = Math.max(10, width - 2);
+  const topLabel = truncateVisible(statusText, Math.max(1, innerWidth - 4));
+  const top = `╭─ ${topLabel} ${"─".repeat(Math.max(0, innerWidth - displayWidth(topLabel) - 3))}╮`;
+  const middle = editorRows.map(row => `│ ${padVisible(truncateVisible(row, innerWidth - 1), innerWidth - 1)}│`);
+  const bottomLabel = truncateVisible(" Ctrl+C exit · /think · /model · /new · /resume ", innerWidth);
+  const bottom = `╰${bottomLabel}${"─".repeat(Math.max(0, innerWidth - displayWidth(bottomLabel)))}╯`;
+  return [top, ...middle, bottom];
+}
+
+function padVisible(value: string, width: number): string {
+  return `${value}${" ".repeat(Math.max(0, width - displayWidth(value)))}`;
 }
 
 export interface OwnedPiSessionControllerOptions {
