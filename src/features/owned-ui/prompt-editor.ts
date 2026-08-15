@@ -126,6 +126,10 @@ export class OwnedPromptEditor implements OwnedTerminalComponent {
   }
 
   #handleKey(key: string, ctrl: boolean): boolean {
+    if (ctrl && key === "a") {
+      this.selectAll();
+      return true;
+    }
     if (ctrl && key === "c") {
       if (this.#selection !== null) {
         this.clearSelection();

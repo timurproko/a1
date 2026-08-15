@@ -192,6 +192,8 @@ export class OwnedTerminalRuntime {
         this.#dispatch({ type: "key", key: "enter", ctrl: false, alt: false, shift: false });
       } else if (character === "\x7f") {
         this.#dispatch({ type: "key", key: "backspace", ctrl: false, alt: false, shift: false });
+      } else if (character === "\x01") {
+        this.#dispatch({ type: "key", key: "a", ctrl: true, alt: false, shift: false });
       } else if (character === "\x03") {
         this.#dispatch({ type: "key", key: "c", ctrl: true, alt: false, shift: false });
       } else {

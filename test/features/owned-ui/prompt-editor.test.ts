@@ -49,7 +49,7 @@ describe("owned prompt editor", () => {
     let cancelled = 0;
     const editor = new OwnedPromptEditor({ onCancel: () => cancelled += 1 });
     editor.setText("select me");
-    editor.selectAll();
+    editor.handleInput(input({ type: "key", key: "a", ctrl: true, alt: false, shift: false }));
     expect(editor.selectedText()).toBe("select me");
     expect(editor.copySelection(text => copied.push(text))).toBe(true);
     expect(copied).toEqual(["select me"]);

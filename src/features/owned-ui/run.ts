@@ -32,12 +32,20 @@ export async function runOwnedUiDevelopmentMode(
 
   const editorInput = controller.root.editor.handleInput.bind(controller.root.editor);
   controller.root.editor.handleInput = input => {
-    if (input.type === "key" && input.key === "c" && input.ctrl && controller.view().lifecycle !== "busy") {
+    if (input.type === "key" && input.key === "c" && input.ctrl) {
+      const editorState = controller.root.editor.state();
+      if (editorState.selection !== null) {
+        controller.root.editor.copySelection(text => {
+          host.write(`\x1b]52;c;${Buffer.from(text, "utf8").toString("base64")}\x07`);
+        });
+        controller.root.editor.clearSelection();
+        return true;
+      }
+      if (controller.view().lifecycle === "busy") {
+        void controller.abort();
+        return true;
+      }
       void controller.shutdown();
-      return true;
-    }
-    if (input.type === "key" && input.key === "c" && input.ctrl && controller.view().lifecycle === "busy") {
-      void controller.abort();
       return true;
     }
     return editorInput(input);

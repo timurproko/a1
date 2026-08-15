@@ -114,6 +114,7 @@ describe("owned terminal runtime", () => {
     await runtime.requestRender();
 
     host.input("a");
+    host.input("\x01");
     host.input("\x1b[");
     host.input("A");
     host.input("\x1b[200~hello\nworld\x1b[201~");
@@ -122,6 +123,7 @@ describe("owned terminal runtime", () => {
 
     expect(root.inputs).toEqual([
       { type: "text", text: "a" },
+      { type: "key", key: "a", ctrl: true, alt: false, shift: false },
       { type: "key", key: "up", ctrl: false, alt: false, shift: false },
       { type: "paste", text: "hello\nworld" },
       { type: "resize", columns: 40, rows: 10 },
