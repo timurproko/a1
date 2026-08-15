@@ -33,14 +33,26 @@
 - [x] 5.3 Support public-SDK non-visual Pi resources through the adapter where available and define unavailable visual-extension behavior; pass resource-discovery, diagnostics, and no-partial-capability fixtures.
 - [x] 5.4 Add bounded logging, redaction, diagnostics capture, CPU/memory/frame observations, and terminal-restoration failure reporting without exporting raw engine payloads through UI controls; pass diagnostics policy tests.
 
-## 6. Accept the Base UI Before Multi-Agent Tabs
+## 6. Record the Custom Renderer Spike
 
-- [x] 6.1 Run complete automated gates: build, typecheck, tests, architecture, adapter conformance, terminal runtime, transcript, editor, input, clipboard, resize, lifecycle, resource, packaging, audit, and strict OpenSpec validation; preserve machine-readable evidence.
-- [ ] 6.2 Run user-controlled manual base-UX acceptance for the exact development artifact: prompt and streaming, tools, editor and queued input, abort/retry/compaction, model and thinking controls, session resume, settings, clipboard, selection, resize, shutdown, and comparison against `a1 pi`; record exact commit and package identity.
-- [ ] 6.3 Correct every manual finding, rerun focused and containing gates, and mark the base UI accepted only when all baseline workflows pass.
-- [ ] 6.4 Merge the accepted slice through `develop` and publish a unique `-dev.N` package under npm `next` as an explicitly selected owned-UI development path, with structured tabs and composed terminal behavior disabled and no stable support claim; keep `latest` unchanged and verify registry/package integrity.
+- [x] 6.1 Run complete automated gates for the initial hand-written runtime spike: build, typecheck, tests, architecture, adapter conformance, terminal runtime, transcript, editor, input, clipboard, resize, lifecycle, resource, packaging, audit, and strict OpenSpec validation; preserve machine-readable evidence and mark the spike unsuitable for production acceptance.
 
-## 7. Handoff to Multi-Agent Workspace
+## 7. Build the Public Pi Shell and Prove Current-Version Parity
 
-- [ ] 7.1 Record evidence that the AddOne-owned UI contracts are composable for future structured tabs without initializing the terminal host or creating PTYs.
-- [ ] 7.2 Update the existing multi-agent milestone evidence to identify this change as satisfying its task 5.4 prerequisite only after all base gates pass; do not begin structured tabs or section 6 of that milestone before this acceptance.
+- [ ] 7.1 Add the exact pinned public `@earendil-works/pi-tui` dependency and implement `PiTuiRuntimeAdapter` over public TUI, terminal lifecycle, input, focus, overlays, differential rendering, resize, and restoration; pass runtime conformance and architecture-boundary tests without private fields or patches.
+- [ ] 7.2 Implement `PiSessionShell` from public Pi editor, transcript, tool, selector, dialog, and status components plus provenance-recorded orchestration ports; remove the hand-written runtime/editor/chrome from the `a1 ui` production path while preserving explicit transparent modes.
+- [ ] 7.3 Build static component parity fixtures comparing the owned shell and pinned Pi components at fixed widths and states for transcript, streaming, tools, editor, queued input, dialogs, selectors, status, errors, and resize; fail on row divergence outside documented tolerance.
+- [ ] 7.4 Build scripted event-sequence and terminal-frame parity fixtures for the pinned Pi version: drive equivalent session events through Pi and AddOne, render emitted ANSI into a virtual terminal or captured frame, and compare resulting screens.
+- [ ] 7.5 Correct every parity divergence, rerun focused and containing gates, and record the exact source commit, package version, fixture coverage, tolerances, and machine-readable parity evidence before manual acceptance.
+
+## 8. Accept the Parity-Safe Base UI
+
+- [ ] 8.1 Run complete automated gates after the Pi shell migration: build, typecheck, tests, architecture, SDK/runtime/component conformance, parity fixtures, lifecycle, resource, packaging, audit, and strict OpenSpec validation; preserve machine-readable evidence.
+- [ ] 8.2 Run user-controlled manual smoke acceptance for the exact parity-passing artifact: prompt and streaming, tools, editor and queued input, abort/retry/compaction, model and thinking controls, session resume, settings, clipboard, selection, resize, shutdown, and comparison against `a1 pi`; record exact commit and package identity.
+- [ ] 8.3 Correct every manual finding, rerun focused, containing, and parity gates, and mark the base UI accepted only when all baseline workflows pass.
+- [ ] 8.4 Merge the accepted slice through `develop` and publish a unique `-dev.N` package under npm `next` as an explicitly selected owned-UI development path, with structured tabs, additional customization, and composed terminal behavior disabled and no stable support claim; keep `latest` unchanged and verify registry/package integrity.
+
+## 9. Handoff to Multi-Agent Workspace
+
+- [ ] 9.1 Record evidence that the parity-safe AddOne shell contracts are composable for future structured tabs without initializing the terminal host or creating PTYs.
+- [ ] 9.2 Update the existing multi-agent milestone evidence to identify this change as satisfying its owned-UI prerequisite only after all parity and base gates pass; do not begin structured tabs or section 6 of that milestone before this acceptance.

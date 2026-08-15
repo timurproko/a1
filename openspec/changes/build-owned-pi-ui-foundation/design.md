@@ -1,189 +1,129 @@
 ## Context
 
-See `proposal.md` for scope. AddOne's current terminal paths are explicit transparent direct attachment and a separately gated Rust terminal-host proof. Neither is an owned application UI foundation.
+See `proposal.md` for scope. AddOne now has a proven public-SDK engine adapter, owned UI contracts, diagnostics, launch routing, customization registry, and a hand-written terminal runtime spike. Manual acceptance showed that the hand-written renderer/editor is too far from Pi and too fragile to serve as the product path.
 
-Two local references shape the design:
+Two local references constrain the correction:
 
-- `C:\Users\tprokopiev\Desktop\v2` demonstrated that an AddOne UI can become rich by patching Pi's stock interactive root, but that approach binds every upgrade to Pi's private classes, renderer state, distribution hashes, and prototype behavior.
-- `D:\Git\oh-my-pi` is a full Pi fork. It demonstrates a much stronger architecture for ownership—separate engine, controllers, components, status composition, append-only native-scrollback rendering, sanitized width-safe text, SDK-backed custom UI, and thorough renderer stress testing—but also shows the maintenance and scope burden of forking the entire engine and replacing its runtime ecosystem.
+- `C:\Users\tprokopiev\Desktop\v2` proved that private Pi patching is rich but upgrade-bound.
+- `D:\Git\oh-my-pi` shows the value of mature controller/component separation and renderer stress testing, while also showing the cost of a full fork.
 
-Pi itself now exposes enough documented public API to avoid both extremes: `createAgentSessionRuntime()`, typed session events, service construction, and root-package UI components can support an AddOne-owned root without touching `InteractiveMode` internals.
+The corrected design uses Pi's public SDK for engine behavior, public `pi-tui` for terminal primitives, public Pi components where independently usable, and provenance-recorded orchestration ports only where AddOne must own composition.
 
 ## Goals / Non-Goals
 
 **Goals:**
 
-- Own the fullscreen terminal root, component tree, view state, reducers, input/focus routing, transcript assembly, status, overlays, and customization slots.
-- Use Pi's documented public SDK as the agent engine and keep Pi types confined to adapters.
-- Reuse documented root-package Pi components where they are independently usable; port selected MIT-licensed Pi or oh-my-pi components only when AddOne needs ownership and records provenance.
-- Deliver one excellent fullscreen Pi session before tabs or multi-agent presentation.
-- Preserve exact upstream Pi through `a1 pi` as the comparison and recovery path.
-- Make the design composable enough for structured multi-agent tabs after base acceptance.
-- Establish upgrade conformance for engine events, services, commands, and public component constructors.
+- Own the AddOne shell composition, reducers, command routing, and customization slots.
+- Use public `pi-tui` for terminal input, focus, differential rendering, overlays, resize, and restoration.
+- Use public Pi components as the default transcript/editor/tool/dialog surfaces.
+- Port only the minimum Pi orchestration needed to own session composition, with exact MIT provenance.
+- Reach observable parity with the pinned current Pi version before customization, structured tabs, or publication.
+- Keep exact upstream Pi available through `a1 pi`.
+- Establish automated component, event-sequence, and terminal-frame parity gates.
 
 **Non-Goals:**
 
-- Building structured tabs, arbitrary terminal panes, split layouts, or the terminal multiplexer in this change.
-- Packaging, launching, or connecting the terminal-host proof in normal AddOne use.
-- Patching Pi's `InteractiveMode`, TUI prototypes, private renderer state, installed distribution files, or deep import paths.
-- Embedding stock Pi `InteractiveMode` to obtain automatic exact upstream updates.
-- Forking the full Pi engine, switching AddOne to Bun, adopting oh-my-pi's provider/tool surface, or recreating its batteries-included feature set.
-- Making every Pi extension's visual API work unchanged in the owned UI.
+- Continuing the hand-written terminal runtime, prompt editor, transcript renderer, or custom chrome as the production path.
+- Patching `InteractiveMode`, TUI prototypes, private renderer state, installed distribution files, or deep imports.
+- Embedding stock `InteractiveMode` merely to inherit upstream behavior automatically.
+- Forking Pi, switching AddOne to Bun, adopting oh-my-pi's scope, or implementing the terminal multiplexer here.
+- Promising automatic byte-for-byte identity with future Pi versions.
 
 ## Decisions
 
-### 1. AddOne owns the root; Pi is the public SDK engine
+### 1. AddOne owns the shell; Pi provides public engine and terminal primitives
 
-The architecture is:
+The production architecture is:
 
 ```text
-AddOne terminal application
-  -> AddOne UI runtime
-      -> view state and reducers
-      -> transcript/editor/tools/status/overlays
-      -> input, focus, command, and customization slots
+AddOne PiSessionShell
+  -> AddOne reducers, command routing, customization slots
+  -> PiTuiRuntimeAdapter
+      -> public pi-tui TUI / ProcessTerminal / focus / overlays / renderer
+  -> PiComponentAdapter
+      -> public Pi editor, transcript, tool, selector, footer components
   -> PiEngineAdapter
-      -> createAgentSessionRuntime() and public SDK services
+      -> public createAgentSessionRuntime and services
 ```
 
-Pi remains responsible for agent execution, session runtime, tools, model/auth/runtime resources, and typed session events. AddOne owns how those events become visible state and how user actions become commands.
+AddOne owns which components exist and how workspace/customization state reaches them. It does not own low-level terminal byte parsing or differential rendering.
 
-Alternatives considered:
+### 2. The custom renderer spike is not the product path
 
-- Pi extensions under stock Pi: lower initial cost, but Pi still owns root composition, transcript, lifecycle, focus, and future tabs.
-- `v2` private patching: powerful but repeatedly refactored on Pi upgrades.
-- Full fork like oh-my-pi: maximum control, but far more maintenance than AddOne needs now.
+The existing `OwnedTerminalRuntime`, prompt editor, transcript renderer, and hand-made chrome remain only as evidence about contracts, integration, and failure modes. `a1 ui` must switch to the Pi-backed shell before acceptance. Keeping the custom runtime as a second supported UI would create two incompatible acceptance surfaces, so it is excluded from production rather than polished.
 
-### 2. The vanilla-style preset is AddOne-owned, not stock Pi embedded in AddOne
+### 3. Public Pi components are the default visual surfaces
 
-AddOne should reproduce the baseline Pi experience using adapters and public/ported components. It must not claim exact upstream identity. Exact current Pi remains available as `a1 pi`.
+The shell should use Pi's public components wherever they can be constructed and rendered through supported contracts. This includes the editor, user/assistant messages, tool execution, selectors, dialogs, and status/footer surfaces.
 
-This distinction prevents AddOne from inheriting the requirement that every Pi UI refactor automatically work inside AddOne. It also creates a stable baseline for later customization.
+A component may be bypassed only when it cannot operate outside Pi's stock root. That bypass must be a narrow AddOne-owned port with:
 
-### 3. Pi component reuse is allowed, but only through a narrow component bridge
+- exact Pi package/source revision;
+- MIT license and copyright attribution;
+- copied-file and local-modification inventory;
+- AddOne-owned contract;
+- conformance and parity coverage.
 
-The public Pi package exports useful UI pieces including message, tool, editor, footer, and selector components. AddOne may wrap those exports behind an `AddOneComponent` boundary when their constructor and render contracts are sufficient.
+### 4. Orchestration is ported at controller boundaries
 
-When a component is too coupled to Pi's stock root, AddOne should port it instead:
+Pi's stock `InteractiveMode` is not instantiated or patched. Its event, input, command, selector, and session-focus orchestration is ported only as needed into an AddOne-owned `PiSessionShell`.
 
-- record upstream package/source revision, license, attribution, and local modification notes;
-- place it in an AddOne-owned module;
-- add local conformance coverage;
-- synchronize upstream deliberately only when there is product value.
+This differs from `v2`: the port is source and provenance based, uses public SDK events/commands, and never mutates installed Pi objects. It differs from a full fork because only controller composition and AddOne seams are owned.
 
-Pi SDK and component types must not leak beyond the adapters. Workspace reducers consume AddOne-owned view models, commands, and diagnostics.
+### 5. Parity means observable parity at the pinned Pi version
 
-### 4. Learn from oh-my-pi's architecture without adopting its fork model
+The acceptance target is not "same code" or "automatic future identity." It is:
 
-The oh-my-pi repository confirms that a strong owned terminal UI should separate:
+- same rendered component rows for equivalent states and widths;
+- same view-state transitions for scripted Pi event sequences;
+- same terminal screens for covered emitted-frame scenarios;
+- same baseline user workflows for the pinned Pi package.
 
-- engine events from presentation;
-- interactive-mode orchestration from controllers;
-- controllers from renderable components;
-- transcript blocks from persistent status and editor chrome;
-- component rendering from terminal emission;
-- width, wrapping, sanitization, and content measurement from individual renderers;
-- core behavior from extension/resource loading.
+Documented tolerances may cover terminal capability negotiation or timing, but visual content and state transitions must not diverge.
 
-It also demonstrates that a terminal transcript must be treated as a commit ledger, not just an array of strings. AddOne will adopt these patterns at the AddOne UI boundary: component-owned immutable render results, explicit live/final transcript regions, append-only history semantics, and sanitized width-safe rendering.
+### 6. A parity harness is mandatory before manual acceptance
 
-AddOne will not adopt oh-my-pi's full fork structure, Bun-only runtime, large provider/tool catalog, native N-API engine, custom package export depth, or product scope. The lesson is architectural layering and renderer discipline, not dependency breadth.
+The harness has three layers:
 
-### 5. Transcript and streaming are authoritative UI state
+1. Component snapshots: equivalent message/tool/editor/dialog state rendered at fixed widths.
+2. Event sequences: scripted session events reduced by Pi's expected result and the AddOne shell.
+3. Terminal frames: emitted ANSI rendered into a virtual terminal or equivalent captured frame and compared.
 
-Pi session events are reduced into ordered AddOne view models:
+Manual acceptance starts only after these gates pass. This prevents screenshot-driven debugging from becoming the primary test method.
 
-- user messages;
-- assistant streaming and completed messages;
-- thinking and compaction presentation;
-- tool calls, updates, and results;
-- queued input and pending submissions;
-- retry, abort, and error states;
-- model/thinking/session/status metadata;
-- diagnostics and recovery affordances.
+### 7. Customization sits above the parity-safe shell
 
-The transcript stores finalized and live blocks separately enough that resize and presentation do not rewrite committed history or lose scrolled content. Render output is cached and width-aware, and terminal writes are coalesced into bounded frames.
+AddOne customization slots remain stable but resolve against AddOne-owned view models and shell surfaces. They cannot mutate Pi packages, runtime classes, or stock extension UI assumptions. Slots are disabled until parity acceptance to avoid locking in a broken baseline.
 
-### 6. Input, editor, paste, clipboard, and focus are AddOne-owned
+### 8. Upgrade strategy is controlled sync, not automatic inheritance
 
-AddOne owns the prompt editor, keyboard bindings, text/IME/paste behavior, queued input, selection, clipboard integration, and focus order. SDK commands are issued only after AddOne's input controller resolves the action.
+Pi upgrades run:
 
-Pi's editor may be reused if the public `CustomEditor` contract satisfies the required behavior. Otherwise AddOne builds a narrow editor component over public terminal primitives and owns its behavior explicitly.
+1. public SDK conformance;
+2. `pi-tui` runtime conformance;
+3. public component conformance;
+4. parity fixtures;
+5. upstream-source diff review for ported orchestration.
 
-### 7. Customization is slot-based, not host mutation
-
-Stable slots include:
-
-- transcript block renderers;
-- tool card renderers;
-- editor;
-- status/header/footer;
-- command and selector surfaces;
-- overlays and dialogs;
-- themes;
-- future structured tab layout composition.
-
-A customization receives a typed AddOne view model and returns AddOne-owned render results or actions. It cannot mutate the Pi package, terminal renderer, or session engine.
-
-Visual Pi extension compatibility is not promised in the first phase. Non-visual Pi tools, skills, commands, and resources are loaded where the public SDK supports them. A later explicit AddOne bridge can host selected visual extension concepts.
-
-### 8. The first acceptance gate is a single fullscreen session
-
-The acceptance gate proves the vanilla-style base workflow before customization breadth:
-
-- prompt, stream, tool execution, and completion;
-- abort, retry, compaction, and error surfaces;
-- model and thinking controls;
-- session create/resume;
-- queued input and paste;
-- clipboard and selection;
-- resize and terminal restoration;
-- diagnostics and clean shutdown;
-- upgrade adapter conformance;
-- comparison against `a1 pi`.
-
-No multi-agent tabs are exposed until this gate passes.
-
-### 9. Runtime stack remains AddOne's Node/TypeScript product
-
-AddOne remains on Node and TypeScript. The UI renderer may use public `pi-tui` primitives or an AddOne-owned narrow renderer built over terminal primitives if the public engine does not expose enough control. In either case AddOne owns its component contracts and upgrade tests.
-
-The design should not introduce Bun, oh-my-pi's package scope, or native UI dependencies as a shortcut.
-
-### 10. Upgrade conformance is a release prerequisite
-
-Each Pi upgrade candidate runs fixture suites for:
-
-- public SDK session construction and service creation;
-- typed event shape and sequencing;
-- prompt, abort, compaction, retry, model, thinking, resume, and shutdown commands;
-- public component constructor/render contracts;
-- AddOne adapter mapping;
-- vanilla-style render fixtures;
-- terminal restore and cleanup.
-
-If Pi changes public behavior, the change is reviewed and contained in engine/component adapters. AddOne does not rely on hash checks to guess safety; it runs conformance against declared public APIs.
+Failures stay inside engine/runtime/component adapters or the provenance-recorded shell port. `a1 pi` remains the exact upstream recovery path.
 
 ## Risks / Trade-offs
 
-- **[The public SDK may not expose every orchestration behavior needed for vanilla parity]** → Identify gaps through the first implementation slice and cover them with owned orchestration over public events; escalate only through documented APIs or provenance-recorded ports.
-- **[Reused components can still be coupled to Pi's root]** → Wrap each candidate independently, test its constructor/render behavior, and replace only that component if coupling appears.
-- **[Porting selected code can become an accidental fork]** → Keep ports narrow, attributed, version-stamped, and covered; do not copy engine internals or whole directories.
-- **[oh-my-pi's renderer architecture is mature but its scope is much larger]** → Extract its architectural invariants and testing strategy, not its dependency graph or product surface.
-- **[Terminal transcript rendering has historically hidden corruption modes]** → Implement append-only history invariants, width-safe rendering, stress fixtures, and manual comparison before acceptance.
-- **[Customization slots can become an accidental second extension API]** → Version and bound slots, support AddOne-owned contracts only, and defer Pi visual-extension compatibility.
-- **[Pi upgrades can break public component assumptions]** → Keep components behind adapters and require conformance fixtures before release.
-- **[Exact vanilla identity is not possible without embedding stock Pi]** → Preserve `a1 pi` as the exact path and document the owned preset as vanilla-style rather than identical.
+- **[Pi's public component constructors may still assume stock TUI context]** → Validate each component in the adapter and port only the minimum coupled behavior with provenance.
+- **[Ported orchestration can drift from Pi]** → Use pinned versions, source-diff review, and parity fixtures on every upgrade.
+- **[Parity fixtures can miss terminal-specific behavior]** → Keep automated frame fixtures broad and reserve a short manual smoke pass after the gate, not months of manual discovery.
+- **[The spike work may feel wasted]** → Preserve its contracts, adapter, diagnostics, and governance; discard only the presentation internals that failed parity.
+- **[Extensions offer cheaper upgrades but weaker ownership]** → Use owned slots for AddOne product surfaces and support only explicitly mapped non-visual Pi resources initially.
+- **[Exact future identity is impossible]** → Publish parity as current-version observable parity, not as a promise to match unreleased Pi changes automatically.
 
 ## Migration Plan
 
-1. Create or switch to `milestone/owned-pi-ui-foundation` before editing implementation files; that branch may base on `milestone/multi-agent-workspace` for planning and structured-runtime prerequisites but SHALL NOT implement this change there.
-2. Add architecture contracts and boundary checks for the owned UI and Pi adapter before exposing a new launch mode.
-2. Implement the Pi engine adapter with an in-memory harness and event/command conformance fixtures.
-3. Implement the terminal runtime, state reducers, transcript, editor, status, and diagnostics for one session.
-4. Add vanilla-style component reuse or provenance-recorded ports one surface at a time.
-5. Run automated conformance, terminal rendering, input, resize, lifecycle, resource, and explicit-mode regression tests.
-6. Run user-controlled manual base-UX acceptance against the exact development artifact and compare with `a1 pi`.
-7. Merge through `develop` and publish only an explicitly selected development path under npm `next` if the base gate passes.
-8. Then resume structured multi-agent tab work in the existing milestone change; composed terminal proof and multiplexer work remain separately gated.
-9. Roll back by disabling the owned UI path and restoring the existing transparent launch behavior; versioned UI settings remain readable for retry.
+1. Preserve the current spike commit and evidence; stop using it as the acceptance target.
+2. Add the exact public `pi-tui` dependency and `PiTuiRuntimeAdapter` with public-runtime conformance.
+3. Build `PiSessionShell` from public Pi components and provenance-recorded orchestration ports.
+4. Replace `a1 ui`'s hand-written presentation with the shell while keeping explicit modes unchanged.
+5. Build component snapshot, event-sequence, and terminal-frame parity fixtures for the pinned Pi version.
+6. Correct every parity divergence and rerun focused plus containing gates.
+7. Run the short user-controlled manual smoke acceptance against the exact parity-passing artifact and compare with `a1 pi`.
+8. Only then publish the development path, enable customization slots, and resume structured multi-agent tab work.
+9. Roll back by disabling `a1 ui`; bare transparent AddOne, `a1 pi`, and `a1 sandbox` remain unchanged.
