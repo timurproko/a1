@@ -325,6 +325,30 @@ describe("Pi engine adapter", () => {
     expect(adapter.view().activeCommandIds).toEqual([]);
   });
 
+  it("exposes non-visual public SDK resources and declares visual extension surfaces unavailable", async () => {
+    const runtime = new FakeRuntime(new FakeSession("pi-session-1"));
+    (runtime.services as { resourceLoader?: unknown }).resourceLoader = {
+      getSkills: () => ({ skills: [{ name: "review", path: "skills/review.md" }], diagnostics: [{ path: "skills/bad.md", message: "bad skill" }] }),
+      getPrompts: () => ({ prompts: [{ name: "handoff", path: "prompts/handoff.md" }], diagnostics: [] }),
+      getAgentsFiles: () => ({ agentsFiles: [{ path: "AGENTS.md", content: "rules" }] }),
+      getSystemPromptSource: () => ({ path: "system.md" }),
+      getAppendSystemPromptSources: () => [{ path: "append.md" }],
+    };
+    const { adapter } = await adapterWithRuntime(runtime);
+
+    expect(adapter.nonVisualResources()).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: "skill", label: "review", sourcePath: "skills/review.md" }),
+      expect.objectContaining({ kind: "skill", diagnostic: "skills/bad.md: bad skill" }),
+      expect.objectContaining({ kind: "prompt-template", label: "handoff" }),
+      expect.objectContaining({ kind: "agent-context", sourcePath: "AGENTS.md" }),
+      expect.objectContaining({ kind: "system-prompt", sourcePath: "system.md" }),
+    ]));
+    expect(adapter.visualExtensionSupport()).toMatchObject({
+      available: false,
+      diagnostic: expect.stringContaining("AddOne-owned slots"),
+    });
+  });
+
   it("coalesces high-rate engine events under a bounded queue without terminal failures", async () => {
     const runtime = new FakeRuntime(new FakeSession("pi-session-1"));
     const { adapter, events } = await adapterWithRuntime(runtime);

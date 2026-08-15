@@ -55,6 +55,13 @@ export interface PiServicesLike {
   readonly modelRuntime: {
     getModel(providerId: string, modelId: string): unknown;
   };
+  readonly resourceLoader?: {
+    getSkills(): unknown;
+    getPrompts(): unknown;
+    getAgentsFiles(): unknown;
+    getSystemPromptSource(): unknown;
+    getAppendSystemPromptSources(): unknown;
+  };
   readonly diagnostics: readonly { readonly type: string; readonly message: string }[];
 }
 
@@ -69,6 +76,19 @@ export interface PiRuntimeLike {
 }
 
 export type PiEngineRuntimeFactory = (input: PiEngineRuntimeFactoryInput) => Promise<PiRuntimeLike>;
+
+export interface OwnedPiResourceSummary {
+  readonly kind: "skill" | "prompt-template" | "agent-context" | "system-prompt";
+  readonly id: string;
+  readonly label: string;
+  readonly sourcePath: string | null;
+  readonly diagnostic: string | null;
+}
+
+export interface OwnedPiVisualExtensionSupport {
+  readonly available: false;
+  readonly diagnostic: string;
+}
 
 export interface PiEngineAdapterOptions {
   readonly cwd?: string;
@@ -187,6 +207,86 @@ export class PiEngineAdapter {
 
   async flushEvents(): Promise<void> {
     while (this.#eventQueueProcessing) await this.#eventQueueProcessing;
+  }
+
+  nonVisualResources(): readonly OwnedPiResourceSummary[] {
+    const loader = this.#runtime?.services.resourceLoader;
+    if (!loader) return [];
+    const resources: OwnedPiResourceSummary[] = [];
+    const skills = collectionResult(loader.getSkills(), "skills");
+    for (const [index, skill] of skills.values.entries()) {
+      resources.push({
+        kind: "skill",
+        id: `skill-${index}-${stringProperty(skill, "name") ?? "unknown"}`,
+        label: stringProperty(skill, "name") ?? "Unnamed skill",
+        sourcePath: stringProperty(skill, "path") ?? stringProperty(skill, "location") ?? null,
+        diagnostic: null,
+      });
+    }
+    resources.push(...skills.diagnostics.map((diagnostic, index) => ({
+      kind: "skill" as const,
+      id: `skill-diagnostic-${index}`,
+      label: "Skill diagnostic",
+      sourcePath: null,
+      diagnostic,
+    })));
+
+    const prompts = collectionResult(loader.getPrompts(), "prompts");
+    for (const [index, prompt] of prompts.values.entries()) {
+      resources.push({
+        kind: "prompt-template",
+        id: `prompt-${index}-${stringProperty(prompt, "name") ?? "unknown"}`,
+        label: stringProperty(prompt, "name") ?? "Prompt template",
+        sourcePath: stringProperty(prompt, "path") ?? null,
+        diagnostic: null,
+      });
+    }
+    resources.push(...prompts.diagnostics.map((diagnostic, index) => ({
+      kind: "prompt-template" as const,
+      id: `prompt-diagnostic-${index}`,
+      label: "Prompt diagnostic",
+      sourcePath: null,
+      diagnostic,
+    })));
+
+    const agentsFilesResult = loader.getAgentsFiles();
+    const agentsFiles = unknownArray(isRecord(agentsFilesResult) ? agentsFilesResult.agentsFiles : undefined);
+    for (const [index, file] of agentsFiles.entries()) {
+      resources.push({
+        kind: "agent-context",
+        id: `agent-context-${index}`,
+        label: "Agent context",
+        sourcePath: stringProperty(file, "path") ?? null,
+        diagnostic: null,
+      });
+    }
+    const systemPrompt = loader.getSystemPromptSource();
+    if (isRecord(systemPrompt) && typeof systemPrompt.path === "string") {
+      resources.push({
+        kind: "system-prompt",
+        id: "system-prompt",
+        label: "System prompt",
+        sourcePath: systemPrompt.path,
+        diagnostic: null,
+      });
+    }
+    for (const [index, source] of unknownArray(loader.getAppendSystemPromptSources()).entries()) {
+      resources.push({
+        kind: "system-prompt",
+        id: `append-system-prompt-${index}`,
+        label: "Append system prompt",
+        sourcePath: stringProperty(source, "path") ?? null,
+        diagnostic: null,
+      });
+    }
+    return resources;
+  }
+
+  visualExtensionSupport(): OwnedPiVisualExtensionSupport {
+    return {
+      available: false,
+      diagnostic: "Stock Pi visual extension surfaces are unavailable in the AddOne-owned UI; use AddOne-owned slots or non-visual public SDK resources.",
+    };
   }
 
   view(): OwnedUiSessionViewModel {
@@ -816,6 +916,30 @@ function readStringArray(value: unknown): readonly string[] {
 
 function stringValue(value: unknown): string | undefined {
   return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function collectionResult(value: unknown, key: string): { values: readonly unknown[]; diagnostics: readonly string[] } {
+  if (!isRecord(value)) return { values: [], diagnostics: [] };
+  const diagnostics = unknownArray(value.diagnostics).map(diagnostic => {
+    if (typeof diagnostic === "string") return diagnostic;
+    if (isRecord(diagnostic)) {
+      const message = stringProperty(diagnostic, "message") ?? String(diagnostic);
+      const path = stringProperty(diagnostic, "path");
+      return path ? `${path}: ${message}` : message;
+    }
+    return String(diagnostic);
+  });
+  return { values: unknownArray(value[key]), diagnostics };
+}
+
+function unknownArray(value: unknown): readonly unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function stringProperty(value: unknown, key: string): string | undefined {
+  if (!isRecord(value)) return undefined;
+  const item = value[key];
+  return typeof item === "string" && item.length > 0 ? item : undefined;
 }
 
 function textFromContent(content: unknown): string {
