@@ -24,7 +24,9 @@ export type OwnedUiTranscriptBlockKind =
   | "retry"
   | "compaction"
   | "error"
-  | "system";
+  | "system"
+  | "custom"
+  | "bash";
 
 export type OwnedUiSeverity = "info" | "warning" | "error";
 

@@ -251,7 +251,29 @@ async function sourceMapRecord(pkg, sourceMapPath, scope) {
             },
           ],
         }
-      : undefined;
+      : upstreamPath === "packages/coding-agent/src/modes/interactive/components/countdown-timer.ts"
+        ? {
+            localDestination: "src/foundation/pi-component-adapter/upstream/components/countdown-timer.ts",
+            modifications: "Mechanical source port with ECMAScript private fields; imports remain on the public Pi TUI package root.",
+            approvedDeviations: [{
+              id: "countdown-owned-private-fields",
+              reason: "Use language-level private fields in the AddOne-owned class without changing timer ordering or lifecycle.",
+              upstreamBehavior: "Initial tick, one-second decrements, render requests, expiration callback, and disposal order match pinned Pi.",
+              acceptanceTest: "test/foundation/pi-component-adapter/pinned-status-indicator-parity.test.ts",
+            }],
+          }
+        : upstreamPath === "packages/coding-agent/src/modes/interactive/components/status-indicator.ts"
+          ? {
+              localDestination: "src/foundation/pi-component-adapter/upstream/components/status-indicator.ts",
+              modifications: "Mechanical source port with public package-root keybinding, Loader, and owned theme/countdown imports plus ECMAScript private fields.",
+              approvedDeviations: [{
+                id: "status-indicator-public-boundaries",
+                reason: "Remap private theme, countdown, extension option, and keybinding imports to AddOne-owned or public package-root equivalents.",
+                upstreamBehavior: "Working, retry, compaction, branch-summary, idle, countdown, style, and disposal behavior match pinned Pi.",
+                acceptanceTest: "test/foundation/pi-component-adapter/pinned-status-indicator-parity.test.ts",
+              }],
+            }
+          : undefined;
   const localDestination = portedThemeUnit?.localDestination ?? disposition.localDestination;
   const classification = portedThemeUnit === undefined ? disposition.classification : "owned-source-port";
   const implementationStatus = portedThemeUnit === undefined ? disposition.implementationStatus : "ported";
@@ -415,6 +437,8 @@ function acceptanceTasks(path, categories) {
 function testTargets(path, categories) {
   const tests = new Set();
   if (path.includes("/theme/")) tests.add("test/foundation/pi-component-adapter/pinned-theme-parity.test.ts");
+  if (path.includes("/components/")) tests.add("test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts");
+  if (path.endsWith("/components/status-indicator.ts") || path.endsWith("/components/countdown-timer.ts")) tests.add("test/foundation/pi-component-adapter/pinned-status-indicator-parity.test.ts");
   if (path.includes("/theme/") || categories.includes("startup-composition")) tests.add("test/foundation/pi-component-adapter/pinned-theme-composition-parity.test.ts");
   if (categories.includes("stateful-components")) tests.add("test/foundation/pi-component-adapter/pinned-component-lifecycle-parity.test.ts");
   if (categories.some(category => ["editor", "autocomplete", "keybindings", "clipboard"].includes(category))) tests.add("test/features/owned-ui/pinned-input-parity.test.ts");

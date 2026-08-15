@@ -1141,6 +1141,59 @@ export class PiEngineAdapter {
         payload: { role: "user", imageCount: contentImageCount(message.content) },
       }];
     }
+    if (message.role === "bashExecution") {
+      return [{
+        id: baseId,
+        kind: "bash",
+        status,
+        revision: this.#nextBlockRevision(baseId),
+        title: stringValue(message.command) ?? "Bash",
+        text: stringValue(message.output) ?? "",
+        payload: {
+          role: "bashExecution",
+          command: stringValue(message.command) ?? "",
+          exitCode: typeof message.exitCode === "number" ? message.exitCode : null,
+          cancelled: message.cancelled === true,
+          truncated: message.truncated === true,
+          fullOutputPath: stringValue(message.fullOutputPath) ?? null,
+          excludeFromContext: message.excludeFromContext === true,
+        },
+      }];
+    }
+    if (message.role === "custom") {
+      if (message.display === false) return [];
+      return [{
+        id: baseId,
+        kind: "custom",
+        status,
+        revision: this.#nextBlockRevision(baseId),
+        title: stringValue(message.customType) ?? "Custom",
+        text: textFromContent(message.content),
+        payload: {
+          role: "custom",
+          customType: stringValue(message.customType) ?? "custom",
+          display: true,
+          details: message.details,
+          timestamp: typeof message.timestamp === "number" ? message.timestamp : 0,
+        },
+      }];
+    }
+    if (message.role === "compactionSummary" || message.role === "branchSummary") {
+      return [{
+        id: baseId,
+        kind: "compaction",
+        status,
+        revision: this.#nextBlockRevision(baseId),
+        title: message.role === "branchSummary" ? "Branch summary" : "Compaction summary",
+        text: stringValue(message.summary) ?? "",
+        payload: {
+          role: message.role,
+          tokensBefore: typeof message.tokensBefore === "number" ? message.tokensBefore : 0,
+          fromId: stringValue(message.fromId) ?? null,
+          timestamp: typeof message.timestamp === "number" ? message.timestamp : 0,
+        },
+      }];
+    }
     if (message.role === "toolResult") {
       return [{
         id: baseId,
@@ -1206,6 +1259,7 @@ export class PiEngineAdapter {
           toolCallId,
           toolName: stringValue(item.name) ?? "unknown",
           arguments: jsonSummary(item.arguments),
+          argsComplete: status === "finalized",
         },
       });
     }
@@ -1231,6 +1285,8 @@ export class PiEngineAdapter {
         toolName: stringValue(event.toolName) ?? "unknown",
         arguments: jsonSummary(event.args),
         result: jsonSummary(source),
+        partialResult: event.type === "tool_execution_update",
+        argsComplete: ended,
         isError: event.isError === true,
       },
     });

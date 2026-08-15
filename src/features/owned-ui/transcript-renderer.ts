@@ -94,6 +94,10 @@ function blockLabel(block: OwnedUiTranscriptBlock): string {
       return "error › ";
     case "system":
       return "system › ";
+    case "custom":
+      return `${sanitizeDisplayText(block.title ?? "custom")} › `;
+    case "bash":
+      return "$ ";
   }
 }
 

@@ -265,13 +265,25 @@ describe("Pi engine adapter", () => {
       isError: false,
       timestamp: 3,
     };
-    session.setMessages([userMessage, assistantMessage, toolResult]);
+    const bashExecution = {
+      role: "bashExecution", command: "printf ok", output: "ok", exitCode: 0, cancelled: false, timestamp: 4,
+    };
+    const customMessage = {
+      role: "custom", customType: "notice", content: "extension notice", display: true, details: { value: 1 }, timestamp: 5,
+    };
+    const hiddenCustomMessage = { ...customMessage, customType: "hidden", display: false, timestamp: 6 };
+    const compactionSummary = { role: "compactionSummary", summary: "compact summary", tokensBefore: 123, timestamp: 7 };
+    session.setMessages([userMessage, assistantMessage, toolResult, bashExecution, customMessage, hiddenCustomMessage, compactionSummary]);
 
     const { adapter } = await adapterWithRuntime(runtime);
     const transcript = adapter.view().transcript;
-    expect(transcript.map(block => block.kind)).toEqual(["user", "assistant", "thinking", "tool-call", "tool-result"]);
+    expect(transcript.map(block => block.kind)).toEqual([
+      "user", "assistant", "thinking", "tool-call", "tool-result", "bash", "custom", "compaction",
+    ]);
     expect(transcript[0]?.payload).toMatchObject({ role: "user", imageCount: 1 });
     expect(JSON.stringify(transcript)).not.toContain("secret-image-bytes");
+    expect(transcript.find(block => block.kind === "bash")).toMatchObject({ title: "printf ok", text: "ok" });
+    expect(transcript.find(block => block.kind === "custom")).toMatchObject({ title: "notice", text: "extension notice" });
     expect(adapter.snapshot()).toMatchObject({
       contractVersion: 1,
       sessionId: "owned-1",

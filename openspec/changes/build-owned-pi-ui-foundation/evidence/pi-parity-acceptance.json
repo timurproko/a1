@@ -32,7 +32,7 @@
   "fixtures": [
     {
       "path": "test/features/owned-ui/fixtures/pi-component-parity.json",
-      "sha256": "6590567286ba49faa6a4d82eb7f2a1037666a462ab8a1cebe98f1a61af319900",
+      "sha256": "4af29db9d707febf0f625f55faa790f28b8be2ad5314e34a8dd9af005e982481",
       "cases": 4,
       "classification": "AddOne-generated regression fixture; no independent upstream producer",
       "coverage": [

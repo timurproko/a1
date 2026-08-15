@@ -38,6 +38,8 @@ const BLOCK_KINDS = new Set([
   "compaction",
   "error",
   "system",
+  "custom",
+  "bash",
 ]);
 const LIFECYCLES = new Set(["starting", "ready", "busy", "suspended", "stopping", "stopped", "failed"]);
 const BLOCK_STATUSES = new Set(["live", "finalized"]);

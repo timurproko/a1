@@ -1,7 +1,10 @@
 import {
   AssistantMessageComponent,
+  BashExecutionComponent,
   CompactionSummaryMessageComponent,
   CustomEditor,
+  CustomMessageComponent,
+  getMarkdownTheme,
   getSelectListTheme,
   rawKeyHint,
   ToolExecutionComponent,
@@ -337,13 +340,20 @@ export function createPiShellTranscriptComponent(
     invalidate: () => component.invalidate(),
     update(next) {
       if (next.id !== block.id) throw new TypeError("Pi transcript component identity cannot change");
+      const previous = block;
       block = next;
-      component = transcriptComponent(block, cwd, expanded);
+      if (!updateTranscriptComponent(component, previous, next, expanded)) {
+        component = transcriptComponent(block, cwd, expanded);
+      }
     },
     setExpanded(next) {
       if (expanded === next) return;
       expanded = next;
-      component = transcriptComponent(block, cwd, expanded);
+      if ("setExpanded" in component && typeof component.setExpanded === "function") {
+        component.setExpanded(expanded);
+      } else {
+        component = transcriptComponent(block, cwd, expanded);
+      }
     },
   };
 }
@@ -375,45 +385,96 @@ function transcriptComponent(block: OwnedUiTranscriptBlock, cwd: string, expande
         role: "compactionSummary",
         summary: block.text,
         tokensBefore: numericPayload(block, "tokensBefore"),
-        timestamp: Date.now(),
-      });
+        timestamp: numericPayload(block, "timestamp") || 0,
+      }, getMarkdownTheme());
       component.setExpanded(expanded);
       return component;
     }
     case "retry":
-      return new Text(piTheme().fg("warning", `Retry: ${block.text}`), 0, 0);
+      return new Text(piTheme().fg("warning", `Retry: ${block.text}`), PINNED_PI_LAYOUT.outputPad, 0);
     case "error":
-      return new Text(piTheme().fg("error", `Error: ${block.text}`), 0, 0);
+      return new Text(piTheme().fg("error", `Error: ${block.text}`), PINNED_PI_LAYOUT.outputPad, 0);
     case "system":
-      return new Text(piTheme().fg("dim", block.text), 0, 0);
+      return new Text(piTheme().fg("dim", block.text), PINNED_PI_LAYOUT.outputPad, 0);
+    case "custom":
+      return customMessageComponent(block, expanded);
+    case "bash":
+      return bashExecutionComponent(block, cwd, expanded);
   }
 }
 
+function updateTranscriptComponent(
+  component: Component,
+  previous: OwnedUiTranscriptBlock,
+  next: OwnedUiTranscriptBlock,
+  expanded: boolean,
+): boolean {
+  if (component instanceof AssistantMessageComponent && next.kind === previous.kind
+    && (next.kind === "assistant" || next.kind === "thinking")) {
+    component.updateContent(assistantMessage(next) as never, next.status === "live");
+    return true;
+  }
+  if (component instanceof ToolExecutionComponent
+    && (next.kind === "tool-call" || next.kind === "tool-result")
+    && (previous.kind === "tool-call" || previous.kind === "tool-result")) {
+    const payload = blockPayload(next);
+    component.updateArgs(toolArguments(payload));
+    if (next.status === "live") component.markExecutionStarted();
+    if (next.status === "finalized" || payload.argsComplete === true) component.setArgsComplete();
+    if (payload.partialResult === true) {
+      component.updateResult({ content: [{ type: "text", text: next.text }], isError: false }, true);
+    } else if (next.kind === "tool-result") {
+      component.updateResult({
+        content: [{ type: "text", text: next.text }],
+        isError: payload.isError === true,
+      }, next.status === "live");
+    }
+    component.setExpanded(expanded);
+    return true;
+  }
+  if (component instanceof BashExecutionComponent && next.kind === "bash" && previous.kind === "bash") {
+    if (next.text.startsWith(previous.text)) component.appendOutput(next.text.slice(previous.text.length));
+    else return false;
+    if (next.status === "finalized") completeBashComponent(component, next);
+    component.setExpanded(expanded);
+    return true;
+  }
+  if (component instanceof Text && next.kind === previous.kind
+    && (next.kind === "retry" || next.kind === "error" || next.kind === "system")) {
+    component.setText(transcriptText(next));
+    return true;
+  }
+  return false;
+}
+
 function assistantComponent(block: OwnedUiTranscriptBlock): AssistantMessageComponent {
+  const component = new AssistantMessageComponent(undefined, false, getMarkdownTheme(), undefined, PINNED_PI_LAYOUT.outputPad);
+  component.updateContent(assistantMessage(block) as never, block.status === "live");
+  return component;
+}
+
+function assistantMessage(block: OwnedUiTranscriptBlock): Record<string, unknown> {
   const payload = blockPayload(block);
   const content = block.kind === "thinking"
     ? [{ type: "thinking", thinking: block.text }]
     : [{ type: "text", text: block.text }];
-  const message = {
+  return {
     role: "assistant",
     content,
-    api: "openai-responses",
+    api: stringPayload(payload, "api") ?? "openai-responses",
     provider: stringPayload(payload, "provider") ?? "openai",
     model: stringPayload(payload, "model") ?? "gpt-5",
-    usage: emptyUsage(),
-    stopReason: block.status === "live" ? "pending" : "stop",
-    timestamp: Date.now(),
+    usage: isRecord(payload.usage) ? payload.usage : emptyUsage(),
+    stopReason: stringPayload(payload, "stopReason") ?? (block.status === "live" ? "pending" : "stop"),
+    timestamp: numericPayload(block, "timestamp") || 0,
   };
-  const component = new AssistantMessageComponent(undefined, false);
-  component.updateContent(message as never, block.status === "live");
-  return component;
 }
 
 function toolComponent(block: OwnedUiTranscriptBlock, cwd: string): ToolExecutionComponent {
   const payload = blockPayload(block);
   const toolCallId = stringPayload(payload, "toolCallId") ?? block.id;
   const toolName = stringPayload(payload, "toolName") ?? block.title ?? "tool";
-  const argumentsPayload = isRecord(payload.arguments) && "json" in payload.arguments ? payload.arguments.json : {};
+  const argumentsPayload = toolArguments(payload);
   const component = new ToolExecutionComponent(
     toolName,
     toolCallId,
@@ -424,14 +485,65 @@ function toolComponent(block: OwnedUiTranscriptBlock, cwd: string): ToolExecutio
     cwd,
   );
   if (block.status === "live") component.markExecutionStarted();
-  component.setArgsComplete();
-  if (block.kind === "tool-result") {
+  if (block.status === "finalized" || payload.argsComplete === true) component.setArgsComplete();
+  if (payload.partialResult === true) {
+    component.updateResult({ content: [{ type: "text", text: block.text }], isError: false }, true);
+  } else if (block.kind === "tool-result") {
     component.updateResult({
       content: [{ type: "text", text: block.text }],
       isError: payload.isError === true,
     });
   }
   return component;
+}
+
+function customMessageComponent(block: OwnedUiTranscriptBlock, expanded: boolean): CustomMessageComponent {
+  const payload = blockPayload(block);
+  const message = {
+    role: "custom" as const,
+    customType: stringPayload(payload, "customType") ?? block.title ?? "custom",
+    content: block.text,
+    display: payload.display !== false,
+    details: payload.details,
+    timestamp: numericPayload(block, "timestamp") || 0,
+  };
+  const renderer = typeof payload.renderer === "function" ? payload.renderer : undefined;
+  const component = new CustomMessageComponent(message, renderer as never, getMarkdownTheme(), PINNED_PI_LAYOUT.outputPad);
+  component.setExpanded(expanded);
+  return component;
+}
+
+function bashExecutionComponent(block: OwnedUiTranscriptBlock, cwd: string, expanded: boolean): BashExecutionComponent {
+  const payload = blockPayload(block);
+  const component = new BashExecutionComponent(
+    stringPayload(payload, "command") ?? block.title ?? "",
+    createTuiFacade({ getColumns: () => 80, getRows: () => 24, requestRender() {} }),
+    payload.excludeFromContext === true,
+  );
+  if (block.text) component.appendOutput(block.text);
+  if (block.status === "finalized") completeBashComponent(component, block);
+  component.setExpanded(expanded);
+  return component;
+}
+
+function completeBashComponent(component: BashExecutionComponent, block: OwnedUiTranscriptBlock): void {
+  const payload = blockPayload(block);
+  component.setComplete(
+    typeof payload.exitCode === "number" ? payload.exitCode : undefined,
+    payload.cancelled === true,
+    payload.truncated === true ? { truncated: true } as never : undefined,
+    stringPayload(payload, "fullOutputPath"),
+  );
+}
+
+function toolArguments(payload: Record<string, unknown>): unknown {
+  return isRecord(payload.arguments) && "json" in payload.arguments ? payload.arguments.json : payload.arguments ?? {};
+}
+
+function transcriptText(block: OwnedUiTranscriptBlock): string {
+  if (block.kind === "retry") return piTheme().fg("warning", `Retry: ${block.text}`);
+  if (block.kind === "error") return piTheme().fg("error", `Error: ${block.text}`);
+  return piTheme().fg("dim", block.text);
 }
 
 function createTuiFacade(options: Pick<PiShellEditorOptions, "getColumns" | "getRows" | "requestRender"> & { readonly onSubmit?: (text: string) => void }): TUI {
