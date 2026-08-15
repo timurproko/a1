@@ -16,7 +16,7 @@
 
 - [x] 3.1 Implement the AddOne-owned fullscreen terminal runtime with raw input normalization, focus routing, component invalidation, coalesced rendering, width-safe sanitized output, overlays, terminal resize, synchronized updates where supported, and restoration on exit; pass focused terminal-runtime tests.
 - [x] 3.2 Implement append-only transcript history with explicit live and finalized block boundaries, render caching, resize-safe repainting, selection-safe output, and bounded frame scheduling; pass streaming, long-output, Unicode, alternate-content, resize, and regression fixtures.
-- [ ] 3.3 Implement the owned prompt editor with text and IME input, queued submissions, paste, selection, clipboard, keyboard bindings, focus, cancellation, and terminal-restoration behavior; pass editor property and interaction tests.
+- [x] 3.3 Implement the owned prompt editor with text and IME input, queued submissions, paste, selection, clipboard, keyboard bindings, focus, cancellation, and terminal-restoration behavior; pass editor property and interaction tests.
 - [ ] 3.4 Implement status, header/footer, notifications, dialogs, selectors, command surface, and diagnostics as AddOne-owned components connected through view models; pass rendering and state-transition fixtures.
 
 ## 4. Deliver the Vanilla-Style Fullscreen Session
