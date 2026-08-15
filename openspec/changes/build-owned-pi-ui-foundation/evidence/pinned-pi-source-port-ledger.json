@@ -2,7 +2,7 @@
   "schema": "addone-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-08-15T17:13:22.420Z",
+  "recordedAt": "2026-08-15T17:24:37.558Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "53fa77ccd8a279eb87e92294ef3687b03ff80112",
@@ -444,10 +444,18 @@
       "sha256": "9b5c4d1cdf84ad98c0b32c9ec9c1d21db9680c6ef49b497edf93fea80fca7c89",
       "classification": "owned-source-port",
       "localDestination": "src/foundation/pi-component-adapter/upstream/adjacent/core/keybindings.ts",
-      "implementationStatus": "not-ported",
+      "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Mechanical port planned: remap imports, inject AddOne engine/runtime ownership, preserve control flow and state, and record every deviation.",
-      "approvedDeviations": [],
+      "modifications": "Mechanical source port with Node import prefixes and public package-root AddOne agent-directory resolution.",
+      "localSha256": "15527c1d8bae1f2a9e7910514de96194c010477c78aefa4912181af4aa58cf16",
+      "approvedDeviations": [
+        {
+          "id": "keybindings-public-config-boundary",
+          "reason": "Resolve the agent configuration directory through the documented package-root API instead of a private config import.",
+          "upstreamBehavior": "Complete pinned defaults, migrations, user overrides, conflict detection, matching, and effective-config behavior remain unchanged.",
+          "acceptanceTest": "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts"
+        }
+      ],
       "behaviorCategories": [
         "editor",
         "autocomplete",

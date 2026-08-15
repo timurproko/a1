@@ -15,12 +15,10 @@ import {
   Box,
   CombinedAutocompleteProvider,
   Container,
-  KeybindingsManager,
   SelectList,
   Spacer,
   Text,
   truncateToWidth,
-  TUI_KEYBINDINGS,
   visibleWidth,
   type Component,
   type SelectItem,
@@ -31,6 +29,7 @@ import type {
   OwnedUiSessionViewModel,
   OwnedUiTranscriptBlock,
 } from "../owned-ui-contracts/index.js";
+import { KeybindingsManager } from "./upstream/adjacent/core/keybindings.js";
 import { PINNED_PI_LAYOUT, ensurePiTheme, piTheme } from "./theme.js";
 
 export interface PiShellComponentPort {
@@ -96,7 +95,12 @@ export interface PiShellEditorOptions {
   readonly onSubmit: (text: string) => void;
   readonly onChange?: (text: string) => void;
   readonly onInterrupt?: () => void;
+  readonly onClear?: () => void;
   readonly onExit?: () => void;
+  readonly onSuspend?: () => void;
+  readonly onExternalEditor?: () => void;
+  readonly onPasteImage?: () => void;
+  readonly onExtensionShortcut?: (data: string) => boolean;
   readonly onModelSelect?: () => void;
   readonly onModelCycle?: ((direction: "forward" | "backward") => void) | undefined;
   readonly onThinkingCycle?: (() => void) | undefined;
@@ -106,6 +110,7 @@ export interface PiShellEditorOptions {
   readonly onFollowUp?: (() => void) | undefined;
   readonly onDequeue?: (() => void) | undefined;
   readonly cwd?: string;
+  readonly agentDir?: string;
   readonly autocompleteCommands?: readonly PiShellAutocompleteCommand[];
 }
 
@@ -149,33 +154,10 @@ export const PINNED_PI_BUILTIN_SLASH_COMMANDS = [
   { name: "quit", description: "Quit pi" },
 ];
 
-const PI_SHELL_APP_KEYBINDINGS = {
-  "app.interrupt": { defaultKeys: "escape", description: "Cancel or abort" },
-  "app.clear": { defaultKeys: "ctrl+c", description: "Clear editor" },
-  "app.exit": { defaultKeys: "ctrl+d", description: "Exit when editor is empty" },
-  "app.thinking.cycle": { defaultKeys: "shift+tab", description: "Cycle thinking level" },
-  "app.model.cycleForward": { defaultKeys: "ctrl+p", description: "Cycle to next model" },
-  "app.model.cycleBackward": { defaultKeys: "shift+ctrl+p", description: "Cycle to previous model" },
-  "app.model.select": { defaultKeys: "ctrl+l", description: "Open model selector" },
-  "app.tools.expand": { defaultKeys: "ctrl+o", description: "Toggle tool output" },
-  "app.thinking.toggle": { defaultKeys: "ctrl+t", description: "Toggle thinking blocks" },
-  "app.editor.external": { defaultKeys: "ctrl+g", description: "Open external editor" },
-  "app.message.copy": { defaultKeys: "ctrl+x", description: "Copy message to clipboard" },
-  "app.message.followUp": { defaultKeys: "alt+enter", description: "Queue follow-up message" },
-  "app.message.dequeue": { defaultKeys: "alt+up", description: "Restore queued messages" },
-  "app.clipboard.pasteImage": {
-    defaultKeys: process.platform === "win32" ? "alt+v" : "ctrl+v",
-    description: "Paste image from clipboard (text fallback)",
-  },
-};
-
 export function createPiShellEditor(options: PiShellEditorOptions): PiShellEditorPort {
   ensureTheme();
   const tui = createTuiFacade(options);
-  const keybindings = new KeybindingsManager({
-    ...TUI_KEYBINDINGS,
-    ...PI_SHELL_APP_KEYBINDINGS,
-  } as never);
+  const keybindings = KeybindingsManager.create(options.agentDir);
   const editor = new CustomEditor(tui, {
     borderColor: value => piTheme().fg("borderMuted", value),
     selectList: getSelectListTheme(),
@@ -202,10 +184,18 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
     editor.onEscape = () => interruptHandler();
     editor.onAction("app.interrupt", () => interruptHandler());
   }
+  if (options.onClear !== undefined) editor.onAction("app.clear", options.onClear);
   if (options.onExit !== undefined) {
     editor.onCtrlD = options.onExit;
     editor.onAction("app.exit", options.onExit);
   }
+  if (options.onSuspend !== undefined) editor.onAction("app.suspend", options.onSuspend);
+  if (options.onExternalEditor !== undefined) editor.onAction("app.editor.external", options.onExternalEditor);
+  if (options.onPasteImage !== undefined) {
+    editor.onPasteImage = options.onPasteImage;
+    editor.onAction("app.clipboard.pasteImage", options.onPasteImage);
+  }
+  if (options.onExtensionShortcut !== undefined) editor.onExtensionShortcut = options.onExtensionShortcut;
   if (options.onModelSelect !== undefined) editor.onAction("app.model.select", options.onModelSelect);
   if (options.onModelCycle !== undefined) {
     editor.onAction("app.model.cycleForward", () => options.onModelCycle?.("forward"));

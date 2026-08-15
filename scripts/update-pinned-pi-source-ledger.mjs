@@ -273,7 +273,18 @@ async function sourceMapRecord(pkg, sourceMapPath, scope) {
                 acceptanceTest: "test/foundation/pi-component-adapter/pinned-status-indicator-parity.test.ts",
               }],
             }
-          : undefined;
+          : upstreamPath === "packages/coding-agent/src/core/keybindings.ts"
+            ? {
+                localDestination: "src/foundation/pi-component-adapter/upstream/adjacent/core/keybindings.ts",
+                modifications: "Mechanical source port with Node import prefixes and public package-root AddOne agent-directory resolution.",
+                approvedDeviations: [{
+                  id: "keybindings-public-config-boundary",
+                  reason: "Resolve the agent configuration directory through the documented package-root API instead of a private config import.",
+                  upstreamBehavior: "Complete pinned defaults, migrations, user overrides, conflict detection, matching, and effective-config behavior remain unchanged.",
+                  acceptanceTest: "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts",
+                }],
+              }
+            : undefined;
   const localDestination = portedThemeUnit?.localDestination ?? disposition.localDestination;
   const classification = portedThemeUnit === undefined ? disposition.classification : "owned-source-port";
   const implementationStatus = portedThemeUnit === undefined ? disposition.implementationStatus : "ported";

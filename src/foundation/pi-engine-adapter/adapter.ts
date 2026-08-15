@@ -214,6 +214,10 @@ export class PiEngineAdapter {
     return this.#sessionId;
   }
 
+  get agentDir(): string {
+    return this.#agentDir;
+  }
+
   get disposed(): boolean {
     return this.#disposed;
   }

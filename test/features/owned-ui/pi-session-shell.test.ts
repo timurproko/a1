@@ -115,7 +115,11 @@ describe("PiSessionShell", () => {
     shell.runtime.renderNow();
     expect(shell.runtime.viewport()).toEqual({ columns: 50, rows: 16 });
 
-    await shell.shutdown();
+    shell.root.editor.setText("clear me");
+    await shell.clearOrExit(1_000);
+    expect(shell.root.editor.getText()).toBe("");
+    expect(shell.view().lifecycle).not.toBe("stopped");
+    await shell.clearOrExit(1_200);
     await shell.dispose();
     expect(engine.calls).toContain("dispose");
   });

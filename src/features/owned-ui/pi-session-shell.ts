@@ -69,6 +69,7 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
       readonly requestRender: () => void;
       readonly onSubmit: (text: string) => void;
       readonly onInterrupt: () => void;
+      readonly onClear?: () => void;
       readonly onExit: () => void;
       readonly onModelSelect: () => void;
       readonly onModelCycle?: (direction: "forward" | "backward") => void;
@@ -79,6 +80,7 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
       readonly onDequeue?: () => void;
     },
     startup: PiShellHeaderOptions = {},
+    agentDir?: string,
   ) {
     this.#view = view;
     this.#cwd = cwd;
@@ -89,6 +91,7 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
     this.editor = createPiShellEditor({
       ...handlers,
       cwd,
+      ...(agentDir === undefined ? {} : { agentDir }),
       onToolsExpand: () => this.#setToolsExpanded(!this.#toolsExpanded),
     });
     this.#syncTranscript(view.transcript);
@@ -218,6 +221,7 @@ export class PiSessionShell {
   #started = false;
   #disposed = false;
   #compactionQueue: Array<{ readonly text: string; readonly type: "steer" | "follow-up" }> = [];
+  #lastClearTime = 0;
 
   constructor(options: PiSessionShellOptions) {
     this.adapter = options.adapter;
@@ -232,6 +236,7 @@ export class PiSessionShell {
       requestRender: () => runtime?.requestRender(),
       onSubmit: text => { void this.submit(text); },
       onInterrupt: () => { void this.interrupt(); },
+      onClear: () => { void this.clearOrExit(); },
       onExit: () => { void this.shutdown(); },
       onModelSelect: () => this.showModelSelector(),
       onModelCycle: direction => { void this.cycleModel(direction); },
@@ -243,7 +248,7 @@ export class PiSessionShell {
       onMessageCopy: () => { void this.runWorkflow({ command: "copy", argument: "" }); },
       onFollowUp: () => { void this.queueFollowUp(); },
       onDequeue: () => this.restoreQueuedInput(),
-    }, options.startup);
+    }, options.startup, this.adapter.agentDir);
     const runtimeOptions = options.terminal === undefined
       ? { root: this.root }
       : { root: this.root, terminal: options.terminal };
@@ -326,6 +331,14 @@ export class PiSessionShell {
       sessionId: this.adapter.sessionId,
       text: input,
     });
+  }
+
+  async clearOrExit(now = Date.now()): Promise<AdapterCommandResult> {
+    if (now - this.#lastClearTime < 500) return this.shutdown();
+    this.root.editor.setText("");
+    this.#lastClearTime = now;
+    this.runtime.requestRender();
+    return { outcome: "completed", diagnostic: null };
   }
 
   async interrupt(): Promise<AdapterCommandResult> {
