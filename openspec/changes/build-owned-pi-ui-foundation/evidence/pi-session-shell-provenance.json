@@ -1,0 +1,49 @@
+{
+  "schema": "addone-pi-session-shell-provenance-v1",
+  "change": "build-owned-pi-ui-foundation",
+  "recordedAt": "2026-08-15T17:00:00.000Z",
+  "upstream": {
+    "repository": "https://github.com/earendil-works/pi.git",
+    "commit": "53fa77ccd8a279eb87e92294ef3687b03ff80112",
+    "license": "MIT",
+    "packages": [
+      { "name": "@earendil-works/pi-coding-agent", "version": "0.84.1" },
+      { "name": "@earendil-works/pi-tui", "version": "0.84.1" }
+    ]
+  },
+  "publicExports": [
+    "CustomEditor",
+    "UserMessageComponent",
+    "AssistantMessageComponent",
+    "ToolExecutionComponent",
+    "CompactionSummaryMessageComponent",
+    "Box",
+    "Container",
+    "SelectList",
+    "Text",
+    "TuiAltScreen",
+    "ProcessTerminal"
+  ],
+  "orchestrationPorts": [
+    {
+      "upstreamSource": "packages/coding-agent/src/modes/interactive/interactive-mode.ts",
+      "localFile": "src/features/owned-ui/pi-session-shell.ts",
+      "behavior": "session-event subscription, editor command routing, selector/dialog focus, shutdown and terminal restoration",
+      "copiedFiles": [],
+      "copiedLines": false,
+      "modifications": "Reimplemented against AddOne-owned view models and PiEngineAdapter commands; stock InteractiveMode is never instantiated, inspected, or patched.",
+      "coverage": [
+        "test/features/owned-ui/pi-session-shell.test.ts",
+        "test/features/owned-ui/run.test.ts",
+        "test/foundation/pi-component-adapter/shell-components.test.ts"
+      ]
+    }
+  ],
+  "rejected": [
+    "InteractiveMode construction",
+    "prototype mutation",
+    "private field inspection",
+    "deep package imports",
+    "distribution hash gating"
+  ]
+}

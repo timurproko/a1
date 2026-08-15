@@ -40,7 +40,7 @@ for (const file of await walk(sourceRoot)) {
   const imports = [...source.matchAll(/(?:from\s+|import\s*\()(["'])([^"']+)\1/g)].map(match => match[2]);
 
   for (const specifier of imports) {
-    const isPi = /(?:^|\/)(?:pi-agent|pi-ai|pi-coding-agent|pi-tui|@mariozechner\/pi-|@oh-my-pi\/pi-)/.test(specifier);
+    const isPi = !specifier.startsWith(".") && /(?:^|\/)(?:pi-agent|pi-ai|pi-coding-agent|pi-tui|@mariozechner\/pi-|@oh-my-pi\/pi-)/.test(specifier);
     const piAdapterPath = /^src\/(?:foundation\/(?:pi-engine-adapter|pi-component-adapter|pi-tui-runtime-adapter)|drivers\/pi|profiles\/pi)\//.test(path);
     if (/@oh-my-pi\//.test(specifier)) {
       errors.push(`${path}: oh-my-pi fork package import '${specifier}' is forbidden`);
@@ -57,7 +57,7 @@ for (const file of await walk(sourceRoot)) {
     if (["node-pty", "@xterm/headless"].includes(specifier)) {
       errors.push(`${path}: PTY/emulator import '${specifier}' is forbidden in the transparent baseline`);
     }
-    if (/pi-tui/.test(specifier) && !/^src\/foundation\/(?:pi-component-adapter|pi-tui-runtime-adapter)\//.test(path)) {
+    if (!specifier.startsWith(".") && /pi-tui/.test(specifier) && !/^src\/foundation\/(?:pi-component-adapter|pi-tui-runtime-adapter)\//.test(path)) {
       errors.push(`${path}: Pi TUI import '${specifier}' is outside the runtime or component adapter boundary`);
     }
     if (path.startsWith("src/ui/") && ["node:child_process", "child_process", "node-pty"].includes(specifier)) {

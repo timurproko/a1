@@ -1,10 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createPiEngineAdapter, type PiRuntimeLike, type PiSessionLike } from "../../../src/foundation/pi-engine-adapter/index.js";
-import {
-  createProcessTerminalHost,
-  runOwnedUiDevelopmentMode,
-  type OwnedTerminalHost,
-} from "../../../src/features/owned-ui/index.js";
+import type { PiTuiTerminalPort } from "../../../src/foundation/pi-tui-runtime-adapter/index.js";
+import { runOwnedUiDevelopmentMode } from "../../../src/features/owned-ui/index.js";
 
 class Session implements PiSessionLike {
   readonly sessionId = "pi-session";
@@ -38,32 +35,40 @@ class Runtime implements PiRuntimeLike {
   async dispose(): Promise<void> { this.session.dispose(); }
 }
 
-class Host implements OwnedTerminalHost {
+class Terminal implements PiTuiTerminalPort {
   readonly columns = 80;
   readonly rows = 24;
+  readonly kittyProtocolActive = false;
   readonly writes: string[] = [];
   active = false;
+  start(): void { this.active = true; }
+  stop(): void { this.active = false; }
+  async drainInput(): Promise<void> {}
   write(text: string): void { this.writes.push(text); }
-  setActive(active: boolean): void { this.active = active; }
-  onInput(): () => void { return () => {}; }
-  onResize(): () => void { return () => {}; }
+  moveBy(): void {}
+  hideCursor(): void { this.write("\x1b[?25l"); }
+  showCursor(): void { this.write("\x1b[?25h"); }
+  clearLine(): void { this.write("\x1b[K"); }
+  clearFromCursor(): void { this.write("\x1b[J"); }
+  clearScreen(): void { this.write("\x1b[2J\x1b[H"); }
+  setTitle(): void {}
+  setProgress(): void {}
 }
 
 describe("owned UI development run", () => {
-  it("provides a process host and restores an explicitly selected disposed session", async () => {
-    expect(createProcessTerminalHost().columns).toBeGreaterThan(0);
+  it("uses the Pi-backed shell and restores an explicitly selected disposed session", async () => {
     const adapter = await createPiEngineAdapter({
       cwd: process.cwd(),
       sessionId: "owned-run-test",
       createRuntime: async () => new Runtime(),
     });
     await adapter.dispose();
-    const host = new Host();
+    const terminal = new Terminal();
 
-    const result = await runOwnedUiDevelopmentMode({ adapter, host });
+    const result = await runOwnedUiDevelopmentMode({ adapter, terminal });
     expect(result).toBe(0);
-    expect(host.active).toBe(false);
-    expect(host.writes[0]).toContain("\x1b[?1049h");
-    expect(host.writes.at(-1)).toContain("\x1b[?1049l");
+    expect(terminal.active).toBe(false);
+    expect(terminal.writes.join("")).toContain("\x1b[?1049h");
+    expect(terminal.writes.join("")).toContain("\x1b[?1049l");
   });
 });
