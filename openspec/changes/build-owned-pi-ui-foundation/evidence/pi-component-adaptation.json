@@ -1,0 +1,38 @@
+{
+  "schema": "addone-pi-component-adaptation-v1",
+  "recordedAt": "2026-08-15T08:00:00.000Z",
+  "change": "build-owned-pi-ui-foundation",
+  "package": {
+    "name": "@earendil-works/pi-coding-agent",
+    "version": "0.84.1",
+    "license": "MIT"
+  },
+  "publicComponentAdaptations": [
+    {
+      "surface": "user-message",
+      "publicExport": "UserMessageComponent",
+      "ownedInput": "OwnedUiTranscriptBlock(kind=user)",
+      "ownedOutput": "readonly string[]"
+    },
+    {
+      "surface": "assistant-message",
+      "publicExport": "AssistantMessageComponent",
+      "ownedInput": "OwnedUiTranscriptBlock(kind=assistant)",
+      "ownedOutput": "readonly string[]"
+    },
+    {
+      "surface": "tool-execution",
+      "publicExport": "ToolExecutionComponent",
+      "ownedInput": "OwnedUiTranscriptBlock(kind=tool-call|tool-result)",
+      "ownedOutput": "readonly string[]"
+    }
+  ],
+  "ownedSurfaces": [
+    "terminal runtime",
+    "prompt editor",
+    "transcript history and default renderer",
+    "status, dialogs, selectors, commands, diagnostics"
+  ],
+  "ports": [],
+  "portPolicy": "No Pi or oh-my-pi source files are ported in this task. A future port must record exact source, revision, license, copied files, modifications, AddOne contract, and conformance coverage before merge."
+}

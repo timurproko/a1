@@ -22,7 +22,7 @@
 ## 4. Deliver the Vanilla-Style Fullscreen Session
 
 - [x] 4.1 Implement transcript and streaming presentation for user, assistant, thinking, tool-call, tool-result, retry, compaction, error, and system blocks using AddOne view models; pass deterministic streaming and resize fixtures.
-- [ ] 4.2 Adapt documented public Pi components where their contracts are independently usable and add provenance-recorded MIT-licensed ports only for surfaces that require AddOne ownership; pass component conformance and attribution/provenance policy tests.
+- [x] 4.2 Adapt documented public Pi components where their contracts are independently usable and add provenance-recorded MIT-licensed ports only for surfaces that require AddOne ownership; pass component conformance and attribution/provenance policy tests.
 - [ ] 4.3 Wire prompt, abort, retry, compaction, model, thinking, session creation, session resume, settings, and shutdown workflows through the engine adapter; pass command/state integration fixtures with a synthetic engine.
 - [ ] 4.4 Add the explicitly selected owned-UI development launch path without changing bare transparent AddOne, `a1 pi`, or `a1 sandbox`; pass CLI routing, alias, profile, startup, and rollback tests.
 
