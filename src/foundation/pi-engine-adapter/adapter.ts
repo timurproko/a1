@@ -58,6 +58,22 @@ export interface PiEngineRuntimeFactoryInput {
   readonly sessionId: string;
 }
 
+export interface PiScopedModelDescriptor {
+  readonly provider: string;
+  readonly id: string;
+  readonly name: string;
+}
+
+export interface PiScopedModelsContext {
+  readonly models: readonly PiScopedModelDescriptor[];
+  readonly enabledModelIds: readonly string[] | null;
+}
+
+export interface PiScopedModelsRefreshResult extends PiScopedModelsContext {
+  readonly status: string;
+  readonly statusKind: "success" | "warning";
+}
+
 export interface PiSessionLike {
   readonly sessionId: string;
   readonly model: unknown;
@@ -92,11 +108,19 @@ export interface PiServicesLike {
   readonly modelRuntime: {
     getModel(providerId: string, modelId: string): unknown;
     isUsingSubscription?(providerId: string): boolean;
-    getAvailableSnapshot?(): readonly { readonly provider?: string }[];
+    getAvailableSnapshot?(): readonly {
+      readonly provider?: string;
+      readonly id?: string;
+      readonly name?: string;
+      readonly [key: string]: unknown;
+    }[];
+    refresh?(options?: { readonly signal?: AbortSignal }): Promise<unknown>;
   };
   readonly settingsManager?: {
     getCompactionEnabled?: () => boolean;
     getShowHardwareCursor?: () => boolean;
+    getEnabledModels?: () => readonly string[] | undefined;
+    setEnabledModels?: (patterns: readonly string[] | undefined) => void;
   };
   readonly resourceLoader?: {
     getSkills(): unknown;
@@ -565,6 +589,74 @@ export class PiEngineAdapter {
       modelRuntime: selectorRuntime,
       scopedModels: Array.isArray(scoped) ? scoped : [],
     };
+  }
+
+  pinnedScopedModelsContext(): PiScopedModelsContext {
+    const session = this.#requireWorkflowSession();
+    const runtime = this.#runtime;
+    if (!runtime) throw new Error("engine runtime is unavailable");
+    const models = scopedModelRecords(runtime.services.modelRuntime);
+    const scoped = dynamicCall(session, "getScopedModels") ?? (session as unknown as { scopedModels?: unknown }).scopedModels;
+    if (Array.isArray(scoped) && scoped.length > 0) {
+      return {
+        models: models.map(item => item.descriptor),
+        enabledModelIds: scoped.map(scopedModelReference).filter((id): id is string => id !== undefined),
+      };
+    }
+    const patterns = dynamicCall(runtime.services.settingsManager, "getEnabledModels");
+    return {
+      models: models.map(item => item.descriptor),
+      enabledModelIds: Array.isArray(patterns)
+        ? resolveConfiguredModelIds(patterns.filter((value): value is string => typeof value === "string"), models)
+        : null,
+    };
+  }
+
+  updateScopedModels(enabledModelIds: readonly string[] | null): void {
+    const session = this.#requireWorkflowSession();
+    const runtime = this.#runtime;
+    if (!runtime) throw new Error("engine runtime is unavailable");
+    const models = scopedModelRecords(runtime.services.modelRuntime);
+    const availableIds = new Set(models.map(item => `${item.descriptor.provider}/${item.descriptor.id}`));
+    const selected = enabledModelIds?.filter(id => availableIds.has(id)) ?? [];
+    const allAvailableEnabled = enabledModelIds !== null && availableIds.size > 0 && selected.length === availableIds.size;
+    const scoped = enabledModelIds !== null && selected.length > 0 && !allAvailableEnabled
+      ? selected.flatMap(id => {
+          const item = models.find(candidate => `${candidate.descriptor.provider}/${candidate.descriptor.id}` === id);
+          return item === undefined ? [] : [{ model: item.model }];
+        })
+      : [];
+    dynamicCall(session, "setScopedModels", scoped);
+    this.#emitView();
+  }
+
+  persistScopedModels(enabledModelIds: readonly string[] | null): void {
+    const runtime = this.#runtime;
+    if (!runtime) throw new Error("engine runtime is unavailable");
+    const availableCount = scopedModelRecords(runtime.services.modelRuntime).length;
+    const patterns = enabledModelIds === null || enabledModelIds.length === availableCount
+      ? undefined
+      : [...enabledModelIds];
+    dynamicCall(runtime.services.settingsManager, "setEnabledModels", patterns);
+  }
+
+  async refreshScopedModels(signal: AbortSignal): Promise<PiScopedModelsRefreshResult> {
+    const runtime = this.#runtime;
+    if (!runtime) throw new Error("engine runtime is unavailable");
+    const result = await dynamicCallAsync(runtime.services.modelRuntime, "refresh", { signal });
+    const context = this.pinnedScopedModelsContext();
+    if (isRecord(result) && result.aborted === true) {
+      return { ...context, status: "Model refresh timed out; showing cached models.", statusKind: "warning" };
+    }
+    const errors = isRecord(result) ? result.errors : undefined;
+    if (errors instanceof Map && errors.size > 0) {
+      return {
+        ...context,
+        status: `Could not refresh ${[...errors.keys()].join(", ")}; showing cached models.`,
+        statusKind: "warning",
+      };
+    }
+    return { ...context, status: "Model catalogs refreshed.", statusKind: "success" };
   }
 
   pinnedTreeSelectorContext(): { readonly tree: readonly unknown[]; readonly currentLeafId: string | null } {
@@ -1994,6 +2086,57 @@ function pinnedHotkeySummary(): string {
     "Ctrl+O: expand tools · Ctrl+T: toggle thinking · Ctrl+X: copy message",
     "Alt+Up: restore queued messages · /: commands · !/!!: bash",
   ].join("\n");
+}
+
+function scopedModelRecords(modelRuntime: PiServicesLike["modelRuntime"]): readonly {
+  readonly descriptor: PiScopedModelDescriptor;
+  readonly model: unknown;
+}[] {
+  const snapshot = modelRuntime.getAvailableSnapshot?.() ?? [];
+  return snapshot.flatMap(model => {
+    if (!isRecord(model)) return [];
+    const provider = stringValue(model.provider);
+    const id = stringValue(model.id);
+    if (!provider || !id) return [];
+    return [{ descriptor: { provider, id, name: stringValue(model.name) ?? id }, model }];
+  });
+}
+
+function scopedModelReference(value: unknown): string | undefined {
+  if (!isRecord(value) || !isRecord(value.model)) return undefined;
+  const provider = stringValue(value.model.provider);
+  const id = stringValue(value.model.id);
+  return provider && id ? `${provider}/${id}` : undefined;
+}
+
+function resolveConfiguredModelIds(
+  patterns: readonly string[],
+  models: readonly { readonly descriptor: PiScopedModelDescriptor }[],
+): readonly string[] {
+  const references = models.map(item => `${item.descriptor.provider}/${item.descriptor.id}`);
+  const resolved: string[] = [];
+  for (const pattern of patterns) {
+    const thinkingSuffix = /:(?:off|minimal|low|medium|high|xhigh)$/.exec(pattern);
+    const modelPattern = thinkingSuffix === null ? pattern : pattern.slice(0, -thinkingSuffix[0].length);
+    const matcher = wildcardMatcher(modelPattern);
+    const matches = references.filter((reference, index) => matcher.test(reference) || matcher.test(models[index]?.descriptor.id ?? ""));
+    if (matches.length === 0) {
+      resolved.push(pattern);
+    } else {
+      for (const match of matches) if (!resolved.includes(match)) resolved.push(match);
+    }
+  }
+  return resolved;
+}
+
+function wildcardMatcher(pattern: string): RegExp {
+  let source = "";
+  for (const character of pattern) {
+    if (character === "*") source += ".*";
+    else if (character === "?") source += ".";
+    else source += character.replace(/[\\^$.*+?()[\]{}|]/g, "\\$&");
+  }
+  return new RegExp(`^${source}$`, "i");
 }
 
 function readModel(value: unknown): OwnedUiModelInfo | null {

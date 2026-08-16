@@ -6,7 +6,6 @@ import {
   VStack,
   getKeybindings,
   isKeyRelease,
-  stripTerminalSequences,
   type Component,
   type Focusable,
   type OverlayHandle,
@@ -38,13 +37,16 @@ export class PiTuiRuntimeError extends Error {
 }
 
 const OSC52_CLIPBOARD = /\x1b\]52;[^\x07]*\x07/g;
-const INVERSE_SPAN = /\x1b\[7m([\s\S]*?)\x1b\[27m/g;
 const SGR_MOUSE = /^\x1b\[<(\d+);(\d+);(\d+)([Mm])$/;
+const ANSI_CSI = /\x1b\[[0-?]*[ -/]*[@-~]/gy;
+const UNIFORM_SELECTION_START = "\x1b[97;40m\x1b[7m";
+const UNIFORM_SELECTION_END = "\x1b[0m";
 
 class VanillaSelectionTerminal implements PiTuiTerminalPort {
   #selectionPress = false;
   #selectionDragged = false;
   #selectionActive = false;
+  #selectionHighlightOpen = false;
   #pendingClipboardSequence: string | undefined;
 
   constructor(private readonly terminal: PiTuiTerminalPort) {}
@@ -70,6 +72,7 @@ class VanillaSelectionTerminal implements PiTuiTerminalPort {
     this.#selectionPress = false;
     this.#selectionDragged = false;
     this.#selectionActive = false;
+    this.#selectionHighlightOpen = false;
     this.#pendingClipboardSequence = undefined;
     this.terminal.stop();
   }
@@ -85,9 +88,8 @@ class VanillaSelectionTerminal implements PiTuiTerminalPort {
       this.#selectionActive = this.#pendingClipboardSequence !== undefined;
       data = data.replace(OSC52_CLIPBOARD, "");
     }
-    if (this.#selectionDragged || this.#selectionActive) {
-      data = data.replace(INVERSE_SPAN, (_match, selected: string) =>
-        `\x1b[0m\x1b[7m${stripTerminalSequences(selected)}\x1b[27m`);
+    if (this.#selectionDragged || this.#selectionActive || this.#selectionHighlightOpen) {
+      data = this.#normalizeSelectionHighlight(data);
     }
     if (data.length > 0) this.terminal.write(data);
   }
@@ -100,6 +102,51 @@ class VanillaSelectionTerminal implements PiTuiTerminalPort {
   clearScreen(): void { this.terminal.clearScreen(); }
   setTitle(title: string): void { this.terminal.setTitle(title); }
   setProgress(active: boolean): void { this.terminal.setProgress(active); }
+
+  #normalizeSelectionHighlight(data: string): string {
+    let output = "";
+    let index = 0;
+    while (index < data.length) {
+      if (data[index] !== "\x1b") {
+        output += data[index];
+        index += 1;
+        continue;
+      }
+      ANSI_CSI.lastIndex = index;
+      const match = ANSI_CSI.exec(data);
+      if (match === null) {
+        output += data[index];
+        index += 1;
+        continue;
+      }
+      const code = match[0];
+      index = ANSI_CSI.lastIndex;
+      if (!this.#selectionHighlightOpen) {
+        if (code === "\x1b[7m") {
+          this.#selectionHighlightOpen = true;
+          output += UNIFORM_SELECTION_START;
+        } else {
+          output += code;
+        }
+        continue;
+      }
+      if (code === "\x1b[27m") {
+        ANSI_CSI.lastIndex = index;
+        const next = ANSI_CSI.exec(data);
+        if (next?.index === index && next[0] === "\x1b[7m") {
+          index = ANSI_CSI.lastIndex;
+          continue;
+        }
+        this.#selectionHighlightOpen = false;
+        output += UNIFORM_SELECTION_END;
+        continue;
+      }
+      // Selection-owned cursor positioning remains meaningful, but source SGR is
+      // suppressed so syntax colors and resets cannot leak into selected cells.
+      if (!code.endsWith("m")) output += code;
+    }
+    return output;
+  }
 
   #trackSelectionInput(data: string): void {
     const mouse = SGR_MOUSE.exec(data);

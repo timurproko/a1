@@ -45,6 +45,7 @@ import {
   Text,
   truncateToWidth,
   type Component,
+  type Focusable,
   type SelectItem,
   type TUI,
 } from "@earendil-works/pi-tui";
@@ -57,6 +58,7 @@ import type {
   OwnedUiTranscriptBlock,
 } from "../owned-ui-contracts/index.js";
 import { KeybindingsManager } from "./upstream/adjacent/core/keybindings.js";
+import { ScopedModelsSelectorComponent } from "./upstream/components/scoped-models-selector.js";
 import { WorkingStatusIndicator } from "./upstream/components/status-indicator.js";
 import {
   PINNED_PI_LAYOUT,
@@ -399,6 +401,48 @@ export function createPiShellModelSelector(options: PiShellModelSelectorOptions)
     options.initialSearchInput,
   );
   return componentPort(selector);
+}
+
+export interface PiShellScopedModelDescriptor {
+  readonly provider: string;
+  readonly id: string;
+  readonly name: string;
+}
+
+export interface PiShellScopedModelsSelectorOptions {
+  readonly models: readonly PiShellScopedModelDescriptor[];
+  readonly enabledModelIds: readonly string[] | null;
+  readonly refreshStatus?: string;
+  readonly onChange: (enabledModelIds: readonly string[] | null) => void | Promise<void>;
+  readonly onPersist: (enabledModelIds: readonly string[] | null) => void | Promise<void>;
+  readonly onCancel: () => void;
+}
+
+export interface PiShellScopedModelsSelectorPort extends PiShellComponentPort {
+  updateModels(models: readonly PiShellScopedModelDescriptor[], enabledModelIds?: readonly string[] | null): void;
+  setRefreshStatus(message: string, kind: "muted" | "success" | "warning"): void;
+}
+
+export function createPiShellScopedModelsSelector(options: PiShellScopedModelsSelectorOptions): PiShellScopedModelsSelectorPort {
+  ensureTheme();
+  const selector = new ScopedModelsSelectorComponent({
+    allModels: options.models as never,
+    enabledModelIds: options.enabledModelIds === null ? null : [...options.enabledModelIds],
+    ...(options.refreshStatus === undefined ? {} : { refreshStatus: options.refreshStatus }),
+  }, {
+    onChange: ids => options.onChange(ids),
+    onPersist: ids => options.onPersist(ids),
+    onCancel: options.onCancel,
+  });
+  return {
+    ...componentPort(selector),
+    updateModels(models, enabledModelIds) {
+      selector.updateModels(models as never, enabledModelIds === undefined
+        ? undefined
+        : enabledModelIds === null ? null : [...enabledModelIds]);
+    },
+    setRefreshStatus: (message, kind) => selector.setRefreshStatus(message, kind),
+  };
 }
 
 export function createPiShellSessionSelector(
@@ -1306,10 +1350,14 @@ function createTuiFacade(options: Pick<PiShellEditorOptions, "getColumns" | "get
 
 function componentPort(component: Component, handleInput?: (data: string) => void): PiShellComponentPort {
   const input = handleInput ?? component.handleInput;
+  const focusable = component as Component & Partial<Focusable>;
+  const disposable = component as Component & { dispose?: () => void };
   return {
     render: width => component.render(width),
     ...(input === undefined ? {} : { handleInput: (data: string) => input.call(component, data) }),
     invalidate: () => component.invalidate(),
+    ...("focused" in focusable ? { setFocused: (focused: boolean) => { focusable.focused = focused; } } : {}),
+    ...(typeof disposable.dispose === "function" ? { dispose: () => disposable.dispose?.() } : {}),
   };
 }
 

@@ -220,6 +220,7 @@ export function inputForAction(action) {
       up: "\x1b[A",
       "ctrl-c": "\x03",
       "ctrl-d": "\x04",
+      "ctrl-s": "\x13",
       "ctrl-u": "\x15",
     };
     const value = keys[action.key];

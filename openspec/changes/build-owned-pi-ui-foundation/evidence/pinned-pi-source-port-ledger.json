@@ -2,7 +2,7 @@
   "schema": "addone-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-08-16T14:41:19.736Z",
+  "recordedAt": "2026-08-16T17:38:23.007Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "53fa77ccd8a279eb87e92294ef3687b03ff80112",
@@ -38,8 +38,8 @@
     "sourceModules": 103,
     "assets": 4,
     "classifications": {
-      "public-reuse": 66,
-      "owned-source-port": 19,
+      "public-reuse": 65,
+      "owned-source-port": 20,
       "host-adapter": 22
     },
     "requiredBehaviorIds": 29,
@@ -1898,11 +1898,11 @@
       "sourceMap": "modes/interactive/components/scoped-models-selector.js.map",
       "lines": 404,
       "sha256": "4659e701ada704fbda7148054aca037b145de3d85dad7e93a81ea2c8323c7050",
-      "classification": "public-reuse",
-      "localDestination": "src/foundation/pi-component-adapter/index.ts",
-      "implementationStatus": "available-through-pinned-package",
+      "classification": "owned-source-port",
+      "localDestination": "src/foundation/pi-component-adapter/upstream/components/scoped-models-selector.ts",
+      "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "None planned; import the exact component or helper from the pinned public coding-agent package root.",
+      "modifications": "Source-synchronized scoped-model selector port: preserve session-only toggles, search, bulk/provider/reorder actions, dirty state, Ctrl+S persistence, refresh status, cancellation, and focus while remapping theme and public helper imports.",
       "approvedDeviations": [],
       "behaviorCategories": [
         "selectors",
@@ -1924,9 +1924,10 @@
         "7.8"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
-        "test/foundation/pi-component-adapter/shell-components.test.ts"
-      ]
+        "test/foundation/pi-component-adapter/shell-components.test.ts",
+        "test/features/owned-ui/pi-session-shell.test.ts"
+      ],
+      "localSha256": "38209ab6965c3cdfa18259282318b0703f0fb905def790cd53e08ddc51908481"
     },
     {
       "id": "pi-coding-agent:src/modes/interactive/components/session-selector-search",
@@ -2603,9 +2604,9 @@
       "sha256": "9be620174c0f25516b0c537dcd4ef9be7c9c9a145e6489e186cc6c4787b25412",
       "classification": "owned-source-port",
       "localDestination": "src/foundation/pi-component-adapter/upstream/model-search.ts",
-      "implementationStatus": "not-ported",
+      "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Mechanical port planned: remap imports, inject AddOne engine/runtime ownership, preserve control flow and state, and record every deviation.",
+      "modifications": "Mechanical source-synchronized port preserving pinned model search terms for stateful scoped-model filtering.",
       "approvedDeviations": [],
       "behaviorCategories": [
         "selectors",
@@ -2627,8 +2628,10 @@
         "7.8"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/shell-components.test.ts"
-      ]
+        "test/foundation/pi-component-adapter/shell-components.test.ts",
+        "test/features/owned-ui/pi-session-shell.test.ts"
+      ],
+      "localSha256": "7e5cf39e9be7952a2b3b25e674a5e27148cc1ec8c23736d476f5be51b3467933"
     },
     {
       "id": "pi-coding-agent:src/modes/interactive/theme/dark.json",
@@ -4071,11 +4074,11 @@
       "localDestination": "src/foundation/pi-tui-runtime-adapter/adapter.ts",
       "implementationStatus": "adapter-present-conformance-passed",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Use pinned public pi-tui terminal/runtime APIs behind AddOne lifecycle ownership. At the public terminal seam, retain selection until Ctrl+C, suppress release-time OSC 52 and the copy flash, normalize selected inverse spans, and configure three-row wheel routing.",
+      "modifications": "Use pinned public pi-tui terminal/runtime APIs behind AddOne lifecycle ownership. At the public terminal seam, retain selection until Ctrl+C, suppress release-time OSC 52 and the copy flash, normalize character/word/line/area selections to dark text on a bright-white inverted background across embedded SGR and differential writes, and configure three-row wheel routing.",
       "approvedDeviations": [
         {
           "id": "ordinary-vanilla-selection-and-wheel",
-          "reason": "User-controlled comparison requires ordinary vanilla interaction instead of pinned fullscreen defaults: retained uniform selection, selected Ctrl+C copy without a flash, and three rows per wheel notch.",
+          "reason": "User-controlled comparison requires ordinary vanilla interaction instead of pinned fullscreen defaults: retained bright-white character/word/line/area selection without source-color leakage, selected Ctrl+C copy without a flash, and three rows per wheel notch.",
           "upstreamBehavior": "Pinned fullscreen TuiAltScreen copies on mouse release, displays Copied!, preserves source ANSI colors inside inverse selection, and defaults wheelScrollLines to one; AddOne records and tests the user-directed behavior at its public terminal host seam.",
           "acceptanceTest": "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
         }

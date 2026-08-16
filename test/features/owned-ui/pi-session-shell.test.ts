@@ -19,6 +19,7 @@ class Session implements PiSessionLike {
   isRetrying = false;
   isCompacting = false;
   readonly calls: string[] = [];
+  scopedModels: readonly unknown[] = [];
   constructor(readonly messages: readonly unknown[] = []) {}
   extensionBindings: unknown;
   #listeners = new Set<(event: unknown) => void>();
@@ -38,13 +39,30 @@ class Session implements PiSessionLike {
   }
   async bindExtensions(bindings: unknown): Promise<void> { this.extensionBindings = bindings; this.calls.push("bindExtensions"); }
   async setModel(model: unknown): Promise<void> { this.model = model; this.calls.push("setModel"); }
+  setScopedModels(models: readonly unknown[]): void { this.scopedModels = models; this.calls.push(`scoped:${models.length}`); }
   setThinkingLevel(level: unknown): void { this.thinkingLevel = level; this.calls.push(`thinking:${String(level)}`); }
   dispose(): void {}
 }
 
 class Runtime implements PiRuntimeLike {
   readonly session: Session;
-  readonly services = { modelRuntime: { getModel: (_provider: string, id: string) => ({ provider: "openai", id, name: id }) }, diagnostics: [] };
+  enabledModels: readonly string[] | undefined;
+  readonly availableModels = [
+    { provider: "openai", id: "gpt-5", name: "GPT-5" },
+    { provider: "anthropic", id: "claude", name: "Claude" },
+  ];
+  readonly services = {
+    modelRuntime: {
+      getModel: (provider: string, id: string) => this.availableModels.find(model => model.provider === provider && model.id === id),
+      getAvailableSnapshot: () => this.availableModels,
+      refresh: async () => ({ aborted: false, errors: new Map() }),
+    },
+    settingsManager: {
+      getEnabledModels: () => this.enabledModels,
+      setEnabledModels: (patterns: readonly string[] | undefined) => { this.enabledModels = patterns; },
+    },
+    diagnostics: [],
+  };
   constructor(messages: readonly unknown[] = []) { this.session = new Session(messages); }
   readonly diagnostics = [];
   readonly calls: string[] = [];
@@ -158,6 +176,33 @@ describe("PiSessionShell", () => {
     await shell.dispose();
   });
 
+  it("keeps scoped-model changes session-only until Ctrl+S and leaves the modal open", async () => {
+    const { engine, terminal, shell } = await fixture();
+    await shell.submit("/scoped-models");
+    expect(shell.root.render(100).join("\n")).toContain("Model Configuration");
+    expect(shell.root.render(100).join("\n")).toContain("ctrl+s");
+
+    terminal.input("\r");
+    const dirtyFrame = shell.root.render(100).join("\n");
+    expect(dirtyFrame).toContain("Model Configuration");
+    expect(dirtyFrame).toContain("(unsaved)");
+    expect(engine.session.calls).toContain("scoped:1");
+    expect(engine.enabledModels).toBeUndefined();
+
+    terminal.input("\x13");
+    const savedFrame = shell.root.render(100).join("\n");
+    expect(savedFrame).toContain("Model Configuration");
+    expect(savedFrame).toContain("Model selection saved to settings");
+    expect(savedFrame).not.toContain("(unsaved)");
+    expect(engine.enabledModels).toEqual(["openai/gpt-5"]);
+
+    terminal.input("\x1b");
+    const restoredFrame = shell.root.render(100).join("\n");
+    expect(restoredFrame).not.toContain("Model Configuration");
+    expect(restoredFrame).not.toContain("Scoped models cancelled");
+    await shell.dispose();
+  });
+
   it("routes the complete command manifest, hidden routes, prompt resources, bash modes, and streaming queues", async () => {
     const { engine, adapter, shell } = await fixture();
     const workflow = vi.spyOn(adapter, "executeWorkflow").mockImplementation(async request => ({
@@ -165,13 +210,12 @@ describe("PiSessionShell", () => {
       outcome: "completed",
       message: `ran ${request.command}`,
     }));
-    for (const command of [...PINNED_PI_WORKFLOW_COMMAND_NAMES, ...PINNED_PI_HIDDEN_COMMAND_NAMES]) {
+    const routedCommands = [...PINNED_PI_WORKFLOW_COMMAND_NAMES, ...PINNED_PI_HIDDEN_COMMAND_NAMES]
+      .filter(command => command !== "scoped-models");
+    for (const command of routedCommands) {
       await shell.submit(`/${command}`);
     }
-    expect(workflow.mock.calls.map(([request]) => request.command)).toEqual([
-      ...PINNED_PI_WORKFLOW_COMMAND_NAMES,
-      ...PINNED_PI_HIDDEN_COMMAND_NAMES,
-    ]);
+    expect(workflow.mock.calls.map(([request]) => request.command)).toEqual(routedCommands);
 
     await shell.submit("/plan release");
     await shell.submit("/skill:review src");
@@ -205,6 +249,38 @@ describe("PiSessionShell", () => {
 
     shell.restoreQueuedInput();
     expect(shell.root.editor.getText()).toBe("queued steer\nqueued follow");
+    await shell.dispose();
+  });
+
+  it("uses the pinned confirmation surface without committing on cancel", async () => {
+    const { adapter, terminal, shell } = await fixture();
+    const workflow = vi.spyOn(adapter, "executeWorkflow")
+      .mockResolvedValueOnce({
+        command: "import",
+        outcome: "requires-confirmation",
+        message: "Replace current session with fixture.jsonl?",
+        selectorTitle: "Import session",
+        options: [{ id: "yes", label: "Yes" }, { id: "no", label: "No" }],
+      })
+      .mockResolvedValueOnce({
+        command: "import",
+        outcome: "requires-confirmation",
+        message: "Replace current session with fixture.jsonl?",
+        selectorTitle: "Import session",
+        options: [{ id: "yes", label: "Yes" }, { id: "no", label: "No" }],
+      })
+      .mockResolvedValueOnce({ command: "import", outcome: "completed", message: "Session imported" });
+
+    await shell.runWorkflow({ command: "import", argument: "fixture.jsonl" });
+    expect(shell.root.render(80).join("\n")).toContain("Import session");
+    expect(shell.root.render(80).join("\n")).toContain("Replace current session");
+    terminal.input("\x1b");
+    expect(workflow).toHaveBeenCalledTimes(1);
+
+    await shell.runWorkflow({ command: "import", argument: "fixture.jsonl" });
+    terminal.input("\r");
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(workflow).toHaveBeenNthCalledWith(3, { command: "import", argument: "fixture.jsonl", confirmed: true });
     await shell.dispose();
   });
 

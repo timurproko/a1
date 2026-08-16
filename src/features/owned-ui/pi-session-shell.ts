@@ -19,12 +19,14 @@ import {
   createPiShellAuthProviderSelector,
   createPiShellDialog,
   createPiShellEditor,
+  createPiShellExtensionSelector,
   createPiShellFooter,
   createPiShellHeader,
   createPiShellHotkeys,
   createPiShellLoadedResources,
   createPiShellLoginDialog,
   createPiShellModelSelector,
+  createPiShellScopedModelsSelector,
   createPiShellSelector,
   createPiShellSessionSelector,
   createPiShellSettingsSelector,
@@ -43,6 +45,7 @@ import {
   type PiShellLoadedResourcesPort,
   type PiShellQueuedInputPort,
   type PiShellResourceEntry,
+  type PiShellScopedModelsSelectorPort,
   type PiShellSelectorOption,
   type PiShellTranscriptComponentPort,
   type PiShellViewComponentPort,
@@ -78,6 +81,8 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
   #thinkingVisible = true;
   #workflowRows: string[] = [];
   #workflowComponents: PiShellComponentPort[] = [];
+  #workflowTranscriptSequence = 0;
+  readonly #workflowStatusAnchors = new Map<string, number>();
   #inputSurface: PiShellComponentPort;
   #extensionHeader: PiShellComponentPort | null = null;
   #extensionFooter: PiShellComponentPort | null = null;
@@ -244,6 +249,24 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
     return this.#transcript.get(id);
   }
 
+  appendWorkflowStatus(message: string): void {
+    this.#workflowTranscriptSequence += 1;
+    const id = `workflow-status-${this.#workflowTranscriptSequence}`;
+    const component: PiShellTranscriptComponentPort = {
+      id,
+      revision: 1,
+      render: () => ["", ` ${piTheme().fg("dim", message)}`],
+      handleInput() {},
+      invalidate() {},
+      update() {},
+      setExpanded() {},
+    };
+    this.#transcript.set(id, component);
+    this.#workflowStatusAnchors.set(id, this.#view.transcript.length);
+    this.#transcriptOrder.push(id);
+    this.invalidate();
+  }
+
   appendWorkflowResult(result: PiWorkflowResult): void {
     if (result.command === "hotkeys" && result.outcome === "completed") {
       this.#workflowComponents = [...this.#workflowComponents, createPiShellHotkeys()].slice(-4);
@@ -367,7 +390,7 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
   #syncTranscript(blocks: OwnedUiSessionViewModel["transcript"]): void {
     const nextIds = new Set(blocks.map(block => block.id));
     for (const [id, component] of this.#transcript) {
-      if (nextIds.has(id)) continue;
+      if (id.startsWith("workflow-status-") || nextIds.has(id)) continue;
       component.dispose?.();
       this.#transcript.delete(id);
     }
@@ -381,7 +404,19 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
         component.update(block);
       }
     }
-    this.#transcriptOrder = blocks.map(block => block.id);
+    const statusIds = [...this.#workflowStatusAnchors.keys()];
+    const order: string[] = [];
+    for (let index = 0; index <= blocks.length; index += 1) {
+      for (const statusId of statusIds) {
+        if (this.#workflowStatusAnchors.get(statusId) === index) order.push(statusId);
+      }
+      const block = blocks[index];
+      if (block !== undefined) order.push(block.id);
+    }
+    for (const statusId of statusIds) {
+      if (!order.includes(statusId)) order.push(statusId);
+    }
+    this.#transcriptOrder = order;
   }
 
   #renderWidgets(placement: "aboveEditor" | "belowEditor", width: number): readonly string[] {
@@ -789,6 +824,10 @@ export class PiSessionShell {
   }
 
   async runWorkflow(request: PiWorkflowRequest): Promise<AdapterCommandResult> {
+    if (request.command === "scoped-models" && request.selection === undefined && request.confirmed === undefined) {
+      this.showScopedModelsSelector();
+      return { outcome: "completed", diagnostic: null };
+    }
     if (request.command === "settings" && request.selection === undefined && request.confirmed === undefined) {
       const opened = this.adapter.executeWorkflow(request);
       this.showSettingsSelector();
@@ -808,6 +847,79 @@ export class PiSessionShell {
     return workflowAdapterResult(result);
   }
 
+  showScopedModelsSelector(): void {
+    const initial = this.adapter.pinnedScopedModelsContext();
+    let currentEnabledIds = initial.enabledModelIds === null ? null : [...initial.enabledModelIds];
+    let selectionChanged = false;
+    let disposed = false;
+    let timedOut = false;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, 15_000);
+    const close = () => {
+      disposed = true;
+      clearTimeout(timeout);
+      controller.abort();
+      this.root.setInputSurface(null);
+      this.runtime.requestRender();
+    };
+    const selector = createPiShellScopedModelsSelector({
+      models: initial.models,
+      enabledModelIds: currentEnabledIds,
+      refreshStatus: "Refreshing model catalogs…",
+      onChange: enabledIds => {
+        selectionChanged = true;
+        currentEnabledIds = enabledIds === null ? null : [...enabledIds];
+        this.adapter.updateScopedModels(currentEnabledIds);
+        this.runtime.requestRender();
+      },
+      onPersist: enabledIds => {
+        currentEnabledIds = enabledIds === null ? null : [...enabledIds];
+        this.adapter.persistScopedModels(currentEnabledIds);
+        this.root.appendWorkflowStatus("Model selection saved to settings");
+        this.runtime.requestRender();
+      },
+      onCancel: close,
+    });
+    const component: PiShellScopedModelsSelectorPort = {
+      ...selector,
+      dispose: () => {
+        disposed = true;
+        clearTimeout(timeout);
+        controller.abort();
+        selector.dispose?.();
+      },
+    };
+    this.root.setInputSurface(component);
+    this.runtime.requestRender();
+    void this.adapter.refreshScopedModels(controller.signal).then(refreshed => {
+      if (disposed) return;
+      if (!selectionChanged) {
+        currentEnabledIds = refreshed.enabledModelIds === null ? null : [...refreshed.enabledModelIds];
+        component.updateModels(refreshed.models, currentEnabledIds);
+      } else {
+        component.updateModels(refreshed.models);
+        this.adapter.updateScopedModels(currentEnabledIds);
+      }
+      component.setRefreshStatus(
+        timedOut ? "Model refresh timed out; showing cached models." : refreshed.status,
+        timedOut ? "warning" : refreshed.statusKind,
+      );
+      this.runtime.requestRender();
+    }).catch(error => {
+      if (disposed) return;
+      component.setRefreshStatus(
+        timedOut
+          ? "Model refresh timed out; showing cached models."
+          : `Could not refresh model catalogs: ${error instanceof Error ? error.message : String(error)}`,
+        "warning",
+      );
+      this.runtime.requestRender();
+    }).finally(() => clearTimeout(timeout));
+  }
+
   #showWorkflowSelector(request: PiWorkflowRequest, result: PiWorkflowResult): void {
     const options = result.options ?? [];
     const close = () => {
@@ -825,11 +937,21 @@ export class PiSessionShell {
       close();
     };
     let component: PiShellComponentPort;
-    if (request.command === "fork") {
+    if (result.outcome === "requires-confirmation") {
+      component = createPiShellExtensionSelector(
+        `${result.selectorTitle ?? "Confirm"}\n${result.message}`,
+        options.map(option => option.label),
+        label => {
+          const selected = options.find(option => option.label === label);
+          if (selected !== undefined) select(selected.id);
+        },
+        cancel,
+      );
+    } else if (request.command === "fork") {
       component = createPiShellUserMessageSelector(options, select, cancel);
     } else if (request.command === "login" || request.command === "logout") {
       component = createPiShellAuthProviderSelector(request.command, options, select, cancel);
-    } else if (request.command === "model" || request.command === "scoped-models") {
+    } else if (request.command === "model") {
       const context = this.adapter.pinnedModelSelectorContext();
       component = createPiShellModelSelector({
         ...context,

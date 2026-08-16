@@ -210,9 +210,10 @@ describe("PiTuiRuntimeAdapter", () => {
     const selectionFrame = terminal.writes.join("");
     expect(selectionFrame).not.toContain("Copied!");
     expect(selectionFrame).not.toContain("\x1b]52;");
-    const inverse = /\x1b\[7m([\s\S]*?)\x1b\[27m/.exec(selectionFrame)?.[1] ?? "";
+    const inverse = /\x1b\[97;40m\x1b\[7m([\s\S]*?)\x1b\[0m/.exec(selectionFrame)?.[1] ?? "";
     expect(inverse).toContain("colored");
     expect(inverse).not.toMatch(/\x1b\[(?:38|48);/);
+    expect(selectionFrame).toContain("\x1b[97;40m\x1b[7m");
 
     terminal.writes.length = 0;
     terminal.input("\x03");
@@ -224,6 +225,41 @@ describe("PiTuiRuntimeAdapter", () => {
     terminal.input("\x03");
     runtime.renderNow();
     expect(root.inputs).toContain("\x03");
+    await runtime.stop({ drainInput: false, preserveScreen: true });
+  });
+
+  it("renders character, word, line, and area selections with bright-white cells across styled content", async () => {
+    const terminal = new TestTerminal();
+    terminal.rows = 5;
+    const root = new TestComponent([
+      "\x1b[38;2;255;0;0mred\x1b[0m plain λ界",
+      "\x1b[1msecond styled row\x1b[22m",
+    ]);
+    const runtime = new PiTuiRuntimeAdapter({ root, terminal });
+    runtime.start();
+    runtime.renderNow(true);
+
+    const assertUniform = (events: readonly string[]) => {
+      terminal.writes.length = 0;
+      for (const event of events) terminal.input(event);
+      runtime.renderNow(true);
+      const frame = terminal.writes.join("");
+      const spans = [...frame.matchAll(/\x1b\[97;40m\x1b\[7m([\s\S]*?)\x1b\[0m/g)];
+      expect(spans.length).toBeGreaterThan(0);
+      expect(spans.every(match => !/\x1b\[(?:3[0-9]|4[0-9]|9[0-7]|10[0-7])(?:;|m)/.test(match[1] ?? ""))).toBe(true);
+    };
+
+    assertUniform(["\x1b[<0;2;1M", "\x1b[<32;3;1M", "\x1b[<0;3;1m"]);
+    assertUniform([
+      "\x1b[<0;6;1M", "\x1b[<0;6;1m",
+      "\x1b[<0;6;1M", "\x1b[<0;6;1m",
+    ]);
+    assertUniform([
+      "\x1b[<0;4;2M", "\x1b[<0;4;2m",
+      "\x1b[<0;4;2M", "\x1b[<0;4;2m",
+      "\x1b[<0;4;2M", "\x1b[<0;4;2m",
+    ]);
+    assertUniform(["\x1b[<0;1;1M", "\x1b[<32;10;2M", "\x1b[<0;10;2m"]);
     await runtime.stop({ drainInput: false, preserveScreen: true });
   });
 

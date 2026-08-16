@@ -1,0 +1,282 @@
+{
+  "schema": "addone-pinned-pi-modal-surface-inventory-v1",
+  "change": "build-owned-pi-ui-foundation",
+  "pinned": {
+    "version": "0.84.1",
+    "commit": "53fa77ccd8a279eb87e92294ef3687b03ff80112",
+    "controller": "packages/coding-agent/src/modes/interactive/interactive-mode.ts"
+  },
+  "policy": {
+    "scope": "Every modal-like branch discovered from InteractiveMode, nested settings components, and public extension UI is mandatory.",
+    "genericFixtureSatisfiesSpecializedSurface": false,
+    "requiredTransitions": [
+      "open",
+      "active",
+      "complete-or-save",
+      "cancel",
+      "failure",
+      "focus-restoration",
+      "resize",
+      "dispose"
+    ]
+  },
+  "surfaces": [
+    {
+      "id": "selector.shared-lifecycle",
+      "upstream": "interactive-mode.ts:showSelector",
+      "component": "editorContainer/focus",
+      "destination": "src/features/owned-ui/pi-session-shell.ts",
+      "status": "implemented",
+      "tests": [
+        "test/features/owned-ui/pi-session-shell.test.ts"
+      ]
+    },
+    {
+      "id": "settings.root",
+      "upstream": "interactive-mode.ts:showSettingsSelector",
+      "component": "SettingsSelectorComponent",
+      "destination": "src/foundation/pi-component-adapter/shell-components.ts",
+      "status": "implemented",
+      "tests": [
+        "test/foundation/pi-component-adapter/shell-components.test.ts"
+      ]
+    },
+    {
+      "id": "settings.theme",
+      "upstream": "settings-selector.ts:onThemeChange",
+      "component": "ThemeSelectorComponent",
+      "destination": "src/foundation/pi-component-adapter/shell-components.ts",
+      "status": "implemented",
+      "tests": [
+        "test/foundation/pi-component-adapter/shell-components.test.ts"
+      ]
+    },
+    {
+      "id": "settings.thinking",
+      "upstream": "settings-selector.ts:onThinkingLevelChange",
+      "component": "ThinkingSelectorComponent",
+      "destination": "src/foundation/pi-component-adapter/shell-components.ts",
+      "status": "implemented",
+      "tests": [
+        "test/foundation/pi-component-adapter/shell-components.test.ts"
+      ]
+    },
+    {
+      "id": "settings.images",
+      "upstream": "settings-selector.ts:onShowImagesChange",
+      "component": "ShowImagesSelectorComponent",
+      "destination": "src/foundation/pi-component-adapter/shell-components.ts",
+      "status": "implemented",
+      "tests": [
+        "test/foundation/pi-component-adapter/shell-components.test.ts"
+      ]
+    },
+    {
+      "id": "models.select",
+      "upstream": "interactive-mode.ts:showModelSelector",
+      "component": "ModelSelectorComponent",
+      "destination": "src/foundation/pi-component-adapter/shell-components.ts",
+      "status": "implemented",
+      "tests": [
+        "test/features/owned-ui/pi-session-shell.test.ts"
+      ]
+    },
+    {
+      "id": "models.scope",
+      "upstream": "interactive-mode.ts:showModelsSelector",
+      "component": "ScopedModelsSelectorComponent",
+      "destination": "src/foundation/pi-component-adapter/upstream/components/scoped-models-selector.ts",
+      "status": "implemented",
+      "tests": [
+        "test/features/owned-ui/pi-session-shell.test.ts",
+        "test/foundation/pi-component-adapter/shell-components.test.ts"
+      ]
+    },
+    {
+      "id": "trust.project",
+      "upstream": "interactive-mode.ts:showTrustSelector",
+      "component": "TrustSelectorComponent",
+      "destination": "src/foundation/pi-component-adapter/upstream/components/trust-selector.ts",
+      "status": "planned",
+      "tests": []
+    },
+    {
+      "id": "session.fork",
+      "upstream": "interactive-mode.ts:showUserMessageSelector",
+      "component": "UserMessageSelectorComponent",
+      "destination": "src/foundation/pi-component-adapter/shell-components.ts",
+      "status": "implemented",
+      "tests": [
+        "test/foundation/pi-component-adapter/shell-components.test.ts"
+      ]
+    },
+    {
+      "id": "tree.root",
+      "upstream": "interactive-mode.ts:showTreeSelector",
+      "component": "TreeSelectorComponent",
+      "destination": "src/foundation/pi-component-adapter/shell-components.ts",
+      "status": "implemented",
+      "tests": [
+        "test/foundation/pi-component-adapter/shell-components.test.ts"
+      ]
+    },
+    {
+      "id": "tree.summary-choice",
+      "upstream": "interactive-mode.ts:showTreeSelector/Summarize branch",
+      "component": "ExtensionSelectorComponent",
+      "destination": "src/features/owned-ui/pi-session-shell.ts",
+      "status": "planned",
+      "tests": []
+    },
+    {
+      "id": "tree.summary-instructions",
+      "upstream": "interactive-mode.ts:showTreeSelector/Custom summarization instructions",
+      "component": "ExtensionEditorComponent",
+      "destination": "src/features/owned-ui/pi-session-shell.ts",
+      "status": "planned",
+      "tests": []
+    },
+    {
+      "id": "session.resume",
+      "upstream": "interactive-mode.ts:showSessionSelector",
+      "component": "SessionSelectorComponent",
+      "destination": "src/foundation/pi-component-adapter/shell-components.ts",
+      "status": "implemented",
+      "tests": [
+        "test/foundation/pi-component-adapter/shell-components.test.ts"
+      ]
+    },
+    {
+      "id": "session.delete-confirm",
+      "upstream": "session-selector.ts:confirmingDeletePath",
+      "component": "SessionSelectorComponent",
+      "destination": "src/foundation/pi-component-adapter/shell-components.ts",
+      "status": "planned",
+      "tests": []
+    },
+    {
+      "id": "session.rename",
+      "upstream": "session-selector.ts:onRenameSession",
+      "component": "SessionSelectorComponent",
+      "destination": "src/foundation/pi-component-adapter/shell-components.ts",
+      "status": "planned",
+      "tests": []
+    },
+    {
+      "id": "session.missing-cwd",
+      "upstream": "interactive-mode.ts:promptForMissingSessionCwd",
+      "component": "ExtensionSelectorComponent+ExtensionInputComponent",
+      "destination": "src/features/owned-ui/pi-session-shell.ts",
+      "status": "planned",
+      "tests": []
+    },
+    {
+      "id": "auth.login-type",
+      "upstream": "interactive-mode.ts:showLoginAuthTypeSelector",
+      "component": "ExtensionSelectorComponent",
+      "destination": "src/features/owned-ui/pi-session-shell.ts",
+      "status": "planned",
+      "tests": []
+    },
+    {
+      "id": "auth.login-provider",
+      "upstream": "interactive-mode.ts:showLoginProviderSelector",
+      "component": "OAuthSelectorComponent",
+      "destination": "src/foundation/pi-component-adapter/shell-components.ts",
+      "status": "implemented",
+      "tests": [
+        "test/foundation/pi-component-adapter/shell-components.test.ts"
+      ]
+    },
+    {
+      "id": "auth.login-dialog",
+      "upstream": "interactive-mode.ts:performLogin",
+      "component": "LoginDialogComponent",
+      "destination": "src/foundation/pi-component-adapter/shell-components.ts",
+      "status": "implemented",
+      "tests": [
+        "test/foundation/pi-component-adapter/extension-ui-bridge.test.ts"
+      ]
+    },
+    {
+      "id": "auth.logout-provider",
+      "upstream": "interactive-mode.ts:showOAuthSelector",
+      "component": "OAuthSelectorComponent",
+      "destination": "src/foundation/pi-component-adapter/shell-components.ts",
+      "status": "implemented",
+      "tests": [
+        "test/foundation/pi-component-adapter/shell-components.test.ts"
+      ]
+    },
+    {
+      "id": "command.import-confirm",
+      "upstream": "interactive-mode.ts:handleImportCommand",
+      "component": "ExtensionSelectorComponent",
+      "destination": "src/features/owned-ui/pi-session-shell.ts",
+      "status": "implemented",
+      "tests": [
+        "test/features/owned-ui/pi-session-shell.test.ts"
+      ]
+    },
+    {
+      "id": "extension.select",
+      "upstream": "interactive-mode.ts:showExtensionSelector",
+      "component": "ExtensionSelectorComponent",
+      "destination": "src/foundation/pi-component-adapter/extension-ui-bridge.ts",
+      "status": "implemented",
+      "tests": [
+        "test/foundation/pi-component-adapter/extension-ui-bridge.test.ts"
+      ]
+    },
+    {
+      "id": "extension.confirm",
+      "upstream": "interactive-mode.ts:showExtensionConfirm",
+      "component": "ExtensionSelectorComponent",
+      "destination": "src/foundation/pi-component-adapter/extension-ui-bridge.ts",
+      "status": "implemented",
+      "tests": [
+        "test/foundation/pi-component-adapter/extension-ui-bridge.test.ts"
+      ]
+    },
+    {
+      "id": "extension.input",
+      "upstream": "interactive-mode.ts:showExtensionInput",
+      "component": "ExtensionInputComponent",
+      "destination": "src/foundation/pi-component-adapter/extension-ui-bridge.ts",
+      "status": "implemented",
+      "tests": [
+        "test/foundation/pi-component-adapter/extension-ui-bridge.test.ts"
+      ]
+    },
+    {
+      "id": "extension.editor",
+      "upstream": "interactive-mode.ts:showExtensionEditor",
+      "component": "ExtensionEditorComponent",
+      "destination": "src/foundation/pi-component-adapter/extension-ui-bridge.ts",
+      "status": "implemented",
+      "tests": [
+        "test/foundation/pi-component-adapter/extension-ui-bridge.test.ts"
+      ]
+    },
+    {
+      "id": "extension.custom-editor",
+      "upstream": "interactive-mode.ts:setCustomEditor",
+      "component": "CustomEditor",
+      "destination": "src/foundation/pi-component-adapter/extension-ui-bridge.ts",
+      "status": "implemented",
+      "tests": [
+        "test/foundation/pi-component-adapter/extension-ui-bridge.test.ts"
+      ]
+    },
+    {
+      "id": "extension.custom-overlay",
+      "upstream": "interactive-mode.ts:showOverlay",
+      "component": "TUI overlay",
+      "destination": "src/foundation/pi-component-adapter/extension-ui-bridge.ts",
+      "status": "implemented",
+      "tests": [
+        "test/foundation/pi-component-adapter/extension-ui-bridge.test.ts"
+      ]
+    }
+  ]
+}
