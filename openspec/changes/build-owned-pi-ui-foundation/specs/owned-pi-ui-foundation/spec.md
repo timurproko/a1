@@ -60,6 +60,31 @@ The AddOne-owned UI SHALL reproduce the complete visible and interactive behavio
 - **AND WHEN** no selection is active
 - **THEN** `Ctrl+C` SHALL retain the pinned interrupt behavior
 
+#### Scenario: Resolve retained selection before ordinary input
+- **WHEN** a selection is retained after mouse release and the user enters any non-copy keyboard input, including `/` that opens command autocomplete
+- **THEN** AddOne SHALL clear the active selection before forwarding the input and before rendering the resulting editor, autocomplete, command, selector, dialog, or replacement-surface state
+- **AND** no newly rendered cell SHALL inherit highlighting from the old screen-coordinate rectangle
+
+#### Scenario: Prove selection from final terminal cells
+- **WHEN** styled content such as the accent-colored `Skills` resource heading is selected and the renderer emits full or differential writes containing split SGR transitions
+- **THEN** a terminal-cell emulator SHALL resolve every selected final cell to the declared dark foreground and uniform bright-white background, with no source foreground/background leakage
+- **AND** concatenated ANSI substring inspection without final-cell resolution SHALL NOT satisfy acceptance
+
+#### Scenario: Render the changelog command
+- **WHEN** the user invokes `/changelog`
+- **THEN** the owned UI SHALL insert the pinned spacer, dynamic borders, bold accent `What's New` heading, spacing, settings-aware Markdown component, padding, wrapping, scrolling, and chronological transcript placement
+- **AND** raw Markdown markers or a generic `✓ What's New` workflow row SHALL NOT be displayed as the command presentation
+
+#### Scenario: Render a built-in command failure
+- **WHEN** a built-in route fails, including `/export` before a conversation exists
+- **THEN** the owned UI SHALL use pinned `showError()` spacing, output padding, error color, and `Error:` prefix at the pinned transcript position
+- **AND** the route SHALL preserve its pinned contextual message, including `Failed to export session: Nothing to export yet - start a conversation first`
+
+#### Scenario: Render a built-in informational status
+- **WHEN** a built-in route reports status, including successful `/reload`
+- **THEN** the owned UI SHALL use pinned `showStatus()` spacer, dim styling, chronological placement, and consecutive-status coalescing
+- **AND** `/reload` SHALL NOT gain an AddOne-only checkmark or generic success prefix
+
 #### Scenario: Show loaded startup resources
 - **WHEN** pinned Pi discovers context files, skills, prompt templates, extensions, custom themes, or resource diagnostics during startup
 - **THEN** the owned UI SHALL render the equivalent Context, Skills, Prompts, Extensions, Themes, and conflict sections with pinned grouping, sorting, labels, colors, spacing, compact/expanded state, and source formatting before initial session messages
