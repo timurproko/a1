@@ -200,6 +200,7 @@ for (const nativeRoot of nativeRoots) {
 errors.push(...inspectProjectStructureImports(sourceFiles));
 await inspectRepositoryStructure();
 await inspectReleasePolicy();
+await inspectTerminalParityBoundary();
 
 if (errors.length > 0) {
   console.error(`Architecture check failed (${errors.length}):\n${errors.map(error => `- ${error}`).join("\n")}`);
@@ -242,6 +243,33 @@ async function walkRepository(directory, prefix = "") {
     else paths.push(path);
   }
   return paths;
+}
+
+async function inspectTerminalParityBoundary() {
+  const productionPattern = /(?:pi-terminal-parity|TerminalParitySession|@xterm\/headless|node-pty|cell(?:Grid)?Capture|terminalCheckpointCapture)/i;
+  for (const [path, source] of Object.entries(sourceFiles)) {
+    if (productionPattern.test(source)) errors.push(`${path}: terminal parity PTY/process/cell capture is test-only`);
+  }
+
+  let manifest;
+  try {
+    manifest = JSON.parse(await readFile(resolve(root, "package.json"), "utf8"));
+  } catch (error) {
+    if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
+    return;
+  }
+  const parityCommand = manifest.scripts?.["test:pi-terminal-parity"];
+  if (parityCommand === undefined) return;
+  for (const dependency of ["node-pty", "@xterm/headless"]) {
+    if (manifest.dependencies?.[dependency]) errors.push(`package.json: terminal parity dependency '${dependency}' must be development-only`);
+    if (!manifest.devDependencies?.[dependency]) errors.push(`package.json: terminal parity development dependency '${dependency}' is missing`);
+  }
+  if (parityCommand !== "npm run build --silent && node scripts/run-pi-terminal-parity.mjs") {
+    errors.push("package.json: terminal parity must expose only the canonical full test command");
+  }
+  if ((manifest.files ?? []).some(path => path === "scripts" || path.startsWith("scripts/"))) {
+    errors.push("package.json: test-only terminal parity scripts must not be published");
+  }
 }
 
 async function inspectReleasePolicy() {

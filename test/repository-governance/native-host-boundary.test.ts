@@ -30,16 +30,19 @@ describe("native host and transparent-mode executable boundaries", () => {
     }
   });
 
-  it("keeps native terminal implementation dependencies out of the JavaScript package authority", async () => {
+  it("keeps native terminal implementation dependencies out of the published JavaScript authority", async () => {
     const manifest = JSON.parse(await readFile("package.json", "utf8")) as {
       dependencies?: Record<string, string>;
       devDependencies?: Record<string, string>;
+      files?: string[];
     };
-    const dependencies = Object.keys({ ...manifest.dependencies, ...manifest.devDependencies });
-    expect(dependencies).not.toContain("node-pty");
-    expect(dependencies).not.toContain("@xterm/headless");
-    expect(dependencies).not.toContain("portable-pty");
-    expect(dependencies).not.toContain("homebridge-node-pty-prebuilt-multiarch");
+    const productionDependencies = Object.keys(manifest.dependencies ?? {});
+    expect(productionDependencies).not.toContain("node-pty");
+    expect(productionDependencies).not.toContain("@xterm/headless");
+    expect(productionDependencies).not.toContain("portable-pty");
+    expect(productionDependencies).not.toContain("homebridge-node-pty-prebuilt-multiarch");
+    expect(manifest.devDependencies).toMatchObject({ "node-pty": "1.1.0", "@xterm/headless": "6.0.0" });
+    expect(manifest.files).not.toContain("scripts");
   });
 
   it("keeps pane hot-path instrumentation native and exports metadata only", async () => {
