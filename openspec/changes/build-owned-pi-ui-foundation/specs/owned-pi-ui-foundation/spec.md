@@ -48,8 +48,16 @@ The AddOne-owned UI SHALL reproduce the complete visible and interactive behavio
 - **THEN** the owned UI SHALL preserve source order, streaming state, component identity, adjacent-content spacing, tool boundaries, and terminal status content exactly as pinned `AssistantMessageComponent`
 
 #### Scenario: Scroll with a physical wheel event
-- **WHEN** an equivalent terminal sends the same physical wheel sequence over the same active content and viewport
-- **THEN** AddOne SHALL route the event through the equivalent active and primary scroll views, overscroll policy, scrollbar state, and event batching so the same visible rows become active as in pinned Pi
+- **WHEN** an equivalent terminal sends one physical wheel notch over the same active content and viewport
+- **THEN** AddOne SHALL advance three rows in that direction, route any unconsumed distance through the equivalent active and primary scroll views, and preserve overscroll boundaries and scrollbar state so the visible destination matches ordinary vanilla Pi
+
+#### Scenario: Select and copy transcript text
+- **WHEN** the user drags across visible transcript content
+- **THEN** AddOne SHALL retain the selection without copying on release, render every selected cell with one uniform inverse style independent of underlying ANSI colors, and SHALL NOT display `Copied!` or another copy notification
+- **AND WHEN** the user presses `Ctrl+C` while that selection is active
+- **THEN** AddOne SHALL copy the selected plain text to the clipboard and consume the key without interrupting the agent
+- **AND WHEN** no selection is active
+- **THEN** `Ctrl+C` SHALL retain the pinned interrupt behavior
 
 #### Scenario: Show loaded startup resources
 - **WHEN** pinned Pi discovers context files, skills, prompt templates, extensions, custom themes, or resource diagnostics during startup
