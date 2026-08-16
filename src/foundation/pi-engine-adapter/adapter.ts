@@ -19,12 +19,14 @@ import {
   OWNED_UI_EXTENSION_UI_CALLBACKS,
   OWNED_UI_EXTENSION_UI_PROPERTIES,
   assertOwnedUiCommand,
+  assertOwnedUiExtensionUiPort,
   assertOwnedUiSnapshot,
   type OwnedUiCommand,
   type OwnedUiCommandOutcome,
   type OwnedUiDiagnostics,
   type OwnedUiEditorState,
   type OwnedUiEvent,
+  type OwnedUiExtensionUiPort,
   type OwnedUiModelInfo,
   type OwnedUiSessionViewModel,
   type OwnedUiSnapshot,
@@ -77,6 +79,12 @@ export interface PiSessionLike {
   compact(customInstructions?: string): Promise<unknown>;
   setModel(model: unknown): Promise<void>;
   setThinkingLevel(level: unknown): void;
+  bindExtensions?(bindings: {
+    readonly uiContext?: OwnedUiExtensionUiPort;
+    readonly mode?: "tui" | "print";
+    readonly shutdownHandler?: () => void | Promise<void>;
+    readonly onError?: (error: unknown) => void;
+  }): Promise<void>;
   dispose(): void;
 }
 
@@ -133,10 +141,10 @@ export interface OwnedPiExtensionResourceSummary {
 }
 
 export interface OwnedPiVisualExtensionSupport {
-  readonly available: false;
+  readonly available: boolean;
   readonly contractComplete: true;
   readonly contractVersion: typeof OWNED_UI_EXTENSION_CONTRACT_VERSION;
-  readonly binding: "unbound";
+  readonly binding: "bound" | "unbound";
   readonly uiCallbacks: typeof OWNED_UI_EXTENSION_UI_CALLBACKS;
   readonly uiProperties: typeof OWNED_UI_EXTENSION_UI_PROPERTIES;
   readonly renderCallbacks: typeof OWNED_UI_EXTENSION_RENDER_CALLBACKS;
@@ -198,7 +206,7 @@ export class PiEngineAdapter {
   readonly #completedCommands = new Map<string, AdapterCommandResult>();
   #transcript: OwnedUiTranscriptBlock[] = [];
   readonly #messageBlockIds = new WeakMap<object, string>();
-  readonly #messageFallbackIds = new Map<string, string>();
+  readonly #messageFallbackIds = new Map<string, string[]>();
   readonly #toolBlockIds = new Map<string, string>();
   #nextBlockSequence = 0;
   #diagnostics: OwnedUiDiagnostics[] = [];
@@ -207,6 +215,9 @@ export class PiEngineAdapter {
   #droppedEventCount = 0;
   #lastPrompt: string | null = null;
   #gitBranch: string | null = null;
+  #extensionUi: OwnedUiExtensionUiPort | undefined;
+  #extensionShutdown: (() => void | Promise<void>) | undefined;
+  #extensionBound = false;
   #disposed = false;
 
   constructor(options: PiEngineAdapterOptions = {}) {
@@ -425,15 +436,30 @@ export class PiEngineAdapter {
 
   visualExtensionSupport(): OwnedPiVisualExtensionSupport {
     return {
-      available: false,
+      available: this.#extensionBound,
       contractComplete: true,
       contractVersion: OWNED_UI_EXTENSION_CONTRACT_VERSION,
-      binding: "unbound",
+      binding: this.#extensionBound ? "bound" : "unbound",
       uiCallbacks: OWNED_UI_EXTENSION_UI_CALLBACKS,
       uiProperties: OWNED_UI_EXTENSION_UI_PROPERTIES,
       renderCallbacks: OWNED_UI_EXTENSION_RENDER_CALLBACKS,
-      diagnostic: "The complete AddOne-owned extension UI contract is available, but runtime binding remains unavailable until the pinned extension lifecycle port is complete.",
+      diagnostic: this.#extensionBound
+        ? "Pinned public extension UI lifecycle is bound through the AddOne-owned bridge."
+        : "The complete AddOne-owned extension UI contract is available; the active session has not been bound to the owned UI bridge.",
     };
+  }
+
+  async bindExtensionUi(ui: unknown, shutdown?: () => void | Promise<void>): Promise<void> {
+    assertOwnedUiExtensionUiPort(ui);
+    this.#extensionUi = ui;
+    this.#extensionShutdown = shutdown;
+    await this.#bindExtensionUiToSession();
+  }
+
+  async unbindExtensionUi(): Promise<void> {
+    this.#extensionUi = undefined;
+    this.#extensionShutdown = undefined;
+    this.#extensionBound = false;
   }
 
   workflowAutocompleteCommands(): readonly PiWorkflowAutocompleteCommand[] {
@@ -603,6 +629,14 @@ export class PiEngineAdapter {
     };
   }
 
+  pinnedMessageRenderer(customType: string): unknown {
+    return dynamicCall(dynamicObject(this.#requireWorkflowSession(), "extensionRunner"), "getMessageRenderer", customType);
+  }
+
+  pinnedToolDefinition(toolName: string): unknown {
+    return dynamicCall(dynamicObject(this.#requireWorkflowSession(), "extensionRunner"), "getToolDefinition", toolName);
+  }
+
   clearQueuedWorkflows(): readonly string[] {
     const session = this.#requireWorkflowSession();
     const result = dynamicCall(session, "clearQueue");
@@ -723,6 +757,9 @@ export class PiEngineAdapter {
   async dispose(): Promise<void> {
     if (this.#disposed) return;
     this.#disposed = true;
+    this.#extensionBound = false;
+    this.#extensionUi = undefined;
+    this.#extensionShutdown = undefined;
     this.#lifecycle = "stopping";
     this.#emitEvent({ type: "session-lifecycle", lifecycle: "stopping", reason: null });
     this.#unsubscribe?.();
@@ -1214,6 +1251,36 @@ export class PiEngineAdapter {
     this.#thinkingLevel = readThinkingLevel(session.thinkingLevel);
     this.#rebuildTranscript(session.messages, "finalized");
     this.#unsubscribe = session.subscribe(event => this.#handlePiEvent(event));
+    if (this.#extensionUi !== undefined) void this.#bindExtensionUiToSession();
+  }
+
+  async #bindExtensionUiToSession(): Promise<void> {
+    const session = this.#session;
+    const ui = this.#extensionUi;
+    if (session === undefined || ui === undefined || session.bindExtensions === undefined) {
+      this.#extensionBound = false;
+      return;
+    }
+    try {
+      await session.bindExtensions({
+        uiContext: ui,
+        mode: "tui",
+        shutdownHandler: () => this.#extensionShutdown?.(),
+        onError: error => {
+          const message = isRecord(error) && typeof error.error === "string"
+            ? error.error
+            : error instanceof Error ? error.message : String(error);
+          this.#addDiagnostic("warning", "extension-ui", message, true);
+          this.#emitView();
+        },
+      });
+      this.#extensionBound = true;
+      this.#emitView();
+    } catch (error) {
+      this.#extensionBound = false;
+      this.#addDiagnostic("error", "extension-ui-bind", error instanceof Error ? error.message : String(error), true);
+      this.#emitView();
+    }
   }
 
   #handlePiEvent(event: unknown): void {
@@ -1359,8 +1426,12 @@ export class PiEngineAdapter {
 
   #rebuildTranscript(messages: readonly unknown[], status: OwnedUiTranscriptBlock["status"]): void {
     const blocks: OwnedUiTranscriptBlock[] = [];
+    const occurrences = new Map<string, number>();
     for (const [index, message] of messages.entries()) {
-      blocks.push(...this.#messageBlocks(message, status, index));
+      const key = messageFallbackKey(message, index);
+      const occurrence = occurrences.get(key) ?? 0;
+      occurrences.set(key, occurrence + 1);
+      blocks.push(...this.#messageBlocks(message, status, index, occurrence));
     }
     this.#transcript = blocks;
   }
@@ -1379,9 +1450,10 @@ export class PiEngineAdapter {
     message: unknown,
     status: OwnedUiTranscriptBlock["status"],
     fallbackIndex: number,
+    occurrence?: number,
   ): OwnedUiTranscriptBlock[] {
     if (!isRecord(message) || typeof message.role !== "string") return [];
-    const baseId = this.#messageBlockId(message, fallbackIndex);
+    const baseId = this.#messageBlockId(message, fallbackIndex, status, occurrence);
     if (message.role === "user") {
       return [{
         id: baseId,
@@ -1539,17 +1611,35 @@ export class PiEngineAdapter {
     this.#emitEvent({ type: "transcript-block", block });
   }
 
-  #messageBlockId(message: Record<string, unknown>, fallbackIndex: number): string {
+  #messageBlockId(
+    message: Record<string, unknown>,
+    fallbackIndex: number,
+    status: OwnedUiTranscriptBlock["status"],
+    occurrence?: number,
+  ): string {
     const existing = this.#messageBlockIds.get(message);
     if (existing) return existing;
-    const timestamp = typeof message.timestamp === "number" && Number.isSafeInteger(message.timestamp)
-      ? message.timestamp
-      : fallbackIndex;
-    const fallback = `message-${stringValue(message.role) ?? "unknown"}-${timestamp}`;
-    const cached = this.#messageFallbackIds.get(fallback) ?? fallback;
+    const fallback = messageFallbackKey(message, fallbackIndex);
+    const cached = this.#messageFallbackIds.get(fallback) ?? [];
+    let id: string | undefined;
+    if (occurrence !== undefined) {
+      id = cached[occurrence];
+      if (id === undefined) {
+        id = `${fallback}-${occurrence}`;
+        cached[occurrence] = id;
+      }
+    } else {
+      id = [...cached].reverse().find(candidate =>
+        this.#transcript.some(block => block.id === candidate && block.status === "live"));
+      if (id === undefined && status === "finalized") id = cached.at(-1);
+      if (id === undefined) {
+        id = `${fallback}-${cached.length}`;
+        cached.push(id);
+      }
+    }
     this.#messageFallbackIds.set(fallback, cached);
-    this.#messageBlockIds.set(message, cached);
-    return cached;
+    this.#messageBlockIds.set(message, id);
+    return id;
   }
 
   #nextBlockRevision(id: string): number {
@@ -1903,6 +1993,14 @@ function readStringArray(value: unknown): readonly string[] {
 
 function stringValue(value: unknown): string | undefined {
   return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function messageFallbackKey(message: unknown, fallbackIndex: number): string {
+  if (!isRecord(message)) return `message-unknown-${fallbackIndex}`;
+  const timestamp = typeof message.timestamp === "number" && Number.isSafeInteger(message.timestamp)
+    ? message.timestamp
+    : `index-${fallbackIndex}`;
+  return `message-${stringValue(message.role) ?? "unknown"}-${timestamp}`;
 }
 
 function extensionResourceDiagnostic(index: number, sourcePath: string | null, diagnostic: string): OwnedPiExtensionResourceSummary {

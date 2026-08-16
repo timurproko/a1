@@ -274,6 +274,10 @@ export class PiTuiRuntimeAdapter {
     return this.#tui.getShowHardwareCursor();
   }
 
+  setTitle(title: string): void {
+    this.#terminal.setTitle(title);
+  }
+
   invalidate(): void {
     this.#tui.invalidate();
     if (this.active) this.#tui.requestRender();

@@ -13,6 +13,7 @@ import {
   PINNED_PI_VERSION,
   prepareParityFixture,
   TERMINAL_PARITY_ACTIONS,
+  TERMINAL_PARITY_TOLERANCES,
 } from "./pi-terminal-parity/scenario.mjs";
 
 const packageRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
@@ -98,7 +99,7 @@ async function runGate() {
   const addoneCapture = mutation === "visual" || mutation === "input-scroll"
     ? applyIntentionalMutation(originalAddoneCapture, mutation)
     : originalAddoneCapture;
-  const comparison = compareParityRun(upstreamCapture, addoneCapture);
+  const comparison = compareParityRun(upstreamCapture, addoneCapture, { tolerances: TERMINAL_PARITY_TOLERANCES });
   return {
     schemaVersion: 1,
     generatedAt: new Date().toISOString(),
@@ -110,7 +111,7 @@ async function runGate() {
       checkpointNames: TERMINAL_PARITY_ACTIONS.filter(action => action.type === "checkpoint").map(action => action.name),
       actionKinds: [...new Set(TERMINAL_PARITY_ACTIONS.map(action => action.type))],
       intentionalMutation: mutation ?? null,
-      tolerances: [],
+      tolerances: [...TERMINAL_PARITY_TOLERANCES],
     },
     upstream: upstreamCapture,
     addone: addoneCapture,

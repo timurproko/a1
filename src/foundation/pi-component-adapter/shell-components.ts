@@ -1,11 +1,15 @@
 import {
   AssistantMessageComponent,
+  type AutocompleteProviderFactory,
   BashExecutionComponent,
   CompactionSummaryMessageComponent,
   CustomEditor,
   CustomMessageComponent,
   DynamicBorder,
+  ExtensionEditorComponent,
+  ExtensionInputComponent,
   ExtensionSelectorComponent,
+  type ExtensionUIContext,
   FooterComponent,
   getMarkdownTheme,
   getSelectListTheme,
@@ -46,13 +50,23 @@ import {
 } from "@earendil-works/pi-tui";
 import type {
   OwnedUiDialog,
+  OwnedUiExtensionOverlayHandle,
+  OwnedUiExtensionOverlayOptions,
   OwnedUiSessionViewModel,
   OwnedUiThinkingLevel,
   OwnedUiTranscriptBlock,
 } from "../owned-ui-contracts/index.js";
 import { KeybindingsManager } from "./upstream/adjacent/core/keybindings.js";
 import { WorkingStatusIndicator } from "./upstream/components/status-indicator.js";
-import { PINNED_PI_LAYOUT, ensurePiTheme, piTheme } from "./theme.js";
+import {
+  PINNED_PI_LAYOUT,
+  applyPiTheme,
+  applyPiThemeInstance,
+  ensurePiTheme,
+  getAvailablePiThemes,
+  loadPiTheme,
+  piTheme,
+} from "./theme.js";
 
 export interface PiShellComponentPort {
   render(width: number): readonly string[];
@@ -70,6 +84,7 @@ export interface PiShellEditorPort extends PiShellComponentPort {
   setSubmitHandler(handler: (text: string) => void): void;
   setInterruptHandler(handler: () => void): void;
   setAutocompleteCommands(commands: readonly PiShellAutocompleteCommand[]): void;
+  addAutocompleteProvider(factory: unknown): void;
   setThinkingLevel(level: OwnedUiThinkingLevel): void;
 }
 
@@ -104,6 +119,11 @@ export interface PiShellResourceEntry {
 
 export interface PiShellLoadedResourcesPort extends PiShellComponentPort {
   setExpanded(expanded: boolean): void;
+}
+
+export interface PiShellExtensionRendererResolver {
+  getMessageRenderer(customType: string): unknown;
+  getToolDefinition(toolName: string): unknown;
 }
 
 export interface PiShellTranscriptComponentPort extends PiShellComponentPort {
@@ -210,15 +230,17 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
       : piTheme().getThinkingBorderColor(thinkingLevel);
     tui.requestRender();
   };
+  let autocompleteProvider: unknown;
   const setAutocompleteCommands = (commands: readonly PiShellAutocompleteCommand[]) => {
     const additions = new Map(commands.map(command => [command.name, command]));
     const builtInNames = new Set(PINNED_PI_BUILTIN_SLASH_COMMANDS.map(command => command.name));
     const builtIns = PINNED_PI_BUILTIN_SLASH_COMMANDS.map(command => autocompleteCommand(command, additions.get(command.name)));
     const resources = commands.filter(command => !builtInNames.has(command.name)).map(command => autocompleteCommand(command));
-    editor.setAutocompleteProvider(new CombinedAutocompleteProvider(
+    autocompleteProvider = new CombinedAutocompleteProvider(
       [...builtIns, ...resources],
       options.cwd ?? process.cwd(),
-    ));
+    );
+    editor.setAutocompleteProvider(autocompleteProvider as never);
   };
   setAutocompleteCommands(options.autocompleteCommands ?? []);
   let submitHandler = options.onSubmit;
@@ -275,6 +297,11 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
     setSubmitHandler: handler => { submitHandler = handler; },
     setInterruptHandler: handler => { interruptHandler = handler; },
     setAutocompleteCommands,
+    addAutocompleteProvider(factory) {
+      if (typeof factory !== "function") throw new TypeError("extension autocomplete factory must be a function");
+      autocompleteProvider = (factory as AutocompleteProviderFactory)(autocompleteProvider as never);
+      editor.setAutocompleteProvider(autocompleteProvider as never);
+    },
     setThinkingLevel(level) {
       if (thinkingLevel === level) return;
       thinkingLevel = level;
@@ -568,6 +595,254 @@ export function createPiShellHotkeys(): PiShellComponentPort {
   return componentPort(container);
 }
 
+type PiEditorFactory = NonNullable<Parameters<ExtensionUIContext["setEditorComponent"]>[0]>;
+
+export interface PiExtensionUiBridgeHost {
+  readonly runtime: Pick<PiShellEditorOptions, "getColumns" | "getRows" | "requestRender">;
+  readonly agentDir?: string;
+  setInputSurface(component: PiShellComponentPort | null): void;
+  showOverlay(component: PiShellComponentPort, options?: OwnedUiExtensionOverlayOptions): OwnedUiExtensionOverlayHandle;
+  listenInput(handler: (data: string) => { readonly consume?: boolean; readonly data?: string } | undefined): () => void;
+  replaceWidget(key: string, component: PiShellComponentPort | null, placement: "aboveEditor" | "belowEditor"): void;
+  replaceHeader(component: PiShellComponentPort | null): void;
+  replaceFooter(component: PiShellComponentPort | null): void;
+  setStatus(key: string, text: string | undefined): void;
+  setWorking(message: string | undefined, visible?: boolean): void;
+  notify(message: string, type: "info" | "warning" | "error"): void;
+  setTitle(title: string): void;
+  getEditorText(): string;
+  setEditorText(text: string): void;
+  pasteToEditor(text: string): void;
+  addAutocompleteProvider(factory: unknown): void;
+  setCustomEditor(component: PiShellComponentPort | null): void;
+  getFooterData(): unknown;
+  getToolsExpanded(): boolean;
+  setToolsExpanded(expanded: boolean): void;
+}
+
+export interface PiExtensionUiBridge {
+  readonly context: ExtensionUIContext;
+  dispose(): void;
+}
+
+/** Public ExtensionUIContext ported from pinned InteractiveMode without constructing it. */
+export function createPiExtensionUiBridge(host: PiExtensionUiBridgeHost): PiExtensionUiBridge {
+  ensureTheme();
+  const tui = createTuiFacade(host.runtime);
+  const keybindings = KeybindingsManager.create(host.agentDir);
+  const disposers = new Set<() => void>();
+  let customEditorFactory: PiEditorFactory | undefined;
+  let activeSurface: PiShellComponentPort | undefined;
+  const closeSurface = (surface?: PiShellComponentPort) => {
+    if (surface !== undefined && activeSurface !== surface) return;
+    activeSurface = undefined;
+    host.setInputSurface(null);
+    host.runtime.requestRender();
+  };
+  const mountSurface = (surface: PiShellComponentPort) => {
+    if (activeSurface !== undefined && activeSurface !== surface) activeSurface.dispose?.();
+    activeSurface = surface;
+    host.setInputSurface(surface);
+    host.runtime.requestRender();
+  };
+  const trackAbort = (signal: AbortSignal | undefined, cancel: () => void) => {
+    if (signal === undefined) return () => {};
+    if (signal.aborted) {
+      cancel();
+      return () => {};
+    }
+    signal.addEventListener("abort", cancel, { once: true });
+    const dispose = () => signal.removeEventListener("abort", cancel);
+    disposers.add(dispose);
+    return () => {
+      dispose();
+      disposers.delete(dispose);
+    };
+  };
+  const showInput = <T>(create: (resolve: (value: T) => void, cancel: () => void) => PiShellComponentPort, options?: { signal?: AbortSignal }) =>
+    new Promise<T>(resolve => {
+      let settled = false;
+      let surface: PiShellComponentPort;
+      let untrack = () => {};
+      const finish = (value: T) => {
+        if (settled) return;
+        settled = true;
+        untrack();
+        closeSurface(surface);
+        resolve(value);
+      };
+      const cancel = () => finish(undefined as T);
+      surface = create(finish, cancel);
+      untrack = trackAbort(options?.signal, cancel);
+      if (!settled) mountSurface(surface);
+    });
+  const createFactoryComponent = (factory: unknown, ...arguments_: unknown[]): PiShellComponentPort => {
+    if (typeof factory !== "function") throw new TypeError("extension component factory must be a function");
+    const component = factory(...arguments_);
+    if (isPromiseLike(component)) throw new TypeError("synchronous extension surface factory returned a promise");
+    if (!isComponent(component)) throw new TypeError("extension factory returned a malformed component");
+    return componentPort(component);
+  };
+  const context: ExtensionUIContext = {
+    select: (title, options, opts) => showInput<string | undefined>((resolve, cancel) => componentPort(
+      new ExtensionSelectorComponent(title, [...options], resolve, cancel, {
+        tui,
+        ...(opts?.timeout === undefined ? {} : { timeout: opts.timeout }),
+        onToggleToolsExpanded: () => host.setToolsExpanded(!host.getToolsExpanded()),
+      }),
+    ), opts),
+    async confirm(title, message, opts) {
+      return (await context.select(`${title}\n${message}`, ["Yes", "No"], opts)) === "Yes";
+    },
+    input: (title, placeholder, opts) => showInput<string | undefined>((resolve, cancel) => componentPort(
+      new ExtensionInputComponent(title, placeholder, resolve, cancel, {
+        tui,
+        ...(opts?.timeout === undefined ? {} : { timeout: opts.timeout }),
+      }),
+    ), opts),
+    notify: (message, type = "info") => host.notify(message, type),
+    onTerminalInput: handler => host.listenInput(handler),
+    setStatus: (key, text) => host.setStatus(key, text),
+    setWorkingMessage: message => host.setWorking(message),
+    setWorkingVisible: visible => host.setWorking(undefined, visible),
+    setWorkingIndicator: options => host.setWorking(options?.frames?.[0]),
+    setHiddenThinkingLabel: () => host.runtime.requestRender(),
+    setWidget(key, content, options) {
+      if (content === undefined) {
+        host.replaceWidget(key, null, options?.placement ?? "aboveEditor");
+        return;
+      }
+      try {
+        const component = Array.isArray(content)
+          ? componentPort(new Text(content.join("\n"), PINNED_PI_LAYOUT.contentPaddingX, 0))
+          : createFactoryComponent(content, tui, piTheme());
+        host.replaceWidget(key, component, options?.placement ?? "aboveEditor");
+      } catch (error) {
+        host.notify(extensionError("widget", error), "error");
+      }
+    },
+    setFooter(factory) {
+      try {
+        host.replaceFooter(factory === undefined ? null : createFactoryComponent(factory, tui, piTheme(), host.getFooterData()));
+      } catch (error) {
+        host.replaceFooter(null);
+        host.notify(extensionError("footer", error), "error");
+      }
+    },
+    setHeader(factory) {
+      try {
+        host.replaceHeader(factory === undefined ? null : createFactoryComponent(factory, tui, piTheme()));
+      } catch (error) {
+        host.replaceHeader(null);
+        host.notify(extensionError("header", error), "error");
+      }
+    },
+    setTitle: title => host.setTitle(title),
+    custom: async (factory, options) => new Promise((resolve, reject) => {
+      let settled = false;
+      let surface: PiShellComponentPort | undefined;
+      let overlay: OwnedUiExtensionOverlayHandle | undefined;
+      const done = (value: unknown) => {
+        if (settled) return;
+        settled = true;
+        overlay?.hide();
+        if (surface !== undefined) closeSurface(surface);
+        resolve(value as never);
+      };
+      let created: unknown;
+      try {
+        created = factory(tui, piTheme(), keybindings as never, done);
+      } catch (error) {
+        host.notify(extensionError("custom surface", error), "error");
+        reject(error);
+        return;
+      }
+      void Promise.resolve(created).then(component => {
+        if (!isComponent(component)) throw new TypeError("extension custom factory returned a malformed component");
+        if (settled) {
+          if ("dispose" in component && typeof component.dispose === "function") component.dispose();
+          return;
+        }
+        surface = componentPort(component);
+        if (options?.overlay) {
+          const overlayOptions = typeof options.overlayOptions === "function" ? options.overlayOptions() : options.overlayOptions;
+          overlay = host.showOverlay(surface, overlayOptions);
+          options.onHandle?.(overlay as never);
+        } else mountSurface(surface);
+      }).catch(error => {
+        if (surface !== undefined) closeSurface(surface);
+        host.notify(extensionError("custom surface", error), "error");
+        reject(error);
+      });
+    }),
+    pasteToEditor: text => host.pasteToEditor(text),
+    setEditorText: text => host.setEditorText(text),
+    getEditorText: () => host.getEditorText(),
+    editor: (title, prefill) => showInput<string | undefined>((resolve, cancel) => componentPort(
+      new ExtensionEditorComponent(tui, keybindings as never, title, prefill, resolve, cancel),
+    )),
+    addAutocompleteProvider: factory => host.addAutocompleteProvider(factory),
+    setEditorComponent(factory) {
+      customEditorFactory = factory;
+      if (factory === undefined) {
+        host.setCustomEditor(null);
+        return;
+      }
+      try {
+        const editor = factory(tui, {
+          borderColor: text => piTheme().fg("borderMuted", text),
+          selectList: getSelectListTheme(),
+        }, keybindings as never);
+        if (!isComponent(editor)) throw new TypeError("extension editor factory returned a malformed editor");
+        host.setCustomEditor(componentPort(editor));
+      } catch (error) {
+        customEditorFactory = undefined;
+        host.setCustomEditor(null);
+        host.notify(extensionError("editor", error), "error");
+      }
+    },
+    getEditorComponent: () => customEditorFactory,
+    get theme() { return piTheme(); },
+    getAllThemes: () => getAvailablePiThemes().map(theme => ({ name: theme.name, path: theme.path })),
+    getTheme(name) {
+      try { return loadPiTheme(name); } catch { return undefined; }
+    },
+    setTheme(theme) {
+      const result = typeof theme === "string" ? applyPiTheme(theme, true) : applyPiThemeInstance(theme);
+      host.runtime.requestRender();
+      return result.success
+        ? { success: true }
+        : { success: false, ...(result.error === undefined ? {} : { error: result.error }) };
+    },
+    getToolsExpanded: () => host.getToolsExpanded(),
+    setToolsExpanded: expanded => host.setToolsExpanded(expanded),
+  };
+  return {
+    context,
+    dispose() {
+      for (const dispose of disposers) dispose();
+      disposers.clear();
+      activeSurface?.dispose?.();
+      activeSurface = undefined;
+      host.setInputSurface(null);
+      host.replaceHeader(null);
+      host.replaceFooter(null);
+    },
+  };
+}
+
+function extensionError(surface: string, error: unknown): string {
+  return `Extension ${surface} failed: ${error instanceof Error ? error.message : String(error)}`;
+}
+
+function isPromiseLike(value: unknown): value is PromiseLike<unknown> {
+  return isRecord(value) && typeof value.then === "function";
+}
+
+function isComponent(value: unknown): value is Component {
+  return isRecord(value) && typeof value.render === "function" && typeof value.invalidate === "function";
+}
+
 export function createPiShellHeader(options: PiShellHeaderOptions = {}): PiShellHeaderPort {
   ensureTheme();
   let expanded = options.expanded ?? false;
@@ -721,11 +996,12 @@ export function createPiQueuedInputStatus(submissions: readonly string[]): PiShe
 export function createPiShellTranscriptComponent(
   initial: OwnedUiTranscriptBlock,
   cwd: string,
+  extensions?: PiShellExtensionRendererResolver,
 ): PiShellTranscriptComponentPort {
   ensureTheme();
   let block = initial;
   let expanded = false;
-  let component = transcriptComponent(block, cwd, expanded);
+  let component = transcriptComponent(block, cwd, expanded, extensions);
   return {
     get id() { return block.id; },
     get revision() { return block.revision; },
@@ -736,7 +1012,7 @@ export function createPiShellTranscriptComponent(
       const previous = block;
       block = next;
       if (!updateTranscriptComponent(component, previous, next, expanded)) {
-        component = transcriptComponent(block, cwd, expanded);
+        component = transcriptComponent(block, cwd, expanded, extensions);
       }
     },
     setExpanded(next) {
@@ -745,7 +1021,7 @@ export function createPiShellTranscriptComponent(
       if ("setExpanded" in component && typeof component.setExpanded === "function") {
         component.setExpanded(expanded);
       } else {
-        component = transcriptComponent(block, cwd, expanded);
+        component = transcriptComponent(block, cwd, expanded, extensions);
       }
     },
   };
@@ -760,7 +1036,12 @@ export function renderPiShellTranscriptBlock(
   return transcriptComponent(block, cwd, true).render(width);
 }
 
-function transcriptComponent(block: OwnedUiTranscriptBlock, cwd: string, expanded: boolean): Component {
+function transcriptComponent(
+  block: OwnedUiTranscriptBlock,
+  cwd: string,
+  expanded: boolean,
+  extensions?: PiShellExtensionRendererResolver,
+): Component {
   switch (block.kind) {
     case "user": {
       const skill = parseSkillBlock(block.text);
@@ -783,7 +1064,7 @@ function transcriptComponent(block: OwnedUiTranscriptBlock, cwd: string, expande
       return assistantComponent(block);
     case "tool-call":
     case "tool-result": {
-      const component = toolComponent(block, cwd);
+      const component = toolComponent(block, cwd, extensions);
       component.setExpanded(expanded);
       return component;
     }
@@ -804,7 +1085,7 @@ function transcriptComponent(block: OwnedUiTranscriptBlock, cwd: string, expande
     case "system":
       return new Text(piTheme().fg("dim", block.text), PINNED_PI_LAYOUT.outputPad, 0);
     case "custom":
-      return customMessageComponent(block, expanded);
+      return customMessageComponent(block, expanded, extensions);
     case "bash":
       return bashExecutionComponent(block, cwd, expanded);
   }
@@ -894,7 +1175,11 @@ function assistantPayloadContent(value: unknown): readonly Record<string, unknow
   return content.length === 0 && value.length > 0 ? undefined : content;
 }
 
-function toolComponent(block: OwnedUiTranscriptBlock, cwd: string): ToolExecutionComponent {
+function toolComponent(
+  block: OwnedUiTranscriptBlock,
+  cwd: string,
+  extensions?: PiShellExtensionRendererResolver,
+): ToolExecutionComponent {
   const payload = blockPayload(block);
   const toolCallId = stringPayload(payload, "toolCallId") ?? block.id;
   const toolName = stringPayload(payload, "toolName") ?? block.title ?? "tool";
@@ -904,7 +1189,7 @@ function toolComponent(block: OwnedUiTranscriptBlock, cwd: string): ToolExecutio
     toolCallId,
     argumentsPayload,
     undefined,
-    undefined,
+    extensions?.getToolDefinition(toolName) as never,
     createTuiFacade({ getColumns: () => 80, getRows: () => 24, requestRender() {}, onSubmit() {} }),
     cwd,
   );
@@ -921,7 +1206,11 @@ function toolComponent(block: OwnedUiTranscriptBlock, cwd: string): ToolExecutio
   return component;
 }
 
-function customMessageComponent(block: OwnedUiTranscriptBlock, expanded: boolean): CustomMessageComponent {
+function customMessageComponent(
+  block: OwnedUiTranscriptBlock,
+  expanded: boolean,
+  extensions?: PiShellExtensionRendererResolver,
+): CustomMessageComponent {
   const payload = blockPayload(block);
   const message = {
     role: "custom" as const,
@@ -931,7 +1220,7 @@ function customMessageComponent(block: OwnedUiTranscriptBlock, expanded: boolean
     details: payload.details,
     timestamp: numericPayload(block, "timestamp") || 0,
   };
-  const renderer = typeof payload.renderer === "function" ? payload.renderer : undefined;
+  const renderer = extensions?.getMessageRenderer(message.customType);
   const component = new CustomMessageComponent(message, renderer as never, getMarkdownTheme(), PINNED_PI_LAYOUT.outputPad);
   component.setExpanded(expanded);
   return component;

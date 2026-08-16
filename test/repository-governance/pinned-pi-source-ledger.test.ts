@@ -64,6 +64,12 @@ describe("pinned Pi source ledger governance", () => {
     expect(result.stderr).toContain(diagnostic);
   });
 
+  it("rejects missing linked acceptance tests", async () => {
+    const result = await runFixture(ledger => { ledger.records[0].tests = ["test/missing-parity.test.ts"]; });
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("linked acceptance test is missing");
+  });
+
   it("rejects undocumented deviations", async () => {
     const result = await runFixture(ledger => { ledger.records[0].approvedDeviations.push({ id: "shortcut" }); });
     expect(result.status).toBe(1);

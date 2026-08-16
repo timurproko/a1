@@ -14,6 +14,7 @@ import {
   type PiWorkflowRoute,
 } from "../../foundation/pi-engine-adapter/index.js";
 import {
+  createPiExtensionUiBridge,
   createPiQueuedInputStatus,
   createPiShellAuthProviderSelector,
   createPiShellDialog,
@@ -31,9 +32,12 @@ import {
   createPiShellTranscriptComponent,
   createPiShellTreeSelector,
   createPiShellUserMessageSelector,
+  piTheme,
   renderPiShellTranscriptBlock,
+  type PiExtensionUiBridge,
   type PiShellComponentPort,
   type PiShellEditorPort,
+  type PiShellExtensionRendererResolver,
   type PiShellHeaderOptions,
   type PiShellHeaderPort,
   type PiShellLoadedResourcesPort,
@@ -69,11 +73,19 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
   readonly #status: PiShellViewComponentPort;
   readonly #footer: PiShellViewComponentPort;
   readonly #queued: PiShellQueuedInputPort;
+  readonly #extensionRenderers: PiShellExtensionRendererResolver;
   #toolsExpanded = false;
   #thinkingVisible = true;
   #workflowRows: string[] = [];
   #workflowComponents: PiShellComponentPort[] = [];
   #inputSurface: PiShellComponentPort;
+  #extensionHeader: PiShellComponentPort | null = null;
+  #extensionFooter: PiShellComponentPort | null = null;
+  readonly #extensionWidgets = new Map<string, { readonly component: PiShellComponentPort; readonly placement: "aboveEditor" | "belowEditor" }>();
+  readonly #extensionStatuses = new Map<string, string>();
+  #extensionWorkingMessage: string | undefined;
+  #extensionWorkingVisible = true;
+  #extensionNotifications: string[] = [];
 
   constructor(
     view: OwnedUiSessionViewModel,
@@ -96,9 +108,14 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
     },
     startup: PiShellHeaderOptions = {},
     agentDir?: string,
+    extensionRenderers: PiShellExtensionRendererResolver = {
+      getMessageRenderer: () => undefined,
+      getToolDefinition: () => undefined,
+    },
   ) {
     this.#view = view;
     this.#cwd = cwd;
+    this.#extensionRenderers = extensionRenderers;
     this.header = createPiShellHeader(startup);
     this.resources = createPiShellLoadedResources(startup.resources ?? [], startup.expanded ?? false);
     this.#status = createPiShellStatus(view, handlers);
@@ -131,18 +148,22 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
     return [
       ...this.#renderDocument(width),
       ...queued,
-      ...this.#status.render(width),
+      ...this.#renderWidgets("aboveEditor", width),
+      ...this.#renderStatus(width),
       ...this.#inputSurface.render(width),
-      ...this.#footer.render(width),
+      ...this.#renderWidgets("belowEditor", width),
+      ...this.#renderFooter(width),
     ];
   }
 
   layoutRoot(): PiTuiLayoutNode {
     const document = layoutPort(width => this.#renderDocument(width), () => this.invalidate());
     const queued = layoutPort(width => this.#view.editor.queuedSubmissions.length === 0 ? [] : this.#queued.render(width), () => this.#queued.invalidate());
-    const status = layoutPort(width => this.#status.render(width), () => this.#status.invalidate());
+    const aboveWidgets = layoutPort(width => this.#renderWidgets("aboveEditor", width), () => this.#invalidateExtensions());
+    const status = layoutPort(width => this.#renderStatus(width), () => this.#status.invalidate());
     const editor = layoutPort(width => this.#inputSurface.render(width), () => this.#inputSurface.invalidate(), data => this.#inputSurface.handleInput?.(data));
-    const footer = layoutPort(width => this.#footer.render(width), () => this.#footer.invalidate());
+    const belowWidgets = layoutPort(width => this.#renderWidgets("belowEditor", width), () => this.#invalidateExtensions());
+    const footer = layoutPort(width => this.#renderFooter(width), () => (this.#extensionFooter ?? this.#footer).invalidate());
     return {
       type: "stack",
       direction: "vertical",
@@ -159,6 +180,7 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
             primary: true,
             overscroll: "chain",
             scrollbar: "auto",
+            scrollbarStyle: text => piTheme().bg("scrollbarThumb", text),
             child: { type: "component", component: document },
           },
         },
@@ -172,8 +194,10 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
             direction: "vertical",
             children: [
               { shrink: 1, minSize: 0, node: { type: "component", component: queued } },
+              { shrink: 1, minSize: 0, node: { type: "component", component: aboveWidgets } },
               { shrink: 1, minSize: 0, node: { type: "component", component: status } },
               { shrink: 1, minSize: 3, node: { type: "component", component: editor } },
+              { shrink: 1, minSize: 0, node: { type: "component", component: belowWidgets } },
               { shrink: 1, minSize: 1, node: { type: "component", component: footer } },
             ],
           },
@@ -183,15 +207,11 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
   }
 
   #renderDocument(width: number): readonly string[] {
-    let turnSpacerCount = 0;
     const transcript = this.#transcriptOrder.flatMap((id, index) => {
       const block = this.#view.transcript.find(item => item.id === id);
       if (!this.#thinkingVisible && block?.kind === "thinking") return [];
       const rows = this.#transcript.get(id)?.render(width) ?? [];
-      if (index > 0 && block?.kind === "user") {
-        turnSpacerCount += 1;
-        return ["", ...rows];
-      }
+      if (index > 0 && block?.kind === "user") return ["", ...rows];
       return rows;
     });
     const diagnosticRows = this.#view.diagnostics.slice(-3).flatMap(diagnostic =>
@@ -205,12 +225,9 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
         payload: {},
       }, width, this.#cwd));
     const resourceRows = [...this.resources.render(width)];
-    if (transcript.length > 0) {
-      if (resourceRows.at(-1) === "") resourceRows.pop();
-      if (turnSpacerCount > 0 && resourceRows.at(-1) === "") resourceRows.pop();
-    }
+    if (transcript.length > 0 && resourceRows.at(-1) === "") resourceRows.pop();
     return [
-      ...this.header.render(width),
+      ...(this.#extensionHeader ?? this.header).render(width),
       ...resourceRows,
       ...transcript,
       ...(transcript.length === 0 ? [] : [""]),
@@ -241,6 +258,61 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
     this.invalidate();
   }
 
+  get toolsExpanded(): boolean {
+    return this.#toolsExpanded;
+  }
+
+  setToolsExpanded(expanded: boolean): void {
+    this.#setToolsExpanded(expanded);
+  }
+
+  setExtensionWidget(key: string, component: PiShellComponentPort | null, placement: "aboveEditor" | "belowEditor"): void {
+    const previous = this.#extensionWidgets.get(key)?.component;
+    if (component === null) this.#extensionWidgets.delete(key);
+    else this.#extensionWidgets.set(key, { component, placement });
+    if (previous !== undefined && previous !== component) previous.dispose?.();
+    this.invalidate();
+  }
+
+  setExtensionHeader(component: PiShellComponentPort | null): void {
+    if (this.#extensionHeader !== component) this.#extensionHeader?.dispose?.();
+    this.#extensionHeader = component;
+    this.invalidate();
+  }
+
+  setExtensionFooter(component: PiShellComponentPort | null): void {
+    if (this.#extensionFooter !== component) this.#extensionFooter?.dispose?.();
+    this.#extensionFooter = component;
+    this.invalidate();
+  }
+
+  setExtensionStatus(key: string, text: string | undefined): void {
+    if (text === undefined) this.#extensionStatuses.delete(key);
+    else this.#extensionStatuses.set(key, text);
+    this.invalidate();
+  }
+
+  setExtensionWorking(message: string | undefined, visible = this.#extensionWorkingVisible): void {
+    this.#extensionWorkingMessage = message;
+    this.#extensionWorkingVisible = visible;
+    this.invalidate();
+  }
+
+  addExtensionNotification(message: string, type: "info" | "warning" | "error"): void {
+    const prefix = type === "info" ? "" : `${type === "warning" ? "Warning" : "Error"}: `;
+    this.#extensionNotifications = [...this.#extensionNotifications, `${prefix}${message}`].slice(-4);
+    this.invalidate();
+  }
+
+  extensionFooterData(): unknown {
+    return {
+      getGitBranch: () => this.#view.status.footer?.branch ?? null,
+      getExtensionStatuses: () => new Map(this.#extensionStatuses),
+      getAvailableProviderCount: () => this.#view.status.footer?.availableProviderCount ?? 1,
+      onBranchChange: () => () => {},
+    };
+  }
+
   setInputSurface(component: PiShellComponentPort | null): void {
     const next = component ?? this.editor;
     if (next === this.#inputSurface) return;
@@ -262,6 +334,7 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
     this.editor.invalidate();
     if (this.#inputSurface !== this.editor) this.#inputSurface.invalidate();
     for (const component of this.#workflowComponents) component.invalidate();
+    this.#invalidateExtensions();
     this.#status.invalidate();
     this.#footer.invalidate();
     this.#queued.invalidate();
@@ -278,6 +351,10 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
     this.#transcript.clear();
     if (this.#inputSurface !== this.editor) this.#inputSurface.dispose?.();
     for (const component of this.#workflowComponents) component.dispose?.();
+    this.#extensionHeader?.dispose?.();
+    this.#extensionFooter?.dispose?.();
+    for (const { component } of this.#extensionWidgets.values()) component.dispose?.();
+    this.#extensionWidgets.clear();
     this.editor.dispose?.();
     this.#status.dispose?.();
     this.#footer.dispose?.();
@@ -294,7 +371,7 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
     for (const block of blocks) {
       const component = this.#transcript.get(block.id);
       if (component === undefined) {
-        const created = createPiShellTranscriptComponent(block, this.#cwd);
+        const created = createPiShellTranscriptComponent(block, this.#cwd, this.#extensionRenderers);
         created.setExpanded(this.#toolsExpanded);
         this.#transcript.set(block.id, created);
       } else if (component.revision !== block.revision) {
@@ -302,6 +379,29 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
       }
     }
     this.#transcriptOrder = blocks.map(block => block.id);
+  }
+
+  #renderWidgets(placement: "aboveEditor" | "belowEditor", width: number): readonly string[] {
+    return [...this.#extensionWidgets.values()]
+      .filter(widget => widget.placement === placement)
+      .flatMap(widget => widget.component.render(width));
+  }
+
+  #renderStatus(width: number): readonly string[] {
+    const rows = [...this.#extensionNotifications];
+    if (this.#extensionWorkingVisible && this.#extensionWorkingMessage) rows.push(this.#extensionWorkingMessage);
+    rows.push(...this.#extensionStatuses.values());
+    return [...rows, ...this.#status.render(width)];
+  }
+
+  #renderFooter(width: number): readonly string[] {
+    return (this.#extensionFooter ?? this.#footer).render(width);
+  }
+
+  #invalidateExtensions(): void {
+    this.#extensionHeader?.invalidate();
+    this.#extensionFooter?.invalidate();
+    for (const { component } of this.#extensionWidgets.values()) component.invalidate();
   }
 
   #setToolsExpanded(expanded: boolean): void {
@@ -368,6 +468,7 @@ export class PiSessionShell {
   readonly #cwd: string;
   readonly #listeners = new Set<(view: OwnedUiSessionViewModel) => void>();
   readonly #unsubscribe: () => void;
+  readonly #extensionBridge: PiExtensionUiBridge;
   readonly #stopped: Promise<void>;
   #resolveStopped: (() => void) | undefined;
   #dialogId: string | undefined;
@@ -406,12 +507,41 @@ export class PiSessionShell {
     }, {
       ...options.startup,
       resources: options.startup?.resources ?? shellResourceEntries(this.adapter),
-    }, this.adapter.agentDir);
+    }, this.adapter.agentDir, {
+      getMessageRenderer: customType => this.adapter.pinnedMessageRenderer(customType),
+      getToolDefinition: toolName => this.adapter.pinnedToolDefinition(toolName),
+    });
     const runtimeOptions = options.terminal === undefined
       ? { root: this.root, layoutRoot: this.root.layoutRoot(), hardwareCursor: this.adapter.view().terminal.hardwareCursor }
       : { root: this.root, layoutRoot: this.root.layoutRoot(), terminal: options.terminal, hardwareCursor: this.adapter.view().terminal.hardwareCursor };
     runtime = new PiTuiRuntimeAdapter(runtimeOptions);
     this.runtime = runtime;
+    this.#extensionBridge = createPiExtensionUiBridge({
+      runtime: {
+        getColumns: () => this.runtime.viewport().columns,
+        getRows: () => this.runtime.viewport().rows,
+        requestRender: () => this.runtime.requestRender(),
+      },
+      agentDir: this.adapter.agentDir,
+      setInputSurface: component => this.root.setInputSurface(component),
+      showOverlay: (component, overlayOptions) => this.runtime.showOverlay(component, overlayOptions),
+      listenInput: handler => this.runtime.addInputListener(handler),
+      replaceWidget: (key, component, placement) => this.root.setExtensionWidget(key, component, placement),
+      replaceHeader: component => this.root.setExtensionHeader(component),
+      replaceFooter: component => this.root.setExtensionFooter(component),
+      setStatus: (key, text) => this.root.setExtensionStatus(key, text),
+      setWorking: (message, visible) => this.root.setExtensionWorking(message, visible),
+      notify: (message, type) => this.root.addExtensionNotification(message, type),
+      setTitle: title => this.runtime.setTitle(title),
+      getEditorText: () => this.root.editor.getText(),
+      setEditorText: text => this.root.editor.setText(text),
+      pasteToEditor: text => this.root.editor.insertText(text),
+      addAutocompleteProvider: factory => this.root.editor.addAutocompleteProvider(factory),
+      setCustomEditor: component => this.root.setInputSurface(component),
+      getFooterData: () => this.root.extensionFooterData(),
+      getToolsExpanded: () => this.root.toolsExpanded,
+      setToolsExpanded: expanded => this.root.setToolsExpanded(expanded),
+    });
     this.adapter.setWorkflowInteractionHost({
       prompt: request => this.#requestWorkflowInput(request.message),
       notify: message => {
@@ -436,6 +566,7 @@ export class PiSessionShell {
     if (this.#started) return;
     this.#started = true;
     this.runtime.start();
+    void this.adapter.bindExtensionUi(this.#extensionBridge.context, () => { void this.shutdown(); });
     this.#syncView();
   }
 
@@ -723,6 +854,8 @@ export class PiSessionShell {
     this.#disposed = true;
     this.#unsubscribe();
     this.#dialogHandle?.hide();
+    await this.adapter.unbindExtensionUi();
+    this.#extensionBridge.dispose();
     await this.runtime.dispose();
   }
 

@@ -51,6 +51,28 @@ describe("independent Pi terminal parity gate", () => {
       : difference.domain === "scroll" || difference.domain === "cursor-focus")).toBe(true);
   });
 
+  it("keeps named terminal-only tolerances narrow and still fails intentional workflow mutations", () => {
+    const tolerances = ["differential-sgr-order", "transient-scrollbar-thumb-rounding"];
+    for (const mutation of ["visual", "input-scroll"] as const) {
+      expect(compareParityRun(producer(), applyIntentionalMutation(producer(), mutation), { tolerances }).passed).toBe(false);
+    }
+
+    const resetOnly = producer();
+    resetOnly.checkpoints[0]!.rawSgr.push("\\x1b[m");
+    expect(compareParityRun(producer(), resetOnly, { tolerances }).passed).toBe(true);
+
+    const scrollbarOnly = producer();
+    scrollbarOnly.checkpoints[0]!.rows[1]!.styles = [
+      { start: 0, end: 3, text: ">  ", foreground: "default", background: "default", flags: [] },
+      { start: 3, end: 4, text: " ", foreground: "default", background: "rgb:3a3a4a", flags: [] },
+    ];
+    expect(compareParityRun(producer(), scrollbarOnly, { tolerances }).passed).toBe(true);
+
+    const realStyleMutation = producer();
+    realStyleMutation.checkpoints[0]!.rows[0]!.styles[0]!.foreground = "rgb:ff0000";
+    expect(compareParityRun(producer(), realStyleMutation, { tolerances }).passed).toBe(false);
+  });
+
   it("bounds machine and side-by-side diagnostics", () => {
     const upstream = producer();
     const addone = producer();

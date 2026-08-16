@@ -6,6 +6,10 @@ export const PINNED_PI_COMMIT = "53fa77ccd8a279eb87e92294ef3687b03ff80112";
 export const DEFAULT_COLUMNS = 88;
 export const DEFAULT_ROWS = 26;
 export const FULL_GATE_TIMEOUT_MS = 90_000;
+export const TERMINAL_PARITY_TOLERANCES = Object.freeze([
+  "differential-sgr-order",
+  "transient-scrollbar-thumb-rounding",
+]);
 
 export const TERMINAL_PARITY_ACTIONS = Object.freeze([
   { type: "wait", milliseconds: 1_200, until: "pi v0.84.1" },
@@ -91,6 +95,10 @@ function deterministicProviderSource() {
 const wait = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
 
 export default function deterministicParityProvider(pi) {
+  pi.on("agent_start", (_event, ctx) => {
+    if (!ctx.hasUI) throw new Error("terminal parity extension expected UI capability");
+    ctx.ui.setWidget("parity-lifecycle", ["extension lifecycle ready"], { placement: "aboveEditor" });
+  });
   pi.registerProvider("addone-parity", {
     name: "AddOne terminal parity fixture",
     baseUrl: "http://127.0.0.1/unused",

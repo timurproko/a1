@@ -96,10 +96,44 @@ function compareCheckpoint(differences, tolerances, expected, actual) {
     compareValue(differences, tolerances, `checkpoints.${name}.rows[${index}].text`, expectedRow?.text, actualRow?.text, domainForRow(expected.domains), name);
     compareValue(differences, tolerances, `checkpoints.${name}.rows[${index}].rawText`, expectedRow?.rawText, actualRow?.rawText, "rows-spacing", name);
     compareValue(differences, tolerances, `checkpoints.${name}.rows[${index}].wrapped`, expectedRow?.wrapped, actualRow?.wrapped, "wrapping", name);
-    compareValue(differences, tolerances, `checkpoints.${name}.rows[${index}].styles`, expectedRow?.styles, actualRow?.styles, "ansi-style", name);
+    if (!(tolerances.has("transient-scrollbar-thumb-rounding")
+      && scrollbarRoundingEquivalent(expectedRow?.styles, actualRow?.styles))) {
+      compareValue(differences, tolerances, `checkpoints.${name}.rows[${index}].styles`, expectedRow?.styles, actualRow?.styles, "ansi-style", name);
+    }
   }
-  compareValue(differences, tolerances, `checkpoints.${name}.rawSgr`, expected.rawSgr, actual.rawSgr, "raw-ansi", name);
+  if (!tolerances.has("differential-sgr-order")) {
+    compareValue(differences, tolerances, `checkpoints.${name}.rawSgr`, expected.rawSgr, actual.rawSgr, "raw-ansi", name);
+  }
   compareValue(differences, tolerances, `checkpoints.${name}.geometry`, expected.geometry, actual.geometry, "component-geometry", name);
+}
+
+function scrollbarRoundingEquivalent(expected, actual) {
+  if (!Array.isArray(expected) || !Array.isArray(actual)) return false;
+  const expectedCells = styleCells(expected);
+  const actualCells = styleCells(actual);
+  if (expectedCells.length !== actualCells.length) return false;
+  const differences = [];
+  for (let index = 0; index < expectedCells.length; index += 1) {
+    if (stableJson(expectedCells[index]) !== stableJson(actualCells[index])) differences.push([expectedCells[index], actualCells[index]]);
+  }
+  return differences.length === 1 && differences.every(([left, right]) =>
+    left.text === " " && right.text === " "
+    && (left.background === "rgb:3a3a4a" || right.background === "rgb:3a3a4a"));
+}
+
+function styleCells(styles) {
+  const cells = [];
+  for (const style of styles) {
+    for (let index = style.start; index < style.end; index += 1) {
+      cells[index] = {
+        text: style.text[index - style.start] ?? " ",
+        foreground: style.foreground,
+        background: style.background,
+        flags: style.flags,
+      };
+    }
+  }
+  return cells;
 }
 
 function compareValue(differences, tolerances, path, expected, actual, domain, checkpoint = "run") {

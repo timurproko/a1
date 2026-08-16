@@ -3,14 +3,42 @@ import {
   type OwnedUiCommand,
   type OwnedUiCustomization,
   type OwnedUiSlotId,
+  type OwnedUiTranscriptBlock,
 } from "../../foundation/owned-ui-contracts/index.js";
-import type { OwnedCommandSurface } from "./surfaces.js";
-import { createOwnedTranscriptRenderer } from "./transcript-renderer.js";
+import { renderPiShellTranscriptBlock } from "../../foundation/pi-component-adapter/index.js";
 
 export interface OwnedUiSlotImplementation {
   readonly payload: unknown;
   render?(input: unknown, width: number): readonly string[];
   createCommand?(context: { readonly sessionId: string; readonly correlationId: string }): OwnedUiCommand | Promise<OwnedUiCommand>;
+}
+
+export interface OwnedCommandHandlerContext {
+  readonly sessionId: string;
+  readonly correlationId: string;
+}
+
+export type OwnedCommandHandler = (context: OwnedCommandHandlerContext) => OwnedUiCommand | Promise<OwnedUiCommand>;
+
+export class OwnedCommandSurface {
+  readonly #handlers = new Map<string, OwnedCommandHandler>();
+  #sequence = 0;
+
+  register(name: string, handler: OwnedCommandHandler): () => void {
+    this.#handlers.set(name, handler);
+    return () => this.#handlers.delete(name);
+  }
+
+  names(): readonly string[] {
+    return [...this.#handlers.keys()].sort();
+  }
+
+  async dispatch(name: string, sessionId: string): Promise<OwnedUiCommand> {
+    const handler = this.#handlers.get(name);
+    if (!handler) throw new Error(`unknown owned UI command: ${name}`);
+    this.#sequence += 1;
+    return handler({ sessionId, correlationId: `ui-command-${this.#sequence}` });
+  }
 }
 
 interface RegisteredCustomization {
@@ -117,7 +145,7 @@ export function createVanillaUiCustomizationRegistry(): OwnedUiCustomizationRegi
   });
   register("transcript-block", "vanilla-transcript", "Vanilla transcript", {
     payload: {},
-    render: (input, width) => createOwnedTranscriptRenderer()(input as never, width),
+    render: (input, width) => renderPiShellTranscriptBlock(input as OwnedUiTranscriptBlock, width, process.cwd()),
   });
   register("tool-card", "vanilla-tool-card", "Vanilla tool cards");
   register("editor", "vanilla-editor", "Vanilla editor");

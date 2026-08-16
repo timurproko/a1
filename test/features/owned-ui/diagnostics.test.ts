@@ -1,16 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
-  OwnedTerminalRuntime,
   OwnedUiDiagnosticsRecorder,
   redactDiagnosticMessage,
-  type OwnedTerminalComponent,
 } from "../../../src/features/owned-ui/index.js";
-
-class Root implements OwnedTerminalComponent {
-  readonly id = "root";
-  focused = false;
-  render(): readonly string[] { return ["root"]; }
-}
 
 describe("owned UI diagnostics recorder", () => {
   it("bounds and redacts diagnostics without carrying raw engine payloads", () => {
@@ -39,25 +31,4 @@ describe("owned UI diagnostics recorder", () => {
     expect(() => recorder.noteFrame(-1)).toThrow(/byte count/);
   });
 
-  it("records presented and failed terminal frames through the runtime", async () => {
-    const recorder = new OwnedUiDiagnosticsRecorder();
-    const writes: string[] = [];
-    const runtime = new OwnedTerminalRuntime({
-      host: {
-        columns: 20,
-        rows: 4,
-        write: text => writes.push(text),
-        setActive: () => {},
-        onInput: () => () => {},
-        onResize: () => () => {},
-      },
-      root: new Root(),
-      diagnostics: recorder,
-    });
-    runtime.start();
-    await runtime.requestRender();
-    await runtime.dispose();
-    expect(recorder.frames().presentedFrames).toBeGreaterThan(0);
-    expect(writes.length).toBeGreaterThan(0);
-  });
 });

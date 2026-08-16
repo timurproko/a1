@@ -20,6 +20,7 @@ class Session implements PiSessionLike {
   isCompacting = false;
   readonly messages: readonly unknown[] = [];
   readonly calls: string[] = [];
+  extensionBindings: unknown;
   #listeners = new Set<(event: unknown) => void>();
   subscribe(listener: (event: unknown) => void): () => void { this.#listeners.add(listener); return () => this.#listeners.delete(listener); }
   emit(event: unknown): void { for (const listener of this.#listeners) listener(event); }
@@ -35,6 +36,7 @@ class Session implements PiSessionLike {
     this.calls.push(`bash:${command}:${options.excludeFromContext}`);
     return { output: command, exitCode: 0, cancelled: false, truncated: false };
   }
+  async bindExtensions(bindings: unknown): Promise<void> { this.extensionBindings = bindings; this.calls.push("bindExtensions"); }
   async setModel(model: unknown): Promise<void> { this.model = model; this.calls.push("setModel"); }
   setThinkingLevel(level: unknown): void { this.thinkingLevel = level; this.calls.push(`thinking:${String(level)}`); }
   dispose(): void {}
@@ -107,6 +109,9 @@ describe("PiSessionShell", () => {
     expect(rows).toContain("gpt-5 • medium");
     expect(rows).toContain("v0.84.1");
     expect(rows).toContain("commands");
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(engine.session.calls).toContain("bindExtensions");
+    expect(adapter.visualExtensionSupport()).toMatchObject({ available: true, binding: "bound" });
 
     const handle = shell.showSelector("Choose", [{ id: "one", label: "One" }], () => {});
     shell.runtime.renderNow();

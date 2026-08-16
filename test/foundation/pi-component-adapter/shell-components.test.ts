@@ -1,4 +1,4 @@
-import { stripTerminalSequences } from "@earendil-works/pi-tui";
+import { Text, stripTerminalSequences } from "@earendil-works/pi-tui";
 import { describe, expect, it, vi } from "vitest";
 import type { OwnedUiDialog, OwnedUiSessionViewModel, OwnedUiTranscriptBlock } from "../../../src/foundation/owned-ui-contracts/index.js";
 import {
@@ -13,6 +13,7 @@ import {
   createPiShellSelector,
   createPiShellUserMessageSelector,
   createPiShellStatus,
+  createPiShellTranscriptComponent,
   PINNED_PI_BUILTIN_SLASH_COMMANDS,
   renderPiShellTranscriptBlock,
 } from "../../../src/foundation/pi-component-adapter/index.js";
@@ -90,6 +91,35 @@ describe("Pi shell public component adapters", () => {
       const rows = renderPiShellTranscriptBlock(fixture, 60, process.cwd());
       expect(rows.length, fixture.kind).toBeGreaterThan(0);
     }
+  });
+
+  it("uses extension custom-message and tool renderers with fallback isolation", () => {
+    const resolver = {
+      getMessageRenderer: (customType: string) => customType === "extension-message"
+        ? (() => new Text("extension message renderer", 0, 0))
+        : undefined,
+      getToolDefinition: (toolName: string) => toolName === "extension-tool" ? {
+        name: toolName,
+        label: toolName,
+        description: "fixture",
+        parameters: {},
+        execute: async () => ({ content: [] }),
+        renderCall: () => new Text("extension tool call", 0, 0),
+        renderResult: () => new Text("extension tool result", 0, 0),
+      } : undefined,
+    };
+    const custom = createPiShellTranscriptComponent(block("custom", "fallback", { customType: "extension-message" }), process.cwd(), resolver);
+    expect(stripTerminalSequences(custom.render(80).join("\n"))).toContain("extension message renderer");
+    const tool = createPiShellTranscriptComponent(block("tool-result", "done", {
+      toolCallId: "extension-call", toolName: "extension-tool", arguments: { json: {} }, argsComplete: true,
+    }), process.cwd(), resolver);
+    expect(stripTerminalSequences(tool.render(80).join("\n"))).toContain("extension tool result");
+
+    const broken = createPiShellTranscriptComponent(block("custom", "fallback survives", { customType: "broken" }), process.cwd(), {
+      ...resolver,
+      getMessageRenderer: () => (() => { throw new Error("renderer failed"); }),
+    });
+    expect(stripTerminalSequences(broken.render(80).join("\n"))).toContain("fallback survives");
   });
 
   it("renders the complete keybinding-derived pinned hotkey tables", () => {

@@ -95,6 +95,7 @@ async function validateLedger() {
     if (authority.kind === "asset" && record.bytes !== authority.bytes) fail(`stale asset byte count: ${key}`);
   }
   for (const key of actual.keys()) if (!expected.has(key)) fail(`ledger contains an unknown or stale source unit: ${key}`);
+  await validateTestLinks(ledger.records);
 
   const baseline = JSON.parse(await readFile(resolve(repository, ledger.scope?.behaviorAuthority ?? "missing"), "utf8"));
   const expectedBehaviors = new Set((baseline.behaviorInventory ?? []).map(value => value.id));
@@ -160,6 +161,19 @@ function validateRecord(record, index) {
     if (!deviation || typeof deviation !== "object" || Array.isArray(deviation)) fail(`${label}.approvedDeviations[${deviationIndex}] is undocumented`);
     for (const field of ["id", "reason", "upstreamBehavior", "acceptanceTest"]) {
       requiredString(deviation[field], `${label}.approvedDeviations[${deviationIndex}].${field}`);
+    }
+  }
+}
+
+async function validateTestLinks(records) {
+  for (const record of records) {
+    for (const test of record.tests) {
+      if (!await pathExists(resolve(repository, test))) fail(`linked acceptance test is missing: ${record.id}: ${test}`);
+    }
+    for (const deviation of record.approvedDeviations) {
+      if (!await pathExists(resolve(repository, deviation.acceptanceTest))) {
+        fail(`linked deviation test is missing: ${record.id}: ${deviation.acceptanceTest}`);
+      }
     }
   }
 }

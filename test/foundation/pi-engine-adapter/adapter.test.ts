@@ -1,5 +1,9 @@
-import { describe, expect, it } from "vitest";
-import type { OwnedUiCommand, OwnedUiEvent } from "../../../src/foundation/owned-ui-contracts/index.js";
+import { describe, expect, it, vi } from "vitest";
+import {
+  OWNED_UI_EXTENSION_UI_CALLBACKS,
+  type OwnedUiCommand,
+  type OwnedUiEvent,
+} from "../../../src/foundation/owned-ui-contracts/index.js";
 import {
   createPiEngineAdapter,
   type PiEngineAdapter,
@@ -23,6 +27,7 @@ class FakeSession implements PiSessionLike {
     getEntries: () => this.messages.map(message => ({ type: "message", message })),
   };
   readonly calls: string[] = [];
+  extensionBindings: unknown;
   disposed = false;
 
   constructor(sessionId: string) {
@@ -77,6 +82,11 @@ class FakeSession implements PiSessionLike {
 
   async compact(): Promise<void> {
     this.calls.push("compact");
+  }
+
+  async bindExtensions(bindings: unknown): Promise<void> {
+    this.extensionBindings = bindings;
+    this.calls.push("bindExtensions");
   }
 
   async setModel(model: unknown): Promise<void> {
@@ -154,6 +164,15 @@ async function adapterWithRuntime(runtime: FakeRuntime): Promise<{
   });
   adapter.onEvent(event => events.push(event));
   return { adapter, events };
+}
+
+function completeExtensionUiPort(): unknown {
+  const value: Record<string, unknown> = Object.fromEntries(OWNED_UI_EXTENSION_UI_CALLBACKS.map(name => [name, () => undefined]));
+  value.theme = Object.fromEntries([
+    "fg", "bg", "bold", "italic", "underline", "inverse", "strikethrough", "getFgAnsi", "getBgAnsi",
+    "getColorMode", "getThinkingBorderColor", "getBashModeBorderColor",
+  ].map(name => [name, () => undefined]));
+  return value;
 }
 
 function command(type: OwnedUiCommand["type"], correlationId: string, extra: Partial<OwnedUiCommand> = {}): OwnedUiCommand {
@@ -368,6 +387,35 @@ describe("Pi engine adapter", () => {
     expect(adapter.view().transcript).toHaveLength(transcript.length);
   });
 
+  it("retains distinct turns with repeated timestamps across authoritative and missing-message settlement", async () => {
+    const runtime = new FakeRuntime(new FakeSession("pi-session-1"));
+    const { adapter } = await adapterWithRuntime(runtime);
+    const session = runtime.session as FakeSession;
+    const messages = [
+      { role: "user", content: [{ type: "text", text: "first" }], timestamp: 1 },
+      { role: "assistant", content: [{ type: "text", text: "first response" }], stopReason: "stop", timestamp: 10 },
+      { role: "user", content: [{ type: "text", text: "second" }], timestamp: 2 },
+      { role: "assistant", content: [{ type: "text", text: "second response" }], stopReason: "stop", timestamp: 10 },
+      { role: "user", content: [{ type: "text", text: "failure" }], timestamp: 3 },
+      { role: "assistant", content: [], stopReason: "error", errorMessage: "provider failed", timestamp: 10 },
+    ];
+    session.setMessages(messages);
+    session.emit({ type: "agent_end", messages });
+    await adapter.flushEvents();
+
+    const firstSettlement = adapter.view().transcript;
+    expect(firstSettlement.filter(block => block.kind === "assistant")).toHaveLength(3);
+    expect(new Set(firstSettlement.map(block => block.id)).size).toBe(firstSettlement.length);
+    expect(firstSettlement.map(block => block.text)).toEqual(expect.arrayContaining([
+      "first", "first response", "second", "second response", "failure",
+    ]));
+
+    session.emit({ type: "agent_settled" });
+    await adapter.flushEvents();
+    expect(adapter.view().transcript.map(block => block.id)).toEqual(firstSettlement.map(block => block.id));
+    expect(adapter.view().transcript.find(block => JSON.stringify(block.payload).includes("provider failed"))).toBeDefined();
+  });
+
   it("rejects foreign, duplicate, and unavailable-model commands without corrupting adapter state", async () => {
     const runtime = new FakeRuntime(new FakeSession("pi-session-1"));
     const { adapter } = await adapterWithRuntime(runtime);
@@ -431,8 +479,36 @@ describe("Pi engine adapter", () => {
       uiCallbacks: expect.arrayContaining(["custom", "setWidget", "setEditorComponent", "onTerminalInput"]),
       uiProperties: ["theme"],
       renderCallbacks: ["tool.renderCall", "tool.renderResult", "message", "entry", "markdownTransformer"],
-      diagnostic: expect.stringContaining("runtime binding remains unavailable"),
+      diagnostic: expect.stringContaining("has not been bound"),
     });
+  });
+
+  it("binds, isolates, and disposes the public extension UI lifecycle", async () => {
+    const runtime = new FakeRuntime(new FakeSession("pi-session-1"));
+    const { adapter } = await adapterWithRuntime(runtime);
+    const shutdown = vi.fn();
+    await adapter.bindExtensionUi(completeExtensionUiPort(), shutdown);
+    expect(runtime.session.calls).toContain("bindExtensions");
+    expect(runtime.session.extensionBindings).toMatchObject({ mode: "tui", shutdownHandler: expect.any(Function), onError: expect.any(Function) });
+    expect(adapter.visualExtensionSupport()).toMatchObject({ available: true, binding: "bound" });
+
+    await adapter.execute(command("new-session", "extension-session-switch"));
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(runtime.session.calls).toContain("bindExtensions");
+    expect(adapter.visualExtensionSupport()).toMatchObject({ available: true, binding: "bound" });
+
+    const binding = runtime.session.extensionBindings as { shutdownHandler: () => void; onError: (error: unknown) => void };
+    binding.shutdownHandler();
+    expect(shutdown).toHaveBeenCalledOnce();
+    binding.onError({ error: "isolated extension failure" });
+    await adapter.flushEvents();
+    expect(adapter.view().diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "extension-ui", message: "isolated extension failure", recoverable: true }),
+    ]));
+
+    await adapter.unbindExtensionUi();
+    expect(adapter.visualExtensionSupport()).toMatchObject({ available: false, binding: "unbound" });
+    await adapter.dispose();
   });
 
   it("contains malformed and throwing extension discovery as diagnostics", async () => {
