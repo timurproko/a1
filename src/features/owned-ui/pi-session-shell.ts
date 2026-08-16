@@ -183,10 +183,16 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
   }
 
   #renderDocument(width: number): readonly string[] {
-    const transcript = this.#transcriptOrder.flatMap(id => {
+    let turnSpacerCount = 0;
+    const transcript = this.#transcriptOrder.flatMap((id, index) => {
       const block = this.#view.transcript.find(item => item.id === id);
       if (!this.#thinkingVisible && block?.kind === "thinking") return [];
-      return this.#transcript.get(id)?.render(width) ?? [];
+      const rows = this.#transcript.get(id)?.render(width) ?? [];
+      if (index > 0 && block?.kind === "user") {
+        turnSpacerCount += 1;
+        return ["", ...rows];
+      }
+      return rows;
     });
     const diagnosticRows = this.#view.diagnostics.slice(-3).flatMap(diagnostic =>
       renderPiShellTranscriptBlock({
@@ -199,7 +205,10 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
         payload: {},
       }, width, this.#cwd));
     const resourceRows = [...this.resources.render(width)];
-    if (transcript.length > 0 && resourceRows.at(-1) === "") resourceRows.pop();
+    if (transcript.length > 0) {
+      if (resourceRows.at(-1) === "") resourceRows.pop();
+      if (turnSpacerCount > 0 && resourceRows.at(-1) === "") resourceRows.pop();
+    }
     return [
       ...this.header.render(width),
       ...resourceRows,
