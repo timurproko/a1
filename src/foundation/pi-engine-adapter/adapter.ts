@@ -39,6 +39,7 @@ import {
   PINNED_PI_WORKFLOW_COMMAND_NAMES,
   type PiBashWorkflowResult,
   type PiPinnedSettingsCallback,
+  type PiPinnedSettingsSnapshot,
   type PiWorkflowAutocompleteCommand,
   type PiWorkflowHost,
   type PiWorkflowInteractionHost,
@@ -509,6 +510,99 @@ export class PiEngineAdapter {
     }
   }
 
+  pinnedModelSelectorContext(): {
+    readonly currentModel: unknown;
+    readonly settingsManager: unknown;
+    readonly modelRuntime: unknown;
+    readonly scopedModels: readonly unknown[];
+  } {
+    const session = this.#requireWorkflowSession();
+    const runtime = this.#runtime;
+    if (!runtime) throw new Error("engine runtime is unavailable");
+    const scoped = dynamicCall(session, "getScopedModels") ?? (session as unknown as { scopedModels?: unknown }).scopedModels;
+    const modelRuntime = runtime.services.modelRuntime;
+    const selectorRuntime = typeof modelRuntime.getAvailableSnapshot === "function"
+      ? modelRuntime
+      : {
+          getAvailableSnapshot: () => session.model === undefined ? [] : [session.model],
+          getModel: (providerId: string, modelId: string) => modelRuntime.getModel(providerId, modelId),
+          getError: () => undefined,
+          refresh: async () => undefined,
+        };
+    const settingsManager = dynamicObject(runtime.services, "settingsManager");
+    const selectorSettings = typeof settingsManager.setDefaultModelAndProvider === "function"
+      ? settingsManager
+      : { setDefaultModelAndProvider() {} };
+    return {
+      currentModel: session.model,
+      settingsManager: selectorSettings,
+      modelRuntime: selectorRuntime,
+      scopedModels: Array.isArray(scoped) ? scoped : [],
+    };
+  }
+
+  pinnedTreeSelectorContext(): { readonly tree: readonly unknown[]; readonly currentLeafId: string | null } {
+    const manager = dynamicObject(this.#requireWorkflowSession(), "sessionManager");
+    const tree = dynamicCall(manager, "getTree");
+    const leaf = dynamicCall(manager, "getLeafId");
+    return { tree: Array.isArray(tree) ? tree : [], currentLeafId: typeof leaf === "string" ? leaf : null };
+  }
+
+  pinnedSettingsSnapshot(): PiPinnedSettingsSnapshot {
+    const session = this.#requireWorkflowSession();
+    const settings = dynamicObject(this.#runtime?.services, "settingsManager");
+    const setting = <T>(getter: string, fallback: T): T => {
+      const value = dynamicCall(settings, getter);
+      return (value === undefined ? fallback : value) as T;
+    };
+    const levels = dynamicCall(session, "getAvailableThinkingLevels");
+    const sessionState = session as unknown as {
+      autoCompactionEnabled?: boolean;
+      steeringMode?: PiPinnedSettingsSnapshot["steeringMode"];
+      followUpMode?: PiPinnedSettingsSnapshot["followUpMode"];
+    };
+    const themes = collectionResult(dynamicCall(dynamicObject(this.#runtime?.services, "resourceLoader"), "getThemes"), "themes").values
+      .map(theme => stringProperty(theme, "name"))
+      .filter((name): name is string => !!name);
+    return {
+      autoCompact: typeof sessionState.autoCompactionEnabled === "boolean"
+        ? sessionState.autoCompactionEnabled
+        : setting("getCompactionEnabled", true),
+      showImages: setting("getShowImages", true),
+      imageWidthCells: setting("getImageWidthCells", 80),
+      autoResizeImages: setting("getImageAutoResize", true),
+      blockImages: setting("getBlockImages", false),
+      enableSkillCommands: setting("getEnableSkillCommands", true),
+      steeringMode: sessionState.steeringMode ?? setting("getSteeringMode", "one-at-a-time"),
+      followUpMode: sessionState.followUpMode ?? setting("getFollowUpMode", "one-at-a-time"),
+      transport: setting("getTransport", "sse"),
+      httpIdleTimeoutMs: setting("getHttpIdleTimeoutMs", 300_000),
+      thinkingLevel: readThinkingLevel(session.thinkingLevel),
+      availableThinkingLevels: Array.isArray(levels) ? levels.map(readThinkingLevel) : ["off", "minimal", "low", "medium", "high", "xhigh"],
+      currentTheme: setting("getThemeSetting", setting("getTheme", "dark")),
+      terminalTheme: setting("getTerminalTheme", "dark"),
+      availableThemes: themes.length > 0 ? themes : ["dark", "light"],
+      hideThinkingBlock: setting("getHideThinkingBlock", false),
+      mermaidRenderingMode: setting("getMermaidRenderingMode", "off"),
+      showCacheMissNotices: setting("getShowCacheMissNotices", false),
+      collapseChangelog: setting("getCollapseChangelog", true),
+      enableInstallTelemetry: setting("getEnableInstallTelemetry", true),
+      doubleEscapeAction: setting("getDoubleEscapeAction", "tree"),
+      treeFilterMode: setting("getTreeFilterMode", "default"),
+      showHardwareCursor: setting("getShowHardwareCursor", false),
+      editorPaddingX: setting("getEditorPaddingX", 0),
+      outputPad: setting("getOutputPad", 1),
+      autocompleteMaxVisible: setting("getAutocompleteMaxVisible", 5),
+      quietStartup: setting("getQuietStartup", false),
+      defaultProjectTrust: setting("getDefaultProjectTrust", "ask"),
+      clearOnShrink: setting("getClearOnShrink", false),
+      showTerminalProgress: setting("getShowTerminalProgress", false),
+      tuiMode: "fullscreen",
+      fullscreenScrollbar: setting("getFullscreenScrollbar", "auto"),
+      warnings: setting("getWarnings", { anthropicExtraUsage: true }),
+    };
+  }
+
   clearQueuedWorkflows(): readonly string[] {
     const session = this.#requireWorkflowSession();
     const result = dynamicCall(session, "clearQueue");
@@ -532,6 +626,14 @@ export class PiEngineAdapter {
       truncated: result.truncated === true,
       excludeFromContext,
     };
+  }
+
+  applyPinnedSettingValue(callback: PiPinnedSettingsCallback, value: unknown): PiWorkflowResult {
+    try {
+      return this.#applyPinnedSetting(callback, value, true);
+    } catch (error) {
+      return workflowResult("settings", "failed", error instanceof Error ? error.message : String(error));
+    }
   }
 
   async executeWorkflow(request: PiWorkflowRequest): Promise<PiWorkflowResult> {
@@ -892,7 +994,7 @@ export class PiEngineAdapter {
     return sessionInfoOptions(await SessionManager.list(cwd, typeof sessionDir === "string" ? sessionDir : undefined));
   }
 
-  #applyPinnedSetting(selection: string): PiWorkflowResult {
+  #applyPinnedSetting(selection: string, selectedValue?: unknown, hasSelectedValue = false): PiWorkflowResult {
     if (!(PINNED_PI_SETTINGS_CALLBACKS as readonly string[]).includes(selection)) {
       return workflowResult("settings", "failed", `Unknown setting callback: ${selection}`);
     }
@@ -903,6 +1005,50 @@ export class PiEngineAdapter {
     if (!runtime) return workflowResult("settings", "failed", "Settings are unavailable");
     const settings = dynamicObject(runtime.services, "settingsManager");
     const session = this.#requireWorkflowSession();
+    if (hasSelectedValue) {
+      const setters: Partial<Record<PiPinnedSettingsCallback, string>> = {
+        onShowImagesChange: "setShowImages",
+        onImageWidthCellsChange: "setImageWidthCells",
+        onAutoResizeImagesChange: "setImageAutoResize",
+        onBlockImagesChange: "setBlockImages",
+        onEnableSkillCommandsChange: "setEnableSkillCommands",
+        onSteeringModeChange: "setSteeringMode",
+        onFollowUpModeChange: "setFollowUpMode",
+        onTransportChange: "setTransport",
+        onHttpIdleTimeoutMsChange: "setHttpIdleTimeoutMs",
+        onThemeChange: "setTheme",
+        onHideThinkingBlockChange: "setHideThinkingBlock",
+        onMermaidRenderingModeChange: "setMermaidRenderingMode",
+        onShowCacheMissNoticesChange: "setShowCacheMissNotices",
+        onCollapseChangelogChange: "setCollapseChangelog",
+        onEnableInstallTelemetryChange: "setEnableInstallTelemetry",
+        onQuietStartupChange: "setQuietStartup",
+        onDefaultProjectTrustChange: "setDefaultProjectTrust",
+        onDoubleEscapeActionChange: "setDoubleEscapeAction",
+        onTreeFilterModeChange: "setTreeFilterMode",
+        onShowHardwareCursorChange: "setShowHardwareCursor",
+        onEditorPaddingXChange: "setEditorPaddingX",
+        onOutputPadChange: "setOutputPad",
+        onAutocompleteMaxVisibleChange: "setAutocompleteMaxVisible",
+        onClearOnShrinkChange: "setClearOnShrink",
+        onShowTerminalProgressChange: "setShowTerminalProgress",
+        onTuiModeChange: "setTuiMode",
+        onFullscreenScrollbarChange: "setFullscreenScrollbar",
+        onWarningsChange: "setWarnings",
+      };
+      if (callback === "onAutoCompactChange") {
+        dynamicCall(session, "setAutoCompactionEnabled", selectedValue);
+        dynamicCall(settings, "setCompactionEnabled", selectedValue);
+      } else if (callback === "onThinkingLevelChange") {
+        dynamicCall(session, "setThinkingLevel", selectedValue);
+      } else {
+        const setter = setters[callback];
+        if (!setter) return workflowResult("settings", "failed", `${settingLabel(callback)} is unavailable in this runtime`);
+        dynamicCall(settings, setter, selectedValue);
+      }
+      this.#emitView();
+      return workflowResult("settings", "completed", `${settingLabel(callback)}: ${String(selectedValue)}`);
+    }
     const toggles: Partial<Record<PiPinnedSettingsCallback, readonly [string, string]>> = {
       onAutoCompactChange: ["getCompactionEnabled", "setCompactionEnabled"],
       onShowImagesChange: ["getShowImages", "setShowImages"],

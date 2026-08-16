@@ -5,9 +5,12 @@ import {
   createPiShellDialog,
   createPiShellEditor,
   createPiShellFooter,
+  createPiShellAuthProviderSelector,
   createPiShellHeader,
   createPiShellLoadedResources,
+  createPiShellSettingsSelector,
   createPiShellSelector,
+  createPiShellUserMessageSelector,
   createPiShellStatus,
   PINNED_PI_BUILTIN_SLASH_COMMANDS,
   renderPiShellTranscriptBlock,
@@ -111,6 +114,41 @@ describe("Pi shell public component adapters", () => {
     const expanded = stripTerminalSequences(resources.render(80).join("\n")).replaceAll(/ +$/gm, "");
     expect(expanded).toContain("D:/work/.pi/skills/alpha/SKILL.md");
     expect(expanded).toContain("D:/work/.pi/extensions/probe.ts");
+  });
+
+  it("adapts the pinned settings and specialized workflow selectors with focus-safe cancellation", () => {
+    const changed = vi.fn();
+    const cancelled = vi.fn();
+    const settings = createPiShellSettingsSelector({
+      config: {
+        autoCompact: true, showImages: true, imageWidthCells: 80, autoResizeImages: true,
+        blockImages: false, enableSkillCommands: true, steeringMode: "one-at-a-time", followUpMode: "one-at-a-time",
+        transport: "sse", httpIdleTimeoutMs: 300_000, thinkingLevel: "medium",
+        availableThinkingLevels: ["off", "minimal", "low", "medium", "high", "xhigh"], currentTheme: "dark",
+        terminalTheme: "dark", availableThemes: ["dark", "light"], hideThinkingBlock: false,
+        mermaidRenderingMode: "off", showCacheMissNotices: false, collapseChangelog: true,
+        enableInstallTelemetry: true, doubleEscapeAction: "tree", treeFilterMode: "default",
+        showHardwareCursor: true, editorPaddingX: 0, outputPad: 1, autocompleteMaxVisible: 5,
+        quietStartup: false, defaultProjectTrust: "ask", clearOnShrink: false, showTerminalProgress: false,
+        tuiMode: "fullscreen", fullscreenScrollbar: "auto", warnings: { anthropicExtraUsage: true },
+      },
+      onChange: changed,
+      onCancel: cancelled,
+    });
+    const rows = stripTerminalSequences(settings.render(88).join("\n"));
+    expect(rows).toContain("Auto-compact            true");
+    expect(rows).toContain("Auto-resize images      true");
+    settings.handleInput?.("\x1b[B");
+    expect(stripTerminalSequences(settings.render(88).join("\n"))).toContain("(2/28)");
+    settings.handleInput?.("\x1b");
+    expect(cancelled).toHaveBeenCalledOnce();
+
+    const selected = vi.fn();
+    const messages = createPiShellUserMessageSelector([{ id: "entry-1", label: "first prompt" }], selected, cancelled);
+    messages.handleInput?.("\r");
+    expect(selected).toHaveBeenCalledWith("entry-1");
+    const auth = createPiShellAuthProviderSelector("login", [{ id: "oauth:openai", label: "OpenAI" }], selected, cancelled);
+    expect(stripTerminalSequences(auth.render(80).join("\n"))).toContain("OpenAI");
   });
 
   it("adapts selectors, dialogs, and status through public Pi TUI components", () => {

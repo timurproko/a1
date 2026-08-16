@@ -15,14 +15,21 @@ import {
 } from "../../foundation/pi-engine-adapter/index.js";
 import {
   createPiQueuedInputStatus,
+  createPiShellAuthProviderSelector,
   createPiShellDialog,
   createPiShellEditor,
   createPiShellFooter,
   createPiShellHeader,
   createPiShellLoadedResources,
+  createPiShellLoginDialog,
+  createPiShellModelSelector,
   createPiShellSelector,
+  createPiShellSessionSelector,
+  createPiShellSettingsSelector,
   createPiShellStatus,
   createPiShellTranscriptComponent,
+  createPiShellTreeSelector,
+  createPiShellUserMessageSelector,
   renderPiShellTranscriptBlock,
   type PiShellComponentPort,
   type PiShellEditorPort,
@@ -64,6 +71,7 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
   #toolsExpanded = false;
   #thinkingVisible = true;
   #workflowRows: string[] = [];
+  #inputSurface: PiShellComponentPort;
 
   constructor(
     view: OwnedUiSessionViewModel,
@@ -101,6 +109,7 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
       onToolsExpand: () => this.#setToolsExpanded(!this.#toolsExpanded),
     });
     this.editor.setThinkingLevel(view.thinkingLevel);
+    this.#inputSurface = this.editor;
     this.#syncTranscript(view.transcript);
   }
 
@@ -121,7 +130,7 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
       ...this.#renderDocument(width),
       ...queued,
       ...this.#status.render(width),
-      ...this.editor.render(width),
+      ...this.#inputSurface.render(width),
       ...this.#footer.render(width),
     ];
   }
@@ -130,7 +139,7 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
     const document = layoutPort(width => this.#renderDocument(width), () => this.invalidate());
     const queued = layoutPort(width => this.#view.editor.queuedSubmissions.length === 0 ? [] : this.#queued.render(width), () => this.#queued.invalidate());
     const status = layoutPort(width => this.#status.render(width), () => this.#status.invalidate());
-    const editor = layoutPort(width => this.editor.render(width), () => this.editor.invalidate(), data => this.editor.handleInput?.(data));
+    const editor = layoutPort(width => this.#inputSurface.render(width), () => this.#inputSurface.invalidate(), data => this.#inputSurface.handleInput?.(data));
     const footer = layoutPort(width => this.#footer.render(width), () => this.#footer.invalidate());
     return {
       type: "stack",
@@ -211,8 +220,18 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
     this.invalidate();
   }
 
+  setInputSurface(component: PiShellComponentPort | null): void {
+    const next = component ?? this.editor;
+    if (next === this.#inputSurface) return;
+    this.#inputSurface.setFocused?.(false);
+    if (this.#inputSurface !== this.editor) this.#inputSurface.dispose?.();
+    this.#inputSurface = next;
+    this.#inputSurface.setFocused?.(true);
+    this.invalidate();
+  }
+
   handleInput(data: string): void {
-    this.editor.handleInput?.(data);
+    this.#inputSurface.handleInput?.(data);
   }
 
   invalidate(): void {
@@ -220,13 +239,14 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
     this.resources.invalidate();
     for (const component of this.#transcript.values()) component.invalidate();
     this.editor.invalidate();
+    if (this.#inputSurface !== this.editor) this.#inputSurface.invalidate();
     this.#status.invalidate();
     this.#footer.invalidate();
     this.#queued.invalidate();
   }
 
   setFocused(focused: boolean): void {
-    this.editor.setFocused?.(focused);
+    this.#inputSurface.setFocused?.(focused);
   }
 
   dispose(): void {
@@ -234,6 +254,7 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
     this.resources.dispose?.();
     for (const component of this.#transcript.values()) component.dispose?.();
     this.#transcript.clear();
+    if (this.#inputSurface !== this.editor) this.#inputSurface.dispose?.();
     this.editor.dispose?.();
     this.#status.dispose?.();
     this.#footer.dispose?.();
@@ -574,24 +595,48 @@ export class PiSessionShell {
     void this.runWorkflow({ command: "model", argument: "" });
   }
 
+  showSettingsSelector(): void {
+    const snapshot = this.adapter.pinnedSettingsSnapshot();
+    const close = () => {
+      this.root.setInputSurface(null);
+      this.runtime.requestRender();
+    };
+    const component = createPiShellSettingsSelector({
+      config: {
+        ...snapshot,
+        availableThinkingLevels: [...snapshot.availableThinkingLevels],
+        availableThemes: [...snapshot.availableThemes],
+        warnings: { ...snapshot.warnings },
+      },
+      onChange: (callback, value) => {
+        if (callback === "onCancel") {
+          close();
+          return;
+        }
+        const result = this.adapter.applyPinnedSettingValue(callback, value);
+        if (result.outcome === "failed") this.root.appendWorkflowResult(result);
+        this.runtime.requestRender();
+      },
+      onCancel: close,
+    });
+    this.root.setInputSurface(component);
+    this.runtime.requestRender();
+  }
+
   async shutdown(): Promise<AdapterCommandResult> {
     return this.runWorkflow({ command: "quit", argument: "" });
   }
 
   async runWorkflow(request: PiWorkflowRequest): Promise<AdapterCommandResult> {
+    if (request.command === "settings" && request.selection === undefined && request.confirmed === undefined) {
+      const opened = this.adapter.executeWorkflow(request);
+      this.showSettingsSelector();
+      await opened;
+      return { outcome: "completed", diagnostic: null };
+    }
     const result = await this.adapter.executeWorkflow(request);
     if (result.outcome === "requires-selection" || result.outcome === "requires-confirmation") {
-      const options = result.options ?? [];
-      this.showSelector(result.selectorTitle ?? result.message, options, id => {
-        const next: PiWorkflowRequest = result.outcome === "requires-confirmation"
-          ? { ...request, confirmed: id === "yes" }
-          : { ...request, selection: id };
-        void this.runWorkflow(next);
-      }, () => {
-        const cancelled: PiWorkflowResult = { command: request.command, outcome: "cancelled", message: `${result.message} cancelled` };
-        this.root.appendWorkflowResult(cancelled);
-        this.runtime.requestRender();
-      });
+      this.#showWorkflowSelector(request, result);
       return { outcome: "completed", diagnostic: null };
     }
     this.root.appendWorkflowResult(result);
@@ -600,6 +645,54 @@ export class PiSessionShell {
     }
     this.runtime.requestRender();
     return workflowAdapterResult(result);
+  }
+
+  #showWorkflowSelector(request: PiWorkflowRequest, result: PiWorkflowResult): void {
+    const options = result.options ?? [];
+    const close = () => {
+      this.root.setInputSurface(null);
+      this.runtime.requestRender();
+    };
+    const select = (id: string) => {
+      close();
+      const next: PiWorkflowRequest = result.outcome === "requires-confirmation"
+        ? { ...request, confirmed: id === "yes" }
+        : { ...request, selection: id };
+      void this.runWorkflow(next);
+    };
+    const cancel = () => {
+      close();
+      const cancelled: PiWorkflowResult = { command: request.command, outcome: "cancelled", message: `${result.message} cancelled` };
+      this.root.appendWorkflowResult(cancelled);
+      this.runtime.requestRender();
+    };
+    let component: PiShellComponentPort;
+    if (request.command === "fork") {
+      component = createPiShellUserMessageSelector(options, select, cancel);
+    } else if (request.command === "login" || request.command === "logout") {
+      component = createPiShellAuthProviderSelector(request.command, options, select, cancel);
+    } else if (request.command === "model" || request.command === "scoped-models") {
+      const context = this.adapter.pinnedModelSelectorContext();
+      component = createPiShellModelSelector({
+        ...context,
+        runtime: {
+          getColumns: () => this.runtime.viewport().columns,
+          getRows: () => this.runtime.viewport().rows,
+          requestRender: () => this.runtime.requestRender(),
+        },
+        onSelect: model => select(modelReference(model)),
+        onCancel: cancel,
+      });
+    } else if (request.command === "resume") {
+      component = createPiShellSessionSelector(options, select, cancel, () => this.runtime.requestRender());
+    } else if (request.command === "tree") {
+      const context = this.adapter.pinnedTreeSelectorContext();
+      component = createPiShellTreeSelector(context.tree, context.currentLeafId, this.runtime.viewport().rows, select, cancel);
+    } else {
+      component = createPiShellSelector({ title: result.selectorTitle ?? result.message, options, onSelect: select, onCancel: cancel });
+    }
+    this.root.setInputSurface(component);
+    this.runtime.requestRender();
   }
 
   async dispose(): Promise<void> {
@@ -658,18 +751,25 @@ export class PiSessionShell {
   }
 
   #requestWorkflowInput(message: string): Promise<string | null> {
-    this.root.appendWorkflowResult({ command: "login", outcome: "completed", message });
-    this.root.editor.setText("");
-    this.runtime.requestRender();
     return new Promise(resolve => {
+      let settled = false;
       const finish = (value: string | null) => {
-        this.root.editor.setText("");
-        this.root.editor.setSubmitHandler(text => { void this.submit(text); });
-        this.root.editor.setInterruptHandler(() => { void this.interrupt(); });
+        if (settled) return;
+        settled = true;
+        this.root.setInputSurface(null);
+        this.runtime.requestRender();
         resolve(value);
       };
-      this.root.editor.setSubmitHandler(text => finish(text.trim() || null));
-      this.root.editor.setInterruptHandler(() => finish(null));
+      const dialog = createPiShellLoginDialog({
+        getColumns: () => this.runtime.viewport().columns,
+        getRows: () => this.runtime.viewport().rows,
+        requestRender: () => this.runtime.requestRender(),
+      }, "provider", success => {
+        if (!success) finish(null);
+      });
+      this.root.setInputSurface(dialog);
+      void dialog.showPrompt(message).then(value => finish(value.trim() || null), () => finish(null));
+      this.runtime.requestRender();
     });
   }
 
@@ -698,6 +798,14 @@ export class PiSessionShell {
     this.#sequence += 1;
     return `pi-shell-${prefix}-${this.#sequence}`;
   }
+}
+
+function modelReference(model: unknown): string {
+  if (typeof model !== "object" || model === null) return "";
+  const value = model as { provider?: unknown; id?: unknown; modelId?: unknown };
+  const provider = typeof value.provider === "string" ? value.provider : "";
+  const id = typeof value.id === "string" ? value.id : typeof value.modelId === "string" ? value.modelId : "";
+  return provider && id ? `${provider}/${id}` : "";
 }
 
 function rejected(diagnostic: string): AdapterCommandResult {

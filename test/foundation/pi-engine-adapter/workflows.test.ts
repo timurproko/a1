@@ -192,6 +192,12 @@ describe("pinned Pi command and input workflows", () => {
       const result = await adapter.executeWorkflow({ command: "settings", argument: "", selection: callback });
       expect(result.outcome, `${callback}: ${result.message}`).toBe(callback === "onCancel" ? "cancelled" : "completed");
     }
+    expect(adapter.applyPinnedSettingValue("onImageWidthCellsChange", 120)).toMatchObject({ outcome: "completed" });
+    expect(runtime.settingsValues.get("ImageWidthCells")).toBe(120);
+    expect(adapter.applyPinnedSettingValue("onEditorPaddingXChange", 3)).toMatchObject({ outcome: "completed" });
+    expect(runtime.settingsValues.get("EditorPaddingX")).toBe(3);
+    expect(adapter.applyPinnedSettingValue("onWarningsChange", { anthropicExtraUsage: false })).toMatchObject({ outcome: "completed" });
+    expect(runtime.settingsValues.get("Warnings")).toEqual({ anthropicExtraUsage: false });
     await expect(adapter.executeWorkflow({ command: "import", argument: "session.jsonl" })).resolves.toMatchObject({ outcome: "requires-confirmation" });
     await expect(adapter.executeWorkflow({ command: "import", argument: "session.jsonl", confirmed: false })).resolves.toMatchObject({ outcome: "cancelled" });
     runtime.newCancelled = true;

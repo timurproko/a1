@@ -66,6 +66,42 @@ export const PINNED_PI_SETTINGS_CALLBACKS = [
 
 export type PiPinnedSettingsCallback = typeof PINNED_PI_SETTINGS_CALLBACKS[number];
 
+export interface PiPinnedSettingsSnapshot {
+  readonly autoCompact: boolean;
+  readonly showImages: boolean;
+  readonly imageWidthCells: number;
+  readonly autoResizeImages: boolean;
+  readonly blockImages: boolean;
+  readonly enableSkillCommands: boolean;
+  readonly steeringMode: "all" | "one-at-a-time";
+  readonly followUpMode: "all" | "one-at-a-time";
+  readonly transport: "sse" | "websocket" | "websocket-cached" | "auto";
+  readonly httpIdleTimeoutMs: number;
+  readonly thinkingLevel: "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+  readonly availableThinkingLevels: readonly ("off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max")[];
+  readonly currentTheme: string;
+  readonly terminalTheme: "dark" | "light";
+  readonly availableThemes: readonly string[];
+  readonly hideThinkingBlock: boolean;
+  readonly mermaidRenderingMode: "off" | "final" | "streaming";
+  readonly showCacheMissNotices: boolean;
+  readonly collapseChangelog: boolean;
+  readonly enableInstallTelemetry: boolean;
+  readonly doubleEscapeAction: "fork" | "tree" | "none";
+  readonly treeFilterMode: "default" | "no-tools" | "user-only" | "labeled-only" | "all";
+  readonly showHardwareCursor: boolean;
+  readonly editorPaddingX: number;
+  readonly outputPad: 0 | 1;
+  readonly autocompleteMaxVisible: number;
+  readonly quietStartup: boolean;
+  readonly defaultProjectTrust: "ask" | "always" | "never";
+  readonly clearOnShrink: boolean;
+  readonly showTerminalProgress: boolean;
+  readonly tuiMode: "regular" | "fullscreen";
+  readonly fullscreenScrollbar: "hidden" | "auto" | "always";
+  readonly warnings: { readonly anthropicExtraUsage?: boolean };
+}
+
 export interface PiWorkflowOption {
   readonly id: string;
   readonly label: string;

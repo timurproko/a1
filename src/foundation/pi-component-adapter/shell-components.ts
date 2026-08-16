@@ -4,11 +4,26 @@ import {
   CompactionSummaryMessageComponent,
   CustomEditor,
   CustomMessageComponent,
+  ExtensionSelectorComponent,
   FooterComponent,
   getMarkdownTheme,
   getSelectListTheme,
+  LoginDialogComponent,
+  ModelSelectorComponent,
+  OAuthSelectorComponent,
   rawKeyHint,
+  SessionSelectorComponent,
+  SettingsSelectorComponent,
+  ShowImagesSelectorComponent,
+  type SessionInfo,
+  type SessionTreeNode,
+  type SettingsCallbacks,
+  type SettingsConfig,
+  ThemeSelectorComponent,
+  ThinkingSelectorComponent,
   ToolExecutionComponent,
+  TreeSelectorComponent,
+  UserMessageSelectorComponent,
   UserMessageComponent,
   VERSION,
 } from "@earendil-works/pi-coding-agent";
@@ -274,6 +289,219 @@ export function createPiShellSelector(options: PiShellSelectorOptions): PiShellC
   container.addChild(new Text(piTheme().fg("accent", piTheme().bold(options.title)), PINNED_PI_LAYOUT.contentPaddingX, 0));
   container.addChild(list);
   return componentPort(container, data => list.handleInput(data));
+}
+
+export interface PiShellSettingsSelectorOptions {
+  readonly config: SettingsConfig;
+  readonly onChange: (callback: keyof SettingsCallbacks, value: unknown) => void;
+  readonly onCancel: () => void;
+}
+
+export function createPiShellSettingsSelector(options: PiShellSettingsSelectorOptions): PiShellComponentPort {
+  ensureTheme();
+  const change = (name: keyof SettingsCallbacks) => (value?: unknown) => options.onChange(name, value);
+  const callbacks: SettingsCallbacks = {
+    onAutoCompactChange: change("onAutoCompactChange"),
+    onShowImagesChange: change("onShowImagesChange"),
+    onImageWidthCellsChange: change("onImageWidthCellsChange"),
+    onAutoResizeImagesChange: change("onAutoResizeImagesChange"),
+    onBlockImagesChange: change("onBlockImagesChange"),
+    onEnableSkillCommandsChange: change("onEnableSkillCommandsChange"),
+    onSteeringModeChange: change("onSteeringModeChange"),
+    onFollowUpModeChange: change("onFollowUpModeChange"),
+    onTransportChange: change("onTransportChange"),
+    onHttpIdleTimeoutMsChange: change("onHttpIdleTimeoutMsChange"),
+    onThinkingLevelChange: change("onThinkingLevelChange"),
+    onThemeChange: change("onThemeChange"),
+    onThemePreview: change("onThemePreview"),
+    onHideThinkingBlockChange: change("onHideThinkingBlockChange"),
+    onMermaidRenderingModeChange: change("onMermaidRenderingModeChange"),
+    onShowCacheMissNoticesChange: change("onShowCacheMissNoticesChange"),
+    onCollapseChangelogChange: change("onCollapseChangelogChange"),
+    onEnableInstallTelemetryChange: change("onEnableInstallTelemetryChange"),
+    onDoubleEscapeActionChange: change("onDoubleEscapeActionChange"),
+    onTreeFilterModeChange: change("onTreeFilterModeChange"),
+    onShowHardwareCursorChange: change("onShowHardwareCursorChange"),
+    onEditorPaddingXChange: change("onEditorPaddingXChange"),
+    onOutputPadChange: change("onOutputPadChange"),
+    onAutocompleteMaxVisibleChange: change("onAutocompleteMaxVisibleChange"),
+    onQuietStartupChange: change("onQuietStartupChange"),
+    onDefaultProjectTrustChange: change("onDefaultProjectTrustChange"),
+    onClearOnShrinkChange: change("onClearOnShrinkChange"),
+    onShowTerminalProgressChange: change("onShowTerminalProgressChange"),
+    onTuiModeChange: change("onTuiModeChange"),
+    onFullscreenScrollbarChange: change("onFullscreenScrollbarChange"),
+    onWarningsChange: change("onWarningsChange"),
+    onCancel: options.onCancel,
+  };
+  const selector = new SettingsSelectorComponent(options.config, callbacks);
+  const settingsList = selector.getSettingsList();
+  return componentPort(selector, data => settingsList.handleInput(data));
+}
+
+type PiModelSelectorArguments = ConstructorParameters<typeof ModelSelectorComponent>;
+
+export interface PiShellModelSelectorOptions {
+  readonly currentModel: unknown;
+  readonly settingsManager: unknown;
+  readonly modelRuntime: unknown;
+  readonly scopedModels: readonly unknown[];
+  readonly initialSearchInput?: string;
+  readonly runtime: Pick<PiShellEditorOptions, "getColumns" | "getRows" | "requestRender">;
+  readonly onSelect: PiModelSelectorArguments[5];
+  readonly onCancel: () => void;
+}
+
+export function createPiShellModelSelector(options: PiShellModelSelectorOptions): PiShellComponentPort {
+  ensureTheme();
+  const selector = new ModelSelectorComponent(
+    createTuiFacade(options.runtime),
+    options.currentModel as PiModelSelectorArguments[1],
+    options.settingsManager as PiModelSelectorArguments[2],
+    options.modelRuntime as PiModelSelectorArguments[3],
+    options.scopedModels as PiModelSelectorArguments[4],
+    options.onSelect,
+    options.onCancel,
+    options.initialSearchInput,
+  );
+  return componentPort(selector);
+}
+
+export function createPiShellSessionSelector(
+  sessions: readonly PiShellSelectorOption[],
+  onSelect: (path: string) => void,
+  onCancel: () => void,
+  requestRender: () => void,
+): PiShellComponentPort {
+  ensureTheme();
+  const now = new Date(0);
+  const values: SessionInfo[] = sessions.map(session => ({
+    path: session.id,
+    id: session.id,
+    cwd: session.description ?? "",
+    created: now,
+    modified: now,
+    messageCount: 0,
+    firstMessage: session.label,
+    allMessagesText: session.label,
+  }));
+  const load = async () => values;
+  const selector = new SessionSelectorComponent(load, load, onSelect, onCancel, onCancel, requestRender);
+  return componentPort(selector);
+}
+
+export function createPiShellTreeSelector(
+  tree: readonly unknown[],
+  currentLeafId: string | null,
+  terminalHeight: number,
+  onSelect: (id: string) => void,
+  onCancel: () => void,
+): PiShellComponentPort {
+  ensureTheme();
+  return componentPort(new TreeSelectorComponent([...tree] as SessionTreeNode[], currentLeafId, terminalHeight, onSelect, onCancel));
+}
+
+export function createPiShellUserMessageSelector(
+  messages: readonly PiShellSelectorOption[],
+  onSelect: (id: string) => void,
+  onCancel: () => void,
+  initialSelectedId?: string,
+): PiShellComponentPort {
+  ensureTheme();
+  const selector = new UserMessageSelectorComponent(
+    messages.map(message => ({ id: message.id, text: message.label })),
+    onSelect,
+    onCancel,
+    initialSelectedId,
+  );
+  const list = selector.getMessageList();
+  return componentPort(selector, data => list.handleInput(data));
+}
+
+export interface PiShellLoginDialogPort extends PiShellComponentPort {
+  showPrompt(message: string, placeholder?: string): Promise<string>;
+  showDetails(lines: readonly string[]): void;
+  showWaiting(message: string): void;
+  showProgress(message: string): void;
+}
+
+export function createPiShellLoginDialog(
+  runtime: Pick<PiShellEditorOptions, "getColumns" | "getRows" | "requestRender">,
+  providerId: string,
+  onComplete: (success: boolean, message?: string) => void,
+): PiShellLoginDialogPort {
+  ensureTheme();
+  const dialog = new LoginDialogComponent(createTuiFacade(runtime), providerId, onComplete);
+  return {
+    ...componentPort(dialog),
+    showPrompt: (message, placeholder) => dialog.showPrompt(message, placeholder),
+    showDetails: lines => dialog.showDetails([...lines]),
+    showWaiting: message => dialog.showWaiting(message),
+    showProgress: message => dialog.showProgress(message),
+  };
+}
+
+export function createPiShellAuthProviderSelector(
+  mode: "login" | "logout",
+  providers: readonly PiShellSelectorOption[],
+  onSelect: (id: string) => void,
+  onCancel: () => void,
+): PiShellComponentPort {
+  ensureTheme();
+  const selector = new OAuthSelectorComponent(mode, providers.map(provider => {
+    const [authType, providerId] = provider.id.includes(":") ? provider.id.split(":", 2) : ["oauth", provider.id];
+    return {
+      id: providerId!,
+      name: provider.label,
+      authType: authType === "api_key" ? "api_key" as const : "oauth" as const,
+    };
+  }), (providerId, authType) => onSelect(`${authType}:${providerId}`), onCancel);
+  return componentPort(selector);
+}
+
+export function createPiShellExtensionSelector(
+  title: string,
+  options: readonly string[],
+  onSelect: (value: string) => void,
+  onCancel: () => void,
+): PiShellComponentPort {
+  ensureTheme();
+  return componentPort(new ExtensionSelectorComponent(title, [...options], onSelect, onCancel));
+}
+
+export function createPiShellThinkingSelector(
+  currentLevel: "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max",
+  availableLevels: readonly ("off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max")[],
+  onSelect: (level: string) => void,
+  onCancel: () => void,
+): PiShellComponentPort {
+  ensureTheme();
+  const selector = new ThinkingSelectorComponent(currentLevel, [...availableLevels], onSelect, onCancel);
+  const list = selector.getSelectList();
+  return componentPort(selector, data => list.handleInput(data));
+}
+
+export function createPiShellThemeSelector(
+  currentTheme: string,
+  onSelect: (theme: string) => void,
+  onCancel: () => void,
+  onPreview: (theme: string) => void,
+): PiShellComponentPort {
+  ensureTheme();
+  const selector = new ThemeSelectorComponent(currentTheme, onSelect, onCancel, onPreview);
+  const list = selector.getSelectList();
+  return componentPort(selector, data => list.handleInput(data));
+}
+
+export function createPiShellShowImagesSelector(
+  currentValue: boolean,
+  onSelect: (show: boolean) => void,
+  onCancel: () => void,
+): PiShellComponentPort {
+  ensureTheme();
+  const selector = new ShowImagesSelectorComponent(currentValue, onSelect, onCancel);
+  const list = selector.getSelectList();
+  return componentPort(selector, data => list.handleInput(data));
 }
 
 export function createPiShellDialog(
