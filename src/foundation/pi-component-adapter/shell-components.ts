@@ -613,6 +613,18 @@ export function createPiShellDialog(
   return componentPort(box, data => selector.handleInput?.(data));
 }
 
+export function createPiShellChangelog(markdown: string): PiShellComponentPort {
+  ensureTheme();
+  const container = new Container();
+  container.addChild(new Spacer(1));
+  container.addChild(new DynamicBorder());
+  container.addChild(new Text(piTheme().bold(piTheme().fg("accent", "What's New")), 1, 0));
+  container.addChild(new Spacer(1));
+  container.addChild(new Markdown(markdown.trim() || "No changelog entries found.", 1, 1, getMarkdownTheme()));
+  container.addChild(new DynamicBorder());
+  return componentPort(container);
+}
+
 export function createPiShellHotkeys(): PiShellComponentPort {
   ensureTheme();
   const keys = new KeybindingsManager();

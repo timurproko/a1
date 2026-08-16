@@ -219,7 +219,7 @@ describe("pinned Pi command and input workflows", () => {
     adapter.abortBashWorkflow();
     await expect(adapter.executeWorkflow({ command: "copy", argument: "" })).resolves.toMatchObject({ outcome: "failed", message: "clipboard denied" });
     runtime.session.reloadFails = true;
-    await expect(adapter.executeWorkflow({ command: "reload", argument: "" })).resolves.toMatchObject({ outcome: "failed", message: "reload exploded" });
+    await expect(adapter.executeWorkflow({ command: "reload", argument: "" })).resolves.toMatchObject({ outcome: "failed", message: "Reload failed: reload exploded" });
     await expect(adapter.executeWorkflow({ command: "model", argument: "openai/missing" })).resolves.toMatchObject({ outcome: "failed" });
   });
 

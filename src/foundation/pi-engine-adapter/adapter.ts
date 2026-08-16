@@ -813,7 +813,11 @@ export class PiEngineAdapter {
     try {
       return await this.#performWorkflow(request);
     } catch (error) {
-      return workflowResult(request.command, "failed", error instanceof Error ? error.message : String(error));
+      const message = error instanceof Error ? error.message : String(error);
+      const contextualMessage = request.command === "export"
+        ? `Failed to export session: ${message}`
+        : request.command === "reload" ? `Reload failed: ${message}` : message;
+      return workflowResult(request.command, "failed", contextualMessage);
     }
   }
 
@@ -2009,7 +2013,7 @@ function defaultWorkflowHost(): PiWorkflowHost {
       const result = await execFileAsync(command, [...arguments_], { encoding: "utf8" });
       return { stdout: result.stdout, stderr: result.stderr };
     },
-    readChangelog: () => readFile(join(getPackageDir(), "CHANGELOG.md"), "utf8"),
+    readChangelog: async () => pinnedChangelogMarkdown(await readFile(join(getPackageDir(), "CHANGELOG.md"), "utf8")),
   };
 }
 
@@ -2300,6 +2304,14 @@ function contentImageCount(content: unknown): number {
   return Array.isArray(content)
     ? content.filter(item => isRecord(item) && item.type === "image").length
     : 0;
+}
+
+function pinnedChangelogMarkdown(content: string): string {
+  const entries = content.split(/^##\s+/m).slice(1).flatMap(section => {
+    const markdown = `## ${section}`.trim();
+    return /^##\s+\[?\d+\.\d+\.\d+\]?/.test(markdown) ? [markdown] : [];
+  });
+  return entries.reverse().join("\n\n") || "No changelog entries found.";
 }
 
 function jsonSummary(value: unknown): { readonly summary: string; readonly json: unknown } {

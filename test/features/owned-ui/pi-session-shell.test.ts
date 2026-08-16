@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { stripTerminalSequences } from "@earendil-works/pi-tui";
 import { describe, expect, it, vi } from "vitest";
 import {
   createPiEngineAdapter,
@@ -276,6 +277,36 @@ describe("PiSessionShell", () => {
 
     shell.restoreQueuedInput();
     expect(shell.root.editor.getText()).toBe("queued steer\nqueued follow");
+    await shell.dispose();
+  });
+
+  it("renders changelog, errors, and reload through pinned route-specific presentation", async () => {
+    const { shell } = await fixture();
+    shell.root.appendWorkflowResult({
+      command: "changelog",
+      outcome: "completed",
+      message: "What's New",
+      detail: "# Changelog\n\n## 0.84.2\n\n- **Fixed selection rendering**",
+    });
+    shell.root.appendWorkflowResult({
+      command: "export",
+      outcome: "failed",
+      message: "Failed to export session: Nothing to export yet - start a conversation first",
+    });
+    shell.root.appendWorkflowResult({
+      command: "reload",
+      outcome: "completed",
+      message: "Reloaded keybindings, extensions, skills, prompts, themes, and context files",
+    });
+    const raw = shell.root.render(100).join("\n");
+    const plain = stripTerminalSequences(raw);
+    expect(plain).toContain("What's New");
+    expect(plain).toContain("Fixed selection rendering");
+    expect(plain).not.toContain("# Changelog");
+    expect(plain).toContain("Error: Failed to export session: Nothing to export yet - start a conversation first");
+    expect(plain).toContain("Reloaded keybindings, extensions, skills, prompts, themes, and context files");
+    expect(plain).not.toContain("✓ Reloaded");
+    expect(raw).toContain("\x1b[");
     await shell.dispose();
   });
 

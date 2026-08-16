@@ -17,6 +17,7 @@ import {
   createPiExtensionUiBridge,
   createPiQueuedInputStatus,
   createPiShellAuthProviderSelector,
+  createPiShellChangelog,
   createPiShellDialog,
   createPiShellEditor,
   createPiShellExtensionSelector,
@@ -84,6 +85,8 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
   #workflowComponents: PiShellComponentPort[] = [];
   #workflowTranscriptSequence = 0;
   readonly #workflowStatusAnchors = new Map<string, number>();
+  readonly #workflowStatusMessages = new Map<string, string>();
+  #lastWorkflowStatusId: string | undefined;
   #inputSurface: PiShellComponentPort;
   #extensionHeader: PiShellComponentPort | null = null;
   #extensionFooter: PiShellComponentPort | null = null;
@@ -251,30 +254,40 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
   }
 
   appendWorkflowStatus(message: string): void {
-    this.#workflowTranscriptSequence += 1;
-    const id = `workflow-status-${this.#workflowTranscriptSequence}`;
-    const component: PiShellTranscriptComponentPort = {
-      id,
-      revision: 1,
-      render: () => ["", ` ${piTheme().fg("dim", message)}`],
-      handleInput() {},
-      invalidate() {},
-      update() {},
-      setExpanded() {},
-    };
-    this.#transcript.set(id, component);
-    this.#workflowStatusAnchors.set(id, this.#view.transcript.length);
-    this.#transcriptOrder.push(id);
-    this.invalidate();
-  }
-
-  appendWorkflowResult(result: PiWorkflowResult): void {
-    if (result.command === "hotkeys" && result.outcome === "completed") {
-      this.#workflowComponents = [...this.#workflowComponents, createPiShellHotkeys()].slice(-4);
+    const previousId = this.#lastWorkflowStatusId;
+    if (previousId !== undefined
+      && this.#transcriptOrder.at(-1) === previousId
+      && this.#workflowStatusAnchors.get(previousId) === this.#view.transcript.length) {
+      this.#workflowStatusMessages.set(previousId, message);
       this.invalidate();
       return;
     }
-    const prefix = result.outcome === "failed" ? "Error: " : result.outcome === "cancelled" ? "" : "✓ ";
+    const id = this.#appendAnchoredWorkflowComponent(() => ["", ` ${piTheme().fg("dim", this.#workflowStatusMessages.get(id) ?? message)}`]);
+    this.#workflowStatusMessages.set(id, message);
+    this.#lastWorkflowStatusId = id;
+  }
+
+  appendWorkflowResult(result: PiWorkflowResult): void {
+    if (result.command === "reload" && result.outcome === "completed") {
+      this.appendWorkflowStatus(result.message);
+      return;
+    }
+    this.#lastWorkflowStatusId = undefined;
+    if (result.command === "hotkeys" && result.outcome === "completed") {
+      const hotkeys = createPiShellHotkeys();
+      this.#appendAnchoredWorkflowComponent(width => hotkeys.render(width), () => hotkeys.dispose?.());
+      return;
+    }
+    if (result.command === "changelog" && result.outcome === "completed") {
+      const changelog = createPiShellChangelog(result.detail ?? "No changelog entries found.");
+      this.#appendAnchoredWorkflowComponent(width => changelog.render(width), () => changelog.dispose?.());
+      return;
+    }
+    if (result.outcome === "failed") {
+      this.#appendAnchoredWorkflowComponent(() => ["", ` ${piTheme().fg("error", `Error: ${result.message}`)}`]);
+      return;
+    }
+    const prefix = result.outcome === "cancelled" ? "" : "✓ ";
     const detail = result.detail?.split(/\r?\n/).slice(0, 32) ?? [];
     this.#workflowRows = [...this.#workflowRows, `${prefix}${result.message}`, ...detail].slice(-40);
     this.invalidate();
@@ -322,6 +335,18 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
   setExtensionWorking(message: string | undefined, visible = this.#extensionWorkingVisible): void {
     this.#extensionWorkingMessage = message;
     this.#extensionWorkingVisible = visible;
+    this.invalidate();
+  }
+
+  resetExtensionUi(): void {
+    this.#extensionHeader?.dispose?.();
+    this.#extensionFooter?.dispose?.();
+    for (const { component } of this.#extensionWidgets.values()) component.dispose?.();
+    this.#extensionHeader = null;
+    this.#extensionFooter = null;
+    this.#extensionWidgets.clear();
+    this.#extensionStatuses.clear();
+    this.#extensionWorkingMessage = undefined;
     this.invalidate();
   }
 
@@ -418,6 +443,26 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
       if (!order.includes(statusId)) order.push(statusId);
     }
     this.#transcriptOrder = order;
+  }
+
+  #appendAnchoredWorkflowComponent(render: (width: number) => readonly string[], dispose?: () => void): string {
+    this.#workflowTranscriptSequence += 1;
+    const id = `workflow-status-${this.#workflowTranscriptSequence}`;
+    const component: PiShellTranscriptComponentPort = {
+      id,
+      revision: 1,
+      render,
+      handleInput() {},
+      invalidate() {},
+      update() {},
+      setExpanded() {},
+      ...(dispose === undefined ? {} : { dispose }),
+    };
+    this.#transcript.set(id, component);
+    this.#workflowStatusAnchors.set(id, this.#view.transcript.length);
+    this.#transcriptOrder.push(id);
+    this.invalidate();
+    return id;
   }
 
   #renderWidgets(placement: "aboveEditor" | "belowEditor", width: number): readonly string[] {
@@ -844,10 +889,11 @@ export class PiSessionShell {
       this.#showWorkflowSelector(request, result);
       return { outcome: "completed", diagnostic: null };
     }
-    this.root.appendWorkflowResult(result);
     if (request.command === "reload" && result.outcome === "completed") {
+      this.root.resetExtensionUi();
       this.root.editor.setAutocompleteCommands(this.adapter.workflowAutocompleteCommands());
     }
+    this.root.appendWorkflowResult(result);
     this.runtime.requestRender();
     return workflowAdapterResult(result);
   }

@@ -68,6 +68,14 @@ export const TERMINAL_PARITY_ACTIONS = Object.freeze([
   { type: "checkpoint", name: "narrow-resize", domains: ["resize", "wrapping", "component-geometry", "editor", "footer-status"] },
   { type: "resize", columns: DEFAULT_COLUMNS, rows: DEFAULT_ROWS },
   { type: "checkpoint", name: "restored-resize", domains: ["resize", "wrapping", "component-geometry", "scroll"] },
+  { type: "text", value: "/reload" },
+  { type: "key", key: "enter" },
+  { type: "checkpoint", name: "reload-status", domains: ["transcript", "status", "raw-ansi", "rows-spacing"] },
+  { type: "raw", value: "/changelog\r" },
+  { type: "checkpoint", name: "changelog", domains: ["transcript", "markdown", "raw-ansi", "rows-spacing", "scroll"] },
+  { type: "text", value: "/export" },
+  { type: "key", key: "enter" },
+  { type: "checkpoint", name: "export-error", domains: ["transcript", "errors", "raw-ansi", "rows-spacing"] },
   { type: "shutdown" },
 ]);
 
