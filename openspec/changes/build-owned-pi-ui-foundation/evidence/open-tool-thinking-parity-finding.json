@@ -3,7 +3,7 @@
   "change": "build-owned-pi-ui-foundation",
   "recordedAt": "2026-08-16T14:48:01.981Z",
   "discoveredAtCommit": "157978525fac538da49fea77c252b1d1d65337b3",
-  "status": "open",
+  "status": "resolved",
   "scenario": "real-sdk-thinking-tool-extension-flow",
   "finding": "AddOne advances the transcript viewport five rows farther than untouched pinned Pi after an identical thinking plus extension-tool call/update/result flow, changing tool-card geometry and later physical-wheel and resize frames.",
   "upstream": {
@@ -36,5 +36,21 @@
     "identical-payload raw ANSI tool lifecycle comparison",
     "matching transcript scrollTop and component geometry",
     "focused and full two-process parity pass"
-  ]
+  ],
+  "resolvedAt": "2026-08-16T16:25:47.656Z",
+  "resolution": {
+    "commit": "fc8cb989079ae6dded82fedabea6d108c8dfa2fb",
+    "rootCause": "Session-authoritative rebuilding emitted a second tool-result transcript block instead of updating the existing tool-call block identity.",
+    "correction": "Tool results now coalesce with the original tool component and preserve its arguments and insertion position.",
+    "validation": {
+      "terminalParityDifferences": 0,
+      "tests": 434,
+      "testFiles": 82,
+      "visualMutationExit": 1,
+      "inputScrollMutationExit": 1,
+      "reportSha256": "680d7126c9c259702f99c9edfafef69435b05063ae8d635482707689c3c2c89f",
+      "upstreamRawCaptureSha256": "5b15e5bbf4b5ed2447228c808975309278e92a8a817aff66a93e481e61835a89",
+      "addoneRawCaptureSha256": "3c8e74047810922a6635b4fa7cef325388eaba9f2580c9e094c59baa0fcdf6bc"
+    }
+  }
 }

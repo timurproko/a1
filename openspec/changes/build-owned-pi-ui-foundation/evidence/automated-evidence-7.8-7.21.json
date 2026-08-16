@@ -1,8 +1,8 @@
 {
   "schema": "addone-owned-pi-ui-tasks-7.8-7.21-evidence-v1",
   "change": "build-owned-pi-ui-foundation",
-  "recordedAt": "2026-08-16T14:43:23.168Z",
-  "commit": "4fae1ce64809642c1f9caf8fef32052bf9f2fcfb",
+  "recordedAt": "2026-08-16T16:25:47.645Z",
+  "commit": "fc8cb989079ae6dded82fedabea6d108c8dfa2fb",
   "platform": {
     "platform": "win32",
     "arch": "x64",
@@ -36,13 +36,13 @@
       ]
     },
     "7.10": {
-      "result": "invalidated",
+      "result": "passed",
       "evidence": [
         "real SDK deterministic prompt",
         "streaming settlement checkpoints",
-        "repeated-timestamp transcript identity fix"
-      ],
-      "finding": "openspec/changes/build-owned-pi-ui-foundation/evidence/open-tool-thinking-parity-finding.json"
+        "repeated-timestamp transcript identity fix",
+        "single stateful tool component preserved through authoritative settlement"
+      ]
     },
     "7.11": {
       "result": "passed",
@@ -76,12 +76,12 @@
       ]
     },
     "7.15": {
-      "result": "invalidated",
+      "result": "passed",
       "evidence": [
         "custom message and tool renderer tests",
-        "partial/replacement fallback isolation"
-      ],
-      "finding": "openspec/changes/build-owned-pi-ui-foundation/evidence/open-tool-thinking-parity-finding.json"
+        "partial/replacement fallback isolation",
+        "real custom parity_echo renderer call/partial/final lifecycle"
+      ]
     },
     "7.16": {
       "result": "passed",
@@ -105,7 +105,7 @@
       "intentionalFailure": "missing linked acceptance test fixture"
     },
     "7.18": {
-      "result": "invalidated",
+      "result": "passed",
       "terminalCheckpoints": [
         "startup-resources",
         "editor-input",
@@ -123,31 +123,37 @@
         "differential-sgr-order",
         "transient-scrollbar-thumb-rounding"
       ],
-      "finding": "openspec/changes/build-owned-pi-ui-foundation/evidence/open-tool-thinking-parity-finding.json"
+      "scenarioCoverage": [
+        "mixed thinking/text/tool call",
+        "custom tool renderer",
+        "partial and final tool result",
+        "authoritative settlement",
+        "physical wheel and resize"
+      ]
     },
     "7.19": {
-      "result": "invalidated",
+      "result": "passed",
       "commandRoutes": 22,
       "hiddenRoutes": 3,
       "settingsCallbacks": 32,
       "intentionalMutation": {
         "visualExit": 1,
         "inputScrollExit": 1
-      },
-      "finding": "openspec/changes/build-owned-pi-ui-foundation/evidence/open-tool-thinking-parity-finding.json"
+      }
     },
     "7.20": {
-      "result": "invalidated",
+      "result": "passed",
       "integration": [
         "public SDK provider streaming",
+        "thinking plus extension tool call/result",
+        "custom call/partial/final renderer",
         "extension agent_start UI widget",
         "success and provider-error settlement",
         "editor remains interactive"
-      ],
-      "finding": "openspec/changes/build-owned-pi-ui-foundation/evidence/open-tool-thinking-parity-finding.json"
+      ]
     },
     "7.21": {
-      "result": "invalidated",
+      "result": "passed",
       "coverage": [
         "startup",
         "physical wheel",
@@ -161,8 +167,7 @@
       "deferredPlatforms": [
         "linux",
         "darwin"
-      ],
-      "finding": "openspec/changes/build-owned-pi-ui-foundation/evidence/open-tool-thinking-parity-finding.json"
+      ]
     }
   },
   "gates": [
@@ -202,28 +207,28 @@
   "artifacts": {
     "report": {
       "path": "artifacts/pi-terminal-parity/latest/report.json",
-      "sha256": "86ac5d95b879a2ac80074adc6b6f07c34b2ac73c548ee907b44503209fb28096"
+      "sha256": "680d7126c9c259702f99c9edfafef69435b05063ae8d635482707689c3c2c89f"
     },
     "upstream": {
       "path": "artifacts/pi-terminal-parity/latest/upstream-checkpoints.json",
-      "sha256": "b4d0092566819f0ff35e67ade85224dd484fe0473bb2c2229bcb74501e308709",
-      "rawCaptureSha256": "e296f08c5c99f77c4b4cfb180442a80f621cf4c78c5f274bad559923a36ad033"
+      "sha256": "fca9dc2e49e82675ea5e4e803dadc75d2fd934ac2cad82b308f7863a9aea5bab",
+      "rawCaptureSha256": "5b15e5bbf4b5ed2447228c808975309278e92a8a817aff66a93e481e61835a89"
     },
     "addone": {
       "path": "artifacts/pi-terminal-parity/latest/addone-checkpoints.json",
-      "sha256": "1fe01144c1344b341f2665ca70daf85c047a03e1a52a6ee3f06fc6359ac97b2b",
-      "rawCaptureSha256": "00c457c9fec124da3de6aa4b1119edbc81158877756c9a1182e683e1f5a0afed"
+      "sha256": "3e33f24fcccf73ec60220b61d35ae517d532df4773ca7265a8f526140ce2a735",
+      "rawCaptureSha256": "3c8e74047810922a6635b4fa7cef325388eaba9f2580c9e094c59baa0fcdf6bc"
     },
     "intentionalVisual": {
-      "path": "artifacts/pi-terminal-parity-intentional-visual.log",
-      "sha256": "b841c76c4c7bc73251ab91be70f9db79c68f1a2abf706ce5e4d5714289103d82"
+      "path": "artifacts/pi-terminal-parity/mutations/visual.log",
+      "sha256": "ae695141d53cbb6bc352e866e654585ba9eeaaef2a33e5c071438bbdad8466c2"
     },
     "intentionalInputScroll": {
-      "path": "artifacts/pi-terminal-parity-intentional-input-scroll.log",
-      "sha256": "5826fbbaa88c529504363d1687a72c5d43eaaedff9d1893dc98262f59f47bee5"
+      "path": "artifacts/pi-terminal-parity/mutations/input-scroll.log",
+      "sha256": "1b385ae06de84d93951080afc826eb73660d54d8b77b468a10feda751a63b040"
     }
   },
-  "result": "invalidated",
+  "result": "passed",
   "invalidatedAt": "2026-08-16T14:48:22.415Z",
   "invalidation": {
     "finding": "openspec/changes/build-owned-pi-ui-foundation/evidence/open-tool-thinking-parity-finding.json",
@@ -237,6 +242,9 @@
       "7.19",
       "7.20",
       "7.21"
-    ]
+    ],
+    "status": "resolved",
+    "resolutionCommit": "fc8cb989079ae6dded82fedabea6d108c8dfa2fb",
+    "resolution": "Coalesced toolResult messages onto the original tool-call block identity during session-authoritative rebuilds, preserving arguments and one stateful ToolExecutionComponent as pinned Pi does."
   }
 }
