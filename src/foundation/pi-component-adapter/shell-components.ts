@@ -521,9 +521,10 @@ function assistantComponent(block: OwnedUiTranscriptBlock): AssistantMessageComp
 
 function assistantMessage(block: OwnedUiTranscriptBlock): Record<string, unknown> {
   const payload = blockPayload(block);
-  const content = block.kind === "thinking"
-    ? [{ type: "thinking", thinking: block.text }]
-    : [{ type: "text", text: block.text }];
+  const content = assistantPayloadContent(payload.content)
+    ?? (block.kind === "thinking"
+      ? [{ type: "thinking", thinking: block.text }]
+      : [{ type: "text", text: block.text }]);
   return {
     role: "assistant",
     content,
@@ -532,8 +533,24 @@ function assistantMessage(block: OwnedUiTranscriptBlock): Record<string, unknown
     model: stringPayload(payload, "model") ?? "gpt-5",
     usage: isRecord(payload.usage) ? payload.usage : emptyUsage(),
     stopReason: stringPayload(payload, "stopReason") ?? (block.status === "live" ? "pending" : "stop"),
+    ...(stringPayload(payload, "errorMessage") === undefined ? {} : { errorMessage: stringPayload(payload, "errorMessage") }),
     timestamp: numericPayload(block, "timestamp") || 0,
   };
+}
+
+function assistantPayloadContent(value: unknown): readonly Record<string, unknown>[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const content: Record<string, unknown>[] = [];
+  for (const item of value) {
+    if (!isRecord(item)) continue;
+    if (item.type === "text" && typeof item.text === "string") content.push({ type: "text", text: item.text });
+    else if (item.type === "thinking" && typeof item.thinking === "string") {
+      content.push({ type: "thinking", thinking: item.thinking, ...(item.redacted === true ? { redacted: true } : {}) });
+    } else if (item.type === "toolCall" && typeof item.id === "string" && typeof item.name === "string") {
+      content.push({ type: "toolCall", id: item.id, name: item.name, arguments: item.arguments ?? {} });
+    }
+  }
+  return content.length === 0 && value.length > 0 ? undefined : content;
 }
 
 function toolComponent(block: OwnedUiTranscriptBlock, cwd: string): ToolExecutionComponent {

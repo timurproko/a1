@@ -1289,37 +1289,25 @@ export class PiEngineAdapter {
     }
     if (message.role !== "assistant" || !Array.isArray(message.content)) return [];
 
-    const blocks: OwnedUiTranscriptBlock[] = [];
-    const text = textFromContent(message.content);
-    if (text) {
-      blocks.push({
-        id: baseId,
-        kind: "assistant",
-        status,
-        revision: this.#nextBlockRevision(baseId),
-        title: "Assistant",
-        text,
-        payload: {
-          role: "assistant",
-          provider: stringValue(message.provider) ?? null,
-          model: stringValue(message.model) ?? null,
-          stopReason: stringValue(message.stopReason) ?? null,
-          errorMessage: stringValue(message.errorMessage) ?? null,
-        },
-      });
-    }
-    const thinking = thinkingFromContent(message.content);
-    if (thinking) {
-      blocks.push({
-        id: `${baseId}:thinking`,
-        kind: "thinking",
-        status,
-        revision: this.#nextBlockRevision(`${baseId}:thinking`),
-        title: "Thinking",
-        text: thinking,
-        payload: { role: "assistant", redacted: contentHasRedactedThinking(message.content) },
-      });
-    }
+    const blocks: OwnedUiTranscriptBlock[] = [{
+      id: baseId,
+      kind: "assistant",
+      status,
+      revision: this.#nextBlockRevision(baseId),
+      title: "Assistant",
+      text: textFromContent(message.content),
+      payload: {
+        role: "assistant",
+        content: assistantContent(message.content),
+        provider: stringValue(message.provider) ?? null,
+        model: stringValue(message.model) ?? null,
+        api: stringValue(message.api) ?? null,
+        usage: sanitizeJson(message.usage),
+        stopReason: stringValue(message.stopReason) ?? null,
+        errorMessage: stringValue(message.errorMessage) ?? null,
+        timestamp: typeof message.timestamp === "number" ? message.timestamp : 0,
+      },
+    }];
     for (const item of message.content) {
       if (!isRecord(item) || item.type !== "toolCall") continue;
       const toolCallId = stringValue(item.id) ?? `${baseId}:${blocks.length}`;
@@ -1787,23 +1775,33 @@ function textFromContent(content: unknown): string {
     .join("\n");
 }
 
-function thinkingFromContent(content: unknown): string {
-  if (!Array.isArray(content)) return "";
-  return content
-    .map(item => isRecord(item) && item.type === "thinking" ? stringValue(item.thinking) ?? "" : "")
-    .filter(text => text.length > 0)
-    .join("\n");
+function assistantContent(content: readonly unknown[]): readonly Record<string, unknown>[] {
+  const result: Record<string, unknown>[] = [];
+  for (const item of content) {
+    if (!isRecord(item)) continue;
+    if (item.type === "text") result.push({ type: "text", text: stringValue(item.text) ?? "" });
+    else if (item.type === "thinking") {
+      result.push({
+        type: "thinking",
+        thinking: stringValue(item.thinking) ?? "",
+        ...(item.redacted === true ? { redacted: true } : {}),
+      });
+    } else if (item.type === "toolCall") {
+      result.push({
+        type: "toolCall",
+        id: stringValue(item.id) ?? "",
+        name: stringValue(item.name) ?? "unknown",
+        arguments: sanitizeJson(item.arguments),
+      });
+    }
+  }
+  return result;
 }
 
 function contentImageCount(content: unknown): number {
   return Array.isArray(content)
     ? content.filter(item => isRecord(item) && item.type === "image").length
     : 0;
-}
-
-function contentHasRedactedThinking(content: unknown): boolean {
-  return Array.isArray(content)
-    && content.some(item => isRecord(item) && item.type === "thinking" && item.redacted === true);
 }
 
 function jsonSummary(value: unknown): { readonly summary: string; readonly json: unknown } {
