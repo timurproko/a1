@@ -5,7 +5,7 @@ Defines AddOne's independently owned fullscreen Pi shell, complete pinned intera
 ## ADDED Requirements
 
 ### Requirement: The owned shell presents the complete pinned Pi interactive UI
-The AddOne-owned UI SHALL reproduce the complete visible and interactive behavior of pinned Pi `0.84.1` at commit `53fa77ccd8a279eb87e92294ef3687b03ff80112`. The baseline SHALL include startup composition, themes, colors, spacing, layout, editor, autocomplete, keybindings, commands, prompt execution, transcript, streaming, tools, selectors, dialogs, settings, sessions, models, thinking, status/footer state, clipboard, resize, errors, and shutdown. AddOne SHALL NOT substitute approximate layouts, colors, controllers, or workflows for covered pinned behavior.
+The AddOne-owned UI SHALL reproduce the complete visible and interactive behavior of pinned Pi `0.84.2` at commit `914cf1472e715297caa30db4b9535d534a9eb718`. The baseline SHALL include startup composition, themes, colors, spacing, layout, editor, autocomplete, keybindings, commands, prompt execution, transcript, streaming, tools, selectors, dialogs, settings, sessions, models, thinking, status/footer state, clipboard, resize, errors, and shutdown. AddOne SHALL NOT substitute approximate layouts, colors, controllers, or workflows for covered pinned behavior.
 
 #### Scenario: Start an owned Pi session
 - **WHEN** the user starts the owned fullscreen UI in an equivalent terminal and session state
