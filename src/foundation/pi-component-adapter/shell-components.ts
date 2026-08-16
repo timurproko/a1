@@ -80,6 +80,7 @@ export interface PiShellEditorPort extends PiShellComponentPort {
   getText(): string;
   setText(text: string): void;
   insertText(text: string): void;
+  addToHistory(text: string): void;
   setSubmitEnabled(enabled: boolean): void;
   setSubmitHandler(handler: (text: string) => void): void;
   setInterruptHandler(handler: () => void): void;
@@ -291,6 +292,7 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
     getText: () => editor.getExpandedText(),
     setText: text => editor.setText(text),
     insertText: text => editor.insertTextAtCursor(text),
+    addToHistory: text => editor.addToHistory(text),
     setSubmitEnabled: enabled => {
       editor.disableSubmit = !enabled;
     },

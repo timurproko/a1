@@ -18,8 +18,8 @@ class Session implements PiSessionLike {
   readonly isIdle = true;
   isRetrying = false;
   isCompacting = false;
-  readonly messages: readonly unknown[] = [];
   readonly calls: string[] = [];
+  constructor(readonly messages: readonly unknown[] = []) {}
   extensionBindings: unknown;
   #listeners = new Set<(event: unknown) => void>();
   subscribe(listener: (event: unknown) => void): () => void { this.#listeners.add(listener); return () => this.#listeners.delete(listener); }
@@ -43,8 +43,9 @@ class Session implements PiSessionLike {
 }
 
 class Runtime implements PiRuntimeLike {
-  readonly session = new Session();
+  readonly session: Session;
   readonly services = { modelRuntime: { getModel: (_provider: string, id: string) => ({ provider: "openai", id, name: id }) }, diagnostics: [] };
+  constructor(messages: readonly unknown[] = []) { this.session = new Session(messages); }
   readonly diagnostics = [];
   readonly calls: string[] = [];
   setRebindSession(): void {}
@@ -76,8 +77,8 @@ class Terminal implements PiTuiTerminalPort {
   setProgress(): void {}
 }
 
-async function fixture() {
-  const engine = new Runtime();
+async function fixture(messages: readonly unknown[] = []) {
+  const engine = new Runtime(messages);
   const adapter = await createPiEngineAdapter({ cwd: "D:/work", sessionId: "owned-shell", createRuntime: async () => engine });
   const terminal = new Terminal();
   const shell = new PiSessionShell({ adapter, cwd: "D:/work", terminal });
@@ -127,6 +128,34 @@ describe("PiSessionShell", () => {
     await shell.clearOrExit(1_200);
     await shell.dispose();
     expect(engine.calls).toContain("dispose");
+  });
+
+  it("populates and updates current-session prompt history with pinned Up/Down draft restoration", async () => {
+    const { engine, terminal, shell } = await fixture([
+      { role: "user", content: [{ type: "text", text: "loaded older" }], timestamp: 1 },
+      { role: "assistant", content: [{ type: "text", text: "answer" }], timestamp: 2 },
+      { role: "user", content: [{ type: "text", text: "loaded newer" }], timestamp: 3 },
+    ]);
+
+    shell.root.editor.setText("draft");
+    terminal.input("\x1b[A");
+    expect(shell.root.editor.getText()).toBe("draft");
+    terminal.input("\x1b[A");
+    expect(shell.root.editor.getText()).toBe("loaded newer");
+    terminal.input("\x1b[A");
+    expect(shell.root.editor.getText()).toBe("loaded older");
+    terminal.input("\x1b[B");
+    expect(shell.root.editor.getText()).toBe("loaded newer");
+    terminal.input("\x1b[B");
+    expect(shell.root.editor.getText()).toBe("draft");
+
+    shell.root.editor.setText("entered now");
+    terminal.input("\r");
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(engine.session.calls).toContain("prompt:entered now");
+    terminal.input("\x1b[A");
+    expect(shell.root.editor.getText()).toBe("entered now");
+    await shell.dispose();
   });
 
   it("routes the complete command manifest, hidden routes, prompt resources, bash modes, and streaming queues", async () => {
@@ -179,22 +208,33 @@ describe("PiSessionShell", () => {
     await shell.dispose();
   });
 
-  it("continues selector choices and renders cancellation and failure outcomes", async () => {
+  it("closes selectors silently, restores editor input, and continues selected workflows", async () => {
     const { adapter, terminal, shell } = await fixture();
+    const selectionRequired = {
+      command: "model" as const,
+      outcome: "requires-selection" as const,
+      message: "Model",
+      selectorTitle: "Model",
+      options: [{ id: "openai/gpt-5", label: "GPT-5" }],
+    };
     const workflow = vi.spyOn(adapter, "executeWorkflow")
-      .mockResolvedValueOnce({
-        command: "model",
-        outcome: "requires-selection",
-        message: "Model",
-        selectorTitle: "Model",
-        options: [{ id: "openai/gpt-5", label: "GPT-5" }],
-      })
+      .mockResolvedValueOnce(selectionRequired)
+      .mockResolvedValueOnce(selectionRequired)
       .mockResolvedValueOnce({ command: "model", outcome: "completed", message: "Selected GPT-5" })
       .mockResolvedValueOnce({ command: "copy", outcome: "failed", message: "clipboard denied" });
+
+    await shell.submit("/model");
+    terminal.input("\x1b");
+    const cancelledFrame = shell.root.render(80).join("\n");
+    expect(cancelledFrame).not.toContain("Model cancelled");
+    terminal.input("restored input");
+    expect(shell.root.editor.getText()).toBe("restored input");
+    shell.root.editor.setText("");
+
     await shell.submit("/model");
     terminal.input("\r");
     await new Promise(resolve => setTimeout(resolve, 0));
-    expect(workflow).toHaveBeenNthCalledWith(2, { command: "model", argument: "", selection: "openai/gpt-5" });
+    expect(workflow).toHaveBeenNthCalledWith(3, { command: "model", argument: "", selection: "openai/gpt-5" });
     await shell.submit("/copy");
     expect(shell.root.render(80).join("\n")).toContain("Error: clipboard denied");
     await shell.dispose();

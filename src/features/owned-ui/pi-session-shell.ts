@@ -129,6 +129,9 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
     });
     this.editor.setThinkingLevel(view.thinkingLevel);
     this.#inputSurface = this.editor;
+    for (const block of view.transcript) {
+      if (block.kind === "user") this.editor.addToHistory(block.text);
+    }
     this.#syncTranscript(view.transcript);
   }
 
@@ -588,6 +591,7 @@ export class PiSessionShell {
       const excludeFromContext = input.startsWith("!!");
       const command = input.slice(excludeFromContext ? 2 : 1).trim();
       if (command) {
+        this.root.editor.addToHistory(input);
         try {
           const result = await this.adapter.executeBashWorkflow(command, excludeFromContext);
           const workflow: PiWorkflowResult = {
@@ -608,12 +612,14 @@ export class PiSessionShell {
       }
     }
     if (this.view().status.workingMessage?.startsWith("Compacting") === true) {
+      this.root.editor.addToHistory(input);
       this.#compactionQueue.push({ text: input, type: "steer" });
       this.root.appendWorkflowResult({ command: "compact", outcome: "completed", message: `Queued during compaction: ${input}` });
       this.runtime.requestRender();
       return { outcome: "completed", diagnostic: null };
     }
     const type = this.view().lifecycle === "busy" ? "steer" as const : "prompt" as const;
+    this.root.editor.addToHistory(input);
     return this.#execute({
       type,
       correlationId: this.#correlation(type),
@@ -698,6 +704,7 @@ export class PiSessionShell {
   async queueFollowUp(): Promise<AdapterCommandResult> {
     const text = this.root.editor.getText().trim();
     if (!text) return rejected("nothing to queue");
+    this.root.editor.addToHistory(text);
     this.root.editor.setText("");
     if (this.view().status.workingMessage?.startsWith("Compacting") === true) {
       this.#compactionQueue.push({ text, type: "follow-up" });
@@ -816,9 +823,6 @@ export class PiSessionShell {
     };
     const cancel = () => {
       close();
-      const cancelled: PiWorkflowResult = { command: request.command, outcome: "cancelled", message: `${result.message} cancelled` };
-      this.root.appendWorkflowResult(cancelled);
-      this.runtime.requestRender();
     };
     let component: PiShellComponentPort;
     if (request.command === "fork") {
@@ -898,6 +902,7 @@ export class PiSessionShell {
     const argument = separator < 0 ? "" : body.slice(separator + 1).trimStart();
     if (isWorkflowRoute(name)) return this.runWorkflow({ command: name, argument });
     // Unknown slash input, prompt templates, skills, and extension commands remain Pi prompt input.
+    this.root.editor.addToHistory(text);
     return this.#execute({
       type: this.view().lifecycle === "busy" ? "steer" : "prompt",
       correlationId: this.#correlation("prompt-command"),

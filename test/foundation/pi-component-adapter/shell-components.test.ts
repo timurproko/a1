@@ -58,6 +58,40 @@ describe("Pi shell public component adapters", () => {
     expect(editor.render(40).length).toBeGreaterThan(0);
   });
 
+  it("browses pinned prompt history while preserving drafts, duplicates, and multiline movement", () => {
+    const editor = createPiShellEditor({
+      getColumns: () => 40,
+      getRows: () => 24,
+      requestRender() {},
+      onSubmit() {},
+    });
+    editor.render(40);
+    editor.addToHistory("older prompt");
+    editor.addToHistory("newer prompt");
+    editor.addToHistory("newer prompt");
+    editor.setText("draft");
+
+    editor.handleInput?.("\x1b[A");
+    expect(editor.getText()).toBe("draft");
+    editor.handleInput?.("\x1b[A");
+    expect(editor.getText()).toBe("newer prompt");
+    editor.handleInput?.("\x1b[A");
+    expect(editor.getText()).toBe("older prompt");
+    editor.handleInput?.("\x1b[B");
+    expect(editor.getText()).toBe("newer prompt");
+    editor.handleInput?.("\x1b[B");
+    expect(editor.getText()).toBe("draft");
+
+    editor.setText("first line\nsecond line");
+    editor.render(40);
+    editor.handleInput?.("\x1b[A");
+    expect(editor.getText()).toBe("first line\nsecond line");
+    editor.handleInput?.("\x1b[A");
+    expect(editor.getText()).toBe("first line\nsecond line");
+    editor.handleInput?.("\x1b[A");
+    expect(editor.getText()).toBe("newer prompt");
+  });
+
   it("binds the pinned built-in command manifest to public editor autocomplete", async () => {
     expect(PINNED_PI_BUILTIN_SLASH_COMMANDS.map(command => command.name)).toHaveLength(22);
     const editor = createPiShellEditor({

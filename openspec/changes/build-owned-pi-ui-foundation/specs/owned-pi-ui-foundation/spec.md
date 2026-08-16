@@ -71,6 +71,16 @@ The AddOne-owned UI SHALL reproduce the complete visible and interactive behavio
 - **WHEN** settings or another pinned specialized selector is active over a populated transcript
 - **THEN** its root-container placement, editor replacement, focus, viewport allocation, scrolling, instruction rows, footer relationship, cancellation, and restoration SHALL match pinned Pi rather than generic overlay composition
 
+#### Scenario: Cancel a selector silently
+- **WHEN** the user presses Escape or invokes cancel while a built-in selector or modal is active
+- **THEN** the surface SHALL be disposed and the editor and focus SHALL be restored without appending a generic `{surface} cancelled` transcript, workflow, notification, or status row
+- **AND** operation-specific cancellation output SHALL appear only where the pinned controller explicitly emits it
+
+#### Scenario: Browse current-session prompt history
+- **WHEN** the current session contains previously entered user messages and the editor receives Up or Down at a pinned history-navigation boundary
+- **THEN** the editor SHALL browse those messages in pinned newest/oldest order, suppress adjacent duplicates, preserve multiline cursor movement outside those boundaries, and restore the pre-navigation draft when leaving history browsing
+- **AND** newly accepted ordinary, streaming, extension, bash, steering, and follow-up inputs SHALL enter history at the same source-traced controller points as pinned Pi
+
 ### Requirement: Visible Pi extension UI is part of the 1:1 baseline
 The owned UI SHALL support the visible behavior exposed by pinned Pi extensions, including widgets, custom editors and inputs, selectors, dialogs, notifications, status and footer contributions, custom message and tool renderers, terminal input hooks, working indicators, and lifecycle cleanup. Extension UI behavior SHALL cross AddOne-owned versioned boundaries and SHALL NOT require mutation of installed Pi code or private interactive state.
 
