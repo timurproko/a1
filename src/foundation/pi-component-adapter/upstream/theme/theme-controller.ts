@@ -1,4 +1,4 @@
-// Adapted from pi commit 53fa77ccd8a279eb87e92294ef3687b03ff80112.
+// Adapted from Pi 0.84.1; upstream 0.84.2 re-synchronization is tracked by task 7.4.
 // Upstream: packages/coding-agent/src/modes/interactive/theme/theme-controller.ts
 // License: MIT. Modifications: public APIs and AddOne-owned runtime/settings ports.
 

@@ -1,4 +1,4 @@
-/** Source-synchronized from Pi 0.84.1 packages/coding-agent/src/core/keybindings.ts. */
+/** Source-synchronized from Pi 0.84.2 packages/coding-agent/src/core/keybindings.ts. */
 import {
 	type Keybinding,
 	type KeybindingDefinitions,

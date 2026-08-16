@@ -29,11 +29,11 @@ describe("Pi parity machine-readable evidence", () => {
     expect(evidence.invalidation.replacementInventory).toBe(
       "openspec/changes/build-owned-pi-ui-foundation/evidence/pinned-pi-interactive-baseline.json",
     );
-    expect(evidence.source).toMatchObject({ commit: "53fa77ccd8a279eb87e92294ef3687b03ff80112", license: "MIT" });
+    expect(evidence.source).toMatchObject({ commit: "914cf1472e715297caa30db4b9535d534a9eb718", license: "MIT" });
     expect(evidence.addOneParityBaselineCommit).toMatch(/^[0-9a-f]{40}$/);
     expect(evidence.packages.map(value => `${value.name}@${value.version}`)).toEqual([
-      "@earendil-works/pi-coding-agent@0.84.1",
-      "@earendil-works/pi-tui@0.84.1",
+      "@earendil-works/pi-coding-agent@0.84.2",
+      "@earendil-works/pi-tui@0.84.2",
     ]);
     for (const value of evidence.packages) expect(value.integrity).toMatch(/^sha512-/);
     for (const fixture of evidence.fixtures) {

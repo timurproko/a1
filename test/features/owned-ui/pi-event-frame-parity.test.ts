@@ -25,10 +25,10 @@ describe("pinned Pi scripted event and terminal-frame parity", () => {
     const result = await buildEventFrameParityResult();
 
     expect(fixture.schema).toBe("addone-pi-event-frame-parity-v1");
-    expect(fixture.generatedFrom.sourceCommit).toBe("53fa77ccd8a279eb87e92294ef3687b03ff80112");
+    expect(fixture.generatedFrom.sourceCommit).toBe("914cf1472e715297caa30db4b9535d534a9eb718");
     expect(fixture.generatedFrom.packages).toEqual({
-      "@earendil-works/pi-coding-agent": "0.84.1",
-      "@earendil-works/pi-tui": "0.84.1",
+      "@earendil-works/pi-coding-agent": "0.84.2",
+      "@earendil-works/pi-tui": "0.84.2",
     });
     expect(fixture.eventStages).toEqual(["initial", ...SCRIPTED_PI_EVENTS.map(entry => entry.stage), "resized"]);
     expect(result.states).toEqual(fixture.states);

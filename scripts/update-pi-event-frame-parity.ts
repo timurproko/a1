@@ -6,10 +6,10 @@ const output = {
   schema: "addone-pi-event-frame-parity-v1",
   generatedFrom: {
     repository: "https://github.com/earendil-works/pi.git",
-    sourceCommit: "53fa77ccd8a279eb87e92294ef3687b03ff80112",
+    sourceCommit: "914cf1472e715297caa30db4b9535d534a9eb718",
     packages: {
-      "@earendil-works/pi-coding-agent": "0.84.1",
-      "@earendil-works/pi-tui": "0.84.1"
+      "@earendil-works/pi-coding-agent": "0.84.2",
+      "@earendil-works/pi-tui": "0.84.2"
     }
   },
   tolerance: {

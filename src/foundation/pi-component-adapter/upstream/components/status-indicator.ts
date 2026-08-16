@@ -1,5 +1,5 @@
 /**
- * Source-synchronized from Pi 0.84.1
+ * Source-synchronized from Pi 0.84.2
  * packages/coding-agent/src/modes/interactive/components/status-indicator.ts
  */
 import { type Component, Loader, type LoaderIndicatorOptions, type TUI } from "@earendil-works/pi-tui";

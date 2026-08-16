@@ -18,8 +18,8 @@ describe("Pi session shell provenance", () => {
     expect(evidence.upstream.commit).toMatch(/^[0-9a-f]{40}$/);
     expect(evidence.upstream.license).toBe("MIT");
     expect(evidence.upstream.packages).toEqual([
-      { name: "@earendil-works/pi-coding-agent", version: "0.84.1" },
-      { name: "@earendil-works/pi-tui", version: "0.84.1" },
+      { name: "@earendil-works/pi-coding-agent", version: "0.84.2" },
+      { name: "@earendil-works/pi-tui", version: "0.84.2" },
     ]);
     expect(evidence.publicExports).toContain("FooterComponent");
     expect(evidence.publicExports).toContain("CombinedAutocompleteProvider");
@@ -31,13 +31,13 @@ describe("Pi session shell provenance", () => {
       copiedFiles: [],
       copiedLines: false,
       localFile: "src/features/owned-ui/pi-session-shell.ts",
-      upstreamCommit: "53fa77ccd8a279eb87e92294ef3687b03ff80112",
+      upstreamCommit: "914cf1472e715297caa30db4b9535d534a9eb718",
       upstreamLines: [528, 994],
     });
     expect(evidence.orchestrationPorts[0]?.coverage).toContain("test/features/owned-ui/pi-startup-composition-parity.test.ts");
     expect(evidence.orchestrationPorts[2]).toMatchObject({
       localFile: "src/foundation/pi-engine-adapter/adapter.ts",
-      upstreamCommit: "53fa77ccd8a279eb87e92294ef3687b03ff80112",
+      upstreamCommit: "914cf1472e715297caa30db4b9535d534a9eb718",
       copiedFiles: [],
       copiedLines: false,
     });

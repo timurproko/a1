@@ -2,8 +2,8 @@
   "schema": "addone-pinned-pi-modal-surface-inventory-v1",
   "change": "build-owned-pi-ui-foundation",
   "pinned": {
-    "version": "0.84.1",
-    "commit": "53fa77ccd8a279eb87e92294ef3687b03ff80112",
+    "version": "0.84.2",
+    "commit": "914cf1472e715297caa30db4b9535d534a9eb718",
     "controller": "packages/coding-agent/src/modes/interactive/interactive-mode.ts"
   },
   "policy": {

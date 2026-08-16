@@ -1,4 +1,4 @@
-// Mechanically adapted from Pi commit 53fa77c
+// Mechanically adapted from Pi commit 914cf14
 // packages/coding-agent/src/modes/interactive/components/trust-selector.ts (MIT).
 // Local modifications: inject trust options and remap theme/import boundaries.
 import { DynamicBorder, keyHint, rawKeyHint } from "@earendil-works/pi-coding-agent";

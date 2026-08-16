@@ -1,5 +1,5 @@
 /**
- * Source-synchronized from Pi 0.84.1
+ * Source-synchronized from Pi 0.84.2
  * packages/coding-agent/src/modes/interactive/components/scoped-models-selector.ts
  * Mechanical changes: public DynamicBorder/keyText imports and owned theme adapter.
  */

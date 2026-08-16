@@ -189,7 +189,7 @@ export interface PiShellSelectorOptions {
   readonly onCancel?: () => void;
 }
 
-// Pinned from packages/coding-agent/src/core/slash-commands.ts at 53fa77c.
+// Pinned from packages/coding-agent/src/core/slash-commands.ts at 914cf14.
 export const PINNED_PI_BUILTIN_SLASH_COMMANDS = [
   { name: "settings", description: "Open settings menu" },
   { name: "model", description: "Select model (opens selector UI)", argumentHint: "<provider/model>" },
@@ -367,6 +367,7 @@ export function createPiShellSettingsSelector(options: PiShellSettingsSelectorOp
     onClearOnShrinkChange: change("onClearOnShrinkChange"),
     onShowTerminalProgressChange: change("onShowTerminalProgressChange"),
     onTuiModeChange: change("onTuiModeChange"),
+    onFullscreenExitOutputChange: change("onFullscreenExitOutputChange"),
     onFullscreenScrollbarChange: change("onFullscreenScrollbarChange"),
     onWarningsChange: change("onWarningsChange"),
     onCancel: options.onCancel,

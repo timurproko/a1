@@ -1,4 +1,4 @@
-export const PI_TUI_PACKAGE_VERSION = "0.84.1" as const;
+export const PI_TUI_PACKAGE_VERSION = "0.84.2" as const;
 
 export type PiTuiRuntimeState = "idle" | "running" | "stopping" | "stopped" | "failed";
 

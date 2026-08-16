@@ -31,11 +31,11 @@ describe("deprecated dependency release policy", () => {
     expect(result.stderr).toContain("fixture@1.0.0 -> parent@1.0.0 -> old-transitive@2.0.0");
   });
 
-  it("allows only the documented exact Pi 0.84.1 transitive exceptions", async () => {
+  it("allows only the documented exact Pi 0.84.2 transitive exceptions", async () => {
     const result = await runPolicy({
-      "": { name: "fixture", version: "1.0.0", dependencies: { "@earendil-works/pi-coding-agent": "0.84.1" } },
-      "node_modules/@earendil-works/pi-coding-agent": { version: "0.84.1", dependencies: { "@earendil-works/pi-ai": "0.84.1" } },
-      "node_modules/@earendil-works/pi-ai": { version: "0.84.1", dependencies: { "@aws-sdk/client-bedrock-runtime": "3.1048.0", "google-auth-library": "10.6.2" } },
+      "": { name: "fixture", version: "1.0.0", dependencies: { "@earendil-works/pi-coding-agent": "0.84.2" } },
+      "node_modules/@earendil-works/pi-coding-agent": { version: "0.84.2", dependencies: { "@earendil-works/pi-ai": "0.84.2" } },
+      "node_modules/@earendil-works/pi-ai": { version: "0.84.2", dependencies: { "@aws-sdk/client-bedrock-runtime": "3.1048.0", "google-auth-library": "10.6.2" } },
       "node_modules/@aws-sdk/client-bedrock-runtime": { version: "3.1048.0", dependencies: { "@aws-sdk/core": "3.974.11" } },
       "node_modules/@aws-sdk/core": { version: "3.974.11", deprecated: "Deprecated due to an error deserialization bug in JSON 1.0 protocol services" },
       "node_modules/google-auth-library": { version: "10.6.2", dependencies: { gaxios: "7.1.4" } },

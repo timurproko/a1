@@ -59,6 +59,7 @@ export const PINNED_PI_SETTINGS_CALLBACKS = [
   "onClearOnShrinkChange",
   "onShowTerminalProgressChange",
   "onTuiModeChange",
+  "onFullscreenExitOutputChange",
   "onFullscreenScrollbarChange",
   "onWarningsChange",
   "onCancel",
@@ -98,6 +99,7 @@ export interface PiPinnedSettingsSnapshot {
   readonly clearOnShrink: boolean;
   readonly showTerminalProgress: boolean;
   readonly tuiMode: "regular" | "fullscreen";
+  readonly fullscreenExitOutput: "transcript" | "resume-hint";
   readonly fullscreenScrollbar: "hidden" | "auto" | "always";
   readonly warnings: { readonly anthropicExtraUsage?: boolean };
 }

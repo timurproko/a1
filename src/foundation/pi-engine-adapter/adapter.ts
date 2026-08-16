@@ -762,6 +762,7 @@ export class PiEngineAdapter {
       clearOnShrink: setting("getClearOnShrink", false),
       showTerminalProgress: setting("getShowTerminalProgress", false),
       tuiMode: "fullscreen",
+      fullscreenExitOutput: setting("getFullscreenExitOutput", "transcript"),
       fullscreenScrollbar: setting("getFullscreenScrollbar", "auto"),
       warnings: setting("getWarnings", { anthropicExtraUsage: true }),
     };
@@ -1208,6 +1209,7 @@ export class PiEngineAdapter {
         onClearOnShrinkChange: "setClearOnShrink",
         onShowTerminalProgressChange: "setShowTerminalProgress",
         onTuiModeChange: "setTuiMode",
+        onFullscreenExitOutputChange: "setFullscreenExitOutput",
         onFullscreenScrollbarChange: "setFullscreenScrollbar",
         onWarningsChange: "setWarnings",
       };
@@ -1255,6 +1257,7 @@ export class PiEngineAdapter {
       onTreeFilterModeChange: ["getTreeFilterMode", "setTreeFilterMode", ["default", "no-tools", "user-only", "labeled-only", "all"]],
       onOutputPadChange: ["getOutputPad", "setOutputPad", [0, 1]],
       onTuiModeChange: ["getTuiMode", "setTuiMode", ["regular", "fullscreen"]],
+      onFullscreenExitOutputChange: ["getFullscreenExitOutput", "setFullscreenExitOutput", ["transcript", "resume-hint"]],
       onFullscreenScrollbarChange: ["getFullscreenScrollbar", "setFullscreenScrollbar", ["hidden", "auto", "always"]],
     };
     const cycle = cycles[callback];

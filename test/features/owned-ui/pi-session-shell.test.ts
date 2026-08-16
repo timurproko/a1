@@ -126,7 +126,7 @@ describe("PiSessionShell", () => {
     const rows = shell.root.render(60).join("\n");
     expect(rows).toContain("Streaming answer");
     expect(rows).toContain("gpt-5 • medium");
-    expect(rows).toContain("v0.84.1");
+    expect(rows).toContain("v0.84.2");
     expect(rows).toContain("commands");
     await new Promise(resolve => setTimeout(resolve, 0));
     expect(engine.session.calls).toContain("bindExtensions");

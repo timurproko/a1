@@ -39,8 +39,10 @@ export class PiTuiRuntimeError extends Error {
 const OSC52_CLIPBOARD = /\x1b\]52;[^\x07]*\x07/g;
 const SGR_MOUSE = /^\x1b\[<(\d+);(\d+);(\d+)([Mm])$/;
 const ANSI_CSI = /\x1b\[[0-?]*[ -/]*[@-~]/gy;
-const UNIFORM_SELECTION_START = "\x1b[97;40m\x1b[7m";
+const UNIFORM_SELECTION_START = "\x1b[30;107m";
 const UNIFORM_SELECTION_END = "\x1b[0m";
+const FOCUS_OUT = "\x1b[O";
+const CLEAR_SELECTION_PRESS = "\x1b[<0;1;1M";
 
 class VanillaSelectionTerminal implements PiTuiTerminalPort {
   #selectionPress = false;
@@ -58,12 +60,15 @@ class VanillaSelectionTerminal implements PiTuiTerminalPort {
   start(onInput: (data: string) => void, onResize: () => void): void {
     this.terminal.start(data => {
       this.#trackSelectionInput(data);
+      const mouseInput = SGR_MOUSE.test(data);
       if (this.#selectionActive && getKeybindings().matches(data, "tui.input.copy")) {
         if (!isKeyRelease(data) && this.#pendingClipboardSequence !== undefined) {
           this.terminal.write(this.#pendingClipboardSequence);
+          this.#clearSelection(onInput);
         }
         return;
       }
+      if (this.#selectionActive && !mouseInput && !isKeyRelease(data)) this.#clearSelection(onInput);
       onInput(data);
     }, onResize);
   }
@@ -146,6 +151,19 @@ class VanillaSelectionTerminal implements PiTuiTerminalPort {
       if (!code.endsWith("m")) output += code;
     }
     return output;
+  }
+
+  #clearSelection(onInput: (data: string) => void): void {
+    // TuiAltScreen has no public clear-selection method. Drive its public input
+    // seam through an active press followed by focus-out, which clears the
+    // retained selection without activating the clicked cell or using private state.
+    onInput(CLEAR_SELECTION_PRESS);
+    onInput(FOCUS_OUT);
+    this.#selectionPress = false;
+    this.#selectionDragged = false;
+    this.#selectionActive = false;
+    this.#selectionHighlightOpen = false;
+    this.#pendingClipboardSequence = undefined;
   }
 
   #trackSelectionInput(data: string): void {

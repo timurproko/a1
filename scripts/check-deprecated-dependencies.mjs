@@ -11,13 +11,13 @@ const DOCUMENTED_DEPRECATED_EXCEPTIONS = [
   {
     name: "node-domexception",
     version: "1.0.0",
-    upstream: "@earendil-works/pi-coding-agent@0.84.1",
+    upstream: "@earendil-works/pi-coding-agent@0.84.2",
     reasonIncludes: "native DOMException",
   },
   {
     name: "@aws-sdk/core",
     version: "3.974.11",
-    upstream: "@earendil-works/pi-coding-agent@0.84.1",
+    upstream: "@earendil-works/pi-coding-agent@0.84.2",
     reasonIncludes: "error deserialization",
   },
 ];

@@ -14,7 +14,7 @@ const ledgerPath = resolve(process.env.ADDONE_PI_SOURCE_LEDGER_PATH ?? join(
 ));
 const sourceRoot = resolve(process.env.ADDONE_PI_SOURCE_SCAN_ROOT ?? join(repository, "src"));
 const portRoot = resolve(process.env.ADDONE_PI_PORT_ROOT ?? join(repository, "src", "foundation", "pi-component-adapter", "upstream"));
-const expectedCommit = "53fa77ccd8a279eb87e92294ef3687b03ff80112";
+const expectedCommit = "914cf1472e715297caa30db4b9535d534a9eb718";
 const allowedClassifications = new Set(["public-reuse", "owned-source-port", "host-adapter"]);
 const adjacentCodingAgentMaps = [
   "cli/startup-ui.js.map",

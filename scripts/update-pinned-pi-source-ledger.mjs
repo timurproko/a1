@@ -6,6 +6,8 @@ import { fileURLToPath } from "node:url";
 const repository = fileURLToPath(new URL("..", import.meta.url));
 const changeRoot = join(repository, "openspec", "changes", "build-owned-pi-ui-foundation");
 const outputPath = join(changeRoot, "evidence", "pinned-pi-source-port-ledger.json");
+const previousLedger = await readFile(outputPath, "utf8").then(JSON.parse, () => ({ records: [] }));
+const previousRecords = new Map((previousLedger.records ?? []).map(record => [record.id, record]));
 const baseline = JSON.parse(await readFile(join(changeRoot, "evidence", "pinned-pi-interactive-baseline.json"), "utf8"));
 const lockfile = JSON.parse(await readFile(join(repository, "package-lock.json"), "utf8"));
 
@@ -158,7 +160,7 @@ const ledger = {
   recordedAt: new Date().toISOString(),
   upstream: {
     repository: "https://github.com/earendil-works/pi.git",
-    commit: "53fa77ccd8a279eb87e92294ef3687b03ff80112",
+    commit: "914cf1472e715297caa30db4b9535d534a9eb718",
     license: "MIT",
     packages: packageRecords,
   },
@@ -293,8 +295,9 @@ async function sourceMapRecord(pkg, sourceMapPath, scope) {
     ? undefined
     : createHash("sha256").update(await readFile(join(repository, localDestination))).digest("hex");
   const approvedDeviations = portedThemeUnit?.approvedDeviations ?? [];
-  return {
-    id: `${packageSlug(pkg.name)}:${sourceRelative.replace(/\.ts$/, "")}`,
+  const id = `${packageSlug(pkg.name)}:${sourceRelative.replace(/\.ts$/, "")}`;
+  const record = {
+    id,
     kind: "source",
     scope,
     package: pkg.name,
@@ -314,6 +317,25 @@ async function sourceMapRecord(pkg, sourceMapPath, scope) {
     acceptanceTasks: acceptanceTasks(upstreamPath, categories),
     tests: testTargets(upstreamPath, categories),
   };
+  const previous = previousRecords.get(id);
+  if (previous !== undefined) {
+    for (const field of ["classification", "localDestination", "implementationStatus", "modifications", "approvedDeviations", "acceptanceTasks", "tests"]) {
+      if (previous[field] !== undefined) record[field] = previous[field];
+    }
+    if (previous.localSha256 !== undefined && await fileExists(join(repository, record.localDestination))) {
+      record.localSha256 = createHash("sha256").update(await readFile(join(repository, record.localDestination))).digest("hex");
+    }
+  }
+  return record;
+}
+
+async function fileExists(path) {
+  try {
+    await readFile(path);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function assetRecord(pkg, distRelative) {
@@ -323,8 +345,9 @@ async function assetRecord(pkg, distRelative) {
   const upstreamPath = `${pkg.sourceRoot}/${upstreamRelative}`;
   const categories = behaviorCategories(upstreamPath);
   const publicThemeAsset = /\/theme\/(?:dark|light|theme-schema)\.json$/.test(upstreamPath);
-  return {
-    id: `${packageSlug(pkg.name)}:${upstreamRelative}`,
+  const id = `${packageSlug(pkg.name)}:${upstreamRelative}`;
+  const record = {
+    id,
     kind: "asset",
     scope: "interactive-tree",
     package: pkg.name,
@@ -347,6 +370,16 @@ async function assetRecord(pkg, distRelative) {
     acceptanceTasks: acceptanceTasks(upstreamPath, categories),
     tests: testTargets(upstreamPath, categories),
   };
+  const previous = previousRecords.get(id);
+  if (previous !== undefined) {
+    for (const field of ["classification", "localDestination", "implementationStatus", "modifications", "approvedDeviations", "acceptanceTasks", "tests"]) {
+      if (previous[field] !== undefined) record[field] = previous[field];
+    }
+    if (previous.localSha256 !== undefined && await fileExists(join(repository, record.localDestination))) {
+      record.localSha256 = createHash("sha256").update(await readFile(join(repository, record.localDestination))).digest("hex");
+    }
+  }
+  return record;
 }
 
 function normalizeSourcePath(source) {

@@ -206,7 +206,7 @@ describe("Pi shell public component adapters", () => {
         enableInstallTelemetry: true, doubleEscapeAction: "tree", treeFilterMode: "default",
         showHardwareCursor: true, editorPaddingX: 0, outputPad: 1, autocompleteMaxVisible: 5,
         quietStartup: false, defaultProjectTrust: "ask", clearOnShrink: false, showTerminalProgress: false,
-        tuiMode: "fullscreen", fullscreenScrollbar: "auto", warnings: { anthropicExtraUsage: true },
+        tuiMode: "fullscreen", fullscreenExitOutput: "transcript", fullscreenScrollbar: "auto", warnings: { anthropicExtraUsage: true },
       },
       onChange: changed,
       onCancel: cancelled,
@@ -215,7 +215,7 @@ describe("Pi shell public component adapters", () => {
     expect(rows).toContain("Auto-compact            true");
     expect(rows).toContain("Auto-resize images      true");
     settings.handleInput?.("\x1b[B");
-    expect(stripTerminalSequences(settings.render(88).join("\n"))).toContain("(2/28)");
+    expect(stripTerminalSequences(settings.render(88).join("\n"))).toContain("(2/29)");
     settings.handleInput?.("\x1b");
     expect(cancelled).toHaveBeenCalledOnce();
 
@@ -237,6 +237,6 @@ describe("Pi shell public component adapters", () => {
     expect(createPiShellDialog(dialog).render(50).join("\n")).toContain("Choose");
     expect(createPiShellStatus(view()).render(80)).toEqual([]);
     expect(createPiShellFooter(view(), "D:/work").render(80).join("\n")).toContain("gpt-5 • medium");
-    expect(createPiShellHeader().render(80).join("\n")).toContain("v0.84.1");
+    expect(createPiShellHeader().render(80).join("\n")).toContain("v0.84.2");
   });
 });

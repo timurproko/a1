@@ -86,12 +86,12 @@ describe("complete pinned Pi interactive behavior inventory", () => {
     const inventory = await loadInventory();
     expect(inventory.schema).toBe("addone-pinned-pi-interactive-baseline-v1");
     expect(inventory.upstream).toMatchObject({
-      commit: "53fa77ccd8a279eb87e92294ef3687b03ff80112",
+      commit: "914cf1472e715297caa30db4b9535d534a9eb718",
       license: "MIT",
     });
     expect(inventory.upstream.packages.map(value => `${value.name}@${value.version}`)).toEqual([
-      "@earendil-works/pi-coding-agent@0.84.1",
-      "@earendil-works/pi-tui@0.84.1",
+      "@earendil-works/pi-coding-agent@0.84.2",
+      "@earendil-works/pi-tui@0.84.2",
     ]);
     expect(inventory.upstream.packages.every(value => value.integrity.startsWith("sha512-"))).toBe(true);
 

@@ -28,7 +28,7 @@ describe("public Pi TUI runtime conformance", () => {
 
     expect(report).toEqual({
       packageName: "@earendil-works/pi-tui",
-      packageVersion: "0.84.1",
+      packageVersion: "0.84.2",
       mode: "fullscreen",
       lifecycleRestored: true,
       inputRouted: true,

@@ -1,8 +1,8 @@
 import { cp, mkdir, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 
-export const PINNED_PI_VERSION = "0.84.1";
-export const PINNED_PI_COMMIT = "53fa77ccd8a279eb87e92294ef3687b03ff80112";
+export const PINNED_PI_VERSION = "0.84.2";
+export const PINNED_PI_COMMIT = "914cf1472e715297caa30db4b9535d534a9eb718";
 export const DEFAULT_COLUMNS = 88;
 export const DEFAULT_ROWS = 26;
 export const FULL_GATE_TIMEOUT_MS = 90_000;
@@ -13,7 +13,7 @@ export const TERMINAL_PARITY_TOLERANCES = Object.freeze([
 ]);
 
 export const TERMINAL_PARITY_ACTIONS = Object.freeze([
-  { type: "wait", milliseconds: 1_200, until: "pi v0.84.1" },
+  { type: "wait", milliseconds: 1_200, until: "pi v0.84.2" },
   { type: "checkpoint", name: "startup-resources", domains: ["startup-resources", "rows-spacing", "component-geometry", "footer-status", "cursor-focus"] },
   { type: "text", value: "Parity editor input λ界" },
   { type: "checkpoint", name: "editor-input", domains: ["editor", "raw-ansi", "cursor-focus", "wrapping"] },

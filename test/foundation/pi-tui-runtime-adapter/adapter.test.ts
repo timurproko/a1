@@ -116,6 +116,72 @@ class TestTerminal implements PiTuiTerminalPort {
   }
 }
 
+type EmulatedCell = { readonly character: string; readonly foreground: number | null; readonly background: number | null };
+
+function emulateTerminalCells(writes: readonly string[], columns: number, rows: number): EmulatedCell[][] {
+  const cells = Array.from({ length: rows }, () => Array<EmulatedCell>(columns));
+  let row = 0;
+  let column = 0;
+  let foreground: number | null = null;
+  let background: number | null = null;
+  let inverse = false;
+  const data = writes.join("");
+  for (let index = 0; index < data.length;) {
+    if (data.startsWith("\x1b]", index)) {
+      const bell = data.indexOf("\x07", index + 2);
+      index = bell < 0 ? data.length : bell + 1;
+      continue;
+    }
+    if (data.startsWith("\x1b[", index)) {
+      const match = /^\x1b\[([0-9;?]*)([A-Za-z@`~])/.exec(data.slice(index));
+      if (match === null) { index += 1; continue; }
+      const values = match[1]!.replace(/^\?/, "").split(";").filter(Boolean).map(Number);
+      const value = values[0] ?? 1;
+      if (match[2] === "H" || match[2] === "f") {
+        row = Math.max(0, (values[0] ?? 1) - 1);
+        column = Math.max(0, (values[1] ?? 1) - 1);
+      } else if (match[2] === "G") column = Math.max(0, value - 1);
+      else if (match[2] === "A") row = Math.max(0, row - value);
+      else if (match[2] === "B") row = Math.min(rows - 1, row + value);
+      else if (match[2] === "C") column = Math.min(columns - 1, column + value);
+      else if (match[2] === "D") column = Math.max(0, column - value);
+      else if (match[2] === "J" && value === 2) for (const line of cells) line.length = 0;
+      else if (match[2] === "K") cells[row] = Array<EmulatedCell>(columns);
+      else if (match[2] === "m") {
+        const sgr = values.length === 0 ? [0] : values;
+        for (let cursor = 0; cursor < sgr.length; cursor += 1) {
+          const code = sgr[cursor]!;
+          if (code === 0) { foreground = null; background = null; inverse = false; }
+          else if ((code >= 30 && code <= 37) || (code >= 90 && code <= 97)) foreground = code;
+          else if ((code >= 40 && code <= 47) || (code >= 100 && code <= 107)) background = code;
+          else if (code === 39) foreground = null;
+          else if (code === 49) background = null;
+          else if (code === 7) inverse = true;
+          else if (code === 27) inverse = false;
+          else if ((code === 38 || code === 48) && sgr[cursor + 1] === 2) cursor += 4;
+          else if ((code === 38 || code === 48) && sgr[cursor + 1] === 5) cursor += 2;
+        }
+      }
+      index += match[0].length;
+      continue;
+    }
+    const character = data[index]!;
+    index += 1;
+    if (character === "\n") { row = Math.min(rows - 1, row + 1); column = 0; continue; }
+    if (character === "\r") { column = 0; continue; }
+    if (character < " ") continue;
+    if (row < rows && column < columns) {
+      cells[row]![column] = {
+        character,
+        foreground: inverse ? background : foreground,
+        background: inverse ? foreground : background,
+      };
+    }
+    column += 1;
+  }
+  return cells;
+}
+
 describe("PiTuiRuntimeAdapter", () => {
   it("owns public fullscreen lifecycle, focus, input, overlays, differential rendering, resize, and restoration", async () => {
     const terminal = new TestTerminal();
@@ -210,10 +276,10 @@ describe("PiTuiRuntimeAdapter", () => {
     const selectionFrame = terminal.writes.join("");
     expect(selectionFrame).not.toContain("Copied!");
     expect(selectionFrame).not.toContain("\x1b]52;");
-    const inverse = /\x1b\[97;40m\x1b\[7m([\s\S]*?)\x1b\[0m/.exec(selectionFrame)?.[1] ?? "";
+    const inverse = /\x1b\[30;107m([\s\S]*?)\x1b\[0m/.exec(selectionFrame)?.[1] ?? "";
     expect(inverse).toContain("colored");
     expect(inverse).not.toMatch(/\x1b\[(?:38|48);/);
-    expect(selectionFrame).toContain("\x1b[97;40m\x1b[7m");
+    expect(selectionFrame).toContain("\x1b[30;107m");
 
     terminal.writes.length = 0;
     terminal.input("\x03");
@@ -244,7 +310,7 @@ describe("PiTuiRuntimeAdapter", () => {
       for (const event of events) terminal.input(event);
       runtime.renderNow(true);
       const frame = terminal.writes.join("");
-      const spans = [...frame.matchAll(/\x1b\[97;40m\x1b\[7m([\s\S]*?)\x1b\[0m/g)];
+      const spans = [...frame.matchAll(/\x1b\[30;107m([\s\S]*?)\x1b\[0m/g)];
       expect(spans.length).toBeGreaterThan(0);
       expect(spans.every(match => !/\x1b\[(?:3[0-9]|4[0-9]|9[0-7]|10[0-7])(?:;|m)/.test(match[1] ?? ""))).toBe(true);
     };
@@ -260,6 +326,42 @@ describe("PiTuiRuntimeAdapter", () => {
       "\x1b[<0;4;2M", "\x1b[<0;4;2m",
     ]);
     assertUniform(["\x1b[<0;1;1M", "\x1b[<32;10;2M", "\x1b[<0;10;2m"]);
+    await runtime.stop({ drainInput: false, preserveScreen: true });
+  });
+
+  it("clears retained selection before command input so new UI does not inherit old coordinates", async () => {
+    const terminal = new TestTerminal();
+    terminal.columns = 80;
+    terminal.rows = 8;
+    const root = new TestComponent([
+      "\x1b[38;2;255;200;0m[Skills]\x1b[0m",
+      "cavecrew, caveman, openspec-apply-change",
+    ]);
+    const runtime = new PiTuiRuntimeAdapter({ root, terminal });
+    runtime.start();
+    runtime.renderNow(true);
+    terminal.writes.length = 0;
+
+    terminal.input("\x1b[<0;1;1M");
+    terminal.input("\x1b[<32;20;2M");
+    terminal.input("\x1b[<0;20;2m");
+    runtime.renderNow();
+    const selected = terminal.writes.join("");
+    expect(selected).toContain("\x1b[30;107m");
+    expect(selected).not.toMatch(/\x1b\[30;107m[^\x1b]*\x1b\[38;2;255;200;0m/);
+    const selectedCells = emulateTerminalCells(terminal.writes, terminal.columns, terminal.rows)
+      .flat()
+      .filter(cell => cell?.background === 107);
+    expect(selectedCells.length).toBeGreaterThan(0);
+    expect(selectedCells.every(cell => cell.foreground === 30 && cell.background === 107)).toBe(true);
+
+    terminal.writes.length = 0;
+    terminal.input("/");
+    root.lines = ["/", "settings  Open settings menu", "model  Select model"];
+    runtime.renderNow();
+    expect(root.inputs).toEqual(["/"]);
+    expect(terminal.writes.join("")).not.toContain("\x1b[30;107m");
+    expect(emulateTerminalCells(terminal.writes, terminal.columns, terminal.rows).flat().some(cell => cell?.background === 107)).toBe(false);
     await runtime.stop({ drainInput: false, preserveScreen: true });
   });
 

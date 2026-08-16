@@ -37,7 +37,7 @@ describe("pinned Pi source ledger governance", () => {
   it("accepts the complete independently verified pinned ledger", () => {
     const result = spawnSync(process.execPath, [checker], { cwd: process.cwd(), encoding: "utf8" });
     expect(result.status, result.stderr).toBe(0);
-    expect(result.stdout).toContain("107 records, 29 behaviors");
+    expect(result.stdout).toContain("109 records, 29 behaviors");
   });
 
   it("fails when any pinned source unit is removed", async () => {

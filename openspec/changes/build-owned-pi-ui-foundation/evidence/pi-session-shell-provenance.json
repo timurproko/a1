@@ -4,11 +4,11 @@
   "recordedAt": "2026-08-16T12:00:00.000Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
-    "commit": "53fa77ccd8a279eb87e92294ef3687b03ff80112",
+    "commit": "914cf1472e715297caa30db4b9535d534a9eb718",
     "license": "MIT",
     "packages": [
-      { "name": "@earendil-works/pi-coding-agent", "version": "0.84.1" },
-      { "name": "@earendil-works/pi-tui", "version": "0.84.1" }
+      { "name": "@earendil-works/pi-coding-agent", "version": "0.84.2" },
+      { "name": "@earendil-works/pi-tui", "version": "0.84.2" }
     ]
   },
   "publicExports": [
@@ -32,7 +32,7 @@
   "orchestrationPorts": [
     {
       "upstreamSource": "packages/coding-agent/src/modes/interactive/interactive-mode.ts",
-      "upstreamCommit": "53fa77ccd8a279eb87e92294ef3687b03ff80112",
+      "upstreamCommit": "914cf1472e715297caa30db4b9535d534a9eb718",
       "upstreamLines": [528, 994],
       "localFile": "src/features/owned-ui/pi-session-shell.ts",
       "adapterFile": "src/foundation/pi-component-adapter/shell-components.ts",
@@ -51,7 +51,7 @@
     },
     {
       "upstreamSource": "packages/coding-agent/src/core/slash-commands.ts and packages/coding-agent/src/modes/interactive/interactive-mode.ts",
-      "upstreamCommit": "53fa77ccd8a279eb87e92294ef3687b03ff80112",
+      "upstreamCommit": "914cf1472e715297caa30db4b9535d534a9eb718",
       "upstreamLines": [[3, 42], [638, 740]],
       "localFile": "src/foundation/pi-component-adapter/shell-components.ts",
       "behavior": "complete advertised built-in command autocomplete, vanilla descriptions and argument hints",
@@ -62,7 +62,7 @@
     },
     {
       "upstreamSource": "packages/coding-agent/src/modes/interactive/interactive-mode.ts",
-      "upstreamCommit": "53fa77ccd8a279eb87e92294ef3687b03ff80112",
+      "upstreamCommit": "914cf1472e715297caa30db4b9535d534a9eb718",
       "upstreamLines": [[2870, 3058], [3998, 6205], [6207, 6374]],
       "localFile": "src/foundation/pi-engine-adapter/adapter.ts",
       "shellFile": "src/features/owned-ui/pi-session-shell.ts",
@@ -80,7 +80,7 @@
     },
     {
       "upstreamSource": "packages/coding-agent/src/modes/interactive/components/footer.ts",
-      "upstreamCommit": "53fa77ccd8a279eb87e92294ef3687b03ff80112",
+      "upstreamCommit": "914cf1472e715297caa30db4b9535d534a9eb718",
       "upstreamLines": [60, 245],
       "localFile": "src/foundation/pi-component-adapter/shell-components.ts",
       "behavior": "vanilla two-row cwd/context/model/thinking footer over AddOne-owned view state",
