@@ -36,12 +36,13 @@
       ]
     },
     "7.10": {
-      "result": "passed",
+      "result": "invalidated",
       "evidence": [
         "real SDK deterministic prompt",
         "streaming settlement checkpoints",
         "repeated-timestamp transcript identity fix"
-      ]
+      ],
+      "finding": "openspec/changes/build-owned-pi-ui-foundation/evidence/open-tool-thinking-parity-finding.json"
     },
     "7.11": {
       "result": "passed",
@@ -75,11 +76,12 @@
       ]
     },
     "7.15": {
-      "result": "passed",
+      "result": "invalidated",
       "evidence": [
         "custom message and tool renderer tests",
         "partial/replacement fallback isolation"
-      ]
+      ],
+      "finding": "openspec/changes/build-owned-pi-ui-foundation/evidence/open-tool-thinking-parity-finding.json"
     },
     "7.16": {
       "result": "passed",
@@ -103,7 +105,7 @@
       "intentionalFailure": "missing linked acceptance test fixture"
     },
     "7.18": {
-      "result": "passed",
+      "result": "invalidated",
       "terminalCheckpoints": [
         "startup-resources",
         "editor-input",
@@ -120,29 +122,32 @@
       "tolerances": [
         "differential-sgr-order",
         "transient-scrollbar-thumb-rounding"
-      ]
+      ],
+      "finding": "openspec/changes/build-owned-pi-ui-foundation/evidence/open-tool-thinking-parity-finding.json"
     },
     "7.19": {
-      "result": "passed",
+      "result": "invalidated",
       "commandRoutes": 22,
       "hiddenRoutes": 3,
       "settingsCallbacks": 32,
       "intentionalMutation": {
         "visualExit": 1,
         "inputScrollExit": 1
-      }
+      },
+      "finding": "openspec/changes/build-owned-pi-ui-foundation/evidence/open-tool-thinking-parity-finding.json"
     },
     "7.20": {
-      "result": "passed",
+      "result": "invalidated",
       "integration": [
         "public SDK provider streaming",
         "extension agent_start UI widget",
         "success and provider-error settlement",
         "editor remains interactive"
-      ]
+      ],
+      "finding": "openspec/changes/build-owned-pi-ui-foundation/evidence/open-tool-thinking-parity-finding.json"
     },
     "7.21": {
-      "result": "passed",
+      "result": "invalidated",
       "coverage": [
         "startup",
         "physical wheel",
@@ -156,7 +161,8 @@
       "deferredPlatforms": [
         "linux",
         "darwin"
-      ]
+      ],
+      "finding": "openspec/changes/build-owned-pi-ui-foundation/evidence/open-tool-thinking-parity-finding.json"
     }
   },
   "gates": [
@@ -216,5 +222,21 @@
       "path": "artifacts/pi-terminal-parity-intentional-input-scroll.log",
       "sha256": "5826fbbaa88c529504363d1687a72c5d43eaaedff9d1893dc98262f59f47bee5"
     }
+  },
+  "result": "invalidated",
+  "invalidatedAt": "2026-08-16T14:48:22.415Z",
+  "invalidation": {
+    "finding": "openspec/changes/build-owned-pi-ui-foundation/evidence/open-tool-thinking-parity-finding.json",
+    "reason": "The initial passing terminal scenario did not exercise a real thinking plus extension-tool lifecycle. Expanding it exposed transcript viewport, tool-card geometry, physical-wheel, and resize divergence.",
+    "reopenedTasks": [
+      "7.5",
+      "7.7",
+      "7.10",
+      "7.15",
+      "7.18",
+      "7.19",
+      "7.20",
+      "7.21"
+    ]
   }
 }
