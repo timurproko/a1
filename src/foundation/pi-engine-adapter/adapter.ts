@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
 import {
   copyToClipboard,
@@ -10,6 +10,7 @@ import {
   createAgentSessionServices,
   getAgentDir,
   getPackageDir,
+  ProjectTrustStore,
   SessionManager,
   type CreateAgentSessionRuntimeFactory,
 } from "@earendil-works/pi-coding-agent";
@@ -67,6 +68,23 @@ export interface PiScopedModelDescriptor {
 export interface PiScopedModelsContext {
   readonly models: readonly PiScopedModelDescriptor[];
   readonly enabledModelIds: readonly string[] | null;
+}
+
+export interface PiProjectTrustUpdate {
+  readonly path: string;
+  readonly decision: boolean | null;
+}
+
+export interface PiProjectTrustContext {
+  readonly cwd: string;
+  readonly savedDecision: { readonly path: string; readonly decision: boolean } | null;
+  readonly projectTrusted: boolean;
+  readonly trustOptions: readonly {
+    readonly label: string;
+    readonly trusted: boolean;
+    readonly updates: readonly PiProjectTrustUpdate[];
+    readonly savedPath?: string;
+  }[];
 }
 
 export interface PiScopedModelsRefreshResult extends PiScopedModelsContext {
@@ -589,6 +607,34 @@ export class PiEngineAdapter {
       modelRuntime: selectorRuntime,
       scopedModels: Array.isArray(scoped) ? scoped : [],
     };
+  }
+
+  pinnedProjectTrustContext(): PiProjectTrustContext {
+    const runtime = this.#runtime;
+    if (!runtime) throw new Error("engine runtime is unavailable");
+    const cwd = resolve(this.#cwd);
+    const parent = dirname(cwd);
+    const trustStore = new ProjectTrustStore(this.#agentDir);
+    const trustOptions: PiProjectTrustContext["trustOptions"] = [
+      { label: "Trust", trusted: true, updates: [{ path: cwd, decision: true }], savedPath: cwd },
+      ...(parent === cwd ? [] : [{
+        label: `Trust parent folder (${parent})`,
+        trusted: true,
+        updates: [{ path: parent, decision: true }, { path: cwd, decision: null }],
+        savedPath: parent,
+      }]),
+      { label: "Do not trust", trusted: false, updates: [{ path: cwd, decision: false }], savedPath: cwd },
+    ];
+    return {
+      cwd,
+      savedDecision: trustStore.getEntry(cwd),
+      projectTrusted: dynamicCall(runtime.services.settingsManager, "isProjectTrusted") === true,
+      trustOptions,
+    };
+  }
+
+  persistProjectTrust(updates: readonly PiProjectTrustUpdate[]): void {
+    new ProjectTrustStore(this.#agentDir).setMany([...updates]);
   }
 
   pinnedScopedModelsContext(): PiScopedModelsContext {

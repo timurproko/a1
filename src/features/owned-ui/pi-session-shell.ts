@@ -33,6 +33,7 @@ import {
   createPiShellStatus,
   createPiShellTranscriptComponent,
   createPiShellTreeSelector,
+  createPiShellTrustSelector,
   createPiShellUserMessageSelector,
   piTheme,
   renderPiShellTranscriptBlock,
@@ -828,6 +829,10 @@ export class PiSessionShell {
       this.showScopedModelsSelector();
       return { outcome: "completed", diagnostic: null };
     }
+    if (request.command === "trust" && request.selection === undefined && request.confirmed === undefined) {
+      this.showTrustSelector();
+      return { outcome: "completed", diagnostic: null };
+    }
     if (request.command === "settings" && request.selection === undefined && request.confirmed === undefined) {
       const opened = this.adapter.executeWorkflow(request);
       this.showSettingsSelector();
@@ -845,6 +850,31 @@ export class PiSessionShell {
     }
     this.runtime.requestRender();
     return workflowAdapterResult(result);
+  }
+
+  showTrustSelector(): void {
+    const context = this.adapter.pinnedProjectTrustContext();
+    const close = () => {
+      this.root.setInputSurface(null);
+      this.runtime.requestRender();
+    };
+    const component = createPiShellTrustSelector({
+      ...context,
+      onSelect: selection => {
+        try {
+          this.adapter.persistProjectTrust(selection.updates);
+          close();
+          this.root.appendWorkflowStatus(`Saved trust decision: ${selection.trusted ? "trusted" : "untrusted"}. Restart pi for this to take effect.`);
+        } catch (error) {
+          close();
+          this.root.appendWorkflowResult({ command: "trust", outcome: "failed", message: error instanceof Error ? error.message : String(error) });
+        }
+        this.runtime.requestRender();
+      },
+      onCancel: close,
+    });
+    this.root.setInputSurface(component);
+    this.runtime.requestRender();
   }
 
   showScopedModelsSelector(): void {

@@ -2,7 +2,7 @@
   "schema": "addone-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-08-16T17:38:23.007Z",
+  "recordedAt": "2026-08-16T17:48:08.586Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "53fa77ccd8a279eb87e92294ef3687b03ff80112",
@@ -38,8 +38,8 @@
     "sourceModules": 103,
     "assets": 4,
     "classifications": {
-      "public-reuse": 65,
-      "owned-source-port": 20,
+      "public-reuse": 64,
+      "owned-source-port": 21,
       "host-adapter": 22
     },
     "requiredBehaviorIds": 29,
@@ -2327,11 +2327,11 @@
       "sourceMap": "modes/interactive/components/trust-selector.js.map",
       "lines": 135,
       "sha256": "781c1d75d302e370f16c6daa4a9541559f290f39480269ee6f1a0aee01d0c529",
-      "classification": "public-reuse",
-      "localDestination": "src/foundation/pi-component-adapter/index.ts",
-      "implementationStatus": "available-through-pinned-package",
+      "classification": "owned-source-port",
+      "localDestination": "src/foundation/pi-component-adapter/upstream/components/trust-selector.ts",
+      "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "None planned; import the exact component or helper from the pinned public coding-agent package root.",
+      "modifications": "Mechanical source-synchronized trust selector port with injected public ProjectTrustStore-derived options and remapped owned theme imports.",
       "approvedDeviations": [],
       "behaviorCategories": [
         "selectors",
@@ -2353,9 +2353,9 @@
         "7.8"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
-        "test/foundation/pi-component-adapter/shell-components.test.ts"
-      ]
+        "test/features/owned-ui/pi-session-shell.test.ts"
+      ],
+      "localSha256": "4c2fa113dfe1a06059e4c8b59cd4ed13bed9508c5d45737951c9cf64e35ac08e"
     },
     {
       "id": "pi-coding-agent:src/modes/interactive/components/user-message-selector",

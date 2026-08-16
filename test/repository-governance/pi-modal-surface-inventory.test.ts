@@ -51,7 +51,6 @@ describe("pinned Pi modal surface inventory", () => {
       "utf8",
     )) as { surfaces: Surface[] };
     expect(inventory.surfaces.filter(surface => surface.status === "planned").map(surface => surface.id)).toEqual([
-      "trust.project",
       "tree.summary-choice",
       "tree.summary-instructions",
       "session.delete-confirm",

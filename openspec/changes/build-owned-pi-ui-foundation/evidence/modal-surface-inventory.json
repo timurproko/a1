@@ -97,8 +97,10 @@
       "upstream": "interactive-mode.ts:showTrustSelector",
       "component": "TrustSelectorComponent",
       "destination": "src/foundation/pi-component-adapter/upstream/components/trust-selector.ts",
-      "status": "planned",
-      "tests": []
+      "status": "implemented",
+      "tests": [
+        "test/features/owned-ui/pi-session-shell.test.ts"
+      ]
     },
     {
       "id": "session.fork",

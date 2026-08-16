@@ -60,6 +60,7 @@ import type {
 import { KeybindingsManager } from "./upstream/adjacent/core/keybindings.js";
 import { ScopedModelsSelectorComponent } from "./upstream/components/scoped-models-selector.js";
 import { WorkingStatusIndicator } from "./upstream/components/status-indicator.js";
+import { TrustSelectorComponent, type TrustDecision, type TrustOption, type TrustUpdate } from "./upstream/components/trust-selector.js";
 import {
   PINNED_PI_LAYOUT,
   applyPiTheme,
@@ -443,6 +444,18 @@ export function createPiShellScopedModelsSelector(options: PiShellScopedModelsSe
     },
     setRefreshStatus: (message, kind) => selector.setRefreshStatus(message, kind),
   };
+}
+
+export function createPiShellTrustSelector(options: {
+  readonly cwd: string;
+  readonly savedDecision: TrustDecision | null;
+  readonly projectTrusted: boolean;
+  readonly trustOptions: readonly TrustOption[];
+  readonly onSelect: (selection: { readonly trusted: boolean; readonly updates: readonly TrustUpdate[] }) => void;
+  readonly onCancel: () => void;
+}): PiShellComponentPort {
+  ensureTheme();
+  return componentPort(new TrustSelectorComponent(options));
 }
 
 export function createPiShellSessionSelector(

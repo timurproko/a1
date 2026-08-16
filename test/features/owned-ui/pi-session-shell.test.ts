@@ -203,6 +203,33 @@ describe("PiSessionShell", () => {
     await shell.dispose();
   });
 
+  it("ports project trust as a stateful save-or-cancel selector", async () => {
+    const { adapter, terminal, shell } = await fixture();
+    vi.spyOn(adapter, "pinnedProjectTrustContext").mockReturnValue({
+      cwd: "D:\\work",
+      savedDecision: null,
+      projectTrusted: false,
+      trustOptions: [
+        { label: "Trust", trusted: true, updates: [{ path: "D:\\work", decision: true }], savedPath: "D:\\work" },
+        { label: "Do not trust", trusted: false, updates: [{ path: "D:\\work", decision: false }], savedPath: "D:\\work" },
+      ],
+    });
+    const persist = vi.spyOn(adapter, "persistProjectTrust").mockImplementation(() => {});
+
+    await shell.submit("/trust");
+    expect(shell.root.render(100).join("\n")).toContain("Project trust");
+    expect(shell.root.render(100).join("\n")).toContain("Current session: untrusted");
+    terminal.input("\x1b");
+    expect(persist).not.toHaveBeenCalled();
+    expect(shell.root.render(100).join("\n")).not.toContain("Project trust");
+
+    await shell.submit("/trust");
+    terminal.input("\r");
+    expect(persist).toHaveBeenCalledWith([{ path: "D:\\work", decision: true }]);
+    expect(shell.root.render(100).join("\n")).toContain("Saved trust decision: trusted. Restart pi for this to take effect.");
+    await shell.dispose();
+  });
+
   it("routes the complete command manifest, hidden routes, prompt resources, bash modes, and streaming queues", async () => {
     const { engine, adapter, shell } = await fixture();
     const workflow = vi.spyOn(adapter, "executeWorkflow").mockImplementation(async request => ({
@@ -211,7 +238,7 @@ describe("PiSessionShell", () => {
       message: `ran ${request.command}`,
     }));
     const routedCommands = [...PINNED_PI_WORKFLOW_COMMAND_NAMES, ...PINNED_PI_HIDDEN_COMMAND_NAMES]
-      .filter(command => command !== "scoped-models");
+      .filter(command => command !== "scoped-models" && command !== "trust");
     for (const command of routedCommands) {
       await shell.submit(`/${command}`);
     }
