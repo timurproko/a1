@@ -52,8 +52,9 @@ The AddOne-owned UI SHALL reproduce the complete visible and interactive behavio
 - **THEN** AddOne SHALL advance three rows in that direction, route any unconsumed distance through the equivalent active and primary scroll views, and preserve overscroll boundaries and scrollbar state so the visible destination matches ordinary vanilla Pi
 
 #### Scenario: Select and copy transcript text
-- **WHEN** the user drags across visible transcript content
-- **THEN** AddOne SHALL retain the selection without copying on release, render every selected cell with one uniform inverse style independent of underlying ANSI colors, and SHALL NOT display `Copied!` or another copy notification
+- **WHEN** the user selects one character, a word, a line, or an arbitrary single-row or multi-row area across plain, styled, linked, inverse, Unicode, or whitespace content
+- **THEN** AddOne SHALL retain the selection without copying on release and render every selected cell as dark text on one uniform bright-white inverted background without underlying foreground/background color leakage or differential-write gaps
+- **AND** styles after the selected range SHALL be restored correctly and AddOne SHALL NOT display `Copied!` or another copy notification
 - **AND WHEN** the user presses `Ctrl+C` while that selection is active
 - **THEN** AddOne SHALL copy the selected plain text to the clipboard and consume the key without interrupting the agent
 - **AND WHEN** no selection is active
@@ -75,6 +76,24 @@ The AddOne-owned UI SHALL reproduce the complete visible and interactive behavio
 - **WHEN** the user presses Escape or invokes cancel while a built-in selector or modal is active
 - **THEN** the surface SHALL be disposed and the editor and focus SHALL be restored without appending a generic `{surface} cancelled` transcript, workflow, notification, or status row
 - **AND** operation-specific cancellation output SHALL appear only where the pinned controller explicitly emits it
+
+#### Scenario: Exercise any vanilla modal surface
+- **WHEN** any modal, selector, dialog, nested flow, custom input/editor, confirmation, authentication surface, or extension-hosted modal reachable in pinned Pi is opened
+- **THEN** AddOne SHALL use the equivalent stateful component and controller lifecycle rather than a generic one-shot workflow substitution
+- **AND** active interaction, navigation, search, editing, save/confirm behavior, cancellation, nesting/replacement, status and transcript effects, scrolling, resize, focus restoration, failure handling, session switching, and disposal SHALL match the pinned route
+
+#### Scenario: Configure scoped models
+- **WHEN** the user invokes `/scoped-models` and toggles, filters, bulk-enables, clears, changes a provider, or reorders models
+- **THEN** the stateful scoped-model selector SHALL remain open, update session-only scope and dirty/unsaved state, and preserve pinned model ordering and refresh behavior
+- **AND WHEN** the user presses `Ctrl+S`
+- **THEN** the current patterns SHALL persist to settings, the saved status SHALL appear as in pinned Pi, and the selector SHALL remain active
+- **AND WHEN** the user presses Escape
+- **THEN** the selector SHALL close silently while retaining the already-applied session-only scope and without implicitly persisting unsaved settings
+
+#### Scenario: Prove complete modal inventory coverage
+- **WHEN** source coverage or acceptance runs
+- **THEN** every modal-like branch discovered from pinned `InteractiveMode`, nested settings components, and public extension UI SHALL have a mapped AddOne controller and independent open/active/complete-or-save/cancel/failure/restoration acceptance cases
+- **AND** an omitted branch or a route covered only by a shared generic-selector fixture SHALL fail the gate
 
 #### Scenario: Browse current-session prompt history
 - **WHEN** the current session contains previously entered user messages and the editor receives Up or Down at a pinned history-navigation boundary
