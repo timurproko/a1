@@ -19,6 +19,7 @@ import {
   createPiShellEditor,
   createPiShellFooter,
   createPiShellHeader,
+  createPiShellLoadedResources,
   createPiShellSelector,
   createPiShellStatus,
   createPiShellTranscriptComponent,
@@ -27,7 +28,9 @@ import {
   type PiShellEditorPort,
   type PiShellHeaderOptions,
   type PiShellHeaderPort,
+  type PiShellLoadedResourcesPort,
   type PiShellQueuedInputPort,
+  type PiShellResourceEntry,
   type PiShellSelectorOption,
   type PiShellTranscriptComponentPort,
   type PiShellViewComponentPort,
@@ -35,6 +38,7 @@ import {
 import {
   PiTuiRuntimeAdapter,
   type PiTuiComponentPort,
+  type PiTuiLayoutNode,
   type PiTuiOverlayHandle,
   type PiTuiTerminalPort,
 } from "../../foundation/pi-tui-runtime-adapter/index.js";
@@ -49,6 +53,7 @@ export interface PiSessionShellOptions {
 export class PiSessionShellRoot implements PiTuiComponentPort {
   readonly editor: PiShellEditorPort;
   readonly header: PiShellHeaderPort;
+  readonly resources: PiShellLoadedResourcesPort;
   readonly #cwd: string;
   readonly #transcript = new Map<string, PiShellTranscriptComponentPort>();
   #transcriptOrder: string[] = [];
@@ -85,6 +90,7 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
     this.#view = view;
     this.#cwd = cwd;
     this.header = createPiShellHeader(startup);
+    this.resources = createPiShellLoadedResources(startup.resources ?? [], startup.expanded ?? false);
     this.#status = createPiShellStatus(view, handlers);
     this.#footer = createPiShellFooter(view, cwd);
     this.#queued = createPiQueuedInputStatus(view.editor.queuedSubmissions);
@@ -110,6 +116,62 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
   }
 
   render(width: number): readonly string[] {
+    const queued = this.#view.editor.queuedSubmissions.length === 0 ? [] : this.#queued.render(width);
+    return [
+      ...this.#renderDocument(width),
+      ...queued,
+      ...this.#status.render(width),
+      ...this.editor.render(width),
+      ...this.#footer.render(width),
+    ];
+  }
+
+  layoutRoot(): PiTuiLayoutNode {
+    const document = layoutPort(width => this.#renderDocument(width), () => this.invalidate());
+    const queued = layoutPort(width => this.#view.editor.queuedSubmissions.length === 0 ? [] : this.#queued.render(width), () => this.#queued.invalidate());
+    const status = layoutPort(width => this.#status.render(width), () => this.#status.invalidate());
+    const editor = layoutPort(width => this.editor.render(width), () => this.editor.invalidate(), data => this.editor.handleInput?.(data));
+    const footer = layoutPort(width => this.#footer.render(width), () => this.#footer.invalidate());
+    return {
+      type: "stack",
+      direction: "vertical",
+      children: [
+        {
+          basis: 0,
+          grow: 1,
+          shrink: 1,
+          minSize: 1,
+          node: {
+            type: "scroll",
+            id: "transcript",
+            follow: "end",
+            primary: true,
+            overscroll: "chain",
+            scrollbar: "auto",
+            child: { type: "component", component: document },
+          },
+        },
+        {
+          basis: "auto",
+          grow: 0,
+          shrink: 1,
+          minSize: 1,
+          node: {
+            type: "stack",
+            direction: "vertical",
+            children: [
+              { shrink: 1, minSize: 0, node: { type: "component", component: queued } },
+              { shrink: 1, minSize: 0, node: { type: "component", component: status } },
+              { shrink: 1, minSize: 3, node: { type: "component", component: editor } },
+              { shrink: 1, minSize: 1, node: { type: "component", component: footer } },
+            ],
+          },
+        },
+      ],
+    };
+  }
+
+  #renderDocument(width: number): readonly string[] {
     const transcript = this.#transcriptOrder.flatMap(id => {
       if (!this.#thinkingVisible && this.#view.transcript.find(block => block.id === id)?.kind === "thinking") return [];
       return this.#transcript.get(id)?.render(width) ?? [];
@@ -124,16 +186,12 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
         text: diagnostic.message,
         payload: {},
       }, width, this.#cwd));
-    const queued = this.#view.editor.queuedSubmissions.length === 0 ? [] : this.#queued.render(width);
     return [
       ...this.header.render(width),
+      ...this.resources.render(width),
       ...transcript,
       ...diagnosticRows,
       ...this.#workflowRows,
-      ...queued,
-      ...this.#status.render(width),
-      ...this.editor.render(width),
-      ...this.#footer.render(width),
     ];
   }
 
@@ -159,6 +217,7 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
 
   invalidate(): void {
     this.header.invalidate();
+    this.resources.invalidate();
     for (const component of this.#transcript.values()) component.invalidate();
     this.editor.invalidate();
     this.#status.invalidate();
@@ -172,6 +231,7 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
 
   dispose(): void {
     this.header.dispose?.();
+    this.resources.dispose?.();
     for (const component of this.#transcript.values()) component.dispose?.();
     this.#transcript.clear();
     this.editor.dispose?.();
@@ -203,9 +263,58 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
   #setToolsExpanded(expanded: boolean): void {
     this.#toolsExpanded = expanded;
     this.header.setExpanded(expanded);
+    this.resources.setExpanded(expanded);
     for (const component of this.#transcript.values()) component.setExpanded(expanded);
     this.invalidate();
   }
+}
+
+function layoutPort(
+  render: (width: number) => readonly string[],
+  invalidate: () => void,
+  handleInput?: (data: string) => void,
+): PiTuiComponentPort {
+  return {
+    render,
+    invalidate,
+    ...(handleInput === undefined ? {} : { handleInput }),
+  };
+}
+
+function shellResourceEntries(adapter: PiEngineAdapter): readonly PiShellResourceEntry[] {
+  const resources: PiShellResourceEntry[] = adapter.nonVisualResources().map(resource => ({
+    section: resource.kind === "skill"
+      ? "Skills"
+      : resource.kind === "prompt-template"
+        ? "Prompts"
+        : resource.kind === "theme"
+          ? "Themes"
+          : "Context",
+    label: resource.kind === "prompt-template"
+      ? `/${resource.label}`
+      : resource.kind === "agent-context" || resource.kind === "system-prompt"
+        ? compactResourceLabel(resource.sourcePath ?? resource.label)
+        : resource.label,
+    sourcePath: resource.sourcePath,
+    diagnostic: resource.diagnostic,
+  }));
+  for (const extension of adapter.extensionResources()) {
+    if (extension.hidden) continue;
+    resources.push({
+      section: "Extensions",
+      label: compactResourceLabel(extension.sourcePath ?? extension.resolvedPath ?? "extension"),
+      sourcePath: extension.sourcePath ?? extension.resolvedPath,
+      diagnostic: extension.diagnostic,
+    });
+  }
+  return resources;
+}
+
+function compactResourceLabel(path: string): string {
+  const segments = path.replaceAll("\\", "/").split("/").filter(Boolean);
+  const leaf = segments.at(-1) ?? path;
+  if ((leaf === "index.ts" || leaf === "index.js") && segments.length > 1) return segments.at(-2) ?? leaf;
+  return leaf;
 }
 
 export class PiSessionShell {
@@ -250,10 +359,13 @@ export class PiSessionShell {
       onMessageCopy: () => { void this.runWorkflow({ command: "copy", argument: "" }); },
       onFollowUp: () => { void this.queueFollowUp(); },
       onDequeue: () => this.restoreQueuedInput(),
-    }, options.startup, this.adapter.agentDir);
+    }, {
+      ...options.startup,
+      resources: options.startup?.resources ?? shellResourceEntries(this.adapter),
+    }, this.adapter.agentDir);
     const runtimeOptions = options.terminal === undefined
-      ? { root: this.root }
-      : { root: this.root, terminal: options.terminal };
+      ? { root: this.root, layoutRoot: this.root.layoutRoot(), hardwareCursor: this.adapter.view().terminal.hardwareCursor }
+      : { root: this.root, layoutRoot: this.root.layoutRoot(), terminal: options.terminal, hardwareCursor: this.adapter.view().terminal.hardwareCursor };
     runtime = new PiTuiRuntimeAdapter(runtimeOptions);
     this.runtime = runtime;
     this.adapter.setWorkflowInteractionHost({

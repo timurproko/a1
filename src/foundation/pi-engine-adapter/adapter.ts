@@ -85,7 +85,10 @@ export interface PiServicesLike {
     isUsingSubscription?(providerId: string): boolean;
     getAvailableSnapshot?(): readonly { readonly provider?: string }[];
   };
-  readonly settingsManager?: { getCompactionEnabled?: () => boolean };
+  readonly settingsManager?: {
+    getCompactionEnabled?: () => boolean;
+    getShowHardwareCursor?: () => boolean;
+  };
   readonly resourceLoader?: {
     getSkills(): unknown;
     getPrompts(): unknown;
@@ -93,6 +96,7 @@ export interface PiServicesLike {
     getSystemPromptSource(): unknown;
     getAppendSystemPromptSources(): unknown;
     getExtensions?(): unknown;
+    getThemes?(): unknown;
   };
   readonly diagnostics: readonly { readonly type: string; readonly message: string }[];
 }
@@ -110,7 +114,7 @@ export interface PiRuntimeLike {
 export type PiEngineRuntimeFactory = (input: PiEngineRuntimeFactoryInput) => Promise<PiRuntimeLike>;
 
 export interface OwnedPiResourceSummary {
-  readonly kind: "skill" | "prompt-template" | "agent-context" | "system-prompt";
+  readonly kind: "skill" | "prompt-template" | "agent-context" | "system-prompt" | "theme";
   readonly id: string;
   readonly label: string;
   readonly sourcePath: string | null;
@@ -242,6 +246,10 @@ export class PiEngineAdapter {
     });
     this.#runtime = runtime;
     this.#gitBranch = await readGitBranch(this.#cwd);
+    this.#terminal = {
+      ...this.#terminal,
+      hardwareCursor: runtime.services.settingsManager?.getShowHardwareCursor?.() ?? this.#terminal.hardwareCursor,
+    };
     runtime.setRebindSession(async session => {
       this.#bindSession(session);
       this.#emitView();
@@ -282,7 +290,7 @@ export class PiEngineAdapter {
         kind: "skill",
         id: `skill-${index}-${stringProperty(skill, "name") ?? "unknown"}`,
         label: stringProperty(skill, "name") ?? "Unnamed skill",
-        sourcePath: stringProperty(skill, "path") ?? stringProperty(skill, "location") ?? null,
+        sourcePath: stringProperty(skill, "filePath") ?? stringProperty(skill, "path") ?? stringProperty(skill, "location") ?? null,
         diagnostic: null,
       });
     }
@@ -300,7 +308,7 @@ export class PiEngineAdapter {
         kind: "prompt-template",
         id: `prompt-${index}-${stringProperty(prompt, "name") ?? "unknown"}`,
         label: stringProperty(prompt, "name") ?? "Prompt template",
-        sourcePath: stringProperty(prompt, "path") ?? null,
+        sourcePath: stringProperty(prompt, "filePath") ?? stringProperty(prompt, "path") ?? null,
         diagnostic: null,
       });
     }
@@ -341,6 +349,27 @@ export class PiEngineAdapter {
         sourcePath: stringProperty(source, "path") ?? null,
         diagnostic: null,
       });
+    }
+    if (loader.getThemes !== undefined) {
+      const themes = collectionResult(loader.getThemes(), "themes");
+      for (const [index, theme] of themes.values.entries()) {
+        const sourcePath = stringProperty(theme, "sourcePath");
+        if (!sourcePath) continue;
+        resources.push({
+          kind: "theme",
+          id: `theme-${index}-${stringProperty(theme, "name") ?? "unknown"}`,
+          label: stringProperty(theme, "name") ?? compactResourceLabel(sourcePath),
+          sourcePath,
+          diagnostic: null,
+        });
+      }
+      resources.push(...themes.diagnostics.map((diagnostic, index) => ({
+        kind: "theme" as const,
+        id: `theme-diagnostic-${index}`,
+        label: "Theme diagnostic",
+        sourcePath: null,
+        diagnostic,
+      })));
     }
     return resources;
   }
@@ -1764,6 +1793,11 @@ function stringProperty(value: unknown, key: string): string | undefined {
   if (!isRecord(value)) return undefined;
   const item = value[key];
   return typeof item === "string" && item.length > 0 ? item : undefined;
+}
+
+function compactResourceLabel(path: string): string {
+  const segments = path.replaceAll("\\", "/").split("/").filter(Boolean);
+  return segments.at(-1) ?? path;
 }
 
 function textFromContent(content: unknown): string {

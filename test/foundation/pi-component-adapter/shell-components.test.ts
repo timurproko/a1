@@ -1,3 +1,4 @@
+import { stripTerminalSequences } from "@earendil-works/pi-tui";
 import { describe, expect, it, vi } from "vitest";
 import type { OwnedUiDialog, OwnedUiSessionViewModel, OwnedUiTranscriptBlock } from "../../../src/foundation/owned-ui-contracts/index.js";
 import {
@@ -5,6 +6,7 @@ import {
   createPiShellEditor,
   createPiShellFooter,
   createPiShellHeader,
+  createPiShellLoadedResources,
   createPiShellSelector,
   createPiShellStatus,
   PINNED_PI_BUILTIN_SLASH_COMMANDS,
@@ -84,6 +86,31 @@ describe("Pi shell public component adapters", () => {
       const rows = renderPiShellTranscriptBlock(fixture, 60, process.cwd());
       expect(rows.length, fixture.kind).toBeGreaterThan(0);
     }
+  });
+
+  it("renders pinned compact and expanded startup resource sections with diagnostics", () => {
+    const resources = createPiShellLoadedResources([
+      { section: "Context", label: "AGENTS.md", sourcePath: "D:/work/AGENTS.md" },
+      { section: "Skills", label: "zeta", sourcePath: "D:/work/.pi/skills/zeta/SKILL.md" },
+      { section: "Skills", label: "alpha", sourcePath: "D:/work/.pi/skills/alpha/SKILL.md" },
+      { section: "Prompts", label: "/review", sourcePath: "D:/work/.pi/prompts/review.md" },
+      { section: "Extensions", label: "probe.ts", sourcePath: "D:/work/.pi/extensions/probe.ts" },
+      { section: "Themes", label: "custom", sourcePath: "D:/work/.pi/themes/custom.json" },
+      { section: "Extensions", label: "bad.ts", sourcePath: "D:/bad.ts", diagnostic: "load failed" },
+    ]);
+    const compact = stripTerminalSequences(resources.render(80).join("\n")).replaceAll(/ +$/gm, "");
+    expect(compact).toContain("[Context]\n  AGENTS.md");
+    expect(compact).toContain("[Skills]\n  alpha, zeta");
+    expect(compact).toContain("[Prompts]\n  /review");
+    expect(compact).toContain("[Extensions]\n  probe.ts");
+    expect(compact).toContain("[Themes]\n  custom");
+    expect(compact).toContain("[Extension issues]");
+    expect(compact).toContain("load failed");
+
+    resources.setExpanded(true);
+    const expanded = stripTerminalSequences(resources.render(80).join("\n")).replaceAll(/ +$/gm, "");
+    expect(expanded).toContain("D:/work/.pi/skills/alpha/SKILL.md");
+    expect(expanded).toContain("D:/work/.pi/extensions/probe.ts");
   });
 
   it("adapts selectors, dialogs, and status through public Pi TUI components", () => {

@@ -73,6 +73,19 @@ export interface PiShellHeaderPort extends PiShellComponentPort {
   setExpanded(expanded: boolean): void;
 }
 
+export type PiShellResourceSection = "Context" | "Skills" | "Prompts" | "Extensions" | "Themes";
+
+export interface PiShellResourceEntry {
+  readonly section: PiShellResourceSection;
+  readonly label: string;
+  readonly sourcePath: string | null;
+  readonly diagnostic?: string | null;
+}
+
+export interface PiShellLoadedResourcesPort extends PiShellComponentPort {
+  setExpanded(expanded: boolean): void;
+}
+
 export interface PiShellTranscriptComponentPort extends PiShellComponentPort {
   readonly id: string;
   readonly revision: number;
@@ -89,6 +102,7 @@ export interface PiShellHeaderOptions {
   readonly quiet?: boolean;
   readonly expanded?: boolean;
   readonly notices?: readonly PiShellStartupNotice[];
+  readonly resources?: readonly PiShellResourceEntry[];
 }
 
 export interface PiShellEditorOptions {
@@ -302,6 +316,43 @@ export function createPiShellHeader(options: PiShellHeaderOptions = {}): PiShell
       full.invalidate();
       for (const notice of notices) notice.invalidate();
     },
+  };
+}
+
+export function createPiShellLoadedResources(
+  resources: readonly PiShellResourceEntry[],
+  initialExpanded = false,
+): PiShellLoadedResourcesPort {
+  ensureTheme();
+  let expanded = initialExpanded;
+  return {
+    setExpanded(value) { expanded = value; },
+    render(width) {
+      const rows: string[] = [];
+      const sections: readonly PiShellResourceSection[] = ["Context", "Skills", "Prompts", "Extensions", "Themes"];
+      for (const section of sections) {
+        const entries = resources.filter(entry => entry.section === section && !entry.diagnostic);
+        if (entries.length === 0) continue;
+        if (rows.length === 0 && section === "Context") rows.push("");
+        const labels = expanded
+          ? entries.map(entry => entry.sourcePath ?? entry.label).sort((left, right) => left.localeCompare(right))
+          : entries.map(entry => entry.label).sort((left, right) => left.localeCompare(right));
+        const body = expanded
+          ? labels.map(label => piTheme().fg("dim", `  ${label}`)).join("\n")
+          : piTheme().fg("dim", `  ${labels.join(", ")}`);
+        rows.push(...new Text(`${piTheme().fg("mdHeading", `[${section}]`)}\n${body}`, 0, 0).render(width), "");
+      }
+      const diagnostics = resources.filter(entry => entry.diagnostic);
+      for (const group of ["Skills", "Prompts", "Extensions", "Themes"] as const) {
+        const entries = diagnostics.filter(entry => entry.section === group);
+        if (entries.length === 0) continue;
+        const title = group === "Skills" ? "Skill conflicts" : group === "Prompts" ? "Prompt conflicts" : group === "Extensions" ? "Extension issues" : "Theme conflicts";
+        const body = entries.map(entry => `  ${entry.sourcePath ? `${entry.sourcePath}\n    ` : ""}${entry.diagnostic}`).join("\n");
+        rows.push(...new Text(`${piTheme().fg("warning", `[${title}]`)}\n${piTheme().fg("warning", body)}`, 0, 0).render(width), "");
+      }
+      return rows.length === 0 ? rows : [...rows, ""];
+    },
+    invalidate() {},
   };
 }
 
