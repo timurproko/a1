@@ -1,3 +1,4 @@
+import { StdinBuffer } from "@earendil-works/pi-tui";
 import { describe, expect, it } from "vitest";
 import {
   PiTuiRuntimeAdapter,
@@ -190,6 +191,102 @@ describe("PiTuiRuntimeAdapter", () => {
     runtime.showOverlay(mountedOverlay);
     await runtime.stop({ drainInput: false, preserveScreen: true });
     expect(mountedOverlay.disposed).toBe(true);
+  });
+
+  it("matches pinned physical-wheel batching, configured distance, direct scrolling, and boundaries", async () => {
+    const terminal = new TestTerminal();
+    terminal.rows = 5;
+    const root = new TestComponent(Array.from({ length: 12 }, (_, index) => `row-${index}`));
+    const runtime = new PiTuiRuntimeAdapter({ root, terminal, wheelScrollLines: 2 });
+    runtime.start();
+    runtime.renderNow(true);
+    runtime.scrollToTop();
+    runtime.renderNow();
+    expect(runtime.scrollState().scrollTop).toBe(0);
+
+    const stdin = new StdinBuffer({ timeout: 1 });
+    stdin.on("data", sequence => terminal.input(sequence));
+    stdin.process("\x1b[<65;5;3M\x1b[<65;5;3M");
+    runtime.renderNow();
+    expect(runtime.scrollState().scrollTop).toBe(4);
+    expect(root.inputs).toEqual([]);
+
+    runtime.scrollBy(-2);
+    runtime.renderNow();
+    expect(runtime.scrollState().scrollTop).toBe(2);
+    runtime.scrollToBottom();
+    runtime.renderNow();
+    const bottom = runtime.scrollState().scrollTop;
+    terminal.input("\x1b[<65;5;3M");
+    runtime.renderNow();
+    expect(runtime.scrollState().scrollTop).toBe(bottom);
+    runtime.scrollToTop();
+    terminal.input("\x1b[<64;5;3M");
+    runtime.renderNow();
+    expect(runtime.scrollState().scrollTop).toBe(0);
+
+    stdin.destroy();
+    await runtime.stop({ drainInput: false, preserveScreen: true });
+  });
+
+  it.each(["contain", "chain"] as const)("routes nested wheel overscroll with pinned %s semantics and primary fallback", async overscroll => {
+    const terminal = new TestTerminal();
+    terminal.rows = 8;
+    const primary = new TestComponent(Array.from({ length: 16 }, (_, index) => `primary-${index}`));
+    const nested = new TestComponent(Array.from({ length: 10 }, (_, index) => `nested-${index}`));
+    const runtime = new PiTuiRuntimeAdapter({
+      root: primary,
+      terminal,
+      wheelScrollLines: 2,
+      layoutRoot: {
+        type: "stack",
+        direction: "vertical",
+        children: [
+          {
+            basis: 3,
+            node: {
+              type: "scroll",
+              id: "nested",
+              overscroll,
+              scrollbar: "always",
+              child: { type: "component", component: nested },
+            },
+          },
+          {
+            basis: 0,
+            grow: 1,
+            minSize: 1,
+            node: {
+              type: "scroll",
+              id: "primary",
+              primary: true,
+              scrollbar: "always",
+              child: { type: "component", component: primary },
+            },
+          },
+        ],
+      },
+    });
+    runtime.start();
+    runtime.renderNow(true);
+    terminal.input("\x1b[<65;5;2M");
+    runtime.renderNow();
+    expect(runtime.scrollState("nested")).toMatchObject({ scrollTop: 2, viewportHeight: 3, scrollbarVisible: true });
+    expect(runtime.scrollState("primary").scrollTop).toBe(0);
+
+    runtime.scrollToBottom("nested");
+    runtime.renderNow();
+    terminal.input("\x1b[<65;5;2M");
+    runtime.renderNow();
+    expect(runtime.scrollState("primary").scrollTop).toBe(2);
+
+    terminal.resize(24, 10);
+    runtime.renderNow();
+    expect(runtime.scrollState("nested").viewportHeight).toBe(3);
+    expect(terminal.writes.join("")).toContain("\x1b[100m");
+    await runtime.stop({ drainInput: false, preserveScreen: true });
+    expect(primary.disposed).toBe(true);
+    expect(nested.disposed).toBe(true);
   });
 
   it("contains startup and restoration failures and still attempts terminal cleanup", async () => {

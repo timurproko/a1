@@ -7,6 +7,13 @@ export interface PiTuiViewport {
   readonly rows: number;
 }
 
+export interface PiTuiScrollState {
+  readonly scrollTop: number;
+  readonly viewportHeight: number;
+  readonly followingEnd: boolean;
+  readonly scrollbarVisible: boolean;
+}
+
 export interface PiTuiComponentPort {
   render(width: number): readonly string[];
   invalidate(): void;
@@ -87,8 +94,40 @@ export interface PiTuiInputListenerResult {
 
 export type PiTuiInputListener = (data: string) => PiTuiInputListenerResult | undefined;
 
+export interface PiTuiLayoutEntry {
+  readonly node: PiTuiLayoutNode;
+  readonly basis?: number | "auto";
+  readonly grow?: number;
+  readonly shrink?: number;
+  readonly minSize?: number;
+  readonly maxSize?: number;
+  readonly visible?: (viewport: PiTuiViewport) => boolean;
+}
+
+export type PiTuiLayoutNode =
+  | { readonly type: "component"; readonly component: PiTuiComponentPort }
+  | {
+    readonly type: "stack";
+    readonly direction: "vertical" | "horizontal";
+    readonly children: readonly PiTuiLayoutEntry[];
+    readonly gap?: number;
+    readonly align?: "stretch" | "start" | "center" | "end";
+  }
+  | {
+    readonly type: "scroll";
+    readonly id: string;
+    readonly child: PiTuiLayoutNode;
+    readonly follow?: "none" | "end";
+    readonly primary?: boolean;
+    readonly overscroll?: "chain" | "contain";
+    readonly scrollbar?: "hidden" | "auto" | "always";
+    readonly scrollbarStyle?: (text: string) => string;
+    readonly scrollbarHideDelayMs?: number;
+  };
+
 export interface PiTuiRuntimeAdapterOptions {
   readonly root: PiTuiComponentPort;
+  readonly layoutRoot?: PiTuiLayoutNode;
   readonly terminal?: PiTuiTerminalPort;
   readonly hardwareCursor?: boolean;
   readonly mouse?: boolean;

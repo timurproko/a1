@@ -10,6 +10,8 @@ export interface PiTuiRuntimeConformanceReport {
   readonly overlayRouted: boolean;
   readonly differentialRendering: boolean;
   readonly resizeRedraw: boolean;
+  readonly physicalWheelRouted: boolean;
+  readonly directScrollRouted: boolean;
 }
 
 export async function runPiTuiRuntimeConformance(): Promise<PiTuiRuntimeConformanceReport> {
@@ -39,6 +41,18 @@ export async function runPiTuiRuntimeConformance(): Promise<PiTuiRuntimeConforma
     runtime.renderNow();
     const resizeRedraw = runtime.fullRedraws > redrawsBeforeResize && runtime.viewport().columns === 60;
 
+    root.lines = Array.from({ length: 14 }, (_, index) => `scroll-row-${index}`);
+    runtime.invalidate();
+    runtime.renderNow();
+    runtime.scrollToTop();
+    runtime.renderNow();
+    terminal.input("\x1b[<65;5;3M");
+    runtime.renderNow();
+    const physicalWheelRouted = runtime.scrollState().scrollTop === 1;
+    runtime.scrollBy(1);
+    runtime.renderNow();
+    const directScrollRouted = runtime.scrollState().scrollTop === 2;
+
     await runtime.stop({ drainMaxMs: 1, drainIdleMs: 1 });
     const emitted = terminal.writes.join("");
     return {
@@ -55,6 +69,8 @@ export async function runPiTuiRuntimeConformance(): Promise<PiTuiRuntimeConforma
       overlayRouted,
       differentialRendering: differentialFrame.includes("after") && !differentialFrame.includes("stable row"),
       resizeRedraw,
+      physicalWheelRouted,
+      directScrollRouted,
     };
   } catch (error) {
     if (runtime.active) await runtime.stop({ drainInput: false }).catch(() => {});

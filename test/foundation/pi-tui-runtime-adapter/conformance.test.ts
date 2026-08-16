@@ -35,6 +35,8 @@ describe("public Pi TUI runtime conformance", () => {
       overlayRouted: true,
       differentialRendering: true,
       resizeRedraw: true,
+      physicalWheelRouted: true,
+      directScrollRouted: true,
     });
     expect(report.packageVersion).toBe(PI_TUI_PACKAGE_VERSION);
   });

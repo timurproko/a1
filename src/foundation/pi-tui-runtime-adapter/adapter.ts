@@ -1,21 +1,25 @@
 import {
+  HStack,
   ProcessTerminal,
+  ScrollView,
   TuiAltScreen,
+  VStack,
   type Component,
   type Focusable,
   type OverlayHandle,
   type OverlayOptions,
-  type TUI,
   type TuiAltScreenOptions,
 } from "@earendil-works/pi-tui";
 import type {
   PiTuiComponentPort,
   PiTuiInputListener,
+  PiTuiLayoutNode,
   PiTuiOverlayHandle,
   PiTuiOverlayOptions,
   PiTuiOverlayUnfocusOptions,
   PiTuiRuntimeAdapterOptions,
   PiTuiRuntimeState,
+  PiTuiScrollState,
   PiTuiStopOptions,
   PiTuiTerminalPort,
   PiTuiViewport,
@@ -105,10 +109,12 @@ class OverlayHandleBridge implements PiTuiOverlayHandle {
 
 export class PiTuiRuntimeAdapter {
   readonly #terminal: PiTuiTerminalPort;
-  readonly #tui: TUI;
+  readonly #tui: TuiAltScreen;
   readonly #root: PiTuiComponentPort;
   readonly #rootBridge: ComponentBridge;
   readonly #bridges = new WeakMap<PiTuiComponentPort, ComponentBridge>();
+  readonly #mountedComponents = new Set<PiTuiComponentPort>();
+  readonly #scrollViews = new Map<string, ScrollView>();
   readonly #overlayDisposers = new Set<() => void>();
   #state: PiTuiRuntimeState = "idle";
   #stopPromise: Promise<void> | undefined;
@@ -119,6 +125,7 @@ export class PiTuiRuntimeAdapter {
     this.#terminal = options.terminal ?? new ProcessTerminal();
     this.#rootBridge = new ComponentBridge(options.root);
     this.#bridges.set(options.root, this.#rootBridge);
+    this.#mountedComponents.add(options.root);
 
     try {
       const tuiOptions: TuiAltScreenOptions = {};
@@ -132,7 +139,11 @@ export class PiTuiRuntimeAdapter {
         options.logDirectory,
         tuiOptions,
       );
-      this.#tui.addChild(this.#rootBridge);
+      if (options.layoutRoot === undefined) {
+        this.#tui.addChild(this.#rootBridge);
+      } else {
+        this.#tui.setLayoutRoot(this.#buildLayout(options.layoutRoot));
+      }
     } catch (error) {
       this.#state = "failed";
       throw new PiTuiRuntimeError("construction", error);
@@ -160,6 +171,51 @@ export class PiTuiRuntimeAdapter {
       columns: Math.max(1, this.#terminal.columns),
       rows: Math.max(1, this.#terminal.rows),
     };
+  }
+
+  scrollState(id?: string): PiTuiScrollState {
+    if (id === undefined) {
+      return {
+        scrollTop: this.#tui.viewportTop,
+        viewportHeight: this.viewport().rows,
+        followingEnd: this.#tui.isFollowingOutput,
+        scrollbarVisible: false,
+      };
+    }
+    const scrollView = this.#requireScrollView(id);
+    return {
+      scrollTop: scrollView.scrollTop,
+      viewportHeight: scrollView.viewportHeight,
+      followingEnd: scrollView.isFollowingEnd,
+      scrollbarVisible: scrollView.isScrollbarVisible,
+    };
+  }
+
+  scrollBy(lines: number, id?: string): void {
+    this.#assertRunning("scroll");
+    if (id === undefined) this.#tui.scrollBy(lines);
+    else {
+      this.#requireScrollView(id).scrollBy(lines);
+      this.#tui.requestRender();
+    }
+  }
+
+  scrollToTop(id?: string): void {
+    this.#assertRunning("scroll");
+    if (id === undefined) this.#tui.scrollToTop();
+    else {
+      this.#requireScrollView(id).scrollToStart();
+      this.#tui.requestRender();
+    }
+  }
+
+  scrollToBottom(id?: string): void {
+    this.#assertRunning("scroll");
+    if (id === undefined) this.#tui.scrollToBottom();
+    else {
+      this.#requireScrollView(id).scrollToEnd();
+      this.#tui.requestRender();
+    }
   }
 
   start(): void {
@@ -280,6 +336,53 @@ export class PiTuiRuntimeAdapter {
     return bridge;
   }
 
+  #mount(component: PiTuiComponentPort): ComponentBridge {
+    const existing = this.#bridges.get(component);
+    if (existing) return existing;
+    const bridge = new ComponentBridge(component);
+    this.#bridges.set(component, bridge);
+    this.#mountedComponents.add(component);
+    return bridge;
+  }
+
+  #buildLayout(node: PiTuiLayoutNode): Component {
+    if (node.type === "component") return this.#mount(node.component);
+    if (node.type === "scroll") {
+      if (this.#scrollViews.has(node.id)) throw new TypeError(`duplicate Pi TUI scroll layout id: ${node.id}`);
+      const options = {
+        ...(node.follow === undefined ? {} : { follow: node.follow }),
+        ...(node.primary === undefined ? {} : { primary: node.primary }),
+        ...(node.overscroll === undefined ? {} : { overscroll: node.overscroll }),
+        ...(node.scrollbar === undefined ? {} : { scrollbar: node.scrollbar }),
+        ...(node.scrollbarStyle === undefined ? {} : { scrollbarStyle: node.scrollbarStyle }),
+        ...(node.scrollbarHideDelayMs === undefined ? {} : { scrollbarHideDelayMs: node.scrollbarHideDelayMs }),
+      };
+      const scrollView = new ScrollView(this.#buildLayout(node.child), options);
+      this.#scrollViews.set(node.id, scrollView);
+      return scrollView;
+    }
+    const children = node.children.map(entry => ({
+      component: this.#buildLayout(entry.node),
+      ...(entry.basis === undefined ? {} : { basis: entry.basis }),
+      ...(entry.grow === undefined ? {} : { grow: entry.grow }),
+      ...(entry.shrink === undefined ? {} : { shrink: entry.shrink }),
+      ...(entry.minSize === undefined ? {} : { minSize: entry.minSize }),
+      ...(entry.maxSize === undefined ? {} : { maxSize: entry.maxSize }),
+      ...(entry.visible === undefined ? {} : { visible: (viewport: { width: number; height: number }) => entry.visible?.({ columns: viewport.width, rows: viewport.height }) ?? true }),
+    }));
+    const options = {
+      ...(node.gap === undefined ? {} : { gap: node.gap }),
+      ...(node.align === undefined ? {} : { align: node.align }),
+    };
+    return node.direction === "vertical" ? new VStack(children, options) : new HStack(children, options);
+  }
+
+  #requireScrollView(id: string): ScrollView {
+    const scrollView = this.#scrollViews.get(id);
+    if (!scrollView) throw new TypeError(`unknown Pi TUI scroll layout id: ${id}`);
+    return scrollView;
+  }
+
   #assertRunning(operation: string): void {
     if (!this.active) throw new Error(`Pi TUI ${operation} requires a running runtime`);
   }
@@ -304,7 +407,8 @@ export class PiTuiRuntimeAdapter {
   #disposeRoot(): void {
     if (this.#rootDisposed) return;
     this.#rootDisposed = true;
-    this.#root.dispose?.();
+    for (const component of this.#mountedComponents) component.dispose?.();
+    this.#mountedComponents.clear();
   }
 
   #disposeComponents(): void {
