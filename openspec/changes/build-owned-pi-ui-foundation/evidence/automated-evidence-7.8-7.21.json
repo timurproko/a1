@@ -1,0 +1,220 @@
+{
+  "schema": "addone-owned-pi-ui-tasks-7.8-7.21-evidence-v1",
+  "change": "build-owned-pi-ui-foundation",
+  "recordedAt": "2026-08-16T14:43:23.168Z",
+  "commit": "4fae1ce64809642c1f9caf8fef32052bf9f2fcfb",
+  "platform": {
+    "platform": "win32",
+    "arch": "x64",
+    "node": "v24.16.0",
+    "certification": {
+      "windows": "automated-passed",
+      "linux": "deferred",
+      "macos": "deferred"
+    }
+  },
+  "pinned": {
+    "commit": "53fa77ccd8a279eb87e92294ef3687b03ff80112",
+    "codingAgent": "0.84.1",
+    "tui": "0.84.1"
+  },
+  "tasks": {
+    "7.8": {
+      "result": "passed",
+      "evidence": [
+        "specialized public selectors",
+        "settings search/navigation/nested callbacks",
+        "terminal settings-selector checkpoints"
+      ]
+    },
+    "7.9": {
+      "result": "passed",
+      "evidence": [
+        "22 advertised and 3 hidden routes",
+        "complete keybinding-derived /hotkeys tables",
+        "success/cancel/failure workflow tests"
+      ]
+    },
+    "7.10": {
+      "result": "passed",
+      "evidence": [
+        "real SDK deterministic prompt",
+        "streaming settlement checkpoints",
+        "repeated-timestamp transcript identity fix"
+      ]
+    },
+    "7.11": {
+      "result": "passed",
+      "evidence": [
+        "queue/compaction/session replacement tests",
+        "missing-message authoritative settlement",
+        "recoverable error checkpoint"
+      ]
+    },
+    "7.12": {
+      "result": "passed",
+      "evidence": [
+        "public bindExtensions lifecycle",
+        "session replacement rebinding",
+        "shutdown/error isolation"
+      ]
+    },
+    "7.13": {
+      "result": "passed",
+      "evidence": [
+        "real extension lifecycle widget",
+        "status/working/widget/input bridge tests",
+        "focus/invalidation cleanup"
+      ]
+    },
+    "7.14": {
+      "result": "passed",
+      "evidence": [
+        "selector/input/editor/custom overlay tests",
+        "resolve/cancel/throw/restoration"
+      ]
+    },
+    "7.15": {
+      "result": "passed",
+      "evidence": [
+        "custom message and tool renderer tests",
+        "partial/replacement fallback isolation"
+      ]
+    },
+    "7.16": {
+      "result": "passed",
+      "removed": [
+        "src/features/owned-ui/session-controller.ts",
+        "src/features/owned-ui/terminal-runtime.ts",
+        "src/features/owned-ui/prompt-editor.ts",
+        "src/features/owned-ui/transcript-history.ts",
+        "src/features/owned-ui/transcript-renderer.ts",
+        "src/features/owned-ui/surfaces.ts"
+      ],
+      "historicalEvidence": "openspec/changes/build-owned-pi-ui-foundation/evidence/pi-parity-acceptance.json"
+    },
+    "7.17": {
+      "result": "passed",
+      "records": 107,
+      "behaviors": 29,
+      "unmapped": [],
+      "missingLinkedTests": 0,
+      "unapprovedDeviations": 0,
+      "intentionalFailure": "missing linked acceptance test fixture"
+    },
+    "7.18": {
+      "result": "passed",
+      "terminalCheckpoints": [
+        "startup-resources",
+        "editor-input",
+        "settings-selector",
+        "settings-navigation",
+        "command-transcript",
+        "stream-settlement",
+        "recoverable-error",
+        "physical-wheel",
+        "narrow-resize",
+        "restored-resize"
+      ],
+      "differences": 0,
+      "tolerances": [
+        "differential-sgr-order",
+        "transient-scrollbar-thumb-rounding"
+      ]
+    },
+    "7.19": {
+      "result": "passed",
+      "commandRoutes": 22,
+      "hiddenRoutes": 3,
+      "settingsCallbacks": 32,
+      "intentionalMutation": {
+        "visualExit": 1,
+        "inputScrollExit": 1
+      }
+    },
+    "7.20": {
+      "result": "passed",
+      "integration": [
+        "public SDK provider streaming",
+        "extension agent_start UI widget",
+        "success and provider-error settlement",
+        "editor remains interactive"
+      ]
+    },
+    "7.21": {
+      "result": "passed",
+      "coverage": [
+        "startup",
+        "physical wheel",
+        "scrollbar",
+        "resize",
+        "hardware cursor",
+        "graceful shutdown",
+        "abnormal cleanup",
+        "restoration"
+      ],
+      "deferredPlatforms": [
+        "linux",
+        "darwin"
+      ]
+    }
+  },
+  "gates": [
+    {
+      "command": "npm test",
+      "result": "passed",
+      "tests": 434,
+      "files": 82
+    },
+    {
+      "command": "npm run typecheck",
+      "result": "passed"
+    },
+    {
+      "command": "npm run check:architecture",
+      "result": "passed"
+    },
+    {
+      "command": "npm run check:deprecated",
+      "result": "passed"
+    },
+    {
+      "command": "npm audit --audit-level=high",
+      "result": "passed",
+      "vulnerabilities": 0
+    },
+    {
+      "command": "npm run test:pi-terminal-parity",
+      "result": "passed",
+      "differences": 0
+    },
+    {
+      "command": "openspec validate build-owned-pi-ui-foundation --strict",
+      "result": "passed"
+    }
+  ],
+  "artifacts": {
+    "report": {
+      "path": "artifacts/pi-terminal-parity/latest/report.json",
+      "sha256": "86ac5d95b879a2ac80074adc6b6f07c34b2ac73c548ee907b44503209fb28096"
+    },
+    "upstream": {
+      "path": "artifacts/pi-terminal-parity/latest/upstream-checkpoints.json",
+      "sha256": "b4d0092566819f0ff35e67ade85224dd484fe0473bb2c2229bcb74501e308709",
+      "rawCaptureSha256": "e296f08c5c99f77c4b4cfb180442a80f621cf4c78c5f274bad559923a36ad033"
+    },
+    "addone": {
+      "path": "artifacts/pi-terminal-parity/latest/addone-checkpoints.json",
+      "sha256": "1fe01144c1344b341f2665ca70daf85c047a03e1a52a6ee3f06fc6359ac97b2b",
+      "rawCaptureSha256": "00c457c9fec124da3de6aa4b1119edbc81158877756c9a1182e683e1f5a0afed"
+    },
+    "intentionalVisual": {
+      "path": "artifacts/pi-terminal-parity-intentional-visual.log",
+      "sha256": "b841c76c4c7bc73251ab91be70f9db79c68f1a2abf706ce5e4d5714289103d82"
+    },
+    "intentionalInputScroll": {
+      "path": "artifacts/pi-terminal-parity-intentional-input-scroll.log",
+      "sha256": "5826fbbaa88c529504363d1687a72c5d43eaaedff9d1893dc98262f59f47bee5"
+    }
+  }
+}
