@@ -96,8 +96,11 @@ function compareCheckpoint(differences, tolerances, expected, actual) {
     compareValue(differences, tolerances, `checkpoints.${name}.rows[${index}].text`, expectedRow?.text, actualRow?.text, domainForRow(expected.domains), name);
     compareValue(differences, tolerances, `checkpoints.${name}.rows[${index}].rawText`, expectedRow?.rawText, actualRow?.rawText, "rows-spacing", name);
     compareValue(differences, tolerances, `checkpoints.${name}.rows[${index}].wrapped`, expectedRow?.wrapped, actualRow?.wrapped, "wrapping", name);
-    if (!(tolerances.has("transient-scrollbar-thumb-rounding")
-      && scrollbarRoundingEquivalent(expectedRow?.styles, actualRow?.styles))) {
+    const toleratedScrollbar = tolerances.has("transient-scrollbar-thumb-rounding")
+      && scrollbarRoundingEquivalent(expectedRow?.styles, actualRow?.styles);
+    const toleratedSgrWhitespace = tolerances.has("differential-sgr-order")
+      && whitespaceForegroundEquivalent(expectedRow?.styles, actualRow?.styles);
+    if (!toleratedScrollbar && !toleratedSgrWhitespace) {
       compareValue(differences, tolerances, `checkpoints.${name}.rows[${index}].styles`, expectedRow?.styles, actualRow?.styles, "ansi-style", name);
     }
   }
@@ -105,6 +108,24 @@ function compareCheckpoint(differences, tolerances, expected, actual) {
     compareValue(differences, tolerances, `checkpoints.${name}.rawSgr`, expected.rawSgr, actual.rawSgr, "raw-ansi", name);
   }
   compareValue(differences, tolerances, `checkpoints.${name}.geometry`, expected.geometry, actual.geometry, "component-geometry", name);
+}
+
+function whitespaceForegroundEquivalent(expected, actual) {
+  if (!Array.isArray(expected) || !Array.isArray(actual)) return false;
+  const expectedCells = styleCells(expected);
+  const actualCells = styleCells(actual);
+  if (expectedCells.length !== actualCells.length) return false;
+  let foregroundDifference = false;
+  for (let index = 0; index < expectedCells.length; index += 1) {
+    const left = expectedCells[index];
+    const right = actualCells[index];
+    if (stableJson(left) === stableJson(right)) continue;
+    if (left?.text !== right?.text || !/^\s$/u.test(left?.text ?? "")
+      || left?.background !== right?.background
+      || stableJson(left?.flags) !== stableJson(right?.flags)) return false;
+    foregroundDifference ||= left?.foreground !== right?.foreground;
+  }
+  return foregroundDifference;
 }
 
 function scrollbarRoundingEquivalent(expected, actual) {

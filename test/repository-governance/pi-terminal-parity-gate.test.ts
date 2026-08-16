@@ -61,6 +61,18 @@ describe("independent Pi terminal parity gate", () => {
     resetOnly.checkpoints[0]!.rawSgr.push("\\x1b[m");
     expect(compareParityRun(producer(), resetOnly, { tolerances }).passed).toBe(true);
 
+    const whitespaceForegroundOnly = producer();
+    whitespaceForegroundOnly.checkpoints[0]!.rows[1]!.styles = [
+      { start: 0, end: 1, text: ">", foreground: "default", background: "default", flags: [] },
+      { start: 1, end: 2, text: " ", foreground: "rgb:666666", background: "default", flags: [] },
+      { start: 2, end: 4, text: "  ", foreground: "default", background: "default", flags: [] },
+    ];
+    expect(compareParityRun(producer(), whitespaceForegroundOnly, { tolerances }).passed).toBe(true);
+
+    const whitespaceBackgroundMutation = structuredClone(whitespaceForegroundOnly);
+    whitespaceBackgroundMutation.checkpoints[0]!.rows[1]!.styles[1]!.background = "rgb:ff0000";
+    expect(compareParityRun(producer(), whitespaceBackgroundMutation, { tolerances }).passed).toBe(false);
+
     const scrollbarOnly = producer();
     scrollbarOnly.checkpoints[0]!.rows[1]!.styles = [
       { start: 0, end: 3, text: ">  ", foreground: "default", background: "default", flags: [] },

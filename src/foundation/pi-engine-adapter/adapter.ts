@@ -1426,12 +1426,30 @@ export class PiEngineAdapter {
 
   #rebuildTranscript(messages: readonly unknown[], status: OwnedUiTranscriptBlock["status"]): void {
     const blocks: OwnedUiTranscriptBlock[] = [];
+    const blockIndexes = new Map<string, number>();
     const occurrences = new Map<string, number>();
     for (const [index, message] of messages.entries()) {
       const key = messageFallbackKey(message, index);
       const occurrence = occurrences.get(key) ?? 0;
       occurrences.set(key, occurrence + 1);
-      blocks.push(...this.#messageBlocks(message, status, index, occurrence));
+      for (const block of this.#messageBlocks(message, status, index, occurrence)) {
+        const existingIndex = blockIndexes.get(block.id);
+        if (existingIndex === undefined) {
+          blockIndexes.set(block.id, blocks.length);
+          blocks.push(block);
+          continue;
+        }
+        const existing = blocks[existingIndex];
+        if (existing !== undefined) {
+          blocks[existingIndex] = {
+            ...block,
+            payload: {
+              ...(isRecord(existing.payload) ? existing.payload : {}),
+              ...(isRecord(block.payload) ? block.payload : {}),
+            },
+          };
+        }
+      }
     }
     this.#transcript = blocks;
   }
@@ -1519,16 +1537,26 @@ export class PiEngineAdapter {
       }];
     }
     if (message.role === "toolResult") {
+      const toolCallId = stringValue(message.toolCallId);
+      const blockId = toolCallId === undefined
+        ? baseId
+        : this.#toolBlockIds.get(toolCallId) ?? `tool-${toolCallId}`;
+      if (toolCallId !== undefined) this.#toolBlockIds.set(toolCallId, blockId);
+      const existing = this.#transcript.find(block => block.id === blockId);
+      const existingPayload = isRecord(existing?.payload) ? existing.payload : undefined;
       return [{
-        id: baseId,
+        id: blockId,
         kind: "tool-result",
         status,
-        revision: this.#nextBlockRevision(baseId),
-        title: stringValue(message.toolName) ?? "Tool result",
+        revision: this.#nextBlockRevision(blockId),
+        title: stringValue(message.toolName) ?? existing?.title ?? "Tool result",
         text: textFromContent(message.content),
         payload: {
+          ...(existingPayload ?? {}),
           role: "toolResult",
-          toolCallId: stringValue(message.toolCallId) ?? null,
+          toolCallId: toolCallId ?? null,
+          toolName: stringValue(message.toolName) ?? stringValue(existingPayload?.toolName) ?? "unknown",
+          argsComplete: true,
           isError: message.isError === true,
           details: jsonSummary(message.details),
         },

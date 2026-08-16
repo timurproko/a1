@@ -339,7 +339,7 @@ describe("Pi engine adapter", () => {
     const { adapter } = await adapterWithRuntime(runtime);
     const transcript = adapter.view().transcript;
     expect(transcript.map(block => block.kind)).toEqual([
-      "user", "assistant", "tool-call", "tool-result", "bash", "custom", "compaction",
+      "user", "assistant", "tool-result", "bash", "custom", "compaction",
     ]);
     expect(transcript[0]?.payload).toMatchObject({ role: "user", imageCount: 1 });
     expect(transcript[1]?.payload).toMatchObject({
@@ -351,6 +351,11 @@ describe("Pi engine adapter", () => {
       ],
     });
     expect(JSON.stringify(transcript)).not.toContain("secret-image-bytes");
+    expect(transcript.find(block => block.kind === "tool-result")).toMatchObject({
+      id: "tool-call-1",
+      text: "file summary",
+      payload: { toolCallId: "call-1", toolName: "read", arguments: { json: { path: "README.md" } } },
+    });
     expect(transcript.find(block => block.kind === "bash")).toMatchObject({ title: "printf ok", text: "ok" });
     expect(transcript.find(block => block.kind === "custom")).toMatchObject({ title: "notice", text: "extension notice" });
     expect(adapter.snapshot()).toMatchObject({

@@ -90,7 +90,8 @@ export function commonParityEnvironment(profile, base = process.env) {
 }
 
 function deterministicProviderSource() {
-  return `import { createAssistantMessageEventStream } from "@earendil-works/pi-ai";
+  return `import { Type, createAssistantMessageEventStream } from "@earendil-works/pi-ai";
+import { Text } from "@earendil-works/pi-tui";
 
 const wait = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
 
@@ -98,6 +99,25 @@ export default function deterministicParityProvider(pi) {
   pi.on("agent_start", (_event, ctx) => {
     if (!ctx.hasUI) throw new Error("terminal parity extension expected UI capability");
     ctx.ui.setWidget("parity-lifecycle", ["extension lifecycle ready"], { placement: "aboveEditor" });
+  });
+  pi.registerTool({
+    name: "parity_echo",
+    label: "Parity Echo",
+    description: "Deterministic terminal parity tool",
+    parameters: Type.Object({ value: Type.String() }),
+    async execute(_toolCallId, params, _signal, onUpdate) {
+      onUpdate?.({ content: [{ type: "text", text: "tool:partial" }], details: { stage: "partial" } });
+      await wait(40);
+      return { content: [{ type: "text", text: \`tool:\${params.value}\` }], details: { stage: "complete" } };
+    },
+    renderCall(args, theme) {
+      return new Text(theme.fg("toolTitle", theme.bold(\`parity_echo \${args.value}\`)), 0, 0);
+    },
+    renderResult(result, { isPartial }, theme) {
+      const content = result.content[0];
+      const text = content?.type === "text" ? content.text : "no result";
+      return new Text(theme.fg(isPartial ? "warning" : "success", text), 0, 0);
+    },
   });
   pi.registerProvider("addone-parity", {
     name: "AddOne terminal parity fixture",
@@ -107,7 +127,7 @@ export default function deterministicParityProvider(pi) {
     models: [{
       id: "scripted",
       name: "Scripted parity model",
-      reasoning: false,
+      reasoning: true,
       input: ["text"],
       cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
       contextWindow: 8192,
@@ -134,6 +154,26 @@ export default function deterministicParityProvider(pi) {
           output.stopReason = "error";
           output.errorMessage = "deterministic parity provider error";
           stream.push({ type: "error", reason: "error", error: output });
+          stream.end();
+          return;
+        }
+        const userText = context.messages.filter(message => message.role === "user").map(message => typeof message.content === "string" ? message.content : Array.isArray(message.content) ? message.content.filter(value => value.type === "text").map(value => value.text).join("") : "").join("\\n");
+        const hasParityPrompt = userText.includes("parity-stream");
+        const hasParityToolResult = context.messages.some(message => message.role === "toolResult" && message.toolName === "parity_echo");
+        if (hasParityPrompt && !hasParityToolResult) {
+          output.content.push({ type: "thinking", thinking: "" });
+          stream.push({ type: "thinking_start", contentIndex: 0, partial: output });
+          await wait(50);
+          output.content[0].thinking = "Use deterministic tool";
+          stream.push({ type: "thinking_delta", contentIndex: 0, delta: "Use deterministic tool", partial: output });
+          stream.push({ type: "thinking_end", contentIndex: 0, content: output.content[0].thinking, partial: output });
+          output.content.push({ type: "toolCall", id: "parity-tool-1", name: "parity_echo", arguments: {} });
+          stream.push({ type: "toolcall_start", contentIndex: 1, partial: output });
+          output.content[1].arguments = { value: "ready" };
+          stream.push({ type: "toolcall_delta", contentIndex: 1, delta: '{"value":"ready"}', partial: output });
+          stream.push({ type: "toolcall_end", contentIndex: 1, toolCall: output.content[1], partial: output });
+          output.stopReason = "toolUse";
+          stream.push({ type: "done", reason: "toolUse", message: output });
           stream.end();
           return;
         }
