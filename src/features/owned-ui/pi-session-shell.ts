@@ -20,6 +20,7 @@ import {
   createPiShellEditor,
   createPiShellFooter,
   createPiShellHeader,
+  createPiShellHotkeys,
   createPiShellLoadedResources,
   createPiShellLoginDialog,
   createPiShellModelSelector,
@@ -71,6 +72,7 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
   #toolsExpanded = false;
   #thinkingVisible = true;
   #workflowRows: string[] = [];
+  #workflowComponents: PiShellComponentPort[] = [];
   #inputSurface: PiShellComponentPort;
 
   constructor(
@@ -182,7 +184,8 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
 
   #renderDocument(width: number): readonly string[] {
     const transcript = this.#transcriptOrder.flatMap(id => {
-      if (!this.#thinkingVisible && this.#view.transcript.find(block => block.id === id)?.kind === "thinking") return [];
+      const block = this.#view.transcript.find(item => item.id === id);
+      if (!this.#thinkingVisible && block?.kind === "thinking") return [];
       return this.#transcript.get(id)?.render(width) ?? [];
     });
     const diagnosticRows = this.#view.diagnostics.slice(-3).flatMap(diagnostic =>
@@ -195,12 +198,16 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
         text: diagnostic.message,
         payload: {},
       }, width, this.#cwd));
+    const resourceRows = [...this.resources.render(width)];
+    if (transcript.length > 0 && resourceRows.at(-1) === "") resourceRows.pop();
     return [
       ...this.header.render(width),
-      ...this.resources.render(width),
+      ...resourceRows,
       ...transcript,
+      ...(transcript.length === 0 ? [] : [""]),
       ...diagnosticRows,
       ...this.#workflowRows,
+      ...this.#workflowComponents.flatMap(component => component.render(width)),
     ];
   }
 
@@ -209,6 +216,11 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
   }
 
   appendWorkflowResult(result: PiWorkflowResult): void {
+    if (result.command === "hotkeys" && result.outcome === "completed") {
+      this.#workflowComponents = [...this.#workflowComponents, createPiShellHotkeys()].slice(-4);
+      this.invalidate();
+      return;
+    }
     const prefix = result.outcome === "failed" ? "Error: " : result.outcome === "cancelled" ? "" : "✓ ";
     const detail = result.detail?.split(/\r?\n/).slice(0, 32) ?? [];
     this.#workflowRows = [...this.#workflowRows, `${prefix}${result.message}`, ...detail].slice(-40);
@@ -240,6 +252,7 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
     for (const component of this.#transcript.values()) component.invalidate();
     this.editor.invalidate();
     if (this.#inputSurface !== this.editor) this.#inputSurface.invalidate();
+    for (const component of this.#workflowComponents) component.invalidate();
     this.#status.invalidate();
     this.#footer.invalidate();
     this.#queued.invalidate();
@@ -255,6 +268,7 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
     for (const component of this.#transcript.values()) component.dispose?.();
     this.#transcript.clear();
     if (this.#inputSurface !== this.editor) this.#inputSurface.dispose?.();
+    for (const component of this.#workflowComponents) component.dispose?.();
     this.editor.dispose?.();
     this.#status.dispose?.();
     this.#footer.dispose?.();

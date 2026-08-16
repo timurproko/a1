@@ -7,6 +7,7 @@ import {
   createPiShellFooter,
   createPiShellAuthProviderSelector,
   createPiShellHeader,
+  createPiShellHotkeys,
   createPiShellLoadedResources,
   createPiShellSettingsSelector,
   createPiShellSelector,
@@ -89,6 +90,17 @@ describe("Pi shell public component adapters", () => {
       const rows = renderPiShellTranscriptBlock(fixture, 60, process.cwd());
       expect(rows.length, fixture.kind).toBeGreaterThan(0);
     }
+  });
+
+  it("renders the complete keybinding-derived pinned hotkey tables", () => {
+    const rows = stripTerminalSequences(createPiShellHotkeys().render(120).join("\n"));
+    expect(rows).toContain("Keyboard Shortcuts");
+    expect(rows).toContain("Navigation");
+    expect(rows).toContain("Editing");
+    expect(rows).toContain("Other");
+    expect(rows).toContain("Move cursor / browse history");
+    expect(rows).toContain("Run bash command (excluded from context)");
+    expect(rows).toContain("Ctrl+O");
   });
 
   it("renders pinned compact and expanded startup resource sections with diagnostics", () => {

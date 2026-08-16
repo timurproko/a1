@@ -4,6 +4,7 @@ import {
   CompactionSummaryMessageComponent,
   CustomEditor,
   CustomMessageComponent,
+  DynamicBorder,
   ExtensionSelectorComponent,
   FooterComponent,
   getMarkdownTheme,
@@ -11,10 +12,12 @@ import {
   LoginDialogComponent,
   ModelSelectorComponent,
   OAuthSelectorComponent,
+  parseSkillBlock,
   rawKeyHint,
   SessionSelectorComponent,
   SettingsSelectorComponent,
   ShowImagesSelectorComponent,
+  SkillInvocationMessageComponent,
   type SessionInfo,
   type SessionTreeNode,
   type SettingsCallbacks,
@@ -31,7 +34,9 @@ import {
   Box,
   CombinedAutocompleteProvider,
   Container,
+  Markdown,
   SelectList,
+  setKeybindings,
   Spacer,
   Text,
   truncateToWidth,
@@ -521,6 +526,48 @@ export function createPiShellDialog(
   return componentPort(box, data => selector.handleInput?.(data));
 }
 
+export function createPiShellHotkeys(): PiShellComponentPort {
+  ensureTheme();
+  const keys = new KeybindingsManager();
+  const display = (action: Parameters<typeof keys.getKeys>[0]) => keys.getKeys(action)
+    .map(key => key.split("+").map(part => part.charAt(0).toUpperCase() + part.slice(1)).join("+"))
+    .join("/");
+  const row = (actions: readonly Parameters<typeof keys.getKeys>[0][], description: string) =>
+    `| ${actions.map(action => `\`${display(action)}\``).join(" / ")} | ${description} |`;
+  const markdown = [
+    "**Navigation**", "| Key | Action |", "|-----|--------|",
+    row(["tui.editor.cursorUp", "tui.editor.cursorDown", "tui.editor.cursorLeft", "tui.editor.cursorRight"], "Move cursor / browse history"),
+    row(["tui.editor.cursorWordLeft", "tui.editor.cursorWordRight"], "Move by word"),
+    row(["tui.editor.cursorLineStart"], "Start of line"), row(["tui.editor.cursorLineEnd"], "End of line"),
+    row(["tui.editor.jumpForward"], "Jump forward to character"), row(["tui.editor.jumpBackward"], "Jump backward to character"),
+    row(["tui.editor.pageUp", "tui.editor.pageDown"], "Scroll by page"), "",
+    "**Editing**", "| Key | Action |", "|-----|--------|",
+    row(["tui.input.submit"], "Send message"),
+    row(["tui.input.newLine"], `New line${process.platform === "win32" ? " (Ctrl+Enter on Windows Terminal)" : ""}`),
+    row(["tui.editor.deleteWordBackward"], "Delete word backwards"), row(["tui.editor.deleteWordForward"], "Delete word forwards"),
+    row(["tui.editor.deleteToLineStart"], "Delete to start of line"), row(["tui.editor.deleteToLineEnd"], "Delete to end of line"),
+    row(["tui.editor.yank"], "Paste the most-recently-deleted text"), row(["tui.editor.yankPop"], "Cycle through the deleted text after pasting"),
+    row(["tui.editor.undo"], "Undo"), "", "**Other**", "| Key | Action |", "|-----|--------|",
+    row(["tui.input.tab"], "Path completion / accept autocomplete"), row(["app.interrupt"], "Cancel autocomplete / abort streaming"),
+    row(["app.clear"], "Clear editor (first) / exit (second)"), row(["app.exit"], "Exit (when editor is empty)"),
+    row(["app.suspend"], "Suspend to background"), row(["app.thinking.cycle"], "Cycle thinking level"),
+    row(["app.model.cycleForward", "app.model.cycleBackward"], "Cycle models"), row(["app.model.select"], "Open model selector"),
+    row(["app.tools.expand"], "Toggle tool output expansion"), row(["app.thinking.toggle"], "Toggle thinking block visibility"),
+    row(["app.editor.external"], "Edit message in external editor"), row(["app.message.copy"], "Copy last assistant message"),
+    row(["app.message.followUp"], "Queue follow-up message"), row(["app.message.dequeue"], "Restore queued messages"),
+    row(["app.clipboard.pasteImage"], "Paste image or text from clipboard"),
+    "| `/` | Slash commands |", "| `!` | Run bash command |", "| `!!` | Run bash command (excluded from context) |",
+  ].join("\n");
+  const container = new Container();
+  container.addChild(new Spacer(1));
+  container.addChild(new DynamicBorder());
+  container.addChild(new Text(piTheme().bold(piTheme().fg("accent", "Keyboard Shortcuts")), 1, 0));
+  container.addChild(new Spacer(1));
+  container.addChild(new Markdown(markdown, 1, 1, getMarkdownTheme()));
+  container.addChild(new DynamicBorder());
+  return componentPort(container);
+}
+
 export function createPiShellHeader(options: PiShellHeaderOptions = {}): PiShellHeaderPort {
   ensureTheme();
   let expanded = options.expanded ?? false;
@@ -675,6 +722,7 @@ export function createPiShellTranscriptComponent(
   initial: OwnedUiTranscriptBlock,
   cwd: string,
 ): PiShellTranscriptComponentPort {
+  ensureTheme();
   let block = initial;
   let expanded = false;
   let component = transcriptComponent(block, cwd, expanded);
@@ -714,8 +762,22 @@ export function renderPiShellTranscriptBlock(
 
 function transcriptComponent(block: OwnedUiTranscriptBlock, cwd: string, expanded: boolean): Component {
   switch (block.kind) {
-    case "user":
-      return new UserMessageComponent(block.text);
+    case "user": {
+      const skill = parseSkillBlock(block.text);
+      if (!skill) return new UserMessageComponent(block.text);
+      const invocation = new SkillInvocationMessageComponent(skill, getMarkdownTheme());
+      invocation.setExpanded(expanded);
+      const renderedInvocation: Component = {
+        render: width => invocation.render(width).map(row => row.replace("( to expand)", "(ctrl+o to expand)")),
+        invalidate: () => invocation.invalidate(),
+      };
+      if (!skill.userMessage) return renderedInvocation;
+      const container = new Container();
+      container.addChild(renderedInvocation);
+      container.addChild(new Spacer(1));
+      container.addChild(new UserMessageComponent(skill.userMessage));
+      return container;
+    }
     case "assistant":
     case "thinking":
       return assistantComponent(block);
@@ -1137,4 +1199,5 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function ensureTheme(): void {
   ensurePiTheme();
+  setKeybindings(new KeybindingsManager());
 }
