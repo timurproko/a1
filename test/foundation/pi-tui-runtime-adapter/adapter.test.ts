@@ -193,6 +193,54 @@ describe("PiTuiRuntimeAdapter", () => {
     expect(mountedOverlay.disposed).toBe(true);
   });
 
+  it("retains a uniform selection, copies only on selected Ctrl+C, and never renders a copy flash", async () => {
+    const terminal = new TestTerminal();
+    terminal.rows = 5;
+    const root = new TestComponent(["\x1b[38;2;255;0;0mcolored text\x1b[0m", "plain text"]);
+    const runtime = new PiTuiRuntimeAdapter({ root, terminal });
+    runtime.start();
+    runtime.renderNow(true);
+    terminal.writes.length = 0;
+
+    terminal.input("\x1b[<0;1;1M");
+    terminal.input("\x1b[<32;8;1M");
+    terminal.input("\x1b[<0;8;1m");
+    runtime.renderNow();
+
+    const selectionFrame = terminal.writes.join("");
+    expect(selectionFrame).not.toContain("Copied!");
+    expect(selectionFrame).not.toContain("\x1b]52;");
+    const inverse = /\x1b\[7m([\s\S]*?)\x1b\[27m/.exec(selectionFrame)?.[1] ?? "";
+    expect(inverse).toContain("colored");
+    expect(inverse).not.toMatch(/\x1b\[(?:38|48);/);
+
+    terminal.writes.length = 0;
+    terminal.input("\x03");
+    expect(terminal.writes.join("")).toContain("\x1b]52;");
+    expect(root.inputs).not.toContain("\x03");
+
+    terminal.input("\x1b[<0;2;2M");
+    terminal.input("\x1b[<0;2;2m");
+    terminal.input("\x03");
+    runtime.renderNow();
+    expect(root.inputs).toContain("\x03");
+    await runtime.stop({ drainInput: false, preserveScreen: true });
+  });
+
+  it("moves three rows for one physical wheel notch by default", async () => {
+    const terminal = new TestTerminal();
+    terminal.rows = 5;
+    const root = new TestComponent(Array.from({ length: 12 }, (_, index) => `row-${index}`));
+    const runtime = new PiTuiRuntimeAdapter({ root, terminal });
+    runtime.start();
+    runtime.renderNow(true);
+    runtime.scrollToTop();
+    terminal.input("\x1b[<65;5;3M");
+    runtime.renderNow();
+    expect(runtime.scrollState().scrollTop).toBe(3);
+    await runtime.stop({ drainInput: false, preserveScreen: true });
+  });
+
   it("matches pinned physical-wheel batching, configured distance, direct scrolling, and boundaries", async () => {
     const terminal = new TestTerminal();
     terminal.rows = 5;

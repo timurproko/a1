@@ -9,6 +9,7 @@ export const FULL_GATE_TIMEOUT_MS = 90_000;
 export const TERMINAL_PARITY_TOLERANCES = Object.freeze([
   "differential-sgr-order",
   "transient-scrollbar-thumb-rounding",
+  "ordinary-vanilla-wheel-distance",
 ]);
 
 export const TERMINAL_PARITY_ACTIONS = Object.freeze([
@@ -36,6 +37,7 @@ export const TERMINAL_PARITY_ACTIONS = Object.freeze([
   { type: "checkpoint", name: "recoverable-error", domains: ["errors", "settlement", "editor", "footer-status"] },
   { type: "wheel", direction: "up", notches: 2, column: 8, row: 8 },
   { type: "checkpoint", name: "physical-wheel", domains: ["scroll", "scrollbar", "transcript", "cursor-focus"] },
+  { type: "wheel", direction: "down", notches: 100, column: 8, row: 8 },
   { type: "resize", columns: 72, rows: 20 },
   { type: "checkpoint", name: "narrow-resize", domains: ["resize", "wrapping", "component-geometry", "editor", "footer-status"] },
   { type: "resize", columns: DEFAULT_COLUMNS, rows: DEFAULT_ROWS },

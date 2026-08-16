@@ -4068,13 +4068,21 @@
       "lines": 1048,
       "sha256": "8fa684dc76b2fd546eaab168c35aa5fb6e0ddb4d5d525860c4ee31adb1e282bb",
       "classification": "host-adapter",
-      "localDestination": "src/foundation/pi-tui-runtime-adapter/index.ts",
-      "implementationStatus": "adapter-present-conformance-pending",
+      "localDestination": "src/foundation/pi-tui-runtime-adapter/adapter.ts",
+      "implementationStatus": "adapter-present-conformance-passed",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Use pinned public pi-tui terminal/runtime APIs behind AddOne lifecycle ownership.",
-      "approvedDeviations": [],
+      "modifications": "Use pinned public pi-tui terminal/runtime APIs behind AddOne lifecycle ownership. At the public terminal seam, retain selection until Ctrl+C, suppress release-time OSC 52 and the copy flash, normalize selected inverse spans, and configure three-row wheel routing.",
+      "approvedDeviations": [
+        {
+          "id": "ordinary-vanilla-selection-and-wheel",
+          "reason": "User-controlled comparison requires ordinary vanilla interaction instead of pinned fullscreen defaults: retained uniform selection, selected Ctrl+C copy without a flash, and three rows per wheel notch.",
+          "upstreamBehavior": "Pinned fullscreen TuiAltScreen copies on mouse release, displays Copied!, preserves source ANSI colors inside inverse selection, and defaults wheelScrollLines to one; AddOne records and tests the user-directed behavior at its public terminal host seam.",
+          "acceptanceTest": "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+        }
+      ],
       "behaviorCategories": [
         "keybindings",
+        "clipboard",
         "resize",
         "shutdown"
       ],
@@ -4085,12 +4093,17 @@
         "shutdown.dispose-stateful-components"
       ],
       "acceptanceTasks": [
+        "7.1",
         "7.6",
+        "7.17",
+        "7.18",
         "7.21"
       ],
       "tests": [
         "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts",
-        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts",
+        "test/foundation/pi-tui-runtime-adapter/pinned-wheel-parity.test.ts",
+        "test/repository-governance/pi-terminal-parity-gate.test.ts"
       ]
     },
     {

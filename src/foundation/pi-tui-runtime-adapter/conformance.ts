@@ -48,10 +48,10 @@ export async function runPiTuiRuntimeConformance(): Promise<PiTuiRuntimeConforma
     runtime.renderNow();
     terminal.input("\x1b[<65;5;3M");
     runtime.renderNow();
-    const physicalWheelRouted = runtime.scrollState().scrollTop === 1;
+    const physicalWheelRouted = runtime.scrollState().scrollTop === 3;
     runtime.scrollBy(1);
     runtime.renderNow();
-    const directScrollRouted = runtime.scrollState().scrollTop === 2;
+    const directScrollRouted = runtime.scrollState().scrollTop === 4;
 
     await runtime.stop({ drainMaxMs: 1, drainIdleMs: 1 });
     const emitted = terminal.writes.join("");

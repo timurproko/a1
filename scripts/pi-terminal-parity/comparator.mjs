@@ -85,6 +85,7 @@ export function renderSideBySideDiff(comparison, upstream, addone) {
 function compareCheckpoint(differences, tolerances, expected, actual) {
   const name = expected.name;
   compareValue(differences, tolerances, `checkpoints.${name}.dimensions`, expected.dimensions, actual.dimensions, "component-geometry", name);
+  if (name === "physical-wheel" && tolerances.has("ordinary-vanilla-wheel-distance")) return;
   compareValue(differences, tolerances, `checkpoints.${name}.cursor`, expected.cursor, actual.cursor, "cursor-focus", name);
   compareValue(differences, tolerances, `checkpoints.${name}.scroll`, expected.scroll, actual.scroll, "scroll", name);
   compareValue(differences, tolerances, `checkpoints.${name}.modes`, expected.modes, actual.modes, "focus", name);

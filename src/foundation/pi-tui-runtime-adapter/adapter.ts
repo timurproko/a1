@@ -4,6 +4,9 @@ import {
   ScrollView,
   TuiAltScreen,
   VStack,
+  getKeybindings,
+  isKeyRelease,
+  stripTerminalSequences,
   type Component,
   type Focusable,
   type OverlayHandle,
@@ -31,6 +34,97 @@ export class PiTuiRuntimeError extends Error {
   constructor(readonly stage: PiTuiRuntimeErrorStage, cause: unknown) {
     super(`Pi TUI runtime failed during ${stage}: ${cause instanceof Error ? cause.message : String(cause)}`, { cause });
     this.name = "PiTuiRuntimeError";
+  }
+}
+
+const OSC52_CLIPBOARD = /\x1b\]52;[^\x07]*\x07/g;
+const INVERSE_SPAN = /\x1b\[7m([\s\S]*?)\x1b\[27m/g;
+const SGR_MOUSE = /^\x1b\[<(\d+);(\d+);(\d+)([Mm])$/;
+
+class VanillaSelectionTerminal implements PiTuiTerminalPort {
+  #selectionPress = false;
+  #selectionDragged = false;
+  #selectionActive = false;
+  #pendingClipboardSequence: string | undefined;
+
+  constructor(private readonly terminal: PiTuiTerminalPort) {}
+
+  get columns(): number { return this.terminal.columns; }
+  get rows(): number { return this.terminal.rows; }
+  get kittyProtocolActive(): boolean { return this.terminal.kittyProtocolActive; }
+
+  start(onInput: (data: string) => void, onResize: () => void): void {
+    this.terminal.start(data => {
+      this.#trackSelectionInput(data);
+      if (this.#selectionActive && getKeybindings().matches(data, "tui.input.copy")) {
+        if (!isKeyRelease(data) && this.#pendingClipboardSequence !== undefined) {
+          this.terminal.write(this.#pendingClipboardSequence);
+        }
+        return;
+      }
+      onInput(data);
+    }, onResize);
+  }
+
+  stop(): void {
+    this.#selectionPress = false;
+    this.#selectionDragged = false;
+    this.#selectionActive = false;
+    this.#pendingClipboardSequence = undefined;
+    this.terminal.stop();
+  }
+
+  drainInput(maxMs?: number, idleMs?: number): Promise<void> {
+    return this.terminal.drainInput(maxMs, idleMs);
+  }
+
+  write(data: string): void {
+    const clipboardSequences = data.match(OSC52_CLIPBOARD);
+    if (clipboardSequences !== null) {
+      this.#pendingClipboardSequence = clipboardSequences.at(-1);
+      this.#selectionActive = this.#pendingClipboardSequence !== undefined;
+      data = data.replace(OSC52_CLIPBOARD, "");
+    }
+    if (this.#selectionDragged || this.#selectionActive) {
+      data = data.replace(INVERSE_SPAN, (_match, selected: string) =>
+        `\x1b[0m\x1b[7m${stripTerminalSequences(selected)}\x1b[27m`);
+    }
+    if (data.length > 0) this.terminal.write(data);
+  }
+
+  moveBy(lines: number): void { this.terminal.moveBy(lines); }
+  hideCursor(): void { this.terminal.hideCursor(); }
+  showCursor(): void { this.terminal.showCursor(); }
+  clearLine(): void { this.terminal.clearLine(); }
+  clearFromCursor(): void { this.terminal.clearFromCursor(); }
+  clearScreen(): void { this.terminal.clearScreen(); }
+  setTitle(title: string): void { this.terminal.setTitle(title); }
+  setProgress(active: boolean): void { this.terminal.setProgress(active); }
+
+  #trackSelectionInput(data: string): void {
+    const mouse = SGR_MOUSE.exec(data);
+    if (mouse === null) return;
+    const button = Number.parseInt(mouse[1] ?? "", 10);
+    const release = mouse[4] === "m";
+    if (!release && (button & 32) === 0 && (button & 3) === 0) {
+      this.#selectionPress = true;
+      this.#selectionDragged = false;
+      this.#selectionActive = false;
+      this.#pendingClipboardSequence = undefined;
+      return;
+    }
+    if (!release && this.#selectionPress && (button & 32) !== 0) {
+      this.#selectionDragged = true;
+      return;
+    }
+    if (release) this.#selectionPress = false;
+  }
+}
+
+class VanillaSelectionTuiAltScreen extends TuiAltScreen {
+  override flash(message: string, durationMs?: number): void {
+    if (message === "Copied!") return;
+    super.flash(message, durationMs);
   }
 }
 
@@ -128,13 +222,12 @@ export class PiTuiRuntimeAdapter {
     this.#mountedComponents.add(options.root);
 
     try {
-      const tuiOptions: TuiAltScreenOptions = {};
+      const tuiOptions: TuiAltScreenOptions = { wheelScrollLines: options.wheelScrollLines ?? 3 };
       if (options.mouse !== undefined) tuiOptions.mouse = options.mouse;
-      if (options.wheelScrollLines !== undefined) tuiOptions.wheelScrollLines = options.wheelScrollLines;
       if (options.openUrl !== undefined) tuiOptions.openUrl = options.openUrl;
       if (options.onRightClickPaste !== undefined) tuiOptions.onRightClickPaste = options.onRightClickPaste;
-      this.#tui = new TuiAltScreen(
-        this.#terminal,
+      this.#tui = new VanillaSelectionTuiAltScreen(
+        new VanillaSelectionTerminal(this.#terminal),
         options.hardwareCursor ?? false,
         options.logDirectory,
         tuiOptions,
