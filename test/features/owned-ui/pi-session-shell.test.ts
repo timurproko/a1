@@ -413,6 +413,34 @@ describe("PiSessionShell", () => {
     await shell.dispose();
   });
 
+  it("keeps working and chronological command messages in their pinned root order with the dock spacer", async () => {
+    const { engine, adapter, shell } = await fixture();
+    engine.session.emit({ type: "agent_start" });
+    await adapter.flushEvents();
+    let rows = shell.root.render(100).map(row => stripTerminalSequences(row).trimEnd());
+    const working = rows.findIndex(row => row.includes("Working"));
+    expect(working).toBeGreaterThan(-1);
+    expect(rows[working + 1]?.trim()).toBe("");
+    expect(rows[working + 2]).toMatch(/^─+$/);
+
+    engine.session.emit({ type: "agent_end", messages: [] });
+    await adapter.flushEvents();
+    shell.root.appendWorkflowStatus("first informational message");
+    shell.root.appendWorkflowResult({ command: "import", outcome: "failed", message: "Usage: /import <path.jsonl>" });
+    shell.root.appendWorkflowStatus("latest informational message");
+    rows = shell.root.render(100).map(row => stripTerminalSequences(row).trimEnd());
+    const first = rows.findIndex(row => row.includes("first informational message"));
+    const error = rows.findIndex(row => row.includes("Error: Usage: /import <path.jsonl>"));
+    const latest = rows.findIndex(row => row.includes("latest informational message"));
+    const editorBorder = rows.findIndex((row, index) => index > latest && /^─+$/.test(row));
+    expect(first).toBeGreaterThan(-1);
+    expect(error).toBeGreaterThan(first);
+    expect(latest).toBeGreaterThan(error);
+    expect(editorBorder).toBe(latest + 2);
+    expect(rows[latest + 1]?.trim()).toBe("");
+    await shell.dispose();
+  });
+
   it("renders /session with pinned structured groups, styles, and indentation instead of JSON", async () => {
     const { shell } = await fixture();
     shell.root.appendWorkflowResult({

@@ -82,8 +82,6 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
   readonly #extensionRenderers: PiShellExtensionRendererResolver;
   #toolsExpanded = false;
   #thinkingVisible = true;
-  #workflowRows: string[] = [];
-  #workflowComponents: PiShellComponentPort[] = [];
   #workflowTranscriptSequence = 0;
   readonly #workflowStatusAnchors = new Map<string, number>();
   readonly #workflowStatusMessages = new Map<string, string>();
@@ -95,7 +93,6 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
   readonly #extensionStatuses = new Map<string, string>();
   #extensionWorkingMessage: string | undefined;
   #extensionWorkingVisible = true;
-  #extensionNotifications: string[] = [];
 
   constructor(
     view: OwnedUiSessionViewModel,
@@ -129,7 +126,7 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
     this.header = createPiShellHeader(startup);
     this.resources = createPiShellLoadedResources(startup.resources ?? [], startup.expanded ?? false);
     this.#status = createPiShellStatus(view, handlers);
-    this.#footer = createPiShellFooter(view, cwd);
+    this.#footer = createPiShellFooter(this.#viewWithExtensionStatuses(view), cwd);
     this.#queued = createPiQueuedInputStatus(view.editor.queuedSubmissions);
     this.editor = createPiShellEditor({
       ...handlers,
@@ -148,7 +145,7 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
   update(view: OwnedUiSessionViewModel): void {
     this.#view = view;
     this.#status.update(view);
-    this.#footer.update(view);
+    this.#footer.update(this.#viewWithExtensionStatuses(view));
     this.#queued.update(view.editor.queuedSubmissions);
     this.#syncTranscript(view.transcript);
     this.editor.setSubmitEnabled(view.lifecycle !== "stopping" && view.lifecycle !== "stopped" && view.lifecycle !== "failed");
@@ -161,8 +158,8 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
     return [
       ...this.#renderDocument(width),
       ...queued,
-      ...this.#renderWidgets("aboveEditor", width),
       ...this.#renderStatus(width),
+      ...this.#renderWidgets("aboveEditor", width),
       ...this.#inputSurface.render(width),
       ...this.#renderWidgets("belowEditor", width),
       ...this.#renderFooter(width),
@@ -207,8 +204,8 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
             direction: "vertical",
             children: [
               { shrink: 1, minSize: 0, node: { type: "component", component: queued } },
-              { shrink: 1, minSize: 0, node: { type: "component", component: aboveWidgets } },
               { shrink: 1, minSize: 0, node: { type: "component", component: status } },
+              { shrink: 1, minSize: 0, node: { type: "component", component: aboveWidgets } },
               { shrink: 1, minSize: 3, node: { type: "component", component: editor } },
               { shrink: 1, minSize: 0, node: { type: "component", component: belowWidgets } },
               { shrink: 1, minSize: 1, node: { type: "component", component: footer } },
@@ -238,15 +235,12 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
         payload: {},
       }, width, this.#cwd));
     const resourceRows = [...this.resources.render(width)];
-    if (transcript.length > 0 && resourceRows.at(-1) === "") resourceRows.pop();
+    if (resourceRows.at(-1) === "") resourceRows.pop();
     return [
       ...(this.#extensionHeader ?? this.header).render(width),
       ...resourceRows,
       ...transcript,
-      ...(transcript.length === 0 ? [] : [""]),
       ...diagnosticRows,
-      ...this.#workflowRows,
-      ...this.#workflowComponents.flatMap(component => component.render(width)),
     ];
   }
 
@@ -273,30 +267,53 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
       this.appendWorkflowStatus(result.message);
       return;
     }
-    this.#lastWorkflowStatusId = undefined;
     if (result.command === "session" && result.outcome === "completed" && result.presentation?.kind === "session-info") {
+      this.#lastWorkflowStatusId = undefined;
       const sessionInfo = createPiShellSessionInfo(result.presentation);
       this.#appendAnchoredWorkflowComponent(width => sessionInfo.render(width), () => sessionInfo.dispose?.());
       return;
     }
     if (result.command === "hotkeys" && result.outcome === "completed") {
+      this.#lastWorkflowStatusId = undefined;
       const hotkeys = createPiShellHotkeys();
       this.#appendAnchoredWorkflowComponent(width => hotkeys.render(width), () => hotkeys.dispose?.());
       return;
     }
     if (result.command === "changelog" && result.outcome === "completed") {
+      this.#lastWorkflowStatusId = undefined;
       const changelog = createPiShellChangelog(result.detail ?? "No changelog entries found.");
       this.#appendAnchoredWorkflowComponent(width => changelog.render(width), () => changelog.dispose?.());
       return;
     }
     if (result.outcome === "failed") {
-      this.#appendAnchoredWorkflowComponent(() => ["", ` ${piTheme().fg("error", `Error: ${result.message}`)}`]);
+      this.#lastWorkflowStatusId = undefined;
+      const warning = (result.command === "name" && result.message.startsWith("Usage:"))
+        || (result.command === "reload" && result.message.startsWith("Wait for "));
+      const prefix = warning ? "Warning" : "Error";
+      const color = warning ? "warning" : "error";
+      this.#appendAnchoredWorkflowComponent(() => ["", ` ${piTheme().fg(color, `${prefix}: ${result.message}`)}`]);
       return;
     }
-    const prefix = result.outcome === "cancelled" ? "" : "✓ ";
-    const detail = result.detail?.split(/\r?\n/).slice(0, 32) ?? [];
-    this.#workflowRows = [...this.#workflowRows, `${prefix}${result.message}`, ...detail].slice(-40);
-    this.invalidate();
+    if (result.outcome === "completed" && (result.command === "quit" || result.command === "compact")) return;
+    if (result.command === "new" && result.outcome === "completed") {
+      this.#lastWorkflowStatusId = undefined;
+      this.#appendAnchoredWorkflowComponent(() => ["", ` ${piTheme().fg("accent", result.message)}`]);
+      return;
+    }
+    if (result.command === "name" && result.outcome === "completed") {
+      this.#lastWorkflowStatusId = undefined;
+      this.#appendAnchoredWorkflowComponent(() => ["", ` ${piTheme().fg("dim", result.message)}`]);
+      return;
+    }
+    if (result.command === "debug" && result.outcome === "completed") {
+      this.#lastWorkflowStatusId = undefined;
+      this.#appendAnchoredWorkflowComponent(() => ["", ` ${piTheme().fg("accent", result.message)}`]);
+      return;
+    }
+    const message = result.command === "share" && result.detail
+      ? `${result.message}\nGist: ${result.detail}`
+      : result.message;
+    this.appendWorkflowStatus(message);
   }
 
   toggleThinkingVisibility(): void {
@@ -335,6 +352,7 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
   setExtensionStatus(key: string, text: string | undefined): void {
     if (text === undefined) this.#extensionStatuses.delete(key);
     else this.#extensionStatuses.set(key, text);
+    this.#footer.update(this.#viewWithExtensionStatuses(this.#view));
     this.invalidate();
   }
 
@@ -353,13 +371,18 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
     this.#extensionWidgets.clear();
     this.#extensionStatuses.clear();
     this.#extensionWorkingMessage = undefined;
+    this.#footer.update(this.#viewWithExtensionStatuses(this.#view));
     this.invalidate();
   }
 
   addExtensionNotification(message: string, type: "info" | "warning" | "error"): void {
-    const prefix = type === "info" ? "" : `${type === "warning" ? "Warning" : "Error"}: `;
-    this.#extensionNotifications = [...this.#extensionNotifications, `${prefix}${message}`].slice(-4);
-    this.invalidate();
+    if (type === "info") {
+      this.appendWorkflowStatus(message);
+      return;
+    }
+    this.#lastWorkflowStatusId = undefined;
+    const prefix = type === "warning" ? "Warning" : "Error";
+    this.#appendAnchoredWorkflowComponent(() => ["", ` ${piTheme().fg(type, `${prefix}: ${message}`)}`]);
   }
 
   extensionFooterData(): unknown {
@@ -391,7 +414,6 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
     for (const component of this.#transcript.values()) component.invalidate();
     this.editor.invalidate();
     if (this.#inputSurface !== this.editor) this.#inputSurface.invalidate();
-    for (const component of this.#workflowComponents) component.invalidate();
     this.#invalidateExtensions();
     this.#status.invalidate();
     this.#footer.invalidate();
@@ -408,7 +430,6 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
     for (const component of this.#transcript.values()) component.dispose?.();
     this.#transcript.clear();
     if (this.#inputSurface !== this.editor) this.#inputSurface.dispose?.();
-    for (const component of this.#workflowComponents) component.dispose?.();
     this.#extensionHeader?.dispose?.();
     this.#extensionFooter?.dispose?.();
     for (const { component } of this.#extensionWidgets.values()) component.dispose?.();
@@ -472,20 +493,39 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
   }
 
   #renderWidgets(placement: "aboveEditor" | "belowEditor", width: number): readonly string[] {
-    return [...this.#extensionWidgets.values()]
+    const rows = [...this.#extensionWidgets.values()]
       .filter(widget => widget.placement === placement)
       .flatMap(widget => widget.component.render(width));
+    return placement === "aboveEditor" ? ["", ...rows] : rows;
   }
 
   #renderStatus(width: number): readonly string[] {
-    const rows = [...this.#extensionNotifications];
-    if (this.#extensionWorkingVisible && this.#extensionWorkingMessage) rows.push(this.#extensionWorkingMessage);
-    rows.push(...this.#extensionStatuses.values());
-    return [...rows, ...this.#status.render(width)];
+    if (this.#extensionWorkingVisible && this.#extensionWorkingMessage && this.#view.lifecycle === "busy") {
+      return this.#status.render(width).map(row => row.replace(this.#view.status.workingMessage ?? "Working...", this.#extensionWorkingMessage!));
+    }
+    return this.#status.render(width);
   }
 
   #renderFooter(width: number): readonly string[] {
     return (this.#extensionFooter ?? this.#footer).render(width);
+  }
+
+  #viewWithExtensionStatuses(view: OwnedUiSessionViewModel): OwnedUiSessionViewModel {
+    const footer = view.status.footer;
+    const statuses = new Map(footer?.extensionStatuses ?? []);
+    for (const [key, text] of this.#extensionStatuses) statuses.set(key, text);
+    return {
+      ...view,
+      status: {
+        ...view.status,
+        footer: {
+          branch: footer?.branch ?? null,
+          sessionName: footer?.sessionName ?? null,
+          availableProviderCount: footer?.availableProviderCount ?? 1,
+          extensionStatuses: [...statuses],
+        },
+      },
+    };
   }
 
   #invalidateExtensions(): void {
@@ -1002,13 +1042,13 @@ export class PiSessionShell {
       this.showTreeSelector();
       return { outcome: "completed", diagnostic: null };
     }
+    if (request.command === "reload") this.root.resetExtensionUi();
     const result = await this.adapter.executeWorkflow(request);
     if (result.outcome === "requires-selection" || result.outcome === "requires-confirmation") {
       this.#showWorkflowSelector(request, result);
       return { outcome: "completed", diagnostic: null };
     }
     if (request.command === "reload" && result.outcome === "completed") {
-      this.root.resetExtensionUi();
       this.root.editor.setAutocompleteCommands(this.adapter.workflowAutocompleteCommands());
     }
     this.root.appendWorkflowResult(result);
