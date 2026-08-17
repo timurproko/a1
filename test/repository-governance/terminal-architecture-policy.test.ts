@@ -151,6 +151,24 @@ describe("terminal-core architecture policy", () => {
     expect(result.stderr).toContain("must use src/features/launch/index.ts");
   });
 
+  it("rejects owned-shell responsibility modules that import siblings", async () => {
+    const root = await fixture(shellModuleFixture({
+      "shell-editor-autocomplete.ts": "import './shell-selectors-dialogs.js';\nexport {};\n",
+    }));
+    const result = runPolicy(root);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("responsibility modules may depend only on shell-shared-facade");
+  });
+
+  it("rejects reintroduced owned-shell monoliths", async () => {
+    const root = await fixture(shellModuleFixture({
+      "shell-presenters-transcript.ts": `${"export {};\n".repeat(551)}`,
+    }));
+    const result = runPolicy(root);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("exceeds 550 lines");
+  });
+
   it("rejects obsolete retired-pipeline release gates", async () => {
     const root = await fixture({ "scripts/run-release-gates.mjs": "const suite = 'test/scenarios/packaged-real-pi.test.ts';" });
     const result = runPolicy(root);
@@ -183,6 +201,22 @@ describe("terminal-core architecture policy", () => {
     expect(result.stderr).toContain("uncertified next publication must require exact manual acceptance");
   });
 });
+
+function shellModuleFixture(overrides: Readonly<Record<string, string>> = {}): Record<string, string> {
+  const prefix = "src/foundation/pi-component-adapter/";
+  const modules = [
+    "shell-shared-facade.ts",
+    "shell-editor-autocomplete.ts",
+    "shell-selectors-dialogs.ts",
+    "shell-presenters-transcript.ts",
+    "shell-footer-status.ts",
+    "shell-extension-ui.ts",
+  ];
+  return Object.fromEntries([
+    [`${prefix}shell-components.ts`, modules.map(module => `export * from \"./${module.replace(/\.ts$/, ".js")}\";`).join("\n")],
+    ...modules.map(module => [`${prefix}${module}`, overrides[module] ?? "export {};\n"]),
+  ]);
+}
 
 async function fixture(files: Record<string, string>): Promise<string> {
   const root = await mkdtemp(resolve(tmpdir(), "addone-architecture-policy-"));

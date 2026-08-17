@@ -1,0 +1,289 @@
+import {
+  FooterComponent,
+  rawKeyHint,
+  VERSION,
+} from "@earendil-works/pi-coding-agent";
+import {
+  Spacer,
+  Text,
+  type Component,
+  type TUI,
+} from "@earendil-works/pi-tui";
+import type {
+  OwnedUiSessionViewModel,
+} from "../owned-ui-contracts/index.js";
+import {
+  WorkingStatusIndicator,
+} from "./upstream/components/status-indicator.js";
+import {
+  PINNED_PI_LAYOUT,
+  piTheme,
+} from "./theme.js";
+import {
+  createTuiFacade,
+  ensureTheme,
+  type PiShellViewComponentPort,
+  type PiShellStatusPort,
+  type PiShellQueuedInputPort,
+  type PiShellHeaderPort,
+  type PiShellResourceSection,
+  type PiShellResourceEntry,
+  type PiShellLoadedResourcesPort,
+  type PiShellStartupNotice,
+  type PiShellHeaderOptions,
+  type PiShellEditorOptions,
+} from "./shell-shared-facade.js";
+
+export function createPiShellHeader(options: PiShellHeaderOptions = {}): PiShellHeaderPort {
+  ensureTheme();
+  let expanded = options.expanded ?? false;
+  const compact = new Text(compactHeaderText(), 1, 0);
+  const full = new Text(expandedHeaderText(), 1, 0);
+  const notices = (options.notices ?? []).map(notice => new Text(noticeText(notice), 1, 0));
+  return {
+    get expanded() { return expanded; },
+    setExpanded(value) { expanded = value; },
+    render(width) {
+      if (options.quiet) return [];
+      return [
+        ...new Spacer(1).render(width),
+        ...(expanded ? full : compact).render(width),
+        ...notices.flatMap(notice => ["", ...notice.render(width)]),
+        ...new Spacer(1).render(width),
+      ];
+    },
+    invalidate() {
+      compact.invalidate();
+      full.invalidate();
+      for (const notice of notices) notice.invalidate();
+    },
+  };
+}
+
+export function createPiShellLoadedResources(
+  resources: readonly PiShellResourceEntry[],
+  initialExpanded = false,
+): PiShellLoadedResourcesPort {
+  ensureTheme();
+  let expanded = initialExpanded;
+  return {
+    setExpanded(value) { expanded = value; },
+    render(width) {
+      const rows: string[] = [];
+      const sections: readonly PiShellResourceSection[] = ["Context", "Skills", "Prompts", "Extensions", "Themes"];
+      for (const section of sections) {
+        const entries = resources.filter(entry => entry.section === section && !entry.diagnostic);
+        if (entries.length === 0) continue;
+        if (rows.length === 0 && section === "Context") rows.push("");
+        const labels = expanded
+          ? entries.map(entry => entry.sourcePath ?? entry.label).sort((left, right) => left.localeCompare(right))
+          : entries.map(entry => entry.label).sort((left, right) => left.localeCompare(right));
+        const body = expanded
+          ? labels.map(label => piTheme().fg("dim", `  ${label}`)).join("\n")
+          : piTheme().fg("dim", `  ${labels.join(", ")}`);
+        rows.push(...new Text(`${piTheme().fg("mdHeading", `[${section}]`)}\n${body}`, 0, 0).render(width), "");
+      }
+      const diagnostics = resources.filter(entry => entry.diagnostic);
+      for (const group of ["Skills", "Prompts", "Extensions", "Themes"] as const) {
+        const entries = diagnostics.filter(entry => entry.section === group);
+        if (entries.length === 0) continue;
+        const title = group === "Skills" ? "Skill conflicts" : group === "Prompts" ? "Prompt conflicts" : group === "Extensions" ? "Extension issues" : "Theme conflicts";
+        const body = entries.map(entry => `  ${entry.sourcePath ? `${entry.sourcePath}\n    ` : ""}${entry.diagnostic}`).join("\n");
+        rows.push(...new Text(`${piTheme().fg("warning", `[${title}]`)}\n${piTheme().fg("warning", body)}`, 0, 0).render(width), "");
+      }
+      return rows.length === 0 ? rows : [...rows, ""];
+    },
+    invalidate() {},
+  };
+}
+
+export function createPiShellStatus(
+  view: OwnedUiSessionViewModel,
+  runtime?: Pick<PiShellEditorOptions, "getColumns" | "getRows" | "requestRender">,
+): PiShellStatusPort {
+  ensureTheme();
+  const statusUi = createTuiFacade(runtime ?? { getColumns: () => 80, getRows: () => 24, requestRender() {} });
+  let workingOverride: string | undefined;
+  let component = statusComponent(view, statusUi, workingOverride);
+  let signature = statusSignature(view, workingOverride);
+  const rebuild = () => {
+    const nextSignature = statusSignature(view, workingOverride);
+    if (nextSignature === signature) return;
+    if (component !== undefined && "dispose" in component && typeof component.dispose === "function") component.dispose();
+    signature = nextSignature;
+    component = statusComponent(view, statusUi, workingOverride);
+  };
+  return {
+    render: width => component?.render(width) ?? [],
+    invalidate: () => component?.invalidate(),
+    update(next) {
+      view = next;
+      rebuild();
+    },
+    setWorkingOverride(message) {
+      workingOverride = message;
+      rebuild();
+    },
+    dispose() {
+      if (component !== undefined && "dispose" in component && typeof component.dispose === "function") component.dispose();
+      component = undefined;
+    },
+  };
+}
+
+export function createPiShellFooter(view: OwnedUiSessionViewModel, cwd: string): PiShellViewComponentPort {
+  ensureTheme();
+  const session = {
+    get state() {
+      const usage = view.status.usage;
+      return {
+        model: view.activeModel === null ? null : {
+          provider: view.activeModel.providerId,
+          id: view.activeModel.modelId,
+          reasoning: view.thinkingLevel !== "off",
+          contextWindow: usage?.contextWindow ?? 0,
+        },
+        thinkingLevel: view.thinkingLevel,
+      };
+    },
+    sessionManager: {
+      getEntries: () => footerUsageEntries(view),
+      getCwd: () => cwd,
+      getSessionName: () => view.status.footer?.sessionName ?? undefined,
+    },
+    getContextUsage: () => {
+      const usage = view.status.usage;
+      return usage === undefined || usage.contextAvailable === false ? undefined : {
+        tokens: usage.contextTokens,
+        contextWindow: usage.contextWindow,
+        percent: usage.contextPercent,
+      };
+    },
+    modelRuntime: {
+      isUsingSubscription: () => view.status.usage?.usingSubscription ?? false,
+    },
+  };
+  const footerData = {
+    getGitBranch: () => view.status.footer?.branch ?? null,
+    getAvailableProviderCount: () => view.status.footer?.availableProviderCount ?? 1,
+    getExtensionStatuses: () => new Map(view.status.footer?.extensionStatuses ?? []),
+  };
+  const footerCandidate: unknown = Reflect.construct(FooterComponent, [session, footerData]);
+  if (!(footerCandidate instanceof FooterComponent)) throw new TypeError("Pi footer façade returned an incompatible component");
+  const footer = footerCandidate;
+  return {
+    render(width) {
+      footer.setAutoCompactEnabled(view.status.usage?.autoCompactEnabled ?? true);
+      return footer.render(width);
+    },
+    invalidate: () => footer.invalidate(),
+    update(next) { view = next; },
+    dispose: () => footer.dispose(),
+  };
+}
+
+export function createPiQueuedInputStatus(submissions: readonly string[]): PiShellQueuedInputPort {
+  const text = new Text(queuedInputText(submissions), 1, 0);
+  return {
+    render: width => submissions.length === 0 ? [] : text.render(width),
+    invalidate: () => text.invalidate(),
+    update(next) {
+      submissions = next;
+      text.setText(queuedInputText(next));
+    },
+  };
+}
+
+
+function statusComponent(view: OwnedUiSessionViewModel, ui: TUI, workingOverride?: string): Component | undefined {
+  if (view.lifecycle === "busy") return new WorkingStatusIndicator(ui, workingOverride ?? view.status.workingMessage ?? "Working...");
+  if (view.lifecycle === "failed") {
+    return new Text(piTheme().fg("error", view.status.diagnostics.at(-1) ?? "Session failed"), PINNED_PI_LAYOUT.outputPad, 0);
+  }
+  if (view.status.workingMessage !== null) {
+    return new Text(piTheme().fg("muted", view.status.workingMessage), PINNED_PI_LAYOUT.outputPad, 0);
+  }
+  return undefined;
+}
+
+function statusSignature(view: OwnedUiSessionViewModel, workingOverride?: string): string {
+  return `${view.lifecycle}\u0000${workingOverride ?? ""}\u0000${view.status.workingMessage ?? ""}\u0000${view.status.diagnostics.at(-1) ?? ""}`;
+}
+
+function queuedInputText(submissions: readonly string[]): string {
+  const theme = piTheme();
+  return submissions.map(submission => theme.fg("muted", `Steering: ${submission.replaceAll("\n", " ⏎ ")}`)).join("\n");
+}
+
+function footerUsageEntries(view: OwnedUiSessionViewModel): readonly unknown[] {
+  const usage = view.status.usage;
+  if (usage === undefined || (usage.input === 0 && usage.output === 0 && usage.cacheRead === 0
+    && usage.cacheWrite === 0 && usage.cost === 0)) return [];
+  const entry = (input: number, output: number, cacheRead: number, cacheWrite: number, cost: number) => ({
+    type: "message",
+    message: { role: "assistant", usage: { input, output, cacheRead, cacheWrite, cost: { total: cost } } },
+  });
+  const latest = usage.latestPrompt;
+  if (latest === undefined || latest === null) {
+    return [entry(usage.input, usage.output, usage.cacheRead, usage.cacheWrite, usage.cost)];
+  }
+  const prior = entry(
+    Math.max(0, usage.input - latest.input),
+    usage.output,
+    Math.max(0, usage.cacheRead - latest.cacheRead),
+    Math.max(0, usage.cacheWrite - latest.cacheWrite),
+    usage.cost,
+  );
+  return [prior, entry(latest.input, 0, latest.cacheRead, latest.cacheWrite, 0)];
+}
+
+function compactHeaderText(): string {
+  const theme = piTheme();
+  const instructions = [
+    rawKeyHint("escape", "interrupt"),
+    rawKeyHint("ctrl+c/ctrl+d", "clear/exit"),
+    rawKeyHint("/", "commands"),
+    rawKeyHint("!", "bash"),
+    rawKeyHint("ctrl+o", "more"),
+  ].join(theme.fg("muted", " · "));
+  const logo = theme.bold(theme.fg("accent", "pi")) + theme.fg("dim", ` v${VERSION}`);
+  const compactOnboarding = theme.fg("dim", "Press ctrl+o to show full startup help and loaded resources.");
+  const onboarding = theme.fg("dim", "Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.");
+  return `${logo}\n${instructions}\n${compactOnboarding}\n\n${onboarding}`;
+}
+
+function expandedHeaderText(): string {
+  const instructions = [
+    rawKeyHint("escape", "to interrupt"),
+    rawKeyHint("ctrl+c", "to clear"),
+    rawKeyHint("ctrl+c twice", "to exit"),
+    rawKeyHint("ctrl+d", "to exit (empty)"),
+    rawKeyHint(process.platform === "win32" ? "" : "ctrl+z", "to suspend"),
+    rawKeyHint("ctrl+k", "to delete to end"),
+    rawKeyHint("shift+tab", "to cycle thinking level"),
+    rawKeyHint("ctrl+p/shift+ctrl+p", "to cycle models"),
+    rawKeyHint("ctrl+l", "to select model"),
+    rawKeyHint("ctrl+o", "to expand tools"),
+    rawKeyHint("ctrl+t", "to expand thinking"),
+    rawKeyHint("ctrl+g", "for external editor"),
+    rawKeyHint("/", "for commands"),
+    rawKeyHint("!", "to run bash"),
+    rawKeyHint("!!", "to run bash (no context)"),
+    rawKeyHint("alt+enter", "to queue follow-up"),
+    rawKeyHint("alt+up", "to edit all queued messages"),
+    rawKeyHint(process.platform === "win32" ? "alt+v" : "ctrl+v", "to paste image (with text fallback)"),
+    rawKeyHint("drop files", "to attach"),
+  ].join("\n");
+  const theme = piTheme();
+  const logo = theme.bold(theme.fg("accent", "pi")) + theme.fg("dim", ` v${VERSION}`);
+  const onboarding = theme.fg("dim", "Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.");
+  return `${logo}\n${instructions}\n\n${onboarding}`;
+}
+
+function noticeText(notice: PiShellStartupNotice): string {
+  const theme = piTheme();
+  if (notice.kind === "info") return theme.fg("dim", notice.message);
+  const prefix = notice.kind === "warning" ? "Warning" : "Error";
+  return theme.fg(notice.kind, `${prefix}: ${notice.message}`);
+}
+

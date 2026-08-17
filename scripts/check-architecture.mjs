@@ -202,12 +202,44 @@ errors.push(...inspectProjectStructureImports(sourceFiles));
 await inspectRepositoryStructure();
 await inspectReleasePolicy();
 await inspectTerminalParityBoundary();
+inspectOwnedShellModules();
 
 if (errors.length > 0) {
   console.error(`Architecture check failed (${errors.length}):\n${errors.map(error => `- ${error}`).join("\n")}`);
   process.exitCode = 1;
 } else {
   console.log("Architecture boundaries OK");
+}
+
+function inspectOwnedShellModules() {
+  const prefix = "src/foundation/pi-component-adapter/";
+  const barrelPath = `${prefix}shell-components.ts`;
+  const barrel = sourceFiles[barrelPath];
+  if (barrel === undefined) return;
+  const modules = [
+    "shell-shared-facade.ts",
+    "shell-editor-autocomplete.ts",
+    "shell-selectors-dialogs.ts",
+    "shell-presenters-transcript.ts",
+    "shell-footer-status.ts",
+    "shell-extension-ui.ts",
+  ];
+  const barrelLines = barrel.trim().split(/\r?\n/);
+  if (barrelLines.length > modules.length || barrelLines.some(line => !/^export \* from "\.\/shell-[a-z-]+\.js";$/.test(line))) {
+    errors.push(`${barrelPath}: shell barrel must contain only bounded responsibility-module exports`);
+  }
+  for (const module of modules) {
+    const path = `${prefix}${module}`;
+    const source = sourceFiles[path];
+    if (source === undefined) {
+      errors.push(`${path}: required owned-shell responsibility module is missing`);
+      continue;
+    }
+    const lines = source.split(/\r?\n/).length;
+    if (lines > 550) errors.push(`${path}: owned-shell responsibility module exceeds 550 lines (${lines})`);
+    const siblingImport = source.match(/(?:from\s+|import\s+)["']\.\/(shell-(?!shared-facade)[a-z-]+)\.js["']/);
+    if (siblingImport) errors.push(`${path}: responsibility modules may depend only on shell-shared-facade, not ${siblingImport[1]}`);
+  }
 }
 
 function isTerminalBoundary(path) {
