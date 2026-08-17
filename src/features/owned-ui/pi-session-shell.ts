@@ -690,7 +690,7 @@ export class PiSessionShell {
       getMessageRenderer: customType => this.adapter.pinnedMessageRenderer(customType),
       getToolDefinition: toolName => this.adapter.pinnedToolDefinition(toolName),
     });
-    const tuiMode = this.adapter.pinnedSettingsSnapshot().tuiMode;
+    const tuiMode = this.adapter.disposed ? "regular" : this.adapter.pinnedSettingsSnapshot().tuiMode;
     const runtimeOptions = options.terminal === undefined
       ? { root: this.root, mode: tuiMode, layoutRoot: this.root.layoutRoot(), hardwareCursor: this.adapter.view().terminal.hardwareCursor }
       : { root: this.root, mode: tuiMode, layoutRoot: this.root.layoutRoot(), terminal: options.terminal, hardwareCursor: this.adapter.view().terminal.hardwareCursor };

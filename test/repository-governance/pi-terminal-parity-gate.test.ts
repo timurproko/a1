@@ -125,9 +125,19 @@ describe("independent Pi terminal parity gate", () => {
     ]);
     expect(runner).toContain("node_modules\", \"@earendil-works\", \"pi-coding-agent");
     expect(runner).toContain("addone-ui.js");
+    expect(runner).not.toContain("--tui-mode");
     expect(session).toContain('from "node-pty"');
     expect(session).toContain('from "@xterm/headless"');
     for (const kind of ["text", "key", "wheel", "resize", "checkpoint", "shutdown"]) expect(scenario).toContain(`type: "${kind}"`);
     for (const domain of ["startup-resources", "editor", "transcript", "footer-status", "selector-dialog", "errors", "settlement", "scrollbar", "raw-ansi"]) expect(scenario).toContain(`"${domain}"`);
+  });
+
+  it("keeps default regular selection under terminal ownership without repaint patches", async () => {
+    const adapter = await readFile(resolve("src/foundation/pi-tui-runtime-adapter/adapter.ts"), "utf8");
+    expect(adapter).toContain("new TuiMainScreen");
+    expect(adapter).toContain("new TuiAltScreen");
+    for (const forbidden of ["OSC52_CLIPBOARD", "UNIFORM_SELECTION_START", "CLEAR_SELECTION_PRESS", "normalizeSelectionHighlight", "selectionHighlightOpen"]) {
+      expect(adapter).not.toContain(forbidden);
+    }
   });
 });

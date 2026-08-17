@@ -68,7 +68,7 @@ describe("owned UI run", () => {
     const result = await runOwnedUi({ adapter, terminal });
     expect(result).toBe(0);
     expect(terminal.active).toBe(false);
-    expect(terminal.writes.join("")).toContain("\x1b[?1049h");
-    expect(terminal.writes.join("")).toContain("\x1b[?1049l");
+    expect(terminal.writes.join("")).not.toContain("\x1b[?1049h");
+    expect(terminal.writes.join("")).not.toContain("\x1b[?1049l");
   });
 });

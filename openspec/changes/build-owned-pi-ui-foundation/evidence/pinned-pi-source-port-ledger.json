@@ -2099,6 +2099,7 @@
       "localDestination": "src/foundation/pi-component-adapter/upstream/components/skill-invocation-message.ts",
       "implementationStatus": "owned-port-present",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "localSha256": "3448c86cbc106728c5e9faac7485a119ad064955a05a8c076c34316703fae840",
       "modifications": "Mechanical port uses AddOne's public pi-tui instance, owned theme boundary, and root-instance keybinding registry because the public coding-agent component closes over a second nested pi-tui singleton and cannot observe AddOne's keybindings.",
       "approvedDeviations": [],
       "behaviorCategories": [
