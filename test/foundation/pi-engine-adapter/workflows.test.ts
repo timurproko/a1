@@ -193,6 +193,31 @@ describe("pinned Pi command and input workflows", () => {
     }
   });
 
+  it("returns source-structured session information instead of a raw JSON detail fallback", async () => {
+    const { adapter } = await fixture();
+    const result = await adapter.executeWorkflow({ command: "session", argument: "" });
+    expect(result).toMatchObject({
+      command: "session",
+      outcome: "completed",
+      message: "Session Info",
+      presentation: {
+        kind: "session-info",
+        sessionName: "Fixture",
+        stats: {
+          sessionId: "workflow-session",
+          totalMessages: 2,
+          userMessages: 0,
+          assistantMessages: 0,
+          toolCalls: 0,
+          toolResults: 0,
+        },
+        cacheWaste: { missedTokens: 0, missedCost: 0, missCount: 0 },
+      },
+    });
+    expect(result.detail).toBeUndefined();
+    await adapter.dispose();
+  });
+
   it("opens every selector, completes every pinned settings callback, and preserves cancellation", async () => {
     const { adapter, runtime } = await fixture();
     for (const command of ["settings", "model", "scoped-models", "fork", "tree", "trust", "login", "logout", "resume"] as const) {

@@ -44,6 +44,7 @@ import {
   type PiBashWorkflowResult,
   type PiPinnedSettingsCallback,
   type PiPinnedSettingsSnapshot,
+  type PiSessionInfoPresentation,
   type PiWorkflowAutocompleteCommand,
   type PiWorkflowHost,
   type PiWorkflowInteractionHost,
@@ -1061,8 +1062,18 @@ export class PiEngineAdapter {
         return workflowResult(request.command, "completed", `Session name set: ${argument}`);
       }
       case "session": {
+        const manager = dynamicObject(session, "sessionManager");
         const stats = requiredDynamicCall(session, "getSessionStats");
-        return workflowResult(request.command, "completed", "Session Info", JSON.stringify(stats, null, 2));
+        const entries = dynamicCall(manager, "getEntries");
+        return {
+          ...workflowResult(request.command, "completed", "Session Info"),
+          presentation: pinnedSessionInfoPresentation(
+            stats,
+            typeof dynamicCall(manager, "getSessionName") === "string" ? String(dynamicCall(manager, "getSessionName")) : undefined,
+            Array.isArray(entries) ? entries : [],
+            dynamicObject(runtime.services, "modelRuntime"),
+          ),
+        };
       }
       case "changelog": {
         const changelog = await this.#workflowHost.readChangelog();
@@ -2082,6 +2093,123 @@ async function createDefaultPiRuntime(input: PiEngineRuntimeFactoryInput): Promi
     sessionManager,
   });
   return runtime as unknown as PiRuntimeLike;
+}
+
+function pinnedSessionInfoPresentation(
+  value: unknown,
+  sessionName: string | undefined,
+  entries: readonly unknown[],
+  modelRuntime: Record<string, unknown>,
+): PiSessionInfoPresentation {
+  const stats = isRecord(value) ? value : {};
+  const tokens = dynamicObject(stats, "tokens");
+  return {
+    kind: "session-info",
+    ...(sessionName === undefined ? {} : { sessionName }),
+    stats: {
+      ...(stringProperty(stats, "sessionFile") === undefined ? {} : { sessionFile: stringProperty(stats, "sessionFile")! }),
+      sessionId: stringProperty(stats, "sessionId") ?? "unknown",
+      userMessages: finiteNumber(stats.userMessages),
+      assistantMessages: finiteNumber(stats.assistantMessages),
+      toolCalls: finiteNumber(stats.toolCalls),
+      toolResults: finiteNumber(stats.toolResults),
+      totalMessages: finiteNumber(stats.totalMessages),
+      tokens: {
+        input: finiteNumber(tokens.input),
+        output: finiteNumber(tokens.output),
+        cacheRead: finiteNumber(tokens.cacheRead),
+        cacheWrite: finiteNumber(tokens.cacheWrite),
+        total: finiteNumber(tokens.total),
+      },
+      cost: finiteNumber(stats.cost),
+    },
+    cacheWaste: pinnedCacheWaste(entries, modelRuntime),
+    usageBreakdown: pinnedUsageCostBreakdown(entries),
+  };
+}
+
+function pinnedUsageCostBreakdown(entries: readonly unknown[]): PiSessionInfoPresentation["usageBreakdown"] {
+  const totals = new Map<string, { cost: number; tokens: number }>();
+  for (const entry of entries) {
+    if (!isRecord(entry)) continue;
+    let key: string | undefined;
+    let usage: Record<string, unknown> | undefined;
+    const message = dynamicObject(entry, "message");
+    if (entry.type === "message" && message.role === "assistant") {
+      const provider = stringProperty(message, "provider");
+      const model = stringProperty(message, "responseModel") ?? stringProperty(message, "model");
+      if (provider && model) key = `${provider}/${model}`;
+      usage = dynamicObject(message, "usage");
+    } else if (entry.type === "message" && message.role === "toolResult" && isRecord(message.usage)) {
+      key = "Tools/summaries";
+      usage = message.usage;
+    } else if ((entry.type === "branch_summary" || entry.type === "compaction") && isRecord(entry.usage)) {
+      key = "Tools/summaries";
+      usage = entry.usage;
+    }
+    if (!key || !usage) continue;
+    const cost = finiteNumber(dynamicObject(usage, "cost").total);
+    const tokens = finiteNumber(usage.input) + finiteNumber(usage.output)
+      + finiteNumber(usage.cacheRead) + finiteNumber(usage.cacheWrite);
+    const current = totals.get(key) ?? { cost: 0, tokens: 0 };
+    current.cost += cost;
+    current.tokens += tokens;
+    totals.set(key, current);
+  }
+  return [...totals].map(([key, total]) => ({ key, ...total }))
+    .filter(entry => entry.cost > 0 || entry.tokens > 0)
+    .sort((a, b) => b.cost - a.cost);
+}
+
+function pinnedCacheWaste(
+  entries: readonly unknown[],
+  modelRuntime: Record<string, unknown>,
+): PiSessionInfoPresentation["cacheWaste"] {
+  let previous: { promptTokens: number; modelKey: string; timestamp: number; reportedCache: boolean } | undefined;
+  const totals = { missedTokens: 0, missedCost: 0, missCount: 0 };
+  for (const entry of entries) {
+    if (!isRecord(entry)) continue;
+    if (entry.type === "compaction" || entry.type === "branch_summary") {
+      previous = undefined;
+      continue;
+    }
+    const message = dynamicObject(entry, "message");
+    if (entry.type !== "message" || message.role !== "assistant") continue;
+    const usage = dynamicObject(message, "usage");
+    const input = finiteNumber(usage.input);
+    const cacheRead = finiteNumber(usage.cacheRead);
+    const cacheWrite = finiteNumber(usage.cacheWrite);
+    const promptTokens = input + cacheRead + cacheWrite;
+    if (previous && promptTokens > 0 && (cacheRead + cacheWrite > 0 || previous.reportedCache)) {
+      const missedTokens = Math.min(previous.promptTokens, promptTokens) - cacheRead;
+      if (missedTokens > 1024) {
+        const cost = dynamicObject(usage, "cost");
+        const paidTokens = input + cacheWrite;
+        const paidRate = paidTokens > 0 ? (finiteNumber(cost.input) + finiteNumber(cost.cacheWrite)) / paidTokens : 0;
+        const provider = stringProperty(message, "provider") ?? "";
+        const modelId = stringProperty(message, "model") ?? "";
+        const model = dynamicCall(modelRuntime, "getModel", provider, modelId);
+        const modelCost = dynamicObject(dynamicObject(model, "cost"));
+        const readRate = cacheRead > 0
+          ? finiteNumber(cost.cacheRead) / cacheRead
+          : finiteNumber(modelCost.cacheRead) / 1_000_000;
+        totals.missedTokens += missedTokens;
+        totals.missedCost += missedTokens * Math.max(0, paidRate - readRate);
+        totals.missCount += 1;
+      }
+    }
+    if (promptTokens > 0) {
+      const provider = stringProperty(message, "provider") ?? "";
+      const model = stringProperty(message, "model") ?? "";
+      previous = {
+        promptTokens,
+        modelKey: `${provider}/${model}`,
+        timestamp: finiteNumber(message.timestamp),
+        reportedCache: (previous?.reportedCache ?? false) || cacheRead + cacheWrite > 0,
+      };
+    }
+  }
+  return totals;
 }
 
 function defaultWorkflowHost(): PiWorkflowHost {

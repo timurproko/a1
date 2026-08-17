@@ -123,6 +123,32 @@ export interface PiWorkflowRequest {
 
 export type PiWorkflowOutcome = "completed" | "cancelled" | "failed" | "requires-selection" | "requires-confirmation";
 
+export interface PiSessionInfoPresentation {
+  readonly kind: "session-info";
+  readonly sessionName?: string;
+  readonly stats: {
+    readonly sessionFile?: string;
+    readonly sessionId: string;
+    readonly userMessages: number;
+    readonly assistantMessages: number;
+    readonly toolCalls: number;
+    readonly toolResults: number;
+    readonly totalMessages: number;
+    readonly tokens: {
+      readonly input: number;
+      readonly output: number;
+      readonly cacheRead: number;
+      readonly cacheWrite: number;
+      readonly total: number;
+    };
+    readonly cost: number;
+  };
+  readonly cacheWaste: { readonly missedTokens: number; readonly missedCost: number; readonly missCount: number };
+  readonly usageBreakdown: readonly { readonly key: string; readonly cost: number; readonly tokens: number }[];
+}
+
+export type PiWorkflowPresentation = PiSessionInfoPresentation;
+
 export interface PiWorkflowResult {
   readonly command: PiWorkflowRoute;
   readonly outcome: PiWorkflowOutcome;
@@ -130,6 +156,7 @@ export interface PiWorkflowResult {
   readonly detail?: string;
   readonly selectorTitle?: string;
   readonly options?: readonly PiWorkflowOption[];
+  readonly presentation?: PiWorkflowPresentation;
 }
 
 export interface PiWorkflowAutocompleteCommand {

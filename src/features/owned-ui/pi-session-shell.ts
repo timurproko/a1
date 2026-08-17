@@ -29,6 +29,7 @@ import {
   createPiShellModelSelector,
   createPiShellScopedModelsSelector,
   createPiShellSelector,
+  createPiShellSessionInfo,
   createPiShellSessionSelector,
   createPiShellSettingsSelector,
   createPiShellStatus,
@@ -273,6 +274,11 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
       return;
     }
     this.#lastWorkflowStatusId = undefined;
+    if (result.command === "session" && result.outcome === "completed" && result.presentation?.kind === "session-info") {
+      const sessionInfo = createPiShellSessionInfo(result.presentation);
+      this.#appendAnchoredWorkflowComponent(width => sessionInfo.render(width), () => sessionInfo.dispose?.());
+      return;
+    }
     if (result.command === "hotkeys" && result.outcome === "completed") {
       const hotkeys = createPiShellHotkeys();
       this.#appendAnchoredWorkflowComponent(width => hotkeys.render(width), () => hotkeys.dispose?.());

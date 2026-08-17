@@ -2,7 +2,7 @@
   "schema": "addone-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-08-17T06:04:44.011Z",
+  "recordedAt": "2026-08-17T07:26:47.511Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "914cf1472e715297caa30db4b9535d534a9eb718",
@@ -38,8 +38,8 @@
     "sourceModules": 105,
     "assets": 4,
     "classifications": {
-      "public-reuse": 64,
-      "owned-source-port": 23,
+      "public-reuse": 63,
+      "owned-source-port": 24,
       "host-adapter": 22
     },
     "requiredBehaviorIds": 29,

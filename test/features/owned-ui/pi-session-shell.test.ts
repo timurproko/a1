@@ -413,6 +413,45 @@ describe("PiSessionShell", () => {
     await shell.dispose();
   });
 
+  it("renders /session with pinned structured groups, styles, and indentation instead of JSON", async () => {
+    const { shell } = await fixture();
+    shell.root.appendWorkflowResult({
+      command: "session",
+      outcome: "completed",
+      message: "Session Info",
+      presentation: {
+        kind: "session-info",
+        sessionName: "Parity fixture",
+        stats: {
+          sessionFile: "D:/sessions/parity.jsonl",
+          sessionId: "session-1",
+          userMessages: 2,
+          assistantMessages: 2,
+          toolCalls: 1,
+          toolResults: 1,
+          totalMessages: 6,
+          tokens: { input: 100, output: 20, cacheRead: 300, cacheWrite: 50, total: 470 },
+          cost: 0.125,
+        },
+        cacheWaste: { missedTokens: 2048, missedCost: 0.002, missCount: 1 },
+        usageBreakdown: [
+          { key: "openai/gpt-5", cost: 0.1, tokens: 400 },
+          { key: "Tools/summaries", cost: 0.025, tokens: 70 },
+        ],
+      },
+    });
+    const raw = shell.root.render(100).join("\n");
+    const plain = stripTerminalSequences(raw);
+    expect(plain).toMatch(/Session Info\s*\n\s*\n\s*Name: Parity fixture/);
+    expect(plain).toMatch(/Messages\s*\n\s*Total: 6\s*\n\s*User: 2\s*\n\s*Assistant: 2\s*\n\s*Tools: 1 calls, 1 results/);
+    expect(plain).toMatch(/Tokens\s*\n\s*Input: 450\s*\n\s*Cached: 300 \(66\.7%\)\s*\n\s*Uncached: 150 \(50 written to cache\)/);
+    expect(plain).toMatch(/Cost\s*\n\s*Total: \$0\.125/);
+    expect(plain).toContain("Cache Re-billed: $0.002 (2,048 tokens, 1 miss)");
+    expect(plain).not.toContain("\"sessionId\"");
+    expect(raw).toContain("\x1b[");
+    await shell.dispose();
+  });
+
   it("renders changelog, errors, and reload through pinned route-specific presentation", async () => {
     const { shell } = await fixture();
     shell.root.appendWorkflowResult({
