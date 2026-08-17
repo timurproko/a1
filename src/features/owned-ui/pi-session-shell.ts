@@ -19,9 +19,11 @@ import {
 import {
   createPiExtensionUiBridge,
   createPiQueuedInputStatus,
+  createPiShellArmin,
   createPiShellAuthProviderSelector,
   createPiShellChangelog,
   createPiShellDialog,
+  createPiShellEarendilAnnouncement,
   createPiShellEditor,
   createPiShellExtensionSelector,
   createPiShellFooter,
@@ -86,6 +88,11 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
   readonly #footer: PiShellViewComponentPort;
   readonly #queued: PiShellQueuedInputPort;
   readonly #extensionRenderers: PiShellExtensionRendererResolver;
+  readonly #componentRuntime: {
+    readonly getColumns: () => number;
+    readonly getRows: () => number;
+    readonly requestRender: () => void;
+  };
   #toolsExpanded = false;
   #thinkingVisible = true;
   #workflowTranscriptSequence = 0;
@@ -129,6 +136,7 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
     this.#view = view;
     this.#cwd = cwd;
     this.#extensionRenderers = extensionRenderers;
+    this.#componentRuntime = handlers;
     this.header = createPiShellHeader(startup);
     this.resources = createPiShellLoadedResources(startup.resources ?? [], startup.expanded ?? false);
     this.#status = createPiShellStatus(view, handlers);
@@ -308,12 +316,32 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
     }
     if (result.command === "name" && result.outcome === "completed") {
       this.#lastWorkflowStatusId = undefined;
-      this.#appendAnchoredWorkflowComponent(() => ["", ` ${piTheme().fg("dim", result.message)}`]);
+      this.#appendAnchoredWorkflowComponent(() => [
+        ...(result.detail ? ["", ` ${piTheme().fg("warning", `Warning: ${result.detail}`)}`] : []),
+        "",
+        ` ${piTheme().fg("dim", result.message)}`,
+      ]);
       return;
     }
     if (result.command === "debug" && result.outcome === "completed") {
       this.#lastWorkflowStatusId = undefined;
-      this.#appendAnchoredWorkflowComponent(() => ["", ` ${piTheme().fg("accent", result.message)}`]);
+      this.#appendAnchoredWorkflowComponent(() => [
+        "",
+        ` ${piTheme().fg("accent", result.message)}`,
+        ...(result.detail ? [` ${piTheme().fg("muted", result.detail)}`] : []),
+      ]);
+      return;
+    }
+    if (result.command === "arminsayshi" && result.outcome === "completed") {
+      this.#lastWorkflowStatusId = undefined;
+      const armin = createPiShellArmin(this.#componentRuntime);
+      this.#appendAnchoredWorkflowComponent(width => ["", ...armin.render(width)], () => armin.dispose?.());
+      return;
+    }
+    if (result.command === "dementedelves" && result.outcome === "completed") {
+      this.#lastWorkflowStatusId = undefined;
+      const announcement = createPiShellEarendilAnnouncement();
+      this.#appendAnchoredWorkflowComponent(width => ["", ...announcement.render(width)], () => announcement.dispose?.());
       return;
     }
     const message = result.command === "share" && result.detail
@@ -1210,6 +1238,16 @@ export class PiSessionShell {
       );
     } else if (request.command === "fork") {
       component = createPiShellUserMessageSelector(options, select, cancel);
+    } else if (request.command === "login" && result.selectorTitle?.startsWith("Select authentication method") === true) {
+      component = createPiShellExtensionSelector(
+        result.selectorTitle,
+        options.map(option => option.label),
+        label => {
+          const selected = options.find(option => option.label === label);
+          if (selected !== undefined) select(selected.id);
+        },
+        cancel,
+      );
     } else if (request.command === "login" || request.command === "logout") {
       component = createPiShellAuthProviderSelector(request.command, options, select, cancel);
     } else if (request.command === "model") {

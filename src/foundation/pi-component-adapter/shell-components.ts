@@ -1,4 +1,7 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import {
+  ArminComponent,
   AssistantMessageComponent,
   type AutocompleteProviderFactory,
   BashExecutionComponent,
@@ -13,6 +16,7 @@ import {
   type ExtensionUIContext,
   FooterComponent,
   getMarkdownTheme,
+  getPackageDir,
   getSelectListTheme,
   LoginDialogComponent,
   ModelSelectorComponent,
@@ -39,6 +43,7 @@ import {
   Box,
   CombinedAutocompleteProvider,
   Container,
+  Image,
   Markdown,
   SelectList,
   setKeybindings,
@@ -554,6 +559,34 @@ export function createPiShellLoginDialog(
     showWaiting: message => dialog.showWaiting(message),
     showProgress: message => dialog.showProgress(message),
   };
+}
+
+export function createPiShellArmin(
+  runtime: Pick<PiShellEditorOptions, "getColumns" | "getRows" | "requestRender">,
+): PiShellComponentPort {
+  ensureTheme();
+  return componentPort(new ArminComponent(createTuiFacade(runtime)));
+}
+
+export function createPiShellEarendilAnnouncement(): PiShellComponentPort {
+  ensureTheme();
+  const container = new Container();
+  const accentBorder = (text: string) => piTheme().fg("accent", text);
+  container.addChild(new DynamicBorder(accentBorder));
+  container.addChild(new Text(piTheme().bold(piTheme().fg("accent", "pi has joined Earendil")), 1, 0));
+  container.addChild(new Spacer(1));
+  container.addChild(new Text(piTheme().fg("muted", "Read the blog post:"), 1, 0));
+  container.addChild(new Text(piTheme().fg("mdLink", "https://mariozechner.at/posts/2026-04-08-ive-sold-out/"), 1, 0));
+  container.addChild(new Spacer(1));
+  try {
+    const image = readFileSync(join(getPackageDir(), "dist", "modes", "interactive", "assets", "clankolas.png")).toString("base64");
+    container.addChild(new Image(image, "image/png", { fallbackColor: text => piTheme().fg("muted", text) }, { maxWidthCells: 56, filename: "clankolas.png" }));
+    container.addChild(new Spacer(1));
+  } catch {
+    // The pinned component intentionally omits the image if its bundled asset cannot be read.
+  }
+  container.addChild(new DynamicBorder(accentBorder));
+  return componentPort(container);
 }
 
 export function createPiShellOperationLoader(

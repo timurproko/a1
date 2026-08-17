@@ -570,6 +570,21 @@ describe("PiSessionShell", () => {
     await shell.dispose();
   });
 
+  it("uses specialized hidden-command presenters without exposing raw debug objects", async () => {
+    const { shell } = await fixture();
+    shell.root.appendWorkflowResult({ command: "debug", outcome: "completed", message: "✓ Debug log written", detail: "D:/agent/pi-debug.log" });
+    shell.root.appendWorkflowResult({ command: "arminsayshi", outcome: "completed", message: "Armin says hi" });
+    shell.root.appendWorkflowResult({ command: "dementedelves", outcome: "completed", message: "Demented elves announcement" });
+    const plain = stripTerminalSequences(shell.root.render(100).join("\n"));
+    expect(plain).toContain("✓ Debug log written");
+    expect(plain).toContain("D:/agent/pi-debug.log");
+    expect(plain).not.toContain("\"snapshotId\"");
+    expect(plain).toContain("ARMIN SAYS HI");
+    expect(plain).toContain("pi has joined Earendil");
+    expect(plain).toContain("Read the blog post:");
+    await shell.dispose();
+  });
+
   it("uses the pinned confirmation surface without committing on cancel", async () => {
     const { adapter, terminal, shell } = await fixture();
     const workflow = vi.spyOn(adapter, "executeWorkflow")

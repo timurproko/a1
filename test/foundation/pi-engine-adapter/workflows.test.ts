@@ -1,4 +1,6 @@
 import { readFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   createPiEngineAdapter,
@@ -152,7 +154,12 @@ function host(overrides: Partial<PiWorkflowHost> = {}): PiWorkflowHost {
 
 async function fixture(workflowHost = host()) {
   const runtime = new WorkflowRuntime();
-  const adapter = await createPiEngineAdapter({ cwd: "D:/work", createRuntime: async () => runtime, workflowHost });
+  const adapter = await createPiEngineAdapter({
+    cwd: "D:/work",
+    agentDir: join(tmpdir(), "addone-workflow-fixture"),
+    createRuntime: async () => runtime,
+    workflowHost,
+  });
   return { runtime, adapter };
 }
 
@@ -331,7 +338,7 @@ describe("pinned Pi command and input workflows", () => {
     });
     await expect(adapter.executeWorkflow({ command: "login", argument: "oauth:openai" })).resolves.toMatchObject({
       outcome: "completed",
-      message: "Logged in to OpenAI Codex",
+      message: expect.stringMatching(/^Logged in to OpenAI Codex\. Credentials saved to .+auth\.json$/),
     });
     expect(lifecycle).toEqual(["start:OpenAI Codex:oauth", "finish"]);
     expect(notifications).toEqual([{ type: "auth_url", url: "https://example.test/auth", instructions: "Continue in browser" }]);

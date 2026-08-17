@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { readFile, rm } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
@@ -1001,7 +1001,7 @@ export class PiEngineAdapter {
         await session.setModel(model);
         this.#activeModel = { providerId, modelId, displayName: stringProperty(model, "name") ?? modelId };
         this.#emitView();
-        return workflowResult(request.command, "completed", `Selected model ${providerId}/${modelId}`);
+        return workflowResult(request.command, "completed", `Model: ${modelId}`);
       }
       case "scoped-models": {
         if (!selection) return workflowSelector(request.command, "Scoped models", this.#modelOptions());
@@ -1053,14 +1053,22 @@ export class PiEngineAdapter {
         return workflowResult(request.command, "completed", "Copied last agent message to clipboard");
       }
       case "name": {
+        const manager = dynamicObject(session, "sessionManager");
         if (!argument) {
-          const current = dynamicCall(dynamicObject(session, "sessionManager"), "getSessionName");
+          const current = dynamicCall(manager, "getSessionName");
           return typeof current === "string"
             ? workflowResult(request.command, "completed", `Session name: ${current}`)
             : workflowResult(request.command, "failed", "Usage: /name <name>");
         }
         requiredDynamicCall(session, "setSessionName", argument);
-        return workflowResult(request.command, "completed", `Session name set: ${argument}`);
+        const normalized = dynamicCall(manager, "getSessionName");
+        const actual = typeof normalized === "string" ? normalized : argument;
+        return workflowResult(
+          request.command,
+          "completed",
+          `Session name set: ${actual}`,
+          actual === argument ? undefined : `Session name was normalized from ${JSON.stringify(argument)} to ${JSON.stringify(actual)}`,
+        );
       }
       case "session": {
         const manager = dynamicObject(session, "sessionManager");
@@ -1089,7 +1097,7 @@ export class PiEngineAdapter {
         }
         const result = await requiredDynamicCallAsync(runtime, "fork", selection, { position: "before" });
         if (isRecord(result) && result.cancelled === true) return workflowResult(request.command, "cancelled", "Fork cancelled");
-        return workflowResult(request.command, "completed", "Forked session");
+        return workflowResult(request.command, "completed", "Forked to new session");
       }
       case "clone": {
         const manager = dynamicObject(session, "sessionManager");
@@ -1097,7 +1105,7 @@ export class PiEngineAdapter {
         if (typeof leaf !== "string") return workflowResult(request.command, "failed", "No session position is available to clone");
         const result = await requiredDynamicCallAsync(runtime, "fork", leaf, { position: "at" });
         if (isRecord(result) && result.cancelled === true) return workflowResult(request.command, "cancelled", "Clone cancelled");
-        return workflowResult(request.command, "completed", "Cloned session");
+        return workflowResult(request.command, "completed", "Cloned to new session");
       }
       case "tree": {
         const manager = dynamicObject(session, "sessionManager");
@@ -1189,12 +1197,22 @@ export class PiEngineAdapter {
         } finally {
           this.#workflowInteraction.finishLogin?.();
         }
-        return workflowResult(request.command, "completed", `Logged in to ${providerName}`);
+        return workflowResult(request.command, "completed", `Logged in to ${providerName}. Credentials saved to ${join(this.#agentDir, "auth.json")}`);
       }
       case "logout": {
         if (!selection) return workflowSelector(request.command, "Logout provider", await this.#logoutOptions());
-        await requiredDynamicCallAsync(dynamicObject(runtime.services, "modelRuntime"), "logout", selection, { signal: AbortSignal.timeout(15_000) });
-        return workflowResult(request.command, "completed", `Logged out of ${selection}`);
+        const [credentialType = "oauth", providerId = selection] = selection.includes(":") ? selection.split(":", 2) : ["oauth", selection];
+        const modelRuntime = dynamicObject(runtime.services, "modelRuntime");
+        await requiredDynamicCallAsync(modelRuntime, "logout", providerId, { signal: AbortSignal.timeout(15_000) });
+        const provider = dynamicCall(modelRuntime, "getProvider", providerId);
+        const providerName = stringProperty(provider, "name") ?? providerId;
+        return workflowResult(
+          request.command,
+          "completed",
+          credentialType === "api_key"
+            ? `Removed stored API key for ${providerName}. Environment variables and models.json config are unchanged.`
+            : `Logged out of ${providerName}`,
+        );
       }
       case "new": {
         const result = await runtime.newSession();
@@ -1237,8 +1255,12 @@ export class PiEngineAdapter {
         await this.dispose();
         return workflowResult(request.command, "completed", "Shutdown complete");
       }
-      case "debug":
-        return workflowResult(request.command, "completed", "Debug output", JSON.stringify(this.snapshot(), null, 2));
+      case "debug": {
+        const debugPath = join(this.#agentDir, "pi-debug.log");
+        await mkdir(dirname(debugPath), { recursive: true });
+        await writeFile(debugPath, `${JSON.stringify(this.snapshot(), null, 2)}\n`, "utf8");
+        return workflowResult(request.command, "completed", "✓ Debug log written", debugPath);
+      }
       case "arminsayshi":
         return workflowResult(request.command, "completed", "Armin says hi");
       case "dementedelves":
@@ -1288,9 +1310,17 @@ export class PiEngineAdapter {
     if (!runtime) return [];
     const credentials = await requiredDynamicCallAsync(dynamicObject(runtime.services, "modelRuntime"), "listCredentials", { signal: AbortSignal.timeout(15_000) });
     if (!Array.isArray(credentials)) return [];
+    const modelRuntime = dynamicObject(runtime.services, "modelRuntime");
     return credentials.filter(isRecord).flatMap(credential => {
-      const id = stringProperty(credential, "providerId");
-      return id ? [{ id, label: id, description: stringProperty(credential, "type") ?? "stored credential" }] : [];
+      const providerId = stringProperty(credential, "providerId");
+      if (!providerId) return [];
+      const credentialType = stringProperty(credential, "type") === "api_key" ? "api_key" : "oauth";
+      const provider = dynamicCall(modelRuntime, "getProvider", providerId);
+      return [{
+        id: `${credentialType}:${providerId}`,
+        label: stringProperty(provider, "name") ?? providerId,
+        description: credentialType,
+      }];
     });
   }
 
