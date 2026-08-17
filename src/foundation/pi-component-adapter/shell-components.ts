@@ -524,8 +524,12 @@ export function createPiShellUserMessageSelector(
 }
 
 export interface PiShellLoginDialogPort extends PiShellComponentPort {
+  showAuth(url: string, instructions?: string): void;
+  showDeviceCode(info: { readonly verificationUri: string; readonly userCode: string }): void;
+  showManualInput(message: string): Promise<string>;
   showPrompt(message: string, placeholder?: string): Promise<string>;
   showDetails(lines: readonly string[]): void;
+  showInfo(message: string, links?: readonly { readonly label?: string; readonly url: string }[], showCloseHint?: boolean): void;
   showWaiting(message: string): void;
   showProgress(message: string): void;
 }
@@ -534,13 +538,18 @@ export function createPiShellLoginDialog(
   runtime: Pick<PiShellEditorOptions, "getColumns" | "getRows" | "requestRender">,
   providerId: string,
   onComplete: (success: boolean, message?: string) => void,
+  providerName?: string,
 ): PiShellLoginDialogPort {
   ensureTheme();
-  const dialog = new LoginDialogComponent(createTuiFacade(runtime), providerId, onComplete);
+  const dialog = new LoginDialogComponent(createTuiFacade(runtime), providerId, onComplete, providerName);
   return {
     ...componentPort(dialog),
+    showAuth: (url, instructions) => dialog.showAuth(url, instructions),
+    showDeviceCode: info => dialog.showDeviceCode(info),
+    showManualInput: message => dialog.showManualInput(message),
     showPrompt: (message, placeholder) => dialog.showPrompt(message, placeholder),
     showDetails: lines => dialog.showDetails([...lines]),
+    showInfo: (message, links = [], showCloseHint = false) => dialog.showInfo(message, [...links], showCloseHint),
     showWaiting: message => dialog.showWaiting(message),
     showProgress: message => dialog.showProgress(message),
   };

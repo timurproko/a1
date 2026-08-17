@@ -68,6 +68,7 @@ class WorkflowRuntime implements PiRuntimeLike {
   readonly session = new WorkflowSession();
   newCancelled = false;
   loginPrompt = false;
+  loginSelect = false;
   resumeMissingCwd = false;
   readonly calls: string[] = [];
   readonly settingsValues = new Map<string, unknown>([
@@ -95,8 +96,18 @@ class WorkflowRuntime implements PiRuntimeLike {
     getAvailableSnapshot: () => [{ provider: "openai", id: "gpt-5", name: "GPT-5" }],
     getProviders: () => [{ id: "openai", name: "OpenAI", auth: { oauth: {}, apiKey: {} } }],
     listCredentials: async () => [{ providerId: "openai", type: "oauth" }],
-    login: async (_provider: string, _type: string, interaction: { prompt(input: unknown): Promise<string> }) => {
-      if (this.loginPrompt) await interaction.prompt({ type: "input", message: "API key", placeholder: "secret" });
+    getProvider: (providerId: string) => providerId === "openai" ? { id: providerId, name: "OpenAI Codex" } : undefined,
+    login: async (_provider: string, _type: string, interaction: { prompt(input: unknown): Promise<string>; notify(event: unknown): void }) => {
+      if (this.loginSelect) {
+        interaction.notify({ type: "auth_url", url: "https://example.test/auth", instructions: "Continue in browser" });
+        await interaction.prompt({
+          type: "select",
+          message: "Select OpenAI Codex login method:",
+          options: [{ id: "browser", label: "Browser login" }, { id: "device", label: "Device code login" }],
+        });
+      } else if (this.loginPrompt) {
+        await interaction.prompt({ type: "input", message: "API key", placeholder: "secret" });
+      }
       return { type: "oauth" };
     },
     logout: async () => {},
@@ -277,7 +288,20 @@ describe("pinned Pi command and input workflows", () => {
     await expect(adapter.executeWorkflow({ command: "model", argument: "openai/missing" })).resolves.toMatchObject({ outcome: "failed" });
   });
 
-  it("maps public authentication prompts into owned success and cancellation interactions", async () => {
+  it("preserves the provider-specific authentication-type level before login", async () => {
+    const { adapter } = await fixture();
+    await expect(adapter.executeWorkflow({ command: "login", argument: "openai" })).resolves.toMatchObject({
+      outcome: "requires-selection",
+      selectorTitle: "Select authentication method for OpenAI Codex:",
+      options: [
+        { id: "oauth:openai", label: "Sign in with an account" },
+        { id: "api_key:openai", label: "Sign in with an API key" },
+      ],
+    });
+    await adapter.dispose();
+  });
+
+  it("maps public authentication prompts into owned nested states, success, and cancellation", async () => {
     const { adapter, runtime } = await fixture();
     runtime.loginPrompt = true;
     const prompts: string[] = [];
@@ -288,7 +312,33 @@ describe("pinned Pi command and input workflows", () => {
     await expect(adapter.executeWorkflow({ command: "login", argument: "api_key:openai" })).resolves.toMatchObject({ outcome: "completed" });
     expect(prompts).toEqual(["secret:API key"]);
 
+    runtime.loginPrompt = false;
+    runtime.loginSelect = true;
+    const lifecycle: string[] = [];
+    const notifications: unknown[] = [];
+    adapter.setWorkflowInteractionHost({
+      startLogin: request => lifecycle.push(`start:${request.providerName}:${request.authType}`),
+      prompt: async request => {
+        expect(request).toMatchObject({
+          type: "select",
+          message: "Select OpenAI Codex login method:",
+          options: [{ id: "browser", label: "Browser login" }, { id: "device", label: "Device code login" }],
+        });
+        return "device";
+      },
+      notify: event => notifications.push(event),
+      finishLogin: () => lifecycle.push("finish"),
+    });
+    await expect(adapter.executeWorkflow({ command: "login", argument: "oauth:openai" })).resolves.toMatchObject({
+      outcome: "completed",
+      message: "Logged in to OpenAI Codex",
+    });
+    expect(lifecycle).toEqual(["start:OpenAI Codex:oauth", "finish"]);
+    expect(notifications).toEqual([{ type: "auth_url", url: "https://example.test/auth", instructions: "Continue in browser" }]);
+
     adapter.setWorkflowInteractionHost({ prompt: async () => null, notify() {} });
+    runtime.loginSelect = false;
+    runtime.loginPrompt = true;
     await expect(adapter.executeWorkflow({ command: "login", argument: "api_key:openai" })).resolves.toMatchObject({ outcome: "cancelled" });
   });
 });

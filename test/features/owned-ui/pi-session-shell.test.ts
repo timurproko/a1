@@ -57,6 +57,24 @@ class Runtime implements PiRuntimeLike {
     modelRuntime: {
       getModel: (provider: string, id: string) => this.availableModels.find(model => model.provider === provider && model.id === id),
       getAvailableSnapshot: () => this.availableModels,
+      getProviders: () => [{ id: "openai", name: "OpenAI Codex", auth: { oauth: {}, apiKey: {} } }],
+      getProvider: (id: string) => id === "openai" ? { id, name: "OpenAI Codex", auth: { oauth: {}, apiKey: {} } } : undefined,
+      login: async (_providerId: string, _authType: string, interaction: {
+        prompt(request: unknown): Promise<string>;
+        notify(event: unknown): void;
+      }) => {
+        interaction.notify({ type: "progress", message: "Preparing authentication..." });
+        const method = await interaction.prompt({
+          type: "select",
+          message: "Select OpenAI Codex login method:",
+          options: [
+            { id: "browser", label: "Browser login (default)" },
+            { id: "device", label: "Device code login (headless)" },
+          ],
+        });
+        this.calls.push(`login-method:${method}`);
+        return { type: "oauth" };
+      },
       refresh: async () => ({ aborted: false, errors: new Map() }),
     },
     settingsManager: {
@@ -352,6 +370,27 @@ describe("PiSessionShell", () => {
     await new Promise(resolve => setTimeout(resolve, 0));
     expect(execute).toHaveBeenCalledWith({ command: "login", argument: "", selection: "oauth:openai" });
     expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("completed oauth:openai");
+    await shell.dispose();
+  });
+
+  it("ports the nested provider authentication-method selector and restores its parent dialog", async () => {
+    const { engine, terminal, shell } = await fixture();
+    await shell.submit("/login");
+    terminal.input("\r");
+    terminal.input("\r");
+    await new Promise(resolve => setTimeout(resolve, 0));
+    const nested = stripTerminalSequences(shell.root.render(100).join("\n"));
+    expect(nested).toContain("Select OpenAI Codex login method:");
+    expect(nested).toContain("Browser login (default)");
+    expect(nested).toContain("Device code login (headless)");
+    expect(nested).not.toContain("Login to provider");
+
+    terminal.input("\x1b[B");
+    terminal.input("\r");
+    await new Promise(resolve => setTimeout(resolve, 0));
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(engine.calls).toContain("login-method:device");
+    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Logged in to OpenAI Codex");
     await shell.dispose();
   });
 

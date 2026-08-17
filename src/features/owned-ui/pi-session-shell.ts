@@ -9,6 +9,9 @@ import {
   PINNED_PI_WORKFLOW_COMMAND_NAMES,
   type AdapterCommandResult,
   type PiEngineAdapter,
+  type PiWorkflowInteractionRequest,
+  type PiWorkflowLoginNotification,
+  type PiWorkflowLoginStart,
   type PiWorkflowRequest,
   type PiWorkflowResult,
   type PiWorkflowRoute,
@@ -46,6 +49,7 @@ import {
   type PiShellHeaderOptions,
   type PiShellHeaderPort,
   type PiShellLoadedResourcesPort,
+  type PiShellLoginDialogPort,
   type PiShellQueuedInputPort,
   type PiShellResourceEntry,
   type PiShellScopedModelsSelectorPort,
@@ -394,11 +398,11 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
     };
   }
 
-  setInputSurface(component: PiShellComponentPort | null): void {
+  setInputSurface(component: PiShellComponentPort | null, disposePrevious = true): void {
     const next = component ?? this.editor;
     if (next === this.#inputSurface) return;
     this.#inputSurface.setFocused?.(false);
-    if (this.#inputSurface !== this.editor) this.#inputSurface.dispose?.();
+    if (disposePrevious && this.#inputSurface !== this.editor) this.#inputSurface.dispose?.();
     this.#inputSurface = next;
     this.#inputSurface.setFocused?.(true);
     this.invalidate();
@@ -608,6 +612,7 @@ export class PiSessionShell {
   #disposed = false;
   #compactionQueue: Array<{ readonly text: string; readonly type: "steer" | "follow-up" }> = [];
   #lastClearTime = 0;
+  #activeLoginDialog: PiShellLoginDialogPort | undefined;
 
   constructor(options: PiSessionShellOptions) {
     this.adapter = options.adapter;
@@ -673,11 +678,10 @@ export class PiSessionShell {
       setToolsExpanded: expanded => this.root.setToolsExpanded(expanded),
     });
     this.adapter.setWorkflowInteractionHost({
-      prompt: request => this.#requestWorkflowInput(request.message),
-      notify: message => {
-        this.root.appendWorkflowResult({ command: "login", outcome: "completed", message });
-        this.runtime.requestRender();
-      },
+      startLogin: request => this.#startWorkflowLogin(request),
+      prompt: request => this.#requestWorkflowInput(request),
+      notify: event => this.#notifyWorkflowLogin(event),
+      finishLogin: () => this.#finishWorkflowLogin(),
     });
     this.root.editor.setAutocompleteCommands(this.adapter.workflowAutocompleteCommands());
     this.#unsubscribe = this.adapter.onEvent(event => {
@@ -1296,27 +1300,68 @@ export class PiSessionShell {
     if (result.diagnostic === "Branch summarization cancelled") this.showTreeSelector(entryId);
   }
 
-  #requestWorkflowInput(message: string): Promise<string | null> {
-    return new Promise(resolve => {
-      let settled = false;
-      const finish = (value: string | null) => {
-        if (settled) return;
-        settled = true;
-        this.root.setInputSurface(null);
+  #startWorkflowLogin(request: PiWorkflowLoginStart): void {
+    this.#finishWorkflowLogin();
+    const dialog = createPiShellLoginDialog({
+      getColumns: () => this.runtime.viewport().columns,
+      getRows: () => this.runtime.viewport().rows,
+      requestRender: () => this.runtime.requestRender(),
+    }, request.providerId, success => {
+      if (!success) this.#finishWorkflowLogin();
+    }, request.providerName);
+    this.#activeLoginDialog = dialog;
+    this.root.setInputSurface(dialog);
+    this.runtime.requestRender();
+  }
+
+  #requestWorkflowInput(request: PiWorkflowInteractionRequest): Promise<string | null> {
+    const dialog = this.#activeLoginDialog;
+    if (!dialog) return Promise.resolve(null);
+    if (request.type === "select") {
+      return new Promise(resolve => {
+        const options = request.options ?? [];
+        const labels = options.map(option => option.label);
+        const restoreDialog = () => {
+          if (this.#activeLoginDialog === dialog) this.root.setInputSurface(dialog);
+          this.runtime.requestRender();
+        };
+        const selector = createPiShellExtensionSelector(request.message, labels, label => {
+          const id = options.find(option => option.label === label)?.id;
+          restoreDialog();
+          resolve(id ?? null);
+        }, () => {
+          restoreDialog();
+          resolve(null);
+        });
+        this.root.setInputSurface(selector, false);
         this.runtime.requestRender();
-        resolve(value);
-      };
-      const dialog = createPiShellLoginDialog({
-        getColumns: () => this.runtime.viewport().columns,
-        getRows: () => this.runtime.viewport().rows,
-        requestRender: () => this.runtime.requestRender(),
-      }, "provider", success => {
-        if (!success) finish(null);
       });
-      this.root.setInputSurface(dialog);
-      void dialog.showPrompt(message).then(value => finish(value.trim() || null), () => finish(null));
-      this.runtime.requestRender();
-    });
+    }
+    const response = request.type === "manual-code"
+      ? dialog.showManualInput(request.message)
+      : dialog.showPrompt(request.message, request.placeholder);
+    this.runtime.requestRender();
+    return response.then(value => value.trim() || null, () => null);
+  }
+
+  #notifyWorkflowLogin(event: PiWorkflowLoginNotification): void {
+    const dialog = this.#activeLoginDialog;
+    if (!dialog) return;
+    if (event.type === "auth_url") dialog.showAuth(event.url, event.instructions);
+    else if (event.type === "device_code") {
+      dialog.showDeviceCode(event);
+      dialog.showWaiting("Waiting for authentication...");
+    } else if (event.type === "info") dialog.showInfo(event.message, event.links);
+    else if (event.type === "waiting") dialog.showWaiting(event.message);
+    else dialog.showProgress(event.message);
+    this.runtime.requestRender();
+  }
+
+  #finishWorkflowLogin(): void {
+    if (!this.#activeLoginDialog) return;
+    this.#activeLoginDialog = undefined;
+    this.root.setInputSurface(null);
+    this.runtime.requestRender();
   }
 
   async #flushCompactionQueue(): Promise<void> {

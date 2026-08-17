@@ -48,6 +48,7 @@ import {
   type PiWorkflowAutocompleteCommand,
   type PiWorkflowHost,
   type PiWorkflowInteractionHost,
+  type PiWorkflowLoginNotification,
   type PiWorkflowOption,
   type PiWorkflowRequest,
   type PiWorkflowResult,
@@ -1121,33 +1122,74 @@ export class PiEngineAdapter {
       }
       case "login": {
         if (!selection && !argument) return workflowSelector(request.command, "Login provider", this.#loginOptions());
-        const loginSelection = selection ?? argument;
-        const [authType = "oauth", providerId = loginSelection] = loginSelection.includes(":")
+        const modelRuntime = dynamicObject(runtime.services, "modelRuntime");
+        let loginSelection = selection ?? argument;
+        if (!selection && argument && !argument.includes(":")) {
+          const normalized = argument.toLowerCase();
+          const providers = dynamicCall(modelRuntime, "getProviders");
+          const providerMatches = Array.isArray(providers) ? providers.filter(isRecord).filter(candidate =>
+            stringProperty(candidate, "id")?.toLowerCase() === normalized
+              || stringProperty(candidate, "name")?.toLowerCase() === normalized) : [];
+          const providerReference = providerMatches.length === 1 ? stringProperty(providerMatches[0], "id") ?? argument : argument;
+          const matching = this.#loginOptions().filter(option => option.id.endsWith(`:${providerReference}`));
+          if (matching.length > 1) {
+            const provider = dynamicCall(modelRuntime, "getProvider", providerReference);
+            const providerName = stringProperty(provider, "name") ?? providerReference;
+            const oauth = dynamicObject(dynamicObject(provider, "auth"), "oauth");
+            const loginLabel = stringProperty(oauth, "loginLabel") ?? "Sign in with an account";
+            return workflowSelector(request.command, `Select authentication method for ${providerName}:`, matching.map(option => ({
+              ...option,
+              label: option.id.startsWith("api_key:") ? "Sign in with an API key" : loginLabel,
+            })));
+          }
+          if (matching[0]) loginSelection = matching[0].id;
+        }
+        const [authTypeValue = "oauth", providerId = loginSelection] = loginSelection.includes(":")
           ? loginSelection.split(":", 2)
           : ["oauth", loginSelection];
-        const modelRuntime = dynamicObject(runtime.services, "modelRuntime");
+        const authType = authTypeValue === "api_key" ? "api_key" as const : "oauth" as const;
+        const provider = dynamicCall(modelRuntime, "getProvider", providerId);
+        const providerName = stringProperty(provider, "name") ?? providerId;
+        this.#workflowInteraction.startLogin?.({ providerId, providerName, authType });
         try {
           await requiredDynamicCallAsync(modelRuntime, "login", providerId, authType, {
             signal: AbortSignal.timeout(120_000),
             prompt: async (prompt: unknown) => {
+              const promptType = stringProperty(prompt, "type");
+              const options = isRecord(prompt) && Array.isArray(prompt.options)
+                ? prompt.options.filter(isRecord).flatMap(option => {
+                    const id = stringProperty(option, "id");
+                    const label = stringProperty(option, "label");
+                    return id && label ? [{ id, label }] : [];
+                  })
+                : [];
               const response = await this.#workflowInteraction.prompt({
-                type: authType === "api_key" ? "secret" : isRecord(prompt) && prompt.type === "manual_code" ? "manual-code" : "text",
-                message: stringProperty(prompt, "message") ?? `Authenticate ${providerId}`,
+                type: promptType === "select"
+                  ? "select"
+                  : promptType === "manual_code"
+                    ? "manual-code"
+                    : authType === "api_key"
+                      ? "secret"
+                      : "text",
+                message: stringProperty(prompt, "message") ?? `Authenticate ${providerName}`,
                 ...(stringProperty(prompt, "placeholder") === undefined ? {} : { placeholder: stringProperty(prompt, "placeholder")! }),
+                ...(options.length === 0 ? {} : { options }),
               });
               if (response === null) throw new Error("Login cancelled");
               return response;
             },
             notify: (event: unknown) => {
-              const message = stringProperty(event, "message") ?? stringProperty(event, "url") ?? stringProperty(event, "instructions");
-              if (message) this.#workflowInteraction.notify(message);
+              const notification = workflowLoginNotification(event);
+              if (notification) this.#workflowInteraction.notify(notification);
             },
           });
         } catch (error) {
           if (error instanceof Error && error.message === "Login cancelled") return workflowResult(request.command, "cancelled", "Login cancelled");
           throw error;
+        } finally {
+          this.#workflowInteraction.finishLogin?.();
         }
-        return workflowResult(request.command, "completed", `Logged in to ${providerId}`);
+        return workflowResult(request.command, "completed", `Logged in to ${providerName}`);
       }
       case "logout": {
         if (!selection) return workflowSelector(request.command, "Logout provider", await this.#logoutOptions());
@@ -2221,6 +2263,33 @@ function defaultWorkflowHost(): PiWorkflowHost {
     },
     readChangelog: async () => pinnedChangelogMarkdown(await readFile(join(getPackageDir(), "CHANGELOG.md"), "utf8")),
   };
+}
+
+function workflowLoginNotification(event: unknown): PiWorkflowLoginNotification | undefined {
+  if (!isRecord(event)) return undefined;
+  if (event.type === "auth_url") {
+    const url = stringProperty(event, "url");
+    if (!url) return undefined;
+    const instructions = stringProperty(event, "instructions");
+    return { type: "auth_url", url, ...(instructions === undefined ? {} : { instructions }) };
+  }
+  if (event.type === "device_code") {
+    const verificationUri = stringProperty(event, "verificationUri");
+    const userCode = stringProperty(event, "userCode");
+    return verificationUri && userCode ? { type: "device_code", verificationUri, userCode } : undefined;
+  }
+  const message = stringProperty(event, "message");
+  if (!message) return undefined;
+  if (event.type === "info") {
+    const links = Array.isArray(event.links) ? event.links.filter(isRecord).flatMap(link => {
+      const url = stringProperty(link, "url");
+      if (!url) return [];
+      const label = stringProperty(link, "label");
+      return [{ ...(label === undefined ? {} : { label }), url }];
+    }) : [];
+    return { type: "info", message, ...(links.length === 0 ? {} : { links }) };
+  }
+  return { type: event.type === "waiting" ? "waiting" : "progress", message };
 }
 
 function workflowResult(

@@ -168,14 +168,29 @@ export interface PiWorkflowAutocompleteCommand {
 }
 
 export interface PiWorkflowInteractionRequest {
-  readonly type: "text" | "secret" | "manual-code";
+  readonly type: "text" | "secret" | "manual-code" | "select";
   readonly message: string;
   readonly placeholder?: string;
+  readonly options?: readonly { readonly id: string; readonly label: string }[];
 }
 
+export interface PiWorkflowLoginStart {
+  readonly providerId: string;
+  readonly providerName: string;
+  readonly authType: "oauth" | "api_key";
+}
+
+export type PiWorkflowLoginNotification =
+  | { readonly type: "auth_url"; readonly url: string; readonly instructions?: string }
+  | { readonly type: "device_code"; readonly verificationUri: string; readonly userCode: string }
+  | { readonly type: "info"; readonly message: string; readonly links?: readonly { readonly label?: string; readonly url: string }[] }
+  | { readonly type: "waiting" | "progress"; readonly message: string };
+
 export interface PiWorkflowInteractionHost {
+  startLogin?(request: PiWorkflowLoginStart): void;
   prompt(request: PiWorkflowInteractionRequest): Promise<string | null>;
-  notify(message: string): void;
+  notify(event: PiWorkflowLoginNotification): void;
+  finishLogin?(): void;
 }
 
 export interface PiWorkflowHost {
