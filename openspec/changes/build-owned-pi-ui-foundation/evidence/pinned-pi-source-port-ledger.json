@@ -2,7 +2,7 @@
   "schema": "addone-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-08-17T08:41:34.105Z",
+  "recordedAt": "2026-08-17T10:47:19.972Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "914cf1472e715297caa30db4b9535d534a9eb718",
@@ -39,8 +39,8 @@
     "assets": 4,
     "classifications": {
       "public-reuse": 62,
-      "owned-source-port": 25,
-      "host-adapter": 22
+      "owned-source-port": 20,
+      "host-adapter": 27
     },
     "requiredBehaviorIds": 29,
     "coveredBehaviorIds": 29,
@@ -56,11 +56,11 @@
       "sourceMap": "cli/startup-ui.js.map",
       "lines": 240,
       "sha256": "409cfad6ada74bb06c359be77f2ff7478c671a34e6514f4c8f637967b0b74844",
-      "classification": "owned-source-port",
-      "localDestination": "src/foundation/pi-component-adapter/upstream/adjacent/cli/startup-ui.ts",
-      "implementationStatus": "not-ported",
+      "classification": "host-adapter",
+      "localDestination": "src/foundation/pi-component-adapter/shell-components.ts",
+      "implementationStatus": "adapter-present-conformance-passed",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Mechanical port planned: remap imports, inject AddOne engine/runtime ownership, preserve control flow and state, and record every deviation.",
+      "modifications": "Split startup UI authority across the AddOne shell/component adapter while preserving pinned first-time setup, startup notices, resources, and preflight behavior without constructing the stock CLI root.",
       "approvedDeviations": [],
       "behaviorCategories": [
         "startup-composition",
@@ -96,7 +96,7 @@
       "sha256": "2df7d32d9697a22d1e9b70b08480dfe45c4c8e3a2e6719fcf130d927e34edb87",
       "classification": "host-adapter",
       "localDestination": "src/foundation/pi-engine-adapter/index.ts",
-      "implementationStatus": "adapter-present-conformance-pending",
+      "implementationStatus": "adapter-present-conformance-passed",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Retain authority in the pinned public SDK and expose it only through AddOne engine contracts.",
       "approvedDeviations": [],
@@ -149,7 +149,7 @@
       "sha256": "831c56842c394969567199a9e5ccdaebb9a3df7bdde825aa677935b825afedd6",
       "classification": "host-adapter",
       "localDestination": "src/foundation/pi-engine-adapter/index.ts",
-      "implementationStatus": "adapter-present-conformance-pending",
+      "implementationStatus": "adapter-present-conformance-passed",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Retain authority in the pinned public SDK and expose it only through AddOne engine contracts.",
       "approvedDeviations": [],
@@ -202,7 +202,7 @@
       "sha256": "c83f43205f0b0ef014a383b4969f2bce112a8b4280f6e9f889eeae0d7e02ec2e",
       "classification": "host-adapter",
       "localDestination": "src/foundation/pi-engine-adapter/index.ts",
-      "implementationStatus": "adapter-present-conformance-pending",
+      "implementationStatus": "adapter-present-conformance-passed",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Retain authority in the pinned public SDK and expose it only through AddOne engine contracts.",
       "approvedDeviations": [],
@@ -255,7 +255,7 @@
       "sha256": "c0c3043846e107bbfcb236e28cc0505909bc476b67cd91f386a299ba83d08760",
       "classification": "host-adapter",
       "localDestination": "src/foundation/pi-engine-adapter/index.ts",
-      "implementationStatus": "adapter-present-conformance-pending",
+      "implementationStatus": "adapter-present-conformance-passed",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Retain authority in the pinned public SDK and expose it only through AddOne engine contracts.",
       "approvedDeviations": [],
@@ -308,7 +308,7 @@
       "sha256": "071a6609afa6aeffa74e485b66474076bd7d70c14503804591ce79739100756c",
       "classification": "host-adapter",
       "localDestination": "src/foundation/pi-engine-adapter/index.ts",
-      "implementationStatus": "adapter-present-conformance-pending",
+      "implementationStatus": "adapter-present-conformance-passed",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Retain authority in the pinned public SDK and expose it only through AddOne engine contracts.",
       "approvedDeviations": [],
@@ -359,7 +359,7 @@
       "sha256": "731ef884151310fdb5216845be2a0d4a4b2acd0e985529c5cbbc7528405de821",
       "classification": "host-adapter",
       "localDestination": "src/foundation/pi-engine-adapter/index.ts",
-      "implementationStatus": "adapter-present-conformance-pending",
+      "implementationStatus": "adapter-present-conformance-passed",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Retain authority in the pinned public SDK and expose it only through AddOne engine contracts.",
       "approvedDeviations": [],
@@ -410,7 +410,7 @@
       "sha256": "c8fd9486fe1d9e31b4b004be1f4a3dee86f57b0ab87f36a0354cbfc4ed35e731",
       "classification": "host-adapter",
       "localDestination": "src/foundation/pi-engine-adapter/index.ts",
-      "implementationStatus": "adapter-present-conformance-pending",
+      "implementationStatus": "adapter-present-conformance-passed",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Retain authority in the pinned public SDK and expose it only through AddOne engine contracts.",
       "approvedDeviations": [],
@@ -444,7 +444,7 @@
       "sha256": "9b5c4d1cdf84ad98c0b32c9ec9c1d21db9680c6ef49b497edf93fea80fca7c89",
       "classification": "owned-source-port",
       "localDestination": "src/foundation/pi-component-adapter/upstream/adjacent/core/keybindings.ts",
-      "implementationStatus": "ported",
+      "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical source port with Node import prefixes and public package-root AddOne agent-directory resolution.",
       "localSha256": "173b5e7d3e07b47a9e1e038644acaf002d4f3f1de05cf840de293cd806be1f35",
@@ -487,7 +487,7 @@
       "sha256": "57e77eee8594aab3da80052b0d2804f83cb3c3713750ec151a417ba22e89e891",
       "classification": "host-adapter",
       "localDestination": "src/foundation/pi-engine-adapter/index.ts",
-      "implementationStatus": "adapter-present-conformance-pending",
+      "implementationStatus": "adapter-present-conformance-passed",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Retain authority in the pinned public SDK and expose it only through AddOne engine contracts.",
       "approvedDeviations": [],
@@ -540,7 +540,7 @@
       "sha256": "e94b8504b97fe668b04577891b7029abc7d11ac795e728982d2615a13ec1528a",
       "classification": "host-adapter",
       "localDestination": "src/foundation/pi-engine-adapter/index.ts",
-      "implementationStatus": "adapter-present-conformance-pending",
+      "implementationStatus": "adapter-present-conformance-passed",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Retain authority in the pinned public SDK and expose it only through AddOne engine contracts.",
       "approvedDeviations": [],
@@ -593,7 +593,7 @@
       "sha256": "19a7ba16f91ef03c21785fb1583a217b63e7d533c143abcb8910c9c090e9bb91",
       "classification": "host-adapter",
       "localDestination": "src/foundation/pi-engine-adapter/index.ts",
-      "implementationStatus": "adapter-present-conformance-pending",
+      "implementationStatus": "adapter-present-conformance-passed",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Retain authority in the pinned public SDK and expose it only through AddOne engine contracts.",
       "approvedDeviations": [],
@@ -627,7 +627,7 @@
       "sha256": "48ea062da677d6e52c270f4ec767726b48208ebfd0ee61986baacfd707c76e30",
       "classification": "host-adapter",
       "localDestination": "src/foundation/pi-engine-adapter/index.ts",
-      "implementationStatus": "adapter-present-conformance-pending",
+      "implementationStatus": "adapter-present-conformance-passed",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Retain authority in the pinned public SDK and expose it only through AddOne engine contracts.",
       "approvedDeviations": [],
@@ -680,7 +680,7 @@
       "sha256": "df3135f9fe8d0681a8fe435138e221ad36fe8fcd165434c934448a5b29d86051",
       "classification": "host-adapter",
       "localDestination": "src/foundation/pi-engine-adapter/index.ts",
-      "implementationStatus": "adapter-present-conformance-pending",
+      "implementationStatus": "adapter-present-conformance-passed",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Retain authority in the pinned public SDK and expose it only through AddOne engine contracts.",
       "approvedDeviations": [],
@@ -733,7 +733,7 @@
       "sha256": "2a1a01cbbc6c04b7593611a8ae71e8d182444417ac50d31d63a86294673c2a31",
       "classification": "host-adapter",
       "localDestination": "src/foundation/pi-engine-adapter/index.ts",
-      "implementationStatus": "adapter-present-conformance-pending",
+      "implementationStatus": "adapter-present-conformance-passed",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Retain authority in the pinned public SDK and expose it only through AddOne engine contracts.",
       "approvedDeviations": [],
@@ -786,7 +786,7 @@
       "sha256": "2f56a637c7231f112331a9636ccef2d1d2ae36fc2fee3916b892e053a63ff8f6",
       "classification": "host-adapter",
       "localDestination": "src/foundation/pi-engine-adapter/index.ts",
-      "implementationStatus": "adapter-present-conformance-pending",
+      "implementationStatus": "adapter-present-conformance-passed",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Retain authority in the pinned public SDK and expose it only through AddOne engine contracts.",
       "approvedDeviations": [],
@@ -837,11 +837,11 @@
       "sourceMap": "core/slash-commands.js.map",
       "lines": 43,
       "sha256": "788b87d9bbeb4498f9669de75e8233e63dcb9b6893179f497a1b6db61bd9a6b1",
-      "classification": "owned-source-port",
-      "localDestination": "src/foundation/pi-component-adapter/upstream/adjacent/core/slash-commands.ts",
-      "implementationStatus": "not-ported",
+      "classification": "host-adapter",
+      "localDestination": "src/foundation/pi-engine-adapter/workflows.ts",
+      "implementationStatus": "adapter-present-conformance-passed",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Mechanical port planned: remap imports, inject AddOne engine/runtime ownership, preserve control flow and state, and record every deviation.",
+      "modifications": "Expose the pinned command manifest and dispatch categories through typed AddOne workflow contracts; source-derived governance rejects omitted advertised or hidden routes.",
       "approvedDeviations": [],
       "behaviorCategories": [
         "built-in-commands",
@@ -871,11 +871,11 @@
       "sourceMap": null,
       "bytes": 539053,
       "sha256": "169acd0dfe6fbb8d8742ed24a3fc654fd0b2e2d4223c733249c5493723f1b72d",
-      "classification": "owned-source-port",
-      "localDestination": "src/foundation/pi-component-adapter/upstream/assets/clankolas.png",
-      "implementationStatus": "not-ported",
+      "classification": "public-reuse",
+      "localDestination": "src/foundation/pi-component-adapter/upstream/components/earendil-announcement.ts",
+      "implementationStatus": "available-through-pinned-package",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Copy unchanged before any documented AddOne asset transformation.",
+      "modifications": "Read the unchanged bundled asset through the public package directory boundary; do not copy, transform, or patch installed package content.",
       "approvedDeviations": [],
       "behaviorCategories": [
         "stateful-components"
@@ -1121,11 +1121,11 @@
       "sourceMap": "modes/interactive/components/config-selector.js.map",
       "lines": 943,
       "sha256": "2a1f2594ff2f78aa2305f7128bacbd8c227d5bd4efa94b156f45a7d9268c0805",
-      "classification": "owned-source-port",
-      "localDestination": "src/foundation/pi-component-adapter/upstream/components/config-selector.ts",
-      "implementationStatus": "not-ported",
+      "classification": "host-adapter",
+      "localDestination": "src/foundation/pi-component-adapter/index.ts",
+      "implementationStatus": "pinned-cli-only-inventory-mapped",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Mechanical port planned: remap imports, inject AddOne engine/runtime ownership, preserve control flow and state, and record every deviation.",
+      "modifications": "The pinned unit is reachable from the separate CLI config route, not InteractiveMode or the owned session shell; retain it in source inventory while configuration remains outside this owned-UI launch contract.",
       "approvedDeviations": [],
       "behaviorCategories": [
         "selectors",
@@ -1162,7 +1162,7 @@
       "sha256": "6ade4aa41c2c2400bdb79d47701c95504be48e3ab9f2b1aee3836a888c2d1da9",
       "classification": "owned-source-port",
       "localDestination": "src/foundation/pi-component-adapter/upstream/components/countdown-timer.ts",
-      "implementationStatus": "ported",
+      "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical source port with ECMAScript private fields; imports remain on the public Pi TUI package root.",
       "localSha256": "8aa307b95b250be9e23f02d4ce9f2d66d63677510c0866c265a3dbde2d50db72",
@@ -1242,9 +1242,10 @@
       "sha256": "8796bd95c4b496aad74674bbfb0e286768731532ad5ab8f51e6471cfbfd9404e",
       "classification": "owned-source-port",
       "localDestination": "src/foundation/pi-component-adapter/upstream/components/custom-entry.ts",
-      "implementationStatus": "not-ported",
+      "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Mechanical port planned: remap imports, inject AddOne engine/runtime ownership, preserve control flow and state, and record every deviation.",
+      "modifications": "Mechanical pinned source port with private imports remapped to public package-root types/APIs and AddOne-owned theme boundaries; behavior remains acceptance-tested.",
+      "localSha256": "1e9c274e8be3c8a253f5d80772bf73f8037007385933890a19d7730b10d2ef6a",
       "approvedDeviations": [],
       "behaviorCategories": [
         "stateful-components",
@@ -1261,11 +1262,13 @@
       ],
       "acceptanceTasks": [
         "7.5",
-        "7.11"
+        "7.11",
+        "7.29"
       ],
       "tests": [
         "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
-        "test/features/owned-ui/pi-session-shell.test.ts"
+        "test/features/owned-ui/pi-session-shell.test.ts",
+        "test/foundation/pi-component-adapter/pinned-reconciled-source-ports.test.ts"
       ]
     },
     {
@@ -1316,9 +1319,10 @@
       "sha256": "5567f1ca8217b3d536d304fa365a627ee4f8096aa435fd1088eb55e743275bfc",
       "classification": "owned-source-port",
       "localDestination": "src/foundation/pi-component-adapter/upstream/components/daxnuts.ts",
-      "implementationStatus": "not-ported",
+      "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Mechanical port planned: remap imports, inject AddOne engine/runtime ownership, preserve control flow and state, and record every deviation.",
+      "modifications": "Mechanical pinned source port with private imports remapped to public package-root types/APIs and AddOne-owned theme boundaries; behavior remains acceptance-tested.",
+      "localSha256": "3dcb7780ec05d451c1ff40c1d057af85b0781c461b7b5037dc41182129bd5db5",
       "approvedDeviations": [],
       "behaviorCategories": [
         "startup-composition",
@@ -1335,13 +1339,15 @@
       "acceptanceTasks": [
         "7.7",
         "7.9",
-        "7.11"
+        "7.11",
+        "7.29"
       ],
       "tests": [
         "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
         "test/features/owned-ui/pi-startup-composition-parity.test.ts",
         "test/foundation/pi-engine-adapter/workflows.test.ts",
-        "test/features/owned-ui/pi-session-shell.test.ts"
+        "test/features/owned-ui/pi-session-shell.test.ts",
+        "test/foundation/pi-component-adapter/pinned-reconciled-source-ports.test.ts"
       ]
     },
     {
@@ -1421,9 +1427,10 @@
       "sha256": "49b1711624425b7d504bf7d871810225814138b64bb2152fe3e70dbf1dd005d4",
       "classification": "owned-source-port",
       "localDestination": "src/foundation/pi-component-adapter/upstream/components/earendil-announcement.ts",
-      "implementationStatus": "not-ported",
+      "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Mechanical port planned: remap imports, inject AddOne engine/runtime ownership, preserve control flow and state, and record every deviation.",
+      "modifications": "Mechanical pinned source port with private imports remapped to public package-root types/APIs and AddOne-owned theme boundaries; behavior remains acceptance-tested.",
+      "localSha256": "f102f4e12340f882630c02fa7c25f79b40834b98dcf5707572faeb2fda6c0ecd",
       "approvedDeviations": [],
       "behaviorCategories": [
         "startup-composition",
@@ -1440,13 +1447,15 @@
       "acceptanceTasks": [
         "7.7",
         "7.9",
-        "7.11"
+        "7.11",
+        "7.29"
       ],
       "tests": [
         "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
         "test/features/owned-ui/pi-startup-composition-parity.test.ts",
         "test/foundation/pi-engine-adapter/workflows.test.ts",
-        "test/features/owned-ui/pi-session-shell.test.ts"
+        "test/features/owned-ui/pi-session-shell.test.ts",
+        "test/foundation/pi-component-adapter/pinned-reconciled-source-ports.test.ts"
       ]
     },
     {
@@ -1581,9 +1590,10 @@
       "sha256": "1a8f74713297b0ac2bc010a0d3ce7e1909b40d74dc07a40632c20a262964914c",
       "classification": "owned-source-port",
       "localDestination": "src/foundation/pi-component-adapter/upstream/components/first-time-setup.ts",
-      "implementationStatus": "not-ported",
+      "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Mechanical port planned: remap imports, inject AddOne engine/runtime ownership, preserve control flow and state, and record every deviation.",
+      "modifications": "Mechanical pinned source port with private imports remapped to public package-root types/APIs and AddOne-owned theme boundaries; behavior remains acceptance-tested.",
+      "localSha256": "dda426342eaa1d4d6a19ee8753a5da836c5e750149bd043473083ce245354875",
       "approvedDeviations": [],
       "behaviorCategories": [
         "startup-composition",
@@ -1600,13 +1610,15 @@
       "acceptanceTasks": [
         "7.7",
         "7.9",
-        "7.11"
+        "7.11",
+        "7.29"
       ],
       "tests": [
         "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
         "test/features/owned-ui/pi-startup-composition-parity.test.ts",
         "test/foundation/pi-engine-adapter/workflows.test.ts",
-        "test/features/owned-ui/pi-session-shell.test.ts"
+        "test/features/owned-ui/pi-session-shell.test.ts",
+        "test/foundation/pi-component-adapter/pinned-reconciled-source-ports.test.ts"
       ]
     },
     {
@@ -1747,9 +1759,10 @@
       "sha256": "657edd0453dab59d362e0d18c330486b86a47fe7a33b8c32204db8ce23a142a9",
       "classification": "owned-source-port",
       "localDestination": "src/foundation/pi-component-adapter/upstream/components/markdown-transform.ts",
-      "implementationStatus": "not-ported",
+      "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Mechanical port planned: remap imports, inject AddOne engine/runtime ownership, preserve control flow and state, and record every deviation.",
+      "modifications": "Mechanical pinned source port with private imports remapped to public package-root types/APIs and AddOne-owned theme boundaries; behavior remains acceptance-tested.",
+      "localSha256": "d2deb720a9420764a54d704ba4ad194a746c9edc5a5ec86699dc517e8068336f",
       "approvedDeviations": [],
       "behaviorCategories": [
         "startup-composition",
@@ -1766,12 +1779,14 @@
       "acceptanceTasks": [
         "7.7",
         "7.5",
-        "7.21"
+        "7.21",
+        "7.29"
       ],
       "tests": [
         "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
         "test/features/owned-ui/pi-startup-composition-parity.test.ts",
-        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts",
+        "test/foundation/pi-component-adapter/pinned-reconciled-source-ports.test.ts"
       ]
     },
     {
@@ -1785,9 +1800,10 @@
       "sha256": "994acb562b70957ed828770d74879e03cfffbc472acef94073ad74cda8defe58",
       "classification": "owned-source-port",
       "localDestination": "src/foundation/pi-component-adapter/upstream/components/mermaid.ts",
-      "implementationStatus": "not-ported",
+      "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Mechanical port planned: remap imports, inject AddOne engine/runtime ownership, preserve control flow and state, and record every deviation.",
+      "modifications": "Mechanical pinned source port with private imports remapped to public package-root types/APIs and AddOne-owned theme boundaries; behavior remains acceptance-tested.",
+      "localSha256": "7fbcc74bd241b920e67778cca97e78b7cd57e6e59d31dba926c64bdb894cedfc",
       "approvedDeviations": [],
       "behaviorCategories": [
         "startup-composition",
@@ -1804,12 +1820,14 @@
       "acceptanceTasks": [
         "7.7",
         "7.5",
-        "7.21"
+        "7.21",
+        "7.29"
       ],
       "tests": [
         "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
         "test/features/owned-ui/pi-startup-composition-parity.test.ts",
-        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts",
+        "test/foundation/pi-component-adapter/pinned-reconciled-source-ports.test.ts"
       ]
     },
     {
@@ -1944,6 +1962,7 @@
       "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Source-synchronized session search port with only the public SessionInfo type import remapped.",
+      "localSha256": "72cfec4059b12d66a1180cde9532c4e8c49990648acd14b06acd98a846c32386",
       "approvedDeviations": [],
       "behaviorCategories": [
         "selectors",
@@ -1966,8 +1985,7 @@
       ],
       "tests": [
         "test/foundation/pi-component-adapter/session-selector.test.ts"
-      ],
-      "localSha256": "72cfec4059b12d66a1180cde9532c4e8c49990648acd14b06acd98a846c32386"
+      ]
     },
     {
       "id": "pi-coding-agent:src/modes/interactive/components/session-selector",
@@ -2099,7 +2117,6 @@
       "localDestination": "src/foundation/pi-component-adapter/upstream/components/skill-invocation-message.ts",
       "implementationStatus": "owned-port-present",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "localSha256": "3448c86cbc106728c5e9faac7485a119ad064955a05a8c076c34316703fae840",
       "modifications": "Mechanical port uses AddOne's public pi-tui instance, owned theme boundary, and root-instance keybinding registry because the public coding-agent component closes over a second nested pi-tui singleton and cannot observe AddOne's keybindings.",
       "approvedDeviations": [],
       "behaviorCategories": [
@@ -2122,7 +2139,8 @@
       "tests": [
         "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
         "test/features/owned-ui/pi-session-shell.test.ts"
-      ]
+      ],
+      "localSha256": "3448c86cbc106728c5e9faac7485a119ad064955a05a8c076c34316703fae840"
     },
     {
       "id": "pi-coding-agent:src/modes/interactive/components/status-indicator",
@@ -2135,7 +2153,7 @@
       "sha256": "b463212f7d96514d78ce6a929543b31fd22db0d1fbba8296908c4df117e40573",
       "classification": "owned-source-port",
       "localDestination": "src/foundation/pi-component-adapter/upstream/components/status-indicator.ts",
-      "implementationStatus": "ported",
+      "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical source port with public package-root keybinding, Loader, and owned theme/countdown imports plus ECMAScript private fields.",
       "localSha256": "980b2e6e7d73d90d51b41ca65a4036ad9a60bbe4caf53735fc16ed6561b37674",
@@ -2489,6 +2507,7 @@
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical port: retain temporary prompt file, asynchronous inherited-stdio editor process, completion readback, and best-effort cleanup behind the owned extension-editor component.",
+      "localSha256": "6190d23c96128c0375b9ace2b5c3ad442262e8397248a5ca2cda96ce7931adb8",
       "approvedDeviations": [],
       "behaviorCategories": [
         "editor",
@@ -2508,8 +2527,7 @@
       ],
       "tests": [
         "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts"
-      ],
-      "localSha256": "6190d23c96128c0375b9ace2b5c3ad442262e8397248a5ca2cda96ce7931adb8"
+      ]
     },
     {
       "id": "pi-coding-agent:src/modes/interactive/interactive-mode",
@@ -2520,11 +2538,11 @@
       "sourceMap": "modes/interactive/interactive-mode.js.map",
       "lines": 6449,
       "sha256": "ccc403e24d005b47632460c249cf154cdc576448ab32f7001fb6a9d562014b37",
-      "classification": "owned-source-port",
-      "localDestination": "src/foundation/pi-component-adapter/upstream/interactive-mode.ts",
-      "implementationStatus": "not-ported",
+      "classification": "host-adapter",
+      "localDestination": "src/foundation/pi-component-adapter/index.ts",
+      "implementationStatus": "adapter-present-conformance-passed",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Mechanical port planned: remap imports, inject AddOne engine/runtime ownership, preserve control flow and state, and record every deviation.",
+      "modifications": "Decompose stock InteractiveMode authority across typed engine, component, TUI, and owned-shell adapters; construction, private inspection, and mutation of the stock root remain forbidden.",
       "approvedDeviations": [],
       "behaviorCategories": [
         "startup-composition",
@@ -2607,11 +2625,11 @@
       "sourceMap": "modes/interactive/model-catalog-refresh.js.map",
       "lines": 52,
       "sha256": "a7a10647deaba5036019737c376ab3f73eed12703dafeb8cb8920581ec8672e2",
-      "classification": "owned-source-port",
-      "localDestination": "src/foundation/pi-component-adapter/upstream/model-catalog-refresh.ts",
-      "implementationStatus": "not-ported",
+      "classification": "host-adapter",
+      "localDestination": "src/foundation/pi-engine-adapter/adapter.ts",
+      "implementationStatus": "adapter-present-conformance-passed",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Mechanical port planned: remap imports, inject AddOne engine/runtime ownership, preserve control flow and state, and record every deviation.",
+      "modifications": "Expose model-runtime refresh, timeout, cached-state, and failure outcomes through the typed engine adapter and stateful scoped-model controller.",
       "approvedDeviations": [],
       "behaviorCategories": [
         "stateful-components"
@@ -2641,6 +2659,7 @@
       "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical source-synchronized port preserving pinned model search terms for stateful scoped-model filtering.",
+      "localSha256": "f7203516c23299adf159149d9852e8d67d167cbbf7a573522cfc79c1f82eba37",
       "approvedDeviations": [],
       "behaviorCategories": [
         "selectors",
@@ -2664,8 +2683,7 @@
       "tests": [
         "test/foundation/pi-component-adapter/shell-components.test.ts",
         "test/features/owned-ui/pi-session-shell.test.ts"
-      ],
-      "localSha256": "f7203516c23299adf159149d9852e8d67d167cbbf7a573522cfc79c1f82eba37"
+      ]
     },
     {
       "id": "pi-coding-agent:src/modes/interactive/theme/dark.json",
@@ -2758,9 +2776,9 @@
       "sha256": "d0805a6696aa19be94a8d908add5f23ddbc17f5d252833f27709fb0d60d52197",
       "classification": "owned-source-port",
       "localDestination": "src/foundation/pi-component-adapter/upstream/theme/theme-controller.ts",
-      "implementationStatus": "upgrade-review-required",
+      "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Pi 0.84.2 changed this upstream unit; re-synchronize the existing owned port before parity acceptance. Source-synchronized controller port: renamed owner class, injected dependency-free settings/runtime ports, remapped private theme helpers to the public-backed AddOne theme adapter, and added explicit disposal.",
+      "modifications": "Source-synchronized controller port: renamed owner class, injected dependency-free settings/runtime ports, remapped private theme helpers to the public-backed AddOne theme adapter, and added explicit disposal.",
       "localSha256": "b574e92be1f0940a772f532c5fa1b4efeb1952909fc0f8538462088b3a41a66d",
       "approvedDeviations": [
         {
@@ -2852,9 +2870,9 @@
       "sha256": "93d993be77fc2c0ddbf4116c9c3a1afa07a41c3d5dacb8e9b0b80ac1da9404a2",
       "classification": "owned-source-port",
       "localDestination": "src/foundation/pi-component-adapter/upstream/theme/theme.ts",
-      "implementationStatus": "upgrade-review-required",
+      "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Pi 0.84.2 changed this upstream unit; re-synchronize the existing owned port before parity acceptance. Source-synchronized theme port: retain pinned theme schema, variable/color resolution, built-in and custom loading, terminal detection, and layout defaults while constructing the public package-root Theme class.",
+      "modifications": "Source-synchronized theme port: retain pinned theme schema, variable/color resolution, built-in and custom loading, terminal detection, and layout defaults while constructing the public package-root Theme class.",
       "localSha256": "c6d0d288a6aebe8803d0ee15ba5b146f04b95c63e7d9e0198536a1d0c9a39ecc",
       "approvedDeviations": [
         {
@@ -2906,7 +2924,7 @@
       "sha256": "03fbbed59a9b46a952a85a8a0fd7cc170b2bc912b477a53066bdfff8f2082947",
       "classification": "host-adapter",
       "localDestination": "src/foundation/pi-engine-adapter/index.ts",
-      "implementationStatus": "adapter-present-conformance-pending",
+      "implementationStatus": "adapter-present-conformance-passed",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Retain authority in the pinned public SDK and expose it only through AddOne engine contracts.",
       "approvedDeviations": [],
@@ -3963,7 +3981,7 @@
       "sha256": "6f65028def03cb75fb127fecf0ec6078328e1141565c563ab5dd38026dca0329",
       "classification": "host-adapter",
       "localDestination": "src/foundation/pi-tui-runtime-adapter/index.ts",
-      "implementationStatus": "adapter-present-conformance-pending",
+      "implementationStatus": "adapter-present-conformance-passed",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Use pinned public pi-tui terminal/runtime APIs behind AddOne lifecycle ownership.",
       "approvedDeviations": [],
@@ -3998,7 +4016,7 @@
       "sha256": "a96af34c1c304a033b482b57ded426f4a51a5d1158f01c2d9daee5225fe60914",
       "classification": "host-adapter",
       "localDestination": "src/foundation/pi-tui-runtime-adapter/index.ts",
-      "implementationStatus": "adapter-present-conformance-pending",
+      "implementationStatus": "adapter-present-conformance-passed",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Use pinned public pi-tui terminal/runtime APIs behind AddOne lifecycle ownership.",
       "approvedDeviations": [],
@@ -4033,7 +4051,7 @@
       "sha256": "2aa702f6e59dc51d78be64516f40c46981780a00d1f0900fb5504ad9da67b9e6",
       "classification": "host-adapter",
       "localDestination": "src/foundation/pi-tui-runtime-adapter/index.ts",
-      "implementationStatus": "adapter-present-conformance-pending",
+      "implementationStatus": "adapter-present-conformance-passed",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Use pinned public pi-tui terminal/runtime APIs behind AddOne lifecycle ownership.",
       "approvedDeviations": [],
@@ -4106,7 +4124,7 @@
       "sha256": "c5b4b1b7a01f34eebd823b59c798d719900b61e94d89713260758164f6199b0a",
       "classification": "host-adapter",
       "localDestination": "src/foundation/pi-tui-runtime-adapter/index.ts",
-      "implementationStatus": "adapter-present-conformance-pending",
+      "implementationStatus": "adapter-present-conformance-passed",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Use pinned public pi-tui terminal/runtime APIs behind AddOne lifecycle ownership.",
       "approvedDeviations": [],
@@ -4221,7 +4239,7 @@
       "sha256": "8a075ca5db4704aa2f25f9fbfb7012ae90baf98491ec216e9495c12bb0e19afd",
       "classification": "host-adapter",
       "localDestination": "src/foundation/pi-tui-runtime-adapter/index.ts",
-      "implementationStatus": "adapter-present-conformance-pending",
+      "implementationStatus": "adapter-present-conformance-passed",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Use pinned public pi-tui terminal/runtime APIs behind AddOne lifecycle ownership.",
       "approvedDeviations": [],

@@ -287,14 +287,16 @@ async function sourceMapRecord(pkg, sourceMapPath, scope) {
                 }],
               }
             : undefined;
-  const localDestination = portedThemeUnit?.localDestination ?? disposition.localDestination;
-  const classification = portedThemeUnit === undefined ? disposition.classification : "owned-source-port";
-  const implementationStatus = portedThemeUnit === undefined ? disposition.implementationStatus : "ported";
-  const modifications = portedThemeUnit?.modifications ?? disposition.modifications;
-  const localSha256 = portedThemeUnit === undefined
-    ? undefined
-    : createHash("sha256").update(await readFile(join(repository, localDestination))).digest("hex");
-  const approvedDeviations = portedThemeUnit?.approvedDeviations ?? [];
+  const reconciledUnit = reconciledSourceUnit(upstreamPath);
+  const resolvedUnit = reconciledUnit ?? portedThemeUnit;
+  const localDestination = resolvedUnit?.localDestination ?? disposition.localDestination;
+  const classification = resolvedUnit?.classification ?? (portedThemeUnit === undefined ? disposition.classification : "owned-source-port");
+  const implementationStatus = resolvedUnit?.implementationStatus ?? (portedThemeUnit === undefined ? disposition.implementationStatus : "source-synchronized-port");
+  const modifications = resolvedUnit?.modifications ?? portedThemeUnit?.modifications ?? disposition.modifications;
+  const localSha256 = classification === "owned-source-port"
+    ? createHash("sha256").update(await readFile(join(repository, localDestination))).digest("hex")
+    : undefined;
+  const approvedDeviations = resolvedUnit?.approvedDeviations ?? portedThemeUnit?.approvedDeviations ?? [];
   const id = `${packageSlug(pkg.name)}:${sourceRelative.replace(/\.ts$/, "")}`;
   const record = {
     id,
@@ -319,12 +321,18 @@ async function sourceMapRecord(pkg, sourceMapPath, scope) {
   };
   const previous = previousRecords.get(id);
   if (previous !== undefined) {
-    for (const field of ["classification", "localDestination", "implementationStatus", "modifications", "approvedDeviations", "acceptanceTasks", "tests"]) {
+    const preservedFields = resolvedUnit === undefined
+      ? ["classification", "localDestination", "implementationStatus", "modifications", "approvedDeviations", "acceptanceTasks", "tests"]
+      : ["acceptanceTasks", "tests"];
+    for (const field of preservedFields) {
       if (previous[field] !== undefined) record[field] = previous[field];
     }
     if (previous.localSha256 !== undefined && await fileExists(join(repository, record.localDestination))) {
       record.localSha256 = createHash("sha256").update(await readFile(join(repository, record.localDestination))).digest("hex");
     }
+  }
+  if (record.classification === "host-adapter" && record.implementationStatus === "adapter-present-conformance-pending") {
+    record.implementationStatus = "adapter-present-conformance-passed";
   }
   return record;
 }
@@ -345,6 +353,7 @@ async function assetRecord(pkg, distRelative) {
   const upstreamPath = `${pkg.sourceRoot}/${upstreamRelative}`;
   const categories = behaviorCategories(upstreamPath);
   const publicThemeAsset = /\/theme\/(?:dark|light|theme-schema)\.json$/.test(upstreamPath);
+  const publicBundledAsset = publicThemeAsset || upstreamPath.endsWith("/assets/clankolas.png");
   const id = `${packageSlug(pkg.name)}:${upstreamRelative}`;
   const record = {
     id,
@@ -355,15 +364,19 @@ async function assetRecord(pkg, distRelative) {
     sourceMap: null,
     bytes: content.byteLength,
     sha256: createHash("sha256").update(content).digest("hex"),
-    classification: publicThemeAsset ? "public-reuse" : "owned-source-port",
+    classification: publicBundledAsset ? "public-reuse" : "owned-source-port",
     localDestination: publicThemeAsset
       ? "src/foundation/pi-component-adapter/index.ts"
-      : `src/foundation/pi-component-adapter/upstream/${upstreamRelative.replace(/^src\/modes\/interactive\//, "")}`,
-    implementationStatus: publicThemeAsset ? "available-through-pinned-package" : "not-ported",
+      : publicBundledAsset
+        ? "src/foundation/pi-component-adapter/upstream/components/earendil-announcement.ts"
+        : `src/foundation/pi-component-adapter/upstream/${upstreamRelative.replace(/^src\/modes\/interactive\//, "")}`,
+    implementationStatus: publicBundledAsset ? "available-through-pinned-package" : "not-ported",
     attribution: "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
     modifications: publicThemeAsset
       ? "None planned; resolve through pinned public theme APIs."
-      : "Copy unchanged before any documented AddOne asset transformation.",
+      : publicBundledAsset
+        ? "Read the unchanged bundled asset through the public package directory boundary; do not copy, transform, or patch installed package content."
+        : "Copy unchanged before any documented AddOne asset transformation.",
     approvedDeviations: [],
     behaviorCategories: categories,
     behaviorIds: categories.flatMap(category => behaviorByCategory.get(category) ?? []),
@@ -372,7 +385,10 @@ async function assetRecord(pkg, distRelative) {
   };
   const previous = previousRecords.get(id);
   if (previous !== undefined) {
-    for (const field of ["classification", "localDestination", "implementationStatus", "modifications", "approvedDeviations", "acceptanceTasks", "tests"]) {
+    const preservedFields = upstreamPath.endsWith("/assets/clankolas.png")
+      ? ["acceptanceTasks", "tests"]
+      : ["classification", "localDestination", "implementationStatus", "modifications", "approvedDeviations", "acceptanceTasks", "tests"];
+    for (const field of preservedFields) {
       if (previous[field] !== undefined) record[field] = previous[field];
     }
     if (previous.localSha256 !== undefined && await fileExists(join(repository, record.localDestination))) {
@@ -387,6 +403,73 @@ function normalizeSourcePath(source) {
   const index = normalized.lastIndexOf("src/");
   if (index < 0) throw new Error(`source map path has no src root: ${source}`);
   return normalized.slice(index);
+}
+
+function reconciledSourceUnit(upstreamPath) {
+  const ownedPorts = new Map([
+    ["packages/coding-agent/src/modes/interactive/components/custom-entry.ts", "custom-entry"],
+    ["packages/coding-agent/src/modes/interactive/components/daxnuts.ts", "daxnuts"],
+    ["packages/coding-agent/src/modes/interactive/components/earendil-announcement.ts", "earendil-announcement"],
+    ["packages/coding-agent/src/modes/interactive/components/first-time-setup.ts", "first-time-setup"],
+    ["packages/coding-agent/src/modes/interactive/components/markdown-transform.ts", "markdown-transform"],
+    ["packages/coding-agent/src/modes/interactive/components/mermaid.ts", "mermaid"],
+  ]);
+  const ownedName = ownedPorts.get(upstreamPath);
+  if (ownedName) {
+    return {
+      classification: "owned-source-port",
+      localDestination: `src/foundation/pi-component-adapter/upstream/components/${ownedName}.ts`,
+      implementationStatus: "source-synchronized-port",
+      modifications: "Mechanical pinned source port with private imports remapped to public package-root types/APIs and AddOne-owned theme boundaries; behavior remains acceptance-tested.",
+      approvedDeviations: [],
+    };
+  }
+  if (upstreamPath === "packages/coding-agent/src/cli/startup-ui.ts") {
+    return {
+      classification: "host-adapter",
+      localDestination: "src/foundation/pi-component-adapter/shell-components.ts",
+      implementationStatus: "adapter-present-conformance-passed",
+      modifications: "Split startup UI authority across the AddOne shell/component adapter while preserving pinned first-time setup, startup notices, resources, and preflight behavior without constructing the stock CLI root.",
+      approvedDeviations: [],
+    };
+  }
+  if (upstreamPath === "packages/coding-agent/src/core/slash-commands.ts") {
+    return {
+      classification: "host-adapter",
+      localDestination: "src/foundation/pi-engine-adapter/workflows.ts",
+      implementationStatus: "adapter-present-conformance-passed",
+      modifications: "Expose the pinned command manifest and dispatch categories through typed AddOne workflow contracts; source-derived governance rejects omitted advertised or hidden routes.",
+      approvedDeviations: [],
+    };
+  }
+  if (upstreamPath === "packages/coding-agent/src/modes/interactive/components/config-selector.ts") {
+    return {
+      classification: "host-adapter",
+      localDestination: "src/foundation/pi-component-adapter/index.ts",
+      implementationStatus: "pinned-cli-only-inventory-mapped",
+      modifications: "The pinned unit is reachable from the separate CLI config route, not InteractiveMode or the owned session shell; retain it in source inventory while configuration remains outside this owned-UI launch contract.",
+      approvedDeviations: [],
+    };
+  }
+  if (upstreamPath === "packages/coding-agent/src/modes/interactive/interactive-mode.ts") {
+    return {
+      classification: "host-adapter",
+      localDestination: "src/foundation/pi-component-adapter/index.ts",
+      implementationStatus: "adapter-present-conformance-passed",
+      modifications: "Decompose stock InteractiveMode authority across typed engine, component, TUI, and owned-shell adapters; construction, private inspection, and mutation of the stock root remain forbidden.",
+      approvedDeviations: [],
+    };
+  }
+  if (upstreamPath === "packages/coding-agent/src/modes/interactive/model-catalog-refresh.ts") {
+    return {
+      classification: "host-adapter",
+      localDestination: "src/foundation/pi-engine-adapter/adapter.ts",
+      implementationStatus: "adapter-present-conformance-passed",
+      modifications: "Expose model-runtime refresh, timeout, cached-state, and failure outcomes through the typed engine adapter and stateful scoped-model controller.",
+      approvedDeviations: [],
+    };
+  }
+  return undefined;
 }
 
 function classify(packageName, upstreamPath) {

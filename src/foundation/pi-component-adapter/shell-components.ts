@@ -1,5 +1,3 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import {
   ArminComponent,
   AssistantMessageComponent,
@@ -15,7 +13,6 @@ import {
   type ExtensionUIContext,
   FooterComponent,
   getMarkdownTheme,
-  getPackageDir,
   getSelectListTheme,
   LoginDialogComponent,
   ModelSelectorComponent,
@@ -35,6 +32,8 @@ import {
   UserMessageComponent,
   VERSION,
 } from "@earendil-works/pi-coding-agent";
+import { DaxnutsComponent } from "./upstream/components/daxnuts.js";
+import { EarendilAnnouncementComponent } from "./upstream/components/earendil-announcement.js";
 import { ExtensionEditorComponent } from "./upstream/components/extension-editor.js";
 import { SessionSelectorComponent } from "./upstream/components/session-selector.js";
 import { SkillInvocationMessageComponent } from "./upstream/components/skill-invocation-message.js";
@@ -43,7 +42,6 @@ import {
   Box,
   CombinedAutocompleteProvider,
   Container,
-  Image,
   Markdown,
   SelectList,
   setKeybindings,
@@ -569,25 +567,16 @@ export function createPiShellArmin(
   return componentPort(new ArminComponent(createTuiFacade(runtime)));
 }
 
+export function createPiShellDaxnuts(
+  runtime: Pick<PiShellEditorOptions, "getColumns" | "getRows" | "requestRender">,
+): PiShellComponentPort {
+  ensureTheme();
+  return componentPort(new DaxnutsComponent(createTuiFacade(runtime)));
+}
+
 export function createPiShellEarendilAnnouncement(): PiShellComponentPort {
   ensureTheme();
-  const container = new Container();
-  const accentBorder = (text: string) => piTheme().fg("accent", text);
-  container.addChild(new DynamicBorder(accentBorder));
-  container.addChild(new Text(piTheme().bold(piTheme().fg("accent", "pi has joined Earendil")), 1, 0));
-  container.addChild(new Spacer(1));
-  container.addChild(new Text(piTheme().fg("muted", "Read the blog post:"), 1, 0));
-  container.addChild(new Text(piTheme().fg("mdLink", "https://mariozechner.at/posts/2026-04-08-ive-sold-out/"), 1, 0));
-  container.addChild(new Spacer(1));
-  try {
-    const image = readFileSync(join(getPackageDir(), "dist", "modes", "interactive", "assets", "clankolas.png")).toString("base64");
-    container.addChild(new Image(image, "image/png", { fallbackColor: text => piTheme().fg("muted", text) }, { maxWidthCells: 56, filename: "clankolas.png" }));
-    container.addChild(new Spacer(1));
-  } catch {
-    // The pinned component intentionally omits the image if its bundled asset cannot be read.
-  }
-  container.addChild(new DynamicBorder(accentBorder));
-  return componentPort(container);
+  return componentPort(new EarendilAnnouncementComponent());
 }
 
 export function createPiShellOperationLoader(

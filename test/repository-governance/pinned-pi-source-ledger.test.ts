@@ -70,6 +70,24 @@ describe("pinned Pi source ledger governance", () => {
     expect(result.stderr).toContain("linked acceptance test is missing");
   });
 
+  it("rejects unresolved, stale, or classification-incompatible implementation states", async () => {
+    const result = await runFixture(ledger => {
+      const owned = ledger.records.find((record: Record<string, unknown>) => record.classification === "owned-source-port");
+      owned.implementationStatus = "not-ported";
+    });
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("implementationStatus is unresolved or incompatible");
+  });
+
+  it("rejects a completed owned port remapped away from its real destination", async () => {
+    const result = await runFixture(ledger => {
+      const owned = ledger.records.find((record: Record<string, unknown>) => record.classification === "owned-source-port");
+      owned.localDestination = "src/foundation/pi-component-adapter/upstream/components/missing-port.ts";
+    });
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("undocumented owned source file");
+  });
+
   it("rejects undocumented deviations", async () => {
     const result = await runFixture(ledger => { ledger.records[0].approvedDeviations.push({ id: "shortcut" }); });
     expect(result.status).toBe(1);

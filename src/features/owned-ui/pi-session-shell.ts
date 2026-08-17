@@ -22,6 +22,7 @@ import {
   createPiShellArmin,
   createPiShellAuthProviderSelector,
   createPiShellChangelog,
+  createPiShellDaxnuts,
   createPiShellDialog,
   createPiShellEarendilAnnouncement,
   createPiShellEditor,
@@ -352,6 +353,12 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
       ? `${result.message}\nGist: ${result.detail}`
       : result.message;
     this.appendWorkflowStatus(message);
+  }
+
+  appendDaxnuts(): void {
+    this.#lastWorkflowStatusId = undefined;
+    const daxnuts = createPiShellDaxnuts(this.#componentRuntime);
+    this.#appendAnchoredWorkflowComponent(width => ["", ...daxnuts.render(width)], () => daxnuts.dispose?.());
   }
 
   toggleThinkingVisibility(): void {
@@ -877,6 +884,7 @@ export class PiSessionShell {
   async cycleModel(direction: "forward" | "backward"): Promise<AdapterCommandResult> {
     const result = await this.adapter.cycleModelWorkflow(direction);
     this.root.appendWorkflowResult(result);
+    if (result.outcome === "completed") this.#showDaxnutsForActiveModel();
     this.runtime.requestRender();
     return workflowAdapterResult(result);
   }
@@ -1138,6 +1146,7 @@ export class PiSessionShell {
       this.root.editor.setAutocompleteCommands(this.adapter.workflowAutocompleteCommands());
     }
     this.root.appendWorkflowResult(result);
+    if (request.command === "model" && result.outcome === "completed") this.#showDaxnutsForActiveModel();
     this.runtime.requestRender();
     return workflowAdapterResult(result);
   }
@@ -1298,6 +1307,13 @@ export class PiSessionShell {
     }
     this.root.setInputSurface(component);
     this.runtime.requestRender();
+  }
+
+  #showDaxnutsForActiveModel(): void {
+    const model = this.view().activeModel;
+    if (model?.providerId === "opencode" && model.modelId.toLowerCase().includes("kimi-k2.5")) {
+      this.root.appendDaxnuts();
+    }
   }
 
   async dispose(): Promise<void> {

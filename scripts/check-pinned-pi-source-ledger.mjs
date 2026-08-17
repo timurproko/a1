@@ -16,6 +16,11 @@ const sourceRoot = resolve(process.env.ADDONE_PI_SOURCE_SCAN_ROOT ?? join(reposi
 const portRoot = resolve(process.env.ADDONE_PI_PORT_ROOT ?? join(repository, "src", "foundation", "pi-component-adapter", "upstream"));
 const expectedCommit = "914cf1472e715297caa30db4b9535d534a9eb718";
 const allowedClassifications = new Set(["public-reuse", "owned-source-port", "host-adapter"]);
+const completedStatusesByClassification = new Map([
+  ["public-reuse", new Set(["available-through-pinned-package"])],
+  ["owned-source-port", new Set(["ported", "source-synchronized-port", "owned-port-present"])],
+  ["host-adapter", new Set(["adapter-present-conformance-passed", "pinned-cli-only-inventory-mapped"])],
+]);
 const adjacentCodingAgentMaps = [
   "cli/startup-ui.js.map",
   "core/agent-session.js.map",
@@ -136,6 +141,9 @@ function validateRecord(record, index) {
   }
   if (!packageAuthorities.some(authority => authority.name === record.package)) fail(`${label}.package is unknown`);
   if (!allowedClassifications.has(record.classification)) fail(`${label}.classification is unknown`);
+  if (!completedStatusesByClassification.get(record.classification)?.has(record.implementationStatus)) {
+    fail(`${label}.implementationStatus is unresolved or incompatible with ${record.classification}`);
+  }
   if (!/^src\/foundation\/(?:pi-component-adapter|pi-engine-adapter|pi-tui-runtime-adapter)\//.test(record.localDestination)
     || record.localDestination.includes("..") || isAbsolute(record.localDestination)) {
     fail(`${label}.localDestination escapes the approved adapter roots`);
@@ -185,14 +193,10 @@ async function validatePortDestinations(records) {
     if (!mapped.has(path)) fail(`undocumented owned source file: ${relative(repository, path).replaceAll("\\", "/")}`);
   }
   for (const [path, record] of mapped) {
-    const exists = await pathExists(path);
-    if (record.implementationStatus === "not-ported" && exists) fail(`owned source destination exists but remains marked not-ported: ${record.id}`);
-    if (record.implementationStatus !== "not-ported" && !exists) fail(`mapped owned source destination is missing: ${record.id}`);
-    if (record.implementationStatus !== "not-ported") {
-      requiredString(record.localSha256, `${record.id}.localSha256`);
-      const localHash = createHash("sha256").update(await readFile(path)).digest("hex");
-      if (record.localSha256 !== localHash) fail(`mapped owned source destination hash is stale: ${record.id}`);
-    }
+    if (!await pathExists(path)) fail(`mapped owned source destination is missing: ${record.id}`);
+    requiredString(record.localSha256, `${record.id}.localSha256`);
+    const localHash = createHash("sha256").update(await readFile(path)).digest("hex");
+    if (record.localSha256 !== localHash) fail(`mapped owned source destination hash is stale: ${record.id}`);
   }
   for (const record of records.filter(value => value.classification !== "owned-source-port")) {
     if (!await pathExists(resolve(repository, record.localDestination))) fail(`adapter destination is missing: ${record.id}`);
