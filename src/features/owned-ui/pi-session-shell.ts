@@ -941,7 +941,91 @@ export class PiSessionShell {
   }
 
   showModelSelector(): void {
-    void this.runWorkflow({ command: "model", argument: "" });
+    const context = this.adapter.pinnedModelSelectorContext();
+    const close = () => {
+      this.root.setInputSurface(null);
+      this.runtime.requestRender();
+    };
+    const component = createPiShellModelSelector({
+      ...context,
+      runtime: {
+        getColumns: () => this.runtime.viewport().columns,
+        getRows: () => this.runtime.viewport().rows,
+        requestRender: () => this.runtime.requestRender(),
+      },
+      onSelect: model => {
+        close();
+        void this.runWorkflow({ command: "model", argument: "", selection: modelReference(model) });
+      },
+      onCancel: close,
+    });
+    this.root.setInputSurface(component);
+    this.runtime.requestRender();
+  }
+
+  showForkSelector(): void {
+    const options = this.adapter.pinnedForkOptions();
+    if (options.length === 0) {
+      this.root.appendWorkflowResult({ command: "fork", outcome: "failed", message: "No user messages available to fork from" });
+      this.runtime.requestRender();
+      return;
+    }
+    const close = () => {
+      this.root.setInputSurface(null);
+      this.runtime.requestRender();
+    };
+    const component = createPiShellUserMessageSelector(options, selection => {
+      close();
+      void this.runWorkflow({ command: "fork", argument: "", selection });
+    }, close);
+    this.root.setInputSurface(component);
+    this.runtime.requestRender();
+  }
+
+  async showLogoutSelector(): Promise<void> {
+    const options = await this.adapter.pinnedLogoutOptions();
+    if (options.length === 0) {
+      this.root.appendWorkflowStatus("No authenticated providers available.");
+      this.runtime.requestRender();
+      return;
+    }
+    const close = () => {
+      this.root.setInputSurface(null);
+      this.runtime.requestRender();
+    };
+    const component = createPiShellAuthProviderSelector("logout", options, selection => {
+      close();
+      void this.runWorkflow({ command: "logout", argument: "", selection });
+    }, close);
+    this.root.setInputSurface(component);
+    this.runtime.requestRender();
+  }
+
+  showLoginMethodSelector(providerReference: string): void {
+    const method = this.adapter.pinnedLoginMethodOptions(providerReference);
+    if (method.options.length === 0) {
+      this.root.appendWorkflowResult({ command: "login", outcome: "failed", message: `No authentication methods available for ${providerReference}` });
+      this.runtime.requestRender();
+      return;
+    }
+    if (method.options.length === 1) {
+      const selection = method.options[0]?.id;
+      if (selection) void this.runWorkflow({ command: "login", argument: "", selection });
+      return;
+    }
+    const close = () => {
+      this.root.setInputSurface(null);
+      this.runtime.requestRender();
+    };
+    const labels = method.options.map(option => option.label);
+    const component = createPiShellExtensionSelector(method.title, labels, label => {
+      const selection = method.options.find(option => option.label === label)?.id;
+      if (!selection) return;
+      close();
+      void this.runWorkflow({ command: "login", argument: "", selection });
+    }, close);
+    this.root.setInputSurface(component);
+    this.runtime.requestRender();
   }
 
   showTreeSelector(initialSelectedId?: string): void {
@@ -1090,23 +1174,38 @@ export class PiSessionShell {
       this.showScopedModelsSelector();
       return { outcome: "completed", diagnostic: null };
     }
+    if (request.command === "model" && request.selection === undefined && request.confirmed === undefined && request.argument.trim().length === 0) {
+      this.showModelSelector();
+      return { outcome: "completed", diagnostic: null };
+    }
+    if (request.command === "fork" && request.selection === undefined && request.confirmed === undefined) {
+      this.showForkSelector();
+      return { outcome: "completed", diagnostic: null };
+    }
     if (request.command === "trust" && request.selection === undefined && request.confirmed === undefined) {
       this.showTrustSelector();
       return { outcome: "completed", diagnostic: null };
     }
     if (request.command === "settings" && request.selection === undefined && request.confirmed === undefined) {
-      const opened = this.adapter.executeWorkflow(request);
       this.showSettingsSelector();
-      await opened;
       return { outcome: "completed", diagnostic: null };
     }
     if (request.command === "resume" && request.selection === undefined && request.confirmed === undefined && request.argument.trim().length === 0) {
       this.showSessionSelector();
       return { outcome: "completed", diagnostic: null };
     }
-    if (request.command === "login" && request.selection === undefined && request.confirmed === undefined && request.argument.trim().length === 0) {
-      this.showLoginAuthTypeSelector();
+    if (request.command === "login" && request.selection === undefined && request.confirmed === undefined) {
+      if (request.argument.trim().length === 0) this.showLoginAuthTypeSelector();
+      else this.showLoginMethodSelector(request.argument);
       return { outcome: "completed", diagnostic: null };
+    }
+    if (request.command === "logout" && request.selection === undefined && request.confirmed === undefined) {
+      await this.showLogoutSelector();
+      return { outcome: "completed", diagnostic: null };
+    }
+    if (request.command === "import" && request.confirmed === undefined && request.argument.trim().length > 0) {
+      const confirmed = await this.#extensionBridge.context.confirm("Import session", `Replace current session with ${request.argument.trim()}?`);
+      return this.runWorkflow({ ...request, confirmed: confirmed === true });
     }
     if (request.command === "tree" && request.selection === undefined && request.confirmed === undefined && request.argument.trim().length === 0) {
       this.showTreeSelector();
@@ -1138,9 +1237,14 @@ export class PiSessionShell {
         this.runtime.requestRender();
       }
     }
+    if (result.outcome === "requires-confirmation" && request.command === "resume") {
+      const confirmed = await this.#extensionBridge.context.confirm("Session cwd not found", result.message);
+      return this.runWorkflow({ ...request, confirmed: confirmed === true });
+    }
     if (result.outcome === "requires-selection" || result.outcome === "requires-confirmation") {
-      this.#showWorkflowSelector(request, result);
-      return { outcome: "completed", diagnostic: null };
+      this.root.appendWorkflowResult({ command: request.command, outcome: "failed", message: `Owned controller missing for ${request.command}` });
+      this.runtime.requestRender();
+      return { outcome: "failed", diagnostic: `Owned controller missing for ${request.command}` };
     }
     if (request.command === "reload" && result.outcome === "completed") {
       this.root.editor.setAutocompleteCommands(this.adapter.workflowAutocompleteCommands());
@@ -1247,66 +1351,6 @@ export class PiSessionShell {
       );
       this.runtime.requestRender();
     }).finally(() => clearTimeout(timeout));
-  }
-
-  #showWorkflowSelector(request: PiWorkflowRequest, result: PiWorkflowResult): void {
-    const options = result.options ?? [];
-    const close = () => {
-      this.root.setInputSurface(null);
-      this.runtime.requestRender();
-    };
-    const select = (id: string) => {
-      close();
-      const next: PiWorkflowRequest = result.outcome === "requires-confirmation"
-        ? { ...request, confirmed: id === "yes" }
-        : { ...request, selection: id };
-      void this.runWorkflow(next);
-    };
-    const cancel = () => {
-      close();
-    };
-    let component: PiShellComponentPort;
-    if (result.outcome === "requires-confirmation") {
-      component = createPiShellExtensionSelector(
-        `${result.selectorTitle ?? "Confirm"}\n${result.message}`,
-        options.map(option => option.label),
-        label => {
-          const selected = options.find(option => option.label === label);
-          if (selected !== undefined) select(selected.id);
-        },
-        cancel,
-      );
-    } else if (request.command === "fork") {
-      component = createPiShellUserMessageSelector(options, select, cancel);
-    } else if (request.command === "login" && result.selectorTitle?.startsWith("Select authentication method") === true) {
-      component = createPiShellExtensionSelector(
-        result.selectorTitle,
-        options.map(option => option.label),
-        label => {
-          const selected = options.find(option => option.label === label);
-          if (selected !== undefined) select(selected.id);
-        },
-        cancel,
-      );
-    } else if (request.command === "login" || request.command === "logout") {
-      component = createPiShellAuthProviderSelector(request.command, options, select, cancel);
-    } else if (request.command === "model") {
-      const context = this.adapter.pinnedModelSelectorContext();
-      component = createPiShellModelSelector({
-        ...context,
-        runtime: {
-          getColumns: () => this.runtime.viewport().columns,
-          getRows: () => this.runtime.viewport().rows,
-          requestRender: () => this.runtime.requestRender(),
-        },
-        onSelect: model => select(modelReference(model)),
-        onCancel: cancel,
-      });
-    } else {
-      component = createPiShellSelector({ title: result.selectorTitle ?? result.message, options, onSelect: select, onCancel: cancel });
-    }
-    this.root.setInputSurface(component);
-    this.runtime.requestRender();
   }
 
   #showDaxnutsForActiveModel(): void {

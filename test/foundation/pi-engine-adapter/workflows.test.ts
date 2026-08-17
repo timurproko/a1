@@ -238,10 +238,20 @@ describe("pinned Pi command and input workflows", () => {
 
   it("opens every selector, completes every pinned settings callback, and preserves cancellation", async () => {
     const { adapter, runtime } = await fixture();
+    expect(adapter.pinnedSettingsSnapshot().availableThemes.length).toBeGreaterThan(0);
+    expect(adapter.pinnedModelSelectorContext().modelRuntime).toBeDefined();
+    expect(adapter.pinnedScopedModelsContext().models.length).toBeGreaterThan(0);
+    expect(adapter.pinnedForkOptions().length).toBeGreaterThan(0);
+    expect(adapter.pinnedTreeSelectorContext().tree).toBeInstanceOf(Array);
+    expect(adapter.pinnedProjectTrustContext().trustOptions.length).toBeGreaterThan(0);
+    expect(adapter.pinnedLoginOptions().length).toBeGreaterThan(0);
+    expect((await adapter.pinnedLogoutOptions()).length).toBeGreaterThan(0);
+    expect(adapter.pinnedSessionSelectorContext().loadCurrentSessions).toBeTypeOf("function");
     for (const command of ["settings", "model", "scoped-models", "fork", "tree", "trust", "login", "logout", "resume"] as const) {
-      const result = await adapter.executeWorkflow({ command, argument: "" });
-      expect(result.outcome, command).toBe("requires-selection");
-      expect(result.options?.length, command).toBeGreaterThan(0);
+      await expect(adapter.executeWorkflow({ command, argument: "" })).resolves.toMatchObject({
+        outcome: "failed",
+        message: expect.stringContaining("owned"),
+      });
     }
     for (const callback of PINNED_PI_SETTINGS_CALLBACKS) {
       const result = await adapter.executeWorkflow({ command: "settings", argument: "", selection: callback });
@@ -297,12 +307,11 @@ describe("pinned Pi command and input workflows", () => {
 
   it("preserves the provider-specific authentication-type level before login", async () => {
     const { adapter } = await fixture();
-    await expect(adapter.executeWorkflow({ command: "login", argument: "openai" })).resolves.toMatchObject({
-      outcome: "requires-selection",
-      selectorTitle: "Select authentication method for OpenAI Codex:",
+    expect(adapter.pinnedLoginMethodOptions("openai")).toEqual({
+      title: "Select authentication method for OpenAI Codex:",
       options: [
-        { id: "oauth:openai", label: "Sign in with an account" },
-        { id: "api_key:openai", label: "Sign in with an API key" },
+        { id: "oauth:openai", label: "Sign in with an account", description: "Account / OAuth" },
+        { id: "api_key:openai", label: "Sign in with an API key", description: "API key" },
       ],
     });
     await adapter.dispose();

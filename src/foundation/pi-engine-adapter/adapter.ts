@@ -755,6 +755,36 @@ export class PiEngineAdapter {
     return this.#loginOptions(authType);
   }
 
+  pinnedLoginMethodOptions(providerReference: string): { readonly title: string; readonly options: readonly PiWorkflowOption[] } {
+    const runtime = this.#runtime;
+    if (!runtime) throw new Error("engine runtime is unavailable");
+    const modelRuntime = dynamicObject(runtime.services, "modelRuntime");
+    const normalized = providerReference.trim().toLowerCase();
+    const providers = dynamicCall(modelRuntime, "getProviders");
+    const matches = Array.isArray(providers) ? providers.filter(isRecord).filter(candidate =>
+      stringProperty(candidate, "id")?.toLowerCase() === normalized
+        || stringProperty(candidate, "name")?.toLowerCase() === normalized) : [];
+    const providerId = matches.length === 1 ? stringProperty(matches[0], "id") ?? providerReference : providerReference;
+    const provider = dynamicCall(modelRuntime, "getProvider", providerId);
+    const providerName = stringProperty(provider, "name") ?? providerId;
+    const oauth = dynamicObject(dynamicObject(provider, "auth"), "oauth");
+    const loginLabel = stringProperty(oauth, "loginLabel") ?? "Sign in with an account";
+    const options = this.#loginOptions().filter(option => option.id.endsWith(`:${providerId}`)).map(option => ({
+      ...option,
+      label: option.id.startsWith("api_key:") ? "Sign in with an API key" : loginLabel,
+    }));
+    return { title: `Select authentication method for ${providerName}:`, options };
+  }
+
+  pinnedLogoutOptions(): Promise<readonly PiWorkflowOption[]> {
+    return this.#logoutOptions();
+  }
+
+  pinnedForkOptions(): readonly PiWorkflowOption[] {
+    const messages = requiredDynamicCall(this.#requireWorkflowSession(), "getUserMessagesForForking");
+    return workflowOptions(messages, "entryId", "text");
+  }
+
   pinnedTreeSelectorContext(): PiTreeSelectorContext {
     const manager = dynamicObject(this.#requireWorkflowSession(), "sessionManager");
     const settings = dynamicObject(this.#runtime?.services, "settingsManager");
@@ -987,18 +1017,12 @@ export class PiEngineAdapter {
 
     switch (request.command) {
       case "settings": {
-        if (!selection) {
-          return workflowSelector(request.command, "Settings", PINNED_PI_SETTINGS_CALLBACKS.map(callback => ({
-            id: callback,
-            label: settingLabel(callback),
-            description: callback,
-          })));
-        }
+        if (!selection) return workflowResult(request.command, "failed", "Settings requires the owned settings controller");
         return this.#applyPinnedSetting(selection);
       }
       case "model": {
         const reference = selection ?? argument;
-        if (!reference) return workflowSelector(request.command, "Model", this.#modelOptions());
+        if (!reference) return workflowResult(request.command, "failed", "Model requires the owned model controller");
         const [providerId, modelId] = reference.split("/", 2);
         if (!providerId || !modelId) return workflowResult(request.command, "failed", "Model requires provider/model");
         const model = runtime.services.modelRuntime.getModel(providerId, modelId);
@@ -1009,7 +1033,7 @@ export class PiEngineAdapter {
         return workflowResult(request.command, "completed", `Model: ${modelId}`);
       }
       case "scoped-models": {
-        if (!selection) return workflowSelector(request.command, "Scoped models", this.#modelOptions());
+        if (!selection) return workflowResult(request.command, "failed", "Scoped models requires the owned scoped-model controller");
         const [providerId, modelId] = selection.split("/", 2);
         const model = providerId && modelId ? runtime.services.modelRuntime.getModel(providerId, modelId) : undefined;
         if (!model) return workflowResult(request.command, "failed", `Model is unavailable: ${selection}`);
@@ -1096,10 +1120,7 @@ export class PiEngineAdapter {
       case "hotkeys":
         return workflowResult(request.command, "completed", "Keyboard Shortcuts", pinnedHotkeySummary());
       case "fork": {
-        if (!selection) {
-          const messages = requiredDynamicCall(session, "getUserMessagesForForking");
-          return workflowSelector(request.command, "Fork from message", workflowOptions(messages, "entryId", "text"));
-        }
+        if (!selection) return workflowResult(request.command, "failed", "Fork requires the owned user-message controller");
         const result = await requiredDynamicCallAsync(runtime, "fork", selection, { position: "before" });
         if (isRecord(result) && result.cancelled === true) return workflowResult(request.command, "cancelled", "Fork cancelled");
         return workflowResult(request.command, "completed", "Forked to new session");
@@ -1114,7 +1135,7 @@ export class PiEngineAdapter {
       }
       case "tree": {
         const manager = dynamicObject(session, "sessionManager");
-        if (!selection) return workflowSelector(request.command, "Session tree", workflowOptions(dynamicCall(manager, "getEntries"), "id", "type"));
+        if (!selection) return workflowResult(request.command, "failed", "Tree navigation requires the owned tree controller");
         const result = request.treeSummary === undefined
           ? await requiredDynamicCallAsync(session, "navigateTree", selection)
           : await requiredDynamicCallAsync(session, "navigateTree", selection, {
@@ -1126,15 +1147,12 @@ export class PiEngineAdapter {
         return workflowResult(request.command, "completed", "Navigated to selected point");
       }
       case "trust": {
-        if (!selection) return workflowSelector(request.command, "Project trust", [
-          { id: "trust", label: "Trust this project" },
-          { id: "untrust", label: "Do not trust this project" },
-        ]);
+        if (!selection) return workflowResult(request.command, "failed", "Trust requires the owned trust controller");
         dynamicCall(dynamicObject(runtime.services, "settingsManager"), "setProjectTrusted", selection === "trust");
         return workflowResult(request.command, "completed", selection === "trust" ? "Project trusted" : "Project trust removed");
       }
       case "login": {
-        if (!selection && !argument) return workflowSelector(request.command, "Login provider", this.#loginOptions());
+        if (!selection && !argument) return workflowResult(request.command, "failed", "Login requires the owned authentication controller");
         const modelRuntime = dynamicObject(runtime.services, "modelRuntime");
         let loginSelection = selection ?? argument;
         if (!selection && argument && !argument.includes(":")) {
@@ -1148,12 +1166,7 @@ export class PiEngineAdapter {
           if (matching.length > 1) {
             const provider = dynamicCall(modelRuntime, "getProvider", providerReference);
             const providerName = stringProperty(provider, "name") ?? providerReference;
-            const oauth = dynamicObject(dynamicObject(provider, "auth"), "oauth");
-            const loginLabel = stringProperty(oauth, "loginLabel") ?? "Sign in with an account";
-            return workflowSelector(request.command, `Select authentication method for ${providerName}:`, matching.map(option => ({
-              ...option,
-              label: option.id.startsWith("api_key:") ? "Sign in with an API key" : loginLabel,
-            })));
+            return workflowResult(request.command, "failed", `Authentication method for ${providerName} requires the owned authentication controller`);
           }
           if (matching[0]) loginSelection = matching[0].id;
         }
@@ -1205,7 +1218,7 @@ export class PiEngineAdapter {
         return workflowResult(request.command, "completed", `Logged in to ${providerName}. Credentials saved to ${join(this.#agentDir, "auth.json")}`);
       }
       case "logout": {
-        if (!selection) return workflowSelector(request.command, "Logout provider", await this.#logoutOptions());
+        if (!selection) return workflowResult(request.command, "failed", "Logout requires the owned authentication controller");
         const [credentialType = "oauth", providerId = selection] = selection.includes(":") ? selection.split(":", 2) : ["oauth", selection];
         const modelRuntime = dynamicObject(runtime.services, "modelRuntime");
         await requiredDynamicCallAsync(modelRuntime, "logout", providerId, { signal: AbortSignal.timeout(15_000) });
@@ -1229,7 +1242,7 @@ export class PiEngineAdapter {
         return workflowResult(request.command, "completed", "Compaction requested");
       }
       case "resume": {
-        if (!selection && !argument) return workflowSelector(request.command, "Resume session", await this.#sessionOptions());
+        if (!selection && !argument) return workflowResult(request.command, "failed", "Resume requires the owned session controller");
         const sessionPath = selection ?? argument;
         try {
           const result = await runtime.switchSession(sessionPath);
@@ -2335,15 +2348,6 @@ function workflowResult(
   detail?: string,
 ): PiWorkflowResult {
   return { command, outcome, message, ...(detail === undefined ? {} : { detail }) };
-}
-
-function workflowSelector(
-  command: PiWorkflowRequest["command"],
-  title: string,
-  options: readonly PiWorkflowOption[],
-): PiWorkflowResult {
-  if (options.length === 0) return workflowResult(command, "failed", `No ${title.toLowerCase()} options are available`);
-  return { command, outcome: "requires-selection", message: title, selectorTitle: title, options };
 }
 
 function workflowConfirmation(command: PiWorkflowRequest["command"], message: string): PiWorkflowResult {

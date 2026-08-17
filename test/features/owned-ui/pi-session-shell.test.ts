@@ -41,6 +41,7 @@ class Session implements PiSessionLike {
   async bindExtensions(bindings: unknown): Promise<void> { this.extensionBindings = bindings; this.calls.push("bindExtensions"); }
   async reload(): Promise<void> { this.calls.push("reload"); }
   async setModel(model: unknown): Promise<void> { this.model = model; this.calls.push("setModel"); }
+  getUserMessagesForForking(): readonly unknown[] { return [{ entryId: "entry-1", text: "Fork point" }]; }
   setScopedModels(models: readonly unknown[]): void { this.scopedModels = models; this.calls.push(`scoped:${models.length}`); }
   setThinkingLevel(level: unknown): void { this.thinkingLevel = level; this.calls.push(`thinking:${String(level)}`); }
   dispose(): void {}
@@ -59,6 +60,7 @@ class Runtime implements PiRuntimeLike {
       getAvailableSnapshot: () => this.availableModels,
       getProviders: () => [{ id: "openai", name: "OpenAI Codex", auth: { oauth: {}, apiKey: {} } }],
       getProvider: (id: string) => id === "openai" ? { id, name: "OpenAI Codex", auth: { oauth: {}, apiKey: {} } } : undefined,
+      listCredentials: async () => [],
       login: async (_providerId: string, _authType: string, interaction: {
         prompt(request: unknown): Promise<string>;
         notify(event: unknown): void;
@@ -488,7 +490,7 @@ describe("PiSessionShell", () => {
       message: `ran ${request.command}`,
     }));
     const routedCommands = [...PINNED_PI_WORKFLOW_COMMAND_NAMES, ...PINNED_PI_HIDDEN_COMMAND_NAMES]
-      .filter(command => command !== "scoped-models" && command !== "trust" && command !== "resume" && command !== "login" && command !== "tree");
+      .filter(command => !["settings", "model", "scoped-models", "fork", "tree", "trust", "login", "logout", "resume"].includes(command));
     for (const command of routedCommands) {
       await shell.submit(`/${command}`);
     }
@@ -702,47 +704,28 @@ describe("PiSessionShell", () => {
   it("uses the pinned confirmation surface without committing on cancel", async () => {
     const { adapter, terminal, shell } = await fixture();
     const workflow = vi.spyOn(adapter, "executeWorkflow")
-      .mockResolvedValueOnce({
-        command: "import",
-        outcome: "requires-confirmation",
-        message: "Replace current session with fixture.jsonl?",
-        selectorTitle: "Import session",
-        options: [{ id: "yes", label: "Yes" }, { id: "no", label: "No" }],
-      })
-      .mockResolvedValueOnce({
-        command: "import",
-        outcome: "requires-confirmation",
-        message: "Replace current session with fixture.jsonl?",
-        selectorTitle: "Import session",
-        options: [{ id: "yes", label: "Yes" }, { id: "no", label: "No" }],
-      })
+      .mockResolvedValueOnce({ command: "import", outcome: "cancelled", message: "Import cancelled" })
       .mockResolvedValueOnce({ command: "import", outcome: "completed", message: "Session imported" });
 
-    await shell.runWorkflow({ command: "import", argument: "fixture.jsonl" });
+    const cancelled = shell.runWorkflow({ command: "import", argument: "fixture.jsonl" });
+    await new Promise(resolve => setTimeout(resolve, 0));
     expect(shell.root.render(80).join("\n")).toContain("Import session");
     expect(shell.root.render(80).join("\n")).toContain("Replace current session");
     terminal.input("\x1b");
-    expect(workflow).toHaveBeenCalledTimes(1);
+    await cancelled;
+    expect(workflow).toHaveBeenNthCalledWith(1, { command: "import", argument: "fixture.jsonl", confirmed: false });
 
-    await shell.runWorkflow({ command: "import", argument: "fixture.jsonl" });
-    terminal.input("\r");
+    const confirmed = shell.runWorkflow({ command: "import", argument: "fixture.jsonl" });
     await new Promise(resolve => setTimeout(resolve, 0));
-    expect(workflow).toHaveBeenNthCalledWith(3, { command: "import", argument: "fixture.jsonl", confirmed: true });
+    terminal.input("\r");
+    await confirmed;
+    expect(workflow).toHaveBeenNthCalledWith(2, { command: "import", argument: "fixture.jsonl", confirmed: true });
     await shell.dispose();
   });
 
   it("closes selectors silently, restores editor input, and continues selected workflows", async () => {
     const { adapter, terminal, shell } = await fixture();
-    const selectionRequired = {
-      command: "model" as const,
-      outcome: "requires-selection" as const,
-      message: "Model",
-      selectorTitle: "Model",
-      options: [{ id: "openai/gpt-5", label: "GPT-5" }],
-    };
     const workflow = vi.spyOn(adapter, "executeWorkflow")
-      .mockResolvedValueOnce(selectionRequired)
-      .mockResolvedValueOnce(selectionRequired)
       .mockResolvedValueOnce({ command: "model", outcome: "completed", message: "Selected GPT-5" })
       .mockResolvedValueOnce({ command: "copy", outcome: "failed", message: "clipboard denied" });
 
@@ -757,7 +740,7 @@ describe("PiSessionShell", () => {
     await shell.submit("/model");
     terminal.input("\r");
     await new Promise(resolve => setTimeout(resolve, 0));
-    expect(workflow).toHaveBeenNthCalledWith(3, { command: "model", argument: "", selection: "openai/gpt-5" });
+    expect(workflow).toHaveBeenNthCalledWith(1, { command: "model", argument: "", selection: "openai/gpt-5" });
     await shell.submit("/copy");
     expect(shell.root.render(80).join("\n")).toContain("Error: clipboard denied");
     await shell.dispose();
