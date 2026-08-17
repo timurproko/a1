@@ -1,0 +1,48 @@
+{
+  "schema": "addone-multi-agent-owned-ui-prerequisite-v1",
+  "milestone": "evolve-bare-a1-into-multi-agent-workspace",
+  "prerequisiteChange": "build-owned-pi-ui-foundation",
+  "recordedAt": "2026-08-17T12:31:58Z",
+  "result": "satisfied",
+  "acceptedBaselineCommit": "084d0fb7e4004bc4b83a0b28c8aaea736b558d44",
+  "hardenedFoundationCommit": "efb244472fa4e6499300533a3f535fe60ab7f948",
+  "publishedSourceCommit": "d407ed017a6f9216a9a0c62d85d7cd44803d4d2c",
+  "publication": {
+    "package": "@timurproko/addone@0.1.5-dev.11",
+    "tag": "next",
+    "workflowRun": "https://github.com/timurproko/addone/actions/runs/32030101549",
+    "integrity": "sha512-05GQdg7ZfvcEpI6wAvebyx/06JPnV5AUtSbptx7P3mzT28iU4yurP87uKIKsvpNwPzjMsr8k5RfiAeEyq/GfpQ==",
+    "latestPreserved": "0.1.4"
+  },
+  "acceptance": {
+    "sourcePortCoverage": "109 records and 29 behaviors; zero pending or stale entries",
+    "modalCoverage": "47 nodes, 111 transitions, and 36 settings instances",
+    "terminalParity": "54 checkpoints with zero differences",
+    "extensionBoundary": "validated public ExtensionUIContext translated through AddOne-owned contracts",
+    "zeroDebtGate": "passed",
+    "manualBaseAcceptance": "passed",
+    "prohibitedRuntimeOrPackagePatches": 0
+  },
+  "compositionBoundary": {
+    "ownedContractsComposableForStructuredTabs": true,
+    "terminalHostInitializationRequired": false,
+    "ptyCreationRequired": false,
+    "interactiveModeMutationRequired": false,
+    "deepPiImportsRequired": false
+  },
+  "milestoneAuthorization": {
+    "task5_4OwnedUiPrerequisite": "complete",
+    "structuredTabsMayBeginAtTask5_5": true,
+    "structuredTabsStartedByThisRecord": false,
+    "section6MayBegin": false,
+    "section6Blocker": "Section 6 additionally requires terminal-host proof acceptance; this record satisfies only the owned-UI prerequisite.",
+    "composedTerminalWorkAuthorized": false
+  },
+  "evidence": [
+    "openspec/changes/build-owned-pi-ui-foundation/evidence/automated-evidence-7.35-zero-debt-final-gates.json",
+    "openspec/changes/build-owned-pi-ui-foundation/evidence/zero-debt-architecture-audit.md",
+    "openspec/changes/build-owned-pi-ui-foundation/evidence/manual-acceptance-pi-0.84.2-base-084d0fb.json",
+    "openspec/changes/build-owned-pi-ui-foundation/evidence/owned-ui-shell-composability.json",
+    "openspec/changes/build-owned-pi-ui-foundation/evidence/automated-evidence-8.5-next-publication.json"
+  ]
+}

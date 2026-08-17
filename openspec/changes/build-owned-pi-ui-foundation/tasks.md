@@ -83,9 +83,9 @@
 - [x] 8.2 Run user-controlled manual smoke acceptance from bare `a1` against `a1 pi`: startup visuals, prompt and streaming, tools, editor and queued input, commands, abort/retry/compaction, model and thinking controls, sessions, settings, clipboard, selection, extension UI, resize, errors, and shutdown; record exact commit, package, terminal, and extension identities.
 - [x] 8.3 Correct every manual finding, reopen every contradicted task, and rerun focused, containing, source-coverage, real-integration, and parity gates; mark the base accepted only when all built-in and visible extension workflows pass.
 - [x] 8.4 Update CLI help, user documentation, development instructions, and recovery guidance to state that bare `a1` launches the owned UI, `a1 pi` is the untouched upstream fallback/oracle, sandbox is unchanged, and `a1 ui` is removed; pass documentation and CLI-help consistency checks.
-- [ ] 8.5 Merge the accepted slice through `develop` and publish a unique `-dev.N` package under npm `next` with the owned UI as the bare default, AddOne-specific visual customization and structured tabs still disabled, no stable support claim, `latest` unchanged, and registry/package integrity verified.
+- [x] 8.5 Merge the accepted slice through `develop` and publish a unique `-dev.N` package under npm `next` with the owned UI as the bare default, AddOne-specific visual customization and structured tabs still disabled, no stable support claim, `latest` unchanged, and registry/package integrity verified.
 
 ## 9. Handoff to Multi-Agent Workspace
 
 - [x] 9.1 Record evidence that the parity-safe AddOne shell contracts are composable for future structured tabs without initializing the terminal host or creating PTYs.
-- [ ] 9.2 Update the existing multi-agent milestone evidence to identify this change as satisfying its owned-UI prerequisite only after all source-port, extension, parity, and base gates pass; do not begin structured tabs or section 6 of that milestone before this acceptance.
+- [x] 9.2 Update the existing multi-agent milestone evidence to identify this change as satisfying its owned-UI prerequisite only after all source-port, extension, parity, and base gates pass; do not begin structured tabs or section 6 of that milestone before this acceptance.
