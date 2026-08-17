@@ -23,6 +23,7 @@ AddOne's planned multi-agent workspace requires a terminal UI it can own and cus
 - **BREAKING** Route bare `a1` and `addone` directly to the AddOne-owned UI throughout development so ordinary use exercises the actual target architecture; remove the redundant `a1 ui` development route.
 - Keep `a1 pi` as the untouched upstream oracle, fallback, and recovery path, and keep `a1 sandbox` unchanged.
 - Defer AddOne visual customization, structured tabs, and multi-agent layout work until the full pinned UI—including extension surfaces—passes parity.
+- Treat the manually accepted vanilla baseline as immutable while eliminating all reported architecture debt before custom UX: reconcile every absent planned source port and stale theme status; remove generic visible workflow fallbacks and string-level status substitution; replace reflection-heavy engine access and production adapter type escapes with explicit validated façades; mechanically decompose the shell-component monolith; and enforce a zero-debt gate without changing accepted frames or workflows.
 
 ## Capabilities
 

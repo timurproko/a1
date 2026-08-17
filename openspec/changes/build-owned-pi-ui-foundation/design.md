@@ -173,6 +173,20 @@ The independent parity producer must capture every ownership-plane state and eve
 
 **Alternative rejected:** patch the six screenshots directly or add more top-level snapshots. That would preserve the sampled-controller problem and leave unvisited nested paths for the user to discover.
 
+### 10. Eliminate accepted-baseline architecture debt before custom UX
+
+Manual 1:1 acceptance does not authorize building customization on unresolved adapter debt. Commit `084d0fb7e4004bc4b83a0b28c8aaea736b558d44` is the immutable visible baseline while the architecture is hardened.
+
+Every ledger unit marked `not-ported` SHALL be reconciled to its actual implementation: public reuse, host adapter, inline owned port with a real destination, or a completed coherent owned source port. Planned paths that do not exist are forbidden. The two theme units marked `upgrade-review-required` SHALL be mechanically compared with pinned `0.84.2`, synchronized where necessary, and changed to a completed status only with source hashes and parity evidence.
+
+Visible workflows SHALL no longer rely on generic `workflowSelector()` fallback results. Stateful shell controllers SHALL request typed route contexts and invoke typed engine actions directly. Prompt-adjacent extension working state SHALL update through a dedicated component/controller API rather than replacing text inside rendered ANSI rows. Width correctness SHALL remain owned by source-equivalent components; any terminal safety assertion must fail diagnostically rather than silently rewrite accepted layout.
+
+The engine boundary SHALL adapt public runtime/session/service values once into explicit validated structural façades. Repeated string-named `dynamicCall()` reflection and production `as unknown as`, `as never`, or `as any` escapes in Pi adapters and owned-shell code SHALL be eliminated. Unsupported public shapes SHALL fail at adapter construction or the affected operation with a bounded diagnostic, not silently select a fallback path.
+
+`pi-component-adapter/shell-components.ts` SHALL be mechanically split by responsibility—editor/autocomplete, selectors/dialogs, presenters/transcript, footer/status, extension UI, and shared façade helpers—without redesigning behavior. A repository gate SHALL cap reintroduction of monolithic composition, generic workflow presenters, reflection, type escapes, stale ledger states, embedded multiline render rows, string-level ANSI substitution, and prohibited runtime/package patches.
+
+Only after independent terminal parity, the full suite, architecture/source gates, real integration, packaging, and manual-baseline invariants pass may a separate custom-UX change use AddOne slots and presets. The vanilla preset remains the differential oracle.
+
 ## Risks / Trade-offs
 
 - **[Large mechanical port creates review churn]** → Land coherent upstream units separately, keep transformations mechanical, and attach ledger entries and focused tests to each slice.

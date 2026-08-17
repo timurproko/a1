@@ -241,6 +241,15 @@ AddOne-specific themes, components, commands, layouts, structured tabs, and mult
 - **WHEN** the accepted baseline receives a supported AddOne customization
 - **THEN** the customization SHALL resolve through an owned slot and preserve ordinary built-in and extension session behavior
 
+#### Scenario: Reject customization while architecture debt remains
+- **WHEN** any source-ledger record names an absent planned destination or stale review status, any visible route can fall back to a generic workflow presenter, any prompt-adjacent row is changed by rendered-string substitution, or production Pi adapters rely on reflection or unchecked type escapes
+- **THEN** the customization prerequisite SHALL fail even when visible vanilla parity has been manually accepted
+
+#### Scenario: Validate the customization-ready vanilla baseline
+- **WHEN** architecture-debt closure runs
+- **THEN** every pinned source unit SHALL identify a real public reuse, host adapter, or present owned port; every approved deviation SHALL remain explicit; engine and component boundaries SHALL use validated typed façades; and shell composition SHALL be split into bounded responsibility modules
+- **AND** the untouched-Pi terminal producer, full tests, real integration, packaging, and the accepted manual-baseline invariants SHALL remain unchanged
+
 ### Requirement: Contradictory manual findings invalidate completion claims
 A user-controlled finding that a covered prompt, command, visual state, extension surface, or lifecycle path is missing or divergent SHALL invalidate any task completion or evidence claim contradicted by that finding. The affected task SHALL be reopened, corrected, and revalidated before later acceptance or publication tasks proceed.
 
