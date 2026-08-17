@@ -127,6 +127,7 @@ export type PiTuiLayoutNode =
 
 export interface PiTuiRuntimeAdapterOptions {
   readonly root: PiTuiComponentPort;
+  readonly mode?: "regular" | "fullscreen";
   readonly layoutRoot?: PiTuiLayoutNode;
   readonly terminal?: PiTuiTerminalPort;
   readonly hardwareCursor?: boolean;

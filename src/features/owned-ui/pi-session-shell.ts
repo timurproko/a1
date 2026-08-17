@@ -690,9 +690,10 @@ export class PiSessionShell {
       getMessageRenderer: customType => this.adapter.pinnedMessageRenderer(customType),
       getToolDefinition: toolName => this.adapter.pinnedToolDefinition(toolName),
     });
+    const tuiMode = this.adapter.pinnedSettingsSnapshot().tuiMode;
     const runtimeOptions = options.terminal === undefined
-      ? { root: this.root, layoutRoot: this.root.layoutRoot(), hardwareCursor: this.adapter.view().terminal.hardwareCursor }
-      : { root: this.root, layoutRoot: this.root.layoutRoot(), terminal: options.terminal, hardwareCursor: this.adapter.view().terminal.hardwareCursor };
+      ? { root: this.root, mode: tuiMode, layoutRoot: this.root.layoutRoot(), hardwareCursor: this.adapter.view().terminal.hardwareCursor }
+      : { root: this.root, mode: tuiMode, layoutRoot: this.root.layoutRoot(), terminal: options.terminal, hardwareCursor: this.adapter.view().terminal.hardwareCursor };
     runtime = new PiTuiRuntimeAdapter(runtimeOptions);
     this.runtime = runtime;
     this.#extensionBridge = createPiExtensionUiBridge({
@@ -1049,8 +1050,17 @@ export class PiSessionShell {
           close();
           return;
         }
+        if (callback === "onTuiModeChange") {
+          if (value !== "regular" && value !== "fullscreen") return;
+          if (!this.runtime.switchMode(value)) {
+            this.root.appendWorkflowStatus("Close active overlays before changing TUI mode");
+            this.runtime.requestRender();
+            return;
+          }
+        }
         const result = this.adapter.applyPinnedSettingValue(callback, value);
         if (result.outcome === "failed") this.root.appendWorkflowResult(result);
+        else if (callback === "onTuiModeChange") this.root.appendWorkflowStatus(`TUI mode: ${value}`);
         this.runtime.requestRender();
       },
       onCancel: close,

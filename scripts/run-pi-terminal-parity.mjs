@@ -69,7 +69,7 @@ async function runGate() {
   const upstream = new TerminalParitySession({
     producer: "upstream-pi",
     executable: process.execPath,
-    arguments: [piCliPath, "--offline", "--tui-mode", "fullscreen", "--approve"],
+    arguments: [piCliPath, "--offline", "--approve"],
     cwd: fixture.cwd,
     environment: commonParityEnvironment(fixture.profiles["upstream-pi"]),
     columns: DEFAULT_COLUMNS,
@@ -135,6 +135,11 @@ async function performAction(producers, action) {
     await Promise.all(producers.map(producer => producer.settle({ quietMs: 350 })));
     return;
   }
+  if (action.type === "wheel") {
+    const rows = (action.notches ?? 1) * 3 * (action.direction === "up" ? -1 : 1);
+    for (const producer of producers) producer.scrollViewport(rows);
+    return;
+  }
   if (action.type === "shutdown") {
     await Promise.all(producers.map(producer => producer.shutdown("\x04", 7_000)));
     return;
@@ -159,7 +164,7 @@ async function pinnedIdentity() {
       commit: PINNED_PI_COMMIT,
       cliSha256: createHash("sha256").update(cliSource).digest("hex"),
       executable: process.execPath,
-      arguments: [piCliPath, "--offline", "--tui-mode", "fullscreen", "--approve"],
+      arguments: [piCliPath, "--offline", "--approve"],
       usesAddoneRenderingCode: false,
     },
     addone: {

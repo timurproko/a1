@@ -4142,15 +4142,8 @@
       "localDestination": "src/foundation/pi-tui-runtime-adapter/adapter.ts",
       "implementationStatus": "adapter-present-conformance-passed",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Use pinned public pi-tui terminal/runtime APIs behind AddOne lifecycle ownership. At the public terminal seam, retain selection until copy or non-copy keyboard input, clear selection through public input before forwarding ordinary input, suppress release-time OSC 52 and the copy flash, and configure three-row wheel routing. Recompose each selected final row as one continuous terminal selection block, including blank and trailing cells, while stripping selected source SGR/OSC state and repainting explicit dark text on a uniform bright-white background after differential writes and scroll movement.",
-      "approvedDeviations": [
-        {
-          "id": "ordinary-vanilla-selection-and-wheel",
-          "reason": "User-controlled comparison requires ordinary vanilla interaction instead of pinned fullscreen defaults: one continuous retained bright-white character/word/line/area block across text, trailing cells, and blank rows; no source-color leakage after scrolling; selected Ctrl+C copy without a flash; selection clearing before non-copy keyboard input so stale coordinates cannot transfer to command or modal UI; and three rows per wheel notch.",
-          "upstreamBehavior": "Pinned fullscreen TuiAltScreen copies on mouse release, displays Copied!, preserves source ANSI colors inside inverse selection, retains screen-coordinate selections across subsequent UI rendering, and defaults wheelScrollLines to one; AddOne records and tests the user-directed ordinary behavior at its public terminal host seam.",
-          "acceptanceTest": "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
-        }
-      ],
+      "modifications": "Use pinned public pi-tui renderer APIs behind AddOne lifecycle ownership. Select public TuiMainScreen for the settings-derived vanilla default regular mode, leaving selection, copy, wheel scrolling, and scrollback to the physical terminal without mouse tracking or ANSI interception. Select unmodified public TuiAltScreen only for explicit fullscreen mode and construct its viewport layout through public APIs.",
+      "approvedDeviations": [],
       "behaviorCategories": [
         "keybindings",
         "resize",
@@ -4186,10 +4179,10 @@
       "lines": 587,
       "sha256": "6df5c45771ac333f742e0e39ad58e3e889abb1a4d7ed765b31e77947309643c3",
       "classification": "host-adapter",
-      "localDestination": "src/foundation/pi-tui-runtime-adapter/index.ts",
-      "implementationStatus": "adapter-present-conformance-pending",
+      "localDestination": "src/foundation/pi-tui-runtime-adapter/adapter.ts",
+      "implementationStatus": "adapter-present-conformance-passed",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Use pinned public pi-tui terminal/runtime APIs behind AddOne lifecycle ownership.",
+      "modifications": "Reuse public TuiMainScreen as the vanilla-default regular renderer behind AddOne lifecycle and component bridges; preserve terminal-native selection and scrollback by emitting no alternate-screen or mouse-tracking controls.",
       "approvedDeviations": [],
       "behaviorCategories": [
         "keybindings",
@@ -4203,12 +4196,17 @@
         "shutdown.dispose-stateful-components"
       ],
       "acceptanceTasks": [
+        "7.1",
         "7.6",
+        "7.7",
+        "7.17",
+        "7.18",
         "7.21"
       ],
       "tests": [
         "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts",
-        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts",
+        "test/foundation/pi-tui-runtime-adapter/conformance.test.ts"
       ]
     },
     {

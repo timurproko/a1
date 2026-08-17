@@ -23,20 +23,19 @@ describe("public Pi TUI runtime conformance", () => {
     });
   });
 
-  it("validates the pinned fullscreen runtime contract", async () => {
+  it("validates the pinned regular main-screen runtime contract", async () => {
     const report = await runPiTuiRuntimeConformance();
 
     expect(report).toEqual({
       packageName: "@earendil-works/pi-tui",
       packageVersion: "0.84.2",
-      mode: "fullscreen",
+      mode: "regular",
       lifecycleRestored: true,
       inputRouted: true,
       overlayRouted: true,
       differentialRendering: true,
       resizeRedraw: true,
-      physicalWheelRouted: true,
-      directScrollRouted: true,
+      terminalNativeSelection: true,
     });
     expect(report.packageVersion).toBe(PI_TUI_PACKAGE_VERSION);
   });

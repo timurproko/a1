@@ -824,7 +824,7 @@ export class PiEngineAdapter {
       defaultProjectTrust: setting("getDefaultProjectTrust", "ask"),
       clearOnShrink: setting("getClearOnShrink", false),
       showTerminalProgress: setting("getShowTerminalProgress", false),
-      tuiMode: "fullscreen",
+      tuiMode: setting("getTuiMode", "regular"),
       fullscreenExitOutput: setting("getFullscreenExitOutput", "transcript"),
       fullscreenScrollbar: setting("getFullscreenScrollbar", "auto"),
       warnings: setting("getWarnings", { anthropicExtraUsage: true }),

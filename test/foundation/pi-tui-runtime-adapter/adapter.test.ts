@@ -116,78 +116,12 @@ class TestTerminal implements PiTuiTerminalPort {
   }
 }
 
-type EmulatedCell = { readonly character: string; readonly foreground: number | null; readonly background: number | null };
-
-function emulateTerminalCells(writes: readonly string[], columns: number, rows: number): EmulatedCell[][] {
-  const cells = Array.from({ length: rows }, () => Array<EmulatedCell>(columns));
-  let row = 0;
-  let column = 0;
-  let foreground: number | null = null;
-  let background: number | null = null;
-  let inverse = false;
-  const data = writes.join("");
-  for (let index = 0; index < data.length;) {
-    if (data.startsWith("\x1b]", index)) {
-      const bell = data.indexOf("\x07", index + 2);
-      index = bell < 0 ? data.length : bell + 1;
-      continue;
-    }
-    if (data.startsWith("\x1b[", index)) {
-      const match = /^\x1b\[([0-9;?]*)([A-Za-z@`~])/.exec(data.slice(index));
-      if (match === null) { index += 1; continue; }
-      const values = match[1]!.replace(/^\?/, "").split(";").filter(Boolean).map(Number);
-      const value = values[0] ?? 1;
-      if (match[2] === "H" || match[2] === "f") {
-        row = Math.max(0, (values[0] ?? 1) - 1);
-        column = Math.max(0, (values[1] ?? 1) - 1);
-      } else if (match[2] === "G") column = Math.max(0, value - 1);
-      else if (match[2] === "A") row = Math.max(0, row - value);
-      else if (match[2] === "B") row = Math.min(rows - 1, row + value);
-      else if (match[2] === "C") column = Math.min(columns - 1, column + value);
-      else if (match[2] === "D") column = Math.max(0, column - value);
-      else if (match[2] === "J" && value === 2) for (const line of cells) line.length = 0;
-      else if (match[2] === "K") cells[row] = Array<EmulatedCell>(columns);
-      else if (match[2] === "m") {
-        const sgr = values.length === 0 ? [0] : values;
-        for (let cursor = 0; cursor < sgr.length; cursor += 1) {
-          const code = sgr[cursor]!;
-          if (code === 0) { foreground = null; background = null; inverse = false; }
-          else if ((code >= 30 && code <= 37) || (code >= 90 && code <= 97)) foreground = code;
-          else if ((code >= 40 && code <= 47) || (code >= 100 && code <= 107)) background = code;
-          else if (code === 39) foreground = null;
-          else if (code === 49) background = null;
-          else if (code === 7) inverse = true;
-          else if (code === 27) inverse = false;
-          else if ((code === 38 || code === 48) && sgr[cursor + 1] === 2) cursor += 4;
-          else if ((code === 38 || code === 48) && sgr[cursor + 1] === 5) cursor += 2;
-        }
-      }
-      index += match[0].length;
-      continue;
-    }
-    const character = data[index]!;
-    index += 1;
-    if (character === "\n") { row = Math.min(rows - 1, row + 1); column = 0; continue; }
-    if (character === "\r") { column = 0; continue; }
-    if (character < " ") continue;
-    if (row < rows && column < columns) {
-      cells[row]![column] = {
-        character,
-        foreground: inverse ? background : foreground,
-        background: inverse ? foreground : background,
-      };
-    }
-    column += 1;
-  }
-  return cells;
-}
-
 describe("PiTuiRuntimeAdapter", () => {
   it("owns public fullscreen lifecycle, focus, input, overlays, differential rendering, resize, and restoration", async () => {
     const terminal = new TestTerminal();
     const root = new TestComponent(["unchanged", "before"]);
     const overlay = new TestComponent(["dialog"]);
-    const runtime = new PiTuiRuntimeAdapter({ root, terminal, mouse: false });
+    const runtime = new PiTuiRuntimeAdapter({ root, terminal, mode: "fullscreen", mouse: false });
 
     expect(runtime.state).toBe("idle");
     expect(runtime.mode).toBe("fullscreen");
@@ -259,187 +193,60 @@ describe("PiTuiRuntimeAdapter", () => {
     expect(mountedOverlay.disposed).toBe(true);
   });
 
-  it("retains a uniform selection, copies only on selected Ctrl+C, and never renders a copy flash", async () => {
+  it("uses the public regular main-screen renderer by default and leaves selection to the terminal", async () => {
     const terminal = new TestTerminal();
-    terminal.rows = 5;
-    const root = new TestComponent(["\x1b[38;2;255;0;0mcolored text\x1b[0m", "plain text"]);
+    const root = new TestComponent(["[38;2;255;0;0mcolored text[0m", "plain text"]);
     const runtime = new PiTuiRuntimeAdapter({ root, terminal });
+
     runtime.start();
     runtime.renderNow(true);
-    terminal.writes.length = 0;
+    expect(runtime.mode).toBe("regular");
+    const frame = terminal.writes.join("");
+    expect(frame).not.toContain("[?1049h");
+    expect(frame).not.toContain("[?1000h");
+    expect(frame).not.toContain("[?1006h");
+    expect(frame).toContain("[38;2;255;0;0mcolored text");
 
-    terminal.input("\x1b[<0;1;1M");
-    terminal.input("\x1b[<32;8;1M");
-    terminal.input("\x1b[<0;8;1m");
-    runtime.renderNow();
-
-    const selectionFrame = terminal.writes.join("");
-    expect(selectionFrame).not.toContain("Copied!");
-    expect(selectionFrame).not.toContain("\x1b]52;");
-    const inverse = /\x1b\[30;107m([\s\S]*?)\x1b\[0m/.exec(selectionFrame)?.[1] ?? "";
-    expect(inverse).toContain("colored");
-    expect(inverse).not.toMatch(/\x1b\[(?:38|48);/);
-    expect(selectionFrame).toContain("\x1b[30;107m");
-
-    terminal.writes.length = 0;
-    terminal.input("\x03");
-    expect(terminal.writes.join("")).toContain("\x1b]52;");
-    expect(root.inputs).not.toContain("\x03");
-
-    terminal.input("\x1b[<0;2;2M");
-    terminal.input("\x1b[<0;2;2m");
-    terminal.input("\x03");
-    runtime.renderNow();
-    expect(root.inputs).toContain("\x03");
-    await runtime.stop({ drainInput: false, preserveScreen: true });
-  });
-
-  it("renders character, word, line, and area selections with bright-white cells across styled content", async () => {
-    const terminal = new TestTerminal();
-    terminal.rows = 5;
-    const root = new TestComponent([
-      "\x1b[38;2;255;0;0mred\x1b[0m plain λ界",
-      "\x1b[1msecond styled row\x1b[22m",
-    ]);
-    const runtime = new PiTuiRuntimeAdapter({ root, terminal });
-    runtime.start();
-    runtime.renderNow(true);
-
-    const assertUniform = (events: readonly string[], minimumSelectedCells: number) => {
-      terminal.writes.length = 0;
-      for (const event of events) terminal.input(event);
-      runtime.renderNow(true);
-      const frame = terminal.writes.join("");
-      const spans = [...frame.matchAll(/\x1b\[30;107m([\s\S]*?)\x1b\[0m/g)];
-      expect(spans.length).toBeGreaterThan(0);
-      expect(spans.every(match => !/\x1b\[(?:3[0-9]|4[0-9]|9[0-7]|10[0-7])(?:;|m)/.test(match[1] ?? ""))).toBe(true);
-      const selectedCells = emulateTerminalCells(terminal.writes, terminal.columns, terminal.rows)
-        .flat()
-        .filter(cell => cell?.background === 107);
-      expect(selectedCells.length).toBeGreaterThanOrEqual(minimumSelectedCells);
-      expect(selectedCells.every(cell => cell.foreground === 30)).toBe(true);
-    };
-
-    assertUniform(["\x1b[<0;2;1M", "\x1b[<32;3;1M", "\x1b[<0;3;1m"], 2);
-    assertUniform([
-      "\x1b[<0;6;1M", "\x1b[<0;6;1m",
-      "\x1b[<0;6;1M", "\x1b[<0;6;1m",
-    ], 5);
-    assertUniform([
-      "\x1b[<0;4;2M", "\x1b[<0;4;2m",
-      "\x1b[<0;4;2M", "\x1b[<0;4;2m",
-      "\x1b[<0;4;2M", "\x1b[<0;4;2m",
-    ], 17);
-    assertUniform(["\x1b[<0;1;1M", "\x1b[<32;10;2M", "\x1b[<0;10;2m"], 30);
-    await runtime.stop({ drainInput: false, preserveScreen: true });
-  });
-
-  it("renders a multi-row selection as one continuous terminal block including blank cells", async () => {
-    const terminal = new TestTerminal();
-    terminal.columns = 12;
-    terminal.rows = 5;
-    const root = new TestComponent([
-      "alpha",
-      "",
-      "\x1b[33mbeta\x1b[0m",
-      "",
-      "omega",
-    ]);
-    const runtime = new PiTuiRuntimeAdapter({ root, terminal });
-    runtime.start();
-    runtime.renderNow(true);
-
-    terminal.input("\x1b[<0;3;1M");
-    terminal.input("\x1b[<32;4;4M");
-    terminal.input("\x1b[<0;4;4m");
-    runtime.renderNow(true);
-
-    const cells = emulateTerminalCells(terminal.writes, terminal.columns, terminal.rows);
-    const expectUniformRange = (row: number, start: number, end: number) => {
-      const range = Array.from({ length: end - start }, (_, index) => cells[row]![start + index]);
-      expect(range.every(cell => cell?.foreground === 30 && cell.background === 107)).toBe(true);
-    };
-    expectUniformRange(0, 2, terminal.columns);
-    expectUniformRange(1, 0, terminal.columns);
-    expectUniformRange(2, 0, terminal.columns);
-    expectUniformRange(3, 0, 4);
-    await runtime.stop({ drainInput: false, preserveScreen: true });
-  });
-
-  it("keeps the continuous selection uniform while scrolling styled content", async () => {
-    const terminal = new TestTerminal();
-    terminal.columns = 14;
-    terminal.rows = 6;
-    const root = new TestComponent(Array.from({ length: 14 }, (_, index) =>
-      index % 2 === 0 ? `\x1b[3${index % 8}mrow-${index}\x1b[0m` : ""));
-    const runtime = new PiTuiRuntimeAdapter({ root, terminal });
-    runtime.start();
-    runtime.renderNow(true);
-    runtime.scrollToTop();
-    runtime.renderNow();
-
-    terminal.input("\x1b[<0;2;2M");
-    terminal.input("\x1b[<32;6;6M");
-    terminal.input("\x1b[<0;6;6m");
-    runtime.renderNow(true);
-    terminal.input("\x1b[<65;5;3M");
-    runtime.renderNow();
-
-    const selected = emulateTerminalCells(terminal.writes, terminal.columns, terminal.rows)
-      .flat()
-      .filter(cell => cell?.background === 107);
-    expect(selected.length).toBeGreaterThan(14);
-    expect(selected.every(cell => cell.foreground === 30 && cell.background === 107)).toBe(true);
-    await runtime.stop({ drainInput: false, preserveScreen: true });
-  });
-
-  it("clears retained selection before command input so new UI does not inherit old coordinates", async () => {
-    const terminal = new TestTerminal();
-    terminal.columns = 80;
-    terminal.rows = 8;
-    const root = new TestComponent([
-      "\x1b[38;2;255;200;0m[Skills]\x1b[0m",
-      "cavecrew, caveman, openspec-apply-change",
-    ]);
-    const runtime = new PiTuiRuntimeAdapter({ root, terminal });
-    runtime.start();
-    runtime.renderNow(true);
-    terminal.writes.length = 0;
-
-    terminal.input("\x1b[<0;1;1M");
-    terminal.input("\x1b[<32;20;2M");
-    terminal.input("\x1b[<0;20;2m");
-    runtime.renderNow();
-    const selected = terminal.writes.join("");
-    expect(selected).toContain("\x1b[30;107m");
-    expect(selected).not.toMatch(/\x1b\[30;107m[^\x1b]*\x1b\[38;2;255;200;0m/);
-    const selectedCells = emulateTerminalCells(terminal.writes, terminal.columns, terminal.rows)
-      .flat()
-      .filter(cell => cell?.background === 107);
-    expect(selectedCells.length).toBeGreaterThan(0);
-    expect(selectedCells.every(cell => cell.foreground === 30 && cell.background === 107)).toBe(true);
-
-    terminal.input("\x1b[<65;5;3M");
-    runtime.renderNow();
     terminal.input("/");
-    root.lines = ["/", "settings  Open settings menu", "model  Select model"];
     runtime.renderNow();
     expect(root.inputs).toEqual(["/"]);
-    expect(emulateTerminalCells(terminal.writes, terminal.columns, terminal.rows).flat().some(cell => cell?.background === 107)).toBe(false);
+    expect(terminal.writes.join("")).not.toContain("Copied!");
+    expect(terminal.writes.join("")).not.toContain("]52;");
+
+    await runtime.stop({ drainInput: false, preserveScreen: true });
+    expect(terminal.writes.join("")).not.toContain("[?1049l");
+  });
+
+  it("switches between public regular and fullscreen renderers without selection patching", async () => {
+    const terminal = new TestTerminal();
+    const root = new TestComponent(["root"]);
+    const runtime = new PiTuiRuntimeAdapter({ root, terminal });
+    runtime.start();
+    runtime.renderNow(true);
+
+    expect(runtime.switchMode("fullscreen")).toBe(true);
+    runtime.renderNow(true);
+    expect(runtime.mode).toBe("fullscreen");
+    expect(terminal.writes.join("")).toContain("\x1b[?1049h");
+
+    expect(runtime.switchMode("regular")).toBe(true);
+    runtime.renderNow(true);
+    expect(runtime.mode).toBe("regular");
+    expect(terminal.writes.join("")).toContain("\x1b[?1049l");
     await runtime.stop({ drainInput: false, preserveScreen: true });
   });
 
-  it("moves three rows for one physical wheel notch by default", async () => {
+  it("preserves the pinned one-row fullscreen wheel default", async () => {
     const terminal = new TestTerminal();
     terminal.rows = 5;
     const root = new TestComponent(Array.from({ length: 12 }, (_, index) => `row-${index}`));
-    const runtime = new PiTuiRuntimeAdapter({ root, terminal });
+    const runtime = new PiTuiRuntimeAdapter({ root, terminal, mode: "fullscreen" });
     runtime.start();
     runtime.renderNow(true);
     runtime.scrollToTop();
     terminal.input("\x1b[<65;5;3M");
     runtime.renderNow();
-    expect(runtime.scrollState().scrollTop).toBe(3);
+    expect(runtime.scrollState().scrollTop).toBe(1);
     await runtime.stop({ drainInput: false, preserveScreen: true });
   });
 
@@ -447,7 +254,7 @@ describe("PiTuiRuntimeAdapter", () => {
     const terminal = new TestTerminal();
     terminal.rows = 5;
     const root = new TestComponent(Array.from({ length: 12 }, (_, index) => `row-${index}`));
-    const runtime = new PiTuiRuntimeAdapter({ root, terminal, wheelScrollLines: 2 });
+    const runtime = new PiTuiRuntimeAdapter({ root, terminal, mode: "fullscreen", wheelScrollLines: 2 });
     runtime.start();
     runtime.renderNow(true);
     runtime.scrollToTop();
@@ -487,6 +294,7 @@ describe("PiTuiRuntimeAdapter", () => {
     const runtime = new PiTuiRuntimeAdapter({
       root: primary,
       terminal,
+      mode: "fullscreen",
       wheelScrollLines: 2,
       layoutRoot: {
         type: "stack",

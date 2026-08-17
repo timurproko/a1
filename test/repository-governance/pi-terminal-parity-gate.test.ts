@@ -52,7 +52,7 @@ describe("independent Pi terminal parity gate", () => {
   );
 
   it("keeps named terminal-only tolerances narrow and still fails intentional workflow mutations", () => {
-    const tolerances = ["differential-sgr-order", "transient-scrollbar-thumb-rounding", "ordinary-vanilla-wheel-distance"];
+    const tolerances = ["differential-sgr-order", "transient-scrollbar-thumb-rounding"];
     for (const mutation of ["visual", "input-scroll", "structured-content", "presenter-plane", "modal-node", "modal-restoration"] as const) {
       expect(compareParityRun(producer(), applyIntentionalMutation(producer(), mutation), { tolerances }).passed).toBe(false);
     }
@@ -80,10 +80,10 @@ describe("independent Pi terminal parity gate", () => {
     ];
     expect(compareParityRun(producer(), scrollbarOnly, { tolerances }).passed).toBe(true);
 
-    const approvedWheelDeviation = producer();
-    approvedWheelDeviation.checkpoints[0]!.name = "physical-wheel";
-    approvedWheelDeviation.checkpoints[0]!.rows[0]!.text = "three rows farther";
-    expect(compareParityRun({ ...producer(), checkpoints: [{ ...producer().checkpoints[0]!, name: "physical-wheel" }] }, approvedWheelDeviation, { tolerances }).passed).toBe(true);
+    const wheelMutation = producer();
+    wheelMutation.checkpoints[0]!.name = "physical-wheel";
+    wheelMutation.checkpoints[0]!.rows[0]!.text = "three rows farther";
+    expect(compareParityRun({ ...producer(), checkpoints: [{ ...producer().checkpoints[0]!, name: "physical-wheel" }] }, wheelMutation, { tolerances }).passed).toBe(false);
 
     const realStyleMutation = producer();
     realStyleMutation.checkpoints[0]!.rows[0]!.styles[0]!.foreground = "rgb:ff0000";

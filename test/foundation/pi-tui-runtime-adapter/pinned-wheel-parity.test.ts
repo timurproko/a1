@@ -44,7 +44,7 @@ describe("pinned TuiAltScreen wheel parity", () => {
 
     const addoneTerminal = new WheelTerminal();
     const addoneRoot = new WheelComponent("row", 16);
-    const addone = new PiTuiRuntimeAdapter({ root: addoneRoot, terminal: addoneTerminal, wheelScrollLines: 2 });
+    const addone = new PiTuiRuntimeAdapter({ root: addoneRoot, terminal: addoneTerminal, mode: "fullscreen", wheelScrollLines: 2 });
     addone.start();
     addone.renderNow(true);
     addone.scrollToTop();
@@ -94,6 +94,7 @@ describe("pinned TuiAltScreen wheel parity", () => {
     const addone = new PiTuiRuntimeAdapter({
       root: addonePrimary,
       terminal: addoneTerminal,
+      mode: "fullscreen",
       wheelScrollLines: 2,
       layoutRoot: {
         type: "stack",

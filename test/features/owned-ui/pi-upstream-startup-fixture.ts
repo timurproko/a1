@@ -143,7 +143,7 @@ function createUpstreamFooter(state: StartupCaptureState): FooterComponent {
 function createTui(width: number): TUI {
   const children: Component[] = [];
   return {
-    mode: "fullscreen",
+    mode: "regular",
     children,
     terminal: {
       start() {}, stop() {}, async drainInput() {}, write() {}, columns: width, rows: 24,

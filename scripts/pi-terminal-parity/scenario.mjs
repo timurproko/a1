@@ -9,7 +9,6 @@ export const FULL_GATE_TIMEOUT_MS = 90_000;
 export const TERMINAL_PARITY_TOLERANCES = Object.freeze([
   "differential-sgr-order",
   "transient-scrollbar-thumb-rounding",
-  "ordinary-vanilla-wheel-distance",
   "session-identity-values",
 ]);
 

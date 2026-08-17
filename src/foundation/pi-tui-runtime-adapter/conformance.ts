@@ -4,14 +4,13 @@ import { PiTuiRuntimeAdapter, PiTuiRuntimeError } from "./adapter.js";
 export interface PiTuiRuntimeConformanceReport {
   readonly packageName: "@earendil-works/pi-tui";
   readonly packageVersion: typeof PI_TUI_PACKAGE_VERSION;
-  readonly mode: "fullscreen";
+  readonly mode: "regular" | "fullscreen";
   readonly lifecycleRestored: boolean;
   readonly inputRouted: boolean;
   readonly overlayRouted: boolean;
   readonly differentialRendering: boolean;
   readonly resizeRedraw: boolean;
-  readonly physicalWheelRouted: boolean;
-  readonly directScrollRouted: boolean;
+  readonly terminalNativeSelection: boolean;
 }
 
 export async function runPiTuiRuntimeConformance(): Promise<PiTuiRuntimeConformanceReport> {
@@ -24,8 +23,9 @@ export async function runPiTuiRuntimeConformance(): Promise<PiTuiRuntimeConforma
     runtime.start();
     runtime.renderNow(true);
     root.lines = ["stable row", "after"];
+    const writesBeforeDifferential = terminal.writes.length;
     runtime.renderNow();
-    const differentialFrame = terminal.writes.at(-1) ?? "";
+    const differentialFrame = terminal.writes.slice(writesBeforeDifferential).join("");
 
     terminal.input("root-input");
     runtime.renderNow();
@@ -41,18 +41,6 @@ export async function runPiTuiRuntimeConformance(): Promise<PiTuiRuntimeConforma
     runtime.renderNow();
     const resizeRedraw = runtime.fullRedraws > redrawsBeforeResize && runtime.viewport().columns === 60;
 
-    root.lines = Array.from({ length: 14 }, (_, index) => `scroll-row-${index}`);
-    runtime.invalidate();
-    runtime.renderNow();
-    runtime.scrollToTop();
-    runtime.renderNow();
-    terminal.input("\x1b[<65;5;3M");
-    runtime.renderNow();
-    const physicalWheelRouted = runtime.scrollState().scrollTop === 3;
-    runtime.scrollBy(1);
-    runtime.renderNow();
-    const directScrollRouted = runtime.scrollState().scrollTop === 4;
-
     await runtime.stop({ drainMaxMs: 1, drainIdleMs: 1 });
     const emitted = terminal.writes.join("");
     return {
@@ -62,15 +50,14 @@ export async function runPiTuiRuntimeConformance(): Promise<PiTuiRuntimeConforma
       lifecycleRestored: terminal.startCount === 1
         && terminal.stopCount === 1
         && terminal.drainCount === 1
-        && emitted.includes("\x1b[?1049h")
-        && emitted.includes("\x1b[?1049l")
+        && !emitted.includes("\x1b[?1049h")
+        && !emitted.includes("\x1b[?1049l")
         && root.disposed,
       inputRouted: root.inputs.includes("root-input"),
       overlayRouted,
       differentialRendering: differentialFrame.includes("after") && !differentialFrame.includes("stable row"),
       resizeRedraw,
-      physicalWheelRouted,
-      directScrollRouted,
+      terminalNativeSelection: !emitted.includes("\x1b[?1000h") && !emitted.includes("\x1b[?1006h"),
     };
   } catch (error) {
     if (runtime.active) await runtime.stop({ drainInput: false }).catch(() => {});

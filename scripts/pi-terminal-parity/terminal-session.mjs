@@ -102,6 +102,11 @@ export class TerminalParitySession {
     this.#pty.resize(columns, rows);
   }
 
+  scrollViewport(lines) {
+    if (this.#exit) throw new Error(`${this.#producer} already exited`);
+    this.#terminal.scrollLines(lines);
+  }
+
   capture(name, domains) {
     const buffer = this.#terminal.buffer.active;
     const rows = [];

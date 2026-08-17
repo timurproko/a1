@@ -1511,7 +1511,7 @@ function createTuiFacade(options: Pick<PiShellEditorOptions, "getColumns" | "get
     moveBy() {}, hideCursor() {}, showCursor() {}, clearLine() {}, clearFromCursor() {}, clearScreen() {}, setTitle() {}, setProgress() {},
   };
   return {
-    mode: "fullscreen",
+    mode: "regular",
     children,
     terminal,
     fullRedraws: 0,

@@ -1,5 +1,7 @@
 {
   "schema": "addone-owned-pi-ui-selection-correction-v1",
+  "status": "historical-invalidated",
+  "invalidationReason": "Manual retest proved the AddOne selection repaint/interception architecture remained divergent. Pinned source tracing established that ordinary vanilla uses default regular TuiMainScreen with terminal-native selection; this evidence tested a forced-fullscreen approximation and cannot establish acceptance.",
   "change": "build-owned-pi-ui-foundation",
   "tasks": ["7.1", "7.18", "7.21", "7.22", "8.1", "8.2", "8.3"],
   "recordedAt": "2026-08-17T09:13:07.585Z",

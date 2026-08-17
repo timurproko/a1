@@ -1,6 +1,6 @@
 ## Purpose
 
-Defines AddOne's independently owned fullscreen Pi shell, complete pinned interactive baseline including extension UI, exact current-version parity, public engine/runtime boundaries, customization slots, diagnostics, and upgrade-conformance policy.
+Defines AddOne's independently owned Pi shell with vanilla-default regular main-screen mode and optional fullscreen mode, complete pinned interactive baseline including extension UI, exact current-version parity, public engine/runtime boundaries, customization slots, diagnostics, and upgrade-conformance policy.
 
 ## ADDED Requirements
 
@@ -8,7 +8,7 @@ Defines AddOne's independently owned fullscreen Pi shell, complete pinned intera
 The AddOne-owned UI SHALL reproduce the complete visible and interactive behavior of pinned Pi `0.84.2` at commit `914cf1472e715297caa30db4b9535d534a9eb718`. The baseline SHALL include startup composition, themes, colors, spacing, layout, editor, autocomplete, keybindings, commands, prompt execution, transcript, streaming, tools, selectors, dialogs, settings, sessions, models, thinking, status/footer state, clipboard, resize, errors, and shutdown. AddOne SHALL NOT substitute approximate layouts, colors, controllers, or workflows for covered pinned behavior.
 
 #### Scenario: Start an owned Pi session
-- **WHEN** the user starts the owned fullscreen UI in an equivalent terminal and session state
+- **WHEN** the user starts the owned UI in an equivalent terminal and session state
 - **THEN** the visible component tree, content, theme, spacing, focus, and available interactions SHALL match pinned Pi for that state
 
 #### Scenario: Submit an ordinary prompt
@@ -47,28 +47,19 @@ The AddOne-owned UI SHALL reproduce the complete visible and interactive behavio
 - **WHEN** one assistant message interleaves thinking, text, and tool calls or settles with a stop, error, or abort state
 - **THEN** the owned UI SHALL preserve source order, streaming state, component identity, adjacent-content spacing, tool boundaries, and terminal status content exactly as pinned `AssistantMessageComponent`
 
-#### Scenario: Scroll with a physical wheel event
-- **WHEN** an equivalent terminal sends one physical wheel notch over the same active content and viewport
-- **THEN** AddOne SHALL advance three rows in that direction, route any unconsumed distance through the equivalent active and primary scroll views, and preserve overscroll boundaries and scrollbar state so the visible destination matches ordinary vanilla Pi
+#### Scenario: Use vanilla regular-mode terminal ownership
+- **WHEN** the user starts AddOne without explicitly selecting fullscreen mode
+- **THEN** the runtime SHALL use public `TuiMainScreen` in `regular` mode exactly as default vanilla Pi does
+- **AND** it SHALL NOT enter the alternate screen, enable mouse tracking, intercept drag/release events, rewrite selected ANSI cells, synthesize clipboard output, or maintain screen-coordinate selection state
 
-#### Scenario: Select and copy transcript text
-- **WHEN** the user selects one character, a word, a line, or an arbitrary single-row or multi-row area across plain, styled, linked, inverse, Unicode, or whitespace content
-- **THEN** AddOne SHALL retain the selection without copying on release and render every selected cell as one continuous stream block—including trailing cells and blank rows—with dark text on one uniform bright-white inverted background without underlying foreground/background color leakage, line-by-line gaps, scroll corruption, or differential-write gaps
-- **AND** styles after the selected range SHALL be restored correctly and AddOne SHALL NOT display `Copied!` or another copy notification
-- **AND WHEN** the user presses `Ctrl+C` while that selection is active
-- **THEN** AddOne SHALL copy the selected plain text to the clipboard and consume the key without interrupting the agent
-- **AND WHEN** no selection is active
-- **THEN** `Ctrl+C` SHALL retain the pinned interrupt behavior
+#### Scenario: Select, copy, and scroll in regular mode
+- **WHEN** the user selects character, word, line, or multi-row content, presses `Ctrl+C` with or without a terminal selection, scrolls the wheel, or types `/` after selecting text
+- **THEN** the physical terminal SHALL own selection appearance, selection clearing, selected-copy consumption, wheel movement, and scrollback exactly as it does for untouched default vanilla Pi
+- **AND** AddOne-rendered source colors or newly opened command/modal content SHALL NOT inherit an application-owned selection because no such selection layer exists
 
-#### Scenario: Resolve retained selection before ordinary input
-- **WHEN** a selection is retained after mouse release and the user enters any non-copy keyboard input, including `/` that opens command autocomplete
-- **THEN** AddOne SHALL clear the active selection before forwarding the input and before rendering the resulting editor, autocomplete, command, selector, dialog, or replacement-surface state
-- **AND** no newly rendered cell SHALL inherit highlighting from the old screen-coordinate rectangle
-
-#### Scenario: Prove selection from final terminal cells
-- **WHEN** styled content such as the accent-colored `Skills` resource heading is selected and the renderer emits full or differential writes containing split SGR transitions
-- **THEN** a terminal-cell emulator SHALL resolve every selected final cell to the declared dark foreground and uniform bright-white background, with no source foreground/background leakage
-- **AND** concatenated ANSI substring inspection without final-cell resolution SHALL NOT satisfy acceptance
+#### Scenario: Explicitly use fullscreen mode
+- **WHEN** the user explicitly configures `tuiMode` as `fullscreen`
+- **THEN** AddOne SHALL use public `TuiAltScreen` and its pinned application-owned viewport, selection, copy, wheel, nested-scroll, and restoration behavior without AddOne ANSI rewriting or input interception
 
 #### Scenario: Render the changelog command
 - **WHEN** the user invokes `/changelog`

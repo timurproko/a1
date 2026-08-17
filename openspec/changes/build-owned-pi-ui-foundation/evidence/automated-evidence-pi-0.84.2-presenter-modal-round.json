@@ -1,5 +1,7 @@
 {
   "schema": "addone-owned-pi-ui-presenter-modal-evidence-v1",
+  "status": "historical-forced-fullscreen",
+  "invalidationReason": "The terminal producer forced untouched Pi through --tui-mode fullscreen and therefore did not prove default regular-mode root composition, native selection ownership, or scrollback parity.",
   "change": "build-owned-pi-ui-foundation",
   "tasks": ["7.4", "7.5", "7.7", "7.8", "7.9", "7.11", "7.13", "7.14", "7.15", "7.16", "7.17", "7.18", "7.19", "7.20", "7.24", "7.25", "7.27", "7.28", "8.1"],
   "recordedAt": "2026-08-17T08:41:00.000Z",
