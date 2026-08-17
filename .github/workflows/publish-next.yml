@@ -6,7 +6,7 @@ on:
       version:
         description: Exact manually accepted development preview version
         required: true
-        default: 0.1.5-dev.10
+        default: 0.1.5-dev.11
         type: string
       confirm_uncertified:
         description: Type "publish-uncertified-next" to confirm physical certification is deferred
@@ -31,9 +31,9 @@ jobs:
     timeout-minutes: 30
     environment: npm-next
     env:
-      ACCEPTED_SOURCE_COMMIT: 3904de4c879f71a5a02a9bb02a74a1f009d5ec0f
-      ACCEPTED_TARBALL_INTEGRITY: sha512-XjwhIsCbZjJbAwFQjWLnSsSS6Lb21Uls1MhkQUXOAiJh5Fg7IfQI4Ol4gMUGuzxSzOf38Cor+F+zB8nHLh79Dg==
-      ACCEPTED_TARBALL_SHASUM: 4af9a7697ad79209214889a8c56f3bb19228fb65
+      ACCEPTED_SOURCE_COMMIT: bca0d07d13c2a25002c2575722d8c6c5f1069752
+      ACCEPTED_TARBALL_INTEGRITY: sha512-05GQdg7ZfvcEpI6wAvebyx/06JPnV5AUtSbptx7P3mzT28iU4yurP87uKIKsvpNwPzjMsr8k5RfiAeEyq/GfpQ==
+      ACCEPTED_TARBALL_SHASUM: eb9002c85632b34d5b7d5fa41beba23679d2201e
     steps:
       - name: Preserve repository bytes during checkout
         shell: bash
@@ -42,7 +42,7 @@ jobs:
       - name: Check out exact manually accepted source
         uses: actions/checkout@v5
         with:
-          ref: 3904de4c879f71a5a02a9bb02a74a1f009d5ec0f
+          ref: bca0d07d13c2a25002c2575722d8c6c5f1069752
           fetch-depth: 0
           persist-credentials: false
 
@@ -66,7 +66,7 @@ jobs:
           PACKAGE_VERSION="$(node -p "require('./package.json').version")"
           test "$PACKAGE_VERSION" = "$REQUESTED_VERSION"
           [[ "$PACKAGE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+-dev\.[0-9]+$ ]]
-          test "$PACKAGE_VERSION" = "0.1.5-dev.10"
+          test "$PACKAGE_VERSION" = "0.1.5-dev.11"
           echo "version=$PACKAGE_VERSION" >> "$GITHUB_ENV"
           echo "source_commit=$ACCEPTED_SOURCE_COMMIT" >> "$GITHUB_ENV"
 
