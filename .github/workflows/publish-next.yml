@@ -31,7 +31,7 @@ jobs:
     timeout-minutes: 30
     environment: npm-next
     env:
-      ACCEPTED_SOURCE_COMMIT: bca0d07d13c2a25002c2575722d8c6c5f1069752
+      ACCEPTED_SOURCE_COMMIT: 7a24d2925e681c55ab5a05f88a32055409b5e277
       ACCEPTED_TARBALL_INTEGRITY: sha512-05GQdg7ZfvcEpI6wAvebyx/06JPnV5AUtSbptx7P3mzT28iU4yurP87uKIKsvpNwPzjMsr8k5RfiAeEyq/GfpQ==
       ACCEPTED_TARBALL_SHASUM: eb9002c85632b34d5b7d5fa41beba23679d2201e
     steps:
@@ -42,7 +42,7 @@ jobs:
       - name: Check out exact manually accepted source
         uses: actions/checkout@v5
         with:
-          ref: bca0d07d13c2a25002c2575722d8c6c5f1069752
+          ref: 7a24d2925e681c55ab5a05f88a32055409b5e277
           fetch-depth: 0
           persist-credentials: false
 
