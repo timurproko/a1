@@ -103,6 +103,13 @@ export const TERMINAL_PARITY_ACTIONS = Object.freeze([
   { type: "checkpoint", name: "login-auth-type", domains: ["selector-dialog", "authentication", "cursor-focus"] },
   { type: "key", key: "escape" },
   { type: "checkpoint", name: "login-auth-cancel-restored", domains: ["selector-dialog", "transcript", "editor", "footer-status", "cursor-focus"] },
+  { type: "text", value: "/login addone-parity" },
+  { type: "key", key: "enter" },
+  { type: "checkpoint", name: "login-provider-auth-type", domains: ["selector-dialog", "authentication", "nested-dialog", "raw-ansi", "rows-spacing", "cursor-focus"] },
+  { type: "key", key: "enter" },
+  { type: "checkpoint", name: "login-provider-method", domains: ["selector-dialog", "authentication", "nested-dialog", "raw-ansi", "rows-spacing", "cursor-focus"] },
+  { type: "key", key: "escape" },
+  { type: "checkpoint", name: "login-provider-method-cancel-restored", domains: ["selector-dialog", "authentication", "editor", "footer-status", "cursor-focus"] },
   { type: "text", value: "/reload" },
   { type: "key", key: "enter" },
   { type: "checkpoint", name: "reload-status", domains: ["transcript", "status", "raw-ansi", "rows-spacing"] },
@@ -200,6 +207,22 @@ export default function deterministicParityProvider(pi) {
     baseUrl: "http://127.0.0.1/unused",
     apiKey: "parity-fixture-key",
     api: "addone-parity-stream",
+    oauth: {
+      name: "AddOne Parity OAuth",
+      async login(callbacks) {
+        const method = await callbacks.onSelect({
+          message: "Select AddOne Parity login method:",
+          options: [
+            { id: "browser", label: "Browser login (default)" },
+            { id: "device", label: "Device code login (headless)" },
+          ],
+        });
+        if (!method) throw new Error("Login cancelled");
+        return { access: \`parity-\${method}\`, refresh: "parity-refresh", expires: Date.now() + 3600000 };
+      },
+      async refreshToken(credentials) { return credentials; },
+      getApiKey(credentials) { return credentials.access; },
+    },
     models: [{
       id: "scripted",
       name: "Scripted parity model",
