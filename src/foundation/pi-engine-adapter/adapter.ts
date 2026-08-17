@@ -88,6 +88,14 @@ export interface PiProjectTrustContext {
   }[];
 }
 
+export interface PiTreeSelectorContext {
+  readonly tree: readonly unknown[];
+  readonly currentLeafId: string | null;
+  readonly filterMode: "default" | "no-tools" | "user-only" | "labeled-only" | "all";
+  readonly skipSummaryPrompt: boolean;
+  readonly appendLabelChange: (entryId: string, label: string | undefined) => void;
+}
+
 export interface PiSessionSelectorContext {
   readonly currentSessionFilePath: string | undefined;
   readonly loadCurrentSessions: (onProgress?: (loaded: number, total: number) => void) => Promise<SessionInfo[]>;
@@ -736,11 +744,28 @@ export class PiEngineAdapter {
     return { ...context, status: "Model catalogs refreshed.", statusKind: "success" };
   }
 
-  pinnedTreeSelectorContext(): { readonly tree: readonly unknown[]; readonly currentLeafId: string | null } {
+  pinnedLoginOptions(authType?: "oauth" | "api_key"): readonly PiWorkflowOption[] {
+    return this.#loginOptions(authType);
+  }
+
+  pinnedTreeSelectorContext(): PiTreeSelectorContext {
     const manager = dynamicObject(this.#requireWorkflowSession(), "sessionManager");
+    const settings = dynamicObject(this.#runtime?.services, "settingsManager");
     const tree = dynamicCall(manager, "getTree");
     const leaf = dynamicCall(manager, "getLeafId");
-    return { tree: Array.isArray(tree) ? tree : [], currentLeafId: typeof leaf === "string" ? leaf : null };
+    const configuredFilter = dynamicCall(settings, "getTreeFilterMode");
+    const filterMode = configuredFilter === "no-tools" || configuredFilter === "user-only" || configuredFilter === "labeled-only" || configuredFilter === "all"
+      ? configuredFilter
+      : "default";
+    return {
+      tree: Array.isArray(tree) ? tree : [],
+      currentLeafId: typeof leaf === "string" ? leaf : null,
+      filterMode,
+      skipSummaryPrompt: dynamicCall(settings, "getBranchSummarySkipPrompt") === true,
+      appendLabelChange: (entryId, label) => {
+        dynamicCall(manager, "appendLabelChange", entryId, label);
+      },
+    };
   }
 
   pinnedSettingsSnapshot(): PiPinnedSettingsSnapshot {
@@ -1065,9 +1090,15 @@ export class PiEngineAdapter {
       case "tree": {
         const manager = dynamicObject(session, "sessionManager");
         if (!selection) return workflowSelector(request.command, "Session tree", workflowOptions(dynamicCall(manager, "getEntries"), "id", "type"));
-        const result = await requiredDynamicCallAsync(session, "navigateTree", selection);
-        if (isRecord(result) && result.cancelled === true) return workflowResult(request.command, "cancelled", "Tree navigation cancelled");
-        return workflowResult(request.command, "completed", "Navigated session tree");
+        const result = request.treeSummary === undefined
+          ? await requiredDynamicCallAsync(session, "navigateTree", selection)
+          : await requiredDynamicCallAsync(session, "navigateTree", selection, {
+              summarize: request.treeSummary.summarize,
+              ...(request.treeSummary.customInstructions === undefined ? {} : { customInstructions: request.treeSummary.customInstructions }),
+            });
+        if (isRecord(result) && result.aborted === true) return workflowResult(request.command, "cancelled", "Branch summarization cancelled");
+        if (isRecord(result) && result.cancelled === true) return workflowResult(request.command, "cancelled", "Navigation cancelled");
+        return workflowResult(request.command, "completed", "Navigated to selected point");
       }
       case "trust": {
         if (!selection) return workflowSelector(request.command, "Project trust", [
@@ -1182,7 +1213,7 @@ export class PiEngineAdapter {
     });
   }
 
-  #loginOptions(): readonly PiWorkflowOption[] {
+  #loginOptions(authType?: "oauth" | "api_key"): readonly PiWorkflowOption[] {
     const runtime = this.#runtime;
     const providers = runtime ? dynamicCall(dynamicObject(runtime.services, "modelRuntime"), "getProviders") : undefined;
     if (!Array.isArray(providers)) return [];
@@ -1192,8 +1223,8 @@ export class PiEngineAdapter {
       const name = stringProperty(provider, "name") ?? id;
       const auth = isRecord(provider.auth) ? provider.auth : {};
       return [
-        ...(auth.oauth ? [{ id: `oauth:${id}`, label: name, description: "Account / OAuth" }] : []),
-        ...(auth.apiKey ? [{ id: `api_key:${id}`, label: name, description: "API key" }] : []),
+        ...(authType !== "api_key" && auth.oauth ? [{ id: `oauth:${id}`, label: name, description: "Account / OAuth" }] : []),
+        ...(authType !== "oauth" && auth.apiKey ? [{ id: `api_key:${id}`, label: name, description: "API key" }] : []),
       ];
     });
   }

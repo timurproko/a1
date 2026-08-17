@@ -57,7 +57,10 @@ class WorkflowSession implements PiSessionLike {
   setSessionName(name: string): void { this.calls.push(`name:${name}`); }
   getSessionStats(): unknown { return { sessionId: this.sessionId, totalMessages: 2 }; }
   getUserMessagesForForking(): unknown { return [{ entryId: "entry-1", text: "First prompt" }]; }
-  async navigateTree(id: string): Promise<unknown> { this.calls.push(`tree:${id}`); return { cancelled: false }; }
+  async navigateTree(id: string, options?: { summarize?: boolean; customInstructions?: string }): Promise<unknown> {
+    this.calls.push(`tree:${id}:${options?.summarize === true ? "summary" : "plain"}:${options?.customInstructions ?? ""}`);
+    return { cancelled: false };
+  }
   async reload(): Promise<void> { if (this.reloadFails) throw new Error("reload exploded"); this.calls.push("reload"); }
 }
 
@@ -220,6 +223,14 @@ describe("pinned Pi command and input workflows", () => {
     await expect(adapter.executeWorkflow({ command: "resume", argument: "D:/sessions/missing.jsonl", confirmed: false })).resolves.toMatchObject({ outcome: "cancelled" });
     await expect(adapter.executeWorkflow({ command: "resume", argument: "D:/sessions/missing.jsonl", confirmed: true })).resolves.toMatchObject({ outcome: "completed", message: "Resumed session in current cwd" });
     expect(runtime.calls).toContain("resume:D:/sessions/missing.jsonl:D:/work");
+
+    await expect(adapter.executeWorkflow({
+      command: "tree",
+      argument: "",
+      selection: "entry-1",
+      treeSummary: { summarize: true, customInstructions: "Preserve decisions" },
+    })).resolves.toMatchObject({ outcome: "completed", message: "Navigated to selected point" });
+    expect(runtime.session.calls).toContain("tree:entry-1:summary:Preserve decisions");
   });
 
   it("covers resource autocomplete, bash context modes, model controls, queue restoration, and contained failures", async () => {

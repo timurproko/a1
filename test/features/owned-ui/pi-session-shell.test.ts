@@ -273,6 +273,87 @@ describe("PiSessionShell", () => {
     await shell.dispose();
   });
 
+  it("nests tree summary choice and custom instructions while restoring cancellation", async () => {
+    const { adapter, terminal, shell } = await fixture();
+    const tree = [{
+      entry: {
+        type: "message",
+        id: "entry-1",
+        parentId: null,
+        timestamp: new Date(0).toISOString(),
+        message: { role: "user", content: [{ type: "text", text: "First prompt" }], timestamp: 0 },
+      },
+      children: [],
+    }];
+    vi.spyOn(adapter, "pinnedTreeSelectorContext").mockReturnValue({
+      tree,
+      currentLeafId: null,
+      filterMode: "default",
+      skipSummaryPrompt: false,
+      appendLabelChange() {},
+    });
+    const execute = vi.spyOn(adapter, "executeWorkflow").mockImplementation(async request => ({
+      command: request.command,
+      outcome: "completed",
+      message: "Navigated to selected point",
+    }));
+
+    await shell.submit("/tree");
+    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Session Tree");
+    terminal.input("\r");
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Summarize branch?");
+    terminal.input("\x1b");
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Session Tree");
+
+    terminal.input("\r");
+    await new Promise(resolve => setTimeout(resolve, 0));
+    terminal.input("\x1b[B");
+    terminal.input("\x1b[B");
+    terminal.input("\r");
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Custom summarization instructions");
+    terminal.input("Preserve decisions");
+    terminal.input("\r");
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(execute).toHaveBeenCalledWith({
+      command: "tree",
+      argument: "",
+      selection: "entry-1",
+      treeSummary: { summarize: true, customInstructions: "Preserve decisions" },
+    });
+    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Navigated to selected point");
+    await shell.dispose();
+  });
+
+  it("nests login authentication type and provider selection with pinned cancellation", async () => {
+    const { adapter, terminal, shell } = await fixture();
+    vi.spyOn(adapter, "pinnedLoginOptions").mockImplementation(authType => [{
+      id: `${authType ?? "oauth"}:openai`,
+      label: "OpenAI",
+      description: authType === "api_key" ? "API key" : "Account / OAuth",
+    }]);
+    const execute = vi.spyOn(adapter, "executeWorkflow").mockImplementation(async request => ({
+      command: request.command,
+      outcome: "completed",
+      message: `completed ${request.selection ?? ""}`,
+    }));
+
+    await shell.submit("/login");
+    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Select authentication method:");
+    terminal.input("\r");
+    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("OpenAI");
+    terminal.input("\x1b");
+    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Select authentication method:");
+    terminal.input("\r");
+    terminal.input("\r");
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(execute).toHaveBeenCalledWith({ command: "login", argument: "", selection: "oauth:openai" });
+    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("completed oauth:openai");
+    await shell.dispose();
+  });
+
   it("routes the complete command manifest, hidden routes, prompt resources, bash modes, and streaming queues", async () => {
     const { engine, adapter, shell } = await fixture();
     const workflow = vi.spyOn(adapter, "executeWorkflow").mockImplementation(async request => ({
@@ -281,7 +362,7 @@ describe("PiSessionShell", () => {
       message: `ran ${request.command}`,
     }));
     const routedCommands = [...PINNED_PI_WORKFLOW_COMMAND_NAMES, ...PINNED_PI_HIDDEN_COMMAND_NAMES]
-      .filter(command => command !== "scoped-models" && command !== "trust" && command !== "resume");
+      .filter(command => command !== "scoped-models" && command !== "trust" && command !== "resume" && command !== "login" && command !== "tree");
     for (const command of routedCommands) {
       await shell.submit(`/${command}`);
     }

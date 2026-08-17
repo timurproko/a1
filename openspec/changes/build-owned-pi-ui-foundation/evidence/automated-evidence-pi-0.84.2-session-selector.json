@@ -2,7 +2,7 @@
   "schema": "addone-owned-pi-ui-automated-evidence-v1",
   "change": "build-owned-pi-ui-foundation",
   "taskSlices": ["7.8 session routes", "7.9 resume controller"],
-  "completion": "partial; tree summary and login authentication-type routes remain open",
+  "completion": "session route slice complete; broader modal completion is recorded separately",
   "recordedAt": "2026-08-17T06:10:34.281Z",
   "source": {
     "repository": "https://github.com/earendil-works/pi.git",
@@ -38,8 +38,8 @@
       "session-selector-all",
       "session-selector-cancel-restored"
     ],
-    "piRawCaptureSha256": "aa9bd17f946d6e745ee1eebc8542ca311fb32f2663b842bbc6048e19261ebadb",
-    "addOneRawCaptureSha256": "071f9b5c576e0978311a628bdbf48fc8e55bbe438feffd0c997cfc3b2563a1eb"
+    "piRawCaptureSha256": "a8309de77e67919a6bad5d68f8d3bf23b736b0b9ee55267789c3c5852603dc24",
+    "addOneRawCaptureSha256": "cf4f997269b235b38a0671aa709d16cd4849fc95c994261b0fe43819859735b9"
   },
   "validation": {
     "tests": "84 files, 448 tests passed",

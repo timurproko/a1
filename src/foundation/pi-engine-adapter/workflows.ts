@@ -115,6 +115,10 @@ export interface PiWorkflowRequest {
   readonly argument: string;
   readonly selection?: string;
   readonly confirmed?: boolean;
+  readonly treeSummary?: {
+    readonly summarize: boolean;
+    readonly customInstructions?: string;
+  };
 }
 
 export type PiWorkflowOutcome = "completed" | "cancelled" | "failed" | "requires-selection" | "requires-confirmation";

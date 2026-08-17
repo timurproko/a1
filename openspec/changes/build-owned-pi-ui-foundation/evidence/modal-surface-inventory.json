@@ -127,16 +127,21 @@
       "upstream": "interactive-mode.ts:showTreeSelector/Summarize branch",
       "component": "ExtensionSelectorComponent",
       "destination": "src/features/owned-ui/pi-session-shell.ts",
-      "status": "planned",
-      "tests": []
+      "status": "implemented",
+      "tests": [
+        "test/features/owned-ui/pi-session-shell.test.ts",
+        "test/repository-governance/pi-terminal-parity-gate.test.ts"
+      ]
     },
     {
       "id": "tree.summary-instructions",
       "upstream": "interactive-mode.ts:showTreeSelector/Custom summarization instructions",
       "component": "ExtensionEditorComponent",
       "destination": "src/features/owned-ui/pi-session-shell.ts",
-      "status": "planned",
-      "tests": []
+      "status": "implemented",
+      "tests": [
+        "test/features/owned-ui/pi-session-shell.test.ts"
+      ]
     },
     {
       "id": "session.resume",
@@ -184,8 +189,11 @@
       "upstream": "interactive-mode.ts:showLoginAuthTypeSelector",
       "component": "ExtensionSelectorComponent",
       "destination": "src/features/owned-ui/pi-session-shell.ts",
-      "status": "planned",
-      "tests": []
+      "status": "implemented",
+      "tests": [
+        "test/features/owned-ui/pi-session-shell.test.ts",
+        "test/repository-governance/pi-terminal-parity-gate.test.ts"
+      ]
     },
     {
       "id": "auth.login-provider",

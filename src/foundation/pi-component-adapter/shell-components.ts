@@ -28,12 +28,12 @@ import {
   ThemeSelectorComponent,
   ThinkingSelectorComponent,
   ToolExecutionComponent,
-  TreeSelectorComponent,
   UserMessageSelectorComponent,
   UserMessageComponent,
   VERSION,
 } from "@earendil-works/pi-coding-agent";
 import { SessionSelectorComponent } from "./upstream/components/session-selector.js";
+import { TreeSelectorComponent } from "./upstream/components/tree-selector.js";
 import {
   Box,
   CombinedAutocompleteProvider,
@@ -483,15 +483,27 @@ export function createPiShellSessionSelector(options: {
   return componentPort(selector);
 }
 
-export function createPiShellTreeSelector(
-  tree: readonly unknown[],
-  currentLeafId: string | null,
-  terminalHeight: number,
-  onSelect: (id: string) => void,
-  onCancel: () => void,
-): PiShellComponentPort {
+export function createPiShellTreeSelector(options: {
+  readonly tree: readonly unknown[];
+  readonly currentLeafId: string | null;
+  readonly terminalHeight: number;
+  readonly onSelect: (id: string) => void;
+  readonly onCancel: () => void;
+  readonly onLabelChange: (entryId: string, label: string | undefined) => void;
+  readonly initialSelectedId?: string;
+  readonly initialFilterMode?: "default" | "no-tools" | "user-only" | "labeled-only" | "all";
+}): PiShellComponentPort {
   ensureTheme();
-  return componentPort(new TreeSelectorComponent([...tree] as SessionTreeNode[], currentLeafId, terminalHeight, onSelect, onCancel));
+  return componentPort(new TreeSelectorComponent(
+    [...options.tree] as SessionTreeNode[],
+    options.currentLeafId,
+    options.terminalHeight,
+    options.onSelect,
+    options.onCancel,
+    options.onLabelChange,
+    options.initialSelectedId,
+    options.initialFilterMode,
+  ));
 }
 
 export function createPiShellUserMessageSelector(

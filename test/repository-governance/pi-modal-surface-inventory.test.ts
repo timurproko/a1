@@ -45,15 +45,11 @@ describe("pinned Pi modal surface inventory", () => {
     }
   });
 
-  it("keeps incomplete modal routes explicitly open instead of reporting exhaustive parity", async () => {
+  it("reports no planned modal routes after every inventoried controller has evidence", async () => {
     const inventory = JSON.parse(await readFile(
       "openspec/changes/build-owned-pi-ui-foundation/evidence/modal-surface-inventory.json",
       "utf8",
     )) as { surfaces: Surface[] };
-    expect(inventory.surfaces.filter(surface => surface.status === "planned").map(surface => surface.id)).toEqual([
-      "tree.summary-choice",
-      "tree.summary-instructions",
-      "auth.login-type",
-    ]);
+    expect(inventory.surfaces.filter(surface => surface.status === "planned").map(surface => surface.id)).toEqual([]);
   });
 });

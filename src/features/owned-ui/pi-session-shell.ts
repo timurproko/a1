@@ -837,6 +837,80 @@ export class PiSessionShell {
     void this.runWorkflow({ command: "model", argument: "" });
   }
 
+  showTreeSelector(initialSelectedId?: string): void {
+    const context = this.adapter.pinnedTreeSelectorContext();
+    if (context.tree.length === 0) {
+      this.root.appendWorkflowStatus("No entries in session");
+      this.runtime.requestRender();
+      return;
+    }
+    const close = () => {
+      this.root.setInputSurface(null);
+      this.runtime.requestRender();
+    };
+    const component = createPiShellTreeSelector({
+      tree: context.tree,
+      currentLeafId: context.currentLeafId,
+      terminalHeight: this.runtime.viewport().rows,
+      initialFilterMode: context.filterMode,
+      ...(initialSelectedId === undefined ? {} : { initialSelectedId }),
+      onLabelChange: context.appendLabelChange,
+      onCancel: close,
+      onSelect: entryId => {
+        close();
+        if (entryId === context.currentLeafId) {
+          this.root.appendWorkflowStatus("Already at this point");
+          this.runtime.requestRender();
+          return;
+        }
+        void this.#completeTreeSelection(entryId, context.skipSummaryPrompt);
+      },
+    });
+    this.root.setInputSurface(component);
+    this.runtime.requestRender();
+  }
+
+  showLoginAuthTypeSelector(): void {
+    const close = () => {
+      this.root.setInputSurface(null);
+      this.runtime.requestRender();
+    };
+    const labels = ["Sign in with an account", "Sign in with an API key"];
+    const component = createPiShellExtensionSelector(
+      "Select authentication method:",
+      labels,
+      label => {
+        close();
+        this.showLoginProviderSelector(label === labels[0] ? "oauth" : "api_key");
+      },
+      close,
+    );
+    this.root.setInputSurface(component);
+    this.runtime.requestRender();
+  }
+
+  showLoginProviderSelector(authType: "oauth" | "api_key"): void {
+    const options = this.adapter.pinnedLoginOptions(authType);
+    if (options.length === 0) {
+      this.root.appendWorkflowStatus(authType === "oauth" ? "No subscription providers available." : "No API key providers available.");
+      this.runtime.requestRender();
+      return;
+    }
+    const close = () => {
+      this.root.setInputSurface(null);
+      this.runtime.requestRender();
+    };
+    const component = createPiShellAuthProviderSelector("login", options, id => {
+      close();
+      void this.runWorkflow({ command: "login", argument: "", selection: id });
+    }, () => {
+      close();
+      this.showLoginAuthTypeSelector();
+    });
+    this.root.setInputSurface(component);
+    this.runtime.requestRender();
+  }
+
   showSessionSelector(): void {
     const context = this.adapter.pinnedSessionSelectorContext();
     const close = () => {
@@ -912,6 +986,14 @@ export class PiSessionShell {
     }
     if (request.command === "resume" && request.selection === undefined && request.confirmed === undefined && request.argument.trim().length === 0) {
       this.showSessionSelector();
+      return { outcome: "completed", diagnostic: null };
+    }
+    if (request.command === "login" && request.selection === undefined && request.confirmed === undefined && request.argument.trim().length === 0) {
+      this.showLoginAuthTypeSelector();
+      return { outcome: "completed", diagnostic: null };
+    }
+    if (request.command === "tree" && request.selection === undefined && request.confirmed === undefined && request.argument.trim().length === 0) {
+      this.showTreeSelector();
       return { outcome: "completed", diagnostic: null };
     }
     const result = await this.adapter.executeWorkflow(request);
@@ -1069,9 +1151,6 @@ export class PiSessionShell {
         onSelect: model => select(modelReference(model)),
         onCancel: cancel,
       });
-    } else if (request.command === "tree") {
-      const context = this.adapter.pinnedTreeSelectorContext();
-      component = createPiShellTreeSelector(context.tree, context.currentLeafId, this.runtime.viewport().rows, select, cancel);
     } else {
       component = createPiShellSelector({ title: result.selectorTitle ?? result.message, options, onSelect: select, onCancel: cancel });
     }
@@ -1135,6 +1214,40 @@ export class PiSessionShell {
       sessionId: this.adapter.sessionId,
       text,
     });
+  }
+
+  async #completeTreeSelection(entryId: string, skipSummaryPrompt: boolean): Promise<void> {
+    let summarize = false;
+    let customInstructions: string | undefined;
+    if (!skipSummaryPrompt) {
+      while (true) {
+        const choice = await this.#extensionBridge.context.select("Summarize branch?", [
+          "No summary",
+          "Summarize",
+          "Summarize with custom prompt",
+        ]);
+        if (choice === undefined) {
+          this.showTreeSelector(entryId);
+          return;
+        }
+        summarize = choice !== "No summary";
+        if (choice === "Summarize with custom prompt") {
+          customInstructions = await this.#extensionBridge.context.editor("Custom summarization instructions", "");
+          if (customInstructions === undefined) continue;
+        }
+        break;
+      }
+    }
+    const result = await this.runWorkflow({
+      command: "tree",
+      argument: "",
+      selection: entryId,
+      treeSummary: {
+        summarize,
+        ...(customInstructions === undefined ? {} : { customInstructions }),
+      },
+    });
+    if (result.diagnostic === "Branch summarization cancelled") this.showTreeSelector(entryId);
   }
 
   #requestWorkflowInput(message: string): Promise<string | null> {

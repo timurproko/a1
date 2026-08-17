@@ -2289,11 +2289,11 @@
       "sourceMap": "modes/interactive/components/tree-selector.js.map",
       "lines": 1428,
       "sha256": "731ce9fe6c07d0b1a55a11ce2987f21771376b7651e28355c98fbdf1f053a931",
-      "classification": "public-reuse",
-      "localDestination": "src/foundation/pi-component-adapter/index.ts",
-      "implementationStatus": "available-through-pinned-package",
+      "classification": "owned-source-port",
+      "localDestination": "src/foundation/pi-component-adapter/upstream/components/tree-selector.ts",
+      "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "None planned; import the exact component or helper from the pinned public coding-agent package root.",
+      "modifications": "Source-synchronized tree selector port: preserve filtering, folding, labels, copying, tree navigation, key hints, focus, and viewport behavior while remapping public types/components plus owned keybindings/theme helpers required to avoid the pinned package nested pi-tui singleton.",
       "approvedDeviations": [],
       "behaviorCategories": [
         "selectors",
@@ -2315,9 +2315,10 @@
         "7.8"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
-        "test/foundation/pi-component-adapter/shell-components.test.ts"
-      ]
+        "test/features/owned-ui/pi-session-shell.test.ts",
+        "test/repository-governance/pi-terminal-parity-gate.test.ts"
+      ],
+      "localSha256": "329e255c45b3fda782a4b550100c0d3cc8ff6ca5e1116fbd76c041ab5e7e6ef7"
     },
     {
       "id": "pi-coding-agent:src/modes/interactive/components/trust-selector",

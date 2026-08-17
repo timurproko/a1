@@ -1,0 +1,60 @@
+{
+  "schema": "addone-owned-pi-ui-automated-evidence-v1",
+  "change": "build-owned-pi-ui-foundation",
+  "tasks": ["7.8", "7.9"],
+  "recordedAt": "2026-08-17T06:22:18.885Z",
+  "source": {
+    "repository": "https://github.com/earendil-works/pi.git",
+    "commit": "914cf1472e715297caa30db4b9535d534a9eb718",
+    "codingAgentVersion": "0.84.2",
+    "tuiVersion": "0.84.2"
+  },
+  "inventory": {
+    "plannedRoutes": 0,
+    "newlyCompleted": [
+      "tree.summary-choice",
+      "tree.summary-instructions",
+      "auth.login-type"
+    ],
+    "ownedSourcePorts": [
+      "packages/coding-agent/src/modes/interactive/components/session-selector.ts",
+      "packages/coding-agent/src/modes/interactive/components/session-selector-search.ts",
+      "packages/coding-agent/src/modes/interactive/components/tree-selector.ts"
+    ]
+  },
+  "statefulCoverage": [
+    "tree filter, folding, label, focus, and keybinding presentation",
+    "summary choice cancellation reopens the same tree selection",
+    "custom summary cancellation loops back to summary choice",
+    "custom instructions reach navigateTree summarize options",
+    "login authentication type precedes filtered provider selection",
+    "provider cancellation returns to authentication type",
+    "session resume rename/delete/missing-cwd nested routes"
+  ],
+  "terminalParity": {
+    "status": "passed",
+    "differences": 0,
+    "checkpoints": [
+      "session-selector-current",
+      "session-selector-all",
+      "session-selector-cancel-restored",
+      "tree-selector",
+      "tree-summary-choice",
+      "tree-summary-cancel-restored",
+      "login-auth-type",
+      "login-auth-cancel-restored",
+      "reload-status",
+      "changelog",
+      "export-error"
+    ],
+    "piRawCaptureSha256": "a8309de77e67919a6bad5d68f8d3bf23b736b0b9ee55267789c3c5852603dc24",
+    "addOneRawCaptureSha256": "cf4f997269b235b38a0671aa709d16cd4849fc95c994261b0fe43819859735b9"
+  },
+  "validation": {
+    "tests": "84 files, 450 tests passed",
+    "typecheck": "passed",
+    "architecture": "passed; 109 source records and 29 behavior mappings",
+    "strictOpenSpecValidation": "passed"
+  },
+  "manualAcceptance": "pending fresh user comparison"
+}

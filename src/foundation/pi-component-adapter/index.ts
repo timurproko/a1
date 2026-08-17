@@ -7,4 +7,5 @@ export * from "./upstream/components/countdown-timer.js";
 export * from "./upstream/components/session-selector.js";
 export * from "./upstream/components/session-selector-search.js";
 export * from "./upstream/components/status-indicator.js";
+export * from "./upstream/components/tree-selector.js";
 export * from "./upstream/adjacent/core/keybindings.js";
