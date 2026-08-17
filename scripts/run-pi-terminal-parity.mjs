@@ -123,7 +123,7 @@ async function performAction(producers, action) {
   if (action.type === "wait") {
     await delay(action.milliseconds);
     if (action.until) await Promise.all(producers.map(producer => producer.waitForText(action.until)));
-    await Promise.all(producers.map(producer => producer.settle()));
+    if (action.settle !== false) await Promise.all(producers.map(producer => producer.settle()));
     return;
   }
   if (action.type === "checkpoint") {
@@ -141,7 +141,7 @@ async function performAction(producers, action) {
   }
   const input = inputForAction(action);
   for (const producer of producers) producer.write(input);
-  await Promise.all(producers.map(producer => producer.settle()));
+  if (action.settle !== false) await Promise.all(producers.map(producer => producer.settle()));
 }
 
 async function pinnedIdentity() {

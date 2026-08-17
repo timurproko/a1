@@ -10,6 +10,7 @@ export const TERMINAL_PARITY_TOLERANCES = Object.freeze([
   "differential-sgr-order",
   "transient-scrollbar-thumb-rounding",
   "ordinary-vanilla-wheel-distance",
+  "session-identity-values",
 ]);
 
 export const TERMINAL_PARITY_ACTIONS = Object.freeze([
@@ -29,6 +30,15 @@ export const TERMINAL_PARITY_ACTIONS = Object.freeze([
   { type: "key", key: "enter" },
   { type: "key", key: "escape" },
   { type: "checkpoint", name: "model-cancel-restored", domains: ["selector-dialog", "transcript", "editor", "footer-status", "cursor-focus"] },
+  { type: "text", value: "/session" },
+  { type: "key", key: "enter" },
+  { type: "checkpoint", name: "session-info", domains: ["transcript", "structured-content", "raw-ansi", "rows-spacing", "scroll"] },
+  { type: "text", value: "/name parity-session" },
+  { type: "key", key: "enter" },
+  { type: "checkpoint", name: "command-info-placement", domains: ["transcript", "status", "raw-ansi", "rows-spacing", "component-geometry"] },
+  { type: "text", value: "/copy" },
+  { type: "key", key: "enter" },
+  { type: "checkpoint", name: "command-error-placement", domains: ["transcript", "errors", "raw-ansi", "rows-spacing", "component-geometry"] },
   { type: "text", value: "/trust" },
   { type: "key", key: "enter" },
   { type: "checkpoint", name: "trust-selector", domains: ["selector-dialog", "settings", "editor", "footer-status", "cursor-focus"] },
@@ -45,7 +55,9 @@ export const TERMINAL_PARITY_ACTIONS = Object.freeze([
   { type: "key", key: "enter" },
   { type: "checkpoint", name: "command-transcript", domains: ["transcript", "rows-spacing", "wrapping", "footer-status"] },
   { type: "text", value: "parity-stream" },
-  { type: "key", key: "enter" },
+  { type: "key", key: "enter", settle: false },
+  { type: "wait", milliseconds: 0, until: "Working", settle: false },
+  { type: "checkpoint", name: "working-status", domains: ["status", "rows-spacing", "component-geometry", "editor", "footer-status"] },
   { type: "wait", milliseconds: 900 },
   { type: "checkpoint", name: "stream-settlement", domains: ["transcript", "settlement", "footer-status", "raw-ansi", "rows-spacing"] },
   { type: "text", value: "/resume" },
@@ -128,7 +140,8 @@ export async function prepareParityFixture(root) {
   ]);
   const profiles = {};
   for (const producer of ["upstream-pi", "addone-owned-ui"]) {
-    const profile = join(workRoot, producer, "agent");
+    const profileDirectory = producer === "upstream-pi" ? "upstream-oracle" : producer;
+    const profile = join(workRoot, profileDirectory, "agent");
     await mkdir(resolve(profile, ".."), { recursive: true });
     await cp(templateProfile, profile, { recursive: true, force: true });
     profiles[producer] = profile;

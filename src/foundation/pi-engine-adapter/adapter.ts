@@ -1594,7 +1594,7 @@ export class PiEngineAdapter {
     switch (event.type) {
       case "agent_start":
         this.#lifecycle = "busy";
-        this.#status = { ...this.#status, workingMessage: "Working…" };
+        this.#status = { ...this.#status, workingMessage: "Working..." };
         this.#emitEvent({ type: "session-lifecycle", lifecycle: "busy", reason: null });
         this.#emitEvent({ type: "status", status: this.#status });
         return;
@@ -2141,7 +2141,7 @@ export async function createPiEngineAdapter(
 }
 
 async function createDefaultPiRuntime(input: PiEngineRuntimeFactoryInput): Promise<PiRuntimeLike> {
-  const sessionManager = SessionManager.create(input.cwd);
+  const sessionManager = SessionManager.create(input.cwd, process.env.PI_CODING_AGENT_SESSION_DIR);
   const createRuntime: CreateAgentSessionRuntimeFactory = async ({
     cwd,
     sessionManager: targetSessionManager,

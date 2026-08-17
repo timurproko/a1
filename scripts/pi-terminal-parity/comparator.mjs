@@ -92,8 +92,8 @@ function compareCheckpoint(differences, tolerances, expected, actual) {
 
   const rowCount = Math.max(expected.rows.length, actual.rows.length);
   for (let index = 0; index < rowCount; index += 1) {
-    const expectedRow = expected.rows[index];
-    const actualRow = actual.rows[index];
+    const expectedRow = tolerances.has("session-identity-values") ? normalizeSessionIdentityRow(expected.rows[index]) : expected.rows[index];
+    const actualRow = tolerances.has("session-identity-values") ? normalizeSessionIdentityRow(actual.rows[index]) : actual.rows[index];
     compareValue(differences, tolerances, `checkpoints.${name}.rows[${index}].text`, expectedRow?.text, actualRow?.text, domainForRow(expected.domains), name);
     compareValue(differences, tolerances, `checkpoints.${name}.rows[${index}].rawText`, expectedRow?.rawText, actualRow?.rawText, "rows-spacing", name);
     compareValue(differences, tolerances, `checkpoints.${name}.rows[${index}].wrapped`, expectedRow?.wrapped, actualRow?.wrapped, "wrapping", name);
@@ -109,6 +109,27 @@ function compareCheckpoint(differences, tolerances, expected, actual) {
     compareValue(differences, tolerances, `checkpoints.${name}.rawSgr`, expected.rawSgr, actual.rawSgr, "raw-ansi", name);
   }
   compareValue(differences, tolerances, `checkpoints.${name}.geometry`, expected.geometry, actual.geometry, "component-geometry", name);
+}
+
+function normalizeSessionIdentityRow(row) {
+  if (!row) return row;
+  const idRow = /^\s*ID:\s/u.test(row.text);
+  const normalize = value => value
+    .replaceAll("upstream-oracle", "parity-producer")
+    .replaceAll("addone-owned-ui", "parity-producer")
+    .replace(/\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z_[0-9a-f-]{36}\.jsonl/giu, match => match.replace(/[0-9a-f]/giu, "x"))
+    .replace(/(?<=\bID:\s)[0-9a-f-]{36}/giu, match => match.replace(/[0-9a-f]/giu, "x"));
+  return {
+    ...row,
+    text: normalize(row.text),
+    rawText: normalize(row.rawText),
+    styles: row.styles.map(style => ({
+      ...style,
+      text: idRow
+        ? normalize(style.text).replace(/[0-9a-f-]{36}/giu, match => match.replace(/[0-9a-f]/giu, "x"))
+        : normalize(style.text),
+    })),
+  };
 }
 
 function whitespaceForegroundEquivalent(expected, actual) {
