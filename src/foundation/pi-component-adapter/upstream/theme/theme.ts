@@ -283,12 +283,20 @@ function validateThemeJson(label: string, value: unknown): PiThemeJson {
   for (const key of BACKGROUND_COLORS) {
     if (key !== "scrollbarThumb" && value.colors[key] === undefined) throw new Error(`Invalid theme "${label}": missing required color ${key}`);
   }
-  for (const [key, color] of Object.entries(value.colors)) validateColor(color, `${label}.colors.${key}`);
-  for (const [key, color] of Object.entries(value.vars ?? {})) validateColor(color, `${label}.vars.${key}`);
-  return value as unknown as PiThemeJson;
+  const colors: Record<string, ColorValue> = {};
+  for (const [key, color] of Object.entries(value.colors)) {
+    validateColor(color, `${label}.colors.${key}`);
+    colors[key] = color;
+  }
+  const vars: Record<string, ColorValue> = {};
+  for (const [key, color] of Object.entries(value.vars ?? {})) {
+    validateColor(color, `${label}.vars.${key}`);
+    vars[key] = color;
+  }
+  return { name: value.name, colors, ...(Object.keys(vars).length === 0 ? {} : { vars }) };
 }
 
-function validateColor(value: unknown, label: string): void {
+function validateColor(value: unknown, label: string): asserts value is ColorValue {
   if (typeof value === "string") return;
   if (Number.isInteger(value) && (value as number) >= 0 && (value as number) <= 255) return;
   throw new Error(`Invalid theme color: ${label}`);

@@ -87,6 +87,7 @@ for (const file of await walk(sourceRoot)) {
       if (pattern.test(source)) errors.push(`${path}: owned UI contains forbidden ${label}`);
     }
     if (!path.startsWith("src/foundation/pi-component-adapter/")
+      && !path.startsWith("src/foundation/pi-engine-adapter/")
       && path !== "src/foundation/owned-ui-contracts/extension-ui.ts"
       && /\b(?:ExtensionUIContext|setEditorComponent|setWidget|setFooter|onTerminalInput)\b/.test(source)) {
       errors.push(`${path}: owned UI depends on stock Pi extension UI context`);

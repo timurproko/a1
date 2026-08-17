@@ -2,7 +2,7 @@
   "schema": "addone-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-08-17T10:47:19.972Z",
+  "recordedAt": "2026-08-17T11:49:36.415Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "914cf1472e715297caa30db4b9535d534a9eb718",
@@ -1495,7 +1495,7 @@
         "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts",
         "test/foundation/pi-component-adapter/extension-ui-bridge.test.ts"
       ],
-      "localSha256": "99780533bd6a3dd267bfdf1ef22058a4f3c475c6bac49f3403bfaf53414f1a6c"
+      "localSha256": "ad55e088da032116c1d3f325a88406b16dafb88e3d01e67ff8dde2cf867f2dff"
     },
     {
       "id": "pi-coding-agent:src/modes/interactive/components/extension-input",
@@ -2873,7 +2873,7 @@
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Source-synchronized theme port: retain pinned theme schema, variable/color resolution, built-in and custom loading, terminal detection, and layout defaults while constructing the public package-root Theme class.",
-      "localSha256": "c6d0d288a6aebe8803d0ee15ba5b146f04b95c63e7d9e0198536a1d0c9a39ecc",
+      "localSha256": "d8b7bd73f5ec1735a85d0a64c1c879a26fc89291d36a4c6054353663993eecf4",
       "approvedDeviations": [
         {
           "id": "theme-public-api-boundary",

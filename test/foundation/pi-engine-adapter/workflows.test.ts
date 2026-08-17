@@ -58,7 +58,7 @@ class WorkflowSession implements PiSessionLike {
   getLastAssistantText(): string { return "last answer"; }
   setSessionName(name: string): void { this.calls.push(`name:${name}`); }
   getSessionStats(): unknown { return { sessionId: this.sessionId, totalMessages: 2 }; }
-  getUserMessagesForForking(): unknown { return [{ entryId: "entry-1", text: "First prompt" }]; }
+  getUserMessagesForForking(): readonly unknown[] { return [{ entryId: "entry-1", text: "First prompt" }]; }
   async navigateTree(id: string, options?: { summarize?: boolean; customInstructions?: string }): Promise<unknown> {
     this.calls.push(`tree:${id}:${options?.summarize === true ? "summary" : "plain"}:${options?.customInstructions ?? ""}`);
     return { cancelled: false };
@@ -125,7 +125,7 @@ class WorkflowRuntime implements PiRuntimeLike {
   readonly services = { modelRuntime: this.modelRuntime, settingsManager: this.settingsManager, resourceLoader: this.resourceLoader, diagnostics: [] };
   readonly diagnostics = [];
   setRebindSession(): void {}
-  async listSessions(): Promise<unknown> { return [{ path: "D:/sessions/one.jsonl", id: "one", firstMessage: "First", messageCount: 2, modified: new Date(0) }]; }
+  async listSessions(): Promise<readonly unknown[]> { return [{ path: "D:/sessions/one.jsonl", id: "one", firstMessage: "First", messageCount: 2, modified: new Date(0) }]; }
   async newSession(): Promise<unknown> { this.calls.push("new"); return { cancelled: this.newCancelled }; }
   async switchSession(path: string, options?: { cwdOverride?: string }): Promise<unknown> {
     this.calls.push(`resume:${path}${options?.cwdOverride ? `:${options.cwdOverride}` : ""}`);

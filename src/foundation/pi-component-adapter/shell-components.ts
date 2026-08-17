@@ -48,8 +48,10 @@ import {
   Spacer,
   Text,
   truncateToWidth,
+  type AutocompleteProvider,
   type Component,
   type Focusable,
+  type OverlayHandle,
   type SelectItem,
   type TUI,
 } from "@earendil-works/pi-tui";
@@ -227,14 +229,16 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
   ensureTheme();
   const tui = createTuiFacade(options);
   const keybindings = KeybindingsManager.create(options.agentDir);
-  setKeybindings(keybindings as never);
-  const editor = new CustomEditor(tui, {
-    borderColor: value => piTheme().fg("borderMuted", value),
+  setKeybindings(keybindings);
+  const editorCandidate: unknown = Reflect.construct(CustomEditor, [tui, {
+    borderColor: (value: string) => piTheme().fg("borderMuted", value),
     selectList: getSelectListTheme(),
-  }, keybindings as never, {
+  }, keybindings, {
     paddingX: PINNED_PI_LAYOUT.editorPaddingX,
     autocompleteMaxVisible: PINNED_PI_LAYOUT.autocompleteMaxVisible,
-  });
+  }]);
+  if (!(editorCandidate instanceof CustomEditor)) throw new TypeError("Pi editor façade returned an incompatible component");
+  const editor = editorCandidate;
   let thinkingLevel: OwnedUiThinkingLevel = "off";
   let isBashMode = false;
   const updateBorderColor = () => {
@@ -243,7 +247,7 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
       : piTheme().getThinkingBorderColor(thinkingLevel);
     tui.requestRender();
   };
-  let autocompleteProvider: unknown;
+  let autocompleteProvider: AutocompleteProvider;
   const setAutocompleteCommands = (commands: readonly PiShellAutocompleteCommand[]) => {
     const additions = new Map(commands.map(command => [command.name, command]));
     const builtInNames = new Set(PINNED_PI_BUILTIN_SLASH_COMMANDS.map(command => command.name));
@@ -253,7 +257,7 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
       [...builtIns, ...resources],
       options.cwd ?? process.cwd(),
     );
-    editor.setAutocompleteProvider(autocompleteProvider as never);
+    editor.setAutocompleteProvider(autocompleteProvider);
   };
   setAutocompleteCommands(options.autocompleteCommands ?? []);
   let submitHandler = options.onSubmit;
@@ -313,8 +317,10 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
     setAutocompleteCommands,
     addAutocompleteProvider(factory) {
       if (typeof factory !== "function") throw new TypeError("extension autocomplete factory must be a function");
-      autocompleteProvider = (factory as AutocompleteProviderFactory)(autocompleteProvider as never);
-      editor.setAutocompleteProvider(autocompleteProvider as never);
+      const candidate: unknown = Reflect.apply(factory, undefined, [autocompleteProvider]);
+      if (!isAutocompleteProvider(candidate)) throw new TypeError("extension autocomplete factory returned a malformed provider");
+      autocompleteProvider = candidate;
+      editor.setAutocompleteProvider(autocompleteProvider);
     },
     setThinkingLevel(level) {
       if (thinkingLevel === level) return;
@@ -429,6 +435,18 @@ export interface PiShellScopedModelsSelectorOptions {
   readonly onCancel: () => void;
 }
 
+type PiScopedModel = ConstructorParameters<typeof ScopedModelsSelectorComponent>[0]["allModels"][number];
+
+function toPiScopedModel(model: PiShellScopedModelDescriptor): PiScopedModel {
+  const candidate: unknown = { provider: model.provider, id: model.id, name: model.name };
+  if (!isPiScopedModel(candidate)) throw new TypeError("Pi scoped-model façade rejected malformed model metadata");
+  return candidate;
+}
+
+function isPiScopedModel(value: unknown): value is PiScopedModel {
+  return isRecord(value) && typeof value.provider === "string" && typeof value.id === "string" && typeof value.name === "string";
+}
+
 export interface PiShellScopedModelsSelectorPort extends PiShellComponentPort {
   updateModels(models: readonly PiShellScopedModelDescriptor[], enabledModelIds?: readonly string[] | null): void;
   setRefreshStatus(message: string, kind: "muted" | "success" | "warning"): void;
@@ -437,7 +455,7 @@ export interface PiShellScopedModelsSelectorPort extends PiShellComponentPort {
 export function createPiShellScopedModelsSelector(options: PiShellScopedModelsSelectorOptions): PiShellScopedModelsSelectorPort {
   ensureTheme();
   const selector = new ScopedModelsSelectorComponent({
-    allModels: options.models as never,
+    allModels: options.models.map(toPiScopedModel),
     enabledModelIds: options.enabledModelIds === null ? null : [...options.enabledModelIds],
     ...(options.refreshStatus === undefined ? {} : { refreshStatus: options.refreshStatus }),
   }, {
@@ -448,7 +466,7 @@ export function createPiShellScopedModelsSelector(options: PiShellScopedModelsSe
   return {
     ...componentPort(selector),
     updateModels(models, enabledModelIds) {
-      selector.updateModels(models as never, enabledModelIds === undefined
+      selector.updateModels(models.map(toPiScopedModel), enabledModelIds === undefined
         ? undefined
         : enabledModelIds === null ? null : [...enabledModelIds]);
     },
@@ -847,7 +865,7 @@ export function createPiExtensionUiBridge(host: PiExtensionUiBridgeHost): PiExte
   ensureTheme();
   const tui = createTuiFacade(host.runtime);
   const keybindings = KeybindingsManager.create(host.agentDir);
-  setKeybindings(keybindings as never);
+  setKeybindings(keybindings);
   const disposers = new Set<() => void>();
   let customEditorFactory: PiEditorFactory | undefined;
   let activeSurface: PiShellComponentPort | undefined;
@@ -961,22 +979,29 @@ export function createPiExtensionUiBridge(host: PiExtensionUiBridgeHost): PiExte
       }
     },
     setTitle: title => host.setTitle(title),
-    custom: async (factory, options) => new Promise((resolve, reject) => {
+    custom: <T>(factory: Parameters<ExtensionUIContext["custom"]>[0], options?: Parameters<ExtensionUIContext["custom"]>[1]) => new Promise<T>((resolve, reject) => {
       let settled = false;
       let surface: PiShellComponentPort | undefined;
       let overlay: OwnedUiExtensionOverlayHandle | undefined;
-      const done = (value: unknown) => {
+      const done = (value: T) => {
         if (settled) return;
         settled = true;
         if (activeCancel === cancelCustom) activeCancel = undefined;
         overlay?.hide();
         if (surface !== undefined) closeSurface(surface);
-        resolve(value as never);
+        resolve(value);
       };
-      const cancelCustom = () => done(undefined);
+      const cancelCustom = () => {
+        if (settled) return;
+        settled = true;
+        if (activeCancel === cancelCustom) activeCancel = undefined;
+        overlay?.hide();
+        if (surface !== undefined) closeSurface(surface);
+        Reflect.apply(resolve, undefined, []);
+      };
       let created: unknown;
       try {
-        created = factory(tui, piTheme(), keybindings as never, done);
+        created = Reflect.apply(factory, undefined, [tui, piTheme(), keybindings, done]);
       } catch (error) {
         reject(error);
         return;
@@ -992,7 +1017,7 @@ export function createPiExtensionUiBridge(host: PiExtensionUiBridgeHost): PiExte
         if (options?.overlay) {
           const overlayOptions = typeof options.overlayOptions === "function" ? options.overlayOptions() : options.overlayOptions;
           overlay = host.showOverlay(surface, overlayOptions);
-          options.onHandle?.(overlay as never);
+          options.onHandle?.(publicOverlayHandle(overlay));
         } else mountSurface(surface);
       }).catch(error => {
         if (activeCancel === cancelCustom) activeCancel = undefined;
@@ -1004,7 +1029,7 @@ export function createPiExtensionUiBridge(host: PiExtensionUiBridgeHost): PiExte
     setEditorText: text => host.setEditorText(text),
     getEditorText: () => host.getEditorText(),
     editor: (title, prefill) => showInput<string | undefined>((resolve, cancel) => componentPort(
-      new ExtensionEditorComponent(tui, keybindings as never, title, prefill, resolve, cancel),
+      new ExtensionEditorComponent(tui, keybindings, title, prefill, resolve, cancel),
     )),
     addAutocompleteProvider: factory => host.addAutocompleteProvider(factory),
     setEditorComponent(factory) {
@@ -1014,10 +1039,10 @@ export function createPiExtensionUiBridge(host: PiExtensionUiBridgeHost): PiExte
         return;
       }
       try {
-        const editor = factory(tui, {
-          borderColor: text => piTheme().fg("borderMuted", text),
+        const editor: unknown = Reflect.apply(factory, undefined, [tui, {
+          borderColor: (text: string) => piTheme().fg("borderMuted", text),
           selectList: getSelectListTheme(),
-        }, keybindings as never);
+        }, keybindings]);
         if (!isComponent(editor)) throw new TypeError("extension editor factory returned a malformed editor");
         host.setCustomEditor(componentPort(editor));
       } catch (error) {
@@ -1081,6 +1106,23 @@ function isPromiseLike(value: unknown): value is PromiseLike<unknown> {
 
 function isComponent(value: unknown): value is Component {
   return isRecord(value) && typeof value.render === "function" && typeof value.invalidate === "function";
+}
+
+function isAutocompleteProvider(value: unknown): value is AutocompleteProvider {
+  return isRecord(value) && typeof value.getSuggestions === "function" && typeof value.applyCompletion === "function";
+}
+
+function publicOverlayHandle(handle: OwnedUiExtensionOverlayHandle): OverlayHandle {
+  return {
+    hide: () => handle.hide(),
+    setHidden: hidden => handle.setHidden(hidden),
+    isHidden: () => handle.isHidden(),
+    focus: () => handle.focus(),
+    unfocus: options => handle.unfocus(options?.target === undefined
+      ? undefined
+      : { target: options.target === null ? null : componentPort(options.target) }),
+    isFocused: () => handle.isFocused(),
+  };
 }
 
 export function createPiShellHeader(options: PiShellHeaderOptions = {}): PiShellHeaderPort {
@@ -1217,7 +1259,9 @@ export function createPiShellFooter(view: OwnedUiSessionViewModel, cwd: string):
     getAvailableProviderCount: () => view.status.footer?.availableProviderCount ?? 1,
     getExtensionStatuses: () => new Map(view.status.footer?.extensionStatuses ?? []),
   };
-  const footer = new FooterComponent(session as never, footerData as never);
+  const footerCandidate: unknown = Reflect.construct(FooterComponent, [session, footerData]);
+  if (!(footerCandidate instanceof FooterComponent)) throw new TypeError("Pi footer façade returned an incompatible component");
+  const footer = footerCandidate;
   return {
     render(width) {
       footer.setAutoCompactEnabled(view.status.usage?.autoCompactEnabled ?? true);
@@ -1343,7 +1387,7 @@ function updateTranscriptComponent(
 ): boolean {
   if (component instanceof AssistantMessageComponent && next.kind === previous.kind
     && (next.kind === "assistant" || next.kind === "thinking")) {
-    component.updateContent(assistantMessage(next) as never, next.status === "live");
+    component.updateContent(validatedAssistantMessage(next), next.status === "live");
     return true;
   }
   if (component instanceof ToolExecutionComponent
@@ -1381,17 +1425,19 @@ function updateTranscriptComponent(
 
 function assistantComponent(block: OwnedUiTranscriptBlock): AssistantMessageComponent {
   const component = new AssistantMessageComponent(undefined, false, getMarkdownTheme(), undefined, PINNED_PI_LAYOUT.outputPad);
-  component.updateContent(assistantMessage(block) as never, block.status === "live");
+  component.updateContent(validatedAssistantMessage(block), block.status === "live");
   return component;
 }
 
-function assistantMessage(block: OwnedUiTranscriptBlock): Record<string, unknown> {
+type PiAssistantMessage = NonNullable<ConstructorParameters<typeof AssistantMessageComponent>[0]>;
+
+export function validatedAssistantMessage(block: OwnedUiTranscriptBlock): PiAssistantMessage {
   const payload = blockPayload(block);
   const content = assistantPayloadContent(payload.content)
     ?? (block.kind === "thinking"
       ? [{ type: "thinking", thinking: block.text }]
       : [{ type: "text", text: block.text }]);
-  return {
+  const message: unknown = {
     role: "assistant",
     content,
     api: stringPayload(payload, "api") ?? "openai-responses",
@@ -1402,6 +1448,14 @@ function assistantMessage(block: OwnedUiTranscriptBlock): Record<string, unknown
     ...(stringPayload(payload, "errorMessage") === undefined ? {} : { errorMessage: stringPayload(payload, "errorMessage") }),
     timestamp: numericPayload(block, "timestamp") || 0,
   };
+  if (!isPiAssistantMessage(message)) throw new TypeError("Pi assistant message façade rejected malformed content");
+  return message;
+}
+
+function isPiAssistantMessage(value: unknown): value is PiAssistantMessage {
+  return isRecord(value) && value.role === "assistant" && Array.isArray(value.content)
+    && typeof value.api === "string" && typeof value.provider === "string" && typeof value.model === "string"
+    && isRecord(value.usage) && typeof value.stopReason === "string" && typeof value.timestamp === "number";
 }
 
 function assistantPayloadContent(value: unknown): readonly Record<string, unknown>[] | undefined {
@@ -1419,6 +1473,29 @@ function assistantPayloadContent(value: unknown): readonly Record<string, unknow
   return content.length === 0 && value.length > 0 ? undefined : content;
 }
 
+type PiToolDefinition = ConstructorParameters<typeof ToolExecutionComponent>[4];
+type PiMessageRenderer = ConstructorParameters<typeof CustomMessageComponent>[1];
+
+function validatedToolDefinition(value: unknown): PiToolDefinition {
+  if (value === undefined) return undefined;
+  if (!isPiToolDefinition(value)) throw new TypeError("Pi tool-definition façade rejected malformed metadata");
+  return value;
+}
+
+function isPiToolDefinition(value: unknown): value is NonNullable<PiToolDefinition> {
+  return isRecord(value) && typeof value.name === "string";
+}
+
+function validatedMessageRenderer(value: unknown): PiMessageRenderer {
+  if (value === undefined) return undefined;
+  if (!isPiMessageRenderer(value)) throw new TypeError("Pi message-renderer façade rejected a non-function renderer");
+  return value;
+}
+
+function isPiMessageRenderer(value: unknown): value is NonNullable<PiMessageRenderer> {
+  return typeof value === "function";
+}
+
 function toolComponent(
   block: OwnedUiTranscriptBlock,
   cwd: string,
@@ -1433,7 +1510,7 @@ function toolComponent(
     toolCallId,
     argumentsPayload,
     undefined,
-    extensions?.getToolDefinition(toolName) as never,
+    validatedToolDefinition(extensions?.getToolDefinition(toolName)),
     createTuiFacade({ getColumns: () => 80, getRows: () => 24, requestRender() {}, onSubmit() {} }),
     cwd,
   );
@@ -1464,8 +1541,8 @@ function customMessageComponent(
     details: payload.details,
     timestamp: numericPayload(block, "timestamp") || 0,
   };
-  const renderer = extensions?.getMessageRenderer(message.customType);
-  const component = new CustomMessageComponent(message, renderer as never, getMarkdownTheme(), PINNED_PI_LAYOUT.outputPad);
+  const renderer = validatedMessageRenderer(extensions?.getMessageRenderer(message.customType));
+  const component = new CustomMessageComponent(message, renderer, getMarkdownTheme(), PINNED_PI_LAYOUT.outputPad);
   component.setExpanded(expanded);
   return component;
 }
@@ -1488,7 +1565,19 @@ function completeBashComponent(component: BashExecutionComponent, block: OwnedUi
   component.setComplete(
     typeof payload.exitCode === "number" ? payload.exitCode : undefined,
     payload.cancelled === true,
-    payload.truncated === true ? { truncated: true } as never : undefined,
+    payload.truncated === true ? {
+      content: block.text,
+      truncated: true,
+      truncatedBy: "bytes",
+      totalLines: block.text.split("\n").length,
+      totalBytes: Buffer.byteLength(block.text),
+      outputLines: block.text.split("\n").length,
+      outputBytes: Buffer.byteLength(block.text),
+      lastLinePartial: false,
+      firstLineExceedsLimit: false,
+      maxLines: 2000,
+      maxBytes: 50 * 1024,
+    } : undefined,
     stringPayload(payload, "fullOutputPath"),
   );
 }
@@ -1503,7 +1592,7 @@ function transcriptText(block: OwnedUiTranscriptBlock): string {
   return piTheme().fg("dim", block.text);
 }
 
-function createTuiFacade(options: Pick<PiShellEditorOptions, "getColumns" | "getRows" | "requestRender"> & { readonly onSubmit?: (text: string) => void }): TUI {
+export function createTuiFacade(options: Pick<PiShellEditorOptions, "getColumns" | "getRows" | "requestRender"> & { readonly onSubmit?: (text: string) => void }): TUI {
   const children: Component[] = [];
   const terminal = {
     start() {}, stop() {}, async drainInput() {}, write() {},
@@ -1736,5 +1825,5 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function ensureTheme(): void {
   ensurePiTheme();
-  setKeybindings(KeybindingsManager.create() as never);
+  setKeybindings(KeybindingsManager.create());
 }

@@ -8,7 +8,8 @@ import {
   UserMessageComponent,
   VERSION,
 } from "@earendil-works/pi-coding-agent";
-import { OWNED_UI_CONTRACT_VERSION } from "../owned-ui-contracts/index.js";
+import { OWNED_UI_CONTRACT_VERSION, type OwnedUiTranscriptBlock } from "../owned-ui-contracts/index.js";
+import { createTuiFacade, validatedAssistantMessage } from "./shell-components.js";
 
 export interface PiComponentConformanceResult {
   readonly component: "user-message" | "assistant-message" | "tool-execution";
@@ -42,31 +43,23 @@ export async function runPiComponentConformance(): Promise<PiComponentConformanc
     try {
       const width = 80;
       const user = new UserMessageComponent("hello from AddOne");
-      const assistantMessage = {
-        role: "assistant",
-        content: [{ type: "text", text: "hello from Pi" }],
-        api: "openai-responses",
-        provider: "openai",
-        model: "gpt-5",
-        usage: {
-          input: 0,
-          output: 0,
-          cacheRead: 0,
-          cacheWrite: 0,
-          totalTokens: 0,
-          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
-        },
-        stopReason: "stop",
-        timestamp: Date.now(),
+      const assistantBlock: OwnedUiTranscriptBlock = {
+        id: "assistant-1",
+        kind: "assistant",
+        status: "finalized",
+        text: "hello from Pi",
+        title: null,
+        revision: 1,
+        payload: { provider: "openai", model: "gpt-5" },
       };
-      const assistant = new AssistantMessageComponent(assistantMessage as never, false);
+      const assistant = new AssistantMessageComponent(validatedAssistantMessage(assistantBlock), false);
       const tool = new ToolExecutionComponent(
         "read",
         "tool-1",
         { path: "README.md" },
         undefined,
         undefined,
-        {} as never,
+        createTuiFacade({ getColumns: () => width, getRows: () => 24, requestRender() {} }),
         root,
       );
       const componentResults: PiComponentConformanceResult[] = [

@@ -13,6 +13,7 @@ import {
   ProjectTrustStore,
   SessionManager,
   type CreateAgentSessionRuntimeFactory,
+  type ExtensionUIContext,
   type SessionInfo,
 } from "@earendil-works/pi-coding-agent";
 import {
@@ -119,8 +120,44 @@ export interface PiSessionLike {
   readonly isRetrying: boolean;
   readonly isCompacting: boolean;
   readonly messages: readonly unknown[];
-  readonly sessionManager?: { getSessionName(): string | undefined; getEntries(): readonly unknown[] };
+  readonly sessionManager?: {
+    getSessionName(): string | undefined;
+    getEntries(): readonly unknown[];
+    getCwd?(): string;
+    getSessionDir?(): string;
+    getSessionFile?(): string | undefined;
+    usesDefaultSessionDir?(): boolean;
+    getTree?(): readonly unknown[];
+    getLeafId?(): string | null | undefined;
+    appendLabelChange?(entryId: string, label: string | undefined): void;
+  };
+  readonly extensionRunner?: {
+    getCommands?(): readonly unknown[];
+    getMessageRenderer?(customType: string): unknown;
+    getToolDefinition?(toolName: string): unknown;
+  };
+  readonly scopedModels?: readonly unknown[];
+  readonly autoCompactionEnabled?: boolean;
+  readonly steeringMode?: PiPinnedSettingsSnapshot["steeringMode"];
+  readonly followUpMode?: PiPinnedSettingsSnapshot["followUpMode"];
   getContextUsage?(): { readonly tokens: number | null; readonly contextWindow: number; readonly percent: number | null } | undefined;
+  getScopedModels?(): readonly unknown[] | undefined;
+  setScopedModels?(models: readonly unknown[]): void;
+  cycleModel?(direction: "forward" | "backward"): Promise<unknown>;
+  getUserMessagesForForking?(): readonly unknown[];
+  getAvailableThinkingLevels?(): readonly unknown[];
+  cycleThinkingLevel?(): unknown;
+  setAutoCompactionEnabled?(enabled: unknown): void;
+  clearQueue?(): unknown;
+  abortBash?(): void;
+  executeBash?(command: string, onChunk: unknown, options: { excludeFromContext: boolean }): Promise<unknown>;
+  exportToJsonl?(path?: string): string;
+  exportToHtml?(path?: string): Promise<string>;
+  getLastAssistantText?(): string | undefined;
+  setSessionName?(name: string): void;
+  getSessionStats?(): unknown;
+  navigateTree?(entryId: string, options?: { summarize?: boolean; customInstructions?: string }): Promise<unknown>;
+  reload?(): Promise<void>;
   subscribe(listener: (event: unknown) => void): () => void;
   prompt(text: string, options?: unknown): Promise<void>;
   steer(text: string): Promise<void>;
@@ -132,7 +169,7 @@ export interface PiSessionLike {
   setModel(model: unknown): Promise<void>;
   setThinkingLevel(level: unknown): void;
   bindExtensions?(bindings: {
-    readonly uiContext?: OwnedUiExtensionUiPort;
+    readonly uiContext?: ExtensionUIContext;
     readonly mode?: "tui" | "print";
     readonly shutdownHandler?: () => void | Promise<void>;
     readonly onError?: (error: unknown) => void;
@@ -148,15 +185,55 @@ export interface PiServicesLike {
       readonly provider?: string;
       readonly id?: string;
       readonly name?: string;
-      readonly [key: string]: unknown;
     }[];
     refresh?(options?: { readonly signal?: AbortSignal }): Promise<unknown>;
+    getProviders?(): readonly unknown[];
+    getProvider?(providerId: string): unknown;
+    listCredentials?(options?: { readonly signal?: AbortSignal }): Promise<readonly unknown[]>;
+    login?(providerId: string, authType: string, interaction: unknown, options?: { readonly signal?: AbortSignal }): Promise<unknown>;
+    logout?(providerId: string, options?: { readonly signal?: AbortSignal }): Promise<void>;
   };
   readonly settingsManager?: {
     getCompactionEnabled?: () => boolean;
-    getShowHardwareCursor?: () => boolean;
     getEnabledModels?: () => readonly string[] | undefined;
-    setEnabledModels?: (patterns: readonly string[] | undefined) => void;
+    setEnabledModels?: (patterns: string[] | undefined) => void;
+    isProjectTrusted?(): boolean;
+    setProjectTrusted?(trusted: boolean): void;
+    getTreeFilterMode?(): unknown;
+    getBranchSummarySkipPrompt?(): boolean;
+    setCompactionEnabled?(value: unknown): void;
+    getShowImages?(): unknown; setShowImages?(value: unknown): void;
+    getImageWidthCells?(): unknown; setImageWidthCells?(value: unknown): void;
+    getImageAutoResize?(): unknown; setImageAutoResize?(value: unknown): void;
+    getBlockImages?(): unknown; setBlockImages?(value: unknown): void;
+    getEnableSkillCommands?(): boolean; setEnableSkillCommands?(value: unknown): void;
+    getSteeringMode?(): unknown; setSteeringMode?(value: unknown): void;
+    getFollowUpMode?(): unknown; setFollowUpMode?(value: unknown): void;
+    getTransport?(): unknown; setTransport?(value: unknown): void;
+    getHttpIdleTimeoutMs?(): unknown; setHttpIdleTimeoutMs?(value: unknown): void;
+    getTheme?(): unknown; setTheme?(value: unknown): void;
+    getHideThinkingBlock?(): unknown; setHideThinkingBlock?(value: unknown): void;
+    getMermaidRenderingMode?(): unknown; setMermaidRenderingMode?(value: unknown): void;
+    getShowCacheMissNotices?(): unknown; setShowCacheMissNotices?(value: unknown): void;
+    getCollapseChangelog?(): unknown; setCollapseChangelog?(value: unknown): void;
+    getEnableInstallTelemetry?(): unknown; setEnableInstallTelemetry?(value: unknown): void;
+    getQuietStartup?(): unknown; setQuietStartup?(value: unknown): void;
+    getDefaultProjectTrust?(): unknown; setDefaultProjectTrust?(value: unknown): void;
+    getDoubleEscapeAction?(): unknown; setDoubleEscapeAction?(value: unknown): void;
+    setTreeFilterMode?(value: unknown): void;
+    getShowHardwareCursor?(): boolean; setShowHardwareCursor?(value: unknown): void;
+    getEditorPaddingX?(): unknown; setEditorPaddingX?(value: unknown): void;
+    getOutputPad?(): unknown; setOutputPad?(value: unknown): void;
+    getAutocompleteMaxVisible?(): unknown; setAutocompleteMaxVisible?(value: unknown): void;
+    getClearOnShrink?(): unknown; setClearOnShrink?(value: unknown): void;
+    getShowTerminalProgress?(): unknown; setShowTerminalProgress?(value: unknown): void;
+    getTuiMode?(): unknown; setTuiMode?(value: unknown): void;
+    getFullscreenExitOutput?(): unknown; setFullscreenExitOutput?(value: unknown): void;
+    getFullscreenScrollbar?(): unknown; setFullscreenScrollbar?(value: unknown): void;
+    getWarnings?(): unknown; setWarnings?(value: unknown): void;
+    getThemeSetting?(): unknown;
+    getTerminalTheme?(): unknown;
+    setDefaultModelAndProvider?(provider: string, model: string): void;
   };
   readonly resourceLoader?: {
     getSkills(): unknown;
@@ -175,8 +252,11 @@ export interface PiRuntimeLike {
   readonly services: PiServicesLike;
   readonly diagnostics: readonly { readonly type: string; readonly message: string }[];
   setRebindSession(callback: (session: PiSessionLike) => Promise<void>): void;
+  listSessions?(): Promise<readonly unknown[]>;
   newSession(options?: unknown): Promise<unknown>;
   switchSession(sessionPath: string, options?: unknown): Promise<unknown>;
+  fork?(entryId: string, options?: { position?: "before" | "at" }): Promise<unknown>;
+  importFromJsonl?(path: string): Promise<unknown>;
   dispose(): Promise<void>;
 }
 
@@ -276,7 +356,7 @@ export class PiEngineAdapter {
   #droppedEventCount = 0;
   #lastPrompt: string | null = null;
   #gitBranch: string | null = null;
-  #extensionUi: OwnedUiExtensionUiPort | undefined;
+  #extensionUi: ExtensionUIContext | undefined;
   #extensionShutdown: (() => void | Promise<void>) | undefined;
   #extensionBound = false;
   #disposed = false;
@@ -515,7 +595,7 @@ export class PiEngineAdapter {
   }
 
   async bindExtensionUi(ui: unknown, shutdown?: () => void | Promise<void>): Promise<void> {
-    assertOwnedUiExtensionUiPort(ui);
+    assertPiExtensionUiContext(ui);
     this.#extensionUi = ui;
     this.#extensionShutdown = shutdown;
     await this.#bindExtensionUiToSession();
@@ -560,8 +640,8 @@ export class PiEngineAdapter {
       });
       usedNames.add(name);
     }
-    const settings = dynamicObject(this.#runtime?.services, "settingsManager");
-    const skillsEnabled = dynamicCall(settings, "getEnableSkillCommands") !== false;
+    const settings = this.#runtime?.services.settingsManager;
+    const skillsEnabled = settings?.getEnableSkillCommands?.() !== false;
     if (skillsEnabled) {
       const skills = collectionResult(loader.getSkills(), "skills");
       for (const skill of skills.values) {
@@ -572,7 +652,7 @@ export class PiEngineAdapter {
         usedNames.add(name);
       }
     }
-    const extensionCommands = dynamicCall(dynamicObject(this.#session, "extensionRunner"), "getCommands");
+    const extensionCommands = this.#session?.extensionRunner?.getCommands?.();
     if (Array.isArray(extensionCommands)) {
       for (const command of extensionCommands.filter(isRecord)) {
         const name = stringProperty(command, "name");
@@ -587,7 +667,7 @@ export class PiEngineAdapter {
   async cycleModelWorkflow(direction: "forward" | "backward"): Promise<PiWorkflowResult> {
     try {
       const session = this.#requireWorkflowSession();
-      const result = await requiredDynamicCallAsync(session, "cycleModel", direction);
+      const result = await requireCapability(session.cycleModel, "cycleModel").call(session, direction);
       if (!isRecord(result) || !isRecord(result.model)) {
         return workflowResult("model", "cancelled", "No other model is available");
       }
@@ -610,7 +690,7 @@ export class PiEngineAdapter {
     const session = this.#requireWorkflowSession();
     const runtime = this.#runtime;
     if (!runtime) throw new Error("engine runtime is unavailable");
-    const scoped = dynamicCall(session, "getScopedModels") ?? (session as unknown as { scopedModels?: unknown }).scopedModels;
+    const scoped = session.getScopedModels?.() ?? session.scopedModels;
     const modelRuntime = runtime.services.modelRuntime;
     const selectorRuntime = typeof modelRuntime.getAvailableSnapshot === "function"
       ? modelRuntime
@@ -620,8 +700,8 @@ export class PiEngineAdapter {
           getError: () => undefined,
           refresh: async () => undefined,
         };
-    const settingsManager = dynamicObject(runtime.services, "settingsManager");
-    const selectorSettings = typeof settingsManager.setDefaultModelAndProvider === "function"
+    const settingsManager = runtime.services.settingsManager;
+    const selectorSettings = typeof settingsManager?.setDefaultModelAndProvider === "function"
       ? settingsManager
       : { setDefaultModelAndProvider() {} };
     return {
@@ -651,7 +731,7 @@ export class PiEngineAdapter {
     return {
       cwd,
       savedDecision: trustStore.getEntry(cwd),
-      projectTrusted: dynamicCall(runtime.services.settingsManager, "isProjectTrusted") === true,
+      projectTrusted: runtime.services.settingsManager?.isProjectTrusted?.() === true,
       trustOptions,
     };
   }
@@ -662,11 +742,11 @@ export class PiEngineAdapter {
 
   pinnedSessionSelectorContext(): PiSessionSelectorContext {
     const session = this.#requireWorkflowSession();
-    const manager = dynamicObject(session, "sessionManager");
-    const cwd = dynamicCall(manager, "getCwd");
-    const sessionDir = dynamicCall(manager, "getSessionDir");
-    const currentSessionFilePath = dynamicCall(manager, "getSessionFile");
-    const usesDefaultSessionDir = dynamicCall(manager, "usesDefaultSessionDir") === true;
+    const manager = session.sessionManager;
+    const cwd = manager?.getCwd?.();
+    const sessionDir = manager?.getSessionDir?.();
+    const currentSessionFilePath = manager?.getSessionFile?.();
+    const usesDefaultSessionDir = manager?.usesDefaultSessionDir?.() === true;
     const resolvedCwd = typeof cwd === "string" ? cwd : this.#cwd;
     const resolvedSessionDir = typeof sessionDir === "string" ? sessionDir : undefined;
     return {
@@ -688,14 +768,14 @@ export class PiEngineAdapter {
     const runtime = this.#runtime;
     if (!runtime) throw new Error("engine runtime is unavailable");
     const models = scopedModelRecords(runtime.services.modelRuntime);
-    const scoped = dynamicCall(session, "getScopedModels") ?? (session as unknown as { scopedModels?: unknown }).scopedModels;
+    const scoped = session.getScopedModels?.() ?? session.scopedModels;
     if (Array.isArray(scoped) && scoped.length > 0) {
       return {
         models: models.map(item => item.descriptor),
         enabledModelIds: scoped.map(scopedModelReference).filter((id): id is string => id !== undefined),
       };
     }
-    const patterns = dynamicCall(runtime.services.settingsManager, "getEnabledModels");
+    const patterns = runtime.services.settingsManager?.getEnabledModels?.();
     return {
       models: models.map(item => item.descriptor),
       enabledModelIds: Array.isArray(patterns)
@@ -718,7 +798,7 @@ export class PiEngineAdapter {
           return item === undefined ? [] : [{ model: item.model }];
         })
       : [];
-    dynamicCall(session, "setScopedModels", scoped);
+    requireCapability(session.setScopedModels, "setScopedModels").call(session, scoped);
     this.#emitView();
   }
 
@@ -729,13 +809,13 @@ export class PiEngineAdapter {
     const patterns = enabledModelIds === null || enabledModelIds.length === availableCount
       ? undefined
       : [...enabledModelIds];
-    dynamicCall(runtime.services.settingsManager, "setEnabledModels", patterns);
+    requireCapability(runtime.services.settingsManager?.setEnabledModels, "setEnabledModels").call(runtime.services.settingsManager, patterns === undefined ? undefined : [...patterns]);
   }
 
   async refreshScopedModels(signal: AbortSignal): Promise<PiScopedModelsRefreshResult> {
     const runtime = this.#runtime;
     if (!runtime) throw new Error("engine runtime is unavailable");
-    const result = await dynamicCallAsync(runtime.services.modelRuntime, "refresh", { signal });
+    const result = await runtime.services.modelRuntime.refresh?.({ signal });
     const context = this.pinnedScopedModelsContext();
     if (isRecord(result) && result.aborted === true) {
       return { ...context, status: "Model refresh timed out; showing cached models.", statusKind: "warning" };
@@ -758,14 +838,14 @@ export class PiEngineAdapter {
   pinnedLoginMethodOptions(providerReference: string): { readonly title: string; readonly options: readonly PiWorkflowOption[] } {
     const runtime = this.#runtime;
     if (!runtime) throw new Error("engine runtime is unavailable");
-    const modelRuntime = dynamicObject(runtime.services, "modelRuntime");
+    const modelRuntime = runtime.services.modelRuntime;
     const normalized = providerReference.trim().toLowerCase();
-    const providers = dynamicCall(modelRuntime, "getProviders");
+    const providers = modelRuntime.getProviders?.();
     const matches = Array.isArray(providers) ? providers.filter(isRecord).filter(candidate =>
       stringProperty(candidate, "id")?.toLowerCase() === normalized
         || stringProperty(candidate, "name")?.toLowerCase() === normalized) : [];
     const providerId = matches.length === 1 ? stringProperty(matches[0], "id") ?? providerReference : providerReference;
-    const provider = dynamicCall(modelRuntime, "getProvider", providerId);
+    const provider = modelRuntime.getProvider?.(providerId);
     const providerName = stringProperty(provider, "name") ?? providerId;
     const oauth = dynamicObject(dynamicObject(provider, "auth"), "oauth");
     const loginLabel = stringProperty(oauth, "loginLabel") ?? "Sign in with an account";
@@ -781,16 +861,17 @@ export class PiEngineAdapter {
   }
 
   pinnedForkOptions(): readonly PiWorkflowOption[] {
-    const messages = requiredDynamicCall(this.#requireWorkflowSession(), "getUserMessagesForForking");
+    const session = this.#requireWorkflowSession();
+    const messages = requireCapability(session.getUserMessagesForForking, "getUserMessagesForForking").call(session);
     return workflowOptions(messages, "entryId", "text");
   }
 
   pinnedTreeSelectorContext(): PiTreeSelectorContext {
-    const manager = dynamicObject(this.#requireWorkflowSession(), "sessionManager");
-    const settings = dynamicObject(this.#runtime?.services, "settingsManager");
-    const tree = dynamicCall(manager, "getTree");
-    const leaf = dynamicCall(manager, "getLeafId");
-    const configuredFilter = dynamicCall(settings, "getTreeFilterMode");
+    const manager = this.#requireWorkflowSession().sessionManager;
+    const settings = this.#runtime?.services.settingsManager;
+    const tree = manager?.getTree?.();
+    const leaf = manager?.getLeafId?.();
+    const configuredFilter = settings?.getTreeFilterMode?.();
     const filterMode = configuredFilter === "no-tools" || configuredFilter === "user-only" || configuredFilter === "labeled-only" || configuredFilter === "all"
       ? configuredFilter
       : "default";
@@ -798,91 +879,86 @@ export class PiEngineAdapter {
       tree: Array.isArray(tree) ? tree : [],
       currentLeafId: typeof leaf === "string" ? leaf : null,
       filterMode,
-      skipSummaryPrompt: dynamicCall(settings, "getBranchSummarySkipPrompt") === true,
+      skipSummaryPrompt: settings?.getBranchSummarySkipPrompt?.() === true,
       appendLabelChange: (entryId, label) => {
-        dynamicCall(manager, "appendLabelChange", entryId, label);
+        requireCapability(manager?.appendLabelChange, "appendLabelChange").call(manager, entryId, label);
       },
     };
   }
 
   pinnedSettingsSnapshot(): PiPinnedSettingsSnapshot {
     const session = this.#requireWorkflowSession();
-    const settings = dynamicObject(this.#runtime?.services, "settingsManager");
-    const setting = <T>(getter: string, fallback: T): T => {
-      const value = dynamicCall(settings, getter);
-      return (value === undefined ? fallback : value) as T;
+    const settings = this.#runtime?.services.settingsManager;
+    const setting = <T>(getter: (() => unknown) | undefined, fallback: T): T => {
+      const value = getter?.call(settings);
+      return value === undefined ? fallback : value as T;
     };
-    const levels = dynamicCall(session, "getAvailableThinkingLevels");
-    const sessionState = session as unknown as {
-      autoCompactionEnabled?: boolean;
-      steeringMode?: PiPinnedSettingsSnapshot["steeringMode"];
-      followUpMode?: PiPinnedSettingsSnapshot["followUpMode"];
-    };
-    const themes = collectionResult(dynamicCall(dynamicObject(this.#runtime?.services, "resourceLoader"), "getThemes"), "themes").values
+    const levels = session.getAvailableThinkingLevels?.();
+    const themes = collectionResult(this.#runtime?.services.resourceLoader?.getThemes?.(), "themes").values
       .map(theme => stringProperty(theme, "name"))
       .filter((name): name is string => !!name);
     return {
-      autoCompact: typeof sessionState.autoCompactionEnabled === "boolean"
-        ? sessionState.autoCompactionEnabled
-        : setting("getCompactionEnabled", true),
-      showImages: setting("getShowImages", true),
-      imageWidthCells: setting("getImageWidthCells", 80),
-      autoResizeImages: setting("getImageAutoResize", true),
-      blockImages: setting("getBlockImages", false),
-      enableSkillCommands: setting("getEnableSkillCommands", true),
-      steeringMode: sessionState.steeringMode ?? setting("getSteeringMode", "one-at-a-time"),
-      followUpMode: sessionState.followUpMode ?? setting("getFollowUpMode", "one-at-a-time"),
-      transport: setting("getTransport", "sse"),
-      httpIdleTimeoutMs: setting("getHttpIdleTimeoutMs", 300_000),
+      autoCompact: typeof session.autoCompactionEnabled === "boolean"
+        ? session.autoCompactionEnabled
+        : setting(settings?.getCompactionEnabled, true),
+      showImages: setting(settings?.getShowImages, true),
+      imageWidthCells: setting(settings?.getImageWidthCells, 80),
+      autoResizeImages: setting(settings?.getImageAutoResize, true),
+      blockImages: setting(settings?.getBlockImages, false),
+      enableSkillCommands: setting(settings?.getEnableSkillCommands, true),
+      steeringMode: session.steeringMode ?? setting(settings?.getSteeringMode, "one-at-a-time"),
+      followUpMode: session.followUpMode ?? setting(settings?.getFollowUpMode, "one-at-a-time"),
+      transport: setting(settings?.getTransport, "sse"),
+      httpIdleTimeoutMs: setting(settings?.getHttpIdleTimeoutMs, 300_000),
       thinkingLevel: readThinkingLevel(session.thinkingLevel),
       availableThinkingLevels: Array.isArray(levels) ? levels.map(readThinkingLevel) : ["off", "minimal", "low", "medium", "high", "xhigh"],
-      currentTheme: setting("getThemeSetting", setting("getTheme", "dark")),
-      terminalTheme: setting("getTerminalTheme", "dark"),
+      currentTheme: setting(settings?.getThemeSetting, setting(settings?.getTheme, "dark")),
+      terminalTheme: setting(settings?.getTerminalTheme, "dark"),
       availableThemes: themes.length > 0 ? themes : ["dark", "light"],
-      hideThinkingBlock: setting("getHideThinkingBlock", false),
-      mermaidRenderingMode: setting("getMermaidRenderingMode", "off"),
-      showCacheMissNotices: setting("getShowCacheMissNotices", false),
-      collapseChangelog: setting("getCollapseChangelog", true),
-      enableInstallTelemetry: setting("getEnableInstallTelemetry", true),
-      doubleEscapeAction: setting("getDoubleEscapeAction", "tree"),
-      treeFilterMode: setting("getTreeFilterMode", "default"),
-      showHardwareCursor: setting("getShowHardwareCursor", false),
-      editorPaddingX: setting("getEditorPaddingX", 0),
-      outputPad: setting("getOutputPad", 1),
-      autocompleteMaxVisible: setting("getAutocompleteMaxVisible", 5),
-      quietStartup: setting("getQuietStartup", false),
-      defaultProjectTrust: setting("getDefaultProjectTrust", "ask"),
-      clearOnShrink: setting("getClearOnShrink", false),
-      showTerminalProgress: setting("getShowTerminalProgress", false),
-      tuiMode: setting("getTuiMode", "regular"),
-      fullscreenExitOutput: setting("getFullscreenExitOutput", "transcript"),
-      fullscreenScrollbar: setting("getFullscreenScrollbar", "auto"),
-      warnings: setting("getWarnings", { anthropicExtraUsage: true }),
+      hideThinkingBlock: setting(settings?.getHideThinkingBlock, false),
+      mermaidRenderingMode: setting(settings?.getMermaidRenderingMode, "off"),
+      showCacheMissNotices: setting(settings?.getShowCacheMissNotices, false),
+      collapseChangelog: setting(settings?.getCollapseChangelog, true),
+      enableInstallTelemetry: setting(settings?.getEnableInstallTelemetry, true),
+      doubleEscapeAction: setting(settings?.getDoubleEscapeAction, "tree"),
+      treeFilterMode: setting(settings?.getTreeFilterMode, "default"),
+      showHardwareCursor: setting(settings?.getShowHardwareCursor, false),
+      editorPaddingX: setting(settings?.getEditorPaddingX, 0),
+      outputPad: setting(settings?.getOutputPad, 1),
+      autocompleteMaxVisible: setting(settings?.getAutocompleteMaxVisible, 5),
+      quietStartup: setting(settings?.getQuietStartup, false),
+      defaultProjectTrust: setting(settings?.getDefaultProjectTrust, "ask"),
+      clearOnShrink: setting(settings?.getClearOnShrink, false),
+      showTerminalProgress: setting(settings?.getShowTerminalProgress, false),
+      tuiMode: setting(settings?.getTuiMode, "regular"),
+      fullscreenExitOutput: setting(settings?.getFullscreenExitOutput, "transcript"),
+      fullscreenScrollbar: setting(settings?.getFullscreenScrollbar, "auto"),
+      warnings: setting(settings?.getWarnings, { anthropicExtraUsage: true }),
     };
   }
 
   pinnedMessageRenderer(customType: string): unknown {
-    return dynamicCall(dynamicObject(this.#requireWorkflowSession(), "extensionRunner"), "getMessageRenderer", customType);
+    return this.#requireWorkflowSession().extensionRunner?.getMessageRenderer?.(customType);
   }
 
   pinnedToolDefinition(toolName: string): unknown {
-    return dynamicCall(dynamicObject(this.#requireWorkflowSession(), "extensionRunner"), "getToolDefinition", toolName);
+    return this.#requireWorkflowSession().extensionRunner?.getToolDefinition?.(toolName);
   }
 
   clearQueuedWorkflows(): readonly string[] {
     const session = this.#requireWorkflowSession();
-    const result = dynamicCall(session, "clearQueue");
+    const result = session.clearQueue?.();
     if (!isRecord(result)) return [];
     return [...readStringArray(result.steering), ...readStringArray(result.followUp)];
   }
 
   abortBashWorkflow(): void {
-    dynamicCall(this.#requireWorkflowSession(), "abortBash");
+    this.#requireWorkflowSession().abortBash?.();
   }
 
   async executeBashWorkflow(command: string, excludeFromContext: boolean): Promise<PiBashWorkflowResult> {
     const session = this.#requireWorkflowSession();
-    const result = await requiredDynamicCallAsync(session, "executeBash", command, undefined, { excludeFromContext });
+    const result = await requireCapability(session.executeBash, "executeBash").call(session, command, undefined, { excludeFromContext });
     if (!isRecord(result)) throw new Error("Pi bash workflow returned a malformed result");
     return {
       command,
@@ -1037,14 +1113,14 @@ export class PiEngineAdapter {
         const [providerId, modelId] = selection.split("/", 2);
         const model = providerId && modelId ? runtime.services.modelRuntime.getModel(providerId, modelId) : undefined;
         if (!model) return workflowResult(request.command, "failed", `Model is unavailable: ${selection}`);
-        dynamicCall(session, "setScopedModels", [{ model }]);
+        requireCapability(session.setScopedModels, "setScopedModels").call(session, [{ model }]);
         return workflowResult(request.command, "completed", `Enabled scoped model ${selection}`);
       }
       case "export": {
         const path = pathArgument(argument);
         const file = path?.toLowerCase().endsWith(".jsonl")
-          ? requiredDynamicCall(session, "exportToJsonl", path)
-          : await requiredDynamicCallAsync(session, "exportToHtml", path);
+          ? requireCapability(session.exportToJsonl, "exportToJsonl").call(session, path)
+          : await requireCapability(session.exportToHtml, "exportToHtml").call(session, path);
         return workflowResult(request.command, "completed", `Session exported to: ${String(file)}`);
       }
       case "import": {
@@ -1054,7 +1130,7 @@ export class PiEngineAdapter {
           return workflowConfirmation(request.command, `Replace current session with ${path}?`);
         }
         if (!request.confirmed) return workflowResult(request.command, "cancelled", "Import cancelled");
-        const result = await requiredDynamicCallAsync(runtime, "importFromJsonl", path);
+        const result = await requireCapability(runtime.importFromJsonl, "importFromJsonl").call(runtime, path);
         if (isRecord(result) && result.cancelled === true) return workflowResult(request.command, "cancelled", "Import cancelled");
         return workflowResult(request.command, "completed", `Session imported from: ${path}`);
       }
@@ -1065,7 +1141,7 @@ export class PiEngineAdapter {
         if (auth.stderr && !auth.stdout) throw new Error(auth.stderr.trim());
         const temporary = join(tmpdir(), `addone-pi-session-${process.pid}.html`);
         try {
-          await requiredDynamicCallAsync(session, "exportToHtml", temporary);
+          await requireCapability(session.exportToHtml, "exportToHtml").call(session, temporary);
           const gist = await this.#workflowHost.runCommand("gh", ["gist", "create", "--public=false", temporary]);
           const gistUrl = gist.stdout.trim();
           const gistId = gistUrl.split("/").at(-1);
@@ -1076,21 +1152,21 @@ export class PiEngineAdapter {
         }
       }
       case "copy": {
-        const text = requiredDynamicCall(session, "getLastAssistantText");
+        const text = requireCapability(session.getLastAssistantText, "getLastAssistantText").call(session);
         if (typeof text !== "string" || text.length === 0) return workflowResult(request.command, "failed", "No agent messages to copy yet.");
         await this.#workflowHost.copyText(text);
         return workflowResult(request.command, "completed", "Copied last agent message to clipboard");
       }
       case "name": {
-        const manager = dynamicObject(session, "sessionManager");
+        const manager = session.sessionManager;
         if (!argument) {
-          const current = dynamicCall(manager, "getSessionName");
+          const current = manager?.getSessionName();
           return typeof current === "string"
             ? workflowResult(request.command, "completed", `Session name: ${current}`)
             : workflowResult(request.command, "failed", "Usage: /name <name>");
         }
-        requiredDynamicCall(session, "setSessionName", argument);
-        const normalized = dynamicCall(manager, "getSessionName");
+        requireCapability(session.setSessionName, "setSessionName").call(session, argument);
+        const normalized = manager?.getSessionName();
         const actual = typeof normalized === "string" ? normalized : argument;
         return workflowResult(
           request.command,
@@ -1100,16 +1176,16 @@ export class PiEngineAdapter {
         );
       }
       case "session": {
-        const manager = dynamicObject(session, "sessionManager");
-        const stats = requiredDynamicCall(session, "getSessionStats");
-        const entries = dynamicCall(manager, "getEntries");
+        const manager = session.sessionManager;
+        const stats = requireCapability(session.getSessionStats, "getSessionStats").call(session);
+        const entries = manager?.getEntries();
         return {
           ...workflowResult(request.command, "completed", "Session Info"),
           presentation: pinnedSessionInfoPresentation(
             stats,
-            typeof dynamicCall(manager, "getSessionName") === "string" ? String(dynamicCall(manager, "getSessionName")) : undefined,
+            manager?.getSessionName(),
             Array.isArray(entries) ? entries : [],
-            dynamicObject(runtime.services, "modelRuntime"),
+            runtime.services.modelRuntime,
           ),
         };
       }
@@ -1121,24 +1197,24 @@ export class PiEngineAdapter {
         return workflowResult(request.command, "completed", "Keyboard Shortcuts", pinnedHotkeySummary());
       case "fork": {
         if (!selection) return workflowResult(request.command, "failed", "Fork requires the owned user-message controller");
-        const result = await requiredDynamicCallAsync(runtime, "fork", selection, { position: "before" });
+        const result = await requireCapability(runtime.fork, "fork").call(runtime, selection, { position: "before" });
         if (isRecord(result) && result.cancelled === true) return workflowResult(request.command, "cancelled", "Fork cancelled");
         return workflowResult(request.command, "completed", "Forked to new session");
       }
       case "clone": {
-        const manager = dynamicObject(session, "sessionManager");
-        const leaf = dynamicCall(manager, "getLeafId");
+        const manager = session.sessionManager;
+        const leaf = manager?.getLeafId?.();
         if (typeof leaf !== "string") return workflowResult(request.command, "failed", "No session position is available to clone");
-        const result = await requiredDynamicCallAsync(runtime, "fork", leaf, { position: "at" });
+        const result = await requireCapability(runtime.fork, "fork").call(runtime, leaf, { position: "at" });
         if (isRecord(result) && result.cancelled === true) return workflowResult(request.command, "cancelled", "Clone cancelled");
         return workflowResult(request.command, "completed", "Cloned to new session");
       }
       case "tree": {
-        const manager = dynamicObject(session, "sessionManager");
         if (!selection) return workflowResult(request.command, "failed", "Tree navigation requires the owned tree controller");
+        const navigateTree = requireCapability(session.navigateTree, "navigateTree");
         const result = request.treeSummary === undefined
-          ? await requiredDynamicCallAsync(session, "navigateTree", selection)
-          : await requiredDynamicCallAsync(session, "navigateTree", selection, {
+          ? await navigateTree.call(session, selection)
+          : await navigateTree.call(session, selection, {
               summarize: request.treeSummary.summarize,
               ...(request.treeSummary.customInstructions === undefined ? {} : { customInstructions: request.treeSummary.customInstructions }),
             });
@@ -1148,23 +1224,23 @@ export class PiEngineAdapter {
       }
       case "trust": {
         if (!selection) return workflowResult(request.command, "failed", "Trust requires the owned trust controller");
-        dynamicCall(dynamicObject(runtime.services, "settingsManager"), "setProjectTrusted", selection === "trust");
+        requireCapability(runtime.services.settingsManager?.setProjectTrusted, "setProjectTrusted").call(runtime.services.settingsManager, selection === "trust");
         return workflowResult(request.command, "completed", selection === "trust" ? "Project trusted" : "Project trust removed");
       }
       case "login": {
         if (!selection && !argument) return workflowResult(request.command, "failed", "Login requires the owned authentication controller");
-        const modelRuntime = dynamicObject(runtime.services, "modelRuntime");
+        const modelRuntime = runtime.services.modelRuntime;
         let loginSelection = selection ?? argument;
         if (!selection && argument && !argument.includes(":")) {
           const normalized = argument.toLowerCase();
-          const providers = dynamicCall(modelRuntime, "getProviders");
+          const providers = modelRuntime.getProviders?.();
           const providerMatches = Array.isArray(providers) ? providers.filter(isRecord).filter(candidate =>
             stringProperty(candidate, "id")?.toLowerCase() === normalized
               || stringProperty(candidate, "name")?.toLowerCase() === normalized) : [];
           const providerReference = providerMatches.length === 1 ? stringProperty(providerMatches[0], "id") ?? argument : argument;
           const matching = this.#loginOptions().filter(option => option.id.endsWith(`:${providerReference}`));
           if (matching.length > 1) {
-            const provider = dynamicCall(modelRuntime, "getProvider", providerReference);
+            const provider = modelRuntime.getProvider?.(providerReference);
             const providerName = stringProperty(provider, "name") ?? providerReference;
             return workflowResult(request.command, "failed", `Authentication method for ${providerName} requires the owned authentication controller`);
           }
@@ -1174,11 +1250,11 @@ export class PiEngineAdapter {
           ? loginSelection.split(":", 2)
           : ["oauth", loginSelection];
         const authType = authTypeValue === "api_key" ? "api_key" as const : "oauth" as const;
-        const provider = dynamicCall(modelRuntime, "getProvider", providerId);
+        const provider = modelRuntime.getProvider?.(providerId);
         const providerName = stringProperty(provider, "name") ?? providerId;
         this.#workflowInteraction.startLogin?.({ providerId, providerName, authType });
         try {
-          await requiredDynamicCallAsync(modelRuntime, "login", providerId, authType, {
+          await requireCapability(modelRuntime.login, "login").call(modelRuntime, providerId, authType, {
             signal: AbortSignal.timeout(120_000),
             prompt: async (prompt: unknown) => {
               const promptType = stringProperty(prompt, "type");
@@ -1220,9 +1296,9 @@ export class PiEngineAdapter {
       case "logout": {
         if (!selection) return workflowResult(request.command, "failed", "Logout requires the owned authentication controller");
         const [credentialType = "oauth", providerId = selection] = selection.includes(":") ? selection.split(":", 2) : ["oauth", selection];
-        const modelRuntime = dynamicObject(runtime.services, "modelRuntime");
-        await requiredDynamicCallAsync(modelRuntime, "logout", providerId, { signal: AbortSignal.timeout(15_000) });
-        const provider = dynamicCall(modelRuntime, "getProvider", providerId);
+        const modelRuntime = runtime.services.modelRuntime;
+        await requireCapability(modelRuntime.logout, "logout").call(modelRuntime, providerId, { signal: AbortSignal.timeout(15_000) });
+        const provider = modelRuntime.getProvider?.(providerId);
         const providerName = stringProperty(provider, "name") ?? providerId;
         return workflowResult(
           request.command,
@@ -1265,7 +1341,7 @@ export class PiEngineAdapter {
       case "reload": {
         if (session.isStreaming) return workflowResult(request.command, "failed", "Wait for the current response to finish before reloading.");
         if (session.isCompacting) return workflowResult(request.command, "failed", "Wait for compaction to finish before reloading.");
-        await requiredDynamicCallAsync(session, "reload");
+        await requireCapability(session.reload, "reload").call(session);
         await this.#bindExtensionUiToSession();
         return workflowResult(request.command, "completed", "Reloaded keybindings, extensions, skills, prompts, themes, and context files");
       }
@@ -1294,7 +1370,7 @@ export class PiEngineAdapter {
   #modelOptions(): readonly PiWorkflowOption[] {
     const runtime = this.#runtime;
     if (!runtime) return [];
-    const models = dynamicCall(dynamicObject(runtime.services, "modelRuntime"), "getAvailableSnapshot");
+    const models = runtime.services.modelRuntime.getAvailableSnapshot?.();
     if (!Array.isArray(models)) {
       const active = this.#activeModel;
       return active ? [{ id: `${active.providerId}/${active.modelId}`, label: active.displayName, description: `${active.providerId}/${active.modelId}` }] : [];
@@ -1309,7 +1385,7 @@ export class PiEngineAdapter {
 
   #loginOptions(authType?: "oauth" | "api_key"): readonly PiWorkflowOption[] {
     const runtime = this.#runtime;
-    const providers = runtime ? dynamicCall(dynamicObject(runtime.services, "modelRuntime"), "getProviders") : undefined;
+    const providers = runtime?.services.modelRuntime.getProviders?.();
     if (!Array.isArray(providers)) return [];
     return providers.filter(isRecord).flatMap(provider => {
       const id = stringProperty(provider, "id");
@@ -1326,14 +1402,14 @@ export class PiEngineAdapter {
   async #logoutOptions(): Promise<readonly PiWorkflowOption[]> {
     const runtime = this.#runtime;
     if (!runtime) return [];
-    const credentials = await requiredDynamicCallAsync(dynamicObject(runtime.services, "modelRuntime"), "listCredentials", { signal: AbortSignal.timeout(15_000) });
+    const modelRuntime = runtime.services.modelRuntime;
+    const credentials = await requireCapability(modelRuntime.listCredentials, "listCredentials").call(modelRuntime, { signal: AbortSignal.timeout(15_000) });
     if (!Array.isArray(credentials)) return [];
-    const modelRuntime = dynamicObject(runtime.services, "modelRuntime");
     return credentials.filter(isRecord).flatMap(credential => {
       const providerId = stringProperty(credential, "providerId");
       if (!providerId) return [];
       const credentialType = stringProperty(credential, "type") === "api_key" ? "api_key" : "oauth";
-      const provider = dynamicCall(modelRuntime, "getProvider", providerId);
+      const provider = modelRuntime.getProvider?.(providerId);
       return [{
         id: `${credentialType}:${providerId}`,
         label: stringProperty(provider, "name") ?? providerId,
@@ -1344,11 +1420,11 @@ export class PiEngineAdapter {
 
   async #sessionOptions(): Promise<readonly PiWorkflowOption[]> {
     const session = this.#requireWorkflowSession();
-    const manager = dynamicObject(session, "sessionManager");
-    const runtimeSessions = await dynamicCallAsync(this.#runtime, "listSessions");
+    const manager = session.sessionManager;
+    const runtimeSessions = await this.#runtime?.listSessions?.();
     if (Array.isArray(runtimeSessions)) return sessionInfoOptions(runtimeSessions);
-    const cwd = dynamicCall(manager, "getCwd");
-    const sessionDir = dynamicCall(manager, "getSessionDir");
+    const cwd = manager?.getCwd?.();
+    const sessionDir = manager?.getSessionDir?.();
     if (typeof cwd !== "string") return [];
     return sessionInfoOptions(await SessionManager.list(cwd, typeof sessionDir === "string" ? sessionDir : undefined));
   }
@@ -1360,127 +1436,88 @@ export class PiEngineAdapter {
     const callback = selection as PiPinnedSettingsCallback;
     if (callback === "onCancel") return workflowResult("settings", "cancelled", "Settings cancelled");
     if (callback === "onThemePreview") return workflowResult("settings", "completed", "Theme preview refreshed");
-    const runtime = this.#runtime;
-    if (!runtime) return workflowResult("settings", "failed", "Settings are unavailable");
-    const settings = dynamicObject(runtime.services, "settingsManager");
-    const session = this.#requireWorkflowSession();
-    if (hasSelectedValue) {
-      const setters: Partial<Record<PiPinnedSettingsCallback, string>> = {
-        onShowImagesChange: "setShowImages",
-        onImageWidthCellsChange: "setImageWidthCells",
-        onAutoResizeImagesChange: "setImageAutoResize",
-        onBlockImagesChange: "setBlockImages",
-        onEnableSkillCommandsChange: "setEnableSkillCommands",
-        onSteeringModeChange: "setSteeringMode",
-        onFollowUpModeChange: "setFollowUpMode",
-        onTransportChange: "setTransport",
-        onHttpIdleTimeoutMsChange: "setHttpIdleTimeoutMs",
-        onThemeChange: "setTheme",
-        onHideThinkingBlockChange: "setHideThinkingBlock",
-        onMermaidRenderingModeChange: "setMermaidRenderingMode",
-        onShowCacheMissNoticesChange: "setShowCacheMissNotices",
-        onCollapseChangelogChange: "setCollapseChangelog",
-        onEnableInstallTelemetryChange: "setEnableInstallTelemetry",
-        onQuietStartupChange: "setQuietStartup",
-        onDefaultProjectTrustChange: "setDefaultProjectTrust",
-        onDoubleEscapeActionChange: "setDoubleEscapeAction",
-        onTreeFilterModeChange: "setTreeFilterMode",
-        onShowHardwareCursorChange: "setShowHardwareCursor",
-        onEditorPaddingXChange: "setEditorPaddingX",
-        onOutputPadChange: "setOutputPad",
-        onAutocompleteMaxVisibleChange: "setAutocompleteMaxVisible",
-        onClearOnShrinkChange: "setClearOnShrink",
-        onShowTerminalProgressChange: "setShowTerminalProgress",
-        onTuiModeChange: "setTuiMode",
-        onFullscreenExitOutputChange: "setFullscreenExitOutput",
-        onFullscreenScrollbarChange: "setFullscreenScrollbar",
-        onWarningsChange: "setWarnings",
+    if (!hasSelectedValue) {
+      const snapshot = this.pinnedSettingsSnapshot();
+      const currentValues: Partial<Record<PiPinnedSettingsCallback, unknown>> = {
+        onAutoCompactChange: snapshot.autoCompact,
+        onShowImagesChange: snapshot.showImages,
+        onImageWidthCellsChange: snapshot.imageWidthCells,
+        onAutoResizeImagesChange: snapshot.autoResizeImages,
+        onBlockImagesChange: snapshot.blockImages,
+        onEnableSkillCommandsChange: snapshot.enableSkillCommands,
+        onSteeringModeChange: snapshot.steeringMode,
+        onFollowUpModeChange: snapshot.followUpMode,
+        onTransportChange: snapshot.transport,
+        onHttpIdleTimeoutMsChange: snapshot.httpIdleTimeoutMs,
+        onThinkingLevelChange: snapshot.thinkingLevel,
+        onThemeChange: snapshot.currentTheme,
+        onHideThinkingBlockChange: snapshot.hideThinkingBlock,
+        onMermaidRenderingModeChange: snapshot.mermaidRenderingMode,
+        onShowCacheMissNoticesChange: snapshot.showCacheMissNotices,
+        onCollapseChangelogChange: snapshot.collapseChangelog,
+        onEnableInstallTelemetryChange: snapshot.enableInstallTelemetry,
+        onQuietStartupChange: snapshot.quietStartup,
+        onDefaultProjectTrustChange: snapshot.defaultProjectTrust,
+        onDoubleEscapeActionChange: snapshot.doubleEscapeAction,
+        onTreeFilterModeChange: snapshot.treeFilterMode,
+        onShowHardwareCursorChange: snapshot.showHardwareCursor,
+        onEditorPaddingXChange: snapshot.editorPaddingX,
+        onOutputPadChange: snapshot.outputPad,
+        onAutocompleteMaxVisibleChange: snapshot.autocompleteMaxVisible,
+        onClearOnShrinkChange: snapshot.clearOnShrink,
+        onShowTerminalProgressChange: snapshot.showTerminalProgress,
+        onTuiModeChange: snapshot.tuiMode,
+        onFullscreenExitOutputChange: snapshot.fullscreenExitOutput,
+        onFullscreenScrollbarChange: snapshot.fullscreenScrollbar,
+        onWarningsChange: snapshot.warnings,
       };
-      if (callback === "onAutoCompactChange") {
-        dynamicCall(session, "setAutoCompactionEnabled", selectedValue);
-        dynamicCall(settings, "setCompactionEnabled", selectedValue);
-      } else if (callback === "onThinkingLevelChange") {
-        dynamicCall(session, "setThinkingLevel", selectedValue);
-      } else {
-        const setter = setters[callback];
-        if (!setter) return workflowResult("settings", "failed", `${settingLabel(callback)} is unavailable in this runtime`);
-        dynamicCall(settings, setter, selectedValue);
-      }
-      this.#emitView();
-      return workflowResult("settings", "completed", `${settingLabel(callback)}: ${String(selectedValue)}`);
+      selectedValue = currentValues[callback];
+      hasSelectedValue = true;
     }
-    const toggles: Partial<Record<PiPinnedSettingsCallback, readonly [string, string]>> = {
-      onAutoCompactChange: ["getCompactionEnabled", "setCompactionEnabled"],
-      onShowImagesChange: ["getShowImages", "setShowImages"],
-      onAutoResizeImagesChange: ["getImageAutoResize", "setImageAutoResize"],
-      onBlockImagesChange: ["getBlockImages", "setBlockImages"],
-      onEnableSkillCommandsChange: ["getEnableSkillCommands", "setEnableSkillCommands"],
-      onHideThinkingBlockChange: ["getHideThinkingBlock", "setHideThinkingBlock"],
-      onShowCacheMissNoticesChange: ["getShowCacheMissNotices", "setShowCacheMissNotices"],
-      onCollapseChangelogChange: ["getCollapseChangelog", "setCollapseChangelog"],
-      onEnableInstallTelemetryChange: ["getEnableInstallTelemetry", "setEnableInstallTelemetry"],
-      onQuietStartupChange: ["getQuietStartup", "setQuietStartup"],
-      onShowHardwareCursorChange: ["getShowHardwareCursor", "setShowHardwareCursor"],
-      onClearOnShrinkChange: ["getClearOnShrink", "setClearOnShrink"],
-      onShowTerminalProgressChange: ["getShowTerminalProgress", "setShowTerminalProgress"],
-    };
-    const toggle = toggles[callback];
-    if (toggle) {
-      const current = dynamicCall(settings, toggle[0]);
-      dynamicCall(settings, toggle[1], current !== true);
-      return workflowResult("settings", "completed", `${settingLabel(callback)}: ${current === true ? "off" : "on"}`);
-    }
-    const cycles: Partial<Record<PiPinnedSettingsCallback, readonly [string, string, readonly unknown[]]>> = {
-      onSteeringModeChange: ["getSteeringMode", "setSteeringMode", ["all", "one-at-a-time"]],
-      onFollowUpModeChange: ["getFollowUpMode", "setFollowUpMode", ["all", "one-at-a-time"]],
-      onTransportChange: ["getTransport", "setTransport", ["sse", "websocket", "websocket-cached", "auto"]],
-      onMermaidRenderingModeChange: ["getMermaidRenderingMode", "setMermaidRenderingMode", ["off", "final", "streaming"]],
-      onDefaultProjectTrustChange: ["getDefaultProjectTrust", "setDefaultProjectTrust", ["ask", "always", "never"]],
-      onDoubleEscapeActionChange: ["getDoubleEscapeAction", "setDoubleEscapeAction", ["fork", "tree", "none"]],
-      onTreeFilterModeChange: ["getTreeFilterMode", "setTreeFilterMode", ["default", "no-tools", "user-only", "labeled-only", "all"]],
-      onOutputPadChange: ["getOutputPad", "setOutputPad", [0, 1]],
-      onTuiModeChange: ["getTuiMode", "setTuiMode", ["regular", "fullscreen"]],
-      onFullscreenExitOutputChange: ["getFullscreenExitOutput", "setFullscreenExitOutput", ["transcript", "resume-hint"]],
-      onFullscreenScrollbarChange: ["getFullscreenScrollbar", "setFullscreenScrollbar", ["hidden", "auto", "always"]],
-    };
-    const cycle = cycles[callback];
-    if (cycle) {
-      const current = dynamicCall(settings, cycle[0]);
-      const index = cycle[2].findIndex(value => value === current);
-      const next = cycle[2][(Math.max(index, 0) + 1) % cycle[2].length];
-      dynamicCall(settings, cycle[1], next);
-      return workflowResult("settings", "completed", `${settingLabel(callback)}: ${String(next)}`);
-    }
+    const settings = this.#runtime?.services.settingsManager;
+    if (!settings) return workflowResult("settings", "failed", "Settings are unavailable");
+    const session = this.#requireWorkflowSession();
+    const apply = (setter: ((value: unknown) => void) | undefined, name: string) =>
+      requireCapability(setter, name).call(settings, selectedValue);
     switch (callback) {
-      case "onThinkingLevelChange": {
-        const level = dynamicCall(session, "cycleThinkingLevel");
-        return level === undefined
-          ? workflowResult("settings", "failed", "Current model does not support thinking")
-          : workflowResult("settings", "completed", `Thinking level: ${String(level)}`);
-      }
-      case "onImageWidthCellsChange": return incrementSetting(settings, callback, "getImageWidthCells", "setImageWidthCells", 10, 10, 120);
-      case "onHttpIdleTimeoutMsChange": return incrementSetting(settings, callback, "getHttpIdleTimeoutMs", "setHttpIdleTimeoutMs", 5_000, 5_000, 120_000);
-      case "onEditorPaddingXChange": return incrementSetting(settings, callback, "getEditorPaddingX", "setEditorPaddingX", 1, 0, 4);
-      case "onAutocompleteMaxVisibleChange": return incrementSetting(settings, callback, "getAutocompleteMaxVisible", "setAutocompleteMaxVisible", 1, 3, 20);
-      case "onThemeChange": {
-        const loader = dynamicObject(this.#runtime?.services, "resourceLoader");
-        const themes = collectionResult(dynamicCall(loader, "getThemes"), "themes").values;
-        const current = dynamicCall(settings, "getTheme");
-        const names = themes.map(theme => stringProperty(theme, "name")).filter((name): name is string => !!name);
-        if (names.length === 0) return workflowResult("settings", "failed", "No themes are available");
-        const next = names[(Math.max(names.indexOf(String(current)), 0) + 1) % names.length] ?? names[0]!;
-        dynamicCall(settings, "setTheme", next);
-        return workflowResult("settings", "completed", `Theme: ${next}`);
-      }
-      case "onWarningsChange": {
-        const current = dynamicCall(settings, "getWarnings");
-        const enabled = !(isRecord(current) && current.anthropicExtraUsage === true);
-        dynamicCall(settings, "setWarnings", { anthropicExtraUsage: enabled });
-        return workflowResult("settings", "completed", `Warnings: ${enabled ? "on" : "off"}`);
-      }
-      default:
-        return workflowResult("settings", "failed", `${settingLabel(callback)} is unavailable in this runtime`);
+      case "onAutoCompactChange":
+        session.setAutoCompactionEnabled?.(selectedValue);
+        apply(settings.setCompactionEnabled, "setCompactionEnabled");
+        break;
+      case "onThinkingLevelChange": session.setThinkingLevel(selectedValue); break;
+      case "onShowImagesChange": apply(settings.setShowImages, "setShowImages"); break;
+      case "onImageWidthCellsChange": apply(settings.setImageWidthCells, "setImageWidthCells"); break;
+      case "onAutoResizeImagesChange": apply(settings.setImageAutoResize, "setImageAutoResize"); break;
+      case "onBlockImagesChange": apply(settings.setBlockImages, "setBlockImages"); break;
+      case "onEnableSkillCommandsChange": apply(settings.setEnableSkillCommands, "setEnableSkillCommands"); break;
+      case "onSteeringModeChange": apply(settings.setSteeringMode, "setSteeringMode"); break;
+      case "onFollowUpModeChange": apply(settings.setFollowUpMode, "setFollowUpMode"); break;
+      case "onTransportChange": apply(settings.setTransport, "setTransport"); break;
+      case "onHttpIdleTimeoutMsChange": apply(settings.setHttpIdleTimeoutMs, "setHttpIdleTimeoutMs"); break;
+      case "onThemeChange": apply(settings.setTheme, "setTheme"); break;
+      case "onHideThinkingBlockChange": apply(settings.setHideThinkingBlock, "setHideThinkingBlock"); break;
+      case "onMermaidRenderingModeChange": apply(settings.setMermaidRenderingMode, "setMermaidRenderingMode"); break;
+      case "onShowCacheMissNoticesChange": apply(settings.setShowCacheMissNotices, "setShowCacheMissNotices"); break;
+      case "onCollapseChangelogChange": apply(settings.setCollapseChangelog, "setCollapseChangelog"); break;
+      case "onEnableInstallTelemetryChange": apply(settings.setEnableInstallTelemetry, "setEnableInstallTelemetry"); break;
+      case "onQuietStartupChange": apply(settings.setQuietStartup, "setQuietStartup"); break;
+      case "onDefaultProjectTrustChange": apply(settings.setDefaultProjectTrust, "setDefaultProjectTrust"); break;
+      case "onDoubleEscapeActionChange": apply(settings.setDoubleEscapeAction, "setDoubleEscapeAction"); break;
+      case "onTreeFilterModeChange": apply(settings.setTreeFilterMode, "setTreeFilterMode"); break;
+      case "onShowHardwareCursorChange": apply(settings.setShowHardwareCursor, "setShowHardwareCursor"); break;
+      case "onEditorPaddingXChange": apply(settings.setEditorPaddingX, "setEditorPaddingX"); break;
+      case "onOutputPadChange": apply(settings.setOutputPad, "setOutputPad"); break;
+      case "onAutocompleteMaxVisibleChange": apply(settings.setAutocompleteMaxVisible, "setAutocompleteMaxVisible"); break;
+      case "onClearOnShrinkChange": apply(settings.setClearOnShrink, "setClearOnShrink"); break;
+      case "onShowTerminalProgressChange": apply(settings.setShowTerminalProgress, "setShowTerminalProgress"); break;
+      case "onTuiModeChange": apply(settings.setTuiMode, "setTuiMode"); break;
+      case "onFullscreenExitOutputChange": apply(settings.setFullscreenExitOutput, "setFullscreenExitOutput"); break;
+      case "onFullscreenScrollbarChange": apply(settings.setFullscreenScrollbar, "setFullscreenScrollbar"); break;
+      case "onWarningsChange": apply(settings.setWarnings, "setWarnings"); break;
+      default: return workflowResult("settings", "failed", `${settingLabel(callback)} is unavailable in this runtime`);
     }
+    this.#emitView();
+    return workflowResult("settings", "completed", `${settingLabel(callback)}: ${String(selectedValue)}`);
   }
 
   async #perform(command: OwnedUiCommand): Promise<void> {
@@ -2183,14 +2220,14 @@ async function createDefaultPiRuntime(input: PiEngineRuntimeFactoryInput): Promi
     agentDir: input.agentDir,
     sessionManager,
   });
-  return runtime as unknown as PiRuntimeLike;
+  return runtime;
 }
 
 function pinnedSessionInfoPresentation(
   value: unknown,
   sessionName: string | undefined,
   entries: readonly unknown[],
-  modelRuntime: Record<string, unknown>,
+  modelRuntime: PiServicesLike["modelRuntime"],
 ): PiSessionInfoPresentation {
   const stats = isRecord(value) ? value : {};
   const tokens = dynamicObject(stats, "tokens");
@@ -2254,7 +2291,7 @@ function pinnedUsageCostBreakdown(entries: readonly unknown[]): PiSessionInfoPre
 
 function pinnedCacheWaste(
   entries: readonly unknown[],
-  modelRuntime: Record<string, unknown>,
+  modelRuntime: PiServicesLike["modelRuntime"],
 ): PiSessionInfoPresentation["cacheWaste"] {
   let previous: { promptTokens: number; modelKey: string; timestamp: number; reportedCache: boolean } | undefined;
   const totals = { missedTokens: 0, missedCost: 0, missCount: 0 };
@@ -2279,7 +2316,7 @@ function pinnedCacheWaste(
         const paidRate = paidTokens > 0 ? (finiteNumber(cost.input) + finiteNumber(cost.cacheWrite)) / paidTokens : 0;
         const provider = stringProperty(message, "provider") ?? "";
         const modelId = stringProperty(message, "model") ?? "";
-        const model = dynamicCall(modelRuntime, "getModel", provider, modelId);
+        const model = modelRuntime.getModel(provider, modelId);
         const modelCost = dynamicObject(dynamicObject(model, "cost"));
         const readRate = cacheRead > 0
           ? finiteNumber(cost.cacheRead) / cacheRead
@@ -2386,30 +2423,18 @@ function sessionInfoOptions(value: readonly unknown[]): readonly PiWorkflowOptio
   });
 }
 
+function assertPiExtensionUiContext(value: unknown): asserts value is ExtensionUIContext {
+  assertOwnedUiExtensionUiPort(value);
+}
+
 function dynamicObject(value: unknown, key?: string): Record<string, unknown> {
   const candidate = key === undefined ? value : isRecord(value) ? value[key] : undefined;
   return isRecord(candidate) ? candidate : {};
 }
 
-function dynamicCall(target: unknown, method: string, ...args: readonly unknown[]): unknown {
-  if (!isRecord(target)) return undefined;
-  const operation = target[method];
-  return typeof operation === "function" ? operation.apply(target, args) : undefined;
-}
-
-async function dynamicCallAsync(target: unknown, method: string, ...args: readonly unknown[]): Promise<unknown> {
-  return await dynamicCall(target, method, ...args);
-}
-
-function requiredDynamicCall(target: unknown, method: string, ...args: readonly unknown[]): unknown {
-  if (!isRecord(target) || typeof target[method] !== "function") {
-    throw new Error(`Pi workflow capability is unavailable: ${method}`);
-  }
-  return target[method].apply(target, args);
-}
-
-async function requiredDynamicCallAsync(target: unknown, method: string, ...args: readonly unknown[]): Promise<unknown> {
-  return await requiredDynamicCall(target, method, ...args);
+function requireCapability<T>(capability: T | undefined, name: string): T {
+  if (typeof capability !== "function") throw new Error(`Pi workflow capability is unavailable: ${name}`);
+  return capability;
 }
 
 function pathArgument(value: string): string | undefined {
@@ -2428,22 +2453,6 @@ function settingLabel(callback: PiPinnedSettingsCallback): string {
     .replace(/Change$|Preview$|Cancel$/, "")
     .replace(/([a-z])([A-Z])/g, "$1 $2")
     .replace(/^./, character => character.toUpperCase());
-}
-
-function incrementSetting(
-  settings: Record<string, unknown>,
-  callback: PiPinnedSettingsCallback,
-  getter: string,
-  setter: string,
-  increment: number,
-  minimum: number,
-  maximum: number,
-): PiWorkflowResult {
-  const currentValue = dynamicCall(settings, getter);
-  const current = typeof currentValue === "number" && Number.isFinite(currentValue) ? currentValue : minimum;
-  const next = current + increment > maximum ? minimum : current + increment;
-  dynamicCall(settings, setter, next);
-  return workflowResult("settings", "completed", `${settingLabel(callback)}: ${next}`);
 }
 
 function pinnedHotkeySummary(): string {

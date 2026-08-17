@@ -4,6 +4,7 @@ import {
   UserMessageComponent,
 } from "@earendil-works/pi-coding-agent";
 import type { OwnedUiTranscriptBlock } from "../owned-ui-contracts/index.js";
+import { createTuiFacade, validatedAssistantMessage } from "./shell-components.js";
 import { ensurePiTheme } from "./theme.js";
 
 export function adaptPiUserMessage(block: OwnedUiTranscriptBlock, width: number): readonly string[] {
@@ -15,17 +16,7 @@ export function adaptPiUserMessage(block: OwnedUiTranscriptBlock, width: number)
 export function adaptPiAssistantMessage(block: OwnedUiTranscriptBlock, width: number): readonly string[] {
   requireBlock(block, "assistant");
   ensurePiTheme();
-  const message = {
-    role: "assistant",
-    content: [{ type: "text", text: block.text }],
-    api: "openai-responses",
-    provider: blockProvider(block),
-    model: blockModel(block),
-    usage: emptyUsage(),
-    stopReason: block.status === "live" ? "pending" : "stop",
-    timestamp: Date.now(),
-  };
-  return new AssistantMessageComponent(message as never, false).render(width);
+  return new AssistantMessageComponent(validatedAssistantMessage(block), false).render(width);
 }
 
 export function adaptPiToolExecution(
@@ -47,7 +38,7 @@ export function adaptPiToolExecution(
     args,
     undefined,
     undefined,
-    { requestRender() {} } as never,
+    createTuiFacade({ getColumns: () => width, getRows: () => 24, requestRender() {} }),
     cwd,
   );
   if (block.status === "live") component.markExecutionStarted();

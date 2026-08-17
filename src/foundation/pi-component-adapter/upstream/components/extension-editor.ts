@@ -6,7 +6,6 @@
 import {
   Container,
   Editor,
-  getKeybindings,
   Spacer,
   Text,
   type TUI,
@@ -18,12 +17,8 @@ import { piTheme } from "../../theme.js";
 
 type HintKey = "tui.select.confirm" | "tui.input.newLine" | "tui.select.cancel" | "app.editor.external";
 
-function keyText(keybinding: HintKey): string {
-  return getKeybindings().getKeys(keybinding as never).join("/");
-}
-
-function keyHint(keybinding: HintKey, description: string): string {
-  return piTheme().fg("dim", keyText(keybinding)) + piTheme().fg("muted", ` ${description}`);
+function keyHint(keybindings: KeybindingsManager, keybinding: HintKey, description: string): string {
+  return piTheme().fg("dim", keybindings.getKeys(keybinding).join("/")) + piTheme().fg("muted", ` ${description}`);
 }
 
 export class ExtensionEditorComponent extends Container {
@@ -73,18 +68,17 @@ export class ExtensionEditorComponent extends Container {
     this.#editor.onSubmit = onSubmit;
     this.addChild(this.#editor);
     this.addChild(new Spacer(1));
-    const hint = keyHint("tui.select.confirm", "submit")
-      + "  " + keyHint("tui.input.newLine", "newline")
-      + "  " + keyHint("tui.select.cancel", "cancel")
-      + "  " + keyHint("app.editor.external", "external editor");
+    const hint = keyHint(this.#keybindings, "tui.select.confirm", "submit")
+      + "  " + keyHint(this.#keybindings, "tui.input.newLine", "newline")
+      + "  " + keyHint(this.#keybindings, "tui.select.cancel", "cancel")
+      + "  " + keyHint(this.#keybindings, "app.editor.external", "external editor");
     this.addChild(new Text(hint, 1, 0));
     this.addChild(new Spacer(1));
     this.addChild(new DynamicBorder());
   }
 
   handleInput(data: string): void {
-    const keybindings = getKeybindings();
-    if (keybindings.matches(data, "tui.select.cancel")) {
+    if (this.#keybindings.matches(data, "tui.select.cancel")) {
       this.#onCancel();
       return;
     }
