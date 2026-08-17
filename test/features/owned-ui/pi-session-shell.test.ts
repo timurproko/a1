@@ -443,6 +443,27 @@ describe("PiSessionShell", () => {
     await shell.dispose();
   });
 
+  it("uses pinned editor-replacement loaders for share and reload operations", async () => {
+    const { adapter, shell } = await fixture();
+    let resolveShare: ((result: Awaited<ReturnType<typeof adapter.executeWorkflow>>) => void) | undefined;
+    const execute = vi.spyOn(adapter, "executeWorkflow").mockImplementation(request => request.command === "share"
+      ? new Promise(resolve => { resolveShare = resolve; })
+      : Promise.resolve({ command: request.command, outcome: "completed", message: "Reloaded keybindings, extensions, skills, prompts, themes, and context files" }));
+
+    const share = shell.runWorkflow({ command: "share", argument: "" });
+    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Creating gist...");
+    resolveShare?.({ command: "share", outcome: "completed", message: "Share URL: https://example.test", detail: "https://gist.test/id" });
+    await share;
+    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).not.toContain("Creating gist...");
+
+    const reload = shell.runWorkflow({ command: "reload", argument: "" });
+    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Reloading keybindings, extensions, skills, prompts, themes, and context files...");
+    await reload;
+    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).not.toContain("Reloading keybindings");
+    expect(execute).toHaveBeenCalledTimes(2);
+    await shell.dispose();
+  });
+
   it("rebinds the owned extension UI after reload replaces extension contexts", async () => {
     const { engine, shell } = await fixture();
     expect(engine.session.calls.filter(call => call === "bindExtensions")).toHaveLength(1);

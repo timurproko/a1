@@ -30,6 +30,8 @@ import {
   createPiShellLoadedResources,
   createPiShellLoginDialog,
   createPiShellModelSelector,
+  createPiShellOperationLoader,
+  createPiShellReloadBox,
   createPiShellScopedModelsSelector,
   createPiShellSelector,
   createPiShellSessionInfo,
@@ -1047,7 +1049,28 @@ export class PiSessionShell {
       return { outcome: "completed", diagnostic: null };
     }
     if (request.command === "reload") this.root.resetExtensionUi();
-    const result = await this.adapter.executeWorkflow(request);
+    const operationSurface = request.command === "share"
+      ? createPiShellOperationLoader({
+          getColumns: () => this.runtime.viewport().columns,
+          getRows: () => this.runtime.viewport().rows,
+          requestRender: () => this.runtime.requestRender(),
+        }, "Creating gist...")
+      : request.command === "reload"
+        ? createPiShellReloadBox()
+        : undefined;
+    if (operationSurface) {
+      this.root.setInputSurface(operationSurface);
+      this.runtime.requestRender();
+    }
+    let result: PiWorkflowResult;
+    try {
+      result = await this.adapter.executeWorkflow(request);
+    } finally {
+      if (operationSurface) {
+        this.root.setInputSurface(null);
+        this.runtime.requestRender();
+      }
+    }
     if (result.outcome === "requires-selection" || result.outcome === "requires-confirmation") {
       this.#showWorkflowSelector(request, result);
       return { outcome: "completed", diagnostic: null };

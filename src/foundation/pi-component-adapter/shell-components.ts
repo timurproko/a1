@@ -2,6 +2,7 @@ import {
   AssistantMessageComponent,
   type AutocompleteProviderFactory,
   BashExecutionComponent,
+  BorderedLoader,
   CompactionSummaryMessageComponent,
   CustomEditor,
   CustomMessageComponent,
@@ -553,6 +554,26 @@ export function createPiShellLoginDialog(
     showWaiting: message => dialog.showWaiting(message),
     showProgress: message => dialog.showProgress(message),
   };
+}
+
+export function createPiShellOperationLoader(
+  runtime: Pick<PiShellEditorOptions, "getColumns" | "getRows" | "requestRender">,
+  message: string,
+): PiShellComponentPort {
+  ensureTheme();
+  return componentPort(new BorderedLoader(createTuiFacade(runtime), piTheme(), message));
+}
+
+export function createPiShellReloadBox(): PiShellComponentPort {
+  ensureTheme();
+  const container = new Container();
+  const borderColor = (text: string) => piTheme().fg("border", text);
+  container.addChild(new DynamicBorder(borderColor));
+  container.addChild(new Spacer(1));
+  container.addChild(new Text(piTheme().fg("muted", "Reloading keybindings, extensions, skills, prompts, themes, and context files..."), 1, 0));
+  container.addChild(new Spacer(1));
+  container.addChild(new DynamicBorder(borderColor));
+  return componentPort(container);
 }
 
 export function createPiShellAuthProviderSelector(
