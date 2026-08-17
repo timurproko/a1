@@ -39,8 +39,8 @@ describe("pinned Pi scripted event and terminal-frame parity", () => {
     const result = await buildEventFrameParityResult();
 
     expect(fixture.tolerance).toEqual({
-      ignored: ["cursor visibility", "synchronized-output envelope", "render timing", "file hyperlink absolute target"],
-      preserved: ["rendered row payloads", "file hyperlink boundaries", "cursor addressing", "state transitions", "resize dimensions"],
+      ignored: ["cursor visibility", "synchronized-output envelope", "render timing", "file hyperlink availability and absolute target"],
+      preserved: ["rendered row payloads", "cursor addressing", "state transitions", "resize dimensions"],
     });
     expect(result.frames).toEqual(fixture.frames);
     expect(result.frames.map(frame => frame.stage)).toEqual(["initial", "streaming", "tool-result", "completed", "resized"]);

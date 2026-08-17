@@ -13,8 +13,8 @@ const output = {
     }
   },
   tolerance: {
-    ignored: ["cursor visibility", "synchronized-output envelope", "render timing", "file hyperlink absolute target"],
-    preserved: ["rendered row payloads", "file hyperlink boundaries", "cursor addressing", "state transitions", "resize dimensions"]
+    ignored: ["cursor visibility", "synchronized-output envelope", "render timing", "file hyperlink availability and absolute target"],
+    preserved: ["rendered row payloads", "cursor addressing", "state transitions", "resize dimensions"]
   },
   eventStages: ["initial", ...SCRIPTED_PI_EVENTS.map(entry => entry.stage), "resized"],
   ...result

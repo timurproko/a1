@@ -50,14 +50,13 @@ export const SCRIPTED_PI_EVENTS: readonly { readonly stage: string; readonly eve
 
 export async function buildEventFrameParityResult(): Promise<EventFrameParityResult> {
   const engine = new ScriptedRuntime();
-  const fixtureCwd = process.cwd();
   const adapter = await createPiEngineAdapter({
-    cwd: fixtureCwd,
+    cwd: "D:/parity",
     sessionId: "event-frame-parity",
     createRuntime: async () => engine,
   });
   const physical = new CapturingTerminal(64, 18);
-  const shell = new PiSessionShell({ adapter, cwd: fixtureCwd, terminal: physical });
+  const shell = new PiSessionShell({ adapter, cwd: "D:/parity", terminal: physical });
   const states: EventStateParityEntry[] = [];
   const frames: TerminalFrameParityEntry[] = [];
   let writeOffset = 0;
@@ -158,21 +157,13 @@ class CapturingTerminal implements PiTuiTerminalPort {
 }
 
 function normalizeCapturedFrame(frame: string): string {
-  let normalized = frame
+  return frame
     .replaceAll("\x1b[?2026h", "")
     .replaceAll("\x1b[?2026l", "")
     .replaceAll("\x1b[?25h", "")
     .replaceAll("\x1b[?25l", "")
-    .replace(/\x1b]8;;file:\/\/\/[^\x07\x1b]*\/README\.md\x1b\\/g, "\x1b]8;;file:///fixture/README.md\x1b\\");
-  for (const cwd of new Set([process.cwd(), process.cwd().replaceAll("\\", "/")])) {
-    const cwdWithOptionalBranch = new RegExp(`${escapeRegex(cwd)}(?: \\([^\\r\\n]*\\))?`, "g");
-    normalized = normalized.replace(cwdWithOptionalBranch, "D:/parity");
-  }
-  return normalized;
-}
-
-function escapeRegex(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    .replace(/\x1b]8;;file:\/\/\/[^\x07\x1b]*\/README\.md\x1b\\/g, "")
+    .replaceAll("\x1b]8;;\x1b\\", "");
 }
 
 function assistantMessage(text: string, stopReason: string): Record<string, unknown> {
