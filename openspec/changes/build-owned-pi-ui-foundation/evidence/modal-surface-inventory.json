@@ -142,35 +142,42 @@
       "id": "session.resume",
       "upstream": "interactive-mode.ts:showSessionSelector",
       "component": "SessionSelectorComponent",
-      "destination": "src/foundation/pi-component-adapter/shell-components.ts",
+      "destination": "src/foundation/pi-component-adapter/upstream/components/session-selector.ts",
       "status": "implemented",
       "tests": [
-        "test/foundation/pi-component-adapter/shell-components.test.ts"
+        "test/foundation/pi-component-adapter/session-selector.test.ts",
+        "test/features/owned-ui/pi-session-shell.test.ts"
       ]
     },
     {
       "id": "session.delete-confirm",
       "upstream": "session-selector.ts:confirmingDeletePath",
       "component": "SessionSelectorComponent",
-      "destination": "src/foundation/pi-component-adapter/shell-components.ts",
-      "status": "planned",
-      "tests": []
+      "destination": "src/foundation/pi-component-adapter/upstream/components/session-selector.ts",
+      "status": "implemented",
+      "tests": [
+        "test/foundation/pi-component-adapter/session-selector.test.ts"
+      ]
     },
     {
       "id": "session.rename",
       "upstream": "session-selector.ts:onRenameSession",
       "component": "SessionSelectorComponent",
-      "destination": "src/foundation/pi-component-adapter/shell-components.ts",
-      "status": "planned",
-      "tests": []
+      "destination": "src/foundation/pi-component-adapter/upstream/components/session-selector.ts",
+      "status": "implemented",
+      "tests": [
+        "test/foundation/pi-component-adapter/session-selector.test.ts"
+      ]
     },
     {
       "id": "session.missing-cwd",
       "upstream": "interactive-mode.ts:promptForMissingSessionCwd",
-      "component": "ExtensionSelectorComponent+ExtensionInputComponent",
+      "component": "ExtensionSelectorComponent",
       "destination": "src/features/owned-ui/pi-session-shell.ts",
-      "status": "planned",
-      "tests": []
+      "status": "implemented",
+      "tests": [
+        "test/foundation/pi-engine-adapter/workflows.test.ts"
+      ]
     },
     {
       "id": "auth.login-type",

@@ -1,0 +1,51 @@
+{
+  "schema": "addone-owned-pi-ui-automated-evidence-v1",
+  "change": "build-owned-pi-ui-foundation",
+  "taskSlices": ["7.8 session routes", "7.9 resume controller"],
+  "completion": "partial; tree summary and login authentication-type routes remain open",
+  "recordedAt": "2026-08-17T06:10:34.281Z",
+  "source": {
+    "repository": "https://github.com/earendil-works/pi.git",
+    "commit": "914cf1472e715297caa30db4b9535d534a9eb718",
+    "codingAgentVersion": "0.84.2",
+    "units": [
+      "packages/coding-agent/src/modes/interactive/components/session-selector.ts",
+      "packages/coding-agent/src/modes/interactive/components/session-selector-search.ts"
+    ]
+  },
+  "implementedRoutes": [
+    "session.resume",
+    "session.delete-confirm",
+    "session.rename",
+    "session.missing-cwd"
+  ],
+  "statefulCoverage": [
+    "current/all scope and loading progress",
+    "threaded/recent/relevance sorting",
+    "token/phrase/regex search",
+    "named and path filters",
+    "active-session delete protection",
+    "delete confirmation and mutation refresh",
+    "rename editor and refresh",
+    "silent cancellation and focus restoration",
+    "missing-cwd fallback confirmation"
+  ],
+  "terminalParity": {
+    "status": "passed",
+    "differences": 0,
+    "checkpoints": [
+      "session-selector-current",
+      "session-selector-all",
+      "session-selector-cancel-restored"
+    ],
+    "piRawCaptureSha256": "aa9bd17f946d6e745ee1eebc8542ca311fb32f2663b842bbc6048e19261ebadb",
+    "addOneRawCaptureSha256": "071f9b5c576e0978311a628bdbf48fc8e55bbe438feffd0c997cfc3b2563a1eb"
+  },
+  "validation": {
+    "tests": "84 files, 448 tests passed",
+    "typecheck": "passed",
+    "architecture": "passed; 109 source records and 29 behavior mappings",
+    "strictOpenSpecValidation": "passed"
+  },
+  "manualAcceptance": "pending fresh user comparison"
+}

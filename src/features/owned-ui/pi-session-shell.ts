@@ -837,6 +837,32 @@ export class PiSessionShell {
     void this.runWorkflow({ command: "model", argument: "" });
   }
 
+  showSessionSelector(): void {
+    const context = this.adapter.pinnedSessionSelectorContext();
+    const close = () => {
+      this.root.setInputSurface(null);
+      this.runtime.requestRender();
+    };
+    const component = createPiShellSessionSelector({
+      currentSessionsLoader: context.loadCurrentSessions,
+      allSessionsLoader: context.loadAllSessions,
+      currentSessionFilePath: context.currentSessionFilePath,
+      renameSession: context.renameSession,
+      requestRender: () => this.runtime.requestRender(),
+      onSelect: sessionPath => {
+        close();
+        void this.runWorkflow({ command: "resume", argument: sessionPath });
+      },
+      onCancel: close,
+      onExit: () => {
+        close();
+        void this.shutdown();
+      },
+    });
+    this.root.setInputSurface(component);
+    this.runtime.requestRender();
+  }
+
   showSettingsSelector(): void {
     const snapshot = this.adapter.pinnedSettingsSnapshot();
     const close = () => {
@@ -882,6 +908,10 @@ export class PiSessionShell {
       const opened = this.adapter.executeWorkflow(request);
       this.showSettingsSelector();
       await opened;
+      return { outcome: "completed", diagnostic: null };
+    }
+    if (request.command === "resume" && request.selection === undefined && request.confirmed === undefined && request.argument.trim().length === 0) {
+      this.showSessionSelector();
       return { outcome: "completed", diagnostic: null };
     }
     const result = await this.adapter.executeWorkflow(request);
@@ -1039,8 +1069,6 @@ export class PiSessionShell {
         onSelect: model => select(modelReference(model)),
         onCancel: cancel,
       });
-    } else if (request.command === "resume") {
-      component = createPiShellSessionSelector(options, select, cancel, () => this.runtime.requestRender());
     } else if (request.command === "tree") {
       const context = this.adapter.pinnedTreeSelectorContext();
       component = createPiShellTreeSelector(context.tree, context.currentLeafId, this.runtime.viewport().rows, select, cancel);

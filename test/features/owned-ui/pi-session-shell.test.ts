@@ -231,6 +231,48 @@ describe("PiSessionShell", () => {
     await shell.dispose();
   });
 
+  it("uses the stateful session controller and closes resume cancellation silently", async () => {
+    const { engine, adapter, terminal, shell } = await fixture();
+    const session = {
+      path: "D:/sessions/one.jsonl",
+      id: "one",
+      cwd: "D:/work",
+      name: "Named session",
+      created: new Date(0),
+      modified: new Date(),
+      messageCount: 3,
+      firstMessage: "First prompt",
+      allMessagesText: "First prompt response",
+    };
+    vi.spyOn(adapter, "pinnedSessionSelectorContext").mockReturnValue({
+      currentSessionFilePath: "D:/sessions/current.jsonl",
+      loadCurrentSessions: async () => [session],
+      loadAllSessions: async progress => {
+        progress?.(1, 1);
+        return [session];
+      },
+      renameSession: async () => {},
+    });
+
+    await shell.submit("/resume");
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Resume Session (Current Folder)");
+    terminal.input("\t");
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Resume Session (All)");
+    terminal.input("\x1b");
+    expect(shell.root.render(100).join("\n")).not.toContain("Resume Session");
+    expect(shell.root.render(100).join("\n")).not.toContain("Resume cancelled");
+
+    await shell.submit("/resume");
+    await new Promise(resolve => setTimeout(resolve, 0));
+    terminal.input("\r");
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(engine.calls).toContain("switch:D:/sessions/one.jsonl");
+    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Resumed session");
+    await shell.dispose();
+  });
+
   it("routes the complete command manifest, hidden routes, prompt resources, bash modes, and streaming queues", async () => {
     const { engine, adapter, shell } = await fixture();
     const workflow = vi.spyOn(adapter, "executeWorkflow").mockImplementation(async request => ({
@@ -239,7 +281,7 @@ describe("PiSessionShell", () => {
       message: `ran ${request.command}`,
     }));
     const routedCommands = [...PINNED_PI_WORKFLOW_COMMAND_NAMES, ...PINNED_PI_HIDDEN_COMMAND_NAMES]
-      .filter(command => command !== "scoped-models" && command !== "trust");
+      .filter(command => command !== "scoped-models" && command !== "trust" && command !== "resume");
     for (const command of routedCommands) {
       await shell.submit(`/${command}`);
     }

@@ -18,7 +18,6 @@ import {
   OAuthSelectorComponent,
   parseSkillBlock,
   rawKeyHint,
-  SessionSelectorComponent,
   SettingsSelectorComponent,
   ShowImagesSelectorComponent,
   SkillInvocationMessageComponent,
@@ -34,6 +33,7 @@ import {
   UserMessageComponent,
   VERSION,
 } from "@earendil-works/pi-coding-agent";
+import { SessionSelectorComponent } from "./upstream/components/session-selector.js";
 import {
   Box,
   CombinedAutocompleteProvider,
@@ -459,26 +459,27 @@ export function createPiShellTrustSelector(options: {
   return componentPort(new TrustSelectorComponent(options));
 }
 
-export function createPiShellSessionSelector(
-  sessions: readonly PiShellSelectorOption[],
-  onSelect: (path: string) => void,
-  onCancel: () => void,
-  requestRender: () => void,
-): PiShellComponentPort {
+export function createPiShellSessionSelector(options: {
+  readonly currentSessionsLoader: (onProgress?: (loaded: number, total: number) => void) => Promise<SessionInfo[]>;
+  readonly allSessionsLoader: (onProgress?: (loaded: number, total: number) => void) => Promise<SessionInfo[]>;
+  readonly onSelect: (path: string) => void;
+  readonly onCancel: () => void;
+  readonly onExit: () => void;
+  readonly requestRender: () => void;
+  readonly renameSession: (sessionFilePath: string, nextName: string | undefined) => Promise<void>;
+  readonly currentSessionFilePath: string | undefined;
+}): PiShellComponentPort {
   ensureTheme();
-  const now = new Date(0);
-  const values: SessionInfo[] = sessions.map(session => ({
-    path: session.id,
-    id: session.id,
-    cwd: session.description ?? "",
-    created: now,
-    modified: now,
-    messageCount: 0,
-    firstMessage: session.label,
-    allMessagesText: session.label,
-  }));
-  const load = async () => values;
-  const selector = new SessionSelectorComponent(load, load, onSelect, onCancel, onCancel, requestRender);
+  const selector = new SessionSelectorComponent(
+    options.currentSessionsLoader,
+    options.allSessionsLoader,
+    options.onSelect,
+    options.onCancel,
+    options.onExit,
+    options.requestRender,
+    { renameSession: options.renameSession, showRenameHint: true },
+    options.currentSessionFilePath,
+  );
   return componentPort(selector);
 }
 

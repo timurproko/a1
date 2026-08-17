@@ -53,9 +53,6 @@ describe("pinned Pi modal surface inventory", () => {
     expect(inventory.surfaces.filter(surface => surface.status === "planned").map(surface => surface.id)).toEqual([
       "tree.summary-choice",
       "tree.summary-instructions",
-      "session.delete-confirm",
-      "session.rename",
-      "session.missing-cwd",
       "auth.login-type",
     ]);
   });

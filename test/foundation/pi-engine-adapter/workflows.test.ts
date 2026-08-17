@@ -65,6 +65,7 @@ class WorkflowRuntime implements PiRuntimeLike {
   readonly session = new WorkflowSession();
   newCancelled = false;
   loginPrompt = false;
+  resumeMissingCwd = false;
   readonly calls: string[] = [];
   readonly settingsValues = new Map<string, unknown>([
     ["CompactionEnabled", true], ["ShowImages", true], ["ImageWidthCells", 40], ["ImageAutoResize", true],
@@ -110,7 +111,15 @@ class WorkflowRuntime implements PiRuntimeLike {
   setRebindSession(): void {}
   async listSessions(): Promise<unknown> { return [{ path: "D:/sessions/one.jsonl", id: "one", firstMessage: "First", messageCount: 2, modified: new Date(0) }]; }
   async newSession(): Promise<unknown> { this.calls.push("new"); return { cancelled: this.newCancelled }; }
-  async switchSession(path: string): Promise<unknown> { this.calls.push(`resume:${path}`); return { cancelled: false }; }
+  async switchSession(path: string, options?: { cwdOverride?: string }): Promise<unknown> {
+    this.calls.push(`resume:${path}${options?.cwdOverride ? `:${options.cwdOverride}` : ""}`);
+    if (this.resumeMissingCwd && options?.cwdOverride === undefined) {
+      throw Object.assign(new Error("missing cwd"), {
+        issue: { sessionCwd: "D:/missing", fallbackCwd: "D:/work" },
+      });
+    }
+    return { cancelled: false };
+  }
   async fork(id: string): Promise<unknown> { this.calls.push(`fork:${id}`); return { cancelled: false }; }
   async importFromJsonl(path: string): Promise<unknown> { this.calls.push(`import:${path}`); return { cancelled: false }; }
   async dispose(): Promise<void> { this.calls.push("dispose"); }
@@ -202,6 +211,15 @@ describe("pinned Pi command and input workflows", () => {
     await expect(adapter.executeWorkflow({ command: "import", argument: "session.jsonl", confirmed: false })).resolves.toMatchObject({ outcome: "cancelled" });
     runtime.newCancelled = true;
     await expect(adapter.executeWorkflow({ command: "new", argument: "" })).resolves.toMatchObject({ outcome: "cancelled" });
+
+    runtime.resumeMissingCwd = true;
+    await expect(adapter.executeWorkflow({ command: "resume", argument: "D:/sessions/missing.jsonl" })).resolves.toMatchObject({
+      outcome: "requires-confirmation",
+      message: "cwd from session file does not exist\nD:/missing\n\ncontinue in current cwd\nD:/work",
+    });
+    await expect(adapter.executeWorkflow({ command: "resume", argument: "D:/sessions/missing.jsonl", confirmed: false })).resolves.toMatchObject({ outcome: "cancelled" });
+    await expect(adapter.executeWorkflow({ command: "resume", argument: "D:/sessions/missing.jsonl", confirmed: true })).resolves.toMatchObject({ outcome: "completed", message: "Resumed session in current cwd" });
+    expect(runtime.calls).toContain("resume:D:/sessions/missing.jsonl:D:/work");
   });
 
   it("covers resource autocomplete, bash context modes, model controls, queue restoration, and contained failures", async () => {

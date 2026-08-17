@@ -13,6 +13,7 @@ import {
   ProjectTrustStore,
   SessionManager,
   type CreateAgentSessionRuntimeFactory,
+  type SessionInfo,
 } from "@earendil-works/pi-coding-agent";
 import {
   OWNED_UI_EXTENSION_CONTRACT_VERSION,
@@ -85,6 +86,13 @@ export interface PiProjectTrustContext {
     readonly updates: readonly PiProjectTrustUpdate[];
     readonly savedPath?: string;
   }[];
+}
+
+export interface PiSessionSelectorContext {
+  readonly currentSessionFilePath: string | undefined;
+  readonly loadCurrentSessions: (onProgress?: (loaded: number, total: number) => void) => Promise<SessionInfo[]>;
+  readonly loadAllSessions: (onProgress?: (loaded: number, total: number) => void) => Promise<SessionInfo[]>;
+  readonly renameSession: (sessionFilePath: string, nextName: string | undefined) => Promise<void>;
 }
 
 export interface PiScopedModelsRefreshResult extends PiScopedModelsContext {
@@ -637,6 +645,29 @@ export class PiEngineAdapter {
     new ProjectTrustStore(this.#agentDir).setMany([...updates]);
   }
 
+  pinnedSessionSelectorContext(): PiSessionSelectorContext {
+    const session = this.#requireWorkflowSession();
+    const manager = dynamicObject(session, "sessionManager");
+    const cwd = dynamicCall(manager, "getCwd");
+    const sessionDir = dynamicCall(manager, "getSessionDir");
+    const currentSessionFilePath = dynamicCall(manager, "getSessionFile");
+    const usesDefaultSessionDir = dynamicCall(manager, "usesDefaultSessionDir") === true;
+    const resolvedCwd = typeof cwd === "string" ? cwd : this.#cwd;
+    const resolvedSessionDir = typeof sessionDir === "string" ? sessionDir : undefined;
+    return {
+      currentSessionFilePath: typeof currentSessionFilePath === "string" ? currentSessionFilePath : undefined,
+      loadCurrentSessions: onProgress => SessionManager.list(resolvedCwd, resolvedSessionDir, onProgress),
+      loadAllSessions: onProgress => usesDefaultSessionDir
+        ? SessionManager.listAll(onProgress)
+        : resolvedSessionDir === undefined ? SessionManager.listAll(onProgress) : SessionManager.listAll(resolvedSessionDir, onProgress),
+      renameSession: async (sessionFilePath, nextName) => {
+        const next = (nextName ?? "").trim();
+        if (!next) return;
+        SessionManager.open(sessionFilePath).appendSessionInfo(next);
+      },
+    };
+  }
+
   pinnedScopedModelsContext(): PiScopedModelsContext {
     const session = this.#requireWorkflowSession();
     const runtime = this.#runtime;
@@ -1092,9 +1123,24 @@ export class PiEngineAdapter {
       }
       case "resume": {
         if (!selection && !argument) return workflowSelector(request.command, "Resume session", await this.#sessionOptions());
-        const result = await runtime.switchSession(selection ?? argument);
-        if (isRecord(result) && result.cancelled === true) return workflowResult(request.command, "cancelled", "Resume cancelled");
-        return workflowResult(request.command, "completed", "Resumed session");
+        const sessionPath = selection ?? argument;
+        try {
+          const result = await runtime.switchSession(sessionPath);
+          if (isRecord(result) && result.cancelled === true) return workflowResult(request.command, "cancelled", "Resume cancelled");
+          return workflowResult(request.command, "completed", "Resumed session");
+        } catch (error) {
+          const issue = isRecord(error) && isRecord(error.issue) ? error.issue : undefined;
+          const fallbackCwd = issue === undefined ? undefined : stringProperty(issue, "fallbackCwd");
+          if (fallbackCwd === undefined) throw error;
+          if (request.confirmed === undefined) {
+            const sessionCwd = stringProperty(issue, "sessionCwd") ?? "the session working directory";
+            return workflowConfirmation(request.command, `cwd from session file does not exist\n${sessionCwd}\n\ncontinue in current cwd\n${fallbackCwd}`);
+          }
+          if (!request.confirmed) return workflowResult(request.command, "cancelled", "Resume cancelled");
+          const result = await runtime.switchSession(sessionPath, { cwdOverride: fallbackCwd });
+          if (isRecord(result) && result.cancelled === true) return workflowResult(request.command, "cancelled", "Resume cancelled");
+          return workflowResult(request.command, "completed", "Resumed session in current cwd");
+        }
       }
       case "reload": {
         if (session.isStreaming) return workflowResult(request.command, "failed", "Wait for the current response to finish before reloading.");

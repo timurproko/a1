@@ -2,7 +2,7 @@
   "schema": "addone-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-08-16T18:35:00.954Z",
+  "recordedAt": "2026-08-17T06:04:44.011Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "914cf1472e715297caa30db4b9535d534a9eb718",
@@ -38,8 +38,8 @@
     "sourceModules": 105,
     "assets": 4,
     "classifications": {
-      "public-reuse": 65,
-      "owned-source-port": 22,
+      "public-reuse": 64,
+      "owned-source-port": 23,
       "host-adapter": 22
     },
     "requiredBehaviorIds": 29,
@@ -1940,9 +1940,9 @@
       "sha256": "5b1811240c39c958f863091ece06d67cb8432d4d7e70185087d5e041432dff36",
       "classification": "owned-source-port",
       "localDestination": "src/foundation/pi-component-adapter/upstream/components/session-selector-search.ts",
-      "implementationStatus": "not-ported",
+      "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Mechanical port planned: remap imports, inject AddOne engine/runtime ownership, preserve control flow and state, and record every deviation.",
+      "modifications": "Source-synchronized session search port with only the public SessionInfo type import remapped.",
       "approvedDeviations": [],
       "behaviorCategories": [
         "selectors",
@@ -1964,9 +1964,9 @@
         "7.8"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
-        "test/foundation/pi-component-adapter/shell-components.test.ts"
-      ]
+        "test/foundation/pi-component-adapter/session-selector.test.ts"
+      ],
+      "localSha256": "72cfec4059b12d66a1180cde9532c4e8c49990648acd14b06acd98a846c32386"
     },
     {
       "id": "pi-coding-agent:src/modes/interactive/components/session-selector",
@@ -1977,11 +1977,11 @@
       "sourceMap": "modes/interactive/components/session-selector.js.map",
       "lines": 1032,
       "sha256": "b6d2f348e6eb68e17914a4936433912155271f0c3199441e14c419cbab21be10",
-      "classification": "public-reuse",
-      "localDestination": "src/foundation/pi-component-adapter/index.ts",
-      "implementationStatus": "available-through-pinned-package",
+      "classification": "owned-source-port",
+      "localDestination": "src/foundation/pi-component-adapter/upstream/components/session-selector.ts",
+      "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "None planned; import the exact component or helper from the pinned public coding-agent package root.",
+      "modifications": "Source-synchronized session selector port: preserve threaded/current/all scope, search, sort, named/path filters, rename, delete confirmation, active-session protection, loading progress, cancellation, focus, and disposal while remapping public helpers, owned keybindings/theme, and canonical path handling.",
       "approvedDeviations": [],
       "behaviorCategories": [
         "selectors",
@@ -2003,9 +2003,10 @@
         "7.8"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
-        "test/foundation/pi-component-adapter/shell-components.test.ts"
-      ]
+        "test/foundation/pi-component-adapter/session-selector.test.ts",
+        "test/features/owned-ui/pi-session-shell.test.ts"
+      ],
+      "localSha256": "6b5796df4c4810c34ee765d21e4541ccd7921900de424805f58bac9d67ab8589"
     },
     {
       "id": "pi-coding-agent:src/modes/interactive/components/settings-selector",
