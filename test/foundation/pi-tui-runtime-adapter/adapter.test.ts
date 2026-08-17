@@ -305,7 +305,7 @@ describe("PiTuiRuntimeAdapter", () => {
     runtime.start();
     runtime.renderNow(true);
 
-    const assertUniform = (events: readonly string[]) => {
+    const assertUniform = (events: readonly string[], minimumSelectedCells: number) => {
       terminal.writes.length = 0;
       for (const event of events) terminal.input(event);
       runtime.renderNow(true);
@@ -313,19 +313,83 @@ describe("PiTuiRuntimeAdapter", () => {
       const spans = [...frame.matchAll(/\x1b\[30;107m([\s\S]*?)\x1b\[0m/g)];
       expect(spans.length).toBeGreaterThan(0);
       expect(spans.every(match => !/\x1b\[(?:3[0-9]|4[0-9]|9[0-7]|10[0-7])(?:;|m)/.test(match[1] ?? ""))).toBe(true);
+      const selectedCells = emulateTerminalCells(terminal.writes, terminal.columns, terminal.rows)
+        .flat()
+        .filter(cell => cell?.background === 107);
+      expect(selectedCells.length).toBeGreaterThanOrEqual(minimumSelectedCells);
+      expect(selectedCells.every(cell => cell.foreground === 30)).toBe(true);
     };
 
-    assertUniform(["\x1b[<0;2;1M", "\x1b[<32;3;1M", "\x1b[<0;3;1m"]);
+    assertUniform(["\x1b[<0;2;1M", "\x1b[<32;3;1M", "\x1b[<0;3;1m"], 2);
     assertUniform([
       "\x1b[<0;6;1M", "\x1b[<0;6;1m",
       "\x1b[<0;6;1M", "\x1b[<0;6;1m",
-    ]);
+    ], 5);
     assertUniform([
       "\x1b[<0;4;2M", "\x1b[<0;4;2m",
       "\x1b[<0;4;2M", "\x1b[<0;4;2m",
       "\x1b[<0;4;2M", "\x1b[<0;4;2m",
+    ], 17);
+    assertUniform(["\x1b[<0;1;1M", "\x1b[<32;10;2M", "\x1b[<0;10;2m"], 30);
+    await runtime.stop({ drainInput: false, preserveScreen: true });
+  });
+
+  it("renders a multi-row selection as one continuous terminal block including blank cells", async () => {
+    const terminal = new TestTerminal();
+    terminal.columns = 12;
+    terminal.rows = 5;
+    const root = new TestComponent([
+      "alpha",
+      "",
+      "\x1b[33mbeta\x1b[0m",
+      "",
+      "omega",
     ]);
-    assertUniform(["\x1b[<0;1;1M", "\x1b[<32;10;2M", "\x1b[<0;10;2m"]);
+    const runtime = new PiTuiRuntimeAdapter({ root, terminal });
+    runtime.start();
+    runtime.renderNow(true);
+
+    terminal.input("\x1b[<0;3;1M");
+    terminal.input("\x1b[<32;4;4M");
+    terminal.input("\x1b[<0;4;4m");
+    runtime.renderNow(true);
+
+    const cells = emulateTerminalCells(terminal.writes, terminal.columns, terminal.rows);
+    const expectUniformRange = (row: number, start: number, end: number) => {
+      const range = Array.from({ length: end - start }, (_, index) => cells[row]![start + index]);
+      expect(range.every(cell => cell?.foreground === 30 && cell.background === 107)).toBe(true);
+    };
+    expectUniformRange(0, 2, terminal.columns);
+    expectUniformRange(1, 0, terminal.columns);
+    expectUniformRange(2, 0, terminal.columns);
+    expectUniformRange(3, 0, 4);
+    await runtime.stop({ drainInput: false, preserveScreen: true });
+  });
+
+  it("keeps the continuous selection uniform while scrolling styled content", async () => {
+    const terminal = new TestTerminal();
+    terminal.columns = 14;
+    terminal.rows = 6;
+    const root = new TestComponent(Array.from({ length: 14 }, (_, index) =>
+      index % 2 === 0 ? `\x1b[3${index % 8}mrow-${index}\x1b[0m` : ""));
+    const runtime = new PiTuiRuntimeAdapter({ root, terminal });
+    runtime.start();
+    runtime.renderNow(true);
+    runtime.scrollToTop();
+    runtime.renderNow();
+
+    terminal.input("\x1b[<0;2;2M");
+    terminal.input("\x1b[<32;6;6M");
+    terminal.input("\x1b[<0;6;6m");
+    runtime.renderNow(true);
+    terminal.input("\x1b[<65;5;3M");
+    runtime.renderNow();
+
+    const selected = emulateTerminalCells(terminal.writes, terminal.columns, terminal.rows)
+      .flat()
+      .filter(cell => cell?.background === 107);
+    expect(selected.length).toBeGreaterThan(14);
+    expect(selected.every(cell => cell.foreground === 30 && cell.background === 107)).toBe(true);
     await runtime.stop({ drainInput: false, preserveScreen: true });
   });
 
@@ -355,12 +419,12 @@ describe("PiTuiRuntimeAdapter", () => {
     expect(selectedCells.length).toBeGreaterThan(0);
     expect(selectedCells.every(cell => cell.foreground === 30 && cell.background === 107)).toBe(true);
 
-    terminal.writes.length = 0;
+    terminal.input("\x1b[<65;5;3M");
+    runtime.renderNow();
     terminal.input("/");
     root.lines = ["/", "settings  Open settings menu", "model  Select model"];
     runtime.renderNow();
     expect(root.inputs).toEqual(["/"]);
-    expect(terminal.writes.join("")).not.toContain("\x1b[30;107m");
     expect(emulateTerminalCells(terminal.writes, terminal.columns, terminal.rows).flat().some(cell => cell?.background === 107)).toBe(false);
     await runtime.stop({ drainInput: false, preserveScreen: true });
   });

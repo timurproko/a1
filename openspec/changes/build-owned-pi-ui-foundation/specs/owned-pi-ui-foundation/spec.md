@@ -53,7 +53,7 @@ The AddOne-owned UI SHALL reproduce the complete visible and interactive behavio
 
 #### Scenario: Select and copy transcript text
 - **WHEN** the user selects one character, a word, a line, or an arbitrary single-row or multi-row area across plain, styled, linked, inverse, Unicode, or whitespace content
-- **THEN** AddOne SHALL retain the selection without copying on release and render every selected cell as dark text on one uniform bright-white inverted background without underlying foreground/background color leakage or differential-write gaps
+- **THEN** AddOne SHALL retain the selection without copying on release and render every selected cell as one continuous stream block—including trailing cells and blank rows—with dark text on one uniform bright-white inverted background without underlying foreground/background color leakage, line-by-line gaps, scroll corruption, or differential-write gaps
 - **AND** styles after the selected range SHALL be restored correctly and AddOne SHALL NOT display `Copied!` or another copy notification
 - **AND WHEN** the user presses `Ctrl+C` while that selection is active
 - **THEN** AddOne SHALL copy the selected plain text to the clipboard and consume the key without interrupting the agent

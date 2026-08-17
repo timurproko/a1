@@ -1,0 +1,68 @@
+{
+  "schema": "addone-owned-pi-ui-selection-correction-v1",
+  "change": "build-owned-pi-ui-foundation",
+  "tasks": ["7.1", "7.18", "7.21", "7.22", "8.1", "8.2", "8.3"],
+  "recordedAt": "2026-08-17T09:13:07.585Z",
+  "source": {
+    "repository": "https://github.com/earendil-works/pi.git",
+    "commit": "914cf1472e715297caa30db4b9535d534a9eb718",
+    "package": "@earendil-works/pi-tui@0.84.2",
+    "upstreamPath": "packages/tui/src/tui-alt-screen.ts",
+    "localBoundary": "src/foundation/pi-tui-runtime-adapter/adapter.ts"
+  },
+  "manualFinding": {
+    "status": "confirmed-and-corrected-pending-fresh-manual-comparison",
+    "summary": [
+      "AddOne rendered a multi-row selection as disconnected per-line spans instead of vanilla's continuous stream block through trailing and blank cells.",
+      "Selected source colors could reappear after wheel scrolling and differential writes.",
+      "Retained selection could remain visible over newly opened command-menu replacement content."
+    ],
+    "diagnosticScreenshots": [
+      { "path": "C:/Users/tprokopiev/Desktop/vanila-selections.png", "sha256": "4515aba2a53dca4bbfe7d36a2664c59fd404d569df1a7acce68fbcd69323e49a" },
+      { "path": "C:/Users/tprokopiev/Desktop/our-selections.png", "sha256": "e596044466c731b9728073d4b3cd427ff02efd27a50e1be872f14dbd5f10e16d" },
+      { "path": "C:/Users/tprokopiev/Desktop/our-selection-when scroll.png", "sha256": "0c3254265322526e450ad7fcba6f9d693609f5b7595dfa16b195ea725765bcf6" },
+      { "path": "C:/Users/tprokopiev/Desktop/selection works wired i i had some selection and open command it selects the entire block.png", "sha256": "2205c5fbed0ff2b7a3323919bebf801d48d32b4103e1b04fda5fb5a1154fbe9b" },
+      { "path": "C:/Users/tprokopiev/Desktop/still get colors in selection when i have selection and use scroll.png", "sha256": "de6abc0e33d0125b7b9e74b678e4aecaaa871effe2f6bdd5ae8b2ffdf0c83e52" }
+    ]
+  },
+  "implementation": {
+    "strategy": "Stateful public-terminal row/cell selection layer; no InteractiveMode mutation, private-field access, prototype patching, deep import, or installed-package modification.",
+    "behaviors": [
+      "Continuous stream geometry paints first-row trailing cells, complete intermediate text and blank rows, and the final partial row.",
+      "Selected source SGR and OSC state is removed before explicit black-on-bright-white repainting.",
+      "Differential row writes and physical wheel movement reconcile retained selection geometry.",
+      "Double-click word and triple-click line geometry is recovered from public rendered selection markers.",
+      "Supplemental blank/trailing cells are reset and the retained TUI selection is cleared before non-copy keyboard input.",
+      "Selected Ctrl+C retains copy priority without a flash; unselected Ctrl+C retains interrupt behavior."
+    ]
+  },
+  "automatedResults": {
+    "focusedRuntime": "3 files, 18 tests passed",
+    "focusedContaining": "6 files, 61 tests passed",
+    "typecheck": "passed",
+    "architectureAndSourceLedger": "passed; 109 records, 29 behavior mappings",
+    "strictOpenSpecValidation": "passed",
+    "terminalParity": {
+      "status": "passed",
+      "checkpoints": 53,
+      "differences": 0,
+      "piRawCaptureSha256": "2e016db3bbe453d16dc806f04494877b3e513c7bc5cbd61e6a5dc4977a178968",
+      "addOneRawCaptureSha256": "adf589ea193b50654d2abfad718b1cce6931501981936901237aedd8da818c14"
+    },
+    "selectionAssertions": [
+      "continuous multi-row block includes blank and trailing cells",
+      "character, word, line, and arbitrary-area extents",
+      "uniform final emulated cells across styled content",
+      "uniform retained selection after a three-row wheel event",
+      "no selected cells remain after slash command-menu replacement",
+      "release does not copy or flash",
+      "selected and unselected Ctrl+C"
+    ]
+  },
+  "acceptance": {
+    "task7_1": "automated correction complete",
+    "tasks7_18And7_21": "reopened pending containing/full lifecycle rerun and fresh manual confirmation",
+    "task7_22": "open",
+    "manualAcceptance": "pending fresh user comparison"
+  }
+}
