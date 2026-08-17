@@ -196,6 +196,46 @@ describe("PiSessionShell", () => {
     await shell.dispose();
   });
 
+  it("preserves deep settings submenus, theme mode nesting, and parent restoration", async () => {
+    const { terminal, shell } = await fixture();
+    const frame = () => stripTerminalSequences(shell.root.render(100).join("\n"));
+
+    await shell.submit("/settings");
+    terminal.input("theme");
+    terminal.input("\r");
+    expect(frame()).toContain("Select a theme, or choose Automatic to follow terminal appearance.");
+    terminal.input("\x1b[A");
+    terminal.input("\r");
+    expect(frame()).toContain("Automatic Theme");
+    expect(frame()).toContain("Light theme");
+    terminal.input("\r");
+    expect(frame()).toContain("Light Theme");
+    expect(frame()).toContain("Select the theme to use for light terminal appearance");
+    terminal.input("\x1b");
+    expect(frame()).toContain("Automatic Theme");
+    terminal.input("\x1b");
+    expect(frame()).toContain("Type to search · Enter/Space to change · Esc to cancel");
+    expect(frame()).toContain("> theme");
+    terminal.input("\x1b");
+
+    await shell.submit("/settings");
+    terminal.input("thinking");
+    terminal.input("\r");
+    expect(frame()).toContain("Thinking Level");
+    expect(frame()).toContain("Select reasoning depth for thinking-capable models");
+    terminal.input("\x1b");
+    terminal.input("\x1b");
+
+    await shell.submit("/settings");
+    terminal.input("warnings");
+    terminal.input("\r");
+    expect(frame()).toContain("Anthropic extra usage");
+    terminal.input("\x1b");
+    terminal.input("\x1b");
+    expect(frame()).not.toContain("Auto-compact");
+    await shell.dispose();
+  });
+
   it("keeps scoped-model changes session-only until Ctrl+S and leaves the modal open", async () => {
     const { engine, terminal, shell } = await fixture();
     await shell.submit("/scoped-models");
