@@ -52,9 +52,12 @@ export const TERMINAL_PARITY_ACTIONS = Object.freeze([
   { type: "text", value: "/copy" },
   { type: "key", key: "enter" },
   { type: "checkpoint", name: "command-error-placement", domains: ["transcript", "errors", "raw-ansi", "rows-spacing", "component-geometry"] },
+  { type: "text", value: "/parity-multiline-status" },
+  { type: "key", key: "enter" },
+  { type: "checkpoint", name: "multiline-status", domains: ["transcript", "status", "raw-ansi", "rows-spacing", "component-geometry"] },
   { type: "text", value: "/trust" },
   { type: "key", key: "enter" },
-  { type: "checkpoint", name: "trust-selector", domains: ["selector-dialog", "settings", "editor", "footer-status", "cursor-focus"] },
+  { type: "checkpoint", name: "trust-selector", domains: ["selector-dialog", "status", "rows-spacing", "component-geometry", "editor", "footer-status", "cursor-focus"] },
   { type: "key", key: "escape" },
   { type: "checkpoint", name: "trust-cancel-restored", domains: ["selector-dialog", "transcript", "editor", "footer-status", "cursor-focus"] },
   { type: "text", value: "/scoped-models" },
@@ -255,6 +258,12 @@ class ParityCustomSurface extends Container {
 }
 
 export default function deterministicParityProvider(pi) {
+  pi.registerCommand("parity-multiline-status", {
+    description: "Parity multiline status",
+    handler: async (_args, ctx) => {
+      ctx.ui.notify("Share URL: https://pi.gptscript.ai/gist/parity-id\\nGist: https://gist.github.com/parity/parity-id", "info");
+    },
+  });
   pi.registerCommand("parity-select-ui", {
     description: "Parity extension selector",
     handler: async (_args, ctx) => { await ctx.ui.select("Parity extension selector", ["Alpha", "Beta"]); },

@@ -540,7 +540,13 @@ describe("PiSessionShell", () => {
     expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Creating gist...");
     resolveShare?.({ command: "share", outcome: "completed", message: "Share URL: https://example.test", detail: "https://gist.test/id" });
     await share;
-    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).not.toContain("Creating gist...");
+    const shareRows = shell.root.render(100);
+    expect(stripTerminalSequences(shareRows.join("\n"))).not.toContain("Creating gist...");
+    expect(shareRows.every(row => !row.includes("\n"))).toBe(true);
+    const plainShareRows = shareRows.map(row => stripTerminalSequences(row));
+    const shareRow = plainShareRows.findIndex(row => row.trimEnd() === " Share URL: https://example.test");
+    expect(shareRow).toBeGreaterThanOrEqual(0);
+    expect(plainShareRows[shareRow + 1]?.trimEnd()).toBe(" Gist: https://gist.test/id");
 
     const reload = shell.runWorkflow({ command: "reload", argument: "" });
     expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Reloading keybindings, extensions, skills, prompts, themes, and context files...");

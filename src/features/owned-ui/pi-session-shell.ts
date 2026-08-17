@@ -45,6 +45,7 @@ import {
   createPiShellTrustSelector,
   createPiShellUserMessageSelector,
   piTheme,
+  renderPiShellStatusText,
   renderPiShellTranscriptBlock,
   type PiExtensionUiBridge,
   type PiShellComponentPort,
@@ -271,7 +272,10 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
       this.invalidate();
       return;
     }
-    const id = this.#appendAnchoredWorkflowComponent(() => ["", ` ${piTheme().fg("dim", this.#workflowStatusMessages.get(id) ?? message)}`]);
+    const id = this.#appendAnchoredWorkflowComponent(width => [
+      "",
+      ...renderPiShellStatusText(this.#workflowStatusMessages.get(id) ?? message, width),
+    ]);
     this.#workflowStatusMessages.set(id, message);
     this.#lastWorkflowStatusId = id;
   }

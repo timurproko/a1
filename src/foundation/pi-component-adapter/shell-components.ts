@@ -713,6 +713,11 @@ export interface PiShellSessionInfoPresentation {
   readonly usageBreakdown: readonly { readonly key: string; readonly cost: number; readonly tokens: number }[];
 }
 
+export function renderPiShellStatusText(message: string, width: number): readonly string[] {
+  ensureTheme();
+  return new Text(piTheme().fg("dim", message), PINNED_PI_LAYOUT.outputPad, 0).render(width);
+}
+
 export function createPiShellSessionInfo(presentation: PiShellSessionInfoPresentation): PiShellComponentPort {
   ensureTheme();
   const { stats, sessionName, cacheWaste, usageBreakdown } = presentation;

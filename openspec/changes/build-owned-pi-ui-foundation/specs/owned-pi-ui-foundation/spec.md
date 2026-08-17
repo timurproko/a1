@@ -130,6 +130,12 @@ The AddOne-owned UI SHALL reproduce the complete visible and interactive behavio
 - **WHEN** the agent or an extension enters, updates, or leaves a working state
 - **THEN** the working indicator SHALL appear at the same prompt-relative location with equivalent icon, text, color, blank rows, replacement behavior, and editor/footer relationship as vanilla Pi
 
+#### Scenario: Render a multiline prompt-adjacent status before a modal
+- **WHEN** a status contains multiple visual lines, including the `Share URL` and `Gist` result, and an editor-replacement modal is subsequently opened or closed in regular mode
+- **THEN** every visual line SHALL be a separate tracked component row with pinned one-cell output padding, wrapping, styling, and order
+- **AND** the physical terminal row count SHALL remain synchronized with `TuiMainScreen` so the modal and footer occupy the same source-derived rows as untouched Pi
+- **AND** no component render-array entry SHALL contain an embedded newline that bypasses TUI row accounting
+
 #### Scenario: Order prompt-adjacent messages
 - **WHEN** informational, status, warning, error, notification, queue, retry, compaction, or extension messages are produced consecutively or interleaved with persistent content
 - **THEN** each message SHALL use its pinned style and spacing, and the newest active message SHALL occupy the pinned position closest to the editor
