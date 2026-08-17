@@ -62,7 +62,7 @@
     },
     {
       "path": "test/features/owned-ui/fixtures/pi-event-frame-parity.json",
-      "sha256": "7199fd052f1fbe3269ee6638c03e70db9c2f1280a456fe11bf3db3440ca84ecb",
+      "sha256": "794b823cbc693c6b10f3a734b030062f472b897c6e1f02e7b93586130a8f01db",
       "stateTransitions": 12,
       "capturedFrames": 5,
       "classification": "Synthetic AddOne-session regression fixture; no independent upstream producer",
@@ -84,10 +84,12 @@
         "ignored": [
           "cursor visibility",
           "synchronized-output envelope",
-          "render timing"
+          "render timing",
+          "file hyperlink absolute target"
         ],
         "preserved": [
           "rendered row payloads",
+          "file hyperlink boundaries",
           "cursor addressing",
           "state transitions",
           "resize dimensions"
