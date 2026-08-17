@@ -12,7 +12,6 @@ import {
   type TUI,
   type TuiAltScreenOptions,
   visibleWidth,
-  wrapTextWithAnsi,
 } from "@earendil-works/pi-tui";
 import type {
   PiTuiComponentPort,
@@ -57,8 +56,12 @@ class ComponentBridge implements Component, Focusable {
   }
 
   render(width: number): string[] {
-    return this.port.render(width).flatMap(line =>
-      visibleWidth(line) > width ? wrapTextWithAnsi(line, width) : [line]);
+    const lines = [...this.port.render(width)];
+    const overflow = lines.findIndex(line => visibleWidth(line) > width);
+    if (overflow >= 0) {
+      throw new RangeError(`Pi TUI component row ${overflow} exceeds available width ${width}`);
+    }
+    return lines;
   }
 
   handleInput(data: string): void {

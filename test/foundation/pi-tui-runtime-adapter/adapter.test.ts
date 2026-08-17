@@ -169,6 +169,16 @@ describe("PiTuiRuntimeAdapter", () => {
     expect(terminal.writes.join("")).toContain("\x1b[?1049l");
   });
 
+  it("rejects over-width component rows instead of silently rewriting source layout", async () => {
+    const terminal = new TestTerminal();
+    terminal.columns = 5;
+    const root = new TestComponent(["123456"]);
+    const runtime = new PiTuiRuntimeAdapter({ root, terminal });
+    runtime.start();
+    expect(() => runtime.renderNow()).toThrow("component row 0 exceeds available width 5");
+    await runtime.stop();
+  });
+
   it("supports adapter-owned input interception without exposing Pi listener types", async () => {
     const terminal = new TestTerminal();
     const root = new TestComponent(["root"]);

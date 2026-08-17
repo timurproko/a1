@@ -599,6 +599,14 @@ describe("PiSessionShell", () => {
     expect(rows[working + 1]?.trim()).toBe("");
     expect(rows[working + 2]).toMatch(/^─+$/);
 
+    shell.root.setExtensionWorking("Extension indexing source");
+    rows = shell.root.render(100).map(row => stripTerminalSequences(row).trimEnd());
+    expect(rows.some(row => row.includes("Extension indexing source"))).toBe(true);
+    expect(rows.some(row => row.includes("Working..."))).toBe(false);
+    shell.root.setExtensionWorking(undefined);
+    rows = shell.root.render(100).map(row => stripTerminalSequences(row).trimEnd());
+    expect(rows.some(row => row.includes("Extension indexing source"))).toBe(false);
+
     engine.session.emit({ type: "agent_end", messages: [] });
     await adapter.flushEvents();
     shell.root.appendWorkflowStatus("first informational message");

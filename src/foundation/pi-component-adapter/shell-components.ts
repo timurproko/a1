@@ -107,6 +107,10 @@ export interface PiShellViewComponentPort extends PiShellComponentPort {
   update(view: OwnedUiSessionViewModel): void;
 }
 
+export interface PiShellStatusPort extends PiShellViewComponentPort {
+  setWorkingOverride(message: string | undefined): void;
+}
+
 export interface PiShellQueuedInputPort extends PiShellComponentPort {
   update(submissions: readonly string[]): void;
 }
@@ -1145,21 +1149,29 @@ export function createPiShellLoadedResources(
 export function createPiShellStatus(
   view: OwnedUiSessionViewModel,
   runtime?: Pick<PiShellEditorOptions, "getColumns" | "getRows" | "requestRender">,
-): PiShellViewComponentPort {
+): PiShellStatusPort {
   ensureTheme();
   const statusUi = createTuiFacade(runtime ?? { getColumns: () => 80, getRows: () => 24, requestRender() {} });
-  let component = statusComponent(view, statusUi);
-  let signature = statusSignature(view);
+  let workingOverride: string | undefined;
+  let component = statusComponent(view, statusUi, workingOverride);
+  let signature = statusSignature(view, workingOverride);
+  const rebuild = () => {
+    const nextSignature = statusSignature(view, workingOverride);
+    if (nextSignature === signature) return;
+    if (component !== undefined && "dispose" in component && typeof component.dispose === "function") component.dispose();
+    signature = nextSignature;
+    component = statusComponent(view, statusUi, workingOverride);
+  };
   return {
     render: width => component?.render(width) ?? [],
     invalidate: () => component?.invalidate(),
     update(next) {
       view = next;
-      const nextSignature = statusSignature(next);
-      if (nextSignature === signature) return;
-      if (component !== undefined && "dispose" in component && typeof component.dispose === "function") component.dispose();
-      signature = nextSignature;
-      component = statusComponent(next, statusUi);
+      rebuild();
+    },
+    setWorkingOverride(message) {
+      workingOverride = message;
+      rebuild();
     },
     dispose() {
       if (component !== undefined && "dispose" in component && typeof component.dispose === "function") component.dispose();
@@ -1601,8 +1613,8 @@ function dialogOptions(dialog: OwnedUiDialog): readonly PiShellSelectorOption[] 
   return [{ id: "accept", label: "Accept" }, { id: "cancel", label: "Cancel" }];
 }
 
-function statusComponent(view: OwnedUiSessionViewModel, ui: TUI): Component | undefined {
-  if (view.lifecycle === "busy") return new WorkingStatusIndicator(ui, view.status.workingMessage ?? "Working...");
+function statusComponent(view: OwnedUiSessionViewModel, ui: TUI, workingOverride?: string): Component | undefined {
+  if (view.lifecycle === "busy") return new WorkingStatusIndicator(ui, workingOverride ?? view.status.workingMessage ?? "Working...");
   if (view.lifecycle === "failed") {
     return new Text(piTheme().fg("error", view.status.diagnostics.at(-1) ?? "Session failed"), PINNED_PI_LAYOUT.outputPad, 0);
   }
@@ -1612,8 +1624,8 @@ function statusComponent(view: OwnedUiSessionViewModel, ui: TUI): Component | un
   return undefined;
 }
 
-function statusSignature(view: OwnedUiSessionViewModel): string {
-  return `${view.lifecycle}\u0000${view.status.workingMessage ?? ""}\u0000${view.status.diagnostics.at(-1) ?? ""}`;
+function statusSignature(view: OwnedUiSessionViewModel, workingOverride?: string): string {
+  return `${view.lifecycle}\u0000${workingOverride ?? ""}\u0000${view.status.workingMessage ?? ""}\u0000${view.status.diagnostics.at(-1) ?? ""}`;
 }
 
 function queuedInputText(submissions: readonly string[]): string {

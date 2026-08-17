@@ -60,6 +60,7 @@ import {
   type PiShellResourceEntry,
   type PiShellScopedModelsSelectorPort,
   type PiShellSelectorOption,
+  type PiShellStatusPort,
   type PiShellTranscriptComponentPort,
   type PiShellViewComponentPort,
 } from "../../foundation/pi-component-adapter/index.js";
@@ -86,7 +87,7 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
   readonly #transcript = new Map<string, PiShellTranscriptComponentPort>();
   #transcriptOrder: string[] = [];
   #view: OwnedUiSessionViewModel;
-  readonly #status: PiShellViewComponentPort;
+  readonly #status: PiShellStatusPort;
   readonly #footer: PiShellViewComponentPort;
   readonly #queued: PiShellQueuedInputPort;
   readonly #extensionRenderers: PiShellExtensionRendererResolver;
@@ -404,6 +405,7 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
   setExtensionWorking(message: string | undefined, visible = this.#extensionWorkingVisible): void {
     this.#extensionWorkingMessage = message;
     this.#extensionWorkingVisible = visible;
+    this.#status.setWorkingOverride(visible ? message : undefined);
     this.invalidate();
   }
 
@@ -428,6 +430,7 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
     this.#extensionWidgets.clear();
     this.#extensionStatuses.clear();
     this.#extensionWorkingMessage = undefined;
+    this.#status.setWorkingOverride(undefined);
     this.#footer.update(this.#viewWithExtensionStatuses(this.#view));
     this.invalidate();
   }
@@ -557,9 +560,6 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
   }
 
   #renderStatus(width: number): readonly string[] {
-    if (this.#extensionWorkingVisible && this.#extensionWorkingMessage && this.#view.lifecycle === "busy") {
-      return this.#status.render(width).map(row => row.replace(this.#view.status.workingMessage ?? "Working...", this.#extensionWorkingMessage!));
-    }
     return this.#status.render(width);
   }
 
