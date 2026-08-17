@@ -39,8 +39,13 @@
   "automatedResults": {
     "focusedRuntime": "3 files, 18 tests passed",
     "focusedContaining": "6 files, 61 tests passed",
+    "fullSuite": "86 files, 470 tests passed",
     "typecheck": "passed",
     "architectureAndSourceLedger": "passed; 109 records, 29 behavior mappings",
+    "deprecatedDependencyPolicy": "passed",
+    "audit": "0 vulnerabilities",
+    "releaseGate": "passed",
+    "packageDryRun": "399 files, 349.8 kB packed, 1.8 MB unpacked",
     "strictOpenSpecValidation": "passed",
     "terminalParity": {
       "status": "passed",
@@ -61,8 +66,9 @@
   },
   "acceptance": {
     "task7_1": "automated correction complete",
-    "tasks7_18And7_21": "reopened pending containing/full lifecycle rerun and fresh manual confirmation",
-    "task7_22": "open",
+    "tasks7_18And7_21": "automated rerun complete",
+    "task8_1": "automated rerun complete",
+    "task7_22": "open pending fresh manual confirmation",
     "manualAcceptance": "pending fresh user comparison"
   }
 }

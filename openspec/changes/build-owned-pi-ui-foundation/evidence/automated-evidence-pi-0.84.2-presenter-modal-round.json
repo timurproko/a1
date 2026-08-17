@@ -44,12 +44,12 @@
       "session-identity-values"
     ],
     "dynamicIdentityTolerance": "Only equal-length producer profile names, generated session filenames, and generated session IDs are normalized; headings, labels, row geometry, wrapping, ANSI styles, and all non-identity values remain compared.",
-    "piRawCaptureSha256": "af411febba62cedec6fee4500355fd7a7751374338799ba6f83d05eb4998aeb6",
-    "addOneRawCaptureSha256": "0e672a6012a7a8710e31d6d99cd9fbfd0d28bac0c959595155b31e39e845900e",
+    "piRawCaptureSha256": "2e016db3bbe453d16dc806f04494877b3e513c7bc5cbd61e6a5dc4977a178968",
+    "addOneRawCaptureSha256": "adf589ea193b50654d2abfad718b1cce6931501981936901237aedd8da818c14",
     "artifacts": {
-      "reportSha256": "61267fd553de214ae2954fd58295673431b056c7bdc974b7ecd209b2b4e08f25",
-      "upstreamSha256": "1678c2753fce798569202029dca64b7bf2d0d226b03f50aabbb1726273e01a0e",
-      "addOneSha256": "def5d321f910539ce73fb31ff58bd1a1cbfacd5cfd4e4557a9500a30d42d1330"
+      "reportSha256": "a940532c167ae37ff69f831155dc00cff5a50ef0d5e862331a9a44dc9f923741",
+      "upstreamSha256": "37bc60808ba7a1b48f574def9977f06fd4ef9d729a980329541ae996b26e4f4d",
+      "addOneSha256": "4fa52196fdaadb37355203bb9fa088e156eae2769f55d7db46678bd06b1fda83"
     }
   },
   "intentionalMutations": [
@@ -61,13 +61,13 @@
     "modal-restoration"
   ],
   "validation": {
-    "tests": "86 files, 468 tests passed",
+    "tests": "86 files, 470 tests passed",
     "typecheck": "passed",
     "architecture": "passed",
     "deprecatedDependencyPolicy": "passed",
     "audit": "0 vulnerabilities",
     "releaseGate": "passed",
-    "packageDryRun": "399 files, 347.1 kB packed, 1.8 MB unpacked",
+    "packageDryRun": "399 files, 349.8 kB packed, 1.8 MB unpacked",
     "strictOpenSpecValidation": "passed"
   },
   "remaining": [
