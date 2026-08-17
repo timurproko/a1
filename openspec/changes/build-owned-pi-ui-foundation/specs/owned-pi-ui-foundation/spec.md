@@ -125,6 +125,42 @@ The AddOne-owned UI SHALL reproduce the complete visible and interactive behavio
 - **THEN** the editor SHALL browse those messages in pinned newest/oldest order, suppress adjacent duplicates, preserve multiline cursor movement outside those boundaries, and restore the pre-navigation draft when leaving history browsing
 - **AND** newly accepted ordinary, streaming, extension, bash, steering, and follow-up inputs SHALL enter history at the same source-traced controller points as pinned Pi
 
+#### Scenario: Render structured built-in command content
+- **WHEN** a built-in command presents structured information, including `/session`
+- **THEN** the owned UI SHALL reproduce vanilla Pi's complete headings, groups, labels, values, colors, emphasis, indentation, wrapping, spacing, and scrolling for that route
+- **AND** it SHALL NOT replace the route-specific presenter with raw JSON, a plain object dump, a generic success heading, an AddOne-only checkmark, or flattened plain text
+
+#### Scenario: Preserve visible-content ownership planes
+- **WHEN** pinned Pi presents persistent document content, prompt-adjacent transient content, or active replacement content
+- **THEN** AddOne SHALL place the content in the equivalent root region with the same sibling order, vertical spacing, style, width, scroll/follow effect, replacement behavior, and lifetime
+- **AND** correct text rendered in a different transcript, workflow, status, editor, footer, or modal region SHALL fail parity
+
+#### Scenario: Position the working indicator
+- **WHEN** the agent or an extension enters, updates, or leaves a working state
+- **THEN** the working indicator SHALL appear at the same prompt-relative location with equivalent icon, text, color, blank rows, replacement behavior, and editor/footer relationship as vanilla Pi
+
+#### Scenario: Order prompt-adjacent messages
+- **WHEN** informational, status, warning, error, notification, queue, retry, compaction, or extension messages are produced consecutively or interleaved with persistent content
+- **THEN** each message SHALL use its pinned style and spacing, and the newest active message SHALL occupy the pinned position closest to the editor
+- **AND** coalescing, replacement, removal, scrolling, and transition back to the ordinary editor SHALL preserve the pinned chronological order
+
+#### Scenario: Place command information and errors near the prompt
+- **WHEN** a command emits a current informational result or failure
+- **THEN** AddOne SHALL render it in the same prompt-adjacent or persistent region selected by vanilla Pi for that exact route, with the same prefix, context, style, spacing, and bottom relationship
+- **AND** AddOne SHALL NOT place a prompt-adjacent error in an earlier content bucket or leave a large unpinned gap below it
+
+#### Scenario: Traverse a nested dialog path
+- **WHEN** a user moves from any top-level selector or dialog into a deeper selector, input, confirmation, authentication method, API-key, browser/device/OAuth, error, or completion state
+- **THEN** every depth SHALL reproduce vanilla Pi's heading, body, options, descriptions, borders, colors, instruction hints, focus, selection, scrolling, viewport, and input behavior
+- **AND** each completion, cancellation, back, failure, session-switch, and disposal transition SHALL restore the exact pinned parent surface or ordinary editor state
+- **AND** a generic text input or selector that merely returns an equivalent value SHALL NOT satisfy the nested route
+
+#### Scenario: Prove the complete modal transition graph
+- **WHEN** source coverage or parity acceptance runs
+- **THEN** every source-reachable built-in and extension modal node and every transition edge SHALL have a mapped specialized controller and independent pinned-versus-AddOne evidence
+- **AND** removing a nested node, transition, style, instruction, ownership region, or restoration edge SHALL make the gate fail
+- **AND** top-level open/cancel snapshots alone SHALL NOT establish modal completeness
+
 ### Requirement: Visible Pi extension UI is part of the 1:1 baseline
 The owned UI SHALL support the visible behavior exposed by pinned Pi extensions, including widgets, custom editors and inputs, selectors, dialogs, notifications, status and footer contributions, custom message and tool renderers, terminal input hooks, working indicators, and lifecycle cleanup. Extension UI behavior SHALL cross AddOne-owned versioned boundaries and SHALL NOT require mutation of installed Pi code or private interactive state.
 

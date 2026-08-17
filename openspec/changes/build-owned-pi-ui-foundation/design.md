@@ -153,6 +153,24 @@ The gate will capture comparable terminal checkpoints and report row text, ANSI 
 
 The harness is test-only and must not add PTY ownership, terminal parsing, captured cell grids, or vanilla-Pi process dependencies to production runtime boundaries. It will run headlessly in an isolated worker/session and clean up both process trees on success, timeout, or failure. Focused internal tests may be used while diagnosing a failure, but the required acceptance interface is the one full `npm run test:pi-terminal-parity` command, which must pass before a corrected slice is marked complete or committed.
 
+### 9. Model content ownership and dialogs as source-derived graphs, not sampled frames
+
+The latest manual comparison invalidates the assumption that a passing set of top-level checkpoints proves root composition or modal parity. AddOne still renders structured command output such as `/session` as raw generic content, places working/informational/error rows in the wrong vertical region, orders prompt-adjacent messages incorrectly, and replaces deeper authentication levels with generic text inputs. These are controller-boundary failures rather than isolated string or color defects.
+
+The next source trace will classify every visible component instance into one pinned ownership plane:
+
+1. **Persistent document content** — startup resources, user/assistant/tool transcript, command-owned structured documents, and content that participates in document scrolling.
+2. **Prompt-adjacent transient content** — working, status, informational, warning, error, notification, queue, retry, compaction, and extension rows whose location, spacing, chronology, coalescing, replacement, or lifetime is anchored relative to the editor/footer region.
+3. **Active replacement content** — selectors, dialogs, editors, confirmations, authentication steps, and overlays that replace or nest within the editor region and restore a parent or the ordinary editor on completion.
+
+Each pinned source path must identify its owning container, insertion/removal method, sibling order, spacing components, style function, update/coalescing rule, scroll/follow effect, and restoration/disposal path. AddOne will mechanically port the coherent controller/component boundary that owns those facts. Moving text between generic transcript and workflow buckets or matching only the visible words is not an acceptable correction.
+
+Modal coverage will be represented as a directed transition graph rather than a flat route inventory. Every node records exact heading, content, options, descriptions, borders, colors, instructions, active focus, viewport, scrolling, and parent. Every edge records the triggering input, state mutation, replacement/nesting behavior, completion value, cancellation or failure effect, and destination/restoration node. Authentication must include provider selection, authentication-type selection, API-key input, browser/device/OAuth states, logout, errors, cancellation, and parent restoration; the same graph rule applies to settings, models, sessions, tree/fork, command inputs/confirmations, and all extension-hosted surfaces.
+
+The independent parity producer must capture every ownership-plane state and every graph node and edge with real pinned content. Mutation tests must prove the gate fails when a presenter is flattened, a transient row changes plane/order/spacing/style, any nested node or edge is omitted, a specialized surface becomes generic, or restoration targets the wrong parent. The existing zero-difference record remains historical because its checkpoint vocabulary and deterministic producers did not expose these paths. Manual acceptance follows exhaustive automated graph coverage; it is not the discovery mechanism for omitted cases.
+
+**Alternative rejected:** patch the six screenshots directly or add more top-level snapshots. That would preserve the sampled-controller problem and leave unvisited nested paths for the user to discover.
+
 ## Risks / Trade-offs
 
 - **[Large mechanical port creates review churn]** → Land coherent upstream units separately, keep transformations mechanical, and attach ledger entries and focused tests to each slice.
@@ -162,15 +180,17 @@ The harness is test-only and must not add PTY ownership, terminal parsing, captu
 - **[Exact frames vary by terminal]** → Record terminal metadata and permit only reviewed terminal-specific tolerances; semantic or styling differences still fail.
 - **[Bare `a1` is temporarily imperfect during development]** → Keep each migration slice runnable, make failures visible, test bare launch continuously, and retain explicit `a1 pi` for uninterrupted upstream operation.
 - **[Current completed tasks and evidence become misleading]** → Reopen contradicted tasks, mark superseded evidence as historical, and require fresh acceptance after the source port replaces the approximation.
+- **[A flat inventory reports complete while deep transitions remain generic]** → Generate the inventory from source-level nodes and edges, require independent evidence per node/edge, and fail on deliberate node/edge removal.
+- **[Correct text still appears in the wrong root region]** → Record ownership plane, sibling order, spacing, chronology, replacement, and lifetime for every presenter and compare final prompt-relative frames.
 
 ## Migration Plan
 
 1. Change CLI routing so bare `a1` launches the owned shell, remove `a1 ui`, and continuously verify `a1 pi` remains untouched.
-2. Reopen tasks 7.3 and 7.4 and classify their implementation and evidence as incomplete where contradicted by manual findings.
-3. Generate the exhaustive pinned source inventory, provenance records, classification, and deviation-ledger schema.
-4. Port themes, color resolution, layout primitives, and visual components in upstream dependency order.
-5. Port root composition, editor/input handling, autocomplete, focus, keybindings, status/footer, selectors, and dialogs.
-6. Port command controllers and all built-in workflows without retaining approximate duplicate paths.
+2. Reopen every task contradicted by the latest structured-content, transient-placement, chronology, and deep-dialog findings; classify the existing zero-difference record as historical and incomplete.
+3. Regenerate the pinned inventory as both a source ledger and a complete ownership-plane/modal-transition graph, with provenance and acceptance mappings for every presenter, node, and edge.
+4. Port themes, color resolution, layout primitives, structured command presenters, and visual components in upstream dependency order.
+5. Port root composition and exact persistent/transient/replacement ownership, including prompt-relative spacing, chronological insertion, coalescing, scrolling, focus, resize, and disposal.
+6. Port command controllers and the complete nested modal transition graph without retaining generic content, selector, input, workflow, or duplicate paths.
 7. Port session prompt/event orchestration, streaming, tools, retries, compaction, queues, progress, errors, and transcript rebuilding against real public SDK sessions.
 8. Port and bind every visible extension UI callback, including failure isolation and lifecycle cleanup.
 9. Run exhaustive source coverage, architecture, independent workflow/frame parity, resize, real prompt, real extension, and fresh user-controlled acceptance gates.
