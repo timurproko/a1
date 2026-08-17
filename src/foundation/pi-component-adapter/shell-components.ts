@@ -24,7 +24,6 @@ import {
   rawKeyHint,
   SettingsSelectorComponent,
   ShowImagesSelectorComponent,
-  SkillInvocationMessageComponent,
   type SessionInfo,
   type SessionTreeNode,
   type SettingsCallbacks,
@@ -38,6 +37,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { ExtensionEditorComponent } from "./upstream/components/extension-editor.js";
 import { SessionSelectorComponent } from "./upstream/components/session-selector.js";
+import { SkillInvocationMessageComponent } from "./upstream/components/skill-invocation-message.js";
 import { TreeSelectorComponent } from "./upstream/components/tree-selector.js";
 import {
   Box,
@@ -1290,13 +1290,9 @@ function transcriptComponent(
       if (!skill) return new UserMessageComponent(block.text);
       const invocation = new SkillInvocationMessageComponent(skill, getMarkdownTheme());
       invocation.setExpanded(expanded);
-      const renderedInvocation: Component = {
-        render: width => invocation.render(width).map(row => row.replace("( to expand)", "(ctrl+o to expand)")),
-        invalidate: () => invocation.invalidate(),
-      };
-      if (!skill.userMessage) return renderedInvocation;
+      if (!skill.userMessage) return invocation;
       const container = new Container();
-      container.addChild(renderedInvocation);
+      container.addChild(invocation);
       container.addChild(new Spacer(1));
       container.addChild(new UserMessageComponent(skill.userMessage));
       return container;
