@@ -30,7 +30,7 @@ beforeAll(async () => {
     "--outDir",
     resolve(isolatedBuildRoot, "dist", "src"),
   ], { cwd: isolatedBuildRoot, timeout: 30_000 });
-});
+}, 30_000);
 
 afterAll(async () => {
   if (temporaryRoot !== "") await rm(temporaryRoot, { recursive: true, force: true });
