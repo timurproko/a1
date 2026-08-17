@@ -69,6 +69,12 @@ describe("pinned extension UI bridge", () => {
     controller.abort();
     await expect(cancelled).resolves.toBeUndefined();
     expect(value.inputSurface).toBeNull();
+
+    const switched = value.bridge.context.input("Session switch", "cancel me");
+    expect(value.inputSurface).not.toBeNull();
+    value.bridge.reset();
+    await expect(switched).resolves.toBeUndefined();
+    expect(value.inputSurface).toBeNull();
     value.bridge.dispose();
   });
 
@@ -116,7 +122,13 @@ describe("pinned extension UI bridge", () => {
     expect(value.inputSurface).toBeNull();
 
     await expect(value.bridge.context.custom(() => { throw new Error("custom boom"); })).rejects.toThrow("custom boom");
-    expect(value.notifications).toContain("error:Extension custom surface failed: custom boom");
+    expect(value.notifications).not.toContain("error:Extension custom surface failed: custom boom");
+    expect(value.inputSurface).toBeNull();
+
+    const switched = value.bridge.context.custom(() => new Text("switch custom", 0, 0));
+    await new Promise(resolve => setTimeout(resolve, 0));
+    value.bridge.reset();
+    await expect(switched).resolves.toBeUndefined();
     expect(value.inputSurface).toBeNull();
     value.bridge.dispose();
   });

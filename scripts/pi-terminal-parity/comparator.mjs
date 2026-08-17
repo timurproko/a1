@@ -61,6 +61,30 @@ export function applyIntentionalMutation(producer, mutation) {
     checkpoint.cursor = { ...checkpoint.cursor, x: checkpoint.cursor.x + 1 };
     return clone;
   }
+  if (mutation === "structured-content") {
+    const checkpoint = clone.checkpoints.find(value => value.name === "session-info") ?? clone.checkpoints[0];
+    if (!checkpoint?.rows[0]) throw new Error("structured-content mutation requires a checkpoint row");
+    checkpoint.rows[0].text = '{"sessionId":"flattened"}';
+    checkpoint.rows[0].rawText = checkpoint.rows[0].text.padEnd(checkpoint.dimensions.columns);
+    return clone;
+  }
+  if (mutation === "presenter-plane") {
+    const checkpoint = clone.checkpoints.find(value => value.name === "command-info-placement") ?? clone.checkpoints[0];
+    if (!checkpoint || checkpoint.rows.length < 2) throw new Error("presenter-plane mutation requires checkpoint rows");
+    checkpoint.rows = [...checkpoint.rows.slice(1), checkpoint.rows[0]];
+    return clone;
+  }
+  if (mutation === "modal-node") {
+    if (clone.checkpoints.length === 0) throw new Error("modal-node mutation requires a checkpoint");
+    clone.checkpoints.splice(0, 1);
+    return clone;
+  }
+  if (mutation === "modal-restoration") {
+    const checkpoint = clone.checkpoints.find(value => value.name.includes("restored")) ?? clone.checkpoints[0];
+    if (!checkpoint) throw new Error("modal-restoration mutation requires a checkpoint");
+    checkpoint.cursor = { ...checkpoint.cursor, x: checkpoint.cursor.x + 1 };
+    return clone;
+  }
   throw new TypeError(`unknown parity mutation: ${mutation}`);
 }
 

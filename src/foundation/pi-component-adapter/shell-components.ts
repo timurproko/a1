@@ -840,6 +840,7 @@ export interface PiExtensionUiBridgeHost {
 
 export interface PiExtensionUiBridge {
   readonly context: ExtensionUIContext;
+  reset(): void;
   dispose(): void;
 }
 
@@ -852,6 +853,7 @@ export function createPiExtensionUiBridge(host: PiExtensionUiBridgeHost): PiExte
   const disposers = new Set<() => void>();
   let customEditorFactory: PiEditorFactory | undefined;
   let activeSurface: PiShellComponentPort | undefined;
+  let activeCancel: (() => void) | undefined;
   const closeSurface = (surface?: PiShellComponentPort) => {
     if (surface !== undefined && activeSurface !== surface) return;
     activeSurface = undefined;
@@ -886,6 +888,7 @@ export function createPiExtensionUiBridge(host: PiExtensionUiBridgeHost): PiExte
       const finish = (value: T) => {
         if (settled) return;
         settled = true;
+        if (activeCancel === cancel) activeCancel = undefined;
         untrack();
         closeSurface(surface);
         resolve(value);
@@ -893,7 +896,10 @@ export function createPiExtensionUiBridge(host: PiExtensionUiBridgeHost): PiExte
       const cancel = () => finish(undefined as T);
       surface = create(finish, cancel);
       untrack = trackAbort(options?.signal, cancel);
-      if (!settled) mountSurface(surface);
+      if (!settled) {
+        activeCancel = cancel;
+        mountSurface(surface);
+      }
     });
   const createFactoryComponent = (factory: unknown, ...arguments_: unknown[]): PiShellComponentPort => {
     if (typeof factory !== "function") throw new TypeError("extension component factory must be a function");
@@ -964,15 +970,16 @@ export function createPiExtensionUiBridge(host: PiExtensionUiBridgeHost): PiExte
       const done = (value: unknown) => {
         if (settled) return;
         settled = true;
+        if (activeCancel === cancelCustom) activeCancel = undefined;
         overlay?.hide();
         if (surface !== undefined) closeSurface(surface);
         resolve(value as never);
       };
+      const cancelCustom = () => done(undefined);
       let created: unknown;
       try {
         created = factory(tui, piTheme(), keybindings as never, done);
       } catch (error) {
-        host.notify(extensionError("custom surface", error), "error");
         reject(error);
         return;
       }
@@ -983,14 +990,15 @@ export function createPiExtensionUiBridge(host: PiExtensionUiBridgeHost): PiExte
           return;
         }
         surface = componentPort(component);
+        activeCancel = cancelCustom;
         if (options?.overlay) {
           const overlayOptions = typeof options.overlayOptions === "function" ? options.overlayOptions() : options.overlayOptions;
           overlay = host.showOverlay(surface, overlayOptions);
           options.onHandle?.(overlay as never);
         } else mountSurface(surface);
       }).catch(error => {
+        if (activeCancel === cancelCustom) activeCancel = undefined;
         if (surface !== undefined) closeSurface(surface);
-        host.notify(extensionError("custom surface", error), "error");
         reject(error);
       });
     }),
@@ -1036,14 +1044,21 @@ export function createPiExtensionUiBridge(host: PiExtensionUiBridgeHost): PiExte
     getToolsExpanded: () => host.getToolsExpanded(),
     setToolsExpanded: expanded => host.setToolsExpanded(expanded),
   };
+  const reset = () => {
+    const cancel = activeCancel;
+    activeCancel = undefined;
+    cancel?.();
+    activeSurface?.dispose?.();
+    activeSurface = undefined;
+    host.setInputSurface(null);
+  };
   return {
     context,
+    reset,
     dispose() {
+      reset();
       for (const dispose of disposers) dispose();
       disposers.clear();
-      activeSurface?.dispose?.();
-      activeSurface = undefined;
-      host.setInputSurface(null);
       host.replaceHeader(null);
       host.replaceFooter(null);
     },

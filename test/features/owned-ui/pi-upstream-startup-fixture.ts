@@ -40,7 +40,7 @@ export interface StartupCaptureState {
 
 export const PINNED_STARTUP_STATES: readonly StartupCaptureState[] = [
   { id: "ready-collapsed-80", width: 80, cwd: "D:/work", quiet: false, expanded: false, lifecycle: "ready", workingMessage: null, model: { providerId: "openai", modelId: "gpt-5" }, thinkingLevel: "medium", notices: [] },
-  { id: "busy-expanded-60", width: 60, cwd: "D:/work", quiet: false, expanded: true, lifecycle: "busy", workingMessage: "Working…", model: { providerId: "openai", modelId: "gpt-5" }, thinkingLevel: "medium", notices: [] },
+  { id: "busy-expanded-60", width: 60, cwd: "D:/work", quiet: false, expanded: true, lifecycle: "busy", workingMessage: "Working...", model: { providerId: "openai", modelId: "gpt-5" }, thinkingLevel: "medium", notices: [] },
   { id: "quiet-no-model-44", width: 44, cwd: "D:/work", quiet: true, expanded: false, lifecycle: "ready", workingMessage: null, model: null, thinkingLevel: "off", notices: [] },
   { id: "warning-collapsed-72", width: 72, cwd: "D:/work", quiet: false, expanded: false, lifecycle: "ready", workingMessage: null, model: { providerId: "anthropic", modelId: "claude-sonnet" }, thinkingLevel: "off", notices: [{ kind: "warning", message: "Pinned startup warning" }] },
   { id: "populated-footer-80", width: 80, cwd: "D:/work", quiet: true, expanded: false, lifecycle: "ready", workingMessage: null, model: { providerId: "anthropic", modelId: "claude-opus-4.8" }, thinkingLevel: "high", notices: [], usage: { input: 1_800_000, output: 222_000, cacheRead: 94_000_000, cacheWrite: 0, cost: 72.526, contextTokens: 86_768, contextWindow: 272_000, contextPercent: 31.9, usingSubscription: true }, branch: "milestone/owned-pi-ui-foundation", sessionName: "parity", availableProviderCount: 2 },
@@ -59,7 +59,8 @@ export function capturePinnedUpstreamStartup(state: StartupCaptureState): Startu
   const status = renderStatus(state);
   const editor = createUpstreamEditor(state.width).render(state.width);
   const footer = createUpstreamFooter(state).render(state.width);
-  return { id: state.id, width: state.width, rows: [...header, ...status, ...editor, ...footer].map(normalizeRow) };
+  const aboveEditorWidgetSpacer = new Spacer(1).render(state.width);
+  return { id: state.id, width: state.width, rows: [...header, ...status, ...aboveEditorWidgetSpacer, ...editor, ...footer].map(normalizeRow) };
 }
 
 function renderStatus(state: StartupCaptureState): string[] {

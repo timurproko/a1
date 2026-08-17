@@ -47,7 +47,8 @@
     "acceptanceMapping": {
       "node": "modal-node:<node-id>",
       "edge": "modal-edge:<edge-id>"
-    }
+    },
+    "acceptanceEvidenceRequired": true
   },
   "sources": {
     "interactive": "node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/interactive-mode.js",
@@ -146,6 +147,11 @@
         "tree.summary-choice",
         "tree.summary-custom",
         "trust.project"
+      ],
+      "acceptanceEvidence": [
+        "terminal:editor-input",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
       ]
     },
     {
@@ -179,6 +185,11 @@
         "settings.thinking",
         "settings.value-submenu",
         "settings.warnings"
+      ],
+      "acceptanceEvidence": [
+        "terminal:settings-selector",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
       ]
     },
     {
@@ -205,6 +216,11 @@
       "acceptance": "modal-node:settings.value-submenu",
       "parents": [
         "settings.root"
+      ],
+      "acceptanceEvidence": [
+        "terminal:settings-selector",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
       ]
     },
     {
@@ -232,6 +248,11 @@
       "acceptance": "modal-node:settings.warnings",
       "parents": [
         "settings.root"
+      ],
+      "acceptanceEvidence": [
+        "terminal:settings-selector",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
       ]
     },
     {
@@ -258,6 +279,11 @@
       "acceptance": "modal-node:settings.thinking",
       "parents": [
         "settings.root"
+      ],
+      "acceptanceEvidence": [
+        "terminal:settings-selector",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
       ]
     },
     {
@@ -286,6 +312,11 @@
       "parents": [
         "settings.root",
         "settings.theme.automatic"
+      ],
+      "acceptanceEvidence": [
+        "terminal:settings-theme-automatic",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
       ]
     },
     {
@@ -317,6 +348,11 @@
         "settings.theme.dark",
         "settings.theme.light",
         "settings.theme.single"
+      ],
+      "acceptanceEvidence": [
+        "terminal:settings-theme-automatic",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
       ]
     },
     {
@@ -343,6 +379,11 @@
       "acceptance": "modal-node:settings.theme.light",
       "parents": [
         "settings.theme.automatic"
+      ],
+      "acceptanceEvidence": [
+        "terminal:settings-theme-automatic",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
       ]
     },
     {
@@ -369,6 +410,11 @@
       "acceptance": "modal-node:settings.theme.dark",
       "parents": [
         "settings.theme.automatic"
+      ],
+      "acceptanceEvidence": [
+        "terminal:settings-theme-automatic",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
       ]
     },
     {
@@ -395,6 +441,11 @@
       "acceptance": "modal-node:models.select",
       "parents": [
         "editor.root"
+      ],
+      "acceptanceEvidence": [
+        "terminal:model-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
       ]
     },
     {
@@ -423,6 +474,11 @@
         "editor.root",
         "models.scope",
         "models.scope.refreshing"
+      ],
+      "acceptanceEvidence": [
+        "terminal:scoped-models-saved-open",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
       ]
     },
     {
@@ -449,6 +505,11 @@
       "acceptance": "modal-node:models.scope.refreshing",
       "parents": [
         "models.scope"
+      ],
+      "acceptanceEvidence": [
+        "terminal:scoped-models-saved-open",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
       ]
     },
     {
@@ -475,6 +536,11 @@
       "acceptance": "modal-node:trust.project",
       "parents": [
         "editor.root"
+      ],
+      "acceptanceEvidence": [
+        "terminal:trust-selector",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
       ]
     },
     {
@@ -501,6 +567,11 @@
       "acceptance": "modal-node:session.fork",
       "parents": [
         "editor.root"
+      ],
+      "acceptanceEvidence": [
+        "terminal:session-selector-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
       ]
     },
     {
@@ -530,6 +601,11 @@
       "parents": [
         "editor.root",
         "tree.summary-choice"
+      ],
+      "acceptanceEvidence": [
+        "terminal:tree-selector",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
       ]
     },
     {
@@ -559,6 +635,11 @@
       "parents": [
         "tree.root",
         "tree.summary-custom"
+      ],
+      "acceptanceEvidence": [
+        "terminal:tree-summary-choice",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
       ]
     },
     {
@@ -587,6 +668,11 @@
       "acceptance": "modal-node:tree.summary-custom",
       "parents": [
         "tree.summary-choice"
+      ],
+      "acceptanceEvidence": [
+        "terminal:tree-summary-choice",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
       ]
     },
     {
@@ -622,6 +708,11 @@
         "session.resume.all",
         "session.resume.delete",
         "session.resume.rename"
+      ],
+      "acceptanceEvidence": [
+        "terminal:session-selector-all",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
       ]
     },
     {
@@ -656,6 +747,11 @@
         "session.resume.current",
         "session.resume.delete",
         "session.resume.rename"
+      ],
+      "acceptanceEvidence": [
+        "terminal:session-selector-all",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
       ]
     },
     {
@@ -684,6 +780,11 @@
       "parents": [
         "session.resume.all",
         "session.resume.current"
+      ],
+      "acceptanceEvidence": [
+        "terminal:session-selector-all",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
       ]
     },
     {
@@ -712,6 +813,11 @@
       "parents": [
         "session.resume.all",
         "session.resume.current"
+      ],
+      "acceptanceEvidence": [
+        "terminal:session-selector-all",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
       ]
     },
     {
@@ -739,6 +845,11 @@
       "acceptance": "modal-node:session.missing-cwd",
       "parents": [
         "editor.root"
+      ],
+      "acceptanceEvidence": [
+        "terminal:session-selector-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
       ]
     },
     {
@@ -767,6 +878,11 @@
       "parents": [
         "auth.login-provider",
         "editor.root"
+      ],
+      "acceptanceEvidence": [
+        "terminal:login-auth-type",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
       ]
     },
     {
@@ -793,6 +909,11 @@
       "acceptance": "modal-node:auth.login-provider",
       "parents": [
         "auth.login-type"
+      ],
+      "acceptanceEvidence": [
+        "terminal:login-provider-auth-type",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
       ]
     },
     {
@@ -818,6 +939,11 @@
       "acceptance": "modal-node:auth.logout-provider",
       "parents": [
         "editor.root"
+      ],
+      "acceptanceEvidence": [
+        "terminal:login-auth-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
       ]
     },
     {
@@ -847,6 +973,11 @@
         "auth.dialog.select-prompt",
         "auth.login-provider",
         "auth.login-type"
+      ],
+      "acceptanceEvidence": [
+        "terminal:login-provider-method",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
       ]
     },
     {
@@ -877,6 +1008,11 @@
         "auth.dialog.select-prompt",
         "auth.login-provider",
         "auth.login-type"
+      ],
+      "acceptanceEvidence": [
+        "terminal:login-provider-method",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
       ]
     },
     {
@@ -904,6 +1040,11 @@
       "parents": [
         "auth.login-provider",
         "auth.login-type"
+      ],
+      "acceptanceEvidence": [
+        "terminal:login-provider-method",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
       ]
     },
     {
@@ -930,6 +1071,11 @@
       "acceptance": "modal-node:auth.dialog.details",
       "parents": [
         "auth.dialog.api-key"
+      ],
+      "acceptanceEvidence": [
+        "terminal:login-provider-method",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
       ]
     },
     {
@@ -958,6 +1104,11 @@
       "acceptance": "modal-node:auth.dialog.auth-url",
       "parents": [
         "auth.dialog.oauth"
+      ],
+      "acceptanceEvidence": [
+        "terminal:login-provider-method",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
       ]
     },
     {
@@ -985,6 +1136,11 @@
       "acceptance": "modal-node:auth.dialog.device-code",
       "parents": [
         "auth.dialog.oauth"
+      ],
+      "acceptanceEvidence": [
+        "terminal:login-provider-method",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
       ]
     },
     {
@@ -1012,6 +1168,11 @@
       "parents": [
         "auth.dialog.api-key",
         "auth.dialog.oauth"
+      ],
+      "acceptanceEvidence": [
+        "terminal:login-provider-method",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
       ]
     },
     {
@@ -1040,6 +1201,11 @@
       "parents": [
         "auth.dialog.api-key",
         "auth.dialog.oauth"
+      ],
+      "acceptanceEvidence": [
+        "terminal:login-provider-method",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
       ]
     },
     {
@@ -1069,6 +1235,11 @@
       "parents": [
         "auth.dialog.api-key",
         "auth.dialog.oauth"
+      ],
+      "acceptanceEvidence": [
+        "terminal:login-provider-method",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
       ]
     },
     {
@@ -1096,6 +1267,11 @@
         "auth.dialog.ambient",
         "auth.dialog.api-key",
         "auth.dialog.oauth"
+      ],
+      "acceptanceEvidence": [
+        "terminal:login-provider-method",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
       ]
     },
     {
@@ -1121,6 +1297,11 @@
       "acceptance": "modal-node:auth.dialog.waiting",
       "parents": [
         "auth.dialog.device-code"
+      ],
+      "acceptanceEvidence": [
+        "terminal:login-provider-method",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
       ]
     },
     {
@@ -1148,6 +1329,11 @@
         "auth.dialog.api-key",
         "auth.dialog.oauth",
         "auth.dialog.waiting"
+      ],
+      "acceptanceEvidence": [
+        "terminal:login-provider-method",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
       ]
     },
     {
@@ -1174,6 +1360,11 @@
       "acceptance": "modal-node:command.import-confirm",
       "parents": [
         "editor.root"
+      ],
+      "acceptanceEvidence": [
+        "terminal:command-error-placement",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
       ]
     },
     {
@@ -1199,6 +1390,11 @@
       "acceptance": "modal-node:operation.share-loader",
       "parents": [
         "editor.root"
+      ],
+      "acceptanceEvidence": [
+        "terminal:extension-custom-replacement",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
       ]
     },
     {
@@ -1224,6 +1420,11 @@
       "acceptance": "modal-node:operation.reload-loader",
       "parents": [
         "editor.root"
+      ],
+      "acceptanceEvidence": [
+        "terminal:reload-status",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
       ]
     },
     {
@@ -1249,6 +1450,11 @@
       "acceptance": "modal-node:extension.select",
       "parents": [
         "editor.root"
+      ],
+      "acceptanceEvidence": [
+        "terminal:extension-selector",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
       ]
     },
     {
@@ -1275,6 +1481,11 @@
       "acceptance": "modal-node:extension.confirm",
       "parents": [
         "editor.root"
+      ],
+      "acceptanceEvidence": [
+        "terminal:extension-confirm",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
       ]
     },
     {
@@ -1302,6 +1513,11 @@
       "acceptance": "modal-node:extension.input",
       "parents": [
         "editor.root"
+      ],
+      "acceptanceEvidence": [
+        "terminal:extension-input",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
       ]
     },
     {
@@ -1329,6 +1545,11 @@
       "acceptance": "modal-node:extension.editor",
       "parents": [
         "editor.root"
+      ],
+      "acceptanceEvidence": [
+        "terminal:extension-editor",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
       ]
     },
     {
@@ -1354,6 +1575,11 @@
       "acceptance": "modal-node:extension.custom-editor",
       "parents": [
         "editor.root"
+      ],
+      "acceptanceEvidence": [
+        "terminal:command-transcript",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
       ]
     },
     {
@@ -1382,6 +1608,11 @@
       "acceptance": "modal-node:extension.custom-replacement",
       "parents": [
         "editor.root"
+      ],
+      "acceptanceEvidence": [
+        "terminal:extension-custom-replacement",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
       ]
     },
     {
@@ -1409,6 +1640,11 @@
       "acceptance": "modal-node:extension.overlay",
       "parents": [
         "editor.root"
+      ],
+      "acceptanceEvidence": [
+        "terminal:extension-custom-overlay",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
       ]
     }
   ],
@@ -1426,7 +1662,12 @@
       "replacement": "replace editorContainer and focus settingsList",
       "result": "active settings root",
       "restoration": "cancel returns editor.root",
-      "acceptance": "modal-edge:open.settings"
+      "acceptance": "modal-edge:open.settings",
+      "acceptanceEvidence": [
+        "terminal:command-error-placement",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "settings.value.open",
@@ -1441,7 +1682,12 @@
       "replacement": "nested SettingsList surface",
       "result": "setting value selector",
       "restoration": "select/cancel returns settings.root",
-      "acceptance": "modal-edge:settings.value.open"
+      "acceptance": "modal-edge:settings.value.open",
+      "acceptanceEvidence": [
+        "terminal:settings-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "settings.warnings.open",
@@ -1456,7 +1702,12 @@
       "replacement": "nested warning SettingsList",
       "result": "warning submenu",
       "restoration": "cancel returns settings.root",
-      "acceptance": "modal-edge:settings.warnings.open"
+      "acceptance": "modal-edge:settings.warnings.open",
+      "acceptanceEvidence": [
+        "terminal:settings-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "settings.thinking.open",
@@ -1471,7 +1722,12 @@
       "replacement": "nested SelectSubmenu",
       "result": "thinking selector",
       "restoration": "select/cancel returns settings.root",
-      "acceptance": "modal-edge:settings.thinking.open"
+      "acceptance": "modal-edge:settings.thinking.open",
+      "acceptanceEvidence": [
+        "terminal:settings-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "settings.theme.open",
@@ -1486,7 +1742,12 @@
       "replacement": "ThemeSubmenu single mode",
       "result": "single theme menu",
       "restoration": "apply/cancel returns settings.root; cancel restores original preview",
-      "acceptance": "modal-edge:settings.theme.open"
+      "acceptance": "modal-edge:settings.theme.open",
+      "acceptanceEvidence": [
+        "terminal:settings-theme-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "settings.theme.automatic",
@@ -1501,7 +1762,12 @@
       "replacement": "automatic theme SettingsList",
       "result": "automatic theme menu",
       "restoration": "Apply returns settings.root; cancel restores original",
-      "acceptance": "modal-edge:settings.theme.automatic"
+      "acceptance": "modal-edge:settings.theme.automatic",
+      "acceptanceEvidence": [
+        "terminal:settings-theme-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "settings.theme.single-back",
@@ -1516,7 +1782,12 @@
       "replacement": "single theme SelectSubmenu",
       "result": "single theme menu",
       "restoration": "normal theme completion",
-      "acceptance": "modal-edge:settings.theme.single-back"
+      "acceptance": "modal-edge:settings.theme.single-back",
+      "acceptanceEvidence": [
+        "terminal:settings-theme-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "settings.theme.light.open",
@@ -1531,7 +1802,12 @@
       "replacement": "nested theme SelectSubmenu",
       "result": "light theme list",
       "restoration": "select/cancel returns automatic menu",
-      "acceptance": "modal-edge:settings.theme.light.open"
+      "acceptance": "modal-edge:settings.theme.light.open",
+      "acceptanceEvidence": [
+        "terminal:settings-theme-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "settings.theme.dark.open",
@@ -1546,7 +1822,12 @@
       "replacement": "nested theme SelectSubmenu",
       "result": "dark theme list",
       "restoration": "select/cancel returns automatic menu",
-      "acceptance": "modal-edge:settings.theme.dark.open"
+      "acceptance": "modal-edge:settings.theme.dark.open",
+      "acceptanceEvidence": [
+        "terminal:settings-theme-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "settings.close",
@@ -1562,7 +1843,12 @@
       "replacement": "restore editor component",
       "result": "silent close",
       "restoration": "focus editor.root",
-      "acceptance": "modal-edge:settings.close"
+      "acceptance": "modal-edge:settings.close",
+      "acceptanceEvidence": [
+        "terminal:settings-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "open.model",
@@ -1577,7 +1863,12 @@
       "replacement": "showSelector editor replacement",
       "result": "active model selector",
       "restoration": "select/cancel/error returns editor.root",
-      "acceptance": "modal-edge:open.model"
+      "acceptance": "modal-edge:open.model",
+      "acceptanceEvidence": [
+        "terminal:model-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "model.close",
@@ -1593,7 +1884,12 @@
       "replacement": "restore editor",
       "result": "status on success, silent cancel, error on failure",
       "restoration": "focus editor.root",
-      "acceptance": "modal-edge:model.close"
+      "acceptance": "modal-edge:model.close",
+      "acceptanceEvidence": [
+        "terminal:model-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "open.scoped-models",
@@ -1608,7 +1904,12 @@
       "replacement": "showSelector editor replacement",
       "result": "active scoped models",
       "restoration": "Escape returns editor.root without implicit persist",
-      "acceptance": "modal-edge:open.scoped-models"
+      "acceptance": "modal-edge:open.scoped-models",
+      "acceptanceEvidence": [
+        "terminal:command-error-placement",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "scoped.refresh.start",
@@ -1623,7 +1924,12 @@
       "replacement": "same live selector",
       "result": "refreshing status",
       "restoration": "result returns models.scope state",
-      "acceptance": "modal-edge:scoped.refresh.start"
+      "acceptance": "modal-edge:scoped.refresh.start",
+      "acceptanceEvidence": [
+        "terminal:scoped-models-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "scoped.refresh.finish",
@@ -1638,7 +1944,12 @@
       "replacement": "same selector",
       "result": "success or warning status",
       "restoration": "remain models.scope",
-      "acceptance": "modal-edge:scoped.refresh.finish"
+      "acceptance": "modal-edge:scoped.refresh.finish",
+      "acceptanceEvidence": [
+        "terminal:scoped-models-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "scoped.toggle",
@@ -1653,7 +1964,12 @@
       "replacement": "none",
       "result": "remain open dirty",
       "restoration": "same focus/viewport",
-      "acceptance": "modal-edge:scoped.toggle"
+      "acceptance": "modal-edge:scoped.toggle",
+      "acceptanceEvidence": [
+        "terminal:scoped-models-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "scoped.persist",
@@ -1668,7 +1984,12 @@
       "replacement": "none",
       "result": "saved and remains open",
       "restoration": "same selector",
-      "acceptance": "modal-edge:scoped.persist"
+      "acceptance": "modal-edge:scoped.persist",
+      "acceptanceEvidence": [
+        "terminal:scoped-models-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "scoped.cancel",
@@ -1684,7 +2005,12 @@
       "replacement": "restore editor",
       "result": "silent close",
       "restoration": "focus editor.root",
-      "acceptance": "modal-edge:scoped.cancel"
+      "acceptance": "modal-edge:scoped.cancel",
+      "acceptanceEvidence": [
+        "terminal:scoped-models-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "open.trust",
@@ -1699,7 +2025,12 @@
       "replacement": "showSelector editor replacement",
       "result": "active trust selector",
       "restoration": "select/cancel returns editor",
-      "acceptance": "modal-edge:open.trust"
+      "acceptance": "modal-edge:open.trust",
+      "acceptanceEvidence": [
+        "terminal:trust-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "trust.close",
@@ -1714,7 +2045,12 @@
       "replacement": "restore editor",
       "result": "status on select, silent cancel",
       "restoration": "focus editor.root",
-      "acceptance": "modal-edge:trust.close"
+      "acceptance": "modal-edge:trust.close",
+      "acceptanceEvidence": [
+        "terminal:trust-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "open.fork",
@@ -1729,7 +2065,12 @@
       "replacement": "showSelector editor replacement",
       "result": "active message selector",
       "restoration": "select/cancel returns editor",
-      "acceptance": "modal-edge:open.fork"
+      "acceptance": "modal-edge:open.fork",
+      "acceptanceEvidence": [
+        "terminal:session-selector-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "fork.close",
@@ -1744,7 +2085,12 @@
       "replacement": "restore editor",
       "result": "status/error/silent cancel",
       "restoration": "focus editor.root",
-      "acceptance": "modal-edge:fork.close"
+      "acceptance": "modal-edge:fork.close",
+      "acceptanceEvidence": [
+        "terminal:session-selector-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "open.tree",
@@ -1759,7 +2105,12 @@
       "replacement": "showSelector editor replacement",
       "result": "active tree",
       "restoration": "cancel returns editor",
-      "acceptance": "modal-edge:open.tree"
+      "acceptance": "modal-edge:open.tree",
+      "acceptanceEvidence": [
+        "terminal:command-error-placement",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "tree.summary.open",
@@ -1774,7 +2125,12 @@
       "replacement": "ExtensionSelectorComponent",
       "result": "summary choice",
       "restoration": "cancel reopens tree.root at same entry",
-      "acceptance": "modal-edge:tree.summary.open"
+      "acceptance": "modal-edge:tree.summary.open",
+      "acceptanceEvidence": [
+        "terminal:tree-summary-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "tree.summary.cancel",
@@ -1789,7 +2145,12 @@
       "replacement": "restore TreeSelectorComponent",
       "result": "tree active",
       "restoration": "focus selected tree entry",
-      "acceptance": "modal-edge:tree.summary.cancel"
+      "acceptance": "modal-edge:tree.summary.cancel",
+      "acceptanceEvidence": [
+        "terminal:tree-summary-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "tree.custom.open",
@@ -1804,7 +2165,12 @@
       "replacement": "ExtensionEditorComponent",
       "result": "custom instruction editor",
       "restoration": "cancel returns summary choice",
-      "acceptance": "modal-edge:tree.custom.open"
+      "acceptance": "modal-edge:tree.custom.open",
+      "acceptanceEvidence": [
+        "terminal:tree-summary-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "tree.custom.cancel",
@@ -1819,7 +2185,12 @@
       "replacement": "recreate summary selector",
       "result": "summary choice active",
       "restoration": "summary choice focus",
-      "acceptance": "modal-edge:tree.custom.cancel"
+      "acceptance": "modal-edge:tree.custom.cancel",
+      "acceptanceEvidence": [
+        "terminal:tree-summary-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "tree.navigate",
@@ -1834,7 +2205,12 @@
       "replacement": "restore editor and optional dock BranchSummaryStatusIndicator",
       "result": "status/error and new session point",
       "restoration": "focus editor; aborted summary can reopen tree.root",
-      "acceptance": "modal-edge:tree.navigate"
+      "acceptance": "modal-edge:tree.navigate",
+      "acceptanceEvidence": [
+        "terminal:tree-summary-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "tree.custom.navigate",
@@ -1849,7 +2225,12 @@
       "replacement": "restore editor plus branch-summary status",
       "result": "navigation outcome",
       "restoration": "focus editor or reopen tree on abort",
-      "acceptance": "modal-edge:tree.custom.navigate"
+      "acceptance": "modal-edge:tree.custom.navigate",
+      "acceptanceEvidence": [
+        "terminal:tree-summary-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "tree.cancel",
@@ -1864,7 +2245,12 @@
       "replacement": "restore editor",
       "result": "silent close",
       "restoration": "focus editor.root",
-      "acceptance": "modal-edge:tree.cancel"
+      "acceptance": "modal-edge:tree.cancel",
+      "acceptanceEvidence": [
+        "terminal:tree-summary-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "open.resume",
@@ -1879,7 +2265,12 @@
       "replacement": "SessionSelectorComponent",
       "result": "current scope selector",
       "restoration": "cancel returns editor; exit requests shutdown",
-      "acceptance": "modal-edge:open.resume"
+      "acceptance": "modal-edge:open.resume",
+      "acceptanceEvidence": [
+        "terminal:session-selector-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "resume.scope.all",
@@ -1894,7 +2285,12 @@
       "replacement": "same SessionSelectorComponent layout",
       "result": "all scope selector",
       "restoration": "Tab returns current scope",
-      "acceptance": "modal-edge:resume.scope.all"
+      "acceptance": "modal-edge:resume.scope.all",
+      "acceptanceEvidence": [
+        "terminal:session-selector-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "resume.scope.current",
@@ -1909,7 +2305,12 @@
       "replacement": "same component layout",
       "result": "current scope selector",
       "restoration": "same selector",
-      "acceptance": "modal-edge:resume.scope.current"
+      "acceptance": "modal-edge:resume.scope.current",
+      "acceptanceEvidence": [
+        "terminal:session-selector-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "resume.rename.open",
@@ -1924,7 +2325,12 @@
       "replacement": "replace list with rename panel inside same component",
       "result": "rename input",
       "restoration": "cancel/save returns originating list scope",
-      "acceptance": "modal-edge:resume.rename.open"
+      "acceptance": "modal-edge:resume.rename.open",
+      "acceptanceEvidence": [
+        "terminal:session-selector-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "resume.rename.close",
@@ -1939,7 +2345,12 @@
       "replacement": "rebuild base list layout",
       "result": "originating current/all scope (runtime edge parameter)",
       "restoration": "session list focus",
-      "acceptance": "modal-edge:resume.rename.close"
+      "acceptance": "modal-edge:resume.rename.close",
+      "acceptanceEvidence": [
+        "terminal:session-selector-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "resume.delete.open",
@@ -1954,7 +2365,12 @@
       "replacement": "same list with error confirmation header/row",
       "result": "delete confirmation",
       "restoration": "cancel/settle returns originating list scope",
-      "acceptance": "modal-edge:resume.delete.open"
+      "acceptance": "modal-edge:resume.delete.open",
+      "acceptanceEvidence": [
+        "terminal:session-selector-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "resume.delete.close",
@@ -1969,7 +2385,12 @@
       "replacement": "same list layout",
       "result": "originating current/all scope (runtime edge parameter)",
       "restoration": "session list focus",
-      "acceptance": "modal-edge:resume.delete.close"
+      "acceptance": "modal-edge:resume.delete.close",
+      "acceptanceEvidence": [
+        "terminal:session-selector-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "resume.select",
@@ -1984,7 +2405,12 @@
       "replacement": "restore editor/new session root",
       "result": "Resumed session status or fatal error",
       "restoration": "focus editor.root",
-      "acceptance": "modal-edge:resume.select"
+      "acceptance": "modal-edge:resume.select",
+      "acceptanceEvidence": [
+        "terminal:session-selector-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "resume.missing-cwd",
@@ -1999,7 +2425,12 @@
       "replacement": "ExtensionSelector confirmation",
       "result": "missing-cwd choice",
       "restoration": "Yes retries in current cwd; No/cancel returns editor with cancellation status",
-      "acceptance": "modal-edge:resume.missing-cwd"
+      "acceptance": "modal-edge:resume.missing-cwd",
+      "acceptanceEvidence": [
+        "terminal:session-selector-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "resume.missing-cwd.close",
@@ -2014,7 +2445,12 @@
       "replacement": "restore editor/new session",
       "result": "resume/import status or cancellation/failure",
       "restoration": "focus editor.root",
-      "acceptance": "modal-edge:resume.missing-cwd.close"
+      "acceptance": "modal-edge:resume.missing-cwd.close",
+      "acceptanceEvidence": [
+        "terminal:session-selector-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "resume.cancel",
@@ -2030,7 +2466,12 @@
       "replacement": "restore editor",
       "result": "silent close",
       "restoration": "focus editor.root",
-      "acceptance": "modal-edge:resume.cancel"
+      "acceptance": "modal-edge:resume.cancel",
+      "acceptanceEvidence": [
+        "terminal:session-selector-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "open.login",
@@ -2045,7 +2486,12 @@
       "replacement": "ExtensionSelectorComponent",
       "result": "auth method selector",
       "restoration": "cancel returns editor",
-      "acceptance": "modal-edge:open.login"
+      "acceptance": "modal-edge:open.login",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "login.type.provider",
@@ -2060,7 +2506,12 @@
       "replacement": "OAuthSelectorComponent",
       "result": "provider selector",
       "restoration": "cancel returns auth.login-type",
-      "acceptance": "modal-edge:login.type.provider"
+      "acceptance": "modal-edge:login.type.provider",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "login.provider.oauth",
@@ -2075,7 +2526,12 @@
       "replacement": "LoginDialogComponent",
       "result": "OAuth dialog",
       "restoration": "settle returns editor",
-      "acceptance": "modal-edge:login.provider.oauth"
+      "acceptance": "modal-edge:login.provider.oauth",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "login.provider.api-key",
@@ -2090,7 +2546,12 @@
       "replacement": "LoginDialogComponent",
       "result": "API-key dialog",
       "restoration": "settle returns editor",
-      "acceptance": "modal-edge:login.provider.api-key"
+      "acceptance": "modal-edge:login.provider.api-key",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "login.provider.ambient",
@@ -2105,7 +2566,12 @@
       "replacement": "LoginDialogComponent info state",
       "result": "ambient setup info",
       "restoration": "close returns editor",
-      "acceptance": "modal-edge:login.provider.ambient"
+      "acceptance": "modal-edge:login.provider.ambient",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "login.provider.back",
@@ -2121,7 +2587,12 @@
       "replacement": "auth method selector",
       "result": "auth type active",
       "restoration": "focus auth type selector",
-      "acceptance": "modal-edge:login.provider.back"
+      "acceptance": "modal-edge:login.provider.back",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "login.type.cancel",
@@ -2136,7 +2607,12 @@
       "replacement": "restore editor",
       "result": "silent close",
       "restoration": "focus editor.root",
-      "acceptance": "modal-edge:login.type.cancel"
+      "acceptance": "modal-edge:login.type.cancel",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "login.dialog.details",
@@ -2151,7 +2627,12 @@
       "replacement": "same LoginDialogComponent",
       "result": "details state",
       "restoration": "next prompt or cancel",
-      "acceptance": "modal-edge:login.dialog.details"
+      "acceptance": "modal-edge:login.dialog.details",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "login.dialog.auth-url",
@@ -2166,7 +2647,12 @@
       "replacement": "same dialog content area",
       "result": "auth URL state",
       "restoration": "next prompt/progress/success/cancel",
-      "acceptance": "modal-edge:login.dialog.auth-url"
+      "acceptance": "modal-edge:login.dialog.auth-url",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "login.dialog.device-code",
@@ -2181,7 +2667,12 @@
       "replacement": "same dialog content area",
       "result": "device code state",
       "restoration": "progress/success/cancel",
-      "acceptance": "modal-edge:login.dialog.device-code"
+      "acceptance": "modal-edge:login.dialog.device-code",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "login.dialog.select-prompt",
@@ -2196,7 +2687,12 @@
       "replacement": "ExtensionSelectorComponent",
       "result": "provider option selector",
       "restoration": "select/cancel restores originating login dialog before resolve/reject",
-      "acceptance": "modal-edge:login.dialog.select-prompt"
+      "acceptance": "modal-edge:login.dialog.select-prompt",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "login.dialog.select-return",
@@ -2211,7 +2707,12 @@
       "replacement": "restore LoginDialogComponent",
       "result": "originating oauth/api-key dialog (runtime edge parameter)",
       "restoration": "focus dialog",
-      "acceptance": "modal-edge:login.dialog.select-return"
+      "acceptance": "modal-edge:login.dialog.select-return",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "login.dialog.manual-code",
@@ -2226,7 +2727,12 @@
       "replacement": "same LoginDialogComponent",
       "result": "manual input state",
       "restoration": "submit continues dialog; cancel returns editor",
-      "acceptance": "modal-edge:login.dialog.manual-code"
+      "acceptance": "modal-edge:login.dialog.manual-code",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "login.dialog.text-prompt",
@@ -2241,7 +2747,12 @@
       "replacement": "same LoginDialogComponent",
       "result": "text prompt state",
       "restoration": "submit continues dialog; cancel returns editor",
-      "acceptance": "modal-edge:login.dialog.text-prompt"
+      "acceptance": "modal-edge:login.dialog.text-prompt",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "login.dialog.info",
@@ -2256,7 +2767,12 @@
       "replacement": "same LoginDialogComponent",
       "result": "info state",
       "restoration": "next state/success/cancel",
-      "acceptance": "modal-edge:login.dialog.info"
+      "acceptance": "modal-edge:login.dialog.info",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "login.dialog.waiting",
@@ -2271,7 +2787,12 @@
       "replacement": "same dialog",
       "result": "waiting state",
       "restoration": "progress/success/cancel",
-      "acceptance": "modal-edge:login.dialog.waiting"
+      "acceptance": "modal-edge:login.dialog.waiting",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "login.dialog.progress",
@@ -2286,7 +2807,12 @@
       "replacement": "same dialog",
       "result": "progress state",
       "restoration": "next progress/success/cancel",
-      "acceptance": "modal-edge:login.dialog.progress"
+      "acceptance": "modal-edge:login.dialog.progress",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "login.dialog.complete",
@@ -2301,7 +2827,12 @@
       "replacement": "ordinary editor",
       "result": "status plus optional warning/error",
       "restoration": "focus editor.root",
-      "acceptance": "modal-edge:login.dialog.complete"
+      "acceptance": "modal-edge:login.dialog.complete",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "login.dialog.cancel",
@@ -2316,7 +2847,12 @@
       "replacement": "ordinary editor",
       "result": "silent cancellation unless source emits operation-specific output",
       "restoration": "focus editor.root",
-      "acceptance": "modal-edge:login.dialog.cancel"
+      "acceptance": "modal-edge:login.dialog.cancel",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "open.logout",
@@ -2331,7 +2867,12 @@
       "replacement": "OAuthSelectorComponent logout mode",
       "result": "logout provider selector or status/error when empty/load fails",
       "restoration": "cancel returns editor",
-      "acceptance": "modal-edge:open.logout"
+      "acceptance": "modal-edge:open.logout",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "logout.close",
@@ -2346,7 +2887,12 @@
       "replacement": "ordinary editor",
       "result": "status/error or silent cancel",
       "restoration": "focus editor.root",
-      "acceptance": "modal-edge:logout.close"
+      "acceptance": "modal-edge:logout.close",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "open.import-confirm",
@@ -2361,7 +2907,12 @@
       "replacement": "ExtensionSelector confirmation",
       "result": "Yes/No",
       "restoration": "settle returns editor or missing-cwd confirmation",
-      "acceptance": "modal-edge:open.import-confirm"
+      "acceptance": "modal-edge:open.import-confirm",
+      "acceptanceEvidence": [
+        "terminal:command-error-placement",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "import-confirm.close",
@@ -2376,7 +2927,12 @@
       "replacement": "ordinary editor/new session",
       "result": "import status/error/cancel",
       "restoration": "focus editor.root",
-      "acceptance": "modal-edge:import-confirm.close"
+      "acceptance": "modal-edge:import-confirm.close",
+      "acceptanceEvidence": [
+        "terminal:command-error-placement",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "open.share-loader",
@@ -2391,7 +2947,12 @@
       "replacement": "BorderedLoader",
       "result": "live operation",
       "restoration": "success/failure/abort returns editor and removes temp file",
-      "acceptance": "modal-edge:open.share-loader"
+      "acceptance": "modal-edge:open.share-loader",
+      "acceptanceEvidence": [
+        "terminal:extension-custom-replacement",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "share-loader.close",
@@ -2406,7 +2967,12 @@
       "replacement": "ordinary editor",
       "result": "share URL/status/error/cancel",
       "restoration": "focus editor.root",
-      "acceptance": "modal-edge:share-loader.close"
+      "acceptance": "modal-edge:share-loader.close",
+      "acceptanceEvidence": [
+        "terminal:extension-custom-replacement",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "open.reload-loader",
@@ -2421,7 +2987,12 @@
       "replacement": "reloadBox",
       "result": "live reload",
       "restoration": "success uses rebound editor; failure restores previous editor",
-      "acceptance": "modal-edge:open.reload-loader"
+      "acceptance": "modal-edge:open.reload-loader",
+      "acceptanceEvidence": [
+        "terminal:reload-status",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "reload-loader.close",
@@ -2436,7 +3007,12 @@
       "replacement": "ordinary editor",
       "result": "status/error",
       "restoration": "focus correct editor.root",
-      "acceptance": "modal-edge:reload-loader.close"
+      "acceptance": "modal-edge:reload-loader.close",
+      "acceptanceEvidence": [
+        "terminal:reload-status",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "extension.select.open",
@@ -2451,7 +3027,12 @@
       "replacement": "ExtensionSelectorComponent",
       "result": "active selector",
       "restoration": "select/cancel/abort returns editor",
-      "acceptance": "modal-edge:extension.select.open"
+      "acceptance": "modal-edge:extension.select.open",
+      "acceptanceEvidence": [
+        "terminal:extension-modal-completion-chain",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "extension.confirm.open",
@@ -2466,7 +3047,12 @@
       "replacement": "ExtensionSelectorComponent",
       "result": "active confirmation",
       "restoration": "boolean result and editor",
-      "acceptance": "modal-edge:extension.confirm.open"
+      "acceptance": "modal-edge:extension.confirm.open",
+      "acceptanceEvidence": [
+        "terminal:extension-modal-completion-chain",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "extension.input.open",
@@ -2481,7 +3067,12 @@
       "replacement": "ExtensionInputComponent",
       "result": "active input",
       "restoration": "value/undefined then editor",
-      "acceptance": "modal-edge:extension.input.open"
+      "acceptance": "modal-edge:extension.input.open",
+      "acceptanceEvidence": [
+        "terminal:extension-modal-completion-chain",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "extension.editor.open",
@@ -2496,7 +3087,12 @@
       "replacement": "ExtensionEditorComponent",
       "result": "active editor",
       "restoration": "value/undefined then editor",
-      "acceptance": "modal-edge:extension.editor.open"
+      "acceptance": "modal-edge:extension.editor.open",
+      "acceptanceEvidence": [
+        "terminal:extension-modal-completion-chain",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "extension.custom-editor.open",
@@ -2511,7 +3107,12 @@
       "replacement": "custom editor",
       "result": "custom ordinary editor",
       "restoration": "undefined factory restores default editor with text",
-      "acceptance": "modal-edge:extension.custom-editor.open"
+      "acceptance": "modal-edge:extension.custom-editor.open",
+      "acceptanceEvidence": [
+        "terminal:extension-modal-completion-chain",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "extension.custom.open",
@@ -2526,7 +3127,12 @@
       "replacement": "focused custom component",
       "result": "active custom replacement",
       "restoration": "close/failure restores editor text/focus and disposes",
-      "acceptance": "modal-edge:extension.custom.open"
+      "acceptance": "modal-edge:extension.custom.open",
+      "acceptanceEvidence": [
+        "terminal:extension-modal-completion-chain",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "extension.overlay.open",
@@ -2541,7 +3147,12 @@
       "replacement": "overlay stack above existing root",
       "result": "active overlay",
       "restoration": "close hides overlay and disposes without replacing editor",
-      "acceptance": "modal-edge:extension.overlay.open"
+      "acceptance": "modal-edge:extension.overlay.open",
+      "acceptanceEvidence": [
+        "terminal:extension-modal-completion-chain",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "settings.value.close",
@@ -2556,7 +3167,12 @@
       "replacement": "restore parent SettingsList",
       "result": "updated or unchanged settings",
       "restoration": "focus originating setting",
-      "acceptance": "modal-edge:settings.value.close"
+      "acceptance": "modal-edge:settings.value.close",
+      "acceptanceEvidence": [
+        "terminal:settings-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "settings.warnings.close",
@@ -2571,7 +3187,12 @@
       "replacement": "restore parent SettingsList",
       "result": "settings root",
       "restoration": "focus Warnings row",
-      "acceptance": "modal-edge:settings.warnings.close"
+      "acceptance": "modal-edge:settings.warnings.close",
+      "acceptanceEvidence": [
+        "terminal:settings-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "settings.thinking.close",
@@ -2586,7 +3207,12 @@
       "replacement": "restore parent SettingsList",
       "result": "settings root",
       "restoration": "focus Thinking row",
-      "acceptance": "modal-edge:settings.thinking.close"
+      "acceptance": "modal-edge:settings.thinking.close",
+      "acceptanceEvidence": [
+        "terminal:settings-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "settings.theme.light.close",
@@ -2601,7 +3227,12 @@
       "replacement": "restore automatic menu",
       "result": "automatic theme state",
       "restoration": "focus Light theme",
-      "acceptance": "modal-edge:settings.theme.light.close"
+      "acceptance": "modal-edge:settings.theme.light.close",
+      "acceptanceEvidence": [
+        "terminal:settings-theme-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "settings.theme.dark.close",
@@ -2616,7 +3247,12 @@
       "replacement": "restore automatic menu",
       "result": "automatic theme state",
       "restoration": "focus Dark theme",
-      "acceptance": "modal-edge:settings.theme.dark.close"
+      "acceptance": "modal-edge:settings.theme.dark.close",
+      "acceptanceEvidence": [
+        "terminal:settings-theme-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "settings.theme.apply",
@@ -2631,7 +3267,12 @@
       "replacement": "restore parent SettingsList",
       "result": "applied settings root",
       "restoration": "focus Theme row",
-      "acceptance": "modal-edge:settings.theme.apply"
+      "acceptance": "modal-edge:settings.theme.apply",
+      "acceptanceEvidence": [
+        "terminal:settings-theme-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "settings.theme.cancel-single",
@@ -2646,7 +3287,12 @@
       "replacement": "restore parent SettingsList",
       "result": "unchanged settings root",
       "restoration": "focus Theme row",
-      "acceptance": "modal-edge:settings.theme.cancel-single"
+      "acceptance": "modal-edge:settings.theme.cancel-single",
+      "acceptanceEvidence": [
+        "terminal:settings-theme-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "settings.theme.cancel-automatic",
@@ -2661,7 +3307,12 @@
       "replacement": "restore parent SettingsList",
       "result": "unchanged settings root",
       "restoration": "focus Theme row",
-      "acceptance": "modal-edge:settings.theme.cancel-automatic"
+      "acceptance": "modal-edge:settings.theme.cancel-automatic",
+      "acceptanceEvidence": [
+        "terminal:settings-theme-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "resume.rename.open-all",
@@ -2676,7 +3327,12 @@
       "replacement": "rename panel",
       "result": "rename input",
       "restoration": "cancel/save returns all scope",
-      "acceptance": "modal-edge:resume.rename.open-all"
+      "acceptance": "modal-edge:resume.rename.open-all",
+      "acceptanceEvidence": [
+        "terminal:session-selector-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "resume.rename.close-all",
@@ -2691,7 +3347,12 @@
       "replacement": "all-scope list",
       "result": "all scope active",
       "restoration": "focus list",
-      "acceptance": "modal-edge:resume.rename.close-all"
+      "acceptance": "modal-edge:resume.rename.close-all",
+      "acceptanceEvidence": [
+        "terminal:session-selector-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "resume.delete.open-all",
@@ -2706,7 +3367,12 @@
       "replacement": "delete confirmation",
       "result": "confirmation active",
       "restoration": "cancel/settle returns all scope",
-      "acceptance": "modal-edge:resume.delete.open-all"
+      "acceptance": "modal-edge:resume.delete.open-all",
+      "acceptanceEvidence": [
+        "terminal:session-selector-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "resume.delete.close-all",
@@ -2721,7 +3387,12 @@
       "replacement": "all-scope list",
       "result": "all scope active",
       "restoration": "focus list",
-      "acceptance": "modal-edge:resume.delete.close-all"
+      "acceptance": "modal-edge:resume.delete.close-all",
+      "acceptanceEvidence": [
+        "terminal:session-selector-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "resume.select-all",
@@ -2736,7 +3407,12 @@
       "replacement": "ordinary editor",
       "result": "resume outcome",
       "restoration": "focus editor",
-      "acceptance": "modal-edge:resume.select-all"
+      "acceptance": "modal-edge:resume.select-all",
+      "acceptanceEvidence": [
+        "terminal:session-selector-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "resume.cancel-all",
@@ -2751,7 +3427,12 @@
       "replacement": "ordinary editor",
       "result": "silent close",
       "restoration": "focus editor",
-      "acceptance": "modal-edge:resume.cancel-all"
+      "acceptance": "modal-edge:resume.cancel-all",
+      "acceptanceEvidence": [
+        "terminal:session-selector-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "login.type.direct-oauth",
@@ -2766,7 +3447,12 @@
       "replacement": "LoginDialogComponent",
       "result": "OAuth flow",
       "restoration": "settle returns editor",
-      "acceptance": "modal-edge:login.type.direct-oauth"
+      "acceptance": "modal-edge:login.type.direct-oauth",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "login.type.direct-api-key",
@@ -2781,7 +3467,12 @@
       "replacement": "LoginDialogComponent",
       "result": "API-key flow",
       "restoration": "settle returns editor",
-      "acceptance": "modal-edge:login.type.direct-api-key"
+      "acceptance": "modal-edge:login.type.direct-api-key",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "login.type.direct-ambient",
@@ -2796,7 +3487,12 @@
       "replacement": "LoginDialogComponent",
       "result": "ambient setup",
       "restoration": "close returns editor",
-      "acceptance": "modal-edge:login.type.direct-ambient"
+      "acceptance": "modal-edge:login.type.direct-ambient",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "login.api.details",
@@ -2811,7 +3507,12 @@
       "replacement": "same dialog",
       "result": "details",
       "restoration": "next prompt/cancel",
-      "acceptance": "modal-edge:login.api.details"
+      "acceptance": "modal-edge:login.api.details",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "login.api.select-prompt",
@@ -2826,7 +3527,12 @@
       "replacement": "ExtensionSelectorComponent",
       "result": "option selector",
       "restoration": "restore API-key dialog",
-      "acceptance": "modal-edge:login.api.select-prompt"
+      "acceptance": "modal-edge:login.api.select-prompt",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "login.api.select-return",
@@ -2841,7 +3547,12 @@
       "replacement": "restore dialog",
       "result": "API-key flow continues/cancels",
       "restoration": "focus dialog",
-      "acceptance": "modal-edge:login.api.select-return"
+      "acceptance": "modal-edge:login.api.select-return",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "login.api.manual-code",
@@ -2856,7 +3567,12 @@
       "replacement": "same dialog",
       "result": "manual input",
       "restoration": "submit continues/cancel editor",
-      "acceptance": "modal-edge:login.api.manual-code"
+      "acceptance": "modal-edge:login.api.manual-code",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "login.api.text-prompt",
@@ -2871,7 +3587,12 @@
       "replacement": "same dialog",
       "result": "text input",
       "restoration": "submit continues/cancel editor",
-      "acceptance": "modal-edge:login.api.text-prompt"
+      "acceptance": "modal-edge:login.api.text-prompt",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "login.api.info",
@@ -2886,7 +3607,12 @@
       "replacement": "same dialog",
       "result": "info",
       "restoration": "next/success/cancel",
-      "acceptance": "modal-edge:login.api.info"
+      "acceptance": "modal-edge:login.api.info",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "login.api.progress",
@@ -2901,7 +3627,12 @@
       "replacement": "same dialog",
       "result": "progress",
       "restoration": "next/success/cancel",
-      "acceptance": "modal-edge:login.api.progress"
+      "acceptance": "modal-edge:login.api.progress",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "login.api.complete",
@@ -2916,7 +3647,12 @@
       "replacement": "ordinary editor",
       "result": "status/warning/error",
       "restoration": "focus editor",
-      "acceptance": "modal-edge:login.api.complete"
+      "acceptance": "modal-edge:login.api.complete",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "login.api.cancel",
@@ -2931,7 +3667,12 @@
       "replacement": "ordinary editor",
       "result": "silent cancel",
       "restoration": "focus editor",
-      "acceptance": "modal-edge:login.api.cancel"
+      "acceptance": "modal-edge:login.api.cancel",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "login.ambient.info",
@@ -2946,7 +3687,12 @@
       "replacement": "same dialog",
       "result": "info with close hint",
       "restoration": "close returns editor",
-      "acceptance": "modal-edge:login.ambient.info"
+      "acceptance": "modal-edge:login.ambient.info",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "login.ambient.close",
@@ -2961,7 +3707,12 @@
       "replacement": "ordinary editor",
       "result": "silent close",
       "restoration": "focus editor",
-      "acceptance": "modal-edge:login.ambient.close"
+      "acceptance": "modal-edge:login.ambient.close",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "login.waiting.progress",
@@ -2976,7 +3727,12 @@
       "replacement": "same dialog",
       "result": "progress",
       "restoration": "success/cancel",
-      "acceptance": "modal-edge:login.waiting.progress"
+      "acceptance": "modal-edge:login.waiting.progress",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "extension.select.close",
@@ -2991,7 +3747,12 @@
       "replacement": "ordinary editor",
       "result": "option/undefined",
       "restoration": "focus editor",
-      "acceptance": "modal-edge:extension.select.close"
+      "acceptance": "modal-edge:extension.select.close",
+      "acceptanceEvidence": [
+        "terminal:extension-modal-completion-chain",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "extension.confirm.close",
@@ -3006,7 +3767,12 @@
       "replacement": "ordinary editor",
       "result": "true/false",
       "restoration": "focus editor",
-      "acceptance": "modal-edge:extension.confirm.close"
+      "acceptance": "modal-edge:extension.confirm.close",
+      "acceptanceEvidence": [
+        "terminal:extension-modal-completion-chain",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "extension.input.close",
@@ -3021,7 +3787,12 @@
       "replacement": "ordinary editor",
       "result": "value/undefined",
       "restoration": "focus editor",
-      "acceptance": "modal-edge:extension.input.close"
+      "acceptance": "modal-edge:extension.input.close",
+      "acceptanceEvidence": [
+        "terminal:extension-modal-completion-chain",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "extension.editor.close",
@@ -3036,7 +3807,12 @@
       "replacement": "ordinary editor",
       "result": "value/undefined",
       "restoration": "focus editor",
-      "acceptance": "modal-edge:extension.editor.close"
+      "acceptance": "modal-edge:extension.editor.close",
+      "acceptanceEvidence": [
+        "terminal:extension-modal-completion-chain",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "extension.custom-editor.close",
@@ -3051,7 +3827,12 @@
       "replacement": "default editor",
       "result": "ordinary editor",
       "restoration": "focus editor",
-      "acceptance": "modal-edge:extension.custom-editor.close"
+      "acceptance": "modal-edge:extension.custom-editor.close",
+      "acceptanceEvidence": [
+        "terminal:extension-modal-completion-chain",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "extension.custom.close",
@@ -3066,7 +3847,12 @@
       "replacement": "ordinary editor",
       "result": "result/error",
       "restoration": "focus editor",
-      "acceptance": "modal-edge:extension.custom.close"
+      "acceptance": "modal-edge:extension.custom.close",
+      "acceptanceEvidence": [
+        "terminal:extension-modal-completion-chain",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     },
     {
       "id": "extension.overlay.close",
@@ -3081,7 +3867,12 @@
       "replacement": "underlying root",
       "result": "result",
       "restoration": "restore prior focus policy",
-      "acceptance": "modal-edge:extension.overlay.close"
+      "acceptance": "modal-edge:extension.overlay.close",
+      "acceptanceEvidence": [
+        "terminal:extension-modal-completion-chain",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
     }
   ],
   "knownManualDivergences": [

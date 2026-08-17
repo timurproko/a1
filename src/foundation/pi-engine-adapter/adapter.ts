@@ -253,6 +253,7 @@ export class PiEngineAdapter {
     historyRevision: 0,
     submitEnabled: false,
   };
+  #sessionGeneration = 0;
   #status: OwnedUiStatusView = {
     title: "Pi",
     workingMessage: null,
@@ -295,6 +296,10 @@ export class PiEngineAdapter {
 
   get sessionId(): string {
     return this.#sessionId;
+  }
+
+  get sessionGeneration(): number {
+    return this.#sessionGeneration;
   }
 
   get agentDir(): string {
@@ -1540,6 +1545,7 @@ export class PiEngineAdapter {
 
   #bindSession(session: PiSessionLike): void {
     this.#unsubscribe?.();
+    this.#sessionGeneration += 1;
     this.#session = session;
     this.#activeCommandIds = [];
     this.#completedCommands.clear();

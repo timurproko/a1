@@ -127,6 +127,9 @@ export const TERMINAL_PARITY_ACTIONS = Object.freeze([
   { type: "text", value: "/parity-select-ui" },
   { type: "key", key: "enter" },
   { type: "checkpoint", name: "extension-selector", domains: ["extensions", "selector-dialog", "nested-dialog", "raw-ansi", "cursor-focus"] },
+  { type: "resize", columns: 72, rows: 20 },
+  { type: "checkpoint", name: "extension-selector-resized", domains: ["extensions", "selector-dialog", "resize", "wrapping", "component-geometry", "cursor-focus"] },
+  { type: "resize", columns: DEFAULT_COLUMNS, rows: DEFAULT_ROWS },
   { type: "key", key: "escape" },
   { type: "checkpoint", name: "extension-selector-cancel-restored", domains: ["extensions", "editor", "footer-status", "cursor-focus"] },
   { type: "text", value: "/parity-confirm-ui" },
@@ -143,13 +146,36 @@ export const TERMINAL_PARITY_ACTIONS = Object.freeze([
   { type: "key", key: "escape" },
   { type: "text", value: "/parity-custom-ui" },
   { type: "key", key: "enter" },
+  { type: "wait", milliseconds: 0, until: "Parity custom replacement" },
   { type: "checkpoint", name: "extension-custom-replacement", domains: ["extensions", "selector-dialog", "nested-dialog", "raw-ansi", "cursor-focus"] },
   { type: "key", key: "escape" },
   { type: "text", value: "/parity-overlay-ui" },
   { type: "key", key: "enter" },
+  { type: "wait", milliseconds: 0, until: "Parity custom overlay" },
   { type: "checkpoint", name: "extension-custom-overlay", domains: ["extensions", "overlay", "nested-dialog", "raw-ansi", "cursor-focus"] },
   { type: "key", key: "escape" },
   { type: "checkpoint", name: "extension-modal-cancel-restored", domains: ["extensions", "editor", "footer-status", "cursor-focus"] },
+  { type: "text", value: "/parity-modal-chain" },
+  { type: "key", key: "enter" },
+  { type: "wait", milliseconds: 0, until: "Parity chain select" },
+  { type: "key", key: "enter" },
+  { type: "wait", milliseconds: 0, until: "Parity chain confirm" },
+  { type: "key", key: "enter" },
+  { type: "wait", milliseconds: 0, until: "Parity chain input" },
+  { type: "text", value: "chain-input" },
+  { type: "key", key: "enter" },
+  { type: "wait", milliseconds: 0, until: "Parity chain editor" },
+  { type: "key", key: "enter" },
+  { type: "wait", milliseconds: 0, until: "Parity chain custom" },
+  { type: "key", key: "enter" },
+  { type: "wait", milliseconds: 0, until: "Parity chain overlay" },
+  { type: "key", key: "enter" },
+  { type: "wait", milliseconds: 0, until: "chain:Alpha:true:chain-input:seed:closed:closed" },
+  { type: "checkpoint", name: "extension-modal-completion-chain", domains: ["extensions", "nested-dialog", "transcript", "status", "editor", "footer-status", "cursor-focus"] },
+  { type: "text", value: "/parity-custom-failure" },
+  { type: "key", key: "enter" },
+  { type: "wait", milliseconds: 0, until: "custom failure isolated" },
+  { type: "checkpoint", name: "extension-custom-failure-restored", domains: ["extensions", "errors", "transcript", "editor", "footer-status", "cursor-focus"] },
   { type: "text", value: "/reload" },
   { type: "key", key: "enter" },
   { type: "checkpoint", name: "reload-status", domains: ["transcript", "status", "raw-ansi", "rows-spacing"] },
@@ -259,6 +285,31 @@ export default function deterministicParityProvider(pi) {
         overlay: true,
         overlayOptions: { anchor: "center", width: 44, maxHeight: 8 },
       });
+    },
+  });
+  pi.registerCommand("parity-modal-chain", {
+    description: "Parity extension modal completion chain",
+    handler: async (_args, ctx) => {
+      const selected = await ctx.ui.select("Parity chain select", ["Alpha", "Beta"]);
+      const confirmed = await ctx.ui.confirm("Parity chain confirm", "Continue chain?");
+      const input = await ctx.ui.input("Parity chain input", "value");
+      const edited = await ctx.ui.editor("Parity chain editor", "seed");
+      const custom = await ctx.ui.custom((_tui, theme, _kb, done) => new ParityCustomSurface(theme, done, "Parity chain custom"));
+      const overlay = await ctx.ui.custom((_tui, theme, _kb, done) => new ParityCustomSurface(theme, done, "Parity chain overlay"), {
+        overlay: true,
+        overlayOptions: { anchor: "center", width: 44, maxHeight: 8 },
+      });
+      ctx.ui.notify(\`chain:\${selected}:\${confirmed}:\${input}:\${edited}:\${custom}:\${overlay}\`, "info");
+    },
+  });
+  pi.registerCommand("parity-custom-failure", {
+    description: "Parity custom failure isolation",
+    handler: async (_args, ctx) => {
+      try {
+        await ctx.ui.custom(() => { throw new Error("deterministic custom failure"); });
+      } catch {
+        ctx.ui.notify("custom failure isolated", "error");
+      }
     },
   });
   pi.on("agent_start", (_event, ctx) => {

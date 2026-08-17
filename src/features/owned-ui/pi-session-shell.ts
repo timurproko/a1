@@ -396,6 +396,18 @@ export class PiSessionShellRoot implements PiTuiComponentPort {
     this.invalidate();
   }
 
+  resetWorkflowPresentation(): void {
+    for (const id of this.#workflowStatusAnchors.keys()) {
+      this.#transcript.get(id)?.dispose?.();
+      this.#transcript.delete(id);
+    }
+    this.#workflowStatusAnchors.clear();
+    this.#workflowStatusMessages.clear();
+    this.#transcriptOrder = this.#transcriptOrder.filter(id => !id.startsWith("workflow-status-"));
+    this.#lastWorkflowStatusId = undefined;
+    this.invalidate();
+  }
+
   resetExtensionUi(): void {
     this.#extensionHeader?.dispose?.();
     this.#extensionFooter?.dispose?.();
@@ -643,9 +655,11 @@ export class PiSessionShell {
   #compactionQueue: Array<{ readonly text: string; readonly type: "steer" | "follow-up" }> = [];
   #lastClearTime = 0;
   #activeLoginDialog: PiShellLoginDialogPort | undefined;
+  #sessionGeneration: number;
 
   constructor(options: PiSessionShellOptions) {
     this.adapter = options.adapter;
+    this.#sessionGeneration = this.adapter.sessionGeneration;
     this.#cwd = options.cwd;
     this.#stopped = new Promise(resolve => {
       this.#resolveStopped = resolve;
@@ -1076,7 +1090,10 @@ export class PiSessionShell {
       this.showTreeSelector();
       return { outcome: "completed", diagnostic: null };
     }
-    if (request.command === "reload") this.root.resetExtensionUi();
+    if (request.command === "reload") {
+      this.root.resetExtensionUi();
+      this.root.resetWorkflowPresentation();
+    }
     const operationSurface = request.command === "share"
       ? createPiShellOperationLoader({
           getColumns: () => this.runtime.viewport().columns,
@@ -1281,6 +1298,14 @@ export class PiSessionShell {
 
   #syncView(): void {
     const view = this.view();
+    if (this.adapter.sessionGeneration !== this.#sessionGeneration) {
+      this.#sessionGeneration = this.adapter.sessionGeneration;
+      this.#activeLoginDialog = undefined;
+      this.#extensionBridge.reset();
+      this.root.setInputSurface(null);
+      this.root.resetExtensionUi();
+      this.root.resetWorkflowPresentation();
+    }
     this.root.update(view);
     this.#syncDialog(view.dialog);
     this.runtime.requestRender();

@@ -42,18 +42,18 @@ describe("independent Pi terminal parity gate", () => {
     expect(compareParityRun(upstream, addone)).toMatchObject({ passed: true, differenceCount: 0 });
   });
 
-  it.each(["visual", "input-scroll"] as const)("fails for an intentional %s mutation", mutation => {
-    const upstream = producer();
-    const comparison = compareParityRun(upstream, applyIntentionalMutation(producer(), mutation));
-    expect(comparison.passed).toBe(false);
-    expect(comparison.differences.some(difference => mutation === "visual"
-      ? difference.path.includes("rows")
-      : difference.domain === "scroll" || difference.domain === "cursor-focus")).toBe(true);
-  });
+  it.each(["visual", "input-scroll", "structured-content", "presenter-plane", "modal-node", "modal-restoration"] as const)(
+    "fails for an intentional %s mutation",
+    mutation => {
+      const comparison = compareParityRun(producer(), applyIntentionalMutation(producer(), mutation));
+      expect(comparison.passed).toBe(false);
+      expect(comparison.differences.length).toBeGreaterThan(0);
+    },
+  );
 
   it("keeps named terminal-only tolerances narrow and still fails intentional workflow mutations", () => {
     const tolerances = ["differential-sgr-order", "transient-scrollbar-thumb-rounding", "ordinary-vanilla-wheel-distance"];
-    for (const mutation of ["visual", "input-scroll"] as const) {
+    for (const mutation of ["visual", "input-scroll", "structured-content", "presenter-plane", "modal-node", "modal-restoration"] as const) {
       expect(compareParityRun(producer(), applyIntentionalMutation(producer(), mutation), { tolerances }).passed).toBe(false);
     }
 

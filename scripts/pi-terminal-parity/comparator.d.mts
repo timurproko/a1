@@ -51,5 +51,6 @@ export interface ParityComparison {
 export const MAX_REPORTED_DIFFERENCES: number;
 export const MAX_EXCERPT_CHARACTERS: number;
 export function compareParityRun(upstream: ParityProducerCapture, addone: ParityProducerCapture, options?: { tolerances?: readonly string[] }): ParityComparison;
-export function applyIntentionalMutation(producer: ParityProducerCapture, mutation: "visual" | "input-scroll"): ParityProducerCapture;
+export type ParityMutation = "visual" | "input-scroll" | "structured-content" | "presenter-plane" | "modal-node" | "modal-restoration";
+export function applyIntentionalMutation(producer: ParityProducerCapture, mutation: ParityMutation): ParityProducerCapture;
 export function renderSideBySideDiff(comparison: ParityComparison, upstream: ParityProducerCapture, addone: ParityProducerCapture): string;

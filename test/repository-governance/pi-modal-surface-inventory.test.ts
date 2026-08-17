@@ -26,6 +26,7 @@ type Node = {
   status: string;
   controller: string;
   acceptance: string;
+  acceptanceEvidence: string[];
   parents: string[];
 };
 type Edge = {
@@ -40,6 +41,7 @@ type Edge = {
   result: string;
   restoration: string;
   acceptance: string;
+  acceptanceEvidence: string[];
 };
 type Inventory = {
   schema: string;
@@ -67,7 +69,7 @@ async function sourceContents(inventory: Inventory): Promise<Record<string, stri
   return Object.fromEntries(await Promise.all(Object.entries(inventory.sources).map(async ([id, path]) => [id, await readFile(path, "utf8")])));
 }
 
-function validateGraph(inventory: Inventory, sources: Record<string, string>): void {
+function validateGraph(inventory: Inventory, sources: Record<string, string>, scenario: string): void {
   if (inventory.schema !== "addone-pinned-pi-modal-transition-graph-v2") throw new Error("invalid graph schema");
   if (inventory.pinned.version !== "0.84.2" || inventory.pinned.commit !== "914cf1472e715297caa30db4b9535d534a9eb718") throw new Error("stale pinned identity");
   if (inventory.policy.genericFixtureSatisfiesSpecializedSurface || inventory.policy.flatTopLevelInventorySatisfiesCoverage) throw new Error("generic or flat coverage enabled");
@@ -86,6 +88,11 @@ function validateGraph(inventory: Inventory, sources: Record<string, string>): v
       if (typeof node[field] !== "string" || node[field].trim() === "") throw new Error(`${node.id}: missing node field ${field}`);
     }
     if (!Array.isArray(node.options) || !Array.isArray(node.parents)) throw new Error(`${node.id}: missing node arrays`);
+    if (!Array.isArray(node.acceptanceEvidence) || node.acceptanceEvidence.length < 3) throw new Error(`${node.id}: missing acceptance evidence`);
+    for (const evidence of node.acceptanceEvidence) {
+      if (evidence.startsWith("terminal:") && !scenario.includes(`name: "${evidence.slice(9)}"`)) throw new Error(`${node.id}: stale terminal evidence`);
+      if (evidence.startsWith("test:") && !evidence.slice(5).startsWith("test/")) throw new Error(`${node.id}: invalid test evidence`);
+    }
     if (FORBIDDEN_CONTROLLERS.has(node.controller)) throw new Error(`${node.id}: generic controller`);
     if (node.acceptance !== `modal-node:${node.id}` || nodeAcceptance.has(node.acceptance)) throw new Error(`${node.id}: invalid acceptance mapping`);
     nodeAcceptance.add(node.acceptance);
@@ -99,6 +106,11 @@ function validateGraph(inventory: Inventory, sources: Record<string, string>): v
       if (typeof edge[field] !== "string" || edge[field].trim() === "") throw new Error(`${edge.id}: missing edge field ${field}`);
     }
     if (edge.acceptance !== `modal-edge:${edge.id}` || edgeAcceptance.has(edge.acceptance)) throw new Error(`${edge.id}: invalid acceptance mapping`);
+    if (!Array.isArray(edge.acceptanceEvidence) || edge.acceptanceEvidence.length < 3) throw new Error(`${edge.id}: missing acceptance evidence`);
+    for (const evidence of edge.acceptanceEvidence) {
+      if (evidence.startsWith("terminal:") && !scenario.includes(`name: "${evidence.slice(9)}"`)) throw new Error(`${edge.id}: stale terminal evidence`);
+      if (evidence.startsWith("test:") && !evidence.slice(5).startsWith("test/")) throw new Error(`${edge.id}: invalid test evidence`);
+    }
     edgeAcceptance.add(edge.acceptance);
     if (!sources[edge.source] || edge.sourceAnchors.length === 0 || edge.sourceAnchors.some(anchor => !sources[edge.source]!.includes(anchor))) throw new Error(`${edge.id}: stale source anchor`);
   }
@@ -114,8 +126,11 @@ function validateGraph(inventory: Inventory, sources: Record<string, string>): v
 describe("pinned Pi modal transition graph", () => {
   it("maps every nested node, transition, specialized controller, and restoration target", async () => {
     const inventory = await loadInventory();
-    const sources = await sourceContents(inventory);
-    validateGraph(inventory, sources);
+    const [sources, scenario] = await Promise.all([
+      sourceContents(inventory),
+      readFile("scripts/pi-terminal-parity/scenario.mjs", "utf8"),
+    ]);
+    validateGraph(inventory, sources, scenario);
     await Promise.all(inventory.nodes.map(node => access(node.destination)));
 
     const settingsIds = [...sources.settings!.matchAll(/\bid: "([^"]+)"/g)].map(match => match[1]!);
@@ -130,19 +145,23 @@ describe("pinned Pi modal transition graph", () => {
 
   it("rejects omitted nodes/edges, missing presentation, generic controllers, stale parents, and missing acceptance", async () => {
     const inventory = await loadInventory();
-    const sources = await sourceContents(inventory);
+    const [sources, scenario] = await Promise.all([
+      sourceContents(inventory),
+      readFile("scripts/pi-terminal-parity/scenario.mjs", "utf8"),
+    ]);
     const mutate = (change: (copy: Inventory) => void): Inventory => {
       const copy = structuredClone(inventory);
       change(copy);
       return copy;
     };
-    expect(() => validateGraph(mutate(copy => { copy.nodes.pop(); }), sources)).toThrow(/incomplete modal nodes/);
-    expect(() => validateGraph(mutate(copy => { copy.edges.pop(); }), sources)).toThrow(/incomplete modal edges/);
-    expect(() => validateGraph(mutate(copy => { copy.nodes[0]!.heading = ""; }), sources)).toThrow(/missing node field heading/);
-    expect(() => validateGraph(mutate(copy => { copy.nodes[0]!.controller = "generic-selector"; }), sources)).toThrow(/generic controller/);
-    expect(() => validateGraph(mutate(copy => { copy.nodes[0]!.acceptance = ""; }), sources)).toThrow(/missing node field acceptance/);
-    expect(() => validateGraph(mutate(copy => { copy.edges[0]!.restoration = ""; }), sources)).toThrow(/missing edge field restoration/);
-    expect(() => validateGraph(mutate(copy => { copy.nodes[0]!.parents = ["wrong.parent"]; }), sources)).toThrow(/stale parent mapping/);
-    expect(() => validateGraph(mutate(copy => { copy.edges[0]!.to = "missing.node"; }), sources)).toThrow(/unknown graph endpoint/);
+    expect(() => validateGraph(mutate(copy => { copy.nodes.pop(); }), sources, scenario)).toThrow(/incomplete modal nodes/);
+    expect(() => validateGraph(mutate(copy => { copy.edges.pop(); }), sources, scenario)).toThrow(/incomplete modal edges/);
+    expect(() => validateGraph(mutate(copy => { copy.nodes[0]!.heading = ""; }), sources, scenario)).toThrow(/missing node field heading/);
+    expect(() => validateGraph(mutate(copy => { copy.nodes[0]!.controller = "generic-selector"; }), sources, scenario)).toThrow(/generic controller/);
+    expect(() => validateGraph(mutate(copy => { copy.nodes[0]!.acceptance = ""; }), sources, scenario)).toThrow(/missing node field acceptance/);
+    expect(() => validateGraph(mutate(copy => { copy.nodes[0]!.acceptanceEvidence = []; }), sources, scenario)).toThrow(/missing acceptance evidence/);
+    expect(() => validateGraph(mutate(copy => { copy.edges[0]!.restoration = ""; }), sources, scenario)).toThrow(/missing edge field restoration/);
+    expect(() => validateGraph(mutate(copy => { copy.nodes[0]!.parents = ["wrong.parent"]; }), sources, scenario)).toThrow(/stale parent mapping/);
+    expect(() => validateGraph(mutate(copy => { copy.edges[0]!.to = "missing.node"; }), sources, scenario)).toThrow(/unknown graph endpoint/);
   });
 });

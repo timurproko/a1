@@ -1,0 +1,72 @@
+{
+  "schema": "addone-owned-pi-ui-presenter-modal-evidence-v1",
+  "change": "build-owned-pi-ui-foundation",
+  "tasks": ["7.4", "7.5", "7.7", "7.8", "7.9", "7.11", "7.13", "7.14", "7.15", "7.16", "7.17", "7.18", "7.19", "7.20", "7.24", "7.25", "7.27", "7.28"],
+  "recordedAt": "2026-08-17T08:41:00.000Z",
+  "source": {
+    "version": "0.84.2",
+    "commit": "914cf1472e715297caa30db4b9535d534a9eb718",
+    "implementationBaseCommit": "f0469de"
+  },
+  "manualFindings": {
+    "structuredSessionContent": "corrected with the source-structured Session Info presenter",
+    "workingSpacing": "corrected through status-before-widget dock order, source default text, and the empty above-editor spacer",
+    "informationAndErrorPlacement": "corrected through chronological chat ownership and removal of the generic end bucket",
+    "latestMessageOrder": "corrected through source-ordered anchored presenters and consecutive-status coalescing",
+    "deepDialogs": "corrected through the 47-node/111-edge modal graph, nested settings/authentication/session/tree controllers, and owned extension editor",
+    "reloadCleanup": "corrected by clearing stale command and extension presentation before source-ordered reload rebinding"
+  },
+  "inventories": {
+    "presenterOwnership": { "presenters": 18, "advertisedCommands": 22, "hiddenCommands": 3 },
+    "modalTransitionGraph": { "nodes": 47, "edges": 111, "settingsInstances": 36 },
+    "sourceLedger": { "records": 109, "behaviors": 29 }
+  },
+  "terminalParity": {
+    "status": "passed",
+    "differences": 0,
+    "checkpoints": 53,
+    "coverageAdded": [
+      "structured /session groups and styles",
+      "command information and error prompt-relative placement",
+      "active working status and dock spacer",
+      "nested single/automatic/light theme settings and restoration",
+      "provider-specific authentication type and provider-owned login method",
+      "extension selector resize and cancel",
+      "extension confirm/input/editor/custom replacement/custom overlay",
+      "extension modal completion chain",
+      "extension custom failure isolation",
+      "reload stale-presentation cleanup"
+    ],
+    "tolerances": [
+      "differential-sgr-order",
+      "transient-scrollbar-thumb-rounding",
+      "ordinary-vanilla-wheel-distance",
+      "session-identity-values"
+    ],
+    "dynamicIdentityTolerance": "Only equal-length producer profile names, generated session filenames, and generated session IDs are normalized; headings, labels, row geometry, wrapping, ANSI styles, and all non-identity values remain compared.",
+    "piRawCaptureSha256": "af411febba62cedec6fee4500355fd7a7751374338799ba6f83d05eb4998aeb6",
+    "addOneRawCaptureSha256": "0e672a6012a7a8710e31d6d99cd9fbfd0d28bac0c959595155b31e39e845900e",
+    "artifacts": {
+      "reportSha256": "61267fd553de214ae2954fd58295673431b056c7bdc974b7ecd209b2b4e08f25",
+      "upstreamSha256": "1678c2753fce798569202029dca64b7bf2d0d226b03f50aabbb1726273e01a0e",
+      "addOneSha256": "def5d321f910539ce73fb31ff58bd1a1cbfacd5cfd4e4557a9500a30d42d1330"
+    }
+  },
+  "intentionalMutations": [
+    "visual",
+    "input-scroll",
+    "structured-content",
+    "presenter-plane",
+    "modal-node",
+    "modal-restoration"
+  ],
+  "validation": {
+    "tests": "86 files, 467 tests passed",
+    "typecheck": "passed",
+    "architecture": "passed",
+    "strictOpenSpecValidation": "passed"
+  },
+  "remaining": [
+    "Task 7.22 and fresh manual acceptance remain open."
+  ]
+}

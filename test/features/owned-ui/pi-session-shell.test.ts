@@ -86,7 +86,8 @@ class Runtime implements PiRuntimeLike {
   constructor(messages: readonly unknown[] = []) { this.session = new Session(messages); }
   readonly diagnostics = [];
   readonly calls: string[] = [];
-  setRebindSession(): void {}
+  rebindSession: ((session: Session) => Promise<void>) | undefined;
+  setRebindSession(callback: (session: Session) => Promise<void>): void { this.rebindSession = callback; }
   async newSession(): Promise<void> { this.calls.push("newSession"); }
   async switchSession(path: string): Promise<void> { this.calls.push(`switch:${path}`); }
   async dispose(): Promise<void> { this.calls.push("dispose"); }
@@ -434,6 +435,51 @@ describe("PiSessionShell", () => {
     await shell.dispose();
   });
 
+  it("renders every advertised and hidden route without a generic raw/plain fallback at narrow and wide widths", async () => {
+    const { shell } = await fixture();
+    const routes = [...PINNED_PI_WORKFLOW_COMMAND_NAMES, ...PINNED_PI_HIDDEN_COMMAND_NAMES];
+    for (const command of routes) {
+      shell.root.resetWorkflowPresentation();
+      const result = command === "session"
+        ? {
+            command,
+            outcome: "completed" as const,
+            message: "Session Info",
+            presentation: {
+              kind: "session-info" as const,
+              stats: {
+                sessionId: "matrix-session", userMessages: 0, assistantMessages: 0, toolCalls: 0, toolResults: 0, totalMessages: 0,
+                tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }, cost: 0,
+              },
+              cacheWaste: { missedTokens: 0, missedCost: 0, missCount: 0 },
+              usageBreakdown: [],
+            },
+          }
+        : command === "changelog"
+          ? { command, outcome: "completed" as const, message: "What's New", detail: "## 0.84.2\n\n- parity" }
+          : command === "hotkeys"
+            ? { command, outcome: "completed" as const, message: "Keyboard Shortcuts" }
+            : command === "new"
+              ? { command, outcome: "completed" as const, message: "✓ New session started" }
+              : command === "debug"
+                ? { command, outcome: "completed" as const, message: "✓ Debug log written", detail: "D:/debug.log" }
+                : { command, outcome: "completed" as const, message: `route:${command}` };
+      shell.root.appendWorkflowResult(result);
+      for (const width of [44, 100]) {
+        const frame = stripTerminalSequences(shell.root.render(width).join("\n"));
+        expect(frame, `${command}@${width}`).not.toContain("{\n  \"");
+        if (command === "quit" || command === "compact") expect(frame).not.toContain(`route:${command}`);
+        else if (command === "session") expect(frame).toContain("Messages");
+        else if (command === "changelog") expect(frame).toContain("What's New");
+        else if (command === "hotkeys") expect(frame).toContain("Keyboard Shortcuts");
+        else if (command === "arminsayshi") expect(frame).toContain("ARMIN SAYS HI");
+        else if (command === "dementedelves") expect(frame).toContain("pi has joined Earendil");
+        else expect(frame).toContain(result.message);
+      }
+    }
+    await shell.dispose();
+  });
+
   it("routes the complete command manifest, hidden routes, prompt resources, bash modes, and streaming queues", async () => {
     const { engine, adapter, shell } = await fixture();
     const workflow = vi.spyOn(adapter, "executeWorkflow").mockImplementation(async request => ({
@@ -504,12 +550,34 @@ describe("PiSessionShell", () => {
     await shell.dispose();
   });
 
-  it("rebinds the owned extension UI after reload replaces extension contexts", async () => {
+  it("rebinds extension UI and clears stale command presentation before reload status", async () => {
     const { engine, shell } = await fixture();
     expect(engine.session.calls.filter(call => call === "bindExtensions")).toHaveLength(1);
+    shell.root.appendWorkflowStatus("stale extension command status");
+    shell.root.appendWorkflowResult({ command: "debug", outcome: "failed", message: "stale extension command error" });
+    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("stale extension command");
     await shell.runWorkflow({ command: "reload", argument: "" });
     expect(engine.session.calls.filter(call => call === "bindExtensions")).toHaveLength(2);
     expect(engine.session.calls).toContain("reload");
+    const frame = stripTerminalSequences(shell.root.render(100).join("\n"));
+    expect(frame).not.toContain("stale extension command");
+    expect(frame).toContain("Reloaded keybindings, extensions, skills, prompts, themes, and context files");
+    await shell.dispose();
+  });
+
+  it("cancels active extension surfaces and restores the editor on session rebind", async () => {
+    const { engine, shell } = await fixture();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    const bindings = engine.session.extensionBindings as {
+      uiContext: { input(title: string, placeholder?: string): Promise<string | undefined> };
+    };
+    const pending = bindings.uiContext.input("Session switch input", "cancelled on rebind");
+    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Session switch input");
+    await engine.rebindSession?.(new Session());
+    await expect(pending).resolves.toBeUndefined();
+    const frame = stripTerminalSequences(shell.root.render(100).join("\n"));
+    expect(frame).not.toContain("Session switch input");
+    expect(frame).toContain("commands");
     await shell.dispose();
   });
 
