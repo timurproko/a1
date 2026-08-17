@@ -121,8 +121,8 @@ describe("pinned Pi modal transition graph", () => {
     const settingsIds = [...sources.settings!.matchAll(/\bid: "([^"]+)"/g)].map(match => match[1]!);
     expect(inventory.settingsInstances).toEqual(settingsIds);
     const byId = new Map(inventory.nodes.map(node => [node.id, node]));
-    expect(byId.get("auth.login-type")).toMatchObject({ status: "known-divergence", controller: "ExtensionSelectorComponent authentication-method controller" });
-    expect(byId.get("auth.dialog.select-prompt")).toMatchObject({ status: "known-divergence" });
+    expect(byId.get("auth.login-type")).toMatchObject({ status: "corrected-pending-exhaustive-parity", controller: "ExtensionSelectorComponent authentication-method controller" });
+    expect(byId.get("auth.dialog.select-prompt")).toMatchObject({ status: "corrected-pending-exhaustive-parity" });
     expect(inventory.edges.find(edge => edge.id === "login.provider.back")).toMatchObject({ to: "auth.login-type" });
     expect(inventory.edges.find(edge => edge.id === "tree.custom.cancel")).toMatchObject({ to: "tree.summary-choice" });
     expect(inventory.edges.find(edge => edge.id === "resume.rename.close-all")).toMatchObject({ to: "session.resume.all" });

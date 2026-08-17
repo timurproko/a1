@@ -4,6 +4,7 @@ export * from "./shell-components.js";
 export * from "./theme.js";
 export * from "./upstream/theme/theme-controller.js";
 export * from "./upstream/components/countdown-timer.js";
+export * from "./upstream/components/extension-editor.js";
 export * from "./upstream/components/session-selector.js";
 export * from "./upstream/components/session-selector-search.js";
 export * from "./upstream/components/status-indicator.js";

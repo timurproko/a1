@@ -10,7 +10,6 @@ import {
   CustomEditor,
   CustomMessageComponent,
   DynamicBorder,
-  ExtensionEditorComponent,
   ExtensionInputComponent,
   ExtensionSelectorComponent,
   type ExtensionUIContext,
@@ -37,6 +36,7 @@ import {
   UserMessageComponent,
   VERSION,
 } from "@earendil-works/pi-coding-agent";
+import { ExtensionEditorComponent } from "./upstream/components/extension-editor.js";
 import { SessionSelectorComponent } from "./upstream/components/session-selector.js";
 import { TreeSelectorComponent } from "./upstream/components/tree-selector.js";
 import {
@@ -225,6 +225,7 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
   ensureTheme();
   const tui = createTuiFacade(options);
   const keybindings = KeybindingsManager.create(options.agentDir);
+  setKeybindings(keybindings as never);
   const editor = new CustomEditor(tui, {
     borderColor: value => piTheme().fg("borderMuted", value),
     selectList: getSelectListTheme(),
@@ -847,6 +848,7 @@ export function createPiExtensionUiBridge(host: PiExtensionUiBridgeHost): PiExte
   ensureTheme();
   const tui = createTuiFacade(host.runtime);
   const keybindings = KeybindingsManager.create(host.agentDir);
+  setKeybindings(keybindings as never);
   const disposers = new Set<() => void>();
   let customEditorFactory: PiEditorFactory | undefined;
   let activeSurface: PiShellComponentPort | undefined;
@@ -1717,5 +1719,5 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function ensureTheme(): void {
   ensurePiTheme();
-  setKeybindings(new KeybindingsManager());
+  setKeybindings(KeybindingsManager.create() as never);
 }

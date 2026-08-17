@@ -124,6 +124,32 @@ export const TERMINAL_PARITY_ACTIONS = Object.freeze([
   { type: "checkpoint", name: "login-provider-method", domains: ["selector-dialog", "authentication", "nested-dialog", "raw-ansi", "rows-spacing", "cursor-focus"] },
   { type: "key", key: "escape" },
   { type: "checkpoint", name: "login-provider-method-cancel-restored", domains: ["selector-dialog", "authentication", "editor", "footer-status", "cursor-focus"] },
+  { type: "text", value: "/parity-select-ui" },
+  { type: "key", key: "enter" },
+  { type: "checkpoint", name: "extension-selector", domains: ["extensions", "selector-dialog", "nested-dialog", "raw-ansi", "cursor-focus"] },
+  { type: "key", key: "escape" },
+  { type: "checkpoint", name: "extension-selector-cancel-restored", domains: ["extensions", "editor", "footer-status", "cursor-focus"] },
+  { type: "text", value: "/parity-confirm-ui" },
+  { type: "key", key: "enter" },
+  { type: "checkpoint", name: "extension-confirm", domains: ["extensions", "selector-dialog", "nested-dialog", "raw-ansi", "cursor-focus"] },
+  { type: "key", key: "escape" },
+  { type: "text", value: "/parity-input-ui" },
+  { type: "key", key: "enter" },
+  { type: "checkpoint", name: "extension-input", domains: ["extensions", "selector-dialog", "nested-dialog", "raw-ansi", "cursor-focus"] },
+  { type: "key", key: "escape" },
+  { type: "text", value: "/parity-editor-ui" },
+  { type: "key", key: "enter" },
+  { type: "checkpoint", name: "extension-editor", domains: ["extensions", "selector-dialog", "nested-dialog", "raw-ansi", "cursor-focus"] },
+  { type: "key", key: "escape" },
+  { type: "text", value: "/parity-custom-ui" },
+  { type: "key", key: "enter" },
+  { type: "checkpoint", name: "extension-custom-replacement", domains: ["extensions", "selector-dialog", "nested-dialog", "raw-ansi", "cursor-focus"] },
+  { type: "key", key: "escape" },
+  { type: "text", value: "/parity-overlay-ui" },
+  { type: "key", key: "enter" },
+  { type: "checkpoint", name: "extension-custom-overlay", domains: ["extensions", "overlay", "nested-dialog", "raw-ansi", "cursor-focus"] },
+  { type: "key", key: "escape" },
+  { type: "checkpoint", name: "extension-modal-cancel-restored", domains: ["extensions", "editor", "footer-status", "cursor-focus"] },
   { type: "text", value: "/reload" },
   { type: "key", key: "enter" },
   { type: "checkpoint", name: "reload-status", domains: ["transcript", "status", "raw-ansi", "rows-spacing"] },
@@ -188,11 +214,53 @@ export function commonParityEnvironment(profile, base = process.env) {
 
 function deterministicProviderSource() {
   return `import { Type, createAssistantMessageEventStream } from "@earendil-works/pi-ai";
-import { Text } from "@earendil-works/pi-tui";
+import { Container, Text } from "@earendil-works/pi-tui";
 
 const wait = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
 
+class ParityCustomSurface extends Container {
+  focused = false;
+  constructor(theme, done, label) {
+    super();
+    this.done = done;
+    this.addChild(new Text(theme.fg("accent", theme.bold(label)), 1, 1));
+    this.addChild(new Text(theme.fg("dim", "Press any key to close"), 1, 0));
+  }
+  handleInput() { this.done("closed"); }
+}
+
 export default function deterministicParityProvider(pi) {
+  pi.registerCommand("parity-select-ui", {
+    description: "Parity extension selector",
+    handler: async (_args, ctx) => { await ctx.ui.select("Parity extension selector", ["Alpha", "Beta"]); },
+  });
+  pi.registerCommand("parity-confirm-ui", {
+    description: "Parity extension confirmation",
+    handler: async (_args, ctx) => { await ctx.ui.confirm("Parity confirmation", "Continue parity flow?"); },
+  });
+  pi.registerCommand("parity-input-ui", {
+    description: "Parity extension input",
+    handler: async (_args, ctx) => { await ctx.ui.input("Parity input", "type here"); },
+  });
+  pi.registerCommand("parity-editor-ui", {
+    description: "Parity extension editor",
+    handler: async (_args, ctx) => { await ctx.ui.editor("Parity editor", "seed text"); },
+  });
+  pi.registerCommand("parity-custom-ui", {
+    description: "Parity custom replacement",
+    handler: async (_args, ctx) => {
+      await ctx.ui.custom((_tui, theme, _kb, done) => new ParityCustomSurface(theme, done, "Parity custom replacement"));
+    },
+  });
+  pi.registerCommand("parity-overlay-ui", {
+    description: "Parity custom overlay",
+    handler: async (_args, ctx) => {
+      await ctx.ui.custom((_tui, theme, _kb, done) => new ParityCustomSurface(theme, done, "Parity custom overlay"), {
+        overlay: true,
+        overlayOptions: { anchor: "center", width: 44, maxHeight: 8 },
+      });
+    },
+  });
   pi.on("agent_start", (_event, ctx) => {
     if (!ctx.hasUI) throw new Error("terminal parity extension expected UI capability");
     ctx.ui.setWidget("parity-lifecycle", ["extension lifecycle ready"], { placement: "aboveEditor" });

@@ -2,7 +2,7 @@
   "schema": "addone-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-08-17T08:02:47.396Z",
+  "recordedAt": "2026-08-17T08:20:24.961Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "914cf1472e715297caa30db4b9535d534a9eb718",
@@ -38,8 +38,8 @@
     "sourceModules": 105,
     "assets": 4,
     "classifications": {
-      "public-reuse": 63,
-      "owned-source-port": 24,
+      "public-reuse": 62,
+      "owned-source-port": 25,
       "host-adapter": 22
     },
     "requiredBehaviorIds": 29,
@@ -1458,11 +1458,11 @@
       "sourceMap": "modes/interactive/components/extension-editor.js.map",
       "lines": 133,
       "sha256": "29f5371be2530eaa121d380de3c90d6a7013a776856fdf5c3c5b49e03b6eaa18",
-      "classification": "public-reuse",
-      "localDestination": "src/foundation/pi-component-adapter/index.ts",
-      "implementationStatus": "available-through-pinned-package",
+      "classification": "owned-source-port",
+      "localDestination": "src/foundation/pi-component-adapter/upstream/components/extension-editor.ts",
+      "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "None planned; import the exact component or helper from the pinned public coding-agent package root.",
+      "modifications": "Mechanical port: remap pi-tui to the root public singleton, use owned keybindings/theme and external-editor seams, preserve editor layout, hints, focus, submission, cancellation, and external-editor lifecycle.",
       "approvedDeviations": [],
       "behaviorCategories": [
         "editor",
@@ -1485,7 +1485,8 @@
         "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
         "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts",
         "test/foundation/pi-component-adapter/extension-ui-bridge.test.ts"
-      ]
+      ],
+      "localSha256": "99780533bd6a3dd267bfdf1ef22058a4f3c475c6bac49f3403bfaf53414f1a6c"
     },
     {
       "id": "pi-coding-agent:src/modes/interactive/components/extension-input",
@@ -2484,9 +2485,9 @@
       "sha256": "b71e4ed7e99f119bb69f82d57207d8a20beb12560ebd8736ee73631e25784336",
       "classification": "owned-source-port",
       "localDestination": "src/foundation/pi-component-adapter/upstream/external-editor.ts",
-      "implementationStatus": "not-ported",
+      "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Mechanical port planned: remap imports, inject AddOne engine/runtime ownership, preserve control flow and state, and record every deviation.",
+      "modifications": "Mechanical port: retain temporary prompt file, asynchronous inherited-stdio editor process, completion readback, and best-effort cleanup behind the owned extension-editor component.",
       "approvedDeviations": [],
       "behaviorCategories": [
         "editor",
@@ -2506,7 +2507,8 @@
       ],
       "tests": [
         "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts"
-      ]
+      ],
+      "localSha256": "6190d23c96128c0375b9ace2b5c3ad442262e8397248a5ca2cda96ce7931adb8"
     },
     {
       "id": "pi-coding-agent:src/modes/interactive/interactive-mode",

@@ -169,7 +169,7 @@
       "viewport": "10 visible settings rows",
       "scrolling": "SettingsList scroll and search filter",
       "destination": "src/foundation/pi-component-adapter/shell-components.ts",
-      "status": "requires-revalidation",
+      "status": "implemented-pending-exhaustive-parity",
       "controller": "SettingsSelectorComponent + SettingsList",
       "acceptance": "modal-node:settings.root",
       "parents": [
@@ -200,7 +200,7 @@
       "viewport": "bounded by value count",
       "scrolling": "SelectList scrolling",
       "destination": "src/foundation/pi-component-adapter/shell-components.ts",
-      "status": "requires-revalidation",
+      "status": "implemented-pending-exhaustive-parity",
       "controller": "SettingsList value submenu",
       "acceptance": "modal-node:settings.value-submenu",
       "parents": [
@@ -227,7 +227,7 @@
       "viewport": "warning item count",
       "scrolling": "SettingsList scrolling",
       "destination": "src/foundation/pi-component-adapter/shell-components.ts",
-      "status": "requires-revalidation",
+      "status": "implemented-pending-exhaustive-parity",
       "controller": "WarningSettingsSubmenu",
       "acceptance": "modal-node:settings.warnings",
       "parents": [
@@ -253,7 +253,7 @@
       "viewport": "maximum ten options",
       "scrolling": "SelectList scrolling",
       "destination": "src/foundation/pi-component-adapter/shell-components.ts",
-      "status": "requires-revalidation",
+      "status": "implemented-pending-exhaustive-parity",
       "controller": "SelectSubmenu",
       "acceptance": "modal-node:settings.thinking",
       "parents": [
@@ -280,7 +280,7 @@
       "viewport": "maximum ten themes",
       "scrolling": "SelectList scrolling",
       "destination": "src/foundation/pi-component-adapter/shell-components.ts",
-      "status": "requires-revalidation",
+      "status": "implemented-pending-exhaustive-parity",
       "controller": "ThemeSubmenu + SelectSubmenu",
       "acceptance": "modal-node:settings.theme.single",
       "parents": [
@@ -310,7 +310,7 @@
       "viewport": "four settings rows",
       "scrolling": "SettingsList scrolling",
       "destination": "src/foundation/pi-component-adapter/shell-components.ts",
-      "status": "requires-revalidation",
+      "status": "implemented-pending-exhaustive-parity",
       "controller": "ThemeSubmenu + SettingsList",
       "acceptance": "modal-node:settings.theme.automatic",
       "parents": [
@@ -338,7 +338,7 @@
       "viewport": "maximum ten themes",
       "scrolling": "SelectList scrolling",
       "destination": "src/foundation/pi-component-adapter/shell-components.ts",
-      "status": "requires-revalidation",
+      "status": "implemented-pending-exhaustive-parity",
       "controller": "ThemeSubmenu + SelectSubmenu",
       "acceptance": "modal-node:settings.theme.light",
       "parents": [
@@ -364,7 +364,7 @@
       "viewport": "maximum ten themes",
       "scrolling": "SelectList scrolling",
       "destination": "src/foundation/pi-component-adapter/shell-components.ts",
-      "status": "requires-revalidation",
+      "status": "implemented-pending-exhaustive-parity",
       "controller": "ThemeSubmenu + SelectSubmenu",
       "acceptance": "modal-node:settings.theme.dark",
       "parents": [
@@ -390,7 +390,7 @@
       "viewport": "terminal-aware model list",
       "scrolling": "model list scrolling",
       "destination": "src/foundation/pi-component-adapter/shell-components.ts",
-      "status": "requires-revalidation",
+      "status": "implemented-pending-exhaustive-parity",
       "controller": "ModelSelectorComponent",
       "acceptance": "modal-node:models.select",
       "parents": [
@@ -416,7 +416,7 @@
       "viewport": "terminal-aware model rows",
       "scrolling": "source-owned list scrolling",
       "destination": "src/foundation/pi-component-adapter/upstream/components/scoped-models-selector.ts",
-      "status": "requires-revalidation",
+      "status": "implemented-pending-exhaustive-parity",
       "controller": "ScopedModelsSelectorComponent",
       "acceptance": "modal-node:models.scope",
       "parents": [
@@ -444,7 +444,7 @@
       "viewport": "same active selector",
       "scrolling": "same active selector",
       "destination": "src/foundation/pi-component-adapter/upstream/components/scoped-models-selector.ts",
-      "status": "requires-revalidation",
+      "status": "implemented-pending-exhaustive-parity",
       "controller": "ScopedModelsSelectorComponent",
       "acceptance": "modal-node:models.scope.refreshing",
       "parents": [
@@ -470,7 +470,7 @@
       "viewport": "component rows",
       "scrolling": "component-owned",
       "destination": "src/foundation/pi-component-adapter/upstream/components/trust-selector.ts",
-      "status": "requires-revalidation",
+      "status": "implemented-pending-exhaustive-parity",
       "controller": "TrustSelectorComponent",
       "acceptance": "modal-node:trust.project",
       "parents": [
@@ -496,7 +496,7 @@
       "viewport": "message list",
       "scrolling": "message list scrolling",
       "destination": "src/foundation/pi-component-adapter/shell-components.ts",
-      "status": "requires-revalidation",
+      "status": "implemented-pending-exhaustive-parity",
       "controller": "UserMessageSelectorComponent",
       "acceptance": "modal-node:session.fork",
       "parents": [
@@ -524,7 +524,7 @@
       "viewport": "terminal-row-derived tree viewport",
       "scrolling": "tree list scrolling",
       "destination": "src/foundation/pi-component-adapter/upstream/components/tree-selector.ts",
-      "status": "requires-revalidation",
+      "status": "implemented-pending-exhaustive-parity",
       "controller": "TreeSelectorComponent",
       "acceptance": "modal-node:tree.root",
       "parents": [
@@ -553,7 +553,7 @@
       "viewport": "three options",
       "scrolling": "none required",
       "destination": "src/features/owned-ui/pi-session-shell.ts",
-      "status": "requires-revalidation",
+      "status": "implemented-pending-exhaustive-parity",
       "controller": "ExtensionSelectorComponent",
       "acceptance": "modal-node:tree.summary-choice",
       "parents": [
@@ -582,7 +582,7 @@
       "viewport": "multiline editor region",
       "scrolling": "editor scrolling",
       "destination": "src/features/owned-ui/pi-session-shell.ts",
-      "status": "requires-revalidation",
+      "status": "implemented-pending-exhaustive-parity",
       "controller": "ExtensionEditorComponent",
       "acceptance": "modal-node:tree.summary-custom",
       "parents": [
@@ -614,7 +614,7 @@
       "viewport": "maximum ten session rows",
       "scrolling": "session list scrolling",
       "destination": "src/foundation/pi-component-adapter/upstream/components/session-selector.ts",
-      "status": "requires-revalidation",
+      "status": "implemented-pending-exhaustive-parity",
       "controller": "SessionSelectorComponent",
       "acceptance": "modal-node:session.resume.current",
       "parents": [
@@ -649,7 +649,7 @@
       "viewport": "maximum ten session rows",
       "scrolling": "session list scrolling",
       "destination": "src/foundation/pi-component-adapter/upstream/components/session-selector.ts",
-      "status": "requires-revalidation",
+      "status": "implemented-pending-exhaustive-parity",
       "controller": "SessionSelectorComponent",
       "acceptance": "modal-node:session.resume.all",
       "parents": [
@@ -678,7 +678,7 @@
       "viewport": "single input panel",
       "scrolling": "input horizontal behavior",
       "destination": "src/foundation/pi-component-adapter/upstream/components/session-selector.ts",
-      "status": "requires-revalidation",
+      "status": "implemented-pending-exhaustive-parity",
       "controller": "SessionSelectorComponent rename mode",
       "acceptance": "modal-node:session.resume.rename",
       "parents": [
@@ -706,7 +706,7 @@
       "viewport": "same session list",
       "scrolling": "input blocked except confirmation keys",
       "destination": "src/foundation/pi-component-adapter/upstream/components/session-selector.ts",
-      "status": "requires-revalidation",
+      "status": "implemented-pending-exhaustive-parity",
       "controller": "SessionSelectorComponent delete-confirm mode",
       "acceptance": "modal-node:session.resume.delete",
       "parents": [
@@ -734,7 +734,7 @@
       "viewport": "confirmation rows",
       "scrolling": "none required",
       "destination": "src/features/owned-ui/pi-session-shell.ts",
-      "status": "requires-revalidation",
+      "status": "implemented-pending-exhaustive-parity",
       "controller": "ExtensionSelectorComponent confirmation",
       "acceptance": "modal-node:session.missing-cwd",
       "parents": [
@@ -761,7 +761,7 @@
       "viewport": "one or two auth methods",
       "scrolling": "none required",
       "destination": "src/features/owned-ui/pi-session-shell.ts",
-      "status": "known-divergence",
+      "status": "corrected-pending-exhaustive-parity",
       "controller": "ExtensionSelectorComponent authentication-method controller",
       "acceptance": "modal-node:auth.login-type",
       "parents": [
@@ -788,7 +788,7 @@
       "viewport": "eight providers plus scroll indicator",
       "scrolling": "provider list window",
       "destination": "src/foundation/pi-component-adapter/shell-components.ts",
-      "status": "known-divergence",
+      "status": "corrected-pending-exhaustive-parity",
       "controller": "OAuthSelectorComponent login mode",
       "acceptance": "modal-node:auth.login-provider",
       "parents": [
@@ -813,7 +813,7 @@
       "viewport": "eight providers plus scroll indicator",
       "scrolling": "provider list window",
       "destination": "src/foundation/pi-component-adapter/shell-components.ts",
-      "status": "requires-revalidation",
+      "status": "implemented-pending-exhaustive-parity",
       "controller": "OAuthSelectorComponent logout mode",
       "acceptance": "modal-node:auth.logout-provider",
       "parents": [
@@ -840,7 +840,7 @@
       "viewport": "dynamic editor replacement",
       "scrolling": "component content within dock allocation",
       "destination": "src/foundation/pi-component-adapter/shell-components.ts",
-      "status": "known-divergence",
+      "status": "corrected-pending-exhaustive-parity",
       "controller": "LoginDialogComponent OAuth controller",
       "acceptance": "modal-node:auth.dialog.oauth",
       "parents": [
@@ -870,7 +870,7 @@
       "viewport": "dynamic editor replacement",
       "scrolling": "component content",
       "destination": "src/foundation/pi-component-adapter/shell-components.ts",
-      "status": "known-divergence",
+      "status": "corrected-pending-exhaustive-parity",
       "controller": "LoginDialogComponent API-key controller",
       "acceptance": "modal-node:auth.dialog.api-key",
       "parents": [
@@ -898,7 +898,7 @@
       "viewport": "dynamic editor replacement",
       "scrolling": "component content",
       "destination": "src/foundation/pi-component-adapter/shell-components.ts",
-      "status": "known-divergence",
+      "status": "corrected-pending-exhaustive-parity",
       "controller": "LoginDialogComponent ambient controller",
       "acceptance": "modal-node:auth.dialog.ambient",
       "parents": [
@@ -925,7 +925,7 @@
       "viewport": "dynamic content area",
       "scrolling": "component content",
       "destination": "src/foundation/pi-component-adapter/shell-components.ts",
-      "status": "known-divergence",
+      "status": "corrected-pending-exhaustive-parity",
       "controller": "LoginDialogComponent details state",
       "acceptance": "modal-node:auth.dialog.details",
       "parents": [
@@ -953,7 +953,7 @@
       "viewport": "dynamic content area",
       "scrolling": "component content",
       "destination": "src/foundation/pi-component-adapter/shell-components.ts",
-      "status": "known-divergence",
+      "status": "corrected-pending-exhaustive-parity",
       "controller": "LoginDialogComponent auth-url state",
       "acceptance": "modal-node:auth.dialog.auth-url",
       "parents": [
@@ -980,7 +980,7 @@
       "viewport": "dynamic content area",
       "scrolling": "component content",
       "destination": "src/foundation/pi-component-adapter/shell-components.ts",
-      "status": "known-divergence",
+      "status": "corrected-pending-exhaustive-parity",
       "controller": "LoginDialogComponent device-code state",
       "acceptance": "modal-node:auth.dialog.device-code",
       "parents": [
@@ -1006,7 +1006,7 @@
       "viewport": "provider option count",
       "scrolling": "selector scrolling",
       "destination": "src/features/owned-ui/pi-session-shell.ts",
-      "status": "known-divergence",
+      "status": "corrected-pending-exhaustive-parity",
       "controller": "ExtensionSelectorComponent provider-prompt controller",
       "acceptance": "modal-node:auth.dialog.select-prompt",
       "parents": [
@@ -1034,7 +1034,7 @@
       "viewport": "dynamic content area",
       "scrolling": "input behavior",
       "destination": "src/foundation/pi-component-adapter/shell-components.ts",
-      "status": "known-divergence",
+      "status": "corrected-pending-exhaustive-parity",
       "controller": "LoginDialogComponent manual-code state",
       "acceptance": "modal-node:auth.dialog.manual-code",
       "parents": [
@@ -1063,7 +1063,7 @@
       "viewport": "dynamic content area",
       "scrolling": "input behavior",
       "destination": "src/foundation/pi-component-adapter/shell-components.ts",
-      "status": "known-divergence",
+      "status": "corrected-pending-exhaustive-parity",
       "controller": "LoginDialogComponent prompt state",
       "acceptance": "modal-node:auth.dialog.text-prompt",
       "parents": [
@@ -1089,7 +1089,7 @@
       "viewport": "dynamic content area",
       "scrolling": "component content",
       "destination": "src/foundation/pi-component-adapter/shell-components.ts",
-      "status": "known-divergence",
+      "status": "corrected-pending-exhaustive-parity",
       "controller": "LoginDialogComponent info state",
       "acceptance": "modal-node:auth.dialog.info",
       "parents": [
@@ -1116,7 +1116,7 @@
       "viewport": "dynamic content area",
       "scrolling": "component content",
       "destination": "src/foundation/pi-component-adapter/shell-components.ts",
-      "status": "known-divergence",
+      "status": "corrected-pending-exhaustive-parity",
       "controller": "LoginDialogComponent waiting state",
       "acceptance": "modal-node:auth.dialog.waiting",
       "parents": [
@@ -1141,7 +1141,7 @@
       "viewport": "dynamic content area",
       "scrolling": "component content",
       "destination": "src/foundation/pi-component-adapter/shell-components.ts",
-      "status": "known-divergence",
+      "status": "corrected-pending-exhaustive-parity",
       "controller": "LoginDialogComponent progress state",
       "acceptance": "modal-node:auth.dialog.progress",
       "parents": [
@@ -1169,7 +1169,7 @@
       "viewport": "confirmation rows",
       "scrolling": "none required",
       "destination": "src/features/owned-ui/pi-session-shell.ts",
-      "status": "requires-revalidation",
+      "status": "implemented-pending-exhaustive-parity",
       "controller": "ExtensionSelectorComponent import-confirm controller",
       "acceptance": "modal-node:command.import-confirm",
       "parents": [
@@ -1194,7 +1194,7 @@
       "viewport": "editor replacement",
       "scrolling": "none",
       "destination": "src/features/owned-ui/pi-session-shell.ts",
-      "status": "known-divergence",
+      "status": "corrected-pending-exhaustive-parity",
       "controller": "BorderedLoader share controller",
       "acceptance": "modal-node:operation.share-loader",
       "parents": [
@@ -1219,7 +1219,7 @@
       "viewport": "editor replacement",
       "scrolling": "none",
       "destination": "src/features/owned-ui/pi-session-shell.ts",
-      "status": "requires-revalidation",
+      "status": "implemented-pending-exhaustive-parity",
       "controller": "InteractiveMode reloadBox controller",
       "acceptance": "modal-node:operation.reload-loader",
       "parents": [
@@ -1244,7 +1244,7 @@
       "viewport": "option list",
       "scrolling": "selector scrolling",
       "destination": "src/foundation/pi-component-adapter/shell-components.ts",
-      "status": "requires-revalidation",
+      "status": "implemented-pending-exhaustive-parity",
       "controller": "ExtensionSelectorComponent",
       "acceptance": "modal-node:extension.select",
       "parents": [
@@ -1270,7 +1270,7 @@
       "viewport": "two options",
       "scrolling": "none required",
       "destination": "src/foundation/pi-component-adapter/shell-components.ts",
-      "status": "requires-revalidation",
+      "status": "implemented-pending-exhaustive-parity",
       "controller": "ExtensionSelectorComponent confirmation",
       "acceptance": "modal-node:extension.confirm",
       "parents": [
@@ -1297,7 +1297,7 @@
       "viewport": "single input surface",
       "scrolling": "input behavior",
       "destination": "src/foundation/pi-component-adapter/shell-components.ts",
-      "status": "requires-revalidation",
+      "status": "implemented-pending-exhaustive-parity",
       "controller": "ExtensionInputComponent",
       "acceptance": "modal-node:extension.input",
       "parents": [
@@ -1324,7 +1324,7 @@
       "viewport": "multiline editor",
       "scrolling": "editor scrolling",
       "destination": "src/foundation/pi-component-adapter/shell-components.ts",
-      "status": "requires-revalidation",
+      "status": "implemented-pending-exhaustive-parity",
       "controller": "ExtensionEditorComponent",
       "acceptance": "modal-node:extension.editor",
       "parents": [
@@ -1349,7 +1349,7 @@
       "viewport": "editor dock",
       "scrolling": "custom editor behavior",
       "destination": "src/foundation/pi-component-adapter/shell-components.ts",
-      "status": "requires-revalidation",
+      "status": "implemented-pending-exhaustive-parity",
       "controller": "extension-provided Editor contract",
       "acceptance": "modal-node:extension.custom-editor",
       "parents": [
@@ -1377,7 +1377,7 @@
       "viewport": "editor replacement",
       "scrolling": "custom component behavior",
       "destination": "src/foundation/pi-component-adapter/shell-components.ts",
-      "status": "requires-revalidation",
+      "status": "implemented-pending-exhaustive-parity",
       "controller": "extension-provided Component replacement contract",
       "acceptance": "modal-node:extension.custom-replacement",
       "parents": [
@@ -1404,7 +1404,7 @@
       "viewport": "overlay options or component width",
       "scrolling": "overlay/component behavior",
       "destination": "src/foundation/pi-component-adapter/shell-components.ts",
-      "status": "requires-revalidation",
+      "status": "implemented-pending-exhaustive-parity",
       "controller": "TUI overlay + extension-provided Component contract",
       "acceptance": "modal-node:extension.overlay",
       "parents": [
@@ -3091,7 +3091,9 @@
         "auth.login-type",
         "auth.login-provider"
       ],
-      "finding": "AddOne substitutes a generic input for the pinned authentication method/provider selectors."
+      "finding": "AddOne substitutes a generic input for the pinned authentication method/provider selectors.",
+      "implementation": "corrected",
+      "acceptance": "pending exhaustive node/edge parity under task 7.28"
     },
     {
       "id": "deep-auth-dialog-states",
@@ -3107,7 +3109,9 @@
         "auth.dialog.waiting",
         "auth.dialog.progress"
       ],
-      "finding": "AddOne does not preserve the complete styled LoginDialogComponent state machine."
+      "finding": "AddOne does not preserve the complete styled LoginDialogComponent state machine.",
+      "implementation": "corrected",
+      "acceptance": "pending exhaustive node/edge parity under task 7.28"
     },
     {
       "id": "flat-inventory-insufficient",
@@ -3118,7 +3122,9 @@
         "tree.summary-choice",
         "tree.summary-custom"
       ],
-      "finding": "Prior evidence recorded top-level surfaces without proving nested node/edge content and restoration."
+      "finding": "Prior evidence recorded top-level surfaces without proving nested node/edge content and restoration.",
+      "implementation": "corrected",
+      "acceptance": "pending exhaustive node/edge parity under task 7.28"
     }
   ]
 }
