@@ -1,6 +1,6 @@
 # AddOne
 
-AddOne is a terminal-native agent launcher for Windows, Linux, and macOS. The current product surface runs one foreground Pi process through the physical terminal while AddOne manages release selection, process ownership, and updates.
+AddOne is a terminal-native agent launcher for Windows, Linux, and macOS. Bare `a1` runs the AddOne-owned Pi-compatible UI, while explicit fallback profiles can launch untouched Pi directly. AddOne also manages release selection, process ownership, and updates.
 
 ## Install
 
@@ -18,19 +18,19 @@ The package installs equivalent `addone` and `a1` commands.
 ## Commands
 
 ```sh
-a1              # AddOne agent profile: ~/.a1/agent
-a1 pi           # vanilla Pi profile: ~/.pi/agent
-a1 sandbox      # isolated experimental profile: ~/.a1/sandbox
+a1              # AddOne-owned UI and profile: ~/.a1/agent
+a1 pi           # untouched vanilla Pi oracle: ~/.pi/agent
+a1 sandbox      # unchanged isolated vanilla Pi profile: ~/.a1/sandbox
 a1 version      # show Installed, Release (latest), and Next versions
 a1 update       # update to npm latest
 a1 update:next  # update to npm next
 ```
 
-Bare `a1` currently launches one Pi process across the full terminal viewport. Pi and the physical terminal own rendering, keyboard/mouse input, selection, clipboard, scrollback, and terminal modes. AddOne does not insert a PTY, parser, renderer, input translator, or terminal-byte relay.
+Bare `a1` owns its Pi-compatible TUI composition and uses the public Pi engine, components, and terminal APIs. It does not insert a PTY or terminal-byte relay. Default visuals and workflows track the pinned vanilla Pi baseline; AddOne-specific visual customization and structured tabs remain disabled.
 
-This transparent capability intentionally provides no AddOne-managed internal tabs, inactive resident terminal surfaces, or visual reconnection. Supporting arbitrary interactive CLI tabs requires a separately designed composed-terminal capability. Bare `a1` remains the product entry point when multi-agent UX is introduced; there is no `a1 agent` command.
+`a1 pi` is the untouched upstream fallback and comparison oracle. Use it to distinguish AddOne-owned UI problems from upstream Pi, profile, provider, or terminal problems. The `a1 ui` subcommand was removed and is not a compatibility alias; run bare `a1` for the owned UI.
 
-The `sandbox` launch profile means isolated Pi configuration and resources. It does not mean operating-system, filesystem, process, network, or credential security isolation. See [`docs/features/launch-profiles.md`](docs/features/launch-profiles.md) for first-run directories, independent `/login`, trust behavior, and extension placement.
+`a1 sandbox` is unchanged: it launches vanilla Pi with isolated Pi configuration and resources. “Sandbox” does not mean operating-system, filesystem, process, network, or credential security isolation. See [`docs/features/launch-profiles.md`](docs/features/launch-profiles.md) for first-run directories, independent `/login`, trust behavior, extension placement, and recovery.
 
 ## Develop
 
@@ -40,7 +40,7 @@ npm run build
 npm start
 ```
 
-`npm start` uses isolated AddOne development state for each invocation. It does not isolate the Pi user profile yet.
+`npm start` gives each invocation isolated AddOne development state and an isolated development Pi profile. Use `npm start -- --print-environment` to inspect the selected paths without launching the UI.
 
 Run the non-desktop gates with:
 

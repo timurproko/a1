@@ -1,4 +1,4 @@
-# Manual transparent terminal checkpoint
+# Manual owned-UI and transparent fallback checkpoint
 
 This checkpoint is user-controlled. Tests and coding agents must not launch or focus a terminal, inject desktop input, resize windows, close applications, or clean up workstation processes.
 
@@ -29,15 +29,15 @@ Run the installed candidate yourself:
 & "artifacts/manual-transparent/install/node_modules/.bin/addone.cmd"
 ```
 
-Test each installed launch form separately: bare `addone`, `addone pi`, and `addone sandbox`. Confirm that files created through `/settings`, `/login`, sessions, and resource directories remain under the selected profile root. Generic command testing may set `ADDONE_TERMINAL_EXECUTABLE` and a JSON array in `ADDONE_TERMINAL_ARGUMENTS_JSON`.
+Test each installed launch form separately: bare `addone` (the owned UI), `addone pi` (the untouched comparison oracle), and `addone sandbox` (the unchanged isolated vanilla profile). Confirm that files created through `/settings`, `/login`, sessions, and resource directories remain under the selected profile root. Generic transparent-fallback testing may set `ADDONE_TERMINAL_EXECUTABLE` and a JSON array in `ADDONE_TERMINAL_ARGUMENTS_JSON`.
 
 Physical automation is not part of this repository baseline. Future certification tooling may run only on dedicated disposable workers or VMs with exclusive test desktops, never on this workstation.
 
-## Compare with direct Pi
+## Compare bare AddOne with `a1 pi`
 
-Use the same terminal, working directory, dimensions, environment, and Pi profile.
+Use the same terminal, working directory, dimensions, environment, and equivalent profile resources. Bare AddOne and the untouched oracle intentionally use separate profile roots.
 
-- [ ] Pi produces the first application content; AddOne adds no frame, clear, logo, or spacing.
+- [ ] Startup resources, logo, notices, spacing, editor, and footer match.
 - [ ] Text, Unicode, emoji, styles, cursor, and layout match.
 - [ ] Rapid typing has no visible AddOne delay or dropped/duplicated characters.
 - [ ] Ctrl+C, Ctrl+P, arrows, paste, focus, dialogs, mouse, and wheel match.
@@ -47,5 +47,7 @@ Use the same terminal, working directory, dimensions, environment, and Pi profil
 - [ ] A missing executable reports a concise spawn failure without affecting other applications.
 
 Report failures with direct-versus-AddOne behavior, platform/terminal versions, exact command, reproducibility, and optional manually captured evidence.
+
+For recovery, use `a1 pi`; do not use the removed `a1 ui` command. `a1 sandbox` remains profile isolation rather than a security boundary.
 
 Manual acceptance can authorize an exact uncertified npm `next` preview after non-desktop gates pass. It does not certify stable terminal parity or platform support.

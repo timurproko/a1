@@ -4,11 +4,11 @@
 
 | Command | Purpose | Pi user profile |
 |---|---|---|
-| `a1` | AddOne agent experience | `~/.a1/agent` |
-| `a1 pi` | Vanilla Pi comparison baseline | ordinary `~/.pi/agent` |
-| `a1 sandbox` | Isolated Pi profile for experiments | `~/.a1/sandbox` |
+| `a1` | AddOne-owned Pi-compatible UI | `~/.a1/agent` |
+| `a1 pi` | Untouched vanilla Pi fallback and comparison oracle | ordinary `~/.pi/agent` |
+| `a1 sandbox` | Unchanged isolated vanilla Pi profile for experiments | `~/.a1/sandbox` |
 
-There is no `a1 agent` command. Bare `a1` is the agent product surface and will remain the entry point when multi-agent UX is introduced.
+There is no `a1 agent` command. The former `a1 ui` subcommand is removed. Bare `a1` is the owned agent product surface and remains the entry point when multi-agent UX is introduced.
 
 ## First launch
 
@@ -31,16 +31,20 @@ Run Pi’s normal `/login` independently in each profile that needs stored authe
 
 ## Vanilla Pi
 
-`a1 pi` removes AddOne’s Pi configuration-root override. Pi therefore uses its normal `~/.pi/agent` settings, authentication, sessions, resources, packages, and trust decisions. This mode is the comparison baseline when diagnosing AddOne profile behavior.
+`a1 pi` bypasses the AddOne-owned UI and launches the untouched pinned Pi CLI. It also removes AddOne’s Pi configuration-root override, so Pi uses its normal `~/.pi/agent` settings, authentication, sessions, resources, packages, and trust decisions. This is both the comparison oracle and the recovery fallback when diagnosing the owned UI.
 
 ## Sandbox profile
 
-`a1 sandbox` uses `~/.a1/sandbox` and starts Pi with its supported one-run `--no-approve` trust override. Project-local executable settings and resources are ignored for that run; sandbox-owned resources still load from the selected user profile.
+`a1 sandbox` remains a direct vanilla Pi launch. It uses `~/.a1/sandbox` and starts Pi with its supported one-run `--no-approve` trust override. Project-local executable settings and resources are ignored for that run; sandbox-owned resources still load from the selected user profile.
 
 “Sandbox” means Pi profile and executable-resource isolation. It is **not** an operating-system security boundary. It does not restrict filesystem access, processes, network access, environment credentials, shell tools, or commands executed by Pi.
 
 ## Terminal behavior
 
-All three launch forms use the same transparent direct-attachment capability. One Pi process owns the full physical terminal viewport. The terminal and Pi own rendering, input, selection, clipboard, scrollback, and terminal modes; AddOne owns foreground lease and lifecycle only.
+Bare `a1` runs the AddOne-owned full-viewport TUI over public Pi engine, component, and terminal APIs. AddOne owns composition, input routing, modal focus, selection behavior, scrolling, and restoration without inserting a PTY or terminal-byte relay. Its default presentation is pinned to vanilla Pi parity; structured tabs and AddOne-specific visual customization are not enabled.
 
-This mode provides no AddOne-managed internal tabs, inactive resident terminal surfaces, or visual reconnection. Future arbitrary-CLI tabs require a separately planned and certified composed-terminal capability. Profile selection itself adds no PTY, parser, renderer, input translator, or terminal-byte relay.
+`a1 pi` and `a1 sandbox` retain transparent direct attachment. In those profiles, one untouched Pi process and the physical terminal own rendering, input, selection, clipboard, scrollback, and terminal modes; AddOne owns foreground lease and lifecycle only.
+
+## Recovery and comparison
+
+If bare `a1` cannot start or a UI workflow diverges, run `a1 pi` from the same working directory and compare the behavior. Profile data is intentionally separate, so authentication or settings may need to be configured independently. Use `a1 version` to record the installed AddOne release before reporting a difference. `a1 sandbox` is for isolated profile experiments, not recovery from the owned UI and not a security boundary.
