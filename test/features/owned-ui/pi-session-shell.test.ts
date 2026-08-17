@@ -39,6 +39,7 @@ class Session implements PiSessionLike {
     return { output: command, exitCode: 0, cancelled: false, truncated: false };
   }
   async bindExtensions(bindings: unknown): Promise<void> { this.extensionBindings = bindings; this.calls.push("bindExtensions"); }
+  async reload(): Promise<void> { this.calls.push("reload"); }
   async setModel(model: unknown): Promise<void> { this.model = model; this.calls.push("setModel"); }
   setScopedModels(models: readonly unknown[]): void { this.scopedModels = models; this.calls.push(`scoped:${models.length}`); }
   setThinkingLevel(level: unknown): void { this.thinkingLevel = level; this.calls.push(`thinking:${String(level)}`); }
@@ -400,6 +401,15 @@ describe("PiSessionShell", () => {
 
     shell.restoreQueuedInput();
     expect(shell.root.editor.getText()).toBe("queued steer\nqueued follow");
+    await shell.dispose();
+  });
+
+  it("rebinds the owned extension UI after reload replaces extension contexts", async () => {
+    const { engine, shell } = await fixture();
+    expect(engine.session.calls.filter(call => call === "bindExtensions")).toHaveLength(1);
+    await shell.runWorkflow({ command: "reload", argument: "" });
+    expect(engine.session.calls.filter(call => call === "bindExtensions")).toHaveLength(2);
+    expect(engine.session.calls).toContain("reload");
     await shell.dispose();
   });
 

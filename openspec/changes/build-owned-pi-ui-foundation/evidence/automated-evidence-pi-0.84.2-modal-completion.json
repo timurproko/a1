@@ -44,14 +44,15 @@
       "login-auth-type",
       "login-auth-cancel-restored",
       "reload-status",
+      "reload-extension-stream",
       "changelog",
       "export-error"
     ],
-    "piRawCaptureSha256": "a8309de77e67919a6bad5d68f8d3bf23b736b0b9ee55267789c3c5852603dc24",
-    "addOneRawCaptureSha256": "cf4f997269b235b38a0671aa709d16cd4849fc95c994261b0fe43819859735b9"
+    "piRawCaptureSha256": "8e4ffa93d5ac33162b4b2b725b1da191f6e9a0982d379e9decb93da38745f205",
+    "addOneRawCaptureSha256": "12ca4af22b9caba48d6d5d214c4bbaf9b4d20134c0d48ad9c596945b1258d077"
   },
   "validation": {
-    "tests": "84 files, 450 tests passed",
+    "tests": "84 files, 451 tests passed",
     "typecheck": "passed",
     "architecture": "passed; 109 source records and 29 behavior mappings",
     "strictOpenSpecValidation": "passed"

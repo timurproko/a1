@@ -1177,6 +1177,7 @@ export class PiEngineAdapter {
         if (session.isStreaming) return workflowResult(request.command, "failed", "Wait for the current response to finish before reloading.");
         if (session.isCompacting) return workflowResult(request.command, "failed", "Wait for compaction to finish before reloading.");
         await requiredDynamicCallAsync(session, "reload");
+        await this.#bindExtensionUiToSession();
         return workflowResult(request.command, "completed", "Reloaded keybindings, extensions, skills, prompts, themes, and context files");
       }
       case "quit": {
