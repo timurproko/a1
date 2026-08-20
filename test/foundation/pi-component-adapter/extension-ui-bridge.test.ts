@@ -105,6 +105,8 @@ describe("pinned extension UI bridge", () => {
     expect(value.notifications).toContain("error:Extension widget failed: boom");
     expect(() => value.bridge.context.setEditorComponent((() => { throw new Error("editor boom"); }) as never)).not.toThrow();
     expect(value.notifications).toContain("error:Extension editor failed: editor boom");
+    expect(() => value.bridge.context.setEditorComponent((() => ({})) as never)).not.toThrow();
+    expect(value.notifications).toContain("error:Extension editor failed: extension editor factory returned a malformed editor");
     value.bridge.dispose();
   });
 
@@ -122,6 +124,7 @@ describe("pinned extension UI bridge", () => {
     expect(value.inputSurface).toBeNull();
 
     await expect(value.bridge.context.custom(() => { throw new Error("custom boom"); })).rejects.toThrow("custom boom");
+    await expect(value.bridge.context.custom((() => ({})) as never)).rejects.toThrow(/malformed component/);
     expect(value.notifications).not.toContain("error:Extension custom surface failed: custom boom");
     expect(value.inputSurface).toBeNull();
 
