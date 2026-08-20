@@ -1,0 +1,42 @@
+{
+  "schema": "addone-owned-pi-ui-automated-evidence-v1",
+  "change": "build-owned-pi-ui-foundation",
+  "tasks": ["7.10", "7.11", "7.12", "7.13", "7.15"],
+  "recordedAt": "2026-08-17T06:26:25.284Z",
+  "source": {
+    "repository": "https://github.com/earendil-works/pi.git",
+    "commit": "914cf1472e715297caa30db4b9535d534a9eb718",
+    "codingAgentVersion": "0.84.2",
+    "tuiVersion": "0.84.2"
+  },
+  "revalidated": [
+    "prompt submission, current-session history, streaming and settlement",
+    "ordered thinking/text/tool lifecycle and stateful tool result replacement",
+    "queue, follow-up, compaction, retry, recoverable error, and session replacement",
+    "extension widgets, statuses, working messages, input, focus, disposal, and renderer fallback",
+    "extension custom messages and partial/final tool renderer updates",
+    "extension UI context rebinding after reload replaces the extension runner"
+  ],
+  "terminalParity": {
+    "status": "passed",
+    "differences": 0,
+    "checkpoints": [
+      "stream-settlement",
+      "history-previous",
+      "history-draft-restored",
+      "recoverable-error",
+      "reload-status",
+      "reload-extension-stream"
+    ],
+    "piRawCaptureSha256": "8e4ffa93d5ac33162b4b2b725b1da191f6e9a0982d379e9decb93da38745f205",
+    "addOneRawCaptureSha256": "12ca4af22b9caba48d6d5d214c4bbaf9b4d20134c0d48ad9c596945b1258d077"
+  },
+  "validation": {
+    "tests": "84 files, 451 tests passed",
+    "typecheck": "passed",
+    "architecture": "passed; 109 source records and 29 behavior mappings",
+    "audit": "0 vulnerabilities",
+    "strictOpenSpecValidation": "passed"
+  },
+  "manualAcceptance": "pending fresh user comparison"
+}

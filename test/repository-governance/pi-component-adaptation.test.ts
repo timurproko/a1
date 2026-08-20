@@ -17,7 +17,7 @@ interface AdaptationRecord {
 describe("Pi component adaptation policy", () => {
   it("records public surfaces and proves no unrecorded source ports were introduced", async () => {
     const value = JSON.parse(await readFile(
-      "openspec/changes/build-owned-pi-ui-foundation/evidence/pi-component-adaptation.json",
+      "evidence/owned-pi-ui-foundation/pi-component-adaptation.json",
       "utf8",
     )) as AdaptationRecord;
 

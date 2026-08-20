@@ -1,0 +1,31 @@
+{
+  "schema": "addone-owned-pi-ui-automated-evidence-v1",
+  "change": "build-owned-pi-ui-foundation",
+  "tasks": ["7.4", "7.5"],
+  "recordedAt": "2026-08-16T18:50:19.496Z",
+  "source": {
+    "repository": "https://github.com/earendil-works/pi.git",
+    "commit": "914cf1472e715297caa30db4b9535d534a9eb718",
+    "codingAgentVersion": "0.84.2",
+    "tuiVersion": "0.84.2"
+  },
+  "presentation": {
+    "changelog": "Pinned spacer, dynamic borders, bold accent heading, settings-aware Markdown body, version ordering, and chronological transcript anchor.",
+    "errors": "Pinned spacer, output padding, error color, Error: prefix, and command-specific export/reload context.",
+    "status": "Pinned dim spacer row, chronological placement, consecutive-status coalescing, no AddOne-only checkmark, and stale extension presentation cleanup on reload."
+  },
+  "terminalParity": {
+    "status": "passed",
+    "differences": 0,
+    "checkpoints": ["reload-status", "changelog", "export-error"],
+    "piRawCaptureSha256": "ec2ea2d430062d3a7b66a938315ed1cd86ba1d43b8086f6f5ac0030db643de24",
+    "addOneRawCaptureSha256": "ec3a7be567b04197f21bd2b7704c7800151dad271708f5682c3f3d7837be5817"
+  },
+  "validation": {
+    "tests": "83 files, 446 tests passed",
+    "typecheck": "passed",
+    "architecture": "passed; 109 source records and 29 behavior mappings",
+    "strictOpenSpecValidation": "passed"
+  },
+  "manualAcceptance": "pending fresh user comparison"
+}

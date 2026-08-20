@@ -1,0 +1,3921 @@
+{
+  "schema": "a1-pinned-pi-modal-transition-graph-v2",
+  "change": "build-owned-pi-ui-foundation",
+  "task": "7.26",
+  "pinned": {
+    "version": "0.84.2",
+    "commit": "914cf1472e715297caa30db4b9535d534a9eb718"
+  },
+  "policy": {
+    "scope": "Every root, nested, replacement, and overlay node plus every source-reachable transition from InteractiveMode, nested components, and public extension UI is mandatory.",
+    "genericFixtureSatisfiesSpecializedSurface": false,
+    "flatTopLevelInventorySatisfiesCoverage": false,
+    "requiredNodeFields": [
+      "heading",
+      "body",
+      "options",
+      "borders",
+      "colors",
+      "instructions",
+      "focus",
+      "viewport",
+      "scrolling",
+      "controller",
+      "acceptance",
+      "parents"
+    ],
+    "requiredEdgeFields": [
+      "trigger",
+      "stateMutation",
+      "replacement",
+      "result",
+      "restoration",
+      "acceptance"
+    ],
+    "requiredLifecycle": [
+      "open",
+      "active",
+      "complete-or-save",
+      "back",
+      "cancel",
+      "failure",
+      "focus-restoration",
+      "resize",
+      "dispose",
+      "session-switch"
+    ],
+    "acceptanceMapping": {
+      "node": "modal-node:<node-id>",
+      "edge": "modal-edge:<edge-id>"
+    },
+    "acceptanceEvidenceRequired": true
+  },
+  "sources": {
+    "interactive": "node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/interactive-mode.js",
+    "settings": "node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/components/settings-selector.js",
+    "oauth": "node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/components/oauth-selector.js",
+    "login": "node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/components/login-dialog.js",
+    "session": "node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/components/session-selector.js",
+    "scopedModels": "node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/components/scoped-models-selector.js",
+    "tree": "node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/components/tree-selector.js",
+    "extensionSelector": "node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/components/extension-selector.js",
+    "extensionInput": "node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/components/extension-input.js",
+    "extensionEditor": "node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/components/extension-editor.js"
+  },
+  "settingsInstances": [
+    "anthropic-extra-usage",
+    "light-theme",
+    "dark-theme",
+    "apply",
+    "single-mode",
+    "autocompact",
+    "steering-mode",
+    "follow-up-mode",
+    "transport",
+    "http-idle-timeout",
+    "hide-thinking",
+    "mermaid-rendering",
+    "cache-miss-notices",
+    "collapse-changelog",
+    "quiet-startup",
+    "install-telemetry",
+    "default-project-trust",
+    "double-escape-action",
+    "tree-filter-mode",
+    "warnings",
+    "thinking",
+    "tui-mode",
+    "fullscreen-exit-output",
+    "fullscreen-scrollbar",
+    "theme",
+    "show-images",
+    "image-width-cells",
+    "auto-resize-images",
+    "block-images",
+    "skill-commands",
+    "show-hardware-cursor",
+    "editor-padding",
+    "output-padding",
+    "autocomplete-max-visible",
+    "clear-on-shrink",
+    "terminal-progress"
+  ],
+  "nodes": [
+    {
+      "id": "editor.root",
+      "source": "interactive",
+      "sourceAnchors": [
+        "this.editorContainer.addChild(this.editor)"
+      ],
+      "heading": "none",
+      "body": "owned prompt editor",
+      "options": [],
+      "borders": "mode/thinking-aware editor border",
+      "colors": "editor theme and current border color",
+      "instructions": "autocomplete and keybinding hints when active",
+      "focus": "editor",
+      "viewport": "dock minimum three rows",
+      "scrolling": "editor multiline/autocomplete ownership",
+      "destination": "src/features/owned-ui/pi-session-shell.ts",
+      "status": "implemented",
+      "controller": "CustomEditor",
+      "acceptance": "modal-node:editor.root",
+      "parents": [
+        "auth.dialog.api-key",
+        "auth.dialog.info",
+        "auth.dialog.oauth",
+        "auth.login-type",
+        "auth.logout-provider",
+        "command.import-confirm",
+        "extension.confirm",
+        "extension.custom-editor",
+        "extension.custom-replacement",
+        "extension.editor",
+        "extension.input",
+        "extension.overlay",
+        "extension.select",
+        "models.scope",
+        "models.select",
+        "operation.reload-loader",
+        "operation.share-loader",
+        "session.fork",
+        "session.missing-cwd",
+        "session.resume.all",
+        "session.resume.current",
+        "settings.root",
+        "tree.root",
+        "tree.summary-choice",
+        "tree.summary-custom",
+        "trust.project"
+      ],
+      "acceptanceEvidence": [
+        "terminal:editor-input",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
+      ]
+    },
+    {
+      "id": "settings.root",
+      "source": "settings",
+      "sourceAnchors": [
+        "export class SettingsSelectorComponent",
+        "new SettingsList(items, 10"
+      ],
+      "heading": "settings list labels and current values",
+      "body": "all source-declared setting descriptions",
+      "options": [
+        "search",
+        "navigate",
+        "open value or specialized submenu"
+      ],
+      "borders": "DynamicBorder above and below",
+      "colors": "SettingsList theme",
+      "instructions": "SettingsList search/navigation/select/cancel hints",
+      "focus": "settingsList",
+      "viewport": "10 visible settings rows",
+      "scrolling": "SettingsList scroll and search filter",
+      "destination": "src/foundation/pi-component-adapter/shell-components.ts",
+      "status": "implemented-pending-exhaustive-parity",
+      "controller": "SettingsSelectorComponent + SettingsList",
+      "acceptance": "modal-node:settings.root",
+      "parents": [
+        "editor.root",
+        "settings.theme.automatic",
+        "settings.theme.single",
+        "settings.thinking",
+        "settings.value-submenu",
+        "settings.warnings"
+      ],
+      "acceptanceEvidence": [
+        "terminal:settings-selector",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
+      ]
+    },
+    {
+      "id": "settings.value-submenu",
+      "source": "settings",
+      "sourceAnchors": [
+        "currentValue:",
+        "values:"
+      ],
+      "heading": "selected setting label",
+      "body": "selected setting description",
+      "options": [
+        "exact values declared for the selected settings instance"
+      ],
+      "borders": "SettingsList-owned submenu composition",
+      "colors": "SettingsList/SelectList theme",
+      "instructions": "navigate, select, cancel/back",
+      "focus": "nested value selector",
+      "viewport": "bounded by value count",
+      "scrolling": "SelectList scrolling",
+      "destination": "src/foundation/pi-component-adapter/shell-components.ts",
+      "status": "implemented-pending-exhaustive-parity",
+      "controller": "SettingsList value submenu",
+      "acceptance": "modal-node:settings.value-submenu",
+      "parents": [
+        "settings.root"
+      ],
+      "acceptanceEvidence": [
+        "terminal:settings-selector",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
+      ]
+    },
+    {
+      "id": "settings.warnings",
+      "source": "settings",
+      "sourceAnchors": [
+        "class WarningSettingsSubmenu",
+        "Anthropic extra usage"
+      ],
+      "heading": "Warnings",
+      "body": "warning-specific descriptions and current values",
+      "options": [
+        "anthropic-extra-usage true",
+        "anthropic-extra-usage false"
+      ],
+      "borders": "parent SettingsList submenu",
+      "colors": "SettingsList theme",
+      "instructions": "navigate/select/cancel",
+      "focus": "nested settingsList",
+      "viewport": "warning item count",
+      "scrolling": "SettingsList scrolling",
+      "destination": "src/foundation/pi-component-adapter/shell-components.ts",
+      "status": "implemented-pending-exhaustive-parity",
+      "controller": "WarningSettingsSubmenu",
+      "acceptance": "modal-node:settings.warnings",
+      "parents": [
+        "settings.root"
+      ],
+      "acceptanceEvidence": [
+        "terminal:settings-selector",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
+      ]
+    },
+    {
+      "id": "settings.thinking",
+      "source": "settings",
+      "sourceAnchors": [
+        "Thinking Level",
+        "THINKING_DESCRIPTIONS"
+      ],
+      "heading": "Thinking Level",
+      "body": "Select reasoning depth for thinking-capable models",
+      "options": [
+        "available model thinking levels with exact descriptions"
+      ],
+      "borders": "SelectSubmenu composition",
+      "colors": "accent heading, muted description, SelectList theme",
+      "instructions": "Enter to select · Esc to go back",
+      "focus": "selectList",
+      "viewport": "maximum ten options",
+      "scrolling": "SelectList scrolling",
+      "destination": "src/foundation/pi-component-adapter/shell-components.ts",
+      "status": "implemented-pending-exhaustive-parity",
+      "controller": "SelectSubmenu",
+      "acceptance": "modal-node:settings.thinking",
+      "parents": [
+        "settings.root"
+      ],
+      "acceptanceEvidence": [
+        "terminal:settings-selector",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
+      ]
+    },
+    {
+      "id": "settings.theme.single",
+      "source": "settings",
+      "sourceAnchors": [
+        "showSingleMenu()",
+        "Select a theme, or choose Automatic"
+      ],
+      "heading": "Theme",
+      "body": "Select a theme, or choose Automatic to follow terminal appearance.",
+      "options": [
+        "Automatic",
+        "all available theme names"
+      ],
+      "borders": "SelectSubmenu composition",
+      "colors": "live theme preview plus accent/muted list theme",
+      "instructions": "Enter to select · Esc to go back",
+      "focus": "theme selectList",
+      "viewport": "maximum ten themes",
+      "scrolling": "SelectList scrolling",
+      "destination": "src/foundation/pi-component-adapter/shell-components.ts",
+      "status": "implemented-pending-exhaustive-parity",
+      "controller": "ThemeSubmenu + SelectSubmenu",
+      "acceptance": "modal-node:settings.theme.single",
+      "parents": [
+        "settings.root",
+        "settings.theme.automatic"
+      ],
+      "acceptanceEvidence": [
+        "terminal:settings-theme-automatic",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
+      ]
+    },
+    {
+      "id": "settings.theme.automatic",
+      "source": "settings",
+      "sourceAnchors": [
+        "showAutomaticMenu()",
+        "Automatic Theme"
+      ],
+      "heading": "Automatic Theme",
+      "body": "Choose themes for terminal light and dark appearance; capability note",
+      "options": [
+        "Light theme",
+        "Dark theme",
+        "Apply",
+        "Change mode"
+      ],
+      "borders": "ThemeSubmenu parent composition",
+      "colors": "live preview, accent heading, muted descriptions",
+      "instructions": "SettingsList navigation/select/cancel",
+      "focus": "automatic settingsList",
+      "viewport": "four settings rows",
+      "scrolling": "SettingsList scrolling",
+      "destination": "src/foundation/pi-component-adapter/shell-components.ts",
+      "status": "implemented-pending-exhaustive-parity",
+      "controller": "ThemeSubmenu + SettingsList",
+      "acceptance": "modal-node:settings.theme.automatic",
+      "parents": [
+        "settings.theme.dark",
+        "settings.theme.light",
+        "settings.theme.single"
+      ],
+      "acceptanceEvidence": [
+        "terminal:settings-theme-automatic",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
+      ]
+    },
+    {
+      "id": "settings.theme.light",
+      "source": "settings",
+      "sourceAnchors": [
+        "Light Theme",
+        "Select the theme to use for light terminal appearance"
+      ],
+      "heading": "Light Theme",
+      "body": "Select the theme to use for light terminal appearance",
+      "options": [
+        "all available theme names"
+      ],
+      "borders": "SelectSubmenu composition",
+      "colors": "live theme preview",
+      "instructions": "Enter to select · Esc to go back",
+      "focus": "selectList",
+      "viewport": "maximum ten themes",
+      "scrolling": "SelectList scrolling",
+      "destination": "src/foundation/pi-component-adapter/shell-components.ts",
+      "status": "implemented-pending-exhaustive-parity",
+      "controller": "ThemeSubmenu + SelectSubmenu",
+      "acceptance": "modal-node:settings.theme.light",
+      "parents": [
+        "settings.theme.automatic"
+      ],
+      "acceptanceEvidence": [
+        "terminal:settings-theme-automatic",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
+      ]
+    },
+    {
+      "id": "settings.theme.dark",
+      "source": "settings",
+      "sourceAnchors": [
+        "Dark Theme",
+        "Select the theme to use for dark terminal appearance"
+      ],
+      "heading": "Dark Theme",
+      "body": "Select the theme to use for dark terminal appearance",
+      "options": [
+        "all available theme names"
+      ],
+      "borders": "SelectSubmenu composition",
+      "colors": "live theme preview",
+      "instructions": "Enter to select · Esc to go back",
+      "focus": "selectList",
+      "viewport": "maximum ten themes",
+      "scrolling": "SelectList scrolling",
+      "destination": "src/foundation/pi-component-adapter/shell-components.ts",
+      "status": "implemented-pending-exhaustive-parity",
+      "controller": "ThemeSubmenu + SelectSubmenu",
+      "acceptance": "modal-node:settings.theme.dark",
+      "parents": [
+        "settings.theme.automatic"
+      ],
+      "acceptanceEvidence": [
+        "terminal:settings-theme-automatic",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
+      ]
+    },
+    {
+      "id": "models.select",
+      "source": "interactive",
+      "sourceAnchors": [
+        "showModelSelector(initialSearchInput)",
+        "new ModelSelectorComponent"
+      ],
+      "heading": "model selector source heading",
+      "body": "model search, provider, model, and thinking metadata",
+      "options": [
+        "cached/refreshed models"
+      ],
+      "borders": "ModelSelectorComponent borders",
+      "colors": "pinned model selector theme",
+      "instructions": "search/navigation/select/cancel",
+      "focus": "ModelSelectorComponent",
+      "viewport": "terminal-aware model list",
+      "scrolling": "model list scrolling",
+      "destination": "src/foundation/pi-component-adapter/shell-components.ts",
+      "status": "implemented-pending-exhaustive-parity",
+      "controller": "ModelSelectorComponent",
+      "acceptance": "modal-node:models.select",
+      "parents": [
+        "editor.root"
+      ],
+      "acceptanceEvidence": [
+        "terminal:model-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
+      ]
+    },
+    {
+      "id": "models.scope",
+      "source": "scopedModels",
+      "sourceAnchors": [
+        "export class ScopedModelsSelectorComponent"
+      ],
+      "heading": "Scoped Models",
+      "body": "search, enabled/session/persisted state, refresh status",
+      "options": [
+        "all models",
+        "provider/bulk/reorder actions"
+      ],
+      "borders": "accent DynamicBorder",
+      "colors": "enabled, disabled, dirty, refresh status themes",
+      "instructions": "toggle/bulk/provider/reorder/Ctrl+S/Esc hints",
+      "focus": "ScopedModelsSelectorComponent search/list",
+      "viewport": "terminal-aware model rows",
+      "scrolling": "source-owned list scrolling",
+      "destination": "src/foundation/pi-component-adapter/upstream/components/scoped-models-selector.ts",
+      "status": "implemented-pending-exhaustive-parity",
+      "controller": "ScopedModelsSelectorComponent",
+      "acceptance": "modal-node:models.scope",
+      "parents": [
+        "editor.root",
+        "models.scope",
+        "models.scope.refreshing"
+      ],
+      "acceptanceEvidence": [
+        "terminal:scoped-models-saved-open",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
+      ]
+    },
+    {
+      "id": "models.scope.refreshing",
+      "source": "interactive",
+      "sourceAnchors": [
+        "refreshStatus: \"Refreshing model catalogs…\"",
+        "selector.setRefreshStatus"
+      ],
+      "heading": "Scoped Models",
+      "body": "refresh in progress or success/warning result",
+      "options": [
+        "same live scope actions remain available"
+      ],
+      "borders": "same scoped-model borders",
+      "colors": "success or warning refresh status",
+      "instructions": "same scoped-model hints",
+      "focus": "ScopedModelsSelectorComponent",
+      "viewport": "same active selector",
+      "scrolling": "same active selector",
+      "destination": "src/foundation/pi-component-adapter/upstream/components/scoped-models-selector.ts",
+      "status": "implemented-pending-exhaustive-parity",
+      "controller": "ScopedModelsSelectorComponent",
+      "acceptance": "modal-node:models.scope.refreshing",
+      "parents": [
+        "models.scope"
+      ],
+      "acceptanceEvidence": [
+        "terminal:scoped-models-saved-open",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
+      ]
+    },
+    {
+      "id": "trust.project",
+      "source": "interactive",
+      "sourceAnchors": [
+        "showTrustSelector()",
+        "new TrustSelectorComponent"
+      ],
+      "heading": "Project Trust",
+      "body": "cwd, saved decision, and current trust state",
+      "options": [
+        "trust decision and persistence scope"
+      ],
+      "borders": "TrustSelectorComponent borders",
+      "colors": "trust/warning/accent theme",
+      "instructions": "navigation/select/cancel",
+      "focus": "TrustSelectorComponent",
+      "viewport": "component rows",
+      "scrolling": "component-owned",
+      "destination": "src/foundation/pi-component-adapter/upstream/components/trust-selector.ts",
+      "status": "implemented-pending-exhaustive-parity",
+      "controller": "TrustSelectorComponent",
+      "acceptance": "modal-node:trust.project",
+      "parents": [
+        "editor.root"
+      ],
+      "acceptanceEvidence": [
+        "terminal:trust-selector",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
+      ]
+    },
+    {
+      "id": "session.fork",
+      "source": "interactive",
+      "sourceAnchors": [
+        "showUserMessageSelector()",
+        "new UserMessageSelectorComponent"
+      ],
+      "heading": "fork source message selector",
+      "body": "prior user messages",
+      "options": [
+        "forkable user message entries"
+      ],
+      "borders": "UserMessageSelectorComponent borders",
+      "colors": "selected/message theme",
+      "instructions": "navigation/select/cancel",
+      "focus": "messageList",
+      "viewport": "message list",
+      "scrolling": "message list scrolling",
+      "destination": "src/foundation/pi-component-adapter/shell-components.ts",
+      "status": "implemented-pending-exhaustive-parity",
+      "controller": "UserMessageSelectorComponent",
+      "acceptance": "modal-node:session.fork",
+      "parents": [
+        "editor.root"
+      ],
+      "acceptanceEvidence": [
+        "terminal:session-selector-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
+      ]
+    },
+    {
+      "id": "tree.root",
+      "source": "tree",
+      "sourceAnchors": [
+        "export class TreeSelectorComponent"
+      ],
+      "heading": "session tree",
+      "body": "tree entries, labels, filters, current leaf",
+      "options": [
+        "select entry",
+        "filter",
+        "label",
+        "copy"
+      ],
+      "borders": "TreeSelectorComponent borders",
+      "colors": "current/selected/role/label theme",
+      "instructions": "tree navigation/action hints",
+      "focus": "TreeSelectorComponent",
+      "viewport": "terminal-row-derived tree viewport",
+      "scrolling": "tree list scrolling",
+      "destination": "src/foundation/pi-component-adapter/upstream/components/tree-selector.ts",
+      "status": "implemented-pending-exhaustive-parity",
+      "controller": "TreeSelectorComponent",
+      "acceptance": "modal-node:tree.root",
+      "parents": [
+        "editor.root",
+        "tree.summary-choice"
+      ],
+      "acceptanceEvidence": [
+        "terminal:tree-selector",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
+      ]
+    },
+    {
+      "id": "tree.summary-choice",
+      "source": "interactive",
+      "sourceAnchors": [
+        "Summarize branch?",
+        "Summarize with custom prompt"
+      ],
+      "heading": "Summarize branch?",
+      "body": "none",
+      "options": [
+        "No summary",
+        "Summarize",
+        "Summarize with custom prompt"
+      ],
+      "borders": "ExtensionSelectorComponent borders",
+      "colors": "extension selector theme",
+      "instructions": "navigate/select/cancel",
+      "focus": "ExtensionSelectorComponent",
+      "viewport": "three options",
+      "scrolling": "none required",
+      "destination": "src/features/owned-ui/pi-session-shell.ts",
+      "status": "implemented-pending-exhaustive-parity",
+      "controller": "ExtensionSelectorComponent",
+      "acceptance": "modal-node:tree.summary-choice",
+      "parents": [
+        "tree.root",
+        "tree.summary-custom"
+      ],
+      "acceptanceEvidence": [
+        "terminal:tree-summary-choice",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
+      ]
+    },
+    {
+      "id": "tree.summary-custom",
+      "source": "interactive",
+      "sourceAnchors": [
+        "Custom summarization instructions",
+        "showExtensionEditor"
+      ],
+      "heading": "Custom summarization instructions",
+      "body": "multiline custom summary prompt",
+      "options": [
+        "submit",
+        "external editor",
+        "cancel"
+      ],
+      "borders": "ExtensionEditorComponent borders",
+      "colors": "editor theme",
+      "instructions": "submit/external-editor/cancel hints",
+      "focus": "ExtensionEditorComponent",
+      "viewport": "multiline editor region",
+      "scrolling": "editor scrolling",
+      "destination": "src/features/owned-ui/pi-session-shell.ts",
+      "status": "implemented-pending-exhaustive-parity",
+      "controller": "ExtensionEditorComponent",
+      "acceptance": "modal-node:tree.summary-custom",
+      "parents": [
+        "tree.summary-choice"
+      ],
+      "acceptanceEvidence": [
+        "terminal:tree-summary-choice",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
+      ]
+    },
+    {
+      "id": "session.resume.current",
+      "source": "session",
+      "sourceAnchors": [
+        "Resume Session (Current Folder)",
+        "scope = \"current\""
+      ],
+      "heading": "Resume Session (Current Folder)",
+      "body": "search plus current-folder session rows and loading/progress/status",
+      "options": [
+        "session rows",
+        "scope",
+        "sort",
+        "named",
+        "delete",
+        "path",
+        "rename"
+      ],
+      "borders": "accent DynamicBorder with source spacers",
+      "colors": "current/named/selected/error/dim/accent theme",
+      "instructions": "scope/search/sort/named/delete/path/rename hints",
+      "focus": "SessionList searchInput",
+      "viewport": "maximum ten session rows",
+      "scrolling": "session list scrolling",
+      "destination": "src/foundation/pi-component-adapter/upstream/components/session-selector.ts",
+      "status": "implemented-pending-exhaustive-parity",
+      "controller": "SessionSelectorComponent",
+      "acceptance": "modal-node:session.resume.current",
+      "parents": [
+        "editor.root",
+        "session.resume.all",
+        "session.resume.delete",
+        "session.resume.rename"
+      ],
+      "acceptanceEvidence": [
+        "terminal:session-selector-all",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
+      ]
+    },
+    {
+      "id": "session.resume.all",
+      "source": "session",
+      "sourceAnchors": [
+        "Resume Session (All)",
+        "this.scope = \"all\""
+      ],
+      "heading": "Resume Session (All)",
+      "body": "search plus all-session cwd/path rows and loading/progress/status",
+      "options": [
+        "session rows",
+        "scope",
+        "sort",
+        "named",
+        "delete",
+        "path",
+        "rename"
+      ],
+      "borders": "accent DynamicBorder with source spacers",
+      "colors": "current/named/selected/error/dim/accent theme",
+      "instructions": "scope/search/sort/named/delete/path/rename hints",
+      "focus": "SessionList searchInput",
+      "viewport": "maximum ten session rows",
+      "scrolling": "session list scrolling",
+      "destination": "src/foundation/pi-component-adapter/upstream/components/session-selector.ts",
+      "status": "implemented-pending-exhaustive-parity",
+      "controller": "SessionSelectorComponent",
+      "acceptance": "modal-node:session.resume.all",
+      "parents": [
+        "session.resume.current",
+        "session.resume.delete",
+        "session.resume.rename"
+      ],
+      "acceptanceEvidence": [
+        "terminal:session-selector-all",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
+      ]
+    },
+    {
+      "id": "session.resume.rename",
+      "source": "session",
+      "sourceAnchors": [
+        "Rename Session",
+        "to save ·"
+      ],
+      "heading": "Rename Session",
+      "body": "current session name in Input",
+      "options": [
+        "save",
+        "cancel"
+      ],
+      "borders": "same accent base layout without session header",
+      "colors": "input and muted hint theme",
+      "instructions": "confirm to save · cancel to cancel",
+      "focus": "renameInput",
+      "viewport": "single input panel",
+      "scrolling": "input horizontal behavior",
+      "destination": "src/foundation/pi-component-adapter/upstream/components/session-selector.ts",
+      "status": "implemented-pending-exhaustive-parity",
+      "controller": "SessionSelectorComponent rename mode",
+      "acceptance": "modal-node:session.resume.rename",
+      "parents": [
+        "session.resume.all",
+        "session.resume.current"
+      ],
+      "acceptanceEvidence": [
+        "terminal:session-selector-all",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
+      ]
+    },
+    {
+      "id": "session.resume.delete",
+      "source": "session",
+      "sourceAnchors": [
+        "Delete session?",
+        "confirmingDeletePath"
+      ],
+      "heading": "current resume heading",
+      "body": "selected row highlighted as delete target",
+      "options": [
+        "confirm delete",
+        "cancel"
+      ],
+      "borders": "same session selector borders",
+      "colors": "error confirmation and row theme",
+      "instructions": "Delete session? confirm · cancel",
+      "focus": "SessionList",
+      "viewport": "same session list",
+      "scrolling": "input blocked except confirmation keys",
+      "destination": "src/foundation/pi-component-adapter/upstream/components/session-selector.ts",
+      "status": "implemented-pending-exhaustive-parity",
+      "controller": "SessionSelectorComponent delete-confirm mode",
+      "acceptance": "modal-node:session.resume.delete",
+      "parents": [
+        "session.resume.all",
+        "session.resume.current"
+      ],
+      "acceptanceEvidence": [
+        "terminal:session-selector-all",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
+      ]
+    },
+    {
+      "id": "session.missing-cwd",
+      "source": "interactive",
+      "sourceAnchors": [
+        "Session cwd not found",
+        "formatMissingSessionCwdPrompt"
+      ],
+      "heading": "Session cwd not found",
+      "body": "missing session cwd and fallback current cwd",
+      "options": [
+        "Yes",
+        "No"
+      ],
+      "borders": "ExtensionSelectorComponent borders",
+      "colors": "extension selector theme",
+      "instructions": "navigate/select/cancel",
+      "focus": "ExtensionSelectorComponent",
+      "viewport": "confirmation rows",
+      "scrolling": "none required",
+      "destination": "src/features/owned-ui/pi-session-shell.ts",
+      "status": "implemented-pending-exhaustive-parity",
+      "controller": "ExtensionSelectorComponent confirmation",
+      "acceptance": "modal-node:session.missing-cwd",
+      "parents": [
+        "editor.root"
+      ],
+      "acceptanceEvidence": [
+        "terminal:session-selector-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
+      ]
+    },
+    {
+      "id": "auth.login-type",
+      "source": "interactive",
+      "sourceAnchors": [
+        "showLoginAuthTypeSelector(providerOptions)",
+        "Select authentication method:"
+      ],
+      "heading": "Select authentication method: or provider-specific equivalent",
+      "body": "none",
+      "options": [
+        "provider OAuth loginLabel or Sign in with an account",
+        "Sign in with an API key"
+      ],
+      "borders": "ExtensionSelectorComponent borders",
+      "colors": "extension selector accent/selected theme",
+      "instructions": "navigate/select/cancel",
+      "focus": "ExtensionSelectorComponent",
+      "viewport": "one or two auth methods",
+      "scrolling": "none required",
+      "destination": "src/features/owned-ui/pi-session-shell.ts",
+      "status": "corrected-pending-exhaustive-parity",
+      "controller": "ExtensionSelectorComponent authentication-method controller",
+      "acceptance": "modal-node:auth.login-type",
+      "parents": [
+        "auth.login-provider",
+        "editor.root"
+      ],
+      "acceptanceEvidence": [
+        "terminal:login-auth-type",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
+      ]
+    },
+    {
+      "id": "auth.login-provider",
+      "source": "oauth",
+      "sourceAnchors": [
+        "Select provider to configure:",
+        "export class OAuthSelectorComponent"
+      ],
+      "heading": "Select provider to configure:",
+      "body": "search input and provider rows with auth type/status source",
+      "options": [
+        "filtered providers for selected auth type"
+      ],
+      "borders": "DynamicBorder top/bottom with source spacers",
+      "colors": "accent selected/provider, muted type/status, success configured, warning mismatched auth",
+      "instructions": "search/navigation/select/cancel",
+      "focus": "OAuthSelectorComponent searchInput",
+      "viewport": "eight providers plus scroll indicator",
+      "scrolling": "provider list window",
+      "destination": "src/foundation/pi-component-adapter/shell-components.ts",
+      "status": "corrected-pending-exhaustive-parity",
+      "controller": "OAuthSelectorComponent login mode",
+      "acceptance": "modal-node:auth.login-provider",
+      "parents": [
+        "auth.login-type"
+      ],
+      "acceptanceEvidence": [
+        "terminal:login-provider-auth-type",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
+      ]
+    },
+    {
+      "id": "auth.logout-provider",
+      "source": "oauth",
+      "sourceAnchors": [
+        "Select provider to logout:"
+      ],
+      "heading": "Select provider to logout:",
+      "body": "stored credential providers and statuses",
+      "options": [
+        "stored credential providers"
+      ],
+      "borders": "DynamicBorder top/bottom with source spacers",
+      "colors": "same OAuthSelectorComponent theme",
+      "instructions": "search/navigation/select/cancel",
+      "focus": "OAuthSelectorComponent searchInput",
+      "viewport": "eight providers plus scroll indicator",
+      "scrolling": "provider list window",
+      "destination": "src/foundation/pi-component-adapter/shell-components.ts",
+      "status": "implemented-pending-exhaustive-parity",
+      "controller": "OAuthSelectorComponent logout mode",
+      "acceptance": "modal-node:auth.logout-provider",
+      "parents": [
+        "editor.root"
+      ],
+      "acceptanceEvidence": [
+        "terminal:login-auth-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
+      ]
+    },
+    {
+      "id": "auth.dialog.oauth",
+      "source": "login",
+      "sourceAnchors": [
+        "Login dialog component - replaces editor during OAuth login flow",
+        "titleOverride ?? `Login to ${providerName}`"
+      ],
+      "heading": "Login to provider name",
+      "body": "dynamic provider OAuth flow content",
+      "options": [
+        "cancel",
+        "provider prompt actions"
+      ],
+      "borders": "DynamicBorder top and bottom",
+      "colors": "accent title/links, text, dim hints/progress, warning instructions/code",
+      "instructions": "state-specific cancel/submit/close hints",
+      "focus": "LoginDialogComponent or its Input",
+      "viewport": "dynamic editor replacement",
+      "scrolling": "component content within dock allocation",
+      "destination": "src/foundation/pi-component-adapter/shell-components.ts",
+      "status": "corrected-pending-exhaustive-parity",
+      "controller": "LoginDialogComponent OAuth controller",
+      "acceptance": "modal-node:auth.dialog.oauth",
+      "parents": [
+        "auth.dialog.select-prompt",
+        "auth.login-provider",
+        "auth.login-type"
+      ],
+      "acceptanceEvidence": [
+        "terminal:login-provider-method",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
+      ]
+    },
+    {
+      "id": "auth.dialog.api-key",
+      "source": "interactive",
+      "sourceAnchors": [
+        "showApiKeyLoginDialog(providerId, providerName)",
+        "this.loginProvider(dialog, providerId, \"api_key\")"
+      ],
+      "heading": "Login to provider name",
+      "body": "optional provider details then API-key prompt",
+      "options": [
+        "submit key",
+        "cancel",
+        "provider-owned select prompts"
+      ],
+      "borders": "LoginDialogComponent borders",
+      "colors": "LoginDialogComponent state themes",
+      "instructions": "cancel/submit hints",
+      "focus": "LoginDialogComponent Input or nested auth selector",
+      "viewport": "dynamic editor replacement",
+      "scrolling": "component content",
+      "destination": "src/foundation/pi-component-adapter/shell-components.ts",
+      "status": "corrected-pending-exhaustive-parity",
+      "controller": "LoginDialogComponent API-key controller",
+      "acceptance": "modal-node:auth.dialog.api-key",
+      "parents": [
+        "auth.dialog.select-prompt",
+        "auth.login-provider",
+        "auth.login-type"
+      ],
+      "acceptanceEvidence": [
+        "terminal:login-provider-method",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
+      ]
+    },
+    {
+      "id": "auth.dialog.ambient",
+      "source": "interactive",
+      "sourceAnchors": [
+        "showAmbientAuthDialog(providerOption)",
+        "is configured outside"
+      ],
+      "heading": "provider setup",
+      "body": "provider-owned external authentication information",
+      "options": [
+        "close"
+      ],
+      "borders": "LoginDialogComponent borders",
+      "colors": "accent links/title, text, dim close hint",
+      "instructions": "cancel to close",
+      "focus": "LoginDialogComponent",
+      "viewport": "dynamic editor replacement",
+      "scrolling": "component content",
+      "destination": "src/foundation/pi-component-adapter/shell-components.ts",
+      "status": "corrected-pending-exhaustive-parity",
+      "controller": "LoginDialogComponent ambient controller",
+      "acceptance": "modal-node:auth.dialog.ambient",
+      "parents": [
+        "auth.login-provider",
+        "auth.login-type"
+      ],
+      "acceptanceEvidence": [
+        "terminal:login-provider-method",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
+      ]
+    },
+    {
+      "id": "auth.dialog.details",
+      "source": "login",
+      "sourceAnchors": [
+        "showDetails(lines)"
+      ],
+      "heading": "retained login title",
+      "body": "provider-specific detail lines",
+      "options": [
+        "next provider prompt",
+        "cancel"
+      ],
+      "borders": "retained LoginDialogComponent borders",
+      "colors": "caller-supplied text/muted/accent lines",
+      "instructions": "next state owns hint",
+      "focus": "LoginDialogComponent",
+      "viewport": "dynamic content area",
+      "scrolling": "component content",
+      "destination": "src/foundation/pi-component-adapter/shell-components.ts",
+      "status": "corrected-pending-exhaustive-parity",
+      "controller": "LoginDialogComponent details state",
+      "acceptance": "modal-node:auth.dialog.details",
+      "parents": [
+        "auth.dialog.api-key"
+      ],
+      "acceptanceEvidence": [
+        "terminal:login-provider-method",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
+      ]
+    },
+    {
+      "id": "auth.dialog.auth-url",
+      "source": "login",
+      "sourceAnchors": [
+        "showAuth(url, instructions)",
+        "Ctrl+click to open"
+      ],
+      "heading": "retained login title",
+      "body": "hyperlinked auth URL, click hint, optional warning instructions",
+      "options": [
+        "browser flow",
+        "cancel",
+        "possible subsequent prompt"
+      ],
+      "borders": "retained LoginDialogComponent borders",
+      "colors": "accent hyperlink, dim click hint, warning instructions",
+      "instructions": "click hint and later cancel/submit hint",
+      "focus": "LoginDialogComponent",
+      "viewport": "dynamic content area",
+      "scrolling": "component content",
+      "destination": "src/foundation/pi-component-adapter/shell-components.ts",
+      "status": "corrected-pending-exhaustive-parity",
+      "controller": "LoginDialogComponent auth-url state",
+      "acceptance": "modal-node:auth.dialog.auth-url",
+      "parents": [
+        "auth.dialog.oauth"
+      ],
+      "acceptanceEvidence": [
+        "terminal:login-provider-method",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
+      ]
+    },
+    {
+      "id": "auth.dialog.device-code",
+      "source": "login",
+      "sourceAnchors": [
+        "showDeviceCode(info)",
+        "Enter code:"
+      ],
+      "heading": "retained login title",
+      "body": "verification URI, click hint, user code",
+      "options": [
+        "browser/device completion",
+        "cancel"
+      ],
+      "borders": "retained LoginDialogComponent borders",
+      "colors": "accent hyperlink, dim click hint, warning user code",
+      "instructions": "waiting state adds cancel hint",
+      "focus": "LoginDialogComponent",
+      "viewport": "dynamic content area",
+      "scrolling": "component content",
+      "destination": "src/foundation/pi-component-adapter/shell-components.ts",
+      "status": "corrected-pending-exhaustive-parity",
+      "controller": "LoginDialogComponent device-code state",
+      "acceptance": "modal-node:auth.dialog.device-code",
+      "parents": [
+        "auth.dialog.oauth"
+      ],
+      "acceptanceEvidence": [
+        "terminal:login-provider-method",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
+      ]
+    },
+    {
+      "id": "auth.dialog.select-prompt",
+      "source": "interactive",
+      "sourceAnchors": [
+        "showAuthSelect(dialog, prompt)",
+        "prompt.options.map"
+      ],
+      "heading": "provider prompt.message",
+      "body": "none",
+      "options": [
+        "exact provider prompt option labels"
+      ],
+      "borders": "ExtensionSelectorComponent borders",
+      "colors": "extension selector theme",
+      "instructions": "navigate/select/cancel",
+      "focus": "ExtensionSelectorComponent",
+      "viewport": "provider option count",
+      "scrolling": "selector scrolling",
+      "destination": "src/features/owned-ui/pi-session-shell.ts",
+      "status": "corrected-pending-exhaustive-parity",
+      "controller": "ExtensionSelectorComponent provider-prompt controller",
+      "acceptance": "modal-node:auth.dialog.select-prompt",
+      "parents": [
+        "auth.dialog.api-key",
+        "auth.dialog.oauth"
+      ],
+      "acceptanceEvidence": [
+        "terminal:login-provider-method",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
+      ]
+    },
+    {
+      "id": "auth.dialog.manual-code",
+      "source": "login",
+      "sourceAnchors": [
+        "showManualInput(prompt)",
+        "to cancel"
+      ],
+      "heading": "retained login title",
+      "body": "dim provider prompt and Input",
+      "options": [
+        "submit manual code/URL",
+        "cancel"
+      ],
+      "borders": "retained LoginDialogComponent borders",
+      "colors": "dim prompt and standard input",
+      "instructions": "cancel hint",
+      "focus": "LoginDialogComponent Input",
+      "viewport": "dynamic content area",
+      "scrolling": "input behavior",
+      "destination": "src/foundation/pi-component-adapter/shell-components.ts",
+      "status": "corrected-pending-exhaustive-parity",
+      "controller": "LoginDialogComponent manual-code state",
+      "acceptance": "modal-node:auth.dialog.manual-code",
+      "parents": [
+        "auth.dialog.api-key",
+        "auth.dialog.oauth"
+      ],
+      "acceptanceEvidence": [
+        "terminal:login-provider-method",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
+      ]
+    },
+    {
+      "id": "auth.dialog.text-prompt",
+      "source": "login",
+      "sourceAnchors": [
+        "showPrompt(message, placeholder)",
+        "to cancel,",
+        "to submit"
+      ],
+      "heading": "retained login title",
+      "body": "provider message, optional example placeholder, Input",
+      "options": [
+        "submit response",
+        "cancel"
+      ],
+      "borders": "retained LoginDialogComponent borders",
+      "colors": "text message, dim example, standard input",
+      "instructions": "cancel and submit hints",
+      "focus": "LoginDialogComponent Input",
+      "viewport": "dynamic content area",
+      "scrolling": "input behavior",
+      "destination": "src/foundation/pi-component-adapter/shell-components.ts",
+      "status": "corrected-pending-exhaustive-parity",
+      "controller": "LoginDialogComponent prompt state",
+      "acceptance": "modal-node:auth.dialog.text-prompt",
+      "parents": [
+        "auth.dialog.api-key",
+        "auth.dialog.oauth"
+      ],
+      "acceptanceEvidence": [
+        "terminal:login-provider-method",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
+      ]
+    },
+    {
+      "id": "auth.dialog.info",
+      "source": "login",
+      "sourceAnchors": [
+        "showInfo(message, links = [], showCloseHint = false)"
+      ],
+      "heading": "retained login title",
+      "body": "provider information and optional labeled hyperlinks",
+      "options": [
+        "continue or close"
+      ],
+      "borders": "retained LoginDialogComponent borders",
+      "colors": "text message, accent hyperlinks, dim close hint",
+      "instructions": "optional cancel to close",
+      "focus": "LoginDialogComponent",
+      "viewport": "dynamic content area",
+      "scrolling": "component content",
+      "destination": "src/foundation/pi-component-adapter/shell-components.ts",
+      "status": "corrected-pending-exhaustive-parity",
+      "controller": "LoginDialogComponent info state",
+      "acceptance": "modal-node:auth.dialog.info",
+      "parents": [
+        "auth.dialog.ambient",
+        "auth.dialog.api-key",
+        "auth.dialog.oauth"
+      ],
+      "acceptanceEvidence": [
+        "terminal:login-provider-method",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
+      ]
+    },
+    {
+      "id": "auth.dialog.waiting",
+      "source": "login",
+      "sourceAnchors": [
+        "showWaiting(message)"
+      ],
+      "heading": "retained login title",
+      "body": "dim waiting message",
+      "options": [
+        "cancel"
+      ],
+      "borders": "retained LoginDialogComponent borders",
+      "colors": "dim waiting message and hint",
+      "instructions": "cancel hint",
+      "focus": "LoginDialogComponent",
+      "viewport": "dynamic content area",
+      "scrolling": "component content",
+      "destination": "src/foundation/pi-component-adapter/shell-components.ts",
+      "status": "corrected-pending-exhaustive-parity",
+      "controller": "LoginDialogComponent waiting state",
+      "acceptance": "modal-node:auth.dialog.waiting",
+      "parents": [
+        "auth.dialog.device-code"
+      ],
+      "acceptanceEvidence": [
+        "terminal:login-provider-method",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
+      ]
+    },
+    {
+      "id": "auth.dialog.progress",
+      "source": "login",
+      "sourceAnchors": [
+        "showProgress(message)"
+      ],
+      "heading": "retained login title",
+      "body": "appended dim progress rows",
+      "options": [
+        "cancel where flow permits"
+      ],
+      "borders": "retained LoginDialogComponent borders",
+      "colors": "dim progress",
+      "instructions": "retained state hint",
+      "focus": "LoginDialogComponent",
+      "viewport": "dynamic content area",
+      "scrolling": "component content",
+      "destination": "src/foundation/pi-component-adapter/shell-components.ts",
+      "status": "corrected-pending-exhaustive-parity",
+      "controller": "LoginDialogComponent progress state",
+      "acceptance": "modal-node:auth.dialog.progress",
+      "parents": [
+        "auth.dialog.api-key",
+        "auth.dialog.oauth",
+        "auth.dialog.waiting"
+      ],
+      "acceptanceEvidence": [
+        "terminal:login-provider-method",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
+      ]
+    },
+    {
+      "id": "command.import-confirm",
+      "source": "interactive",
+      "sourceAnchors": [
+        "showExtensionConfirm(\"Import session\""
+      ],
+      "heading": "Import session",
+      "body": "Replace current session with path?",
+      "options": [
+        "Yes",
+        "No"
+      ],
+      "borders": "ExtensionSelectorComponent borders",
+      "colors": "extension selector theme",
+      "instructions": "navigate/select/cancel",
+      "focus": "ExtensionSelectorComponent",
+      "viewport": "confirmation rows",
+      "scrolling": "none required",
+      "destination": "src/features/owned-ui/pi-session-shell.ts",
+      "status": "implemented-pending-exhaustive-parity",
+      "controller": "ExtensionSelectorComponent import-confirm controller",
+      "acceptance": "modal-node:command.import-confirm",
+      "parents": [
+        "editor.root"
+      ],
+      "acceptanceEvidence": [
+        "terminal:command-error-placement",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
+      ]
+    },
+    {
+      "id": "operation.share-loader",
+      "source": "interactive",
+      "sourceAnchors": [
+        "new BorderedLoader(this.ui, theme, \"Creating gist...\")"
+      ],
+      "heading": "bordered operation loader",
+      "body": "Creating gist...",
+      "options": [
+        "abort"
+      ],
+      "borders": "BorderedLoader borders",
+      "colors": "loader theme",
+      "instructions": "abort hint",
+      "focus": "BorderedLoader",
+      "viewport": "editor replacement",
+      "scrolling": "none",
+      "destination": "src/features/owned-ui/pi-session-shell.ts",
+      "status": "corrected-pending-exhaustive-parity",
+      "controller": "BorderedLoader share controller",
+      "acceptance": "modal-node:operation.share-loader",
+      "parents": [
+        "editor.root"
+      ],
+      "acceptanceEvidence": [
+        "terminal:extension-custom-replacement",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
+      ]
+    },
+    {
+      "id": "operation.reload-loader",
+      "source": "interactive",
+      "sourceAnchors": [
+        "Reloading keybindings, extensions, skills, prompts, themes, and context files..."
+      ],
+      "heading": "none",
+      "body": "reload progress message",
+      "options": [
+        "wait"
+      ],
+      "borders": "border-color DynamicBorder top/bottom",
+      "colors": "muted body and border theme",
+      "instructions": "none",
+      "focus": "reloadBox",
+      "viewport": "editor replacement",
+      "scrolling": "none",
+      "destination": "src/features/owned-ui/pi-session-shell.ts",
+      "status": "implemented-pending-exhaustive-parity",
+      "controller": "InteractiveMode reloadBox controller",
+      "acceptance": "modal-node:operation.reload-loader",
+      "parents": [
+        "editor.root"
+      ],
+      "acceptanceEvidence": [
+        "terminal:reload-status",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
+      ]
+    },
+    {
+      "id": "extension.select",
+      "source": "interactive",
+      "sourceAnchors": [
+        "showExtensionSelector(title, options, opts)"
+      ],
+      "heading": "extension-supplied title",
+      "body": "extension-supplied selector content",
+      "options": [
+        "extension-supplied options"
+      ],
+      "borders": "ExtensionSelectorComponent borders",
+      "colors": "extension selector theme",
+      "instructions": "navigation/select/cancel plus timeout/tools where configured",
+      "focus": "ExtensionSelectorComponent",
+      "viewport": "option list",
+      "scrolling": "selector scrolling",
+      "destination": "src/foundation/pi-component-adapter/shell-components.ts",
+      "status": "implemented-pending-exhaustive-parity",
+      "controller": "ExtensionSelectorComponent",
+      "acceptance": "modal-node:extension.select",
+      "parents": [
+        "editor.root"
+      ],
+      "acceptanceEvidence": [
+        "terminal:extension-selector",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
+      ]
+    },
+    {
+      "id": "extension.confirm",
+      "source": "interactive",
+      "sourceAnchors": [
+        "showExtensionConfirm(title, message, opts)"
+      ],
+      "heading": "extension title plus message",
+      "body": "confirmation message",
+      "options": [
+        "Yes",
+        "No"
+      ],
+      "borders": "ExtensionSelectorComponent borders",
+      "colors": "extension selector theme",
+      "instructions": "navigation/select/cancel",
+      "focus": "ExtensionSelectorComponent",
+      "viewport": "two options",
+      "scrolling": "none required",
+      "destination": "src/foundation/pi-component-adapter/shell-components.ts",
+      "status": "implemented-pending-exhaustive-parity",
+      "controller": "ExtensionSelectorComponent confirmation",
+      "acceptance": "modal-node:extension.confirm",
+      "parents": [
+        "editor.root"
+      ],
+      "acceptanceEvidence": [
+        "terminal:extension-confirm",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
+      ]
+    },
+    {
+      "id": "extension.input",
+      "source": "interactive",
+      "sourceAnchors": [
+        "showExtensionInput(title, placeholder, opts)"
+      ],
+      "heading": "extension-supplied title",
+      "body": "Input with placeholder",
+      "options": [
+        "submit",
+        "cancel",
+        "timeout/abort"
+      ],
+      "borders": "ExtensionInputComponent borders",
+      "colors": "extension input theme",
+      "instructions": "submit/cancel hints",
+      "focus": "ExtensionInputComponent",
+      "viewport": "single input surface",
+      "scrolling": "input behavior",
+      "destination": "src/foundation/pi-component-adapter/shell-components.ts",
+      "status": "implemented-pending-exhaustive-parity",
+      "controller": "ExtensionInputComponent",
+      "acceptance": "modal-node:extension.input",
+      "parents": [
+        "editor.root"
+      ],
+      "acceptanceEvidence": [
+        "terminal:extension-input",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
+      ]
+    },
+    {
+      "id": "extension.editor",
+      "source": "interactive",
+      "sourceAnchors": [
+        "showExtensionEditor(title, prefill)"
+      ],
+      "heading": "extension-supplied title",
+      "body": "prefilled multiline editor",
+      "options": [
+        "submit",
+        "external editor",
+        "cancel"
+      ],
+      "borders": "ExtensionEditorComponent borders",
+      "colors": "extension editor theme",
+      "instructions": "submit/external-editor/cancel hints",
+      "focus": "ExtensionEditorComponent",
+      "viewport": "multiline editor",
+      "scrolling": "editor scrolling",
+      "destination": "src/foundation/pi-component-adapter/shell-components.ts",
+      "status": "implemented-pending-exhaustive-parity",
+      "controller": "ExtensionEditorComponent",
+      "acceptance": "modal-node:extension.editor",
+      "parents": [
+        "editor.root"
+      ],
+      "acceptanceEvidence": [
+        "terminal:extension-editor",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
+      ]
+    },
+    {
+      "id": "extension.custom-editor",
+      "source": "interactive",
+      "sourceAnchors": [
+        "setCustomEditorComponent(factory)"
+      ],
+      "heading": "extension-owned",
+      "body": "extension-owned editor preserving text/callbacks/appearance/autocomplete",
+      "options": [
+        "ordinary editor actions"
+      ],
+      "borders": "extension editor or inherited default appearance",
+      "colors": "extension/default editor theme",
+      "instructions": "extension/default editor behavior",
+      "focus": "custom editor component",
+      "viewport": "editor dock",
+      "scrolling": "custom editor behavior",
+      "destination": "src/foundation/pi-component-adapter/shell-components.ts",
+      "status": "implemented-pending-exhaustive-parity",
+      "controller": "extension-provided Editor contract",
+      "acceptance": "modal-node:extension.custom-editor",
+      "parents": [
+        "editor.root"
+      ],
+      "acceptanceEvidence": [
+        "terminal:command-transcript",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
+      ]
+    },
+    {
+      "id": "extension.custom-replacement",
+      "source": "interactive",
+      "sourceAnchors": [
+        "showExtensionCustom(factory, options)",
+        "this.editorContainer.addChild(component)"
+      ],
+      "heading": "extension-owned",
+      "body": "extension-owned focused component",
+      "options": [
+        "extension close result",
+        "failure",
+        "cancel if implemented"
+      ],
+      "borders": "extension-owned",
+      "colors": "extension-owned theme access",
+      "instructions": "extension-owned",
+      "focus": "custom component",
+      "viewport": "editor replacement",
+      "scrolling": "custom component behavior",
+      "destination": "src/foundation/pi-component-adapter/shell-components.ts",
+      "status": "implemented-pending-exhaustive-parity",
+      "controller": "extension-provided Component replacement contract",
+      "acceptance": "modal-node:extension.custom-replacement",
+      "parents": [
+        "editor.root"
+      ],
+      "acceptanceEvidence": [
+        "terminal:extension-custom-replacement",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
+      ]
+    },
+    {
+      "id": "extension.overlay",
+      "source": "interactive",
+      "sourceAnchors": [
+        "this.ui.showOverlay(component, resolveOptions())"
+      ],
+      "heading": "extension-owned overlay",
+      "body": "extension-owned overlay component",
+      "options": [
+        "close",
+        "visibility handle",
+        "dynamic options"
+      ],
+      "borders": "extension-owned",
+      "colors": "extension-owned theme access",
+      "instructions": "extension-owned",
+      "focus": "overlay policy/component",
+      "viewport": "overlay options or component width",
+      "scrolling": "overlay/component behavior",
+      "destination": "src/foundation/pi-component-adapter/shell-components.ts",
+      "status": "implemented-pending-exhaustive-parity",
+      "controller": "TUI overlay + extension-provided Component contract",
+      "acceptance": "modal-node:extension.overlay",
+      "parents": [
+        "editor.root"
+      ],
+      "acceptanceEvidence": [
+        "terminal:extension-custom-overlay",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-public-component-or-source-anchor"
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "id": "open.settings",
+      "from": "editor.root",
+      "to": "settings.root",
+      "source": "interactive",
+      "sourceAnchors": [
+        "this.showSettingsSelector()"
+      ],
+      "trigger": "/settings",
+      "stateMutation": "create SettingsSelectorComponent",
+      "replacement": "replace editorContainer and focus settingsList",
+      "result": "active settings root",
+      "restoration": "cancel returns editor.root",
+      "acceptance": "modal-edge:open.settings",
+      "acceptanceEvidence": [
+        "terminal:command-error-placement",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "settings.value.open",
+      "from": "settings.root",
+      "to": "settings.value-submenu",
+      "source": "settings",
+      "sourceAnchors": [
+        "values:"
+      ],
+      "trigger": "select any ordinary setting instance",
+      "stateMutation": "SettingsList opens values submenu",
+      "replacement": "nested SettingsList surface",
+      "result": "setting value selector",
+      "restoration": "select/cancel returns settings.root",
+      "acceptance": "modal-edge:settings.value.open",
+      "acceptanceEvidence": [
+        "terminal:settings-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "settings.warnings.open",
+      "from": "settings.root",
+      "to": "settings.warnings",
+      "source": "settings",
+      "sourceAnchors": [
+        "submenu: (_currentValue, done) => new WarningSettingsSubmenu"
+      ],
+      "trigger": "select Warnings",
+      "stateMutation": "preserve current warning state",
+      "replacement": "nested warning SettingsList",
+      "result": "warning submenu",
+      "restoration": "cancel returns settings.root",
+      "acceptance": "modal-edge:settings.warnings.open",
+      "acceptanceEvidence": [
+        "terminal:settings-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "settings.thinking.open",
+      "from": "settings.root",
+      "to": "settings.thinking",
+      "source": "settings",
+      "sourceAnchors": [
+        "new SelectSubmenu(\"Thinking Level\""
+      ],
+      "trigger": "select Thinking level",
+      "stateMutation": "capture current thinking level",
+      "replacement": "nested SelectSubmenu",
+      "result": "thinking selector",
+      "restoration": "select/cancel returns settings.root",
+      "acceptance": "modal-edge:settings.thinking.open",
+      "acceptanceEvidence": [
+        "terminal:settings-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "settings.theme.open",
+      "from": "settings.root",
+      "to": "settings.theme.single",
+      "source": "settings",
+      "sourceAnchors": [
+        "new ThemeSubmenu"
+      ],
+      "trigger": "select Theme",
+      "stateMutation": "capture original theme and begin preview ownership",
+      "replacement": "ThemeSubmenu single mode",
+      "result": "single theme menu",
+      "restoration": "apply/cancel returns settings.root; cancel restores original preview",
+      "acceptance": "modal-edge:settings.theme.open",
+      "acceptanceEvidence": [
+        "terminal:settings-theme-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "settings.theme.automatic",
+      "from": "settings.theme.single",
+      "to": "settings.theme.automatic",
+      "source": "settings",
+      "sourceAnchors": [
+        "this.showAutomaticMenu()"
+      ],
+      "trigger": "select Automatic",
+      "stateMutation": "mode=automatic and preview automatic setting",
+      "replacement": "automatic theme SettingsList",
+      "result": "automatic theme menu",
+      "restoration": "Apply returns settings.root; cancel restores original",
+      "acceptance": "modal-edge:settings.theme.automatic",
+      "acceptanceEvidence": [
+        "terminal:settings-theme-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "settings.theme.single-back",
+      "from": "settings.theme.automatic",
+      "to": "settings.theme.single",
+      "source": "settings",
+      "sourceAnchors": [
+        "case \"single-mode\""
+      ],
+      "trigger": "select Change mode",
+      "stateMutation": "mode=single and preview active automatic theme",
+      "replacement": "single theme SelectSubmenu",
+      "result": "single theme menu",
+      "restoration": "normal theme completion",
+      "acceptance": "modal-edge:settings.theme.single-back",
+      "acceptanceEvidence": [
+        "terminal:settings-theme-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "settings.theme.light.open",
+      "from": "settings.theme.automatic",
+      "to": "settings.theme.light",
+      "source": "settings",
+      "sourceAnchors": [
+        "this.createThemeSelect(\"Light Theme\""
+      ],
+      "trigger": "select Light theme",
+      "stateMutation": "preview candidate light theme",
+      "replacement": "nested theme SelectSubmenu",
+      "result": "light theme list",
+      "restoration": "select/cancel returns automatic menu",
+      "acceptance": "modal-edge:settings.theme.light.open",
+      "acceptanceEvidence": [
+        "terminal:settings-theme-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "settings.theme.dark.open",
+      "from": "settings.theme.automatic",
+      "to": "settings.theme.dark",
+      "source": "settings",
+      "sourceAnchors": [
+        "this.createThemeSelect(\"Dark Theme\""
+      ],
+      "trigger": "select Dark theme",
+      "stateMutation": "preview candidate dark theme",
+      "replacement": "nested theme SelectSubmenu",
+      "result": "dark theme list",
+      "restoration": "select/cancel returns automatic menu",
+      "acceptance": "modal-edge:settings.theme.dark.open",
+      "acceptanceEvidence": [
+        "terminal:settings-theme-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "settings.close",
+      "from": "settings.root",
+      "to": "editor.root",
+      "source": "interactive",
+      "sourceAnchors": [
+        "onCancel: () => {",
+        "done();"
+      ],
+      "trigger": "Escape/cancel",
+      "stateMutation": "dispose active selector token",
+      "replacement": "restore editor component",
+      "result": "silent close",
+      "restoration": "focus editor.root",
+      "acceptance": "modal-edge:settings.close",
+      "acceptanceEvidence": [
+        "terminal:settings-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "open.model",
+      "from": "editor.root",
+      "to": "models.select",
+      "source": "interactive",
+      "sourceAnchors": [
+        "showModelSelector(initialSearchInput)"
+      ],
+      "trigger": "/model without exact match",
+      "stateMutation": "create model selector with cached/refreshed catalog",
+      "replacement": "showSelector editor replacement",
+      "result": "active model selector",
+      "restoration": "select/cancel/error returns editor.root",
+      "acceptance": "modal-edge:open.model",
+      "acceptanceEvidence": [
+        "terminal:model-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "model.close",
+      "from": "models.select",
+      "to": "editor.root",
+      "source": "interactive",
+      "sourceAnchors": [
+        "done();",
+        "this.showStatus(`Model: ${model.id}`)"
+      ],
+      "trigger": "select or cancel",
+      "stateMutation": "optional set model/footer/border",
+      "replacement": "restore editor",
+      "result": "status on success, silent cancel, error on failure",
+      "restoration": "focus editor.root",
+      "acceptance": "modal-edge:model.close",
+      "acceptanceEvidence": [
+        "terminal:model-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "open.scoped-models",
+      "from": "editor.root",
+      "to": "models.scope",
+      "source": "interactive",
+      "sourceAnchors": [
+        "showModelsSelector()"
+      ],
+      "trigger": "/scoped-models",
+      "stateMutation": "capture session and persisted scope",
+      "replacement": "showSelector editor replacement",
+      "result": "active scoped models",
+      "restoration": "Escape returns editor.root without implicit persist",
+      "acceptance": "modal-edge:open.scoped-models",
+      "acceptanceEvidence": [
+        "terminal:command-error-placement",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "scoped.refresh.start",
+      "from": "models.scope",
+      "to": "models.scope.refreshing",
+      "source": "interactive",
+      "sourceAnchors": [
+        "void refreshModelCatalogs"
+      ],
+      "trigger": "selector opens",
+      "stateMutation": "start abortable catalog refresh",
+      "replacement": "same live selector",
+      "result": "refreshing status",
+      "restoration": "result returns models.scope state",
+      "acceptance": "modal-edge:scoped.refresh.start",
+      "acceptanceEvidence": [
+        "terminal:scoped-models-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "scoped.refresh.finish",
+      "from": "models.scope.refreshing",
+      "to": "models.scope",
+      "source": "interactive",
+      "sourceAnchors": [
+        "selector.setRefreshStatus"
+      ],
+      "trigger": "refresh success/error/timeout",
+      "stateMutation": "update model snapshot/status and session scope",
+      "replacement": "same selector",
+      "result": "success or warning status",
+      "restoration": "remain models.scope",
+      "acceptance": "modal-edge:scoped.refresh.finish",
+      "acceptanceEvidence": [
+        "terminal:scoped-models-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "scoped.toggle",
+      "from": "models.scope",
+      "to": "models.scope",
+      "source": "interactive",
+      "sourceAnchors": [
+        "onChange: (enabledIds)"
+      ],
+      "trigger": "toggle/bulk/provider/reorder",
+      "stateMutation": "update session-only scope and dirty state",
+      "replacement": "none",
+      "result": "remain open dirty",
+      "restoration": "same focus/viewport",
+      "acceptance": "modal-edge:scoped.toggle",
+      "acceptanceEvidence": [
+        "terminal:scoped-models-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "scoped.persist",
+      "from": "models.scope",
+      "to": "models.scope",
+      "source": "interactive",
+      "sourceAnchors": [
+        "onPersist: (enabledIds)"
+      ],
+      "trigger": "Ctrl+S",
+      "stateMutation": "persist enabled model patterns and append pinned status",
+      "replacement": "none",
+      "result": "saved and remains open",
+      "restoration": "same selector",
+      "acceptance": "modal-edge:scoped.persist",
+      "acceptanceEvidence": [
+        "terminal:scoped-models-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "scoped.cancel",
+      "from": "models.scope",
+      "to": "editor.root",
+      "source": "interactive",
+      "sourceAnchors": [
+        "onCancel: () => {",
+        "controller.abort()"
+      ],
+      "trigger": "Escape/cancel/session disposal",
+      "stateMutation": "abort refresh; retain applied session scope; do not persist unsaved patterns",
+      "replacement": "restore editor",
+      "result": "silent close",
+      "restoration": "focus editor.root",
+      "acceptance": "modal-edge:scoped.cancel",
+      "acceptanceEvidence": [
+        "terminal:scoped-models-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "open.trust",
+      "from": "editor.root",
+      "to": "trust.project",
+      "source": "interactive",
+      "sourceAnchors": [
+        "showTrustSelector()"
+      ],
+      "trigger": "/trust",
+      "stateMutation": "load saved/current trust context",
+      "replacement": "showSelector editor replacement",
+      "result": "active trust selector",
+      "restoration": "select/cancel returns editor",
+      "acceptance": "modal-edge:open.trust",
+      "acceptanceEvidence": [
+        "terminal:trust-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "trust.close",
+      "from": "trust.project",
+      "to": "editor.root",
+      "source": "interactive",
+      "sourceAnchors": [
+        "Saved trust decision:"
+      ],
+      "trigger": "select or cancel",
+      "stateMutation": "persist selected updates only on select",
+      "replacement": "restore editor",
+      "result": "status on select, silent cancel",
+      "restoration": "focus editor.root",
+      "acceptance": "modal-edge:trust.close",
+      "acceptanceEvidence": [
+        "terminal:trust-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "open.fork",
+      "from": "editor.root",
+      "to": "session.fork",
+      "source": "interactive",
+      "sourceAnchors": [
+        "showUserMessageSelector()"
+      ],
+      "trigger": "/fork or fork shortcut",
+      "stateMutation": "load forkable user messages",
+      "replacement": "showSelector editor replacement",
+      "result": "active message selector",
+      "restoration": "select/cancel returns editor",
+      "acceptance": "modal-edge:open.fork",
+      "acceptanceEvidence": [
+        "terminal:session-selector-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "fork.close",
+      "from": "session.fork",
+      "to": "editor.root",
+      "source": "interactive",
+      "sourceAnchors": [
+        "Forked to new session"
+      ],
+      "trigger": "select/cancel/failure",
+      "stateMutation": "optional fork and restore selected text",
+      "replacement": "restore editor",
+      "result": "status/error/silent cancel",
+      "restoration": "focus editor.root",
+      "acceptance": "modal-edge:fork.close",
+      "acceptanceEvidence": [
+        "terminal:session-selector-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "open.tree",
+      "from": "editor.root",
+      "to": "tree.root",
+      "source": "interactive",
+      "sourceAnchors": [
+        "showTreeSelector(initialSelectedId)"
+      ],
+      "trigger": "/tree or tree shortcut",
+      "stateMutation": "load tree/current leaf/filter",
+      "replacement": "showSelector editor replacement",
+      "result": "active tree",
+      "restoration": "cancel returns editor",
+      "acceptance": "modal-edge:open.tree",
+      "acceptanceEvidence": [
+        "terminal:command-error-placement",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "tree.summary.open",
+      "from": "tree.root",
+      "to": "tree.summary-choice",
+      "source": "interactive",
+      "sourceAnchors": [
+        "Summarize branch?"
+      ],
+      "trigger": "select non-current entry when prompt not skipped",
+      "stateMutation": "dispose tree while retaining selected entry id",
+      "replacement": "ExtensionSelectorComponent",
+      "result": "summary choice",
+      "restoration": "cancel reopens tree.root at same entry",
+      "acceptance": "modal-edge:tree.summary.open",
+      "acceptanceEvidence": [
+        "terminal:tree-summary-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "tree.summary.cancel",
+      "from": "tree.summary-choice",
+      "to": "tree.root",
+      "source": "interactive",
+      "sourceAnchors": [
+        "this.showTreeSelector(entryId)"
+      ],
+      "trigger": "Escape/cancel",
+      "stateMutation": "retain selected entry id",
+      "replacement": "restore TreeSelectorComponent",
+      "result": "tree active",
+      "restoration": "focus selected tree entry",
+      "acceptance": "modal-edge:tree.summary.cancel",
+      "acceptanceEvidence": [
+        "terminal:tree-summary-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "tree.custom.open",
+      "from": "tree.summary-choice",
+      "to": "tree.summary-custom",
+      "source": "interactive",
+      "sourceAnchors": [
+        "Summarize with custom prompt"
+      ],
+      "trigger": "select custom prompt",
+      "stateMutation": "wantsSummary=true",
+      "replacement": "ExtensionEditorComponent",
+      "result": "custom instruction editor",
+      "restoration": "cancel returns summary choice",
+      "acceptance": "modal-edge:tree.custom.open",
+      "acceptanceEvidence": [
+        "terminal:tree-summary-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "tree.custom.cancel",
+      "from": "tree.summary-custom",
+      "to": "tree.summary-choice",
+      "source": "interactive",
+      "sourceAnchors": [
+        "if (customInstructions === undefined)"
+      ],
+      "trigger": "Escape/cancel",
+      "stateMutation": "discard custom input",
+      "replacement": "recreate summary selector",
+      "result": "summary choice active",
+      "restoration": "summary choice focus",
+      "acceptance": "modal-edge:tree.custom.cancel",
+      "acceptanceEvidence": [
+        "terminal:tree-summary-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "tree.navigate",
+      "from": "tree.summary-choice",
+      "to": "editor.root",
+      "source": "interactive",
+      "sourceAnchors": [
+        "this.session.navigateTree(entryId"
+      ],
+      "trigger": "select no summary/summarize or submit custom prompt",
+      "stateMutation": "optional abort stream, navigate/summarize, rebuild transcript/editor text",
+      "replacement": "restore editor and optional dock BranchSummaryStatusIndicator",
+      "result": "status/error and new session point",
+      "restoration": "focus editor; aborted summary can reopen tree.root",
+      "acceptance": "modal-edge:tree.navigate",
+      "acceptanceEvidence": [
+        "terminal:tree-summary-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "tree.custom.navigate",
+      "from": "tree.summary-custom",
+      "to": "editor.root",
+      "source": "interactive",
+      "sourceAnchors": [
+        "customInstructions = await this.showExtensionEditor"
+      ],
+      "trigger": "submit custom instructions",
+      "stateMutation": "navigate with summarize=true and customInstructions",
+      "replacement": "restore editor plus branch-summary status",
+      "result": "navigation outcome",
+      "restoration": "focus editor or reopen tree on abort",
+      "acceptance": "modal-edge:tree.custom.navigate",
+      "acceptanceEvidence": [
+        "terminal:tree-summary-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "tree.cancel",
+      "from": "tree.root",
+      "to": "editor.root",
+      "source": "interactive",
+      "sourceAnchors": [
+        "return { component: selector, focus: selector }"
+      ],
+      "trigger": "Escape/cancel",
+      "stateMutation": "none",
+      "replacement": "restore editor",
+      "result": "silent close",
+      "restoration": "focus editor.root",
+      "acceptance": "modal-edge:tree.cancel",
+      "acceptanceEvidence": [
+        "terminal:tree-summary-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "open.resume",
+      "from": "editor.root",
+      "to": "session.resume.current",
+      "source": "interactive",
+      "sourceAnchors": [
+        "showSessionSelector()"
+      ],
+      "trigger": "/resume or resume shortcut",
+      "stateMutation": "begin current-folder load with progress",
+      "replacement": "SessionSelectorComponent",
+      "result": "current scope selector",
+      "restoration": "cancel returns editor; exit requests shutdown",
+      "acceptance": "modal-edge:open.resume",
+      "acceptanceEvidence": [
+        "terminal:session-selector-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "resume.scope.all",
+      "from": "session.resume.current",
+      "to": "session.resume.all",
+      "source": "session",
+      "sourceAnchors": [
+        "this.scope = \"all\""
+      ],
+      "trigger": "Tab",
+      "stateMutation": "switch scope and load/cache all sessions",
+      "replacement": "same SessionSelectorComponent layout",
+      "result": "all scope selector",
+      "restoration": "Tab returns current scope",
+      "acceptance": "modal-edge:resume.scope.all",
+      "acceptanceEvidence": [
+        "terminal:session-selector-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "resume.scope.current",
+      "from": "session.resume.all",
+      "to": "session.resume.current",
+      "source": "session",
+      "sourceAnchors": [
+        "this.scope = \"current\""
+      ],
+      "trigger": "Tab",
+      "stateMutation": "switch to current cached/loading sessions",
+      "replacement": "same component layout",
+      "result": "current scope selector",
+      "restoration": "same selector",
+      "acceptance": "modal-edge:resume.scope.current",
+      "acceptanceEvidence": [
+        "terminal:session-selector-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "resume.rename.open",
+      "from": "session.resume.current",
+      "to": "session.resume.rename",
+      "source": "session",
+      "sourceAnchors": [
+        "enterRenameMode(sessionPath, currentName)"
+      ],
+      "trigger": "rename key on selected session (also all scope)",
+      "stateMutation": "mode=rename; capture path/current name",
+      "replacement": "replace list with rename panel inside same component",
+      "result": "rename input",
+      "restoration": "cancel/save returns originating list scope",
+      "acceptance": "modal-edge:resume.rename.open",
+      "acceptanceEvidence": [
+        "terminal:session-selector-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "resume.rename.close",
+      "from": "session.resume.rename",
+      "to": "session.resume.current",
+      "source": "session",
+      "sourceAnchors": [
+        "exitRenameMode()"
+      ],
+      "trigger": "cancel or successful/failed completion",
+      "stateMutation": "optional rename then refresh; mode=list",
+      "replacement": "rebuild base list layout",
+      "result": "originating current/all scope (runtime edge parameter)",
+      "restoration": "session list focus",
+      "acceptance": "modal-edge:resume.rename.close",
+      "acceptanceEvidence": [
+        "terminal:session-selector-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "resume.delete.open",
+      "from": "session.resume.current",
+      "to": "session.resume.delete",
+      "source": "session",
+      "sourceAnchors": [
+        "startDeleteConfirmationForSelectedSession()"
+      ],
+      "trigger": "delete key on non-current selected session (also all scope)",
+      "stateMutation": "set confirmingDeletePath",
+      "replacement": "same list with error confirmation header/row",
+      "result": "delete confirmation",
+      "restoration": "cancel/settle returns originating list scope",
+      "acceptance": "modal-edge:resume.delete.open",
+      "acceptanceEvidence": [
+        "terminal:session-selector-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "resume.delete.close",
+      "from": "session.resume.delete",
+      "to": "session.resume.current",
+      "source": "session",
+      "sourceAnchors": [
+        "this.setConfirmingDeletePath(null)"
+      ],
+      "trigger": "confirm or cancel",
+      "stateMutation": "optional trash/unlink, refresh lists, set status",
+      "replacement": "same list layout",
+      "result": "originating current/all scope (runtime edge parameter)",
+      "restoration": "session list focus",
+      "acceptance": "modal-edge:resume.delete.close",
+      "acceptanceEvidence": [
+        "terminal:session-selector-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "resume.select",
+      "from": "session.resume.current",
+      "to": "editor.root",
+      "source": "interactive",
+      "sourceAnchors": [
+        "await this.handleResumeSession(sessionPath)"
+      ],
+      "trigger": "select session (also all scope)",
+      "stateMutation": "dispose selector and switch session",
+      "replacement": "restore editor/new session root",
+      "result": "Resumed session status or fatal error",
+      "restoration": "focus editor.root",
+      "acceptance": "modal-edge:resume.select",
+      "acceptanceEvidence": [
+        "terminal:session-selector-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "resume.missing-cwd",
+      "from": "editor.root",
+      "to": "session.missing-cwd",
+      "source": "interactive",
+      "sourceAnchors": [
+        "promptForMissingSessionCwd(error)"
+      ],
+      "trigger": "selected/imported session cwd is missing",
+      "stateMutation": "retain session path and fallback cwd issue",
+      "replacement": "ExtensionSelector confirmation",
+      "result": "missing-cwd choice",
+      "restoration": "Yes retries in current cwd; No/cancel returns editor with cancellation status",
+      "acceptance": "modal-edge:resume.missing-cwd",
+      "acceptanceEvidence": [
+        "terminal:session-selector-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "resume.missing-cwd.close",
+      "from": "session.missing-cwd",
+      "to": "editor.root",
+      "source": "interactive",
+      "sourceAnchors": [
+        "return confirmed ? error.issue.fallbackCwd : undefined"
+      ],
+      "trigger": "Yes/No/Escape",
+      "stateMutation": "optional cwdOverride retry",
+      "replacement": "restore editor/new session",
+      "result": "resume/import status or cancellation/failure",
+      "restoration": "focus editor.root",
+      "acceptance": "modal-edge:resume.missing-cwd.close",
+      "acceptanceEvidence": [
+        "terminal:session-selector-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "resume.cancel",
+      "from": "session.resume.current",
+      "to": "editor.root",
+      "source": "interactive",
+      "sourceAnchors": [
+        "done();",
+        "this.ui.requestRender()"
+      ],
+      "trigger": "Escape/cancel (also all scope)",
+      "stateMutation": "clear selector status timeout/dispose",
+      "replacement": "restore editor",
+      "result": "silent close",
+      "restoration": "focus editor.root",
+      "acceptance": "modal-edge:resume.cancel",
+      "acceptanceEvidence": [
+        "terminal:session-selector-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "open.login",
+      "from": "editor.root",
+      "to": "auth.login-type",
+      "source": "interactive",
+      "sourceAnchors": [
+        "this.showLoginAuthTypeSelector()"
+      ],
+      "trigger": "/login without uniquely resolved provider method",
+      "stateMutation": "derive available auth types/provider-specific labels",
+      "replacement": "ExtensionSelectorComponent",
+      "result": "auth method selector",
+      "restoration": "cancel returns editor",
+      "acceptance": "modal-edge:open.login",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "login.type.provider",
+      "from": "auth.login-type",
+      "to": "auth.login-provider",
+      "source": "interactive",
+      "sourceAnchors": [
+        "this.showLoginProviderSelector(authType)"
+      ],
+      "trigger": "select account or API-key method without fixed provider",
+      "stateMutation": "filter providers by selected authType",
+      "replacement": "OAuthSelectorComponent",
+      "result": "provider selector",
+      "restoration": "cancel returns auth.login-type",
+      "acceptance": "modal-edge:login.type.provider",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "login.provider.oauth",
+      "from": "auth.login-provider",
+      "to": "auth.dialog.oauth",
+      "source": "interactive",
+      "sourceAnchors": [
+        "await this.startProviderLogin(providerOption)"
+      ],
+      "trigger": "select OAuth provider",
+      "stateMutation": "capture prior model and start login",
+      "replacement": "LoginDialogComponent",
+      "result": "OAuth dialog",
+      "restoration": "settle returns editor",
+      "acceptance": "modal-edge:login.provider.oauth",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "login.provider.api-key",
+      "from": "auth.login-provider",
+      "to": "auth.dialog.api-key",
+      "source": "interactive",
+      "sourceAnchors": [
+        "showApiKeyLoginDialog(providerId, providerName)"
+      ],
+      "trigger": "select API-key provider",
+      "stateMutation": "capture prior model and start provider login",
+      "replacement": "LoginDialogComponent",
+      "result": "API-key dialog",
+      "restoration": "settle returns editor",
+      "acceptance": "modal-edge:login.provider.api-key",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "login.provider.ambient",
+      "from": "auth.login-provider",
+      "to": "auth.dialog.ambient",
+      "source": "interactive",
+      "sourceAnchors": [
+        "showAmbientAuthDialog(providerOption)"
+      ],
+      "trigger": "select externally configured provider",
+      "stateMutation": "none",
+      "replacement": "LoginDialogComponent info state",
+      "result": "ambient setup info",
+      "restoration": "close returns editor",
+      "acceptance": "modal-edge:login.provider.ambient",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "login.provider.back",
+      "from": "auth.login-provider",
+      "to": "auth.login-type",
+      "source": "interactive",
+      "sourceAnchors": [
+        "if (authType) {",
+        "this.showLoginAuthTypeSelector()"
+      ],
+      "trigger": "Escape/cancel after auth type filtering",
+      "stateMutation": "discard provider search",
+      "replacement": "auth method selector",
+      "result": "auth type active",
+      "restoration": "focus auth type selector",
+      "acceptance": "modal-edge:login.provider.back",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "login.type.cancel",
+      "from": "auth.login-type",
+      "to": "editor.root",
+      "source": "interactive",
+      "sourceAnchors": [
+        "this.ui.requestRender()"
+      ],
+      "trigger": "Escape/cancel",
+      "stateMutation": "dispose selector",
+      "replacement": "restore editor",
+      "result": "silent close",
+      "restoration": "focus editor.root",
+      "acceptance": "modal-edge:login.type.cancel",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "login.dialog.details",
+      "from": "auth.dialog.api-key",
+      "to": "auth.dialog.details",
+      "source": "interactive",
+      "sourceAnchors": [
+        "dialog.showDetails"
+      ],
+      "trigger": "provider has preliminary details",
+      "stateMutation": "replace dialog content",
+      "replacement": "same LoginDialogComponent",
+      "result": "details state",
+      "restoration": "next prompt or cancel",
+      "acceptance": "modal-edge:login.dialog.details",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "login.dialog.auth-url",
+      "from": "auth.dialog.oauth",
+      "to": "auth.dialog.auth-url",
+      "source": "interactive",
+      "sourceAnchors": [
+        "dialog.showAuth(event.url, event.instructions)"
+      ],
+      "trigger": "auth_url notification",
+      "stateMutation": "clear/add URL content and open browser",
+      "replacement": "same dialog content area",
+      "result": "auth URL state",
+      "restoration": "next prompt/progress/success/cancel",
+      "acceptance": "modal-edge:login.dialog.auth-url",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "login.dialog.device-code",
+      "from": "auth.dialog.oauth",
+      "to": "auth.dialog.device-code",
+      "source": "interactive",
+      "sourceAnchors": [
+        "dialog.showDeviceCode(event)"
+      ],
+      "trigger": "device_code notification",
+      "stateMutation": "clear/add URI/code then waiting state",
+      "replacement": "same dialog content area",
+      "result": "device code state",
+      "restoration": "progress/success/cancel",
+      "acceptance": "modal-edge:login.dialog.device-code",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "login.dialog.select-prompt",
+      "from": "auth.dialog.oauth",
+      "to": "auth.dialog.select-prompt",
+      "source": "interactive",
+      "sourceAnchors": [
+        "if (prompt.type === \"select\")"
+      ],
+      "trigger": "provider select prompt (also API-key flow)",
+      "stateMutation": "retain LoginDialogComponent while replacing editorContainer",
+      "replacement": "ExtensionSelectorComponent",
+      "result": "provider option selector",
+      "restoration": "select/cancel restores originating login dialog before resolve/reject",
+      "acceptance": "modal-edge:login.dialog.select-prompt",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "login.dialog.select-return",
+      "from": "auth.dialog.select-prompt",
+      "to": "auth.dialog.oauth",
+      "source": "interactive",
+      "sourceAnchors": [
+        "restoreDialog()"
+      ],
+      "trigger": "select/cancel",
+      "stateMutation": "resolve option id or reject Login cancelled",
+      "replacement": "restore LoginDialogComponent",
+      "result": "originating oauth/api-key dialog (runtime edge parameter)",
+      "restoration": "focus dialog",
+      "acceptance": "modal-edge:login.dialog.select-return",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "login.dialog.manual-code",
+      "from": "auth.dialog.oauth",
+      "to": "auth.dialog.manual-code",
+      "source": "interactive",
+      "sourceAnchors": [
+        "prompt.type === \"manual_code\""
+      ],
+      "trigger": "provider manual_code prompt (also API-key flow)",
+      "stateMutation": "append prompt/Input and resolver",
+      "replacement": "same LoginDialogComponent",
+      "result": "manual input state",
+      "restoration": "submit continues dialog; cancel returns editor",
+      "acceptance": "modal-edge:login.dialog.manual-code",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "login.dialog.text-prompt",
+      "from": "auth.dialog.oauth",
+      "to": "auth.dialog.text-prompt",
+      "source": "interactive",
+      "sourceAnchors": [
+        "dialog.showPrompt(prompt.message, prompt.placeholder)"
+      ],
+      "trigger": "provider text/secret prompt (also API-key flow)",
+      "stateMutation": "append message/placeholder/Input and resolver",
+      "replacement": "same LoginDialogComponent",
+      "result": "text prompt state",
+      "restoration": "submit continues dialog; cancel returns editor",
+      "acceptance": "modal-edge:login.dialog.text-prompt",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "login.dialog.info",
+      "from": "auth.dialog.oauth",
+      "to": "auth.dialog.info",
+      "source": "interactive",
+      "sourceAnchors": [
+        "dialog.showInfo(event.message, event.links)"
+      ],
+      "trigger": "provider info event (also ambient/API-key flow)",
+      "stateMutation": "append info and links",
+      "replacement": "same LoginDialogComponent",
+      "result": "info state",
+      "restoration": "next state/success/cancel",
+      "acceptance": "modal-edge:login.dialog.info",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "login.dialog.waiting",
+      "from": "auth.dialog.device-code",
+      "to": "auth.dialog.waiting",
+      "source": "interactive",
+      "sourceAnchors": [
+        "dialog.showWaiting(\"Waiting for authentication...\")"
+      ],
+      "trigger": "after device code or provider waiting event",
+      "stateMutation": "append waiting/cancel rows",
+      "replacement": "same dialog",
+      "result": "waiting state",
+      "restoration": "progress/success/cancel",
+      "acceptance": "modal-edge:login.dialog.waiting",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "login.dialog.progress",
+      "from": "auth.dialog.oauth",
+      "to": "auth.dialog.progress",
+      "source": "interactive",
+      "sourceAnchors": [
+        "dialog.showProgress(event.message)"
+      ],
+      "trigger": "progress event (also API-key flow)",
+      "stateMutation": "append dim progress row",
+      "replacement": "same dialog",
+      "result": "progress state",
+      "restoration": "next progress/success/cancel",
+      "acceptance": "modal-edge:login.dialog.progress",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "login.dialog.complete",
+      "from": "auth.dialog.oauth",
+      "to": "editor.root",
+      "source": "interactive",
+      "sourceAnchors": [
+        "completeProviderAuthentication"
+      ],
+      "trigger": "provider login resolves (also API-key flow)",
+      "stateMutation": "restore editor, save credential, optionally select model/refresh catalog/footer",
+      "replacement": "ordinary editor",
+      "result": "status plus optional warning/error",
+      "restoration": "focus editor.root",
+      "acceptance": "modal-edge:login.dialog.complete",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "login.dialog.cancel",
+      "from": "auth.dialog.oauth",
+      "to": "editor.root",
+      "source": "login",
+      "sourceAnchors": [
+        "this.onComplete(false, \"Login cancelled\")"
+      ],
+      "trigger": "Escape/Ctrl+C/abort (also API-key/ambient flow)",
+      "stateMutation": "abort controller and reject active prompt",
+      "replacement": "ordinary editor",
+      "result": "silent cancellation unless source emits operation-specific output",
+      "restoration": "focus editor.root",
+      "acceptance": "modal-edge:login.dialog.cancel",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "open.logout",
+      "from": "editor.root",
+      "to": "auth.logout-provider",
+      "source": "interactive",
+      "sourceAnchors": [
+        "this.showOAuthSelector(\"logout\")"
+      ],
+      "trigger": "/logout",
+      "stateMutation": "load stored credential providers",
+      "replacement": "OAuthSelectorComponent logout mode",
+      "result": "logout provider selector or status/error when empty/load fails",
+      "restoration": "cancel returns editor",
+      "acceptance": "modal-edge:open.logout",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "logout.close",
+      "from": "auth.logout-provider",
+      "to": "editor.root",
+      "source": "interactive",
+      "sourceAnchors": [
+        "Logged out of ${providerOption.name}"
+      ],
+      "trigger": "select/cancel/failure",
+      "stateMutation": "optional remove credential and refresh provider state",
+      "replacement": "ordinary editor",
+      "result": "status/error or silent cancel",
+      "restoration": "focus editor.root",
+      "acceptance": "modal-edge:logout.close",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "open.import-confirm",
+      "from": "editor.root",
+      "to": "command.import-confirm",
+      "source": "interactive",
+      "sourceAnchors": [
+        "showExtensionConfirm(\"Import session\""
+      ],
+      "trigger": "/import valid path",
+      "stateMutation": "retain input path",
+      "replacement": "ExtensionSelector confirmation",
+      "result": "Yes/No",
+      "restoration": "settle returns editor or missing-cwd confirmation",
+      "acceptance": "modal-edge:open.import-confirm",
+      "acceptanceEvidence": [
+        "terminal:command-error-placement",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "import-confirm.close",
+      "from": "command.import-confirm",
+      "to": "editor.root",
+      "source": "interactive",
+      "sourceAnchors": [
+        "this.showStatus(\"Import cancelled\")"
+      ],
+      "trigger": "Yes/No/Escape",
+      "stateMutation": "optional import/switch session",
+      "replacement": "ordinary editor/new session",
+      "result": "import status/error/cancel",
+      "restoration": "focus editor.root",
+      "acceptance": "modal-edge:import-confirm.close",
+      "acceptanceEvidence": [
+        "terminal:command-error-placement",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "open.share-loader",
+      "from": "editor.root",
+      "to": "operation.share-loader",
+      "source": "interactive",
+      "sourceAnchors": [
+        "Creating gist..."
+      ],
+      "trigger": "/share after successful temporary export",
+      "stateMutation": "spawn gist operation and install abort handler",
+      "replacement": "BorderedLoader",
+      "result": "live operation",
+      "restoration": "success/failure/abort returns editor and removes temp file",
+      "acceptance": "modal-edge:open.share-loader",
+      "acceptanceEvidence": [
+        "terminal:extension-custom-replacement",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "share-loader.close",
+      "from": "operation.share-loader",
+      "to": "editor.root",
+      "source": "interactive",
+      "sourceAnchors": [
+        "restoreEditor()"
+      ],
+      "trigger": "process settle or abort",
+      "stateMutation": "dispose loader/kill process/cleanup temp",
+      "replacement": "ordinary editor",
+      "result": "share URL/status/error/cancel",
+      "restoration": "focus editor.root",
+      "acceptance": "modal-edge:share-loader.close",
+      "acceptanceEvidence": [
+        "terminal:extension-custom-replacement",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "open.reload-loader",
+      "from": "editor.root",
+      "to": "operation.reload-loader",
+      "source": "interactive",
+      "sourceAnchors": [
+        "reloadBox.addChild"
+      ],
+      "trigger": "/reload when idle",
+      "stateMutation": "reset extension UI and preserve previous editor",
+      "replacement": "reloadBox",
+      "result": "live reload",
+      "restoration": "success uses rebound editor; failure restores previous editor",
+      "acceptance": "modal-edge:open.reload-loader",
+      "acceptanceEvidence": [
+        "terminal:reload-status",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "reload-loader.close",
+      "from": "operation.reload-loader",
+      "to": "editor.root",
+      "source": "interactive",
+      "sourceAnchors": [
+        "dismissReloadBox"
+      ],
+      "trigger": "reload success/failure",
+      "stateMutation": "rebind resources/theme/autocomplete/extensions and rebuild chat",
+      "replacement": "ordinary editor",
+      "result": "status/error",
+      "restoration": "focus correct editor.root",
+      "acceptance": "modal-edge:reload-loader.close",
+      "acceptanceEvidence": [
+        "terminal:reload-status",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "extension.select.open",
+      "from": "editor.root",
+      "to": "extension.select",
+      "source": "interactive",
+      "sourceAnchors": [
+        "showExtensionSelector(title, options, opts)"
+      ],
+      "trigger": "extension ui.select",
+      "stateMutation": "bind abort/timeout and extension options",
+      "replacement": "ExtensionSelectorComponent",
+      "result": "active selector",
+      "restoration": "select/cancel/abort returns editor",
+      "acceptance": "modal-edge:extension.select.open",
+      "acceptanceEvidence": [
+        "terminal:extension-modal-completion-chain",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "extension.confirm.open",
+      "from": "editor.root",
+      "to": "extension.confirm",
+      "source": "interactive",
+      "sourceAnchors": [
+        "showExtensionConfirm(title, message, opts)"
+      ],
+      "trigger": "extension ui.confirm",
+      "stateMutation": "compose title/message and Yes/No",
+      "replacement": "ExtensionSelectorComponent",
+      "result": "active confirmation",
+      "restoration": "boolean result and editor",
+      "acceptance": "modal-edge:extension.confirm.open",
+      "acceptanceEvidence": [
+        "terminal:extension-modal-completion-chain",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "extension.input.open",
+      "from": "editor.root",
+      "to": "extension.input",
+      "source": "interactive",
+      "sourceAnchors": [
+        "showExtensionInput(title, placeholder, opts)"
+      ],
+      "trigger": "extension ui.input",
+      "stateMutation": "bind abort/timeout/input callbacks",
+      "replacement": "ExtensionInputComponent",
+      "result": "active input",
+      "restoration": "value/undefined then editor",
+      "acceptance": "modal-edge:extension.input.open",
+      "acceptanceEvidence": [
+        "terminal:extension-modal-completion-chain",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "extension.editor.open",
+      "from": "editor.root",
+      "to": "extension.editor",
+      "source": "interactive",
+      "sourceAnchors": [
+        "showExtensionEditor(title, prefill)"
+      ],
+      "trigger": "extension ui.editor",
+      "stateMutation": "create multiline editor with external-editor command",
+      "replacement": "ExtensionEditorComponent",
+      "result": "active editor",
+      "restoration": "value/undefined then editor",
+      "acceptance": "modal-edge:extension.editor.open",
+      "acceptanceEvidence": [
+        "terminal:extension-modal-completion-chain",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "extension.custom-editor.open",
+      "from": "editor.root",
+      "to": "extension.custom-editor",
+      "source": "interactive",
+      "sourceAnchors": [
+        "setCustomEditorComponent(factory)"
+      ],
+      "trigger": "extension setEditorComponent(factory)",
+      "stateMutation": "preserve text/callbacks/appearance/autocomplete",
+      "replacement": "custom editor",
+      "result": "custom ordinary editor",
+      "restoration": "undefined factory restores default editor with text",
+      "acceptance": "modal-edge:extension.custom-editor.open",
+      "acceptanceEvidence": [
+        "terminal:extension-modal-completion-chain",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "extension.custom.open",
+      "from": "editor.root",
+      "to": "extension.custom-replacement",
+      "source": "interactive",
+      "sourceAnchors": [
+        "showExtensionCustom(factory, options)"
+      ],
+      "trigger": "extension ui.custom without overlay",
+      "stateMutation": "save editor text and create close callback",
+      "replacement": "focused custom component",
+      "result": "active custom replacement",
+      "restoration": "close/failure restores editor text/focus and disposes",
+      "acceptance": "modal-edge:extension.custom.open",
+      "acceptanceEvidence": [
+        "terminal:extension-modal-completion-chain",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "extension.overlay.open",
+      "from": "editor.root",
+      "to": "extension.overlay",
+      "source": "interactive",
+      "sourceAnchors": [
+        "this.ui.showOverlay(component, resolveOptions())"
+      ],
+      "trigger": "extension ui.custom with overlay",
+      "stateMutation": "create overlay and expose handle",
+      "replacement": "overlay stack above existing root",
+      "result": "active overlay",
+      "restoration": "close hides overlay and disposes without replacing editor",
+      "acceptance": "modal-edge:extension.overlay.open",
+      "acceptanceEvidence": [
+        "terminal:extension-modal-completion-chain",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "settings.value.close",
+      "from": "settings.value-submenu",
+      "to": "settings.root",
+      "source": "settings",
+      "sourceAnchors": [
+        "new SettingsList(items, 10"
+      ],
+      "trigger": "select value or cancel",
+      "stateMutation": "apply only a selected value",
+      "replacement": "restore parent SettingsList",
+      "result": "updated or unchanged settings",
+      "restoration": "focus originating setting",
+      "acceptance": "modal-edge:settings.value.close",
+      "acceptanceEvidence": [
+        "terminal:settings-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "settings.warnings.close",
+      "from": "settings.warnings",
+      "to": "settings.root",
+      "source": "settings",
+      "sourceAnchors": [
+        "() => done()"
+      ],
+      "trigger": "change warning or cancel",
+      "stateMutation": "retain applied toggles",
+      "replacement": "restore parent SettingsList",
+      "result": "settings root",
+      "restoration": "focus Warnings row",
+      "acceptance": "modal-edge:settings.warnings.close",
+      "acceptanceEvidence": [
+        "terminal:settings-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "settings.thinking.close",
+      "from": "settings.thinking",
+      "to": "settings.root",
+      "source": "settings",
+      "sourceAnchors": [
+        "done(value)"
+      ],
+      "trigger": "select level or cancel",
+      "stateMutation": "optionally apply level",
+      "replacement": "restore parent SettingsList",
+      "result": "settings root",
+      "restoration": "focus Thinking row",
+      "acceptance": "modal-edge:settings.thinking.close",
+      "acceptanceEvidence": [
+        "terminal:settings-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "settings.theme.light.close",
+      "from": "settings.theme.light",
+      "to": "settings.theme.automatic",
+      "source": "settings",
+      "sourceAnchors": [
+        "done(value)"
+      ],
+      "trigger": "select or cancel",
+      "stateMutation": "optionally update light theme/preview",
+      "replacement": "restore automatic menu",
+      "result": "automatic theme state",
+      "restoration": "focus Light theme",
+      "acceptance": "modal-edge:settings.theme.light.close",
+      "acceptanceEvidence": [
+        "terminal:settings-theme-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "settings.theme.dark.close",
+      "from": "settings.theme.dark",
+      "to": "settings.theme.automatic",
+      "source": "settings",
+      "sourceAnchors": [
+        "done(value)"
+      ],
+      "trigger": "select or cancel",
+      "stateMutation": "optionally update dark theme/preview",
+      "replacement": "restore automatic menu",
+      "result": "automatic theme state",
+      "restoration": "focus Dark theme",
+      "acceptance": "modal-edge:settings.theme.dark.close",
+      "acceptanceEvidence": [
+        "terminal:settings-theme-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "settings.theme.apply",
+      "from": "settings.theme.automatic",
+      "to": "settings.root",
+      "source": "settings",
+      "sourceAnchors": [
+        "case \"apply\""
+      ],
+      "trigger": "select Apply",
+      "stateMutation": "commit light/dark setting",
+      "replacement": "restore parent SettingsList",
+      "result": "applied settings root",
+      "restoration": "focus Theme row",
+      "acceptance": "modal-edge:settings.theme.apply",
+      "acceptanceEvidence": [
+        "terminal:settings-theme-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "settings.theme.cancel-single",
+      "from": "settings.theme.single",
+      "to": "settings.root",
+      "source": "settings",
+      "sourceAnchors": [
+        "this.onDone()"
+      ],
+      "trigger": "cancel",
+      "stateMutation": "restore original preview",
+      "replacement": "restore parent SettingsList",
+      "result": "unchanged settings root",
+      "restoration": "focus Theme row",
+      "acceptance": "modal-edge:settings.theme.cancel-single",
+      "acceptanceEvidence": [
+        "terminal:settings-theme-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "settings.theme.cancel-automatic",
+      "from": "settings.theme.automatic",
+      "to": "settings.root",
+      "source": "settings",
+      "sourceAnchors": [
+        "this.onDone()"
+      ],
+      "trigger": "cancel",
+      "stateMutation": "restore original preview",
+      "replacement": "restore parent SettingsList",
+      "result": "unchanged settings root",
+      "restoration": "focus Theme row",
+      "acceptance": "modal-edge:settings.theme.cancel-automatic",
+      "acceptanceEvidence": [
+        "terminal:settings-theme-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "resume.rename.open-all",
+      "from": "session.resume.all",
+      "to": "session.resume.rename",
+      "source": "session",
+      "sourceAnchors": [
+        "enterRenameMode(sessionPath, currentName)"
+      ],
+      "trigger": "rename key",
+      "stateMutation": "retain all-scope origin",
+      "replacement": "rename panel",
+      "result": "rename input",
+      "restoration": "cancel/save returns all scope",
+      "acceptance": "modal-edge:resume.rename.open-all",
+      "acceptanceEvidence": [
+        "terminal:session-selector-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "resume.rename.close-all",
+      "from": "session.resume.rename",
+      "to": "session.resume.all",
+      "source": "session",
+      "sourceAnchors": [
+        "exitRenameMode()"
+      ],
+      "trigger": "cancel/save from all scope",
+      "stateMutation": "optionally rename/refresh",
+      "replacement": "all-scope list",
+      "result": "all scope active",
+      "restoration": "focus list",
+      "acceptance": "modal-edge:resume.rename.close-all",
+      "acceptanceEvidence": [
+        "terminal:session-selector-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "resume.delete.open-all",
+      "from": "session.resume.all",
+      "to": "session.resume.delete",
+      "source": "session",
+      "sourceAnchors": [
+        "startDeleteConfirmationForSelectedSession()"
+      ],
+      "trigger": "delete key",
+      "stateMutation": "retain all scope and target path",
+      "replacement": "delete confirmation",
+      "result": "confirmation active",
+      "restoration": "cancel/settle returns all scope",
+      "acceptance": "modal-edge:resume.delete.open-all",
+      "acceptanceEvidence": [
+        "terminal:session-selector-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "resume.delete.close-all",
+      "from": "session.resume.delete",
+      "to": "session.resume.all",
+      "source": "session",
+      "sourceAnchors": [
+        "this.setConfirmingDeletePath(null)"
+      ],
+      "trigger": "confirm/cancel from all scope",
+      "stateMutation": "optionally delete/refresh",
+      "replacement": "all-scope list",
+      "result": "all scope active",
+      "restoration": "focus list",
+      "acceptance": "modal-edge:resume.delete.close-all",
+      "acceptanceEvidence": [
+        "terminal:session-selector-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "resume.select-all",
+      "from": "session.resume.all",
+      "to": "editor.root",
+      "source": "interactive",
+      "sourceAnchors": [
+        "await this.handleResumeSession(sessionPath)"
+      ],
+      "trigger": "select session",
+      "stateMutation": "dispose selector/switch session",
+      "replacement": "ordinary editor",
+      "result": "resume outcome",
+      "restoration": "focus editor",
+      "acceptance": "modal-edge:resume.select-all",
+      "acceptanceEvidence": [
+        "terminal:session-selector-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "resume.cancel-all",
+      "from": "session.resume.all",
+      "to": "editor.root",
+      "source": "interactive",
+      "sourceAnchors": [
+        "showSessionSelector()"
+      ],
+      "trigger": "cancel",
+      "stateMutation": "dispose selector",
+      "replacement": "ordinary editor",
+      "result": "silent close",
+      "restoration": "focus editor",
+      "acceptance": "modal-edge:resume.cancel-all",
+      "acceptanceEvidence": [
+        "terminal:session-selector-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "login.type.direct-oauth",
+      "from": "auth.login-type",
+      "to": "auth.dialog.oauth",
+      "source": "interactive",
+      "sourceAnchors": [
+        "providerOption.authType === \"oauth\""
+      ],
+      "trigger": "select provider OAuth method",
+      "stateMutation": "capture provider/prior model",
+      "replacement": "LoginDialogComponent",
+      "result": "OAuth flow",
+      "restoration": "settle returns editor",
+      "acceptance": "modal-edge:login.type.direct-oauth",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "login.type.direct-api-key",
+      "from": "auth.login-type",
+      "to": "auth.dialog.api-key",
+      "source": "interactive",
+      "sourceAnchors": [
+        "providerOption.method?.login"
+      ],
+      "trigger": "select provider API-key method",
+      "stateMutation": "capture provider/prior model",
+      "replacement": "LoginDialogComponent",
+      "result": "API-key flow",
+      "restoration": "settle returns editor",
+      "acceptance": "modal-edge:login.type.direct-api-key",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "login.type.direct-ambient",
+      "from": "auth.login-type",
+      "to": "auth.dialog.ambient",
+      "source": "interactive",
+      "sourceAnchors": [
+        "this.showAmbientAuthDialog(providerOption)"
+      ],
+      "trigger": "select ambient method",
+      "stateMutation": "capture provider",
+      "replacement": "LoginDialogComponent",
+      "result": "ambient setup",
+      "restoration": "close returns editor",
+      "acceptance": "modal-edge:login.type.direct-ambient",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "login.api.details",
+      "from": "auth.dialog.api-key",
+      "to": "auth.dialog.details",
+      "source": "interactive",
+      "sourceAnchors": [
+        "dialog.showDetails"
+      ],
+      "trigger": "provider exposes details",
+      "stateMutation": "replace content rows",
+      "replacement": "same dialog",
+      "result": "details",
+      "restoration": "next prompt/cancel",
+      "acceptance": "modal-edge:login.api.details",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "login.api.select-prompt",
+      "from": "auth.dialog.api-key",
+      "to": "auth.dialog.select-prompt",
+      "source": "interactive",
+      "sourceAnchors": [
+        "this.showAuthSelect(dialog, prompt)"
+      ],
+      "trigger": "provider select prompt",
+      "stateMutation": "retain API-key dialog",
+      "replacement": "ExtensionSelectorComponent",
+      "result": "option selector",
+      "restoration": "restore API-key dialog",
+      "acceptance": "modal-edge:login.api.select-prompt",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "login.api.select-return",
+      "from": "auth.dialog.select-prompt",
+      "to": "auth.dialog.api-key",
+      "source": "interactive",
+      "sourceAnchors": [
+        "restoreDialog()"
+      ],
+      "trigger": "select/cancel with API-key origin",
+      "stateMutation": "resolve/reject prompt",
+      "replacement": "restore dialog",
+      "result": "API-key flow continues/cancels",
+      "restoration": "focus dialog",
+      "acceptance": "modal-edge:login.api.select-return",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "login.api.manual-code",
+      "from": "auth.dialog.api-key",
+      "to": "auth.dialog.manual-code",
+      "source": "interactive",
+      "sourceAnchors": [
+        "dialog.showManualInput(prompt.message)"
+      ],
+      "trigger": "manual_code prompt",
+      "stateMutation": "append Input resolver",
+      "replacement": "same dialog",
+      "result": "manual input",
+      "restoration": "submit continues/cancel editor",
+      "acceptance": "modal-edge:login.api.manual-code",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "login.api.text-prompt",
+      "from": "auth.dialog.api-key",
+      "to": "auth.dialog.text-prompt",
+      "source": "interactive",
+      "sourceAnchors": [
+        "dialog.showPrompt(prompt.message, prompt.placeholder)"
+      ],
+      "trigger": "text prompt",
+      "stateMutation": "append prompt/Input",
+      "replacement": "same dialog",
+      "result": "text input",
+      "restoration": "submit continues/cancel editor",
+      "acceptance": "modal-edge:login.api.text-prompt",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "login.api.info",
+      "from": "auth.dialog.api-key",
+      "to": "auth.dialog.info",
+      "source": "interactive",
+      "sourceAnchors": [
+        "dialog.showInfo(event.message, event.links)"
+      ],
+      "trigger": "info event",
+      "stateMutation": "append info/links",
+      "replacement": "same dialog",
+      "result": "info",
+      "restoration": "next/success/cancel",
+      "acceptance": "modal-edge:login.api.info",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "login.api.progress",
+      "from": "auth.dialog.api-key",
+      "to": "auth.dialog.progress",
+      "source": "interactive",
+      "sourceAnchors": [
+        "dialog.showProgress(event.message)"
+      ],
+      "trigger": "progress event",
+      "stateMutation": "append progress",
+      "replacement": "same dialog",
+      "result": "progress",
+      "restoration": "next/success/cancel",
+      "acceptance": "modal-edge:login.api.progress",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "login.api.complete",
+      "from": "auth.dialog.api-key",
+      "to": "editor.root",
+      "source": "interactive",
+      "sourceAnchors": [
+        "completeProviderAuthentication"
+      ],
+      "trigger": "login resolves",
+      "stateMutation": "save credential/model/refresh",
+      "replacement": "ordinary editor",
+      "result": "status/warning/error",
+      "restoration": "focus editor",
+      "acceptance": "modal-edge:login.api.complete",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "login.api.cancel",
+      "from": "auth.dialog.api-key",
+      "to": "editor.root",
+      "source": "login",
+      "sourceAnchors": [
+        "this.onComplete(false, \"Login cancelled\")"
+      ],
+      "trigger": "cancel/abort",
+      "stateMutation": "abort/reject prompt",
+      "replacement": "ordinary editor",
+      "result": "silent cancel",
+      "restoration": "focus editor",
+      "acceptance": "modal-edge:login.api.cancel",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "login.ambient.info",
+      "from": "auth.dialog.ambient",
+      "to": "auth.dialog.info",
+      "source": "interactive",
+      "sourceAnchors": [
+        "dialog.showInfo"
+      ],
+      "trigger": "ambient opens",
+      "stateMutation": "append external-auth info",
+      "replacement": "same dialog",
+      "result": "info with close hint",
+      "restoration": "close returns editor",
+      "acceptance": "modal-edge:login.ambient.info",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "login.ambient.close",
+      "from": "auth.dialog.info",
+      "to": "editor.root",
+      "source": "interactive",
+      "sourceAnchors": [
+        "restoreEditor()"
+      ],
+      "trigger": "close ambient info",
+      "stateMutation": "clear dialog",
+      "replacement": "ordinary editor",
+      "result": "silent close",
+      "restoration": "focus editor",
+      "acceptance": "modal-edge:login.ambient.close",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "login.waiting.progress",
+      "from": "auth.dialog.waiting",
+      "to": "auth.dialog.progress",
+      "source": "interactive",
+      "sourceAnchors": [
+        "dialog.showProgress(event.message)"
+      ],
+      "trigger": "poll progress",
+      "stateMutation": "append progress",
+      "replacement": "same dialog",
+      "result": "progress",
+      "restoration": "success/cancel",
+      "acceptance": "modal-edge:login.waiting.progress",
+      "acceptanceEvidence": [
+        "terminal:login-provider-method-cancel-restored",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "extension.select.close",
+      "from": "extension.select",
+      "to": "editor.root",
+      "source": "interactive",
+      "sourceAnchors": [
+        "hideExtensionSelector()"
+      ],
+      "trigger": "select/cancel/abort",
+      "stateMutation": "dispose selector/listener",
+      "replacement": "ordinary editor",
+      "result": "option/undefined",
+      "restoration": "focus editor",
+      "acceptance": "modal-edge:extension.select.close",
+      "acceptanceEvidence": [
+        "terminal:extension-modal-completion-chain",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "extension.confirm.close",
+      "from": "extension.confirm",
+      "to": "editor.root",
+      "source": "interactive",
+      "sourceAnchors": [
+        "return result === \"Yes\""
+      ],
+      "trigger": "Yes/No/cancel",
+      "stateMutation": "resolve boolean",
+      "replacement": "ordinary editor",
+      "result": "true/false",
+      "restoration": "focus editor",
+      "acceptance": "modal-edge:extension.confirm.close",
+      "acceptanceEvidence": [
+        "terminal:extension-modal-completion-chain",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "extension.input.close",
+      "from": "extension.input",
+      "to": "editor.root",
+      "source": "interactive",
+      "sourceAnchors": [
+        "hideExtensionInput()"
+      ],
+      "trigger": "submit/cancel/abort",
+      "stateMutation": "dispose input/listener",
+      "replacement": "ordinary editor",
+      "result": "value/undefined",
+      "restoration": "focus editor",
+      "acceptance": "modal-edge:extension.input.close",
+      "acceptanceEvidence": [
+        "terminal:extension-modal-completion-chain",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "extension.editor.close",
+      "from": "extension.editor",
+      "to": "editor.root",
+      "source": "interactive",
+      "sourceAnchors": [
+        "hideExtensionEditor()"
+      ],
+      "trigger": "submit/cancel",
+      "stateMutation": "clear extension editor",
+      "replacement": "ordinary editor",
+      "result": "value/undefined",
+      "restoration": "focus editor",
+      "acceptance": "modal-edge:extension.editor.close",
+      "acceptanceEvidence": [
+        "terminal:extension-modal-completion-chain",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "extension.custom-editor.close",
+      "from": "extension.custom-editor",
+      "to": "editor.root",
+      "source": "interactive",
+      "sourceAnchors": [
+        "this.defaultEditor.setText(currentText)"
+      ],
+      "trigger": "set undefined",
+      "stateMutation": "copy text back",
+      "replacement": "default editor",
+      "result": "ordinary editor",
+      "restoration": "focus editor",
+      "acceptance": "modal-edge:extension.custom-editor.close",
+      "acceptanceEvidence": [
+        "terminal:extension-modal-completion-chain",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "extension.custom.close",
+      "from": "extension.custom-replacement",
+      "to": "editor.root",
+      "source": "interactive",
+      "sourceAnchors": [
+        "restoreEditor()"
+      ],
+      "trigger": "close/failure",
+      "stateMutation": "restore text/dispose",
+      "replacement": "ordinary editor",
+      "result": "result/error",
+      "restoration": "focus editor",
+      "acceptance": "modal-edge:extension.custom.close",
+      "acceptanceEvidence": [
+        "terminal:extension-modal-completion-chain",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    },
+    {
+      "id": "extension.overlay.close",
+      "from": "extension.overlay",
+      "to": "editor.root",
+      "source": "interactive",
+      "sourceAnchors": [
+        "this.ui.hideOverlay()"
+      ],
+      "trigger": "close/disposal",
+      "stateMutation": "hide/dispose overlay",
+      "replacement": "underlying root",
+      "result": "result",
+      "restoration": "restore prior focus policy",
+      "acceptance": "modal-edge:extension.overlay.close",
+      "acceptanceEvidence": [
+        "terminal:extension-modal-completion-chain",
+        "test:test/repository-governance/pi-modal-surface-inventory.test.ts",
+        "authority:pinned-controller-transition"
+      ]
+    }
+  ],
+  "knownManualDivergences": [
+    {
+      "id": "deep-auth-method-content",
+      "nodes": [
+        "auth.login-type",
+        "auth.login-provider"
+      ],
+      "finding": "AddOne substitutes a generic input for the pinned authentication method/provider selectors.",
+      "implementation": "corrected",
+      "acceptance": "pending exhaustive node/edge parity under task 7.28"
+    },
+    {
+      "id": "deep-auth-dialog-states",
+      "nodes": [
+        "auth.dialog.oauth",
+        "auth.dialog.api-key",
+        "auth.dialog.auth-url",
+        "auth.dialog.device-code",
+        "auth.dialog.select-prompt",
+        "auth.dialog.manual-code",
+        "auth.dialog.text-prompt",
+        "auth.dialog.info",
+        "auth.dialog.waiting",
+        "auth.dialog.progress"
+      ],
+      "finding": "AddOne does not preserve the complete styled LoginDialogComponent state machine.",
+      "implementation": "corrected",
+      "acceptance": "pending exhaustive node/edge parity under task 7.28"
+    },
+    {
+      "id": "flat-inventory-insufficient",
+      "nodes": [
+        "settings.theme.automatic",
+        "session.resume.rename",
+        "session.resume.delete",
+        "tree.summary-choice",
+        "tree.summary-custom"
+      ],
+      "finding": "Prior evidence recorded top-level surfaces without proving nested node/edge content and restoration.",
+      "implementation": "corrected",
+      "acceptance": "pending exhaustive node/edge parity under task 7.28"
+    }
+  ]
+}

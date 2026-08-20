@@ -1,0 +1,38 @@
+{
+  "schema": "addone-typed-workflow-controller-evidence-v1",
+  "change": "build-owned-pi-ui-foundation",
+  "task": "7.30",
+  "recordedAt": "2026-08-17",
+  "result": {
+    "genericWorkflowSelectorDefinitions": 0,
+    "genericWorkflowSelectorCalls": 0,
+    "genericShellWorkflowSelectorCalls": 0
+  },
+  "typedControllers": [
+    "settings snapshot and settings controller",
+    "model context and model selector",
+    "scoped-model context and stateful scoped-model selector",
+    "fork options and user-message selector",
+    "tree context and tree/summarization controller",
+    "project trust context and trust selector",
+    "login type/provider/method contexts and authentication dialogs",
+    "logout options and authentication provider selector",
+    "session context and stateful resume selector",
+    "route-specific import confirmation",
+    "route-specific missing-session-cwd confirmation"
+  ],
+  "independentTerminalParity": {
+    "mode": "regular",
+    "checkpoints": 54,
+    "differences": 0,
+    "piRawCaptureSha256": "b96d07edda3f94690e487954e32e186dde726306c32af0d68a0ed96bc0a4ace8",
+    "addOneRawCaptureSha256": "71202a0a782862f795edd17031d196a07221b1f73fa1d348af73dd2ee460a894",
+    "reportSha256": "f33cd80a98860a6e1077cb22a23db2c67103f2a8ad626d2941f06b877d9002dc",
+    "upstreamCheckpointsSha256": "727e9b772ad96dadc3f5271a6e21bd326d1439fb0a1606d17a6b40ef24a983dd",
+    "addOneCheckpointsSha256": "3f890cc536a4debbbf3fe0c7c751183a8a4958ef61b1b3c84b624769e689647c"
+  },
+  "focusedValidation": {
+    "tests": "2 files, 29 tests passed",
+    "typecheck": "passed"
+  }
+}

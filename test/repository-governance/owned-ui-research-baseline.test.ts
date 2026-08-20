@@ -37,7 +37,7 @@ interface ResearchBaseline {
 describe("owned UI research baseline policy", () => {
   it("records versions, licenses, adopted patterns, rejected scope, and port provenance requirements", async () => {
     const value = JSON.parse(await readFile(
-      "openspec/changes/build-owned-pi-ui-foundation/evidence/owned-ui-research-baseline.json",
+      "evidence/owned-pi-ui-foundation/owned-ui-research-baseline.json",
       "utf8",
     )) as ResearchBaseline;
 

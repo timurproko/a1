@@ -1,0 +1,4375 @@
+{
+  "schema": "a1-pinned-pi-source-port-ledger-v1",
+  "change": "build-owned-pi-ui-foundation",
+  "task": "7.2",
+  "recordedAt": "2026-08-20T09:17:16.941Z",
+  "upstream": {
+    "repository": "https://github.com/earendil-works/pi.git",
+    "commit": "914cf1472e715297caa30db4b9535d534a9eb718",
+    "license": "MIT",
+    "packages": [
+      {
+        "name": "@earendil-works/pi-coding-agent",
+        "version": "0.84.2",
+        "integrity": "sha512-l4E+B7hgXKWddRo8bC/eSue2aWZjEgJ9xIpf5p0Og+lq8a2TArCwJ0HCoCPCgaBP/tN4zbYH/wOwvx9pJpeLCA=="
+      },
+      {
+        "name": "@earendil-works/pi-tui",
+        "version": "0.84.2",
+        "integrity": "sha512-ds2TLihOnM5sLJB3VpXV6y0uR5efVuHf4MN7yDpsty6hA2DUO/EDVzjp/0od0G2JslzVLMjT8T8zavtxVb+qbg=="
+      }
+    ]
+  },
+  "scope": {
+    "included": [
+      "Every TypeScript source represented by a JavaScript source map under @earendil-works/pi-coding-agent/dist/modes/interactive.",
+      "Every TypeScript source represented by a JavaScript source map in the pinned @earendil-works/pi-tui package.",
+      "Named adjacent coding-agent authorities for startup, public SDK sessions, resources, commands, keybindings, extensions, settings, models, sessions, skills, prompts, bash, footer data, and clipboard.",
+      "Pinned interactive image, built-in theme, and theme-schema assets."
+    ],
+    "excluded": [
+      "Provider transports, model implementations, tool filesystem operations, storage internals, and non-interactive modes that remain behind already-conformed public engine APIs.",
+      "Declaration maps and generated JavaScript because their authoritative TypeScript source content is already hashed from JavaScript source maps."
+    ],
+    "behaviorAuthority": "evidence/owned-pi-ui-foundation/pinned-pi-interactive-baseline.json"
+  },
+  "summary": {
+    "modules": 109,
+    "sourceModules": 105,
+    "assets": 4,
+    "classifications": {
+      "public-reuse": 62,
+      "owned-source-port": 20,
+      "host-adapter": 27
+    },
+    "requiredBehaviorIds": 29,
+    "coveredBehaviorIds": 29,
+    "unmappedBehaviorIds": []
+  },
+  "records": [
+    {
+      "id": "pi-coding-agent:src/cli/startup-ui",
+      "kind": "source",
+      "scope": "adjacent-authority",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/cli/startup-ui.ts",
+      "sourceMap": "cli/startup-ui.js.map",
+      "lines": 240,
+      "sha256": "409cfad6ada74bb06c359be77f2ff7478c671a34e6514f4c8f637967b0b74844",
+      "classification": "host-adapter",
+      "localDestination": "src/foundation/pi-component-adapter/shell-components.ts",
+      "implementationStatus": "adapter-present-conformance-passed",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "Split startup UI authority across the A1 shell/component adapter while preserving pinned first-time setup, startup notices, resources, and preflight behavior without constructing the stock CLI root.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "startup-composition",
+        "built-in-commands",
+        "errors"
+      ],
+      "behaviorIds": [
+        "startup.persistent-tree",
+        "startup.header-notices",
+        "startup.preflight",
+        "commands.complete-manifest",
+        "errors.user-visible"
+      ],
+      "acceptanceTasks": [
+        "7.7",
+        "7.9",
+        "7.11"
+      ],
+      "tests": [
+        "test/features/owned-ui/pi-startup-composition-parity.test.ts",
+        "test/foundation/pi-engine-adapter/workflows.test.ts",
+        "test/features/owned-ui/pi-session-shell.test.ts"
+      ]
+    },
+    {
+      "id": "pi-coding-agent:src/core/agent-session-runtime",
+      "kind": "source",
+      "scope": "adjacent-authority",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/core/agent-session-runtime.ts",
+      "sourceMap": "core/agent-session-runtime.js.map",
+      "lines": 442,
+      "sha256": "2df7d32d9697a22d1e9b70b08480dfe45c4c8e3a2e6719fcf130d927e34edb87",
+      "classification": "host-adapter",
+      "localDestination": "src/foundation/pi-engine-adapter/index.ts",
+      "implementationStatus": "adapter-present-conformance-passed",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "Retain authority in the pinned public SDK and expose it only through AddOne engine contracts.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "prompt-loop",
+        "settings",
+        "sessions",
+        "models",
+        "events",
+        "tools",
+        "errors",
+        "shutdown"
+      ],
+      "behaviorIds": [
+        "prompt.command-routing",
+        "prompt.idle-streaming-compaction",
+        "prompt.bash",
+        "settings.complete-surface",
+        "sessions.new-resume",
+        "sessions.fork-clone-tree",
+        "sessions.import-export-share-copy-info",
+        "models.select-cycle-scope",
+        "events.complete-manifest",
+        "events.transcript-rebuild",
+        "tools.streaming-lifecycle",
+        "errors.user-visible",
+        "shutdown.interactive-signal-crash",
+        "shutdown.dispose-stateful-components"
+      ],
+      "acceptanceTasks": [
+        "7.8",
+        "7.10",
+        "7.11",
+        "7.21"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/shell-components.test.ts",
+        "test/features/owned-ui/pi-session-shell.test.ts",
+        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+      ]
+    },
+    {
+      "id": "pi-coding-agent:src/core/agent-session-services",
+      "kind": "source",
+      "scope": "adjacent-authority",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/core/agent-session-services.ts",
+      "sourceMap": "core/agent-session-services.js.map",
+      "lines": 222,
+      "sha256": "831c56842c394969567199a9e5ccdaebb9a3df7bdde825aa677935b825afedd6",
+      "classification": "host-adapter",
+      "localDestination": "src/foundation/pi-engine-adapter/index.ts",
+      "implementationStatus": "adapter-present-conformance-passed",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "Retain authority in the pinned public SDK and expose it only through AddOne engine contracts.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "prompt-loop",
+        "settings",
+        "sessions",
+        "models",
+        "events",
+        "tools",
+        "errors",
+        "shutdown"
+      ],
+      "behaviorIds": [
+        "prompt.command-routing",
+        "prompt.idle-streaming-compaction",
+        "prompt.bash",
+        "settings.complete-surface",
+        "sessions.new-resume",
+        "sessions.fork-clone-tree",
+        "sessions.import-export-share-copy-info",
+        "models.select-cycle-scope",
+        "events.complete-manifest",
+        "events.transcript-rebuild",
+        "tools.streaming-lifecycle",
+        "errors.user-visible",
+        "shutdown.interactive-signal-crash",
+        "shutdown.dispose-stateful-components"
+      ],
+      "acceptanceTasks": [
+        "7.8",
+        "7.10",
+        "7.11",
+        "7.21"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/shell-components.test.ts",
+        "test/features/owned-ui/pi-session-shell.test.ts",
+        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+      ]
+    },
+    {
+      "id": "pi-coding-agent:src/core/agent-session",
+      "kind": "source",
+      "scope": "adjacent-authority",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/core/agent-session.ts",
+      "sourceMap": "core/agent-session.js.map",
+      "lines": 3345,
+      "sha256": "c83f43205f0b0ef014a383b4969f2bce112a8b4280f6e9f889eeae0d7e02ec2e",
+      "classification": "host-adapter",
+      "localDestination": "src/foundation/pi-engine-adapter/index.ts",
+      "implementationStatus": "adapter-present-conformance-passed",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "Retain authority in the pinned public SDK and expose it only through AddOne engine contracts.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "prompt-loop",
+        "settings",
+        "sessions",
+        "models",
+        "events",
+        "tools",
+        "errors",
+        "shutdown"
+      ],
+      "behaviorIds": [
+        "prompt.command-routing",
+        "prompt.idle-streaming-compaction",
+        "prompt.bash",
+        "settings.complete-surface",
+        "sessions.new-resume",
+        "sessions.fork-clone-tree",
+        "sessions.import-export-share-copy-info",
+        "models.select-cycle-scope",
+        "events.complete-manifest",
+        "events.transcript-rebuild",
+        "tools.streaming-lifecycle",
+        "errors.user-visible",
+        "shutdown.interactive-signal-crash",
+        "shutdown.dispose-stateful-components"
+      ],
+      "acceptanceTasks": [
+        "7.8",
+        "7.10",
+        "7.11",
+        "7.21"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/shell-components.test.ts",
+        "test/features/owned-ui/pi-session-shell.test.ts",
+        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+      ]
+    },
+    {
+      "id": "pi-coding-agent:src/core/bash-executor",
+      "kind": "source",
+      "scope": "adjacent-authority",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/core/bash-executor.ts",
+      "sourceMap": "core/bash-executor.js.map",
+      "lines": 157,
+      "sha256": "c0c3043846e107bbfcb236e28cc0505909bc476b67cd91f386a299ba83d08760",
+      "classification": "host-adapter",
+      "localDestination": "src/foundation/pi-engine-adapter/index.ts",
+      "implementationStatus": "adapter-present-conformance-passed",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "Retain authority in the pinned public SDK and expose it only through AddOne engine contracts.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "prompt-loop",
+        "settings",
+        "sessions",
+        "models",
+        "events",
+        "tools",
+        "errors",
+        "shutdown"
+      ],
+      "behaviorIds": [
+        "prompt.command-routing",
+        "prompt.idle-streaming-compaction",
+        "prompt.bash",
+        "settings.complete-surface",
+        "sessions.new-resume",
+        "sessions.fork-clone-tree",
+        "sessions.import-export-share-copy-info",
+        "models.select-cycle-scope",
+        "events.complete-manifest",
+        "events.transcript-rebuild",
+        "tools.streaming-lifecycle",
+        "errors.user-visible",
+        "shutdown.interactive-signal-crash",
+        "shutdown.dispose-stateful-components"
+      ],
+      "acceptanceTasks": [
+        "7.8",
+        "7.10",
+        "7.11",
+        "7.21"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/shell-components.test.ts",
+        "test/features/owned-ui/pi-session-shell.test.ts",
+        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+      ]
+    },
+    {
+      "id": "pi-coding-agent:src/core/extensions/runner",
+      "kind": "source",
+      "scope": "adjacent-authority",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/core/extensions/runner.ts",
+      "sourceMap": "core/extensions/runner.js.map",
+      "lines": 1237,
+      "sha256": "071a6609afa6aeffa74e485b66474076bd7d70c14503804591ce79739100756c",
+      "classification": "host-adapter",
+      "localDestination": "src/foundation/pi-engine-adapter/index.ts",
+      "implementationStatus": "adapter-present-conformance-passed",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "Retain authority in the pinned public SDK and expose it only through AddOne engine contracts.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "stateful-components",
+        "autocomplete",
+        "events",
+        "tools",
+        "footer-status",
+        "errors",
+        "shutdown"
+      ],
+      "behaviorIds": [
+        "components.persistent-lifecycle",
+        "autocomplete.combined-provider",
+        "events.complete-manifest",
+        "events.transcript-rebuild",
+        "tools.streaming-lifecycle",
+        "footer.complete-state",
+        "status.indicators-and-notices",
+        "errors.user-visible",
+        "shutdown.interactive-signal-crash",
+        "shutdown.dispose-stateful-components"
+      ],
+      "acceptanceTasks": [
+        "7.5",
+        "7.6",
+        "7.11",
+        "7.12",
+        "7.21"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts",
+        "test/features/owned-ui/pi-session-shell.test.ts",
+        "test/foundation/pi-component-adapter/extension-ui-bridge.test.ts",
+        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+      ]
+    },
+    {
+      "id": "pi-coding-agent:src/core/extensions/types",
+      "kind": "source",
+      "scope": "adjacent-authority",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/core/extensions/types.ts",
+      "sourceMap": "core/extensions/types.js.map",
+      "lines": 1729,
+      "sha256": "731ef884151310fdb5216845be2a0d4a4b2acd0e985529c5cbbc7528405de821",
+      "classification": "host-adapter",
+      "localDestination": "src/foundation/pi-engine-adapter/index.ts",
+      "implementationStatus": "adapter-present-conformance-passed",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "Retain authority in the pinned public SDK and expose it only through AddOne engine contracts.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "stateful-components",
+        "autocomplete",
+        "events",
+        "tools",
+        "footer-status",
+        "errors",
+        "shutdown"
+      ],
+      "behaviorIds": [
+        "components.persistent-lifecycle",
+        "autocomplete.combined-provider",
+        "events.complete-manifest",
+        "events.transcript-rebuild",
+        "tools.streaming-lifecycle",
+        "footer.complete-state",
+        "status.indicators-and-notices",
+        "errors.user-visible",
+        "shutdown.interactive-signal-crash",
+        "shutdown.dispose-stateful-components"
+      ],
+      "acceptanceTasks": [
+        "7.5",
+        "7.6",
+        "7.11",
+        "7.12",
+        "7.21"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts",
+        "test/features/owned-ui/pi-session-shell.test.ts",
+        "test/foundation/pi-component-adapter/extension-ui-bridge.test.ts",
+        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+      ]
+    },
+    {
+      "id": "pi-coding-agent:src/core/footer-data-provider",
+      "kind": "source",
+      "scope": "adjacent-authority",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/core/footer-data-provider.ts",
+      "sourceMap": "core/footer-data-provider.js.map",
+      "lines": 389,
+      "sha256": "c8fd9486fe1d9e31b4b004be1f4a3dee86f57b0ab87f36a0354cbfc4ed35e731",
+      "classification": "host-adapter",
+      "localDestination": "src/foundation/pi-engine-adapter/index.ts",
+      "implementationStatus": "adapter-present-conformance-passed",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "Retain authority in the pinned public SDK and expose it only through AddOne engine contracts.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "footer-status",
+        "events",
+        "errors"
+      ],
+      "behaviorIds": [
+        "footer.complete-state",
+        "status.indicators-and-notices",
+        "events.complete-manifest",
+        "events.transcript-rebuild",
+        "errors.user-visible"
+      ],
+      "acceptanceTasks": [
+        "7.11"
+      ],
+      "tests": [
+        "test/features/owned-ui/pi-session-shell.test.ts"
+      ]
+    },
+    {
+      "id": "pi-coding-agent:src/core/keybindings",
+      "kind": "source",
+      "scope": "adjacent-authority",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/core/keybindings.ts",
+      "sourceMap": "core/keybindings.js.map",
+      "lines": 371,
+      "sha256": "9b5c4d1cdf84ad98c0b32c9ec9c1d21db9680c6ef49b497edf93fea80fca7c89",
+      "classification": "owned-source-port",
+      "localDestination": "src/foundation/pi-component-adapter/upstream/adjacent/core/keybindings.ts",
+      "implementationStatus": "source-synchronized-port",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "Mechanical source port with Node import prefixes and public package-root A1 agent-directory resolution.",
+      "localSha256": "173b5e7d3e07b47a9e1e038644acaf002d4f3f1de05cf840de293cd806be1f35",
+      "approvedDeviations": [
+        {
+          "id": "keybindings-public-config-boundary",
+          "reason": "Resolve the agent configuration directory through the documented package-root API instead of a private config import.",
+          "upstreamBehavior": "Complete pinned defaults, migrations, user overrides, conflict detection, matching, and effective-config behavior remain unchanged.",
+          "acceptanceTest": "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts"
+        }
+      ],
+      "behaviorCategories": [
+        "editor",
+        "autocomplete",
+        "keybindings",
+        "clipboard"
+      ],
+      "behaviorIds": [
+        "editor.custom-editor",
+        "editor.application-actions",
+        "autocomplete.combined-provider",
+        "keybindings.complete-manifest",
+        "clipboard.text-image-copy"
+      ],
+      "acceptanceTasks": [
+        "7.6"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts"
+      ]
+    },
+    {
+      "id": "pi-coding-agent:src/core/model-runtime",
+      "kind": "source",
+      "scope": "adjacent-authority",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/core/model-runtime.ts",
+      "sourceMap": "core/model-runtime.js.map",
+      "lines": 788,
+      "sha256": "57e77eee8594aab3da80052b0d2804f83cb3c3713750ec151a417ba22e89e891",
+      "classification": "host-adapter",
+      "localDestination": "src/foundation/pi-engine-adapter/index.ts",
+      "implementationStatus": "adapter-present-conformance-passed",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "Retain authority in the pinned public SDK and expose it only through AddOne engine contracts.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "prompt-loop",
+        "settings",
+        "sessions",
+        "models",
+        "events",
+        "tools",
+        "errors",
+        "shutdown"
+      ],
+      "behaviorIds": [
+        "prompt.command-routing",
+        "prompt.idle-streaming-compaction",
+        "prompt.bash",
+        "settings.complete-surface",
+        "sessions.new-resume",
+        "sessions.fork-clone-tree",
+        "sessions.import-export-share-copy-info",
+        "models.select-cycle-scope",
+        "events.complete-manifest",
+        "events.transcript-rebuild",
+        "tools.streaming-lifecycle",
+        "errors.user-visible",
+        "shutdown.interactive-signal-crash",
+        "shutdown.dispose-stateful-components"
+      ],
+      "acceptanceTasks": [
+        "7.8",
+        "7.10",
+        "7.11",
+        "7.21"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/shell-components.test.ts",
+        "test/features/owned-ui/pi-session-shell.test.ts",
+        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+      ]
+    },
+    {
+      "id": "pi-coding-agent:src/core/prompt-templates",
+      "kind": "source",
+      "scope": "adjacent-authority",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/core/prompt-templates.ts",
+      "sourceMap": "core/prompt-templates.js.map",
+      "lines": 286,
+      "sha256": "e94b8504b97fe668b04577891b7029abc7d11ac795e728982d2615a13ec1528a",
+      "classification": "host-adapter",
+      "localDestination": "src/foundation/pi-engine-adapter/index.ts",
+      "implementationStatus": "adapter-present-conformance-passed",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "Retain authority in the pinned public SDK and expose it only through AddOne engine contracts.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "prompt-loop",
+        "settings",
+        "sessions",
+        "models",
+        "events",
+        "tools",
+        "errors",
+        "shutdown"
+      ],
+      "behaviorIds": [
+        "prompt.command-routing",
+        "prompt.idle-streaming-compaction",
+        "prompt.bash",
+        "settings.complete-surface",
+        "sessions.new-resume",
+        "sessions.fork-clone-tree",
+        "sessions.import-export-share-copy-info",
+        "models.select-cycle-scope",
+        "events.complete-manifest",
+        "events.transcript-rebuild",
+        "tools.streaming-lifecycle",
+        "errors.user-visible",
+        "shutdown.interactive-signal-crash",
+        "shutdown.dispose-stateful-components"
+      ],
+      "acceptanceTasks": [
+        "7.8",
+        "7.10",
+        "7.11",
+        "7.21"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/shell-components.test.ts",
+        "test/features/owned-ui/pi-session-shell.test.ts",
+        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+      ]
+    },
+    {
+      "id": "pi-coding-agent:src/core/resource-loader",
+      "kind": "source",
+      "scope": "adjacent-authority",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/core/resource-loader.ts",
+      "sourceMap": "core/resource-loader.js.map",
+      "lines": 1097,
+      "sha256": "19a7ba16f91ef03c21785fb1583a217b63e7d533c143abcb8910c9c090e9bb91",
+      "classification": "host-adapter",
+      "localDestination": "src/foundation/pi-engine-adapter/index.ts",
+      "implementationStatus": "adapter-present-conformance-passed",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "Retain authority in the pinned public SDK and expose it only through AddOne engine contracts.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "footer-status",
+        "events",
+        "errors"
+      ],
+      "behaviorIds": [
+        "footer.complete-state",
+        "status.indicators-and-notices",
+        "events.complete-manifest",
+        "events.transcript-rebuild",
+        "errors.user-visible"
+      ],
+      "acceptanceTasks": [
+        "7.11"
+      ],
+      "tests": [
+        "test/features/owned-ui/pi-session-shell.test.ts"
+      ]
+    },
+    {
+      "id": "pi-coding-agent:src/core/sdk",
+      "kind": "source",
+      "scope": "adjacent-authority",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/core/sdk.ts",
+      "sourceMap": "core/sdk.js.map",
+      "lines": 402,
+      "sha256": "48ea062da677d6e52c270f4ec767726b48208ebfd0ee61986baacfd707c76e30",
+      "classification": "host-adapter",
+      "localDestination": "src/foundation/pi-engine-adapter/index.ts",
+      "implementationStatus": "adapter-present-conformance-passed",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "Retain authority in the pinned public SDK and expose it only through AddOne engine contracts.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "prompt-loop",
+        "settings",
+        "sessions",
+        "models",
+        "events",
+        "tools",
+        "errors",
+        "shutdown"
+      ],
+      "behaviorIds": [
+        "prompt.command-routing",
+        "prompt.idle-streaming-compaction",
+        "prompt.bash",
+        "settings.complete-surface",
+        "sessions.new-resume",
+        "sessions.fork-clone-tree",
+        "sessions.import-export-share-copy-info",
+        "models.select-cycle-scope",
+        "events.complete-manifest",
+        "events.transcript-rebuild",
+        "tools.streaming-lifecycle",
+        "errors.user-visible",
+        "shutdown.interactive-signal-crash",
+        "shutdown.dispose-stateful-components"
+      ],
+      "acceptanceTasks": [
+        "7.8",
+        "7.10",
+        "7.11",
+        "7.21"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/shell-components.test.ts",
+        "test/features/owned-ui/pi-session-shell.test.ts",
+        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+      ]
+    },
+    {
+      "id": "pi-coding-agent:src/core/session-manager",
+      "kind": "source",
+      "scope": "adjacent-authority",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/core/session-manager.ts",
+      "sourceMap": "core/session-manager.js.map",
+      "lines": 1715,
+      "sha256": "df3135f9fe8d0681a8fe435138e221ad36fe8fcd165434c934448a5b29d86051",
+      "classification": "host-adapter",
+      "localDestination": "src/foundation/pi-engine-adapter/index.ts",
+      "implementationStatus": "adapter-present-conformance-passed",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "Retain authority in the pinned public SDK and expose it only through AddOne engine contracts.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "prompt-loop",
+        "settings",
+        "sessions",
+        "models",
+        "events",
+        "tools",
+        "errors",
+        "shutdown"
+      ],
+      "behaviorIds": [
+        "prompt.command-routing",
+        "prompt.idle-streaming-compaction",
+        "prompt.bash",
+        "settings.complete-surface",
+        "sessions.new-resume",
+        "sessions.fork-clone-tree",
+        "sessions.import-export-share-copy-info",
+        "models.select-cycle-scope",
+        "events.complete-manifest",
+        "events.transcript-rebuild",
+        "tools.streaming-lifecycle",
+        "errors.user-visible",
+        "shutdown.interactive-signal-crash",
+        "shutdown.dispose-stateful-components"
+      ],
+      "acceptanceTasks": [
+        "7.8",
+        "7.10",
+        "7.11",
+        "7.21"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/shell-components.test.ts",
+        "test/features/owned-ui/pi-session-shell.test.ts",
+        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+      ]
+    },
+    {
+      "id": "pi-coding-agent:src/core/settings-manager",
+      "kind": "source",
+      "scope": "adjacent-authority",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/core/settings-manager.ts",
+      "sourceMap": "core/settings-manager.js.map",
+      "lines": 1291,
+      "sha256": "2a1a01cbbc6c04b7593611a8ae71e8d182444417ac50d31d63a86294673c2a31",
+      "classification": "host-adapter",
+      "localDestination": "src/foundation/pi-engine-adapter/index.ts",
+      "implementationStatus": "adapter-present-conformance-passed",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "Retain authority in the pinned public SDK and expose it only through AddOne engine contracts.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "prompt-loop",
+        "settings",
+        "sessions",
+        "models",
+        "events",
+        "tools",
+        "errors",
+        "shutdown"
+      ],
+      "behaviorIds": [
+        "prompt.command-routing",
+        "prompt.idle-streaming-compaction",
+        "prompt.bash",
+        "settings.complete-surface",
+        "sessions.new-resume",
+        "sessions.fork-clone-tree",
+        "sessions.import-export-share-copy-info",
+        "models.select-cycle-scope",
+        "events.complete-manifest",
+        "events.transcript-rebuild",
+        "tools.streaming-lifecycle",
+        "errors.user-visible",
+        "shutdown.interactive-signal-crash",
+        "shutdown.dispose-stateful-components"
+      ],
+      "acceptanceTasks": [
+        "7.8",
+        "7.10",
+        "7.11",
+        "7.21"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/shell-components.test.ts",
+        "test/features/owned-ui/pi-session-shell.test.ts",
+        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+      ]
+    },
+    {
+      "id": "pi-coding-agent:src/core/skills",
+      "kind": "source",
+      "scope": "adjacent-authority",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/core/skills.ts",
+      "sourceMap": "core/skills.js.map",
+      "lines": 488,
+      "sha256": "2f56a637c7231f112331a9636ccef2d1d2ae36fc2fee3916b892e053a63ff8f6",
+      "classification": "host-adapter",
+      "localDestination": "src/foundation/pi-engine-adapter/index.ts",
+      "implementationStatus": "adapter-present-conformance-passed",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "Retain authority in the pinned public SDK and expose it only through AddOne engine contracts.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "prompt-loop",
+        "settings",
+        "sessions",
+        "models",
+        "events",
+        "tools",
+        "errors",
+        "shutdown"
+      ],
+      "behaviorIds": [
+        "prompt.command-routing",
+        "prompt.idle-streaming-compaction",
+        "prompt.bash",
+        "settings.complete-surface",
+        "sessions.new-resume",
+        "sessions.fork-clone-tree",
+        "sessions.import-export-share-copy-info",
+        "models.select-cycle-scope",
+        "events.complete-manifest",
+        "events.transcript-rebuild",
+        "tools.streaming-lifecycle",
+        "errors.user-visible",
+        "shutdown.interactive-signal-crash",
+        "shutdown.dispose-stateful-components"
+      ],
+      "acceptanceTasks": [
+        "7.8",
+        "7.10",
+        "7.11",
+        "7.21"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/shell-components.test.ts",
+        "test/features/owned-ui/pi-session-shell.test.ts",
+        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+      ]
+    },
+    {
+      "id": "pi-coding-agent:src/core/slash-commands",
+      "kind": "source",
+      "scope": "adjacent-authority",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/core/slash-commands.ts",
+      "sourceMap": "core/slash-commands.js.map",
+      "lines": 43,
+      "sha256": "788b87d9bbeb4498f9669de75e8233e63dcb9b6893179f497a1b6db61bd9a6b1",
+      "classification": "host-adapter",
+      "localDestination": "src/foundation/pi-engine-adapter/workflows.ts",
+      "implementationStatus": "adapter-present-conformance-passed",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "Expose the pinned command manifest and dispatch categories through typed A1 workflow contracts; source-derived governance rejects omitted advertised or hidden routes.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "built-in-commands",
+        "prompt-loop"
+      ],
+      "behaviorIds": [
+        "commands.complete-manifest",
+        "prompt.command-routing",
+        "prompt.idle-streaming-compaction",
+        "prompt.bash"
+      ],
+      "acceptanceTasks": [
+        "7.9",
+        "7.10"
+      ],
+      "tests": [
+        "test/foundation/pi-engine-adapter/workflows.test.ts",
+        "test/features/owned-ui/pi-session-shell.test.ts"
+      ]
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/assets/clankolas.png",
+      "kind": "asset",
+      "scope": "interactive-tree",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/assets/clankolas.png",
+      "sourceMap": null,
+      "bytes": 539053,
+      "sha256": "169acd0dfe6fbb8d8742ed24a3fc654fd0b2e2d4223c733249c5493723f1b72d",
+      "classification": "public-reuse",
+      "localDestination": "src/foundation/pi-component-adapter/upstream/components/earendil-announcement.ts",
+      "implementationStatus": "available-through-pinned-package",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "Read the unchanged bundled asset through the public package directory boundary; do not copy, transform, or patch installed package content.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "stateful-components"
+      ],
+      "behaviorIds": [
+        "components.persistent-lifecycle"
+      ],
+      "acceptanceTasks": [
+        "7.5"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts"
+      ]
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/components/armin",
+      "kind": "source",
+      "scope": "interactive-tree",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/components/armin.ts",
+      "sourceMap": "modes/interactive/components/armin.js.map",
+      "lines": 383,
+      "sha256": "063490225c2367762a33d0518f21458ec0684b924d905d5196d4b55f3dad6db5",
+      "classification": "public-reuse",
+      "localDestination": "src/foundation/pi-component-adapter/index.ts",
+      "implementationStatus": "available-through-pinned-package",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "None planned; import the exact component or helper from the pinned public coding-agent package root.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "startup-composition",
+        "built-in-commands",
+        "errors"
+      ],
+      "behaviorIds": [
+        "startup.persistent-tree",
+        "startup.header-notices",
+        "startup.preflight",
+        "commands.complete-manifest",
+        "errors.user-visible"
+      ],
+      "acceptanceTasks": [
+        "7.7",
+        "7.9",
+        "7.11"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/features/owned-ui/pi-startup-composition-parity.test.ts",
+        "test/foundation/pi-engine-adapter/workflows.test.ts",
+        "test/features/owned-ui/pi-session-shell.test.ts"
+      ]
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/components/assistant-message",
+      "kind": "source",
+      "scope": "interactive-tree",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/components/assistant-message.ts",
+      "sourceMap": "modes/interactive/components/assistant-message.js.map",
+      "lines": 198,
+      "sha256": "f0f9fdc6e019eb14ec1c8b2b17044cd70b9b34362907fef21a712352e426ab65",
+      "classification": "public-reuse",
+      "localDestination": "src/foundation/pi-component-adapter/index.ts",
+      "implementationStatus": "available-through-pinned-package",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "None planned; import the exact component or helper from the pinned public coding-agent package root.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "stateful-components",
+        "events",
+        "tools",
+        "errors"
+      ],
+      "behaviorIds": [
+        "components.persistent-lifecycle",
+        "events.complete-manifest",
+        "events.transcript-rebuild",
+        "tools.streaming-lifecycle",
+        "errors.user-visible"
+      ],
+      "acceptanceTasks": [
+        "7.5",
+        "7.11"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/features/owned-ui/pi-session-shell.test.ts"
+      ]
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/components/bash-execution",
+      "kind": "source",
+      "scope": "interactive-tree",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/components/bash-execution.ts",
+      "sourceMap": "modes/interactive/components/bash-execution.js.map",
+      "lines": 221,
+      "sha256": "59e252e04122eeb849daa7a5cdb02f98c7cac24fec4f0aed6291df10c5d861e8",
+      "classification": "public-reuse",
+      "localDestination": "src/foundation/pi-component-adapter/index.ts",
+      "implementationStatus": "available-through-pinned-package",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "None planned; import the exact component or helper from the pinned public coding-agent package root.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "stateful-components",
+        "events",
+        "tools",
+        "errors"
+      ],
+      "behaviorIds": [
+        "components.persistent-lifecycle",
+        "events.complete-manifest",
+        "events.transcript-rebuild",
+        "tools.streaming-lifecycle",
+        "errors.user-visible"
+      ],
+      "acceptanceTasks": [
+        "7.5",
+        "7.11"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/features/owned-ui/pi-session-shell.test.ts"
+      ]
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/components/bordered-loader",
+      "kind": "source",
+      "scope": "interactive-tree",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/components/bordered-loader.ts",
+      "sourceMap": "modes/interactive/components/bordered-loader.js.map",
+      "lines": 69,
+      "sha256": "f4a6487b80360bde89d8e96ebec16d84d4cd106dcc57c53757be571c7c4da1f6",
+      "classification": "public-reuse",
+      "localDestination": "src/foundation/pi-component-adapter/index.ts",
+      "implementationStatus": "available-through-pinned-package",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "None planned; import the exact component or helper from the pinned public coding-agent package root.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "footer-status",
+        "events",
+        "errors"
+      ],
+      "behaviorIds": [
+        "footer.complete-state",
+        "status.indicators-and-notices",
+        "events.complete-manifest",
+        "events.transcript-rebuild",
+        "errors.user-visible"
+      ],
+      "acceptanceTasks": [
+        "7.11"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/features/owned-ui/pi-session-shell.test.ts"
+      ]
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/components/branch-summary-message",
+      "kind": "source",
+      "scope": "interactive-tree",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/components/branch-summary-message.ts",
+      "sourceMap": "modes/interactive/components/branch-summary-message.js.map",
+      "lines": 59,
+      "sha256": "45bba986616fc8acaba59c172608f0ff249a20126b3438629447be181b7b5135",
+      "classification": "public-reuse",
+      "localDestination": "src/foundation/pi-component-adapter/index.ts",
+      "implementationStatus": "available-through-pinned-package",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "None planned; import the exact component or helper from the pinned public coding-agent package root.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "stateful-components",
+        "events",
+        "tools",
+        "errors"
+      ],
+      "behaviorIds": [
+        "components.persistent-lifecycle",
+        "events.complete-manifest",
+        "events.transcript-rebuild",
+        "tools.streaming-lifecycle",
+        "errors.user-visible"
+      ],
+      "acceptanceTasks": [
+        "7.5",
+        "7.11"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/features/owned-ui/pi-session-shell.test.ts"
+      ]
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/components/compaction-summary-message",
+      "kind": "source",
+      "scope": "interactive-tree",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/components/compaction-summary-message.ts",
+      "sourceMap": "modes/interactive/components/compaction-summary-message.js.map",
+      "lines": 60,
+      "sha256": "f4de3c245423004365f9c22062bdc69d25e4ee5c1df66eb70e4f7f63da01bbd5",
+      "classification": "public-reuse",
+      "localDestination": "src/foundation/pi-component-adapter/index.ts",
+      "implementationStatus": "available-through-pinned-package",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "None planned; import the exact component or helper from the pinned public coding-agent package root.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "stateful-components",
+        "events",
+        "tools",
+        "errors"
+      ],
+      "behaviorIds": [
+        "components.persistent-lifecycle",
+        "events.complete-manifest",
+        "events.transcript-rebuild",
+        "tools.streaming-lifecycle",
+        "errors.user-visible"
+      ],
+      "acceptanceTasks": [
+        "7.5",
+        "7.11"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/features/owned-ui/pi-session-shell.test.ts"
+      ]
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/components/config-selector",
+      "kind": "source",
+      "scope": "interactive-tree",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/components/config-selector.ts",
+      "sourceMap": "modes/interactive/components/config-selector.js.map",
+      "lines": 943,
+      "sha256": "2a1f2594ff2f78aa2305f7128bacbd8c227d5bd4efa94b156f45a7d9268c0805",
+      "classification": "host-adapter",
+      "localDestination": "src/foundation/pi-component-adapter/index.ts",
+      "implementationStatus": "pinned-cli-only-inventory-mapped",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "The pinned unit is reachable from the separate CLI config route, not InteractiveMode or the owned session shell; retain it in source inventory while configuration remains outside this owned-UI launch contract.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "selectors",
+        "settings",
+        "sessions",
+        "models",
+        "thinking"
+      ],
+      "behaviorIds": [
+        "selectors.focus-lifecycle",
+        "settings.complete-surface",
+        "sessions.new-resume",
+        "sessions.fork-clone-tree",
+        "sessions.import-export-share-copy-info",
+        "models.select-cycle-scope",
+        "thinking.level-and-visibility"
+      ],
+      "acceptanceTasks": [
+        "7.8"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/foundation/pi-component-adapter/shell-components.test.ts"
+      ]
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/components/countdown-timer",
+      "kind": "source",
+      "scope": "interactive-tree",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/components/countdown-timer.ts",
+      "sourceMap": "modes/interactive/components/countdown-timer.js.map",
+      "lines": 40,
+      "sha256": "6ade4aa41c2c2400bdb79d47701c95504be48e3ab9f2b1aee3836a888c2d1da9",
+      "classification": "owned-source-port",
+      "localDestination": "src/foundation/pi-component-adapter/upstream/components/countdown-timer.ts",
+      "implementationStatus": "source-synchronized-port",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "Mechanical source port with ECMAScript private fields; imports remain on the public Pi TUI package root.",
+      "localSha256": "8aa307b95b250be9e23f02d4ce9f2d66d63677510c0866c265a3dbde2d50db72",
+      "approvedDeviations": [
+        {
+          "id": "countdown-owned-private-fields",
+          "reason": "Use language-level private fields in the A1-owned class without changing timer ordering or lifecycle.",
+          "upstreamBehavior": "Initial tick, one-second decrements, render requests, expiration callback, and disposal order match pinned Pi.",
+          "acceptanceTest": "test/foundation/pi-component-adapter/pinned-status-indicator-parity.test.ts"
+        }
+      ],
+      "behaviorCategories": [
+        "footer-status",
+        "events",
+        "errors"
+      ],
+      "behaviorIds": [
+        "footer.complete-state",
+        "status.indicators-and-notices",
+        "events.complete-manifest",
+        "events.transcript-rebuild",
+        "errors.user-visible"
+      ],
+      "acceptanceTasks": [
+        "7.11"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/foundation/pi-component-adapter/pinned-status-indicator-parity.test.ts",
+        "test/features/owned-ui/pi-session-shell.test.ts"
+      ]
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/components/custom-editor",
+      "kind": "source",
+      "scope": "interactive-tree",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/components/custom-editor.ts",
+      "sourceMap": "modes/interactive/components/custom-editor.js.map",
+      "lines": 91,
+      "sha256": "bf4f4a5c0a6eb55b1fbc3df376dc4d0aff35db9861a51886b45cade9b612809a",
+      "classification": "public-reuse",
+      "localDestination": "src/foundation/pi-component-adapter/index.ts",
+      "implementationStatus": "available-through-pinned-package",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "None planned; import the exact component or helper from the pinned public coding-agent package root.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "editor",
+        "autocomplete",
+        "keybindings",
+        "clipboard"
+      ],
+      "behaviorIds": [
+        "editor.custom-editor",
+        "editor.application-actions",
+        "autocomplete.combined-provider",
+        "keybindings.complete-manifest",
+        "clipboard.text-image-copy"
+      ],
+      "acceptanceTasks": [
+        "7.6"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts"
+      ]
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/components/custom-entry",
+      "kind": "source",
+      "scope": "interactive-tree",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/components/custom-entry.ts",
+      "sourceMap": "modes/interactive/components/custom-entry.js.map",
+      "lines": 63,
+      "sha256": "8796bd95c4b496aad74674bbfb0e286768731532ad5ab8f51e6471cfbfd9404e",
+      "classification": "owned-source-port",
+      "localDestination": "src/foundation/pi-component-adapter/upstream/components/custom-entry.ts",
+      "implementationStatus": "source-synchronized-port",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "Mechanical pinned source port with private imports remapped to public package-root types/APIs and A1-owned theme boundaries; behavior remains acceptance-tested.",
+      "localSha256": "1e9c274e8be3c8a253f5d80772bf73f8037007385933890a19d7730b10d2ef6a",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "stateful-components",
+        "events",
+        "tools",
+        "errors"
+      ],
+      "behaviorIds": [
+        "components.persistent-lifecycle",
+        "events.complete-manifest",
+        "events.transcript-rebuild",
+        "tools.streaming-lifecycle",
+        "errors.user-visible"
+      ],
+      "acceptanceTasks": [
+        "7.5",
+        "7.11",
+        "7.29"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/features/owned-ui/pi-session-shell.test.ts",
+        "test/foundation/pi-component-adapter/pinned-reconciled-source-ports.test.ts"
+      ]
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/components/custom-message",
+      "kind": "source",
+      "scope": "interactive-tree",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/components/custom-message.ts",
+      "sourceMap": "modes/interactive/components/custom-message.js.map",
+      "lines": 114,
+      "sha256": "321af8afdff8da4924a7dbf5623b5637eb160ea7d73a70e6662d8125249bde9b",
+      "classification": "public-reuse",
+      "localDestination": "src/foundation/pi-component-adapter/index.ts",
+      "implementationStatus": "available-through-pinned-package",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "None planned; import the exact component or helper from the pinned public coding-agent package root.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "stateful-components",
+        "events",
+        "tools",
+        "errors"
+      ],
+      "behaviorIds": [
+        "components.persistent-lifecycle",
+        "events.complete-manifest",
+        "events.transcript-rebuild",
+        "tools.streaming-lifecycle",
+        "errors.user-visible"
+      ],
+      "acceptanceTasks": [
+        "7.5",
+        "7.11"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/features/owned-ui/pi-session-shell.test.ts"
+      ]
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/components/daxnuts",
+      "kind": "source",
+      "scope": "interactive-tree",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/components/daxnuts.ts",
+      "sourceMap": "modes/interactive/components/daxnuts.js.map",
+      "lines": 165,
+      "sha256": "5567f1ca8217b3d536d304fa365a627ee4f8096aa435fd1088eb55e743275bfc",
+      "classification": "owned-source-port",
+      "localDestination": "src/foundation/pi-component-adapter/upstream/components/daxnuts.ts",
+      "implementationStatus": "source-synchronized-port",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "Mechanical pinned source port with private imports remapped to public package-root types/APIs and A1-owned theme boundaries; behavior remains acceptance-tested.",
+      "localSha256": "3dcb7780ec05d451c1ff40c1d057af85b0781c461b7b5037dc41182129bd5db5",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "startup-composition",
+        "built-in-commands",
+        "errors"
+      ],
+      "behaviorIds": [
+        "startup.persistent-tree",
+        "startup.header-notices",
+        "startup.preflight",
+        "commands.complete-manifest",
+        "errors.user-visible"
+      ],
+      "acceptanceTasks": [
+        "7.7",
+        "7.9",
+        "7.11",
+        "7.29"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/features/owned-ui/pi-startup-composition-parity.test.ts",
+        "test/foundation/pi-engine-adapter/workflows.test.ts",
+        "test/features/owned-ui/pi-session-shell.test.ts",
+        "test/foundation/pi-component-adapter/pinned-reconciled-source-ports.test.ts"
+      ]
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/components/diff",
+      "kind": "source",
+      "scope": "interactive-tree",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/components/diff.ts",
+      "sourceMap": "modes/interactive/components/diff.js.map",
+      "lines": 148,
+      "sha256": "b43f8d91ba9f19088dc9dc86126091c3fdfca25eac6461f5510f5e1e9ddd6491",
+      "classification": "public-reuse",
+      "localDestination": "src/foundation/pi-component-adapter/index.ts",
+      "implementationStatus": "available-through-pinned-package",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "None planned; import the exact component or helper from the pinned public coding-agent package root.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "startup-composition",
+        "stateful-components",
+        "resize"
+      ],
+      "behaviorIds": [
+        "startup.persistent-tree",
+        "startup.header-notices",
+        "startup.preflight",
+        "components.persistent-lifecycle",
+        "resize.renderer-modes"
+      ],
+      "acceptanceTasks": [
+        "7.7",
+        "7.5",
+        "7.21"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/features/owned-ui/pi-startup-composition-parity.test.ts",
+        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+      ]
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/components/dynamic-border",
+      "kind": "source",
+      "scope": "interactive-tree",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/components/dynamic-border.ts",
+      "sourceMap": "modes/interactive/components/dynamic-border.js.map",
+      "lines": 26,
+      "sha256": "1f7fa398a861906e3dbbd217434f290f09d23c5e561ab7d6ef24808db4353cb0",
+      "classification": "public-reuse",
+      "localDestination": "src/foundation/pi-component-adapter/index.ts",
+      "implementationStatus": "available-through-pinned-package",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "None planned; import the exact component or helper from the pinned public coding-agent package root.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "stateful-components"
+      ],
+      "behaviorIds": [
+        "components.persistent-lifecycle"
+      ],
+      "acceptanceTasks": [
+        "7.5"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts"
+      ]
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/components/earendil-announcement",
+      "kind": "source",
+      "scope": "interactive-tree",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/components/earendil-announcement.ts",
+      "sourceMap": "modes/interactive/components/earendil-announcement.js.map",
+      "lines": 54,
+      "sha256": "49b1711624425b7d504bf7d871810225814138b64bb2152fe3e70dbf1dd005d4",
+      "classification": "owned-source-port",
+      "localDestination": "src/foundation/pi-component-adapter/upstream/components/earendil-announcement.ts",
+      "implementationStatus": "source-synchronized-port",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "Mechanical pinned source port with private imports remapped to public package-root types/APIs and A1-owned theme boundaries; behavior remains acceptance-tested.",
+      "localSha256": "f102f4e12340f882630c02fa7c25f79b40834b98dcf5707572faeb2fda6c0ecd",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "startup-composition",
+        "built-in-commands",
+        "errors"
+      ],
+      "behaviorIds": [
+        "startup.persistent-tree",
+        "startup.header-notices",
+        "startup.preflight",
+        "commands.complete-manifest",
+        "errors.user-visible"
+      ],
+      "acceptanceTasks": [
+        "7.7",
+        "7.9",
+        "7.11",
+        "7.29"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/features/owned-ui/pi-startup-composition-parity.test.ts",
+        "test/foundation/pi-engine-adapter/workflows.test.ts",
+        "test/features/owned-ui/pi-session-shell.test.ts",
+        "test/foundation/pi-component-adapter/pinned-reconciled-source-ports.test.ts"
+      ]
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/components/extension-editor",
+      "kind": "source",
+      "scope": "interactive-tree",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/components/extension-editor.ts",
+      "sourceMap": "modes/interactive/components/extension-editor.js.map",
+      "lines": 133,
+      "sha256": "29f5371be2530eaa121d380de3c90d6a7013a776856fdf5c3c5b49e03b6eaa18",
+      "classification": "owned-source-port",
+      "localDestination": "src/foundation/pi-component-adapter/upstream/components/extension-editor.ts",
+      "implementationStatus": "source-synchronized-port",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "Mechanical port: remap pi-tui to the root public singleton, use owned keybindings/theme and external-editor seams, preserve editor layout, hints, focus, submission, cancellation, and external-editor lifecycle.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "editor",
+        "autocomplete",
+        "keybindings",
+        "clipboard"
+      ],
+      "behaviorIds": [
+        "editor.custom-editor",
+        "editor.application-actions",
+        "autocomplete.combined-provider",
+        "keybindings.complete-manifest",
+        "clipboard.text-image-copy"
+      ],
+      "acceptanceTasks": [
+        "7.6",
+        "7.12"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts",
+        "test/foundation/pi-component-adapter/extension-ui-bridge.test.ts"
+      ],
+      "localSha256": "ad55e088da032116c1d3f325a88406b16dafb88e3d01e67ff8dde2cf867f2dff"
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/components/extension-input",
+      "kind": "source",
+      "scope": "interactive-tree",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/components/extension-input.ts",
+      "sourceMap": "modes/interactive/components/extension-input.js.map",
+      "lines": 88,
+      "sha256": "47a0608c60e35bd1936f9d33be24986fa6d5698b141251670840c6e2407ad790",
+      "classification": "public-reuse",
+      "localDestination": "src/foundation/pi-component-adapter/index.ts",
+      "implementationStatus": "available-through-pinned-package",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "None planned; import the exact component or helper from the pinned public coding-agent package root.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "selectors",
+        "settings",
+        "sessions",
+        "models",
+        "thinking"
+      ],
+      "behaviorIds": [
+        "selectors.focus-lifecycle",
+        "settings.complete-surface",
+        "sessions.new-resume",
+        "sessions.fork-clone-tree",
+        "sessions.import-export-share-copy-info",
+        "models.select-cycle-scope",
+        "thinking.level-and-visibility"
+      ],
+      "acceptanceTasks": [
+        "7.8",
+        "7.12"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/foundation/pi-component-adapter/shell-components.test.ts",
+        "test/foundation/pi-component-adapter/extension-ui-bridge.test.ts"
+      ]
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/components/extension-selector",
+      "kind": "source",
+      "scope": "interactive-tree",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/components/extension-selector.ts",
+      "sourceMap": "modes/interactive/components/extension-selector.js.map",
+      "lines": 113,
+      "sha256": "6df190e74f64dfd6edfec9f10c31afa302bd8341cba7484c4143e1501729edc0",
+      "classification": "public-reuse",
+      "localDestination": "src/foundation/pi-component-adapter/index.ts",
+      "implementationStatus": "available-through-pinned-package",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "None planned; import the exact component or helper from the pinned public coding-agent package root.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "selectors",
+        "settings",
+        "sessions",
+        "models",
+        "thinking"
+      ],
+      "behaviorIds": [
+        "selectors.focus-lifecycle",
+        "settings.complete-surface",
+        "sessions.new-resume",
+        "sessions.fork-clone-tree",
+        "sessions.import-export-share-copy-info",
+        "models.select-cycle-scope",
+        "thinking.level-and-visibility"
+      ],
+      "acceptanceTasks": [
+        "7.8",
+        "7.12"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/foundation/pi-component-adapter/shell-components.test.ts",
+        "test/foundation/pi-component-adapter/extension-ui-bridge.test.ts"
+      ]
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/components/first-time-setup",
+      "kind": "source",
+      "scope": "interactive-tree",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/components/first-time-setup.ts",
+      "sourceMap": "modes/interactive/components/first-time-setup.js.map",
+      "lines": 146,
+      "sha256": "1a8f74713297b0ac2bc010a0d3ce7e1909b40d74dc07a40632c20a262964914c",
+      "classification": "owned-source-port",
+      "localDestination": "src/foundation/pi-component-adapter/upstream/components/first-time-setup.ts",
+      "implementationStatus": "source-synchronized-port",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "Mechanical pinned source port with private imports remapped to public package-root types/APIs and A1-owned theme boundaries; behavior remains acceptance-tested.",
+      "localSha256": "dda426342eaa1d4d6a19ee8753a5da836c5e750149bd043473083ce245354875",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "startup-composition",
+        "built-in-commands",
+        "errors"
+      ],
+      "behaviorIds": [
+        "startup.persistent-tree",
+        "startup.header-notices",
+        "startup.preflight",
+        "commands.complete-manifest",
+        "errors.user-visible"
+      ],
+      "acceptanceTasks": [
+        "7.7",
+        "7.9",
+        "7.11",
+        "7.29"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/features/owned-ui/pi-startup-composition-parity.test.ts",
+        "test/foundation/pi-engine-adapter/workflows.test.ts",
+        "test/features/owned-ui/pi-session-shell.test.ts",
+        "test/foundation/pi-component-adapter/pinned-reconciled-source-ports.test.ts"
+      ]
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/components/footer",
+      "kind": "source",
+      "scope": "interactive-tree",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/components/footer.ts",
+      "sourceMap": "modes/interactive/components/footer.js.map",
+      "lines": 246,
+      "sha256": "176d2473ccefbc5ff2bf56d986e600a00d5841c38c5854c4c16ecb05d7e70499",
+      "classification": "public-reuse",
+      "localDestination": "src/foundation/pi-component-adapter/index.ts",
+      "implementationStatus": "available-through-pinned-package",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "None planned; import the exact component or helper from the pinned public coding-agent package root.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "footer-status",
+        "events",
+        "errors"
+      ],
+      "behaviorIds": [
+        "footer.complete-state",
+        "status.indicators-and-notices",
+        "events.complete-manifest",
+        "events.transcript-rebuild",
+        "errors.user-visible"
+      ],
+      "acceptanceTasks": [
+        "7.11"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/features/owned-ui/pi-session-shell.test.ts"
+      ]
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/components/index",
+      "kind": "source",
+      "scope": "interactive-tree",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/components/index.ts",
+      "sourceMap": "modes/interactive/components/index.js.map",
+      "lines": 39,
+      "sha256": "d77f105b41de3aa26151a1605b9cd91ea8d13d51f308b1790dc0f99990ff79b3",
+      "classification": "public-reuse",
+      "localDestination": "src/foundation/pi-component-adapter/index.ts",
+      "implementationStatus": "available-through-pinned-package",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "None planned; import the exact component or helper from the pinned public coding-agent package root.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "stateful-components"
+      ],
+      "behaviorIds": [
+        "components.persistent-lifecycle"
+      ],
+      "acceptanceTasks": [
+        "7.5"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts"
+      ]
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/components/keybinding-hints",
+      "kind": "source",
+      "scope": "interactive-tree",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/components/keybinding-hints.ts",
+      "sourceMap": "modes/interactive/components/keybinding-hints.js.map",
+      "lines": 49,
+      "sha256": "76b13ee8bfc6e49d5b2b5496eac13523bd9aad95770cbfa4a239336131f94aae",
+      "classification": "public-reuse",
+      "localDestination": "src/foundation/pi-component-adapter/index.ts",
+      "implementationStatus": "available-through-pinned-package",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "None planned; import the exact component or helper from the pinned public coding-agent package root.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "editor",
+        "autocomplete",
+        "keybindings",
+        "clipboard"
+      ],
+      "behaviorIds": [
+        "editor.custom-editor",
+        "editor.application-actions",
+        "autocomplete.combined-provider",
+        "keybindings.complete-manifest",
+        "clipboard.text-image-copy"
+      ],
+      "acceptanceTasks": [
+        "7.6"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts"
+      ]
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/components/login-dialog",
+      "kind": "source",
+      "scope": "interactive-tree",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/components/login-dialog.ts",
+      "sourceMap": "modes/interactive/components/login-dialog.js.map",
+      "lines": 234,
+      "sha256": "37608848ca7b72707437aed9627a612eadf570c57a54b1c86972c3532918298c",
+      "classification": "public-reuse",
+      "localDestination": "src/foundation/pi-component-adapter/index.ts",
+      "implementationStatus": "available-through-pinned-package",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "None planned; import the exact component or helper from the pinned public coding-agent package root.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "stateful-components"
+      ],
+      "behaviorIds": [
+        "components.persistent-lifecycle"
+      ],
+      "acceptanceTasks": [
+        "7.5"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts"
+      ]
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/components/markdown-transform",
+      "kind": "source",
+      "scope": "interactive-tree",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/components/markdown-transform.ts",
+      "sourceMap": "modes/interactive/components/markdown-transform.js.map",
+      "lines": 30,
+      "sha256": "657edd0453dab59d362e0d18c330486b86a47fe7a33b8c32204db8ce23a142a9",
+      "classification": "owned-source-port",
+      "localDestination": "src/foundation/pi-component-adapter/upstream/components/markdown-transform.ts",
+      "implementationStatus": "source-synchronized-port",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "Mechanical pinned source port with private imports remapped to public package-root types/APIs and A1-owned theme boundaries; behavior remains acceptance-tested.",
+      "localSha256": "d2deb720a9420764a54d704ba4ad194a746c9edc5a5ec86699dc517e8068336f",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "startup-composition",
+        "stateful-components",
+        "resize"
+      ],
+      "behaviorIds": [
+        "startup.persistent-tree",
+        "startup.header-notices",
+        "startup.preflight",
+        "components.persistent-lifecycle",
+        "resize.renderer-modes"
+      ],
+      "acceptanceTasks": [
+        "7.7",
+        "7.5",
+        "7.21",
+        "7.29"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/features/owned-ui/pi-startup-composition-parity.test.ts",
+        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts",
+        "test/foundation/pi-component-adapter/pinned-reconciled-source-ports.test.ts"
+      ]
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/components/mermaid",
+      "kind": "source",
+      "scope": "interactive-tree",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/components/mermaid.ts",
+      "sourceMap": "modes/interactive/components/mermaid.js.map",
+      "lines": 90,
+      "sha256": "994acb562b70957ed828770d74879e03cfffbc472acef94073ad74cda8defe58",
+      "classification": "owned-source-port",
+      "localDestination": "src/foundation/pi-component-adapter/upstream/components/mermaid.ts",
+      "implementationStatus": "source-synchronized-port",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "Mechanical pinned source port with private imports remapped to public package-root types/APIs and A1-owned theme boundaries; behavior remains acceptance-tested.",
+      "localSha256": "7fbcc74bd241b920e67778cca97e78b7cd57e6e59d31dba926c64bdb894cedfc",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "startup-composition",
+        "stateful-components",
+        "resize"
+      ],
+      "behaviorIds": [
+        "startup.persistent-tree",
+        "startup.header-notices",
+        "startup.preflight",
+        "components.persistent-lifecycle",
+        "resize.renderer-modes"
+      ],
+      "acceptanceTasks": [
+        "7.7",
+        "7.5",
+        "7.21",
+        "7.29"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/features/owned-ui/pi-startup-composition-parity.test.ts",
+        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts",
+        "test/foundation/pi-component-adapter/pinned-reconciled-source-ports.test.ts"
+      ]
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/components/model-selector",
+      "kind": "source",
+      "scope": "interactive-tree",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/components/model-selector.ts",
+      "sourceMap": "modes/interactive/components/model-selector.js.map",
+      "lines": 375,
+      "sha256": "70946cb17bdfce4d2bbd42c9527c99ac234c14a849fe69f38a8182e4f6d797ba",
+      "classification": "public-reuse",
+      "localDestination": "src/foundation/pi-component-adapter/index.ts",
+      "implementationStatus": "available-through-pinned-package",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "None planned; import the exact component or helper from the pinned public coding-agent package root.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "selectors",
+        "settings",
+        "sessions",
+        "models",
+        "thinking"
+      ],
+      "behaviorIds": [
+        "selectors.focus-lifecycle",
+        "settings.complete-surface",
+        "sessions.new-resume",
+        "sessions.fork-clone-tree",
+        "sessions.import-export-share-copy-info",
+        "models.select-cycle-scope",
+        "thinking.level-and-visibility"
+      ],
+      "acceptanceTasks": [
+        "7.8"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/foundation/pi-component-adapter/shell-components.test.ts"
+      ]
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/components/oauth-selector",
+      "kind": "source",
+      "scope": "interactive-tree",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/components/oauth-selector.ts",
+      "sourceMap": "modes/interactive/components/oauth-selector.js.map",
+      "lines": 215,
+      "sha256": "d4c92352cc8035e4092d9bd67e0250a2eab3124e13f15ac45433acfde92db53f",
+      "classification": "public-reuse",
+      "localDestination": "src/foundation/pi-component-adapter/index.ts",
+      "implementationStatus": "available-through-pinned-package",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "None planned; import the exact component or helper from the pinned public coding-agent package root.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "selectors",
+        "settings",
+        "sessions",
+        "models",
+        "thinking"
+      ],
+      "behaviorIds": [
+        "selectors.focus-lifecycle",
+        "settings.complete-surface",
+        "sessions.new-resume",
+        "sessions.fork-clone-tree",
+        "sessions.import-export-share-copy-info",
+        "models.select-cycle-scope",
+        "thinking.level-and-visibility"
+      ],
+      "acceptanceTasks": [
+        "7.8"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/foundation/pi-component-adapter/shell-components.test.ts"
+      ]
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/components/scoped-models-selector",
+      "kind": "source",
+      "scope": "interactive-tree",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/components/scoped-models-selector.ts",
+      "sourceMap": "modes/interactive/components/scoped-models-selector.js.map",
+      "lines": 404,
+      "sha256": "4659e701ada704fbda7148054aca037b145de3d85dad7e93a81ea2c8323c7050",
+      "classification": "owned-source-port",
+      "localDestination": "src/foundation/pi-component-adapter/upstream/components/scoped-models-selector.ts",
+      "implementationStatus": "ported",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "Source-synchronized scoped-model selector port: preserve session-only toggles, search, bulk/provider/reorder actions, dirty state, Ctrl+S persistence, refresh status, cancellation, and focus while remapping theme and public helper imports.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "selectors",
+        "settings",
+        "sessions",
+        "models",
+        "thinking"
+      ],
+      "behaviorIds": [
+        "selectors.focus-lifecycle",
+        "settings.complete-surface",
+        "sessions.new-resume",
+        "sessions.fork-clone-tree",
+        "sessions.import-export-share-copy-info",
+        "models.select-cycle-scope",
+        "thinking.level-and-visibility"
+      ],
+      "acceptanceTasks": [
+        "7.8"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/shell-components.test.ts",
+        "test/features/owned-ui/pi-session-shell.test.ts"
+      ],
+      "localSha256": "25965ce2c02404c9637cecae6e79dd976af5f337d45a4feec1f5492b010b9d75"
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/components/session-selector-search",
+      "kind": "source",
+      "scope": "interactive-tree",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/components/session-selector-search.ts",
+      "sourceMap": "modes/interactive/components/session-selector-search.js.map",
+      "lines": 195,
+      "sha256": "5b1811240c39c958f863091ece06d67cb8432d4d7e70185087d5e041432dff36",
+      "classification": "owned-source-port",
+      "localDestination": "src/foundation/pi-component-adapter/upstream/components/session-selector-search.ts",
+      "implementationStatus": "ported",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "Source-synchronized session search port with only the public SessionInfo type import remapped.",
+      "localSha256": "72cfec4059b12d66a1180cde9532c4e8c49990648acd14b06acd98a846c32386",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "selectors",
+        "settings",
+        "sessions",
+        "models",
+        "thinking"
+      ],
+      "behaviorIds": [
+        "selectors.focus-lifecycle",
+        "settings.complete-surface",
+        "sessions.new-resume",
+        "sessions.fork-clone-tree",
+        "sessions.import-export-share-copy-info",
+        "models.select-cycle-scope",
+        "thinking.level-and-visibility"
+      ],
+      "acceptanceTasks": [
+        "7.8"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/session-selector.test.ts"
+      ]
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/components/session-selector",
+      "kind": "source",
+      "scope": "interactive-tree",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/components/session-selector.ts",
+      "sourceMap": "modes/interactive/components/session-selector.js.map",
+      "lines": 1032,
+      "sha256": "b6d2f348e6eb68e17914a4936433912155271f0c3199441e14c419cbab21be10",
+      "classification": "owned-source-port",
+      "localDestination": "src/foundation/pi-component-adapter/upstream/components/session-selector.ts",
+      "implementationStatus": "ported",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "Source-synchronized session selector port: preserve threaded/current/all scope, search, sort, named/path filters, rename, delete confirmation, active-session protection, loading progress, cancellation, focus, and disposal while remapping public helpers, owned keybindings/theme, and canonical path handling.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "selectors",
+        "settings",
+        "sessions",
+        "models",
+        "thinking"
+      ],
+      "behaviorIds": [
+        "selectors.focus-lifecycle",
+        "settings.complete-surface",
+        "sessions.new-resume",
+        "sessions.fork-clone-tree",
+        "sessions.import-export-share-copy-info",
+        "models.select-cycle-scope",
+        "thinking.level-and-visibility"
+      ],
+      "acceptanceTasks": [
+        "7.8"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/session-selector.test.ts",
+        "test/features/owned-ui/pi-session-shell.test.ts"
+      ],
+      "localSha256": "6b5796df4c4810c34ee765d21e4541ccd7921900de424805f58bac9d67ab8589"
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/components/settings-selector",
+      "kind": "source",
+      "scope": "interactive-tree",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/components/settings-selector.ts",
+      "sourceMap": "modes/interactive/components/settings-selector.js.map",
+      "lines": 894,
+      "sha256": "b803beca2d660ee1abe8b28f0d3c5a43a84b366862e0bff3b88e65ead64de06c",
+      "classification": "public-reuse",
+      "localDestination": "src/foundation/pi-component-adapter/index.ts",
+      "implementationStatus": "available-through-pinned-package",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "None planned; import the exact component or helper from the pinned public coding-agent package root.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "selectors",
+        "settings",
+        "sessions",
+        "models",
+        "thinking"
+      ],
+      "behaviorIds": [
+        "selectors.focus-lifecycle",
+        "settings.complete-surface",
+        "sessions.new-resume",
+        "sessions.fork-clone-tree",
+        "sessions.import-export-share-copy-info",
+        "models.select-cycle-scope",
+        "thinking.level-and-visibility"
+      ],
+      "acceptanceTasks": [
+        "7.8"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/foundation/pi-component-adapter/shell-components.test.ts"
+      ]
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/components/show-images-selector",
+      "kind": "source",
+      "scope": "interactive-tree",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/components/show-images-selector.ts",
+      "sourceMap": "modes/interactive/components/show-images-selector.js.map",
+      "lines": 51,
+      "sha256": "6bea191c5442c0fa46c7fd54836de31df2042c8ed3aef3225b2a56a5fc1a65a9",
+      "classification": "public-reuse",
+      "localDestination": "src/foundation/pi-component-adapter/index.ts",
+      "implementationStatus": "available-through-pinned-package",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "None planned; import the exact component or helper from the pinned public coding-agent package root.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "startup-composition",
+        "stateful-components",
+        "resize"
+      ],
+      "behaviorIds": [
+        "startup.persistent-tree",
+        "startup.header-notices",
+        "startup.preflight",
+        "components.persistent-lifecycle",
+        "resize.renderer-modes"
+      ],
+      "acceptanceTasks": [
+        "7.7",
+        "7.5",
+        "7.21"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/features/owned-ui/pi-startup-composition-parity.test.ts",
+        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+      ]
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/components/skill-invocation-message",
+      "kind": "source",
+      "scope": "interactive-tree",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/components/skill-invocation-message.ts",
+      "sourceMap": "modes/interactive/components/skill-invocation-message.js.map",
+      "lines": 56,
+      "sha256": "86363379c1b1f8a3683f03fc039904f5f67f18c9365ff0f7d9d50b8170deb91a",
+      "classification": "owned-source-port",
+      "localDestination": "src/foundation/pi-component-adapter/upstream/components/skill-invocation-message.ts",
+      "implementationStatus": "owned-port-present",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "Mechanical port uses AddOne's public pi-tui instance, owned theme boundary, and root-instance keybinding registry because the public coding-agent component closes over a second nested pi-tui singleton and cannot observe AddOne's keybindings.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "stateful-components",
+        "events",
+        "tools",
+        "errors"
+      ],
+      "behaviorIds": [
+        "components.persistent-lifecycle",
+        "events.complete-manifest",
+        "events.transcript-rebuild",
+        "tools.streaming-lifecycle",
+        "errors.user-visible"
+      ],
+      "acceptanceTasks": [
+        "7.5",
+        "7.11"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/features/owned-ui/pi-session-shell.test.ts"
+      ],
+      "localSha256": "9dd1ec1acd8203c0dfd31d7f7b57e9ddb625f3ee045394e2cabe58f97339f53f"
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/components/status-indicator",
+      "kind": "source",
+      "scope": "interactive-tree",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/components/status-indicator.ts",
+      "sourceMap": "modes/interactive/components/status-indicator.js.map",
+      "lines": 115,
+      "sha256": "b463212f7d96514d78ce6a929543b31fd22db0d1fbba8296908c4df117e40573",
+      "classification": "owned-source-port",
+      "localDestination": "src/foundation/pi-component-adapter/upstream/components/status-indicator.ts",
+      "implementationStatus": "source-synchronized-port",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "Mechanical source port with public package-root keybinding, Loader, and owned theme/countdown imports plus ECMAScript private fields.",
+      "localSha256": "980b2e6e7d73d90d51b41ca65a4036ad9a60bbe4caf53735fc16ed6561b37674",
+      "approvedDeviations": [
+        {
+          "id": "status-indicator-public-boundaries",
+          "reason": "Remap private theme, countdown, extension option, and keybinding imports to A1-owned or public package-root equivalents.",
+          "upstreamBehavior": "Working, retry, compaction, branch-summary, idle, countdown, style, and disposal behavior match pinned Pi.",
+          "acceptanceTest": "test/foundation/pi-component-adapter/pinned-status-indicator-parity.test.ts"
+        }
+      ],
+      "behaviorCategories": [
+        "footer-status",
+        "events",
+        "errors"
+      ],
+      "behaviorIds": [
+        "footer.complete-state",
+        "status.indicators-and-notices",
+        "events.complete-manifest",
+        "events.transcript-rebuild",
+        "errors.user-visible"
+      ],
+      "acceptanceTasks": [
+        "7.11"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/foundation/pi-component-adapter/pinned-status-indicator-parity.test.ts",
+        "test/features/owned-ui/pi-session-shell.test.ts"
+      ]
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/components/theme-selector",
+      "kind": "source",
+      "scope": "interactive-tree",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/components/theme-selector.ts",
+      "sourceMap": "modes/interactive/components/theme-selector.js.map",
+      "lines": 68,
+      "sha256": "267be3176c67bddb72f0f64a9c3561a256c758707afbeabe2ac68112c8e3b5f8",
+      "classification": "public-reuse",
+      "localDestination": "src/foundation/pi-component-adapter/index.ts",
+      "implementationStatus": "available-through-pinned-package",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "None planned; import the exact component or helper from the pinned public coding-agent package root.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "startup-composition",
+        "stateful-components",
+        "resize"
+      ],
+      "behaviorIds": [
+        "startup.persistent-tree",
+        "startup.header-notices",
+        "startup.preflight",
+        "components.persistent-lifecycle",
+        "resize.renderer-modes"
+      ],
+      "acceptanceTasks": [
+        "7.7",
+        "7.5",
+        "7.21"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/features/owned-ui/pi-startup-composition-parity.test.ts",
+        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+      ]
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/components/thinking-selector",
+      "kind": "source",
+      "scope": "interactive-tree",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/components/thinking-selector.ts",
+      "sourceMap": "modes/interactive/components/thinking-selector.js.map",
+      "lines": 76,
+      "sha256": "00bbad2023ffe36142a2605af7f793354653b1ed28b5801dbe44905cc78cfbe6",
+      "classification": "public-reuse",
+      "localDestination": "src/foundation/pi-component-adapter/index.ts",
+      "implementationStatus": "available-through-pinned-package",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "None planned; import the exact component or helper from the pinned public coding-agent package root.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "selectors",
+        "settings",
+        "sessions",
+        "models",
+        "thinking"
+      ],
+      "behaviorIds": [
+        "selectors.focus-lifecycle",
+        "settings.complete-surface",
+        "sessions.new-resume",
+        "sessions.fork-clone-tree",
+        "sessions.import-export-share-copy-info",
+        "models.select-cycle-scope",
+        "thinking.level-and-visibility"
+      ],
+      "acceptanceTasks": [
+        "7.8"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/foundation/pi-component-adapter/shell-components.test.ts"
+      ]
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/components/tool-execution",
+      "kind": "source",
+      "scope": "interactive-tree",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/components/tool-execution.ts",
+      "sourceMap": "modes/interactive/components/tool-execution.js.map",
+      "lines": 389,
+      "sha256": "00555ed7f5440dce6193d13fe2a28ab585afe775a90026060e03e4d8e27529f5",
+      "classification": "public-reuse",
+      "localDestination": "src/foundation/pi-component-adapter/index.ts",
+      "implementationStatus": "available-through-pinned-package",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "None planned; import the exact component or helper from the pinned public coding-agent package root.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "stateful-components",
+        "events",
+        "tools",
+        "errors"
+      ],
+      "behaviorIds": [
+        "components.persistent-lifecycle",
+        "events.complete-manifest",
+        "events.transcript-rebuild",
+        "tools.streaming-lifecycle",
+        "errors.user-visible"
+      ],
+      "acceptanceTasks": [
+        "7.5",
+        "7.11"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/features/owned-ui/pi-session-shell.test.ts"
+      ]
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/components/tree-selector",
+      "kind": "source",
+      "scope": "interactive-tree",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/components/tree-selector.ts",
+      "sourceMap": "modes/interactive/components/tree-selector.js.map",
+      "lines": 1428,
+      "sha256": "731ce9fe6c07d0b1a55a11ce2987f21771376b7651e28355c98fbdf1f053a931",
+      "classification": "owned-source-port",
+      "localDestination": "src/foundation/pi-component-adapter/upstream/components/tree-selector.ts",
+      "implementationStatus": "ported",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "Source-synchronized tree selector port: preserve filtering, folding, labels, copying, tree navigation, key hints, focus, and viewport behavior while remapping public types/components plus owned keybindings/theme helpers required to avoid the pinned package nested pi-tui singleton.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "selectors",
+        "settings",
+        "sessions",
+        "models",
+        "thinking"
+      ],
+      "behaviorIds": [
+        "selectors.focus-lifecycle",
+        "settings.complete-surface",
+        "sessions.new-resume",
+        "sessions.fork-clone-tree",
+        "sessions.import-export-share-copy-info",
+        "models.select-cycle-scope",
+        "thinking.level-and-visibility"
+      ],
+      "acceptanceTasks": [
+        "7.8"
+      ],
+      "tests": [
+        "test/features/owned-ui/pi-session-shell.test.ts",
+        "test/repository-governance/pi-terminal-parity-gate.test.ts"
+      ],
+      "localSha256": "329e255c45b3fda782a4b550100c0d3cc8ff6ca5e1116fbd76c041ab5e7e6ef7"
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/components/trust-selector",
+      "kind": "source",
+      "scope": "interactive-tree",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/components/trust-selector.ts",
+      "sourceMap": "modes/interactive/components/trust-selector.js.map",
+      "lines": 135,
+      "sha256": "781c1d75d302e370f16c6daa4a9541559f290f39480269ee6f1a0aee01d0c529",
+      "classification": "owned-source-port",
+      "localDestination": "src/foundation/pi-component-adapter/upstream/components/trust-selector.ts",
+      "implementationStatus": "ported",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "Mechanical source-synchronized trust selector port with injected public ProjectTrustStore-derived options and remapped owned theme imports.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "selectors",
+        "settings",
+        "sessions",
+        "models",
+        "thinking"
+      ],
+      "behaviorIds": [
+        "selectors.focus-lifecycle",
+        "settings.complete-surface",
+        "sessions.new-resume",
+        "sessions.fork-clone-tree",
+        "sessions.import-export-share-copy-info",
+        "models.select-cycle-scope",
+        "thinking.level-and-visibility"
+      ],
+      "acceptanceTasks": [
+        "7.8"
+      ],
+      "tests": [
+        "test/features/owned-ui/pi-session-shell.test.ts"
+      ],
+      "localSha256": "1e3611eb812ef21b097e6ffeb88e4198dec4443b06542417b6479ca1a0a111d3"
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/components/user-message-selector",
+      "kind": "source",
+      "scope": "interactive-tree",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/components/user-message-selector.ts",
+      "sourceMap": "modes/interactive/components/user-message-selector.js.map",
+      "lines": 156,
+      "sha256": "bd48d99cc3eea80d833f9933d4281d2b79b40d7c63727663b2a4c9605930369a",
+      "classification": "public-reuse",
+      "localDestination": "src/foundation/pi-component-adapter/index.ts",
+      "implementationStatus": "available-through-pinned-package",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "None planned; import the exact component or helper from the pinned public coding-agent package root.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "selectors",
+        "settings",
+        "sessions",
+        "models",
+        "thinking"
+      ],
+      "behaviorIds": [
+        "selectors.focus-lifecycle",
+        "settings.complete-surface",
+        "sessions.new-resume",
+        "sessions.fork-clone-tree",
+        "sessions.import-export-share-copy-info",
+        "models.select-cycle-scope",
+        "thinking.level-and-visibility"
+      ],
+      "acceptanceTasks": [
+        "7.8"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/foundation/pi-component-adapter/shell-components.test.ts"
+      ]
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/components/user-message",
+      "kind": "source",
+      "scope": "interactive-tree",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/components/user-message.ts",
+      "sourceMap": "modes/interactive/components/user-message.js.map",
+      "lines": 71,
+      "sha256": "234d4f2544a0cb60082a6012a63576cdda4e9f99cdd0560129dd1efe5c6c7b1d",
+      "classification": "public-reuse",
+      "localDestination": "src/foundation/pi-component-adapter/index.ts",
+      "implementationStatus": "available-through-pinned-package",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "None planned; import the exact component or helper from the pinned public coding-agent package root.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "stateful-components",
+        "events",
+        "tools",
+        "errors"
+      ],
+      "behaviorIds": [
+        "components.persistent-lifecycle",
+        "events.complete-manifest",
+        "events.transcript-rebuild",
+        "tools.streaming-lifecycle",
+        "errors.user-visible"
+      ],
+      "acceptanceTasks": [
+        "7.5",
+        "7.11"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/features/owned-ui/pi-session-shell.test.ts"
+      ]
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/components/visual-truncate",
+      "kind": "source",
+      "scope": "interactive-tree",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/components/visual-truncate.ts",
+      "sourceMap": "modes/interactive/components/visual-truncate.js.map",
+      "lines": 51,
+      "sha256": "05eb9a43fb379e54d677622a287a865e3be6cce185e60332e367f2432e4e37b5",
+      "classification": "public-reuse",
+      "localDestination": "src/foundation/pi-component-adapter/index.ts",
+      "implementationStatus": "available-through-pinned-package",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "None planned; import the exact component or helper from the pinned public coding-agent package root.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "startup-composition",
+        "stateful-components",
+        "resize"
+      ],
+      "behaviorIds": [
+        "startup.persistent-tree",
+        "startup.header-notices",
+        "startup.preflight",
+        "components.persistent-lifecycle",
+        "resize.renderer-modes"
+      ],
+      "acceptanceTasks": [
+        "7.7",
+        "7.5",
+        "7.21"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/features/owned-ui/pi-startup-composition-parity.test.ts",
+        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+      ]
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/external-editor",
+      "kind": "source",
+      "scope": "interactive-tree",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/external-editor.ts",
+      "sourceMap": "modes/interactive/external-editor.js.map",
+      "lines": 46,
+      "sha256": "b71e4ed7e99f119bb69f82d57207d8a20beb12560ebd8736ee73631e25784336",
+      "classification": "owned-source-port",
+      "localDestination": "src/foundation/pi-component-adapter/upstream/external-editor.ts",
+      "implementationStatus": "source-synchronized-port",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "Mechanical port: retain temporary prompt file, asynchronous inherited-stdio editor process, completion readback, and best-effort cleanup behind the owned extension-editor component.",
+      "localSha256": "6190d23c96128c0375b9ace2b5c3ad442262e8397248a5ca2cda96ce7931adb8",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "editor",
+        "autocomplete",
+        "keybindings",
+        "clipboard"
+      ],
+      "behaviorIds": [
+        "editor.custom-editor",
+        "editor.application-actions",
+        "autocomplete.combined-provider",
+        "keybindings.complete-manifest",
+        "clipboard.text-image-copy"
+      ],
+      "acceptanceTasks": [
+        "7.6"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts"
+      ]
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/interactive-mode",
+      "kind": "source",
+      "scope": "interactive-tree",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/interactive-mode.ts",
+      "sourceMap": "modes/interactive/interactive-mode.js.map",
+      "lines": 6449,
+      "sha256": "ccc403e24d005b47632460c249cf154cdc576448ab32f7001fb6a9d562014b37",
+      "classification": "host-adapter",
+      "localDestination": "src/foundation/pi-component-adapter/index.ts",
+      "implementationStatus": "adapter-present-conformance-passed",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "Decompose stock InteractiveMode authority across typed engine, component, TUI, and owned-shell adapters; construction, private inspection, and mutation of the stock root remain forbidden.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "startup-composition",
+        "stateful-components",
+        "editor",
+        "autocomplete",
+        "keybindings",
+        "built-in-commands",
+        "prompt-loop",
+        "selectors",
+        "settings",
+        "sessions",
+        "models",
+        "thinking",
+        "events",
+        "tools",
+        "footer-status",
+        "clipboard",
+        "resize",
+        "errors",
+        "shutdown"
+      ],
+      "behaviorIds": [
+        "startup.persistent-tree",
+        "startup.header-notices",
+        "startup.preflight",
+        "components.persistent-lifecycle",
+        "editor.custom-editor",
+        "editor.application-actions",
+        "autocomplete.combined-provider",
+        "keybindings.complete-manifest",
+        "commands.complete-manifest",
+        "prompt.command-routing",
+        "prompt.idle-streaming-compaction",
+        "prompt.bash",
+        "selectors.focus-lifecycle",
+        "settings.complete-surface",
+        "sessions.new-resume",
+        "sessions.fork-clone-tree",
+        "sessions.import-export-share-copy-info",
+        "models.select-cycle-scope",
+        "thinking.level-and-visibility",
+        "events.complete-manifest",
+        "events.transcript-rebuild",
+        "tools.streaming-lifecycle",
+        "footer.complete-state",
+        "status.indicators-and-notices",
+        "clipboard.text-image-copy",
+        "resize.renderer-modes",
+        "errors.user-visible",
+        "shutdown.interactive-signal-crash",
+        "shutdown.dispose-stateful-components"
+      ],
+      "acceptanceTasks": [
+        "7.7",
+        "7.5",
+        "7.6",
+        "7.8",
+        "7.9",
+        "7.10",
+        "7.11",
+        "7.21"
+      ],
+      "tests": [
+        "test/features/owned-ui/pi-startup-composition-parity.test.ts",
+        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts",
+        "test/foundation/pi-component-adapter/shell-components.test.ts",
+        "test/foundation/pi-engine-adapter/workflows.test.ts",
+        "test/features/owned-ui/pi-session-shell.test.ts",
+        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+      ]
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/model-catalog-refresh",
+      "kind": "source",
+      "scope": "interactive-tree",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/model-catalog-refresh.ts",
+      "sourceMap": "modes/interactive/model-catalog-refresh.js.map",
+      "lines": 52,
+      "sha256": "a7a10647deaba5036019737c376ab3f73eed12703dafeb8cb8920581ec8672e2",
+      "classification": "host-adapter",
+      "localDestination": "src/foundation/pi-engine-adapter/adapter.ts",
+      "implementationStatus": "adapter-present-conformance-passed",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "Expose model-runtime refresh, timeout, cached-state, and failure outcomes through the typed engine adapter and stateful scoped-model controller.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "stateful-components"
+      ],
+      "behaviorIds": [
+        "components.persistent-lifecycle"
+      ],
+      "acceptanceTasks": [
+        "7.5"
+      ],
+      "tests": [
+        "test/foundation/pi-engine-adapter/adapter.test.ts",
+        "test/features/owned-ui/pi-session-shell.test.ts"
+      ]
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/model-search",
+      "kind": "source",
+      "scope": "interactive-tree",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/model-search.ts",
+      "sourceMap": "modes/interactive/model-search.js.map",
+      "lines": 22,
+      "sha256": "9be620174c0f25516b0c537dcd4ef9be7c9c9a145e6489e186cc6c4787b25412",
+      "classification": "owned-source-port",
+      "localDestination": "src/foundation/pi-component-adapter/upstream/model-search.ts",
+      "implementationStatus": "ported",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "Mechanical source-synchronized port preserving pinned model search terms for stateful scoped-model filtering.",
+      "localSha256": "f7203516c23299adf159149d9852e8d67d167cbbf7a573522cfc79c1f82eba37",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "selectors",
+        "settings",
+        "sessions",
+        "models",
+        "thinking"
+      ],
+      "behaviorIds": [
+        "selectors.focus-lifecycle",
+        "settings.complete-surface",
+        "sessions.new-resume",
+        "sessions.fork-clone-tree",
+        "sessions.import-export-share-copy-info",
+        "models.select-cycle-scope",
+        "thinking.level-and-visibility"
+      ],
+      "acceptanceTasks": [
+        "7.8"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/shell-components.test.ts",
+        "test/features/owned-ui/pi-session-shell.test.ts"
+      ]
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/theme/dark.json",
+      "kind": "asset",
+      "scope": "interactive-tree",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/theme/dark.json",
+      "sourceMap": null,
+      "bytes": 2189,
+      "sha256": "113bc1fd556727b165804c18b5d377c14d421b3fdff3909a63736f421d0a3b00",
+      "classification": "public-reuse",
+      "localDestination": "src/foundation/pi-component-adapter/index.ts",
+      "implementationStatus": "available-through-pinned-package",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "None planned; resolve through pinned public theme APIs.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "startup-composition",
+        "stateful-components",
+        "resize"
+      ],
+      "behaviorIds": [
+        "startup.persistent-tree",
+        "startup.header-notices",
+        "startup.preflight",
+        "components.persistent-lifecycle",
+        "resize.renderer-modes"
+      ],
+      "acceptanceTasks": [
+        "7.4",
+        "7.7",
+        "7.5",
+        "7.21"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-theme-parity.test.ts",
+        "test/features/owned-ui/pi-startup-composition-parity.test.ts",
+        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+      ]
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/theme/light.json",
+      "kind": "asset",
+      "scope": "interactive-tree",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/theme/light.json",
+      "sourceMap": null,
+      "bytes": 2209,
+      "sha256": "893f0d7e8513dbd5e5112982fd6eb65ceb03ae18ed04854ac57803b9c8908fa0",
+      "classification": "public-reuse",
+      "localDestination": "src/foundation/pi-component-adapter/index.ts",
+      "implementationStatus": "available-through-pinned-package",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "None planned; resolve through pinned public theme APIs.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "startup-composition",
+        "stateful-components",
+        "resize"
+      ],
+      "behaviorIds": [
+        "startup.persistent-tree",
+        "startup.header-notices",
+        "startup.preflight",
+        "components.persistent-lifecycle",
+        "resize.renderer-modes"
+      ],
+      "acceptanceTasks": [
+        "7.4",
+        "7.7",
+        "7.5",
+        "7.21"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-theme-parity.test.ts",
+        "test/features/owned-ui/pi-startup-composition-parity.test.ts",
+        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+      ]
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/theme/theme-controller",
+      "kind": "source",
+      "scope": "interactive-tree",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/theme/theme-controller.ts",
+      "sourceMap": "modes/interactive/theme/theme-controller.js.map",
+      "lines": 167,
+      "sha256": "d0805a6696aa19be94a8d908add5f23ddbc17f5d252833f27709fb0d60d52197",
+      "classification": "owned-source-port",
+      "localDestination": "src/foundation/pi-component-adapter/upstream/theme/theme-controller.ts",
+      "implementationStatus": "source-synchronized-port",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "Source-synchronized controller port: renamed owner class, injected dependency-free settings/runtime ports, remapped private theme helpers to the public-backed A1 theme adapter, and added explicit disposal.",
+      "localSha256": "aaef8325f9f9c5b05023c01237cc6d0a14457699d0bd5f6882aa0bd183af8dc8",
+      "approvedDeviations": [
+        {
+          "id": "theme-controller-owned-boundaries",
+          "reason": "Replace private SettingsManager/theme-module coupling with public theme APIs and A1-owned runtime/settings ports.",
+          "upstreamBehavior": "Theme initialization, auto detection, preview, switching, render invalidation, and terminal color-scheme synchronization remain ordered as pinned.",
+          "acceptanceTest": "test/foundation/pi-component-adapter/pinned-theme-parity.test.ts"
+        },
+        {
+          "id": "theme-controller-explicit-disposal",
+          "reason": "A1 lifecycle ownership requires explicit listener disposal instead of relying on stock InteractiveMode teardown.",
+          "upstreamBehavior": "The terminal color-scheme listener and automatic notifications are released when the owned shell stops.",
+          "acceptanceTest": "test/foundation/pi-component-adapter/pinned-theme-parity.test.ts"
+        }
+      ],
+      "behaviorCategories": [
+        "startup-composition",
+        "stateful-components",
+        "resize"
+      ],
+      "behaviorIds": [
+        "startup.persistent-tree",
+        "startup.header-notices",
+        "startup.preflight",
+        "components.persistent-lifecycle",
+        "resize.renderer-modes"
+      ],
+      "acceptanceTasks": [
+        "7.4",
+        "7.7",
+        "7.5",
+        "7.21"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-theme-parity.test.ts",
+        "test/features/owned-ui/pi-startup-composition-parity.test.ts",
+        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+      ]
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/theme/theme-schema.json",
+      "kind": "asset",
+      "scope": "interactive-tree",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/theme/theme-schema.json",
+      "sourceMap": null,
+      "bytes": 9518,
+      "sha256": "40fa6755020aae5bb8e670b7e80464f4629073f646efde340c08ce683172a548",
+      "classification": "public-reuse",
+      "localDestination": "src/foundation/pi-component-adapter/index.ts",
+      "implementationStatus": "available-through-pinned-package",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "None planned; resolve through pinned public theme APIs.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "startup-composition",
+        "stateful-components",
+        "resize"
+      ],
+      "behaviorIds": [
+        "startup.persistent-tree",
+        "startup.header-notices",
+        "startup.preflight",
+        "components.persistent-lifecycle",
+        "resize.renderer-modes"
+      ],
+      "acceptanceTasks": [
+        "7.4",
+        "7.7",
+        "7.5",
+        "7.21"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-theme-parity.test.ts",
+        "test/features/owned-ui/pi-startup-composition-parity.test.ts",
+        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+      ]
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/theme/theme",
+      "kind": "source",
+      "scope": "interactive-tree",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/theme/theme.ts",
+      "sourceMap": "modes/interactive/theme/theme.js.map",
+      "lines": 1336,
+      "sha256": "93d993be77fc2c0ddbf4116c9c3a1afa07a41c3d5dacb8e9b0b80ac1da9404a2",
+      "classification": "owned-source-port",
+      "localDestination": "src/foundation/pi-component-adapter/upstream/theme/theme.ts",
+      "implementationStatus": "source-synchronized-port",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "Source-synchronized theme port: retain pinned theme schema, variable/color resolution, built-in and custom loading, terminal detection, and layout defaults while constructing the public package-root Theme class.",
+      "localSha256": "d8b7bd73f5ec1735a85d0a64c1c879a26fc89291d36a4c6054353663993eecf4",
+      "approvedDeviations": [
+        {
+          "id": "theme-public-api-boundary",
+          "reason": "Use public package-root Theme, initTheme, configuration-directory, TUI capability, markdown, selector, and syntax helpers instead of private module imports.",
+          "upstreamBehavior": "Pinned dark/light/custom color resolution, 256/truecolor selection, fallback, automatic terminal detection, and component styling remain acceptance-tested.",
+          "acceptanceTest": "test/foundation/pi-component-adapter/pinned-theme-parity.test.ts"
+        },
+        {
+          "id": "theme-owned-watcher-boundary",
+          "reason": "Mirror custom-theme reload with an A1-owned file watcher because the public API exposes no theme-change callback and private watcher imports are forbidden.",
+          "upstreamBehavior": "Debounced valid changes replace the active custom theme and notify rendering; invalid or temporarily missing files retain the last valid theme.",
+          "acceptanceTest": "test/foundation/pi-component-adapter/pinned-theme-parity.test.ts"
+        }
+      ],
+      "behaviorCategories": [
+        "startup-composition",
+        "stateful-components",
+        "resize"
+      ],
+      "behaviorIds": [
+        "startup.persistent-tree",
+        "startup.header-notices",
+        "startup.preflight",
+        "components.persistent-lifecycle",
+        "resize.renderer-modes"
+      ],
+      "acceptanceTasks": [
+        "7.4",
+        "7.7",
+        "7.5",
+        "7.21"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-theme-parity.test.ts",
+        "test/features/owned-ui/pi-startup-composition-parity.test.ts",
+        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+      ]
+    },
+    {
+      "id": "pi-coding-agent:src/utils/clipboard",
+      "kind": "source",
+      "scope": "adjacent-authority",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/utils/clipboard.ts",
+      "sourceMap": "utils/clipboard.js.map",
+      "lines": 176,
+      "sha256": "03fbbed59a9b46a952a85a8a0fd7cc170b2bc912b477a53066bdfff8f2082947",
+      "classification": "host-adapter",
+      "localDestination": "src/foundation/pi-engine-adapter/index.ts",
+      "implementationStatus": "adapter-present-conformance-passed",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "Retain authority in the pinned public SDK and expose it only through AddOne engine contracts.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "editor",
+        "clipboard",
+        "errors"
+      ],
+      "behaviorIds": [
+        "editor.custom-editor",
+        "editor.application-actions",
+        "clipboard.text-image-copy",
+        "errors.user-visible"
+      ],
+      "acceptanceTasks": [
+        "7.6",
+        "7.11"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts",
+        "test/features/owned-ui/pi-session-shell.test.ts"
+      ]
+    },
+    {
+      "id": "pi-tui:src/alt-screen-search",
+      "kind": "source",
+      "scope": "public-tui-package",
+      "package": "@earendil-works/pi-tui",
+      "upstreamPath": "packages/tui/src/alt-screen-search.ts",
+      "sourceMap": "alt-screen-search.js.map",
+      "lines": 158,
+      "sha256": "5d59497baa217fe475c5b2f0539e02ed6261a1600becfffbb038d3ad377d4fa6",
+      "classification": "public-reuse",
+      "localDestination": "src/foundation/pi-component-adapter/index.ts",
+      "implementationStatus": "available-through-pinned-package",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "None planned; import only from the pinned public pi-tui package root.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "keybindings",
+        "resize",
+        "shutdown"
+      ],
+      "behaviorIds": [
+        "keybindings.complete-manifest",
+        "resize.renderer-modes",
+        "shutdown.interactive-signal-crash",
+        "shutdown.dispose-stateful-components"
+      ],
+      "acceptanceTasks": [
+        "7.6",
+        "7.21"
+      ],
+      "tests": [
+        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts",
+        "test/foundation/pi-tui-runtime-adapter/conformance.test.ts"
+      ]
+    },
+    {
+      "id": "pi-tui:src/autocomplete",
+      "kind": "source",
+      "scope": "public-tui-package",
+      "package": "@earendil-works/pi-tui",
+      "upstreamPath": "packages/tui/src/autocomplete.ts",
+      "sourceMap": "autocomplete.js.map",
+      "lines": 787,
+      "sha256": "10f1e74efb9aa7dce770f450c6ea436a5daadaf22ec98cdb015bd283ae212db4",
+      "classification": "public-reuse",
+      "localDestination": "src/foundation/pi-component-adapter/index.ts",
+      "implementationStatus": "available-through-pinned-package",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "None planned; import only from the pinned public pi-tui package root.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "editor",
+        "autocomplete",
+        "keybindings",
+        "clipboard"
+      ],
+      "behaviorIds": [
+        "editor.custom-editor",
+        "editor.application-actions",
+        "autocomplete.combined-provider",
+        "keybindings.complete-manifest",
+        "clipboard.text-image-copy"
+      ],
+      "acceptanceTasks": [
+        "7.6"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts"
+      ]
+    },
+    {
+      "id": "pi-tui:src/components/alt-screen-flash",
+      "kind": "source",
+      "scope": "public-tui-package",
+      "package": "@earendil-works/pi-tui",
+      "upstreamPath": "packages/tui/src/components/alt-screen-flash.ts",
+      "sourceMap": "components/alt-screen-flash.js.map",
+      "lines": 52,
+      "sha256": "6d341546b59958e93e4d33fdc1766b10d13c98a779031e2c01b827f0a4c6e30c",
+      "classification": "public-reuse",
+      "localDestination": "src/foundation/pi-component-adapter/index.ts",
+      "implementationStatus": "available-through-pinned-package",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "None planned; import only from the pinned public pi-tui package root.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "keybindings",
+        "resize",
+        "shutdown"
+      ],
+      "behaviorIds": [
+        "keybindings.complete-manifest",
+        "resize.renderer-modes",
+        "shutdown.interactive-signal-crash",
+        "shutdown.dispose-stateful-components"
+      ],
+      "acceptanceTasks": [
+        "7.6",
+        "7.21"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts",
+        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+      ]
+    },
+    {
+      "id": "pi-tui:src/components/box",
+      "kind": "source",
+      "scope": "public-tui-package",
+      "package": "@earendil-works/pi-tui",
+      "upstreamPath": "packages/tui/src/components/box.ts",
+      "sourceMap": "components/box.js.map",
+      "lines": 138,
+      "sha256": "03119c2c97690fb0904edde784cc2c2a68a6ed80c4ba559bb715cab1daca3104",
+      "classification": "public-reuse",
+      "localDestination": "src/foundation/pi-component-adapter/index.ts",
+      "implementationStatus": "available-through-pinned-package",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "None planned; import only from the pinned public pi-tui package root.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "startup-composition",
+        "stateful-components",
+        "resize"
+      ],
+      "behaviorIds": [
+        "startup.persistent-tree",
+        "startup.header-notices",
+        "startup.preflight",
+        "components.persistent-lifecycle",
+        "resize.renderer-modes"
+      ],
+      "acceptanceTasks": [
+        "7.7",
+        "7.5",
+        "7.21"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/features/owned-ui/pi-startup-composition-parity.test.ts",
+        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+      ]
+    },
+    {
+      "id": "pi-tui:src/components/cancellable-loader",
+      "kind": "source",
+      "scope": "public-tui-package",
+      "package": "@earendil-works/pi-tui",
+      "upstreamPath": "packages/tui/src/components/cancellable-loader.ts",
+      "sourceMap": "components/cancellable-loader.js.map",
+      "lines": 41,
+      "sha256": "5f0ae0a56f299e5f6c9585c79bbe16c38a845f038a7254f8dffe7a44f6082e16",
+      "classification": "public-reuse",
+      "localDestination": "src/foundation/pi-component-adapter/index.ts",
+      "implementationStatus": "available-through-pinned-package",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "None planned; import only from the pinned public pi-tui package root.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "footer-status",
+        "events",
+        "errors"
+      ],
+      "behaviorIds": [
+        "footer.complete-state",
+        "status.indicators-and-notices",
+        "events.complete-manifest",
+        "events.transcript-rebuild",
+        "errors.user-visible"
+      ],
+      "acceptanceTasks": [
+        "7.11"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/features/owned-ui/pi-session-shell.test.ts"
+      ]
+    },
+    {
+      "id": "pi-tui:src/components/editor",
+      "kind": "source",
+      "scope": "public-tui-package",
+      "package": "@earendil-works/pi-tui",
+      "upstreamPath": "packages/tui/src/components/editor.ts",
+      "sourceMap": "components/editor.js.map",
+      "lines": 2364,
+      "sha256": "b2379d45aef41c4c19dcfab6c423a4242d3ab51310fe4df376a0a5e5da835845",
+      "classification": "public-reuse",
+      "localDestination": "src/foundation/pi-component-adapter/index.ts",
+      "implementationStatus": "available-through-pinned-package",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "None planned; import only from the pinned public pi-tui package root.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "editor",
+        "autocomplete",
+        "keybindings",
+        "clipboard"
+      ],
+      "behaviorIds": [
+        "editor.custom-editor",
+        "editor.application-actions",
+        "autocomplete.combined-provider",
+        "keybindings.complete-manifest",
+        "clipboard.text-image-copy"
+      ],
+      "acceptanceTasks": [
+        "7.6"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts"
+      ]
+    },
+    {
+      "id": "pi-tui:src/components/h-stack",
+      "kind": "source",
+      "scope": "public-tui-package",
+      "package": "@earendil-works/pi-tui",
+      "upstreamPath": "packages/tui/src/components/h-stack.ts",
+      "sourceMap": "components/h-stack.js.map",
+      "lines": 45,
+      "sha256": "6622e1e2605e500a420c3cdf3ffcae0548b2d86ec496a0f6bf1dd5c95aeb0b6b",
+      "classification": "public-reuse",
+      "localDestination": "src/foundation/pi-component-adapter/index.ts",
+      "implementationStatus": "available-through-pinned-package",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "None planned; import only from the pinned public pi-tui package root.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "startup-composition",
+        "stateful-components",
+        "resize"
+      ],
+      "behaviorIds": [
+        "startup.persistent-tree",
+        "startup.header-notices",
+        "startup.preflight",
+        "components.persistent-lifecycle",
+        "resize.renderer-modes"
+      ],
+      "acceptanceTasks": [
+        "7.7",
+        "7.5",
+        "7.21"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/features/owned-ui/pi-startup-composition-parity.test.ts",
+        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+      ]
+    },
+    {
+      "id": "pi-tui:src/components/image",
+      "kind": "source",
+      "scope": "public-tui-package",
+      "package": "@earendil-works/pi-tui",
+      "upstreamPath": "packages/tui/src/components/image.ts",
+      "sourceMap": "components/image.js.map",
+      "lines": 128,
+      "sha256": "cdef2f757008ce2fecfde6c0108366ebdc160bac70355db855fd264aec8d53f8",
+      "classification": "public-reuse",
+      "localDestination": "src/foundation/pi-component-adapter/index.ts",
+      "implementationStatus": "available-through-pinned-package",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "None planned; import only from the pinned public pi-tui package root.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "startup-composition",
+        "stateful-components",
+        "resize"
+      ],
+      "behaviorIds": [
+        "startup.persistent-tree",
+        "startup.header-notices",
+        "startup.preflight",
+        "components.persistent-lifecycle",
+        "resize.renderer-modes"
+      ],
+      "acceptanceTasks": [
+        "7.7",
+        "7.5",
+        "7.21"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/features/owned-ui/pi-startup-composition-parity.test.ts",
+        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+      ]
+    },
+    {
+      "id": "pi-tui:src/components/input",
+      "kind": "source",
+      "scope": "public-tui-package",
+      "package": "@earendil-works/pi-tui",
+      "upstreamPath": "packages/tui/src/components/input.ts",
+      "sourceMap": "components/input.js.map",
+      "lines": 448,
+      "sha256": "607060233925fe7d33236e8bb5a7a6283d3b83c05e4f03f3bb6e8b856285c290",
+      "classification": "public-reuse",
+      "localDestination": "src/foundation/pi-component-adapter/index.ts",
+      "implementationStatus": "available-through-pinned-package",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "None planned; import only from the pinned public pi-tui package root.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "selectors",
+        "settings",
+        "sessions",
+        "models",
+        "thinking"
+      ],
+      "behaviorIds": [
+        "selectors.focus-lifecycle",
+        "settings.complete-surface",
+        "sessions.new-resume",
+        "sessions.fork-clone-tree",
+        "sessions.import-export-share-copy-info",
+        "models.select-cycle-scope",
+        "thinking.level-and-visibility"
+      ],
+      "acceptanceTasks": [
+        "7.8"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/foundation/pi-component-adapter/shell-components.test.ts"
+      ]
+    },
+    {
+      "id": "pi-tui:src/components/loader",
+      "kind": "source",
+      "scope": "public-tui-package",
+      "package": "@earendil-works/pi-tui",
+      "upstreamPath": "packages/tui/src/components/loader.ts",
+      "sourceMap": "components/loader.js.map",
+      "lines": 93,
+      "sha256": "4107db69020bc52b2fe1bd2a5147de755045b0b2601e16e3febab59cbf9b48dd",
+      "classification": "public-reuse",
+      "localDestination": "src/foundation/pi-component-adapter/index.ts",
+      "implementationStatus": "available-through-pinned-package",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "None planned; import only from the pinned public pi-tui package root.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "footer-status",
+        "events",
+        "errors"
+      ],
+      "behaviorIds": [
+        "footer.complete-state",
+        "status.indicators-and-notices",
+        "events.complete-manifest",
+        "events.transcript-rebuild",
+        "errors.user-visible"
+      ],
+      "acceptanceTasks": [
+        "7.11"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/features/owned-ui/pi-session-shell.test.ts"
+      ]
+    },
+    {
+      "id": "pi-tui:src/components/markdown",
+      "kind": "source",
+      "scope": "public-tui-package",
+      "package": "@earendil-works/pi-tui",
+      "upstreamPath": "packages/tui/src/components/markdown.ts",
+      "sourceMap": "components/markdown.js.map",
+      "lines": 1011,
+      "sha256": "93fd3fc8775557504b6f90a7c5a3df416e2dde788e369b9a849a8ca9f7d4d2fb",
+      "classification": "public-reuse",
+      "localDestination": "src/foundation/pi-component-adapter/index.ts",
+      "implementationStatus": "available-through-pinned-package",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "None planned; import only from the pinned public pi-tui package root.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "startup-composition",
+        "stateful-components",
+        "resize"
+      ],
+      "behaviorIds": [
+        "startup.persistent-tree",
+        "startup.header-notices",
+        "startup.preflight",
+        "components.persistent-lifecycle",
+        "resize.renderer-modes"
+      ],
+      "acceptanceTasks": [
+        "7.7",
+        "7.5",
+        "7.21"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/features/owned-ui/pi-startup-composition-parity.test.ts",
+        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+      ]
+    },
+    {
+      "id": "pi-tui:src/components/scroll-view",
+      "kind": "source",
+      "scope": "public-tui-package",
+      "package": "@earendil-works/pi-tui",
+      "upstreamPath": "packages/tui/src/components/scroll-view.ts",
+      "sourceMap": "components/scroll-view.js.map",
+      "lines": 217,
+      "sha256": "ba6326a8496533cc6618d8401e18d399b39817b83544b6b083dab91570b8e81f",
+      "classification": "public-reuse",
+      "localDestination": "src/foundation/pi-component-adapter/index.ts",
+      "implementationStatus": "available-through-pinned-package",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "None planned; import only from the pinned public pi-tui package root.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "keybindings",
+        "resize",
+        "shutdown"
+      ],
+      "behaviorIds": [
+        "keybindings.complete-manifest",
+        "resize.renderer-modes",
+        "shutdown.interactive-signal-crash",
+        "shutdown.dispose-stateful-components"
+      ],
+      "acceptanceTasks": [
+        "7.6",
+        "7.21"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts",
+        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+      ]
+    },
+    {
+      "id": "pi-tui:src/components/select-list",
+      "kind": "source",
+      "scope": "public-tui-package",
+      "package": "@earendil-works/pi-tui",
+      "upstreamPath": "packages/tui/src/components/select-list.ts",
+      "sourceMap": "components/select-list.js.map",
+      "lines": 230,
+      "sha256": "a2fb6b65ea8fd96569343fa5948dabb35893809daadfb45a35472d179855e340",
+      "classification": "public-reuse",
+      "localDestination": "src/foundation/pi-component-adapter/index.ts",
+      "implementationStatus": "available-through-pinned-package",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "None planned; import only from the pinned public pi-tui package root.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "keybindings",
+        "resize",
+        "shutdown"
+      ],
+      "behaviorIds": [
+        "keybindings.complete-manifest",
+        "resize.renderer-modes",
+        "shutdown.interactive-signal-crash",
+        "shutdown.dispose-stateful-components"
+      ],
+      "acceptanceTasks": [
+        "7.6",
+        "7.21"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts",
+        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+      ]
+    },
+    {
+      "id": "pi-tui:src/components/settings-list",
+      "kind": "source",
+      "scope": "public-tui-package",
+      "package": "@earendil-works/pi-tui",
+      "upstreamPath": "packages/tui/src/components/settings-list.ts",
+      "sourceMap": "components/settings-list.js.map",
+      "lines": 250,
+      "sha256": "982ca867ef8dd43175294d70b0229920dcd54289d66d7dc08aabb05e3755474a",
+      "classification": "public-reuse",
+      "localDestination": "src/foundation/pi-component-adapter/index.ts",
+      "implementationStatus": "available-through-pinned-package",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "None planned; import only from the pinned public pi-tui package root.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "keybindings",
+        "resize",
+        "shutdown"
+      ],
+      "behaviorIds": [
+        "keybindings.complete-manifest",
+        "resize.renderer-modes",
+        "shutdown.interactive-signal-crash",
+        "shutdown.dispose-stateful-components"
+      ],
+      "acceptanceTasks": [
+        "7.6",
+        "7.21"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts",
+        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+      ]
+    },
+    {
+      "id": "pi-tui:src/components/spacer",
+      "kind": "source",
+      "scope": "public-tui-package",
+      "package": "@earendil-works/pi-tui",
+      "upstreamPath": "packages/tui/src/components/spacer.ts",
+      "sourceMap": "components/spacer.js.map",
+      "lines": 29,
+      "sha256": "b511acec1d33885dad23e7ab2108b2d04dff0589b3bfda53b1f7458be4381e66",
+      "classification": "public-reuse",
+      "localDestination": "src/foundation/pi-component-adapter/index.ts",
+      "implementationStatus": "available-through-pinned-package",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "None planned; import only from the pinned public pi-tui package root.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "startup-composition",
+        "stateful-components",
+        "resize"
+      ],
+      "behaviorIds": [
+        "startup.persistent-tree",
+        "startup.header-notices",
+        "startup.preflight",
+        "components.persistent-lifecycle",
+        "resize.renderer-modes"
+      ],
+      "acceptanceTasks": [
+        "7.7",
+        "7.5",
+        "7.21"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/features/owned-ui/pi-startup-composition-parity.test.ts",
+        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+      ]
+    },
+    {
+      "id": "pi-tui:src/components/stack",
+      "kind": "source",
+      "scope": "public-tui-package",
+      "package": "@earendil-works/pi-tui",
+      "upstreamPath": "packages/tui/src/components/stack.ts",
+      "sourceMap": "components/stack.js.map",
+      "lines": 155,
+      "sha256": "93208d326fa43431b930eaa3250a1e19747063d696e97ec2f002f5feaa54fc18",
+      "classification": "public-reuse",
+      "localDestination": "src/foundation/pi-component-adapter/index.ts",
+      "implementationStatus": "available-through-pinned-package",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "None planned; import only from the pinned public pi-tui package root.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "startup-composition",
+        "stateful-components",
+        "resize"
+      ],
+      "behaviorIds": [
+        "startup.persistent-tree",
+        "startup.header-notices",
+        "startup.preflight",
+        "components.persistent-lifecycle",
+        "resize.renderer-modes"
+      ],
+      "acceptanceTasks": [
+        "7.7",
+        "7.5",
+        "7.21"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/features/owned-ui/pi-startup-composition-parity.test.ts",
+        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+      ]
+    },
+    {
+      "id": "pi-tui:src/components/text",
+      "kind": "source",
+      "scope": "public-tui-package",
+      "package": "@earendil-works/pi-tui",
+      "upstreamPath": "packages/tui/src/components/text.ts",
+      "sourceMap": "components/text.js.map",
+      "lines": 107,
+      "sha256": "3765832fca4db0626fa2b787500912f3505c858ed147cb0beff42bfa15087108",
+      "classification": "public-reuse",
+      "localDestination": "src/foundation/pi-component-adapter/index.ts",
+      "implementationStatus": "available-through-pinned-package",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "None planned; import only from the pinned public pi-tui package root.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "startup-composition",
+        "stateful-components",
+        "resize"
+      ],
+      "behaviorIds": [
+        "startup.persistent-tree",
+        "startup.header-notices",
+        "startup.preflight",
+        "components.persistent-lifecycle",
+        "resize.renderer-modes"
+      ],
+      "acceptanceTasks": [
+        "7.7",
+        "7.5",
+        "7.21"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/features/owned-ui/pi-startup-composition-parity.test.ts",
+        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+      ]
+    },
+    {
+      "id": "pi-tui:src/components/truncated-text",
+      "kind": "source",
+      "scope": "public-tui-package",
+      "package": "@earendil-works/pi-tui",
+      "upstreamPath": "packages/tui/src/components/truncated-text.ts",
+      "sourceMap": "components/truncated-text.js.map",
+      "lines": 66,
+      "sha256": "c383487099d1864b51493a5838dd28a1bd3e5e440a675ec1dbcaf0177534fad0",
+      "classification": "public-reuse",
+      "localDestination": "src/foundation/pi-component-adapter/index.ts",
+      "implementationStatus": "available-through-pinned-package",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "None planned; import only from the pinned public pi-tui package root.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "startup-composition",
+        "stateful-components",
+        "resize"
+      ],
+      "behaviorIds": [
+        "startup.persistent-tree",
+        "startup.header-notices",
+        "startup.preflight",
+        "components.persistent-lifecycle",
+        "resize.renderer-modes"
+      ],
+      "acceptanceTasks": [
+        "7.7",
+        "7.5",
+        "7.21"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/features/owned-ui/pi-startup-composition-parity.test.ts",
+        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+      ]
+    },
+    {
+      "id": "pi-tui:src/components/v-stack",
+      "kind": "source",
+      "scope": "public-tui-package",
+      "package": "@earendil-works/pi-tui",
+      "upstreamPath": "packages/tui/src/components/v-stack.ts",
+      "sourceMap": "components/v-stack.js.map",
+      "lines": 34,
+      "sha256": "0f36c9417bfffe5f6b9cc5fd40d420390cf9bebae70a073a409ac5f931f1f813",
+      "classification": "public-reuse",
+      "localDestination": "src/foundation/pi-component-adapter/index.ts",
+      "implementationStatus": "available-through-pinned-package",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "None planned; import only from the pinned public pi-tui package root.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "startup-composition",
+        "stateful-components",
+        "resize"
+      ],
+      "behaviorIds": [
+        "startup.persistent-tree",
+        "startup.header-notices",
+        "startup.preflight",
+        "components.persistent-lifecycle",
+        "resize.renderer-modes"
+      ],
+      "acceptanceTasks": [
+        "7.7",
+        "7.5",
+        "7.21"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/features/owned-ui/pi-startup-composition-parity.test.ts",
+        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+      ]
+    },
+    {
+      "id": "pi-tui:src/editor-component",
+      "kind": "source",
+      "scope": "public-tui-package",
+      "package": "@earendil-works/pi-tui",
+      "upstreamPath": "packages/tui/src/editor-component.ts",
+      "sourceMap": "editor-component.js.map",
+      "lines": 75,
+      "sha256": "0e40ba454b74e2ce21dfc6d831c185e5fb5619b0987fa158be98ed98564e8716",
+      "classification": "public-reuse",
+      "localDestination": "src/foundation/pi-component-adapter/index.ts",
+      "implementationStatus": "available-through-pinned-package",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "None planned; import only from the pinned public pi-tui package root.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "editor",
+        "autocomplete",
+        "keybindings",
+        "clipboard"
+      ],
+      "behaviorIds": [
+        "editor.custom-editor",
+        "editor.application-actions",
+        "autocomplete.combined-provider",
+        "keybindings.complete-manifest",
+        "clipboard.text-image-copy"
+      ],
+      "acceptanceTasks": [
+        "7.6"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts"
+      ]
+    },
+    {
+      "id": "pi-tui:src/fuzzy",
+      "kind": "source",
+      "scope": "public-tui-package",
+      "package": "@earendil-works/pi-tui",
+      "upstreamPath": "packages/tui/src/fuzzy.ts",
+      "sourceMap": "fuzzy.js.map",
+      "lines": 138,
+      "sha256": "8286a6feb16672e52114df5300369d20f48e27c9e87da2dc87294ea3b1223b8e",
+      "classification": "public-reuse",
+      "localDestination": "src/foundation/pi-component-adapter/index.ts",
+      "implementationStatus": "available-through-pinned-package",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "None planned; import only from the pinned public pi-tui package root.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "keybindings",
+        "resize",
+        "shutdown"
+      ],
+      "behaviorIds": [
+        "keybindings.complete-manifest",
+        "resize.renderer-modes",
+        "shutdown.interactive-signal-crash",
+        "shutdown.dispose-stateful-components"
+      ],
+      "acceptanceTasks": [
+        "7.6",
+        "7.21"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts",
+        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+      ]
+    },
+    {
+      "id": "pi-tui:src/index",
+      "kind": "source",
+      "scope": "public-tui-package",
+      "package": "@earendil-works/pi-tui",
+      "upstreamPath": "packages/tui/src/index.ts",
+      "sourceMap": "index.js.map",
+      "lines": 148,
+      "sha256": "678b5a9970e8e8d8fecd8db49d7295a775f2e252081bc4908e0b5d6af5cd3bdf",
+      "classification": "public-reuse",
+      "localDestination": "src/foundation/pi-component-adapter/index.ts",
+      "implementationStatus": "available-through-pinned-package",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "None planned; import only from the pinned public pi-tui package root.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "keybindings",
+        "resize",
+        "shutdown"
+      ],
+      "behaviorIds": [
+        "keybindings.complete-manifest",
+        "resize.renderer-modes",
+        "shutdown.interactive-signal-crash",
+        "shutdown.dispose-stateful-components"
+      ],
+      "acceptanceTasks": [
+        "7.6",
+        "7.21"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts",
+        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+      ]
+    },
+    {
+      "id": "pi-tui:src/keybindings",
+      "kind": "source",
+      "scope": "public-tui-package",
+      "package": "@earendil-works/pi-tui",
+      "upstreamPath": "packages/tui/src/keybindings.ts",
+      "sourceMap": "keybindings.js.map",
+      "lines": 321,
+      "sha256": "64befd284543a016918517c729674d3ef9af1890572560fd2a4ecf534b46d7e2",
+      "classification": "public-reuse",
+      "localDestination": "src/foundation/pi-component-adapter/index.ts",
+      "implementationStatus": "available-through-pinned-package",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "None planned; import only from the pinned public pi-tui package root.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "editor",
+        "autocomplete",
+        "keybindings",
+        "clipboard"
+      ],
+      "behaviorIds": [
+        "editor.custom-editor",
+        "editor.application-actions",
+        "autocomplete.combined-provider",
+        "keybindings.complete-manifest",
+        "clipboard.text-image-copy"
+      ],
+      "acceptanceTasks": [
+        "7.6"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts"
+      ]
+    },
+    {
+      "id": "pi-tui:src/keys",
+      "kind": "source",
+      "scope": "public-tui-package",
+      "package": "@earendil-works/pi-tui",
+      "upstreamPath": "packages/tui/src/keys.ts",
+      "sourceMap": "keys.js.map",
+      "lines": 1402,
+      "sha256": "b972facce4233a4623239fc38029e28cae15d0fb326558c0c09dc02cf4345fa7",
+      "classification": "public-reuse",
+      "localDestination": "src/foundation/pi-component-adapter/index.ts",
+      "implementationStatus": "available-through-pinned-package",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "None planned; import only from the pinned public pi-tui package root.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "editor",
+        "autocomplete",
+        "keybindings",
+        "clipboard"
+      ],
+      "behaviorIds": [
+        "editor.custom-editor",
+        "editor.application-actions",
+        "autocomplete.combined-provider",
+        "keybindings.complete-manifest",
+        "clipboard.text-image-copy"
+      ],
+      "acceptanceTasks": [
+        "7.6"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts"
+      ]
+    },
+    {
+      "id": "pi-tui:src/kill-ring",
+      "kind": "source",
+      "scope": "public-tui-package",
+      "package": "@earendil-works/pi-tui",
+      "upstreamPath": "packages/tui/src/kill-ring.ts",
+      "sourceMap": "kill-ring.js.map",
+      "lines": 47,
+      "sha256": "d829ae816560b12d2800a38db9f7278f76d9ef43d0e53e004a86add9b56c559a",
+      "classification": "public-reuse",
+      "localDestination": "src/foundation/pi-component-adapter/index.ts",
+      "implementationStatus": "available-through-pinned-package",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "None planned; import only from the pinned public pi-tui package root.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "editor",
+        "autocomplete",
+        "keybindings",
+        "clipboard"
+      ],
+      "behaviorIds": [
+        "editor.custom-editor",
+        "editor.application-actions",
+        "autocomplete.combined-provider",
+        "keybindings.complete-manifest",
+        "clipboard.text-image-copy"
+      ],
+      "acceptanceTasks": [
+        "7.6"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts"
+      ]
+    },
+    {
+      "id": "pi-tui:src/latex",
+      "kind": "source",
+      "scope": "public-tui-package",
+      "package": "@earendil-works/pi-tui",
+      "upstreamPath": "packages/tui/src/latex.ts",
+      "sourceMap": "latex.js.map",
+      "lines": 1381,
+      "sha256": "58c9f62ce3a22eb21d76ac462564e9b29117823e939b85df337482f48bd4eef3",
+      "classification": "public-reuse",
+      "localDestination": "src/foundation/pi-component-adapter/index.ts",
+      "implementationStatus": "available-through-pinned-package",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "None planned; import only from the pinned public pi-tui package root.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "keybindings",
+        "resize",
+        "shutdown"
+      ],
+      "behaviorIds": [
+        "keybindings.complete-manifest",
+        "resize.renderer-modes",
+        "shutdown.interactive-signal-crash",
+        "shutdown.dispose-stateful-components"
+      ],
+      "acceptanceTasks": [
+        "7.6",
+        "7.21"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts",
+        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+      ]
+    },
+    {
+      "id": "pi-tui:src/layout-node",
+      "kind": "source",
+      "scope": "public-tui-package",
+      "package": "@earendil-works/pi-tui",
+      "upstreamPath": "packages/tui/src/layout-node.ts",
+      "sourceMap": "layout-node.js.map",
+      "lines": 52,
+      "sha256": "31dd68c9edafdc4f882bbb6c16f8deb1c514111020b647f0037b34d6b8c70a85",
+      "classification": "public-reuse",
+      "localDestination": "src/foundation/pi-component-adapter/index.ts",
+      "implementationStatus": "available-through-pinned-package",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "None planned; import only from the pinned public pi-tui package root.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "startup-composition",
+        "stateful-components",
+        "resize"
+      ],
+      "behaviorIds": [
+        "startup.persistent-tree",
+        "startup.header-notices",
+        "startup.preflight",
+        "components.persistent-lifecycle",
+        "resize.renderer-modes"
+      ],
+      "acceptanceTasks": [
+        "7.7",
+        "7.5",
+        "7.21"
+      ],
+      "tests": [
+        "test/features/owned-ui/pi-startup-composition-parity.test.ts",
+        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+      ]
+    },
+    {
+      "id": "pi-tui:src/layout",
+      "kind": "source",
+      "scope": "public-tui-package",
+      "package": "@earendil-works/pi-tui",
+      "upstreamPath": "packages/tui/src/layout.ts",
+      "sourceMap": "layout.js.map",
+      "lines": 411,
+      "sha256": "51616aebe6a4811279b61a8ed0d289750c3b96b04a61e4ec6fcab7e42c8a6883",
+      "classification": "public-reuse",
+      "localDestination": "src/foundation/pi-component-adapter/index.ts",
+      "implementationStatus": "available-through-pinned-package",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "None planned; import only from the pinned public pi-tui package root.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "startup-composition",
+        "stateful-components",
+        "resize"
+      ],
+      "behaviorIds": [
+        "startup.persistent-tree",
+        "startup.header-notices",
+        "startup.preflight",
+        "components.persistent-lifecycle",
+        "resize.renderer-modes"
+      ],
+      "acceptanceTasks": [
+        "7.7",
+        "7.5",
+        "7.21"
+      ],
+      "tests": [
+        "test/features/owned-ui/pi-startup-composition-parity.test.ts",
+        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+      ]
+    },
+    {
+      "id": "pi-tui:src/native-modifiers",
+      "kind": "source",
+      "scope": "public-tui-package",
+      "package": "@earendil-works/pi-tui",
+      "upstreamPath": "packages/tui/src/native-modifiers.ts",
+      "sourceMap": "native-modifiers.js.map",
+      "lines": 67,
+      "sha256": "6f65028def03cb75fb127fecf0ec6078328e1141565c563ab5dd38026dca0329",
+      "classification": "host-adapter",
+      "localDestination": "src/foundation/pi-tui-runtime-adapter/index.ts",
+      "implementationStatus": "adapter-present-conformance-passed",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "Use pinned public pi-tui terminal/runtime APIs behind AddOne lifecycle ownership.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "keybindings",
+        "resize",
+        "shutdown"
+      ],
+      "behaviorIds": [
+        "keybindings.complete-manifest",
+        "resize.renderer-modes",
+        "shutdown.interactive-signal-crash",
+        "shutdown.dispose-stateful-components"
+      ],
+      "acceptanceTasks": [
+        "7.6",
+        "7.21"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts",
+        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+      ]
+    },
+    {
+      "id": "pi-tui:src/stdin-buffer",
+      "kind": "source",
+      "scope": "public-tui-package",
+      "package": "@earendil-works/pi-tui",
+      "upstreamPath": "packages/tui/src/stdin-buffer.ts",
+      "sourceMap": "stdin-buffer.js.map",
+      "lines": 445,
+      "sha256": "a96af34c1c304a033b482b57ded426f4a51a5d1158f01c2d9daee5225fe60914",
+      "classification": "host-adapter",
+      "localDestination": "src/foundation/pi-tui-runtime-adapter/index.ts",
+      "implementationStatus": "adapter-present-conformance-passed",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "Use pinned public pi-tui terminal/runtime APIs behind AddOne lifecycle ownership.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "keybindings",
+        "resize",
+        "shutdown"
+      ],
+      "behaviorIds": [
+        "keybindings.complete-manifest",
+        "resize.renderer-modes",
+        "shutdown.interactive-signal-crash",
+        "shutdown.dispose-stateful-components"
+      ],
+      "acceptanceTasks": [
+        "7.6",
+        "7.21"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts",
+        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+      ]
+    },
+    {
+      "id": "pi-tui:src/terminal-colors",
+      "kind": "source",
+      "scope": "public-tui-package",
+      "package": "@earendil-works/pi-tui",
+      "upstreamPath": "packages/tui/src/terminal-colors.ts",
+      "sourceMap": "terminal-colors.js.map",
+      "lines": 74,
+      "sha256": "2aa702f6e59dc51d78be64516f40c46981780a00d1f0900fb5504ad9da67b9e6",
+      "classification": "host-adapter",
+      "localDestination": "src/foundation/pi-tui-runtime-adapter/index.ts",
+      "implementationStatus": "adapter-present-conformance-passed",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "Use pinned public pi-tui terminal/runtime APIs behind AddOne lifecycle ownership.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "keybindings",
+        "resize",
+        "shutdown"
+      ],
+      "behaviorIds": [
+        "keybindings.complete-manifest",
+        "resize.renderer-modes",
+        "shutdown.interactive-signal-crash",
+        "shutdown.dispose-stateful-components"
+      ],
+      "acceptanceTasks": [
+        "7.6",
+        "7.21"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts",
+        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+      ]
+    },
+    {
+      "id": "pi-tui:src/terminal-image",
+      "kind": "source",
+      "scope": "public-tui-package",
+      "package": "@earendil-works/pi-tui",
+      "upstreamPath": "packages/tui/src/terminal-image.ts",
+      "sourceMap": "terminal-image.js.map",
+      "lines": 658,
+      "sha256": "fab023f36a2076db2990a7b269a4310174c1bbd86e31f849a233070d0df376b4",
+      "classification": "public-reuse",
+      "localDestination": "src/foundation/pi-component-adapter/index.ts",
+      "implementationStatus": "available-through-pinned-package",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "None planned; import only from the pinned public pi-tui package root.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "startup-composition",
+        "stateful-components",
+        "resize"
+      ],
+      "behaviorIds": [
+        "startup.persistent-tree",
+        "startup.header-notices",
+        "startup.preflight",
+        "components.persistent-lifecycle",
+        "resize.renderer-modes"
+      ],
+      "acceptanceTasks": [
+        "7.7",
+        "7.5",
+        "7.21"
+      ],
+      "tests": [
+        "test/features/owned-ui/pi-startup-composition-parity.test.ts",
+        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+      ]
+    },
+    {
+      "id": "pi-tui:src/terminal",
+      "kind": "source",
+      "scope": "public-tui-package",
+      "package": "@earendil-works/pi-tui",
+      "upstreamPath": "packages/tui/src/terminal.ts",
+      "sourceMap": "terminal.js.map",
+      "lines": 560,
+      "sha256": "c5b4b1b7a01f34eebd823b59c798d719900b61e94d89713260758164f6199b0a",
+      "classification": "host-adapter",
+      "localDestination": "src/foundation/pi-tui-runtime-adapter/index.ts",
+      "implementationStatus": "adapter-present-conformance-passed",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "Use pinned public pi-tui terminal/runtime APIs behind AddOne lifecycle ownership.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "keybindings",
+        "resize",
+        "shutdown"
+      ],
+      "behaviorIds": [
+        "keybindings.complete-manifest",
+        "resize.renderer-modes",
+        "shutdown.interactive-signal-crash",
+        "shutdown.dispose-stateful-components"
+      ],
+      "acceptanceTasks": [
+        "7.6",
+        "7.21"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts",
+        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+      ]
+    },
+    {
+      "id": "pi-tui:src/tui-alt-screen",
+      "kind": "source",
+      "scope": "public-tui-package",
+      "package": "@earendil-works/pi-tui",
+      "upstreamPath": "packages/tui/src/tui-alt-screen.ts",
+      "sourceMap": "tui-alt-screen.js.map",
+      "lines": 1315,
+      "sha256": "0e47540ca355e5cfcc65ee84d159d6846b80cf93fcf30453cb2a854f878a3fb9",
+      "classification": "host-adapter",
+      "localDestination": "src/foundation/pi-tui-runtime-adapter/adapter.ts",
+      "implementationStatus": "adapter-present-conformance-passed",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "Use pinned public pi-tui renderer APIs behind AddOne lifecycle ownership. Select public TuiMainScreen for the settings-derived vanilla default regular mode, leaving selection, copy, wheel scrolling, and scrollback to the physical terminal without mouse tracking or ANSI interception. Select unmodified public TuiAltScreen only for explicit fullscreen mode and construct its viewport layout through public APIs.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "keybindings",
+        "resize",
+        "shutdown"
+      ],
+      "behaviorIds": [
+        "keybindings.complete-manifest",
+        "resize.renderer-modes",
+        "shutdown.interactive-signal-crash",
+        "shutdown.dispose-stateful-components"
+      ],
+      "acceptanceTasks": [
+        "7.1",
+        "7.6",
+        "7.17",
+        "7.18",
+        "7.21"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts",
+        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts",
+        "test/foundation/pi-tui-runtime-adapter/pinned-wheel-parity.test.ts",
+        "test/repository-governance/pi-terminal-parity-gate.test.ts"
+      ]
+    },
+    {
+      "id": "pi-tui:src/tui-main-screen",
+      "kind": "source",
+      "scope": "public-tui-package",
+      "package": "@earendil-works/pi-tui",
+      "upstreamPath": "packages/tui/src/tui-main-screen.ts",
+      "sourceMap": "tui-main-screen.js.map",
+      "lines": 587,
+      "sha256": "6df5c45771ac333f742e0e39ad58e3e889abb1a4d7ed765b31e77947309643c3",
+      "classification": "host-adapter",
+      "localDestination": "src/foundation/pi-tui-runtime-adapter/adapter.ts",
+      "implementationStatus": "adapter-present-conformance-passed",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "Reuse public TuiMainScreen as the vanilla-default regular renderer behind AddOne lifecycle and component bridges; preserve terminal-native selection and scrollback by emitting no alternate-screen or mouse-tracking controls.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "keybindings",
+        "resize",
+        "shutdown"
+      ],
+      "behaviorIds": [
+        "keybindings.complete-manifest",
+        "resize.renderer-modes",
+        "shutdown.interactive-signal-crash",
+        "shutdown.dispose-stateful-components"
+      ],
+      "acceptanceTasks": [
+        "7.1",
+        "7.6",
+        "7.7",
+        "7.17",
+        "7.18",
+        "7.21"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts",
+        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts",
+        "test/foundation/pi-tui-runtime-adapter/conformance.test.ts"
+      ]
+    },
+    {
+      "id": "pi-tui:src/tui",
+      "kind": "source",
+      "scope": "public-tui-package",
+      "package": "@earendil-works/pi-tui",
+      "upstreamPath": "packages/tui/src/tui.ts",
+      "sourceMap": "tui.js.map",
+      "lines": 1264,
+      "sha256": "8a075ca5db4704aa2f25f9fbfb7012ae90baf98491ec216e9495c12bb0e19afd",
+      "classification": "host-adapter",
+      "localDestination": "src/foundation/pi-tui-runtime-adapter/index.ts",
+      "implementationStatus": "adapter-present-conformance-passed",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "Use pinned public pi-tui terminal/runtime APIs behind AddOne lifecycle ownership.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "keybindings",
+        "resize",
+        "shutdown"
+      ],
+      "behaviorIds": [
+        "keybindings.complete-manifest",
+        "resize.renderer-modes",
+        "shutdown.interactive-signal-crash",
+        "shutdown.dispose-stateful-components"
+      ],
+      "acceptanceTasks": [
+        "7.6",
+        "7.21"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts",
+        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+      ]
+    },
+    {
+      "id": "pi-tui:src/undo-stack",
+      "kind": "source",
+      "scope": "public-tui-package",
+      "package": "@earendil-works/pi-tui",
+      "upstreamPath": "packages/tui/src/undo-stack.ts",
+      "sourceMap": "undo-stack.js.map",
+      "lines": 29,
+      "sha256": "1373c1e0a1e2c58ac90c93d32a9e5c1226d7f53314c77dd3d0f8ec349d2b3627",
+      "classification": "public-reuse",
+      "localDestination": "src/foundation/pi-component-adapter/index.ts",
+      "implementationStatus": "available-through-pinned-package",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "None planned; import only from the pinned public pi-tui package root.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "startup-composition",
+        "stateful-components",
+        "resize"
+      ],
+      "behaviorIds": [
+        "startup.persistent-tree",
+        "startup.header-notices",
+        "startup.preflight",
+        "components.persistent-lifecycle",
+        "resize.renderer-modes"
+      ],
+      "acceptanceTasks": [
+        "7.7",
+        "7.5",
+        "7.21"
+      ],
+      "tests": [
+        "test/features/owned-ui/pi-startup-composition-parity.test.ts",
+        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+      ]
+    },
+    {
+      "id": "pi-tui:src/utils",
+      "kind": "source",
+      "scope": "public-tui-package",
+      "package": "@earendil-works/pi-tui",
+      "upstreamPath": "packages/tui/src/utils.ts",
+      "sourceMap": "utils.js.map",
+      "lines": 1327,
+      "sha256": "484ef73bee9a3a3abecf9dc24b6dfcd951f4c460cd03d9a6d18f28025486803d",
+      "classification": "public-reuse",
+      "localDestination": "src/foundation/pi-component-adapter/index.ts",
+      "implementationStatus": "available-through-pinned-package",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "None planned; import only from the pinned public pi-tui package root.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "keybindings",
+        "resize",
+        "shutdown"
+      ],
+      "behaviorIds": [
+        "keybindings.complete-manifest",
+        "resize.renderer-modes",
+        "shutdown.interactive-signal-crash",
+        "shutdown.dispose-stateful-components"
+      ],
+      "acceptanceTasks": [
+        "7.6",
+        "7.21"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts",
+        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+      ]
+    },
+    {
+      "id": "pi-tui:src/word-navigation",
+      "kind": "source",
+      "scope": "public-tui-package",
+      "package": "@earendil-works/pi-tui",
+      "upstreamPath": "packages/tui/src/word-navigation.ts",
+      "sourceMap": "word-navigation.js.map",
+      "lines": 118,
+      "sha256": "b73e915a524926ac8881731e89026b0bc7b5b0bd465de67257af81a420465c7f",
+      "classification": "public-reuse",
+      "localDestination": "src/foundation/pi-component-adapter/index.ts",
+      "implementationStatus": "available-through-pinned-package",
+      "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
+      "modifications": "None planned; import only from the pinned public pi-tui package root.",
+      "approvedDeviations": [],
+      "behaviorCategories": [
+        "editor",
+        "autocomplete",
+        "keybindings",
+        "clipboard"
+      ],
+      "behaviorIds": [
+        "editor.custom-editor",
+        "editor.application-actions",
+        "autocomplete.combined-provider",
+        "keybindings.complete-manifest",
+        "clipboard.text-image-copy"
+      ],
+      "acceptanceTasks": [
+        "7.6"
+      ],
+      "tests": [
+        "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts"
+      ]
+    }
+  ]
+}

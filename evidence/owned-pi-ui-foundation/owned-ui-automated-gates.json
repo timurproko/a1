@@ -1,0 +1,59 @@
+{
+  "schema": "addone-owned-ui-automated-gates-v1",
+  "recordedAt": "2026-08-15T13:52:31.061Z",
+  "change": "build-owned-pi-ui-foundation",
+  "task": "6.1",
+  "sourceCommit": "290f848f3579ecf46418fdfde342acff9a31dee0",
+  "passed": true,
+  "commands": [
+    {
+      "command": "npm run typecheck",
+      "result": "passed"
+    },
+    {
+      "command": "npm run check:architecture",
+      "result": "passed"
+    },
+    {
+      "command": "npm run check:deprecated",
+      "result": "passed"
+    },
+    {
+      "command": "npm test",
+      "result": "359 tests passed"
+    },
+    {
+      "command": "npm run test:release",
+      "result": "passed"
+    },
+    {
+      "command": "openspec validate build-owned-pi-ui-foundation --strict",
+      "result": "passed"
+    }
+  ],
+  "releaseVerdict": {
+    "path": "artifacts/release-verdicts/win32-x64.json",
+    "sha256": "dc9f0ae019f1600e39dcea5f8d9f476876c4e6b9053a273047c0fd5069d42471",
+    "sizeBytes": 598,
+    "platform": "win32",
+    "architecture": "x64",
+    "channel": "next",
+    "certificationStatus": "uncertified-development-preview",
+    "stableReleaseEligible": false,
+    "physicalHostCertification": "deferred",
+    "crossPlatformCertification": "deferred"
+  },
+  "ownedUiCoverage": [
+    "owned contracts and architecture boundaries",
+    "Pi engine and component adapters",
+    "terminal runtime, transcript, editor, and surfaces",
+    "explicit a1 ui development path",
+    "customization slots and vanilla preset",
+    "resource discovery and bounded diagnostics"
+  ],
+  "limitations": [
+    "User-controlled manual base-UX acceptance remains pending.",
+    "No physical terminal automation was run on the active workstation.",
+    "Structured tabs and composed terminal behavior remain disabled."
+  ]
+}

@@ -85,7 +85,7 @@ async function fixture(
       ...ledgerOverride,
     }],
   };
-  await writeFixture(root, "openspec/changes/build-owned-pi-ui-foundation/evidence/pinned-pi-source-port-ledger.json", JSON.stringify(ledger));
+  await writeFixture(root, "evidence/owned-pi-ui-foundation/pinned-pi-source-port-ledger.json", JSON.stringify(ledger));
   return root;
 }
 

@@ -50,7 +50,7 @@ interface Inventory {
   };
 }
 
-const evidencePath = "openspec/changes/build-owned-pi-ui-foundation/evidence/pinned-pi-interactive-baseline.json";
+const evidencePath = "evidence/owned-pi-ui-foundation/pinned-pi-interactive-baseline.json";
 const packageRoots = {
   "@earendil-works/pi-coding-agent": "node_modules/@earendil-works/pi-coding-agent/dist",
   "@earendil-works/pi-tui": "node_modules/@earendil-works/pi-tui/dist",
@@ -173,12 +173,12 @@ describe("complete pinned Pi interactive behavior inventory", () => {
       "Most pinned vanilla workflows were absent.",
     ]);
     expect(inventory.demonstrationShellSmoke.invalidatedEvidence).toContain(
-      "openspec/changes/build-owned-pi-ui-foundation/evidence/pi-parity-acceptance.json",
+      "evidence/owned-pi-ui-foundation/pi-parity-acceptance.json",
     );
     expect(inventory.demonstrationShellSmoke.classification).toContain("regression fixtures only");
 
     const previous = JSON.parse(await readFile(
-      "openspec/changes/build-owned-pi-ui-foundation/evidence/pi-parity-acceptance.json",
+      "evidence/owned-pi-ui-foundation/pi-parity-acceptance.json",
       "utf8",
     )) as {
       readonly result: string;

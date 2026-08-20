@@ -5,7 +5,7 @@ import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 const checker = resolve("scripts/check-pinned-pi-source-ledger.mjs");
-const ledgerPath = resolve("openspec/changes/build-owned-pi-ui-foundation/evidence/pinned-pi-source-port-ledger.json");
+const ledgerPath = resolve("evidence/owned-pi-ui-foundation/pinned-pi-source-port-ledger.json");
 const temporaryRoots: string[] = [];
 
 afterEach(async () => {

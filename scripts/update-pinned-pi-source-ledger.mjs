@@ -5,11 +5,11 @@ import { fileURLToPath } from "node:url";
 
 const repository = fileURLToPath(new URL("..", import.meta.url));
 const identity = JSON.parse(await readFile(join(repository, "src", "product-identity.json"), "utf8"));
-const changeRoot = join(repository, "openspec", "changes", "build-owned-pi-ui-foundation");
-const outputPath = join(changeRoot, "evidence", "pinned-pi-source-port-ledger.json");
+const evidenceRoot = join(repository, "evidence", "owned-pi-ui-foundation");
+const outputPath = join(evidenceRoot, "pinned-pi-source-port-ledger.json");
 const previousLedger = await readFile(outputPath, "utf8").then(JSON.parse, () => ({ records: [] }));
 const previousRecords = new Map((previousLedger.records ?? []).map(record => [record.id, record]));
-const baseline = JSON.parse(await readFile(join(changeRoot, "evidence", "pinned-pi-interactive-baseline.json"), "utf8"));
+const baseline = JSON.parse(await readFile(join(evidenceRoot, "pinned-pi-interactive-baseline.json"), "utf8"));
 const lockfile = JSON.parse(await readFile(join(repository, "package-lock.json"), "utf8"));
 
 const packages = [
@@ -176,7 +176,7 @@ const ledger = {
       "Provider transports, model implementations, tool filesystem operations, storage internals, and non-interactive modes that remain behind already-conformed public engine APIs.",
       "Declaration maps and generated JavaScript because their authoritative TypeScript source content is already hashed from JavaScript source maps.",
     ],
-    behaviorAuthority: "openspec/changes/build-owned-pi-ui-foundation/evidence/pinned-pi-interactive-baseline.json",
+    behaviorAuthority: "evidence/owned-pi-ui-foundation/pinned-pi-interactive-baseline.json",
   },
   summary: {
     modules: records.length,

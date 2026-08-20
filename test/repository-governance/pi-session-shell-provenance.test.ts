@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 describe("Pi session shell provenance", () => {
   it("records the exact MIT upstream and every orchestration port", async () => {
     const evidence = JSON.parse(await readFile(
-      "openspec/changes/build-owned-pi-ui-foundation/evidence/pi-session-shell-provenance.json",
+      "evidence/owned-pi-ui-foundation/pi-session-shell-provenance.json",
       "utf8",
     )) as {
       schema: string;

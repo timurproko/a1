@@ -1,7 +1,7 @@
 import { access, readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
-const inventoryPath = "openspec/changes/build-owned-pi-ui-foundation/evidence/presenter-ownership-inventory.json";
+const inventoryPath = "evidence/owned-pi-ui-foundation/presenter-ownership-inventory.json";
 const slashCommandsPath = "node_modules/@earendil-works/pi-coding-agent/dist/core/slash-commands.js";
 const REQUIRED_PRESENTER_IDS = [
   "document.header-resources",

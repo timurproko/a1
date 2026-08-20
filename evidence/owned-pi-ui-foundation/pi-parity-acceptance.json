@@ -1,0 +1,148 @@
+{
+  "schema": "a1-pi-parity-acceptance-v1",
+  "change": "build-owned-pi-ui-foundation",
+  "recordedAt": "2026-08-16T18:29:30.250Z",
+  "result": "invalidated",
+  "manualAcceptanceStatus": "blocked-pending-independent-parity",
+  "evidenceClassification": "regression-only-not-parity",
+  "invalidation": {
+    "reason": "User-controlled smoke testing contradicted the synthetic parity claim: vanilla startup composition and command discovery were absent, ordinary prompt submission produced no visible turn, and most pinned workflows were not implemented. The fixtures were regenerated for Pi 0.84.2 but remain AddOne-authored regression evidence only.",
+    "invalidatedByTask": "7.2",
+    "replacementInventory": "evidence/owned-pi-ui-foundation/pinned-pi-interactive-baseline.json",
+    "requiredReplacement": "Separate pinned-upstream and AddOne producers must replace every circular fixture before parity can pass."
+  },
+  "source": {
+    "repository": "https://github.com/earendil-works/pi.git",
+    "commit": "914cf1472e715297caa30db4b9535d534a9eb718",
+    "license": "MIT"
+  },
+  "a1ParityBaselineCommit": "b854210fd4aa69b9664be1e31f7986930416f4ee",
+  "packages": [
+    {
+      "name": "@earendil-works/pi-coding-agent",
+      "version": "0.84.2",
+      "integrity": "sha512-l4E+B7hgXKWddRo8bC/eSue2aWZjEgJ9xIpf5p0Og+lq8a2TArCwJ0HCoCPCgaBP/tN4zbYH/wOwvx9pJpeLCA=="
+    },
+    {
+      "name": "@earendil-works/pi-tui",
+      "version": "0.84.2",
+      "integrity": "sha512-ds2TLihOnM5sLJB3VpXV6y0uR5efVuHf4MN7yDpsty6hA2DUO/EDVzjp/0od0G2JslzVLMjT8T8zavtxVb+qbg=="
+    }
+  ],
+  "fixtures": [
+    {
+      "path": "test/features/owned-ui/fixtures/pi-component-parity.json",
+      "sha256": "9f728e84b7061272ff0b41dba527a6bba71159a6e38b7fa94d21c8404cacdfb4",
+      "cases": 4,
+      "classification": "AddOne-generated regression fixture; no independent upstream producer",
+      "coverage": [
+        "transcript",
+        "streaming",
+        "tools",
+        "editor",
+        "queued-input",
+        "dialogs",
+        "selectors",
+        "status",
+        "errors",
+        "resize"
+      ],
+      "tolerance": {
+        "ignored": [
+          "ANSI control sequences"
+        ],
+        "preserved": [
+          "visible text",
+          "row order",
+          "row count",
+          "wrapping",
+          "width truncation"
+        ]
+      }
+    },
+    {
+      "path": "test/features/owned-ui/fixtures/pi-event-frame-parity.json",
+      "sha256": "71f67b1c0bf025abc0cd740c0cd9809d0d25818a294096800a11739a5378c7dc",
+      "stateTransitions": 12,
+      "capturedFrames": 5,
+      "classification": "Synthetic AddOne-session regression fixture; no independent upstream producer",
+      "coverage": [
+        "initial",
+        "working",
+        "user",
+        "assistant-start",
+        "streaming",
+        "tool-start",
+        "tool-update",
+        "queued",
+        "tool-result",
+        "assistant-end",
+        "completed",
+        "resized"
+      ],
+      "tolerance": {
+        "ignored": [
+          "cursor visibility",
+          "synchronized-output envelope",
+          "render timing",
+          "file hyperlink availability and absolute target"
+        ],
+        "preserved": [
+          "rendered row payloads",
+          "cursor addressing",
+          "state transitions",
+          "resize dimensions"
+        ]
+      }
+    }
+  ],
+  "visualDivergences": [
+    "Vanilla startup composition absent",
+    "Command discovery and autocomplete absent",
+    "Ordinary prompt submission produced no visible turn",
+    "Most pinned vanilla workflows absent"
+  ],
+  "gateCorrections": [
+    {
+      "id": "javascript-package-authority",
+      "detectedBy": "test/repository-governance/native-host-boundary.test.ts",
+      "finding": "@xterm/headless is forbidden in JavaScript package authority, including development dependencies",
+      "correction": "Removed @xterm/headless and changed terminal parity from emulator-backed screens to normalized captured ANSI frames, an explicitly permitted fixture strategy.",
+      "status": "corrected"
+    }
+  ],
+  "gates": [
+    {
+      "command": "npm run build",
+      "result": "passed"
+    },
+    {
+      "command": "npm run typecheck",
+      "result": "passed"
+    },
+    {
+      "command": "npx vitest run test/features/owned-ui/pi-event-frame-parity.test.ts test/features/owned-ui/pi-static-parity.test.ts",
+      "result": "4 tests passed"
+    },
+    {
+      "command": "npm test",
+      "result": "380 tests passed"
+    },
+    {
+      "command": "npm run check:architecture",
+      "result": "passed"
+    },
+    {
+      "command": "npm run check:deprecated",
+      "result": "passed"
+    },
+    {
+      "command": "npm audit --audit-level=high",
+      "result": "0 vulnerabilities"
+    },
+    {
+      "command": "openspec validate build-owned-pi-ui-foundation --strict",
+      "result": "passed"
+    }
+  ]
+}

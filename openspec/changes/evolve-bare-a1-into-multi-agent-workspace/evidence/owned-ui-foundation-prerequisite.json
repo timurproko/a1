@@ -39,10 +39,10 @@
     "composedTerminalWorkAuthorized": false
   },
   "evidence": [
-    "openspec/changes/build-owned-pi-ui-foundation/evidence/automated-evidence-7.35-zero-debt-final-gates.json",
-    "openspec/changes/build-owned-pi-ui-foundation/evidence/zero-debt-architecture-audit.md",
-    "openspec/changes/build-owned-pi-ui-foundation/evidence/manual-acceptance-pi-0.84.2-base-084d0fb.json",
-    "openspec/changes/build-owned-pi-ui-foundation/evidence/owned-ui-shell-composability.json",
-    "openspec/changes/build-owned-pi-ui-foundation/evidence/automated-evidence-8.5-next-publication.json"
+    "evidence/owned-pi-ui-foundation/automated-evidence-7.35-zero-debt-final-gates.json",
+    "evidence/owned-pi-ui-foundation/zero-debt-architecture-audit.md",
+    "evidence/owned-pi-ui-foundation/manual-acceptance-pi-0.84.2-base-084d0fb.json",
+    "evidence/owned-pi-ui-foundation/owned-ui-shell-composability.json",
+    "evidence/owned-pi-ui-foundation/automated-evidence-8.5-next-publication.json"
   ]
 }

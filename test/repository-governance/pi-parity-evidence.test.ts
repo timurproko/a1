@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 describe("Pi parity machine-readable evidence", () => {
   it("classifies the failed candidate fixtures as regression evidence", async () => {
     const evidence = JSON.parse(await readFile(
-      "openspec/changes/build-owned-pi-ui-foundation/evidence/pi-parity-acceptance.json",
+      "evidence/owned-pi-ui-foundation/pi-parity-acceptance.json",
       "utf8",
     )) as {
       schema: string;
@@ -27,7 +27,7 @@ describe("Pi parity machine-readable evidence", () => {
     expect(evidence.manualAcceptanceStatus).toBe("blocked-pending-independent-parity");
     expect(evidence.evidenceClassification).toBe("regression-only-not-parity");
     expect(evidence.invalidation.replacementInventory).toBe(
-      "openspec/changes/build-owned-pi-ui-foundation/evidence/pinned-pi-interactive-baseline.json",
+      "evidence/owned-pi-ui-foundation/pinned-pi-interactive-baseline.json",
     );
     expect(evidence.source).toMatchObject({ commit: "914cf1472e715297caa30db4b9535d534a9eb718", license: "MIT" });
     expect(evidence.a1ParityBaselineCommit).toMatch(/^[0-9a-f]{40}$/);
