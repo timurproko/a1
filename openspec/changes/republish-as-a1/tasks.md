@@ -32,7 +32,7 @@
 
 ## 6. Validate the release candidate
 
-- [ ] 6.1 Run `npm run check` and all stable non-desktop release gates from a clean release-ready commit using isolated AddOne control/data/runtime roots.
+- [x] 6.1 Run `npm run check` and all stable non-desktop release gates from a clean release-ready commit using isolated AddOne control/data/runtime roots.
 - [ ] 6.2 Pack the exact `@timurproko/a1@0.1.0` candidate once, record source commit, tag, integrity, shasum, package contents, and clean-prefix sole-bin verdict, and reject any post-pack byte change.
 - [ ] 6.3 Validate `republish-as-a1` with `openspec validate republish-as-a1 --strict` and record the final code, specification, package, and release-candidate verdicts.
 
