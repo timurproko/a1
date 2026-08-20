@@ -43,7 +43,7 @@
 
 - [x] 8.1 Rewrite current README, architecture, feature, checkpoint, and release documentation to call the product A1 and document `A1_*` variables and `A1`/`a1` state paths; pass documentation governance tests.
 - [x] 8.2 Reconcile every non-archived OpenSpec change and main capability wording with A1 identity while preserving unrelated edits, archived changes, and immutable historical evidence; strictly validate every affected change and spec.
-- [ ] 8.3 Document the no-migration hard cut, safe removal of obsolete control-state directories, preservation of `.a1` Pi profiles, and the obsolete npm package's deprecation status without presenting its identity as current.
+- [x] 8.3 Document the no-migration hard cut, safe removal of obsolete control-state directories, preservation of `.a1` Pi profiles, and the obsolete npm package's deprecation status without presenting its identity as current.
 
 ## 9. Enforce zero legacy coupling
 
