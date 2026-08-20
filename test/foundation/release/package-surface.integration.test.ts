@@ -38,7 +38,7 @@ describe("packed npm command surface", () => {
     const paths = pack.files.map(file => file.path);
     expect(paths).toEqual(expect.arrayContaining([
       "package.json",
-      "bin/addone.js",
+      "bin/a1.js",
       "bin/addone-ui.js",
       "bin/addone-supervisor.js",
       "dist/src/product-identity.js",
@@ -57,7 +57,7 @@ describe("packed npm command surface", () => {
       version: string;
       bin: Record<string, string>;
     };
-    expect(manifest).toMatchObject({ name: "@timurproko/a1", version: "0.1.0", bin: { a1: "bin/addone.js" } });
+    expect(manifest).toMatchObject({ name: "@timurproko/a1", version: "0.1.0", bin: { a1: "bin/a1.js" } });
     expect(Object.keys(manifest.bin)).toEqual(["a1"]);
 
     const packageRoot = resolve(prefix, "node_modules", "@timurproko", "a1");

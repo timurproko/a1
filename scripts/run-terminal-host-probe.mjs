@@ -8,7 +8,7 @@ const environment = { ...process.env, ZIG: process.env.ZIG ?? "zig" };
 
 run(cargo, ["test", "--manifest-path", manifest], environment);
 run(cargo, ["build", "--manifest-path", manifest], environment);
-const executable = resolve("native/terminal-host/target/debug", platform() === "win32" ? "addone-terminal-host.exe" : "addone-terminal-host");
+const executable = resolve("native/terminal-host/target/debug", platform() === "win32" ? "a1-terminal-host.exe" : "a1-terminal-host");
 run(executable, ["--probe"], environment);
 run(executable, ["--probe-selection"], environment);
 run(executable, ["--probe-input"], environment);

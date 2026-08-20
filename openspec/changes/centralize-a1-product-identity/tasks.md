@@ -7,7 +7,7 @@
 
 - [x] 2.1 Add the exact-schema `src/product-identity.json` authority covering display, command, package, filesystem, environment, state, endpoint, manifest, protocol/schema, evidence, and artifact names; add a typed immutable facade with valid/invalid schema tests.
 - [x] 2.2 Configure TypeScript/build/package output so the identity JSON and facade are emitted and packaged beside runtime consumers; verify clean source and packed-runtime imports on every supported module path.
-- [ ] 2.3 Add boundary checks proving `package.json`, npm bin metadata, workflows, and native/declarative metadata match the authority while permitting no second executable identity source.
+- [x] 2.3 Add boundary checks proving `package.json`, npm bin metadata, workflows, and native/declarative metadata match the authority while permitting no second executable identity source.
 
 ## 3. Correct CLI identity and version behavior
 

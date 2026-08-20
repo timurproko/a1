@@ -70,8 +70,12 @@ jobs:
           test "$GITHUB_REF" = "refs/heads/develop"
           test "$(git rev-parse HEAD)" = "$ACCEPTED_SOURCE_COMMIT"
           test "$CONFIRM_UNCERTIFIED" = "publish-uncertified-next"
-          test "$(node -p "require('./package.json').name")" = "@timurproko/a1"
-          test "$(node -p "require('./package.json').version")" = "$REQUESTED_VERSION"
+          node --input-type=module <<'NODE'
+          import { readFile } from "node:fs/promises";
+          const identity = JSON.parse(await readFile("src/product-identity.json", "utf8"));
+          const manifest = JSON.parse(await readFile("package.json", "utf8"));
+          if (manifest.name !== identity.packageName || manifest.version !== process.env.REQUESTED_VERSION) throw new Error("preview package identity changed");
+          NODE
           [[ "$REQUESTED_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+-dev\.[0-9]+$ ]]
           [[ "$ACCEPTED_INTEGRITY" =~ ^sha512- ]]
           [[ "$ACCEPTED_SHASUM" =~ ^[a-f0-9]{40}$ ]]
@@ -97,9 +101,10 @@ jobs:
           import { appendFile, readFile } from "node:fs/promises";
           const [result] = JSON.parse(await readFile("artifacts/npm-pack-result.json", "utf8"));
           const manifest = JSON.parse(await readFile("package.json", "utf8"));
+          const identity = JSON.parse(await readFile("src/product-identity.json", "utf8"));
           if (!result?.filename || !result?.integrity || !result?.shasum) throw new Error("npm pack returned incomplete metadata");
-          if (manifest.name !== "@timurproko/a1" || manifest.version !== process.env.version) throw new Error("packed manifest identity changed");
-          if (JSON.stringify(manifest.bin) !== JSON.stringify({ a1: "bin/addone.js" })) throw new Error("package must expose only a1");
+          if (manifest.name !== identity.packageName || manifest.version !== process.env.version) throw new Error("packed manifest identity changed");
+          if (JSON.stringify(manifest.bin) !== JSON.stringify({ [identity.commandName]: identity.artifacts.cliEntry })) throw new Error("package must expose only the authoritative command");
           if (result.integrity !== process.env.accepted_integrity) throw new Error("packed integrity differs from accepted bytes");
           if (result.shasum !== process.env.accepted_shasum) throw new Error("packed shasum differs from accepted bytes");
           await appendFile(process.env.GITHUB_OUTPUT, `tarball=${result.filename}\n`);
@@ -115,7 +120,9 @@ jobs:
         shell: bash
         run: |
           node --input-type=module <<'NODE'
-          const packageUrl = "https://registry.npmjs.org/@timurproko%2fa1";
+          import { readFile } from "node:fs/promises";
+          const identity = JSON.parse(await readFile("src/product-identity.json", "utf8"));
+          const packageUrl = `https://registry.npmjs.org/${encodeURIComponent(identity.packageName)}`;
           let lastError;
           for (let attempt = 1; attempt <= 12; attempt += 1) {
             try {
@@ -127,7 +134,7 @@ jobs:
               if (manifest.dist?.integrity !== process.env.accepted_integrity) throw new Error("registry integrity differs from accepted bytes");
               if (manifest.dist?.shasum !== process.env.accepted_shasum) throw new Error("registry shasum differs from accepted bytes");
               if (metadata["dist-tags"]?.next !== process.env.version) throw new Error("next tag differs from accepted version");
-              if (JSON.stringify(manifest.bin) !== JSON.stringify({ a1: "bin/addone.js" })) throw new Error("registry package exposes unexpected bins");
+              if (JSON.stringify(manifest.bin) !== JSON.stringify({ [identity.commandName]: identity.artifacts.cliEntry })) throw new Error("registry package exposes unexpected bins");
               process.exit(0);
             } catch (error) {
               lastError = error;

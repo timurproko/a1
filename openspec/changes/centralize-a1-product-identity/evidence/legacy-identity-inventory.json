@@ -41,21 +41,21 @@
     "explicit-obsolete-package-fixtures"
   ],
   "summary": {
-    "total": 1510,
-    "files": 233,
+    "total": 1490,
+    "files": 227,
     "byLocationKind": {
-      "content": 1483,
-      "path": 27
+      "content": 1464,
+      "path": 26
     },
     "byClass": {
-      "runtime-symbols": 708,
-      "diagnostics": 177,
+      "runtime-symbols": 692,
+      "diagnostics": 174,
       "environment-keys": 159,
-      "paths": 526,
+      "paths": 508,
       "schemas": 122,
-      "artifacts": 147,
-      "native-names": 106,
-      "tests": 336,
+      "artifacts": 129,
+      "native-names": 100,
+      "tests": 328,
       "current-docs-specs": 761,
       "historical-records": 167,
       "explicit-obsolete-package-fixtures": 8
@@ -63,10 +63,10 @@
   },
   "occurrences": [
     {
-      "id": ".github/workflows/publish-next.yml:86:11",
+      "id": ".github/workflows/publish-next.yml:90:11",
       "path": ".github/workflows/publish-next.yml",
       "locationKind": "content",
-      "line": 86,
+      "line": 90,
       "column": 11,
       "value": "ADDONE",
       "context": "ADDONE_RELEASE_RUNNER_LABEL: github-windows-2025-uncertified-next",
@@ -78,44 +78,10 @@
       ]
     },
     {
-      "id": ".github/workflows/publish-next.yml:102:74",
-      "path": ".github/workflows/publish-next.yml",
-      "locationKind": "content",
-      "line": 102,
-      "column": 74,
-      "value": "addone",
-      "context": "if (JSON.stringify(manifest.bin) !== JSON.stringify({ a1: \"bin/addone.js\" })) throw new Error(\"package must expose only a1\");",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics",
-        "paths",
-        "artifacts"
-      ]
-    },
-    {
-      "id": ".github/workflows/publish-next.yml:130:78",
-      "path": ".github/workflows/publish-next.yml",
-      "locationKind": "content",
-      "line": 130,
-      "column": 78,
-      "value": "addone",
-      "context": "if (JSON.stringify(manifest.bin) !== JSON.stringify({ a1: \"bin/addone.js\" })) throw new Error(\"registry package exposes unexpected bins\");",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics",
-        "paths",
-        "artifacts"
-      ]
-    },
-    {
-      "id": ".github/workflows/publish-stable.yml:82:11",
+      "id": ".github/workflows/publish-stable.yml:86:11",
       "path": ".github/workflows/publish-stable.yml",
       "locationKind": "content",
-      "line": 82,
+      "line": 86,
       "column": 11,
       "value": "ADDONE",
       "context": "ADDONE_RELEASE_RUNNER_LABEL: github-windows-2025-stable",
@@ -127,10 +93,10 @@
       ]
     },
     {
-      "id": ".github/workflows/publish-stable.yml:83:11",
+      "id": ".github/workflows/publish-stable.yml:87:11",
       "path": ".github/workflows/publish-stable.yml",
       "locationKind": "content",
-      "line": 83,
+      "line": 87,
       "column": 11,
       "value": "ADDONE",
       "context": "ADDONE_CONFIG_DIR: ${{ runner.temp }}\\a1-config",
@@ -143,10 +109,10 @@
       ]
     },
     {
-      "id": ".github/workflows/publish-stable.yml:84:11",
+      "id": ".github/workflows/publish-stable.yml:88:11",
       "path": ".github/workflows/publish-stable.yml",
       "locationKind": "content",
-      "line": 84,
+      "line": 88,
       "column": 11,
       "value": "ADDONE",
       "context": "ADDONE_DATA_DIR: ${{ runner.temp }}\\a1-data",
@@ -159,10 +125,10 @@
       ]
     },
     {
-      "id": ".github/workflows/publish-stable.yml:85:11",
+      "id": ".github/workflows/publish-stable.yml:89:11",
       "path": ".github/workflows/publish-stable.yml",
       "locationKind": "content",
-      "line": 85,
+      "line": 89,
       "column": 11,
       "value": "ADDONE",
       "context": "ADDONE_RUNTIME_DIR: ${{ runner.temp }}\\a1-runtime",
@@ -175,20 +141,32 @@
       ]
     },
     {
-      "id": ".github/workflows/publish-stable.yml:102:74",
-      "path": ".github/workflows/publish-stable.yml",
+      "id": "bin/a1.js:5:17",
+      "path": "bin/a1.js",
       "locationKind": "content",
-      "line": 102,
-      "column": 74,
-      "value": "addone",
-      "context": "if (JSON.stringify(manifest.bin) !== JSON.stringify({ a1: \"bin/addone.js\" })) throw new Error(\"stable package must expose only a1\");",
-      "matchedCase": "lower",
+      "line": 5,
+      "column": 17,
+      "value": "AddOne",
+      "context": "const { dispatchAddOneCli } = await import(\"../dist/src/cli/index.js\");",
+      "matchedCase": "title-or-mixed",
       "primaryClass": "runtime-symbols",
       "classes": [
         "runtime-symbols",
-        "diagnostics",
-        "paths",
-        "artifacts"
+        "paths"
+      ]
+    },
+    {
+      "id": "bin/a1.js:7:34",
+      "path": "bin/a1.js",
+      "locationKind": "content",
+      "line": 7,
+      "column": 34,
+      "value": "AddOne",
+      "context": "process.exitCode = await dispatchAddOneCli(process.argv.slice(2), {",
+      "matchedCase": "title-or-mixed",
+      "primaryClass": "runtime-symbols",
+      "classes": [
+        "runtime-symbols"
       ]
     },
     {
@@ -247,51 +225,6 @@
       "value": "addone",
       "context": "runSelectedInteractiveRuntime(process.env.ADDONE_LAUNCH_PROFILE ?? \"addone\", {",
       "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols"
-      ]
-    },
-    {
-      "id": "bin/addone.js#path:5",
-      "path": "bin/addone.js",
-      "locationKind": "path",
-      "line": null,
-      "column": 5,
-      "value": "addone",
-      "context": "bin/addone.js",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "artifacts"
-      ]
-    },
-    {
-      "id": "bin/addone.js:5:17",
-      "path": "bin/addone.js",
-      "locationKind": "content",
-      "line": 5,
-      "column": 17,
-      "value": "AddOne",
-      "context": "const { dispatchAddOneCli } = await import(\"../dist/src/cli/index.js\");",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths"
-      ]
-    },
-    {
-      "id": "bin/addone.js:7:34",
-      "path": "bin/addone.js",
-      "locationKind": "content",
-      "line": 7,
-      "column": 34,
-      "value": "AddOne",
-      "context": "process.exitCode = await dispatchAddOneCli(process.argv.slice(2), {",
-      "matchedCase": "title-or-mixed",
       "primaryClass": "runtime-symbols",
       "classes": [
         "runtime-symbols"
@@ -1098,34 +1031,6 @@
       "primaryClass": "runtime-symbols",
       "classes": [
         "runtime-symbols",
-        "native-names"
-      ]
-    },
-    {
-      "id": "native/terminal-host/Cargo.lock:6:9",
-      "path": "native/terminal-host/Cargo.lock",
-      "locationKind": "content",
-      "line": 6,
-      "column": 9,
-      "value": "addone",
-      "context": "name = \"addone-terminal-host\"",
-      "matchedCase": "lower",
-      "primaryClass": "native-names",
-      "classes": [
-        "native-names"
-      ]
-    },
-    {
-      "id": "native/terminal-host/Cargo.toml:2:9",
-      "path": "native/terminal-host/Cargo.toml",
-      "locationKind": "content",
-      "line": 2,
-      "column": 9,
-      "value": "addone",
-      "context": "name = \"addone-terminal-host\"",
-      "matchedCase": "lower",
-      "primaryClass": "native-names",
-      "classes": [
         "native-names"
       ]
     },
@@ -12582,36 +12487,6 @@
       ]
     },
     {
-      "id": "package-lock.json:19:20",
-      "path": "package-lock.json",
-      "locationKind": "content",
-      "line": 19,
-      "column": 20,
-      "value": "addone",
-      "context": "\"a1\": \"bin/addone.js\"",
-      "matchedCase": "lower",
-      "primaryClass": "paths",
-      "classes": [
-        "paths",
-        "artifacts"
-      ]
-    },
-    {
-      "id": "package.json:8:16",
-      "path": "package.json",
-      "locationKind": "content",
-      "line": 8,
-      "column": 16,
-      "value": "addone",
-      "context": "\"a1\": \"bin/addone.js\"",
-      "matchedCase": "lower",
-      "primaryClass": "paths",
-      "classes": [
-        "paths",
-        "artifacts"
-      ]
-    },
-    {
       "id": "README.md:1:3",
       "path": "README.md",
       "locationKind": "content",
@@ -13946,74 +13821,6 @@
       "classes": [
         "runtime-symbols",
         "environment-keys"
-      ]
-    },
-    {
-      "id": "scripts/run-terminal-host-probe.mjs:11:91",
-      "path": "scripts/run-terminal-host-probe.mjs",
-      "locationKind": "content",
-      "line": 11,
-      "column": 91,
-      "value": "addone",
-      "context": "const executable = resolve(\"native/terminal-host/target/debug\", platform() === \"win32\" ? \"addone-terminal-host.exe\" : \"addone-terminal-host\");",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "artifacts",
-        "native-names"
-      ]
-    },
-    {
-      "id": "scripts/run-terminal-host-probe.mjs:11:120",
-      "path": "scripts/run-terminal-host-probe.mjs",
-      "locationKind": "content",
-      "line": 11,
-      "column": 120,
-      "value": "addone",
-      "context": "const executable = resolve(\"native/terminal-host/target/debug\", platform() === \"win32\" ? \"addone-terminal-host.exe\" : \"addone-terminal-host\");",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "artifacts",
-        "native-names"
-      ]
-    },
-    {
-      "id": "scripts/run-terminal-host.mjs:10:91",
-      "path": "scripts/run-terminal-host.mjs",
-      "locationKind": "content",
-      "line": 10,
-      "column": 91,
-      "value": "addone",
-      "context": "const executable = resolve(\"native/terminal-host/target/debug\", platform() === \"win32\" ? \"addone-terminal-host.exe\" : \"addone-terminal-host\");",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "artifacts",
-        "native-names"
-      ]
-    },
-    {
-      "id": "scripts/run-terminal-host.mjs:10:120",
-      "path": "scripts/run-terminal-host.mjs",
-      "locationKind": "content",
-      "line": 10,
-      "column": 120,
-      "value": "addone",
-      "context": "const executable = resolve(\"native/terminal-host/target/debug\", platform() === \"win32\" ? \"addone-terminal-host.exe\" : \"addone-terminal-host\");",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "artifacts",
-        "native-names"
       ]
     },
     {
@@ -17868,23 +17675,6 @@
       ]
     },
     {
-      "id": "test/cli/update-cli.test.ts:90:48",
-      "path": "test/cli/update-cli.test.ts",
-      "locationKind": "content",
-      "line": 90,
-      "column": 48,
-      "value": "addone",
-      "context": "expect(packageJson.bin).toEqual({ a1: \"bin/addone.js\" });",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "artifacts",
-        "tests"
-      ]
-    },
-    {
       "id": "test/cli/update-cli.test.ts:97:9",
       "path": "test/cli/update-cli.test.ts",
       "locationKind": "content",
@@ -20439,23 +20229,6 @@
       ]
     },
     {
-      "id": "test/foundation/release/bootstrap-boundary.test.ts:11:45",
-      "path": "test/foundation/release/bootstrap-boundary.test.ts",
-      "locationKind": "content",
-      "line": 11,
-      "column": 45,
-      "value": "addone",
-      "context": "expect(manifest.bin).toEqual({ a1: \"bin/addone.js\" });",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "artifacts",
-        "tests"
-      ]
-    },
-    {
       "id": "test/foundation/release/bootstrap-boundary.test.ts:12:52",
       "path": "test/foundation/release/bootstrap-boundary.test.ts",
       "locationKind": "content",
@@ -20463,23 +20236,6 @@
       "column": 52,
       "value": "addone",
       "context": "await expect(readFile(resolve(repository, \"bin/addone-supervisor.js\"), \"utf8\")).resolves.toContain(\"runSupervisor\");",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "artifacts",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/release/bootstrap-boundary.test.ts:17:41",
-      "path": "test/foundation/release/bootstrap-boundary.test.ts",
-      "locationKind": "content",
-      "line": 17,
-      "column": 41,
-      "value": "addone",
-      "context": "readFile(resolve(repository, \"bin/addone.js\"), \"utf8\"),",
       "matchedCase": "lower",
       "primaryClass": "runtime-symbols",
       "classes": [
@@ -20636,23 +20392,6 @@
       ]
     },
     {
-      "id": "test/foundation/release/package-surface.integration.test.ts:41:12",
-      "path": "test/foundation/release/package-surface.integration.test.ts",
-      "locationKind": "content",
-      "line": 41,
-      "column": 12,
-      "value": "addone",
-      "context": "\"bin/addone.js\",",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "artifacts",
-        "tests"
-      ]
-    },
-    {
       "id": "test/foundation/release/package-surface.integration.test.ts:42:12",
       "path": "test/foundation/release/package-surface.integration.test.ts",
       "locationKind": "content",
@@ -20677,23 +20416,6 @@
       "column": 12,
       "value": "addone",
       "context": "\"bin/addone-supervisor.js\",",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "artifacts",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/release/package-surface.integration.test.ts:60:96",
-      "path": "test/foundation/release/package-surface.integration.test.ts",
-      "locationKind": "content",
-      "line": 60,
-      "column": 96,
-      "value": "addone",
-      "context": "expect(manifest).toMatchObject({ name: \"@timurproko/a1\", version: \"0.1.0\", bin: { a1: \"bin/addone.js\" } });",
       "matchedCase": "lower",
       "primaryClass": "runtime-symbols",
       "classes": [
@@ -22079,23 +21801,6 @@
       ]
     },
     {
-      "id": "test/repository-governance/package-identity.test.ts:15:98",
-      "path": "test/repository-governance/package-identity.test.ts",
-      "locationKind": "content",
-      "line": 15,
-      "column": 98,
-      "value": "addone",
-      "context": "\"package.json\": JSON.stringify({ name: \"@timurproko/a1\", version: \"0.1.0\", bin: { a1: \"bin/addone.js\" } }),",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "artifacts",
-        "tests"
-      ]
-    },
-    {
       "id": "test/repository-governance/package-identity.test.ts:18:74",
       "path": "test/repository-governance/package-identity.test.ts",
       "locationKind": "content",
@@ -22183,7 +21888,7 @@
       "line": 29,
       "column": 59,
       "value": "addone",
-      "context": "\"package.json\": JSON.stringify({ name: \"@timurproko/addone\", bin: { addone: \"bin/addone.js\", a1: \"bin/addone.js\" } }),",
+      "context": "\"package.json\": JSON.stringify({ name: \"@timurproko/addone\", bin: { addone: \"bin/a1.js\", a1: \"bin/a1.js\" } }),",
       "matchedCase": "lower",
       "primaryClass": "runtime-symbols",
       "classes": [
@@ -22200,41 +21905,7 @@
       "line": 29,
       "column": 75,
       "value": "addone",
-      "context": "\"package.json\": JSON.stringify({ name: \"@timurproko/addone\", bin: { addone: \"bin/addone.js\", a1: \"bin/addone.js\" } }),",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "artifacts",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/repository-governance/package-identity.test.ts:29:88",
-      "path": "test/repository-governance/package-identity.test.ts",
-      "locationKind": "content",
-      "line": 29,
-      "column": 88,
-      "value": "addone",
-      "context": "\"package.json\": JSON.stringify({ name: \"@timurproko/addone\", bin: { addone: \"bin/addone.js\", a1: \"bin/addone.js\" } }),",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "artifacts",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/repository-governance/package-identity.test.ts:29:109",
-      "path": "test/repository-governance/package-identity.test.ts",
-      "locationKind": "content",
-      "line": 29,
-      "column": 109,
-      "value": "addone",
-      "context": "\"package.json\": JSON.stringify({ name: \"@timurproko/addone\", bin: { addone: \"bin/addone.js\", a1: \"bin/addone.js\" } }),",
+      "context": "\"package.json\": JSON.stringify({ name: \"@timurproko/addone\", bin: { addone: \"bin/a1.js\", a1: \"bin/a1.js\" } }),",
       "matchedCase": "lower",
       "primaryClass": "runtime-symbols",
       "classes": [
@@ -22910,5 +22581,5 @@
       ]
     }
   ],
-  "generatedAt": "2026-08-20T08:24:32.931Z"
+  "generatedAt": "2026-08-20T08:30:02.544Z"
 }

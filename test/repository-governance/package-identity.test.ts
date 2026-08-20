@@ -12,7 +12,7 @@ afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, { recursi
 describe("authoritative npm package identity", () => {
   it("accepts a1-only live surfaces while preserving historical records", async () => {
     const root = await fixture({
-      "package.json": JSON.stringify({ name: "@timurproko/a1", version: "0.1.0", bin: { a1: "bin/addone.js" } }),
+      "package.json": JSON.stringify({ name: "@timurproko/a1", version: "0.1.0", bin: { a1: "bin/a1.js" } }),
       "README.md": "Install `@timurproko/a1` and run `a1`.",
       "src/package.ts": "export const packageName = '@timurproko/a1';",
       "openspec/changes/archive/old/proposal.md": "Published @timurproko/addone with `addone`.",
@@ -26,7 +26,7 @@ describe("authoritative npm package identity", () => {
 
   it("rejects the old package and command in live surfaces", async () => {
     const root = await fixture({
-      "package.json": JSON.stringify({ name: "@timurproko/addone", bin: { addone: "bin/addone.js", a1: "bin/addone.js" } }),
+      "package.json": JSON.stringify({ name: "@timurproko/addone", bin: { addone: "bin/a1.js", a1: "bin/a1.js" } }),
       "docs/install.md": "Run `addone update` after installing @timurproko/addone.",
     });
     const result = run(root);
