@@ -19,6 +19,7 @@ async function ledgerFixture(): Promise<Record<string, any>> {
 async function runFixture(
   mutate: (ledger: Record<string, any>) => void,
   environment: NodeJS.ProcessEnv = {},
+  arguments_: readonly string[] = [],
 ) {
   const root = await mkdtemp(resolve(tmpdir(), "a1-pi-ledger-"));
   temporaryRoots.push(root);
@@ -26,7 +27,7 @@ async function runFixture(
   const ledger = await ledgerFixture();
   mutate(ledger);
   await writeFile(path, JSON.stringify(ledger));
-  return spawnSync(process.execPath, [checker], {
+  return spawnSync(process.execPath, [checker, ...arguments_], {
     cwd: process.cwd(),
     encoding: "utf8",
     env: { ...process.env, A1_PI_SOURCE_LEDGER_PATH: path, ...environment },
@@ -64,6 +65,19 @@ describe("pinned Pi source ledger governance", () => {
     expect(result.stderr).toContain(diagnostic);
   });
 
+  it("keeps engine-only compatibility independent from private presentation provenance drift", async () => {
+    const mutate = (ledger: Record<string, any>) => {
+      const presentation = ledger.records.find((record: Record<string, unknown>) => record.classification === "owned-presentation");
+      presentation.sha256 = "0".repeat(64);
+    };
+    const provenance = await runFixture(mutate);
+    expect(provenance.status).toBe(1);
+    expect(provenance.stderr).toContain("stale source hash");
+    const engineOnly = await runFixture(mutate, {}, ["--engine-only"]);
+    expect(engineOnly.status, engineOnly.stderr).toBe(0);
+    expect(engineOnly.stdout).toContain("engine-independent ownership OK");
+  });
+
   it("rejects missing linked acceptance tests", async () => {
     const result = await runFixture(ledger => { ledger.records[0].tests = ["test/missing-parity.test.ts"]; });
     expect(result.status).toBe(1);
@@ -72,7 +86,7 @@ describe("pinned Pi source ledger governance", () => {
 
   it("rejects unresolved, stale, or classification-incompatible implementation states", async () => {
     const result = await runFixture(ledger => {
-      const owned = ledger.records.find((record: Record<string, unknown>) => record.classification === "owned-source-port");
+      const owned = ledger.records.find((record: Record<string, unknown>) => record.classification === "owned-presentation");
       owned.implementationStatus = "not-ported";
     });
     expect(result.status).toBe(1);
@@ -81,7 +95,7 @@ describe("pinned Pi source ledger governance", () => {
 
   it("rejects a completed owned port remapped away from its real destination", async () => {
     const result = await runFixture(ledger => {
-      const owned = ledger.records.find((record: Record<string, unknown>) => record.classification === "owned-source-port");
+      const owned = ledger.records.find((record: Record<string, unknown>) => record.classification === "owned-presentation");
       owned.localDestination = "src/foundation/pi-component-adapter/upstream/components/missing-port.ts";
     });
     expect(result.status).toBe(1);

@@ -136,7 +136,7 @@ const packageRecords = await Promise.all(packages.map(async pkg => {
   return { name: pkg.name, version: locked.version, integrity: locked.integrity };
 }));
 
-const classifications = Object.fromEntries(["public-reuse", "owned-source-port", "host-adapter"].map(classification => [
+const classifications = Object.fromEntries(["public-api-reuse", "owned-presentation", "host-adaptation"].map(classification => [
   classification,
   records.filter(record => record.classification === classification).length,
 ]));
@@ -291,10 +291,10 @@ async function sourceMapRecord(pkg, sourceMapPath, scope) {
   const reconciledUnit = reconciledSourceUnit(upstreamPath);
   const resolvedUnit = reconciledUnit ?? portedThemeUnit;
   const localDestination = resolvedUnit?.localDestination ?? disposition.localDestination;
-  const classification = resolvedUnit?.classification ?? (portedThemeUnit === undefined ? disposition.classification : "owned-source-port");
+  const classification = resolvedUnit?.classification ?? (portedThemeUnit === undefined ? disposition.classification : "owned-presentation");
   const implementationStatus = resolvedUnit?.implementationStatus ?? (portedThemeUnit === undefined ? disposition.implementationStatus : "source-synchronized-port");
   const modifications = resolvedUnit?.modifications ?? portedThemeUnit?.modifications ?? disposition.modifications;
-  const localSha256 = classification === "owned-source-port"
+  const localSha256 = classification === "owned-presentation"
     ? createHash("sha256").update(await readFile(join(repository, localDestination))).digest("hex")
     : undefined;
   const approvedDeviations = resolvedUnit?.approvedDeviations ?? portedThemeUnit?.approvedDeviations ?? [];
@@ -332,7 +332,7 @@ async function sourceMapRecord(pkg, sourceMapPath, scope) {
       record.localSha256 = createHash("sha256").update(await readFile(join(repository, record.localDestination))).digest("hex");
     }
   }
-  if (record.classification === "host-adapter" && record.implementationStatus === "adapter-present-conformance-pending") {
+  if (record.classification === "host-adaptation" && record.implementationStatus === "adapter-present-conformance-pending") {
     record.implementationStatus = "adapter-present-conformance-passed";
   }
   return record;
@@ -365,7 +365,7 @@ async function assetRecord(pkg, distRelative) {
     sourceMap: null,
     bytes: content.byteLength,
     sha256: createHash("sha256").update(content).digest("hex"),
-    classification: publicBundledAsset ? "public-reuse" : "owned-source-port",
+    classification: publicBundledAsset ? "public-api-reuse" : "owned-presentation",
     localDestination: publicThemeAsset
       ? "src/foundation/pi-component-adapter/index.ts"
       : publicBundledAsset
@@ -418,7 +418,7 @@ function reconciledSourceUnit(upstreamPath) {
   const ownedName = ownedPorts.get(upstreamPath);
   if (ownedName) {
     return {
-      classification: "owned-source-port",
+      classification: "owned-presentation",
       localDestination: `src/foundation/pi-component-adapter/upstream/components/${ownedName}.ts`,
       implementationStatus: "source-synchronized-port",
       modifications: "Mechanical pinned source port with private imports remapped to public package-root types/APIs and A1-owned theme boundaries; behavior remains acceptance-tested.",
@@ -427,7 +427,7 @@ function reconciledSourceUnit(upstreamPath) {
   }
   if (upstreamPath === "packages/coding-agent/src/cli/startup-ui.ts") {
     return {
-      classification: "host-adapter",
+      classification: "host-adaptation",
       localDestination: "src/foundation/pi-component-adapter/shell-components.ts",
       implementationStatus: "adapter-present-conformance-passed",
       modifications: "Split startup UI authority across the A1 shell/component adapter while preserving pinned first-time setup, startup notices, resources, and preflight behavior without constructing the stock CLI root.",
@@ -436,7 +436,7 @@ function reconciledSourceUnit(upstreamPath) {
   }
   if (upstreamPath === "packages/coding-agent/src/core/slash-commands.ts") {
     return {
-      classification: "host-adapter",
+      classification: "host-adaptation",
       localDestination: "src/foundation/pi-engine-adapter/workflows.ts",
       implementationStatus: "adapter-present-conformance-passed",
       modifications: "Expose the pinned command manifest and dispatch categories through typed A1 workflow contracts; source-derived governance rejects omitted advertised or hidden routes.",
@@ -445,7 +445,7 @@ function reconciledSourceUnit(upstreamPath) {
   }
   if (upstreamPath === "packages/coding-agent/src/modes/interactive/components/config-selector.ts") {
     return {
-      classification: "host-adapter",
+      classification: "host-adaptation",
       localDestination: "src/foundation/pi-component-adapter/index.ts",
       implementationStatus: "pinned-cli-only-inventory-mapped",
       modifications: "The pinned unit is reachable from the separate CLI config route, not InteractiveMode or the owned session shell; retain it in source inventory while configuration remains outside this owned-UI launch contract.",
@@ -454,7 +454,7 @@ function reconciledSourceUnit(upstreamPath) {
   }
   if (upstreamPath === "packages/coding-agent/src/modes/interactive/interactive-mode.ts") {
     return {
-      classification: "host-adapter",
+      classification: "host-adaptation",
       localDestination: "src/foundation/pi-component-adapter/index.ts",
       implementationStatus: "adapter-present-conformance-passed",
       modifications: "Decompose stock InteractiveMode authority across typed engine, component, TUI, and owned-shell adapters; construction, private inspection, and mutation of the stock root remain forbidden.",
@@ -463,7 +463,7 @@ function reconciledSourceUnit(upstreamPath) {
   }
   if (upstreamPath === "packages/coding-agent/src/modes/interactive/model-catalog-refresh.ts") {
     return {
-      classification: "host-adapter",
+      classification: "host-adaptation",
       localDestination: "src/foundation/pi-engine-adapter/adapter.ts",
       implementationStatus: "adapter-present-conformance-passed",
       modifications: "Expose model-runtime refresh, timeout, cached-state, and failure outcomes through the typed engine adapter and stateful scoped-model controller.",
@@ -479,13 +479,13 @@ function classify(packageName, upstreamPath) {
     const host = tuiHostModules.has(filename);
     return host
       ? {
-          classification: "host-adapter",
+          classification: "host-adaptation",
           localDestination: "src/foundation/pi-tui-runtime-adapter/index.ts",
           implementationStatus: "adapter-present-conformance-pending",
           modifications: "Use pinned public pi-tui terminal/runtime APIs behind A1 lifecycle ownership.",
         }
       : {
-          classification: "public-reuse",
+          classification: "public-api-reuse",
           localDestination: "src/foundation/pi-component-adapter/index.ts",
           implementationStatus: "available-through-pinned-package",
           modifications: "None planned; import only from the pinned public pi-tui package root.",
@@ -495,7 +495,7 @@ function classify(packageName, upstreamPath) {
   const componentPrefix = "packages/coding-agent/src/modes/interactive/components/";
   if (upstreamPath.startsWith(componentPrefix) && publicCodingAgentComponents.has(filename)) {
     return {
-      classification: "public-reuse",
+      classification: "public-api-reuse",
       localDestination: "src/foundation/pi-component-adapter/index.ts",
       implementationStatus: "available-through-pinned-package",
       modifications: "None planned; import the exact component or helper from the pinned public coding-agent package root.",
@@ -503,7 +503,7 @@ function classify(packageName, upstreamPath) {
   }
   if (upstreamPath === "packages/coding-agent/src/modes/interactive/theme/theme.ts") {
     return {
-      classification: "public-reuse",
+      classification: "public-api-reuse",
       localDestination: "src/foundation/pi-component-adapter/index.ts",
       implementationStatus: "available-through-pinned-package",
       modifications: "None planned; use pinned public theme exports and package-owned built-in assets.",
@@ -515,14 +515,14 @@ function classify(packageName, upstreamPath) {
       .replace("packages/coding-agent/src/modes/interactive/", "")
       .replace("packages/coding-agent/src/", "adjacent/");
     return {
-      classification: "owned-source-port",
+      classification: "owned-presentation",
       localDestination: `src/foundation/pi-component-adapter/upstream/${relativeInteractive}`,
       implementationStatus: "not-ported",
       modifications: "Mechanical port planned: remap imports, inject A1 engine/runtime ownership, preserve control flow and state, and record every deviation.",
     };
   }
   return {
-    classification: "host-adapter",
+    classification: "host-adaptation",
     localDestination: "src/foundation/pi-engine-adapter/index.ts",
     implementationStatus: "adapter-present-conformance-pending",
     modifications: "Retain authority in the pinned public SDK and expose it only through A1 engine contracts.",

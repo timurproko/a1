@@ -15,11 +15,11 @@ const ledgerPath = resolve(process.env[identity.environment.piSourceLedgerPath] 
 const sourceRoot = resolve(process.env[identity.environment.piSourceScanRoot] ?? join(repository, "src"));
 const portRoot = resolve(process.env[identity.environment.piPortRoot] ?? join(repository, "src", "foundation", "pi-component-adapter", "upstream"));
 const expectedCommit = "914cf1472e715297caa30db4b9535d534a9eb718";
-const allowedClassifications = new Set(["public-reuse", "owned-source-port", "host-adapter"]);
+const allowedClassifications = new Set(["public-api-reuse", "owned-presentation", "host-adaptation"]);
 const completedStatusesByClassification = new Map([
-  ["public-reuse", new Set(["available-through-pinned-package"])],
-  ["owned-source-port", new Set(["ported", "source-synchronized-port", "owned-port-present"])],
-  ["host-adapter", new Set(["adapter-present-conformance-passed", "pinned-cli-only-inventory-mapped"])],
+  ["public-api-reuse", new Set(["available-through-pinned-package"])],
+  ["owned-presentation", new Set(["ported", "source-synchronized-port", "owned-port-present"])],
+  ["host-adaptation", new Set(["adapter-present-conformance-passed", "pinned-cli-only-inventory-mapped"])],
 ]);
 const adjacentCodingAgentMaps = [
   "cli/startup-ui.js.map",
@@ -60,17 +60,18 @@ const packageAuthorities = [
   },
 ];
 
+const engineOnly = process.argv.includes("--engine-only");
 try {
-  const report = await validateLedger();
-  process.stdout.write(`Pinned Pi source ledger OK: ${report.records} records, ${report.behaviors} behaviors\n`);
+  const report = await validateLedger(engineOnly);
+  process.stdout.write(`Pinned Pi source ledger ${engineOnly ? "engine-independent ownership" : "provenance"} OK: ${report.records} records, ${report.behaviors} behaviors\n`);
 } catch (error) {
   process.stderr.write(`Pinned Pi source ledger check failed: ${error instanceof Error ? error.message : String(error)}\n`);
   process.exitCode = 1;
 }
 
-async function validateLedger() {
+async function validateLedger(skipUpstreamProvenance = false) {
   const ledger = JSON.parse(await readFile(ledgerPath, "utf8"));
-  const compatibilityAuthority = await readPiCompatibilityAuthority(repository);
+  const compatibilityAuthority = skipUpstreamProvenance ? null : await readPiCompatibilityAuthority(repository);
   requiredString(ledger.schema, "ledger schema");
   if (ledger.schema !== identity.evidence.piSourceLedgerSchema) fail("unsupported ledger schema");
   if (ledger.change !== "build-owned-pi-ui-foundation" || ledger.task !== "7.2") fail("ledger change/task identity is stale");
@@ -79,8 +80,8 @@ async function validateLedger() {
   if (ledger.upstream?.license !== "MIT") fail("upstream license must be MIT");
   if (!Array.isArray(ledger.records)) fail("ledger records collection is missing");
 
-  await validatePackages(ledger.upstream.packages, compatibilityAuthority);
-  const expected = await discoverPinnedAuthorities();
+  if (!skipUpstreamProvenance) await validatePackages(ledger.upstream.packages, compatibilityAuthority);
+  const expected = skipUpstreamProvenance ? null : await discoverPinnedAuthorities();
   const actual = new Map();
   for (const [index, record] of ledger.records.entries()) {
     validateRecord(record, index);
@@ -88,16 +89,18 @@ async function validateLedger() {
     if (actual.has(key)) fail(`duplicate ledger source unit: ${key}`);
     actual.set(key, record);
   }
-  for (const [key, authority] of expected) {
-    const record = actual.get(key);
-    if (!record) fail(`missing pinned source unit: ${key}`);
-    if (record.kind !== authority.kind) fail(`stale source kind: ${key}`);
-    if (record.sourceMap !== authority.sourceMap) fail(`stale source-map path: ${key}`);
-    if (record.sha256 !== authority.sha256) fail(`stale source hash: ${key}`);
-    if (authority.kind === "source" && record.lines !== authority.lines) fail(`stale source line count: ${key}`);
-    if (authority.kind === "asset" && record.bytes !== authority.bytes) fail(`stale asset byte count: ${key}`);
+  if (expected) {
+    for (const [key, authority] of expected) {
+      const record = actual.get(key);
+      if (!record) fail(`missing pinned source unit: ${key}`);
+      if (record.kind !== authority.kind) fail(`stale source kind: ${key}`);
+      if (record.sourceMap !== authority.sourceMap) fail(`stale source-map path: ${key}`);
+      if (record.sha256 !== authority.sha256) fail(`stale source hash: ${key}`);
+      if (authority.kind === "source" && record.lines !== authority.lines) fail(`stale source line count: ${key}`);
+      if (authority.kind === "asset" && record.bytes !== authority.bytes) fail(`stale asset byte count: ${key}`);
+    }
+    for (const key of actual.keys()) if (!expected.has(key)) fail(`ledger contains an unknown or stale source unit: ${key}`);
   }
-  for (const key of actual.keys()) if (!expected.has(key)) fail(`ledger contains an unknown or stale source unit: ${key}`);
   await validateTestLinks(ledger.records);
 
   const baseline = JSON.parse(await readFile(resolve(repository, ledger.scope?.behaviorAuthority ?? "missing"), "utf8"));
@@ -108,7 +111,7 @@ async function validateLedger() {
   if (!Array.isArray(ledger.summary?.unmappedBehaviorIds) || ledger.summary.unmappedBehaviorIds.length !== 0) {
     fail("ledger summary reports unmapped behaviors");
   }
-  if (ledger.summary.modules !== expected.size || ledger.summary.coveredBehaviorIds !== coveredBehaviors.size) {
+  if (ledger.summary.modules !== ledger.records.length || ledger.summary.coveredBehaviorIds !== coveredBehaviors.size) {
     fail("ledger summary is stale");
   }
 
@@ -146,7 +149,7 @@ function validateRecord(record, index) {
     || record.localDestination.includes("..") || isAbsolute(record.localDestination)) {
     fail(`${label}.localDestination escapes the approved adapter roots`);
   }
-  if (record.classification === "owned-source-port" && !record.localDestination.startsWith("src/foundation/pi-component-adapter/upstream/")) {
+  if (record.classification === "owned-presentation" && !record.localDestination.startsWith("src/foundation/pi-component-adapter/upstream/")) {
     fail(`${label}.owned source port has no mirrored local destination`);
   }
   if (!/MIT/.test(record.attribution) || !/repository/.test(record.attribution) || !/commit/.test(record.attribution)) {
@@ -185,7 +188,7 @@ async function validateTestLinks(records) {
 }
 
 async function validatePortDestinations(records) {
-  const ownedRecords = records.filter(record => record.classification === "owned-source-port");
+  const ownedRecords = records.filter(record => record.classification === "owned-presentation");
   const mapped = new Map(ownedRecords.map(record => [resolve(repository, record.localDestination), record]));
   for (const path of await filesUnderIfPresent(portRoot)) {
     if (!mapped.has(path)) fail(`undocumented owned source file: ${relative(repository, path).replaceAll("\\", "/")}`);
@@ -196,7 +199,7 @@ async function validatePortDestinations(records) {
     const localHash = createHash("sha256").update(await readFile(path)).digest("hex");
     if (record.localSha256 !== localHash) fail(`mapped owned source destination hash is stale: ${record.id}`);
   }
-  for (const record of records.filter(value => value.classification !== "owned-source-port")) {
+  for (const record of records.filter(value => value.classification !== "owned-presentation")) {
     if (!await pathExists(resolve(repository, record.localDestination))) fail(`adapter destination is missing: ${record.id}`);
   }
 }
