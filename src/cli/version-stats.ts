@@ -4,9 +4,11 @@ import { resolve } from "node:path";
 import crossSpawn from "cross-spawn";
 import { valid as validSemver } from "semver";
 import { PRODUCT_TEXT } from "../product-identity.js";
+
 interface VersionProcessResult { readonly code: number | null; readonly stdout: string }
 type VersionProcessRunner = (command: string, arguments_: readonly string[]) => Promise<VersionProcessResult>;
 interface VersionOutput { stdout(message: string): void; stderr(message: string): void }
+interface RemoteVersions { readonly release: string | null; readonly next: string | null; readonly error: string | null }
 
 export interface VersionStatsOptions {
   readonly packageRoot: string;
@@ -31,26 +33,35 @@ export async function runVersionStats(options: VersionStatsOptions): Promise<num
     return 1;
   }
 
-  const [release, next] = await Promise.all([
-    queryTag(runner, "latest"),
-    queryTag(runner, "next"),
-  ]);
-  output.stdout(`Installed: ${installed}\nRelease:   ${release.version ?? "unavailable"}\nNext:      ${next.version ?? "unavailable"}\n`);
-  for (const result of [release, next]) {
-    if (result.error) output.stderr(`${PRODUCT_TEXT.diagnostic(`could not resolve npm ${result.tag}: ${result.error}`)}\n`);
-  }
+  const remote = await queryDistTags(runner);
+  output.stdout(`Installed: ${installed}\nRelease:   ${remote.release ?? "unavailable"}\nNext:      ${remote.next ?? "unavailable"}\n`);
+  if (remote.error) output.stderr(`${PRODUCT_TEXT.diagnostic(`could not resolve npm dist-tags: ${remote.error}`)}\n`);
   return 0;
 }
 
-async function queryTag(runner: VersionProcessRunner, tag: "latest" | "next"): Promise<{ tag: string; version: string | null; error: string | null }> {
+async function queryDistTags(runner: VersionProcessRunner): Promise<RemoteVersions> {
+  let result: VersionProcessResult;
   try {
-    const result = await runner("npm", ["view", `${PRODUCT_TEXT.packageName}@${tag}`, "version"]);
-    if (result.code !== 0) return { tag, version: null, error: `npm exited with status ${result.code ?? "unknown"}` };
-    try { return { tag, version: parseVersion(result.stdout.trim(), `npm ${tag}`), error: null }; }
-    catch (error) { return { tag, version: null, error: message(error) }; }
+    result = await runner("npm", ["view", PRODUCT_TEXT.packageName, "dist-tags", "--json"]);
   } catch (error) {
-    return { tag, version: null, error: message(error) };
+    return unavailable(message(error));
   }
+  if (result.code !== 0) return unavailable(`npm exited with status ${result.code ?? "unknown"}`);
+
+  try {
+    const metadata: unknown = JSON.parse(result.stdout);
+    if (typeof metadata !== "object" || metadata === null || Array.isArray(metadata)) throw new TypeError("npm returned a non-object dist-tags value");
+    const tags = metadata as Record<string, unknown>;
+    const release = parseVersion(tags.latest, "npm latest");
+    const next = tags.next === undefined ? null : parseVersion(tags.next, "npm next");
+    return { release, next, error: null };
+  } catch (error) {
+    return unavailable(message(error));
+  }
+}
+
+function unavailable(error: string): RemoteVersions {
+  return { release: null, next: null, error };
 }
 
 function createVersionProcessRunner(): VersionProcessRunner {

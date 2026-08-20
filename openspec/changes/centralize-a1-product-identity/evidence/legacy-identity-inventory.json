@@ -41,21 +41,21 @@
     "explicit-obsolete-package-fixtures"
   ],
   "summary": {
-    "total": 1399,
-    "files": 222,
+    "total": 1398,
+    "files": 221,
     "byLocationKind": {
-      "content": 1375,
+      "content": 1374,
       "path": 24
     },
     "byClass": {
-      "runtime-symbols": 601,
+      "runtime-symbols": 600,
       "diagnostics": 143,
       "environment-keys": 148,
-      "paths": 461,
+      "paths": 460,
       "schemas": 122,
       "artifacts": 117,
       "native-names": 100,
-      "tests": 284,
+      "tests": 283,
       "current-docs-specs": 761,
       "historical-records": 167,
       "explicit-obsolete-package-fixtures": 8
@@ -16816,22 +16816,6 @@
       ]
     },
     {
-      "id": "test/cli/version-stats.test.ts:44:49",
-      "path": "test/cli/version-stats.test.ts",
-      "locationKind": "content",
-      "line": 44,
-      "column": 49,
-      "value": "addone",
-      "context": "const root = await mkdtemp(resolve(tmpdir(), \"addone-version-stats-\"));",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "tests"
-      ]
-    },
-    {
       "id": "test/features/launch/development-launch.test.ts:8:17",
       "path": "test/features/launch/development-launch.test.ts",
       "locationKind": "content",
@@ -21162,5 +21146,5 @@
       ]
     }
   ],
-  "generatedAt": "2026-08-20T08:38:49.969Z"
+  "generatedAt": "2026-08-20T08:40:31.899Z"
 }
