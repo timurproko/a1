@@ -2,7 +2,7 @@ import crossSpawn from "cross-spawn";
 import { access, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 const repository = resolve(fileURLToPath(new URL("../../..", import.meta.url)));
@@ -13,7 +13,11 @@ let pack: { filename: string; integrity: string; shasum: string; files: Array<{ 
 
 beforeAll(async () => {
   root = await mkdtemp(resolve(tmpdir(), "a1-package-surface-"));
+  const built = run(npm, ["run", "build", "--silent"], repository);
+  expect(built.status, built.stderr).toBe(0);
   await access(resolve(repository, "dist", "src", "cli", "index.js"));
+  await access(resolve(repository, "dist", "src", "product-identity.js"));
+  await access(resolve(repository, "dist", "src", "product-identity.json"));
   const packed = run(npm, ["pack", "--ignore-scripts", "--json", "--pack-destination", root], repository);
   expect(packed.status, packed.stderr).toBe(0);
   const results = JSON.parse(packed.stdout) as typeof pack[];
@@ -37,6 +41,9 @@ describe("packed npm command surface", () => {
       "bin/addone.js",
       "bin/addone-ui.js",
       "bin/addone-supervisor.js",
+      "dist/src/product-identity.js",
+      "dist/src/product-identity.json",
+      "dist/src/product-identity.d.ts",
     ]));
   });
 
@@ -52,6 +59,15 @@ describe("packed npm command surface", () => {
     };
     expect(manifest).toMatchObject({ name: "@timurproko/a1", version: "0.1.0", bin: { a1: "bin/addone.js" } });
     expect(Object.keys(manifest.bin)).toEqual(["a1"]);
+
+    const packageRoot = resolve(prefix, "node_modules", "@timurproko", "a1");
+    const identityJson = JSON.parse(await readFile(resolve(packageRoot, "dist", "src", "product-identity.json"), "utf8")) as { packageName: string };
+    const identityModule = await import(pathToFileURL(resolve(packageRoot, "dist", "src", "product-identity.js")).href) as {
+      PRODUCT_IDENTITY: { packageName: string; commandName: string };
+    };
+    expect(identityJson.packageName).toBe("@timurproko/a1");
+    expect(identityModule.PRODUCT_IDENTITY).toMatchObject({ packageName: "@timurproko/a1", commandName: "a1" });
+    expect(Object.isFrozen(identityModule.PRODUCT_IDENTITY)).toBe(true);
 
     const bin = process.platform === "win32" ? prefix : resolve(prefix, "bin");
     const a1 = resolve(bin, process.platform === "win32" ? "a1.cmd" : "a1");

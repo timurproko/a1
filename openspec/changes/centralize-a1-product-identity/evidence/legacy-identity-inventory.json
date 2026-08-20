@@ -20636,10 +20636,10 @@
       ]
     },
     {
-      "id": "test/foundation/release/package-surface.integration.test.ts:37:12",
+      "id": "test/foundation/release/package-surface.integration.test.ts:41:12",
       "path": "test/foundation/release/package-surface.integration.test.ts",
       "locationKind": "content",
-      "line": 37,
+      "line": 41,
       "column": 12,
       "value": "addone",
       "context": "\"bin/addone.js\",",
@@ -20653,10 +20653,10 @@
       ]
     },
     {
-      "id": "test/foundation/release/package-surface.integration.test.ts:38:12",
+      "id": "test/foundation/release/package-surface.integration.test.ts:42:12",
       "path": "test/foundation/release/package-surface.integration.test.ts",
       "locationKind": "content",
-      "line": 38,
+      "line": 42,
       "column": 12,
       "value": "addone",
       "context": "\"bin/addone-ui.js\",",
@@ -20670,10 +20670,10 @@
       ]
     },
     {
-      "id": "test/foundation/release/package-surface.integration.test.ts:39:12",
+      "id": "test/foundation/release/package-surface.integration.test.ts:43:12",
       "path": "test/foundation/release/package-surface.integration.test.ts",
       "locationKind": "content",
-      "line": 39,
+      "line": 43,
       "column": 12,
       "value": "addone",
       "context": "\"bin/addone-supervisor.js\",",
@@ -20687,10 +20687,10 @@
       ]
     },
     {
-      "id": "test/foundation/release/package-surface.integration.test.ts:53:96",
+      "id": "test/foundation/release/package-surface.integration.test.ts:60:96",
       "path": "test/foundation/release/package-surface.integration.test.ts",
       "locationKind": "content",
-      "line": 53,
+      "line": 60,
       "column": 96,
       "value": "addone",
       "context": "expect(manifest).toMatchObject({ name: \"@timurproko/a1\", version: \"0.1.0\", bin: { a1: \"bin/addone.js\" } });",
@@ -20704,10 +20704,10 @@
       ]
     },
     {
-      "id": "test/foundation/release/package-surface.integration.test.ts:59:70",
+      "id": "test/foundation/release/package-surface.integration.test.ts:75:70",
       "path": "test/foundation/release/package-surface.integration.test.ts",
       "locationKind": "content",
-      "line": 59,
+      "line": 75,
       "column": 70,
       "value": "addone",
       "context": "await expect(access(resolve(bin, process.platform === \"win32\" ? \"addone.cmd\" : \"addone\"))).rejects.toThrow();",
@@ -20720,10 +20720,10 @@
       ]
     },
     {
-      "id": "test/foundation/release/package-surface.integration.test.ts:59:85",
+      "id": "test/foundation/release/package-surface.integration.test.ts:75:85",
       "path": "test/foundation/release/package-surface.integration.test.ts",
       "locationKind": "content",
-      "line": 59,
+      "line": 75,
       "column": 85,
       "value": "addone",
       "context": "await expect(access(resolve(bin, process.platform === \"win32\" ? \"addone.cmd\" : \"addone\"))).rejects.toThrow();",
@@ -20736,10 +20736,10 @@
       ]
     },
     {
-      "id": "test/foundation/release/package-surface.integration.test.ts:60:70",
+      "id": "test/foundation/release/package-surface.integration.test.ts:76:70",
       "path": "test/foundation/release/package-surface.integration.test.ts",
       "locationKind": "content",
-      "line": 60,
+      "line": 76,
       "column": 70,
       "value": "addone",
       "context": "await expect(access(resolve(bin, process.platform === \"win32\" ? \"addone-supervisor.cmd\" : \"addone-supervisor\"))).rejects.toThrow();",
@@ -20752,10 +20752,10 @@
       ]
     },
     {
-      "id": "test/foundation/release/package-surface.integration.test.ts:60:96",
+      "id": "test/foundation/release/package-surface.integration.test.ts:76:96",
       "path": "test/foundation/release/package-surface.integration.test.ts",
       "locationKind": "content",
-      "line": 60,
+      "line": 76,
       "column": 96,
       "value": "addone",
       "context": "await expect(access(resolve(bin, process.platform === \"win32\" ? \"addone-supervisor.cmd\" : \"addone-supervisor\"))).rejects.toThrow();",
@@ -20768,10 +20768,10 @@
       ]
     },
     {
-      "id": "test/foundation/release/package-surface.integration.test.ts:64:55",
+      "id": "test/foundation/release/package-surface.integration.test.ts:80:55",
       "path": "test/foundation/release/package-surface.integration.test.ts",
       "locationKind": "content",
-      "line": 64,
+      "line": 80,
       "column": 55,
       "value": "AddOne",
       "context": "expect(launched.stderr).toContain(\"Bare a1 is the AddOne agent experience\");",
@@ -22910,5 +22910,5 @@
       ]
     }
   ],
-  "generatedAt": "2026-08-20T08:22:48.138Z"
+  "generatedAt": "2026-08-20T08:24:32.931Z"
 }
