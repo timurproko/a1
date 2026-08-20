@@ -9,10 +9,12 @@ const repository = resolve(fileURLToPath(new URL("../../..", import.meta.url)));
 const npm = process.platform === "win32" ? "npm.cmd" : "npm";
 let root = "";
 let tarball = "";
+let expectedVersion = "";
 let pack: { filename: string; integrity: string; shasum: string; files: Array<{ path: string }> };
 
 beforeAll(async () => {
   root = await mkdtemp(resolve(tmpdir(), "a1-package-surface-"));
+  expectedVersion = JSON.parse(await readFile(resolve(repository, "package.json"), "utf8")).version as string;
   const built = run(npm, ["run", "build", "--silent"], repository);
   expect(built.status, built.stderr).toBe(0);
   await access(resolve(repository, "dist", "src", "cli", "index.js"));
@@ -32,7 +34,7 @@ afterAll(async () => {
 
 describe("packed npm command surface", () => {
   it("packs the fresh package identity with required internal entries", async () => {
-    expect(pack.filename).toBe("timurproko-a1-0.1.0.tgz");
+    expect(pack.filename).toBe(`timurproko-a1-${expectedVersion}.tgz`);
     expect(pack.integrity).toMatch(/^sha512-/);
     expect(pack.shasum).toMatch(/^[a-f0-9]{40}$/);
     const paths = pack.files.map(file => file.path);
@@ -61,7 +63,7 @@ describe("packed npm command surface", () => {
       bin: Record<string, string>;
       dependencies: Record<string, string>;
     };
-    expect(manifest).toMatchObject({ name: "@timurproko/a1", version: "0.1.0", bin: { "a1": "bin/a1.js" } });
+    expect(manifest).toMatchObject({ name: "@timurproko/a1", version: expectedVersion, bin: { "a1": "bin/a1.js" } });
     expect(Object.keys(manifest.bin)).toEqual(["a1"]);
     expect(manifest.dependencies["@earendil-works/pi-coding-agent"]).toMatch(/^\d+\.\d+\.\d+$/);
 

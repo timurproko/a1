@@ -16,7 +16,7 @@
     },
     {
       "path": "scripts/pi-terminal-parity/scenario.mjs",
-      "line": 239,
+      "line": 240,
       "identifier": "A1_PROFILE_HOME"
     },
     {
@@ -701,5 +701,6 @@
       "line": 23,
       "identifier": "a1"
     }
-  ]
+  ],
+  "recordedAt": "2026-08-20T17:12:03.886Z"
 }

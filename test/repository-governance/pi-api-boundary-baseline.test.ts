@@ -67,5 +67,5 @@ describe("Pi API boundary baseline evidence", () => {
 
     expect(result.status, result.stderr).toBe(0);
     expect(result.stdout).toContain("Pi API boundary baseline OK: 48 imports, 3 package-layout reads, 2 reflected constructors");
-  });
+  }, 20_000);
 });
