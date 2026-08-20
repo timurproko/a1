@@ -10,6 +10,7 @@ import {
   type AgentSnapshot,
 } from "../../../src/foundation/agent-engine-contracts/index.js";
 import type {
+  OwnedUiApplicationPort,
   PresentationComponentPort,
   PresentationOverlayHandle,
   PresentationOverlayOptions,
@@ -72,6 +73,15 @@ export class TestPresentationTerminal implements PresentationTerminalPort {
   clearScreen(): void { this.write("\x1b[2J\x1b[H"); }
   setTitle(): void {}
   setProgress(): void {}
+}
+
+export class TestOwnedUiApplication implements OwnedUiApplicationPort {
+  disposed = false;
+  readonly calls: string[] = [];
+  start(): void { this.calls.push("start"); }
+  async flush(): Promise<void> { this.calls.push("flush"); }
+  async waitUntilStopped(): Promise<void> { this.calls.push("wait"); }
+  async dispose(): Promise<void> { this.calls.push("dispose"); this.disposed = true; }
 }
 
 export class TestPresentationRuntime implements PresentationRuntimePort {

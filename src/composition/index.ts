@@ -17,6 +17,7 @@ import { PiTuiRuntimeAdapter, type PiTuiTerminalPort } from "../foundation/pi-tu
 import {
   assertPresentationComponent,
   assertPresentationRuntime,
+  type OwnedUiApplicationPort,
   type PresentationComponentPort,
   type PresentationOverlayHandle,
   type PresentationOverlayOptions,
@@ -25,6 +26,7 @@ import {
   type PresentationTerminalPort,
 } from "../foundation/presentation-contracts/index.js";
 import type { OwnedUiCommand, OwnedUiEvent, OwnedUiTranscriptBlock } from "../foundation/owned-ui-contracts/index.js";
+import { PiSessionShell } from "../features/owned-ui/index.js";
 
 const CAPABILITIES: AgentCapabilityContract = {
   contractVersion: AGENT_ENGINE_CONTRACT_VERSION,
@@ -39,6 +41,29 @@ export interface ProcessCompositionOptions {
   readonly engine?: AgentEnginePort;
   readonly presentationFactory?: (root: PresentationComponentPort, terminal: PresentationTerminalPort) => PresentationRuntimePort;
   readonly createPiAdapter?: () => Promise<PiEngineAdapter>;
+}
+
+export interface OwnedUiCompositionOptions {
+  readonly cwd?: string;
+  readonly terminal?: PresentationTerminalPort;
+  readonly createPiAdapter?: () => Promise<PiEngineAdapter>;
+}
+
+export async function composeOwnedUiApplication(options: OwnedUiCompositionOptions = {}): Promise<OwnedUiApplicationPort> {
+  const cwd = options.cwd ?? process.cwd();
+  const adapter = options.createPiAdapter ? await options.createPiAdapter() : await createPiEngineAdapter({ cwd });
+  const shell = new PiSessionShell({
+    adapter,
+    cwd,
+    ...(options.terminal === undefined ? {} : { terminal: toPiTerminal(options.terminal) }),
+  });
+  return {
+    get disposed() { return adapter.disposed; },
+    start: () => shell.start(),
+    flush: () => adapter.flushEvents(),
+    waitUntilStopped: () => shell.waitUntilStopped(),
+    dispose: () => shell.dispose(),
+  };
 }
 
 export interface ProcessComposition {

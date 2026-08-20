@@ -74,6 +74,14 @@ export interface PresentationOverlayHandle {
   dispose(): void;
 }
 
+export interface OwnedUiApplicationPort {
+  readonly disposed: boolean;
+  start(): void;
+  flush(): Promise<void>;
+  waitUntilStopped(): Promise<void>;
+  dispose(): Promise<void>;
+}
+
 export interface PresentationRuntimePort {
   readonly state: PresentationRuntimeState;
   readonly terminal: PresentationTerminalPort;

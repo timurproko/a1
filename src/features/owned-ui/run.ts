@@ -1,28 +1,17 @@
-import { createPiEngineAdapter, type PiEngineAdapter } from "../../foundation/pi-engine-adapter/index.js";
-import type { PiTuiTerminalPort } from "../../foundation/pi-tui-runtime-adapter/index.js";
-import { PiSessionShell } from "./pi-session-shell.js";
+import type { OwnedUiApplicationPort } from "../../foundation/presentation-contracts/index.js";
 
 export interface OwnedUiRunOptions {
-  readonly cwd?: string;
-  readonly terminal?: PiTuiTerminalPort;
-  readonly adapter?: PiEngineAdapter;
+  readonly application: OwnedUiApplicationPort;
 }
 
-export async function runOwnedUi(
-  options: OwnedUiRunOptions = {},
-): Promise<number> {
-  const cwd = options.cwd ?? process.cwd();
-  const adapter = options.adapter ?? await createPiEngineAdapter({ cwd });
-  const shellOptions = options.terminal === undefined
-    ? { adapter, cwd }
-    : { adapter, cwd, terminal: options.terminal };
-  const shell = new PiSessionShell(shellOptions);
+export async function runOwnedUi(options: OwnedUiRunOptions): Promise<number> {
+  const { application } = options;
   try {
-    shell.start();
-    await adapter.flushEvents();
-    if (!adapter.disposed) await shell.waitUntilStopped();
+    application.start();
+    await application.flush();
+    if (!application.disposed) await application.waitUntilStopped();
     return 0;
   } finally {
-    await shell.dispose();
+    await application.dispose();
   }
 }
