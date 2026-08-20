@@ -11,7 +11,7 @@
 - [x] 2.2 Define separate A1 model/authentication, settings, resources/extensions, and workflow ports from product use cases rather than vendor class shapes; pass required-versus-optional capability tests.
 - [x] 2.3 Define vendor-neutral presentation component, editor, selector/dialog, extension UI, terminal runtime, layout, overlay, and focus ports; pass malformed component and lifecycle contract tests.
 - [x] 2.4 Extend project ownership and dependency governance so features and workspace modules may depend only on neutral ports while Pi implementations may depend inward on those ports; run architecture and project-structure policy suites.
-- [ ] 2.5 Provide owned test doubles for the neutral ports and migrate feature-level synthetic tests away from partial Pi session/service objects; run the affected owned-UI test suite.
+- [x] 2.5 Provide owned test doubles for the neutral ports and migrate feature-level synthetic tests away from partial Pi session/service objects; run the affected owned-UI test suite.
 
 ## 3. Add the Composition Root and Invert Feature Dependencies
 

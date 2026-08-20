@@ -5,13 +5,11 @@ import {
   createPiEngineAdapter,
   PINNED_PI_HIDDEN_COMMAND_NAMES,
   PINNED_PI_WORKFLOW_COMMAND_NAMES,
-  type PiRuntimeLike,
-  type PiSessionLike,
 } from "../../../src/foundation/pi-engine-adapter/index.js";
-import type { PiTuiTerminalPort } from "../../../src/foundation/pi-tui-runtime-adapter/index.js";
 import { PiSessionShell } from "../../../src/features/owned-ui/index.js";
+import { TestPresentationTerminal } from "./neutral-port-doubles.js";
 
-class Session implements PiSessionLike {
+class Session {
   readonly sessionId = "pi-session";
   model: unknown = { provider: "openai", id: "gpt-5", name: "GPT-5" };
   thinkingLevel: unknown = "medium";
@@ -47,7 +45,7 @@ class Session implements PiSessionLike {
   dispose(): void {}
 }
 
-class Runtime implements PiRuntimeLike {
+class Runtime {
   readonly session: Session;
   enabledModels: readonly string[] | undefined;
   readonly availableModels = [
@@ -95,33 +93,10 @@ class Runtime implements PiRuntimeLike {
   async dispose(): Promise<void> { this.calls.push("dispose"); }
 }
 
-class Terminal implements PiTuiTerminalPort {
-  columns = 80;
-  rows = 24;
-  readonly kittyProtocolActive = false;
-  readonly writes: string[] = [];
-  #input: ((data: string) => void) | undefined;
-  #resize: (() => void) | undefined;
-  start(onInput: (data: string) => void, onResize: () => void): void { this.#input = onInput; this.#resize = onResize; }
-  stop(): void { this.#input = undefined; this.#resize = undefined; }
-  async drainInput(): Promise<void> {}
-  write(data: string): void { this.writes.push(data); }
-  input(data: string): void { this.#input?.(data); }
-  resize(columns: number, rows: number): void { this.columns = columns; this.rows = rows; this.#resize?.(); }
-  moveBy(): void {}
-  hideCursor(): void { this.write("\x1b[?25l"); }
-  showCursor(): void { this.write("\x1b[?25h"); }
-  clearLine(): void { this.write("\x1b[K"); }
-  clearFromCursor(): void { this.write("\x1b[J"); }
-  clearScreen(): void { this.write("\x1b[2J\x1b[H"); }
-  setTitle(): void {}
-  setProgress(): void {}
-}
-
 async function fixture(messages: readonly unknown[] = []) {
   const engine = new Runtime(messages);
   const adapter = await createPiEngineAdapter({ cwd: "D:/work", sessionId: "owned-shell", createRuntime: async () => engine });
-  const terminal = new Terminal();
+  const terminal = new TestPresentationTerminal();
   const shell = new PiSessionShell({ adapter, cwd: "D:/work", terminal });
   shell.start();
   shell.runtime.renderNow();
