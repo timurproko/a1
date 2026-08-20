@@ -24,26 +24,38 @@ The installed application SHALL expose `a1 update` as the stable update command 
 - **THEN** the next invocation SHALL continue or roll back to one verified active cohort without manual cleanup
 
 ### Requirement: Installed and channel versions are visible without runtime startup
-The installed application SHALL expose `a1 version`. It SHALL report `Installed`, `Release`, and `Next` in that order and SHALL NOT start or mutate the interactive runtime, supervisor, storage, release cohort, or update transaction.
+The installed application SHALL expose `a1 version`. It SHALL report `Installed`, `Release`, and `Next` in that order and SHALL NOT start or mutate the interactive runtime, supervisor, storage, release cohort, or update transaction. Remote channel discovery SHALL read the authoritative package dist-tags as one coherent registry result.
 
 #### Scenario: Registry versions are available
-- **WHEN** the user runs `a1 version` while npm `latest` and `next` are reachable
+- **WHEN** the user runs `a1 version` while npm `latest` and `next` are defined and reachable
 - **THEN** A1 SHALL display valid exact semantic versions in the order `Installed`, `Release`, and `Next`
 
-#### Scenario: Registry is unavailable
-- **WHEN** installed package metadata is readable but registry queries fail
-- **THEN** A1 SHALL preserve `Installed`, mark unavailable remote fields, emit concise diagnostics, and exit successfully
+#### Scenario: Next channel is not defined
+- **WHEN** npm metadata is reachable, `latest` is defined, and the package has no `next` dist-tag
+- **THEN** A1 SHALL display the latest version under `Release`, display `Next: unavailable`, emit no error diagnostic for the absent optional channel, and exit successfully
 
-### Requirement: Bare A1 launches one foreground command transparently
-Bare `a1` SHALL launch the selected foreground profile immediately without an A1 intro, logo, version frame, chrome, reconstructed readiness frame, or other application output before the child. The initial profile SHALL launch Native Pi through transparent direct attachment.
+#### Scenario: Registry is unavailable
+- **WHEN** installed package metadata is readable but the package dist-tags query fails
+- **THEN** A1 SHALL preserve `Installed`, mark both remote fields unavailable, emit one concise `A1` diagnostic describing the registry failure, and exit successfully
+
+### Requirement: Bare A1 launches the owned Pi UI
+Bare `a1` SHALL launch the A1-owned Pi UI directly. The owned UI SHALL be the ordinary development and product path rather than an opt-in profile. Explicit `a1 pi` SHALL continue to launch untouched upstream Pi through transparent direct attachment, and `a1 sandbox` SHALL retain its existing behavior. The redundant `a1 ui` route SHALL NOT be exposed.
 
 #### Scenario: Launch bare A1
-- **WHEN** the user runs `a1` in a supported terminal
-- **THEN** A1 SHALL start and attach one Native Pi process and the first application content SHALL be the child's own output
+- **WHEN** the user runs `a1`
+- **THEN** A1 SHALL start and attach the owned Pi UI without requiring a profile argument
 
 #### Scenario: Launch after a prior exit
-- **WHEN** the user runs bare `a1` after prior foreground generations exited
-- **THEN** A1 SHALL start a fresh generation without replaying a retained terminal surface
+- **WHEN** the user runs bare A1 after a previous owned foreground session exited
+- **THEN** A1 SHALL start a fresh owned session without replaying the prior retained terminal surface
+
+#### Scenario: Launch the upstream fallback
+- **WHEN** the user runs `a1 pi`
+- **THEN** A1 SHALL start untouched upstream Pi through transparent direct attachment without routing through the owned UI
+
+#### Scenario: Request the removed development alias
+- **WHEN** the user runs `a1 ui`
+- **THEN** A1 SHALL reject the unsupported profile and SHALL NOT silently select another runtime
 
 ### Requirement: Transparent handoff uses the complete physical viewport
 The selected transparent capability SHALL attach one child across the complete physical terminal viewport with no A1-reserved rows, terminal parser, input relay, output reconstruction, inferred readiness frame, or display write after handoff.

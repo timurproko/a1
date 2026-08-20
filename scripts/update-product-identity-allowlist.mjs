@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
 
-const inventoryPath = new URL("../openspec/changes/centralize-a1-product-identity/evidence/legacy-identity-inventory.json", import.meta.url);
+const inventoryPath = new URL("../config/product-identity-legacy-inventory.json", import.meta.url);
 const outputPath = new URL("../config/product-identity-legacy-allowlist.json", import.meta.url);
 const inventory = JSON.parse(await readFile(inventoryPath, "utf8"));
 const output = {

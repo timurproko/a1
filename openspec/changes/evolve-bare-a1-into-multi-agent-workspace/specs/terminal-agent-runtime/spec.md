@@ -11,6 +11,10 @@ A transparent session SHALL advertise no A1-authoritative resident surface, inte
 - **WHEN** a feature needs inactive resident terminal surfaces, switching, clipping, overlays, or reconnection
 - **THEN** A1 SHALL use the separately declared composed-terminal capability and SHALL NOT add interception to transparent mode
 
+#### Scenario: Owned UI is requested
+- **WHEN** the user selects the A1-owned Pi UI development mode
+- **THEN** A1 SHALL enter the owned fullscreen UI path rather than routing the stock Pi process through transparent attachment and mutating its terminal surface
+
 #### Scenario: Transparent fallback is selected
 - **WHEN** an explicit launch mode or recovery policy selects transparent direct attachment
 - **THEN** the child and physical terminal SHALL retain native rendering and input authority without traversing or initializing the composed terminal host, pseudoterminal, parser, model, renderer, topology, or input router

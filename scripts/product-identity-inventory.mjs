@@ -16,7 +16,8 @@ export const LEGACY_IDENTITY_CLASSES = Object.freeze([
   "explicit-obsolete-package-fixtures",
 ]);
 
-const INVENTORY_PATH = "openspec/changes/centralize-a1-product-identity/evidence/legacy-identity-inventory.json";
+const INVENTORY_PATH = "config/product-identity-legacy-inventory.json";
+const HISTORICAL_INVENTORY_PATH = "openspec/changes/centralize-a1-product-identity/evidence/legacy-identity-inventory.json";
 const ROOT_FILES = Object.freeze(["package.json", "package-lock.json", "README.md"]);
 const ROOT_DIRECTORIES = Object.freeze(["src", "bin", "scripts", "test", "native", ".github", "docs", "openspec/specs", "openspec/changes"]);
 const EXCLUDED_DIRECTORY_NAMES = new Set(["node_modules", "dist", "target", "target-check", "vendor"]);
@@ -37,7 +38,7 @@ export async function scanLegacyIdentity(root) {
   const occurrences = [];
   for (const absolutePath of await listIdentitySurfaceFiles(absoluteRoot)) {
     const path = normalize(relative(absoluteRoot, absolutePath));
-    if (path === INVENTORY_PATH || isExcludedPath(path)) continue;
+    if (path === INVENTORY_PATH || path === HISTORICAL_INVENTORY_PATH || isExcludedPath(path)) continue;
 
     for (const match of path.matchAll(LEGACY_PATTERN)) {
       occurrences.push(createOccurrence({
@@ -84,7 +85,7 @@ export async function scanLegacyIdentity(root) {
     scan: {
       roots: [...ROOT_FILES, ...ROOT_DIRECTORIES],
       excludedDirectoryNames: [...EXCLUDED_DIRECTORY_NAMES].sort(),
-      excludedPaths: ["openspec/changes/archive", INVENTORY_PATH],
+      excludedPaths: ["openspec/changes/archive", INVENTORY_PATH, HISTORICAL_INVENTORY_PATH],
       matching: `case-insensitive substring ${LEGACY_TOKEN}, including path and content occurrences`,
     },
     classes: [...LEGACY_IDENTITY_CLASSES],

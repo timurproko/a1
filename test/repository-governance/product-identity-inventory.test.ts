@@ -8,7 +8,7 @@ import {
   type LegacyIdentityInventory,
 } from "../../scripts/product-identity-inventory.mjs";
 
-const INVENTORY_PATH = resolve("openspec/changes/centralize-a1-product-identity/evidence/legacy-identity-inventory.json");
+const INVENTORY_PATH = resolve("config/product-identity-legacy-inventory.json");
 const roots: string[] = [];
 afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))));
 
