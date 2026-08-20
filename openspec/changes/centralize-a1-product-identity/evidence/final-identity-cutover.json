@@ -66,7 +66,11 @@
       "~/.pi/agent",
       "~/.a1/sandbox"
     ],
-    "manualAcknowledgement": "pending-user-confirmation"
+    "manualAcknowledgement": {
+      "status": "confirmed",
+      "confirmedAt": "2026-08-20T14:14:08.000Z",
+      "source": "explicit user approval in implementation session"
+    }
   },
   "registry": {
     "currentPublishedVersion": "0.1.0",
@@ -77,7 +81,7 @@
   },
   "integration": {
     "milestoneBranch": "milestone/centralize-a1-product-identity",
-    "developMerge": "pending-manual-no-migration-acknowledgement",
+    "developMerge": "authorized-after-passing-gates-and-manual-acknowledgement",
     "masterMerge": false,
     "publication": false
   }

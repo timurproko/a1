@@ -55,4 +55,4 @@
 
 - [x] 10.1 Run typecheck, architecture/identity governance, focused CLI/lifecycle/release/protocol/storage/UI/native suites, full tests, release gates, and strict OpenSpec validation from a clean milestone commit with isolated `A1_*` roots.
 - [x] 10.2 Pack once and inspect the exact candidate, proving `@timurproko/a1`, sole public `a1`, A1 diagnostics, identity authority presence, renamed internal/native artifacts, and zero current legacy package content.
-- [ ] 10.3 Record exact source, package integrity, platform verdicts, identity inventory closure, and manual no-migration acknowledgement; merge through `develop` only after all gates pass and use the ordinary subsequent-version release process rather than mutating `0.1.0`.
+- [x] 10.3 Record exact source, package integrity, platform verdicts, identity inventory closure, and manual no-migration acknowledgement; merge through `develop` only after all gates pass and use the ordinary subsequent-version release process rather than mutating `0.1.0`.
