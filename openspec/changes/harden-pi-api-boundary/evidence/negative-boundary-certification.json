@@ -1,0 +1,24 @@
+{
+  "schema": "pi-api-boundary-negative-certification-v1",
+  "recordedAt": "2026-08-20T17:03:04.385Z",
+  "sourceCommit": "be90f48f5d87b9d4cf5d3f3355b89436ad609908",
+  "passed": true,
+  "focusedTests": {
+    "files": 7,
+    "tests": 93
+  },
+  "productionFindings": {
+    "packageLayoutReads": 0,
+    "reflectedConcreteConstructors": 0,
+    "structuralConcreteSessionSubstitutes": 0,
+    "ambientOracleResolution": 0,
+    "featureWorkspacePiDependencies": 0,
+    "permissiveVendorMirrors": 0
+  },
+  "hashes": {
+    "scripts/pi-api-boundary-policy.mjs": "fe03641c77503417ff6407cd554987ec4315f5fd71ece9281fe8ed12bfcec054",
+    "scripts/check-architecture.mjs": "b3a8bfffe5398a6a6cc6f5abf84d29d9a965c6a5cea8b4aee3cf94daf5a5cd05",
+    "scripts/project-structure-policy.mjs": "e8ed07bb008847c24775d35eb00590da23cd845a3ac0fdffa2b85b14607e0881",
+    "src/foundation/pi-engine-adapter/conformance.ts": "30a76a0defb29d05ef1840c7169ca2e1665bb91205647ba3fe127a77d0149f31"
+  }
+}
