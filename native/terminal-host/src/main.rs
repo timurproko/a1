@@ -29,7 +29,7 @@ use crate::ghostty::{
 };
 use crate::workspace::{FixedLayout, FixedWorkspace, SessionLaunch};
 
-const A1_PROTOCOL_VERSION: u32 = 1;
+const PROTOCOL_VERSION: u32 = 1;
 const GHOSTTY_VT_COMMIT: &str = "c5a21edfcbc2d5b46540ad91b7980aca31f5f1f3";
 const PORTABLE_PTY_VERSION: &str = "0.9.0";
 const CROSSTERM_VERSION: &str = "0.29.0";
@@ -84,7 +84,7 @@ fn run_from_args(args: Vec<String>) -> Result<(), String> {
 
 fn print_provenance() {
     println!(
-        "{{\"schema\":\"a1-terminal-host-version-v1\",\"protocolVersion\":{A1_PROTOCOL_VERSION},\"hostMode\":\"console-inside-existing-terminal\",\"desktopWindow\":false,\"libghosttyVtCommit\":\"{GHOSTTY_VT_COMMIT}\",\"portablePty\":\"{PORTABLE_PTY_VERSION}\",\"crossterm\":\"{CROSSTERM_VERSION}\"}}"
+        "{{\"schema\":\"a1-terminal-host-version-v1\",\"protocolVersion\":{PROTOCOL_VERSION},\"hostMode\":\"console-inside-existing-terminal\",\"desktopWindow\":false,\"libghosttyVtCommit\":\"{GHOSTTY_VT_COMMIT}\",\"portablePty\":\"{PORTABLE_PTY_VERSION}\",\"crossterm\":\"{CROSSTERM_VERSION}\"}}"
     );
 }
 

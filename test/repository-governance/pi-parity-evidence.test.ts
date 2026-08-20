@@ -14,7 +14,7 @@ describe("Pi parity machine-readable evidence", () => {
       evidenceClassification: string;
       invalidation: { replacementInventory: string };
       source: { commit: string; license: string };
-      a1ParityBaselineCommit: string;
+      "a1ParityBaselineCommit": string;
       packages: { name: string; version: string; integrity: string }[];
       fixtures: { path: string; sha256: string; classification: string; coverage: string[]; tolerance: { ignored: string[]; preserved: string[] } }[];
       visualDivergences: unknown[];
@@ -30,7 +30,7 @@ describe("Pi parity machine-readable evidence", () => {
       "evidence/owned-pi-ui-foundation/pinned-pi-interactive-baseline.json",
     );
     expect(evidence.source).toMatchObject({ commit: "914cf1472e715297caa30db4b9535d534a9eb718", license: "MIT" });
-    expect(evidence.a1ParityBaselineCommit).toMatch(/^[0-9a-f]{40}$/);
+    expect(evidence["a1ParityBaselineCommit"]).toMatch(/^[0-9a-f]{40}$/);
     expect(evidence.packages.map(value => `${value.name}@${value.version}`)).toEqual([
       "@earendil-works/pi-coding-agent@0.84.2",
       "@earendil-works/pi-tui@0.84.2",

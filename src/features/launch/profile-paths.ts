@@ -5,8 +5,8 @@ import { PRODUCT_IDENTITY } from "../../product-identity.js";
 
 export interface LaunchProfilePaths {
   readonly home: string;
-  readonly a1Root: string;
-  readonly a1Agent: string;
+  readonly managedStateRoot: string;
+  readonly agentProfile: string;
   readonly sandbox: string;
 }
 
@@ -22,12 +22,12 @@ export function resolveLaunchProfilePaths(options: LaunchProfilePathOptions = {}
   const path = options.platform === "win32" || (options.platform === undefined && process.platform === "win32") ? win32 : posix;
   const selectedHome = options.home ?? environment[PRODUCT_IDENTITY.environment.profileHome] ?? options.readHome?.() ?? homedir();
   const home = validateAbsolutePath(selectedHome, "effective user home", path);
-  const a1Agent = path.resolve(home, PRODUCT_IDENTITY.state.piAgentProfile);
-  const a1Root = path.dirname(a1Agent);
+  const agentProfile = path.resolve(home, PRODUCT_IDENTITY.state.piAgentProfile);
+  const managedStateRoot = path.dirname(agentProfile);
   return Object.freeze({
     home,
-    a1Root,
-    a1Agent,
+    managedStateRoot,
+    agentProfile,
     sandbox: path.resolve(home, PRODUCT_IDENTITY.state.piSandboxProfile),
   });
 }
@@ -36,7 +36,7 @@ export function configurationRootForProfile(
   profileId: LaunchProfileId,
   paths: LaunchProfilePaths,
 ): string | null {
-  if (profileId === "a1") return paths.a1Agent;
+  if (profileId === "a1") return paths.agentProfile;
   if (profileId === "sandbox") return paths.sandbox;
   return null;
 }

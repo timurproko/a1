@@ -1,7 +1,7 @@
 import { SettingsManager } from "@earendil-works/pi-coding-agent";
 import { describe, expect, it } from "vitest";
 import {
-  A1_EXPOSED_SETTING_KEYS,
+  EXPOSED_SETTING_KEYS,
   PiSettingsIntegration,
 } from "../../../src/foundation/pi-engine-adapter/index.js";
 
@@ -15,9 +15,9 @@ describe("Pi settings integration", () => {
   it("covers every A1-exposed setting with an explicit descriptor", async () => {
     const port = integration();
     const descriptors = await port.listSettings();
-    expect(descriptors.map(value => value.key)).toEqual(A1_EXPOSED_SETTING_KEYS);
+    expect(descriptors.map(value => value.key)).toEqual(EXPOSED_SETTING_KEYS);
     expect(descriptors.every(value => value.writable)).toBe(true);
-    expect(new Set(descriptors.map(value => value.key)).size).toBe(A1_EXPOSED_SETTING_KEYS.length);
+    expect(new Set(descriptors.map(value => value.key)).size).toBe(EXPOSED_SETTING_KEYS.length);
   });
 
   it("reads, writes, and flushes through the documented settings manager", async () => {

@@ -87,9 +87,9 @@ else process.exitCode = 64;
     const nextTarget = inc(packageJson.version, "prerelease", "dev");
     expect(latestTarget).not.toBeNull();
     expect(nextTarget).not.toBeNull();
-    expect(packageJson.bin).toEqual({ a1: "bin/a1.js" });
+    expect(packageJson.bin).toEqual({ "a1": "bin/a1.js" });
 
-    const cli = resolve(repository, packageJson.bin.a1 ?? "missing");
+    const cli = resolve(repository, packageJson.bin["a1"] ?? "missing");
     await expect(execFileAsync(process.execPath, [cli, "update", "next"], {
       cwd: temporaryRoot,
       env: {

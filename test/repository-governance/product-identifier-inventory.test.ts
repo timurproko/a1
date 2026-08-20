@@ -15,6 +15,18 @@ describe("repository-global semantic identifier inventory", () => {
     expect(evidence.baselineInternalIdentifiers.length).toBeGreaterThan(0);
   });
 
+  it("rejects product-prefixed class, variable, field, and constant mutations", () => {
+    const result = inspectTypeScript("mutation.ts", `
+      class A1Runtime {}
+      const a1Client = new A1Runtime();
+      const A1_INTERNAL_CACHE = {};
+      const record = { a1Manifest: a1Client };
+    `);
+    expect(result.internal.map(value => value.identifier)).toEqual([
+      "A1Runtime", "a1Client", "A1Runtime", "A1_INTERNAL_CACHE", "a1Manifest", "a1Client",
+    ]);
+  });
+
   it("classifies external identity keys separately from internal ownership names", () => {
     const result = inspectTypeScript("fixture.ts", `
       const A1OwnedThing = 1;

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { interactiveLaunchIntent, launchProfileContract, type LaunchProfileId } from "../../../src/features/launch/index.js";
 
 const expected = {
-  a1: {
+  "a1": {
     id: "a1",
     productSurface: "agent",
     configurationRootPolicy: "agent-profile",

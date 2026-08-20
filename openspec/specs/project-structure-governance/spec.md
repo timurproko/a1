@@ -109,6 +109,21 @@ The accepted transparent baseline SHALL support one direct full-viewport foregro
 - **WHEN** the accepted baseline and three launch profiles are complete
 - **THEN** the next change SHALL plan bare `a1` as the multi-agent UX entry point while preserving `a1 pi` as vanilla Pi and `a1 sandbox` as isolated profile experimentation
 
+### Requirement: Internal identifiers use semantic responsibility names
+All implementation identifiers in production, tooling, native code, tests, and generated source SHALL be named for their architectural or behavioral responsibility. The product name SHALL NOT be used as an ownership namespace or generic identifier segment for classes, interfaces, functions, variables, fields, or constants. Exact externally observable product identity tokens MAY remain in centralized strings, quoted schema fields, command/profile values, paths, package metadata, and environment-variable names, but local bindings around those tokens SHALL use semantic names. Deterministic repository governance SHALL reject product-prefixed internal identifiers in every future change.
+
+#### Scenario: Internal product-prefixed identifier is introduced
+- **WHEN** source introduces a class, function, variable, field, or constant such as `A1OwnedEditor`, `a1Client`, or an equivalent product-name ownership segment
+- **THEN** repository governance SHALL fail with the identifier and source path and require a responsibility-based name
+
+#### Scenario: Exact external identity is represented
+- **WHEN** code reads, writes, validates, or tests an exact product environment key, package/bin name, command/profile id, state path, or serialized schema field
+- **THEN** the external token MAY remain as centralized data or a quoted field while surrounding implementation identifiers SHALL remain product-neutral
+
+#### Scenario: Repository naming governance passes
+- **WHEN** the complete architecture gate runs
+- **THEN** production, tooling, native code, tests, and generated source SHALL contain no internal product-prefixed identifier
+
 ### Requirement: Live repository surfaces use centralized A1 identity
 Production source, scripts, workflows, current tests and fixtures, current documentation, main specifications, and non-archived changes SHALL use the A1 product-identity authority for executable identity values and SHALL NOT define former product identity literals independently. Repository validation SHALL fail on an unapproved legacy occurrence or an identity-bearing literal outside the declared authority and its explicit boundary tests.
 

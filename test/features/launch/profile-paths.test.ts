@@ -6,8 +6,8 @@ describe("launch profile paths", () => {
     const paths = resolveLaunchProfilePaths({ home: "/home/alice", environment: {}, platform: "linux" });
     expect(paths).toEqual({
       home: "/home/alice",
-      a1Root: "/home/alice/.a1",
-      a1Agent: "/home/alice/.a1/agent",
+      managedStateRoot: "/home/alice/.a1",
+      agentProfile: "/home/alice/.a1/agent",
       sandbox: "/home/alice/.a1/sandbox",
     });
     expect(configurationRootForProfile("a1", paths)).toBe("/home/alice/.a1/agent");
@@ -17,7 +17,7 @@ describe("launch profile paths", () => {
 
   it("resolves A1 roots from an absolute Windows home", () => {
     const paths = resolveLaunchProfilePaths({ home: "C:\\Users\\Alice", environment: {}, platform: "win32" });
-    expect(paths.a1Agent).toBe("C:\\Users\\Alice\\.a1\\agent");
+    expect(paths.agentProfile).toBe("C:\\Users\\Alice\\.a1\\agent");
     expect(paths.sandbox).toBe("C:\\Users\\Alice\\.a1\\sandbox");
   });
 

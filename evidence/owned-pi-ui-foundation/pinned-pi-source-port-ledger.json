@@ -1209,7 +1209,7 @@
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "A1-owned class name and synchronized A1 keybinding contract replace the nominal private upstream keybinding constructor dependency.",
-      "localSha256": "79414cd59e94e2b1ad70b598d1aba63c88e83cdfad45c9061ab03a93dba99687",
+      "localSha256": "d9a51317e1abea45984e2794bf38d260c45ed6d4c7f1cf7a1e00a2c3424501d9",
       "approvedDeviations": [],
       "behaviorCategories": [
         "editor",

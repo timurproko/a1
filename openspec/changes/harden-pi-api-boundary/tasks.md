@@ -13,7 +13,7 @@
 - [x] 2.4 Extend project ownership and dependency governance so features and workspace modules may depend only on neutral ports while Pi implementations may depend inward on those ports; run architecture and project-structure policy suites.
 - [x] 2.5 Provide owned test doubles for the neutral ports and migrate feature-level synthetic tests away from partial Pi session/service objects; run the affected owned-UI test suite.
 - [x] 2.6 Inventory product-prefixed identifiers across production, tooling, native code, tests, and generated source; classify exact external identity tokens separately from internal implementation names and validate the inventory as repository evidence.
-- [ ] 2.7 Rename every internal product-prefixed class, interface, function, variable, field, and constant to a responsibility-based identifier; add a repository-global naming gate with negative mutation fixtures while preserving exact external identity strings.
+- [x] 2.7 Rename every internal product-prefixed class, interface, function, variable, field, and constant to a responsibility-based identifier; add a repository-global naming gate with negative mutation fixtures while preserving exact external identity strings.
 
 ## 3. Add the Composition Root and Invert Feature Dependencies
 

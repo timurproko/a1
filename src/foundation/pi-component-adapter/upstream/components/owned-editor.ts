@@ -6,7 +6,7 @@
 import { Editor, type EditorOptions, type EditorTheme, type TUI } from "@earendil-works/pi-tui";
 import type { AppKeybinding, KeybindingsManager } from "../adjacent/core/keybindings.js";
 
-export class A1OwnedEditor extends Editor {
+export class OwnedEditor extends Editor {
   readonly actionHandlers = new Map<AppKeybinding, () => void>();
   onEscape?: () => void;
   onCtrlD?: () => void;

@@ -54,7 +54,7 @@ export interface NativeSpikeEvidence {
     readonly sizeBytes: number;
   };
   readonly source: {
-    readonly a1Commit: string;
+    readonly "a1Commit": string;
     readonly libghosttyVtCommit: string;
     readonly portablePtyVersion: string;
     readonly crosstermVersion: string;
@@ -104,7 +104,7 @@ export function assertNativeSpikeEvidence(value: NativeSpikeEvidence): void {
   if (value.schema !== NATIVE_SPIKE_EVIDENCE_SCHEMA) throw new TypeError("native spike evidence schema is invalid");
   if (!/^[a-f0-9]{64}$/.test(value.artifact.sha256)) throw new TypeError("native spike artifact hash must be SHA-256");
   if (!Number.isSafeInteger(value.artifact.sizeBytes) || value.artifact.sizeBytes <= 0) throw new RangeError("native spike artifact size is invalid");
-  if (!/^[a-f0-9]{40}$/.test(value.source.a1Commit)) throw new TypeError(PRODUCT_TEXT.diagnostic("native spike commit is invalid"));
+  if (!/^[a-f0-9]{40}$/.test(value.source["a1Commit"])) throw new TypeError(PRODUCT_TEXT.diagnostic("native spike commit is invalid"));
   if (value.source.libghosttyVtCommit !== EXPECTED_LIBGHOSTTY_VT ||
       value.source.portablePtyVersion !== EXPECTED_PORTABLE_PTY ||
       value.source.crosstermVersion !== EXPECTED_CROSSTERM) {

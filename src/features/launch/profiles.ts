@@ -13,7 +13,7 @@ export interface LaunchProfileContract {
 }
 
 const contracts: Readonly<Record<LaunchProfileId, LaunchProfileContract>> = Object.freeze({
-  a1: Object.freeze({
+  "a1": Object.freeze({
     id: "a1",
     productSurface: "agent",
     configurationRootPolicy: "agent-profile",

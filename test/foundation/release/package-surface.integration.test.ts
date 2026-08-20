@@ -58,7 +58,7 @@ describe("packed npm command surface", () => {
       version: string;
       bin: Record<string, string>;
     };
-    expect(manifest).toMatchObject({ name: "@timurproko/a1", version: "0.1.0", bin: { a1: "bin/a1.js" } });
+    expect(manifest).toMatchObject({ name: "@timurproko/a1", version: "0.1.0", bin: { "a1": "bin/a1.js" } });
     expect(Object.keys(manifest.bin)).toEqual(["a1"]);
 
     const packageRoot = resolve(prefix, "node_modules", "@timurproko", "a1");
@@ -71,12 +71,12 @@ describe("packed npm command surface", () => {
     expect(Object.isFrozen(identityModule.PRODUCT_IDENTITY)).toBe(true);
 
     const bin = process.platform === "win32" ? prefix : resolve(prefix, "bin");
-    const a1 = resolve(bin, process.platform === "win32" ? "a1.cmd" : "a1");
-    await expect(access(a1)).resolves.toBeUndefined();
+    const commandPath = resolve(bin, process.platform === "win32" ? "a1.cmd" : "a1");
+    await expect(access(commandPath)).resolves.toBeUndefined();
     await expect(access(resolve(bin, process.platform === "win32" ? "addone.cmd" : "addone"))).rejects.toThrow();
     await expect(access(resolve(bin, process.platform === "win32" ? "addone-supervisor.cmd" : "addone-supervisor"))).rejects.toThrow();
 
-    const launched = run(a1, ["agent"], root);
+    const launched = run(commandPath, ["agent"], root);
     expect(launched.status).toBe(2);
     expect(launched.stderr).toContain("Bare a1 is the A1 agent experience");
   }, 120_000);

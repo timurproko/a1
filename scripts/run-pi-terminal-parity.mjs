@@ -21,7 +21,7 @@ const artifactRoot = resolve(packageRoot, "artifacts", "pi-terminal-parity", "la
 const workRoot = resolve(artifactRoot, "work");
 const piPackageRoot = resolve(packageRoot, "node_modules", "@earendil-works", "pi-coding-agent");
 const piCliPath = resolve(piPackageRoot, "dist", "cli.js");
-const a1CliPath = resolve(packageRoot, "bin", "a1-ui.js");
+const ownedCliPath = resolve(packageRoot, "bin", "a1-ui.js");
 const sessions = [];
 let interrupted = false;
 
@@ -38,7 +38,7 @@ await mkdir(artifactRoot, { recursive: true });
 try {
   const result = await withTimeout(runGate(), FULL_GATE_TIMEOUT_MS, "terminal parity gate");
   await writeArtifacts(result);
-  process.stdout.write(renderSideBySideDiff(result.comparison, result.upstream, result.a1));
+  process.stdout.write(renderSideBySideDiff(result.comparison, result.upstream, result.owned));
   process.stdout.write(`Artifacts: ${artifactRoot}\n`);
   process.exitCode = result.comparison.passed ? 0 : 1;
 } catch (error) {
@@ -75,10 +75,10 @@ async function runGate() {
     columns: DEFAULT_COLUMNS,
     rows: DEFAULT_ROWS,
   });
-  const a1 = new TerminalParitySession({
+  const ownedSession = new TerminalParitySession({
     producer: "a1-owned-ui",
     executable: process.execPath,
-    arguments: [a1CliPath],
+    arguments: [ownedCliPath],
     cwd: fixture.cwd,
     environment: {
       ...commonParityEnvironment(fixture.profiles["a1-owned-ui"]),
@@ -88,18 +88,18 @@ async function runGate() {
     columns: DEFAULT_COLUMNS,
     rows: DEFAULT_ROWS,
   });
-  sessions.push(upstream, a1);
+  sessions.push(upstream, ownedSession);
 
   for (const action of TERMINAL_PARITY_ACTIONS) {
-    await performAction([upstream, a1], action);
+    await performAction([upstream, ownedSession], action);
   }
 
-  const [upstreamCapture, originalA1Capture] = await Promise.all([upstream.result(), a1.result()]);
+  const [upstreamCapture, originalOwnedCapture] = await Promise.all([upstream.result(), ownedSession.result()]);
   const mutation = process.env.A1_PI_PARITY_INTENTIONAL_MUTATION;
-  const a1Capture = mutation === "visual" || mutation === "input-scroll"
-    ? applyIntentionalMutation(originalA1Capture, mutation)
-    : originalA1Capture;
-  const comparison = compareParityRun(upstreamCapture, a1Capture, { tolerances: TERMINAL_PARITY_TOLERANCES });
+  const ownedCapture = mutation === "visual" || mutation === "input-scroll"
+    ? applyIntentionalMutation(originalOwnedCapture, mutation)
+    : originalOwnedCapture;
+  const comparison = compareParityRun(upstreamCapture, ownedCapture, { tolerances: TERMINAL_PARITY_TOLERANCES });
   return {
     schemaVersion: 1,
     generatedAt: new Date().toISOString(),
@@ -114,7 +114,7 @@ async function runGate() {
       tolerances: [...TERMINAL_PARITY_TOLERANCES],
     },
     upstream: upstreamCapture,
-    a1: a1Capture,
+    owned: ownedCapture,
     comparison,
   };
 }
@@ -156,7 +156,7 @@ async function pinnedIdentity() {
     throw new Error(`terminal parity requires @earendil-works/pi-coding-agent ${PINNED_PI_VERSION}, found ${manifest.version}`);
   }
   const cliSource = await readFile(piCliPath);
-  const a1Manifest = JSON.parse(await readFile(resolve(packageRoot, "package.json"), "utf8"));
+  const productManifest = JSON.parse(await readFile(resolve(packageRoot, "package.json"), "utf8"));
   return {
     upstream: {
       package: manifest.name,
@@ -165,13 +165,13 @@ async function pinnedIdentity() {
       cliSha256: createHash("sha256").update(cliSource).digest("hex"),
       executable: process.execPath,
       arguments: [piCliPath, "--offline", "--approve"],
-      usesA1RenderingCode: false,
+      usesOwnedRenderingCode: false,
     },
-    a1: {
-      package: a1Manifest.name,
-      version: a1Manifest.version,
+    owned: {
+      package: productManifest.name,
+      version: productManifest.version,
       executable: process.execPath,
-      arguments: [a1CliPath],
+      arguments: [ownedCliPath],
       launchPath: "owned-ui",
     },
   };
@@ -183,9 +183,9 @@ async function writeArtifacts(result) {
   if (Buffer.byteLength(report) > maxReportBytes) throw new Error(`bounded parity report exceeded ${maxReportBytes} bytes`);
   await Promise.all([
     writeFile(resolve(artifactRoot, "report.json"), report, "utf8"),
-    writeFile(resolve(artifactRoot, "diff.txt"), renderSideBySideDiff(result.comparison, result.upstream, result.a1), "utf8"),
+    writeFile(resolve(artifactRoot, "diff.txt"), renderSideBySideDiff(result.comparison, result.upstream, result.owned), "utf8"),
     writeFile(resolve(artifactRoot, "upstream-checkpoints.json"), `${JSON.stringify(result.upstream, null, 2)}\n`, "utf8"),
-    writeFile(resolve(artifactRoot, "a1-checkpoints.json"), `${JSON.stringify(result.a1, null, 2)}\n`, "utf8"),
+    writeFile(resolve(artifactRoot, "a1-checkpoints.json"), `${JSON.stringify(result.owned, null, 2)}\n`, "utf8"),
   ]);
 }
 

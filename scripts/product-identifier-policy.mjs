@@ -4,7 +4,7 @@ import ts from "typescript";
 
 const ROOTS = ["src", "scripts", "test", "native", "bin"];
 const SOURCE_EXTENSIONS = new Set([".ts", ".tsx", ".mts", ".cts", ".js", ".mjs", ".cjs", ".rs"]);
-const PRODUCT_PREFIX = /^(?:A1[A-Z][A-Za-z0-9_]*|a1[A-Z][A-Za-z0-9_]*|A1_[A-Z0-9_]+|a1_[A-Za-z0-9_]+)$/;
+const PRODUCT_PREFIX = /A1(?=[A-Z_]|$)|(?:^|_)a1(?=[A-Z_]|$)/;
 const EXTERNAL_TOKEN = /^A1_[A-Z0-9_]+$/;
 
 export async function inspectProductIdentifiers(repository) {
@@ -56,8 +56,8 @@ function inspectRust(path, source) {
     .replace(/\/\/[^\n]*/g, match => " ".repeat(match.length))
     .replace(/"(?:\\.|[^"\\])*"/g, match => match.replace(/[^\n]/g, " "));
   const internal = [];
-  for (const match of sanitized.matchAll(/\b(?:A1[A-Z][A-Za-z0-9_]*|a1[A-Z][A-Za-z0-9_]*|A1_[A-Z0-9_]+|a1_[A-Za-z0-9_]+)\b/g)) {
-    internal.push({ path, line: sanitized.slice(0, match.index).split("\n").length, identifier: match[0] });
+  for (const match of sanitized.matchAll(/\b[A-Za-z_][A-Za-z0-9_]*\b/g)) {
+    if (PRODUCT_PREFIX.test(match[0])) internal.push({ path, line: sanitized.slice(0, match.index).split("\n").length, identifier: match[0] });
   }
   return { internal, external: [] };
 }
@@ -88,6 +88,13 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(new URL(import.meta.
   if (writeIndex >= 0) {
     const output = resolve(root, process.argv[writeIndex + 1]);
     await writeFile(output, `${JSON.stringify({ ...inventory, baselineInternalIdentifiers: inventory.internalIdentifiers }, null, 2)}\n`, "utf8");
+  } else if (process.argv.includes("--check")) {
+    if (inventory.internalIdentifiers.length > 0) {
+      console.error(`Semantic identifier governance failed (${inventory.internalIdentifiers.length}):\n${inventory.internalIdentifiers.map(value => `- ${value.path}:${value.line}: ${value.identifier}`).join("\n")}`);
+      process.exitCode = 1;
+    } else {
+      console.log(`Semantic identifier governance OK: ${inventory.externalIdentityIdentifiers.length} external identity references classified`);
+    }
   } else {
     process.stdout.write(`${JSON.stringify(inventory, null, 2)}\n`);
   }

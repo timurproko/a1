@@ -8,7 +8,7 @@ import type {
   OwnedUiThinkingLevel,
 } from "../owned-ui-contracts/index.js";
 import { KeybindingsManager } from "./upstream/adjacent/core/keybindings.js";
-import { A1OwnedEditor } from "./upstream/components/owned-editor.js";
+import { OwnedEditor } from "./upstream/components/owned-editor.js";
 import {
   PINNED_PI_LAYOUT,
   piTheme,
@@ -52,7 +52,7 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
   const tui = createTuiFacade(options);
   const keybindings = KeybindingsManager.create(options.agentDir);
   setKeybindings(keybindings);
-  const editor = new A1OwnedEditor(tui, {
+  const editor = new OwnedEditor(tui, {
     borderColor: (value: string) => piTheme().fg("borderMuted", value),
     selectList: getSelectListTheme(),
   }, keybindings, {

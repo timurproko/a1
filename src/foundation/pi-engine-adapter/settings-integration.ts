@@ -3,7 +3,7 @@ import type { AgentJsonValue, AgentSettingDescriptor, AgentSettingsPort } from "
 
 type Operation = { readonly descriptor: AgentSettingDescriptor; readonly read: () => AgentJsonValue; readonly write: (value: AgentJsonValue) => void };
 
-export const A1_EXPOSED_SETTING_KEYS = Object.freeze([
+export const EXPOSED_SETTING_KEYS = Object.freeze([
   "autoCompact", "showImages", "imageWidthCells", "autoResizeImages", "blockImages", "enableSkillCommands",
   "steeringMode", "followUpMode", "transport", "httpIdleTimeoutMs", "thinkingLevel", "theme", "hideThinkingBlock",
   "mermaidRenderingMode", "showCacheMissNotices", "collapseChangelog", "enableInstallTelemetry", "quietStartup",
@@ -16,7 +16,7 @@ export class PiSettingsIntegration implements AgentSettingsPort {
   readonly #operations: ReadonlyMap<string, Operation>;
   constructor(private readonly settings: SettingsManager) {
     this.#operations = new Map(operations(settings).map(operation => [operation.descriptor.key, operation]));
-    if (this.#operations.size !== A1_EXPOSED_SETTING_KEYS.length || A1_EXPOSED_SETTING_KEYS.some(key => !this.#operations.has(key))) {
+    if (this.#operations.size !== EXPOSED_SETTING_KEYS.length || EXPOSED_SETTING_KEYS.some(key => !this.#operations.has(key))) {
       throw new Error("Pi settings integration does not cover every A1-exposed setting");
     }
   }

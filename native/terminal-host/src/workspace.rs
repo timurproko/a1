@@ -978,7 +978,7 @@ mod tests {
     }
 
     #[test]
-    fn topology_has_stable_revisioned_a1_mappings() {
+    fn topology_has_stable_revisioned_product_mappings() {
         let topology = topology_json(0, TOPOLOGY_REVISION);
         assert!(topology.contains("\"revision\":1"));
         for index in 1..=4 {

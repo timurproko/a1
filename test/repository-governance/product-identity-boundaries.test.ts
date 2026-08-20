@@ -18,9 +18,9 @@ describe("product identity declarative boundaries", () => {
   });
 
   it.each([
-    ["package manifest", async (root: string) => writeJson(root, "package.json", { name: "@example/other", bin: { a1: "bin/a1.js" } }), "package.json name differs"],
-    ["npm bin", async (root: string) => writeJson(root, "package.json", { name: "@timurproko/a1", bin: { a1: "bin/other.js" } }), "package.json bin differs"],
-    ["lockfile", async (root: string) => writeJson(root, "package-lock.json", { name: "@example/other", packages: { "": { name: "@example/other", bin: { a1: "bin/a1.js" } } } }), "package-lock.json name differs"],
+    ["package manifest", async (root: string) => writeJson(root, "package.json", { name: "@example/other", bin: { "a1": "bin/a1.js" } }), "package.json name differs"],
+    ["npm bin", async (root: string) => writeJson(root, "package.json", { name: "@timurproko/a1", bin: { "a1": "bin/other.js" } }), "package.json bin differs"],
+    ["lockfile", async (root: string) => writeJson(root, "package-lock.json", { name: "@example/other", packages: { "": { name: "@example/other", bin: { "a1": "bin/a1.js" } } } }), "package-lock.json name differs"],
     ["workflow", async (root: string) => writeFile(resolve(root, ".github/workflows/publish-next.yml"), "run: echo @timurproko/a1", "utf8"), "does not consume the product identity authority"],
     ["native crate", async (root: string) => writeFile(resolve(root, "native/terminal-host/Cargo.toml"), "[package]\nname = \"other-host\"\n", "utf8"), "native Cargo package name differs"],
     ["duplicate authority", async (root: string) => writeJson(root, "src/application-identity.json", { duplicate: true }), "expected one executable JSON identity authority"],

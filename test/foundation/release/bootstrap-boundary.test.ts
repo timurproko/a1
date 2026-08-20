@@ -8,7 +8,7 @@ const repository = resolve(fileURLToPath(new URL("../../..", import.meta.url)));
 describe("mutable bootstrap boundary", () => {
   it("keeps the supervisor internal while publishing only the a1 executable", async () => {
     const manifest = JSON.parse(await readFile(resolve(repository, "package.json"), "utf8")) as { bin?: unknown };
-    expect(manifest.bin).toEqual({ a1: "bin/a1.js" });
+    expect(manifest.bin).toEqual({ "a1": "bin/a1.js" });
     await expect(readFile(resolve(repository, "bin/a1-supervisor.js"), "utf8")).resolves.toContain("runSupervisor");
   });
 
