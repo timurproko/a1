@@ -84,8 +84,18 @@ jobs:
           echo "accepted_shasum=$ACCEPTED_SHASUM" >> "$GITHUB_ENV"
           echo "source_commit=$ACCEPTED_SOURCE_COMMIT" >> "$GITHUB_ENV"
 
-      - name: Install dependencies for exact packing
-        run: npm ci
+      - name: Install and run non-desktop gates
+        shell: bash
+        run: |
+          npm ci
+          npm run typecheck
+          npm run check:architecture
+          npm run check:customization-ready
+          npm run check:deprecated
+          npx vitest run --exclude test/foundation/release/package-surface.integration.test.ts
+          npm run test:release
+        env:
+          A1_RELEASE_RUNNER_LABEL: github-windows-2025-uncertified-next
 
       - name: Pack and verify accepted bytes
         id: pack
@@ -108,7 +118,28 @@ jobs:
           await appendFile(process.env.GITHUB_OUTPUT, `tarball=${result.filename}\n`);
           NODE
 
+      - name: Check for an exact existing registry artifact
+        id: registry
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import { appendFile, readFile } from "node:fs/promises";
+          const identity = JSON.parse(await readFile("src/product-identity.json", "utf8"));
+          const packageUrl = `https://registry.npmjs.org/${encodeURIComponent(identity.packageName)}/${process.env.version}`;
+          const response = await fetch(packageUrl, { headers: { accept: "application/json", "cache-control": "no-cache" } });
+          if (response.status === 404) {
+            await appendFile(process.env.GITHUB_OUTPUT, "exists=false\n");
+          } else {
+            if (!response.ok) throw new Error(`registry returned HTTP ${response.status}`);
+            const manifest = await response.json();
+            if (manifest.dist?.integrity !== process.env.accepted_integrity) throw new Error("existing registry integrity differs from accepted bytes");
+            if (manifest.dist?.shasum !== process.env.accepted_shasum) throw new Error("existing registry shasum differs from accepted bytes");
+            await appendFile(process.env.GITHUB_OUTPUT, "exists=true\n");
+          }
+          NODE
+
       - name: Publish exact tarball to npm next
+        if: steps.registry.outputs.exists != 'true'
         shell: bash
         env:
           TARBALL: ${{ steps.pack.outputs.tarball }}
@@ -122,6 +153,7 @@ jobs:
           const identity = JSON.parse(await readFile("src/product-identity.json", "utf8"));
           const packageUrl = `https://registry.npmjs.org/${encodeURIComponent(identity.packageName)}`;
           let lastError;
+          let verified = false;
           for (let attempt = 1; attempt <= 12; attempt += 1) {
             try {
               const response = await fetch(`${packageUrl}?verify=${Date.now()}`, { headers: { accept: "application/json", "cache-control": "no-cache" } });
@@ -133,26 +165,15 @@ jobs:
               if (manifest.dist?.shasum !== process.env.accepted_shasum) throw new Error("registry shasum differs from accepted bytes");
               if (metadata["dist-tags"]?.next !== process.env.version) throw new Error("next tag differs from accepted version");
               if (JSON.stringify(manifest.bin) !== JSON.stringify({ [identity.commandName]: identity.artifacts.cliEntry })) throw new Error("registry package exposes unexpected bins");
-              process.exit(0);
+              verified = true;
+              break;
             } catch (error) {
               lastError = error;
               if (attempt < 12) await new Promise(resolve => setTimeout(resolve, 5000));
             }
           }
-          throw lastError;
+          if (!verified) throw lastError;
           NODE
-
-      - name: Run post-publication non-desktop certification
-        shell: bash
-        run: |
-          npm run typecheck
-          npm run check:architecture
-          npm run check:customization-ready
-          npm run check:deprecated
-          npx vitest run --exclude test/foundation/release/package-surface.integration.test.ts
-          npm run test:release
-        env:
-          A1_RELEASE_RUNNER_LABEL: github-windows-2025-uncertified-next
 
       - name: Upload publication evidence
         if: always()
