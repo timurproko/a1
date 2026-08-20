@@ -45,6 +45,24 @@ npm run test:release
 
 `check:deprecated` verifies the complete lockfile graph against registry metadata. The release gate exercises durable stable/preview update transitions and writes an ignored machine-readable verdict under `artifacts/release-verdicts/`.
 
+## Pi maintenance workflows
+
+Engine compatibility and presentation synchronization are intentionally separate:
+
+```sh
+npm run test:pi-engine-conformance
+```
+
+This mandatory candidate workflow checks documented package-root exports and the owned engine integration. It does not read private interactive source, compare source maps, regenerate UI fixtures, or require presentation provenance to match a candidate package.
+
+```sh
+npm run sync:pi-ui
+```
+
+This optional, mutating presentation-maintenance workflow regenerates component and event-frame parity evidence when maintainers deliberately adopt upstream UI changes. Review generated diffs, attribution, source-ledger records, and terminal parity before committing them. It is never an engine candidate acceptance gate and is not run by `check`, `prepack`, or release publication.
+
+`npm run test:pi-terminal-parity` remains an explicit presentation acceptance command. `node scripts/check-pinned-pi-source-ledger.mjs` validates accepted provenance; its `--engine-only` mode validates the ownership partition without comparing private upstream source.
+
 ## Preview publication
 
 A preview candidate must use a unique `-dev.N` version and exact manually accepted bytes. Publication packs once, binds evidence to source commit/version/integrity, runs applicable non-desktop gates, publishes under npm `next`, and verifies registry identity. It must keep `latest` unchanged and record physical/cross-platform certification as deferred.
