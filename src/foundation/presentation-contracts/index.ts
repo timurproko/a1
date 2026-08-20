@@ -43,8 +43,14 @@ export interface PresentationTerminalPort {
   readonly enhancedKeyboard: boolean;
   start(onInput: (data: string) => void, onResize: () => void): void;
   stop(): void;
+  drainInput(maxMs?: number, idleMs?: number): Promise<void>;
   write(data: string): void;
+  moveBy(lines: number): void;
+  clearLine(): void;
+  clearFromCursor(): void;
+  clearScreen(): void;
   setTitle(title: string): void;
+  setProgress(active: boolean): void;
   showCursor(): void;
   hideCursor(): void;
 }
@@ -89,7 +95,7 @@ export function assertPresentationRuntime(runtime: PresentationRuntimePort): voi
   requiredFunctions(runtime, ["start", "render", "showOverlay", "stop"], "presentation runtime");
   if (!new Set(["idle", "running", "stopping", "stopped", "failed"]).has(runtime.state)) throw new TypeError("presentation runtime state is invalid");
   const terminal = runtime.terminal;
-  requiredFunctions(terminal, ["start", "stop", "write", "setTitle", "showCursor", "hideCursor"], "presentation terminal");
+  requiredFunctions(terminal, ["start", "stop", "drainInput", "write", "moveBy", "clearLine", "clearFromCursor", "clearScreen", "setTitle", "setProgress", "showCursor", "hideCursor"], "presentation terminal");
   if (!Number.isSafeInteger(terminal.columns) || terminal.columns < 1 || !Number.isSafeInteger(terminal.rows) || terminal.rows < 1) throw new TypeError("presentation terminal geometry is invalid");
 }
 

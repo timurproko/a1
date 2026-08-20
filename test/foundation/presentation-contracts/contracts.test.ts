@@ -12,7 +12,7 @@ class Runtime implements PresentationRuntimePort {
   state: PresentationRuntimeState = "idle";
   readonly terminal = {
     columns: 80, rows: 24, enhancedKeyboard: false,
-    start() {}, stop() {}, write() {}, setTitle() {}, showCursor() {}, hideCursor() {},
+    start() {}, stop() {}, async drainInput() {}, write() {}, moveBy() {}, clearLine() {}, clearFromCursor() {}, clearScreen() {}, setTitle() {}, setProgress() {}, showCursor() {}, hideCursor() {},
   };
   start(): void { this.state = "running"; }
   render(): void {}
