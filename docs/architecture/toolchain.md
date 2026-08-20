@@ -51,16 +51,16 @@ A preview candidate must use a unique `-dev.N` version and exact manually accept
 
 The GitHub trusted-publishing workflow is `.github/workflows/publish-next.yml`. Stable publication remains a separate release process from a clean tagged `master` commit after all mandatory platform gates pass.
 
-## AddOne state paths
+## A1 state paths
 
-These paths are AddOne control and release state, not Pi profile roots. All are overrideable for hermetic tests.
+These paths are A1 control and release state, not Pi profile roots. All are overrideable for hermetic tests.
 
 | Purpose | Override | Windows default | Unix default |
 |---|---|---|---|
-| Config | `ADDONE_CONFIG_DIR` | `%APPDATA%\\AddOne` | `$XDG_CONFIG_HOME/addone` or `~/.config/addone` |
-| Durable data | `ADDONE_DATA_DIR` | `%LOCALAPPDATA%\\AddOne` | `$XDG_DATA_HOME/addone` or `~/.local/share/addone` |
-| Runtime | `ADDONE_RUNTIME_DIR` | `%LOCALAPPDATA%\\AddOne\\runtime` | `$XDG_RUNTIME_DIR/addone` or `<data>/runtime` |
-| Database | `ADDONE_DATABASE_PATH` | `<data>/control.sqlite3` | `<data>/control.sqlite3` |
-| Endpoint | `ADDONE_ENDPOINT` | runtime-scoped named pipe | `<runtime>/supervisor.sock` |
+| Config | `A1_CONFIG_DIR` | `%APPDATA%\\A1` | `$XDG_CONFIG_HOME/a1` or `~/.config/a1` |
+| Durable data | `A1_DATA_DIR` | `%LOCALAPPDATA%\\A1` | `$XDG_DATA_HOME/a1` or `~/.local/share/a1` |
+| Runtime | `A1_RUNTIME_DIR` | `%LOCALAPPDATA%\\A1\\runtime` | `$XDG_RUNTIME_DIR/a1` or `<data>/runtime` |
+| Database | `A1_DATABASE_PATH` | `<data>/control.sqlite3` | `<data>/control.sqlite3` |
+| Endpoint | `A1_ENDPOINT` | runtime-scoped `a1-*` named pipe | `<runtime>/supervisor.sock` |
 
 The launch-profile feature separately owns Pi roots: `~/.a1/agent`, ordinary `~/.pi/agent`, and `~/.a1/sandbox`.

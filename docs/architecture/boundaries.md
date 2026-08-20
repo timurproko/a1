@@ -11,9 +11,9 @@ mutable a1 entry
   -> child with inherited physical terminal handles
 ```
 
-After handoff, AddOne does not read ordinary terminal input, parse child output, render cells, infer frames, synthesize terminal responses, or emit display control. The child and physical terminal own terminal behavior. AddOne owns validated launch intent, one exclusive foreground lease, native process identity, lifecycle outcome, and bounded cleanup.
+After handoff, A1 does not read ordinary terminal input, parse child output, render cells, infer frames, synthesize terminal responses, or emit display control. The child and physical terminal own terminal behavior. A1 owns validated launch intent, one exclusive foreground lease, native process identity, lifecycle outcome, and bounded cleanup.
 
-Transparent mode has no AddOne-authoritative terminal surface, internal pane, virtual scrollback, inactive resident tab, or visual reconnection. A future feature that requires those properties must introduce and certify a separate composed-terminal authority; it must not weaken or silently intercept transparent mode.
+Transparent mode has no A1-authoritative terminal surface, internal pane, virtual scrollback, inactive resident tab, or visual reconnection. A future feature that requires those properties must introduce and certify a separate composed-terminal authority; it must not weaken or silently intercept transparent mode.
 
 ## Current module responsibilities
 
