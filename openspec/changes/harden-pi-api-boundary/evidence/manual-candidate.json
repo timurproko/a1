@@ -1,0 +1,39 @@
+{
+  "schema": "pi-api-boundary-manual-candidate-v1",
+  "recordedAt": "2026-08-20T17:02:07.594Z",
+  "candidateCommit": "e4a957e3c24247f3d956d7639665f811d4c3fb1a",
+  "documentation": "docs/manual-pi-boundary-candidate.md",
+  "documentationSha256": "0dd3c92de438894fd8c0cf20a231d148c6c5ed2ff6333337c0137d324e609495",
+  "automatedWorkstationInteraction": false,
+  "verdict": "ready-manual-execution-pending",
+  "checks": [
+    {
+      "id": "bare-owned-ui",
+      "status": "pending-user"
+    },
+    {
+      "id": "extension-surfaces",
+      "status": "pending-user"
+    },
+    {
+      "id": "vanilla-oracle",
+      "status": "pending-user"
+    },
+    {
+      "id": "sandbox-profile",
+      "status": "pending-user"
+    },
+    {
+      "id": "resize-input",
+      "status": "pending-user"
+    },
+    {
+      "id": "shutdown",
+      "status": "pending-user"
+    },
+    {
+      "id": "recovery",
+      "status": "pending-user"
+    }
+  ]
+}
