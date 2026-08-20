@@ -70,6 +70,10 @@
   ],
   "author": "Timur Prokopiev",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/timurproko/a1"
+  },
   "publishConfig": {
     "access": "public"
   }

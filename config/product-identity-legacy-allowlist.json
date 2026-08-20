@@ -1,6 +1,6 @@
 {
   "schema": "a1-legacy-identity-allowlist-v1",
-  "generatedAt": "2026-08-20T17:45:29.316Z",
+  "generatedAt": "2026-08-20T18:32:25.543Z",
   "inventorySchema": "a1-legacy-identity-inventory-v1",
   "occurrences": [
     {
@@ -286,27 +286,27 @@
       "reason": "explicit legacy rejection fixture"
     },
     {
-      "id": "test/foundation/release/package-surface.integration.test.ts:98:70",
+      "id": "test/foundation/release/package-surface.integration.test.ts:104:70",
       "value": "addone",
-      "fingerprint": "194785219325508a79d6fa5acfe95f99aba296aa2895d07a3b9bd4013fdd6889",
+      "fingerprint": "897cc7c78f447403ffb69d010c8374001e6f5d1a0e54c5f7c4a02f801672372e",
       "reason": "explicit legacy rejection fixture"
     },
     {
-      "id": "test/foundation/release/package-surface.integration.test.ts:98:85",
+      "id": "test/foundation/release/package-surface.integration.test.ts:104:85",
       "value": "addone",
-      "fingerprint": "c89e16c68e6fc64fcbe4f143018b6b82809ba1874a0ae95aa5131c92a32f19e5",
+      "fingerprint": "b15f65d01f30c351d7a3515372aa17dc5f9609407bae9e66fb65659c32508709",
       "reason": "explicit legacy rejection fixture"
     },
     {
-      "id": "test/foundation/release/package-surface.integration.test.ts:99:70",
+      "id": "test/foundation/release/package-surface.integration.test.ts:105:70",
       "value": "addone",
-      "fingerprint": "76bc250309d0e81a75c1f28ef99511e62e0238e4df70570e443a03134c131bbe",
+      "fingerprint": "0f15574006682a22dbcc934a631d176df133fb20bc941f8b23f124411692ece3",
       "reason": "explicit legacy rejection fixture"
     },
     {
-      "id": "test/foundation/release/package-surface.integration.test.ts:99:96",
+      "id": "test/foundation/release/package-surface.integration.test.ts:105:96",
       "value": "addone",
-      "fingerprint": "14729b97367e936f9ecb313a54ede4ed165bf5e6ad110f953b605b5d3c1436fa",
+      "fingerprint": "6973307b1867136692150caa6b3ad88f62441b51c82948b6e31f582f9ba6556b",
       "reason": "explicit legacy rejection fixture"
     },
     {

@@ -70,8 +70,14 @@ describe("packed npm command surface", () => {
       version: string;
       bin: Record<string, string>;
       dependencies: Record<string, string>;
+      repository: { type: string; url: string };
     };
-    expect(manifest).toMatchObject({ name: "@timurproko/a1", version: expectedVersion, bin: { "a1": "bin/a1.js" } });
+    expect(manifest).toMatchObject({
+      name: "@timurproko/a1",
+      version: expectedVersion,
+      bin: { "a1": "bin/a1.js" },
+      repository: { type: "git", url: "https://github.com/timurproko/a1" },
+    });
     expect(Object.keys(manifest.bin)).toEqual(["a1"]);
     expect(manifest.dependencies["@earendil-works/pi-coding-agent"]).toMatch(/^\d+\.\d+\.\d+$/);
 
