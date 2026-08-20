@@ -6,14 +6,10 @@ import { promisify } from "node:util";
 import { PRODUCT_IDENTITY } from "../../product-identity.js";
 import {
   copyToClipboard,
-  createAgentSessionFromServices,
-  createAgentSessionRuntime,
-  createAgentSessionServices,
   getAgentDir,
   getPackageDir,
   ProjectTrustStore,
   SessionManager,
-  type CreateAgentSessionRuntimeFactory,
   type ExtensionUIContext,
   type SessionInfo,
 } from "@earendil-works/pi-coding-agent";
@@ -55,6 +51,7 @@ import {
   type PiWorkflowRequest,
   type PiWorkflowResult,
 } from "./workflows.js";
+import { createPiRuntimeIntegration } from "./runtime-integration.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -2198,30 +2195,7 @@ export async function createPiEngineAdapter(
 }
 
 async function createDefaultPiRuntime(input: PiEngineRuntimeFactoryInput): Promise<PiRuntimeLike> {
-  const sessionManager = SessionManager.create(input.cwd, process.env.PI_CODING_AGENT_SESSION_DIR);
-  const createRuntime: CreateAgentSessionRuntimeFactory = async ({
-    cwd,
-    sessionManager: targetSessionManager,
-    sessionStartEvent,
-  }) => {
-    const services = await createAgentSessionServices({ cwd, agentDir: input.agentDir });
-    const created = await createAgentSessionFromServices({
-      services,
-      sessionManager: targetSessionManager,
-      ...(sessionStartEvent ? { sessionStartEvent } : {}),
-    });
-    return {
-      ...created,
-      services,
-      diagnostics: services.diagnostics,
-    };
-  };
-  const runtime = await createAgentSessionRuntime(createRuntime, {
-    cwd: input.cwd,
-    agentDir: input.agentDir,
-    sessionManager,
-  });
-  return runtime;
+  return createPiRuntimeIntegration({ cwd: input.cwd, agentDir: input.agentDir });
 }
 
 function pinnedSessionInfoPresentation(
