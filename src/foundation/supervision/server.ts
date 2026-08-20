@@ -13,14 +13,14 @@ import {
 import { encodeFrame, isCommandMessage, isControlHello, LineFrameDecoder, localControlHello, MAX_CONTROL_FRAME_BYTES, negotiateControlFeatures, type ServerMessage } from "../protocol/index.js";
 import type { MaterializedRelease } from "../release/index.js";
 import { ControlStore } from "../storage/index.js";
-import { resolveAddOnePaths, type AddOnePaths } from "./paths.js";
+import { resolveProductPaths, type ProductPaths } from "./paths.js";
 
 export class SupervisorServer {
   readonly id = randomUUID();
   readonly bootNonce: string;
   readonly pidStartIdentity = `${process.pid}:${Math.floor(Date.now() - process.uptime() * 1_000)}`;
   readonly startedAt = new Date().toISOString();
-  readonly paths: AddOnePaths;
+  readonly paths: ProductPaths;
   #server: Server | null = null;
   #foregroundLease: ForegroundTerminalLease | null;
   #revision = 0;
@@ -30,7 +30,7 @@ export class SupervisorServer {
 
   constructor(
     readonly store: ControlStore,
-    paths = resolveAddOnePaths(),
+    paths = resolveProductPaths(),
     readonly release: MaterializedRelease,
     bootNonce: string = randomUUID(),
     readonly terminateProcess: (code: number) => void = code => process.exit(code),

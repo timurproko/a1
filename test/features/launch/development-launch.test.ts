@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 const execute = promisify(execFile);
 import { resolveDevelopmentLaunchEnvironment } from "../../../src/features/launch/index.js";
-import { resolveAddOnePaths } from "../../../src/foundation/lifecycle/index.js";
+import { resolveProductPaths } from "../../../src/foundation/lifecycle/index.js";
 
 describe("repository-local development launch", () => {
   it("gives simultaneous launches from the same checkout and build independent instances", () => {
@@ -21,7 +21,7 @@ describe("repository-local development launch", () => {
     expect(first.developmentRoot).toContain(first.instanceId);
     expect(first.environment.A1_RUNTIME_DIR).toBe(resolve(first.developmentRoot, "runtime"));
     expect(first.environment.A1_DATABASE_PATH).toBe(resolve(first.developmentRoot, "data/control.sqlite3"));
-    expect(resolveAddOnePaths(first.environment).endpoint).not.toBe(resolveAddOnePaths(second.environment).endpoint);
+    expect(resolveProductPaths(first.environment).endpoint).not.toBe(resolveProductPaths(second.environment).endpoint);
   });
 
   it("allows an explicit instance selector when intentional reconnection is needed", () => {
@@ -31,7 +31,7 @@ describe("repository-local development launch", () => {
 
     expect(first.instanceId).toBe(second.instanceId);
     expect(first.developmentRoot).toBe(second.developmentRoot);
-    expect(resolveAddOnePaths(first.environment).endpoint).toBe(resolveAddOnePaths(second.environment).endpoint);
+    expect(resolveProductPaths(first.environment).endpoint).toBe(resolveProductPaths(second.environment).endpoint);
   });
 
   it("ignores legacy-only environment overrides", () => {
@@ -47,7 +47,7 @@ describe("repository-local development launch", () => {
       ADDONE_ENDPOINT: "legacy-endpoint",
     };
     const launch = resolveDevelopmentLaunchEnvironment("D:/Git/a1", "release", legacy, "D:/temp");
-    const paths = resolveAddOnePaths(legacy);
+    const paths = resolveProductPaths(legacy);
 
     expect(launch.developmentRoot).not.toContain("legacy/development");
     expect(launch.environment.A1_CONFIG_DIR).not.toContain("legacy/config");

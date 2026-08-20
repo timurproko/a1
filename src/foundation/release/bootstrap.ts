@@ -5,7 +5,7 @@ import { platform } from "node:os";
 import { resolve } from "node:path";
 import { selectCohortLaunch, type OwnershipProbe } from "./cohort-selection.js";
 import { CohortStateStore, type SupervisorEndpointMetadata } from "./cohort-state.js";
-import { assertLaunchProfileId, resolveAddOnePaths, type LaunchProfileId } from "../lifecycle/index.js";
+import { assertLaunchProfileId, resolveProductPaths, type LaunchProfileId } from "../lifecycle/index.js";
 import { encodeFrame, LineFrameDecoder } from "../protocol/index.js";
 import { cleanupProvenIdleOwner, processIsAlive } from "./process-cleanup.js";
 import { materializeRelease, readMaterializedRelease, resolveReleaseEntryPoint, verifyMaterializedRelease, type MaterializedRelease } from "./release-store.js";
@@ -23,7 +23,7 @@ export async function runBootstrap(options: BootstrapOptions): Promise<number> {
   assertLaunchProfileId(launchProfileId);
   environment.A1_LAUNCH_PROFILE = launchProfileId;
   const output = options.output ?? process.stderr;
-  const paths = resolveAddOnePaths(environment);
+  const paths = resolveProductPaths(environment);
   await mkdir(paths.runtimeDir, { recursive: true, mode: 0o700 });
 
   const candidate = await materializeRelease(options.packageRoot, paths.dataDir);
@@ -219,7 +219,7 @@ async function requestIdentity(endpoint: string, timeoutMs: number): Promise<{ s
 async function activatePendingAfterBlockerExit(
   candidate: MaterializedRelease,
   stateStore: CohortStateStore,
-  paths: ReturnType<typeof resolveAddOnePaths>,
+  paths: ReturnType<typeof resolveProductPaths>,
   environment: NodeJS.ProcessEnv,
 ): Promise<void> {
   const deadline = Date.now() + 2_000;

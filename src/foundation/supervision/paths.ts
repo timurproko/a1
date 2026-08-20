@@ -1,1 +1,1 @@
-export { resolveAddOnePaths, type AddOnePaths } from "../lifecycle/index.js";
+export { resolveProductPaths, type ProductPaths } from "../lifecycle/index.js";

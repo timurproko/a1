@@ -3,7 +3,7 @@ import { realpath } from "node:fs/promises";
 import { resolve } from "node:path";
 import { assertLaunchProfileId, type LaunchProfileId, type TransparentTerminalLaunchProfile } from "../lifecycle/index.js";
 import { SupervisorClient } from "../protocol/index.js";
-import { resolveAddOnePaths } from "../supervision/index.js";
+import { resolveProductPaths } from "../supervision/index.js";
 import { runForegroundBroker, type TransparentStopReason } from "./foreground-broker.js";
 import { createPlatformTransparentLauncher } from "./native-launcher.js";
 
@@ -19,7 +19,7 @@ export async function runTransparentForeground(options: TransparentForegroundOpt
   const environment = { ...(options.environment ?? process.env) };
   const profileId = options.profileId ?? environment.A1_LAUNCH_PROFILE ?? "addone";
   assertLaunchProfileId(profileId);
-  const paths = resolveAddOnePaths(environment);
+  const paths = resolveProductPaths(environment);
   const client = new SupervisorClient(environment.A1_RELEASE_ID);
   await client.connect(paths.endpoint);
   const ownerId = `foreground-broker-${randomUUID()}`;

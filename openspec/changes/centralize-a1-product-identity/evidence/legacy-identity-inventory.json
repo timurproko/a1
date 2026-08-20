@@ -41,21 +41,21 @@
     "explicit-obsolete-package-fixtures"
   ],
   "summary": {
-    "total": 1260,
-    "files": 211,
+    "total": 1235,
+    "files": 209,
     "byLocationKind": {
-      "content": 1236,
+      "content": 1211,
       "path": 24
     },
     "byClass": {
-      "runtime-symbols": 469,
+      "runtime-symbols": 444,
       "diagnostics": 137,
-      "environment-keys": 15,
-      "paths": 427,
-      "schemas": 120,
+      "environment-keys": 20,
+      "paths": 407,
+      "schemas": 119,
       "artifacts": 109,
       "native-names": 81,
-      "tests": 244,
+      "tests": 247,
       "current-docs-specs": 754,
       "historical-records": 167,
       "explicit-obsolete-package-fixtures": 8
@@ -6385,7 +6385,7 @@
       "line": 21,
       "column": 58,
       "value": "AddOne",
-      "context": "- [ ] 4.2 Rename lifecycle/path APIs and change Windows `AddOne` defaults plus Unix `addone` defaults to `A1`/`a1`; pass platform path, override, isolation, and no-legacy-fallback tests while preserving `.a1` Pi profiles.",
+      "context": "- [x] 4.2 Rename lifecycle/path APIs and change Windows `AddOne` defaults plus Unix `addone` defaults to `A1`/`a1`; pass platform path, override, isolation, and no-legacy-fallback tests while preserving `.a1` Pi profiles.",
       "matchedCase": "title-or-mixed",
       "primaryClass": "paths",
       "classes": [
@@ -6400,7 +6400,7 @@
       "line": 21,
       "column": 86,
       "value": "addone",
-      "context": "- [ ] 4.2 Rename lifecycle/path APIs and change Windows `AddOne` defaults plus Unix `addone` defaults to `A1`/`a1`; pass platform path, override, isolation, and no-legacy-fallback tests while preserving `.a1` Pi profiles.",
+      "context": "- [x] 4.2 Rename lifecycle/path APIs and change Windows `AddOne` defaults plus Unix `addone` defaults to `A1`/`a1`; pass platform path, override, isolation, and no-legacy-fallback tests while preserving `.a1` Pi profiles.",
       "matchedCase": "lower",
       "primaryClass": "paths",
       "classes": [
@@ -13763,137 +13763,6 @@
       ]
     },
     {
-      "id": "src/foundation/lifecycle/paths.ts:5:18",
-      "path": "src/foundation/lifecycle/paths.ts",
-      "locationKind": "content",
-      "line": 5,
-      "column": 18,
-      "value": "AddOne",
-      "context": "export interface AddOnePaths {",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths"
-      ]
-    },
-    {
-      "id": "src/foundation/lifecycle/paths.ts:15:24",
-      "path": "src/foundation/lifecycle/paths.ts",
-      "locationKind": "content",
-      "line": 15,
-      "column": 24,
-      "value": "AddOne",
-      "context": "export function resolveAddOnePaths(environment: NodeJS.ProcessEnv = process.env): AddOnePaths {",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths"
-      ]
-    },
-    {
-      "id": "src/foundation/lifecycle/paths.ts:15:83",
-      "path": "src/foundation/lifecycle/paths.ts",
-      "locationKind": "content",
-      "line": 15,
-      "column": 83,
-      "value": "AddOne",
-      "context": "export function resolveAddOnePaths(environment: NodeJS.ProcessEnv = process.env): AddOnePaths {",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths"
-      ]
-    },
-    {
-      "id": "src/foundation/lifecycle/paths.ts:19:54",
-      "path": "src/foundation/lifecycle/paths.ts",
-      "locationKind": "content",
-      "line": 19,
-      "column": 54,
-      "value": "AddOne",
-      "context": "?? (windows ? join(environment.APPDATA ?? home, \"AddOne\") : join(environment.XDG_CONFIG_HOME ?? join(home, \".config\"), \"addone\")));",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols"
-      ]
-    },
-    {
-      "id": "src/foundation/lifecycle/paths.ts:19:125",
-      "path": "src/foundation/lifecycle/paths.ts",
-      "locationKind": "content",
-      "line": 19,
-      "column": 125,
-      "value": "addone",
-      "context": "?? (windows ? join(environment.APPDATA ?? home, \"AddOne\") : join(environment.XDG_CONFIG_HOME ?? join(home, \".config\"), \"addone\")));",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols"
-      ]
-    },
-    {
-      "id": "src/foundation/lifecycle/paths.ts:21:59",
-      "path": "src/foundation/lifecycle/paths.ts",
-      "locationKind": "content",
-      "line": 21,
-      "column": 59,
-      "value": "AddOne",
-      "context": "?? (windows ? join(environment.LOCALAPPDATA ?? home, \"AddOne\") : join(environment.XDG_DATA_HOME ?? join(home, \".local\", \"share\"), \"addone\")));",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols"
-      ]
-    },
-    {
-      "id": "src/foundation/lifecycle/paths.ts:21:136",
-      "path": "src/foundation/lifecycle/paths.ts",
-      "locationKind": "content",
-      "line": 21,
-      "column": 136,
-      "value": "addone",
-      "context": "?? (windows ? join(environment.LOCALAPPDATA ?? home, \"AddOne\") : join(environment.XDG_DATA_HOME ?? join(home, \".local\", \"share\"), \"addone\")));",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols"
-      ]
-    },
-    {
-      "id": "src/foundation/lifecycle/paths.ts:23:92",
-      "path": "src/foundation/lifecycle/paths.ts",
-      "locationKind": "content",
-      "line": 23,
-      "column": 92,
-      "value": "addone",
-      "context": "?? (windows ? join(dataDir, \"runtime\") : join(environment.XDG_RUNTIME_DIR ?? dataDir, \"addone-runtime\")));",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols"
-      ]
-    },
-    {
-      "id": "src/foundation/lifecycle/paths.ts:26:33",
-      "path": "src/foundation/lifecycle/paths.ts",
-      "locationKind": "content",
-      "line": 26,
-      "column": 33,
-      "value": "addone",
-      "context": "?? (windows ? `\\\\\\\\.\\\\pipe\\\\addone-${namespace}` : join(runtimeDir, \"supervisor.sock\"));",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "schemas"
-      ]
-    },
-    {
       "id": "src/foundation/native-host-protocol/evidence.ts:1:46",
       "path": "src/foundation/native-host-protocol/evidence.ts",
       "locationKind": "content",
@@ -14101,21 +13970,6 @@
       ]
     },
     {
-      "id": "src/foundation/release/bootstrap.ts:8:40",
-      "path": "src/foundation/release/bootstrap.ts",
-      "locationKind": "content",
-      "line": 8,
-      "column": 40,
-      "value": "AddOne",
-      "context": "import { assertLaunchProfileId, resolveAddOnePaths, type LaunchProfileId } from \"../lifecycle/index.js\";",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths"
-      ]
-    },
-    {
       "id": "src/foundation/release/bootstrap.ts:22:64",
       "path": "src/foundation/release/bootstrap.ts",
       "locationKind": "content",
@@ -14127,21 +13981,6 @@
       "primaryClass": "runtime-symbols",
       "classes": [
         "runtime-symbols"
-      ]
-    },
-    {
-      "id": "src/foundation/release/bootstrap.ts:26:24",
-      "path": "src/foundation/release/bootstrap.ts",
-      "locationKind": "content",
-      "line": 26,
-      "column": 24,
-      "value": "AddOne",
-      "context": "const paths = resolveAddOnePaths(environment);",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths"
       ]
     },
     {
@@ -14220,21 +14059,6 @@
       "classes": [
         "runtime-symbols",
         "diagnostics",
-        "paths"
-      ]
-    },
-    {
-      "id": "src/foundation/release/bootstrap.ts:222:35",
-      "path": "src/foundation/release/bootstrap.ts",
-      "locationKind": "content",
-      "line": 222,
-      "column": 35,
-      "value": "AddOne",
-      "context": "paths: ReturnType<typeof resolveAddOnePaths>,",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
         "paths"
       ]
     },
@@ -14662,36 +14486,6 @@
       ]
     },
     {
-      "id": "src/foundation/release/update.ts:17:17",
-      "path": "src/foundation/release/update.ts",
-      "locationKind": "content",
-      "line": 17,
-      "column": 17,
-      "value": "AddOne",
-      "context": "import { resolveAddOnePaths } from \"../lifecycle/index.js\";",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths"
-      ]
-    },
-    {
-      "id": "src/foundation/release/update.ts:88:24",
-      "path": "src/foundation/release/update.ts",
-      "locationKind": "content",
-      "line": 88,
-      "column": 24,
-      "value": "AddOne",
-      "context": "const paths = resolveAddOnePaths(environment);",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths"
-      ]
-    },
-    {
       "id": "src/foundation/release/update.ts:134:37",
       "path": "src/foundation/release/update.ts",
       "locationKind": "content",
@@ -14703,36 +14497,6 @@
       "primaryClass": "runtime-symbols",
       "classes": [
         "runtime-symbols"
-      ]
-    },
-    {
-      "id": "src/foundation/release/update.ts:208:24",
-      "path": "src/foundation/release/update.ts",
-      "locationKind": "content",
-      "line": 208,
-      "column": 24,
-      "value": "AddOne",
-      "context": "const paths = resolveAddOnePaths(environment);",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths"
-      ]
-    },
-    {
-      "id": "src/foundation/release/update.ts:305:24",
-      "path": "src/foundation/release/update.ts",
-      "locationKind": "content",
-      "line": 305,
-      "column": 24,
-      "value": "AddOne",
-      "context": "const paths = resolveAddOnePaths(environment);",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths"
       ]
     },
     {
@@ -14877,66 +14641,6 @@
       ]
     },
     {
-      "id": "src/foundation/supervision/index.ts:3:17",
-      "path": "src/foundation/supervision/index.ts",
-      "locationKind": "content",
-      "line": 3,
-      "column": 17,
-      "value": "AddOne",
-      "context": "export { resolveAddOnePaths, type AddOnePaths } from \"../lifecycle/index.js\";",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths"
-      ]
-    },
-    {
-      "id": "src/foundation/supervision/index.ts:3:35",
-      "path": "src/foundation/supervision/index.ts",
-      "locationKind": "content",
-      "line": 3,
-      "column": 35,
-      "value": "AddOne",
-      "context": "export { resolveAddOnePaths, type AddOnePaths } from \"../lifecycle/index.js\";",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths"
-      ]
-    },
-    {
-      "id": "src/foundation/supervision/main.ts:5:17",
-      "path": "src/foundation/supervision/main.ts",
-      "locationKind": "content",
-      "line": 5,
-      "column": 17,
-      "value": "AddOne",
-      "context": "import { resolveAddOnePaths } from \"./paths.js\";",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths"
-      ]
-    },
-    {
-      "id": "src/foundation/supervision/main.ts:9:24",
-      "path": "src/foundation/supervision/main.ts",
-      "locationKind": "content",
-      "line": 9,
-      "column": 24,
-      "value": "AddOne",
-      "context": "const paths = resolveAddOnePaths();",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths"
-      ]
-    },
-    {
       "id": "src/foundation/supervision/main.ts:13:92",
       "path": "src/foundation/supervision/main.ts",
       "locationKind": "content",
@@ -14965,96 +14669,6 @@
         "runtime-symbols",
         "diagnostics",
         "artifacts"
-      ]
-    },
-    {
-      "id": "src/foundation/supervision/paths.ts:1:17",
-      "path": "src/foundation/supervision/paths.ts",
-      "locationKind": "content",
-      "line": 1,
-      "column": 17,
-      "value": "AddOne",
-      "context": "export { resolveAddOnePaths, type AddOnePaths } from \"../lifecycle/index.js\";",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths"
-      ]
-    },
-    {
-      "id": "src/foundation/supervision/paths.ts:1:35",
-      "path": "src/foundation/supervision/paths.ts",
-      "locationKind": "content",
-      "line": 1,
-      "column": 35,
-      "value": "AddOne",
-      "context": "export { resolveAddOnePaths, type AddOnePaths } from \"../lifecycle/index.js\";",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths"
-      ]
-    },
-    {
-      "id": "src/foundation/supervision/server.ts:16:17",
-      "path": "src/foundation/supervision/server.ts",
-      "locationKind": "content",
-      "line": 16,
-      "column": 17,
-      "value": "AddOne",
-      "context": "import { resolveAddOnePaths, type AddOnePaths } from \"./paths.js\";",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths"
-      ]
-    },
-    {
-      "id": "src/foundation/supervision/server.ts:16:35",
-      "path": "src/foundation/supervision/server.ts",
-      "locationKind": "content",
-      "line": 16,
-      "column": 35,
-      "value": "AddOne",
-      "context": "import { resolveAddOnePaths, type AddOnePaths } from \"./paths.js\";",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths"
-      ]
-    },
-    {
-      "id": "src/foundation/supervision/server.ts:23:19",
-      "path": "src/foundation/supervision/server.ts",
-      "locationKind": "content",
-      "line": 23,
-      "column": 19,
-      "value": "AddOne",
-      "context": "readonly paths: AddOnePaths;",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths"
-      ]
-    },
-    {
-      "id": "src/foundation/supervision/server.ts:33:20",
-      "path": "src/foundation/supervision/server.ts",
-      "locationKind": "content",
-      "line": 33,
-      "column": 20,
-      "value": "AddOne",
-      "context": "paths = resolveAddOnePaths(),",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths"
       ]
     },
     {
@@ -15105,21 +14719,6 @@
       ]
     },
     {
-      "id": "src/foundation/transparent-terminal/main.ts:6:17",
-      "path": "src/foundation/transparent-terminal/main.ts",
-      "locationKind": "content",
-      "line": 6,
-      "column": 17,
-      "value": "AddOne",
-      "context": "import { resolveAddOnePaths } from \"../supervision/index.js\";",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths"
-      ]
-    },
-    {
       "id": "src/foundation/transparent-terminal/main.ts:20:76",
       "path": "src/foundation/transparent-terminal/main.ts",
       "locationKind": "content",
@@ -15131,21 +14730,6 @@
       "primaryClass": "runtime-symbols",
       "classes": [
         "runtime-symbols"
-      ]
-    },
-    {
-      "id": "src/foundation/transparent-terminal/main.ts:22:24",
-      "path": "src/foundation/transparent-terminal/main.ts",
-      "locationKind": "content",
-      "line": 22,
-      "column": 24,
-      "value": "AddOne",
-      "context": "const paths = resolveAddOnePaths(environment);",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths"
       ]
     },
     {
@@ -15175,86 +14759,6 @@
       "primaryClass": "runtime-symbols",
       "classes": [
         "runtime-symbols",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/features/launch/development-launch.test.ts:8:17",
-      "path": "test/features/launch/development-launch.test.ts",
-      "locationKind": "content",
-      "line": 8,
-      "column": 17,
-      "value": "AddOne",
-      "context": "import { resolveAddOnePaths } from \"../../../src/foundation/lifecycle/index.js\";",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/features/launch/development-launch.test.ts:24:19",
-      "path": "test/features/launch/development-launch.test.ts",
-      "locationKind": "content",
-      "line": 24,
-      "column": 19,
-      "value": "AddOne",
-      "context": "expect(resolveAddOnePaths(first.environment).endpoint).not.toBe(resolveAddOnePaths(second.environment).endpoint);",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/features/launch/development-launch.test.ts:24:76",
-      "path": "test/features/launch/development-launch.test.ts",
-      "locationKind": "content",
-      "line": 24,
-      "column": 76,
-      "value": "AddOne",
-      "context": "expect(resolveAddOnePaths(first.environment).endpoint).not.toBe(resolveAddOnePaths(second.environment).endpoint);",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/features/launch/development-launch.test.ts:34:19",
-      "path": "test/features/launch/development-launch.test.ts",
-      "locationKind": "content",
-      "line": 34,
-      "column": 19,
-      "value": "AddOne",
-      "context": "expect(resolveAddOnePaths(first.environment).endpoint).toBe(resolveAddOnePaths(second.environment).endpoint);",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/features/launch/development-launch.test.ts:34:72",
-      "path": "test/features/launch/development-launch.test.ts",
-      "locationKind": "content",
-      "line": 34,
-      "column": 72,
-      "value": "AddOne",
-      "context": "expect(resolveAddOnePaths(first.environment).endpoint).toBe(resolveAddOnePaths(second.environment).endpoint);",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
         "tests"
       ]
     },
@@ -15372,22 +14876,6 @@
       "classes": [
         "runtime-symbols",
         "environment-keys",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/features/launch/development-launch.test.ts:50:26",
-      "path": "test/features/launch/development-launch.test.ts",
-      "locationKind": "content",
-      "line": 50,
-      "column": 26,
-      "value": "AddOne",
-      "context": "const paths = resolveAddOnePaths(legacy);",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
         "paths",
         "tests"
       ]
@@ -16489,6 +15977,155 @@
       "classes": [
         "runtime-symbols",
         "diagnostics",
+        "paths",
+        "tests"
+      ]
+    },
+    {
+      "id": "test/foundation/lifecycle/paths.test.ts:17:48",
+      "path": "test/foundation/lifecycle/paths.test.ts",
+      "locationKind": "content",
+      "line": 17,
+      "column": 48,
+      "value": "AddOne",
+      "context": "expect(JSON.stringify(paths)).not.toMatch(/AddOne|addone/);",
+      "matchedCase": "title-or-mixed",
+      "primaryClass": "runtime-symbols",
+      "classes": [
+        "runtime-symbols",
+        "paths",
+        "tests"
+      ]
+    },
+    {
+      "id": "test/foundation/lifecycle/paths.test.ts:17:55",
+      "path": "test/foundation/lifecycle/paths.test.ts",
+      "locationKind": "content",
+      "line": 17,
+      "column": 55,
+      "value": "addone",
+      "context": "expect(JSON.stringify(paths)).not.toMatch(/AddOne|addone/);",
+      "matchedCase": "lower",
+      "primaryClass": "runtime-symbols",
+      "classes": [
+        "runtime-symbols",
+        "paths",
+        "tests"
+      ]
+    },
+    {
+      "id": "test/foundation/lifecycle/paths.test.ts:35:48",
+      "path": "test/foundation/lifecycle/paths.test.ts",
+      "locationKind": "content",
+      "line": 35,
+      "column": 48,
+      "value": "AddOne",
+      "context": "expect(JSON.stringify(paths)).not.toMatch(/AddOne|addone/);",
+      "matchedCase": "title-or-mixed",
+      "primaryClass": "runtime-symbols",
+      "classes": [
+        "runtime-symbols",
+        "paths",
+        "tests"
+      ]
+    },
+    {
+      "id": "test/foundation/lifecycle/paths.test.ts:35:55",
+      "path": "test/foundation/lifecycle/paths.test.ts",
+      "locationKind": "content",
+      "line": 35,
+      "column": 55,
+      "value": "addone",
+      "context": "expect(JSON.stringify(paths)).not.toMatch(/AddOne|addone/);",
+      "matchedCase": "lower",
+      "primaryClass": "runtime-symbols",
+      "classes": [
+        "runtime-symbols",
+        "paths",
+        "tests"
+      ]
+    },
+    {
+      "id": "test/foundation/lifecycle/paths.test.ts:63:7",
+      "path": "test/foundation/lifecycle/paths.test.ts",
+      "locationKind": "content",
+      "line": 63,
+      "column": 7,
+      "value": "ADDONE",
+      "context": "ADDONE_CONFIG_DIR: \"/legacy/config\",",
+      "matchedCase": "upper",
+      "primaryClass": "runtime-symbols",
+      "classes": [
+        "runtime-symbols",
+        "environment-keys",
+        "paths",
+        "tests"
+      ]
+    },
+    {
+      "id": "test/foundation/lifecycle/paths.test.ts:64:7",
+      "path": "test/foundation/lifecycle/paths.test.ts",
+      "locationKind": "content",
+      "line": 64,
+      "column": 7,
+      "value": "ADDONE",
+      "context": "ADDONE_DATA_DIR: \"/legacy/data\",",
+      "matchedCase": "upper",
+      "primaryClass": "runtime-symbols",
+      "classes": [
+        "runtime-symbols",
+        "environment-keys",
+        "paths",
+        "tests"
+      ]
+    },
+    {
+      "id": "test/foundation/lifecycle/paths.test.ts:65:7",
+      "path": "test/foundation/lifecycle/paths.test.ts",
+      "locationKind": "content",
+      "line": 65,
+      "column": 7,
+      "value": "ADDONE",
+      "context": "ADDONE_RUNTIME_DIR: \"/legacy/runtime\",",
+      "matchedCase": "upper",
+      "primaryClass": "runtime-symbols",
+      "classes": [
+        "runtime-symbols",
+        "environment-keys",
+        "paths",
+        "tests"
+      ]
+    },
+    {
+      "id": "test/foundation/lifecycle/paths.test.ts:66:7",
+      "path": "test/foundation/lifecycle/paths.test.ts",
+      "locationKind": "content",
+      "line": 66,
+      "column": 7,
+      "value": "ADDONE",
+      "context": "ADDONE_DATABASE_PATH: \"/legacy/database.sqlite3\",",
+      "matchedCase": "upper",
+      "primaryClass": "runtime-symbols",
+      "classes": [
+        "runtime-symbols",
+        "environment-keys",
+        "paths",
+        "tests"
+      ]
+    },
+    {
+      "id": "test/foundation/lifecycle/paths.test.ts:67:7",
+      "path": "test/foundation/lifecycle/paths.test.ts",
+      "locationKind": "content",
+      "line": 67,
+      "column": 7,
+      "value": "ADDONE",
+      "context": "ADDONE_ENDPOINT: \"legacy-endpoint\",",
+      "matchedCase": "upper",
+      "primaryClass": "runtime-symbols",
+      "classes": [
+        "runtime-symbols",
+        "environment-keys",
         "paths",
         "tests"
       ]
@@ -18974,5 +18611,5 @@
       ]
     }
   ],
-  "generatedAt": "2026-08-20T08:45:43.046Z"
+  "generatedAt": "2026-08-20T08:48:00.052Z"
 }

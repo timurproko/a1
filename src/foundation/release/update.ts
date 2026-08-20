@@ -14,7 +14,7 @@ import {
   waitForProcessExit,
   waitForVerifiedEndpoint,
 } from "./bootstrap.js";
-import { resolveAddOnePaths } from "../lifecycle/index.js";
+import { resolveProductPaths } from "../lifecycle/index.js";
 import { encodeFrame, LineFrameDecoder } from "../protocol/index.js";
 import { CohortStateStore, type SupervisorEndpointMetadata } from "./cohort-state.js";
 import { cleanupVerifiedOwner, processIsAlive } from "./process-cleanup.js";
@@ -85,7 +85,7 @@ export function createUpdateLifecycleCoordinator(
   environment: NodeJS.ProcessEnv = process.env,
   fileSystem: UpdateFileSystem = defaultFileSystem,
 ): UpdateLifecycleCoordinator {
-  const paths = resolveAddOnePaths(environment);
+  const paths = resolveProductPaths(environment);
   const stateStore = new CohortStateStore(paths.dataDir);
   return {
     async targetIsActive(targetVersion) {
@@ -205,7 +205,7 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
   }
 
   const environment = options.environment ?? process.env;
-  const paths = resolveAddOnePaths(environment);
+  const paths = resolveProductPaths(environment);
   const lifecycle = options.lifecycle ?? createUpdateLifecycleCoordinator(environment, fileSystem);
   const transactionStore = options.transactionStore ?? new UpdateTransactionStore(paths.dataDir);
   let transaction = await transactionStore.read();
@@ -302,7 +302,7 @@ async function rollbackPriorCohort(dataDir: string, environment: NodeJS.ProcessE
     else throw new Error(`prior release ${priorReleaseId} is not the recorded rollback cohort`);
   }
   const release = await readMaterializedRelease(prior.releaseRoot);
-  const paths = resolveAddOnePaths(environment);
+  const paths = resolveProductPaths(environment);
   await startSupervisor(release, environment);
   await waitForVerifiedEndpoint(paths.endpointMetadataPath, release, 8_000);
   return "rolled back";

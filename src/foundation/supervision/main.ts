@@ -2,11 +2,11 @@ import { randomUUID } from "node:crypto";
 import { appendFileSync, mkdirSync } from "node:fs";
 import { assertImmutableExecutionRoot, readMaterializedRelease } from "../release/index.js";
 import { ControlStore } from "../storage/index.js";
-import { resolveAddOnePaths } from "./paths.js";
+import { resolveProductPaths } from "./paths.js";
 import { SupervisorServer } from "./server.js";
 
 export async function runSupervisor(): Promise<void> {
-  const paths = resolveAddOnePaths();
+  const paths = resolveProductPaths();
   mkdirSync(paths.runtimeDir, { recursive: true, mode: 0o700 });
   const log = (message: string) => appendFileSync(paths.supervisorLogPath, `${new Date().toISOString()} ${message}\n`);
   const releaseRoot = process.env.A1_RELEASE_ROOT;
