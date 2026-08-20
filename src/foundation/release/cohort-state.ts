@@ -47,6 +47,7 @@ export interface EndpointOwnership {
 }
 
 export interface SupervisorEndpointMetadata {
+  readonly schema: string;
   readonly supervisorId: string;
   readonly endpoint: string;
   readonly pid: number;

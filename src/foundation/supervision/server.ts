@@ -14,6 +14,7 @@ import { encodeFrame, isCommandMessage, isControlHello, LineFrameDecoder, localC
 import type { MaterializedRelease } from "../release/index.js";
 import { ControlStore } from "../storage/index.js";
 import { resolveProductPaths, type ProductPaths } from "./paths.js";
+import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
 
 export class SupervisorServer {
   readonly id = randomUUID();
@@ -48,7 +49,7 @@ export class SupervisorServer {
     if (this.#server) throw new Error("supervisor is already listening");
     await mkdir(this.paths.runtimeDir, { recursive: true, mode: 0o700 });
     if (platform() !== "win32") {
-      if (await endpointIsLive(this.paths.endpoint)) throw new Error(`an AddOne supervisor already owns ${this.paths.endpoint}`);
+      if (await endpointIsLive(this.paths.endpoint)) throw new Error(PRODUCT_TEXT.diagnostic(`supervisor already owns ${this.paths.endpoint}`));
       await rm(this.paths.endpoint, { force: true });
     }
     const server = createServer(socket => this.#attach(socket));
@@ -111,14 +112,14 @@ export class SupervisorServer {
               this.#send(socket, {
                 type: "release-update-result",
                 accepted,
-                reason: accepted ? "verified AddOne owner accepted immediate update shutdown" : "boot nonce or target version mismatch",
+                reason: accepted ? `verified ${PRODUCT_TEXT.displayName} owner accepted immediate update shutdown` : "boot nonce or target version mismatch",
                 liveGenerationIds: this.#liveGenerationIds(),
               });
               if (accepted) setTimeout(() => void this.closeForReleaseReplacement(true), 25);
               continue;
             }
             if (!isControlHello(value)) {
-              this.#send(socket, { type: "protocol-error", code: "invalid-control-handshake", message: "the first message must be a valid AddOne control feature handshake", diagnostics: { received: value } });
+              this.#send(socket, { type: "protocol-error", code: "invalid-control-handshake", message: `the first message must be a valid ${PRODUCT_TEXT.displayName} control feature handshake`, diagnostics: { received: value } });
               socket.destroy();
               return;
             }
@@ -229,6 +230,7 @@ export class SupervisorServer {
 
   #writeEndpointMetadata(): Promise<void> {
     const metadata = {
+      schema: PRODUCT_IDENTITY.protocol.supervisorSchema,
       ...localControlHello(this.release.releaseId),
       supervisorId: this.id,
       pid: process.pid,

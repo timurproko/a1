@@ -9,6 +9,7 @@ import { assertLaunchProfileId, resolveProductPaths, type LaunchProfileId } from
 import { encodeFrame, LineFrameDecoder } from "../protocol/index.js";
 import { cleanupProvenIdleOwner, processIsAlive } from "./process-cleanup.js";
 import { materializeRelease, readMaterializedRelease, resolveReleaseEntryPoint, verifyMaterializedRelease, type MaterializedRelease } from "./release-store.js";
+import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
 
 export interface BootstrapOptions {
   readonly packageRoot: string;
@@ -21,7 +22,7 @@ export async function runBootstrap(options: BootstrapOptions): Promise<number> {
   const environment = { ...(options.environment ?? process.env) };
   const launchProfileId = options.launchIntent?.profile.id ?? "addone";
   assertLaunchProfileId(launchProfileId);
-  environment.A1_LAUNCH_PROFILE = launchProfileId;
+  environment[PRODUCT_IDENTITY.environment.launchProfile] = launchProfileId;
   const output = options.output ?? process.stderr;
   const paths = resolveProductPaths(environment);
   await mkdir(paths.runtimeDir, { recursive: true, mode: 0o700 });
@@ -43,14 +44,14 @@ export async function runBootstrap(options: BootstrapOptions): Promise<number> {
 
   if (decision.action === "blocked") {
     await stateStore.blockPending(decision.reason, endpoint?.ownership.liveGenerationIds ?? []);
-    output.write(`AddOne startup is blocked to preserve uncertain live ownership: ${decision.reason}\n`);
+    output.write(`${PRODUCT_TEXT.diagnostic(`startup is blocked to preserve uncertain live ownership: ${decision.reason}`)}\n`);
     return 1;
   }
 
   if (decision.action === "clean-stale-owner" && endpoint) {
     const diagnostics = await cleanupProvenIdleOwner(endpoint);
     await writeFile(resolve(paths.dataDir, `cleanup-${Date.now()}.json`), JSON.stringify(diagnostics, null, 2));
-    if (!diagnostics.terminated) throw new Error(`could not safely clean stale AddOne supervisor ${endpoint.pid}`);
+    if (!diagnostics.terminated) throw new Error(`could not safely clean stale ${PRODUCT_TEXT.displayName} supervisor ${endpoint.pid}`);
     await removeEndpointArtifacts(paths.endpointMetadataPath, paths.endpoint);
     decision = selectCohortLaunch(candidate, await stateStore.read(), null, "dead");
   } else if (endpoint && probe === "dead") {
@@ -73,12 +74,12 @@ export async function runBootstrap(options: BootstrapOptions): Promise<number> {
     const released = await requestIdleOwnershipRelease(endpoint, candidate.releaseId, 2_000);
     if (!released) {
       await stateStore.blockPending("idle supervisor did not verify ownership release", endpoint.ownership.liveGenerationIds);
-      output.write("AddOne could not verify idle cohort ownership release; the retained release remains selected.\n");
+      output.write(`${PRODUCT_TEXT.diagnostic("could not verify idle cohort ownership release; the retained release remains selected.")}\n`);
       return 1;
     }
     if (!await releaseVerifiedIdleOwner(endpoint, paths.dataDir)) {
       await stateStore.blockPending("idle supervisor acknowledged release but did not terminate", endpoint.ownership.liveGenerationIds);
-      output.write("AddOne could not complete bounded idle cohort shutdown; the candidate remains pending.\n");
+      output.write(`${PRODUCT_TEXT.diagnostic("could not complete bounded idle cohort shutdown; the candidate remains pending.")}\n`);
       return 1;
     }
     await removeEndpointArtifacts(paths.endpointMetadataPath, paths.endpoint);
@@ -108,6 +109,7 @@ export async function certifyMaterializedRelease(release: MaterializedRelease, d
   await verifyMaterializedRelease(release.releaseRoot, release, resolve(dataDir, "releases"));
   const path = resolve(dataDir, `certification-${release.releaseId}.json`);
   await writeFile(path, JSON.stringify({
+    schema: PRODUCT_IDENTITY.evidence.releaseCertificationSchema,
     releaseId: release.releaseId,
     contentDigest: release.contentDigest,
     verifiedAt: new Date().toISOString(),
@@ -147,9 +149,9 @@ async function launchUi(release: MaterializedRelease, environment: NodeJS.Proces
 export function releaseEnvironment(environment: NodeJS.ProcessEnv, release: MaterializedRelease): NodeJS.ProcessEnv {
   return {
     ...environment,
-    A1_RELEASE_ID: release.releaseId,
-    A1_RELEASE_ROOT: release.releaseRoot,
-    A1_RELEASE_DIGEST: release.contentDigest,
+    [PRODUCT_IDENTITY.environment.releaseId]: release.releaseId,
+    [PRODUCT_IDENTITY.environment.releaseRoot]: release.releaseRoot,
+    [PRODUCT_IDENTITY.environment.releaseDigest]: release.contentDigest,
   };
 }
 
@@ -160,13 +162,13 @@ export async function waitForVerifiedEndpoint(path: string, release: Materialize
     if (metadata && metadata.releaseId === release.releaseId && await probeOwnership(metadata) === "live-verified") return;
     await new Promise(resolvePromise => setTimeout(resolvePromise, 40));
   }
-  throw new Error(`AddOne supervisor did not publish verified endpoint metadata within ${timeoutMs}ms`);
+  throw new Error(PRODUCT_TEXT.diagnostic(`supervisor did not publish verified endpoint metadata within ${timeoutMs}ms`));
 }
 
 export async function readEndpointMetadata(path: string): Promise<SupervisorEndpointMetadata | null> {
   try {
     const value = JSON.parse(await readFile(path, "utf8")) as SupervisorEndpointMetadata;
-    if (!value || typeof value.supervisorId !== "string" || typeof value.endpoint !== "string" || !Number.isSafeInteger(value.pid)
+    if (!value || value.schema !== PRODUCT_IDENTITY.protocol.supervisorSchema || typeof value.supervisorId !== "string" || typeof value.endpoint !== "string" || !Number.isSafeInteger(value.pid)
       || typeof value.pidStartIdentity !== "string" || typeof value.bootNonce !== "string" || typeof value.releaseId !== "string"
       || typeof value.releaseRoot !== "string" || typeof value.contentDigest !== "string" || !value.ownership
       || !Array.isArray(value.ownership.liveGenerationIds) || !Array.isArray(value.ownership.nonResumableGenerationIds)) {
@@ -289,7 +291,7 @@ export async function waitForProcessExit(pid: number, timeoutMs: number): Promis
     if (!processIsAlive(pid)) return;
     await new Promise(resolvePromise => setTimeout(resolvePromise, 25));
   }
-  throw new Error(`AddOne supervisor ${pid} did not release process ownership within ${timeoutMs}ms`);
+  throw new Error(PRODUCT_TEXT.diagnostic(`supervisor ${pid} did not release process ownership within ${timeoutMs}ms`));
 }
 
 export async function removeEndpointArtifacts(metadataPath: string, endpoint: string): Promise<void> {

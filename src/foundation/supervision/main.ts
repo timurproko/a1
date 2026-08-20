@@ -4,15 +4,16 @@ import { assertImmutableExecutionRoot, readMaterializedRelease } from "../releas
 import { ControlStore } from "../storage/index.js";
 import { resolveProductPaths } from "./paths.js";
 import { SupervisorServer } from "./server.js";
+import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
 
 export async function runSupervisor(): Promise<void> {
   const paths = resolveProductPaths();
   mkdirSync(paths.runtimeDir, { recursive: true, mode: 0o700 });
   const log = (message: string) => appendFileSync(paths.supervisorLogPath, `${new Date().toISOString()} ${message}\n`);
-  const releaseRoot = process.env.A1_RELEASE_ROOT;
-  if (!releaseRoot) throw new Error("supervisor must be launched from a verified immutable AddOne release");
+  const releaseRoot = process.env[PRODUCT_IDENTITY.environment.releaseRoot];
+  if (!releaseRoot) throw new Error(PRODUCT_TEXT.diagnostic("supervisor must be launched from a verified immutable release"));
   const release = await readMaterializedRelease(releaseRoot);
-  if (process.env.A1_RELEASE_ID !== release.releaseId) throw new Error("selected AddOne release identity does not match its verified manifest");
+  if (process.env[PRODUCT_IDENTITY.environment.releaseId] !== release.releaseId) throw new Error(PRODUCT_TEXT.diagnostic("selected release identity does not match its verified manifest"));
   await assertImmutableExecutionRoot(release, paths.dataDir);
   const bootNonce = randomUUID();
   const store = new ControlStore(paths.databasePath, bootNonce);

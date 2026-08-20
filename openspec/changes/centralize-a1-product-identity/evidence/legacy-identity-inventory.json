@@ -41,21 +41,21 @@
     "explicit-obsolete-package-fixtures"
   ],
   "summary": {
-    "total": 1186,
-    "files": 200,
+    "total": 1166,
+    "files": 197,
     "byLocationKind": {
-      "content": 1162,
+      "content": 1142,
       "path": 24
     },
     "byClass": {
-      "runtime-symbols": 395,
-      "diagnostics": 122,
+      "runtime-symbols": 375,
+      "diagnostics": 110,
       "environment-keys": 20,
-      "paths": 383,
-      "schemas": 114,
-      "artifacts": 100,
+      "paths": 369,
+      "schemas": 113,
+      "artifacts": 99,
       "native-names": 81,
-      "tests": 230,
+      "tests": 222,
       "current-docs-specs": 754,
       "historical-records": 167,
       "explicit-obsolete-package-fixtures": 8
@@ -13704,10 +13704,10 @@
       ]
     },
     {
-      "id": "src/foundation/lifecycle/model.ts:1:32",
+      "id": "src/foundation/lifecycle/model.ts:3:32",
       "path": "src/foundation/lifecycle/model.ts",
       "locationKind": "content",
-      "line": 1,
+      "line": 3,
       "column": 32,
       "value": "addone",
       "context": "export type LaunchProfileId = \"addone\" | \"pi\" | \"sandbox\";",
@@ -13718,29 +13718,14 @@
       ]
     },
     {
-      "id": "src/foundation/lifecycle/model.ts:73:18",
+      "id": "src/foundation/lifecycle/model.ts:75:18",
       "path": "src/foundation/lifecycle/model.ts",
       "locationKind": "content",
-      "line": 73,
+      "line": 75,
       "column": 18,
       "value": "addone",
-      "context": "if (value !== \"addone\" && value !== \"pi\" && value !== \"sandbox\") throw new TypeError(`invalid AddOne launch profile: ${String(value)}`);",
+      "context": "if (value !== \"addone\" && value !== \"pi\" && value !== \"sandbox\") throw new TypeError(PRODUCT_TEXT.diagnostic(`launch profile is invalid: ${String(value)}`));",
       "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics"
-      ]
-    },
-    {
-      "id": "src/foundation/lifecycle/model.ts:73:97",
-      "path": "src/foundation/lifecycle/model.ts",
-      "locationKind": "content",
-      "line": 73,
-      "column": 97,
-      "value": "AddOne",
-      "context": "if (value !== \"addone\" && value !== \"pi\" && value !== \"sandbox\") throw new TypeError(`invalid AddOne launch profile: ${String(value)}`);",
-      "matchedCase": "title-or-mixed",
       "primaryClass": "runtime-symbols",
       "classes": [
         "runtime-symbols",
@@ -13910,10 +13895,10 @@
       ]
     },
     {
-      "id": "src/foundation/release/bootstrap.ts:22:64",
+      "id": "src/foundation/release/bootstrap.ts:23:64",
       "path": "src/foundation/release/bootstrap.ts",
       "locationKind": "content",
-      "line": 22,
+      "line": 23,
       "column": 64,
       "value": "addone",
       "context": "const launchProfileId = options.launchIntent?.profile.id ?? \"addone\";",
@@ -13921,100 +13906,6 @@
       "primaryClass": "runtime-symbols",
       "classes": [
         "runtime-symbols"
-      ]
-    },
-    {
-      "id": "src/foundation/release/bootstrap.ts:46:19",
-      "path": "src/foundation/release/bootstrap.ts",
-      "locationKind": "content",
-      "line": 46,
-      "column": 19,
-      "value": "AddOne",
-      "context": "output.write(`AddOne startup is blocked to preserve uncertain live ownership: ${decision.reason}\\n`);",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths"
-      ]
-    },
-    {
-      "id": "src/foundation/release/bootstrap.ts:53:80",
-      "path": "src/foundation/release/bootstrap.ts",
-      "locationKind": "content",
-      "line": 53,
-      "column": 80,
-      "value": "AddOne",
-      "context": "if (!diagnostics.terminated) throw new Error(`could not safely clean stale AddOne supervisor ${endpoint.pid}`);",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics",
-        "paths"
-      ]
-    },
-    {
-      "id": "src/foundation/release/bootstrap.ts:76:21",
-      "path": "src/foundation/release/bootstrap.ts",
-      "locationKind": "content",
-      "line": 76,
-      "column": 21,
-      "value": "AddOne",
-      "context": "output.write(\"AddOne could not verify idle cohort ownership release; the retained release remains selected.\\n\");",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics",
-        "paths"
-      ]
-    },
-    {
-      "id": "src/foundation/release/bootstrap.ts:81:21",
-      "path": "src/foundation/release/bootstrap.ts",
-      "locationKind": "content",
-      "line": 81,
-      "column": 21,
-      "value": "AddOne",
-      "context": "output.write(\"AddOne could not complete bounded idle cohort shutdown; the candidate remains pending.\\n\");",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics",
-        "paths"
-      ]
-    },
-    {
-      "id": "src/foundation/release/bootstrap.ts:163:20",
-      "path": "src/foundation/release/bootstrap.ts",
-      "locationKind": "content",
-      "line": 163,
-      "column": 20,
-      "value": "AddOne",
-      "context": "throw new Error(`AddOne supervisor did not publish verified endpoint metadata within ${timeoutMs}ms`);",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics",
-        "paths"
-      ]
-    },
-    {
-      "id": "src/foundation/release/bootstrap.ts:292:20",
-      "path": "src/foundation/release/bootstrap.ts",
-      "locationKind": "content",
-      "line": 292,
-      "column": 20,
-      "value": "AddOne",
-      "context": "throw new Error(`AddOne supervisor ${pid} did not release process ownership within ${timeoutMs}ms`);",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics"
       ]
     },
     {
@@ -14156,84 +14047,6 @@
       "primaryClass": "runtime-symbols",
       "classes": [
         "runtime-symbols"
-      ]
-    },
-    {
-      "id": "src/foundation/supervision/main.ts:13:92",
-      "path": "src/foundation/supervision/main.ts",
-      "locationKind": "content",
-      "line": 13,
-      "column": 92,
-      "value": "AddOne",
-      "context": "if (!releaseRoot) throw new Error(\"supervisor must be launched from a verified immutable AddOne release\");",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics"
-      ]
-    },
-    {
-      "id": "src/foundation/supervision/main.ts:15:82",
-      "path": "src/foundation/supervision/main.ts",
-      "locationKind": "content",
-      "line": 15,
-      "column": 82,
-      "value": "AddOne",
-      "context": "if (process.env.A1_RELEASE_ID !== release.releaseId) throw new Error(\"selected AddOne release identity does not match its verified manifest\");",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics",
-        "artifacts"
-      ]
-    },
-    {
-      "id": "src/foundation/supervision/server.ts:51:74",
-      "path": "src/foundation/supervision/server.ts",
-      "locationKind": "content",
-      "line": 51,
-      "column": 74,
-      "value": "AddOne",
-      "context": "if (await endpointIsLive(this.paths.endpoint)) throw new Error(`an AddOne supervisor already owns ${this.paths.endpoint}`);",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics",
-        "paths"
-      ]
-    },
-    {
-      "id": "src/foundation/supervision/server.ts:114:46",
-      "path": "src/foundation/supervision/server.ts",
-      "locationKind": "content",
-      "line": 114,
-      "column": 46,
-      "value": "AddOne",
-      "context": "reason: accepted ? \"verified AddOne owner accepted immediate update shutdown\" : \"boot nonce or target version mismatch\",",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols"
-      ]
-    },
-    {
-      "id": "src/foundation/supervision/server.ts:121:139",
-      "path": "src/foundation/supervision/server.ts",
-      "locationKind": "content",
-      "line": 121,
-      "column": 139,
-      "value": "AddOne",
-      "context": "this.#send(socket, { type: \"protocol-error\", code: \"invalid-control-handshake\", message: \"the first message must be a valid AddOne control feature handshake\", diagnostics: { received: value } });",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics",
-        "paths",
-        "schemas"
       ]
     },
     {
@@ -15498,23 +15311,6 @@
       ]
     },
     {
-      "id": "test/foundation/lifecycle/launch-profile-identity.test.ts:12:65",
-      "path": "test/foundation/lifecycle/launch-profile-identity.test.ts",
-      "locationKind": "content",
-      "line": 12,
-      "column": 65,
-      "value": "AddOne",
-      "context": "expect(() => assertLaunchProfileId(value)).toThrow(/invalid AddOne launch profile/);",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics",
-        "paths",
-        "tests"
-      ]
-    },
-    {
       "id": "test/foundation/lifecycle/paths.test.ts:17:48",
       "path": "test/foundation/lifecycle/paths.test.ts",
       "locationKind": "content",
@@ -16531,10 +16327,10 @@
       ]
     },
     {
-      "id": "test/foundation/release/cohort-activation.test.ts:56:16",
+      "id": "test/foundation/release/cohort-activation.test.ts:58:16",
       "path": "test/foundation/release/cohort-activation.test.ts",
       "locationKind": "content",
-      "line": 56,
+      "line": 58,
       "column": 16,
       "value": "addone",
       "context": "envelope: \"addone-control-envelope\", envelopeRevision: 1, requiredFeatures: [], optionalFeatures: [], contractDigest: \"contract\",",
@@ -16725,10 +16521,10 @@
       ]
     },
     {
-      "id": "test/foundation/release/update-transition.integration.test.ts:165:16",
+      "id": "test/foundation/release/update-transition.integration.test.ts:167:16",
       "path": "test/foundation/release/update-transition.integration.test.ts",
       "locationKind": "content",
-      "line": 165,
+      "line": 167,
       "column": 16,
       "value": "addone",
       "context": "envelope: \"addone-control-envelope\", envelopeRevision: 1, requiredFeatures: [], optionalFeatures: [], contractDigest: \"fixture-contract\",",
@@ -16884,122 +16680,10 @@
       ]
     },
     {
-      "id": "test/foundation/supervision/foreground-terminal-lease.test.ts:46:51",
-      "path": "test/foundation/supervision/foreground-terminal-lease.test.ts",
-      "locationKind": "content",
-      "line": 46,
-      "column": 51,
-      "value": "addone",
-      "context": "const root = await mkdtemp(resolve(tmpdir(), \"addone-stale-foreground-supervisor-\"));",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/supervision/foreground-terminal-lease.test.ts:63:49",
-      "path": "test/foundation/supervision/foreground-terminal-lease.test.ts",
-      "locationKind": "content",
-      "line": 63,
-      "column": 49,
-      "value": "addone",
-      "context": "const root = await mkdtemp(resolve(tmpdir(), \"addone-foreground-supervisor-\"));",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/supervision/foreground-terminal-lease.test.ts:66:65",
-      "path": "test/foundation/supervision/foreground-terminal-lease.test.ts",
-      "locationKind": "content",
-      "line": 66,
-      "column": 65,
-      "value": "addone",
-      "context": "const endpoint = process.platform === \"win32\" ? `\\\\\\\\.\\\\pipe\\\\addone-foreground-${process.pid}-${randomUUID()}` : resolve(runtimeDir, \"supervisor.sock\");",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/supervision/supervisor-release-exit.test.ts:16:51",
+      "id": "test/foundation/supervision/supervisor-release-exit.test.ts:77:16",
       "path": "test/foundation/supervision/supervisor-release-exit.test.ts",
       "locationKind": "content",
-      "line": 16,
-      "column": 51,
-      "value": "addone",
-      "context": "const root = await mkdtemp(resolve(tmpdir(), \"addone-supervisor-slow-exit-\"));",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/supervision/supervisor-release-exit.test.ts:21:51",
-      "path": "test/foundation/supervision/supervisor-release-exit.test.ts",
-      "locationKind": "content",
-      "line": 21,
-      "column": 51,
-      "value": "AddOne",
-      "context": "waitForExit: async () => { throw new Error(\"AddOne supervisor 20740 did not release process ownership within 3000ms\"); },",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/supervision/supervisor-release-exit.test.ts:31:51",
-      "path": "test/foundation/supervision/supervisor-release-exit.test.ts",
-      "locationKind": "content",
-      "line": 31,
-      "column": 51,
-      "value": "addone",
-      "context": "const root = await mkdtemp(resolve(tmpdir(), \"addone-supervisor-release-exit-\"));",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/supervision/supervisor-release-exit.test.ts:43:64",
-      "path": "test/foundation/supervision/supervisor-release-exit.test.ts",
-      "locationKind": "content",
-      "line": 43,
-      "column": 64,
-      "value": "addone",
-      "context": "endpoint: process.platform === \"win32\" ? `\\\\\\\\.\\\\pipe\\\\addone-release-exit-${process.pid}-${Date.now()}` : resolve(runtimeDir, \"supervisor.sock\"),",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/supervision/supervisor-release-exit.test.ts:73:16",
-      "path": "test/foundation/supervision/supervisor-release-exit.test.ts",
-      "locationKind": "content",
-      "line": 73,
+      "line": 77,
       "column": 16,
       "value": "addone",
       "context": "envelope: \"addone-control-envelope\",",
@@ -17855,5 +17539,5 @@
       ]
     }
   ],
-  "generatedAt": "2026-08-20T08:56:01.694Z"
+  "generatedAt": "2026-08-20T09:00:29.761Z"
 }

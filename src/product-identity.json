@@ -76,7 +76,8 @@
     "terminalProvenanceSchema": "a1-terminal-host-provenance-v1",
     "terminalProofSchema": "a1-terminal-host-proof-v1",
     "stableReleaseSchema": "a1-stable-release-v1",
-    "previewReleaseSchema": "a1-preview-release-v1"
+    "previewReleaseSchema": "a1-preview-release-v1",
+    "releaseCertificationSchema": "a1-release-certification-v1"
   },
   "artifacts": {
     "cliEntry": "bin/a1.js",

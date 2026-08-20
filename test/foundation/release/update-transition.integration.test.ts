@@ -8,6 +8,7 @@ import { CohortStateStore, type SupervisorEndpointMetadata } from "../../../src/
 import { cleanupProvenIdleOwner } from "../../../src/foundation/release/index.js";
 import { materializeRelease, verifyMaterializedRelease, type MaterializedRelease } from "../../../src/foundation/release/index.js";
 import { runSelfUpdate, UPDATE_JOURNAL_SCHEMA, type UpdateLifecycleCoordinator, type UpdateTransactionJournal } from "../../../src/foundation/release/index.js";
+import { PRODUCT_IDENTITY } from "../../../src/product-identity.js";
 
 const cleanupRoots: string[] = [];
 afterEach(async () => Promise.all(cleanupRoots.splice(0).map(root => rm(root, { recursive: true, force: true }))));
@@ -159,6 +160,7 @@ function memoryTransaction(root: string): UpdateTransactionJournal {
 
 function metadata(release: MaterializedRelease, pid: number, generations: readonly string[]): SupervisorEndpointMetadata {
   return {
+    schema: PRODUCT_IDENTITY.protocol.supervisorSchema,
     supervisorId: "n-minus-one", endpoint: "isolated-endpoint", pid, pidStartIdentity: `${pid}:fixture`, bootNonce: "fixture-boot", startedAt: new Date(0).toISOString(),
     releaseId: release.releaseId, releaseRoot: release.releaseRoot, contentDigest: release.contentDigest,
     ownership: { state: generations.length ? "busy" : "idle", liveGenerationIds: generations, nonResumableGenerationIds: generations },

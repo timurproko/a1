@@ -3,6 +3,7 @@ import { selectCohortLaunch } from "../../../src/foundation/release/index.js";
 import { cleanupProvenIdleOwner } from "../../../src/foundation/release/index.js";
 import { emptyState, type CohortState, type SupervisorEndpointMetadata } from "../../../src/foundation/release/index.js";
 import type { MaterializedRelease } from "../../../src/foundation/release/index.js";
+import { PRODUCT_IDENTITY } from "../../../src/product-identity.js";
 
 describe("cohort activation and stale ownership", () => {
   it("replaces an idle cohort but retains a verified busy foreground generation", () => {
@@ -50,6 +51,7 @@ function record(value: MaterializedRelease, approval: "approved" | "candidate") 
 }
 function metadata(value: MaterializedRelease, generations: readonly string[]): SupervisorEndpointMetadata {
   return {
+    schema: PRODUCT_IDENTITY.protocol.supervisorSchema,
     supervisorId: "supervisor-old", endpoint: "endpoint", pid: 987654, pidStartIdentity: "old-start", bootNonce: "old-boot", startedAt: new Date(0).toISOString(),
     releaseId: value.releaseId, releaseRoot: value.releaseRoot, contentDigest: value.contentDigest,
     ownership: { state: generations.length ? "busy" : "idle", liveGenerationIds: generations, nonResumableGenerationIds: generations },

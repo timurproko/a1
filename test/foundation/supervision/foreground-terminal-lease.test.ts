@@ -43,7 +43,7 @@ describe("foreground terminal lease supervision", () => {
   });
 
   it("reconciles stale prior-boot foreground ownership before endpoint publication", async () => {
-    const root = await mkdtemp(resolve(tmpdir(), "addone-stale-foreground-supervisor-"));
+    const root = await mkdtemp(resolve(tmpdir(), "a1-stale-foreground-supervisor-"));
     roots.push(root);
     const databasePath = resolve(root, "control.sqlite3");
     const oldStore = new ControlStore(databasePath, "boot-old");
@@ -60,10 +60,10 @@ describe("foreground terminal lease supervision", () => {
 });
 
 async function createHarness() {
-  const root = await mkdtemp(resolve(tmpdir(), "addone-foreground-supervisor-"));
+  const root = await mkdtemp(resolve(tmpdir(), "a1-foreground-supervisor-"));
   roots.push(root);
   const runtimeDir = resolve(root, "runtime");
-  const endpoint = process.platform === "win32" ? `\\\\.\\pipe\\addone-foreground-${process.pid}-${randomUUID()}` : resolve(runtimeDir, "supervisor.sock");
+  const endpoint = process.platform === "win32" ? `\\\\.\\pipe\\a1-foreground-${process.pid}-${randomUUID()}` : resolve(runtimeDir, "supervisor.sock");
   const paths = {
     configDir: resolve(root, "config"), dataDir: root, runtimeDir, databasePath: resolve(root, "control.sqlite3"),
     endpoint,

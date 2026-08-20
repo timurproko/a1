@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -7,18 +7,19 @@ import type { SupervisorEndpointMetadata } from "../../../src/foundation/release
 import type { MaterializedRelease } from "../../../src/foundation/release/index.js";
 import { ControlStore } from "../../../src/foundation/storage/index.js";
 import { SupervisorServer } from "../../../src/foundation/supervision/index.js";
+import { PRODUCT_IDENTITY } from "../../../src/product-identity.js";
 
 const cleanupRoots: string[] = [];
 afterEach(async () => Promise.all(cleanupRoots.splice(0).map(root => rm(root, { recursive: true, force: true }))));
 
 describe("supervisor release replacement exit", () => {
   it("falls back to bounded verified idle cleanup when graceful exit exceeds its deadline", async () => {
-    const root = await mkdtemp(resolve(tmpdir(), "addone-supervisor-slow-exit-"));
+    const root = await mkdtemp(resolve(tmpdir(), "a1-supervisor-slow-exit-"));
     cleanupRoots.push(root);
     const cleanup = vi.fn(async () => ({ pid: 20740, attempted: ["graceful-termination", "forced-process-tree-termination"], terminated: true, elapsedMs: 1500 }));
 
     const released = await releaseVerifiedIdleOwner(metadata(), root, {
-      waitForExit: async () => { throw new Error("AddOne supervisor 20740 did not release process ownership within 3000ms"); },
+      waitForExit: async () => { throw new Error("A1 supervisor 20740 did not release process ownership within 3000ms"); },
       cleanup,
     });
 
@@ -28,7 +29,7 @@ describe("supervisor release replacement exit", () => {
   });
 
   it("terminates the dedicated supervisor only after owned resources close", async () => {
-    const root = await mkdtemp(resolve(tmpdir(), "addone-supervisor-release-exit-"));
+    const root = await mkdtemp(resolve(tmpdir(), "a1-supervisor-release-exit-"));
     cleanupRoots.push(root);
     const runtimeDir = resolve(root, "runtime");
     const terminate = vi.fn();
@@ -40,7 +41,7 @@ describe("supervisor release replacement exit", () => {
         dataDir: root,
         runtimeDir,
         databasePath: resolve(root, "control.sqlite3"),
-        endpoint: process.platform === "win32" ? `\\\\.\\pipe\\addone-release-exit-${process.pid}-${Date.now()}` : resolve(runtimeDir, "supervisor.sock"),
+        endpoint: process.platform === "win32" ? `\\\\.\\pipe\\a1-release-exit-${process.pid}-${Date.now()}` : resolve(runtimeDir, "supervisor.sock"),
         endpointMetadataPath: resolve(runtimeDir, "supervisor.json"),
         supervisorLogPath: resolve(runtimeDir, "supervisor.log"),
       },
@@ -50,6 +51,8 @@ describe("supervisor release replacement exit", () => {
     );
 
     await server.listen();
+    const endpointRecord = JSON.parse(await readFile(resolve(runtimeDir, "supervisor.json"), "utf8")) as { schema?: unknown };
+    expect(endpointRecord.schema).toBe(PRODUCT_IDENTITY.protocol.supervisorSchema);
     await server.closeForReleaseReplacement(false);
 
     expect(terminate).toHaveBeenCalledOnce();
@@ -60,6 +63,7 @@ describe("supervisor release replacement exit", () => {
 function metadata(): SupervisorEndpointMetadata {
   const value = release();
   return {
+    schema: PRODUCT_IDENTITY.protocol.supervisorSchema,
     supervisorId: "old-supervisor",
     endpoint: "verified-endpoint",
     pid: 20740,

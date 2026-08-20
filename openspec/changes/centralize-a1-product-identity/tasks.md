@@ -24,7 +24,7 @@
 ## 5. Rename release, supervision, protocol, and storage identity
 
 - [x] 5.1 Rename release identity types, constants, manifest filename, schema values, cohort/update journals, certification records, and related files from legacy branding to A1 or product-neutral names; pass derivation, materialization, rollback, garbage collection, and rejection tests.
-- [ ] 5.2 Rename supervision/lifecycle symbols, process metadata, ownership messages, endpoint records, logs, and error text; pass startup, lease, shutdown, stale-owner, and failure-safety tests.
+- [x] 5.2 Rename supervision/lifecycle symbols, process metadata, ownership messages, endpoint records, logs, and error text; pass startup, lease, shutdown, stale-owner, and failure-safety tests.
 - [ ] 5.3 Rename protocol frame/schema identifiers and storage/control schema names, rejecting all legacy machine identifiers without migration; pass codec, validation, database, and incompatible-state tests.
 - [ ] 5.4 Rename workspace, owned-UI, adapter, and feature symbols/comments/diagnostics that encode the former product name, preferring responsibility-based names; pass their complete focused unit and integration suites.
 

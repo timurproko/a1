@@ -1,3 +1,5 @@
+import { PRODUCT_TEXT } from "../../product-identity.js";
+
 export type LaunchProfileId = "addone" | "pi" | "sandbox";
 export type GenerationId = string;
 export type DriverProfileId = string;
@@ -70,7 +72,7 @@ export interface CommandResult {
 }
 
 export function assertLaunchProfileId(value: unknown): asserts value is LaunchProfileId {
-  if (value !== "addone" && value !== "pi" && value !== "sandbox") throw new TypeError(`invalid AddOne launch profile: ${String(value)}`);
+  if (value !== "addone" && value !== "pi" && value !== "sandbox") throw new TypeError(PRODUCT_TEXT.diagnostic(`launch profile is invalid: ${String(value)}`));
 }
 
 export function assertDimensions(dimensions: TerminalDimensions): void {
