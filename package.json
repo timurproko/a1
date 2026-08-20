@@ -1,13 +1,11 @@
 {
-  "name": "@timurproko/addone",
-  "version": "0.1.5-dev.11",
+  "name": "@timurproko/a1",
+  "version": "0.1.0",
   "description": "Standalone terminal workspace for supervised native and managed agents",
   "type": "module",
   "packageManager": "npm@11.13.0",
   "bin": {
-    "addone": "bin/addone.js",
-    "a1": "bin/addone.js",
-    "addone-supervisor": "bin/addone-supervisor.js"
+    "a1": "bin/addone.js"
   },
   "files": [
     "bin",
