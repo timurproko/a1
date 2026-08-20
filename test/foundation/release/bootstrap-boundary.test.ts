@@ -21,7 +21,10 @@ describe("mutable bootstrap boundary", () => {
     expect(bin).not.toContain("runOwnedUi");
     expect(ui).toContain("runSelectedInteractiveRuntime");
     expect(ui).toContain("runOwnedUi");
-    expect(ui).toContain("runTransparentForeground");
+    expect(ui).toContain("runSelectedTransparentRuntime");
+    const transparentComposition = await readFile(resolve(repository, "src/composition/transparent-runtime.ts"), "utf8");
+    expect(transparentComposition).toContain("runTransparentForeground");
+    expect(transparentComposition).not.toMatch(/features\/owned-ui|features\/workspace|composeOwnedUiApplication|pi-owned-ui-integration/);
     expect(`${bin}\n${ui}`).not.toMatch(/node-pty|pi-tui|@xterm|host-terminal-renderer|terminal-input/);
     expect(`${bin}\n${ui}`).not.toMatch(/Start-Process|wt\.exe|SendInput|SetForegroundWindow/);
   });
