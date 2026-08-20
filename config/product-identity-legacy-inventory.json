@@ -832,10 +832,10 @@
       ]
     },
     {
-      "id": "test/foundation/release/package-surface.integration.test.ts:76:70",
+      "id": "test/foundation/release/package-surface.integration.test.ts:88:70",
       "path": "test/foundation/release/package-surface.integration.test.ts",
       "locationKind": "content",
-      "line": 76,
+      "line": 88,
       "column": 70,
       "value": "addone",
       "context": "await expect(access(resolve(bin, process.platform === \"win32\" ? \"addone.cmd\" : \"addone\"))).rejects.toThrow();",
@@ -848,10 +848,10 @@
       ]
     },
     {
-      "id": "test/foundation/release/package-surface.integration.test.ts:76:85",
+      "id": "test/foundation/release/package-surface.integration.test.ts:88:85",
       "path": "test/foundation/release/package-surface.integration.test.ts",
       "locationKind": "content",
-      "line": 76,
+      "line": 88,
       "column": 85,
       "value": "addone",
       "context": "await expect(access(resolve(bin, process.platform === \"win32\" ? \"addone.cmd\" : \"addone\"))).rejects.toThrow();",
@@ -864,10 +864,10 @@
       ]
     },
     {
-      "id": "test/foundation/release/package-surface.integration.test.ts:77:70",
+      "id": "test/foundation/release/package-surface.integration.test.ts:89:70",
       "path": "test/foundation/release/package-surface.integration.test.ts",
       "locationKind": "content",
-      "line": 77,
+      "line": 89,
       "column": 70,
       "value": "addone",
       "context": "await expect(access(resolve(bin, process.platform === \"win32\" ? \"addone-supervisor.cmd\" : \"addone-supervisor\"))).rejects.toThrow();",
@@ -880,10 +880,10 @@
       ]
     },
     {
-      "id": "test/foundation/release/package-surface.integration.test.ts:77:96",
+      "id": "test/foundation/release/package-surface.integration.test.ts:89:96",
       "path": "test/foundation/release/package-surface.integration.test.ts",
       "locationKind": "content",
-      "line": 77,
+      "line": 89,
       "column": 96,
       "value": "addone",
       "context": "await expect(access(resolve(bin, process.platform === \"win32\" ? \"addone-supervisor.cmd\" : \"addone-supervisor\"))).rejects.toThrow();",
@@ -1328,5 +1328,5 @@
       ]
     }
   ],
-  "generatedAt": "2026-08-20T16:28:48.832Z"
+  "generatedAt": "2026-08-20T16:43:18.877Z"
 }

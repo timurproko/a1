@@ -60,6 +60,11 @@
       "identifier": "A1_LAUNCH_PROFILE"
     },
     {
+      "path": "src/composition/transparent-runtime.ts",
+      "line": 11,
+      "identifier": "A1_LAUNCH_ARGUMENTS_JSON"
+    },
+    {
       "path": "src/features/launch/prepare-launch.ts",
       "line": 30,
       "identifier": "A1_LAUNCH_ARGUMENTS_JSON"
@@ -75,21 +80,6 @@
       "identifier": "A1_RELEASE_ID"
     },
     {
-      "path": "src/foundation/transparent-terminal/main.ts",
-      "line": 50,
-      "identifier": "A1_TERMINAL_EXECUTABLE"
-    },
-    {
-      "path": "src/foundation/transparent-terminal/main.ts",
-      "line": 52,
-      "identifier": "A1_LAUNCH_ARGUMENTS_JSON"
-    },
-    {
-      "path": "src/foundation/transparent-terminal/main.ts",
-      "line": 53,
-      "identifier": "A1_TERMINAL_ARGUMENTS_JSON"
-    },
-    {
       "path": "test/cli/update-cli.test.ts",
       "line": 97,
       "identifier": "A1_RUNTIME_DIR"
@@ -98,6 +88,16 @@
       "path": "test/cli/update-cli.test.ts",
       "line": 114,
       "identifier": "A1_RUNTIME_DIR"
+    },
+    {
+      "path": "test/composition/transparent-runtime.test.ts",
+      "line": 8,
+      "identifier": "A1_LAUNCH_ARGUMENTS_JSON"
+    },
+    {
+      "path": "test/composition/transparent-runtime.test.ts",
+      "line": 17,
+      "identifier": "A1_LAUNCH_ARGUMENTS_JSON"
     },
     {
       "path": "test/features/launch/development-launch.test.ts",
@@ -173,6 +173,11 @@
       "path": "test/features/launch/development-launch.test.ts",
       "line": 75,
       "identifier": "A1_DATABASE_PATH"
+    },
+    {
+      "path": "test/features/launch/exact-pi-entry.integration.test.ts",
+      "line": 31,
+      "identifier": "A1_LAUNCH_ARGUMENTS_JSON"
     },
     {
       "path": "test/features/launch/prepare-launch.test.ts",
@@ -286,17 +291,17 @@
     },
     {
       "path": "test/repository-governance/pinned-pi-source-ledger.test.ts",
-      "line": 32,
+      "line": 33,
       "identifier": "A1_PI_SOURCE_LEDGER_PATH"
     },
     {
       "path": "test/repository-governance/pinned-pi-source-ledger.test.ts",
-      "line": 101,
+      "line": 115,
       "identifier": "A1_PI_SOURCE_SCAN_ROOT"
     },
     {
       "path": "test/repository-governance/pinned-pi-source-ledger.test.ts",
-      "line": 111,
+      "line": 125,
       "identifier": "A1_PI_PORT_ROOT"
     }
   ],

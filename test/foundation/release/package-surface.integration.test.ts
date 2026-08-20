@@ -45,7 +45,9 @@ describe("packed npm command surface", () => {
       "dist/src/product-identity.js",
       "dist/src/product-identity.json",
       "dist/src/product-identity.d.ts",
+      "dist/src/foundation/pi-engine-adapter/public-main-entry.js",
     ]));
+    expect(paths.some(path => path.startsWith("scripts/") || path.endsWith(".map"))).toBe(false);
   });
 
   it("installs only the a1 shim under a clean npm prefix", async () => {
@@ -57,9 +59,11 @@ describe("packed npm command surface", () => {
       name: string;
       version: string;
       bin: Record<string, string>;
+      dependencies: Record<string, string>;
     };
     expect(manifest).toMatchObject({ name: "@timurproko/a1", version: "0.1.0", bin: { "a1": "bin/a1.js" } });
     expect(Object.keys(manifest.bin)).toEqual(["a1"]);
+    expect(manifest.dependencies["@earendil-works/pi-coding-agent"]).toMatch(/^\d+\.\d+\.\d+$/);
 
     const packageRoot = resolve(prefix, "node_modules", "@timurproko", "a1");
     const identityJson = JSON.parse(await readFile(resolve(packageRoot, "dist", "src", "product-identity.json"), "utf8")) as { packageName: string };
@@ -69,6 +73,14 @@ describe("packed npm command surface", () => {
     expect(identityJson.packageName).toBe("@timurproko/a1");
     expect(identityModule.PRODUCT_IDENTITY).toMatchObject({ packageName: "@timurproko/a1", commandName: "a1" });
     expect(Object.isFrozen(identityModule.PRODUCT_IDENTITY)).toBe(true);
+
+    const publicEntry = resolve(packageRoot, "dist", "src", "foundation", "pi-engine-adapter", "public-main-entry.js");
+    const entrySource = await readFile(publicEntry, "utf8");
+    expect(entrySource).toContain('from "@earendil-works/pi-coding-agent"');
+    expect(entrySource).not.toMatch(/node_modules|\/dist\/|\\\\dist\\\\|cli\.js/);
+    const oracle = run(process.execPath, [publicEntry, "--version"], root);
+    expect(oracle.status, oracle.stderr).toBe(0);
+    expect(oracle.stdout.trim()).toBe(manifest.dependencies["@earendil-works/pi-coding-agent"]);
 
     const bin = process.platform === "win32" ? prefix : resolve(prefix, "bin");
     const commandPath = resolve(bin, process.platform === "win32" ? "a1.cmd" : "a1");
