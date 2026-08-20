@@ -62,7 +62,7 @@ describe("packed npm command surface", () => {
 
   it("installs only the a1 shim under a clean npm prefix", async () => {
     const prefix = resolve(root, "prefix");
-    const installed = run(npm, ["install", "--global", "--prefix", prefix, tarball, "--ignore-scripts", "--no-audit", "--no-fund"], repository);
+    const installed = await runAsync(npm, ["install", "--global", "--prefix", prefix, tarball, "--ignore-scripts", "--no-audit", "--no-fund"], repository);
     expect(installed.status, installed.stderr).toBe(0);
 
     const manifest = JSON.parse(await readFile(resolve(prefix, "node_modules", "@timurproko", "a1", "package.json"), "utf8")) as {
@@ -106,4 +106,16 @@ describe("packed npm command surface", () => {
 
 function run(command: string, arguments_: readonly string[], cwd: string) {
   return crossSpawn.sync(command, [...arguments_], { cwd, encoding: "utf8", env: process.env, windowsHide: true });
+}
+
+function runAsync(command: string, arguments_: readonly string[], cwd: string) {
+  return new Promise<{ status: number | null; stdout: string; stderr: string }>((resolvePromise, rejectPromise) => {
+    const child = crossSpawn(command, [...arguments_], { cwd, env: process.env, windowsHide: true });
+    let stdout = "";
+    let stderr = "";
+    child.stdout?.on("data", chunk => { stdout += chunk.toString(); });
+    child.stderr?.on("data", chunk => { stderr += chunk.toString(); });
+    child.once("error", rejectPromise);
+    child.once("close", status => resolvePromise({ status, stdout, stderr }));
+  });
 }
