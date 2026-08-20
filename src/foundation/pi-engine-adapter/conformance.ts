@@ -15,7 +15,25 @@ import { PRODUCT_IDENTITY } from "../../product-identity.js";
 export interface PiCapabilityConformanceResult {
   readonly capability: string;
   readonly operations: readonly string[];
-  readonly passed: true;
+  readonly passed: boolean;
+}
+
+export const REQUIRED_PI_CAPABILITY_OPERATIONS = Object.freeze({
+  "public-exports": ["services.create", "session.create", "runtime.create"],
+  "session-lifecycle": ["session.new", "session.resume", "session.rebind", "session.dispose"],
+  "commands-events": ["prompt", "steer", "followUp", "abort", "compact", "setModel", "setThinkingLevel", "subscribe", "dispose"],
+  "models-authentication": ["models.list", "models.refresh", "auth.status", "auth.login", "auth.logout", "auth.cancel"],
+  settings: ["settings.read", "settings.write", "settings.flush"],
+  "resources-extensions": ["resources.discover", "extensions.bind", "extensions.reload", "renderers.invoke"],
+  workflows: ["workflow.route", "workflow.validate", "workflow.diagnostics"],
+  disposal: ["subscription.dispose", "session.dispose", "services.cleanup"],
+} as const);
+
+export class PiCapabilityCompatibilityError extends Error {
+  constructor(readonly packageVersion: string, readonly capability: string, readonly operation: string, detail: string) {
+    super(`Pi ${packageVersion} capability ${capability} operation ${operation} is incompatible: ${detail}`);
+    this.name = "PiCapabilityCompatibilityError";
+  }
 }
 
 export interface PiUpgradeConformanceReport {
@@ -92,6 +110,9 @@ export async function runPiUpgradeConformance(): Promise<PiUpgradeConformanceRep
     }
 
     const commandSurface = ["prompt", "steer", "followUp", "abort", "compact", "setModel", "setThinkingLevel", "subscribe", "dispose"] as const;
+    const capabilities = Object.entries(REQUIRED_PI_CAPABILITY_OPERATIONS)
+      .map(([capabilityName, operations]) => capability(capabilityName, operations));
+    validatePiCapabilityResults(VERSION, capabilities);
     return {
       schema: "pi-engine-conformance-v1",
       packageName: "@earendil-works/pi-coding-agent",
@@ -100,16 +121,7 @@ export async function runPiUpgradeConformance(): Promise<PiUpgradeConformanceRep
       serviceDiagnostics: services.diagnostics.length,
       sessionId,
       commandSurface,
-      capabilities: [
-        capability("public-exports", ["services.create", "session.create", "runtime.create"]),
-        capability("session-lifecycle", ["session.new", "session.resume", "session.rebind", "session.dispose"]),
-        capability("commands-events", commandSurface),
-        capability("models-authentication", ["models.list", "models.refresh", "auth.status", "auth.login", "auth.logout", "auth.cancel"]),
-        capability("settings", ["settings.read", "settings.write", "settings.flush"]),
-        capability("resources-extensions", ["resources.discover", "extensions.bind", "extensions.reload", "renderers.invoke"]),
-        capability("workflows", ["workflow.route", "workflow.validate", "workflow.diagnostics"]),
-        capability("disposal", ["subscription.dispose", "session.dispose", "services.cleanup"]),
-      ],
+      capabilities,
     };
   } finally {
     await rm(root, { recursive: true, force: true });
@@ -125,4 +137,15 @@ function requireMethods(target: object, capabilityName: string, operations: read
 
 function capability(capabilityName: string, operations: readonly string[]): PiCapabilityConformanceResult {
   return { capability: capabilityName, operations, passed: true };
+}
+
+export function validatePiCapabilityResults(packageVersion: string, results: readonly PiCapabilityConformanceResult[]): void {
+  for (const [capabilityName, requiredOperations] of Object.entries(REQUIRED_PI_CAPABILITY_OPERATIONS)) {
+    const result = results.find(candidate => candidate.capability === capabilityName);
+    if (!result) throw new PiCapabilityCompatibilityError(packageVersion, capabilityName, requiredOperations[0], "capability result is missing");
+    if (!result.passed) throw new PiCapabilityCompatibilityError(packageVersion, capabilityName, requiredOperations[0], "capability reported failure");
+    for (const operation of requiredOperations) {
+      if (!result.operations.includes(operation)) throw new PiCapabilityCompatibilityError(packageVersion, capabilityName, operation, "required operation is missing");
+    }
+  }
 }
