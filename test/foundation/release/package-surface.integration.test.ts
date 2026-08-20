@@ -61,7 +61,7 @@ describe("packed npm command surface", () => {
 
   it("installs only the a1 shim under a clean npm prefix", async () => {
     const prefix = resolve(root, "prefix");
-    const installed = run(npm, ["install", "--global", "--prefix", prefix, tarball, "--ignore-scripts", "--offline", "--no-audit", "--no-fund"], repository);
+    const installed = run(npm, ["install", "--global", "--prefix", prefix, tarball, "--ignore-scripts", "--no-audit", "--no-fund"], repository);
     expect(installed.status, installed.stderr).toBe(0);
 
     const manifest = JSON.parse(await readFile(resolve(prefix, "node_modules", "@timurproko", "a1", "package.json"), "utf8")) as {
