@@ -1,6 +1,6 @@
-# AddOne
+# A1
 
-AddOne is a terminal-native agent launcher for Windows, Linux, and macOS. Bare `a1` runs the AddOne-owned Pi-compatible UI, while explicit fallback profiles can launch untouched Pi directly. AddOne also manages release selection, process ownership, and updates.
+A1 is a terminal-native agent launcher for Windows, Linux, and macOS. Bare `a1` runs the A1-owned Pi-compatible UI, while explicit fallback profiles can launch untouched Pi directly. A1 also manages release selection, process ownership, and updates.
 
 ## Install
 
@@ -18,7 +18,7 @@ The package installs only the `a1` command.
 ## Commands
 
 ```sh
-a1              # AddOne-owned UI and profile: ~/.a1/agent
+a1              # A1-owned UI and profile: ~/.a1/agent
 a1 pi           # untouched vanilla Pi oracle: ~/.pi/agent
 a1 sandbox      # unchanged isolated vanilla Pi profile: ~/.a1/sandbox
 a1 version      # show Installed, Release (latest), and Next versions
@@ -26,9 +26,9 @@ a1 update       # update to npm latest
 a1 update:next  # update to npm next
 ```
 
-Bare `a1` owns its Pi-compatible TUI composition and uses the public Pi engine, components, and terminal APIs. It does not insert a PTY or terminal-byte relay. Default visuals and workflows track the pinned vanilla Pi baseline; AddOne-specific visual customization and structured tabs remain disabled.
+Bare `a1` owns its Pi-compatible TUI composition and uses the public Pi engine, components, and terminal APIs. It does not insert a PTY or terminal-byte relay. Default visuals and workflows track the pinned vanilla Pi baseline; A1-specific visual customization and structured tabs remain disabled.
 
-`a1 pi` is the untouched upstream fallback and comparison oracle. Use it to distinguish AddOne-owned UI problems from upstream Pi, profile, provider, or terminal problems. The `a1 ui` subcommand was removed and is not a compatibility alias; run bare `a1` for the owned UI.
+`a1 pi` is the untouched upstream fallback and comparison oracle. Use it to distinguish A1-owned UI problems from upstream Pi, profile, provider, or terminal problems. The `a1 ui` subcommand was removed and is not a compatibility alias; run bare `a1` for the owned UI.
 
 `a1 sandbox` is unchanged: it launches vanilla Pi with isolated Pi configuration and resources. “Sandbox” does not mean operating-system, filesystem, process, network, or credential security isolation. See [`docs/features/launch-profiles.md`](docs/features/launch-profiles.md) for first-run directories, independent `/login`, trust behavior, extension placement, and recovery.
 
@@ -40,7 +40,7 @@ npm run build
 npm start
 ```
 
-`npm start` gives each invocation isolated AddOne development state and an isolated development Pi profile. Use `npm start -- --print-environment` to inspect the selected paths without launching the UI.
+`npm start` gives each invocation isolated A1 development state and an isolated development Pi profile. Use `npm start -- --print-environment` to inspect the selected paths without launching the UI.
 
 Run the non-desktop gates with:
 

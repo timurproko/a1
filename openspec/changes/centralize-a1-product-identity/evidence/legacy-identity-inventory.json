@@ -41,23 +41,23 @@
     "explicit-obsolete-package-fixtures"
   ],
   "summary": {
-    "total": 886,
-    "files": 139,
+    "total": 816,
+    "files": 115,
     "byLocationKind": {
-      "content": 863,
+      "content": 793,
       "path": 23
     },
     "byClass": {
-      "runtime-symbols": 114,
-      "diagnostics": 100,
+      "runtime-symbols": 79,
+      "diagnostics": 92,
       "environment-keys": 20,
-      "paths": 290,
-      "schemas": 98,
+      "paths": 262,
+      "schemas": 78,
       "artifacts": 85,
-      "native-names": 77,
-      "tests": 86,
-      "current-docs-specs": 737,
-      "historical-records": 150,
+      "native-names": 69,
+      "tests": 58,
+      "current-docs-specs": 702,
+      "historical-records": 140,
       "explicit-obsolete-package-fixtures": 8
     }
   },
@@ -150,21 +150,6 @@
       "primaryClass": "schemas",
       "classes": [
         "schemas",
-        "current-docs-specs"
-      ]
-    },
-    {
-      "id": "docs/architecture/resource-and-data-policy.md:35:90",
-      "path": "docs/architecture/resource-and-data-policy.md",
-      "locationKind": "content",
-      "line": 35,
-      "column": 90,
-      "value": "AddOne",
-      "context": "| Terminal content | PTY bytes, scrollback, selection, rendered cells | Never persist in AddOne's control store or diagnostics |",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "diagnostics",
-      "classes": [
-        "diagnostics",
         "current-docs-specs"
       ]
     },
@@ -492,242 +477,6 @@
       ]
     },
     {
-      "id": "docs/features/launch-profiles.md:7:10",
-      "path": "docs/features/launch-profiles.md",
-      "locationKind": "content",
-      "line": 7,
-      "column": 10,
-      "value": "AddOne",
-      "context": "| `a1` | AddOne-owned Pi-compatible UI | `~/.a1/agent` |",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "paths",
-      "classes": [
-        "paths",
-        "current-docs-specs"
-      ]
-    },
-    {
-      "id": "docs/features/launch-profiles.md:15:5",
-      "path": "docs/features/launch-profiles.md",
-      "locationKind": "content",
-      "line": 15,
-      "column": 5,
-      "value": "AddOne",
-      "context": "For AddOne-owned profiles, AddOne creates only the selected profile root and empty `extensions`, `skills`, `prompts`, and `themes` directories. Existing content is preserved. AddOne does not copy, link, merge, or delete settings, credent...",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "paths",
-      "classes": [
-        "paths",
-        "current-docs-specs"
-      ]
-    },
-    {
-      "id": "docs/features/launch-profiles.md:15:28",
-      "path": "docs/features/launch-profiles.md",
-      "locationKind": "content",
-      "line": 15,
-      "column": 28,
-      "value": "AddOne",
-      "context": "For AddOne-owned profiles, AddOne creates only the selected profile root and empty `extensions`, `skills`, `prompts`, and `themes` directories. Existing content is preserved. AddOne does not copy, link, merge, or delete settings, credent...",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "paths",
-      "classes": [
-        "paths",
-        "current-docs-specs"
-      ]
-    },
-    {
-      "id": "docs/features/launch-profiles.md:15:176",
-      "path": "docs/features/launch-profiles.md",
-      "locationKind": "content",
-      "line": 15,
-      "column": 176,
-      "value": "AddOne",
-      "context": "For AddOne-owned profiles, AddOne creates only the selected profile root and empty `extensions`, `skills`, `prompts`, and `themes` directories. Existing content is preserved. AddOne does not copy, link, merge, or delete settings, credent...",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "paths",
-      "classes": [
-        "paths",
-        "current-docs-specs"
-      ]
-    },
-    {
-      "id": "docs/features/launch-profiles.md:34:22",
-      "path": "docs/features/launch-profiles.md",
-      "locationKind": "content",
-      "line": 34,
-      "column": 22,
-      "value": "AddOne",
-      "context": "`a1 pi` bypasses the AddOne-owned UI and launches the untouched pinned Pi CLI. It also removes AddOne’s Pi configuration-root override, so Pi uses its normal `~/.pi/agent` settings, authentication, sessions, resources, packages, and trus...",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "paths",
-      "classes": [
-        "paths",
-        "current-docs-specs"
-      ]
-    },
-    {
-      "id": "docs/features/launch-profiles.md:34:96",
-      "path": "docs/features/launch-profiles.md",
-      "locationKind": "content",
-      "line": 34,
-      "column": 96,
-      "value": "AddOne",
-      "context": "`a1 pi` bypasses the AddOne-owned UI and launches the untouched pinned Pi CLI. It also removes AddOne’s Pi configuration-root override, so Pi uses its normal `~/.pi/agent` settings, authentication, sessions, resources, packages, and trus...",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "paths",
-      "classes": [
-        "paths",
-        "current-docs-specs"
-      ]
-    },
-    {
-      "id": "docs/features/launch-profiles.md:44:20",
-      "path": "docs/features/launch-profiles.md",
-      "locationKind": "content",
-      "line": 44,
-      "column": 20,
-      "value": "AddOne",
-      "context": "Bare `a1` runs the AddOne-owned full-viewport TUI over public Pi engine, component, and terminal APIs. AddOne owns composition, input routing, modal focus, selection behavior, scrolling, and restoration without inserting a PTY or termina...",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "current-docs-specs",
-      "classes": [
-        "current-docs-specs"
-      ]
-    },
-    {
-      "id": "docs/features/launch-profiles.md:44:104",
-      "path": "docs/features/launch-profiles.md",
-      "locationKind": "content",
-      "line": 44,
-      "column": 104,
-      "value": "AddOne",
-      "context": "Bare `a1` runs the AddOne-owned full-viewport TUI over public Pi engine, component, and terminal APIs. AddOne owns composition, input routing, modal focus, selection behavior, scrolling, and restoration without inserting a PTY or termina...",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "current-docs-specs",
-      "classes": [
-        "current-docs-specs"
-      ]
-    },
-    {
-      "id": "docs/features/launch-profiles.md:44:329",
-      "path": "docs/features/launch-profiles.md",
-      "locationKind": "content",
-      "line": 44,
-      "column": 329,
-      "value": "AddOne",
-      "context": "Bare `a1` runs the AddOne-owned full-viewport TUI over public Pi engine, component, and terminal APIs. AddOne owns composition, input routing, modal focus, selection behavior, scrolling, and restoration without inserting a PTY or termina...",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "current-docs-specs",
-      "classes": [
-        "current-docs-specs"
-      ]
-    },
-    {
-      "id": "docs/features/launch-profiles.md:46:210",
-      "path": "docs/features/launch-profiles.md",
-      "locationKind": "content",
-      "line": 46,
-      "column": 210,
-      "value": "AddOne",
-      "context": "`a1 pi` and `a1 sandbox` retain transparent direct attachment. In those profiles, one untouched Pi process and the physical terminal own rendering, input, selection, clipboard, scrollback, and terminal modes; AddOne owns foreground lease...",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "current-docs-specs",
-      "classes": [
-        "current-docs-specs"
-      ]
-    },
-    {
-      "id": "docs/features/launch-profiles.md:50:276",
-      "path": "docs/features/launch-profiles.md",
-      "locationKind": "content",
-      "line": 50,
-      "column": 276,
-      "value": "AddOne",
-      "context": "If bare `a1` cannot start or a UI workflow diverges, run `a1 pi` from the same working directory and compare the behavior. Profile data is intentionally separate, so authentication or settings may need to be configured independently. Use...",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "diagnostics",
-      "classes": [
-        "diagnostics",
-        "paths",
-        "current-docs-specs"
-      ]
-    },
-    {
-      "id": "docs/manual-transparent-checkpoint.md:16:14",
-      "path": "docs/manual-transparent-checkpoint.md",
-      "locationKind": "content",
-      "line": 16,
-      "column": 14,
-      "value": "AddOne",
-      "context": "Use isolated AddOne control state:",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "current-docs-specs",
-      "classes": [
-        "current-docs-specs"
-      ]
-    },
-    {
-      "id": "docs/manual-transparent-checkpoint.md:36:17",
-      "path": "docs/manual-transparent-checkpoint.md",
-      "locationKind": "content",
-      "line": 36,
-      "column": 17,
-      "value": "AddOne",
-      "context": "## Compare bare AddOne with `a1 pi`",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "current-docs-specs",
-      "classes": [
-        "current-docs-specs"
-      ]
-    },
-    {
-      "id": "docs/manual-transparent-checkpoint.md:38:107",
-      "path": "docs/manual-transparent-checkpoint.md",
-      "locationKind": "content",
-      "line": 38,
-      "column": 107,
-      "value": "AddOne",
-      "context": "Use the same terminal, working directory, dimensions, environment, and equivalent profile resources. Bare AddOne and the untouched oracle intentionally use separate profile roots.",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "paths",
-      "classes": [
-        "paths",
-        "current-docs-specs"
-      ]
-    },
-    {
-      "id": "docs/manual-transparent-checkpoint.md:42:35",
-      "path": "docs/manual-transparent-checkpoint.md",
-      "locationKind": "content",
-      "line": 42,
-      "column": 35,
-      "value": "AddOne",
-      "context": "- [ ] Rapid typing has no visible AddOne delay or dropped/duplicated characters.",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "paths",
-      "classes": [
-        "paths",
-        "current-docs-specs"
-      ]
-    },
-    {
-      "id": "docs/manual-transparent-checkpoint.md:49:36",
-      "path": "docs/manual-transparent-checkpoint.md",
-      "locationKind": "content",
-      "line": 49,
-      "column": 36,
-      "value": "AddOne",
-      "context": "Report failures with direct-versus-AddOne behavior, platform/terminal versions, exact command, reproducibility, and optional manually captured evidence.",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "diagnostics",
-      "classes": [
-        "diagnostics",
-        "paths",
-        "current-docs-specs"
-      ]
-    },
-    {
       "id": "native/terminal-host/build.rs:27:46",
       "path": "native/terminal-host/build.rs",
       "locationKind": "content",
@@ -848,55 +597,6 @@
       ]
     },
     {
-      "id": "native/terminal-host/src/main.rs:41:24",
-      "path": "native/terminal-host/src/main.rs",
-      "locationKind": "content",
-      "line": 41,
-      "column": 24,
-      "value": "addone",
-      "context": "eprintln!(\"addone-terminal-host: {error}\");",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics",
-        "native-names"
-      ]
-    },
-    {
-      "id": "native/terminal-host/src/main.rs:78:25",
-      "path": "native/terminal-host/src/main.rs",
-      "locationKind": "content",
-      "line": 78,
-      "column": 25,
-      "value": "addone",
-      "context": "\"usage: addone-terminal-host --version | --probe | --probe-scroll | --probe-selection | --probe-input | --probe-2x2 | --topology-2x2 | --resolve <command> | --resolve-shell | --run [-- <command> [args...]]\"",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics",
-        "native-names"
-      ]
-    },
-    {
-      "id": "native/terminal-host/src/main.rs:87:25",
-      "path": "native/terminal-host/src/main.rs",
-      "locationKind": "content",
-      "line": 87,
-      "column": 25,
-      "value": "addone",
-      "context": "\"{{\\\"schema\\\":\\\"addone-terminal-host-version-v1\\\",\\\"protocolVersion\\\":{A1_PROTOCOL_VERSION},\\\"hostMode\\\":\\\"console-inside-existing-terminal\\\",\\\"desktopWindow\\\":false,\\\"libghosttyVtCommit\\\":\\\"{GHOSTTY_VT_COMMIT}\\\",\\\"portablePty\\\":\\\"{PORTA...",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "schemas",
-        "native-names"
-      ]
-    },
-    {
       "id": "native/terminal-host/src/main.rs:99:22",
       "path": "native/terminal-host/src/main.rs",
       "locationKind": "content",
@@ -909,23 +609,6 @@
       "classes": [
         "runtime-symbols",
         "paths",
-        "native-names"
-      ]
-    },
-    {
-      "id": "native/terminal-host/src/main.rs:212:25",
-      "path": "native/terminal-host/src/main.rs",
-      "locationKind": "content",
-      "line": 212,
-      "column": 25,
-      "value": "addone",
-      "context": "\"{{\\\"schema\\\":\\\"addone-terminal-host-input-probe-v1\\\",\\\"keyEncoding\\\":true,\\\"textImeEncoding\\\":true,\\\"mouseEncoding\\\":true,\\\"paneRelativeMouse\\\":true,\\\"clipboardEncoding\\\":true,\\\"nodeRelay\\\":false}}\"",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "schemas",
         "native-names"
       ]
     },
@@ -973,55 +656,6 @@
       "primaryClass": "runtime-symbols",
       "classes": [
         "runtime-symbols",
-        "native-names"
-      ]
-    },
-    {
-      "id": "native/terminal-host/src/main.rs:349:10",
-      "path": "native/terminal-host/src/main.rs",
-      "locationKind": "content",
-      "line": 349,
-      "column": 10,
-      "value": "addone",
-      "context": "\"addone-terminal-host-2x2-{}-{nonce}\",",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "native-names"
-      ]
-    },
-    {
-      "id": "native/terminal-host/src/workspace.rs:608:29",
-      "path": "native/terminal-host/src/workspace.rs",
-      "locationKind": "content",
-      "line": 608,
-      "column": 29,
-      "value": "addone",
-      "context": "\"{{\\\"schema\\\":\\\"addone-terminal-host-hot-path-v1\\\",\\\"authority\\\":\\\"native-terminal-host\\\",\\\"nodeRelay\\\":false,\\\"rawPayloadExported\\\":false,\\\"paneCount\\\":4,\\\"presentationWrites\\\":{},\\\"presentationBytes\\\":{},\\\"panes\\\":[{}]}}\",",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "schemas",
-        "native-names"
-      ]
-    },
-    {
-      "id": "native/terminal-host/src/workspace.rs:926:25",
-      "path": "native/terminal-host/src/workspace.rs",
-      "locationKind": "content",
-      "line": 926,
-      "column": 25,
-      "value": "addone",
-      "context": "\"{{\\\"schema\\\":\\\"addone-terminal-host-topology-v1\\\",\\\"hostInstanceId\\\":\\\"proof-host-1\\\",\\\"revision\\\":{revision},\\\"windows\\\":[{{\\\"id\\\":\\\"{WINDOW_ID}\\\",\\\"activeTabId\\\":\\\"{TAB_ID}\\\",\\\"tabs\\\":[{{\\\"id\\\":\\\"{TAB_ID}\\\",\\\"rootNodeId\\\":\\\"root\\\",\\\"f...",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "schemas",
         "native-names"
       ]
     },
@@ -3132,22 +2766,6 @@
       ]
     },
     {
-      "id": "openspec/changes/build-owned-pi-ui-foundation/evidence/modal-surface-inventory.json:2:14",
-      "path": "openspec/changes/build-owned-pi-ui-foundation/evidence/modal-surface-inventory.json",
-      "locationKind": "content",
-      "line": 2,
-      "column": 14,
-      "value": "addone",
-      "context": "\"schema\": \"addone-pinned-pi-modal-transition-graph-v2\",",
-      "matchedCase": "lower",
-      "primaryClass": "schemas",
-      "classes": [
-        "schemas",
-        "current-docs-specs",
-        "historical-records"
-      ]
-    },
-    {
       "id": "openspec/changes/build-owned-pi-ui-foundation/evidence/modal-surface-inventory.json:3885:19",
       "path": "openspec/changes/build-owned-pi-ui-foundation/evidence/modal-surface-inventory.json",
       "locationKind": "content",
@@ -3258,22 +2876,6 @@
       ]
     },
     {
-      "id": "openspec/changes/build-owned-pi-ui-foundation/evidence/owned-ui-research-baseline.json:2:14",
-      "path": "openspec/changes/build-owned-pi-ui-foundation/evidence/owned-ui-research-baseline.json",
-      "locationKind": "content",
-      "line": 2,
-      "column": 14,
-      "value": "addone",
-      "context": "\"schema\": \"addone-owned-ui-research-baseline-v1\",",
-      "matchedCase": "lower",
-      "primaryClass": "schemas",
-      "classes": [
-        "schemas",
-        "current-docs-specs",
-        "historical-records"
-      ]
-    },
-    {
       "id": "openspec/changes/build-owned-pi-ui-foundation/evidence/owned-ui-research-baseline.json:5:64",
       "path": "openspec/changes/build-owned-pi-ui-foundation/evidence/owned-ui-research-baseline.json",
       "locationKind": "content",
@@ -3335,22 +2937,6 @@
       ]
     },
     {
-      "id": "openspec/changes/build-owned-pi-ui-foundation/evidence/pi-component-adaptation.json:2:14",
-      "path": "openspec/changes/build-owned-pi-ui-foundation/evidence/pi-component-adaptation.json",
-      "locationKind": "content",
-      "line": 2,
-      "column": 14,
-      "value": "addone",
-      "context": "\"schema\": \"addone-pi-component-adaptation-v1\",",
-      "matchedCase": "lower",
-      "primaryClass": "schemas",
-      "classes": [
-        "schemas",
-        "current-docs-specs",
-        "historical-records"
-      ]
-    },
-    {
       "id": "openspec/changes/build-owned-pi-ui-foundation/evidence/pi-component-adaptation.json:37:162",
       "path": "openspec/changes/build-owned-pi-ui-foundation/evidence/pi-component-adaptation.json",
       "locationKind": "content",
@@ -3361,22 +2947,6 @@
       "matchedCase": "title-or-mixed",
       "primaryClass": "current-docs-specs",
       "classes": [
-        "current-docs-specs",
-        "historical-records"
-      ]
-    },
-    {
-      "id": "openspec/changes/build-owned-pi-ui-foundation/evidence/pi-parity-acceptance.json:2:14",
-      "path": "openspec/changes/build-owned-pi-ui-foundation/evidence/pi-parity-acceptance.json",
-      "locationKind": "content",
-      "line": 2,
-      "column": 14,
-      "value": "addone",
-      "context": "\"schema\": \"addone-pi-parity-acceptance-v1\",",
-      "matchedCase": "lower",
-      "primaryClass": "schemas",
-      "classes": [
-        "schemas",
         "current-docs-specs",
         "historical-records"
       ]
@@ -3404,21 +2974,6 @@
       "column": 58,
       "value": "AddOne",
       "context": "\"requiredReplacement\": \"Separate pinned-upstream and AddOne producers must replace every circular fixture before parity can pass.\"",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "current-docs-specs",
-      "classes": [
-        "current-docs-specs",
-        "historical-records"
-      ]
-    },
-    {
-      "id": "openspec/changes/build-owned-pi-ui-foundation/evidence/pi-parity-acceptance.json:19:4",
-      "path": "openspec/changes/build-owned-pi-ui-foundation/evidence/pi-parity-acceptance.json",
-      "locationKind": "content",
-      "line": 19,
-      "column": 4,
-      "value": "addOne",
-      "context": "\"addOneParityBaselineCommit\": \"b854210fd4aa69b9664be1e31f7986930416f4ee\",",
       "matchedCase": "title-or-mixed",
       "primaryClass": "current-docs-specs",
       "classes": [
@@ -3457,22 +3012,6 @@
       ]
     },
     {
-      "id": "openspec/changes/build-owned-pi-ui-foundation/evidence/pi-session-shell-provenance.json:2:14",
-      "path": "openspec/changes/build-owned-pi-ui-foundation/evidence/pi-session-shell-provenance.json",
-      "locationKind": "content",
-      "line": 2,
-      "column": 14,
-      "value": "addone",
-      "context": "\"schema\": \"addone-pi-session-shell-provenance-v1\",",
-      "matchedCase": "lower",
-      "primaryClass": "schemas",
-      "classes": [
-        "schemas",
-        "current-docs-specs",
-        "historical-records"
-      ]
-    },
-    {
       "id": "openspec/changes/build-owned-pi-ui-foundation/evidence/pi-session-shell-provenance.json:42:47",
       "path": "openspec/changes/build-owned-pi-ui-foundation/evidence/pi-session-shell-provenance.json",
       "locationKind": "content",
@@ -3483,22 +3022,6 @@
       "matchedCase": "title-or-mixed",
       "primaryClass": "current-docs-specs",
       "classes": [
-        "current-docs-specs",
-        "historical-records"
-      ]
-    },
-    {
-      "id": "openspec/changes/build-owned-pi-ui-foundation/evidence/pi-session-shell-provenance.json:47:36",
-      "path": "openspec/changes/build-owned-pi-ui-foundation/evidence/pi-session-shell-provenance.json",
-      "locationKind": "content",
-      "line": 47,
-      "column": 36,
-      "value": "addone",
-      "context": "\"test/features/owned-ui/pi-addone-startup-fixture.ts\",",
-      "matchedCase": "lower",
-      "primaryClass": "paths",
-      "classes": [
-        "paths",
         "current-docs-specs",
         "historical-records"
       ]
@@ -3605,22 +3128,6 @@
       "column": 14,
       "value": "addone",
       "context": "\"schema\": \"addone-pinned-pi-command-workflow-outcomes-v1\",",
-      "matchedCase": "lower",
-      "primaryClass": "schemas",
-      "classes": [
-        "schemas",
-        "current-docs-specs",
-        "historical-records"
-      ]
-    },
-    {
-      "id": "openspec/changes/build-owned-pi-ui-foundation/evidence/pinned-pi-interactive-baseline.json:2:14",
-      "path": "openspec/changes/build-owned-pi-ui-foundation/evidence/pinned-pi-interactive-baseline.json",
-      "locationKind": "content",
-      "line": 2,
-      "column": 14,
-      "value": "addone",
-      "context": "\"schema\": \"addone-pinned-pi-interactive-baseline-v1\",",
       "matchedCase": "lower",
       "primaryClass": "schemas",
       "classes": [
@@ -4023,22 +3530,6 @@
       "primaryClass": "paths",
       "classes": [
         "paths",
-        "current-docs-specs",
-        "historical-records"
-      ]
-    },
-    {
-      "id": "openspec/changes/build-owned-pi-ui-foundation/evidence/presenter-ownership-inventory.json:2:14",
-      "path": "openspec/changes/build-owned-pi-ui-foundation/evidence/presenter-ownership-inventory.json",
-      "locationKind": "content",
-      "line": 2,
-      "column": 14,
-      "value": "addone",
-      "context": "\"schema\": \"addone-pinned-pi-presenter-ownership-inventory-v1\",",
-      "matchedCase": "lower",
-      "primaryClass": "schemas",
-      "classes": [
-        "schemas",
         "current-docs-specs",
         "historical-records"
       ]
@@ -7132,22 +6623,6 @@
         "paths",
         "schemas",
         "native-names",
-        "current-docs-specs",
-        "historical-records"
-      ]
-    },
-    {
-      "id": "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/terminal-spike-acceptance-record.json:2:14",
-      "path": "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/terminal-spike-acceptance-record.json",
-      "locationKind": "content",
-      "line": 2,
-      "column": 14,
-      "value": "addone",
-      "context": "\"schema\": \"addone-terminal-spike-acceptance-record-v1\",",
-      "matchedCase": "lower",
-      "primaryClass": "schemas",
-      "classes": [
-        "schemas",
         "current-docs-specs",
         "historical-records"
       ]
@@ -11635,120 +11110,6 @@
       ]
     },
     {
-      "id": "README.md:1:3",
-      "path": "README.md",
-      "locationKind": "content",
-      "line": 1,
-      "column": 3,
-      "value": "AddOne",
-      "context": "# AddOne",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "current-docs-specs",
-      "classes": [
-        "current-docs-specs"
-      ]
-    },
-    {
-      "id": "README.md:3:1",
-      "path": "README.md",
-      "locationKind": "content",
-      "line": 3,
-      "column": 1,
-      "value": "AddOne",
-      "context": "AddOne is a terminal-native agent launcher for Windows, Linux, and macOS. Bare `a1` runs the AddOne-owned Pi-compatible UI, while explicit fallback profiles can launch untouched Pi directly. AddOne also manages release selection, process...",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "current-docs-specs",
-      "classes": [
-        "current-docs-specs"
-      ]
-    },
-    {
-      "id": "README.md:3:94",
-      "path": "README.md",
-      "locationKind": "content",
-      "line": 3,
-      "column": 94,
-      "value": "AddOne",
-      "context": "AddOne is a terminal-native agent launcher for Windows, Linux, and macOS. Bare `a1` runs the AddOne-owned Pi-compatible UI, while explicit fallback profiles can launch untouched Pi directly. AddOne also manages release selection, process...",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "current-docs-specs",
-      "classes": [
-        "current-docs-specs"
-      ]
-    },
-    {
-      "id": "README.md:3:192",
-      "path": "README.md",
-      "locationKind": "content",
-      "line": 3,
-      "column": 192,
-      "value": "AddOne",
-      "context": "AddOne is a terminal-native agent launcher for Windows, Linux, and macOS. Bare `a1` runs the AddOne-owned Pi-compatible UI, while explicit fallback profiles can launch untouched Pi directly. AddOne also manages release selection, process...",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "current-docs-specs",
-      "classes": [
-        "current-docs-specs"
-      ]
-    },
-    {
-      "id": "README.md:21:19",
-      "path": "README.md",
-      "locationKind": "content",
-      "line": 21,
-      "column": 19,
-      "value": "AddOne",
-      "context": "a1              # AddOne-owned UI and profile: ~/.a1/agent",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "paths",
-      "classes": [
-        "paths",
-        "current-docs-specs"
-      ]
-    },
-    {
-      "id": "README.md:29:229",
-      "path": "README.md",
-      "locationKind": "content",
-      "line": 29,
-      "column": 229,
-      "value": "AddOne",
-      "context": "Bare `a1` owns its Pi-compatible TUI composition and uses the public Pi engine, components, and terminal APIs. It does not insert a PTY or terminal-byte relay. Default visuals and workflows track the pinned vanilla Pi baseline; AddOne-sp...",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "current-docs-specs",
-      "classes": [
-        "current-docs-specs"
-      ]
-    },
-    {
-      "id": "README.md:31:89",
-      "path": "README.md",
-      "locationKind": "content",
-      "line": 31,
-      "column": 89,
-      "value": "AddOne",
-      "context": "`a1 pi` is the untouched upstream fallback and comparison oracle. Use it to distinguish AddOne-owned UI problems from upstream Pi, profile, provider, or terminal problems. The `a1 ui` subcommand was removed and is not a compatibility ali...",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "current-docs-specs",
-      "classes": [
-        "current-docs-specs"
-      ]
-    },
-    {
-      "id": "README.md:43:44",
-      "path": "README.md",
-      "locationKind": "content",
-      "line": 43,
-      "column": 44,
-      "value": "AddOne",
-      "context": "`npm start` gives each invocation isolated AddOne development state and an isolated development Pi profile. Use `npm start -- --print-environment` to inspect the selected paths without launching the UI.",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "paths",
-      "classes": [
-        "paths",
-        "current-docs-specs"
-      ]
-    },
-    {
       "id": "scripts/check-package-identity.mjs:22:36",
       "path": "scripts/check-package-identity.mjs",
       "locationKind": "content",
@@ -12519,22 +11880,6 @@
       ]
     },
     {
-      "id": "test/foundation/transparent-terminal/transparent-command-resolution.test.ts:52:49",
-      "path": "test/foundation/transparent-terminal/transparent-command-resolution.test.ts",
-      "locationKind": "content",
-      "line": 52,
-      "column": 49,
-      "value": "addone",
-      "context": "const root = await mkdtemp(resolve(tmpdir(), \"addone-command-resolution-\"));",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "tests"
-      ]
-    },
-    {
       "id": "test/product-identity/product-identity.test.ts:68:65",
       "path": "test/product-identity/product-identity.test.ts",
       "locationKind": "content",
@@ -12548,101 +11893,6 @@
         "runtime-symbols",
         "environment-keys",
         "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/repository-governance/deprecated-dependencies.test.ts:62:46",
-      "path": "test/repository-governance/deprecated-dependencies.test.ts",
-      "locationKind": "content",
-      "line": 62,
-      "column": 46,
-      "value": "addone",
-      "context": "const root = await mkdtemp(join(tmpdir(), \"addone-dependency-policy-\"));",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/repository-governance/native-host-boundary.test.ts:51:34",
-      "path": "test/repository-governance/native-host-boundary.test.ts",
-      "locationKind": "content",
-      "line": 51,
-      "column": 34,
-      "value": "addone",
-      "context": "expect(workspace).toContain(\"addone-terminal-host-hot-path-v1\");",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "native-names",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/repository-governance/owned-ui-customization-prerequisite.test.ts:63:49",
-      "path": "test/repository-governance/owned-ui-customization-prerequisite.test.ts",
-      "locationKind": "content",
-      "line": 63,
-      "column": 49,
-      "value": "addone",
-      "context": "const root = await mkdtemp(resolve(tmpdir(), \"addone-customization-gate-\"));",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/repository-governance/owned-ui-documentation.test.ts:13:35",
-      "path": "test/repository-governance/owned-ui-documentation.test.ts",
-      "locationKind": "content",
-      "line": 13,
-      "column": 35,
-      "value": "AddOne",
-      "context": "expect(document).toContain(\"AddOne-owned\");",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/repository-governance/owned-ui-documentation.test.ts:18:48",
-      "path": "test/repository-governance/owned-ui-documentation.test.ts",
-      "locationKind": "content",
-      "line": 18,
-      "column": 48,
-      "value": "AddOne",
-      "context": "expect(checkpoint).toContain(\"Compare bare AddOne with `a1 pi`\");",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/repository-governance/owned-ui-research-baseline.test.ts:44:32",
-      "path": "test/repository-governance/owned-ui-research-baseline.test.ts",
-      "locationKind": "content",
-      "line": 44,
-      "column": 32,
-      "value": "addone",
-      "context": "expect(value.schema).toBe(\"addone-owned-ui-research-baseline-v1\");",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "schemas",
         "tests"
       ]
     },
@@ -12805,275 +12055,6 @@
       "primaryClass": "runtime-symbols",
       "classes": [
         "runtime-symbols",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/repository-governance/pi-component-adaptation.test.ts:24:32",
-      "path": "test/repository-governance/pi-component-adaptation.test.ts",
-      "locationKind": "content",
-      "line": 24,
-      "column": 32,
-      "value": "addone",
-      "context": "expect(value.schema).toBe(\"addone-pi-component-adaptation-v1\");",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "schemas",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/repository-governance/pi-modal-surface-inventory.test.ts:73:29",
-      "path": "test/repository-governance/pi-modal-surface-inventory.test.ts",
-      "locationKind": "content",
-      "line": 73,
-      "column": 29,
-      "value": "addone",
-      "context": "if (inventory.schema !== \"addone-pinned-pi-modal-transition-graph-v2\") throw new Error(\"invalid graph schema\");",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics",
-        "schemas",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/repository-governance/pi-parity-evidence.test.ts:17:7",
-      "path": "test/repository-governance/pi-parity-evidence.test.ts",
-      "locationKind": "content",
-      "line": 17,
-      "column": 7,
-      "value": "addOne",
-      "context": "addOneParityBaselineCommit: string;",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/repository-governance/pi-parity-evidence.test.ts:25:35",
-      "path": "test/repository-governance/pi-parity-evidence.test.ts",
-      "locationKind": "content",
-      "line": 25,
-      "column": 35,
-      "value": "addone",
-      "context": "expect(evidence.schema).toBe(\"addone-pi-parity-acceptance-v1\");",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "schemas",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/repository-governance/pi-parity-evidence.test.ts:33:21",
-      "path": "test/repository-governance/pi-parity-evidence.test.ts",
-      "locationKind": "content",
-      "line": 33,
-      "column": 21,
-      "value": "addOne",
-      "context": "expect(evidence.addOneParityBaselineCommit).toMatch(/^[0-9a-f]{40}$/);",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/repository-governance/pi-presenter-ownership-inventory.test.ts:65:29",
-      "path": "test/repository-governance/pi-presenter-ownership-inventory.test.ts",
-      "locationKind": "content",
-      "line": 65,
-      "column": 29,
-      "value": "addone",
-      "context": "if (inventory.schema !== \"addone-pinned-pi-presenter-ownership-inventory-v1\") throw new Error(\"invalid schema\");",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics",
-        "schemas",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/repository-governance/pi-session-shell-provenance.test.ts:17:35",
-      "path": "test/repository-governance/pi-session-shell-provenance.test.ts",
-      "locationKind": "content",
-      "line": 17,
-      "column": 35,
-      "value": "addone",
-      "context": "expect(evidence.schema).toBe(\"addone-pi-session-shell-provenance-v1\");",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "schemas",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/repository-governance/pi-terminal-parity-gate.test.ts:41:11",
-      "path": "test/repository-governance/pi-terminal-parity-gate.test.ts",
-      "locationKind": "content",
-      "line": 41,
-      "column": 11,
-      "value": "addone",
-      "context": "const addone = structuredClone(upstream);",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/repository-governance/pi-terminal-parity-gate.test.ts:42:39",
-      "path": "test/repository-governance/pi-terminal-parity-gate.test.ts",
-      "locationKind": "content",
-      "line": 42,
-      "column": 39,
-      "value": "addone",
-      "context": "expect(compareParityRun(upstream, addone)).toMatchObject({ passed: true, differenceCount: 0 });",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/repository-governance/pi-terminal-parity-gate.test.ts:95:11",
-      "path": "test/repository-governance/pi-terminal-parity-gate.test.ts",
-      "locationKind": "content",
-      "line": 95,
-      "column": 11,
-      "value": "addone",
-      "context": "const addone = producer();",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/repository-governance/pi-terminal-parity-gate.test.ts:96:5",
-      "path": "test/repository-governance/pi-terminal-parity-gate.test.ts",
-      "locationKind": "content",
-      "line": 96,
-      "column": 5,
-      "value": "addone",
-      "context": "addone.checkpoints[0]!.rows = Array.from({ length: MAX_REPORTED_DIFFERENCES + 50 }, (_, index) => ({",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/repository-governance/pi-terminal-parity-gate.test.ts:102:51",
-      "path": "test/repository-governance/pi-terminal-parity-gate.test.ts",
-      "locationKind": "content",
-      "line": 102,
-      "column": 51,
-      "value": "addone",
-      "context": "const comparison = compareParityRun(upstream, addone);",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/repository-governance/pi-terminal-parity-gate.test.ts:105:55",
-      "path": "test/repository-governance/pi-terminal-parity-gate.test.ts",
-      "locationKind": "content",
-      "line": 105,
-      "column": 55,
-      "value": "addone",
-      "context": "expect(renderSideBySideDiff(comparison, upstream, addone).split(\"\\n\").length).toBeLessThan(260);",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/repository-governance/pinned-pi-behavior-inventory.test.ts:87:36",
-      "path": "test/repository-governance/pinned-pi-behavior-inventory.test.ts",
-      "locationKind": "content",
-      "line": 87,
-      "column": 36,
-      "value": "addone",
-      "context": "expect(inventory.schema).toBe(\"addone-pinned-pi-interactive-baseline-v1\");",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "schemas",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/repository-governance/pinned-pi-source-ledger.test.ts:23:49",
-      "path": "test/repository-governance/pinned-pi-source-ledger.test.ts",
-      "locationKind": "content",
-      "line": 23,
-      "column": 49,
-      "value": "addone",
-      "context": "const root = await mkdtemp(resolve(tmpdir(), \"addone-pi-ledger-\"));",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/repository-governance/pinned-pi-source-ledger.test.ts:98:51",
-      "path": "test/repository-governance/pinned-pi-source-ledger.test.ts",
-      "locationKind": "content",
-      "line": 98,
-      "column": 51,
-      "value": "addone",
-      "context": "const root = await mkdtemp(resolve(tmpdir(), \"addone-pi-deep-import-\"));",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/repository-governance/pinned-pi-source-ledger.test.ts:107:51",
-      "path": "test/repository-governance/pinned-pi-source-ledger.test.ts",
-      "locationKind": "content",
-      "line": 107,
-      "column": 51,
-      "value": "addone",
-      "context": "const root = await mkdtemp(resolve(tmpdir(), \"addone-pi-undocumented-port-\"));",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
         "tests"
       ]
     },
@@ -13281,70 +12262,7 @@
         "runtime-symbols",
         "tests"
       ]
-    },
-    {
-      "id": "test/repository-governance/resource-data-policy.test.ts:34:25",
-      "path": "test/repository-governance/resource-data-policy.test.ts",
-      "locationKind": "content",
-      "line": 34,
-      "column": 25,
-      "value": "AddOne",
-      "context": "\"Never persist in AddOne's control store\",",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/repository-governance/terminal-architecture-policy.test.ts:222:49",
-      "path": "test/repository-governance/terminal-architecture-policy.test.ts",
-      "locationKind": "content",
-      "line": 222,
-      "column": 49,
-      "value": "addone",
-      "context": "const root = await mkdtemp(resolve(tmpdir(), \"addone-architecture-policy-\"));",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/repository-governance/terminal-host-proof-gate.test.ts:8:16",
-      "path": "test/repository-governance/terminal-host-proof-gate.test.ts",
-      "locationKind": "content",
-      "line": 8,
-      "column": 16,
-      "value": "addone",
-      "context": "schema: \"addone-terminal-spike-acceptance-record-v1\",",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "schemas",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/repository-governance/terminal-host-provenance.test.ts:18:48",
-      "path": "test/repository-governance/terminal-host-provenance.test.ts",
-      "locationKind": "content",
-      "line": 18,
-      "column": 48,
-      "value": "addone",
-      "context": "const root = await mkdtemp(join(tmpdir(), \"addone-terminal-provenance-\"));",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "tests"
-      ]
     }
   ],
-  "generatedAt": "2026-08-20T09:17:51.194Z"
+  "generatedAt": "2026-08-20T09:21:16.675Z"
 }

@@ -38,8 +38,8 @@ function producer(): ParityProducerCapture {
 describe("independent Pi terminal parity gate", () => {
   it("compares terminal cells, ANSI styles, spacing, cursor, scroll, geometry, lifecycle, and named checkpoints", () => {
     const upstream = producer();
-    const addone = structuredClone(upstream);
-    expect(compareParityRun(upstream, addone)).toMatchObject({ passed: true, differenceCount: 0 });
+    const candidate = structuredClone(upstream);
+    expect(compareParityRun(upstream, candidate)).toMatchObject({ passed: true, differenceCount: 0 });
   });
 
   it.each(["visual", "input-scroll", "structured-content", "presenter-plane", "modal-node", "modal-restoration"] as const)(
@@ -92,17 +92,17 @@ describe("independent Pi terminal parity gate", () => {
 
   it("bounds machine and side-by-side diagnostics", () => {
     const upstream = producer();
-    const addone = producer();
-    addone.checkpoints[0]!.rows = Array.from({ length: MAX_REPORTED_DIFFERENCES + 50 }, (_, index) => ({
+    const candidate = producer();
+    candidate.checkpoints[0]!.rows = Array.from({ length: MAX_REPORTED_DIFFERENCES + 50 }, (_, index) => ({
       text: `mutation-${index}`,
       rawText: `mutation-${index}`,
       wrapped: false,
       styles: [],
     }));
-    const comparison = compareParityRun(upstream, addone);
+    const comparison = compareParityRun(upstream, candidate);
     expect(comparison.truncated).toBe(true);
     expect(comparison.differences).toHaveLength(MAX_REPORTED_DIFFERENCES);
-    expect(renderSideBySideDiff(comparison, upstream, addone).split("\n").length).toBeLessThan(260);
+    expect(renderSideBySideDiff(comparison, upstream, candidate).split("\n").length).toBeLessThan(260);
   });
 
   it("keeps PTY, process-tree, and cell-grid capture in unpublished test tooling", async () => {

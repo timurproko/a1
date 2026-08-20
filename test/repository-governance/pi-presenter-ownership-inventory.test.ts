@@ -62,7 +62,7 @@ async function loadInventory(): Promise<Inventory> {
 }
 
 function validateInventory(inventory: Inventory, upstream: string, advertisedNames: string[]): void {
-  if (inventory.schema !== "addone-pinned-pi-presenter-ownership-inventory-v1") throw new Error("invalid schema");
+  if (inventory.schema !== "a1-pinned-pi-presenter-ownership-inventory-v1") throw new Error("invalid schema");
   if (inventory.pinned.version !== "0.84.2" || inventory.pinned.commit !== "914cf1472e715297caa30db4b9535d534a9eb718") {
     throw new Error("stale pinned identity");
   }

@@ -20,7 +20,7 @@ async function runFixture(
   mutate: (ledger: Record<string, any>) => void,
   environment: NodeJS.ProcessEnv = {},
 ) {
-  const root = await mkdtemp(resolve(tmpdir(), "addone-pi-ledger-"));
+  const root = await mkdtemp(resolve(tmpdir(), "a1-pi-ledger-"));
   temporaryRoots.push(root);
   const path = resolve(root, "ledger.json");
   const ledger = await ledgerFixture();
@@ -95,7 +95,7 @@ describe("pinned Pi source ledger governance", () => {
   });
 
   it("rejects deep Pi imports even when the ledger itself is valid", async () => {
-    const root = await mkdtemp(resolve(tmpdir(), "addone-pi-deep-import-"));
+    const root = await mkdtemp(resolve(tmpdir(), "a1-pi-deep-import-"));
     temporaryRoots.push(root);
     await writeFile(resolve(root, "forbidden.ts"), "export { InteractiveMode } from '@earendil-works/pi-coding-agent/dist/modes/index.js';\n");
     const result = await runFixture(() => {}, { A1_PI_SOURCE_SCAN_ROOT: root });
@@ -104,7 +104,7 @@ describe("pinned Pi source ledger governance", () => {
   });
 
   it("rejects copied port files that have no ledger destination", async () => {
-    const root = await mkdtemp(resolve(tmpdir(), "addone-pi-undocumented-port-"));
+    const root = await mkdtemp(resolve(tmpdir(), "a1-pi-undocumented-port-"));
     temporaryRoots.push(root);
     await mkdir(resolve(root, "components"), { recursive: true });
     await writeFile(resolve(root, "components", "rogue.ts"), "export {};\n");

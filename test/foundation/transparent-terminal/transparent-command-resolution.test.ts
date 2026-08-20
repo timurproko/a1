@@ -49,7 +49,7 @@ describe("transparent command resolution", () => {
 });
 
 async function fixtureRoot(): Promise<string> {
-  const root = await mkdtemp(resolve(tmpdir(), "addone-command-resolution-"));
+  const root = await mkdtemp(resolve(tmpdir(), "a1-command-resolution-"));
   roots.push(root);
   return root;
 }

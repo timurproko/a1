@@ -32,7 +32,7 @@
 
 - [x] 6.1 Rename all internal `bin/addone-*` entries to `bin/a1-*`, update bootstrap resolution and package-content assertions, and prove the tarball contains no current legacy-named entry.
 - [x] 6.2 Rename release scripts, local command text, verdict/evidence schemas, artifact paths, and workflow variables to consume or validate against product identity; exercise preview/stable workflow logic against controlled metadata without publication.
-- [ ] 6.3 Rename test fixture prefixes, helper symbols, descriptions, and non-historical schema strings so tests model current A1 identity; retain legacy text only in exact rejection/deprecation fixtures.
+- [x] 6.3 Rename test fixture prefixes, helper symbols, descriptions, and non-historical schema strings so tests model current A1 identity; retain legacy text only in exact rejection/deprecation fixtures.
 
 ## 7. Rename native and composed-terminal identity
 

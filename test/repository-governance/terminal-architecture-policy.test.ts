@@ -219,7 +219,7 @@ function shellModuleFixture(overrides: Readonly<Record<string, string>> = {}): R
 }
 
 async function fixture(files: Record<string, string>): Promise<string> {
-  const root = await mkdtemp(resolve(tmpdir(), "addone-architecture-policy-"));
+  const root = await mkdtemp(resolve(tmpdir(), "a1-architecture-policy-"));
   roots.push(root);
   await writeFixtureFile(root, "package.json", JSON.stringify({ name: "fixture", scripts: {} }));
   await writeFixtureFile(root, "src/foundation/lifecycle/index.ts", "export {};\n");

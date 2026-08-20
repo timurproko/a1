@@ -5,7 +5,7 @@ describe("terminal-host proof stop/go policy", () => {
   it("keeps the acceptance record pending with integration and merge forbidden", async () => {
     const record = JSON.parse(await readFile("openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/terminal-spike-acceptance-record.json", "utf8")) as Record<string, unknown>;
     expect(record).toMatchObject({
-      schema: "addone-terminal-spike-acceptance-record-v1",
+      schema: "a1-terminal-spike-acceptance-record-v1",
       hostMode: "console-inside-existing-terminal",
       technicalVerdict: "pending",
       physicalVerdict: "pending",

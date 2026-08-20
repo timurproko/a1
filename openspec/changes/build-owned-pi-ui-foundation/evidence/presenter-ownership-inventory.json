@@ -1,5 +1,5 @@
 {
-  "schema": "addone-pinned-pi-presenter-ownership-inventory-v1",
+  "schema": "a1-pinned-pi-presenter-ownership-inventory-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.23",
   "pinned": {

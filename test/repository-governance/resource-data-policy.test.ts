@@ -31,7 +31,7 @@ describe("multi-agent resource and data classification policy", () => {
       "Credentials and tokens",
       "Authentication state",
       "Logs and diagnostics",
-      "Never persist in AddOne's control store",
+      "Never persist in A1's control store",
       "Unknown or untyped values are potentially sensitive by default",
       "failed in-terminal 2×2 proof cannot be waived",
       "active workstation",

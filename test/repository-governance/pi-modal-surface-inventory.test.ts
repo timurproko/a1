@@ -70,7 +70,7 @@ async function sourceContents(inventory: Inventory): Promise<Record<string, stri
 }
 
 function validateGraph(inventory: Inventory, sources: Record<string, string>, scenario: string): void {
-  if (inventory.schema !== "addone-pinned-pi-modal-transition-graph-v2") throw new Error("invalid graph schema");
+  if (inventory.schema !== "a1-pinned-pi-modal-transition-graph-v2") throw new Error("invalid graph schema");
   if (inventory.pinned.version !== "0.84.2" || inventory.pinned.commit !== "914cf1472e715297caa30db4b9535d534a9eb718") throw new Error("stale pinned identity");
   if (inventory.policy.genericFixtureSatisfiesSpecializedSurface || inventory.policy.flatTopLevelInventorySatisfiesCoverage) throw new Error("generic or flat coverage enabled");
   if (JSON.stringify(inventory.policy.requiredLifecycle) !== JSON.stringify(REQUIRED_LIFECYCLE)) throw new Error("incomplete lifecycle policy");

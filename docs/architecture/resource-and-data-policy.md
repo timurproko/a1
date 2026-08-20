@@ -32,7 +32,7 @@ Every asynchronous consumer must implement a finite queue or window. Backpressur
 |---|---|---|
 | Workspace metadata | IDs, names, lifecycle, capability versions, topology revisions, recovery references | May persist in the control store |
 | Structured payloads | Messages, tool calls, snapshots, attachments | Bound and process; persist only under a future typed retention policy |
-| Terminal content | PTY bytes, scrollback, selection, rendered cells | Never persist in AddOne's control store or diagnostics |
+| Terminal content | PTY bytes, scrollback, selection, rendered cells | Never persist in A1's control store or diagnostics |
 | Host topology metadata | Window/tab/pane/session IDs, layout shape, dimensions, revision | May persist; not terminal content |
 | Native proof evidence | Artifact hashes, source revisions, workloads, latency/resource measurements, paint diagnostics | May persist in versioned evidence files without terminal content |
 | Environment values | `PATH`, profile overrides, arbitrary launch environment | Do not persist; treat as potentially sensitive |

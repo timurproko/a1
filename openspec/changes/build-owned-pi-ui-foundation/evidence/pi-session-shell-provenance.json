@@ -1,5 +1,5 @@
 {
-  "schema": "addone-pi-session-shell-provenance-v1",
+  "schema": "a1-pi-session-shell-provenance-v1",
   "change": "build-owned-pi-ui-foundation",
   "recordedAt": "2026-08-16T12:00:00.000Z",
   "upstream": {
@@ -44,7 +44,7 @@
         "test/features/owned-ui/pi-session-shell.test.ts",
         "test/features/owned-ui/pi-startup-composition-parity.test.ts",
         "test/features/owned-ui/pi-upstream-startup-fixture.ts",
-        "test/features/owned-ui/pi-addone-startup-fixture.ts",
+        "test/features/owned-ui/pi-a1-startup-fixture.ts",
         "test/features/owned-ui/run.test.ts",
         "test/foundation/pi-component-adapter/shell-components.test.ts"
       ]

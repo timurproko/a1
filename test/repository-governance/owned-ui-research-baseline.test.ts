@@ -41,7 +41,7 @@ describe("owned UI research baseline policy", () => {
       "utf8",
     )) as ResearchBaseline;
 
-    expect(value.schema).toBe("addone-owned-ui-research-baseline-v1");
+    expect(value.schema).toBe("a1-owned-ui-research-baseline-v1");
     expect(value.change).toBe("build-owned-pi-ui-foundation");
     expect(Number.isFinite(Date.parse(value.recordedAt))).toBe(true);
     expect(value.sources.v2Prototype.gitRevision).toBeNull();

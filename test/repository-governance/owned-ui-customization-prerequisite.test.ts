@@ -60,7 +60,7 @@ async function fixture(
   overrides: Readonly<Record<string, string>>,
   ledgerOverride: Readonly<Record<string, unknown>> = {},
 ): Promise<string> {
-  const root = await mkdtemp(resolve(tmpdir(), "addone-customization-gate-"));
+  const root = await mkdtemp(resolve(tmpdir(), "a1-customization-gate-"));
   roots.push(root);
   const prefix = "src/foundation/pi-component-adapter/";
   const modules = [

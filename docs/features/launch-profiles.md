@@ -4,7 +4,7 @@
 
 | Command | Purpose | Pi user profile |
 |---|---|---|
-| `a1` | AddOne-owned Pi-compatible UI | `~/.a1/agent` |
+| `a1` | A1-owned Pi-compatible UI | `~/.a1/agent` |
 | `a1 pi` | Untouched vanilla Pi fallback and comparison oracle | ordinary `~/.pi/agent` |
 | `a1 sandbox` | Unchanged isolated vanilla Pi profile for experiments | `~/.a1/sandbox` |
 
@@ -12,7 +12,7 @@ There is no `a1 agent` command. The former `a1 ui` subcommand is removed. Bare `
 
 ## First launch
 
-For AddOne-owned profiles, AddOne creates only the selected profile root and empty `extensions`, `skills`, `prompts`, and `themes` directories. Existing content is preserved. AddOne does not copy, link, merge, or delete settings, credentials, sessions, packages, trust decisions, or resources from another profile.
+For A1-owned profiles, A1 creates only the selected profile root and empty `extensions`, `skills`, `prompts`, and `themes` directories. Existing content is preserved. A1 does not copy, link, merge, or delete settings, credentials, sessions, packages, trust decisions, or resources from another profile.
 
 Pi owns files within the selected root. Common locations are:
 
@@ -31,7 +31,7 @@ Run Pi’s normal `/login` independently in each profile that needs stored authe
 
 ## Vanilla Pi
 
-`a1 pi` bypasses the AddOne-owned UI and launches the untouched pinned Pi CLI. It also removes AddOne’s Pi configuration-root override, so Pi uses its normal `~/.pi/agent` settings, authentication, sessions, resources, packages, and trust decisions. This is both the comparison oracle and the recovery fallback when diagnosing the owned UI.
+`a1 pi` bypasses the A1-owned UI and launches the untouched pinned Pi CLI. It also removes A1’s Pi configuration-root override, so Pi uses its normal `~/.pi/agent` settings, authentication, sessions, resources, packages, and trust decisions. This is both the comparison oracle and the recovery fallback when diagnosing the owned UI.
 
 ## Sandbox profile
 
@@ -41,10 +41,10 @@ Run Pi’s normal `/login` independently in each profile that needs stored authe
 
 ## Terminal behavior
 
-Bare `a1` runs the AddOne-owned full-viewport TUI over public Pi engine, component, and terminal APIs. AddOne owns composition, input routing, modal focus, selection behavior, scrolling, and restoration without inserting a PTY or terminal-byte relay. Its default presentation is pinned to vanilla Pi parity; structured tabs and AddOne-specific visual customization are not enabled.
+Bare `a1` runs the A1-owned full-viewport TUI over public Pi engine, component, and terminal APIs. A1 owns composition, input routing, modal focus, selection behavior, scrolling, and restoration without inserting a PTY or terminal-byte relay. Its default presentation is pinned to vanilla Pi parity; structured tabs and A1-specific visual customization are not enabled.
 
-`a1 pi` and `a1 sandbox` retain transparent direct attachment. In those profiles, one untouched Pi process and the physical terminal own rendering, input, selection, clipboard, scrollback, and terminal modes; AddOne owns foreground lease and lifecycle only.
+`a1 pi` and `a1 sandbox` retain transparent direct attachment. In those profiles, one untouched Pi process and the physical terminal own rendering, input, selection, clipboard, scrollback, and terminal modes; A1 owns foreground lease and lifecycle only.
 
 ## Recovery and comparison
 
-If bare `a1` cannot start or a UI workflow diverges, run `a1 pi` from the same working directory and compare the behavior. Profile data is intentionally separate, so authentication or settings may need to be configured independently. Use `a1 version` to record the installed AddOne release before reporting a difference. `a1 sandbox` is for isolated profile experiments, not recovery from the owned UI and not a security boundary.
+If bare `a1` cannot start or a UI workflow diverges, run `a1 pi` from the same working directory and compare the behavior. Profile data is intentionally separate, so authentication or settings may need to be configured independently. Use `a1 version` to record the installed A1 release before reporting a difference. `a1 sandbox` is for isolated profile experiments, not recovery from the owned UI and not a security boundary.

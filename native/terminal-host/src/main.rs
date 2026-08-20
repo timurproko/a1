@@ -38,7 +38,7 @@ fn main() -> ExitCode {
     match run_from_args(env::args().skip(1).collect()) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
-            eprintln!("addone-terminal-host: {error}");
+            eprintln!("a1-terminal-host: {error}");
             ExitCode::from(2)
         }
     }
@@ -75,7 +75,7 @@ fn run_from_args(args: Vec<String>) -> Result<(), String> {
         Some("--run") => run_interactive(&args[1..]),
         _ => {
             eprintln!(
-                "usage: addone-terminal-host --version | --probe | --probe-scroll | --probe-selection | --probe-input | --probe-2x2 | --topology-2x2 | --resolve <command> | --resolve-shell | --run [-- <command> [args...]]"
+                "usage: a1-terminal-host --version | --probe | --probe-scroll | --probe-selection | --probe-input | --probe-2x2 | --topology-2x2 | --resolve <command> | --resolve-shell | --run [-- <command> [args...]]"
             );
             Err("expected a mode".to_owned())
         }
@@ -84,7 +84,7 @@ fn run_from_args(args: Vec<String>) -> Result<(), String> {
 
 fn print_provenance() {
     println!(
-        "{{\"schema\":\"addone-terminal-host-version-v1\",\"protocolVersion\":{A1_PROTOCOL_VERSION},\"hostMode\":\"console-inside-existing-terminal\",\"desktopWindow\":false,\"libghosttyVtCommit\":\"{GHOSTTY_VT_COMMIT}\",\"portablePty\":\"{PORTABLE_PTY_VERSION}\",\"crossterm\":\"{CROSSTERM_VERSION}\"}}"
+        "{{\"schema\":\"a1-terminal-host-version-v1\",\"protocolVersion\":{A1_PROTOCOL_VERSION},\"hostMode\":\"console-inside-existing-terminal\",\"desktopWindow\":false,\"libghosttyVtCommit\":\"{GHOSTTY_VT_COMMIT}\",\"portablePty\":\"{PORTABLE_PTY_VERSION}\",\"crossterm\":\"{CROSSTERM_VERSION}\"}}"
     );
 }
 
@@ -209,7 +209,7 @@ fn probe_input() -> Result<(), String> {
     }
 
     println!(
-        "{{\"schema\":\"addone-terminal-host-input-probe-v1\",\"keyEncoding\":true,\"textImeEncoding\":true,\"mouseEncoding\":true,\"paneRelativeMouse\":true,\"clipboardEncoding\":true,\"nodeRelay\":false}}"
+        "{{\"schema\":\"a1-terminal-host-input-probe-v1\",\"keyEncoding\":true,\"textImeEncoding\":true,\"mouseEncoding\":true,\"paneRelativeMouse\":true,\"clipboardEncoding\":true,\"nodeRelay\":false}}"
     );
     Ok(())
 }
@@ -346,7 +346,7 @@ fn probe_two_by_two() -> Result<(), String> {
         .map_err(|error| format!("read 2x2 probe clock: {error}"))?
         .as_nanos();
     let root = env::temp_dir().join(format!(
-        "addone-terminal-host-2x2-{}-{nonce}",
+        "a1-terminal-host-2x2-{}-{nonce}",
         std::process::id()
     ));
     fs::create_dir_all(&root)

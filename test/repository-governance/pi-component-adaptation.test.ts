@@ -21,7 +21,7 @@ describe("Pi component adaptation policy", () => {
       "utf8",
     )) as AdaptationRecord;
 
-    expect(value.schema).toBe("addone-pi-component-adaptation-v1");
+    expect(value.schema).toBe("a1-pi-component-adaptation-v1");
     expect(value.package).toMatchObject({
       name: "@earendil-works/pi-coding-agent",
       license: "MIT",

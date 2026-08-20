@@ -13,7 +13,7 @@ npm pack --ignore-scripts --pack-destination artifacts/manual-transparent
 npm install --prefix artifacts/manual-transparent/install --ignore-scripts artifacts/manual-transparent/<exact-tarball>.tgz
 ```
 
-Use isolated AddOne control state:
+Use isolated A1 control state:
 
 ```powershell
 $manualRoot = (Resolve-Path "artifacts/manual-transparent").Path
@@ -33,20 +33,20 @@ Test each installed launch form separately: bare `a1` (the owned UI), `a1 pi` (t
 
 Physical automation is not part of this repository baseline. Future certification tooling may run only on dedicated disposable workers or VMs with exclusive test desktops, never on this workstation.
 
-## Compare bare AddOne with `a1 pi`
+## Compare bare A1 with `a1 pi`
 
-Use the same terminal, working directory, dimensions, environment, and equivalent profile resources. Bare AddOne and the untouched oracle intentionally use separate profile roots.
+Use the same terminal, working directory, dimensions, environment, and equivalent profile resources. Bare A1 and the untouched oracle intentionally use separate profile roots.
 
 - [ ] Startup resources, logo, notices, spacing, editor, and footer match.
 - [ ] Text, Unicode, emoji, styles, cursor, and layout match.
-- [ ] Rapid typing has no visible AddOne delay or dropped/duplicated characters.
+- [ ] Rapid typing has no visible A1 delay or dropped/duplicated characters.
 - [ ] Ctrl+C, Ctrl+P, arrows, paste, focus, dialogs, mouse, and wheel match.
 - [ ] Selection, copy, clipboard, scrollback, and resize match.
 - [ ] Normal and error exits preserve child output and return a usable parent prompt.
 - [ ] Parent typing, cursor movement, Backspace, Delete, and submission work after exit.
 - [ ] A missing executable reports a concise spawn failure without affecting other applications.
 
-Report failures with direct-versus-AddOne behavior, platform/terminal versions, exact command, reproducibility, and optional manually captured evidence.
+Report failures with direct-versus-A1 behavior, platform/terminal versions, exact command, reproducibility, and optional manually captured evidence.
 
 For recovery, use `a1 pi`; do not use the removed `a1 ui` command. `a1 sandbox` remains profile isolation rather than a security boundary.
 

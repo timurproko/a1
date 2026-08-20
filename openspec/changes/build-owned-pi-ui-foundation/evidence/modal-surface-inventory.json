@@ -1,5 +1,5 @@
 {
-  "schema": "addone-pinned-pi-modal-transition-graph-v2",
+  "schema": "a1-pinned-pi-modal-transition-graph-v2",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.26",
   "pinned": {

@@ -1,5 +1,5 @@
 {
-  "schema": "addone-owned-ui-research-baseline-v1",
+  "schema": "a1-owned-ui-research-baseline-v1",
   "recordedAt": "2026-08-14T17:33:14.072Z",
   "change": "build-owned-pi-ui-foundation",
   "purpose": "Record the research baseline that constrains the AddOne-owned fullscreen Pi UI before implementation proceeds beyond contract and boundary work.",

@@ -605,7 +605,7 @@ impl FixedWorkspace {
             .collect::<Vec<_>>()
             .join(",");
         format!(
-            "{{\"schema\":\"addone-terminal-host-hot-path-v1\",\"authority\":\"native-terminal-host\",\"nodeRelay\":false,\"rawPayloadExported\":false,\"paneCount\":4,\"presentationWrites\":{},\"presentationBytes\":{},\"panes\":[{}]}}",
+            "{{\"schema\":\"a1-terminal-host-hot-path-v1\",\"authority\":\"native-terminal-host\",\"nodeRelay\":false,\"rawPayloadExported\":false,\"paneCount\":4,\"presentationWrites\":{},\"presentationBytes\":{},\"panes\":[{}]}}",
             self.presentation_writes, self.presentation_bytes, panes
         )
     }
@@ -923,7 +923,7 @@ fn is_shutdown_shortcut(key: KeyEvent) -> bool {
 
 pub fn topology_json(focused_index: usize, revision: u64) -> String {
     format!(
-        "{{\"schema\":\"addone-terminal-host-topology-v1\",\"hostInstanceId\":\"proof-host-1\",\"revision\":{revision},\"windows\":[{{\"id\":\"{WINDOW_ID}\",\"activeTabId\":\"{TAB_ID}\",\"tabs\":[{{\"id\":\"{TAB_ID}\",\"rootNodeId\":\"root\",\"focusedPaneId\":\"{}\",\"panes\":[{{\"id\":\"pane-1\",\"sessionId\":\"session-1\"}},{{\"id\":\"pane-2\",\"sessionId\":\"session-2\"}},{{\"id\":\"pane-3\",\"sessionId\":\"session-3\"}},{{\"id\":\"pane-4\",\"sessionId\":\"session-4\"}}],\"nodes\":[{{\"id\":\"root\",\"kind\":\"split\",\"axis\":\"horizontal\",\"ratio\":0.5,\"first\":\"top\",\"second\":\"bottom\"}},{{\"id\":\"top\",\"kind\":\"split\",\"axis\":\"vertical\",\"ratio\":0.5,\"first\":\"leaf-top-left\",\"second\":\"leaf-top-right\"}},{{\"id\":\"bottom\",\"kind\":\"split\",\"axis\":\"vertical\",\"ratio\":0.5,\"first\":\"leaf-bottom-left\",\"second\":\"leaf-bottom-right\"}},{{\"id\":\"leaf-top-left\",\"kind\":\"leaf\",\"paneId\":\"pane-1\"}},{{\"id\":\"leaf-top-right\",\"kind\":\"leaf\",\"paneId\":\"pane-2\"}},{{\"id\":\"leaf-bottom-left\",\"kind\":\"leaf\",\"paneId\":\"pane-3\"}},{{\"id\":\"leaf-bottom-right\",\"kind\":\"leaf\",\"paneId\":\"pane-4\"}}]}}]}}],\"sessions\":[{{\"id\":\"session-1\"}},{{\"id\":\"session-2\"}},{{\"id\":\"session-3\"}},{{\"id\":\"session-4\"}}]}}",
+        "{{\"schema\":\"a1-terminal-host-topology-v1\",\"hostInstanceId\":\"proof-host-1\",\"revision\":{revision},\"windows\":[{{\"id\":\"{WINDOW_ID}\",\"activeTabId\":\"{TAB_ID}\",\"tabs\":[{{\"id\":\"{TAB_ID}\",\"rootNodeId\":\"root\",\"focusedPaneId\":\"{}\",\"panes\":[{{\"id\":\"pane-1\",\"sessionId\":\"session-1\"}},{{\"id\":\"pane-2\",\"sessionId\":\"session-2\"}},{{\"id\":\"pane-3\",\"sessionId\":\"session-3\"}},{{\"id\":\"pane-4\",\"sessionId\":\"session-4\"}}],\"nodes\":[{{\"id\":\"root\",\"kind\":\"split\",\"axis\":\"horizontal\",\"ratio\":0.5,\"first\":\"top\",\"second\":\"bottom\"}},{{\"id\":\"top\",\"kind\":\"split\",\"axis\":\"vertical\",\"ratio\":0.5,\"first\":\"leaf-top-left\",\"second\":\"leaf-top-right\"}},{{\"id\":\"bottom\",\"kind\":\"split\",\"axis\":\"vertical\",\"ratio\":0.5,\"first\":\"leaf-bottom-left\",\"second\":\"leaf-bottom-right\"}},{{\"id\":\"leaf-top-left\",\"kind\":\"leaf\",\"paneId\":\"pane-1\"}},{{\"id\":\"leaf-top-right\",\"kind\":\"leaf\",\"paneId\":\"pane-2\"}},{{\"id\":\"leaf-bottom-left\",\"kind\":\"leaf\",\"paneId\":\"pane-3\"}},{{\"id\":\"leaf-bottom-right\",\"kind\":\"leaf\",\"paneId\":\"pane-4\"}}]}}]}}],\"sessions\":[{{\"id\":\"session-1\"}},{{\"id\":\"session-2\"}},{{\"id\":\"session-3\"}},{{\"id\":\"session-4\"}}]}}",
         PANE_IDS[focused_index]
     )
 }

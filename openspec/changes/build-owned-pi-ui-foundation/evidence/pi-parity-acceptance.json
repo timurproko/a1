@@ -1,5 +1,5 @@
 {
-  "schema": "addone-pi-parity-acceptance-v1",
+  "schema": "a1-pi-parity-acceptance-v1",
   "change": "build-owned-pi-ui-foundation",
   "recordedAt": "2026-08-16T18:29:30.250Z",
   "result": "invalidated",
@@ -16,7 +16,7 @@
     "commit": "914cf1472e715297caa30db4b9535d534a9eb718",
     "license": "MIT"
   },
-  "addOneParityBaselineCommit": "b854210fd4aa69b9664be1e31f7986930416f4ee",
+  "a1ParityBaselineCommit": "b854210fd4aa69b9664be1e31f7986930416f4ee",
   "packages": [
     {
       "name": "@earendil-works/pi-coding-agent",
@@ -32,7 +32,7 @@
   "fixtures": [
     {
       "path": "test/features/owned-ui/fixtures/pi-component-parity.json",
-      "sha256": "72a1a22d69ec08d5eb3b4a6c46d962aef3603ebefc2f956788b455f8324b15ce",
+      "sha256": "9f728e84b7061272ff0b41dba527a6bba71159a6e38b7fa94d21c8404cacdfb4",
       "cases": 4,
       "classification": "AddOne-generated regression fixture; no independent upstream producer",
       "coverage": [
@@ -62,7 +62,7 @@
     },
     {
       "path": "test/features/owned-ui/fixtures/pi-event-frame-parity.json",
-      "sha256": "c0b45409d80fd088afd43550acf0bb803b7f3df1165155ab837ee5cd2691420f",
+      "sha256": "71f67b1c0bf025abc0cd740c0cd9809d0d25818a294096800a11739a5378c7dc",
       "stateTransitions": 12,
       "capturedFrames": 5,
       "classification": "Synthetic AddOne-session regression fixture; no independent upstream producer",

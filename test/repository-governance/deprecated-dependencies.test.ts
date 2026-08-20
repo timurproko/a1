@@ -59,7 +59,7 @@ describe("deprecated dependency release policy", () => {
 });
 
 async function runPolicy(packages: Record<string, unknown>) {
-  const root = await mkdtemp(join(tmpdir(), "addone-dependency-policy-"));
+  const root = await mkdtemp(join(tmpdir(), "a1-dependency-policy-"));
   roots.push(root);
   const lockfile = join(root, "package-lock.json");
   await writeFile(lockfile, JSON.stringify({ name: "fixture", version: "1.0.0", lockfileVersion: 3, requires: true, packages }));

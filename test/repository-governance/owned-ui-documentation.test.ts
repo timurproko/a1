@@ -10,12 +10,12 @@ describe("owned UI launch documentation", () => {
       readFile("docs/manual-transparent-checkpoint.md", "utf8"),
     ]);
     for (const document of [readme, profiles]) {
-      expect(document).toContain("AddOne-owned");
+      expect(document).toContain("A1-owned");
       expect(document).toMatch(/a1 pi[^\n]*(untouched|vanilla)/i);
       expect(document).toMatch(/a1 sandbox[^\n]*(unchanged|isolated)/i);
       expect(document).toMatch(/a1 ui[^\n]*remove/i);
     }
-    expect(checkpoint).toContain("Compare bare AddOne with `a1 pi`");
+    expect(checkpoint).toContain("Compare bare A1 with `a1 pi`");
     expect(checkpoint).toContain("For recovery, use `a1 pi`");
     expect(CLI_USAGE).toBe("Usage: a1 | a1 pi | a1 sandbox | a1 version | a1 update | a1 update:next");
     expect(parseCliCommand(["ui"])).toEqual({

@@ -84,7 +84,7 @@ function switchCases(source: string, start: string, end: string): string[] {
 describe("complete pinned Pi interactive behavior inventory", () => {
   it("binds every required category and acceptance case to exact pinned upstream source", async () => {
     const inventory = await loadInventory();
-    expect(inventory.schema).toBe("addone-pinned-pi-interactive-baseline-v1");
+    expect(inventory.schema).toBe("a1-pinned-pi-interactive-baseline-v1");
     expect(inventory.upstream).toMatchObject({
       commit: "914cf1472e715297caa30db4b9535d534a9eb718",
       license: "MIT",

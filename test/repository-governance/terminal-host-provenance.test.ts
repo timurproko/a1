@@ -15,7 +15,7 @@ describe("terminal-host provenance policy", () => {
   });
 
   it("rejects desktop-app requirements, missing components, dirty sources, and premature builds", async () => {
-    const root = await mkdtemp(join(tmpdir(), "addone-terminal-provenance-"));
+    const root = await mkdtemp(join(tmpdir(), "a1-terminal-provenance-"));
     roots.push(root);
     const evidence = {
       schema: "a1-terminal-host-provenance-v1",

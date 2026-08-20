@@ -14,7 +14,7 @@ describe("Pi session shell provenance", () => {
       rejected: string[];
     };
 
-    expect(evidence.schema).toBe("addone-pi-session-shell-provenance-v1");
+    expect(evidence.schema).toBe("a1-pi-session-shell-provenance-v1");
     expect(evidence.upstream.commit).toMatch(/^[0-9a-f]{40}$/);
     expect(evidence.upstream.license).toBe("MIT");
     expect(evidence.upstream.packages).toEqual([
