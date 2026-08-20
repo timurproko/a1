@@ -1,7 +1,7 @@
 ## 1. Freeze the Boundary and Establish Failing Proofs
 
 - [x] 1.1 Record the accepted dependency graph, production Pi import sites, package-layout reads, reflected concrete constructors, feature-to-adapter dependencies, source-derived UI units, and exact-oracle resolution in machine-readable baseline evidence; validate it with a focused repository-governance test.
-- [ ] 1.2 Add negative architecture fixtures proving that feature imports of Pi packages, concrete Pi adapters, Pi-named contracts, or Pi component factories fail with actionable paths; run the focused architecture-policy suite.
+- [x] 1.2 Add negative architecture fixtures proving that feature imports of Pi packages, concrete Pi adapters, Pi-named contracts, or Pi component factories fail with actionable paths; run the focused architecture-policy suite.
 - [ ] 1.3 Add negative production fixtures for dependency package-file reads, private path construction, reflected concrete Pi constructors, structural concrete-session substitutes, and ambient-`pi` oracle selection; run the focused boundary suite and preserve the expected failures before migration.
 - [ ] 1.4 Add one checked compatibility-authority reader derived from `package.json` and `package-lock.json`, remove production version constants that are not protocol identities, and pass exact-version/integrity drift tests.
 

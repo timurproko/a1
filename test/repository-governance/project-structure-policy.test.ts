@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { inspectProjectStructureImports, PROJECT_OWNERS, projectOwnerForPath, testOwnerForPath } from "../../scripts/project-structure-policy.mjs";
+import {
+  inspectPiFeatureBoundaryImports,
+  inspectProjectStructureImports,
+  PROJECT_OWNERS,
+  projectOwnerForPath,
+  testOwnerForPath,
+} from "../../scripts/project-structure-policy.mjs";
 
 describe("project structure ownership policy", () => {
   it("declares every production and test owner with one public entry", () => {
@@ -47,6 +53,50 @@ describe("project structure ownership policy", () => {
     })).toEqual([
       "src/foundation/lifecycle/process.ts: lifecycle may not import launch (../../features/launch/index.js)",
       "src/foundation/storage/store.ts: storage may not import protocol (../protocol/index.js)",
+    ]);
+  });
+
+  it.each([
+    [
+      "Pi package",
+      "import { createAgentSessionRuntime } from '@earendil-works/pi-coding-agent';",
+      "feature may not import Pi package '@earendil-works/pi-coding-agent'",
+    ],
+    [
+      "concrete adapter",
+      "import { createPiEngineAdapter } from '../../foundation/pi-engine-adapter/index.js';",
+      "feature may not import concrete Pi adapter '../../foundation/pi-engine-adapter/index.js'",
+    ],
+    [
+      "Pi-named contract",
+      "import type { PiSessionContract } from '../../foundation/owned-ui-contracts/index.js';",
+      "feature may not import Pi-named contract 'PiSessionContract'",
+    ],
+    [
+      "Pi component factory",
+      "import { createPiShellEditor } from '../../foundation/owned-ui-contracts/index.js';",
+      "feature may not import Pi component factory 'createPiShellEditor'",
+    ],
+  ])("rejects a feature %s with an actionable path", (_kind, source, diagnostic) => {
+    const path = "src/features/owned-ui/forbidden.ts";
+    const errors = inspectPiFeatureBoundaryImports({ [path]: source });
+
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toContain(path);
+    expect(errors[0]).toContain(diagnostic);
+    expect(errors[0]).toContain("vendor-neutral");
+  });
+
+  it("grandfathers only an exact accepted baseline import statement", () => {
+    const path = "src/features/owned-ui/run.ts";
+    const source = "import { createPiEngineAdapter } from '../../foundation/pi-engine-adapter/index.js';";
+    const approved = [{ path, specifier: "../../foundation/pi-engine-adapter/index.js", statement: source }];
+
+    expect(inspectPiFeatureBoundaryImports({ [path]: source }, approved)).toEqual([]);
+    expect(inspectPiFeatureBoundaryImports({
+      [path]: `${source}\nimport { createPiShellEditor } from '../../foundation/pi-component-adapter/index.js';`,
+    }, approved)).toEqual([
+      `${path}: feature may not import concrete Pi adapter '../../foundation/pi-component-adapter/index.js'; inject a vendor-neutral A1 port`,
     ]);
   });
 });

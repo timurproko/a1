@@ -67,7 +67,7 @@ function collectDependencyGraph(manifest, lockfile, ownerEdges) {
   const edges = [];
   const queue = Object.keys(manifest.dependencies ?? {})
     .filter(name => PI_PACKAGE.test(name))
-    .map(name => ({ name, lockPath: `node_modules/${name}`, requested: manifest.dependencies[name], from: "@timurproko/a1" }));
+    .map(name => ({ name, lockPath: `node_modules/${name}`, requested: manifest.dependencies[name], from: manifest.name }));
   const seen = new Set();
   while (queue.length > 0) {
     const current = queue.shift();
@@ -88,7 +88,7 @@ function collectDependencyGraph(manifest, lockfile, ownerEdges) {
     .sort((left, right) => left.from.localeCompare(right.from) || left.to.localeCompare(right.to));
   return {
     authorities: ["package.json", "package-lock.json"],
-    root: "@timurproko/a1",
+    root: manifest.name,
     packages,
     packageEdges: edges,
     productionOwnerEdges,

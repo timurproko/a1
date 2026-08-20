@@ -63,6 +63,32 @@ export function inspectProjectStructureImports(files) {
   return errors;
 }
 
+export function inspectPiFeatureBoundaryImports(files, approvedImports = []) {
+  const approved = new Set(approvedImports.map(record => approvalKey(record.path, record.specifier, record.statement)));
+  const errors = [];
+  for (const [rawPath, source] of Object.entries(files)) {
+    const path = normalize(rawPath);
+    if (!path.startsWith("src/features/")) continue;
+    for (const record of importRecords(source)) {
+      const statement = normalizeStatement(record.statement);
+      if (approved.has(approvalKey(path, record.specifier, statement))) continue;
+      const imported = record.clause ?? "";
+      if (/^@earendil-works\/pi-/.test(record.specifier)) {
+        errors.push(`${path}: feature may not import Pi package '${record.specifier}'; inject a vendor-neutral A1 port`);
+      } else if (/foundation\/pi-(?:engine|component|tui-runtime)-adapter\//.test(record.specifier)) {
+        errors.push(`${path}: feature may not import concrete Pi adapter '${record.specifier}'; inject a vendor-neutral A1 port`);
+      } else if (/\b(?:create|render)Pi[A-Z][A-Za-z0-9_$]*\b/.test(imported)) {
+        const factory = imported.match(/\b(?:create|render)Pi[A-Z][A-Za-z0-9_$]*\b/)?.[0];
+        errors.push(`${path}: feature may not import Pi component factory '${factory}'; inject a vendor-neutral presentation port`);
+      } else if (/\bPi[A-Z][A-Za-z0-9_$]*(?:Contract|Port|Adapter|Runtime|Session|Component|Factory)\b/.test(imported)) {
+        const contract = imported.match(/\bPi[A-Z][A-Za-z0-9_$]*(?:Contract|Port|Adapter|Runtime|Session|Component|Factory)\b/)?.[0];
+        errors.push(`${path}: feature may not import Pi-named contract '${contract}'; use a vendor-neutral A1-owned contract`);
+      }
+    }
+  }
+  return errors;
+}
+
 export function projectOwnerForPath(path) {
   const normalized = normalize(path);
   if (normalized === "src/product-identity.ts" || normalized === "src/product-identity.json") return PROJECT_OWNERS["product-identity"];
@@ -82,6 +108,25 @@ function owner(id, layer, sourceRoot, testRoot, mayImport) {
 
 function importsFrom(source) {
   return [...source.matchAll(/(?:from\s+|import\s*\()(["'])([^"']+)\1/g)].map(match => match[2]);
+}
+
+function importRecords(source) {
+  const records = [];
+  for (const match of source.matchAll(/\bimport\s+(type\s+)?([^;]+?)\s+from\s+(["'])([^"']+)\3\s*;?/g)) {
+    records.push({ clause: match[2], specifier: match[4], statement: match[0] });
+  }
+  for (const match of source.matchAll(/\bimport\s*\(\s*(["'])([^"']+)\1\s*\)/g)) {
+    records.push({ clause: null, specifier: match[2], statement: match[0] });
+  }
+  return records;
+}
+
+function approvalKey(path, specifier, statement) {
+  return `${normalize(path)}\0${specifier}\0${normalizeStatement(statement)}`;
+}
+
+function normalizeStatement(statement) {
+  return statement.replace(/\s+/g, " ").trim();
 }
 
 function resolveTypeScriptImport(importer, specifier) {
