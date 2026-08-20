@@ -1,0 +1,84 @@
+{
+  "schema": "a1-identity-cutover-final-record-v1",
+  "recordedAt": "2026-08-20T09:49:08.707Z",
+  "implementationHead": "3bd14c5c6e0d5614d78f060fbc7d5e2ff74f04bd",
+  "cleanGateCommit": "759bc74c0d5baaef20a0e3c57139ead01feea572",
+  "packageCandidateSource": "8305b2d74d240fe79c60e46b4101cf68cc84e4e1",
+  "packageCandidate": {
+    "filename": "timurproko-a1-0.1.0.tgz",
+    "integrity": "sha512-TrwY97d4SbcSZiiFO/tAHaIpYPFICH1T5EZXvnM/GoKIxD1p01prAie/Oec4o4+oe3Q1q4KaG/c29ySHSDvWBg==",
+    "shasum": "b6234786f110d5b6ca462a0c8519e4874c5a7541",
+    "sha256": "04c5def3dfad8a84a3416313e970d9a5c34b8a7d227d22245b86f3d1d9b722af",
+    "fileCount": 460,
+    "legacyNamedEntries": []
+  },
+  "manifest": {
+    "name": "@timurproko/a1",
+    "version": "0.1.0",
+    "bin": {
+      "a1": "bin/a1.js"
+    }
+  },
+  "platformVerdicts": {
+    "windows": {
+      "automated": "passed",
+      "fullVitest": {
+        "files": 96,
+        "tests": 555
+      },
+      "releaseTransitionTests": 3,
+      "nativeCargoTests": 4,
+      "nativeProbes": [
+        "version",
+        "one-pane",
+        "selection",
+        "input",
+        "two-by-two"
+      ],
+      "activeWorkstationDriven": false
+    },
+    "linux": {
+      "status": "pending-supported-platform-certification"
+    },
+    "macos": {
+      "status": "pending-supported-platform-certification"
+    }
+  },
+  "identityInventory": {
+    "schema": "a1-legacy-identity-inventory-v1",
+    "totalApprovedOccurrences": 196,
+    "historicalOccurrences": 130,
+    "pathOccurrences": 0,
+    "approvalReasons": {
+      "documented hard-cut or deprecation assertion": 9,
+      "explicit obsolete-package rejection or deprecation fixture": 5,
+      "exact historical evidence record": 130,
+      "obsolete-package rejection requirement": 4,
+      "explicit legacy rejection fixture": 48
+    },
+    "pendingMigrationApprovals": 0,
+    "governanceVerdict": "passed"
+  },
+  "migration": {
+    "policy": "hard-cut-no-import-or-compatibility",
+    "piProfilesPreserved": [
+      "~/.a1/agent",
+      "~/.pi/agent",
+      "~/.a1/sandbox"
+    ],
+    "manualAcknowledgement": "pending-user-confirmation"
+  },
+  "registry": {
+    "currentPublishedVersion": "0.1.0",
+    "candidatePublished": false,
+    "mutatePublishedVersion": false,
+    "nextStableRelease": "must increment SemVer on develop before candidate validation",
+    "obsoletePackageRemoval": "owner-controlled follow-up"
+  },
+  "integration": {
+    "milestoneBranch": "milestone/centralize-a1-product-identity",
+    "developMerge": "pending-manual-no-migration-acknowledgement",
+    "masterMerge": false,
+    "publication": false
+  }
+}
