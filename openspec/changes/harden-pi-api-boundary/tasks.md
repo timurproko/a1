@@ -7,7 +7,7 @@
 
 ## 2. Introduce Vendor-Neutral A1 Ports
 
-- [ ] 2.1 Define capability-scoped A1 engine/session lifecycle, command, event, snapshot, and explicit capability contracts without Pi package types or Pi-named public symbols; pass contract validation and serialization tests.
+- [x] 2.1 Define capability-scoped A1 engine/session lifecycle, command, event, snapshot, and explicit capability contracts without Pi package types or Pi-named public symbols; pass contract validation and serialization tests.
 - [ ] 2.2 Define separate A1 model/authentication, settings, resources/extensions, and workflow ports from product use cases rather than vendor class shapes; pass required-versus-optional capability tests.
 - [ ] 2.3 Define vendor-neutral presentation component, editor, selector/dialog, extension UI, terminal runtime, layout, overlay, and focus ports; pass malformed component and lifecycle contract tests.
 - [ ] 2.4 Extend project ownership and dependency governance so features and workspace modules may depend only on neutral ports while Pi implementations may depend inward on those ports; run architecture and project-structure policy suites.
