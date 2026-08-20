@@ -19,24 +19,60 @@ describe("inventory-driven product identity governance", () => {
     expect(result.stdout).toContain("Product identity governance OK");
   });
 
-  it("rejects an occurrence that was not in the reviewed inventory", async () => {
+  it.each([
+    ["display name", "src/display.ts", `export const display = '${["Add", "One"].join("")}';`],
+    ["lowercase identifier", "src/slug.ts", `export const slug = '${["add", "one"].join("")}';`],
+    ["environment prefix", "src/environment.ts", `export const key = '${["ADD", "ONE_CONFIG_DIR"].join("")}';`],
+    ["obsolete package", "src/package.ts", `export const packageName = '@timurproko/${["add", "one"].join("")}';`],
+    ["state path", "src/path.ts", `export const statePath = '/var/lib/${["add", "one"].join("")}';`],
+    ["schema identifier", "src/schema.ts", `export const schema = '${["add", "one-control-v1"].join("")}';`],
+    ["protocol identifier", "src/protocol.ts", `export const envelope = '${["add", "one-control-envelope"].join("")}';`],
+    ["bin artifact", `bin/${["add", "one-supervisor.js"].join("")}`, "#!/usr/bin/env node\n"],
+    ["native artifact", `native/terminal-host/${["add", "one-terminal-host.exe"].join("")}.txt`, "fixture"],
+  ])("rejects an unreviewed %s mutation", async (_name, path, source) => {
     const root = await fixture();
-    await writeText(root, "src/feature.ts", `export const legacy = '${["Add", "One"].join("")}';`);
+    await writeText(root, path, source);
     const result = run(root);
 
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("legacy identity inventory is stale");
     expect(result.stderr).toContain("unapproved legacy identity occurrence");
   });
+
+  it.each([
+    ["display", `export const PRODUCT_DISPLAY_NAME = "A1";`],
+    ["package", `export const productPackage = "@timurproko/a1";`],
+  ])("rejects a duplicate current %s literal in executable source", async (_name, source) => {
+    const root = await fixture();
+    await writeText(root, "src/duplicate.ts", source);
+    const result = run(root);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toMatch(/duplicates (?:current identity|the authoritative package name)/);
+  });
+
+  it.each([
+    ["historical evidence", "openspec/changes/live/evidence/history.md", `Historical ${["Add", "One"].join("")} record.`],
+    ["rejection fixture", "test/legacy-rejection.test.ts", `expect(value).not.toBe('${["add", "one"].join("")}');`],
+  ])("does not let an exact %s approval broaden silently", async (_name, path, approvedSource) => {
+    const root = await fixture({ [path]: approvedSource });
+    await writeText(root, path, `${approvedSource}\n${approvedSource}`);
+    const result = run(root);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("legacy identity inventory is stale");
+    expect(result.stderr).toMatch(/unapproved legacy identity occurrence|approval differs from the exact inventoried occurrence/);
+  });
 });
 
-async function fixture(): Promise<string> {
+async function fixture(initialFiles: Readonly<Record<string, string>> = {}): Promise<string> {
   const root = await mkdtemp(resolve(tmpdir(), "a1-identity-governance-"));
   roots.push(root);
   const identity = await readFile(resolve(repository, "src/product-identity.json"), "utf8");
   await writeText(root, "src/product-identity.json", identity);
   await writeText(root, "package.json", JSON.stringify({ name: "@example/fixture", bin: {} }));
   await writeText(root, "package-lock.json", JSON.stringify({ name: "@example/fixture", packages: { "": { name: "@example/fixture", bin: {} } } }));
+  for (const [path, source] of Object.entries(initialFiles)) await writeText(root, path, source);
   const inventory = await writeLegacyIdentityInventory(root);
   const allowlist = {
     schema: "a1-legacy-identity-allowlist-v1",

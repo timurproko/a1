@@ -48,7 +48,7 @@
 ## 9. Enforce zero legacy coupling
 
 - [x] 9.1 Replace the existing package-name scanner with a complete identity-governance gate driven by the inventory and exact allowlist; scan production, scripts, workflows, native sources, tests, current docs, main specs, and non-archived changes.
-- [ ] 9.2 Add mutation tests for each legacy class—display name, lowercase identifier, environment prefix, package, paths, schema/protocol, bin/native artifact, and direct duplicate current literals—and prove historical/rejection exceptions cannot broaden silently.
+- [x] 9.2 Add mutation tests for each legacy class—display name, lowercase identifier, environment prefix, package, paths, schema/protocol, bin/native artifact, and direct duplicate current literals—and prove historical/rejection exceptions cannot broaden silently.
 - [ ] 9.3 Run a final case-insensitive repository scan and resolve every non-archived/non-evidence `AddOne`, `addone`, and `ADDONE` occurrence except exact obsolete-package rejection/deprecation fixtures approved by the gate.
 
 ## 10. Validate and release the hard rename
