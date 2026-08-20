@@ -41,20 +41,20 @@
     "explicit-obsolete-package-fixtures"
   ],
   "summary": {
-    "total": 816,
-    "files": 115,
+    "total": 803,
+    "files": 111,
     "byLocationKind": {
-      "content": 793,
+      "content": 780,
       "path": 23
     },
     "byClass": {
-      "runtime-symbols": 79,
+      "runtime-symbols": 72,
       "diagnostics": 92,
       "environment-keys": 20,
-      "paths": 262,
-      "schemas": 78,
-      "artifacts": 85,
-      "native-names": 69,
+      "paths": 256,
+      "schemas": 76,
+      "artifacts": 84,
+      "native-names": 56,
       "tests": 58,
       "current-docs-specs": 702,
       "historical-records": 140,
@@ -474,204 +474,6 @@
         "environment-keys",
         "paths",
         "current-docs-specs"
-      ]
-    },
-    {
-      "id": "native/terminal-host/build.rs:27:46",
-      "path": "native/terminal-host/build.rs",
-      "locationKind": "content",
-      "line": 27,
-      "column": 46,
-      "value": "addone",
-      "context": "let work = env::temp_dir().join(format!(\"addone-libghostty-vt-{GHOSTTY_COMMIT}\"));",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "native-names"
-      ]
-    },
-    {
-      "id": "native/terminal-host/build.rs:28:29",
-      "path": "native/terminal-host/build.rs",
-      "locationKind": "content",
-      "line": 28,
-      "column": 29,
-      "value": "addone",
-      "context": "let stamp = work.join(\".addone-source-commit\");",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "native-names"
-      ]
-    },
-    {
-      "id": "native/terminal-host/README.md:1:3",
-      "path": "native/terminal-host/README.md",
-      "locationKind": "content",
-      "line": 1,
-      "column": 3,
-      "value": "AddOne",
-      "context": "# AddOne terminal host",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "native-names",
-      "classes": [
-        "native-names"
-      ]
-    },
-    {
-      "id": "native/terminal-host/README.md:10:6",
-      "path": "native/terminal-host/README.md",
-      "locationKind": "content",
-      "line": 10,
-      "column": 6,
-      "value": "AddOne",
-      "context": "- an AddOne-owned buffered frame composer.",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "schemas",
-      "classes": [
-        "schemas",
-        "native-names"
-      ]
-    },
-    {
-      "id": "native/terminal-host/README.md:20:363",
-      "path": "native/terminal-host/README.md",
-      "locationKind": "content",
-      "line": 20,
-      "column": 363,
-      "value": "addone",
-      "context": "The non-interactive gate runs Rust layout/topology tests, retained-model/one-PTY, selection, native key/text/mouse/clipboard, and four-PTY integration probes. The 2×2 probe verifies durable pane/session mappings, exact argv, per-pane env...",
-      "matchedCase": "lower",
-      "primaryClass": "native-names",
-      "classes": [
-        "native-names"
-      ]
-    },
-    {
-      "id": "native/terminal-host/README.md:27:37",
-      "path": "native/terminal-host/README.md",
-      "locationKind": "content",
-      "line": 27,
-      "column": 37,
-      "value": "addone",
-      "context": ".\\native\\terminal-host\\target\\debug\\addone-terminal-host.exe --run",
-      "matchedCase": "lower",
-      "primaryClass": "paths",
-      "classes": [
-        "paths",
-        "native-names"
-      ]
-    },
-    {
-      "id": "native/terminal-host/README.md:39:37",
-      "path": "native/terminal-host/README.md",
-      "locationKind": "content",
-      "line": 39,
-      "column": 37,
-      "value": "addone",
-      "context": ".\\native\\terminal-host\\target\\debug\\addone-terminal-host.exe --run -- <executable> [args...]",
-      "matchedCase": "lower",
-      "primaryClass": "paths",
-      "classes": [
-        "paths",
-        "artifacts",
-        "native-names"
-      ]
-    },
-    {
-      "id": "native/terminal-host/README.md:45:37",
-      "path": "native/terminal-host/README.md",
-      "locationKind": "content",
-      "line": 45,
-      "column": 37,
-      "value": "addone",
-      "context": ".\\native\\terminal-host\\target\\debug\\addone-terminal-host.exe --topology-2x2",
-      "matchedCase": "lower",
-      "primaryClass": "paths",
-      "classes": [
-        "paths",
-        "native-names"
-      ]
-    },
-    {
-      "id": "native/terminal-host/src/main.rs:99:22",
-      "path": "native/terminal-host/src/main.rs",
-      "locationKind": "content",
-      "line": 99,
-      "column": 22,
-      "value": "AddOne",
-      "context": "terminal.write(b\"AddOne terminal host probe\\r\\n\\x1b[1;32mterminal model ready\\x1b[0m\\r\\n\");",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "native-names"
-      ]
-    },
-    {
-      "id": "native/terminal-host/src/main.rs:221:22",
-      "path": "native/terminal-host/src/main.rs",
-      "locationKind": "content",
-      "line": 221,
-      "column": 22,
-      "value": "AddOne",
-      "context": "terminal.write(b\"AddOne terminal host probe\\r\\n\\x1b[1;32mterminal model ready\\x1b[0m\\r\\n\");",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "native-names"
-      ]
-    },
-    {
-      "id": "native/terminal-host/src/main.rs:225:25",
-      "path": "native/terminal-host/src/main.rs",
-      "locationKind": "content",
-      "line": 225,
-      "column": 25,
-      "value": "AddOne",
-      "context": "if !frame.contains(\"AddOne terminal host probe\")",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "schemas",
-        "native-names"
-      ]
-    },
-    {
-      "id": "native/terminal-host/src/main.rs:234:32",
-      "path": "native/terminal-host/src/main.rs",
-      "locationKind": "content",
-      "line": 234,
-      "column": 32,
-      "value": "AddOne",
-      "context": "if !full_repaint.contains(\"AddOne terminal host probe\")",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "native-names"
-      ]
-    },
-    {
-      "id": "native/terminal-host/src/workspace.rs:981:39",
-      "path": "native/terminal-host/src/workspace.rs",
-      "locationKind": "content",
-      "line": 981,
-      "column": 39,
-      "value": "addone",
-      "context": "fn topology_has_stable_revisioned_addone_mappings() {",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "native-names"
       ]
     },
     {
@@ -5656,7 +5458,7 @@
       "line": 39,
       "column": 157,
       "value": "addone",
-      "context": "- [ ] 7.1 Rename the Rust crate, executable, source-level schemas, temporary paths, hot-path identifiers, build outputs, and Node launcher references from `addone` to `a1`; run Cargo formatting, tests, and terminal-host probes that do no...",
+      "context": "- [x] 7.1 Rename the Rust crate, executable, source-level schemas, temporary paths, hot-path identifiers, build outputs, and Node launcher references from `addone` to `a1`; run Cargo formatting, tests, and terminal-host probes that do no...",
       "matchedCase": "lower",
       "primaryClass": "paths",
       "classes": [
@@ -12264,5 +12066,5 @@
       ]
     }
   ],
-  "generatedAt": "2026-08-20T09:21:16.675Z"
+  "generatedAt": "2026-08-20T09:24:40.567Z"
 }

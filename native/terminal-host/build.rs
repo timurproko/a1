@@ -24,8 +24,8 @@ fn main() {
     // Zig 0.15.2 has a Windows drive-letter path failure when this repository is
     // built from D:. Build from the system temporary directory instead; the
     // source copy is stamped with the pinned source commit.
-    let work = env::temp_dir().join(format!("addone-libghostty-vt-{GHOSTTY_COMMIT}"));
-    let stamp = work.join(".addone-source-commit");
+    let work = env::temp_dir().join(format!("a1-libghostty-vt-{GHOSTTY_COMMIT}"));
+    let stamp = work.join(".a1-source-commit");
     if fs::read_to_string(&stamp).ok().as_deref() != Some(GHOSTTY_COMMIT) {
         if work.exists() {
             fs::remove_dir_all(&work).expect("remove stale libghostty-vt build source");

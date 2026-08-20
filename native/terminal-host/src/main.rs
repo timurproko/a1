@@ -96,7 +96,7 @@ fn probe_trace(step: &str) {
 
 fn probe_scroll() -> Result<(), String> {
     let mut terminal = GhosttyTerminal::new(80, 24)?;
-    terminal.write(b"AddOne terminal host probe\r\n\x1b[1;32mterminal model ready\x1b[0m\r\n");
+    terminal.write(b"A1 terminal host probe\r\n\x1b[1;32mterminal model ready\x1b[0m\r\n");
     terminal.frame()?;
     for index in 1..=40 {
         terminal.write(format!("line{index}\r\n").as_bytes());
@@ -218,11 +218,11 @@ fn probe() -> Result<(), String> {
     probe_trace("create terminal");
     let mut terminal = GhosttyTerminal::new(80, 24)?;
     probe_trace("write terminal");
-    terminal.write(b"AddOne terminal host probe\r\n\x1b[1;32mterminal model ready\x1b[0m\r\n");
+    terminal.write(b"A1 terminal host probe\r\n\x1b[1;32mterminal model ready\x1b[0m\r\n");
     probe_trace("compose frame");
     let frame = terminal.frame()?;
     probe_trace("validate frame");
-    if !frame.contains("AddOne terminal host probe")
+    if !frame.contains("A1 terminal host probe")
         || !frame.contains("terminal model ready")
         || !frame.contains("\x1b[49m")
         || !frame.contains("\x1b[38;5;2m")
@@ -231,7 +231,7 @@ fn probe() -> Result<(), String> {
     }
     terminal.mark_dirty()?;
     let full_repaint = terminal.frame()?;
-    if !full_repaint.contains("AddOne terminal host probe")
+    if !full_repaint.contains("A1 terminal host probe")
         || !full_repaint.contains("terminal model ready")
     {
         return Err("terminal model full repaint lost retained content".to_owned());

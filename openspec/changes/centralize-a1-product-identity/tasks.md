@@ -36,7 +36,7 @@
 
 ## 7. Rename native and composed-terminal identity
 
-- [ ] 7.1 Rename the Rust crate, executable, source-level schemas, temporary paths, hot-path identifiers, build outputs, and Node launcher references from `addone` to `a1`; run Cargo formatting, tests, and terminal-host probes that do not drive the active workstation.
+- [x] 7.1 Rename the Rust crate, executable, source-level schemas, temporary paths, hot-path identifiers, build outputs, and Node launcher references from `addone` to `a1`; run Cargo formatting, tests, and terminal-host probes that do not drive the active workstation.
 - [ ] 7.2 Regenerate current native provenance and proof metadata for renamed artifacts while preserving immutable historical evidence; pass native boundary, provenance, and proof-gate tests.
 
 ## 8. Reconcile current documentation and OpenSpec planning
