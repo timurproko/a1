@@ -1,0 +1,697 @@
+{
+  "schema": "a1-pi-api-boundary-baseline-v1",
+  "baselineCommit": "578d41b7eab172a0c6e8ca5b633518001d6a8642",
+  "dependencyGraph": {
+    "authorities": [
+      "package.json",
+      "package-lock.json"
+    ],
+    "root": "@timurproko/a1",
+    "packages": [
+      {
+        "name": "@earendil-works/pi-coding-agent",
+        "lockPath": "node_modules/@earendil-works/pi-coding-agent",
+        "version": "0.84.2",
+        "integrity": "sha512-l4E+B7hgXKWddRo8bC/eSue2aWZjEgJ9xIpf5p0Og+lq8a2TArCwJ0HCoCPCgaBP/tN4zbYH/wOwvx9pJpeLCA=="
+      },
+      {
+        "name": "@earendil-works/pi-agent-core",
+        "lockPath": "node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-agent-core",
+        "version": "0.84.2",
+        "integrity": null
+      },
+      {
+        "name": "@earendil-works/pi-ai",
+        "lockPath": "node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-ai",
+        "version": "0.84.2",
+        "integrity": null
+      },
+      {
+        "name": "@earendil-works/pi-client",
+        "lockPath": "node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-client",
+        "version": "0.84.2",
+        "integrity": null
+      },
+      {
+        "name": "@earendil-works/pi-protocol",
+        "lockPath": "node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-protocol",
+        "version": "0.84.2",
+        "integrity": null
+      },
+      {
+        "name": "@earendil-works/pi-telemetry",
+        "lockPath": "node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-telemetry",
+        "version": "0.84.2",
+        "integrity": null
+      },
+      {
+        "name": "@earendil-works/pi-tui",
+        "lockPath": "node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-tui",
+        "version": "0.84.2",
+        "integrity": null
+      },
+      {
+        "name": "@earendil-works/pi-tui",
+        "lockPath": "node_modules/@earendil-works/pi-tui",
+        "version": "0.84.2",
+        "integrity": "sha512-ds2TLihOnM5sLJB3VpXV6y0uR5efVuHf4MN7yDpsty6hA2DUO/EDVzjp/0od0G2JslzVLMjT8T8zavtxVb+qbg=="
+      }
+    ],
+    "packageEdges": [
+      {
+        "from": "@earendil-works/pi-agent-core",
+        "to": "@earendil-works/pi-telemetry",
+        "requested": "^0.84.2",
+        "lockPath": "node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-telemetry"
+      },
+      {
+        "from": "@earendil-works/pi-coding-agent",
+        "to": "@earendil-works/pi-agent-core",
+        "requested": "^0.84.2",
+        "lockPath": "node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-agent-core"
+      },
+      {
+        "from": "@earendil-works/pi-coding-agent",
+        "to": "@earendil-works/pi-ai",
+        "requested": "^0.84.2",
+        "lockPath": "node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-ai"
+      },
+      {
+        "from": "@earendil-works/pi-coding-agent",
+        "to": "@earendil-works/pi-client",
+        "requested": "^0.84.2",
+        "lockPath": "node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-client"
+      },
+      {
+        "from": "@earendil-works/pi-coding-agent",
+        "to": "@earendil-works/pi-protocol",
+        "requested": "^0.84.2",
+        "lockPath": "node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-protocol"
+      },
+      {
+        "from": "@earendil-works/pi-coding-agent",
+        "to": "@earendil-works/pi-tui",
+        "requested": "^0.84.2",
+        "lockPath": "node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-tui"
+      },
+      {
+        "from": "@timurproko/a1",
+        "to": "@earendil-works/pi-coding-agent",
+        "requested": "0.84.2",
+        "lockPath": "node_modules/@earendil-works/pi-coding-agent"
+      },
+      {
+        "from": "@timurproko/a1",
+        "to": "@earendil-works/pi-tui",
+        "requested": "0.84.2",
+        "lockPath": "node_modules/@earendil-works/pi-tui"
+      }
+    ],
+    "productionOwnerEdges": [
+      {
+        "from": "src/features/owned-ui",
+        "to": "pi-component-adapter"
+      },
+      {
+        "from": "src/features/owned-ui",
+        "to": "pi-engine-adapter"
+      },
+      {
+        "from": "src/features/owned-ui",
+        "to": "pi-tui-runtime-adapter"
+      }
+    ]
+  },
+  "productionPiImportSites": [
+    {
+      "path": "src/foundation/pi-component-adapter/components.ts",
+      "line": 1,
+      "specifier": "@earendil-works/pi-coding-agent",
+      "statement": "import { AssistantMessageComponent, ToolExecutionComponent, UserMessageComponent, } from \"@earendil-works/pi-coding-agent\";"
+    },
+    {
+      "path": "src/foundation/pi-component-adapter/conformance.ts",
+      "line": 4,
+      "specifier": "@earendil-works/pi-coding-agent",
+      "statement": "import { AssistantMessageComponent, initTheme, ToolExecutionComponent, UserMessageComponent, VERSION, } from \"@earendil-works/pi-coding-agent\";"
+    },
+    {
+      "path": "src/foundation/pi-component-adapter/shell-editor-autocomplete.ts",
+      "line": 1,
+      "specifier": "@earendil-works/pi-coding-agent",
+      "statement": "import { CustomEditor, getSelectListTheme, } from \"@earendil-works/pi-coding-agent\";"
+    },
+    {
+      "path": "src/foundation/pi-component-adapter/shell-editor-autocomplete.ts",
+      "line": 5,
+      "specifier": "@earendil-works/pi-tui",
+      "statement": "import { CombinedAutocompleteProvider, setKeybindings, type AutocompleteProvider, } from \"@earendil-works/pi-tui\";"
+    },
+    {
+      "path": "src/foundation/pi-component-adapter/shell-extension-ui.ts",
+      "line": 1,
+      "specifier": "@earendil-works/pi-coding-agent",
+      "statement": "import { ExtensionInputComponent, ExtensionSelectorComponent, type ExtensionUIContext, getSelectListTheme, } from \"@earendil-works/pi-coding-agent\";"
+    },
+    {
+      "path": "src/foundation/pi-component-adapter/shell-extension-ui.ts",
+      "line": 10,
+      "specifier": "@earendil-works/pi-tui",
+      "statement": "import { setKeybindings, Text, type Component, type OverlayHandle, } from \"@earendil-works/pi-tui\";"
+    },
+    {
+      "path": "src/foundation/pi-component-adapter/shell-footer-status.ts",
+      "line": 1,
+      "specifier": "@earendil-works/pi-coding-agent",
+      "statement": "import { FooterComponent, rawKeyHint, VERSION, } from \"@earendil-works/pi-coding-agent\";"
+    },
+    {
+      "path": "src/foundation/pi-component-adapter/shell-footer-status.ts",
+      "line": 6,
+      "specifier": "@earendil-works/pi-tui",
+      "statement": "import { Spacer, Text, type Component, type TUI, } from \"@earendil-works/pi-tui\";"
+    },
+    {
+      "path": "src/foundation/pi-component-adapter/shell-presenters-transcript.ts",
+      "line": 1,
+      "specifier": "@earendil-works/pi-coding-agent",
+      "statement": "import { AssistantMessageComponent, BashExecutionComponent, CompactionSummaryMessageComponent, CustomMessageComponent, DynamicBorder, getMarkdownTheme, parseSkillBlock, ToolExecutionComponent, UserMessageComponent, } from \"@earendil-works/pi-coding-agent\";"
+    },
+    {
+      "path": "src/foundation/pi-component-adapter/shell-presenters-transcript.ts",
+      "line": 15,
+      "specifier": "@earendil-works/pi-tui",
+      "statement": "import { Container, Markdown, Spacer, Text, type Component, } from \"@earendil-works/pi-tui\";"
+    },
+    {
+      "path": "src/foundation/pi-component-adapter/shell-selectors-dialogs.ts",
+      "line": 1,
+      "specifier": "@earendil-works/pi-coding-agent",
+      "statement": "import { ArminComponent, BorderedLoader, DynamicBorder, ExtensionSelectorComponent, getSelectListTheme, LoginDialogComponent, ModelSelectorComponent, OAuthSelectorComponent, SettingsSelectorComponent, ShowImagesSelectorComponent, type SessionInfo, type SessionTreeNode, type SettingsCallbacks, type SettingsConfig, ThemeSelectorComponent, ThinkingSelectorComponent, UserMessageSelectorComponent, } from \"@earendil-works/pi-coding-agent\";"
+    },
+    {
+      "path": "src/foundation/pi-component-adapter/shell-selectors-dialogs.ts",
+      "line": 32,
+      "specifier": "@earendil-works/pi-tui",
+      "statement": "import { Box, Container, SelectList, Spacer, Text, type SelectItem, } from \"@earendil-works/pi-tui\";"
+    },
+    {
+      "path": "src/foundation/pi-component-adapter/shell-shared-facade.ts",
+      "line": 1,
+      "specifier": "@earendil-works/pi-tui",
+      "statement": "import { setKeybindings, type AutocompleteProvider, type Component, type Focusable, type TUI, } from \"@earendil-works/pi-tui\";"
+    },
+    {
+      "path": "src/foundation/pi-component-adapter/upstream/adjacent/core/keybindings.ts",
+      "line": 2,
+      "specifier": "@earendil-works/pi-tui",
+      "statement": "import { type Keybinding, type KeybindingDefinitions, type KeybindingsConfig, type KeyId, TUI_KEYBINDINGS, KeybindingsManager as TuiKeybindingsManager, } from \"@earendil-works/pi-tui\";"
+    },
+    {
+      "path": "src/foundation/pi-component-adapter/upstream/adjacent/core/keybindings.ts",
+      "line": 12,
+      "specifier": "@earendil-works/pi-coding-agent",
+      "statement": "import { getAgentDir } from \"@earendil-works/pi-coding-agent\";"
+    },
+    {
+      "path": "src/foundation/pi-component-adapter/upstream/components/countdown-timer.ts",
+      "line": 5,
+      "specifier": "@earendil-works/pi-tui",
+      "statement": "import type { TUI } from \"@earendil-works/pi-tui\";"
+    },
+    {
+      "path": "src/foundation/pi-component-adapter/upstream/components/custom-entry.ts",
+      "line": 4,
+      "specifier": "@earendil-works/pi-tui",
+      "statement": "import type { Component } from \"@earendil-works/pi-tui\";"
+    },
+    {
+      "path": "src/foundation/pi-component-adapter/upstream/components/custom-entry.ts",
+      "line": 5,
+      "specifier": "@earendil-works/pi-tui",
+      "statement": "import { Box, Container, Spacer, Text } from \"@earendil-works/pi-tui\";"
+    },
+    {
+      "path": "src/foundation/pi-component-adapter/upstream/components/custom-entry.ts",
+      "line": 6,
+      "specifier": "@earendil-works/pi-coding-agent",
+      "statement": "import type { CustomEntry, EntryRenderer } from \"@earendil-works/pi-coding-agent\";"
+    },
+    {
+      "path": "src/foundation/pi-component-adapter/upstream/components/daxnuts.ts",
+      "line": 10,
+      "specifier": "@earendil-works/pi-tui",
+      "statement": "import type { Component, TUI } from \"@earendil-works/pi-tui\";"
+    },
+    {
+      "path": "src/foundation/pi-component-adapter/upstream/components/earendil-announcement.ts",
+      "line": 5,
+      "specifier": "@earendil-works/pi-tui",
+      "statement": "import { Container, Image, Spacer, Text } from \"@earendil-works/pi-tui\";"
+    },
+    {
+      "path": "src/foundation/pi-component-adapter/upstream/components/earendil-announcement.ts",
+      "line": 6,
+      "specifier": "@earendil-works/pi-coding-agent",
+      "statement": "import { DynamicBorder, getPackageDir } from \"@earendil-works/pi-coding-agent\";"
+    },
+    {
+      "path": "src/foundation/pi-component-adapter/upstream/components/extension-editor.ts",
+      "line": 6,
+      "specifier": "@earendil-works/pi-tui",
+      "statement": "import { Container, Editor, Spacer, Text, type TUI, } from \"@earendil-works/pi-tui\";"
+    },
+    {
+      "path": "src/foundation/pi-component-adapter/upstream/components/extension-editor.ts",
+      "line": 13,
+      "specifier": "@earendil-works/pi-coding-agent",
+      "statement": "import { DynamicBorder, getSelectListTheme } from \"@earendil-works/pi-coding-agent\";"
+    },
+    {
+      "path": "src/foundation/pi-component-adapter/upstream/components/first-time-setup.ts",
+      "line": 4,
+      "specifier": "@earendil-works/pi-tui",
+      "statement": "import { Container, getKeybindings, Spacer, Text } from \"@earendil-works/pi-tui\";"
+    },
+    {
+      "path": "src/foundation/pi-component-adapter/upstream/components/first-time-setup.ts",
+      "line": 5,
+      "specifier": "@earendil-works/pi-coding-agent",
+      "statement": "import { DynamicBorder, keyHint, rawKeyHint } from \"@earendil-works/pi-coding-agent\";"
+    },
+    {
+      "path": "src/foundation/pi-component-adapter/upstream/components/markdown-transform.ts",
+      "line": 4,
+      "specifier": "@earendil-works/pi-coding-agent",
+      "statement": "import type { MarkdownTransformContext, MarkdownTransformer } from \"@earendil-works/pi-coding-agent\";"
+    },
+    {
+      "path": "src/foundation/pi-component-adapter/upstream/components/mermaid.ts",
+      "line": 4,
+      "specifier": "@earendil-works/pi-tui",
+      "statement": "import { Marked, type Token } from \"@earendil-works/pi-tui\";"
+    },
+    {
+      "path": "src/foundation/pi-component-adapter/upstream/components/mermaid.ts",
+      "line": 6,
+      "specifier": "@earendil-works/pi-coding-agent",
+      "statement": "import type { MarkdownTransformer, Theme } from \"@earendil-works/pi-coding-agent\";"
+    },
+    {
+      "path": "src/foundation/pi-component-adapter/upstream/components/scoped-models-selector.ts",
+      "line": 11,
+      "specifier": "@earendil-works/pi-tui",
+      "statement": "import { Container, type Focusable, fuzzyFilter, getKeybindings, Input, Key, matchesKey, Spacer, Text, } from \"@earendil-works/pi-tui\";"
+    },
+    {
+      "path": "src/foundation/pi-component-adapter/upstream/components/scoped-models-selector.ts",
+      "line": 22,
+      "specifier": "@earendil-works/pi-coding-agent",
+      "statement": "import { DynamicBorder } from \"@earendil-works/pi-coding-agent\";"
+    },
+    {
+      "path": "src/foundation/pi-component-adapter/upstream/components/session-selector-search.ts",
+      "line": 6,
+      "specifier": "@earendil-works/pi-tui",
+      "statement": "import { fuzzyMatch } from \"@earendil-works/pi-tui\";"
+    },
+    {
+      "path": "src/foundation/pi-component-adapter/upstream/components/session-selector-search.ts",
+      "line": 7,
+      "specifier": "@earendil-works/pi-coding-agent",
+      "statement": "import type { SessionInfo } from \"@earendil-works/pi-coding-agent\";"
+    },
+    {
+      "path": "src/foundation/pi-component-adapter/upstream/components/session-selector.ts",
+      "line": 10,
+      "specifier": "@earendil-works/pi-tui",
+      "statement": "import { type Component, Container, type Focusable, getKeybindings, Input, Spacer, Text, truncateToWidth, visibleWidth, } from \"@earendil-works/pi-tui\";"
+    },
+    {
+      "path": "src/foundation/pi-component-adapter/upstream/components/session-selector.ts",
+      "line": 22,
+      "specifier": "@earendil-works/pi-coding-agent",
+      "statement": "import { DynamicBorder, type SessionInfo } from \"@earendil-works/pi-coding-agent\";"
+    },
+    {
+      "path": "src/foundation/pi-component-adapter/upstream/components/skill-invocation-message.ts",
+      "line": 7,
+      "specifier": "@earendil-works/pi-tui",
+      "statement": "import { Box, getKeybindings, Markdown, Text, type MarkdownTheme } from \"@earendil-works/pi-tui\";"
+    },
+    {
+      "path": "src/foundation/pi-component-adapter/upstream/components/status-indicator.ts",
+      "line": 5,
+      "specifier": "@earendil-works/pi-tui",
+      "statement": "import { type Component, Loader, type LoaderIndicatorOptions, type TUI } from \"@earendil-works/pi-tui\";"
+    },
+    {
+      "path": "src/foundation/pi-component-adapter/upstream/components/status-indicator.ts",
+      "line": 6,
+      "specifier": "@earendil-works/pi-coding-agent",
+      "statement": "import { keyText } from \"@earendil-works/pi-coding-agent\";"
+    },
+    {
+      "path": "src/foundation/pi-component-adapter/upstream/components/tree-selector.ts",
+      "line": 6,
+      "specifier": "@earendil-works/pi-tui",
+      "statement": "import { type Component, Container, type Focusable, Input, type Keybinding, Spacer, sliceByColumn, Text, truncateToWidth, visibleWidth, wrapTextWithAnsi, } from \"@earendil-works/pi-tui\";"
+    },
+    {
+      "path": "src/foundation/pi-component-adapter/upstream/components/tree-selector.ts",
+      "line": 19,
+      "specifier": "@earendil-works/pi-coding-agent",
+      "statement": "import { DynamicBorder, type SessionTreeNode } from \"@earendil-works/pi-coding-agent\";"
+    },
+    {
+      "path": "src/foundation/pi-component-adapter/upstream/components/trust-selector.ts",
+      "line": 3,
+      "specifier": "@earendil-works/pi-coding-agent",
+      "statement": "import boundaries. import { DynamicBorder, keyHint, rawKeyHint } from \"@earendil-works/pi-coding-agent\";"
+    },
+    {
+      "path": "src/foundation/pi-component-adapter/upstream/components/trust-selector.ts",
+      "line": 5,
+      "specifier": "@earendil-works/pi-tui",
+      "statement": "import { Container, getKeybindings, Spacer, Text } from \"@earendil-works/pi-tui\";"
+    },
+    {
+      "path": "src/foundation/pi-component-adapter/upstream/theme/theme-controller.ts",
+      "line": 5,
+      "specifier": "@earendil-works/pi-coding-agent",
+      "statement": "import type { Theme } from \"@earendil-works/pi-coding-agent\";"
+    },
+    {
+      "path": "src/foundation/pi-component-adapter/upstream/theme/theme.ts",
+      "line": 3,
+      "specifier": "@earendil-works/pi-coding-agent",
+      "statement": "import { getAgentDir, getPackageDir, initTheme, Theme, type ThemeColor, } from \"@earendil-works/pi-coding-agent\";"
+    },
+    {
+      "path": "src/foundation/pi-component-adapter/upstream/theme/theme.ts",
+      "line": 10,
+      "specifier": "@earendil-works/pi-tui",
+      "statement": "import { getCapabilities, type RgbColor } from \"@earendil-works/pi-tui\";"
+    },
+    {
+      "path": "src/foundation/pi-engine-adapter/adapter.ts",
+      "line": 7,
+      "specifier": "@earendil-works/pi-coding-agent",
+      "statement": "import { copyToClipboard, createAgentSessionFromServices, createAgentSessionRuntime, createAgentSessionServices, getAgentDir, getPackageDir, ProjectTrustStore, SessionManager, type CreateAgentSessionRuntimeFactory, type ExtensionUIContext, type SessionInfo, } from \"@earendil-works/pi-coding-agent\";"
+    },
+    {
+      "path": "src/foundation/pi-engine-adapter/conformance.ts",
+      "line": 4,
+      "specifier": "@earendil-works/pi-coding-agent",
+      "statement": "import { createAgentSessionFromServices, createAgentSessionRuntime, createAgentSessionServices, ModelRuntime, SessionManager, VERSION, } from \"@earendil-works/pi-coding-agent\";"
+    },
+    {
+      "path": "src/foundation/pi-tui-runtime-adapter/adapter.ts",
+      "line": 1,
+      "specifier": "@earendil-works/pi-tui",
+      "statement": "import { HStack, ProcessTerminal, ScrollView, TuiAltScreen, TuiMainScreen, VStack, type Component, type Focusable, type OverlayHandle, type OverlayOptions, type TUI, type TuiAltScreenOptions, visibleWidth, } from \"@earendil-works/pi-tui\";"
+    }
+  ],
+  "packageLayoutReads": [
+    {
+      "path": "src/foundation/pi-component-adapter/upstream/components/earendil-announcement.ts",
+      "line": 23,
+      "expression": "cachedImageBase64 = fs.readFileSync(join(getPackageDir(), \"dist\", \"modes\", \"interactive\", \"assets\", IMAGE_FILENAME)).toString(\"base64\");"
+    },
+    {
+      "path": "src/foundation/pi-component-adapter/upstream/theme/theme.ts",
+      "line": 269,
+      "expression": "return join(getPackageDir(), \"dist\", \"modes\", \"interactive\", \"theme\", `${name}.json`);"
+    },
+    {
+      "path": "src/foundation/pi-engine-adapter/adapter.ts",
+      "line": 2351,
+      "expression": "readChangelog: async () => pinnedChangelogMarkdown(await readFile(join(getPackageDir(), \"CHANGELOG.md\"), \"utf8\")),"
+    }
+  ],
+  "reflectedConcreteConstructors": [
+    {
+      "path": "src/foundation/pi-component-adapter/shell-editor-autocomplete.ts",
+      "line": 59,
+      "target": "CustomEditor",
+      "expression": "const editorCandidate: unknown = Reflect.construct(CustomEditor, [tui, {"
+    },
+    {
+      "path": "src/foundation/pi-component-adapter/shell-footer-status.ts",
+      "line": 171,
+      "target": "FooterComponent",
+      "expression": "const footerCandidate: unknown = Reflect.construct(FooterComponent, [session, footerData]);"
+    }
+  ],
+  "featureToAdapterDependencies": [
+    {
+      "path": "src/features/owned-ui/customization.ts",
+      "line": 8,
+      "specifier": "../../foundation/pi-component-adapter/index.js",
+      "feature": "src/features/owned-ui",
+      "adapter": "pi-component-adapter",
+      "statement": "import { renderPiShellTranscriptBlock } from \"../../foundation/pi-component-adapter/index.js\";"
+    },
+    {
+      "path": "src/features/owned-ui/pi-session-shell.ts",
+      "line": 7,
+      "specifier": "../../foundation/pi-engine-adapter/index.js",
+      "feature": "src/features/owned-ui",
+      "adapter": "pi-engine-adapter",
+      "statement": "import { PINNED_PI_HIDDEN_COMMAND_NAMES, PINNED_PI_WORKFLOW_COMMAND_NAMES, type AdapterCommandResult, type PiEngineAdapter, type PiWorkflowInteractionRequest, type PiWorkflowLoginNotification, type PiWorkflowLoginStart, type PiWorkflowRequest, type PiWorkflowResult, type PiWorkflowRoute, } from \"../../foundation/pi-engine-adapter/index.js\";"
+    },
+    {
+      "path": "src/features/owned-ui/pi-session-shell.ts",
+      "line": 19,
+      "specifier": "../../foundation/pi-component-adapter/index.js",
+      "feature": "src/features/owned-ui",
+      "adapter": "pi-component-adapter",
+      "statement": "import { createPiExtensionUiBridge, createPiQueuedInputStatus, createPiShellArmin, createPiShellAuthProviderSelector, createPiShellChangelog, createPiShellDaxnuts, createPiShellDialog, createPiShellEarendilAnnouncement, createPiShellEditor, createPiShellExtensionSelector, createPiShellFooter, createPiShellHeader, createPiShellHotkeys, createPiShellLoadedResources, createPiShellLoginDialog, createPiShellModelSelector, createPiShellOperationLoader, createPiShellReloadBox, createPiShellScopedModelsSelector, createPiShellSelector, createPiShellSessionInfo, createPiShellSessionSelector, createPiShellSettingsSelector, createPiShellStatus, createPiShellTranscriptComponent, createPiShellTreeSelector, createPiShellTrustSelector, createPiShellUserMessageSelector, piTheme, renderPiShellStatusText, renderPiShellTranscriptBlock, type PiExtensionUiBridge, type PiShellComponentPort, type PiShellEditorPort, type PiShellExtensionRendererResolver, type PiShellHeaderOptions, type PiShellHeaderPort, type PiShellLoadedResourcesPort, type PiShellLoginDialogPort, type PiShellQueuedInputPort, type PiShellResourceEntry, type PiShellScopedModelsSelectorPort, type PiShellSelectorOption, type PiShellStatusPort, type PiShellTranscriptComponentPort, type PiShellViewComponentPort, } from \"../../foundation/pi-component-adapter/index.js\";"
+    },
+    {
+      "path": "src/features/owned-ui/pi-session-shell.ts",
+      "line": 67,
+      "specifier": "../../foundation/pi-tui-runtime-adapter/index.js",
+      "feature": "src/features/owned-ui",
+      "adapter": "pi-tui-runtime-adapter",
+      "statement": "import { PiTuiRuntimeAdapter, type PiTuiComponentPort, type PiTuiLayoutNode, type PiTuiOverlayHandle, type PiTuiTerminalPort, } from \"../../foundation/pi-tui-runtime-adapter/index.js\";"
+    },
+    {
+      "path": "src/features/owned-ui/run.ts",
+      "line": 1,
+      "specifier": "../../foundation/pi-engine-adapter/index.js",
+      "feature": "src/features/owned-ui",
+      "adapter": "pi-engine-adapter",
+      "statement": "import { createPiEngineAdapter, type PiEngineAdapter } from \"../../foundation/pi-engine-adapter/index.js\";"
+    },
+    {
+      "path": "src/features/owned-ui/run.ts",
+      "line": 2,
+      "specifier": "../../foundation/pi-tui-runtime-adapter/index.js",
+      "feature": "src/features/owned-ui",
+      "adapter": "pi-tui-runtime-adapter",
+      "statement": "import type { PiTuiTerminalPort } from \"../../foundation/pi-tui-runtime-adapter/index.js\";"
+    }
+  ],
+  "sourceDerivedUiUnits": [
+    {
+      "id": "pi-coding-agent:src/core/keybindings",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/core/keybindings.ts",
+      "localDestination": "src/foundation/pi-component-adapter/upstream/adjacent/core/keybindings.ts",
+      "localSha256": "173b5e7d3e07b47a9e1e038644acaf002d4f3f1de05cf840de293cd806be1f35",
+      "implementationStatus": "source-synchronized-port"
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/components/countdown-timer",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/components/countdown-timer.ts",
+      "localDestination": "src/foundation/pi-component-adapter/upstream/components/countdown-timer.ts",
+      "localSha256": "8aa307b95b250be9e23f02d4ce9f2d66d63677510c0866c265a3dbde2d50db72",
+      "implementationStatus": "source-synchronized-port"
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/components/custom-entry",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/components/custom-entry.ts",
+      "localDestination": "src/foundation/pi-component-adapter/upstream/components/custom-entry.ts",
+      "localSha256": "1e9c274e8be3c8a253f5d80772bf73f8037007385933890a19d7730b10d2ef6a",
+      "implementationStatus": "source-synchronized-port"
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/components/daxnuts",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/components/daxnuts.ts",
+      "localDestination": "src/foundation/pi-component-adapter/upstream/components/daxnuts.ts",
+      "localSha256": "3dcb7780ec05d451c1ff40c1d057af85b0781c461b7b5037dc41182129bd5db5",
+      "implementationStatus": "source-synchronized-port"
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/components/earendil-announcement",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/components/earendil-announcement.ts",
+      "localDestination": "src/foundation/pi-component-adapter/upstream/components/earendil-announcement.ts",
+      "localSha256": "f102f4e12340f882630c02fa7c25f79b40834b98dcf5707572faeb2fda6c0ecd",
+      "implementationStatus": "source-synchronized-port"
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/components/extension-editor",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/components/extension-editor.ts",
+      "localDestination": "src/foundation/pi-component-adapter/upstream/components/extension-editor.ts",
+      "localSha256": "ad55e088da032116c1d3f325a88406b16dafb88e3d01e67ff8dde2cf867f2dff",
+      "implementationStatus": "source-synchronized-port"
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/components/first-time-setup",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/components/first-time-setup.ts",
+      "localDestination": "src/foundation/pi-component-adapter/upstream/components/first-time-setup.ts",
+      "localSha256": "dda426342eaa1d4d6a19ee8753a5da836c5e750149bd043473083ce245354875",
+      "implementationStatus": "source-synchronized-port"
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/components/markdown-transform",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/components/markdown-transform.ts",
+      "localDestination": "src/foundation/pi-component-adapter/upstream/components/markdown-transform.ts",
+      "localSha256": "d2deb720a9420764a54d704ba4ad194a746c9edc5a5ec86699dc517e8068336f",
+      "implementationStatus": "source-synchronized-port"
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/components/mermaid",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/components/mermaid.ts",
+      "localDestination": "src/foundation/pi-component-adapter/upstream/components/mermaid.ts",
+      "localSha256": "7fbcc74bd241b920e67778cca97e78b7cd57e6e59d31dba926c64bdb894cedfc",
+      "implementationStatus": "source-synchronized-port"
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/components/scoped-models-selector",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/components/scoped-models-selector.ts",
+      "localDestination": "src/foundation/pi-component-adapter/upstream/components/scoped-models-selector.ts",
+      "localSha256": "25965ce2c02404c9637cecae6e79dd976af5f337d45a4feec1f5492b010b9d75",
+      "implementationStatus": "ported"
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/components/session-selector",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/components/session-selector.ts",
+      "localDestination": "src/foundation/pi-component-adapter/upstream/components/session-selector.ts",
+      "localSha256": "6b5796df4c4810c34ee765d21e4541ccd7921900de424805f58bac9d67ab8589",
+      "implementationStatus": "ported"
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/components/session-selector-search",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/components/session-selector-search.ts",
+      "localDestination": "src/foundation/pi-component-adapter/upstream/components/session-selector-search.ts",
+      "localSha256": "72cfec4059b12d66a1180cde9532c4e8c49990648acd14b06acd98a846c32386",
+      "implementationStatus": "ported"
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/components/skill-invocation-message",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/components/skill-invocation-message.ts",
+      "localDestination": "src/foundation/pi-component-adapter/upstream/components/skill-invocation-message.ts",
+      "localSha256": "9dd1ec1acd8203c0dfd31d7f7b57e9ddb625f3ee045394e2cabe58f97339f53f",
+      "implementationStatus": "owned-port-present"
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/components/status-indicator",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/components/status-indicator.ts",
+      "localDestination": "src/foundation/pi-component-adapter/upstream/components/status-indicator.ts",
+      "localSha256": "980b2e6e7d73d90d51b41ca65a4036ad9a60bbe4caf53735fc16ed6561b37674",
+      "implementationStatus": "source-synchronized-port"
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/components/tree-selector",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/components/tree-selector.ts",
+      "localDestination": "src/foundation/pi-component-adapter/upstream/components/tree-selector.ts",
+      "localSha256": "329e255c45b3fda782a4b550100c0d3cc8ff6ca5e1116fbd76c041ab5e7e6ef7",
+      "implementationStatus": "ported"
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/components/trust-selector",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/components/trust-selector.ts",
+      "localDestination": "src/foundation/pi-component-adapter/upstream/components/trust-selector.ts",
+      "localSha256": "1e3611eb812ef21b097e6ffeb88e4198dec4443b06542417b6479ca1a0a111d3",
+      "implementationStatus": "ported"
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/external-editor",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/external-editor.ts",
+      "localDestination": "src/foundation/pi-component-adapter/upstream/external-editor.ts",
+      "localSha256": "6190d23c96128c0375b9ace2b5c3ad442262e8397248a5ca2cda96ce7931adb8",
+      "implementationStatus": "source-synchronized-port"
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/model-search",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/model-search.ts",
+      "localDestination": "src/foundation/pi-component-adapter/upstream/model-search.ts",
+      "localSha256": "f7203516c23299adf159149d9852e8d67d167cbbf7a573522cfc79c1f82eba37",
+      "implementationStatus": "ported"
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/theme/theme",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/theme/theme.ts",
+      "localDestination": "src/foundation/pi-component-adapter/upstream/theme/theme.ts",
+      "localSha256": "d8b7bd73f5ec1735a85d0a64c1c879a26fc89291d36a4c6054353663993eecf4",
+      "implementationStatus": "source-synchronized-port"
+    },
+    {
+      "id": "pi-coding-agent:src/modes/interactive/theme/theme-controller",
+      "package": "@earendil-works/pi-coding-agent",
+      "upstreamPath": "packages/coding-agent/src/modes/interactive/theme/theme-controller.ts",
+      "localDestination": "src/foundation/pi-component-adapter/upstream/theme/theme-controller.ts",
+      "localSha256": "aaef8325f9f9c5b05023c01237cc6d0a14457699d0bd5f6882aa0bd183af8dc8",
+      "implementationStatus": "source-synchronized-port"
+    }
+  ],
+  "exactOracleResolution": {
+    "profile": "pi",
+    "requestedExecutable": "pi",
+    "binding": "ambient-path",
+    "selectedDependencyPackage": "@earendil-works/pi-coding-agent",
+    "selectedDependencyPublicEntry": null,
+    "selectedDependencyBound": false,
+    "platformBehavior": {
+      "windows": "resolve the pi command from PATH and unwrap an npm command shim when present",
+      "unix": "pass the pi command name to process spawning for ambient PATH resolution"
+    },
+    "sources": [
+      {
+        "path": "src/foundation/transparent-terminal/main.ts",
+        "line": 50,
+        "expression": "const executable = options.executable ?? environment.A1_TERMINAL_EXECUTABLE ?? \"pi\";"
+      },
+      {
+        "path": "src/foundation/transparent-terminal/command-resolution.ts",
+        "line": 48,
+        "expression": "const roots = hasPath ? [cwd] : windowsPath(environment).split(delimiter).filter(Boolean);"
+      },
+      {
+        "path": "src/foundation/transparent-terminal/native-launcher.ts",
+        "line": 129,
+        "expression": "return await resolveTransparentCommand(profile.executable, profile.arguments, {"
+      }
+    ]
+  },
+  "summary": {
+    "dependencyPackages": 8,
+    "productionPiImports": 48,
+    "packageLayoutReads": 3,
+    "reflectedConcreteConstructors": 2,
+    "featureToAdapterDependencies": 6,
+    "sourceDerivedUiUnits": 20,
+    "exactOracleBoundToSelectedDependency": false
+  },
+  "recordedAt": "2026-08-20T14:34:38.424Z"
+}
