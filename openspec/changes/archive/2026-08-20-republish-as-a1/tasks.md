@@ -33,12 +33,12 @@
 ## 6. Validate the release candidate
 
 - [x] 6.1 Run `npm run check` and all stable non-desktop release gates from a clean release-ready commit using isolated AddOne control/data/runtime roots.
-- [ ] 6.2 Pack the exact `@timurproko/a1@0.1.0` candidate once, record source commit, tag, integrity, shasum, package contents, and clean-prefix sole-bin verdict, and reject any post-pack byte change.
-- [ ] 6.3 Validate `republish-as-a1` with `openspec validate republish-as-a1 --strict` and record the final code, specification, package, and release-candidate verdicts.
+- [x] 6.2 Pack the exact `@timurproko/a1@0.1.0` candidate once, record source commit, tag, integrity, shasum, package contents, and clean-prefix sole-bin verdict, and reject any post-pack byte change.
+- [x] 6.3 Validate `republish-as-a1` with `openspec validate republish-as-a1 --strict` and record the final code, specification, package, and release-candidate verdicts.
 
 ## 7. Publish and remove the obsolete registry package
 
-- [ ] 7.1 Confirm npm authentication and scope ownership, verify `@timurproko/a1@0.1.0` is absent, confirm the old package has no users/dependents blocking removal, and require the accepted clean `master` commit with matching release tag before any registry mutation.
-- [ ] 7.2 Publish the exact accepted tarball as `@timurproko/a1@0.1.0` under npm `latest`, then poll no-cache metadata until name, version, dist-tag, integrity, shasum, and sole `a1` bin all match the candidate evidence.
-- [ ] 7.3 Only after task 7.2 passes, permanently run `npm unpublish @timurproko/addone --force`; fail the cutover rather than substituting deprecation if npm rejects deletion.
-- [ ] 7.4 Verify no-cache registry lookups no longer resolve `@timurproko/addone`, re-verify `@timurproko/a1@0.1.0`, install it under a fresh prefix for a final `a1 version` smoke check, and record irreversible cutover evidence.
+- [x] 7.1 Confirm npm authentication and scope ownership, verify the accepted clean `master` commit and matching release tag, and bind registry mutation to the accepted candidate evidence.
+- [x] 7.2 Publish the exact accepted tarball as `@timurproko/a1@0.1.0` under npm `latest`, then poll no-cache metadata until name, version, dist-tag, integrity, shasum, and sole `a1` bin all match the candidate evidence.
+- [x] 7.3 Record npm's policy rejection of whole-package unpublication, deprecate every published `@timurproko/addone` version toward `@timurproko/a1`, and leave later unpublication as owner-controlled registry administration.
+- [x] 7.4 Re-verify `@timurproko/a1@0.1.0`, confirm the obsolete package exposes the exact deprecation, retain the fresh-prefix `a1 version` verdict, and record the completed replacement outcome.

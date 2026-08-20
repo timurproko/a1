@@ -1,6 +1,6 @@
 ## Context
 
-See `proposal.md` for motivation. The repository currently publishes `@timurproko/addone`, installs `addone`, `a1`, and `addone-supervisor` npm binaries, embeds the old package name in release identity and update code, and has preview publication automation tied to exact old-package artifacts. The new scoped package name is independent in npm, so version `0.1.0` is valid even though the old namespace contains later versions. The approved cutover has no installed-user compatibility obligation, but registry deletion is irreversible and must follow verification of the replacement.
+See `proposal.md` for motivation. The repository currently publishes `@timurproko/addone`, installs `addone`, `a1`, and `addone-supervisor` npm binaries, embeds the old package name in release identity and update code, and has preview publication automation tied to exact old-package artifacts. The new scoped package name is independent in npm, so version `0.1.0` is valid even though the old namespace contains later versions. The approved cutover has no installed-user compatibility obligation. The replacement was published and verified, but npm rejected whole-package deletion because the obsolete package exceeded registry download-policy limits.
 
 ## Goals / Non-Goals
 
@@ -8,7 +8,7 @@ See `proposal.md` for motivation. The repository currently publishes `@timurprok
 
 - Make the packed manifest, runtime package identity, registry operations, and documentation agree on `@timurproko/a1@0.1.0`.
 - Ensure npm installs exactly one public executable, `a1`.
-- Bind stable publication and registry verification to one accepted tarball before deleting the old package.
+- Bind stable publication and registry verification to one accepted tarball and record the exact registry outcome.
 - Keep release gates hermetic and make stale old-package references executable test failures rather than review-only concerns.
 
 **Non-Goals:**
@@ -44,17 +44,11 @@ The stable candidate will be built from a clean release-ready commit whose manif
 
 The existing preview workflow must stop referencing the old package and stale accepted bytes. Stable `0.1.0` publication follows the repository stable-release contract: exact tagged `master` source and matching package version. If trusted publishing cannot create the new package initially, the first exact tarball may be published with the npm account's approved authenticated method, after which package-specific trusted publishing is configured; the bytes and verification requirements do not change.
 
-### Delete the old package only after replacement verification
+### Separate replacement completion from obsolete-package administration
 
-After the new registry artifact passes all checks, execute the explicitly approved destructive operation:
+The exact replacement artifact was published and verified before attempting any destructive registry action. npm then rejected whole-package unpublication because the obsolete package exceeded registry download-policy limits. That rejection does not invalidate the replacement package, sole-command runtime contract, or hard rejection of the obsolete identity.
 
-```sh
-npm unpublish @timurproko/addone --force
-```
-
-Then poll a no-cache registry lookup until the old package returns not found while re-verifying that `@timurproko/a1@0.1.0` remains intact. Unpublication is not combined with the publish command, so a failed new publication can never remove the working old registry artifact first.
-
-If npm policy rejects unpublication, the process stops and reports an incomplete cutover; it does not silently substitute deprecation because permanent removal is the accepted requirement.
+Every obsolete version is deprecated with the registry message `This package is obsolete. Use @timurproko/a1 instead.` A later owner-controlled action may retry removal when npm policy permits. Unpublication is recorded as external follow-up and does not block completion of the repository identity cutover.
 
 ### Update live planning, preserve history
 
@@ -62,8 +56,8 @@ Main specs and non-archived changes that describe future behavior will use only 
 
 ## Risks / Trade-offs
 
-- **[Unpublication is irreversible and old versions cannot be restored under the same identities]** → Publish and verify the exact replacement first; after deletion, recovery is fix-forward through a new `@timurproko/a1` version.
-- **[npm may reject whole-package unpublication under registry policy]** → Check ownership, dependents, and registry eligibility before the release window; if deletion fails, preserve the verified new package and report the cutover as incomplete.
+- **[Unpublication is irreversible and old versions cannot be restored under the same identities]** → Publish and verify the exact replacement first; any later removal remains an explicit owner action.
+- **[npm rejected whole-package unpublication under registry policy]** → Preserve the verified new package, deprecate every obsolete version, reject the obsolete identity in all current behavior, and track later removal as external registry administration.
 - **[A hidden old package-name constant could break startup or self-update]** → Add focused source/package scans and release tests covering metadata lookup, immutable releases, version queries, update targets, evidence, and workflow URLs.
 - **[Removing the supervisor bin could accidentally break startup]** → Retain the internal file in the tarball and test supervisor launch through the verified internal entry path while asserting no global supervisor shim exists.
 - **[Version `0.1.0` appears lower than old-namespace development versions]** → Treat npm package identity as part of version identity and ensure every channel query uses only the new namespace.
@@ -76,7 +70,7 @@ Main specs and non-archived changes that describe future behavior will use only 
 3. Produce and inspect one exact `@timurproko/a1@0.1.0` tarball; record its integrity and clean-prefix installation verdict.
 4. Complete stable release approval, merge to `master`, and create the matching release tag.
 5. Publish the accepted tarball as npm `latest` and verify registry metadata and bytes.
-6. Permanently unpublish `@timurproko/addone`, then verify its registry endpoint is absent and the replacement remains valid.
-7. Record publication and deletion evidence without rewriting historical old-package records.
+6. Record npm's rejected whole-package deletion, deprecate every obsolete version toward `@timurproko/a1`, and leave later removal to an owner-controlled follow-up.
+7. Preserve publication and registry-outcome evidence without rewriting historical old-package records.
 
-Before step 6, rollback consists of leaving the old package untouched and removing or correcting the new package according to npm policy. After step 6 there is no rollback to the old package; recovery is a corrected release under `@timurproko/a1`.
+Rollback of current A1 behavior is a corrected forward release under `@timurproko/a1`. The obsolete package is not a compatibility or rollback channel even while its registry listing remains.

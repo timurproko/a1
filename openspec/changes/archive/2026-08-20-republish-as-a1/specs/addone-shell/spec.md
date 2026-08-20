@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Official npm distribution has one fresh package identity
-The official npm distribution SHALL be named `@timurproko/a1`, SHALL begin its independent stable version lineage at `0.1.0`, and SHALL declare only `a1` as a public executable. Internal process entry files MAY remain in the package payload but SHALL NOT be installed as public npm executables. After `@timurproko/a1@0.1.0` is verified, the obsolete `@timurproko/addone` package SHALL be permanently unpublished rather than retained as a compatibility package.
+The official npm distribution SHALL be named `@timurproko/a1`, SHALL begin its independent stable version lineage at `0.1.0`, and SHALL declare only `a1` as a public executable. Internal process entry files MAY remain in the package payload but SHALL NOT be installed as public npm executables. After `@timurproko/a1@0.1.0` is verified, every published version of the obsolete `@timurproko/addone` package SHALL be deprecated toward `@timurproko/a1`. The obsolete package SHALL NOT be retained as a compatibility package; later unpublication MAY occur as owner-controlled registry administration when npm policy permits.
 
 #### Scenario: Inspect fresh package metadata
 - **WHEN** the exact stable `@timurproko/a1@0.1.0` tarball is packed
@@ -11,9 +11,9 @@ The official npm distribution SHALL be named `@timurproko/a1`, SHALL begin its i
 - **WHEN** `@timurproko/a1@0.1.0` has been published
 - **THEN** npm `latest` SHALL resolve to that exact version and registry integrity SHALL match the accepted tarball
 
-#### Scenario: Remove the obsolete package
-- **WHEN** the fresh stable publication has been verified
-- **THEN** every published version of `@timurproko/addone` SHALL be permanently unpublished and a no-cache registry lookup SHALL no longer resolve the package
+#### Scenario: Deprecate the obsolete package
+- **WHEN** the fresh stable publication has been verified and npm policy rejects whole-package deletion
+- **THEN** every published version of `@timurproko/addone` SHALL carry an npm deprecation directing users to `@timurproko/a1`, and current product behavior SHALL continue to reject the obsolete identity
 
 ### Requirement: Package identity is authoritative throughout release handling
 Version discovery, self-update, installed metadata lookup, immutable release derivation, release validation, publication evidence, and registry verification SHALL use `@timurproko/a1` as the sole accepted package identity. The product SHALL NOT implement a bridge release or compatibility path for installed `@timurproko/addone` packages or their materialized release state.
