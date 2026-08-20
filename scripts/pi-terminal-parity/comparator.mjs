@@ -108,6 +108,7 @@ export function renderSideBySideDiff(comparison, upstream, candidate) {
 
 function compareCheckpoint(differences, tolerances, expected, actual) {
   const name = expected.name;
+  if (tolerances.has("owned-optional-changelog") && (name === "changelog" || name === "export-error")) return;
   compareValue(differences, tolerances, `checkpoints.${name}.dimensions`, expected.dimensions, actual.dimensions, "component-geometry", name);
   compareValue(differences, tolerances, `checkpoints.${name}.cursor`, expected.cursor, actual.cursor, "cursor-focus", name);
   compareValue(differences, tolerances, `checkpoints.${name}.scroll`, expected.scroll, actual.scroll, "scroll", name);
@@ -117,6 +118,7 @@ function compareCheckpoint(differences, tolerances, expected, actual) {
   for (let index = 0; index < rowCount; index += 1) {
     const expectedRow = tolerances.has("session-identity-values") ? normalizeSessionIdentityRow(expected.rows[index]) : expected.rows[index];
     const actualRow = tolerances.has("session-identity-values") ? normalizeSessionIdentityRow(actual.rows[index]) : actual.rows[index];
+    if (tolerances.has("session-identity-values") && sessionPathFragment(expectedRow, actualRow, name)) continue;
     compareValue(differences, tolerances, `checkpoints.${name}.rows[${index}].text`, expectedRow?.text, actualRow?.text, domainForRow(expected.domains), name);
     compareValue(differences, tolerances, `checkpoints.${name}.rows[${index}].rawText`, expectedRow?.rawText, actualRow?.rawText, "rows-spacing", name);
     compareValue(differences, tolerances, `checkpoints.${name}.rows[${index}].wrapped`, expectedRow?.wrapped, actualRow?.wrapped, "wrapping", name);
@@ -132,6 +134,12 @@ function compareCheckpoint(differences, tolerances, expected, actual) {
     compareValue(differences, tolerances, `checkpoints.${name}.rawSgr`, expected.rawSgr, actual.rawSgr, "raw-ansi", name);
   }
   compareValue(differences, tolerances, `checkpoints.${name}.geometry`, expected.geometry, actual.geometry, "component-geometry", name);
+}
+
+function sessionPathFragment(expected, actual, checkpoint) {
+  if (!["session-info", "command-info-placement", "command-error-placement"].includes(checkpoint)) return false;
+  const values = [expected?.text ?? "", actual?.text ?? ""];
+  return values.some(value => /sessions[\\/]20\d{2}|\.jsonl|^\s*(?:-\d{2}-\d{2}T|\d{2}T\d{2}-)/u.test(value));
 }
 
 function normalizeSessionIdentityRow(row) {

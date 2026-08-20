@@ -90,6 +90,17 @@ describe("independent Pi terminal parity gate", () => {
     expect(compareParityRun(producer(), realStyleMutation, { tolerances }).passed).toBe(false);
   });
 
+  it("limits the owned optional-changelog deviation to its checkpoint and immediate shifted successor", () => {
+    const upstream = producer();
+    upstream.checkpoints[0]!.name = "changelog";
+    const candidate = structuredClone(upstream);
+    candidate.checkpoints[0]!.rows[0]!.text = "owned omission";
+    expect(compareParityRun(upstream, candidate, { tolerances: ["owned-optional-changelog"] }).passed).toBe(true);
+    candidate.checkpoints[0]!.name = "unrelated";
+    upstream.checkpoints[0]!.name = "unrelated";
+    expect(compareParityRun(upstream, candidate, { tolerances: ["owned-optional-changelog"] }).passed).toBe(false);
+  });
+
   it("bounds machine and side-by-side diagnostics", () => {
     const upstream = producer();
     const candidate = producer();

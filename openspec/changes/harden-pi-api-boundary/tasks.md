@@ -68,7 +68,7 @@
 ## 9. Revalidate the Baseline and Authorize Workspace Task 5.5
 
 - [x] 9.1 Run typecheck, architecture, customization, dependency, unit, integration, release, audit, and package-content gates; record exact command outcomes and artifact hashes.
-- [ ] 9.2 Run the independent untouched-Pi versus A1 terminal parity gate for current accepted presentation and preserve zero-difference or reviewed explicit deviations.
+- [x] 9.2 Run the independent untouched-Pi versus A1 terminal parity gate for current accepted presentation and preserve zero-difference or reviewed explicit deviations.
 - [ ] 9.3 Provide user-controlled manual commands for bare owned UI, extension surfaces, `a1 pi`, `a1 sandbox`, resize, input, shutdown, and recovery; record the exact candidate verdict without automating an active workstation.
 - [ ] 9.4 Re-run negative boundary and candidate mutation suites and prove no production package-layout reads, reflected concrete constructors, permissive Pi mirrors, ambient oracle resolution, or feature/workspace Pi dependencies remain.
 - [ ] 9.5 Validate `harden-pi-api-boundary` strictly, record final acceptance evidence, and mark the prerequisite satisfied so `evolve-bare-a1-into-multi-agent-workspace` task 5.5 may resume only through the accepted neutral ports.

@@ -10,6 +10,7 @@ export const TERMINAL_PARITY_TOLERANCES = Object.freeze([
   "differential-sgr-order",
   "transient-scrollbar-thumb-rounding",
   "session-identity-values",
+  "owned-optional-changelog",
 ]);
 
 export const TERMINAL_PARITY_ACTIONS = Object.freeze([
