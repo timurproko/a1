@@ -1,5 +1,5 @@
 import crossSpawn from "cross-spawn";
-import { access, mkdtemp, readFile, rm } from "node:fs/promises";
+import { access, cp, mkdir, mkdtemp, readFile, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -14,13 +14,20 @@ let pack: { filename: string; integrity: string; shasum: string; files: Array<{ 
 
 beforeAll(async () => {
   root = await mkdtemp(resolve(tmpdir(), "a1-package-surface-"));
+  const packageRoot = resolve(root, "package");
+  await mkdir(packageRoot, { recursive: true });
   expectedVersion = JSON.parse(await readFile(resolve(repository, "package.json"), "utf8")).version as string;
-  const built = run(npm, ["run", "build", "--silent"], repository);
+  await Promise.all([
+    ...["src", "bin", "docs"].map(path => cp(resolve(repository, path), resolve(packageRoot, path), { recursive: true })),
+    ...["README.md", "LICENSE", "package.json", "tsconfig.json", "tsconfig.build.json"].map(path => cp(resolve(repository, path), resolve(packageRoot, path))),
+  ]);
+  await symlink(resolve(repository, "node_modules"), resolve(packageRoot, "node_modules"), "junction");
+  const built = run(process.execPath, [resolve(repository, "node_modules", "typescript", "bin", "tsc"), "-p", resolve(packageRoot, "tsconfig.build.json"), "--outDir", resolve(packageRoot, "dist", "src")], packageRoot);
   expect(built.status, built.stderr).toBe(0);
-  await access(resolve(repository, "dist", "src", "cli", "index.js"));
-  await access(resolve(repository, "dist", "src", "product-identity.js"));
-  await access(resolve(repository, "dist", "src", "product-identity.json"));
-  const packed = run(npm, ["pack", "--ignore-scripts", "--json", "--pack-destination", root], repository);
+  await access(resolve(packageRoot, "dist", "src", "cli", "index.js"));
+  await access(resolve(packageRoot, "dist", "src", "product-identity.js"));
+  await access(resolve(packageRoot, "dist", "src", "product-identity.json"));
+  const packed = run(npm, ["pack", "--ignore-scripts", "--json", "--pack-destination", root], packageRoot);
   expect(packed.status, packed.stderr).toBe(0);
   const results = JSON.parse(packed.stdout) as typeof pack[];
   if (!results[0]) throw new Error("npm pack returned no package result");
@@ -54,7 +61,7 @@ describe("packed npm command surface", () => {
 
   it("installs only the a1 shim under a clean npm prefix", async () => {
     const prefix = resolve(root, "prefix");
-    const installed = run(npm, ["install", "--global", "--prefix", prefix, tarball, "--ignore-scripts"], repository);
+    const installed = run(npm, ["install", "--global", "--prefix", prefix, tarball, "--ignore-scripts", "--offline", "--no-audit", "--no-fund"], repository);
     expect(installed.status, installed.stderr).toBe(0);
 
     const manifest = JSON.parse(await readFile(resolve(prefix, "node_modules", "@timurproko", "a1", "package.json"), "utf8")) as {
@@ -93,7 +100,7 @@ describe("packed npm command surface", () => {
     const launched = run(commandPath, ["agent"], root);
     expect(launched.status).toBe(2);
     expect(launched.stderr).toContain("Bare a1 is the A1 agent experience");
-  }, 120_000);
+  }, 300_000);
 });
 
 function run(command: string, arguments_: readonly string[], cwd: string) {
