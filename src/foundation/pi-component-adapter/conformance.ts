@@ -3,9 +3,16 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   AssistantMessageComponent,
+  ExtensionSelectorComponent,
   initTheme,
+  LoginDialogComponent,
+  ModelSelectorComponent,
+  SettingsSelectorComponent,
+  ThemeSelectorComponent,
+  ThinkingSelectorComponent,
   ToolExecutionComponent,
   UserMessageComponent,
+  UserMessageSelectorComponent,
   VERSION,
 } from "@earendil-works/pi-coding-agent";
 import { OWNED_UI_CONTRACT_VERSION, type OwnedUiTranscriptBlock } from "../owned-ui-contracts/index.js";
@@ -23,6 +30,7 @@ export interface PiComponentConformanceReport {
   readonly packageVersion: string;
   readonly ownedUiContractVersion: number;
   readonly componentResults: readonly PiComponentConformanceResult[];
+  readonly componentFamilies: readonly string[];
 }
 
 export class PiComponentConformanceError extends Error {
@@ -43,6 +51,10 @@ export async function runPiComponentConformance(): Promise<PiComponentConformanc
 
     try {
       const width = 80;
+      const publicConstructors = [UserMessageComponent, AssistantMessageComponent, ToolExecutionComponent, ExtensionSelectorComponent,
+        LoginDialogComponent, ModelSelectorComponent, SettingsSelectorComponent, ThemeSelectorComponent, ThinkingSelectorComponent,
+        UserMessageSelectorComponent];
+      if (publicConstructors.some(constructor => typeof constructor !== "function")) throw new Error("a reused public component constructor is missing");
       const user = new UserMessageComponent(`hello from ${PRODUCT_IDENTITY.displayName}`);
       const assistantBlock: OwnedUiTranscriptBlock = {
         id: "assistant-1",
@@ -76,6 +88,7 @@ export async function runPiComponentConformance(): Promise<PiComponentConformanc
         packageVersion: VERSION,
         ownedUiContractVersion: OWNED_UI_CONTRACT_VERSION,
         componentResults,
+        componentFamilies: ["messages", "tool-execution", "selectors", "dialogs", "editor-autocomplete", "footer-status", "extension-surfaces"],
       };
     } catch (error) {
       if (error instanceof PiComponentConformanceError) throw error;

@@ -9,9 +9,12 @@ export interface PiTuiRuntimeConformanceReport {
   readonly packageName: "@earendil-works/pi-tui";
   readonly packageVersion: string;
   readonly mode: "regular" | "fullscreen";
+  readonly constructedModes: readonly ("regular" | "fullscreen")[];
   readonly lifecycleRestored: boolean;
   readonly inputRouted: boolean;
   readonly overlayRouted: boolean;
+  readonly focusRouted: boolean;
+  readonly widthBounded: boolean;
   readonly differentialRendering: boolean;
   readonly resizeRedraw: boolean;
   readonly terminalNativeSelection: boolean;
@@ -47,6 +50,10 @@ export async function runPiTuiRuntimeConformance(options: PiTuiRuntimeConformanc
     terminal.resize(60, 10);
     runtime.renderNow();
     const resizeRedraw = runtime.fullRedraws > redrawsBeforeResize && runtime.viewport().columns === 60;
+    const fullscreenConstructed = runtime.switchMode("fullscreen");
+    runtime.renderNow(true);
+    const regularRestored = runtime.switchMode("regular");
+    runtime.renderNow(true);
 
     await runtime.stop({ drainMaxMs: 1, drainIdleMs: 1 });
     const emitted = terminal.writes.join("");
@@ -54,14 +61,16 @@ export async function runPiTuiRuntimeConformance(options: PiTuiRuntimeConformanc
       packageName: "@earendil-works/pi-tui",
       packageVersion: options.packageVersion,
       mode: runtime.mode,
-      lifecycleRestored: terminal.startCount === 1
-        && terminal.stopCount === 1
+      constructedModes: fullscreenConstructed && regularRestored ? ["regular", "fullscreen"] : ["regular"],
+      lifecycleRestored: terminal.startCount >= 1
+        && terminal.startCount === terminal.stopCount
         && terminal.drainCount === 1
-        && !emitted.includes("\x1b[?1049h")
-        && !emitted.includes("\x1b[?1049l")
+        && (emitted.match(/\x1b\[\?1049h/g)?.length ?? 0) === (emitted.match(/\x1b\[\?1049l/g)?.length ?? 0)
         && root.disposed,
       inputRouted: root.inputs.includes("root-input"),
       overlayRouted,
+      focusRouted: root.focusChanges.includes(true) && overlay.focusChanges.includes(true),
+      widthBounded: root.widths.every(width => width <= terminal.columns) && overlay.widths.every(width => width <= 12),
       differentialRendering: differentialFrame.includes("after") && !differentialFrame.includes("stable row"),
       resizeRedraw,
       terminalNativeSelection: !emitted.includes("\x1b[?1000h") && !emitted.includes("\x1b[?1006h"),
@@ -75,12 +84,19 @@ export async function runPiTuiRuntimeConformance(options: PiTuiRuntimeConformanc
 
 class ConformanceComponent implements PiTuiComponentPort {
   readonly inputs: string[] = [];
+  readonly focusChanges: boolean[] = [];
+  readonly widths: number[] = [];
   disposed = false;
 
   constructor(public lines: readonly string[]) {}
 
-  render(): readonly string[] {
+  render(width: number): readonly string[] {
+    this.widths.push(width);
     return this.lines;
+  }
+
+  setFocused(focused: boolean): void {
+    this.focusChanges.push(focused);
   }
 
   handleInput(data: string): void {

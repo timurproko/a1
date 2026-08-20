@@ -17,6 +17,9 @@ describe("Pi public component upgrade conformance", () => {
       { component: "tool-execution", renderRows: expect.any(Number), width: 80 },
     ]);
     for (const result of report.componentResults) expect(result.renderRows).toBeGreaterThan(0);
+    expect(report.componentFamilies).toEqual([
+      "messages", "tool-execution", "selectors", "dialogs", "editor-autocomplete", "footer-status", "extension-surfaces",
+    ]);
   });
 
   it("reports component failures through an adapter-owned stage", () => {
