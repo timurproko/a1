@@ -1,3 +1,4 @@
+import type { AgentSessionRuntime } from "@earendil-works/pi-coding-agent";
 import { readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -7,13 +8,11 @@ import {
   PINNED_PI_HIDDEN_COMMAND_NAMES,
   PINNED_PI_SETTINGS_CALLBACKS,
   PINNED_PI_WORKFLOW_COMMAND_NAMES,
-  type PiRuntimeLike,
-  type PiSessionLike,
   type PiWorkflowHost,
   type PiWorkflowRequest,
 } from "../../../src/foundation/pi-engine-adapter/index.js";
 
-class WorkflowSession implements PiSessionLike {
+class WorkflowSession {
   readonly sessionId = "workflow-session";
   model: unknown = { provider: "openai", id: "gpt-5", name: "GPT-5" };
   thinkingLevel: unknown = "medium";
@@ -66,7 +65,7 @@ class WorkflowSession implements PiSessionLike {
   async reload(): Promise<void> { if (this.reloadFails) throw new Error("reload exploded"); this.calls.push("reload"); }
 }
 
-class WorkflowRuntime implements PiRuntimeLike {
+class WorkflowRuntime {
   readonly session = new WorkflowSession();
   newCancelled = false;
   loginPrompt = false;
@@ -157,7 +156,7 @@ async function fixture(workflowHost = host()) {
   const adapter = await createPiEngineAdapter({
     cwd: "D:/work",
     agentDir: join(tmpdir(), "a1-workflow-fixture"),
-    createRuntime: async () => runtime,
+    createRuntime: async () => runtime as unknown as AgentSessionRuntime,
     workflowHost,
   });
   return { runtime, adapter };

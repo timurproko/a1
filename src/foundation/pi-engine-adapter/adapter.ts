@@ -10,6 +10,9 @@ import {
   getPackageDir,
   ProjectTrustStore,
   SessionManager,
+  type AgentSession,
+  type AgentSessionRuntime,
+  type AgentSessionServices,
   type ExtensionUIContext,
   type SessionInfo,
 } from "@earendil-works/pi-coding-agent";
@@ -53,6 +56,8 @@ import {
 } from "./workflows.js";
 import { createPiRuntimeIntegration } from "./runtime-integration.js";
 import { PiSessionCommandIntegration } from "./session-integration.js";
+import { PiSettingsIntegration } from "./settings-integration.js";
+import type { AgentJsonValue } from "../agent-engine-contracts/index.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -110,156 +115,11 @@ export interface PiScopedModelsRefreshResult extends PiScopedModelsContext {
   readonly statusKind: "success" | "warning";
 }
 
-export interface PiSessionLike {
-  readonly sessionId: string;
-  readonly model: unknown;
-  readonly thinkingLevel: unknown;
-  readonly isStreaming: boolean;
-  readonly isIdle: boolean;
-  readonly isRetrying: boolean;
-  readonly isCompacting: boolean;
-  readonly messages: readonly unknown[];
-  readonly sessionManager?: {
-    getSessionName(): string | undefined;
-    getEntries(): readonly unknown[];
-    getCwd?(): string;
-    getSessionDir?(): string;
-    getSessionFile?(): string | undefined;
-    usesDefaultSessionDir?(): boolean;
-    getTree?(): readonly unknown[];
-    getLeafId?(): string | null | undefined;
-    appendLabelChange?(entryId: string, label: string | undefined): void;
-  };
-  readonly extensionRunner?: {
-    getCommands?(): readonly unknown[];
-    getMessageRenderer?(customType: string): unknown;
-    getToolDefinition?(toolName: string): unknown;
-  };
-  readonly scopedModels?: readonly unknown[];
-  readonly autoCompactionEnabled?: boolean;
-  readonly steeringMode?: PiPinnedSettingsSnapshot["steeringMode"];
-  readonly followUpMode?: PiPinnedSettingsSnapshot["followUpMode"];
-  getContextUsage?(): { readonly tokens: number | null; readonly contextWindow: number; readonly percent: number | null } | undefined;
-  getScopedModels?(): readonly unknown[] | undefined;
-  setScopedModels?(models: readonly unknown[]): void;
-  cycleModel?(direction: "forward" | "backward"): Promise<unknown>;
-  getUserMessagesForForking?(): readonly unknown[];
-  getAvailableThinkingLevels?(): readonly unknown[];
-  cycleThinkingLevel?(): unknown;
-  setAutoCompactionEnabled?(enabled: unknown): void;
-  clearQueue?(): unknown;
-  abortBash?(): void;
-  executeBash?(command: string, onChunk: unknown, options: { excludeFromContext: boolean }): Promise<unknown>;
-  exportToJsonl?(path?: string): string;
-  exportToHtml?(path?: string): Promise<string>;
-  getLastAssistantText?(): string | undefined;
-  setSessionName?(name: string): void;
-  getSessionStats?(): unknown;
-  navigateTree?(entryId: string, options?: { summarize?: boolean; customInstructions?: string }): Promise<unknown>;
-  reload?(): Promise<void>;
-  subscribe(listener: (event: unknown) => void): () => void;
-  prompt(text: string, options?: unknown): Promise<void>;
-  steer(text: string): Promise<void>;
-  followUp(text: string): Promise<void>;
-  abort(): Promise<void>;
-  abortRetry(): void;
-  abortCompaction(): void;
-  compact(customInstructions?: string): Promise<unknown>;
-  setModel(model: unknown): Promise<void>;
-  setThinkingLevel(level: unknown): void;
-  bindExtensions?(bindings: {
-    readonly uiContext?: ExtensionUIContext;
-    readonly mode?: "tui" | "print";
-    readonly shutdownHandler?: () => void | Promise<void>;
-    readonly onError?: (error: unknown) => void;
-  }): Promise<void>;
-  dispose(): void;
-}
+type PiSessionApi = AgentSession;
+type PiRuntimeApi = AgentSessionRuntime;
+type PiServicesApi = AgentSessionServices;
 
-export interface PiServicesLike {
-  readonly modelRuntime: {
-    getModel(providerId: string, modelId: string): unknown;
-    isUsingSubscription?(providerId: string): boolean;
-    getAvailableSnapshot?(): readonly {
-      readonly provider?: string;
-      readonly id?: string;
-      readonly name?: string;
-    }[];
-    refresh?(options?: { readonly signal?: AbortSignal }): Promise<unknown>;
-    getProviders?(): readonly unknown[];
-    getProvider?(providerId: string): unknown;
-    listCredentials?(options?: { readonly signal?: AbortSignal }): Promise<readonly unknown[]>;
-    login?(providerId: string, authType: string, interaction: unknown, options?: { readonly signal?: AbortSignal }): Promise<unknown>;
-    logout?(providerId: string, options?: { readonly signal?: AbortSignal }): Promise<void>;
-  };
-  readonly settingsManager?: {
-    getCompactionEnabled?: () => boolean;
-    getEnabledModels?: () => readonly string[] | undefined;
-    setEnabledModels?: (patterns: string[] | undefined) => void;
-    isProjectTrusted?(): boolean;
-    setProjectTrusted?(trusted: boolean): void;
-    getTreeFilterMode?(): unknown;
-    getBranchSummarySkipPrompt?(): boolean;
-    setCompactionEnabled?(value: unknown): void;
-    getShowImages?(): unknown; setShowImages?(value: unknown): void;
-    getImageWidthCells?(): unknown; setImageWidthCells?(value: unknown): void;
-    getImageAutoResize?(): unknown; setImageAutoResize?(value: unknown): void;
-    getBlockImages?(): unknown; setBlockImages?(value: unknown): void;
-    getEnableSkillCommands?(): boolean; setEnableSkillCommands?(value: unknown): void;
-    getSteeringMode?(): unknown; setSteeringMode?(value: unknown): void;
-    getFollowUpMode?(): unknown; setFollowUpMode?(value: unknown): void;
-    getTransport?(): unknown; setTransport?(value: unknown): void;
-    getHttpIdleTimeoutMs?(): unknown; setHttpIdleTimeoutMs?(value: unknown): void;
-    getTheme?(): unknown; setTheme?(value: unknown): void;
-    getHideThinkingBlock?(): unknown; setHideThinkingBlock?(value: unknown): void;
-    getMermaidRenderingMode?(): unknown; setMermaidRenderingMode?(value: unknown): void;
-    getShowCacheMissNotices?(): unknown; setShowCacheMissNotices?(value: unknown): void;
-    getCollapseChangelog?(): unknown; setCollapseChangelog?(value: unknown): void;
-    getEnableInstallTelemetry?(): unknown; setEnableInstallTelemetry?(value: unknown): void;
-    getQuietStartup?(): unknown; setQuietStartup?(value: unknown): void;
-    getDefaultProjectTrust?(): unknown; setDefaultProjectTrust?(value: unknown): void;
-    getDoubleEscapeAction?(): unknown; setDoubleEscapeAction?(value: unknown): void;
-    setTreeFilterMode?(value: unknown): void;
-    getShowHardwareCursor?(): boolean; setShowHardwareCursor?(value: unknown): void;
-    getEditorPaddingX?(): unknown; setEditorPaddingX?(value: unknown): void;
-    getOutputPad?(): unknown; setOutputPad?(value: unknown): void;
-    getAutocompleteMaxVisible?(): unknown; setAutocompleteMaxVisible?(value: unknown): void;
-    getClearOnShrink?(): unknown; setClearOnShrink?(value: unknown): void;
-    getShowTerminalProgress?(): unknown; setShowTerminalProgress?(value: unknown): void;
-    getTuiMode?(): unknown; setTuiMode?(value: unknown): void;
-    getFullscreenExitOutput?(): unknown; setFullscreenExitOutput?(value: unknown): void;
-    getFullscreenScrollbar?(): unknown; setFullscreenScrollbar?(value: unknown): void;
-    getWarnings?(): unknown; setWarnings?(value: unknown): void;
-    getThemeSetting?(): unknown;
-    getTerminalTheme?(): unknown;
-    setDefaultModelAndProvider?(provider: string, model: string): void;
-  };
-  readonly resourceLoader?: {
-    getSkills(): unknown;
-    getPrompts(): unknown;
-    getAgentsFiles(): unknown;
-    getSystemPromptSource(): unknown;
-    getAppendSystemPromptSources(): unknown;
-    getExtensions?(): unknown;
-    getThemes?(): unknown;
-  };
-  readonly diagnostics: readonly { readonly type: string; readonly message: string }[];
-}
-
-export interface PiRuntimeLike {
-  readonly session: PiSessionLike;
-  readonly services: PiServicesLike;
-  readonly diagnostics: readonly { readonly type: string; readonly message: string }[];
-  setRebindSession(callback: (session: PiSessionLike) => Promise<void>): void;
-  listSessions?(): Promise<readonly unknown[]>;
-  newSession(options?: unknown): Promise<unknown>;
-  switchSession(sessionPath: string, options?: unknown): Promise<unknown>;
-  fork?(entryId: string, options?: { position?: "before" | "at" }): Promise<unknown>;
-  importFromJsonl?(path: string): Promise<unknown>;
-  dispose(): Promise<void>;
-}
-
-export type PiEngineRuntimeFactory = (input: PiEngineRuntimeFactoryInput) => Promise<PiRuntimeLike>;
+export type PiEngineRuntimeFactory = (input: PiEngineRuntimeFactoryInput) => Promise<AgentSessionRuntime>;
 
 export interface OwnedPiResourceSummary {
   readonly kind: "skill" | "prompt-template" | "agent-context" | "system-prompt" | "theme";
@@ -318,8 +178,8 @@ export class PiEngineAdapter {
   readonly #workflowHost: PiWorkflowHost;
   #workflowInteraction: PiWorkflowInteractionHost;
   readonly #listeners = new Set<(event: OwnedUiEvent) => void>();
-  #runtime: PiRuntimeLike | undefined;
-  #session: PiSessionLike | undefined;
+  #runtime: PiRuntimeApi | undefined;
+  #session: PiSessionApi | undefined;
   #unsubscribe: (() => void) | undefined;
   #sequence = 0;
   #viewRevision = 0;
@@ -651,7 +511,7 @@ export class PiEngineAdapter {
         usedNames.add(name);
       }
     }
-    const extensionCommands = this.#session?.extensionRunner?.getCommands?.();
+    const extensionCommands = this.#session?.extensionRunner?.getRegisteredCommands?.();
     if (Array.isArray(extensionCommands)) {
       for (const command of extensionCommands.filter(isRecord)) {
         const name = stringProperty(command, "name");
@@ -689,7 +549,7 @@ export class PiEngineAdapter {
     const session = this.#requireWorkflowSession();
     const runtime = this.#runtime;
     if (!runtime) throw new Error("engine runtime is unavailable");
-    const scoped = session.getScopedModels?.() ?? session.scopedModels;
+    const scoped = session.scopedModels;
     const modelRuntime = runtime.services.modelRuntime;
     const selectorRuntime = typeof modelRuntime.getAvailableSnapshot === "function"
       ? modelRuntime
@@ -767,7 +627,7 @@ export class PiEngineAdapter {
     const runtime = this.#runtime;
     if (!runtime) throw new Error("engine runtime is unavailable");
     const models = scopedModelRecords(runtime.services.modelRuntime);
-    const scoped = session.getScopedModels?.() ?? session.scopedModels;
+    const scoped = session.scopedModels;
     if (Array.isArray(scoped) && scoped.length > 0) {
       return {
         models: models.map(item => item.descriptor),
@@ -912,7 +772,7 @@ export class PiEngineAdapter {
       thinkingLevel: readThinkingLevel(session.thinkingLevel),
       availableThinkingLevels: Array.isArray(levels) ? levels.map(readThinkingLevel) : ["off", "minimal", "low", "medium", "high", "xhigh"],
       currentTheme: setting(settings?.getThemeSetting, setting(settings?.getTheme, "dark")),
-      terminalTheme: setting(settings?.getTerminalTheme, "dark"),
+      terminalTheme: "dark",
       availableThemes: themes.length > 0 ? themes : ["dark", "light"],
       hideThinkingBlock: setting(settings?.getHideThinkingBlock, false),
       mermaidRenderingMode: setting(settings?.getMermaidRenderingMode, "off"),
@@ -1361,7 +1221,7 @@ export class PiEngineAdapter {
     }
   }
 
-  #requireWorkflowSession(): PiSessionLike {
+  #requireWorkflowSession(): PiSessionApi {
     if (this.#disposed || !this.#runtime || !this.#session) throw new Error("engine adapter is not running");
     return this.#session;
   }
@@ -1420,8 +1280,6 @@ export class PiEngineAdapter {
   async #sessionOptions(): Promise<readonly PiWorkflowOption[]> {
     const session = this.#requireWorkflowSession();
     const manager = session.sessionManager;
-    const runtimeSessions = await this.#runtime?.listSessions?.();
-    if (Array.isArray(runtimeSessions)) return sessionInfoOptions(runtimeSessions);
     const cwd = manager?.getCwd?.();
     const sessionDir = manager?.getSessionDir?.();
     if (typeof cwd !== "string") return [];
@@ -1476,44 +1334,18 @@ export class PiEngineAdapter {
     const settings = this.#runtime?.services.settingsManager;
     if (!settings) return workflowResult("settings", "failed", "Settings are unavailable");
     const session = this.#requireWorkflowSession();
-    const apply = (setter: ((value: unknown) => void) | undefined, name: string) =>
-      requireCapability(setter, name).call(settings, selectedValue);
-    switch (callback) {
-      case "onAutoCompactChange":
-        session.setAutoCompactionEnabled?.(selectedValue);
-        apply(settings.setCompactionEnabled, "setCompactionEnabled");
-        break;
-      case "onThinkingLevelChange": session.setThinkingLevel(selectedValue); break;
-      case "onShowImagesChange": apply(settings.setShowImages, "setShowImages"); break;
-      case "onImageWidthCellsChange": apply(settings.setImageWidthCells, "setImageWidthCells"); break;
-      case "onAutoResizeImagesChange": apply(settings.setImageAutoResize, "setImageAutoResize"); break;
-      case "onBlockImagesChange": apply(settings.setBlockImages, "setBlockImages"); break;
-      case "onEnableSkillCommandsChange": apply(settings.setEnableSkillCommands, "setEnableSkillCommands"); break;
-      case "onSteeringModeChange": apply(settings.setSteeringMode, "setSteeringMode"); break;
-      case "onFollowUpModeChange": apply(settings.setFollowUpMode, "setFollowUpMode"); break;
-      case "onTransportChange": apply(settings.setTransport, "setTransport"); break;
-      case "onHttpIdleTimeoutMsChange": apply(settings.setHttpIdleTimeoutMs, "setHttpIdleTimeoutMs"); break;
-      case "onThemeChange": apply(settings.setTheme, "setTheme"); break;
-      case "onHideThinkingBlockChange": apply(settings.setHideThinkingBlock, "setHideThinkingBlock"); break;
-      case "onMermaidRenderingModeChange": apply(settings.setMermaidRenderingMode, "setMermaidRenderingMode"); break;
-      case "onShowCacheMissNoticesChange": apply(settings.setShowCacheMissNotices, "setShowCacheMissNotices"); break;
-      case "onCollapseChangelogChange": apply(settings.setCollapseChangelog, "setCollapseChangelog"); break;
-      case "onEnableInstallTelemetryChange": apply(settings.setEnableInstallTelemetry, "setEnableInstallTelemetry"); break;
-      case "onQuietStartupChange": apply(settings.setQuietStartup, "setQuietStartup"); break;
-      case "onDefaultProjectTrustChange": apply(settings.setDefaultProjectTrust, "setDefaultProjectTrust"); break;
-      case "onDoubleEscapeActionChange": apply(settings.setDoubleEscapeAction, "setDoubleEscapeAction"); break;
-      case "onTreeFilterModeChange": apply(settings.setTreeFilterMode, "setTreeFilterMode"); break;
-      case "onShowHardwareCursorChange": apply(settings.setShowHardwareCursor, "setShowHardwareCursor"); break;
-      case "onEditorPaddingXChange": apply(settings.setEditorPaddingX, "setEditorPaddingX"); break;
-      case "onOutputPadChange": apply(settings.setOutputPad, "setOutputPad"); break;
-      case "onAutocompleteMaxVisibleChange": apply(settings.setAutocompleteMaxVisible, "setAutocompleteMaxVisible"); break;
-      case "onClearOnShrinkChange": apply(settings.setClearOnShrink, "setClearOnShrink"); break;
-      case "onShowTerminalProgressChange": apply(settings.setShowTerminalProgress, "setShowTerminalProgress"); break;
-      case "onTuiModeChange": apply(settings.setTuiMode, "setTuiMode"); break;
-      case "onFullscreenExitOutputChange": apply(settings.setFullscreenExitOutput, "setFullscreenExitOutput"); break;
-      case "onFullscreenScrollbarChange": apply(settings.setFullscreenScrollbar, "setFullscreenScrollbar"); break;
-      case "onWarningsChange": apply(settings.setWarnings, "setWarnings"); break;
-      default: return workflowResult("settings", "failed", `${settingLabel(callback)} is unavailable in this runtime`);
+    if (callback === "onThinkingLevelChange") {
+      if (!isThinkingLevel(selectedValue)) return workflowResult("settings", "failed", "Thinking level is invalid");
+      session.setThinkingLevel(selectedValue);
+    } else {
+      const key = settingKeyForCallback(callback);
+      if (key === null) return workflowResult("settings", "failed", `${settingLabel(callback)} is unavailable in this runtime`);
+      const value = agentJsonValue(selectedValue);
+      if (callback === "onAutoCompactChange") {
+        if (typeof value !== "boolean") return workflowResult("settings", "failed", "Auto compact value is invalid");
+        session.setAutoCompactionEnabled?.(value);
+      }
+      new PiSettingsIntegration(settings).writeSettingNow(key, value);
     }
     this.#emitView();
     return workflowResult("settings", "completed", `${settingLabel(callback)}: ${String(selectedValue)}`);
@@ -1577,7 +1409,7 @@ export class PiEngineAdapter {
     }
   }
 
-  #bindSession(session: PiSessionLike): void {
+  #bindSession(session: PiSessionApi): void {
     this.#unsubscribe?.();
     this.#sessionGeneration += 1;
     this.#session = session;
@@ -1725,7 +1557,7 @@ export class PiEngineAdapter {
     let cost = 0;
     let latestCacheHitRate: number | null = null;
     let latestPrompt: OwnedUiUsageView["latestPrompt"] = null;
-    const entries = this.#session?.sessionManager?.getEntries()
+    const entries: readonly unknown[] = this.#session?.sessionManager?.getEntries?.()
       ?? (this.#session?.messages ?? []).map(message => ({ type: "message", message }));
     for (const entry of entries) {
       if (!isRecord(entry)) continue;
@@ -2180,7 +2012,7 @@ export async function createPiEngineAdapter(
   return adapter;
 }
 
-async function createDefaultPiRuntime(input: PiEngineRuntimeFactoryInput): Promise<PiRuntimeLike> {
+async function createDefaultPiRuntime(input: PiEngineRuntimeFactoryInput): Promise<AgentSessionRuntime> {
   return createPiRuntimeIntegration({ cwd: input.cwd, agentDir: input.agentDir });
 }
 
@@ -2188,7 +2020,7 @@ function pinnedSessionInfoPresentation(
   value: unknown,
   sessionName: string | undefined,
   entries: readonly unknown[],
-  modelRuntime: PiServicesLike["modelRuntime"],
+  modelRuntime: PiServicesApi["modelRuntime"],
 ): PiSessionInfoPresentation {
   const stats = isRecord(value) ? value : {};
   const tokens = dynamicObject(stats, "tokens");
@@ -2252,7 +2084,7 @@ function pinnedUsageCostBreakdown(entries: readonly unknown[]): PiSessionInfoPre
 
 function pinnedCacheWaste(
   entries: readonly unknown[],
-  modelRuntime: PiServicesLike["modelRuntime"],
+  modelRuntime: PiServicesApi["modelRuntime"],
 ): PiSessionInfoPresentation["cacheWaste"] {
   let previous: { promptTokens: number; modelKey: string; timestamp: number; reportedCache: boolean } | undefined;
   const totals = { missedTokens: 0, missedCost: 0, missCount: 0 };
@@ -2408,6 +2240,35 @@ function pathArgument(value: string): string | undefined {
   return value.split(/\s/, 1)[0] || undefined;
 }
 
+function settingKeyForCallback(callback: PiPinnedSettingsCallback): string | null {
+  const keys: Partial<Record<PiPinnedSettingsCallback, string>> = {
+    onAutoCompactChange: "autoCompact", onShowImagesChange: "showImages", onImageWidthCellsChange: "imageWidthCells",
+    onAutoResizeImagesChange: "autoResizeImages", onBlockImagesChange: "blockImages", onEnableSkillCommandsChange: "enableSkillCommands",
+    onSteeringModeChange: "steeringMode", onFollowUpModeChange: "followUpMode", onTransportChange: "transport",
+    onHttpIdleTimeoutMsChange: "httpIdleTimeoutMs", onThemeChange: "theme", onThemePreview: "theme",
+    onHideThinkingBlockChange: "hideThinkingBlock", onMermaidRenderingModeChange: "mermaidRenderingMode",
+    onShowCacheMissNoticesChange: "showCacheMissNotices", onCollapseChangelogChange: "collapseChangelog",
+    onEnableInstallTelemetryChange: "enableInstallTelemetry", onQuietStartupChange: "quietStartup",
+    onDefaultProjectTrustChange: "defaultProjectTrust", onDoubleEscapeActionChange: "doubleEscapeAction",
+    onTreeFilterModeChange: "treeFilterMode", onShowHardwareCursorChange: "showHardwareCursor",
+    onEditorPaddingXChange: "editorPaddingX", onOutputPadChange: "outputPad", onAutocompleteMaxVisibleChange: "autocompleteMaxVisible",
+    onClearOnShrinkChange: "clearOnShrink", onShowTerminalProgressChange: "showTerminalProgress", onTuiModeChange: "tuiMode",
+    onFullscreenExitOutputChange: "fullscreenExitOutput", onFullscreenScrollbarChange: "fullscreenScrollbar", onWarningsChange: "warnings",
+  };
+  return keys[callback] ?? null;
+}
+
+function agentJsonValue(value: unknown): AgentJsonValue {
+  if (value === null || typeof value === "string" || typeof value === "boolean" || (typeof value === "number" && Number.isFinite(value))) return value;
+  if (Array.isArray(value)) return value.map(agentJsonValue);
+  if (isRecord(value)) return Object.fromEntries(Object.entries(value).filter(([, item]) => item !== undefined).map(([key, item]) => [key, agentJsonValue(item)]));
+  throw new TypeError("setting value must be JSON serializable");
+}
+
+function isThinkingLevel(value: unknown): value is "off" | "minimal" | "low" | "medium" | "high" | "xhigh" {
+  return typeof value === "string" && ["off", "minimal", "low", "medium", "high", "xhigh"].includes(value);
+}
+
 function settingLabel(callback: PiPinnedSettingsCallback): string {
   return callback
     .replace(/^on/, "")
@@ -2426,18 +2287,14 @@ function pinnedHotkeySummary(): string {
   ].join("\n");
 }
 
-function scopedModelRecords(modelRuntime: PiServicesLike["modelRuntime"]): readonly {
+function scopedModelRecords(modelRuntime: PiServicesApi["modelRuntime"]): readonly {
   readonly descriptor: PiScopedModelDescriptor;
-  readonly model: unknown;
+  readonly model: ReturnType<PiServicesApi["modelRuntime"]["getAvailableSnapshot"]>[number];
 }[] {
-  const snapshot = modelRuntime.getAvailableSnapshot?.() ?? [];
-  return snapshot.flatMap(model => {
-    if (!isRecord(model)) return [];
-    const provider = stringValue(model.provider);
-    const id = stringValue(model.id);
-    if (!provider || !id) return [];
-    return [{ descriptor: { provider, id, name: stringValue(model.name) ?? id }, model }];
-  });
+  return modelRuntime.getAvailableSnapshot().map(model => ({
+    descriptor: { provider: model.provider, id: model.id, name: model.name ?? model.id },
+    model,
+  }));
 }
 
 function scopedModelReference(value: unknown): string | undefined {

@@ -1,3 +1,4 @@
+import type { AgentSessionRuntime } from "@earendil-works/pi-coding-agent";
 import { describe, expect, it, vi } from "vitest";
 import {
   OWNED_UI_EXTENSION_UI_CALLBACKS,
@@ -7,11 +8,9 @@ import {
 import {
   createPiEngineAdapter,
   type PiEngineAdapter,
-  type PiRuntimeLike,
-  type PiSessionLike,
 } from "../../../src/foundation/pi-engine-adapter/index.js";
 
-class FakeSession implements PiSessionLike {
+class FakeSession {
   readonly listeners = new Set<(event: unknown) => void>();
   readonly sessionId: string;
   model: unknown = { provider: "openai", id: "gpt-5", name: "GPT-5" };
@@ -105,7 +104,7 @@ class FakeSession implements PiSessionLike {
   }
 }
 
-class FakeRuntime implements PiRuntimeLike {
+class FakeRuntime {
   session: FakeSession;
   readonly services = {
     modelRuntime: {
@@ -120,7 +119,7 @@ class FakeRuntime implements PiRuntimeLike {
     diagnostics: [{ type: "warning", message: "service warning" }],
   };
   readonly diagnostics = [{ type: "info", message: "runtime ready" }];
-  rebind: ((session: PiSessionLike) => Promise<void>) | undefined;
+  rebind: ((session: FakeSession) => Promise<void>) | undefined;
   readonly calls: string[] = [];
   disposed = false;
 
@@ -128,7 +127,7 @@ class FakeRuntime implements PiRuntimeLike {
     this.session = session;
   }
 
-  setRebindSession(callback: (session: PiSessionLike) => Promise<void>): void {
+  setRebindSession(callback: (session: FakeSession) => Promise<void>): void {
     this.rebind = callback;
   }
 
@@ -160,7 +159,7 @@ async function adapterWithRuntime(runtime: FakeRuntime): Promise<{
     cwd: "D:/work",
     agentDir: "D:/agent",
     sessionId: "owned-1",
-    createRuntime: async () => runtime,
+    createRuntime: async () => runtime as unknown as AgentSessionRuntime,
   });
   adapter.onEvent(event => events.push(event));
   return { adapter, events };

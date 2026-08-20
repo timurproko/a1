@@ -1,3 +1,4 @@
+import type { AgentSessionRuntime } from "@earendil-works/pi-coding-agent";
 import { readFile } from "node:fs/promises";
 import { stripTerminalSequences } from "@earendil-works/pi-tui";
 import { describe, expect, it, vi } from "vitest";
@@ -95,7 +96,7 @@ class Runtime {
 
 async function fixture(messages: readonly unknown[] = []) {
   const engine = new Runtime(messages);
-  const adapter = await createPiEngineAdapter({ cwd: "D:/work", sessionId: "owned-shell", createRuntime: async () => engine });
+  const adapter = await createPiEngineAdapter({ cwd: "D:/work", sessionId: "owned-shell", createRuntime: async () => engine as unknown as AgentSessionRuntime });
   const terminal = new TestPresentationTerminal();
   const shell = new OwnedUiSessionShell({ backend: adapter, cwd: "D:/work", terminal });
   shell.start();

@@ -1,4 +1,5 @@
-import { createPiEngineAdapter, type PiRuntimeLike, type PiSessionLike } from "../../../src/foundation/pi-engine-adapter/index.js";
+import type { AgentSessionRuntime } from "@earendil-works/pi-coding-agent";
+import { createPiEngineAdapter } from "../../../src/foundation/pi-engine-adapter/index.js";
 import type { PiTuiTerminalPort } from "../../../src/foundation/pi-tui-runtime-adapter/index.js";
 import { OwnedUiSessionShell } from "../../../src/foundation/pi-owned-ui-integration/index.js";
 
@@ -53,7 +54,7 @@ export async function buildEventFrameParityResult(): Promise<EventFrameParityRes
   const adapter = await createPiEngineAdapter({
     cwd: "D:/parity",
     sessionId: "event-frame-parity",
-    createRuntime: async () => engine,
+    createRuntime: async () => engine as unknown as AgentSessionRuntime,
   });
   const physical = new CapturingTerminal(64, 18);
   const shell = new OwnedUiSessionShell({ backend: adapter, cwd: "D:/parity", terminal: physical });
@@ -99,7 +100,7 @@ export async function buildEventFrameParityResult(): Promise<EventFrameParityRes
   }
 }
 
-class ScriptedSession implements PiSessionLike {
+class ScriptedSession {
   readonly sessionId = "scripted-pi-session";
   readonly model = { provider: "openai", id: "gpt-5", name: "GPT-5" };
   readonly thinkingLevel = "medium";
@@ -123,7 +124,7 @@ class ScriptedSession implements PiSessionLike {
   dispose(): void {}
 }
 
-class ScriptedRuntime implements PiRuntimeLike {
+class ScriptedRuntime {
   readonly session = new ScriptedSession();
   readonly services = { modelRuntime: { getModel: () => undefined }, diagnostics: [] };
   readonly diagnostics = [];

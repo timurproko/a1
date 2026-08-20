@@ -22,7 +22,8 @@ export class PiSettingsIntegration implements AgentSettingsPort {
   }
   async listSettings(): Promise<readonly AgentSettingDescriptor[]> { return [...this.#operations.values()].map(operation => operation.descriptor); }
   async readSetting(key: string): Promise<AgentJsonValue | undefined> { return this.#operations.get(key)?.read(); }
-  async writeSetting(key: string, value: AgentJsonValue): Promise<void> {
+  async writeSetting(key: string, value: AgentJsonValue): Promise<void> { this.writeSettingNow(key, value); }
+  writeSettingNow(key: string, value: AgentJsonValue): void {
     const operation = this.#operations.get(key);
     if (!operation) throw new Error(`setting is unavailable: ${key}`);
     operation.write(value);
