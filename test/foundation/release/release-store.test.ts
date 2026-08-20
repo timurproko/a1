@@ -1,8 +1,8 @@
-import { chmod, mkdtemp, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { materializeRelease, readMaterializedRelease, RELEASE_MANIFEST_FILENAME, resolveReleaseEntryPoint, verifyMaterializedRelease } from "../../../src/foundation/release/index.js";
+import { materializeRelease, readCertifiedReleaseManifest, readMaterializedRelease, RELEASE_MANIFEST_FILENAME, resolveReleaseEntryPoint, verifyMaterializedRelease } from "../../../src/foundation/release/index.js";
 
 const roots: string[] = [];
 afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))));
@@ -10,12 +10,34 @@ afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, { recursi
 describe("immutable release materialization", () => {
   it("copies and verifies package content beneath the A1 data directory", async () => {
     const { packageRoot, dataDir } = await fixture();
-    const release = await materializeRelease(packageRoot, dataDir);
+    const progress: Array<{ phase: "copying"; fileCount: number }> = [];
+    const release = await materializeRelease(packageRoot, dataDir, { onProgress: event => progress.push(event) });
+    expect(progress).toEqual([{ phase: "copying", fileCount: 2 }]);
     expect(RELEASE_MANIFEST_FILENAME).toBe(".a1-release.json");
     expect(release.releaseRoot).toMatch(/releases/);
     expect(await readFile(await resolveReleaseEntryPoint(release, "dist/app.js"), "utf8")).toBe("payload");
     expect((await readMaterializedRelease(release.releaseRoot)).releaseId).toBe(release.releaseId);
     await expect(resolveReleaseEntryPoint(release, "../package.json")).rejects.toThrow(/not in the verified release manifest/);
+  });
+
+  it("converges concurrent materialization on one release root", async () => {
+    const { packageRoot, dataDir } = await fixture();
+    const [first, second] = await Promise.all([
+      materializeRelease(packageRoot, dataDir),
+      materializeRelease(packageRoot, dataDir),
+    ]);
+    expect(second.releaseRoot).toBe(first.releaseRoot);
+    expect((await readdir(resolve(dataDir, "releases"))).filter(path => path.startsWith(".candidate-"))).toEqual([]);
+  });
+
+  it("uses metadata-only loading only for an already authenticated live release", async () => {
+    const { packageRoot, dataDir } = await fixture();
+    const release = await materializeRelease(packageRoot, dataDir);
+    const payload = resolve(release.releaseRoot, "dist/app.js");
+    await chmod(payload, 0o600);
+    await writeFile(payload, "tampered");
+    await expect(readCertifiedReleaseManifest(release, resolve(dataDir, "releases"))).resolves.toMatchObject({ releaseId: release.releaseId });
+    await expect(readMaterializedRelease(release.releaseRoot)).rejects.toThrow(/size mismatch|digest mismatch/);
   });
 
   it("rejects obsolete package metadata in a materialized release", async () => {

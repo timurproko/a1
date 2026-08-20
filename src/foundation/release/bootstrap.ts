@@ -8,7 +8,7 @@ import { CohortStateStore, type SupervisorEndpointMetadata } from "./cohort-stat
 import { assertLaunchProfileId, resolveProductPaths, type LaunchProfileId } from "../lifecycle/index.js";
 import { encodeFrame, LineFrameDecoder } from "../protocol/index.js";
 import { cleanupProvenIdleOwner, processIsAlive } from "./process-cleanup.js";
-import { materializeRelease, readMaterializedRelease, resolveReleaseEntryPoint, verifyMaterializedRelease, type MaterializedRelease } from "./release-store.js";
+import { materializeRelease, readCertifiedReleaseManifest, readMaterializedRelease, resolveReleaseEntryPoint, verifyMaterializedRelease, type MaterializedRelease } from "./release-store.js";
 import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
 
 export interface BootstrapOptions {
@@ -27,10 +27,35 @@ export async function runBootstrap(options: BootstrapOptions): Promise<number> {
   const paths = resolveProductPaths(environment);
   await mkdir(paths.runtimeDir, { recursive: true, mode: 0o700 });
 
-  const candidate = await materializeRelease(options.packageRoot, paths.dataDir);
   const stateStore = new CohortStateStore(paths.dataDir);
-  await stateStore.recordCandidate(candidate);
   let state = await stateStore.read();
+  let endpoint = await readEndpointMetadata(paths.endpointMetadataPath);
+  let probe = endpoint ? await probeOwnership(endpoint) : "dead";
+  const installedVersion = await readInstalledVersion(options.packageRoot);
+  const activeId = state.references.active;
+  const active = activeId === null ? undefined : state.releases[activeId];
+  if (active?.approval === "approved" && active.packageVersion === installedVersion) {
+    const endpointMatches = endpoint?.releaseId === active.releaseId
+      && endpoint.releaseRoot === active.releaseRoot
+      && endpoint.contentDigest === active.contentDigest;
+    if (endpointMatches && probe === "live-verified") {
+      const retained = await readCertifiedReleaseManifest(active, resolve(paths.dataDir, "releases"));
+      return await launchUi(retained, environment);
+    }
+    if (endpoint === null || probe === "dead") {
+      if (endpoint) await removeEndpointArtifacts(paths.endpointMetadataPath, paths.endpoint);
+      const retained = await readMaterializedRelease(active.releaseRoot);
+      await startSupervisor(retained, environment);
+      await waitForVerifiedEndpoint(paths.endpointMetadataPath, retained, 8_000);
+      return await launchUi(retained, environment);
+    }
+  }
+
+  const candidate = await materializeRelease(options.packageRoot, paths.dataDir, {
+    onProgress: progress => output.write(`${PRODUCT_TEXT.diagnostic(`preparing ${progress.fileCount} installed release files; first launch may take a moment.`)}\n`),
+  });
+  await stateStore.recordCandidate(candidate);
+  state = await stateStore.read();
   if (!state.references.active) {
     const diagnosticsPath = await certifyMaterializedRelease(candidate, paths.dataDir);
     await stateStore.approve(candidate.releaseId, diagnosticsPath);
@@ -38,8 +63,8 @@ export async function runBootstrap(options: BootstrapOptions): Promise<number> {
     state = await stateStore.read();
   }
 
-  const endpoint = await readEndpointMetadata(paths.endpointMetadataPath);
-  const probe = endpoint ? await probeOwnership(endpoint) : "dead";
+  endpoint = await readEndpointMetadata(paths.endpointMetadataPath);
+  probe = endpoint ? await probeOwnership(endpoint) : "dead";
   let decision = selectCohortLaunch(candidate, state, endpoint, probe);
 
   if (decision.action === "blocked") {
@@ -103,6 +128,14 @@ export async function runBootstrap(options: BootstrapOptions): Promise<number> {
   await startSupervisor(selected, environment);
   await waitForVerifiedEndpoint(paths.endpointMetadataPath, selected, 8_000);
   return await launchUi(selected, environment);
+}
+
+async function readInstalledVersion(packageRoot: string): Promise<string> {
+  const manifest = JSON.parse(await readFile(resolve(packageRoot, "package.json"), "utf8")) as { version?: unknown };
+  if (typeof manifest.version !== "string" || manifest.version.length === 0) {
+    throw new Error(PRODUCT_TEXT.diagnostic("package metadata has no version"));
+  }
+  return manifest.version;
 }
 
 export async function certifyMaterializedRelease(release: MaterializedRelease, dataDir: string): Promise<string> {

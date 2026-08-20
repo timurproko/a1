@@ -2,6 +2,9 @@ import { createHash } from "node:crypto";
 import { lstat, readFile, readdir, realpath } from "node:fs/promises";
 import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
+import { mapWithConcurrency } from "./concurrency.js";
+
+const RELEASE_FILE_IO_CONCURRENCY = 32;
 
 export const PRODUCT_PACKAGE_NAME = PRODUCT_IDENTITY.packageName;
 
@@ -49,19 +52,19 @@ export async function deriveReleaseIdentity(packageRoot: string): Promise<Releas
   }
   await collectDependencyClosure(canonicalRoot, canonicalRoot, manifest, paths, new Set());
 
-  const files: ReleaseFileIdentity[] = [];
-  for (const path of [...paths].sort()) {
+  const sortedPaths = [...paths].sort();
+  const files = await mapWithConcurrency(sortedPaths, RELEASE_FILE_IO_CONCURRENCY, async path => {
     const absolute = resolveWithin(canonicalRoot, path);
     const metadata = await lstat(absolute);
     if (!metadata.isFile()) throw new Error(`release payload is not a regular file: ${path}`);
     const bytes = await readFile(absolute);
-    files.push({
+    return {
       path: normalizeRelative(path),
       bytes: bytes.length,
       sha256: createHash("sha256").update(bytes).digest("hex"),
       executable: (metadata.mode & 0o111) !== 0,
-    });
-  }
+    } satisfies ReleaseFileIdentity;
+  });
 
   const digest = createHash("sha256");
   for (const file of files) digest.update(`${file.path}\0${file.bytes}\0${file.sha256}\0${file.executable ? 1 : 0}\n`);

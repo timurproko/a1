@@ -3,6 +3,9 @@ import { chmod, copyFile, lstat, mkdir, readFile, realpath, rename, rm, writeFil
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { PRODUCT_PACKAGE_NAME, deriveReleaseIdentity, resolveWithin, type ReleaseIdentity, type ReleaseFileIdentity } from "./release.js";
 import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
+import { mapWithConcurrency } from "./concurrency.js";
+
+const RELEASE_FILE_IO_CONCURRENCY = 32;
 
 export const RELEASE_MANIFEST_FILENAME = PRODUCT_IDENTITY.manifest.releaseFilename;
 
@@ -10,7 +13,18 @@ export interface MaterializedRelease extends ReleaseIdentity {
   readonly releaseRoot: string;
 }
 
-export async function materializeRelease(packageRoot: string, dataDir: string): Promise<MaterializedRelease> {
+export interface MaterializeReleaseOptions {
+  readonly onProgress?: (progress: { readonly phase: "copying"; readonly fileCount: number }) => void;
+}
+
+export interface CertifiedReleaseRecord {
+  readonly releaseId: string;
+  readonly releaseRoot: string;
+  readonly packageVersion?: string;
+  readonly contentDigest: string;
+}
+
+export async function materializeRelease(packageRoot: string, dataDir: string, options: MaterializeReleaseOptions = {}): Promise<MaterializedRelease> {
   const identity = await deriveReleaseIdentity(packageRoot);
   const storeRoot = resolve(dataDir, "releases");
   await mkdir(storeRoot, { recursive: true, mode: 0o700 });
@@ -18,20 +32,29 @@ export async function materializeRelease(packageRoot: string, dataDir: string): 
   const existing = await lstat(releaseRoot).catch(() => null);
   if (existing) return await verifyMaterializedRelease(releaseRoot, identity);
 
+  options.onProgress?.({ phase: "copying", fileCount: identity.files.length });
   const candidate = resolveWithin(storeRoot, `.candidate-${identity.releaseId}-${randomUUID()}`);
   await mkdir(candidate, { recursive: false, mode: 0o700 });
   try {
-    for (const file of identity.files) {
+    const directories = [...new Set(identity.files.map(file => dirname(resolveWithin(candidate, file.path))))];
+    await mapWithConcurrency(directories, RELEASE_FILE_IO_CONCURRENCY, async directory => {
+      await mkdir(directory, { recursive: true, mode: 0o700 });
+    });
+    await mapWithConcurrency(identity.files, RELEASE_FILE_IO_CONCURRENCY, async file => {
       const source = resolveWithin(identity.packageRoot, file.path);
       const destination = resolveWithin(candidate, file.path);
-      await mkdir(dirname(destination), { recursive: true, mode: 0o700 });
       await copyFile(source, destination);
       await chmod(destination, file.executable ? 0o500 : 0o400);
-    }
+    });
     await writeFile(resolve(candidate, RELEASE_MANIFEST_FILENAME), JSON.stringify(identity, null, 2), { mode: 0o400, flag: "wx" });
-    await verifyMaterializedRelease(candidate, identity);
-    await rename(candidate, releaseRoot);
-    return await verifyMaterializedRelease(releaseRoot, identity);
+    try {
+      await rename(candidate, releaseRoot);
+    } catch (error) {
+      if (!await lstat(releaseRoot).catch(() => null)) throw error;
+      await rm(candidate, { recursive: true, force: true });
+      return await verifyMaterializedRelease(releaseRoot, identity);
+    }
+    return { ...identity, releaseRoot: await realpath(releaseRoot) };
   } catch (error) {
     await rm(candidate, { recursive: true, force: true });
     throw error;
@@ -42,6 +65,28 @@ export async function readMaterializedRelease(releaseRoot: string): Promise<Mate
   const canonical = await realpath(releaseRoot);
   const manifest = JSON.parse(await readFile(resolve(canonical, RELEASE_MANIFEST_FILENAME), "utf8")) as ReleaseIdentity;
   return await verifyMaterializedRelease(canonical, manifest);
+}
+
+/**
+ * Load metadata for a release whose bytes were already certified by the
+ * current parent process or an authenticated live supervisor. Callers must
+ * establish one of those preconditions; untrusted releases require full
+ * verification.
+ */
+export async function readCertifiedReleaseManifest(
+  record: CertifiedReleaseRecord,
+  selectedStoreRoot: string,
+): Promise<MaterializedRelease> {
+  const canonical = await realpath(record.releaseRoot);
+  assertContained(await realpath(selectedStoreRoot), canonical, "release root is outside the selected release store");
+  const manifest = JSON.parse(await readFile(resolveWithin(canonical, RELEASE_MANIFEST_FILENAME), "utf8")) as ReleaseIdentity;
+  validateManifest(manifest);
+  if (manifest.releaseId !== record.releaseId || manifest.contentDigest !== record.contentDigest
+    || (record.packageVersion !== undefined && manifest.packageVersion !== record.packageVersion)) {
+    throw new Error(`certified release record differs from manifest for ${canonical}`);
+  }
+  if (canonical.split(sep).at(-1) !== manifest.releaseId) throw new Error(`release directory does not match identity ${manifest.releaseId}`);
+  return { ...manifest, releaseRoot: canonical };
 }
 
 export async function verifyMaterializedRelease(
@@ -60,14 +105,17 @@ export async function verifyMaterializedRelease(
   if (canonical.split(sep).at(-1) !== manifest.releaseId && !canonical.split(sep).at(-1)?.startsWith(`.candidate-${manifest.releaseId}-`)) {
     throw new Error(`release directory does not match identity ${manifest.releaseId}`);
   }
-  for (const file of manifest.files) await verifyFile(canonical, file);
+  await mapWithConcurrency(manifest.files, RELEASE_FILE_IO_CONCURRENCY, async file => {
+    await verifyFile(canonical, file);
+  });
   const recomputed = digestManifestFiles(manifest.files);
   if (recomputed !== manifest.contentDigest) throw new Error(`release content digest mismatch for ${manifest.releaseId}`);
   return { ...manifest, releaseRoot: canonical };
 }
 
 export async function assertImmutableExecutionRoot(release: MaterializedRelease, dataDir: string): Promise<void> {
-  await verifyMaterializedRelease(release.releaseRoot, release, resolve(dataDir, "releases"));
+  const storeRoot = await realpath(resolve(dataDir, "releases"));
+  assertContained(storeRoot, release.releaseRoot, "release root is outside the selected release store");
   const selectedRoot = process.env[PRODUCT_IDENTITY.environment.releaseRoot];
   if (!selectedRoot) throw new Error(PRODUCT_TEXT.diagnostic("persistent process has no immutable release root"));
   const selected = await realpath(selectedRoot);

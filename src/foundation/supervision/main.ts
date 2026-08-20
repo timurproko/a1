@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { appendFileSync, mkdirSync } from "node:fs";
-import { assertImmutableExecutionRoot, readMaterializedRelease } from "../release/index.js";
+import { resolve } from "node:path";
+import { assertImmutableExecutionRoot, readCertifiedReleaseManifest } from "../release/index.js";
 import { ControlStore } from "../storage/index.js";
 import { resolveProductPaths } from "./paths.js";
 import { SupervisorServer } from "./server.js";
@@ -11,9 +12,13 @@ export async function runSupervisor(): Promise<void> {
   mkdirSync(paths.runtimeDir, { recursive: true, mode: 0o700 });
   const log = (message: string) => appendFileSync(paths.supervisorLogPath, `${new Date().toISOString()} ${message}\n`);
   const releaseRoot = process.env[PRODUCT_IDENTITY.environment.releaseRoot];
-  if (!releaseRoot) throw new Error(PRODUCT_TEXT.diagnostic("supervisor must be launched from a verified immutable release"));
-  const release = await readMaterializedRelease(releaseRoot);
-  if (process.env[PRODUCT_IDENTITY.environment.releaseId] !== release.releaseId) throw new Error(PRODUCT_TEXT.diagnostic("selected release identity does not match its verified manifest"));
+  const releaseId = process.env[PRODUCT_IDENTITY.environment.releaseId];
+  const contentDigest = process.env[PRODUCT_IDENTITY.environment.releaseDigest];
+  if (!releaseRoot || !releaseId || !contentDigest) throw new Error(PRODUCT_TEXT.diagnostic("supervisor must be launched from a verified immutable release"));
+  const release = await readCertifiedReleaseManifest(
+    { releaseRoot, releaseId, contentDigest },
+    resolve(paths.dataDir, "releases"),
+  );
   await assertImmutableExecutionRoot(release, paths.dataDir);
   const bootNonce = randomUUID();
   const store = new ControlStore(paths.databasePath, bootNonce);

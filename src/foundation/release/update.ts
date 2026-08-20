@@ -84,6 +84,7 @@ export function createNpmProcessRunner(platform: NodeJS.Platform = process.platf
 export function createUpdateLifecycleCoordinator(
   environment: NodeJS.ProcessEnv = process.env,
   fileSystem: UpdateFileSystem = defaultFileSystem,
+  output: UpdateOutput = defaultOutput,
 ): UpdateLifecycleCoordinator {
   const paths = resolveProductPaths(environment);
   const stateStore = new CohortStateStore(paths.dataDir);
@@ -143,7 +144,9 @@ export function createUpdateLifecycleCoordinator(
       }
     },
     async activateInstalled(packageRoot, targetVersion, phase) {
-      const candidate = await materializeRelease(packageRoot, paths.dataDir);
+      const candidate = await materializeRelease(packageRoot, paths.dataDir, {
+        onProgress: progress => output.stdout(`${PRODUCT_TEXT.diagnostic(`preparing ${progress.fileCount} installed release files; this one-time activation may take a moment.`)}\n`),
+      });
       if (candidate.packageVersion !== targetVersion) throw new Error(`installed ${PRODUCT_TEXT.displayName} version ${candidate.packageVersion} does not match target ${targetVersion}`);
       await stateStore.recordCandidate(candidate);
       await phase("materialized");
@@ -206,7 +209,7 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
 
   const environment = options.environment ?? process.env;
   const paths = resolveProductPaths(environment);
-  const lifecycle = options.lifecycle ?? createUpdateLifecycleCoordinator(environment, fileSystem);
+  const lifecycle = options.lifecycle ?? createUpdateLifecycleCoordinator(environment, fileSystem, output);
   const transactionStore = options.transactionStore ?? new UpdateTransactionStore(paths.dataDir);
   let transaction = await transactionStore.read();
   try {

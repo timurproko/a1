@@ -36,6 +36,16 @@ describe("mutable bootstrap boundary", () => {
     expect(bootstrap).not.toMatch(/foundation\/transparent-terminal/);
   });
 
+  it("reuses an authenticated active cohort before deriving mutable package content", async () => {
+    const bootstrap = await readFile(resolve(repository, "src/foundation/release/bootstrap.ts"), "utf8");
+    const reuse = bootstrap.indexOf("await readCertifiedReleaseManifest");
+    const materialization = bootstrap.indexOf("const candidate = await materializeRelease");
+    expect(reuse).toBeGreaterThan(0);
+    expect(materialization).toBeGreaterThan(reuse);
+    expect(bootstrap).toContain('probe === "live-verified"');
+    expect(bootstrap).toContain('active?.approval === "approved"');
+  });
+
   it("keeps the dependency-light coordinator free of terminal implementation imports", async () => {
     const bootstrap = await readFile(resolve(repository, "src/foundation/release/bootstrap.ts"), "utf8");
     expect(bootstrap).not.toMatch(/from ["']\.\/(?:ui|supervisor|drivers|presentation)/);

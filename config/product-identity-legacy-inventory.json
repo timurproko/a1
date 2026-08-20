@@ -896,10 +896,10 @@
       ]
     },
     {
-      "id": "test/foundation/release/release-store.test.ts:27:91",
+      "id": "test/foundation/release/release-store.test.ts:49:91",
       "path": "test/foundation/release/release-store.test.ts",
       "locationKind": "content",
-      "line": 27,
+      "line": 49,
       "column": 91,
       "value": "addone",
       "context": "await writeFile(manifestPath, JSON.stringify({ ...manifest, packageName: \"@timurproko/addone\" }));",
@@ -913,10 +913,10 @@
       ]
     },
     {
-      "id": "test/foundation/release/release-store.test.ts:36:38",
+      "id": "test/foundation/release/release-store.test.ts:58:38",
       "path": "test/foundation/release/release-store.test.ts",
       "locationKind": "content",
-      "line": 36,
+      "line": 58,
       "column": 38,
       "value": "addone",
       "context": "resolve(release.releaseRoot, \".addone-release.json\"),",
@@ -1328,5 +1328,5 @@
       ]
     }
   ],
-  "generatedAt": "2026-08-20T18:32:25.480Z"
+  "generatedAt": "2026-08-20T19:12:01.893Z"
 }
