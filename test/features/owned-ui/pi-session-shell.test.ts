@@ -6,7 +6,7 @@ import {
   PINNED_PI_HIDDEN_COMMAND_NAMES,
   PINNED_PI_WORKFLOW_COMMAND_NAMES,
 } from "../../../src/foundation/pi-engine-adapter/index.js";
-import { OwnedUiSessionShell } from "../../../src/features/owned-ui/index.js";
+import { OwnedUiSessionShell } from "../../../src/foundation/pi-owned-ui-integration/index.js";
 import { TestPresentationTerminal } from "./neutral-port-doubles.js";
 
 class Session {

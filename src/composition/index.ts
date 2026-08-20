@@ -26,7 +26,7 @@ import {
   type PresentationTerminalPort,
 } from "../foundation/presentation-contracts/index.js";
 import type { OwnedUiCommand, OwnedUiEvent, OwnedUiTranscriptBlock } from "../foundation/owned-ui-contracts/index.js";
-import { OwnedUiSessionShell } from "../features/owned-ui/index.js";
+import { OwnedUiSessionShell } from "../foundation/pi-owned-ui-integration/index.js";
 
 const CAPABILITIES: AgentCapabilityContract = {
   contractVersion: AGENT_ENGINE_CONTRACT_VERSION,

@@ -3,7 +3,7 @@ import { dirname, posix } from "node:path";
 export const PROJECT_OWNERS = Object.freeze({
   "product-identity": Object.freeze({ id: "product-identity", layer: "foundation", sourceRoot: "src", testRoot: "test/product-identity", publicEntry: "src/product-identity.ts", mayImport: Object.freeze([]) }),
   cli: owner("cli", "entry", "src/cli", "test/cli", ["launch", "release"]),
-  composition: owner("composition", "entry", "src/composition", "test/composition", ["owned-ui", "agent-engine-contracts", "presentation-contracts", "owned-ui-contracts", "pi-engine-adapter", "pi-tui-runtime-adapter"]),
+  composition: owner("composition", "entry", "src/composition", "test/composition", ["agent-engine-contracts", "presentation-contracts", "owned-ui-contracts", "pi-engine-adapter", "pi-tui-runtime-adapter", "pi-owned-ui-integration"]),
   launch: owner("launch", "feature", "src/features/launch", "test/features/launch", ["lifecycle", "transparent-terminal"]),
   workspace: owner("workspace", "feature", "src/features/workspace", "test/features/workspace", [
     "storage", "workspace-contracts", "structured-agent-runtime", "native-host-protocol", "agent-engine-contracts", "presentation-contracts",
@@ -23,6 +23,7 @@ export const PROJECT_OWNERS = Object.freeze({
   "pi-engine-adapter": owner("pi-engine-adapter", "foundation", "src/foundation/pi-engine-adapter", "test/foundation/pi-engine-adapter", ["owned-ui-contracts", "agent-engine-contracts"]),
   "pi-component-adapter": owner("pi-component-adapter", "foundation", "src/foundation/pi-component-adapter", "test/foundation/pi-component-adapter", ["owned-ui-contracts", "presentation-contracts"]),
   "pi-tui-runtime-adapter": owner("pi-tui-runtime-adapter", "foundation", "src/foundation/pi-tui-runtime-adapter", "test/foundation/pi-tui-runtime-adapter", ["presentation-contracts"]),
+  "pi-owned-ui-integration": owner("pi-owned-ui-integration", "foundation", "src/foundation/pi-owned-ui-integration", "test/foundation/pi-owned-ui-integration", ["owned-ui-contracts", "pi-engine-adapter", "pi-component-adapter", "pi-tui-runtime-adapter"]),
   supervision: owner("supervision", "foundation", "src/foundation/supervision", "test/foundation/supervision", ["lifecycle", "protocol", "release", "storage"]),
   "workspace-contracts": owner("workspace-contracts", "foundation", "src/foundation/workspace-contracts", "test/foundation/workspace-contracts", []),
   "transparent-terminal": owner(
@@ -81,7 +82,7 @@ export function inspectPiFeatureBoundaryImports(files, approvedImports = []) {
       const imported = record.clause ?? "";
       if (/^@earendil-works\/pi-/.test(record.specifier)) {
         errors.push(`${path}: feature may not import Pi package '${record.specifier}'; inject a vendor-neutral A1 port`);
-      } else if (/foundation\/pi-(?:engine|component|tui-runtime)-adapter\//.test(record.specifier)) {
+      } else if (/foundation\/pi-(?:(?:engine|component|tui-runtime)-adapter|owned-ui-integration)\//.test(record.specifier)) {
         errors.push(`${path}: feature may not import concrete Pi adapter '${record.specifier}'; inject a vendor-neutral A1 port`);
       } else if (/\b(?:create|render)Pi[A-Z][A-Za-z0-9_$]*\b/.test(imported)) {
         const factory = imported.match(/\b(?:create|render)Pi[A-Z][A-Za-z0-9_$]*\b/)?.[0];

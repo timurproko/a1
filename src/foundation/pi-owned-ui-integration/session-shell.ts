@@ -3,7 +3,7 @@ import type {
   OwnedUiDialog,
   OwnedUiSessionViewModel,
   OwnedUiThinkingLevel,
-} from "../../foundation/owned-ui-contracts/index.js";
+} from "../owned-ui-contracts/index.js";
 import {
   PINNED_PI_HIDDEN_COMMAND_NAMES,
   PINNED_PI_WORKFLOW_COMMAND_NAMES,
@@ -15,7 +15,7 @@ import {
   type PiWorkflowRequest,
   type PiWorkflowResult,
   type PiWorkflowRoute,
-} from "../../foundation/pi-engine-adapter/index.js";
+} from "../pi-engine-adapter/index.js";
 import {
   createPiExtensionUiBridge,
   createPiQueuedInputStatus,
@@ -63,14 +63,14 @@ import {
   type PiShellStatusPort,
   type PiShellTranscriptComponentPort,
   type PiShellViewComponentPort,
-} from "../../foundation/pi-component-adapter/index.js";
+} from "../pi-component-adapter/index.js";
 import {
   PiTuiRuntimeAdapter,
   type PiTuiComponentPort,
   type PiTuiLayoutNode,
   type PiTuiOverlayHandle,
   type PiTuiTerminalPort,
-} from "../../foundation/pi-tui-runtime-adapter/index.js";
+} from "../pi-tui-runtime-adapter/index.js";
 
 type OwnedUiBackendPort = PiEngineAdapter;
 type OwnedUiTerminalPort = PiTuiTerminalPort;

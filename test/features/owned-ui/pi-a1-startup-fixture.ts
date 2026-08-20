@@ -1,5 +1,5 @@
 import type { OwnedUiSessionViewModel } from "../../../src/foundation/owned-ui-contracts/index.js";
-import { OwnedUiSessionShellRoot } from "../../../src/features/owned-ui/index.js";
+import { OwnedUiSessionShellRoot } from "../../../src/foundation/pi-owned-ui-integration/index.js";
 import { createPiShellFooter } from "../../../src/foundation/pi-component-adapter/index.js";
 import { normalizeRow, type StartupCapture, type StartupCaptureState } from "./pi-upstream-startup-fixture.js";
 

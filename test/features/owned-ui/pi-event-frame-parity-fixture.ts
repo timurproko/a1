@@ -1,6 +1,6 @@
 import { createPiEngineAdapter, type PiRuntimeLike, type PiSessionLike } from "../../../src/foundation/pi-engine-adapter/index.js";
 import type { PiTuiTerminalPort } from "../../../src/foundation/pi-tui-runtime-adapter/index.js";
-import { OwnedUiSessionShell } from "../../../src/features/owned-ui/index.js";
+import { OwnedUiSessionShell } from "../../../src/foundation/pi-owned-ui-integration/index.js";
 
 export interface EventStateParityEntry {
   readonly stage: string;

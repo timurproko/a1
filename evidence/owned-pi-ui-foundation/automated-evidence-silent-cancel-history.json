@@ -36,7 +36,7 @@
   ],
   "implementation": {
     "paths": [
-      "src/features/owned-ui/pi-session-shell.ts",
+      "src/foundation/pi-owned-ui-integration/session-shell.ts",
       "src/foundation/pi-component-adapter/shell-components.ts"
     ],
     "behavior": [

@@ -30,7 +30,7 @@ describe("Pi session shell provenance", () => {
     expect(evidence.orchestrationPorts[0]).toMatchObject({
       copiedFiles: [],
       copiedLines: false,
-      localFile: "src/features/owned-ui/pi-session-shell.ts",
+      localFile: "src/foundation/pi-owned-ui-integration/session-shell.ts",
       upstreamCommit: "914cf1472e715297caa30db4b9535d534a9eb718",
       upstreamLines: [528, 994],
     });

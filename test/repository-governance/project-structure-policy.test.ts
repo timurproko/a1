@@ -10,7 +10,7 @@ import {
 describe("project structure ownership policy", () => {
   it("declares every production and test owner with one public entry", () => {
     expect(Object.keys(PROJECT_OWNERS)).toEqual([
-      "product-identity", "cli", "composition", "launch", "workspace", "owned-ui", "lifecycle", "protocol", "release", "storage", "structured-agent-runtime", "native-host-protocol", "owned-ui-contracts", "agent-engine-contracts", "presentation-contracts", "pi-engine-adapter", "pi-component-adapter", "pi-tui-runtime-adapter", "supervision", "workspace-contracts", "transparent-terminal",
+      "product-identity", "cli", "composition", "launch", "workspace", "owned-ui", "lifecycle", "protocol", "release", "storage", "structured-agent-runtime", "native-host-protocol", "owned-ui-contracts", "agent-engine-contracts", "presentation-contracts", "pi-engine-adapter", "pi-component-adapter", "pi-tui-runtime-adapter", "pi-owned-ui-integration", "supervision", "workspace-contracts", "transparent-terminal",
     ]);
     for (const owner of Object.values(PROJECT_OWNERS)) {
       if (owner.id === "product-identity") {
@@ -66,6 +66,11 @@ describe("project structure ownership policy", () => {
       "concrete adapter",
       "import { createPiEngineAdapter } from '../../foundation/pi-engine-adapter/index.js';",
       "feature may not import concrete Pi adapter '../../foundation/pi-engine-adapter/index.js'",
+    ],
+    [
+      "concrete Pi integration",
+      "import { OwnedUiSessionShell } from '../../foundation/pi-owned-ui-integration/index.js';",
+      "feature may not import concrete Pi adapter '../../foundation/pi-owned-ui-integration/index.js'",
     ],
     [
       "Pi-named contract",

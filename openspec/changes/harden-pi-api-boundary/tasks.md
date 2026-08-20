@@ -19,7 +19,7 @@
 - [x] 3.2 Change owned-UI startup to require injected neutral ports and remove direct creation or imports of concrete Pi adapters from the feature run path; pass startup, shutdown, and injected-fake tests.
 - [x] 3.3 Refactor the session shell/root orchestration to neutral names and contracts while preserving command routing, input targeting, transcript state, focus, extension surfaces, and lifecycle behavior; run the complete owned-shell suite.
 - [x] 3.4 Migrate customization registration and rendering to neutral component/presentation ports with no direct Pi component adapter dependency; run customization registry and prerequisite tests.
-- [ ] 3.5 Add reachability and import assertions proving workspace and feature trees contain no Pi package, concrete adapter, or Pi-named contract dependency; run architecture, typecheck, and repository-governance gates.
+- [x] 3.5 Add reachability and import assertions proving workspace and feature trees contain no Pi package, concrete adapter, or Pi-named contract dependency; run architecture, typecheck, and repository-governance gates.
 
 ## 4. Harden the Pi Engine Integration by Capability
 
