@@ -19,6 +19,21 @@ Owned UI, workspace, launch policy, and other product features SHALL consume A1-
 - **WHEN** production feature or workspace code imports a Pi package, concrete Pi adapter, Pi-specific component factory, or Pi-named runtime contract
 - **THEN** the deterministic architecture gate SHALL fail with the offending path
 
+### Requirement: Repository-global identifiers use semantic roles instead of the product name
+All current and future implementation identifiers across production, tooling, native code, tests, and generated source SHALL be named for their architectural or behavioral responsibility. This is a repository-global naming rule, not a Pi-boundary-only convention. The product name SHALL NOT be used as an ownership namespace or generic prefix/suffix for classes, interfaces, functions, variables, fields, or constants, including forms such as `A1OwnedEditor`, `A1Runtime`, `a1Client`, or `a1Manifest`. Exact externally observable identity tokens centralized by product identity governance—such as package names, command/profile literals, state paths, schema values, and `A1_*` environment-variable names—MAY retain the product name, but local bindings that read or write those tokens SHALL remain role-named. A deterministic repository gate SHALL enforce this rule for every subsequent change.
+
+#### Scenario: Product-prefixed implementation identifier is introduced
+- **WHEN** source, tooling, native, or test code introduces an internal identifier whose ownership is expressed by an `A1` or `a1` product-name prefix or suffix
+- **THEN** deterministic naming governance SHALL fail with the identifier and source path and SHALL require a responsibility-based name
+
+#### Scenario: External product identity token is required
+- **WHEN** code must read, write, validate, or test an exact externally observable A1 environment key, command, package name, profile id, state path, or schema value
+- **THEN** the exact token MAY remain in a string or centralized identity authority while surrounding implementation identifiers SHALL use semantic role names
+
+#### Scenario: Existing product-prefixed identifiers are assessed
+- **WHEN** this boundary change is certified
+- **THEN** production, tooling, native, and test identifiers SHALL be scanned and internal product-prefixed names SHALL be renamed without changing externally observable identity contracts
+
 ### Requirement: Production Pi integration uses documented public APIs only
 Production integration SHALL use documented package-root exports and public entry points. It SHALL NOT deep-import Pi source or distribution modules, inspect dependency package files, derive runtime behavior from dependency directory layout, patch installed code, mutate prototypes, inspect private state, or authorize behavior from distribution hashes.
 

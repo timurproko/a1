@@ -14,6 +14,7 @@ The accepted owned presentation also contains public Pi component reuse plus att
 - Keep the accepted A1 presentation stable while the Pi engine can be evaluated independently.
 - Preserve exact package pinning, explicit vanilla mode, extension behavior, and current owned-UI outcomes.
 - Make architecture and upgrade guarantees executable in repository gates.
+- Enforce repository-global responsibility-based implementation names so the product name is never used as an internal ownership namespace.
 
 **Non-Goals:**
 
@@ -106,7 +107,15 @@ Focused tests remain, but a candidate cannot pass from export presence and three
 
 Candidate evaluation will run against one exact dependency set in an isolated worktree or temporary install before the accepted pin changes. Supporting current and candidate packages concurrently in production is not required.
 
-### 10. Gate workspace task 5.5 explicitly
+### 10. Use semantic implementation identifiers globally
+
+Classes, interfaces, functions, variables, fields, and constants will be named for their responsibility rather than prefixed or suffixed with the product name. This applies across production, tooling, native code, tests, and generated source, and is enforced by a deterministic repository gate. Exact external identity tokens remain centralized and unchanged where they are part of observable compatibility, including `A1_*` environment keys, package and command names, profile ids, state paths, and schema values; local bindings around those tokens remain semantic.
+
+Existing occurrences will first be inventoried and classified so external contracts are not accidentally renamed. A separate cleanup task will then rename internal identifiers and add positive and negative governance fixtures. Product-name prose, user-visible identity, and exact external string constants are not implementation identifier violations.
+
+**Alternative rejected:** use names such as `A1OwnedEditor` to distinguish product-owned code from upstream code. Ownership belongs in module boundaries, attribution, and architecture metadata; encoding it in every symbol creates noisy names and invites the same prefix across unrelated responsibilities.
+
+### 11. Gate workspace task 5.5 explicitly
 
 The active workspace planning artifacts will record this change as a prerequisite immediately before task 5.5. Task 5.5 will consume only the new neutral ports and will include an architecture assertion that no Pi package, concrete adapter, or Pi-named contract has entered workspace feature code.
 
@@ -122,6 +131,7 @@ This hardening change does not implement tabs. Its final acceptance evidence is 
 - **[Pi public component APIs remain volatile]** → Keep them behind component adapters and prefer A1-owned presenters when a component requires stock-root state.
 - **[Migration conflicts with active workspace work]** → Stop before task 5.5, land hardening coherently, then rebase workspace integration onto accepted contracts.
 - **[Exact parity evidence still contains source-layout assumptions]** → Classify it as test-only presentation synchronization evidence and ensure runtime/package gates do not require it for an engine-only update.
+- **[Naming cleanup accidentally changes external identity contracts]** → Inventory and classify exact external tokens before cleanup; enforce only identifier syntax while preserving centralized product strings and serialized compatibility values.
 
 ## Migration Plan
 

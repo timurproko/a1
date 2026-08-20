@@ -1,0 +1,696 @@
+{
+  "schema": "product-semantic-identifier-inventory-v1",
+  "roots": [
+    "src",
+    "scripts",
+    "test",
+    "native",
+    "bin"
+  ],
+  "internalIdentifiers": [
+    {
+      "path": "native/terminal-host/src/main.rs",
+      "line": 32,
+      "identifier": "A1_PROTOCOL_VERSION"
+    },
+    {
+      "path": "scripts/run-pi-terminal-parity.mjs",
+      "line": 24,
+      "identifier": "a1CliPath"
+    },
+    {
+      "path": "scripts/run-pi-terminal-parity.mjs",
+      "line": 81,
+      "identifier": "a1CliPath"
+    },
+    {
+      "path": "scripts/run-pi-terminal-parity.mjs",
+      "line": 99,
+      "identifier": "a1Capture"
+    },
+    {
+      "path": "scripts/run-pi-terminal-parity.mjs",
+      "line": 102,
+      "identifier": "a1Capture"
+    },
+    {
+      "path": "scripts/run-pi-terminal-parity.mjs",
+      "line": 117,
+      "identifier": "a1Capture"
+    },
+    {
+      "path": "scripts/run-pi-terminal-parity.mjs",
+      "line": 159,
+      "identifier": "a1Manifest"
+    },
+    {
+      "path": "scripts/run-pi-terminal-parity.mjs",
+      "line": 171,
+      "identifier": "a1Manifest"
+    },
+    {
+      "path": "scripts/run-pi-terminal-parity.mjs",
+      "line": 172,
+      "identifier": "a1Manifest"
+    },
+    {
+      "path": "scripts/run-pi-terminal-parity.mjs",
+      "line": 174,
+      "identifier": "a1CliPath"
+    },
+    {
+      "path": "src/features/launch/profile-paths.ts",
+      "line": 8,
+      "identifier": "a1Root"
+    },
+    {
+      "path": "src/features/launch/profile-paths.ts",
+      "line": 9,
+      "identifier": "a1Agent"
+    },
+    {
+      "path": "src/features/launch/profile-paths.ts",
+      "line": 25,
+      "identifier": "a1Agent"
+    },
+    {
+      "path": "src/features/launch/profile-paths.ts",
+      "line": 26,
+      "identifier": "a1Agent"
+    },
+    {
+      "path": "src/features/launch/profile-paths.ts",
+      "line": 26,
+      "identifier": "a1Root"
+    },
+    {
+      "path": "src/features/launch/profile-paths.ts",
+      "line": 29,
+      "identifier": "a1Root"
+    },
+    {
+      "path": "src/features/launch/profile-paths.ts",
+      "line": 30,
+      "identifier": "a1Agent"
+    },
+    {
+      "path": "src/features/launch/profile-paths.ts",
+      "line": 39,
+      "identifier": "a1Agent"
+    },
+    {
+      "path": "src/foundation/native-host-protocol/evidence.ts",
+      "line": 57,
+      "identifier": "a1Commit"
+    },
+    {
+      "path": "src/foundation/native-host-protocol/evidence.ts",
+      "line": 107,
+      "identifier": "a1Commit"
+    },
+    {
+      "path": "src/foundation/pi-component-adapter/shell-editor-autocomplete.ts",
+      "line": 11,
+      "identifier": "A1OwnedEditor"
+    },
+    {
+      "path": "src/foundation/pi-component-adapter/shell-editor-autocomplete.ts",
+      "line": 55,
+      "identifier": "A1OwnedEditor"
+    },
+    {
+      "path": "src/foundation/pi-component-adapter/upstream/components/owned-editor.ts",
+      "line": 9,
+      "identifier": "A1OwnedEditor"
+    },
+    {
+      "path": "src/foundation/pi-engine-adapter/settings-integration.ts",
+      "line": 6,
+      "identifier": "A1_EXPOSED_SETTING_KEYS"
+    },
+    {
+      "path": "src/foundation/pi-engine-adapter/settings-integration.ts",
+      "line": 19,
+      "identifier": "A1_EXPOSED_SETTING_KEYS"
+    },
+    {
+      "path": "test/features/launch/profile-isolation.integration.test.ts",
+      "line": 29,
+      "identifier": "a1Agent"
+    },
+    {
+      "path": "test/features/launch/profile-paths.test.ts",
+      "line": 9,
+      "identifier": "a1Root"
+    },
+    {
+      "path": "test/features/launch/profile-paths.test.ts",
+      "line": 10,
+      "identifier": "a1Agent"
+    },
+    {
+      "path": "test/features/launch/profile-paths.test.ts",
+      "line": 20,
+      "identifier": "a1Agent"
+    },
+    {
+      "path": "test/features/owned-ui/pi-startup-composition-parity.test.ts",
+      "line": 25,
+      "identifier": "a1Source"
+    },
+    {
+      "path": "test/features/owned-ui/pi-startup-composition-parity.test.ts",
+      "line": 29,
+      "identifier": "a1Source"
+    },
+    {
+      "path": "test/features/owned-ui/pi-startup-composition-parity.test.ts",
+      "line": 30,
+      "identifier": "a1Source"
+    },
+    {
+      "path": "test/foundation/native-host-protocol/evidence.test.ts",
+      "line": 19,
+      "identifier": "a1Commit"
+    },
+    {
+      "path": "test/foundation/native-host-protocol/proof-gate.test.ts",
+      "line": 19,
+      "identifier": "a1Commit"
+    },
+    {
+      "path": "test/foundation/pi-engine-adapter/settings-integration.test.ts",
+      "line": 4,
+      "identifier": "A1_EXPOSED_SETTING_KEYS"
+    },
+    {
+      "path": "test/foundation/pi-engine-adapter/settings-integration.test.ts",
+      "line": 18,
+      "identifier": "A1_EXPOSED_SETTING_KEYS"
+    },
+    {
+      "path": "test/foundation/pi-engine-adapter/settings-integration.test.ts",
+      "line": 20,
+      "identifier": "A1_EXPOSED_SETTING_KEYS"
+    },
+    {
+      "path": "test/repository-governance/pi-parity-evidence.test.ts",
+      "line": 17,
+      "identifier": "a1ParityBaselineCommit"
+    },
+    {
+      "path": "test/repository-governance/pi-parity-evidence.test.ts",
+      "line": 33,
+      "identifier": "a1ParityBaselineCommit"
+    }
+  ],
+  "externalIdentityIdentifiers": [
+    {
+      "path": "bin/a1-ui.js",
+      "line": 5,
+      "identifier": "A1_LAUNCH_PROFILE"
+    },
+    {
+      "path": "scripts/pi-terminal-parity/scenario.mjs",
+      "line": 239,
+      "identifier": "A1_PROFILE_HOME"
+    },
+    {
+      "path": "scripts/run-pi-terminal-parity.mjs",
+      "line": 85,
+      "identifier": "A1_LAUNCH_PROFILE"
+    },
+    {
+      "path": "scripts/run-pi-terminal-parity.mjs",
+      "line": 86,
+      "identifier": "A1_LAUNCH_ARGUMENTS_JSON"
+    },
+    {
+      "path": "scripts/run-pi-terminal-parity.mjs",
+      "line": 98,
+      "identifier": "A1_PI_PARITY_INTENTIONAL_MUTATION"
+    },
+    {
+      "path": "scripts/start-local.mjs",
+      "line": 22,
+      "identifier": "A1_CONFIG_DIR"
+    },
+    {
+      "path": "scripts/start-local.mjs",
+      "line": 23,
+      "identifier": "A1_DATA_DIR"
+    },
+    {
+      "path": "scripts/start-local.mjs",
+      "line": 24,
+      "identifier": "A1_RUNTIME_DIR"
+    },
+    {
+      "path": "scripts/start-local.mjs",
+      "line": 25,
+      "identifier": "A1_DATABASE_PATH"
+    },
+    {
+      "path": "scripts/start-local.mjs",
+      "line": 30,
+      "identifier": "A1_LAUNCH_PROFILE"
+    },
+    {
+      "path": "src/features/launch/prepare-launch.ts",
+      "line": 30,
+      "identifier": "A1_LAUNCH_ARGUMENTS_JSON"
+    },
+    {
+      "path": "src/foundation/transparent-terminal/main.ts",
+      "line": 20,
+      "identifier": "A1_LAUNCH_PROFILE"
+    },
+    {
+      "path": "src/foundation/transparent-terminal/main.ts",
+      "line": 23,
+      "identifier": "A1_RELEASE_ID"
+    },
+    {
+      "path": "src/foundation/transparent-terminal/main.ts",
+      "line": 50,
+      "identifier": "A1_TERMINAL_EXECUTABLE"
+    },
+    {
+      "path": "src/foundation/transparent-terminal/main.ts",
+      "line": 52,
+      "identifier": "A1_LAUNCH_ARGUMENTS_JSON"
+    },
+    {
+      "path": "src/foundation/transparent-terminal/main.ts",
+      "line": 53,
+      "identifier": "A1_TERMINAL_ARGUMENTS_JSON"
+    },
+    {
+      "path": "test/cli/update-cli.test.ts",
+      "line": 97,
+      "identifier": "A1_RUNTIME_DIR"
+    },
+    {
+      "path": "test/cli/update-cli.test.ts",
+      "line": 114,
+      "identifier": "A1_RUNTIME_DIR"
+    },
+    {
+      "path": "test/features/launch/development-launch.test.ts",
+      "line": 24,
+      "identifier": "A1_RUNTIME_DIR"
+    },
+    {
+      "path": "test/features/launch/development-launch.test.ts",
+      "line": 25,
+      "identifier": "A1_DATABASE_PATH"
+    },
+    {
+      "path": "test/features/launch/development-launch.test.ts",
+      "line": 30,
+      "identifier": "A1_DEV_INSTANCE_ID"
+    },
+    {
+      "path": "test/features/launch/development-launch.test.ts",
+      "line": 55,
+      "identifier": "A1_CONFIG_DIR"
+    },
+    {
+      "path": "test/features/launch/development-launch.test.ts",
+      "line": 56,
+      "identifier": "A1_DATA_DIR"
+    },
+    {
+      "path": "test/features/launch/development-launch.test.ts",
+      "line": 57,
+      "identifier": "A1_RUNTIME_DIR"
+    },
+    {
+      "path": "test/features/launch/development-launch.test.ts",
+      "line": 64,
+      "identifier": "A1_DEV_ROOT"
+    },
+    {
+      "path": "test/features/launch/development-launch.test.ts",
+      "line": 65,
+      "identifier": "A1_CONFIG_DIR"
+    },
+    {
+      "path": "test/features/launch/development-launch.test.ts",
+      "line": 66,
+      "identifier": "A1_DATA_DIR"
+    },
+    {
+      "path": "test/features/launch/development-launch.test.ts",
+      "line": 67,
+      "identifier": "A1_RUNTIME_DIR"
+    },
+    {
+      "path": "test/features/launch/development-launch.test.ts",
+      "line": 68,
+      "identifier": "A1_DATABASE_PATH"
+    },
+    {
+      "path": "test/features/launch/development-launch.test.ts",
+      "line": 72,
+      "identifier": "A1_CONFIG_DIR"
+    },
+    {
+      "path": "test/features/launch/development-launch.test.ts",
+      "line": 73,
+      "identifier": "A1_DATA_DIR"
+    },
+    {
+      "path": "test/features/launch/development-launch.test.ts",
+      "line": 74,
+      "identifier": "A1_RUNTIME_DIR"
+    },
+    {
+      "path": "test/features/launch/development-launch.test.ts",
+      "line": 75,
+      "identifier": "A1_DATABASE_PATH"
+    },
+    {
+      "path": "test/features/launch/prepare-launch.test.ts",
+      "line": 20,
+      "identifier": "A1_LAUNCH_ARGUMENTS_JSON"
+    },
+    {
+      "path": "test/features/launch/prepare-launch.test.ts",
+      "line": 49,
+      "identifier": "A1_LAUNCH_ARGUMENTS_JSON"
+    },
+    {
+      "path": "test/features/launch/profile-paths.test.ts",
+      "line": 42,
+      "identifier": "A1_PROFILE_HOME"
+    },
+    {
+      "path": "test/features/launch/profile-paths.test.ts",
+      "line": 43,
+      "identifier": "A1_CONFIG_DIR"
+    },
+    {
+      "path": "test/features/launch/profile-paths.test.ts",
+      "line": 44,
+      "identifier": "A1_DATA_DIR"
+    },
+    {
+      "path": "test/features/launch/profile-paths.test.ts",
+      "line": 45,
+      "identifier": "A1_RUNTIME_DIR"
+    },
+    {
+      "path": "test/foundation/lifecycle/paths.test.ts",
+      "line": 40,
+      "identifier": "A1_CONFIG_DIR"
+    },
+    {
+      "path": "test/foundation/lifecycle/paths.test.ts",
+      "line": 41,
+      "identifier": "A1_DATA_DIR"
+    },
+    {
+      "path": "test/foundation/lifecycle/paths.test.ts",
+      "line": 42,
+      "identifier": "A1_RUNTIME_DIR"
+    },
+    {
+      "path": "test/foundation/lifecycle/paths.test.ts",
+      "line": 43,
+      "identifier": "A1_DATABASE_PATH"
+    },
+    {
+      "path": "test/foundation/lifecycle/paths.test.ts",
+      "line": 46,
+      "identifier": "A1_CONFIG_DIR"
+    },
+    {
+      "path": "test/foundation/lifecycle/paths.test.ts",
+      "line": 47,
+      "identifier": "A1_DATA_DIR"
+    },
+    {
+      "path": "test/foundation/lifecycle/paths.test.ts",
+      "line": 48,
+      "identifier": "A1_RUNTIME_DIR"
+    },
+    {
+      "path": "test/foundation/lifecycle/paths.test.ts",
+      "line": 76,
+      "identifier": "A1_RUNTIME_DIR"
+    },
+    {
+      "path": "test/foundation/lifecycle/paths.test.ts",
+      "line": 77,
+      "identifier": "A1_RUNTIME_DIR"
+    },
+    {
+      "path": "test/foundation/native-host-protocol/protocol.test.ts",
+      "line": 33,
+      "identifier": "A1_TERMINAL_SESSION_ID"
+    },
+    {
+      "path": "test/foundation/release/update-transition.integration.test.ts",
+      "line": 109,
+      "identifier": "A1_DATA_DIR"
+    },
+    {
+      "path": "test/foundation/release/update-transition.integration.test.ts",
+      "line": 109,
+      "identifier": "A1_RUNTIME_DIR"
+    },
+    {
+      "path": "test/foundation/storage/storage.test.ts",
+      "line": 225,
+      "identifier": "A1_PANE_ID"
+    },
+    {
+      "path": "test/foundation/transparent-terminal/transparent-native-launcher.test.ts",
+      "line": 15,
+      "identifier": "A1_FIXTURE_TOKEN"
+    },
+    {
+      "path": "test/foundation/transparent-terminal/transparent-native-launcher.test.ts",
+      "line": 26,
+      "identifier": "A1_FIXTURE_TOKEN"
+    },
+    {
+      "path": "test/foundation/workspace-contracts/contracts.test.ts",
+      "line": 61,
+      "identifier": "A1_PANE_ID"
+    },
+    {
+      "path": "test/repository-governance/pinned-pi-source-ledger.test.ts",
+      "line": 32,
+      "identifier": "A1_PI_SOURCE_LEDGER_PATH"
+    },
+    {
+      "path": "test/repository-governance/pinned-pi-source-ledger.test.ts",
+      "line": 101,
+      "identifier": "A1_PI_SOURCE_SCAN_ROOT"
+    },
+    {
+      "path": "test/repository-governance/pinned-pi-source-ledger.test.ts",
+      "line": 111,
+      "identifier": "A1_PI_PORT_ROOT"
+    }
+  ],
+  "baselineInternalIdentifiers": [
+    {
+      "path": "native/terminal-host/src/main.rs",
+      "line": 32,
+      "identifier": "A1_PROTOCOL_VERSION"
+    },
+    {
+      "path": "scripts/run-pi-terminal-parity.mjs",
+      "line": 24,
+      "identifier": "a1CliPath"
+    },
+    {
+      "path": "scripts/run-pi-terminal-parity.mjs",
+      "line": 81,
+      "identifier": "a1CliPath"
+    },
+    {
+      "path": "scripts/run-pi-terminal-parity.mjs",
+      "line": 99,
+      "identifier": "a1Capture"
+    },
+    {
+      "path": "scripts/run-pi-terminal-parity.mjs",
+      "line": 102,
+      "identifier": "a1Capture"
+    },
+    {
+      "path": "scripts/run-pi-terminal-parity.mjs",
+      "line": 117,
+      "identifier": "a1Capture"
+    },
+    {
+      "path": "scripts/run-pi-terminal-parity.mjs",
+      "line": 159,
+      "identifier": "a1Manifest"
+    },
+    {
+      "path": "scripts/run-pi-terminal-parity.mjs",
+      "line": 171,
+      "identifier": "a1Manifest"
+    },
+    {
+      "path": "scripts/run-pi-terminal-parity.mjs",
+      "line": 172,
+      "identifier": "a1Manifest"
+    },
+    {
+      "path": "scripts/run-pi-terminal-parity.mjs",
+      "line": 174,
+      "identifier": "a1CliPath"
+    },
+    {
+      "path": "src/features/launch/profile-paths.ts",
+      "line": 8,
+      "identifier": "a1Root"
+    },
+    {
+      "path": "src/features/launch/profile-paths.ts",
+      "line": 9,
+      "identifier": "a1Agent"
+    },
+    {
+      "path": "src/features/launch/profile-paths.ts",
+      "line": 25,
+      "identifier": "a1Agent"
+    },
+    {
+      "path": "src/features/launch/profile-paths.ts",
+      "line": 26,
+      "identifier": "a1Agent"
+    },
+    {
+      "path": "src/features/launch/profile-paths.ts",
+      "line": 26,
+      "identifier": "a1Root"
+    },
+    {
+      "path": "src/features/launch/profile-paths.ts",
+      "line": 29,
+      "identifier": "a1Root"
+    },
+    {
+      "path": "src/features/launch/profile-paths.ts",
+      "line": 30,
+      "identifier": "a1Agent"
+    },
+    {
+      "path": "src/features/launch/profile-paths.ts",
+      "line": 39,
+      "identifier": "a1Agent"
+    },
+    {
+      "path": "src/foundation/native-host-protocol/evidence.ts",
+      "line": 57,
+      "identifier": "a1Commit"
+    },
+    {
+      "path": "src/foundation/native-host-protocol/evidence.ts",
+      "line": 107,
+      "identifier": "a1Commit"
+    },
+    {
+      "path": "src/foundation/pi-component-adapter/shell-editor-autocomplete.ts",
+      "line": 11,
+      "identifier": "A1OwnedEditor"
+    },
+    {
+      "path": "src/foundation/pi-component-adapter/shell-editor-autocomplete.ts",
+      "line": 55,
+      "identifier": "A1OwnedEditor"
+    },
+    {
+      "path": "src/foundation/pi-component-adapter/upstream/components/owned-editor.ts",
+      "line": 9,
+      "identifier": "A1OwnedEditor"
+    },
+    {
+      "path": "src/foundation/pi-engine-adapter/settings-integration.ts",
+      "line": 6,
+      "identifier": "A1_EXPOSED_SETTING_KEYS"
+    },
+    {
+      "path": "src/foundation/pi-engine-adapter/settings-integration.ts",
+      "line": 19,
+      "identifier": "A1_EXPOSED_SETTING_KEYS"
+    },
+    {
+      "path": "test/features/launch/profile-isolation.integration.test.ts",
+      "line": 29,
+      "identifier": "a1Agent"
+    },
+    {
+      "path": "test/features/launch/profile-paths.test.ts",
+      "line": 9,
+      "identifier": "a1Root"
+    },
+    {
+      "path": "test/features/launch/profile-paths.test.ts",
+      "line": 10,
+      "identifier": "a1Agent"
+    },
+    {
+      "path": "test/features/launch/profile-paths.test.ts",
+      "line": 20,
+      "identifier": "a1Agent"
+    },
+    {
+      "path": "test/features/owned-ui/pi-startup-composition-parity.test.ts",
+      "line": 25,
+      "identifier": "a1Source"
+    },
+    {
+      "path": "test/features/owned-ui/pi-startup-composition-parity.test.ts",
+      "line": 29,
+      "identifier": "a1Source"
+    },
+    {
+      "path": "test/features/owned-ui/pi-startup-composition-parity.test.ts",
+      "line": 30,
+      "identifier": "a1Source"
+    },
+    {
+      "path": "test/foundation/native-host-protocol/evidence.test.ts",
+      "line": 19,
+      "identifier": "a1Commit"
+    },
+    {
+      "path": "test/foundation/native-host-protocol/proof-gate.test.ts",
+      "line": 19,
+      "identifier": "a1Commit"
+    },
+    {
+      "path": "test/foundation/pi-engine-adapter/settings-integration.test.ts",
+      "line": 4,
+      "identifier": "A1_EXPOSED_SETTING_KEYS"
+    },
+    {
+      "path": "test/foundation/pi-engine-adapter/settings-integration.test.ts",
+      "line": 18,
+      "identifier": "A1_EXPOSED_SETTING_KEYS"
+    },
+    {
+      "path": "test/foundation/pi-engine-adapter/settings-integration.test.ts",
+      "line": 20,
+      "identifier": "A1_EXPOSED_SETTING_KEYS"
+    },
+    {
+      "path": "test/repository-governance/pi-parity-evidence.test.ts",
+      "line": 17,
+      "identifier": "a1ParityBaselineCommit"
+    },
+    {
+      "path": "test/repository-governance/pi-parity-evidence.test.ts",
+      "line": 33,
+      "identifier": "a1ParityBaselineCommit"
+    }
+  ]
+}
