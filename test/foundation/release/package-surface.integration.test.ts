@@ -36,6 +36,7 @@ describe("packed npm command surface", () => {
     expect(pack.integrity).toMatch(/^sha512-/);
     expect(pack.shasum).toMatch(/^[a-f0-9]{40}$/);
     const paths = pack.files.map(file => file.path);
+    expect(paths.some(path => /addone/i.test(path))).toBe(false);
     expect(paths).toEqual(expect.arrayContaining([
       "package.json",
       "bin/a1.js",

@@ -41,21 +41,21 @@
     "explicit-obsolete-package-fixtures"
   ],
   "summary": {
-    "total": 980,
+    "total": 981,
     "files": 154,
     "byLocationKind": {
-      "content": 957,
+      "content": 958,
       "path": 23
     },
     "byClass": {
-      "runtime-symbols": 189,
+      "runtime-symbols": 190,
       "diagnostics": 103,
       "environment-keys": 20,
-      "paths": 314,
+      "paths": 315,
       "schemas": 112,
       "artifacts": 94,
       "native-names": 81,
-      "tests": 90,
+      "tests": 91,
       "current-docs-specs": 754,
       "historical-records": 167,
       "explicit-obsolete-package-fixtures": 8
@@ -6401,7 +6401,7 @@
       "line": 33,
       "column": 36,
       "value": "addone",
-      "context": "- [ ] 6.1 Rename all internal `bin/addone-*` entries to `bin/a1-*`, update bootstrap resolution and package-content assertions, and prove the tarball contains no current legacy-named entry.",
+      "context": "- [x] 6.1 Rename all internal `bin/addone-*` entries to `bin/a1-*`, update bootstrap resolution and package-content assertions, and prove the tarball contains no current legacy-named entry.",
       "matchedCase": "lower",
       "primaryClass": "paths",
       "classes": [
@@ -13681,10 +13681,26 @@
       ]
     },
     {
-      "id": "test/foundation/release/package-surface.integration.test.ts:75:70",
+      "id": "test/foundation/release/package-surface.integration.test.ts:39:32",
       "path": "test/foundation/release/package-surface.integration.test.ts",
       "locationKind": "content",
-      "line": 75,
+      "line": 39,
+      "column": 32,
+      "value": "addone",
+      "context": "expect(paths.some(path => /addone/i.test(path))).toBe(false);",
+      "matchedCase": "lower",
+      "primaryClass": "runtime-symbols",
+      "classes": [
+        "runtime-symbols",
+        "paths",
+        "tests"
+      ]
+    },
+    {
+      "id": "test/foundation/release/package-surface.integration.test.ts:76:70",
+      "path": "test/foundation/release/package-surface.integration.test.ts",
+      "locationKind": "content",
+      "line": 76,
       "column": 70,
       "value": "addone",
       "context": "await expect(access(resolve(bin, process.platform === \"win32\" ? \"addone.cmd\" : \"addone\"))).rejects.toThrow();",
@@ -13697,10 +13713,10 @@
       ]
     },
     {
-      "id": "test/foundation/release/package-surface.integration.test.ts:75:85",
+      "id": "test/foundation/release/package-surface.integration.test.ts:76:85",
       "path": "test/foundation/release/package-surface.integration.test.ts",
       "locationKind": "content",
-      "line": 75,
+      "line": 76,
       "column": 85,
       "value": "addone",
       "context": "await expect(access(resolve(bin, process.platform === \"win32\" ? \"addone.cmd\" : \"addone\"))).rejects.toThrow();",
@@ -13713,10 +13729,10 @@
       ]
     },
     {
-      "id": "test/foundation/release/package-surface.integration.test.ts:76:70",
+      "id": "test/foundation/release/package-surface.integration.test.ts:77:70",
       "path": "test/foundation/release/package-surface.integration.test.ts",
       "locationKind": "content",
-      "line": 76,
+      "line": 77,
       "column": 70,
       "value": "addone",
       "context": "await expect(access(resolve(bin, process.platform === \"win32\" ? \"addone-supervisor.cmd\" : \"addone-supervisor\"))).rejects.toThrow();",
@@ -13729,10 +13745,10 @@
       ]
     },
     {
-      "id": "test/foundation/release/package-surface.integration.test.ts:76:96",
+      "id": "test/foundation/release/package-surface.integration.test.ts:77:96",
       "path": "test/foundation/release/package-surface.integration.test.ts",
       "locationKind": "content",
-      "line": 76,
+      "line": 77,
       "column": 96,
       "value": "addone",
       "context": "await expect(access(resolve(bin, process.platform === \"win32\" ? \"addone-supervisor.cmd\" : \"addone-supervisor\"))).rejects.toThrow();",
@@ -14735,5 +14751,5 @@
       ]
     }
   ],
-  "generatedAt": "2026-08-20T09:11:45.693Z"
+  "generatedAt": "2026-08-20T09:13:20.274Z"
 }
