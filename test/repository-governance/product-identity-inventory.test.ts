@@ -21,7 +21,7 @@ describe("legacy product identity inventory", () => {
     expect(actual).toEqual(expected);
     expect(actual.summary.total).toBe(actual.occurrences.length);
     expect(actual.summary.byLocationKind.content).toBeGreaterThan(0);
-    expect(actual.summary.byLocationKind.path).toBeGreaterThan(0);
+    expect(actual.summary.byLocationKind.path).toBe(0);
     for (const category of LEGACY_IDENTITY_CLASSES) expect(actual.summary.byClass[category]).toBeGreaterThan(0);
     expect(actual.occurrences.every(occurrence => !occurrence.path.startsWith("openspec/changes/archive/"))).toBe(true);
     expect(actual.occurrences.every(occurrence => !/(^|\/)(node_modules|dist|target|vendor)(\/|$)/.test(occurrence.path))).toBe(true);

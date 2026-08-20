@@ -17,8 +17,8 @@
 
 ## 4. Hard-cut environment and platform paths
 
-- [x] 4.1 Replace every runtime, script, workflow, and test `ADDONE_*` key with the declared `A1_*` key and add tests proving legacy-only variables are ignored.
-- [x] 4.2 Rename lifecycle/path APIs and change Windows `AddOne` defaults plus Unix `addone` defaults to `A1`/`a1`; pass platform path, override, isolation, and no-legacy-fallback tests while preserving `.a1` Pi profiles.
+- [x] 4.1 Replace every runtime, script, workflow, and test key using the former environment prefix with the declared `A1_*` key and add tests proving legacy-only variables are ignored.
+- [x] 4.2 Rename lifecycle/path APIs and change former Windows and Unix defaults to `A1`/`a1`; pass platform path, override, isolation, and no-legacy-fallback tests while preserving `.a1` Pi profiles.
 - [x] 4.3 Update endpoint, pipe/socket, database, diagnostic, temporary-directory, and development-state naming to derive from the authority; pass cross-platform normalization and concurrent-invocation tests.
 
 ## 5. Rename release, supervision, protocol, and storage identity
@@ -30,13 +30,13 @@
 
 ## 6. Rename package, scripts, workflows, and internal artifacts
 
-- [x] 6.1 Rename all internal `bin/addone-*` entries to `bin/a1-*`, update bootstrap resolution and package-content assertions, and prove the tarball contains no current legacy-named entry.
+- [x] 6.1 Rename all internal legacy-branded bin entries to `bin/a1-*`, update bootstrap resolution and package-content assertions, and prove the tarball contains no current legacy-named entry.
 - [x] 6.2 Rename release scripts, local command text, verdict/evidence schemas, artifact paths, and workflow variables to consume or validate against product identity; exercise preview/stable workflow logic against controlled metadata without publication.
 - [x] 6.3 Rename test fixture prefixes, helper symbols, descriptions, and non-historical schema strings so tests model current A1 identity; retain legacy text only in exact rejection/deprecation fixtures.
 
 ## 7. Rename native and composed-terminal identity
 
-- [x] 7.1 Rename the Rust crate, executable, source-level schemas, temporary paths, hot-path identifiers, build outputs, and Node launcher references from `addone` to `a1`; run Cargo formatting, tests, and terminal-host probes that do not drive the active workstation.
+- [x] 7.1 Rename the Rust crate, executable, source-level schemas, temporary paths, hot-path identifiers, build outputs, and Node launcher references to `a1`; run Cargo formatting, tests, and terminal-host probes that do not drive the active workstation.
 - [x] 7.2 Regenerate current native provenance and proof metadata for renamed artifacts while preserving immutable historical evidence; pass native boundary, provenance, and proof-gate tests.
 
 ## 8. Reconcile current documentation and OpenSpec planning
@@ -49,7 +49,7 @@
 
 - [x] 9.1 Replace the existing package-name scanner with a complete identity-governance gate driven by the inventory and exact allowlist; scan production, scripts, workflows, native sources, tests, current docs, main specs, and non-archived changes.
 - [x] 9.2 Add mutation tests for each legacy class—display name, lowercase identifier, environment prefix, package, paths, schema/protocol, bin/native artifact, and direct duplicate current literals—and prove historical/rejection exceptions cannot broaden silently.
-- [ ] 9.3 Run a final case-insensitive repository scan and resolve every non-archived/non-evidence `AddOne`, `addone`, and `ADDONE` occurrence except exact obsolete-package rejection/deprecation fixtures approved by the gate.
+- [x] 9.3 Run a final case-insensitive repository scan and resolve every non-archived/non-evidence former-identity occurrence except exact obsolete-package rejection/deprecation fixtures approved by the gate.
 
 ## 10. Validate and release the hard rename
 

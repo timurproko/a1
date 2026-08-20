@@ -19,6 +19,22 @@ describe("inventory-driven product identity governance", () => {
     expect(result.stdout).toContain("Product identity governance OK");
   });
 
+  it("has no temporary migration approvals after closure", async () => {
+    const allowlist = JSON.parse(await readFile(resolve(repository, "config/product-identity-legacy-allowlist.json"), "utf8")) as {
+      occurrences: Array<{ reason: string }>;
+    };
+    const reasons = new Set(allowlist.occurrences.map(occurrence => occurrence.reason));
+
+    expect(reasons).not.toContain("migration baseline pending final closure");
+    expect(reasons).toEqual(new Set([
+      "documented hard-cut or deprecation assertion",
+      "explicit obsolete-package rejection or deprecation fixture",
+      "exact historical evidence record",
+      "obsolete-package rejection requirement",
+      "explicit legacy rejection fixture",
+    ]));
+  });
+
   it.each([
     ["display name", "src/display.ts", `export const display = '${["Add", "One"].join("")}';`],
     ["lowercase identifier", "src/slug.ts", `export const slug = '${["add", "one"].join("")}';`],

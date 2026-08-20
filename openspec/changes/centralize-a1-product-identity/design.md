@@ -31,13 +31,13 @@ The authority is configuration, not a user preference: production callers cannot
 
 ### 2. Separate identity values from product-neutral implementation names
 
-Names whose only purpose is branding will become `A1*`/`a1-*` or consume the authority. Names that can be accurately product-neutral will be renamed by responsibility instead—for example `CliCommand`, `ReleaseIdentity`, or `resolveProductPaths`—to reduce future rename surface. No live identifier will retain `AddOne`, `addone`, or `ADDONE` merely because it is internal.
+Names whose only purpose is branding will become `A1*`/`a1-*` or consume the authority. Names that can be accurately product-neutral will be renamed by responsibility instead—for example `CliCommand`, `ReleaseIdentity`, or `resolveProductPaths`—to reduce future rename surface. No live identifier will retain the former product brand merely because it is internal.
 
 This includes internal bin entries, release manifest names, schemas, test prefixes, temporary directory names, native crate/executable names, logs, diagnostics, comments that describe the current product, and exported APIs. Public npm bin metadata remains exactly `{ "a1": "bin/a1.js" }`; supervisor and UI entries remain internal files named with `a1`.
 
 ### 3. Hard-cut environment, storage, and machine protocols
 
-Every environment key moves from `ADDONE_*` to an explicit `A1_*` key declared by the authority. Windows defaults move from `AddOne` to `A1`; Unix defaults move from `addone` to `a1`. Pipe/socket stems, release manifests, evidence schemas, protocol identifiers, and native artifact names move to `a1`.
+Every environment key moves from the former prefix to an explicit `A1_*` key declared by the authority. Windows and Unix defaults move from the former control-directory names to `A1` and `a1`, respectively. Pipe/socket stems, release manifests, evidence schemas, protocol identifiers, and native artifact names move to `a1`.
 
 There is no fallback lookup, alias, import, or automatic cleanup for legacy values. This matches the approved no-compatibility decision and avoids coupling the new authority to the identity it replaces. `.a1/agent` and `.a1/sandbox` remain unchanged because they already match A1.
 
