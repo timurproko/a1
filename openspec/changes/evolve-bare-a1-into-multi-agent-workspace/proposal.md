@@ -1,21 +1,21 @@
 ## Why
 
-Bare `a1` is reserved as the AddOne agent product surface, but the accepted baseline exposes only one foreground Pi process. AddOne now needs a deliberate multi-agent workspace that can manage structured agents safely while treating arbitrary interactive CLI tabs as a separate composed-terminal capability with explicit ownership and certification.
+Bare `a1` is reserved as the A1 agent product surface, but the accepted baseline exposes only one foreground Pi process. A1 now needs a deliberate multi-agent workspace that can manage structured agents safely while treating arbitrary interactive CLI tabs as a separate composed-terminal capability with explicit ownership and certification.
 
 ## What Changes
 
-- Replace bare `a1`'s initial single-agent presentation with an AddOne-owned workspace for creating, naming, observing, switching, stopping, and reconnecting managed agents.
+- Replace bare `a1`'s initial single-agent presentation with an A1-owned workspace for creating, naming, observing, switching, stopping, and reconnecting managed agents.
 - Preserve `a1 pi` as vanilla Pi using `~/.pi/agent` and `a1 sandbox` as the isolated `~/.a1/sandbox` profile.
 - Introduce a structured/RPC agent adapter contract for lifecycle, events, snapshots, commands, backpressure, failure isolation, and reconnection without screen scraping.
 - Introduce a composed-terminal contract in which each workspace tab owns a split layout and each terminal pane owns one PTY-backed terminal session.
-- Build composed terminals through an AddOne-owned terminal-hosted runtime that runs inside the user's existing terminal. It owns PTYs, retained terminal models, input arbitration, and fullscreen/side-by-side rendering; no separate native desktop application is required for the initial product.
+- Build composed terminals through an A1-owned terminal-hosted runtime that runs inside the user's existing terminal. It owns PTYs, retained terminal models, input arbitration, and fullscreen/side-by-side rendering; no separate native desktop application is required for the initial product.
 - Reuse only the terminal-core portions of the Ghostty ecosystem that fit a CLI host, such as `libghostty-vt`, plus a mature PTY layer. Ghostty's GUI application, Winghostty's Win32/OpenGL runtime, Metal, GTK, and other desktop application stacks are postponed and are not part of the proof.
-- Keep terminal bytes, native input, and rendering inside the terminal host while AddOne's control plane exchanges only typed identity, topology, lifecycle, and recovery messages.
+- Keep terminal bytes, native input, and rendering inside the terminal host while A1's control plane exchanges only typed identity, topology, lifecycle, and recovery messages.
 - Require capability negotiation so structured agents do not become terminal panes accidentally and terminal-backed CLIs do not claim structured semantics.
 - Require a successful in-terminal 2×2 proof, measured and manually or isolated-worker accepted, before composed-terminal production integration or milestone merge. The fixed 2×2 layout and dashed pane chrome are disposable proof scaffolding, not product UI. A failed proof stops composed-terminal work without blocking structured-agent work; it does not trigger custom rendering/input remediation or a desktop-app fallback.
-- After native hot-path isolation is established, preserve the terminal-host proof and postpone its remaining automated stress and physical gates until the AddOne-owned fullscreen UI and structured multi-agent tabs are implemented. This postponement does not permit composed-terminal integration, support claims, or milestone merge.
-- Build the separately planned AddOne-owned Pi UI foundation first. It uses Pi's documented public SDK as the agent engine behind an AddOne-owned fullscreen interface; it does not patch, inspect, or deep-import Pi interactive-TUI internals. It reaches vanilla-first parity by adapting documented public Pi UI components where suitable and provenance-recorded MIT-licensed ports where ownership is needed, while exact upstream Pi remains available through `a1 pi`.
-- After fullscreen base-UX acceptance, add AddOne-owned tabs for multiple structured SDK-backed agents. These tabs switch semantic agent views and SHALL NOT initialize the terminal host, create PTYs, or imply arbitrary terminal-pane support.
+- After native hot-path isolation is established, preserve the terminal-host proof and postpone its remaining automated stress and physical gates until the A1-owned fullscreen UI and structured multi-agent tabs are implemented. This postponement does not permit composed-terminal integration, support claims, or milestone merge.
+- Build the separately planned A1-owned Pi UI foundation first. It uses Pi's documented public SDK as the agent engine behind an A1-owned fullscreen interface; it does not patch, inspect, or deep-import Pi interactive-TUI internals. It reaches vanilla-first parity by adapting documented public Pi UI components where suitable and provenance-recorded MIT-licensed ports where ownership is needed, while exact upstream Pi remains available through `a1 pi`.
+- After fullscreen base-UX acceptance, add A1-owned tabs for multiple structured SDK-backed agents. These tabs switch semantic agent views and SHALL NOT initialize the terminal host, create PTYs, or imply arbitrary terminal-pane support.
 - Permit that independently accepted fullscreen UI and structured-tab slice to merge through `develop` and publish as an uncertified `-dev.N` preview under npm `next` while composed multipane behavior remains disabled and no composed-terminal support is claimed.
 - Then resume the exact terminal-host spike on an isolated Windows worker. After the proof verdict, remove the fixed multipane presentation and restore the single fullscreen terminal path before production multiplexer work begins.
 - Gate arbitrary CLI panes, split layouts, and production multiplexer work on the accepted isolated-worker composed-terminal proof. Structured agent tabs do not satisfy or bypass that gate.
@@ -32,7 +32,7 @@ Bare `a1` is reserved as the AddOne agent product surface, but the accepted base
 
 ### Modified Capabilities
 
-- `addone-shell`: Bare `a1` changes from one directly attached foreground agent to the AddOne multi-agent workspace while explicit `pi` and `sandbox` modes remain stable.
+- `a1-shell`: Bare `a1` changes from one directly attached foreground agent to the A1 multi-agent workspace while explicit `pi` and `sandbox` modes remain stable.
 - `terminal-agent-runtime`: Transparent direct attachment remains the single-foreground baseline and becomes an explicit fallback/comparison capability alongside, not inside, composed terminal tabs.
 
 ## Impact
