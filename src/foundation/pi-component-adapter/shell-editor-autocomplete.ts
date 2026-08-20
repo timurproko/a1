@@ -1,7 +1,4 @@
-import {
-  CustomEditor,
-  getSelectListTheme,
-} from "@earendil-works/pi-coding-agent";
+import { getSelectListTheme } from "@earendil-works/pi-coding-agent";
 import {
   CombinedAutocompleteProvider,
   setKeybindings,
@@ -10,9 +7,8 @@ import {
 import type {
   OwnedUiThinkingLevel,
 } from "../owned-ui-contracts/index.js";
-import {
-  KeybindingsManager,
-} from "./upstream/adjacent/core/keybindings.js";
+import { KeybindingsManager } from "./upstream/adjacent/core/keybindings.js";
+import { A1OwnedEditor } from "./upstream/components/owned-editor.js";
 import {
   PINNED_PI_LAYOUT,
   piTheme,
@@ -56,15 +52,13 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
   const tui = createTuiFacade(options);
   const keybindings = KeybindingsManager.create(options.agentDir);
   setKeybindings(keybindings);
-  const editorCandidate: unknown = Reflect.construct(CustomEditor, [tui, {
+  const editor = new A1OwnedEditor(tui, {
     borderColor: (value: string) => piTheme().fg("borderMuted", value),
     selectList: getSelectListTheme(),
   }, keybindings, {
     paddingX: PINNED_PI_LAYOUT.editorPaddingX,
     autocompleteMaxVisible: PINNED_PI_LAYOUT.autocompleteMaxVisible,
-  }]);
-  if (!(editorCandidate instanceof CustomEditor)) throw new TypeError("Pi editor façade returned an incompatible component");
-  const editor = editorCandidate;
+  });
   let thinkingLevel: OwnedUiThinkingLevel = "off";
   let isBashMode = false;
   const updateBorderColor = () => {

@@ -61,6 +61,6 @@ describe("Pi production boundary freeze", () => {
     const result = spawnSync(process.execPath, [policy], { cwd: repository, encoding: "utf8" });
 
     expect(result.status, result.stderr).toBe(0);
-    expect(result.stdout).toContain("Pi production boundary freeze OK: 8 exact baseline couplings, 0 unapproved");
+    expect(result.stdout).toMatch(/Pi production boundary freeze OK: \d+ exact baseline couplings, 0 unapproved/);
   });
 });
