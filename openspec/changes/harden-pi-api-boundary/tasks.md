@@ -28,7 +28,7 @@
 - [x] 4.3 Extract model selection, scoped models, catalog refresh, authentication login/logout, credential status, timeout, and cancellation behind the neutral model/auth ports; pass real API-shape and controlled provider fixture tests.
 - [x] 4.4 Extract settings reads, writes, persistence flush, errors, and every A1-exposed setting behind the neutral settings port; pass setting coverage, invalid-value, persistence, and unavailable-capability tests.
 - [x] 4.5 Extract resource discovery, commands, session metadata, extension binding/rebinding, reload, renderers, and extension failures behind neutral resource/extension ports; pass resource, session-switch, reload, and extension lifecycle tests.
-- [ ] 4.6 Extract built-in workflows into capability-specific controllers whose required operations are statically typed and fail with bounded diagnostics; pass every routed command and required-capability mutation test.
+- [x] 4.6 Extract built-in workflows into capability-specific controllers whose required operations are statically typed and fail with bounded diagnostics; pass every routed command and required-capability mutation test.
 - [ ] 4.7 Delete the broad permissive Pi `*Like` mirrors and repeated vendor property-name interpretation after all consumers migrate; run typecheck, engine integration, workflow, and malformed-result suites.
 
 ## 5. Harden Component and TUI Adaptation

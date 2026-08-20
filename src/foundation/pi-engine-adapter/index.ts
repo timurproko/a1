@@ -5,4 +5,5 @@ export * from "./session-integration.js";
 export * from "./model-auth-integration.js";
 export * from "./settings-integration.js";
 export * from "./resource-extension-integration.js";
+export * from "./workflow-controllers.js";
 export * from "./workflows.js";
