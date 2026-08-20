@@ -6,16 +6,16 @@ Defines immutable release cohorts, negotiated control contracts, durable process
 
 ## Requirements
 
-### Requirement: Live AddOne processes use one immutable release cohort
-Every live AddOne bootstrap, supervisor, and AddOne-owned runtime process SHALL execute from retained immutable release content with package-derived identity. Installing a candidate SHALL NOT overwrite files used by a live cohort or connect incompatible releases.
+### Requirement: Live A1 processes use one immutable release cohort
+Every live A1 bootstrap, supervisor, and A1-owned runtime process SHALL execute from retained immutable release content with package-derived identity. Installing a candidate SHALL NOT overwrite files used by a live cohort or connect incompatible releases.
 
 #### Scenario: Launch encounters an older live supervisor
-- **WHEN** the mutable command entry encounters a verified older live AddOne cohort
-- **THEN** AddOne SHALL use that cohort's retained release or complete a verified replacement before connecting
+- **WHEN** the mutable command entry encounters a verified older live A1 cohort
+- **THEN** A1 SHALL use that cohort's retained release or complete a verified replacement before connecting
 
 #### Scenario: Safe cohort activation
 - **WHEN** active foreground ownership is released
-- **THEN** AddOne SHALL verify release identity, atomically activate the candidate, and avoid duplicate supervisor ownership
+- **THEN** A1 SHALL verify release identity, atomically activate the candidate, and avoid duplicate supervisor ownership
 
 ### Requirement: Control compatibility is negotiated by required features
 Control peers SHALL negotiate stable envelope identity and required features before accepting commands. Release and contract identities SHALL derive from installed metadata and generated protocol artifacts rather than a manually maintained global protocol number.
@@ -33,11 +33,11 @@ Stable and preview updates SHALL coordinate verified owned-process shutdown, npm
 
 #### Scenario: Verified foreground generations exist
 - **WHEN** update starts while a verified cohort owns foreground generations
-- **THEN** AddOne SHALL request bounded shutdown, verify ownership release, and only then replace the mutable package
+- **THEN** A1 SHALL request bounded shutdown, verify ownership release, and only then replace the mutable package
 
 #### Scenario: Installation or activation fails
 - **WHEN** installation, materialization, certification, or activation fails
-- **THEN** AddOne SHALL retain diagnostics, avoid mixed ownership, and retain or restore one verified runnable cohort when possible
+- **THEN** A1 SHALL retain diagnostics, avoid mixed ownership, and retain or restore one verified runnable cohort when possible
 
 ### Requirement: Generation liveness is boot-scoped and observed
 A process generation SHALL be live only when owned by a currently verified supervisor boot and backed by authenticated runtime ownership. Persisted state alone SHALL NOT prove liveness. Startup SHALL reconcile nonterminal generations from prior boots before publishing ownership.
@@ -51,22 +51,22 @@ A process generation SHALL be live only when owned by a currently verified super
 - **THEN** published ownership SHALL include only generations established or authenticated by that boot
 
 ### Requirement: Stale supervisor ownership is reconciled automatically
-AddOne SHALL validate ownership using handshake, process, release, endpoint, and boot identity. It MAY apply bounded platform-native cleanup only when stale ownership is proven safe to remove.
+A1 SHALL validate ownership using handshake, process, release, endpoint, and boot identity. It MAY apply bounded platform-native cleanup only when stale ownership is proven safe to remove.
 
 #### Scenario: Metadata names a dead process
 - **WHEN** endpoint metadata remains after its process exits
-- **THEN** AddOne SHALL replace the stale record without asking the user to discover a PID
+- **THEN** A1 SHALL replace the stale record without asking the user to discover a PID
 
 #### Scenario: Ownership safety is uncertain
-- **WHEN** AddOne cannot prove whether an unresponsive process owns a live generation
-- **THEN** AddOne SHALL preserve it and report a diagnosable blocked state rather than blindly terminating it
+- **WHEN** A1 cannot prove whether an unresponsive process owns a live generation
+- **THEN** A1 SHALL preserve it and report a diagnosable blocked state rather than blindly terminating it
 
 ### Requirement: Transparent generations use one exclusive foreground lease
 The supervisor SHALL record logical identity, process generation, native process identity, lifecycle outcome, and one exclusive transparent foreground-terminal lease. It SHALL NOT claim a resident framebuffer, terminal byte stream, or visual reconnection.
 
 #### Scenario: Start a transparent generation
 - **WHEN** the supervisor authorizes transparent launch
-- **THEN** it SHALL grant one foreground broker an exclusive lease and record that no AddOne-authoritative terminal surface exists
+- **THEN** it SHALL grant one foreground broker an exclusive lease and record that no A1-authoritative terminal surface exists
 
 #### Scenario: Lease owner disappears
 - **WHEN** the foreground broker disappears while a child may remain active

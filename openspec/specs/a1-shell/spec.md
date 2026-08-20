@@ -1,22 +1,22 @@
-# AddOne Shell Specification
+# A1 Shell Specification
 
 ## Purpose
 
-Defines the installed AddOne command surface, immutable release behavior, and selected transparent single-foreground terminal handoff.
+Defines the installed A1 command surface, immutable release behavior, and selected transparent single-foreground terminal handoff.
 ## Requirements
 ### Requirement: Every package update is one immediate replacement command
-The installed application SHALL expose `a1 update` as the stable update command resolving npm tag `latest`, and `a1 update:next` as the development-preview update command resolving npm tag `next`. Invocation SHALL authorize stopping verified AddOne-owned sessions, installing the exact resolved version, materializing and activating an immutable release, and verifying the result through one ownership-safe transaction. The command SHALL NOT require manual process IDs, state deletion, or a separate activation operation.
+The installed application SHALL expose `a1 update` as the stable update command resolving npm tag `latest`, and `a1 update:next` as the development-preview update command resolving npm tag `next`. Invocation SHALL authorize stopping verified A1-owned sessions, installing the exact resolved version, materializing and activating an immutable release, and verifying the result through one ownership-safe transaction. The command SHALL NOT require manual process IDs, state deletion, or a separate activation operation.
 
 #### Scenario: Replace the current preview
-- **WHEN** the user runs `a1 update:next` while an older verified AddOne cohort is active
-- **THEN** AddOne SHALL perform the replacement transaction using the exact npm `next` version and report the old and active versions
+- **WHEN** the user runs `a1 update:next` while an older verified A1 cohort is active
+- **THEN** A1 SHALL perform the replacement transaction using the exact npm `next` version and report the old and active versions
 
 #### Scenario: Selected channel is current
-- **WHEN** the selected npm tag resolves to the exact active AddOne release version
-- **THEN** AddOne SHALL report that the channel is current without reinstalling it
+- **WHEN** the selected npm tag resolves to the exact active A1 release version
+- **THEN** A1 SHALL report that the channel is current without reinstalling it
 
 #### Scenario: Ownership cannot be verified
-- **WHEN** AddOne cannot prove that a process belongs to the active cohort
+- **WHEN** A1 cannot prove that a process belongs to the active cohort
 - **THEN** the update SHALL fail safely without terminating that process or deleting control state
 
 #### Scenario: Update is interrupted
@@ -28,44 +28,44 @@ The installed application SHALL expose `a1 version`. It SHALL report `Installed`
 
 #### Scenario: Registry versions are available
 - **WHEN** the user runs `a1 version` while npm `latest` and `next` are reachable
-- **THEN** AddOne SHALL display valid exact semantic versions in the order `Installed`, `Release`, and `Next`
+- **THEN** A1 SHALL display valid exact semantic versions in the order `Installed`, `Release`, and `Next`
 
 #### Scenario: Registry is unavailable
 - **WHEN** installed package metadata is readable but registry queries fail
-- **THEN** AddOne SHALL preserve `Installed`, mark unavailable remote fields, emit concise diagnostics, and exit successfully
+- **THEN** A1 SHALL preserve `Installed`, mark unavailable remote fields, emit concise diagnostics, and exit successfully
 
-### Requirement: Bare AddOne launches one foreground command transparently
-Bare `a1` SHALL launch the selected foreground profile immediately without an AddOne intro, logo, version frame, chrome, reconstructed readiness frame, or other application output before the child. The initial profile SHALL launch Native Pi through transparent direct attachment.
+### Requirement: Bare A1 launches one foreground command transparently
+Bare `a1` SHALL launch the selected foreground profile immediately without an A1 intro, logo, version frame, chrome, reconstructed readiness frame, or other application output before the child. The initial profile SHALL launch Native Pi through transparent direct attachment.
 
-#### Scenario: Launch bare AddOne
+#### Scenario: Launch bare A1
 - **WHEN** the user runs `a1` in a supported terminal
-- **THEN** AddOne SHALL start and attach one Native Pi process and the first application content SHALL be the child's own output
+- **THEN** A1 SHALL start and attach one Native Pi process and the first application content SHALL be the child's own output
 
 #### Scenario: Launch after a prior exit
 - **WHEN** the user runs bare `a1` after prior foreground generations exited
-- **THEN** AddOne SHALL start a fresh generation without replaying a retained terminal surface
+- **THEN** A1 SHALL start a fresh generation without replaying a retained terminal surface
 
 ### Requirement: Transparent handoff uses the complete physical viewport
-The selected transparent capability SHALL attach one child across the complete physical terminal viewport with no AddOne-reserved rows, terminal parser, input relay, output reconstruction, inferred readiness frame, or display write after handoff.
+The selected transparent capability SHALL attach one child across the complete physical terminal viewport with no A1-reserved rows, terminal parser, input relay, output reconstruction, inferred readiness frame, or display write after handoff.
 
 #### Scenario: Physical terminal resizes
 - **WHEN** the physical terminal changes size during the transparent session
-- **THEN** the child SHALL observe native terminal dimensions without AddOne chrome offsets
+- **THEN** the child SHALL observe native terminal dimensions without A1 chrome offsets
 
 #### Scenario: Foreground child exits
 - **WHEN** the transparent child exits
-- **THEN** AddOne SHALL preserve child-produced output and spacing, perform bounded ownership cleanup, emit no reconstructed final frame, and return the child outcome
+- **THEN** A1 SHALL preserve child-produced output and spacing, perform bounded ownership cleanup, emit no reconstructed final frame, and return the child outcome
 
 ### Requirement: Transparent terminal ownership remains native
-During transparent handoff, the child and physical terminal SHALL own rendering, input encoding, selection, clipboard, scrollback, and terminal modes. AddOne SHALL retain only foreground lease, process identity, lifecycle reporting, and bounded abnormal-exit cleanup.
+During transparent handoff, the child and physical terminal SHALL own rendering, input encoding, selection, clipboard, scrollback, and terminal modes. A1 SHALL retain only foreground lease, process identity, lifecycle reporting, and bounded abnormal-exit cleanup.
 
 #### Scenario: User interacts after handoff
 - **WHEN** the user sends key, text, paste, focus, mouse, wheel, selection, clipboard, or resize actions
-- **THEN** the native terminal path SHALL handle them without an AddOne input command or application-specific translation
+- **THEN** the native terminal path SHALL handle them without an A1 input command or application-specific translation
 
 #### Scenario: Foreground ownership is lost
 - **WHEN** the broker or child fails during transparent attachment
-- **THEN** AddOne SHALL apply bounded owned-process cleanup, report that visual reconnection is unavailable, and leave the parent terminal usable
+- **THEN** A1 SHALL apply bounded owned-process cleanup, report that visual reconnection is unavailable, and leave the parent terminal usable
 
 ### Requirement: Stable platform claims require certification
 The transparent architecture SHALL remain application-agnostic across its native platform launchers, but a stable terminal support or parity claim for a platform SHALL require the separately deferred physical and exact-package certification for that platform.
@@ -93,7 +93,7 @@ The official npm distribution SHALL be named `@timurproko/a1`, SHALL begin its i
 Version discovery, self-update, installed metadata lookup, immutable release derivation, release validation, publication evidence, and registry verification SHALL use `@timurproko/a1` as the sole accepted package identity. The product SHALL NOT implement a bridge release or compatibility path for installed `@timurproko/addone` packages or their materialized release state.
 
 #### Scenario: Materialize the new package
-- **WHEN** AddOne derives or validates an immutable release from the installed package
+- **WHEN** A1 derives or validates an immutable release from the installed package
 - **THEN** it SHALL accept `@timurproko/a1` metadata and SHALL reject `@timurproko/addone` as an unexpected package identity
 
 #### Scenario: Query release channels

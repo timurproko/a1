@@ -21,7 +21,7 @@ The package and command are now `a1`, but live code, diagnostics, environment va
 
 ### Modified Capabilities
 
-- `addone-shell`: Changes version-channel discovery so a missing npm `next` tag is a normal unavailable channel rather than a branded error.
+- `a1-shell`: Changes version-channel discovery so a missing npm `next` tag is a normal unavailable channel rather than a branded error.
 - `project-structure-governance`: Adds enforceable centralized-identity and legacy-name exclusion requirements for live repository surfaces.
 
 ## Impact

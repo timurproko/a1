@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Defines independent, isolated validation for AddOne lifecycle, updates, transparent terminal policy, exact package artifacts, and confirmed regressions.
+Defines independent, isolated validation for A1 lifecycle, updates, transparent terminal policy, exact package artifacts, and confirmed regressions.
 
 ## Requirements
 
@@ -33,15 +33,15 @@ Any automation that launches, focuses, drives, resizes, captures, or closes a te
 - **THEN** cleanup SHALL stop only its exact recorded process tree and SHALL leave every pre-existing or unverified process untouched
 
 ### Requirement: Transparent validation is manual-first
-After non-desktop structural, lifecycle, and integration gates pass, AddOne SHALL provide an exact candidate and checklist for the user to launch, interact with, and close manually. The checkpoint SHALL NOT automate terminal launch, focus, input, resize, closure, or workstation process cleanup.
+After non-desktop structural, lifecycle, and integration gates pass, A1 SHALL provide an exact candidate and checklist for the user to launch, interact with, and close manually. The checkpoint SHALL NOT automate terminal launch, focus, input, resize, closure, or workstation process cleanup.
 
 #### Scenario: Candidate becomes manually testable
 - **WHEN** transparent implementation and non-desktop checks are complete
-- **THEN** AddOne SHALL provide exact build/install/launch steps and checks for rendering, input, selection, mouse, resize, exit, and parent-shell usability without starting it automatically
+- **THEN** A1 SHALL provide exact build/install/launch steps and checks for rendering, input, selection, mouse, resize, exit, and parent-shell usability without starting it automatically
 
 #### Scenario: Manual regression is reported
 - **WHEN** the user reports a failure
-- **THEN** AddOne SHALL preserve the finding, correct it, and repeat affected non-desktop and manual checks
+- **THEN** A1 SHALL preserve the finding, correct it, and repeat affected non-desktop and manual checks
 
 ### Requirement: Uncertified development previews are explicit
 A manually accepted `-dev.N` candidate MAY publish under npm tag `next` after applicable architecture, structural, lifecycle, update, dependency, build, package-content, and exact-artifact gates pass. It SHALL identify physical and cross-platform certification as deferred, SHALL NOT move `latest`, and SHALL NOT claim certified terminal parity or platform support.
@@ -62,7 +62,7 @@ Domain, storage, release-cohort, update-transaction, protocol, package identity,
 - **THEN** architecture-independent tests SHALL continue validating their owned contracts without importing retired modules
 
 ### Requirement: Stable transparent acceptance uses independent physical evidence
-Before stable terminal publication or parity/support claims, transparent rendering, character presentation, input identity, selection, clipboard, scrollback, mouse, resize, modes, latency, exit, and restoration SHALL be compared against direct execution through actual supported host-terminal behavior. A test encoder, emulator, or AddOne terminal model SHALL NOT be the sole oracle.
+Before stable terminal publication or parity/support claims, transparent rendering, character presentation, input identity, selection, clipboard, scrollback, mouse, resize, modes, latency, exit, and restoration SHALL be compared against direct execution through actual supported host-terminal behavior. A test encoder, emulator, or A1 terminal model SHALL NOT be the sole oracle.
 
 #### Scenario: Physical certification is attempted
 - **WHEN** direct and transparent workloads are compared on a supported platform
@@ -77,7 +77,7 @@ A raw PTY relay SHALL NOT replace selected direct attachment unless a future cha
 
 #### Scenario: No mandatory PTY constraint exists
 - **WHEN** direct attachment satisfies the selected single-foreground lifecycle
-- **THEN** AddOne SHALL not add a raw relay, parser, input translation, or shadow terminal authority
+- **THEN** A1 SHALL not add a raw relay, parser, input translation, or shadow terminal authority
 
 ### Requirement: Packaged candidates validate exact publication artifacts
 Every publication SHALL pack once and bind evidence to source commit, version, integrity, declared certification status, and applicable gate results before uploading those exact bytes.
@@ -97,7 +97,7 @@ Stable and preview update gates SHALL exercise exact target resolution, verified
 - **WHEN** a fault occurs at a durable update phase
 - **THEN** rerunning the command SHALL converge to one verified active or rollback cohort
 
-### Requirement: AddOne releases contain no deprecated dependencies
+### Requirement: A1 releases contain no deprecated dependencies
 The exact production, development, build, test, optional, and native dependency graph SHALL contain no package marked deprecated by its registry.
 
 #### Scenario: A transitive dependency is deprecated
@@ -109,11 +109,11 @@ A confirmed regression SHALL gain the smallest independent current-contract test
 
 #### Scenario: Regression belongs to deterministic logic
 - **WHEN** a defect is isolated to domain, storage, protocol, release, or update behavior
-- **THEN** AddOne SHALL add a focused deterministic test and pass its containing gate
+- **THEN** A1 SHALL add a focused deterministic test and pass its containing gate
 
 #### Scenario: Regression crosses the physical boundary
 - **WHEN** a rendering or input defect cannot be represented independently in a unit test
-- **THEN** AddOne SHALL retain it for isolated physical or exact-package integration certification
+- **THEN** A1 SHALL retain it for isolated physical or exact-package integration certification
 
 ### Requirement: Changed tests pass focused and containing gates
 A retained or newly added test SHALL pass focused execution and its containing mandatory gate before its task is complete.

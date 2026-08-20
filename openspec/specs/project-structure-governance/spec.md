@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Defines enforceable repository ownership, dependency, testing, documentation, and hygiene rules that keep the accepted AddOne baseline small as independent features are added.
+Defines enforceable repository ownership, dependency, testing, documentation, and hygiene rules that keep the accepted A1 baseline small as independent features are added.
 
 ## Requirements
 
@@ -40,7 +40,7 @@ Shared lifecycle, protocol, release, storage, supervision, and terminal-attachme
 - **THEN** it SHALL remain private to that feature rather than being promoted to a generic shared area
 
 ### Requirement: The repository has one dependency authority
-AddOne SHALL use one repository-level package manifest, lockfile, and dependency installation for TypeScript production and test code. Feature source directories SHALL NOT contain nested `node_modules`, independent lockfiles, vendored runtime caches, generated logs, sessions, browser profiles, or package-manager state.
+A1 SHALL use one repository-level package manifest, lockfile, and dependency installation for TypeScript production and test code. Feature source directories SHALL NOT contain nested `node_modules`, independent lockfiles, vendored runtime caches, generated logs, sessions, browser profiles, or package-manager state.
 
 #### Scenario: Feature needs a package
 - **WHEN** a feature introduces an external dependency
@@ -99,10 +99,10 @@ Architecture and hygiene rules SHALL be enforced by deterministic checks that re
 - **THEN** every production file, test, document, workflow, and dependency SHALL have a current owner and all mandatory architecture, type, unit, integration, update, package, and release checks SHALL pass
 
 ### Requirement: Transparent and composed scope remain explicit
-The accepted transparent baseline SHALL support one direct full-viewport foreground terminal session and SHALL not claim AddOne-managed arbitrary-CLI tabs, resident terminal surfaces, input routing among internal tabs, or visual reconnection. After the baseline/profile change completes, AddOne SHALL create a separate follow-up plan for evolving bare `a1` into the multi-agent UX. That plan SHALL distinguish structured/RPC agent surfaces from arbitrary interactive CLI tabs and SHALL define a composed-terminal authority and certification plan for the latter.
+The accepted transparent baseline SHALL support one direct full-viewport foreground terminal session and SHALL not claim A1-managed arbitrary-CLI tabs, resident terminal surfaces, input routing among internal tabs, or visual reconnection. After the baseline/profile change completes, A1 SHALL create a separate follow-up plan for evolving bare `a1` into the multi-agent UX. That plan SHALL distinguish structured/RPC agent surfaces from arbitrary interactive CLI tabs and SHALL define a composed-terminal authority and certification plan for the latter.
 
 #### Scenario: Product planning requests multiple arbitrary CLI tabs
-- **WHEN** the future bare-`a1` multi-agent UX needs inactive interactive CLIs to remain resident and switchable inside AddOne
+- **WHEN** the future bare-`a1` multi-agent UX needs inactive interactive CLIs to remain resident and switchable inside A1
 - **THEN** planning SHALL introduce a separate composed-terminal capability rather than modifying transparent mode or reactivating raw relay experiments implicitly
 
 #### Scenario: Multi-agent planning begins

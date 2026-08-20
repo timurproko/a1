@@ -1,11 +1,11 @@
 ## Purpose
 
-Defines AddOne's independently owned Pi shell with vanilla-default regular main-screen mode and optional fullscreen mode, complete pinned interactive baseline including extension UI, exact current-version parity, public engine/runtime boundaries, customization slots, diagnostics, and upgrade-conformance policy.
+Defines A1's independently owned Pi shell with vanilla-default regular main-screen mode and optional fullscreen mode, complete pinned interactive baseline including extension UI, exact current-version parity, public engine/runtime boundaries, customization slots, diagnostics, and upgrade-conformance policy.
 
 ## ADDED Requirements
 
 ### Requirement: The owned shell presents the complete pinned Pi interactive UI
-The AddOne-owned UI SHALL reproduce the complete visible and interactive behavior of pinned Pi `0.84.2` at commit `914cf1472e715297caa30db4b9535d534a9eb718`. The baseline SHALL include startup composition, themes, colors, spacing, layout, editor, autocomplete, keybindings, commands, prompt execution, transcript, streaming, tools, selectors, dialogs, settings, sessions, models, thinking, status/footer state, clipboard, resize, errors, and shutdown. AddOne SHALL NOT substitute approximate layouts, colors, controllers, or workflows for covered pinned behavior.
+The A1-owned UI SHALL reproduce the complete visible and interactive behavior of pinned Pi `0.84.2` at commit `914cf1472e715297caa30db4b9535d534a9eb718`. The baseline SHALL include startup composition, themes, colors, spacing, layout, editor, autocomplete, keybindings, commands, prompt execution, transcript, streaming, tools, selectors, dialogs, settings, sessions, models, thinking, status/footer state, clipboard, resize, errors, and shutdown. A1 SHALL NOT substitute approximate layouts, colors, controllers, or workflows for covered pinned behavior.
 
 #### Scenario: Start an owned Pi session
 - **WHEN** the user starts the owned UI in an equivalent terminal and session state
@@ -16,7 +16,7 @@ The AddOne-owned UI SHALL reproduce the complete visible and interactive behavio
 - **THEN** the prompt SHALL become visible, the agent SHALL execute, assistant and tool activity SHALL stream in order, failures SHALL be visible, and the turn SHALL settle exactly as in pinned Pi
 
 #### Scenario: Encounter an unmapped pinned behavior
-- **WHEN** a visible pinned interactive behavior has no AddOne implementation or an AddOne approximation behaves differently
+- **WHEN** a visible pinned interactive behavior has no A1 implementation or an A1 approximation behaves differently
 - **THEN** the 1:1 baseline gate SHALL fail and the owned UI SHALL remain unaccepted
 
 #### Scenario: Change editor input mode
@@ -48,18 +48,18 @@ The AddOne-owned UI SHALL reproduce the complete visible and interactive behavio
 - **THEN** the owned UI SHALL preserve source order, streaming state, component identity, adjacent-content spacing, tool boundaries, and terminal status content exactly as pinned `AssistantMessageComponent`
 
 #### Scenario: Use vanilla regular-mode terminal ownership
-- **WHEN** the user starts AddOne without explicitly selecting fullscreen mode
+- **WHEN** the user starts A1 without explicitly selecting fullscreen mode
 - **THEN** the runtime SHALL use public `TuiMainScreen` in `regular` mode exactly as default vanilla Pi does
 - **AND** it SHALL NOT enter the alternate screen, enable mouse tracking, intercept drag/release events, rewrite selected ANSI cells, synthesize clipboard output, or maintain screen-coordinate selection state
 
 #### Scenario: Select, copy, and scroll in regular mode
 - **WHEN** the user selects character, word, line, or multi-row content, presses `Ctrl+C` with or without a terminal selection, scrolls the wheel, or types `/` after selecting text
 - **THEN** the physical terminal SHALL own selection appearance, selection clearing, selected-copy consumption, wheel movement, and scrollback exactly as it does for untouched default vanilla Pi
-- **AND** AddOne-rendered source colors or newly opened command/modal content SHALL NOT inherit an application-owned selection because no such selection layer exists
+- **AND** A1-rendered source colors or newly opened command/modal content SHALL NOT inherit an application-owned selection because no such selection layer exists
 
 #### Scenario: Explicitly use fullscreen mode
 - **WHEN** the user explicitly configures `tuiMode` as `fullscreen`
-- **THEN** AddOne SHALL use public `TuiAltScreen` and its pinned application-owned viewport, selection, copy, wheel, nested-scroll, and restoration behavior without AddOne ANSI rewriting or input interception
+- **THEN** A1 SHALL use public `TuiAltScreen` and its pinned application-owned viewport, selection, copy, wheel, nested-scroll, and restoration behavior without A1 ANSI rewriting or input interception
 
 #### Scenario: Render the changelog command
 - **WHEN** the user invokes `/changelog`
@@ -74,7 +74,7 @@ The AddOne-owned UI SHALL reproduce the complete visible and interactive behavio
 #### Scenario: Render a built-in informational status
 - **WHEN** a built-in route reports status, including successful `/reload`
 - **THEN** the owned UI SHALL use pinned `showStatus()` spacer, dim styling, chronological placement, and consecutive-status coalescing
-- **AND** `/reload` SHALL NOT gain an AddOne-only checkmark or generic success prefix
+- **AND** `/reload` SHALL NOT gain an A1-only checkmark or generic success prefix
 
 #### Scenario: Show loaded startup resources
 - **WHEN** pinned Pi discovers context files, skills, prompt templates, extensions, custom themes, or resource diagnostics during startup
@@ -95,7 +95,7 @@ The AddOne-owned UI SHALL reproduce the complete visible and interactive behavio
 
 #### Scenario: Exercise any vanilla modal surface
 - **WHEN** any modal, selector, dialog, nested flow, custom input/editor, confirmation, authentication surface, or extension-hosted modal reachable in pinned Pi is opened
-- **THEN** AddOne SHALL use the equivalent stateful component and controller lifecycle rather than a generic one-shot workflow substitution
+- **THEN** A1 SHALL use the equivalent stateful component and controller lifecycle rather than a generic one-shot workflow substitution
 - **AND** active interaction, navigation, search, editing, save/confirm behavior, cancellation, nesting/replacement, status and transcript effects, scrolling, resize, focus restoration, failure handling, session switching, and disposal SHALL match the pinned route
 
 #### Scenario: Configure scoped models
@@ -108,7 +108,7 @@ The AddOne-owned UI SHALL reproduce the complete visible and interactive behavio
 
 #### Scenario: Prove complete modal inventory coverage
 - **WHEN** source coverage or acceptance runs
-- **THEN** every modal-like branch discovered from pinned `InteractiveMode`, nested settings components, and public extension UI SHALL have a mapped AddOne controller and independent open/active/complete-or-save/cancel/failure/restoration acceptance cases
+- **THEN** every modal-like branch discovered from pinned `InteractiveMode`, nested settings components, and public extension UI SHALL have a mapped A1 controller and independent open/active/complete-or-save/cancel/failure/restoration acceptance cases
 - **AND** an omitted branch or a route covered only by a shared generic-selector fixture SHALL fail the gate
 
 #### Scenario: Browse current-session prompt history
@@ -119,11 +119,11 @@ The AddOne-owned UI SHALL reproduce the complete visible and interactive behavio
 #### Scenario: Render structured built-in command content
 - **WHEN** a built-in command presents structured information, including `/session`
 - **THEN** the owned UI SHALL reproduce vanilla Pi's complete headings, groups, labels, values, colors, emphasis, indentation, wrapping, spacing, and scrolling for that route
-- **AND** it SHALL NOT replace the route-specific presenter with raw JSON, a plain object dump, a generic success heading, an AddOne-only checkmark, or flattened plain text
+- **AND** it SHALL NOT replace the route-specific presenter with raw JSON, a plain object dump, a generic success heading, an A1-only checkmark, or flattened plain text
 
 #### Scenario: Preserve visible-content ownership planes
 - **WHEN** pinned Pi presents persistent document content, prompt-adjacent transient content, or active replacement content
-- **THEN** AddOne SHALL place the content in the equivalent root region with the same sibling order, vertical spacing, style, width, scroll/follow effect, replacement behavior, and lifetime
+- **THEN** A1 SHALL place the content in the equivalent root region with the same sibling order, vertical spacing, style, width, scroll/follow effect, replacement behavior, and lifetime
 - **AND** correct text rendered in a different transcript, workflow, status, editor, footer, or modal region SHALL fail parity
 
 #### Scenario: Position the working indicator
@@ -143,8 +143,8 @@ The AddOne-owned UI SHALL reproduce the complete visible and interactive behavio
 
 #### Scenario: Place command information and errors near the prompt
 - **WHEN** a command emits a current informational result or failure
-- **THEN** AddOne SHALL render it in the same prompt-adjacent or persistent region selected by vanilla Pi for that exact route, with the same prefix, context, style, spacing, and bottom relationship
-- **AND** AddOne SHALL NOT place a prompt-adjacent error in an earlier content bucket or leave a large unpinned gap below it
+- **THEN** A1 SHALL render it in the same prompt-adjacent or persistent region selected by vanilla Pi for that exact route, with the same prefix, context, style, spacing, and bottom relationship
+- **AND** A1 SHALL NOT place a prompt-adjacent error in an earlier content bucket or leave a large unpinned gap below it
 
 #### Scenario: Traverse a nested dialog path
 - **WHEN** a user moves from any top-level selector or dialog into a deeper selector, input, confirmation, authentication method, API-key, browser/device/OAuth, error, or completion state
@@ -154,12 +154,12 @@ The AddOne-owned UI SHALL reproduce the complete visible and interactive behavio
 
 #### Scenario: Prove the complete modal transition graph
 - **WHEN** source coverage or parity acceptance runs
-- **THEN** every source-reachable built-in and extension modal node and every transition edge SHALL have a mapped specialized controller and independent pinned-versus-AddOne evidence
+- **THEN** every source-reachable built-in and extension modal node and every transition edge SHALL have a mapped specialized controller and independent pinned-versus-A1 evidence
 - **AND** removing a nested node, transition, style, instruction, ownership region, or restoration edge SHALL make the gate fail
 - **AND** top-level open/cancel snapshots alone SHALL NOT establish modal completeness
 
 ### Requirement: Visible Pi extension UI is part of the 1:1 baseline
-The owned UI SHALL support the visible behavior exposed by pinned Pi extensions, including widgets, custom editors and inputs, selectors, dialogs, notifications, status and footer contributions, custom message and tool renderers, terminal input hooks, working indicators, and lifecycle cleanup. Extension UI behavior SHALL cross AddOne-owned versioned boundaries and SHALL NOT require mutation of installed Pi code or private interactive state.
+The owned UI SHALL support the visible behavior exposed by pinned Pi extensions, including widgets, custom editors and inputs, selectors, dialogs, notifications, status and footer contributions, custom message and tool renderers, terminal input hooks, working indicators, and lifecycle cleanup. Extension UI behavior SHALL cross A1-owned versioned boundaries and SHALL NOT require mutation of installed Pi code or private interactive state.
 
 #### Scenario: Extension contributes a visible surface
 - **WHEN** a compatible pinned Pi extension registers a supported visible contribution
@@ -167,17 +167,17 @@ The owned UI SHALL support the visible behavior exposed by pinned Pi extensions,
 
 #### Scenario: Extension surface fails
 - **WHEN** one extension renderer, input handler, or lifecycle callback throws or returns malformed data
-- **THEN** AddOne SHALL isolate the failure, restore the baseline editor and focus, report the error, and preserve the rest of the session
+- **THEN** A1 SHALL isolate the failure, restore the baseline editor and focus, report the error, and preserve the rest of the session
 
 #### Scenario: Extension requests an unmapped visual capability
-- **WHEN** a pinned visible extension capability is not yet bridged through an AddOne-owned boundary
+- **WHEN** a pinned visible extension capability is not yet bridged through an A1-owned boundary
 - **THEN** the parity gate SHALL fail rather than silently omitting the surface or reporting complete extension support
 
 ### Requirement: The pinned Pi version has exact observable parity before product work
-The first accepted presentation SHALL match pinned Pi for visible rows, ANSI styling, colors, spacing, wrapping, component order, focus, editor state, selectors, dialogs, status/footer state, command availability and outcomes, prompt effects, event transitions, terminal progress, resize, errors, extension surfaces, and lifecycle behavior. Evidence SHALL use independent pinned-Pi and AddOne producers. AddOne-only snapshots and synthetic-only sessions MAY serve as regression fixtures but SHALL NOT establish parity.
+The first accepted presentation SHALL match pinned Pi for visible rows, ANSI styling, colors, spacing, wrapping, component order, focus, editor state, selectors, dialogs, status/footer state, command availability and outcomes, prompt effects, event transitions, terminal progress, resize, errors, extension surfaces, and lifecycle behavior. Evidence SHALL use independent pinned-Pi and A1 producers. A1-only snapshots and synthetic-only sessions MAY serve as regression fixtures but SHALL NOT establish parity.
 
 #### Scenario: Rendering differs
-- **WHEN** equivalent pinned-Pi and AddOne states produce a different visible row, style, color, spacing, wrapping, selector, dialog, status, footer, or extension surface outside an approved terminal-only tolerance
+- **WHEN** equivalent pinned-Pi and A1 states produce a different visible row, style, color, spacing, wrapping, selector, dialog, status, footer, or extension surface outside an approved terminal-only tolerance
 - **THEN** the parity gate SHALL fail
 
 #### Scenario: Workflow differs
@@ -185,16 +185,16 @@ The first accepted presentation SHALL match pinned Pi for visible rows, ANSI sty
 - **THEN** the parity gate SHALL fail
 
 #### Scenario: Evidence has only one producer
-- **WHEN** expected and actual results are both derived from AddOne implementation code or AddOne-authored synthetic state
+- **WHEN** expected and actual results are both derived from A1 implementation code or A1-authored synthetic state
 - **THEN** the result SHALL be classified as regression evidence and SHALL NOT satisfy parity
 
 #### Scenario: Run the automated terminal parity gate
 - **WHEN** a coherent pinned-UI correction is ready to be marked complete or committed
-- **THEN** `npm run test:pi-terminal-parity` SHALL independently launch untouched pinned Pi and the AddOne-owned UI, apply equivalent deterministic terminal state and actions, compare all declared checkpoints, and pass before the correction is accepted
+- **THEN** `npm run test:pi-terminal-parity` SHALL independently launch untouched pinned Pi and the A1-owned UI, apply equivalent deterministic terminal state and actions, compare all declared checkpoints, and pass before the correction is accepted
 
 #### Scenario: Compare deterministic terminal sessions
 - **WHEN** a terminal parity scenario depends on resources, prior messages, model output, streaming, tools, or settlement
-- **THEN** both producers SHALL receive the same isolated configuration, cwd, geometry, capabilities, prepared session replay or deterministic scripted model stream, resource set, and input sequence without deriving the untouched expected output from AddOne code
+- **THEN** both producers SHALL receive the same isolated configuration, cwd, geometry, capabilities, prepared session replay or deterministic scripted model stream, resource set, and input sequence without deriving the untouched expected output from A1 code
 
 #### Scenario: Detect a terminal divergence
 - **WHEN** equivalent checkpoints differ in visible rows, ANSI colors or styles, spacing, wrapping, focus, cursor, scroll destination, scrollbar, component geometry, startup resources, editor, transcript, footer/status, selector/dialog, error, resize, or lifecycle state outside a named terminal-only tolerance
@@ -205,40 +205,40 @@ The first accepted presentation SHALL match pinned Pi for visible rows, ANSI sty
 - **THEN** the gate SHALL fail, preserve diagnostics, restore terminal state, and terminate both isolated process trees without affecting production terminal ownership
 
 ### Requirement: Every pinned interactive behavior has traceable port coverage
-The change SHALL maintain an exhaustive, machine-verifiable mapping from the pinned interactive source baseline to AddOne behavior, tests, provenance, local modifications, and approved deviations. Every copied or adapted MIT-licensed source unit SHALL retain required attribution. Deviations SHALL be limited to public engine/runtime boundaries, AddOne ownership contracts, platform terminal integration, and removal of private mutation or inspection.
+The change SHALL maintain an exhaustive, machine-verifiable mapping from the pinned interactive source baseline to A1 behavior, tests, provenance, local modifications, and approved deviations. Every copied or adapted MIT-licensed source unit SHALL retain required attribution. Deviations SHALL be limited to public engine/runtime boundaries, A1 ownership contracts, platform terminal integration, and removal of private mutation or inspection.
 
 #### Scenario: Source behavior is unmapped
 - **WHEN** a pinned interactive module, controller path, component state, extension surface, or lifecycle branch lacks a recorded destination and acceptance case
 - **THEN** source-port coverage SHALL fail
 
 #### Scenario: Deviation is undocumented
-- **WHEN** AddOne changes covered behavior without an approved reason, affected acceptance case, and upstream source reference
+- **WHEN** A1 changes covered behavior without an approved reason, affected acceptance case, and upstream source reference
 - **THEN** source-port coverage SHALL fail
 
 #### Scenario: Upgrade the pinned Pi version
-- **WHEN** AddOne evaluates a newer Pi package
+- **WHEN** A1 evaluates a newer Pi package
 - **THEN** the source mapping, public adapter conformance, independent parity evidence, and approved-deviation ledger SHALL be regenerated and reviewed before release
 
-### Requirement: Public engine and terminal authority remain behind AddOne boundaries
-The owned UI SHALL use documented public Pi engine and terminal contracts through AddOne-owned adapters. It SHALL NOT instantiate the stock interactive root, mutate prototypes, inspect private fields, use deep package imports, depend on distribution hashes, or expose Pi-specific types throughout AddOne workspace state. The 1:1 requirement SHALL NOT weaken these architecture boundaries.
+### Requirement: Public engine and terminal authority remain behind A1 boundaries
+The owned UI SHALL use documented public Pi engine and terminal contracts through A1-owned adapters. It SHALL NOT instantiate the stock interactive root, mutate prototypes, inspect private fields, use deep package imports, depend on distribution hashes, or expose Pi-specific types throughout A1 workspace state. The 1:1 requirement SHALL NOT weaken these architecture boundaries.
 
 #### Scenario: Pinned private interactive code is installed
 - **WHEN** the Pi package contains stock interactive classes or private renderer state
-- **THEN** AddOne SHALL operate without constructing, patching, or inspecting those internals
+- **THEN** A1 SHALL operate without constructing, patching, or inspecting those internals
 
 #### Scenario: Exact behavior requires a coupled source unit
 - **WHEN** covered behavior cannot be reused through a documented public contract
-- **THEN** AddOne SHALL port the minimum coherent source unit with provenance and an AddOne-owned boundary rather than deep-importing or patching it
+- **THEN** A1 SHALL port the minimum coherent source unit with provenance and an A1-owned boundary rather than deep-importing or patching it
 
 ### Requirement: Customization remains disabled above the 1:1 baseline until acceptance
-AddOne-specific themes, components, commands, layouts, structured tabs, and multi-agent presentation SHALL remain disabled until the complete pinned built-in and extension UI baseline passes source coverage, independent parity, real-prompt integration, and fresh manual acceptance. After acceptance, customization SHALL resolve through versioned AddOne-owned slots without mutating the baseline implementation or installed Pi code.
+A1-specific themes, components, commands, layouts, structured tabs, and multi-agent presentation SHALL remain disabled until the complete pinned built-in and extension UI baseline passes source coverage, independent parity, real-prompt integration, and fresh manual acceptance. After acceptance, customization SHALL resolve through versioned A1-owned slots without mutating the baseline implementation or installed Pi code.
 
 #### Scenario: Request customization before parity
-- **WHEN** an AddOne-specific visual or layout customization is requested before 1:1 acceptance
+- **WHEN** an A1-specific visual or layout customization is requested before 1:1 acceptance
 - **THEN** the capability SHALL remain unavailable
 
 #### Scenario: Apply customization after parity
-- **WHEN** the accepted baseline receives a supported AddOne customization
+- **WHEN** the accepted baseline receives a supported A1 customization
 - **THEN** the customization SHALL resolve through an owned slot and preserve ordinary built-in and extension session behavior
 
 #### Scenario: Reject customization while architecture debt remains
