@@ -41,21 +41,21 @@
     "explicit-obsolete-package-fixtures"
   ],
   "summary": {
-    "total": 1435,
-    "files": 224,
+    "total": 1399,
+    "files": 222,
     "byLocationKind": {
-      "content": 1411,
+      "content": 1375,
       "path": 24
     },
     "byClass": {
-      "runtime-symbols": 637,
-      "diagnostics": 160,
-      "environment-keys": 151,
-      "paths": 482,
+      "runtime-symbols": 601,
+      "diagnostics": 143,
+      "environment-keys": 148,
+      "paths": 461,
       "schemas": 122,
       "artifacts": 117,
       "native-names": 100,
-      "tests": 294,
+      "tests": 284,
       "current-docs-specs": 761,
       "historical-records": 167,
       "explicit-obsolete-package-fixtures": 8
@@ -14147,10 +14147,10 @@
       ]
     },
     {
-      "id": "src/cli/dispatch.ts:39:69",
+      "id": "src/cli/dispatch.ts:40:69",
       "path": "src/cli/dispatch.ts",
       "locationKind": "content",
-      "line": 39,
+      "line": 40,
       "column": 69,
       "value": "addone",
       "context": "if (arguments_.length === 0) return { kind: \"launch\", profileId: \"addone\" };",
@@ -14158,69 +14158,6 @@
       "primaryClass": "runtime-symbols",
       "classes": [
         "runtime-symbols"
-      ]
-    },
-    {
-      "id": "src/cli/version-stats.ts:7:7",
-      "path": "src/cli/version-stats.ts",
-      "locationKind": "content",
-      "line": 7,
-      "column": 7,
-      "value": "ADDONE",
-      "context": "const ADDONE_PACKAGE = \"@timurproko/a1\";",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "paths"
-      ]
-    },
-    {
-      "id": "src/cli/version-stats.ts:31:20",
-      "path": "src/cli/version-stats.ts",
-      "locationKind": "content",
-      "line": 31,
-      "column": 20,
-      "value": "AddOne",
-      "context": "output.stderr(`AddOne could not read its installed version: ${message(error)}\\n`);",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics",
-        "paths"
-      ]
-    },
-    {
-      "id": "src/cli/version-stats.ts:41:38",
-      "path": "src/cli/version-stats.ts",
-      "locationKind": "content",
-      "line": 41,
-      "column": 38,
-      "value": "AddOne",
-      "context": "if (result.error) output.stderr(`AddOne could not resolve npm ${result.tag}: ${result.error}\\n`);",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics",
-        "paths"
-      ]
-    },
-    {
-      "id": "src/cli/version-stats.ts:48:52",
-      "path": "src/cli/version-stats.ts",
-      "locationKind": "content",
-      "line": 48,
-      "column": 52,
-      "value": "ADDONE",
-      "context": "const result = await runner(\"npm\", [\"view\", `${ADDONE_PACKAGE}@${tag}`, \"version\"]);",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys"
       ]
     },
     {
@@ -16050,70 +15987,10 @@
       ]
     },
     {
-      "id": "src/foundation/release/update-transaction.ts:48:37",
-      "path": "src/foundation/release/update-transaction.ts",
-      "locationKind": "content",
-      "line": 48,
-      "column": 37,
-      "value": "AddOne",
-      "context": "throw new Error(`unfinished AddOne update ${current.transactionId} targets ${current.targetVersion}; reconcile it before starting ${input.targetVersion}`);",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics"
-      ]
-    },
-    {
-      "id": "src/foundation/release/update-transaction.ts:73:39",
-      "path": "src/foundation/release/update-transaction.ts",
-      "locationKind": "content",
-      "line": 73,
-      "column": 39,
-      "value": "AddOne",
-      "context": "if (!current) throw new Error(\"no AddOne update transaction is recorded\");",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics"
-      ]
-    },
-    {
-      "id": "src/foundation/release/update-transaction.ts:84:77",
-      "path": "src/foundation/release/update-transaction.ts",
-      "locationKind": "content",
-      "line": 84,
-      "column": 77,
-      "value": "AddOne",
-      "context": "if (!current || current.status !== \"active\") throw new Error(\"no active AddOne update transaction is recorded\");",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics"
-      ]
-    },
-    {
-      "id": "src/foundation/release/update-transaction.ts:111:30",
-      "path": "src/foundation/release/update-transaction.ts",
-      "locationKind": "content",
-      "line": 111,
-      "column": 30,
-      "value": "AddOne",
-      "context": "throw new Error(\"invalid AddOne update transaction journal\");",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics"
-      ]
-    },
-    {
-      "id": "src/foundation/release/update.ts:16:17",
+      "id": "src/foundation/release/update.ts:17:17",
       "path": "src/foundation/release/update.ts",
       "locationKind": "content",
-      "line": 16,
+      "line": 17,
       "column": 17,
       "value": "AddOne",
       "context": "import { resolveAddOnePaths } from \"../lifecycle/index.js\";",
@@ -16125,26 +16002,25 @@
       ]
     },
     {
-      "id": "src/foundation/release/update.ts:23:14",
+      "id": "src/foundation/release/update.ts:24:14",
       "path": "src/foundation/release/update.ts",
       "locationKind": "content",
-      "line": 23,
+      "line": 24,
       "column": 14,
       "value": "ADDONE",
-      "context": "export const ADDONE_PACKAGE = \"@timurproko/a1\";",
+      "context": "export const ADDONE_PACKAGE = PRODUCT_TEXT.packageName;",
       "matchedCase": "upper",
       "primaryClass": "runtime-symbols",
       "classes": [
         "runtime-symbols",
-        "environment-keys",
-        "paths"
+        "environment-keys"
       ]
     },
     {
-      "id": "src/foundation/release/update.ts:87:24",
+      "id": "src/foundation/release/update.ts:88:24",
       "path": "src/foundation/release/update.ts",
       "locationKind": "content",
-      "line": 87,
+      "line": 88,
       "column": 24,
       "value": "AddOne",
       "context": "const paths = resolveAddOnePaths(environment);",
@@ -16156,57 +16032,10 @@
       ]
     },
     {
-      "id": "src/foundation/release/update.ts:104:26",
+      "id": "src/foundation/release/update.ts:134:37",
       "path": "src/foundation/release/update.ts",
       "locationKind": "content",
-      "line": 104,
-      "column": 26,
-      "value": "AddOne",
-      "context": "throw new Error(`AddOne refused update shutdown because supervisor ownership is ${ownership}`);",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics"
-      ]
-    },
-    {
-      "id": "src/foundation/release/update.ts:118:60",
-      "path": "src/foundation/release/update.ts",
-      "locationKind": "content",
-      "line": 118,
-      "column": 60,
-      "value": "AddOne",
-      "context": "if (!cleanup.terminated) throw new Error(`verified AddOne owner ${endpoint.pid} rejected shutdown and could not be terminated: ${identity.reason}`);",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics",
-        "paths"
-      ]
-    },
-    {
-      "id": "src/foundation/release/update.ts:125:62",
-      "path": "src/foundation/release/update.ts",
-      "locationKind": "content",
-      "line": 125,
-      "column": 62,
-      "value": "AddOne",
-      "context": "if (!cleanup.terminated) throw new Error(`verified AddOne owner ${endpoint.pid} did not terminate`);",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics",
-        "paths"
-      ]
-    },
-    {
-      "id": "src/foundation/release/update.ts:133:37",
-      "path": "src/foundation/release/update.ts",
-      "locationKind": "content",
-      "line": 133,
+      "line": 134,
       "column": 37,
       "value": "addone",
       "context": "const probe = `${packageRoot}.addone-unlock-probe`;",
@@ -16217,56 +16046,10 @@
       ]
     },
     {
-      "id": "src/foundation/release/update.ts:141:26",
+      "id": "src/foundation/release/update.ts:179:57",
       "path": "src/foundation/release/update.ts",
       "locationKind": "content",
-      "line": 141,
-      "column": 26,
-      "value": "AddOne",
-      "context": "throw new Error(`AddOne package remains locked after verified shutdown: ${errorMessage(error)}`);",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics"
-      ]
-    },
-    {
-      "id": "src/foundation/release/update.ts:146:82",
-      "path": "src/foundation/release/update.ts",
-      "locationKind": "content",
-      "line": 146,
-      "column": 82,
-      "value": "AddOne",
-      "context": "if (candidate.packageVersion !== targetVersion) throw new Error(`installed AddOne version ${candidate.packageVersion} does not match target ${targetVersion}`);",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics"
-      ]
-    },
-    {
-      "id": "src/foundation/release/update.ts:174:20",
-      "path": "src/foundation/release/update.ts",
-      "locationKind": "content",
-      "line": 174,
-      "column": 20,
-      "value": "AddOne",
-      "context": "output.stderr(`AddOne could not read its running package version: ${errorMessage(error)}\\n`);",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics",
-        "paths"
-      ]
-    },
-    {
-      "id": "src/foundation/release/update.ts:178:57",
-      "path": "src/foundation/release/update.ts",
-      "locationKind": "content",
-      "line": 178,
+      "line": 179,
       "column": 57,
       "value": "ADDONE",
       "context": "const targetLookup = await runNpm(runner, [\"view\", `${ADDONE_PACKAGE}@${distTag}`, \"version\"], true, output, `query the npm ${distTag} channel`);",
@@ -16278,87 +16061,10 @@
       ]
     },
     {
-      "id": "src/foundation/release/update.ts:182:20",
+      "id": "src/foundation/release/update.ts:208:24",
       "path": "src/foundation/release/update.ts",
       "locationKind": "content",
-      "line": 182,
-      "column": 20,
-      "value": "AddOne",
-      "context": "output.stderr(`AddOne received a malformed ${distTag} version from npm: ${JSON.stringify(targetLookup.result.stdout.trim())}.\\n`);",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths"
-      ]
-    },
-    {
-      "id": "src/foundation/release/update.ts:185:18",
-      "path": "src/foundation/release/update.ts",
-      "locationKind": "content",
-      "line": 185,
-      "column": 18,
-      "value": "AddOne",
-      "context": "output.stdout(`AddOne update (${channel}): ${runningVersion} → ${targetVersion}.\\n`);",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths"
-      ]
-    },
-    {
-      "id": "src/foundation/release/update.ts:190:20",
-      "path": "src/foundation/release/update.ts",
-      "locationKind": "content",
-      "line": 190,
-      "column": 20,
-      "value": "AddOne",
-      "context": "output.stderr(\"AddOne could not verify its installation because npm returned an empty global package root.\\n\");",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics",
-        "paths"
-      ]
-    },
-    {
-      "id": "src/foundation/release/update.ts:198:20",
-      "path": "src/foundation/release/update.ts",
-      "locationKind": "content",
-      "line": 198,
-      "column": 20,
-      "value": "AddOne",
-      "context": "output.stderr(`AddOne could not canonicalize the running and global npm paths: ${errorMessage(error)}\\n`);",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics",
-        "paths"
-      ]
-    },
-    {
-      "id": "src/foundation/release/update.ts:202:20",
-      "path": "src/foundation/release/update.ts",
-      "locationKind": "content",
-      "line": 202,
-      "column": 20,
-      "value": "AddOne",
-      "context": "output.stderr(`AddOne refused to update automatically because ${packageRoot} is not managed beneath npm's global package root ${globalRoot}.\\n`);",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths"
-      ]
-    },
-    {
-      "id": "src/foundation/release/update.ts:207:24",
-      "path": "src/foundation/release/update.ts",
-      "locationKind": "content",
-      "line": 207,
+      "line": 208,
       "column": 24,
       "value": "AddOne",
       "context": "const paths = resolveAddOnePaths(environment);",
@@ -16370,56 +16076,10 @@
       ]
     },
     {
-      "id": "src/foundation/release/update.ts:218:22",
+      "id": "src/foundation/release/update.ts:237:76",
       "path": "src/foundation/release/update.ts",
       "locationKind": "content",
-      "line": 218,
-      "column": 22,
-      "value": "AddOne",
-      "context": "output.stdout(\"AddOne is already current and active for this channel; no installation was changed.\\n\");",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths"
-      ]
-    },
-    {
-      "id": "src/foundation/release/update.ts:235:22",
-      "path": "src/foundation/release/update.ts",
-      "locationKind": "content",
-      "line": 235,
-      "column": 22,
-      "value": "AddOne",
-      "context": "output.stdout(`AddOne is installing ${ADDONE_PACKAGE}@${targetVersion}.\\n`);",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths"
-      ]
-    },
-    {
-      "id": "src/foundation/release/update.ts:235:45",
-      "path": "src/foundation/release/update.ts",
-      "locationKind": "content",
-      "line": 235,
-      "column": 45,
-      "value": "ADDONE",
-      "context": "output.stdout(`AddOne is installing ${ADDONE_PACKAGE}@${targetVersion}.\\n`);",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "paths"
-      ]
-    },
-    {
-      "id": "src/foundation/release/update.ts:236:76",
-      "path": "src/foundation/release/update.ts",
-      "locationKind": "content",
-      "line": 236,
+      "line": 237,
       "column": 76,
       "value": "ADDONE",
       "context": "const installation = await runNpm(runner, [\"install\", \"--global\", `${ADDONE_PACKAGE}@${targetVersion}`], false, output, \"start the global npm installation\", false);",
@@ -16431,73 +16091,10 @@
       ]
     },
     {
-      "id": "src/foundation/release/update.ts:246:20",
+      "id": "src/foundation/release/update.ts:305:24",
       "path": "src/foundation/release/update.ts",
       "locationKind": "content",
-      "line": 246,
-      "column": 20,
-      "value": "AddOne",
-      "context": "output.stdout(`AddOne updated successfully: ${targetVersion} (${channel}).\\n`);",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths"
-      ]
-    },
-    {
-      "id": "src/foundation/release/update.ts:254:20",
-      "path": "src/foundation/release/update.ts",
-      "locationKind": "content",
-      "line": 254,
-      "column": 20,
-      "value": "AddOne",
-      "context": "output.stderr(`AddOne update failed: ${message}. ${rollback}. Diagnostics: ${transactionStore.path}\\n`);",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics",
-        "paths"
-      ]
-    },
-    {
-      "id": "src/foundation/release/update.ts:286:34",
-      "path": "src/foundation/release/update.ts",
-      "locationKind": "content",
-      "line": 286,
-      "column": 34,
-      "value": "AddOne",
-      "context": "catch (error) { output.stderr(`AddOne could not execute npm to ${action}: ${errorMessage(error)}\\n`); return { result: null, exitCode: 1 }; }",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics",
-        "paths"
-      ]
-    },
-    {
-      "id": "src/foundation/release/update.ts:288:20",
-      "path": "src/foundation/release/update.ts",
-      "locationKind": "content",
-      "line": 288,
-      "column": 20,
-      "value": "AddOne",
-      "context": "output.stderr(`AddOne could not ${action}; npm exited with status ${formatExitCode(result.code)}. Review npm's diagnostics above.\\n`);",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics",
-        "paths"
-      ]
-    },
-    {
-      "id": "src/foundation/release/update.ts:304:24",
-      "path": "src/foundation/release/update.ts",
-      "locationKind": "content",
-      "line": 304,
+      "line": 305,
       "column": 24,
       "value": "AddOne",
       "context": "const paths = resolveAddOnePaths(environment);",
@@ -20008,24 +19605,8 @@
       "line": 31,
       "column": 98,
       "value": "addone",
-      "context": "await expect(store.begin({ channel: \"next\", targetVersion: \"1.3.0-dev.0\", packageRoot: \"/npm/addone\", priorActiveReleaseId: \"old\" })).rejects.toThrow(/unfinished AddOne update/);",
+      "context": "await expect(store.begin({ channel: \"next\", targetVersion: \"1.3.0-dev.0\", packageRoot: \"/npm/addone\", priorActiveReleaseId: \"old\" })).rejects.toThrow(/A1 has unfinished update/);",
       "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/release/update-transaction.test.ts:31:167",
-      "path": "test/foundation/release/update-transaction.test.ts",
-      "locationKind": "content",
-      "line": 31,
-      "column": 167,
-      "value": "AddOne",
-      "context": "await expect(store.begin({ channel: \"next\", targetVersion: \"1.3.0-dev.0\", packageRoot: \"/npm/addone\", priorActiveReleaseId: \"old\" })).rejects.toThrow(/unfinished AddOne update/);",
-      "matchedCase": "title-or-mixed",
       "primaryClass": "runtime-symbols",
       "classes": [
         "runtime-symbols",
@@ -20113,36 +19694,6 @@
       ]
     },
     {
-      "id": "test/foundation/release/update-transition.integration.test.ts:129:40",
-      "path": "test/foundation/release/update-transition.integration.test.ts",
-      "locationKind": "content",
-      "line": 129,
-      "column": 40,
-      "value": "AddOne",
-      "context": "expect(stdout.join(\"\")).toContain(`AddOne update (${channel}): 1.0.0 → 1.1.0.`);",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/release/update-transition.integration.test.ts:130:40",
-      "path": "test/foundation/release/update-transition.integration.test.ts",
-      "locationKind": "content",
-      "line": 130,
-      "column": 40,
-      "value": "AddOne",
-      "context": "expect(stdout.join(\"\")).toContain(`AddOne updated successfully: 1.1.0 (${channel}).`);",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "tests"
-      ]
-    },
-    {
       "id": "test/foundation/release/update-transition.integration.test.ts:165:16",
       "path": "test/foundation/release/update-transition.integration.test.ts",
       "locationKind": "content",
@@ -20189,21 +19740,6 @@
       ]
     },
     {
-      "id": "test/foundation/release/update.test.ts:90:11",
-      "path": "test/foundation/release/update.test.ts",
-      "locationKind": "content",
-      "line": 90,
-      "column": 11,
-      "value": "AddOne",
-      "context": "describe(\"AddOne self-update orchestration\", () => {",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "tests"
-      ]
-    },
-    {
       "id": "test/foundation/release/update.test.ts:100:48",
       "path": "test/foundation/release/update.test.ts",
       "locationKind": "content",
@@ -20232,21 +19768,6 @@
       "classes": [
         "runtime-symbols",
         "environment-keys",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/release/update.test.ts:104:48",
-      "path": "test/foundation/release/update.test.ts",
-      "locationKind": "content",
-      "line": 104,
-      "column": 48,
-      "value": "AddOne",
-      "context": "expect(harness.stdout.join(\"\")).toContain(`AddOne updated successfully: ${latest} (stable).`);",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
         "tests"
       ]
     },
@@ -20283,36 +19804,6 @@
       ]
     },
     {
-      "id": "test/foundation/release/update.test.ts:124:48",
-      "path": "test/foundation/release/update.test.ts",
-      "locationKind": "content",
-      "line": 124,
-      "column": 48,
-      "value": "AddOne",
-      "context": "expect(harness.stdout.join(\"\")).toContain(\"AddOne update (stable): 1.2.3 → 1.3.0.\");",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/release/update.test.ts:125:48",
-      "path": "test/foundation/release/update.test.ts",
-      "locationKind": "content",
-      "line": 125,
-      "column": 48,
-      "value": "AddOne",
-      "context": "expect(harness.stdout.join(\"\")).toContain(\"AddOne updated successfully: 1.3.0 (stable).\");",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "tests"
-      ]
-    },
-    {
       "id": "test/foundation/release/update.test.ts:142:48",
       "path": "test/foundation/release/update.test.ts",
       "locationKind": "content",
@@ -20345,65 +19836,19 @@
       ]
     },
     {
-      "id": "test/foundation/release/update.test.ts:146:48",
-      "path": "test/foundation/release/update.test.ts",
-      "locationKind": "content",
-      "line": 146,
-      "column": 48,
-      "value": "AddOne",
-      "context": "expect(harness.stdout.join(\"\")).toContain(\"AddOne update (next): 1.3.0-dev.0 → 1.3.0-dev.1.\");",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/release/update.test.ts:147:48",
+      "id": "test/foundation/release/update.test.ts:147:67",
       "path": "test/foundation/release/update.test.ts",
       "locationKind": "content",
       "line": 147,
-      "column": 48,
-      "value": "AddOne",
-      "context": "expect(harness.stdout.join(\"\")).toContain(`AddOne is installing ${ADDONE_PACKAGE}@1.3.0-dev.1.\\n`);",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/release/update.test.ts:147:71",
-      "path": "test/foundation/release/update.test.ts",
-      "locationKind": "content",
-      "line": 147,
-      "column": 71,
+      "column": 67,
       "value": "ADDONE",
-      "context": "expect(harness.stdout.join(\"\")).toContain(`AddOne is installing ${ADDONE_PACKAGE}@1.3.0-dev.1.\\n`);",
+      "context": "expect(harness.stdout.join(\"\")).toContain(`A1 is installing ${ADDONE_PACKAGE}@1.3.0-dev.1.\\n`);",
       "matchedCase": "upper",
       "primaryClass": "runtime-symbols",
       "classes": [
         "runtime-symbols",
         "environment-keys",
         "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/release/update.test.ts:149:48",
-      "path": "test/foundation/release/update.test.ts",
-      "locationKind": "content",
-      "line": 149,
-      "column": 48,
-      "value": "AddOne",
-      "context": "expect(harness.stdout.join(\"\")).toContain(\"AddOne updated successfully: 1.3.0-dev.1 (next).\");",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
         "tests"
       ]
     },
@@ -20840,10 +20285,10 @@
       ]
     },
     {
-      "id": "test/product-identity/product-identity.test.ts:59:65",
+      "id": "test/product-identity/product-identity.test.ts:68:65",
       "path": "test/product-identity/product-identity.test.ts",
       "locationKind": "content",
-      "line": 59,
+      "line": 68,
       "column": 65,
       "value": "ADDONE",
       "context": "[\"legacy environment prefix\", withEnvironment(\"configDir\", \"ADDONE_CONFIG_DIR\"), /must use A1_/],",
@@ -21717,5 +21162,5 @@
       ]
     }
   ],
-  "generatedAt": "2026-08-20T08:35:32.122Z"
+  "generatedAt": "2026-08-20T08:38:49.969Z"
 }

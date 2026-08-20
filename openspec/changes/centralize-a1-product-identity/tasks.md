@@ -12,7 +12,7 @@
 ## 3. Correct CLI identity and version behavior
 
 - [x] 3.1 Rename CLI entry files, exports, command/result types, usage constants, development launch entry selection, tests, and package bin target from legacy names to A1 or product-neutral names; pass dispatch, startup, and sole-bin installation tests.
-- [ ] 3.2 Replace hardcoded CLI/version/update diagnostics with identity-derived `A1` formatters and test alternate injected identity at explicit formatting boundaries.
+- [x] 3.2 Replace hardcoded CLI/version/update diagnostics with identity-derived `A1` formatters and test alternate injected identity at explicit formatting boundaries.
 - [ ] 3.3 Replace per-tag version queries with one JSON dist-tags query; prove defined `latest`/`next`, absent `next` without diagnostics, registry failure with one A1 diagnostic, malformed metadata, and dependency-light execution.
 
 ## 4. Hard-cut environment and platform paths

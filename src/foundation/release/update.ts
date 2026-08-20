@@ -4,6 +4,7 @@ import { connect } from "node:net";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import crossSpawn from "cross-spawn";
 import { valid as validSemver } from "semver";
+import { PRODUCT_TEXT } from "../../product-identity.js";
 import {
   certifyMaterializedRelease,
   probeOwnership,
@@ -20,7 +21,7 @@ import { cleanupVerifiedOwner, processIsAlive } from "./process-cleanup.js";
 import { materializeRelease, readMaterializedRelease } from "./release-store.js";
 import { UpdateTransactionStore, type UpdateTransaction, type UpdateTransactionPhase } from "./update-transaction.js";
 
-export const ADDONE_PACKAGE = "@timurproko/a1";
+export const ADDONE_PACKAGE = PRODUCT_TEXT.packageName;
 export type UpdateChannel = "stable" | "next";
 const UPDATE_DIST_TAGS: Readonly<Record<UpdateChannel, "latest" | "next">> = { stable: "latest", next: "next" };
 
@@ -101,7 +102,7 @@ export function createUpdateLifecycleCoordinator(
       if (!endpoint) return { priorActiveVersion };
       const ownership = await probeOwnership(endpoint);
       if (ownership !== "live-verified" && ownership !== "dead") {
-        throw new Error(`AddOne refused update shutdown because supervisor ownership is ${ownership}`);
+        throw new Error(PRODUCT_TEXT.diagnostic(`refused update shutdown because supervisor ownership is ${ownership}`));
       }
       const immutableRoot = await canonicalImmutableRoot(paths.dataDir, endpoint.releaseRoot);
       const legacyMutableInstall = ownership === "live-verified" && !immutableRoot;
@@ -115,14 +116,14 @@ export function createUpdateLifecycleCoordinator(
           allowLiveGenerations: true,
           reason: legacyMutableInstall ? "legacy-mutable-install" : "explicit-update",
         });
-        if (!cleanup.terminated) throw new Error(`verified AddOne owner ${endpoint.pid} rejected shutdown and could not be terminated: ${identity.reason}`);
+        if (!cleanup.terminated) throw new Error(`verified ${PRODUCT_TEXT.displayName} owner ${endpoint.pid} rejected shutdown and could not be terminated: ${identity.reason}`);
       } else if (identity.accepted) {
         await waitForProcessExit(endpoint.pid, 3_000).catch(async () => {
           const cleanup = await cleanupVerifiedOwner(endpoint, {
             allowLiveGenerations: true,
             reason: legacyMutableInstall ? "legacy-mutable-install" : "explicit-update",
           });
-          if (!cleanup.terminated) throw new Error(`verified AddOne owner ${endpoint.pid} did not terminate`);
+          if (!cleanup.terminated) throw new Error(`verified ${PRODUCT_TEXT.displayName} owner ${endpoint.pid} did not terminate`);
         });
       }
       await removeEndpointArtifacts(paths.endpointMetadataPath, paths.endpoint);
@@ -138,12 +139,12 @@ export function createUpdateLifecycleCoordinator(
       } catch (error) {
         // Best-effort rollback if the first rename succeeded and the second did not.
         await rename(probe, packageRoot).catch(() => {});
-        throw new Error(`AddOne package remains locked after verified shutdown: ${errorMessage(error)}`);
+        throw new Error(PRODUCT_TEXT.diagnostic(`package remains locked after verified shutdown: ${errorMessage(error)}`));
       }
     },
     async activateInstalled(packageRoot, targetVersion, phase) {
       const candidate = await materializeRelease(packageRoot, paths.dataDir);
-      if (candidate.packageVersion !== targetVersion) throw new Error(`installed AddOne version ${candidate.packageVersion} does not match target ${targetVersion}`);
+      if (candidate.packageVersion !== targetVersion) throw new Error(`installed ${PRODUCT_TEXT.displayName} version ${candidate.packageVersion} does not match target ${targetVersion}`);
       await stateStore.recordCandidate(candidate);
       await phase("materialized");
       const diagnostics = await certifyMaterializedRelease(candidate, paths.dataDir);
@@ -171,7 +172,7 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
     if (parsedVersion === null) throw new Error("package.json does not contain a valid semantic version");
     runningVersion = parsedVersion;
   } catch (error) {
-    output.stderr(`AddOne could not read its running package version: ${errorMessage(error)}\n`);
+    output.stderr(`${PRODUCT_TEXT.diagnostic(`could not read its running package version: ${errorMessage(error)}`)}\n`);
     return 1;
   }
 
@@ -179,15 +180,15 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
   if (targetLookup.result === null) return targetLookup.exitCode;
   const targetVersion = validSemver(targetLookup.result.stdout.trim());
   if (targetVersion === null) {
-    output.stderr(`AddOne received a malformed ${distTag} version from npm: ${JSON.stringify(targetLookup.result.stdout.trim())}.\n`);
+    output.stderr(`${PRODUCT_TEXT.diagnostic(`received a malformed ${distTag} version from npm: ${JSON.stringify(targetLookup.result.stdout.trim())}.`)}\n`);
     return 1;
   }
-  output.stdout(`AddOne update (${channel}): ${runningVersion} → ${targetVersion}.\n`);
+  output.stdout(`${PRODUCT_TEXT.diagnostic(`update (${channel}): ${runningVersion} → ${targetVersion}.`)}\n`);
 
   const rootLookup = await runNpm(runner, ["root", "--global"], true, output, "resolve npm's global package root");
   if (rootLookup.result === null) return rootLookup.exitCode;
   if (rootLookup.result.stdout.trim().length === 0) {
-    output.stderr("AddOne could not verify its installation because npm returned an empty global package root.\n");
+    output.stderr(`${PRODUCT_TEXT.diagnostic("could not verify its installation because npm returned an empty global package root.")}\n`);
     return 1;
   }
   let packageRoot: string;
@@ -195,11 +196,11 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
   try {
     [packageRoot, globalRoot] = await Promise.all([fileSystem.realpath(options.packageRoot), fileSystem.realpath(rootLookup.result.stdout.trim())]);
   } catch (error) {
-    output.stderr(`AddOne could not canonicalize the running and global npm paths: ${errorMessage(error)}\n`);
+    output.stderr(`${PRODUCT_TEXT.diagnostic(`could not canonicalize the running and global npm paths: ${errorMessage(error)}`)}\n`);
     return 1;
   }
   if (!isContainedBy(globalRoot, packageRoot)) {
-    output.stderr(`AddOne refused to update automatically because ${packageRoot} is not managed beneath npm's global package root ${globalRoot}.\n`);
+    output.stderr(`${PRODUCT_TEXT.diagnostic(`refused to update automatically because ${packageRoot} is not managed beneath npm's global package root ${globalRoot}.`)}\n`);
     return 1;
   }
 
@@ -215,7 +216,7 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
         await transactionStore.finish("completed");
       }
       await transactionStore.clearCompleted();
-      output.stdout("AddOne is already current and active for this channel; no installation was changed.\n");
+      output.stdout(`${PRODUCT_TEXT.diagnostic("is already current and active for this channel; no installation was changed.")}\n`);
       return 0;
     }
     const cohortState = await new CohortStateStore(paths.dataDir).read();
@@ -232,7 +233,7 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
     }
 
     if (phaseBefore(transaction.phase, "package-installed")) {
-      output.stdout(`AddOne is installing ${ADDONE_PACKAGE}@${targetVersion}.\n`);
+      output.stdout(`${PRODUCT_TEXT.diagnostic(`is installing ${PRODUCT_TEXT.packageName}@${targetVersion}.`)}\n`);
       const installation = await runNpm(runner, ["install", "--global", `${ADDONE_PACKAGE}@${targetVersion}`], false, output, "start the global npm installation", false);
       if (installation.result === null) throw new UpdateFailure(installation.exitCode, "npm process failed");
       if (installation.result.code !== 0) throw new UpdateFailure(unsuccessfulCode(installation.result.code), `npm exited with status ${formatExitCode(installation.result.code)}`);
@@ -243,7 +244,7 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
     await transactionStore.advance("supervisor-verified");
     await transactionStore.finish("completed");
     await transactionStore.clearCompleted();
-    output.stdout(`AddOne updated successfully: ${targetVersion} (${channel}).\n`);
+    output.stdout(`${PRODUCT_TEXT.diagnostic(`updated successfully: ${targetVersion} (${channel}).`)}\n`);
     return 0;
   } catch (error) {
     const message = errorMessage(error);
@@ -251,7 +252,7 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
       ? "previous test lifecycle retained"
       : await rollbackPriorCohort(paths.dataDir, environment, transaction?.priorActiveReleaseId ?? null).catch(rollbackError => `rollback failed: ${errorMessage(rollbackError)}`);
     if (transaction) await transactionStore.finish(rollback === "rolled back" ? "rolled-back" : "failed", `${message}; ${rollback}`);
-    output.stderr(`AddOne update failed: ${message}. ${rollback}. Diagnostics: ${transactionStore.path}\n`);
+    output.stderr(`${PRODUCT_TEXT.diagnostic(`update failed: ${message}. ${rollback}. Diagnostics: ${transactionStore.path}`)}\n`);
     return error instanceof UpdateFailure ? error.exitCode : 1;
   }
 }
@@ -283,9 +284,9 @@ async function requestUpdateShutdown(metadata: SupervisorEndpointMetadata, targe
 async function runNpm(runner: UpdateProcessRunner, arguments_: readonly string[], captureStdout: boolean, output: UpdateOutput, action: string, reportNonzero = true): Promise<{ result: ProcessResult | null; exitCode: number }> {
   let result: ProcessResult;
   try { result = await runner("npm", arguments_, { captureStdout }); }
-  catch (error) { output.stderr(`AddOne could not execute npm to ${action}: ${errorMessage(error)}\n`); return { result: null, exitCode: 1 }; }
+  catch (error) { output.stderr(`${PRODUCT_TEXT.diagnostic(`could not execute npm to ${action}: ${errorMessage(error)}`)}\n`); return { result: null, exitCode: 1 }; }
   if (result.code !== 0 && reportNonzero) {
-    output.stderr(`AddOne could not ${action}; npm exited with status ${formatExitCode(result.code)}. Review npm's diagnostics above.\n`);
+    output.stderr(`${PRODUCT_TEXT.diagnostic(`could not ${action}; npm exited with status ${formatExitCode(result.code)}. Review npm's diagnostics above.`)}\n`);
     return { result: null, exitCode: unsuccessfulCode(result.code) };
   }
   return { result, exitCode: 0 };

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PRODUCT_IDENTITY, validateProductIdentity } from "../../src/product-identity.js";
+import { createProductIdentityText, PRODUCT_IDENTITY, validateProductIdentity } from "../../src/product-identity.js";
 
 describe("product identity authority", () => {
   it("loads the exact A1 identity as a deeply immutable value", () => {
@@ -25,6 +25,15 @@ describe("product identity authority", () => {
     });
     expect(allObjectsFrozen(PRODUCT_IDENTITY)).toBe(true);
     expect(() => { (PRODUCT_IDENTITY as { displayName: string }).displayName = "changed"; }).toThrow(TypeError);
+  });
+
+  it("formats diagnostics and command usage from an injected identity boundary", () => {
+    const text = createProductIdentityText({ displayName: "Z1", commandName: "z1", packageName: "@example/z1" });
+
+    expect(text.diagnostic("could not start")).toBe("Z1 could not start");
+    expect(text.usage(["", "version", "update:next"])).toBe("Usage: z1 | z1 version | z1 update:next");
+    expect(text).toMatchObject({ displayName: "Z1", commandName: "z1", packageName: "@example/z1" });
+    expect(Object.isFrozen(text)).toBe(true);
   });
 
   it("validates and freezes an alternate coherent identity", () => {

@@ -87,7 +87,7 @@ function createHarness(options: {
 
 const success = (stdout = ""): ProcessResult => ({ code: 0, stdout });
 
-describe("AddOne self-update orchestration", () => {
+describe("A1 self-update orchestration", () => {
   it.each([
     ["the current version", "1.2.3"],
     ["a newer running version", "1.2.2"],
@@ -101,7 +101,7 @@ describe("AddOne self-update orchestration", () => {
       { command: "npm", arguments: ["root", "--global"], request: { captureStdout: true } },
       { command: "npm", arguments: ["install", "--global", `${ADDONE_PACKAGE}@${latest}`], request: { captureStdout: false } },
     ]);
-    expect(harness.stdout.join("")).toContain(`AddOne updated successfully: ${latest} (stable).`);
+    expect(harness.stdout.join("")).toContain(`A1 updated successfully: ${latest} (stable).`);
   });
 
   it("installs an exact newer version for a canonical managed global package", async () => {
@@ -121,8 +121,8 @@ describe("AddOne self-update orchestration", () => {
       { command: "npm", arguments: ["root", "--global"], request: { captureStdout: true } },
       { command: "npm", arguments: ["install", "--global", `${ADDONE_PACKAGE}@1.3.0`], request: { captureStdout: false } },
     ]);
-    expect(harness.stdout.join("")).toContain("AddOne update (stable): 1.2.3 → 1.3.0.");
-    expect(harness.stdout.join("")).toContain("AddOne updated successfully: 1.3.0 (stable).");
+    expect(harness.stdout.join("")).toContain("A1 update (stable): 1.2.3 → 1.3.0.");
+    expect(harness.stdout.join("")).toContain("A1 updated successfully: 1.3.0 (stable).");
     expect(harness.stderr).toEqual([]);
   });
 
@@ -143,10 +143,10 @@ describe("AddOne self-update orchestration", () => {
       { command: "npm", arguments: ["root", "--global"], request: { captureStdout: true } },
       { command: "npm", arguments: ["install", "--global", `${ADDONE_PACKAGE}@1.3.0-dev.1`], request: { captureStdout: false } },
     ]);
-    expect(harness.stdout.join("")).toContain("AddOne update (next): 1.3.0-dev.0 → 1.3.0-dev.1.");
-    expect(harness.stdout.join("")).toContain(`AddOne is installing ${ADDONE_PACKAGE}@1.3.0-dev.1.\n`);
+    expect(harness.stdout.join("")).toContain("A1 update (next): 1.3.0-dev.0 → 1.3.0-dev.1.");
+    expect(harness.stdout.join("")).toContain(`A1 is installing ${ADDONE_PACKAGE}@1.3.0-dev.1.\n`);
     expect(harness.stdout.join("")).not.toContain("globally from the next channel");
-    expect(harness.stdout.join("")).toContain("AddOne updated successfully: 1.3.0-dev.1 (next).");
+    expect(harness.stdout.join("")).toContain("A1 updated successfully: 1.3.0-dev.1 (next).");
   });
 
   it("refuses an unmanaged checkout and prints the pinned fallback", async () => {

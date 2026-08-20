@@ -123,7 +123,28 @@ export function validateProductIdentity(value: unknown): ProductIdentity {
   });
 }
 
+export interface ProductIdentityText {
+  readonly displayName: string;
+  readonly commandName: string;
+  readonly packageName: string;
+  readonly diagnostic: (message: string) => string;
+  readonly usage: (forms: readonly string[]) => string;
+}
+
+export function createProductIdentityText(
+  identity: Pick<ProductIdentity, "displayName" | "commandName" | "packageName">,
+): ProductIdentityText {
+  return Object.freeze({
+    displayName: identity.displayName,
+    commandName: identity.commandName,
+    packageName: identity.packageName,
+    diagnostic: (message: string) => `${identity.displayName} ${message}`,
+    usage: (forms: readonly string[]) => `Usage: ${forms.map(form => `${identity.commandName}${form ? ` ${form}` : ""}`).join(" | ")}`,
+  });
+}
+
 export const PRODUCT_IDENTITY: ProductIdentity = validateProductIdentity(rawIdentity);
+export const PRODUCT_TEXT: ProductIdentityText = createProductIdentityText(PRODUCT_IDENTITY);
 
 function exactObject<const Keys extends readonly string[]>(value: unknown, keys: Keys, name: string): Record<Keys[number], unknown> {
   if (typeof value !== "object" || value === null || Array.isArray(value)) throw new TypeError(`${name} must be an object`);

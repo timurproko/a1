@@ -62,6 +62,6 @@ describe("repository-local development launch", () => {
     expect(JSON.parse(sandbox.stdout)).toMatchObject({ launchArguments: ["sandbox"], directProfile: "sandbox" });
 
     await expect(execute(process.execPath, ["scripts/start-local.mjs", "not-an-a1-command"]))
-      .rejects.toMatchObject({ code: 2, stderr: expect.stringContaining("Unknown A1 command: not-an-a1-command") });
+      .rejects.toMatchObject({ code: 2, stderr: expect.stringContaining("A1 received an unknown command: not-an-a1-command") });
   });
 });

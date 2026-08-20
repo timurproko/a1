@@ -3,8 +3,7 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import crossSpawn from "cross-spawn";
 import { valid as validSemver } from "semver";
-
-const ADDONE_PACKAGE = "@timurproko/a1";
+import { PRODUCT_TEXT } from "../product-identity.js";
 interface VersionProcessResult { readonly code: number | null; readonly stdout: string }
 type VersionProcessRunner = (command: string, arguments_: readonly string[]) => Promise<VersionProcessResult>;
 interface VersionOutput { stdout(message: string): void; stderr(message: string): void }
@@ -28,7 +27,7 @@ export async function runVersionStats(options: VersionStatsOptions): Promise<num
     const manifest = JSON.parse(await readFile(resolve(options.packageRoot, "package.json"), "utf8")) as { version?: unknown };
     installed = parseVersion(manifest.version, "installed package");
   } catch (error) {
-    output.stderr(`AddOne could not read its installed version: ${message(error)}\n`);
+    output.stderr(`${PRODUCT_TEXT.diagnostic(`could not read its installed version: ${message(error)}`)}\n`);
     return 1;
   }
 
@@ -38,14 +37,14 @@ export async function runVersionStats(options: VersionStatsOptions): Promise<num
   ]);
   output.stdout(`Installed: ${installed}\nRelease:   ${release.version ?? "unavailable"}\nNext:      ${next.version ?? "unavailable"}\n`);
   for (const result of [release, next]) {
-    if (result.error) output.stderr(`AddOne could not resolve npm ${result.tag}: ${result.error}\n`);
+    if (result.error) output.stderr(`${PRODUCT_TEXT.diagnostic(`could not resolve npm ${result.tag}: ${result.error}`)}\n`);
   }
   return 0;
 }
 
 async function queryTag(runner: VersionProcessRunner, tag: "latest" | "next"): Promise<{ tag: string; version: string | null; error: string | null }> {
   try {
-    const result = await runner("npm", ["view", `${ADDONE_PACKAGE}@${tag}`, "version"]);
+    const result = await runner("npm", ["view", `${PRODUCT_TEXT.packageName}@${tag}`, "version"]);
     if (result.code !== 0) return { tag, version: null, error: `npm exited with status ${result.code ?? "unknown"}` };
     try { return { tag, version: parseVersion(result.stdout.trim(), `npm ${tag}`), error: null }; }
     catch (error) { return { tag, version: null, error: message(error) }; }

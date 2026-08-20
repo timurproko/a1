@@ -28,7 +28,7 @@ describe("durable update transaction journal", () => {
     roots.push(root);
     const store = new UpdateTransactionStore(root);
     await store.begin({ channel: "stable", targetVersion: "1.2.0", packageRoot: "/npm/addone", priorActiveReleaseId: "old" });
-    await expect(store.begin({ channel: "next", targetVersion: "1.3.0-dev.0", packageRoot: "/npm/addone", priorActiveReleaseId: "old" })).rejects.toThrow(/unfinished AddOne update/);
+    await expect(store.begin({ channel: "next", targetVersion: "1.3.0-dev.0", packageRoot: "/npm/addone", priorActiveReleaseId: "old" })).rejects.toThrow(/A1 has unfinished update/);
     const rolledBack = await store.finish("rolled-back", "candidate supervisor failed");
     expect(rolledBack).toMatchObject({ status: "rolled-back", priorActiveReleaseId: "old", error: "candidate supervisor failed" });
   });

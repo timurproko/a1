@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, open, readFile, rename, rm } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
+import { PRODUCT_TEXT } from "../../product-identity.js";
 import type { UpdateChannel } from "./update.js";
 
 export type UpdateTransactionPhase =
@@ -45,7 +46,7 @@ export class UpdateTransactionStore {
     const current = await this.read();
     if (current?.status === "active") {
       if (current.targetVersion !== input.targetVersion || current.channel !== input.channel) {
-        throw new Error(`unfinished AddOne update ${current.transactionId} targets ${current.targetVersion}; reconcile it before starting ${input.targetVersion}`);
+        throw new Error(PRODUCT_TEXT.diagnostic(`has unfinished update ${current.transactionId} targeting ${current.targetVersion}; reconcile it before starting ${input.targetVersion}`));
       }
       return current;
     }
@@ -70,7 +71,7 @@ export class UpdateTransactionStore {
 
   async finish(status: "completed" | "rolled-back" | "failed", error: string | null = null): Promise<UpdateTransaction> {
     const current = await this.read();
-    if (!current) throw new Error("no AddOne update transaction is recorded");
+    if (!current) throw new Error(`no ${PRODUCT_TEXT.displayName} update transaction is recorded`);
     return await this.#write({ ...current, status, error, updatedAt: new Date().toISOString() });
   }
 
@@ -81,7 +82,7 @@ export class UpdateTransactionStore {
 
   async #requiredActive(): Promise<UpdateTransaction> {
     const current = await this.read();
-    if (!current || current.status !== "active") throw new Error("no active AddOne update transaction is recorded");
+    if (!current || current.status !== "active") throw new Error(`no active ${PRODUCT_TEXT.displayName} update transaction is recorded`);
     return current;
   }
 
@@ -108,6 +109,6 @@ function validate(value: UpdateTransaction): void {
   if (value.schemaVersion !== 1 || typeof value.transactionId !== "string" || !["stable", "next"].includes(value.channel)
     || typeof value.targetVersion !== "string" || typeof value.packageRoot !== "string" || typeof value.startedAt !== "string"
     || typeof value.updatedAt !== "string" || phaseOrder(value.phase) < 0 || !["active", "completed", "rolled-back", "failed"].includes(value.status)) {
-    throw new Error("invalid AddOne update transaction journal");
+    throw new Error(`invalid ${PRODUCT_TEXT.displayName} update transaction journal`);
   }
 }
