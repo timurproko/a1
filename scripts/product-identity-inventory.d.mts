@@ -38,5 +38,6 @@ export interface LegacyIdentityInventory {
 }
 
 export const LEGACY_IDENTITY_CLASSES: readonly LegacyIdentityClass[];
+export function listIdentitySurfaceFiles(root: string): Promise<readonly string[]>;
 export function scanLegacyIdentity(root: string): Promise<LegacyIdentityInventory>;
 export function writeLegacyIdentityInventory(root: string): Promise<LegacyIdentityInventory>;

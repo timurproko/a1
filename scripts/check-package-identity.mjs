@@ -1,63 +1,84 @@
-import { readFile, readdir } from "node:fs/promises";
-import { extname, relative, resolve, sep } from "node:path";
+import { createHash } from "node:crypto";
+import { readFile } from "node:fs/promises";
+import { relative, resolve, sep } from "node:path";
+import { listIdentitySurfaceFiles, scanLegacyIdentity } from "./product-identity-inventory.mjs";
 
 const rootArgument = process.argv.indexOf("--root");
 const root = resolve(rootArgument >= 0 ? process.argv[rootArgument + 1] : new URL("..", import.meta.url).pathname.replace(/^\/(.:)/, "$1"));
+const inventoryPath = resolve(root, "openspec/changes/centralize-a1-product-identity/evidence/legacy-identity-inventory.json");
+const allowlistPath = resolve(root, "config/product-identity-legacy-allowlist.json");
 const errors = [];
-const files = [];
-const acceptedExtensions = new Set([".json", ".md", ".mjs", ".js", ".ts", ".tsx", ".yaml", ".yml"]);
 
-for (const candidate of ["package.json", "package-lock.json", "README.md"]) {
-  await addFile(candidate);
-}
-for (const directory of ["docs", "src", "scripts", ".github", "openspec/changes"]) {
-  await walk(resolve(root, directory));
-}
+const [recorded, allowlist, identity, actual] = await Promise.all([
+  readJson(inventoryPath, "legacy identity inventory"),
+  readJson(allowlistPath, "legacy identity allowlist"),
+  readJson(resolve(root, "src/product-identity.json"), "product identity authority"),
+  scanLegacyIdentity(root),
+]);
 
-for (const file of files) {
-  const path = relative(root, file).split(sep).join("/");
-  if (path === "scripts/check-package-identity.mjs" || path.startsWith("test/")) continue;
-  if (path.startsWith("openspec/changes/archive/") || path.includes("/evidence/") || path.startsWith("openspec/changes/republish-as-a1/")) continue;
-  const source = await readFile(file, "utf8");
-  if (source.includes("@timurproko/addone")) errors.push(`${path}: obsolete npm package identity is forbidden`);
-  if (/`addone(?:\s+(?:pi|sandbox|version|update(?::next)?|agent|ui))?`/.test(source)
-    || /\baddone\s+(?:pi|sandbox|version|update(?::next)?|agent|ui)\b/.test(source)
-    || /\ba1\/addone\b/.test(source)
-    || /["']addone["']\s*:\s*["']bin\//.test(source)
-    || /(?:\baddone\b[^\n]*\ba1\b|\ba1\b[^\n]*\baddone\b)[^\n]*(?:alias|equivalent)/.test(source)) {
-    errors.push(`${path}: obsolete public addone command is forbidden`);
+if (recorded && allowlist) {
+  const { generatedAt: _generatedAt, ...recordedInventory } = recorded;
+  if (JSON.stringify(recordedInventory) !== JSON.stringify(actual)) {
+    errors.push("legacy identity inventory is stale; regenerate and review it before changing the allowlist");
+  }
+  if (allowlist.schema !== "a1-legacy-identity-allowlist-v1" || !Array.isArray(allowlist.occurrences)) {
+    errors.push("legacy identity allowlist schema is invalid");
+  } else {
+    const approved = new Map(allowlist.occurrences.map(entry => [entry.id, entry]));
+    for (const occurrence of actual.occurrences) {
+      const entry = approved.get(occurrence.id);
+      if (!entry) {
+        errors.push(`${occurrence.id}: unapproved legacy identity occurrence`);
+        continue;
+      }
+      if (entry.value !== occurrence.value || entry.fingerprint !== fingerprint(occurrence) || typeof entry.reason !== "string" || entry.reason.length < 8) {
+        errors.push(`${occurrence.id}: legacy identity approval differs from the exact inventoried occurrence`);
+      }
+      approved.delete(occurrence.id);
+    }
+    for (const id of approved.keys()) errors.push(`${id}: stale legacy identity approval no longer matches an occurrence`);
   }
 }
+
+await inspectExecutableDuplicates();
 
 if (errors.length > 0) {
-  process.stderr.write(`Package identity check failed (${errors.length}):\n${errors.map(error => `- ${error}`).join("\n")}\n`);
+  process.stderr.write(`Product identity governance failed (${errors.length}):\n${errors.map(error => `- ${error}`).join("\n")}\n`);
   process.exitCode = 1;
 } else {
-  process.stdout.write("Package identity OK: @timurproko/a1 exposes only a1\n");
+  process.stdout.write(`Product identity governance OK: ${actual.occurrences.length} exact historical/rejection occurrences approved\n`);
 }
 
-async function addFile(path) {
-  const absolute = resolve(root, path);
-  try {
-    const metadata = await import("node:fs/promises").then(({ stat }) => stat(absolute));
-    if (metadata.isFile()) files.push(absolute);
-  } catch (error) {
-    if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
+async function inspectExecutableDuplicates() {
+  for (const absolute of await listIdentitySurfaceFiles(root)) {
+    const path = relative(root, absolute).split(sep).join("/");
+    if (path === "src/product-identity.json" || path === "src/product-identity.ts" || path.startsWith("test/")
+      || path.startsWith("openspec/") || path.startsWith("docs/") || path === "README.md") continue;
+    if (!path.startsWith("src/") && !path.startsWith("scripts/") && !path.startsWith("bin/") && !path.startsWith(".github/")) continue;
+    const source = await readFile(absolute, "utf8");
+    if (identity && source.includes(identity.packageName)) errors.push(`${path}: duplicates the authoritative package name`);
+    const assignment = /\b(?:PRODUCT|APPLICATION|APP|PACKAGE|DISPLAY|COMMAND|NAMESPACE|SCHEMA)[A-Z0-9_]*\s*=\s*["'](?:A1|a1)["']/g;
+    for (const match of source.matchAll(assignment)) errors.push(`${path}: duplicates current identity in executable assignment: ${match[0]}`);
   }
 }
 
-async function walk(directory) {
-  let entries;
+async function readJson(path, name) {
   try {
-    entries = await readdir(directory, { withFileTypes: true });
+    return JSON.parse(await readFile(path, "utf8"));
   } catch (error) {
-    if (error instanceof Error && "code" in error && error.code === "ENOENT") return;
-    throw error;
+    errors.push(`${name} is missing or invalid: ${error instanceof Error ? error.message : String(error)}`);
+    return null;
   }
-  for (const entry of entries) {
-    if (["node_modules", "dist", "artifacts", "target"].includes(entry.name)) continue;
-    const path = resolve(directory, entry.name);
-    if (entry.isDirectory()) await walk(path);
-    else if (acceptedExtensions.has(extname(entry.name))) files.push(path);
-  }
+}
+
+function fingerprint(occurrence) {
+  return createHash("sha256").update(JSON.stringify({
+    path: occurrence.path,
+    locationKind: occurrence.locationKind,
+    line: occurrence.line,
+    column: occurrence.column,
+    value: occurrence.value,
+    context: occurrence.context,
+    classes: occurrence.classes,
+  })).digest("hex");
 }

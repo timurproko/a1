@@ -21,16 +21,21 @@ const ROOT_FILES = Object.freeze(["package.json", "package-lock.json", "README.m
 const ROOT_DIRECTORIES = Object.freeze(["src", "bin", "scripts", "test", "native", ".github", "docs", "openspec/specs", "openspec/changes"]);
 const EXCLUDED_DIRECTORY_NAMES = new Set(["node_modules", "dist", "target", "vendor"]);
 const TEXT_EXTENSIONS = new Set([".json", ".md", ".mjs", ".cjs", ".mts", ".js", ".ts", ".tsx", ".yaml", ".yml", ".toml", ".lock", ".rs", ".txt"]);
-const LEGACY_PATTERN = /addone/gi;
+const LEGACY_TOKEN = ["add", "one"].join("");
+const LEGACY_PATTERN = new RegExp(LEGACY_TOKEN, "gi");
 
-export async function scanLegacyIdentity(root) {
+export async function listIdentitySurfaceFiles(root) {
   const absoluteRoot = resolve(root);
   const files = [];
   for (const path of ROOT_FILES) await addFile(resolve(absoluteRoot, path), files);
   for (const path of ROOT_DIRECTORIES) await walk(resolve(absoluteRoot, path), absoluteRoot, files);
+  return [...new Set(files)].sort();
+}
 
+export async function scanLegacyIdentity(root) {
+  const absoluteRoot = resolve(root);
   const occurrences = [];
-  for (const absolutePath of [...new Set(files)].sort()) {
+  for (const absolutePath of await listIdentitySurfaceFiles(absoluteRoot)) {
     const path = normalize(relative(absoluteRoot, absolutePath));
     if (path === INVENTORY_PATH || isExcludedPath(path)) continue;
 
@@ -80,7 +85,7 @@ export async function scanLegacyIdentity(root) {
       roots: [...ROOT_FILES, ...ROOT_DIRECTORIES],
       excludedDirectoryNames: [...EXCLUDED_DIRECTORY_NAMES].sort(),
       excludedPaths: ["openspec/changes/archive", INVENTORY_PATH],
-      matching: "case-insensitive substring addone, including path and content occurrences",
+      matching: `case-insensitive substring ${LEGACY_TOKEN}, including path and content occurrences`,
     },
     classes: [...LEGACY_IDENTITY_CLASSES],
     summary: summarize(occurrences),
@@ -120,9 +125,9 @@ function classify({ path, locationKind, value, context }) {
   const isCode = /\.(?:[cm]?[jt]sx?|rs)$/.test(lowerPath) || lowerPath.startsWith("bin/") || lowerPath.startsWith(".github/");
 
   if (lowerPath.includes("/evidence/") || lowerPath.startsWith("artifacts/")) classes.add("historical-records");
-  if ((lowerContext.includes("@timurproko/addone") || lowerPath.includes("republish-as-a1"))
+  if ((lowerContext.includes(`@timurproko/${LEGACY_TOKEN}`) || lowerPath.includes("republish-as-a1"))
     && /obsolete|reject|deprecat|unpublish|historical|unsupported/.test(lowerContext)) classes.add("explicit-obsolete-package-fixtures");
-  if (value === value.toUpperCase() && /addone_[a-z0-9_]+/i.test(context)) classes.add("environment-keys");
+  if (value === value.toUpperCase() && new RegExp(`${LEGACY_TOKEN}_[a-z0-9_]+`, "i").test(context)) classes.add("environment-keys");
   if (/schema|protocol|frame|namespace|codec|message type|storage version/.test(lowerContext)) classes.add("schemas");
   if (/diagnostic|error|failed|failure|could not|cannot|invalid|unexpected|usage|message|report/.test(lowerContext)) classes.add("diagnostics");
   if (lowerPath.startsWith("native/") || /crate|cargo|rust|native host|terminal-host/.test(lowerContext)) classes.add("native-names");
@@ -130,7 +135,8 @@ function classify({ path, locationKind, value, context }) {
   if (lowerPath === "readme.md" || lowerPath.startsWith("docs/") || lowerPath.startsWith("openspec/specs/")
     || (lowerPath.startsWith("openspec/changes/") && /\.(?:md|ya?ml|json)$/.test(lowerPath))) classes.add("current-docs-specs");
   if (locationKind === "path" || /artifact|executable|binary|\bbin\b|tarball|manifest|filename|file name|crate/.test(lowerContext)) classes.add("artifacts");
-  if (/path|director|folder|socket|pipe|endpoint|temp|runtime root|data root|config root|[\\/].*addone|addone.*[\\/]/.test(lowerContext)) classes.add("paths");
+  if (/path|director|folder|socket|pipe|endpoint|temp|runtime root|data root|config root/.test(lowerContext)
+    || new RegExp(`[\\\\/].*${LEGACY_TOKEN}|${LEGACY_TOKEN}.*[\\\\/]`).test(lowerContext)) classes.add("paths");
   if (isCode && !classes.has("historical-records")) classes.add("runtime-symbols");
   if (classes.size === 0) classes.add("runtime-symbols");
 

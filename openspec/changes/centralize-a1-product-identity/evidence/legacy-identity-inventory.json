@@ -41,24 +41,24 @@
     "explicit-obsolete-package-fixtures"
   ],
   "summary": {
-    "total": 290,
-    "files": 80,
+    "total": 266,
+    "files": 77,
     "byLocationKind": {
-      "content": 271,
+      "content": 247,
       "path": 19
     },
     "byClass": {
-      "runtime-symbols": 76,
-      "diagnostics": 19,
+      "runtime-symbols": 52,
+      "diagnostics": 17,
       "environment-keys": 15,
-      "paths": 152,
+      "paths": 129,
       "schemas": 47,
-      "artifacts": 63,
+      "artifacts": 60,
       "native-names": 34,
-      "tests": 62,
+      "tests": 52,
       "current-docs-specs": 185,
       "historical-records": 130,
-      "explicit-obsolete-package-fixtures": 10
+      "explicit-obsolete-package-fixtures": 8
     }
   },
   "occurrences": [
@@ -3408,220 +3408,6 @@
       ]
     },
     {
-      "id": "scripts/check-package-identity.mjs:22:36",
-      "path": "scripts/check-package-identity.mjs",
-      "locationKind": "content",
-      "line": 22,
-      "column": 36,
-      "value": "addone",
-      "context": "if (source.includes(\"@timurproko/addone\")) errors.push(`${path}: obsolete npm package identity is forbidden`);",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics",
-        "paths",
-        "explicit-obsolete-package-fixtures"
-      ]
-    },
-    {
-      "id": "scripts/check-package-identity.mjs:23:9",
-      "path": "scripts/check-package-identity.mjs",
-      "locationKind": "content",
-      "line": 23,
-      "column": 9,
-      "value": "addone",
-      "context": "if (/`addone(?:\\s+(?:pi|sandbox|version|update(?::next)?|agent|ui))?`/.test(source)",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths"
-      ]
-    },
-    {
-      "id": "scripts/check-package-identity.mjs:24:11",
-      "path": "scripts/check-package-identity.mjs",
-      "locationKind": "content",
-      "line": 24,
-      "column": 11,
-      "value": "addone",
-      "context": "|| /\\baddone\\s+(?:pi|sandbox|version|update(?::next)?|agent|ui)\\b/.test(source)",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths"
-      ]
-    },
-    {
-      "id": "scripts/check-package-identity.mjs:25:15",
-      "path": "scripts/check-package-identity.mjs",
-      "locationKind": "content",
-      "line": 25,
-      "column": 15,
-      "value": "addone",
-      "context": "|| /\\ba1\\/addone\\b/.test(source)",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths"
-      ]
-    },
-    {
-      "id": "scripts/check-package-identity.mjs:26:13",
-      "path": "scripts/check-package-identity.mjs",
-      "locationKind": "content",
-      "line": 26,
-      "column": 13,
-      "value": "addone",
-      "context": "|| /[\"']addone[\"']\\s*:\\s*[\"']bin\\//.test(source)",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "artifacts"
-      ]
-    },
-    {
-      "id": "scripts/check-package-identity.mjs:27:14",
-      "path": "scripts/check-package-identity.mjs",
-      "locationKind": "content",
-      "line": 27,
-      "column": 14,
-      "value": "addone",
-      "context": "|| /(?:\\baddone\\b[^\\n]*\\ba1\\b|\\ba1\\b[^\\n]*\\baddone\\b)[^\\n]*(?:alias|equivalent)/.test(source)) {",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths"
-      ]
-    },
-    {
-      "id": "scripts/check-package-identity.mjs:27:49",
-      "path": "scripts/check-package-identity.mjs",
-      "locationKind": "content",
-      "line": 27,
-      "column": 49,
-      "value": "addone",
-      "context": "|| /(?:\\baddone\\b[^\\n]*\\ba1\\b|\\ba1\\b[^\\n]*\\baddone\\b)[^\\n]*(?:alias|equivalent)/.test(source)) {",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths"
-      ]
-    },
-    {
-      "id": "scripts/check-package-identity.mjs:28:43",
-      "path": "scripts/check-package-identity.mjs",
-      "locationKind": "content",
-      "line": 28,
-      "column": 43,
-      "value": "addone",
-      "context": "errors.push(`${path}: obsolete public addone command is forbidden`);",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics",
-        "paths"
-      ]
-    },
-    {
-      "id": "scripts/product-identity-inventory.mjs:24:25",
-      "path": "scripts/product-identity-inventory.mjs",
-      "locationKind": "content",
-      "line": 24,
-      "column": 25,
-      "value": "addone",
-      "context": "const LEGACY_PATTERN = /addone/gi;",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths"
-      ]
-    },
-    {
-      "id": "scripts/product-identity-inventory.mjs:83:45",
-      "path": "scripts/product-identity-inventory.mjs",
-      "locationKind": "content",
-      "line": 83,
-      "column": 45,
-      "value": "addone",
-      "context": "matching: \"case-insensitive substring addone, including path and content occurrences\",",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths"
-      ]
-    },
-    {
-      "id": "scripts/product-identity-inventory.mjs:123:43",
-      "path": "scripts/product-identity-inventory.mjs",
-      "locationKind": "content",
-      "line": 123,
-      "column": 43,
-      "value": "addone",
-      "context": "if ((lowerContext.includes(\"@timurproko/addone\") || lowerPath.includes(\"republish-as-a1\"))",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths"
-      ]
-    },
-    {
-      "id": "scripts/product-identity-inventory.mjs:125:41",
-      "path": "scripts/product-identity-inventory.mjs",
-      "locationKind": "content",
-      "line": 125,
-      "column": 41,
-      "value": "addone",
-      "context": "if (value === value.toUpperCase() && /addone_[a-z0-9_]+/i.test(context)) classes.add(\"environment-keys\");",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths"
-      ]
-    },
-    {
-      "id": "scripts/product-identity-inventory.mjs:133:97",
-      "path": "scripts/product-identity-inventory.mjs",
-      "locationKind": "content",
-      "line": 133,
-      "column": 97,
-      "value": "addone",
-      "context": "if (/path|director|folder|socket|pipe|endpoint|temp|runtime root|data root|config root|[\\\\/].*addone|addone.*[\\\\/]/.test(lowerContext)) classes.add(\"paths\");",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths"
-      ]
-    },
-    {
-      "id": "scripts/product-identity-inventory.mjs:133:104",
-      "path": "scripts/product-identity-inventory.mjs",
-      "locationKind": "content",
-      "line": 133,
-      "column": 104,
-      "value": "addone",
-      "context": "if (/path|director|folder|socket|pipe|endpoint|temp|runtime root|data root|config root|[\\\\/].*addone|addone.*[\\\\/]/.test(lowerContext)) classes.add(\"paths\");",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths"
-      ]
-    },
-    {
       "id": "test/features/launch/development-launch.test.ts:21:50",
       "path": "test/features/launch/development-launch.test.ts",
       "locationKind": "content",
@@ -4195,168 +3981,6 @@
       ]
     },
     {
-      "id": "test/repository-governance/package-identity.test.ts:18:74",
-      "path": "test/repository-governance/package-identity.test.ts",
-      "locationKind": "content",
-      "line": 18,
-      "column": 74,
-      "value": "addone",
-      "context": "\"openspec/changes/archive/old/proposal.md\": \"Published @timurproko/addone with `addone`.\",",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/repository-governance/package-identity.test.ts:18:87",
-      "path": "test/repository-governance/package-identity.test.ts",
-      "locationKind": "content",
-      "line": 18,
-      "column": 87,
-      "value": "addone",
-      "context": "\"openspec/changes/archive/old/proposal.md\": \"Published @timurproko/addone with `addone`.\",",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/repository-governance/package-identity.test.ts:19:75",
-      "path": "test/repository-governance/package-identity.test.ts",
-      "locationKind": "content",
-      "line": 19,
-      "column": 75,
-      "value": "addone",
-      "context": "\"openspec/changes/live/evidence/record.md\": \"Historical @timurproko/addone evidence.\",",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "tests",
-        "explicit-obsolete-package-fixtures"
-      ]
-    },
-    {
-      "id": "test/repository-governance/package-identity.test.ts:20:73",
-      "path": "test/repository-governance/package-identity.test.ts",
-      "locationKind": "content",
-      "line": 20,
-      "column": 73,
-      "value": "addone",
-      "context": "\"openspec/changes/republish-as-a1/design.md\": \"Remove @timurproko/addone and `addone`.\",",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/repository-governance/package-identity.test.ts:20:85",
-      "path": "test/repository-governance/package-identity.test.ts",
-      "locationKind": "content",
-      "line": 20,
-      "column": 85,
-      "value": "addone",
-      "context": "\"openspec/changes/republish-as-a1/design.md\": \"Remove @timurproko/addone and `addone`.\",",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/repository-governance/package-identity.test.ts:29:59",
-      "path": "test/repository-governance/package-identity.test.ts",
-      "locationKind": "content",
-      "line": 29,
-      "column": 59,
-      "value": "addone",
-      "context": "\"package.json\": JSON.stringify({ name: \"@timurproko/addone\", bin: { addone: \"bin/a1.js\", a1: \"bin/a1.js\" } }),",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "artifacts",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/repository-governance/package-identity.test.ts:29:75",
-      "path": "test/repository-governance/package-identity.test.ts",
-      "locationKind": "content",
-      "line": 29,
-      "column": 75,
-      "value": "addone",
-      "context": "\"package.json\": JSON.stringify({ name: \"@timurproko/addone\", bin: { addone: \"bin/a1.js\", a1: \"bin/a1.js\" } }),",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "artifacts",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/repository-governance/package-identity.test.ts:30:32",
-      "path": "test/repository-governance/package-identity.test.ts",
-      "locationKind": "content",
-      "line": 30,
-      "column": 32,
-      "value": "addone",
-      "context": "\"docs/install.md\": \"Run `addone update` after installing @timurproko/addone.\",",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/repository-governance/package-identity.test.ts:30:76",
-      "path": "test/repository-governance/package-identity.test.ts",
-      "locationKind": "content",
-      "line": 30,
-      "column": 76,
-      "value": "addone",
-      "context": "\"docs/install.md\": \"Run `addone update` after installing @timurproko/addone.\",",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/repository-governance/package-identity.test.ts:35:54",
-      "path": "test/repository-governance/package-identity.test.ts",
-      "locationKind": "content",
-      "line": 35,
-      "column": 54,
-      "value": "addone",
-      "context": "expect(result.stderr).toContain(\"obsolete public addone command\");",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "tests"
-      ]
-    },
-    {
       "id": "test/repository-governance/product-identity-documentation.test.ts:11:67",
       "path": "test/repository-governance/product-identity-documentation.test.ts",
       "locationKind": "content",
@@ -4626,5 +4250,5 @@
       ]
     }
   ],
-  "generatedAt": "2026-08-20T09:33:38.338Z"
+  "generatedAt": "2026-08-20T09:38:02.040Z"
 }
