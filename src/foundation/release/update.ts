@@ -4,7 +4,7 @@ import { connect } from "node:net";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import crossSpawn from "cross-spawn";
 import { valid as validSemver } from "semver";
-import { PRODUCT_TEXT } from "../../product-identity.js";
+import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
 import {
   certifyMaterializedRelease,
   probeOwnership,
@@ -131,7 +131,7 @@ export function createUpdateLifecycleCoordinator(
     },
     async verifyPackageUnlocked(packageRoot) {
       if (fileSystem.access) await fileSystem.access(packageRoot);
-      const probe = `${packageRoot}.addone-unlock-probe`;
+      const probe = `${packageRoot}.${PRODUCT_IDENTITY.filesystem.slug}-unlock-probe`;
       const { rename } = await import("node:fs/promises");
       try {
         await rename(packageRoot, probe);

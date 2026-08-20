@@ -41,21 +41,21 @@
     "explicit-obsolete-package-fixtures"
   ],
   "summary": {
-    "total": 1235,
-    "files": 209,
+    "total": 1231,
+    "files": 206,
     "byLocationKind": {
-      "content": 1211,
+      "content": 1207,
       "path": 24
     },
     "byClass": {
-      "runtime-symbols": 444,
+      "runtime-symbols": 440,
       "diagnostics": 137,
       "environment-keys": 20,
-      "paths": 407,
+      "paths": 403,
       "schemas": 119,
       "artifacts": 109,
       "native-names": 81,
-      "tests": 247,
+      "tests": 248,
       "current-docs-specs": 754,
       "historical-records": 167,
       "explicit-obsolete-package-fixtures": 8
@@ -13345,21 +13345,6 @@
       ]
     },
     {
-      "id": "src/features/launch/development-launch.ts:24:34",
-      "path": "src/features/launch/development-launch.ts",
-      "locationKind": "content",
-      "line": 24,
-      "column": 34,
-      "value": "addone",
-      "context": "?? join(temporaryDirectory, \"addone-development\", checkoutId, releaseId, \"instances\", instanceId));",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths"
-      ]
-    },
-    {
       "id": "src/features/launch/initialize-profile.ts:16:33",
       "path": "src/features/launch/initialize-profile.ts",
       "locationKind": "content",
@@ -13839,25 +13824,10 @@
       ]
     },
     {
-      "id": "src/foundation/pi-component-adapter/conformance.ts:35:46",
+      "id": "src/foundation/pi-component-adapter/conformance.ts:46:57",
       "path": "src/foundation/pi-component-adapter/conformance.ts",
       "locationKind": "content",
-      "line": 35,
-      "column": 46,
-      "value": "addone",
-      "context": "const root = await mkdtemp(join(tmpdir(), \"addone-pi-components-\"));",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths"
-      ]
-    },
-    {
-      "id": "src/foundation/pi-component-adapter/conformance.ts:45:57",
-      "path": "src/foundation/pi-component-adapter/conformance.ts",
-      "locationKind": "content",
-      "line": 45,
+      "line": 46,
       "column": 57,
       "value": "AddOne",
       "context": "const user = new UserMessageComponent(\"hello from AddOne\");",
@@ -13898,10 +13868,10 @@
       ]
     },
     {
-      "id": "src/foundation/pi-engine-adapter/adapter.ts:592:70",
+      "id": "src/foundation/pi-engine-adapter/adapter.ts:593:70",
       "path": "src/foundation/pi-engine-adapter/adapter.ts",
       "locationKind": "content",
-      "line": 592,
+      "line": 593,
       "column": 70,
       "value": "AddOne",
       "context": "? \"Pinned public extension UI lifecycle is bound through the AddOne-owned bridge.\"",
@@ -13912,10 +13882,10 @@
       ]
     },
     {
-      "id": "src/foundation/pi-engine-adapter/adapter.ts:593:25",
+      "id": "src/foundation/pi-engine-adapter/adapter.ts:594:25",
       "path": "src/foundation/pi-engine-adapter/adapter.ts",
       "locationKind": "content",
-      "line": 593,
+      "line": 594,
       "column": 25,
       "value": "AddOne",
       "context": ": \"The complete AddOne-owned extension UI contract is available; the active session has not been bound to the owned UI bridge.\",",
@@ -13923,36 +13893,6 @@
       "primaryClass": "runtime-symbols",
       "classes": [
         "runtime-symbols"
-      ]
-    },
-    {
-      "id": "src/foundation/pi-engine-adapter/adapter.ts:1142:43",
-      "path": "src/foundation/pi-engine-adapter/adapter.ts",
-      "locationKind": "content",
-      "line": 1142,
-      "column": 43,
-      "value": "addone",
-      "context": "const temporary = join(tmpdir(), `addone-pi-session-${process.pid}.html`);",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths"
-      ]
-    },
-    {
-      "id": "src/foundation/pi-engine-adapter/conformance.ts:46:46",
-      "path": "src/foundation/pi-engine-adapter/conformance.ts",
-      "locationKind": "content",
-      "line": 46,
-      "column": 46,
-      "value": "addone",
-      "context": "const root = await mkdtemp(join(tmpdir(), \"addone-pi-conformance-\"));",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths"
       ]
     },
     {
@@ -14486,20 +14426,6 @@
       ]
     },
     {
-      "id": "src/foundation/release/update.ts:134:37",
-      "path": "src/foundation/release/update.ts",
-      "locationKind": "content",
-      "line": 134,
-      "column": 37,
-      "value": "addone",
-      "context": "const probe = `${packageRoot}.addone-unlock-probe`;",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols"
-      ]
-    },
-    {
       "id": "src/foundation/structured-agent-runtime/handshake.ts:9:45",
       "path": "src/foundation/structured-agent-runtime/handshake.ts",
       "locationKind": "content",
@@ -14763,10 +14689,25 @@
       ]
     },
     {
-      "id": "test/features/launch/development-launch.test.ts:41:7",
+      "id": "test/features/launch/development-launch.test.ts:21:50",
       "path": "test/features/launch/development-launch.test.ts",
       "locationKind": "content",
-      "line": 41,
+      "line": 21,
+      "column": 50,
+      "value": "addone",
+      "context": "expect(first.developmentRoot).not.toContain(\"addone-development\");",
+      "matchedCase": "lower",
+      "primaryClass": "runtime-symbols",
+      "classes": [
+        "runtime-symbols",
+        "tests"
+      ]
+    },
+    {
+      "id": "test/features/launch/development-launch.test.ts:43:7",
+      "path": "test/features/launch/development-launch.test.ts",
+      "locationKind": "content",
+      "line": 43,
       "column": 7,
       "value": "ADDONE",
       "context": "ADDONE_DEV_INSTANCE_ID: \"legacy-instance\",",
@@ -14779,47 +14720,13 @@
       ]
     },
     {
-      "id": "test/features/launch/development-launch.test.ts:42:7",
-      "path": "test/features/launch/development-launch.test.ts",
-      "locationKind": "content",
-      "line": 42,
-      "column": 7,
-      "value": "ADDONE",
-      "context": "ADDONE_DEV_ROOT: \"D:/legacy/development\",",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/features/launch/development-launch.test.ts:43:7",
-      "path": "test/features/launch/development-launch.test.ts",
-      "locationKind": "content",
-      "line": 43,
-      "column": 7,
-      "value": "ADDONE",
-      "context": "ADDONE_CONFIG_DIR: \"D:/legacy/config\",",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "paths",
-        "tests"
-      ]
-    },
-    {
       "id": "test/features/launch/development-launch.test.ts:44:7",
       "path": "test/features/launch/development-launch.test.ts",
       "locationKind": "content",
       "line": 44,
       "column": 7,
       "value": "ADDONE",
-      "context": "ADDONE_DATA_DIR: \"D:/legacy/data\",",
+      "context": "ADDONE_DEV_ROOT: \"D:/legacy/development\",",
       "matchedCase": "upper",
       "primaryClass": "runtime-symbols",
       "classes": [
@@ -14836,7 +14743,7 @@
       "line": 45,
       "column": 7,
       "value": "ADDONE",
-      "context": "ADDONE_RUNTIME_DIR: \"D:/legacy/runtime\",",
+      "context": "ADDONE_CONFIG_DIR: \"D:/legacy/config\",",
       "matchedCase": "upper",
       "primaryClass": "runtime-symbols",
       "classes": [
@@ -14853,7 +14760,7 @@
       "line": 46,
       "column": 7,
       "value": "ADDONE",
-      "context": "ADDONE_DATABASE_PATH: \"D:/legacy/database.sqlite3\",",
+      "context": "ADDONE_DATA_DIR: \"D:/legacy/data\",",
       "matchedCase": "upper",
       "primaryClass": "runtime-symbols",
       "classes": [
@@ -14870,6 +14777,40 @@
       "line": 47,
       "column": 7,
       "value": "ADDONE",
+      "context": "ADDONE_RUNTIME_DIR: \"D:/legacy/runtime\",",
+      "matchedCase": "upper",
+      "primaryClass": "runtime-symbols",
+      "classes": [
+        "runtime-symbols",
+        "environment-keys",
+        "paths",
+        "tests"
+      ]
+    },
+    {
+      "id": "test/features/launch/development-launch.test.ts:48:7",
+      "path": "test/features/launch/development-launch.test.ts",
+      "locationKind": "content",
+      "line": 48,
+      "column": 7,
+      "value": "ADDONE",
+      "context": "ADDONE_DATABASE_PATH: \"D:/legacy/database.sqlite3\",",
+      "matchedCase": "upper",
+      "primaryClass": "runtime-symbols",
+      "classes": [
+        "runtime-symbols",
+        "environment-keys",
+        "paths",
+        "tests"
+      ]
+    },
+    {
+      "id": "test/features/launch/development-launch.test.ts:49:7",
+      "path": "test/features/launch/development-launch.test.ts",
+      "locationKind": "content",
+      "line": 49,
+      "column": 7,
+      "value": "ADDONE",
       "context": "ADDONE_ENDPOINT: \"legacy-endpoint\",",
       "matchedCase": "upper",
       "primaryClass": "runtime-symbols",
@@ -14881,10 +14822,10 @@
       ]
     },
     {
-      "id": "test/features/launch/development-launch.test.ts:83:91",
+      "id": "test/features/launch/development-launch.test.ts:85:91",
       "path": "test/features/launch/development-launch.test.ts",
       "locationKind": "content",
-      "line": 83,
+      "line": 85,
       "column": 91,
       "value": "addone",
       "context": "expect(JSON.parse(owned.stdout)).toMatchObject({ launchArguments: [], directProfile: \"addone\" });",
@@ -18611,5 +18552,5 @@
       ]
     }
   ],
-  "generatedAt": "2026-08-20T08:48:00.052Z"
+  "generatedAt": "2026-08-20T08:50:07.655Z"
 }

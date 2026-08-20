@@ -10,6 +10,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { OWNED_UI_CONTRACT_VERSION, type OwnedUiTranscriptBlock } from "../owned-ui-contracts/index.js";
 import { createTuiFacade, validatedAssistantMessage } from "./shell-components.js";
+import { PRODUCT_IDENTITY } from "../../product-identity.js";
 
 export interface PiComponentConformanceResult {
   readonly component: "user-message" | "assistant-message" | "tool-execution";
@@ -32,7 +33,7 @@ export class PiComponentConformanceError extends Error {
 }
 
 export async function runPiComponentConformance(): Promise<PiComponentConformanceReport> {
-  const root = await mkdtemp(join(tmpdir(), "addone-pi-components-"));
+  const root = await mkdtemp(join(tmpdir(), `${PRODUCT_IDENTITY.filesystem.temporaryPrefix}pi-components-`));
   try {
     try {
       initTheme("dark", false);

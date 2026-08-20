@@ -3,6 +3,7 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
+import { PRODUCT_IDENTITY } from "../../product-identity.js";
 import {
   copyToClipboard,
   createAgentSessionFromServices,
@@ -1139,7 +1140,7 @@ export class PiEngineAdapter {
           throw new Error(`GitHub CLI is unavailable or not logged in: ${error instanceof Error ? error.message : String(error)}`);
         });
         if (auth.stderr && !auth.stdout) throw new Error(auth.stderr.trim());
-        const temporary = join(tmpdir(), `addone-pi-session-${process.pid}.html`);
+        const temporary = join(tmpdir(), `${PRODUCT_IDENTITY.filesystem.temporaryPrefix}pi-session-${process.pid}.html`);
         try {
           await requireCapability(session.exportToHtml, "exportToHtml").call(session, temporary);
           const gist = await this.#workflowHost.runCommand("gh", ["gist", "create", "--public=false", temporary]);

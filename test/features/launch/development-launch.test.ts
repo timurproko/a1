@@ -17,6 +17,8 @@ describe("repository-local development launch", () => {
     expect(first.instanceId).not.toBe(second.instanceId);
     expect(first.developmentRoot).not.toBe(second.developmentRoot);
     expect(first.developmentRoot).toContain(first.checkoutId);
+    expect(first.developmentRoot).toContain("a1-development");
+    expect(first.developmentRoot).not.toContain("addone-development");
     expect(first.developmentRoot).toContain("0.1.4-build");
     expect(first.developmentRoot).toContain(first.instanceId);
     expect(first.environment.A1_RUNTIME_DIR).toBe(resolve(first.developmentRoot, "runtime"));

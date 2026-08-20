@@ -10,6 +10,7 @@ import {
   VERSION,
 } from "@earendil-works/pi-coding-agent";
 import { OWNED_UI_CONTRACT_VERSION } from "../owned-ui-contracts/index.js";
+import { PRODUCT_IDENTITY } from "../../product-identity.js";
 
 export interface PiUpgradeConformanceReport {
   readonly packageName: "@earendil-works/pi-coding-agent";
@@ -43,7 +44,7 @@ export async function runPiUpgradeConformance(): Promise<PiUpgradeConformanceRep
     throw new PiUpgradeConformanceError("exports", error);
   }
 
-  const root = await mkdtemp(join(tmpdir(), "addone-pi-conformance-"));
+  const root = await mkdtemp(join(tmpdir(), `${PRODUCT_IDENTITY.filesystem.temporaryPrefix}pi-conformance-`));
   try {
     let services;
     try {

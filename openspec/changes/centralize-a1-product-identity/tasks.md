@@ -19,7 +19,7 @@
 
 - [x] 4.1 Replace every runtime, script, workflow, and test `ADDONE_*` key with the declared `A1_*` key and add tests proving legacy-only variables are ignored.
 - [x] 4.2 Rename lifecycle/path APIs and change Windows `AddOne` defaults plus Unix `addone` defaults to `A1`/`a1`; pass platform path, override, isolation, and no-legacy-fallback tests while preserving `.a1` Pi profiles.
-- [ ] 4.3 Update endpoint, pipe/socket, database, diagnostic, temporary-directory, and development-state naming to derive from the authority; pass cross-platform normalization and concurrent-invocation tests.
+- [x] 4.3 Update endpoint, pipe/socket, database, diagnostic, temporary-directory, and development-state naming to derive from the authority; pass cross-platform normalization and concurrent-invocation tests.
 
 ## 5. Rename release, supervision, protocol, and storage identity
 
