@@ -1,5 +1,6 @@
 import { spawnSync } from "node:child_process";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -12,6 +13,26 @@ describe("terminal-host provenance policy", () => {
     const result = spawnSync(process.execPath, ["scripts/check-terminal-host-provenance.mjs"], { encoding: "utf8" });
     expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
     expect(result.stdout).toContain("Terminal host provenance OK");
+  });
+
+  it("binds current proof records to the renamed native artifact", async () => {
+    const [task51, task53] = await Promise.all([
+      readFile("openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/terminal-host-task-5-1.json", "utf8").then(JSON.parse),
+      readFile("openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/terminal-host-task-5-3.json", "utf8").then(JSON.parse),
+    ]) as [
+      { schema: string; artifact: { path: string; sha256: string; sizeBytes: number } },
+      { schema: string; artifact: { path: string; sha256: string; sizeBytes: number }; identityObservation: { schema: string } },
+    ];
+    const artifact = task51.artifact;
+    const bytes = await readFile(artifact.path);
+
+    expect(task51.schema).toBe("a1-terminal-host-task-5-1-v1");
+    expect(task53.schema).toBe("a1-terminal-host-task-5-3-v1");
+    expect(task53.identityObservation?.schema).toBe("a1-terminal-host-hot-path-v1");
+    expect(task53.artifact).toEqual(artifact);
+    expect(artifact.path).toMatch(/a1-terminal-host\.exe$/);
+    expect(artifact.sha256).toBe(createHash("sha256").update(bytes).digest("hex"));
+    expect(artifact.sizeBytes).toBe((await stat(artifact.path)).size);
   });
 
   it("rejects desktop-app requirements, missing components, dirty sources, and premature builds", async () => {

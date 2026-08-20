@@ -1,6 +1,6 @@
 # In-terminal 2×2 spike evidence
 
-The spike must produce machine-readable evidence with schema `addone-native-host-spike-evidence-v1`. Evidence is valid only when it names the exact artifact, hashes, pinned source commits, isolated worker environment, all mandatory workloads, measurements, paint diagnostics, resources, and physical/manual verdict. The artifact is a console terminal host that runs inside an existing terminal and does not open a desktop window.
+The spike must produce machine-readable evidence with schema `a1-native-host-spike-evidence-v1`. Evidence is valid only when it names the exact artifact, hashes, pinned source commits, isolated worker environment, all mandatory workloads, measurements, paint diagnostics, resources, and physical/manual verdict. The artifact is a console terminal host that runs inside an existing terminal and does not open a desktop window.
 
 ## Mandatory workloads
 

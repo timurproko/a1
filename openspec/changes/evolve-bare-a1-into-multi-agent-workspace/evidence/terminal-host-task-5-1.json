@@ -1,6 +1,6 @@
 {
-  "schema": "addone-terminal-host-task-5-1-v1",
-  "recordedAt": "2026-08-14T11:12:54.158Z",
+  "schema": "a1-terminal-host-task-5-1-v1",
+  "recordedAt": "2026-08-20T09:25:48.307Z",
   "change": "evolve-bare-a1-into-multi-agent-workspace",
   "task": "5.1",
   "hostMode": "console-inside-existing-terminal",
@@ -14,17 +14,17 @@
     "architecture": "x64"
   },
   "artifact": {
-    "path": "native/terminal-host/target/debug/addone-terminal-host.exe",
+    "path": "native/terminal-host/target/debug/a1-terminal-host.exe",
     "profile": "debug",
-    "sha256": "8d81db199687a9b8f195b4e40cb4b235de3ea00ffeb9cf55f9c64b1b3582cbba",
-    "sizeBytes": 2214912
+    "sha256": "d1437d46d469a8823565a0428b57a1888bb327c2ce26d3cb51c0fb6fc88e4165",
+    "sizeBytes": 2394624
   },
   "source": {
-    "cargoTomlSha256": "3f7f301e88f254d125f8594deff6755aa92255a4345f9f2aa5d1b2e6b62752b5",
-    "cargoLockSha256": "63b5d6e10e9b54282d9f1c3b4042b31d1c456c9c7cacddd22dbe779a26bd1a61",
-    "buildScriptSha256": "6a903738f467db1247293e065af1d66b94463a4445caafaf2cb8bb039d7fb1d5",
-    "mainSha256": "cb6d5e15f0a18badec6a84860958c5334c6c77b1da20c13b50eb449876b76d83",
-    "ghosttyBindingSha256": "820d5a4819cbbb97a4fce2fe46964dd90295baaf82339c2632fbe30eaf465344",
+    "cargoTomlSha256": "8c6510f8d758189f24f91c1f044e93902a376e3c1a5bb71ca747603f03f0cc72",
+    "cargoLockSha256": "ec023df443170affda1ce69ddaa9489785fed1347d97bcb44a793607e61a20a2",
+    "buildScriptSha256": "54befce9dd9b1fbfadb388d8c4d1c97e1d6473660a075b7acc6baaddf54301c7",
+    "mainSha256": "6180f21f4dcfc0e1a8a4808a4312957eaff7bc7342660b3d449e8ea7ee164eed",
+    "ghosttyBindingSha256": "31747a4c5a4214059cea1d2ccab0b6245e74e05d5da3188271be4b331acb9231",
     "libghosttyVtCommit": "c5a21edfcbc2d5b46540ad91b7980aca31f5f1f3",
     "libghosttyVtLicenseSha256": "3129de97bc7769d683e52ce02cb4eaecd2b0aab144b09d6325a1b135bdc87cc0",
     "portablePtyVersion": "0.9.0",
@@ -36,11 +36,11 @@
       "result": "passed"
     },
     {
-      "command": "addone-terminal-host.exe --version",
+      "command": "a1-terminal-host.exe --version",
       "result": "passed"
     },
     {
-      "command": "addone-terminal-host.exe --probe",
+      "command": "a1-terminal-host.exe --probe",
       "result": "passed",
       "detail": "created a retained terminal model, composed a frame, started cmd.exe through a PTY, waited for exit, and cleaned up without entering alternate-screen mode"
     }
@@ -51,5 +51,6 @@
     "One-pane manual terminal validation remains user-controlled.",
     "Isolated-worker physical automation remains deferred."
   ],
-  "passed": true
+  "passed": true,
+  "sourceCommit": "b26383ed6605b222d6b853eb232c6b94e0fdb7ff"
 }

@@ -53,7 +53,7 @@ if (!Array.isArray(value?.artifactManifestRequirements) || value.artifactManifes
 if (value?.checks?.license !== "passed") errors.push("license check must pass");
 if (value?.checks?.provenance !== "passed") errors.push("provenance check must pass");
 if (value?.checks?.sourceTreeHygiene !== "passed") errors.push("source-tree hygiene check must pass");
-if (value?.checks?.binaryBuild !== "deferred-to-task-5.1") errors.push("binary build must remain deferred to task 5.1");
+if (value?.checks?.binaryBuild !== "passed") errors.push("renamed native binary build must be verified");
 if (value?.checks?.physicalAutomation !== "not-run") errors.push("physical automation must not run for provenance");
 if (value?.passed !== true) errors.push("provenance evidence must be marked passed");
 

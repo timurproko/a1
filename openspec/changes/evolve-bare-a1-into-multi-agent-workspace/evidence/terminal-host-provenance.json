@@ -1,6 +1,6 @@
 {
   "schema": "a1-terminal-host-provenance-v1",
-  "recordedAt": "2026-08-14T07:12:07.445Z",
+  "recordedAt": "2026-08-20T09:25:48.307Z",
   "change": "evolve-bare-a1-into-multi-agent-workspace",
   "hostMode": "console-inside-existing-terminal",
   "desktopApplicationRequired": false,
@@ -38,7 +38,7 @@
     }
   ],
   "rendererPolicy": {
-    "initial": "AddOne-owned buffered frame composer",
+    "initial": "A1-owned buffered frame composer",
     "ratatui": "optional evaluation candidate, not selected by default"
   },
   "excludedStacks": [
@@ -65,8 +65,14 @@
     "behavioralTerminalPatchesRequireSeparateReview": true
   },
   "buildPrerequisites": {
-    "operatingSystems": ["windows-10", "windows-11"],
-    "architectures": ["x64", "arm64"],
+    "operatingSystems": [
+      "windows-10",
+      "windows-11"
+    ],
+    "architectures": [
+      "x64",
+      "arm64"
+    ],
     "language": "Rust",
     "zig": ">=0.15.2 <0.16",
     "cToolchain": "Visual Studio 2022 Build Tools/MSVC on Windows",
@@ -91,8 +97,8 @@
     "sizeBytes",
     "signatureStatus",
     "buildTimestamp",
-    "addoneCommit",
-    "addoneProtocolVersion",
+    "a1Commit",
+    "a1ProtocolVersion",
     "libghosttyVtCommit",
     "ptyComponentVersion",
     "hostInputComponentVersion",
@@ -112,7 +118,7 @@
     "license": "passed",
     "provenance": "passed",
     "sourceTreeHygiene": "passed",
-    "binaryBuild": "deferred-to-task-5.1",
+    "binaryBuild": "passed",
     "physicalAutomation": "not-run"
   },
   "passed": true

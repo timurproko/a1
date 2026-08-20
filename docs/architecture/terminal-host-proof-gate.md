@@ -1,6 +1,6 @@
 # In-terminal 2×2 proof gate
 
-The composed-terminal proof is a stop/go gate. AddOne must not merge or productize composed terminal panes until the exact in-terminal spike artifact passes both technical and physical acceptance.
+The composed-terminal proof is a stop/go gate. A1 must not merge or productize composed terminal panes until the exact in-terminal spike artifact passes both technical and physical acceptance.
 
 ## Go criteria
 
@@ -8,7 +8,7 @@ A `go` decision requires all of the following:
 
 1. Every mandatory workload in the terminal-host evidence schema passes.
 2. The proof runs inside an existing terminal without creating a desktop window.
-3. The exact artifact is tied to pinned AddOne and terminal-component revisions.
+3. The exact artifact is tied to pinned A1 and terminal-component revisions.
 4. Automated evidence came from an isolated worker.
 5. The physical verdict is `accepted` through user-controlled manual validation or an attested isolated disposable worker.
 6. Input-to-process p95 latency is at most 16 ms.

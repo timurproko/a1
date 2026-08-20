@@ -1,13 +1,13 @@
 {
-  "schema": "addone-terminal-host-task-5-3-v1",
-  "recordedAt": "2026-08-14T16:43:43.397Z",
+  "schema": "a1-terminal-host-task-5-3-v1",
+  "recordedAt": "2026-08-20T09:25:48.307Z",
   "change": "evolve-bare-a1-into-multi-agent-workspace",
   "task": "5.3",
-  "sourceCommit": "7611df7efbb4acdf9a8eae6fa17c59a03a413e32",
+  "sourceCommit": "b26383ed6605b222d6b853eb232c6b94e0fdb7ff",
   "artifact": {
-    "path": "native/terminal-host/target/debug/addone-terminal-host.exe",
+    "path": "native/terminal-host/target/debug/a1-terminal-host.exe",
     "profile": "debug",
-    "sha256": "42a92d095747104685d6862788fca399e1c1e5a8d66698222860a6eeaacee0a1",
+    "sha256": "d1437d46d469a8823565a0428b57a1888bb327c2ce26d3cb51c0fb6fc88e4165",
     "sizeBytes": 2394624
   },
   "toolchain": {
@@ -25,38 +25,73 @@
     "controlPlanePayloads": "typed identity, topology, capability, lifecycle, recovery, and bounded diagnostics only"
   },
   "identityObservation": {
-    "schema": "addone-terminal-host-hot-path-v1",
+    "schema": "a1-terminal-host-hot-path-v1",
     "paneCount": 4,
-    "streamIdentities": [1, 8, 15, 22],
-    "inputIdentities": [2, 9, 16, 23],
-    "terminalModelIdentities": [3, 10, 17, 24],
-    "renderDamageIdentities": [4, 11, 18, 25],
-    "keyEncoderIdentities": [5, 12, 19, 26],
-    "mouseEncoderIdentities": [6, 13, 20, 27],
-    "selectionIdentities": [7, 14, 21, 28],
+    "streamIdentities": [
+      1,
+      8,
+      15,
+      22
+    ],
+    "inputIdentities": [
+      2,
+      9,
+      16,
+      23
+    ],
+    "terminalModelIdentities": [
+      3,
+      10,
+      17,
+      24
+    ],
+    "renderDamageIdentities": [
+      4,
+      11,
+      18,
+      25
+    ],
+    "keyEncoderIdentities": [
+      5,
+      12,
+      19,
+      26
+    ],
+    "mouseEncoderIdentities": [
+      6,
+      13,
+      20,
+      27
+    ],
+    "selectionIdentities": [
+      7,
+      14,
+      21,
+      28
+    ],
     "allIdentitySetsUnique": true,
     "presentationWrites": 2,
-    "presentationBytes": 4708,
+    "presentationBytes": 4618,
     "panes": [
       {
         "paneId": "pane-1",
         "sessionId": "session-1",
-        "ptyOutputChunks": 9,
-        "ptyOutputBytes": 286,
-        "terminalModelWrites": 9,
-        "terminalModelBytes": 286,
+        "ptyOutputChunks": 8,
+        "ptyOutputBytes": 272,
+        "terminalModelWrites": 8,
+        "terminalModelBytes": 272,
         "inputWrites": 2,
         "inputBytes": 23,
         "renderPasses": 2,
-        "renderedBytes": 687
+        "renderedBytes": 642
       },
       {
         "paneId": "pane-2",
         "sessionId": "session-2",
         "ptyOutputChunks": 8,
-        "ptyOutputBytes": 286,
+        "ptyOutputBytes": 272,
         "terminalModelWrites": 8,
-        "terminalModelBytes": 286,
+        "terminalModelBytes": 272,
         "inputWrites": 2,
         "inputBytes": 23,
         "renderPasses": 2,
@@ -65,22 +100,22 @@
       {
         "paneId": "pane-3",
         "sessionId": "session-3",
-        "ptyOutputChunks": 8,
-        "ptyOutputBytes": 286,
-        "terminalModelWrites": 8,
-        "terminalModelBytes": 286,
+        "ptyOutputChunks": 9,
+        "ptyOutputBytes": 272,
+        "terminalModelWrites": 9,
+        "terminalModelBytes": 272,
         "inputWrites": 2,
         "inputBytes": 23,
         "renderPasses": 2,
-        "renderedBytes": 743
+        "renderedBytes": 698
       },
       {
         "paneId": "pane-4",
         "sessionId": "session-4",
         "ptyOutputChunks": 8,
-        "ptyOutputBytes": 286,
+        "ptyOutputBytes": 272,
         "terminalModelWrites": 8,
-        "terminalModelBytes": 286,
+        "terminalModelBytes": 272,
         "inputWrites": 2,
         "inputBytes": 23,
         "renderPasses": 2,

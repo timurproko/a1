@@ -41,23 +41,23 @@
     "explicit-obsolete-package-fixtures"
   ],
   "summary": {
-    "total": 803,
-    "files": 111,
+    "total": 787,
+    "files": 105,
     "byLocationKind": {
-      "content": 780,
+      "content": 764,
       "path": 23
     },
     "byClass": {
       "runtime-symbols": 72,
       "diagnostics": 92,
       "environment-keys": 20,
-      "paths": 256,
-      "schemas": 76,
-      "artifacts": 84,
-      "native-names": 56,
+      "paths": 251,
+      "schemas": 68,
+      "artifacts": 81,
+      "native-names": 48,
       "tests": 58,
-      "current-docs-specs": 702,
-      "historical-records": 140,
+      "current-docs-specs": 686,
+      "historical-records": 130,
       "explicit-obsolete-package-fixtures": 8
     }
   },
@@ -150,99 +150,6 @@
       "primaryClass": "schemas",
       "classes": [
         "schemas",
-        "current-docs-specs"
-      ]
-    },
-    {
-      "id": "docs/architecture/terminal-host-proof-gate.md:3:48",
-      "path": "docs/architecture/terminal-host-proof-gate.md",
-      "locationKind": "content",
-      "line": 3,
-      "column": 48,
-      "value": "AddOne",
-      "context": "The composed-terminal proof is a stop/go gate. AddOne must not merge or productize composed terminal panes until the exact in-terminal spike artifact passes both technical and physical acceptance.",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "paths",
-      "classes": [
-        "paths",
-        "artifacts",
-        "current-docs-specs"
-      ]
-    },
-    {
-      "id": "docs/architecture/terminal-host-proof-gate.md:11:41",
-      "path": "docs/architecture/terminal-host-proof-gate.md",
-      "locationKind": "content",
-      "line": 11,
-      "column": 41,
-      "value": "AddOne",
-      "context": "3. The exact artifact is tied to pinned AddOne and terminal-component revisions.",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "artifacts",
-      "classes": [
-        "artifacts",
-        "current-docs-specs"
-      ]
-    },
-    {
-      "id": "docs/architecture/terminal-host-provenance.md:13:12",
-      "path": "docs/architecture/terminal-host-provenance.md",
-      "locationKind": "content",
-      "line": 13,
-      "column": 12,
-      "value": "AddOne",
-      "context": "A buffered AddOne-owned frame composer is the initial presentation layer. Ratatui is an optional evaluation candidate only if the narrow composer increases rendering risk; it is not selected by default.",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "schemas",
-      "classes": [
-        "schemas",
-        "current-docs-specs"
-      ]
-    },
-    {
-      "id": "docs/architecture/terminal-host-provenance.md:47:22",
-      "path": "docs/architecture/terminal-host-provenance.md",
-      "locationKind": "content",
-      "line": 47,
-      "column": 22,
-      "value": "AddOne",
-      "context": "- Rust/Cargo for the AddOne terminal host;",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "paths",
-      "classes": [
-        "paths",
-        "native-names",
-        "current-docs-specs"
-      ]
-    },
-    {
-      "id": "docs/architecture/terminal-host-provenance.md:61:3",
-      "path": "docs/architecture/terminal-host-provenance.md",
-      "locationKind": "content",
-      "line": 61,
-      "column": 3,
-      "value": "AddOne",
-      "context": "- AddOne source commit and protocol version;",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "schemas",
-      "classes": [
-        "schemas",
-        "current-docs-specs"
-      ]
-    },
-    {
-      "id": "docs/architecture/terminal-host-spike-evidence.md:3:63",
-      "path": "docs/architecture/terminal-host-spike-evidence.md",
-      "locationKind": "content",
-      "line": 3,
-      "column": 63,
-      "value": "addone",
-      "context": "The spike must produce machine-readable evidence with schema `addone-native-host-spike-evidence-v1`. Evidence is valid only when it names the exact artifact, hashes, pinned source commits, isolated worker environment, all mandatory workl...",
-      "matchedCase": "lower",
-      "primaryClass": "schemas",
-      "classes": [
-        "schemas",
-        "artifacts",
         "current-docs-specs"
       ]
     },
@@ -6265,171 +6172,6 @@
       ]
     },
     {
-      "id": "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/terminal-host-provenance.json:41:17",
-      "path": "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/terminal-host-provenance.json",
-      "locationKind": "content",
-      "line": 41,
-      "column": 17,
-      "value": "AddOne",
-      "context": "\"initial\": \"AddOne-owned buffered frame composer\",",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "schemas",
-      "classes": [
-        "schemas",
-        "current-docs-specs",
-        "historical-records"
-      ]
-    },
-    {
-      "id": "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/terminal-host-provenance.json:94:6",
-      "path": "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/terminal-host-provenance.json",
-      "locationKind": "content",
-      "line": 94,
-      "column": 6,
-      "value": "addone",
-      "context": "\"addoneCommit\",",
-      "matchedCase": "lower",
-      "primaryClass": "current-docs-specs",
-      "classes": [
-        "current-docs-specs",
-        "historical-records"
-      ]
-    },
-    {
-      "id": "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/terminal-host-provenance.json:95:6",
-      "path": "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/terminal-host-provenance.json",
-      "locationKind": "content",
-      "line": 95,
-      "column": 6,
-      "value": "addone",
-      "context": "\"addoneProtocolVersion\",",
-      "matchedCase": "lower",
-      "primaryClass": "schemas",
-      "classes": [
-        "schemas",
-        "current-docs-specs",
-        "historical-records"
-      ]
-    },
-    {
-      "id": "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/terminal-host-task-5-1.json:2:14",
-      "path": "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/terminal-host-task-5-1.json",
-      "locationKind": "content",
-      "line": 2,
-      "column": 14,
-      "value": "addone",
-      "context": "\"schema\": \"addone-terminal-host-task-5-1-v1\",",
-      "matchedCase": "lower",
-      "primaryClass": "schemas",
-      "classes": [
-        "schemas",
-        "native-names",
-        "current-docs-specs",
-        "historical-records"
-      ]
-    },
-    {
-      "id": "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/terminal-host-task-5-1.json:17:48",
-      "path": "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/terminal-host-task-5-1.json",
-      "locationKind": "content",
-      "line": 17,
-      "column": 48,
-      "value": "addone",
-      "context": "\"path\": \"native/terminal-host/target/debug/addone-terminal-host.exe\",",
-      "matchedCase": "lower",
-      "primaryClass": "paths",
-      "classes": [
-        "paths",
-        "native-names",
-        "current-docs-specs",
-        "historical-records"
-      ]
-    },
-    {
-      "id": "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/terminal-host-task-5-1.json:39:19",
-      "path": "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/terminal-host-task-5-1.json",
-      "locationKind": "content",
-      "line": 39,
-      "column": 19,
-      "value": "addone",
-      "context": "\"command\": \"addone-terminal-host.exe --version\",",
-      "matchedCase": "lower",
-      "primaryClass": "native-names",
-      "classes": [
-        "native-names",
-        "current-docs-specs",
-        "historical-records"
-      ]
-    },
-    {
-      "id": "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/terminal-host-task-5-1.json:43:19",
-      "path": "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/terminal-host-task-5-1.json",
-      "locationKind": "content",
-      "line": 43,
-      "column": 19,
-      "value": "addone",
-      "context": "\"command\": \"addone-terminal-host.exe --probe\",",
-      "matchedCase": "lower",
-      "primaryClass": "native-names",
-      "classes": [
-        "native-names",
-        "current-docs-specs",
-        "historical-records"
-      ]
-    },
-    {
-      "id": "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/terminal-host-task-5-3.json:2:14",
-      "path": "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/terminal-host-task-5-3.json",
-      "locationKind": "content",
-      "line": 2,
-      "column": 14,
-      "value": "addone",
-      "context": "\"schema\": \"addone-terminal-host-task-5-3-v1\",",
-      "matchedCase": "lower",
-      "primaryClass": "schemas",
-      "classes": [
-        "schemas",
-        "native-names",
-        "current-docs-specs",
-        "historical-records"
-      ]
-    },
-    {
-      "id": "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/terminal-host-task-5-3.json:8:48",
-      "path": "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/terminal-host-task-5-3.json",
-      "locationKind": "content",
-      "line": 8,
-      "column": 48,
-      "value": "addone",
-      "context": "\"path\": \"native/terminal-host/target/debug/addone-terminal-host.exe\",",
-      "matchedCase": "lower",
-      "primaryClass": "paths",
-      "classes": [
-        "paths",
-        "native-names",
-        "current-docs-specs",
-        "historical-records"
-      ]
-    },
-    {
-      "id": "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/terminal-host-task-5-3.json:28:16",
-      "path": "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/terminal-host-task-5-3.json",
-      "locationKind": "content",
-      "line": 28,
-      "column": 16,
-      "value": "addone",
-      "context": "\"schema\": \"addone-terminal-host-hot-path-v1\",",
-      "matchedCase": "lower",
-      "primaryClass": "paths",
-      "classes": [
-        "paths",
-        "schemas",
-        "native-names",
-        "current-docs-specs",
-        "historical-records"
-      ]
-    },
-    {
       "id": "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/proposal.md:3:30",
       "path": "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/proposal.md",
       "locationKind": "content",
@@ -12066,5 +11808,5 @@
       ]
     }
   ],
-  "generatedAt": "2026-08-20T09:24:40.567Z"
+  "generatedAt": "2026-08-20T09:28:02.343Z"
 }
