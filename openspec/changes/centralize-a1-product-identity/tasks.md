@@ -1,7 +1,7 @@
 ## 1. Reconcile the published baseline and identity inventory
 
 - [x] 1.1 Update `republish-as-a1` to record the verified `@timurproko/a1@0.1.0` publication, npm's policy rejection of whole-package deletion, and the supported deprecation outcome; strictly validate and complete or archive that predecessor before changing live identity governance.
-- [ ] 1.2 Produce a machine-readable inventory of every case-sensitive and case-insensitive legacy identity occurrence outside archives/generated dependencies, classifying runtime symbols, diagnostics, environment keys, paths, schemas, artifacts, native names, tests, current docs/specs, historical records, and explicit obsolete-package fixtures; add an inventory completeness test.
+- [x] 1.2 Produce a machine-readable inventory of every case-sensitive and case-insensitive legacy identity occurrence outside archives/generated dependencies, classifying runtime symbols, diagnostics, environment keys, paths, schemas, artifacts, native names, tests, current docs/specs, historical records, and explicit obsolete-package fixtures; add an inventory completeness test.
 
 ## 2. Establish the identity authority
 
