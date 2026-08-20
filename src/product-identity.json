@@ -78,7 +78,11 @@
     "terminalProofSchema": "a1-terminal-host-proof-v1",
     "stableReleaseSchema": "a1-stable-release-v1",
     "previewReleaseSchema": "a1-preview-release-v1",
-    "releaseCertificationSchema": "a1-release-certification-v1"
+    "releaseCertificationSchema": "a1-release-certification-v1",
+    "previewPlatformVerdictSchema": "a1-development-preview-platform-verdict-v2",
+    "piSourceLedgerSchema": "a1-pinned-pi-source-port-ledger-v1",
+    "piComponentParitySchema": "a1-pi-static-component-parity-v1",
+    "piEventFrameParitySchema": "a1-pi-event-frame-parity-v1"
   },
   "artifacts": {
     "cliEntry": "bin/a1.js",

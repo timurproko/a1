@@ -1,5 +1,5 @@
 {
-  "schema": "addone-pi-event-frame-parity-v1",
+  "schema": "a1-pi-event-frame-parity-v1",
   "generatedFrom": {
     "repository": "https://github.com/earendil-works/pi.git",
     "sourceCommit": "914cf1472e715297caa30db4b9535d534a9eb718",

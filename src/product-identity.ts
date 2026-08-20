@@ -39,7 +39,7 @@ const STATE_KEYS = ["windowsControlDirectory", "unixControlDirectory", "developm
 const ENDPOINT_KEYS = ["windowsPipeStem", "unixSocketFilename", "metadataFilename", "supervisorLogFilename", "databaseFilename"] as const;
 const MANIFEST_KEYS = ["releaseFilename", "packageFilename"] as const;
 const PROTOCOL_KEYS = ["namespace", "controlEnvelope", "supervisorSchema", "nativeHostSchema", "structuredAgentSchema", "controlStoreSchema", "releaseCohortSchema", "updateJournalSchema"] as const;
-const EVIDENCE_KEYS = ["nativeSpikeSchema", "terminalProvenanceSchema", "terminalProofSchema", "stableReleaseSchema", "previewReleaseSchema", "releaseCertificationSchema"] as const;
+const EVIDENCE_KEYS = ["nativeSpikeSchema", "terminalProvenanceSchema", "terminalProofSchema", "stableReleaseSchema", "previewReleaseSchema", "releaseCertificationSchema", "previewPlatformVerdictSchema", "piSourceLedgerSchema", "piComponentParitySchema", "piEventFrameParitySchema"] as const;
 const ARTIFACT_KEYS = ["cliEntry", "supervisorEntry", "uiEntry", "nativeExecutable", "nativeCrate", "releaseTarballStem", "diagnosticStem"] as const;
 const ROOT_KEYS = ["schema", "displayName", "commandName", "packageName", "filesystem", "environment", "state", "endpoint", "manifest", "protocol", "evidence", "artifacts"] as const;
 

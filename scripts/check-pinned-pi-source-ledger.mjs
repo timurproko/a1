@@ -4,7 +4,8 @@ import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repository = fileURLToPath(new URL("..", import.meta.url));
-const ledgerPath = resolve(process.env.A1_PI_SOURCE_LEDGER_PATH ?? join(
+const identity = JSON.parse(await readFile(join(repository, "src", "product-identity.json"), "utf8"));
+const ledgerPath = resolve(process.env[identity.environment.piSourceLedgerPath] ?? join(
   repository,
   "openspec",
   "changes",
@@ -12,8 +13,8 @@ const ledgerPath = resolve(process.env.A1_PI_SOURCE_LEDGER_PATH ?? join(
   "evidence",
   "pinned-pi-source-port-ledger.json",
 ));
-const sourceRoot = resolve(process.env.A1_PI_SOURCE_SCAN_ROOT ?? join(repository, "src"));
-const portRoot = resolve(process.env.A1_PI_PORT_ROOT ?? join(repository, "src", "foundation", "pi-component-adapter", "upstream"));
+const sourceRoot = resolve(process.env[identity.environment.piSourceScanRoot] ?? join(repository, "src"));
+const portRoot = resolve(process.env[identity.environment.piPortRoot] ?? join(repository, "src", "foundation", "pi-component-adapter", "upstream"));
 const expectedCommit = "914cf1472e715297caa30db4b9535d534a9eb718";
 const allowedClassifications = new Set(["public-reuse", "owned-source-port", "host-adapter"]);
 const completedStatusesByClassification = new Map([
@@ -74,7 +75,7 @@ async function validateLedger() {
   const ledger = JSON.parse(await readFile(ledgerPath, "utf8"));
   const lockfile = JSON.parse(await readFile(join(repository, "package-lock.json"), "utf8"));
   requiredString(ledger.schema, "ledger schema");
-  if (ledger.schema !== "addone-pinned-pi-source-port-ledger-v1") fail("unsupported ledger schema");
+  if (ledger.schema !== identity.evidence.piSourceLedgerSchema) fail("unsupported ledger schema");
   if (ledger.change !== "build-owned-pi-ui-foundation" || ledger.task !== "7.2") fail("ledger change/task identity is stale");
   if (ledger.upstream?.repository !== "https://github.com/earendil-works/pi.git") fail("upstream repository identity is stale");
   if (ledger.upstream?.commit !== expectedCommit) fail("upstream commit identity is stale");

@@ -3,10 +3,11 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const REGISTRY = "https://registry.npmjs.org";
+const identity = JSON.parse(await readFile(new URL("../src/product-identity.json", import.meta.url), "utf8"));
 
 // Pi 0.84.x carries these deprecated transitive packages through its public SDK
 // dependency graph. They are accepted only on those exact versions and paths;
-// any AddOne update must re-evaluate them instead of broadening the exception.
+// any A1 update must re-evaluate them instead of broadening the exception.
 const DOCUMENTED_DEPRECATED_EXCEPTIONS = [
   {
     name: "node-domexception",
@@ -52,7 +53,7 @@ export async function inspectDependencies({ lockfilePath, queryRegistry = true, 
     await concurrentMap(candidates, 12, async record => {
       const url = `${REGISTRY}/${encodeURIComponent(record.name)}/${encodeURIComponent(record.version)}`;
       const response = await fetchImplementation(url, {
-        headers: { accept: "application/json", "user-agent": "addone-dependency-policy/1" },
+        headers: { accept: "application/json", "user-agent": `${identity.filesystem.slug}-dependency-policy/1` },
       });
       if (!response.ok) throw new Error(`registry metadata request failed for ${record.name}@${record.version}: HTTP ${response.status}`);
       const metadata = await response.json();

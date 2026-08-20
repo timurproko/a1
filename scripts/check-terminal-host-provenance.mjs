@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
+const identity = JSON.parse(await readFile(resolve("src/product-identity.json"), "utf8"));
 const evidenceArgument = process.argv.indexOf("--evidence");
 const evidencePath = resolve(evidenceArgument >= 0 ? process.argv[evidenceArgument + 1] : "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/terminal-host-provenance.json");
 const errors = [];
@@ -12,7 +13,7 @@ try {
   process.exit(1);
 }
 
-if (value?.schema !== "addone-terminal-host-provenance-v1") errors.push("schema must be addone-terminal-host-provenance-v1");
+if (value?.schema !== identity.evidence.terminalProvenanceSchema) errors.push(`schema must be ${identity.evidence.terminalProvenanceSchema}`);
 if (value?.change !== "evolve-bare-a1-into-multi-agent-workspace") errors.push("change identity is missing or invalid");
 if (value?.hostMode !== "console-inside-existing-terminal") errors.push("host mode must remain console-inside-existing-terminal");
 if (value?.desktopApplicationRequired !== false) errors.push("desktop application must not be required");

@@ -18,7 +18,7 @@ describe("terminal-host provenance policy", () => {
     const root = await mkdtemp(join(tmpdir(), "addone-terminal-provenance-"));
     roots.push(root);
     const evidence = {
-      schema: "addone-terminal-host-provenance-v1",
+      schema: "a1-terminal-host-provenance-v1",
       change: "evolve-bare-a1-into-multi-agent-workspace",
       hostMode: "native-window",
       desktopApplicationRequired: true,

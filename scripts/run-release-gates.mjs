@@ -1,8 +1,9 @@
 import crossSpawn from "cross-spawn";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { arch, platform, release } from "node:os";
 import { resolve } from "node:path";
 
+const identity = JSON.parse(await readFile(resolve("src/product-identity.json"), "utf8"));
 const startedAt = new Date().toISOString();
 const command = process.platform === "win32" ? "npx.cmd" : "npx";
 const args = ["vitest", "run", "test/foundation/release/update-transition.integration.test.ts", "--no-file-parallelism", "--testTimeout=120000"];
@@ -13,11 +14,11 @@ const verdictDirectory = resolve("artifacts", "release-verdicts");
 await mkdir(verdictDirectory, { recursive: true });
 const verdictPath = resolve(verdictDirectory, `${platform()}-${arch()}.json`);
 await writeFile(verdictPath, JSON.stringify({
-  schema: "addone-development-preview-platform-verdict-v2",
+  schema: identity.evidence.previewPlatformVerdictSchema,
   platform: platform(),
   architecture: arch(),
   osRelease: release(),
-  runnerLabel: process.env.A1_RELEASE_RUNNER_LABEL ?? null,
+  runnerLabel: process.env[identity.environment.releaseRunnerLabel] ?? null,
   startedAt,
   completedAt: new Date().toISOString(),
   passed: failure === undefined,

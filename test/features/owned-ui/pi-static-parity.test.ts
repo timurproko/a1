@@ -23,7 +23,7 @@ describe("pinned Pi static component parity", () => {
       "utf8",
     )) as StaticParityFixture;
 
-    expect(fixture.schema).toBe("addone-pi-static-component-parity-v1");
+    expect(fixture.schema).toBe("a1-pi-static-component-parity-v1");
     expect(fixture.generatedFrom.sourceCommit).toBe("914cf1472e715297caa30db4b9535d534a9eb718");
     expect(fixture.generatedFrom.packages).toEqual({
       "@earendil-works/pi-coding-agent": "0.84.2",

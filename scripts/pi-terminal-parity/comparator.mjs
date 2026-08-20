@@ -3,18 +3,18 @@ import { createHash } from "node:crypto";
 export const MAX_REPORTED_DIFFERENCES = 200;
 export const MAX_EXCERPT_CHARACTERS = 240;
 
-export function compareParityRun(upstream, addone, options = {}) {
+export function compareParityRun(upstream, candidate, options = {}) {
   const tolerances = new Set(options.tolerances ?? []);
   const differences = [];
-  compareValue(differences, tolerances, "producer.geometry", upstream.geometry, addone.geometry, "component-geometry");
-  compareValue(differences, tolerances, "producer.environment", upstream.capabilities, addone.capabilities, "startup-resources");
+  compareValue(differences, tolerances, "producer.geometry", upstream.geometry, candidate.geometry, "component-geometry");
+  compareValue(differences, tolerances, "producer.environment", upstream.capabilities, candidate.capabilities, "startup-resources");
 
   const upstreamByName = new Map(upstream.checkpoints.map(checkpoint => [checkpoint.name, checkpoint]));
-  const addoneByName = new Map(addone.checkpoints.map(checkpoint => [checkpoint.name, checkpoint]));
-  const checkpointNames = [...new Set([...upstreamByName.keys(), ...addoneByName.keys()])];
+  const candidateByName = new Map(candidate.checkpoints.map(checkpoint => [checkpoint.name, checkpoint]));
+  const checkpointNames = [...new Set([...upstreamByName.keys(), ...candidateByName.keys()])];
   for (const name of checkpointNames) {
     const expected = upstreamByName.get(name);
-    const actual = addoneByName.get(name);
+    const actual = candidateByName.get(name);
     if (!expected || !actual) {
       record(differences, tolerances, {
         checkpoint: name,
@@ -28,9 +28,9 @@ export function compareParityRun(upstream, addone, options = {}) {
     compareCheckpoint(differences, tolerances, expected, actual);
   }
 
-  compareValue(differences, tolerances, "exit.code", upstream.exit.code, addone.exit.code, "shutdown");
-  compareValue(differences, tolerances, "exit.signal", upstream.exit.signal, addone.exit.signal, "shutdown");
-  compareValue(differences, tolerances, "restoration", upstream.restoration, addone.restoration, "shutdown");
+  compareValue(differences, tolerances, "exit.code", upstream.exit.code, candidate.exit.code, "shutdown");
+  compareValue(differences, tolerances, "exit.signal", upstream.exit.signal, candidate.exit.signal, "shutdown");
+  compareValue(differences, tolerances, "restoration", upstream.restoration, candidate.restoration, "shutdown");
 
   return Object.freeze({
     schemaVersion: 1,
@@ -88,7 +88,7 @@ export function applyIntentionalMutation(producer, mutation) {
   throw new TypeError(`unknown parity mutation: ${mutation}`);
 }
 
-export function renderSideBySideDiff(comparison, upstream, addone) {
+export function renderSideBySideDiff(comparison, upstream, candidate) {
   const lines = [
     `Pi terminal parity: ${comparison.passed ? "PASS" : "FAIL"}`,
     `Differences: ${comparison.differenceCount}${comparison.truncated ? ` (first ${comparison.differences.length} shown)` : ""}`,
@@ -97,12 +97,12 @@ export function renderSideBySideDiff(comparison, upstream, addone) {
   for (const difference of comparison.differences.slice(0, 80)) {
     lines.push(`[${difference.checkpoint}] ${difference.domain} ${difference.path}`);
     lines.push(`  PI     | ${oneLine(difference.expected)}`);
-    lines.push(`  AddOne | ${oneLine(difference.actual)}`);
+    lines.push(`  A1 | ${oneLine(difference.actual)}`);
   }
   if (comparison.differences.length === 0) {
     lines.push(`Matched checkpoints: ${comparison.comparedCheckpointNames.join(", ")}`);
   }
-  lines.push("", `PI raw capture: ${upstream.raw.sha256}`, `AddOne raw capture: ${addone.raw.sha256}`);
+  lines.push("", `PI raw capture: ${upstream.raw.sha256}`, `A1 raw capture: ${candidate.raw.sha256}`);
   return `${lines.join("\n")}\n`;
 }
 
@@ -139,7 +139,7 @@ function normalizeSessionIdentityRow(row) {
   const idRow = /^\s*ID:\s/u.test(row.text);
   const normalize = value => value
     .replaceAll("upstream-oracle", "parity-producer")
-    .replaceAll("addone-owned-ui", "parity-producer")
+    .replaceAll("a1-owned-ui", "parity-producer")
     .replace(/\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z_[0-9a-f-]{36}\.jsonl/giu, match => match.replace(/[0-9a-f]/giu, "x"))
     .replace(/(?<=\bID:\s)[0-9a-f-]{36}/giu, match => match.replace(/[0-9a-f]/giu, "x"));
   return {

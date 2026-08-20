@@ -4,6 +4,7 @@ import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repository = fileURLToPath(new URL("..", import.meta.url));
+const identity = JSON.parse(await readFile(join(repository, "src", "product-identity.json"), "utf8"));
 const changeRoot = join(repository, "openspec", "changes", "build-owned-pi-ui-foundation");
 const outputPath = join(changeRoot, "evidence", "pinned-pi-source-port-ledger.json");
 const previousLedger = await readFile(outputPath, "utf8").then(JSON.parse, () => ({ records: [] }));
@@ -154,7 +155,7 @@ for (const record of records) {
 }
 
 const ledger = {
-  schema: "addone-pinned-pi-source-port-ledger-v1",
+  schema: identity.evidence.piSourceLedgerSchema,
   change: "build-owned-pi-ui-foundation",
   task: "7.2",
   recordedAt: new Date().toISOString(),
@@ -228,7 +229,7 @@ async function sourceMapRecord(pkg, sourceMapPath, scope) {
           },
           {
             id: "theme-owned-watcher-boundary",
-            reason: "Mirror custom-theme reload with an AddOne-owned file watcher because the public API exposes no theme-change callback and private watcher imports are forbidden.",
+            reason: "Mirror custom-theme reload with an A1-owned file watcher because the public API exposes no theme-change callback and private watcher imports are forbidden.",
             upstreamBehavior: "Debounced valid changes replace the active custom theme and notify rendering; invalid or temporarily missing files retain the last valid theme.",
             acceptanceTest: "test/foundation/pi-component-adapter/pinned-theme-parity.test.ts",
           },
@@ -237,17 +238,17 @@ async function sourceMapRecord(pkg, sourceMapPath, scope) {
     : upstreamPath === "packages/coding-agent/src/modes/interactive/theme/theme-controller.ts"
       ? {
           localDestination: "src/foundation/pi-component-adapter/upstream/theme/theme-controller.ts",
-          modifications: "Source-synchronized controller port: renamed owner class, injected dependency-free settings/runtime ports, remapped private theme helpers to the public-backed AddOne theme adapter, and added explicit disposal.",
+          modifications: "Source-synchronized controller port: renamed owner class, injected dependency-free settings/runtime ports, remapped private theme helpers to the public-backed A1 theme adapter, and added explicit disposal.",
           approvedDeviations: [
             {
               id: "theme-controller-owned-boundaries",
-              reason: "Replace private SettingsManager/theme-module coupling with public theme APIs and AddOne-owned runtime/settings ports.",
+              reason: "Replace private SettingsManager/theme-module coupling with public theme APIs and A1-owned runtime/settings ports.",
               upstreamBehavior: "Theme initialization, auto detection, preview, switching, render invalidation, and terminal color-scheme synchronization remain ordered as pinned.",
               acceptanceTest: "test/foundation/pi-component-adapter/pinned-theme-parity.test.ts",
             },
             {
               id: "theme-controller-explicit-disposal",
-              reason: "AddOne lifecycle ownership requires explicit listener disposal instead of relying on stock InteractiveMode teardown.",
+              reason: "A1 lifecycle ownership requires explicit listener disposal instead of relying on stock InteractiveMode teardown.",
               upstreamBehavior: "The terminal color-scheme listener and automatic notifications are released when the owned shell stops.",
               acceptanceTest: "test/foundation/pi-component-adapter/pinned-theme-parity.test.ts",
             },
@@ -259,7 +260,7 @@ async function sourceMapRecord(pkg, sourceMapPath, scope) {
             modifications: "Mechanical source port with ECMAScript private fields; imports remain on the public Pi TUI package root.",
             approvedDeviations: [{
               id: "countdown-owned-private-fields",
-              reason: "Use language-level private fields in the AddOne-owned class without changing timer ordering or lifecycle.",
+              reason: "Use language-level private fields in the A1-owned class without changing timer ordering or lifecycle.",
               upstreamBehavior: "Initial tick, one-second decrements, render requests, expiration callback, and disposal order match pinned Pi.",
               acceptanceTest: "test/foundation/pi-component-adapter/pinned-status-indicator-parity.test.ts",
             }],
@@ -270,7 +271,7 @@ async function sourceMapRecord(pkg, sourceMapPath, scope) {
               modifications: "Mechanical source port with public package-root keybinding, Loader, and owned theme/countdown imports plus ECMAScript private fields.",
               approvedDeviations: [{
                 id: "status-indicator-public-boundaries",
-                reason: "Remap private theme, countdown, extension option, and keybinding imports to AddOne-owned or public package-root equivalents.",
+                reason: "Remap private theme, countdown, extension option, and keybinding imports to A1-owned or public package-root equivalents.",
                 upstreamBehavior: "Working, retry, compaction, branch-summary, idle, countdown, style, and disposal behavior match pinned Pi.",
                 acceptanceTest: "test/foundation/pi-component-adapter/pinned-status-indicator-parity.test.ts",
               }],
@@ -278,7 +279,7 @@ async function sourceMapRecord(pkg, sourceMapPath, scope) {
           : upstreamPath === "packages/coding-agent/src/core/keybindings.ts"
             ? {
                 localDestination: "src/foundation/pi-component-adapter/upstream/adjacent/core/keybindings.ts",
-                modifications: "Mechanical source port with Node import prefixes and public package-root AddOne agent-directory resolution.",
+                modifications: "Mechanical source port with Node import prefixes and public package-root A1 agent-directory resolution.",
                 approvedDeviations: [{
                   id: "keybindings-public-config-boundary",
                   reason: "Resolve the agent configuration directory through the documented package-root API instead of a private config import.",
@@ -376,7 +377,7 @@ async function assetRecord(pkg, distRelative) {
       ? "None planned; resolve through pinned public theme APIs."
       : publicBundledAsset
         ? "Read the unchanged bundled asset through the public package directory boundary; do not copy, transform, or patch installed package content."
-        : "Copy unchanged before any documented AddOne asset transformation.",
+        : "Copy unchanged before any documented A1 asset transformation.",
     approvedDeviations: [],
     behaviorCategories: categories,
     behaviorIds: categories.flatMap(category => behaviorByCategory.get(category) ?? []),
@@ -420,7 +421,7 @@ function reconciledSourceUnit(upstreamPath) {
       classification: "owned-source-port",
       localDestination: `src/foundation/pi-component-adapter/upstream/components/${ownedName}.ts`,
       implementationStatus: "source-synchronized-port",
-      modifications: "Mechanical pinned source port with private imports remapped to public package-root types/APIs and AddOne-owned theme boundaries; behavior remains acceptance-tested.",
+      modifications: "Mechanical pinned source port with private imports remapped to public package-root types/APIs and A1-owned theme boundaries; behavior remains acceptance-tested.",
       approvedDeviations: [],
     };
   }
@@ -429,7 +430,7 @@ function reconciledSourceUnit(upstreamPath) {
       classification: "host-adapter",
       localDestination: "src/foundation/pi-component-adapter/shell-components.ts",
       implementationStatus: "adapter-present-conformance-passed",
-      modifications: "Split startup UI authority across the AddOne shell/component adapter while preserving pinned first-time setup, startup notices, resources, and preflight behavior without constructing the stock CLI root.",
+      modifications: "Split startup UI authority across the A1 shell/component adapter while preserving pinned first-time setup, startup notices, resources, and preflight behavior without constructing the stock CLI root.",
       approvedDeviations: [],
     };
   }
@@ -438,7 +439,7 @@ function reconciledSourceUnit(upstreamPath) {
       classification: "host-adapter",
       localDestination: "src/foundation/pi-engine-adapter/workflows.ts",
       implementationStatus: "adapter-present-conformance-passed",
-      modifications: "Expose the pinned command manifest and dispatch categories through typed AddOne workflow contracts; source-derived governance rejects omitted advertised or hidden routes.",
+      modifications: "Expose the pinned command manifest and dispatch categories through typed A1 workflow contracts; source-derived governance rejects omitted advertised or hidden routes.",
       approvedDeviations: [],
     };
   }
@@ -481,7 +482,7 @@ function classify(packageName, upstreamPath) {
           classification: "host-adapter",
           localDestination: "src/foundation/pi-tui-runtime-adapter/index.ts",
           implementationStatus: "adapter-present-conformance-pending",
-          modifications: "Use pinned public pi-tui terminal/runtime APIs behind AddOne lifecycle ownership.",
+          modifications: "Use pinned public pi-tui terminal/runtime APIs behind A1 lifecycle ownership.",
         }
       : {
           classification: "public-reuse",
@@ -517,14 +518,14 @@ function classify(packageName, upstreamPath) {
       classification: "owned-source-port",
       localDestination: `src/foundation/pi-component-adapter/upstream/${relativeInteractive}`,
       implementationStatus: "not-ported",
-      modifications: "Mechanical port planned: remap imports, inject AddOne engine/runtime ownership, preserve control flow and state, and record every deviation.",
+      modifications: "Mechanical port planned: remap imports, inject A1 engine/runtime ownership, preserve control flow and state, and record every deviation.",
     };
   }
   return {
     classification: "host-adapter",
     localDestination: "src/foundation/pi-engine-adapter/index.ts",
     implementationStatus: "adapter-present-conformance-pending",
-    modifications: "Retain authority in the pinned public SDK and expose it only through AddOne engine contracts.",
+    modifications: "Retain authority in the pinned public SDK and expose it only through A1 engine contracts.",
   };
 }
 

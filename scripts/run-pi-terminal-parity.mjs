@@ -21,7 +21,7 @@ const artifactRoot = resolve(packageRoot, "artifacts", "pi-terminal-parity", "la
 const workRoot = resolve(artifactRoot, "work");
 const piPackageRoot = resolve(packageRoot, "node_modules", "@earendil-works", "pi-coding-agent");
 const piCliPath = resolve(piPackageRoot, "dist", "cli.js");
-const addoneCliPath = resolve(packageRoot, "bin", "a1-ui.js");
+const a1CliPath = resolve(packageRoot, "bin", "a1-ui.js");
 const sessions = [];
 let interrupted = false;
 
@@ -38,7 +38,7 @@ await mkdir(artifactRoot, { recursive: true });
 try {
   const result = await withTimeout(runGate(), FULL_GATE_TIMEOUT_MS, "terminal parity gate");
   await writeArtifacts(result);
-  process.stdout.write(renderSideBySideDiff(result.comparison, result.upstream, result.addone));
+  process.stdout.write(renderSideBySideDiff(result.comparison, result.upstream, result.a1));
   process.stdout.write(`Artifacts: ${artifactRoot}\n`);
   process.exitCode = result.comparison.passed ? 0 : 1;
 } catch (error) {
@@ -75,31 +75,31 @@ async function runGate() {
     columns: DEFAULT_COLUMNS,
     rows: DEFAULT_ROWS,
   });
-  const addone = new TerminalParitySession({
-    producer: "addone-owned-ui",
+  const a1 = new TerminalParitySession({
+    producer: "a1-owned-ui",
     executable: process.execPath,
-    arguments: [addoneCliPath],
+    arguments: [a1CliPath],
     cwd: fixture.cwd,
     environment: {
-      ...commonParityEnvironment(fixture.profiles["addone-owned-ui"]),
+      ...commonParityEnvironment(fixture.profiles["a1-owned-ui"]),
       A1_LAUNCH_PROFILE: "a1",
       A1_LAUNCH_ARGUMENTS_JSON: "[]",
     },
     columns: DEFAULT_COLUMNS,
     rows: DEFAULT_ROWS,
   });
-  sessions.push(upstream, addone);
+  sessions.push(upstream, a1);
 
   for (const action of TERMINAL_PARITY_ACTIONS) {
-    await performAction([upstream, addone], action);
+    await performAction([upstream, a1], action);
   }
 
-  const [upstreamCapture, originalAddoneCapture] = await Promise.all([upstream.result(), addone.result()]);
+  const [upstreamCapture, originalA1Capture] = await Promise.all([upstream.result(), a1.result()]);
   const mutation = process.env.A1_PI_PARITY_INTENTIONAL_MUTATION;
-  const addoneCapture = mutation === "visual" || mutation === "input-scroll"
-    ? applyIntentionalMutation(originalAddoneCapture, mutation)
-    : originalAddoneCapture;
-  const comparison = compareParityRun(upstreamCapture, addoneCapture, { tolerances: TERMINAL_PARITY_TOLERANCES });
+  const a1Capture = mutation === "visual" || mutation === "input-scroll"
+    ? applyIntentionalMutation(originalA1Capture, mutation)
+    : originalA1Capture;
+  const comparison = compareParityRun(upstreamCapture, a1Capture, { tolerances: TERMINAL_PARITY_TOLERANCES });
   return {
     schemaVersion: 1,
     generatedAt: new Date().toISOString(),
@@ -114,7 +114,7 @@ async function runGate() {
       tolerances: [...TERMINAL_PARITY_TOLERANCES],
     },
     upstream: upstreamCapture,
-    addone: addoneCapture,
+    a1: a1Capture,
     comparison,
   };
 }
@@ -156,7 +156,7 @@ async function pinnedIdentity() {
     throw new Error(`terminal parity requires @earendil-works/pi-coding-agent ${PINNED_PI_VERSION}, found ${manifest.version}`);
   }
   const cliSource = await readFile(piCliPath);
-  const addoneManifest = JSON.parse(await readFile(resolve(packageRoot, "package.json"), "utf8"));
+  const a1Manifest = JSON.parse(await readFile(resolve(packageRoot, "package.json"), "utf8"));
   return {
     upstream: {
       package: manifest.name,
@@ -165,13 +165,13 @@ async function pinnedIdentity() {
       cliSha256: createHash("sha256").update(cliSource).digest("hex"),
       executable: process.execPath,
       arguments: [piCliPath, "--offline", "--approve"],
-      usesAddoneRenderingCode: false,
+      usesA1RenderingCode: false,
     },
-    addone: {
-      package: addoneManifest.name,
-      version: addoneManifest.version,
+    a1: {
+      package: a1Manifest.name,
+      version: a1Manifest.version,
       executable: process.execPath,
-      arguments: [addoneCliPath],
+      arguments: [a1CliPath],
       launchPath: "owned-ui",
     },
   };
@@ -183,9 +183,9 @@ async function writeArtifacts(result) {
   if (Buffer.byteLength(report) > maxReportBytes) throw new Error(`bounded parity report exceeded ${maxReportBytes} bytes`);
   await Promise.all([
     writeFile(resolve(artifactRoot, "report.json"), report, "utf8"),
-    writeFile(resolve(artifactRoot, "diff.txt"), renderSideBySideDiff(result.comparison, result.upstream, result.addone), "utf8"),
+    writeFile(resolve(artifactRoot, "diff.txt"), renderSideBySideDiff(result.comparison, result.upstream, result.a1), "utf8"),
     writeFile(resolve(artifactRoot, "upstream-checkpoints.json"), `${JSON.stringify(result.upstream, null, 2)}\n`, "utf8"),
-    writeFile(resolve(artifactRoot, "addone-checkpoints.json"), `${JSON.stringify(result.addone, null, 2)}\n`, "utf8"),
+    writeFile(resolve(artifactRoot, "a1-checkpoints.json"), `${JSON.stringify(result.a1, null, 2)}\n`, "utf8"),
   ]);
 }
 

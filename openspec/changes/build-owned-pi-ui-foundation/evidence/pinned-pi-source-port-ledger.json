@@ -1,8 +1,8 @@
 {
-  "schema": "addone-pinned-pi-source-port-ledger-v1",
+  "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-08-17T11:49:36.415Z",
+  "recordedAt": "2026-08-20T09:17:16.941Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "914cf1472e715297caa30db4b9535d534a9eb718",
@@ -60,7 +60,7 @@
       "localDestination": "src/foundation/pi-component-adapter/shell-components.ts",
       "implementationStatus": "adapter-present-conformance-passed",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Split startup UI authority across the AddOne shell/component adapter while preserving pinned first-time setup, startup notices, resources, and preflight behavior without constructing the stock CLI root.",
+      "modifications": "Split startup UI authority across the A1 shell/component adapter while preserving pinned first-time setup, startup notices, resources, and preflight behavior without constructing the stock CLI root.",
       "approvedDeviations": [],
       "behaviorCategories": [
         "startup-composition",
@@ -446,7 +446,7 @@
       "localDestination": "src/foundation/pi-component-adapter/upstream/adjacent/core/keybindings.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Mechanical source port with Node import prefixes and public package-root AddOne agent-directory resolution.",
+      "modifications": "Mechanical source port with Node import prefixes and public package-root A1 agent-directory resolution.",
       "localSha256": "173b5e7d3e07b47a9e1e038644acaf002d4f3f1de05cf840de293cd806be1f35",
       "approvedDeviations": [
         {
@@ -841,7 +841,7 @@
       "localDestination": "src/foundation/pi-engine-adapter/workflows.ts",
       "implementationStatus": "adapter-present-conformance-passed",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Expose the pinned command manifest and dispatch categories through typed AddOne workflow contracts; source-derived governance rejects omitted advertised or hidden routes.",
+      "modifications": "Expose the pinned command manifest and dispatch categories through typed A1 workflow contracts; source-derived governance rejects omitted advertised or hidden routes.",
       "approvedDeviations": [],
       "behaviorCategories": [
         "built-in-commands",
@@ -1169,7 +1169,7 @@
       "approvedDeviations": [
         {
           "id": "countdown-owned-private-fields",
-          "reason": "Use language-level private fields in the AddOne-owned class without changing timer ordering or lifecycle.",
+          "reason": "Use language-level private fields in the A1-owned class without changing timer ordering or lifecycle.",
           "upstreamBehavior": "Initial tick, one-second decrements, render requests, expiration callback, and disposal order match pinned Pi.",
           "acceptanceTest": "test/foundation/pi-component-adapter/pinned-status-indicator-parity.test.ts"
         }
@@ -1244,7 +1244,7 @@
       "localDestination": "src/foundation/pi-component-adapter/upstream/components/custom-entry.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Mechanical pinned source port with private imports remapped to public package-root types/APIs and AddOne-owned theme boundaries; behavior remains acceptance-tested.",
+      "modifications": "Mechanical pinned source port with private imports remapped to public package-root types/APIs and A1-owned theme boundaries; behavior remains acceptance-tested.",
       "localSha256": "1e9c274e8be3c8a253f5d80772bf73f8037007385933890a19d7730b10d2ef6a",
       "approvedDeviations": [],
       "behaviorCategories": [
@@ -1321,7 +1321,7 @@
       "localDestination": "src/foundation/pi-component-adapter/upstream/components/daxnuts.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Mechanical pinned source port with private imports remapped to public package-root types/APIs and AddOne-owned theme boundaries; behavior remains acceptance-tested.",
+      "modifications": "Mechanical pinned source port with private imports remapped to public package-root types/APIs and A1-owned theme boundaries; behavior remains acceptance-tested.",
       "localSha256": "3dcb7780ec05d451c1ff40c1d057af85b0781c461b7b5037dc41182129bd5db5",
       "approvedDeviations": [],
       "behaviorCategories": [
@@ -1429,7 +1429,7 @@
       "localDestination": "src/foundation/pi-component-adapter/upstream/components/earendil-announcement.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Mechanical pinned source port with private imports remapped to public package-root types/APIs and AddOne-owned theme boundaries; behavior remains acceptance-tested.",
+      "modifications": "Mechanical pinned source port with private imports remapped to public package-root types/APIs and A1-owned theme boundaries; behavior remains acceptance-tested.",
       "localSha256": "f102f4e12340f882630c02fa7c25f79b40834b98dcf5707572faeb2fda6c0ecd",
       "approvedDeviations": [],
       "behaviorCategories": [
@@ -1592,7 +1592,7 @@
       "localDestination": "src/foundation/pi-component-adapter/upstream/components/first-time-setup.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Mechanical pinned source port with private imports remapped to public package-root types/APIs and AddOne-owned theme boundaries; behavior remains acceptance-tested.",
+      "modifications": "Mechanical pinned source port with private imports remapped to public package-root types/APIs and A1-owned theme boundaries; behavior remains acceptance-tested.",
       "localSha256": "dda426342eaa1d4d6a19ee8753a5da836c5e750149bd043473083ce245354875",
       "approvedDeviations": [],
       "behaviorCategories": [
@@ -1761,7 +1761,7 @@
       "localDestination": "src/foundation/pi-component-adapter/upstream/components/markdown-transform.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Mechanical pinned source port with private imports remapped to public package-root types/APIs and AddOne-owned theme boundaries; behavior remains acceptance-tested.",
+      "modifications": "Mechanical pinned source port with private imports remapped to public package-root types/APIs and A1-owned theme boundaries; behavior remains acceptance-tested.",
       "localSha256": "d2deb720a9420764a54d704ba4ad194a746c9edc5a5ec86699dc517e8068336f",
       "approvedDeviations": [],
       "behaviorCategories": [
@@ -1802,7 +1802,7 @@
       "localDestination": "src/foundation/pi-component-adapter/upstream/components/mermaid.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Mechanical pinned source port with private imports remapped to public package-root types/APIs and AddOne-owned theme boundaries; behavior remains acceptance-tested.",
+      "modifications": "Mechanical pinned source port with private imports remapped to public package-root types/APIs and A1-owned theme boundaries; behavior remains acceptance-tested.",
       "localSha256": "7fbcc74bd241b920e67778cca97e78b7cd57e6e59d31dba926c64bdb894cedfc",
       "approvedDeviations": [],
       "behaviorCategories": [
@@ -2140,7 +2140,7 @@
         "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
         "test/features/owned-ui/pi-session-shell.test.ts"
       ],
-      "localSha256": "3448c86cbc106728c5e9faac7485a119ad064955a05a8c076c34316703fae840"
+      "localSha256": "9dd1ec1acd8203c0dfd31d7f7b57e9ddb625f3ee045394e2cabe58f97339f53f"
     },
     {
       "id": "pi-coding-agent:src/modes/interactive/components/status-indicator",
@@ -2160,7 +2160,7 @@
       "approvedDeviations": [
         {
           "id": "status-indicator-public-boundaries",
-          "reason": "Remap private theme, countdown, extension option, and keybinding imports to AddOne-owned or public package-root equivalents.",
+          "reason": "Remap private theme, countdown, extension option, and keybinding imports to A1-owned or public package-root equivalents.",
           "upstreamBehavior": "Working, retry, compaction, branch-summary, idle, countdown, style, and disposal behavior match pinned Pi.",
           "acceptanceTest": "test/foundation/pi-component-adapter/pinned-status-indicator-parity.test.ts"
         }
@@ -2778,18 +2778,18 @@
       "localDestination": "src/foundation/pi-component-adapter/upstream/theme/theme-controller.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Source-synchronized controller port: renamed owner class, injected dependency-free settings/runtime ports, remapped private theme helpers to the public-backed AddOne theme adapter, and added explicit disposal.",
-      "localSha256": "b574e92be1f0940a772f532c5fa1b4efeb1952909fc0f8538462088b3a41a66d",
+      "modifications": "Source-synchronized controller port: renamed owner class, injected dependency-free settings/runtime ports, remapped private theme helpers to the public-backed A1 theme adapter, and added explicit disposal.",
+      "localSha256": "aaef8325f9f9c5b05023c01237cc6d0a14457699d0bd5f6882aa0bd183af8dc8",
       "approvedDeviations": [
         {
           "id": "theme-controller-owned-boundaries",
-          "reason": "Replace private SettingsManager/theme-module coupling with public theme APIs and AddOne-owned runtime/settings ports.",
+          "reason": "Replace private SettingsManager/theme-module coupling with public theme APIs and A1-owned runtime/settings ports.",
           "upstreamBehavior": "Theme initialization, auto detection, preview, switching, render invalidation, and terminal color-scheme synchronization remain ordered as pinned.",
           "acceptanceTest": "test/foundation/pi-component-adapter/pinned-theme-parity.test.ts"
         },
         {
           "id": "theme-controller-explicit-disposal",
-          "reason": "AddOne lifecycle ownership requires explicit listener disposal instead of relying on stock InteractiveMode teardown.",
+          "reason": "A1 lifecycle ownership requires explicit listener disposal instead of relying on stock InteractiveMode teardown.",
           "upstreamBehavior": "The terminal color-scheme listener and automatic notifications are released when the owned shell stops.",
           "acceptanceTest": "test/foundation/pi-component-adapter/pinned-theme-parity.test.ts"
         }
@@ -2883,7 +2883,7 @@
         },
         {
           "id": "theme-owned-watcher-boundary",
-          "reason": "Mirror custom-theme reload with an AddOne-owned file watcher because the public API exposes no theme-change callback and private watcher imports are forbidden.",
+          "reason": "Mirror custom-theme reload with an A1-owned file watcher because the public API exposes no theme-change callback and private watcher imports are forbidden.",
           "upstreamBehavior": "Debounced valid changes replace the active custom theme and notify rendering; invalid or temporarily missing files retain the last valid theme.",
           "acceptanceTest": "test/foundation/pi-component-adapter/pinned-theme-parity.test.ts"
         }

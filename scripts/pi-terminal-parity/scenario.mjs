@@ -119,7 +119,7 @@ export const TERMINAL_PARITY_ACTIONS = Object.freeze([
   { type: "checkpoint", name: "login-auth-type", domains: ["selector-dialog", "authentication", "cursor-focus"] },
   { type: "key", key: "escape" },
   { type: "checkpoint", name: "login-auth-cancel-restored", domains: ["selector-dialog", "transcript", "editor", "footer-status", "cursor-focus"] },
-  { type: "text", value: "/login addone-parity" },
+  { type: "text", value: "/login a1-parity" },
   { type: "key", key: "enter" },
   { type: "checkpoint", name: "login-provider-auth-type", domains: ["selector-dialog", "authentication", "nested-dialog", "raw-ansi", "rows-spacing", "cursor-focus"] },
   { type: "key", key: "enter" },
@@ -205,7 +205,7 @@ export async function prepareParityFixture(root) {
     writeFile(join(cwd, ".pi", "skills", "parity-skill", "SKILL.md"), "---\nname: parity-skill\ndescription: Deterministic terminal parity skill.\n---\n\nParity fixture.\n", "utf8"),
     writeFile(join(cwd, ".pi", "prompts", "parity.md"), "---\ndescription: Deterministic parity prompt\n---\nParity prompt body.\n", "utf8"),
     writeFile(join(templateProfile, "settings.json"), `${JSON.stringify({
-      defaultProvider: "addone-parity",
+      defaultProvider: "a1-parity",
       defaultModel: "scripted",
       quietStartup: false,
       showHardwareCursor: true,
@@ -214,7 +214,7 @@ export async function prepareParityFixture(root) {
     writeFile(join(templateProfile, "extensions", "deterministic-provider.ts"), deterministicProviderSource(), "utf8"),
   ]);
   const profiles = {};
-  for (const producer of ["upstream-pi", "addone-owned-ui"]) {
+  for (const producer of ["upstream-pi", "a1-owned-ui"]) {
     const profileDirectory = producer === "upstream-pi" ? "upstream-oracle" : producer;
     const profile = join(workRoot, profileDirectory, "agent");
     await mkdir(resolve(profile, ".."), { recursive: true });
@@ -343,16 +343,16 @@ export default function deterministicParityProvider(pi) {
       return new Text(theme.fg(isPartial ? "warning" : "success", text), 0, 0);
     },
   });
-  pi.registerProvider("addone-parity", {
-    name: "AddOne terminal parity fixture",
+  pi.registerProvider("a1-parity", {
+    name: "A1 terminal parity fixture",
     baseUrl: "http://127.0.0.1/unused",
     apiKey: "parity-fixture-key",
-    api: "addone-parity-stream",
+    api: "a1-parity-stream",
     oauth: {
-      name: "AddOne Parity OAuth",
+      name: "A1 Parity OAuth",
       async login(callbacks) {
         const method = await callbacks.onSelect({
-          message: "Select AddOne Parity login method:",
+          message: "Select A1 Parity login method:",
           options: [
             { id: "browser", label: "Browser login (default)" },
             { id: "device", label: "Device code login (headless)" },

@@ -1,9 +1,10 @@
 import { writeFile } from "node:fs/promises";
+import identity from "../src/product-identity.json" with { type: "json" };
 import { buildEventFrameParityResult, SCRIPTED_PI_EVENTS } from "../test/features/owned-ui/pi-event-frame-parity-fixture.js";
 
 const result = await buildEventFrameParityResult();
 const output = {
-  schema: "addone-pi-event-frame-parity-v1",
+  schema: identity.evidence.piEventFrameParitySchema,
   generatedFrom: {
     repository: "https://github.com/earendil-works/pi.git",
     sourceCommit: "914cf1472e715297caa30db4b9535d534a9eb718",

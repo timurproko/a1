@@ -1,5 +1,5 @@
 {
-  "schema": "addone-terminal-host-provenance-v1",
+  "schema": "a1-terminal-host-provenance-v1",
   "recordedAt": "2026-08-14T07:12:07.445Z",
   "change": "evolve-bare-a1-into-multi-agent-workspace",
   "hostMode": "console-inside-existing-terminal",
