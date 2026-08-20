@@ -62,7 +62,7 @@
 - [x] 8.1 Expand engine conformance to public exports, service creation, prompt/queue/abort/compaction events, session replacement, models/authentication, settings, resources, extensions, workflows, and disposal; emit bounded machine-readable capability results.
 - [x] 8.2 Expand component/TUI conformance to every reused public component family, regular/fullscreen construction, overlays, focus, width, extension surfaces, restoration, and malformed callback isolation; run focused real-package tests.
 - [x] 8.3 Add mutation fixtures that remove or change each required capability and prove candidate validation fails with package version, capability, and operation instead of silently defaulting.
-- [ ] 8.4 Add an isolated candidate evaluator that installs one exact proposed Pi dependency set, runs compile-time and runtime compatibility without changing the accepted lockfile, and produces a bounded migration report; test success, incompatibility, timeout, and cleanup.
+- [x] 8.4 Add an isolated candidate evaluator that installs one exact proposed Pi dependency set, runs compile-time and runtime compatibility without changing the accepted lockfile, and produces a bounded migration report; test success, incompatibility, timeout, and cleanup.
 - [ ] 8.5 Make architecture, compatibility authority, candidate conformance, exact-oracle, packaging, owned-UI regression, and extension behavior mandatory release gates while keeping optional UI synchronization distinct; run release-gate policy tests.
 
 ## 9. Revalidate the Baseline and Authorize Workspace Task 5.5
