@@ -25,7 +25,7 @@ Physical desktop automation is absent from the active repository baseline. Any f
 
 The published package contains:
 
-- `addone` and `a1` public command aliases;
+- the sole public `a1` command;
 - the internal supervisor entry;
 - immutable release/bootstrap, lifecycle, protocol, storage, update, and transparent-launch modules;
 - current user and architecture documentation.

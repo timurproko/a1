@@ -78,10 +78,10 @@ Terminal-dependent differences require narrow named tolerances with evidence. Ad
 
 CLI routing will be:
 
-- `a1` and `addone` → AddOne-owned UI;
-- `a1 pi` and `addone pi` → untouched upstream Pi through transparent direct attachment;
-- `a1 sandbox` and `addone sandbox` → unchanged;
-- `a1 ui` and `addone ui` → unsupported and removed.
+- `a1` → AddOne-owned UI;
+- `a1 pi` → untouched upstream Pi through transparent direct attachment;
+- `a1 sandbox` → unchanged;
+- `a1 ui` → unsupported and removed.
 
 This forces normal development to exercise the target architecture instead of allowing it to remain an optional demo. `a1 pi` remains the exact oracle and operational fallback, but failures in the owned UI are corrected by reverting or repairing the responsible implementation slice rather than restoring bare AddOne to the old transparent route.
 

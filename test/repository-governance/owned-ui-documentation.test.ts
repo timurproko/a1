@@ -20,7 +20,7 @@ describe("owned UI launch documentation", () => {
     expect(ADDONE_USAGE).toBe("Usage: a1 | a1 pi | a1 sandbox | a1 version | a1 update | a1 update:next");
     expect(parseAddOneCommand(["ui"])).toEqual({
       kind: "error",
-      message: "The ui subcommand was removed; run bare a1 or addone for the owned UI.",
+      message: "The ui subcommand was removed; run bare a1 for the owned UI.",
     });
   });
 });

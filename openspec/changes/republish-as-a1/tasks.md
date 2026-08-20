@@ -9,26 +9,26 @@
 
 - [x] 2.1 Make `a1 version`, `a1 update`, and `a1 update:next` query only `@timurproko/a1`; update unit tests to assert the exact npm argument arrays.
 - [x] 2.2 Make self-update install only the exact selected `@timurproko/a1` version and update transition tests to prove no old-package query or installation target is reachable.
-- [ ] 2.3 Add a non-historical repository gate that rejects authoritative runtime, package, workflow, and live-documentation references to `@timurproko/addone` or public `addone` binaries; verify that archived evidence remains allowed.
+- [x] 2.3 Add a non-historical repository gate that rejects authoritative runtime, package, workflow, and live-documentation references to `@timurproko/addone` or public `addone` binaries; verify that archived evidence remains allowed.
 
 ## 3. Certify the sole-bin package surface
 
-- [ ] 3.1 Add exact-pack tests that inspect the tarball manifest and require name `@timurproko/a1`, version `0.1.0`, and exactly one npm bin named `a1` while confirming required internal entry files remain packaged.
-- [ ] 3.2 Install the packed tarball under a temporary clean npm prefix and prove `a1` launches maintenance commands while no `addone` or `addone-supervisor` shim exists on Windows and Unix layouts.
-- [ ] 3.3 Run the focused package, CLI, bootstrap, update, and release-store test suites and commit the coherent package-cutover implementation without unrelated working-tree changes.
+- [x] 3.1 Add exact-pack tests that inspect the tarball manifest and require name `@timurproko/a1`, version `0.1.0`, and exactly one npm bin named `a1` while confirming required internal entry files remain packaged.
+- [x] 3.2 Install the packed tarball under a temporary clean npm prefix and prove `a1` launches maintenance commands while no `addone` or `addone-supervisor` shim exists on Windows and Unix layouts.
+- [x] 3.3 Run the focused package, CLI, bootstrap, update, and release-store test suites and commit the coherent package-cutover implementation without unrelated working-tree changes.
 
 ## 4. Reconcile current documentation and specifications
 
-- [ ] 4.1 Update README installation/command instructions and current architecture, feature, checkpoint, and release documentation to use `@timurproko/a1` and sole command `a1`; validate documentation governance tests.
-- [ ] 4.2 Reconcile every non-archived OpenSpec change with the sole-command/new-package decision without rewriting archived changes or historical evidence, preserving unrelated edits already present in those active artifacts.
-- [ ] 4.3 Run strict validation for `republish-as-a1` and every affected non-archived change, then run repository scans proving remaining old-package references are historical or explicitly describe rejection/removal.
+- [x] 4.1 Update README installation/command instructions and current architecture, feature, checkpoint, and release documentation to use `@timurproko/a1` and sole command `a1`; validate documentation governance tests.
+- [x] 4.2 Reconcile every non-archived OpenSpec change with the sole-command/new-package decision without rewriting archived changes or historical evidence, preserving unrelated edits already present in those active artifacts.
+- [x] 4.3 Run strict validation for `republish-as-a1` and every affected non-archived change, then run repository scans proving remaining old-package references are historical or explicitly describe rejection/removal.
 
 ## 5. Build exact stable publication automation
 
-- [ ] 5.1 Replace old-package publication constants, registry URLs, tarball expectations, and evidence metadata with manifest-derived `@timurproko/a1` values; add tests for scoped tarball naming and registry verification.
-- [ ] 5.2 Add or update a stable publication workflow that requires clean tagged `master`, exact version/tag `0.1.0`, recorded candidate integrity and shasum, complete release gates, and publication of the accepted tarball as npm `latest`.
-- [ ] 5.3 Remove or disable stale `@timurproko/addone@0.1.5-dev.11` preview acceptance data and retarget future preview automation to the new package without allowing it to publish unaccepted bytes.
-- [ ] 5.4 Exercise publication logic without uploading by packing once, verifying exact metadata and hashes, and running the workflow's registry checks against controlled responses.
+- [x] 5.1 Replace old-package publication constants, registry URLs, tarball expectations, and evidence metadata with manifest-derived `@timurproko/a1` values; add tests for scoped tarball naming and registry verification.
+- [x] 5.2 Add or update a stable publication workflow that requires clean tagged `master`, exact version/tag `0.1.0`, recorded candidate integrity and shasum, complete release gates, and publication of the accepted tarball as npm `latest`.
+- [x] 5.3 Remove or disable stale `@timurproko/addone@0.1.5-dev.11` preview acceptance data and retarget future preview automation to the new package without allowing it to publish unaccepted bytes.
+- [x] 5.4 Exercise publication logic without uploading by packing once, verifying exact metadata and hashes, and running the workflow's registry checks against controlled responses.
 
 ## 6. Validate the release candidate
 

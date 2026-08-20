@@ -5,7 +5,7 @@
 The current interactive path is:
 
 ```text
-mutable a1/addone entry
+mutable a1 entry
   -> verified immutable release
   -> foreground lease and broker
   -> child with inherited physical terminal handles

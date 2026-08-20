@@ -24,7 +24,7 @@
 - [x] 4.1 Implement transcript and streaming presentation for user, assistant, thinking, tool-call, tool-result, retry, compaction, error, and system blocks using AddOne view models; pass deterministic streaming and resize fixtures.
 - [x] 4.2 Adapt documented public Pi components where their contracts are independently usable and add provenance-recorded MIT-licensed ports only for surfaces that require AddOne ownership; pass component conformance and attribution/provenance policy tests.
 - [x] 4.3 Wire prompt, abort, retry, compaction, model, thinking, session creation, session resume, settings, and shutdown workflows through the engine adapter; pass command/state integration fixtures with a synthetic engine.
-- [x] 4.4 Make bare `a1` and `addone` launch the owned UI, preserve untouched upstream transparent attachment at `a1 pi` and `addone pi`, preserve sandbox routing, and remove `a1 ui` and `addone ui`; pass CLI routing, alias rejection, startup, exit, and fallback-isolation tests.
+- [x] 4.4 Make bare `a1` launch the owned UI, preserve untouched upstream transparent attachment at `a1 pi`, preserve sandbox routing, and remove `a1 ui`; pass CLI routing, alias rejection, startup, exit, and fallback-isolation tests.
 
 ## 5. Add Customization, Extension, and Diagnostics Foundations
 

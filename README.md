@@ -10,10 +10,10 @@ Requirements:
 - npm 11
 
 ```sh
-npm install --global @timurproko/addone@latest
+npm install --global @timurproko/a1@latest
 ```
 
-The package installs equivalent `addone` and `a1` commands.
+The package installs only the `a1` command.
 
 ## Commands
 

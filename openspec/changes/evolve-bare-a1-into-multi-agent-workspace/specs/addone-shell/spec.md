@@ -1,7 +1,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Bare AddOne launches the multi-agent workspace
-Bare `addone` and `a1` SHALL launch the AddOne-owned multi-agent workspace through an accepted AddOne-owned UI foundation. The workspace SHALL own its application output and SHALL expose managed agents according to their negotiated structured or composed-terminal capabilities. Pi SHALL be integrated through documented public SDK adapters rather than by modifying its stock interactive UI. `addone pi`/`a1 pi` SHALL remain exact vanilla Pi using ordinary `~/.pi/agent`, and `addone sandbox`/`a1 sandbox` SHALL remain the isolated `~/.a1/sandbox` profile using transparent direct attachment.
+Bare `a1` SHALL launch the AddOne-owned multi-agent workspace through an accepted AddOne-owned UI foundation. The workspace SHALL own its application output and SHALL expose managed agents according to their negotiated structured or composed-terminal capabilities. Pi SHALL be integrated through documented public SDK adapters rather than by modifying its stock interactive UI. `a1 pi` SHALL remain exact vanilla Pi using ordinary `~/.pi/agent`, and `a1 sandbox` SHALL remain the isolated `~/.a1/sandbox` profile using transparent direct attachment.
 
 #### Scenario: Launch bare AddOne
 - **WHEN** the user runs `a1` in a supported terminal

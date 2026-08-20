@@ -20,7 +20,7 @@ AddOne's planned multi-agent workspace requires a terminal UI it can own and cus
 - Preserve Pi's multiline component row contract: every visual line returned by `Text.render()` must remain a separately tracked TUI row with the same output padding. A newline embedded inside one AddOne render-array entry is not equivalent because it loses continuation-line padding and desynchronizes `TuiMainScreen` differential row accounting, which can misplace later editor-replacement modal and footer updates.
 - Replace flat top-level modal coverage with an exhaustive source-derived transition graph for every built-in and extension dialog level, including every node, edge, parent/child replacement, input/selector/confirmation/authentication state, completion, cancellation, failure, session switch, disposal, and parent restoration path. Require independent pinned-versus-AddOne evidence for every graph node and transition so the user does not have to discover omitted branches manually.
 - Distinguish persistent transcript content, prompt-adjacent transient/status/message content, and active modal replacement content exactly as pinned Pi does. Route-specific structured content, working indicators, information, warnings, errors, notifications, queue/retry/compaction state, and extension contributions must retain their pinned ownership, style, spacing, chronology, replacement/coalescing, and latest-message placement.
-- **BREAKING** Route bare `a1` and `addone` directly to the AddOne-owned UI throughout development so ordinary use exercises the actual target architecture; remove the redundant `a1 ui` development route.
+- **BREAKING** Route bare `a1` directly to the AddOne-owned UI throughout development so ordinary use exercises the actual target architecture; remove the redundant `a1 ui` development route.
 - Keep `a1 pi` as the untouched upstream oracle, fallback, and recovery path, and keep `a1 sandbox` unchanged.
 - Defer AddOne visual customization, structured tabs, and multi-agent layout work until the full pinned UI—including extension surfaces—passes parity.
 - Treat the manually accepted vanilla baseline as immutable while eliminating all reported architecture debt before custom UX: reconcile every absent planned source port and stale theme status; remove generic visible workflow fallbacks and string-level status substitution; replace reflection-heavy engine access and production adapter type escapes with explicit validated façades; mechanically decompose the shell-component monolith; and enforce a zero-debt gate without changing accepted frames or workflows.
@@ -33,7 +33,7 @@ AddOne's planned multi-agent workspace requires a terminal UI it can own and cus
 
 ### Modified Capabilities
 
-- `addone-shell`: Bare `a1` and `addone` now launch the AddOne-owned UI, `a1 ui` is removed, and explicit `a1 pi` remains the exact upstream vanilla Pi fallback.
+- `addone-shell`: Bare `a1` now launches the AddOne-owned UI, `a1 ui` is removed, and explicit `a1 pi` remains the exact upstream vanilla Pi fallback.
 - `terminal-agent-runtime`: Transparent direct attachment remains independent from the owned UI and terminal-host proof paths.
 
 ## Impact

@@ -5,7 +5,7 @@ Defines the user-visible workspace that bare `a1` provides for managing multiple
 ## ADDED Requirements
 
 ### Requirement: Bare AddOne opens the multi-agent workspace
-Bare `addone` and `a1` SHALL open the AddOne-owned multi-agent workspace. `a1 pi` SHALL continue to launch vanilla Pi using `~/.pi/agent`, and `a1 sandbox` SHALL continue to launch the isolated `~/.a1/sandbox` profile without entering the workspace.
+Bare `a1` SHALL open the AddOne-owned multi-agent workspace. `a1 pi` SHALL continue to launch vanilla Pi using `~/.pi/agent`, and `a1 sandbox` SHALL continue to launch the isolated `~/.a1/sandbox` profile without entering the workspace.
 
 #### Scenario: Launch bare AddOne
 - **WHEN** the user runs bare `a1`

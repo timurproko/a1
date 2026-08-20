@@ -1,6 +1,6 @@
 # Launch profiles
 
-`a1` and `addone` are equivalent command names.
+`a1` is the sole installed command name.
 
 | Command | Purpose | Pi user profile |
 |---|---|---|
