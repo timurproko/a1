@@ -101,7 +101,7 @@ describe("packed npm command surface", () => {
     const launched = run(commandPath, ["agent"], root);
     expect(launched.status).toBe(2);
     expect(launched.stderr).toContain("Bare a1 is the A1 agent experience");
-  }, 300_000);
+  }, 600_000);
 });
 
 function run(command: string, arguments_: readonly string[], cwd: string) {

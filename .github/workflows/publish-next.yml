@@ -85,7 +85,15 @@ jobs:
           echo "source_commit=$ACCEPTED_SOURCE_COMMIT" >> "$GITHUB_ENV"
 
       - name: Install and run non-desktop gates
-        run: npm ci && npm run check
+        shell: bash
+        run: |
+          npm ci
+          npm run typecheck
+          npm run check:architecture
+          npm run check:customization-ready
+          npm run check:deprecated
+          npx vitest run --exclude test/foundation/release/package-surface.integration.test.ts
+          npm run test:release
         env:
           A1_RELEASE_RUNNER_LABEL: github-windows-2025-uncertified-next
 
