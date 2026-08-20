@@ -81,12 +81,12 @@
     },
     {
       "path": "test/cli/update-cli.test.ts",
-      "line": 97,
+      "line": 99,
       "identifier": "A1_RUNTIME_DIR"
     },
     {
       "path": "test/cli/update-cli.test.ts",
-      "line": 114,
+      "line": 116,
       "identifier": "A1_RUNTIME_DIR"
     },
     {
@@ -702,5 +702,5 @@
       "identifier": "a1"
     }
   ],
-  "recordedAt": "2026-08-20T17:12:03.886Z"
+  "recordedAt": "2026-08-20T17:21:17.966Z"
 }

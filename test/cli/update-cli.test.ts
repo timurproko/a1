@@ -11,13 +11,15 @@ import { PRODUCT_PACKAGE } from "../../src/foundation/release/index.js";
 const execFileAsync = promisify(execFile);
 const repository = resolve(fileURLToPath(new URL("../..", import.meta.url)));
 let temporaryRoot = "";
+let isolatedBuildRoot = "";
 
 beforeAll(async () => {
   temporaryRoot = await mkdtemp(resolve(tmpdir(), "a1-update-cli-"));
-  const isolatedBuildRoot = resolve(temporaryRoot, "build");
+  isolatedBuildRoot = resolve(temporaryRoot, "build");
   await mkdir(isolatedBuildRoot, { recursive: true });
   await Promise.all([
     cp(resolve(repository, "src"), resolve(isolatedBuildRoot, "src"), { recursive: true }),
+    cp(resolve(repository, "bin"), resolve(isolatedBuildRoot, "bin"), { recursive: true }),
     cp(resolve(repository, "tsconfig.json"), resolve(isolatedBuildRoot, "tsconfig.json")),
     cp(resolve(repository, "tsconfig.build.json"), resolve(isolatedBuildRoot, "tsconfig.build.json")),
     cp(resolve(repository, "package.json"), resolve(isolatedBuildRoot, "package.json")),
@@ -89,7 +91,7 @@ else process.exitCode = 64;
     expect(nextTarget).not.toBeNull();
     expect(packageJson.bin).toEqual({ "a1": "bin/a1.js" });
 
-    const cli = resolve(repository, packageJson.bin["a1"] ?? "missing");
+    const cli = resolve(isolatedBuildRoot, packageJson.bin["a1"] ?? "missing");
     await expect(execFileAsync(process.execPath, [cli, "update", "next"], {
       cwd: temporaryRoot,
       env: {
