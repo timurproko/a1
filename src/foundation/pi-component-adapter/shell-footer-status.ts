@@ -1,8 +1,4 @@
-import {
-  FooterComponent,
-  rawKeyHint,
-  VERSION,
-} from "@earendil-works/pi-coding-agent";
+import { rawKeyHint, VERSION } from "@earendil-works/pi-coding-agent";
 import {
   Spacer,
   Text,
@@ -12,9 +8,8 @@ import {
 import type {
   OwnedUiSessionViewModel,
 } from "../owned-ui-contracts/index.js";
-import {
-  WorkingStatusIndicator,
-} from "./upstream/components/status-indicator.js";
+import { SessionFooter } from "./upstream/components/session-footer.js";
+import { WorkingStatusIndicator } from "./upstream/components/status-indicator.js";
 import {
   PINNED_PI_LAYOUT,
   piTheme,
@@ -133,49 +128,9 @@ export function createPiShellStatus(
 
 export function createPiShellFooter(view: OwnedUiSessionViewModel, cwd: string): PiShellViewComponentPort {
   ensureTheme();
-  const session = {
-    get state() {
-      const usage = view.status.usage;
-      return {
-        model: view.activeModel === null ? null : {
-          provider: view.activeModel.providerId,
-          id: view.activeModel.modelId,
-          reasoning: view.thinkingLevel !== "off",
-          contextWindow: usage?.contextWindow ?? 0,
-        },
-        thinkingLevel: view.thinkingLevel,
-      };
-    },
-    sessionManager: {
-      getEntries: () => footerUsageEntries(view),
-      getCwd: () => cwd,
-      getSessionName: () => view.status.footer?.sessionName ?? undefined,
-    },
-    getContextUsage: () => {
-      const usage = view.status.usage;
-      return usage === undefined || usage.contextAvailable === false ? undefined : {
-        tokens: usage.contextTokens,
-        contextWindow: usage.contextWindow,
-        percent: usage.contextPercent,
-      };
-    },
-    modelRuntime: {
-      isUsingSubscription: () => view.status.usage?.usingSubscription ?? false,
-    },
-  };
-  const footerData = {
-    getGitBranch: () => view.status.footer?.branch ?? null,
-    getAvailableProviderCount: () => view.status.footer?.availableProviderCount ?? 1,
-    getExtensionStatuses: () => new Map(view.status.footer?.extensionStatuses ?? []),
-  };
-  const footerCandidate: unknown = Reflect.construct(FooterComponent, [session, footerData]);
-  if (!(footerCandidate instanceof FooterComponent)) throw new TypeError("Pi footer façade returned an incompatible component");
-  const footer = footerCandidate;
+  const footer = new SessionFooter(() => view, cwd);
   return {
-    render(width) {
-      footer.setAutoCompactEnabled(view.status.usage?.autoCompactEnabled ?? true);
-      return footer.render(width);
-    },
+    render: width => footer.render(width),
     invalidate: () => footer.invalidate(),
     update(next) { view = next; },
     dispose: () => footer.dispose(),
@@ -213,28 +168,6 @@ function statusSignature(view: OwnedUiSessionViewModel, workingOverride?: string
 function queuedInputText(submissions: readonly string[]): string {
   const theme = piTheme();
   return submissions.map(submission => theme.fg("muted", `Steering: ${submission.replaceAll("\n", " ⏎ ")}`)).join("\n");
-}
-
-function footerUsageEntries(view: OwnedUiSessionViewModel): readonly unknown[] {
-  const usage = view.status.usage;
-  if (usage === undefined || (usage.input === 0 && usage.output === 0 && usage.cacheRead === 0
-    && usage.cacheWrite === 0 && usage.cost === 0)) return [];
-  const entry = (input: number, output: number, cacheRead: number, cacheWrite: number, cost: number) => ({
-    type: "message",
-    message: { role: "assistant", usage: { input, output, cacheRead, cacheWrite, cost: { total: cost } } },
-  });
-  const latest = usage.latestPrompt;
-  if (latest === undefined || latest === null) {
-    return [entry(usage.input, usage.output, usage.cacheRead, usage.cacheWrite, usage.cost)];
-  }
-  const prior = entry(
-    Math.max(0, usage.input - latest.input),
-    usage.output,
-    Math.max(0, usage.cacheRead - latest.cacheRead),
-    Math.max(0, usage.cacheWrite - latest.cacheWrite),
-    usage.cost,
-  );
-  return [prior, entry(latest.input, 0, latest.cacheRead, latest.cacheWrite, 0)];
 }
 
 function compactHeaderText(): string {
