@@ -2,12 +2,12 @@ import { existsSync, readFileSync, readdirSync, watch, type FSWatcher } from "no
 import { join } from "node:path";
 import {
   getAgentDir,
-  getPackageDir,
   initTheme,
   Theme,
   type ThemeColor,
 } from "@earendil-works/pi-coding-agent";
 import { getCapabilities, type RgbColor } from "@earendil-works/pi-tui";
+import { BUILTIN_THEME_RESOURCES, isBuiltinThemeName } from "../../resources/builtin-themes.js";
 
 export const PINNED_PI_LAYOUT = Object.freeze({
   editorPaddingX: 0,
@@ -132,13 +132,18 @@ export function stopPiThemeWatcher(): void {
 
 export function loadPiTheme(name: string, mode?: PiColorMode): Theme {
   if (!name || name.includes("/")) throw new Error(`Invalid theme name: ${name}`);
-  const path = themePath(name);
-  const source = readFileSync(path, "utf8");
+  const builtin = isBuiltinThemeName(name);
+  const path = builtin ? `owned:builtin-theme/${name}` : customThemePath(name);
   let parsed: unknown;
-  try {
-    parsed = JSON.parse(source);
-  } catch (error) {
-    throw new Error(`Failed to parse theme ${path}: ${error instanceof Error ? error.message : String(error)}`);
+  if (builtin) {
+    parsed = BUILTIN_THEME_RESOURCES[name];
+  } else {
+    const source = readFileSync(path, "utf8");
+    try {
+      parsed = JSON.parse(source);
+    } catch (error) {
+      throw new Error(`Failed to parse theme ${path}: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
   const themeJson = validateThemeJson(path, parsed);
   const vars = themeJson.vars ?? {};
@@ -158,7 +163,7 @@ export function loadPiTheme(name: string, mode?: PiColorMode): Theme {
 
 export function getAvailablePiThemes(): readonly { readonly name: string; readonly path: string }[] {
   const available = new Map<string, string>();
-  for (const name of ["dark", "light"]) available.set(name, themePath(name));
+  for (const name of ["dark", "light"] as const) available.set(name, `owned:builtin-theme/${name}`);
   const customDirectory = join(getAgentDir(), "themes");
   if (existsSync(customDirectory)) {
     for (const file of readdirSync(customDirectory)) {
@@ -242,8 +247,8 @@ export async function detectPiTerminalThemeForAuto(
 
 function startPiThemeWatcher(name: string): void {
   stopPiThemeWatcher();
-  if (name === "dark" || name === "light") return;
-  const path = themePath(name);
+  if (isBuiltinThemeName(name)) return;
+  const path = customThemePath(name);
   if (!existsSync(path)) return;
   themeWatcher = watch(path, () => {
     if (activeThemeName !== name) return;
@@ -264,10 +269,7 @@ function notifyThemeChanged(): void {
   for (const listener of themeChangeListeners) listener();
 }
 
-function themePath(name: string): string {
-  if (name === "dark" || name === "light") {
-    return join(getPackageDir(), "dist", "modes", "interactive", "theme", `${name}.json`);
-  }
+function customThemePath(name: string): string {
   return join(getAgentDir(), "themes", `${name}.json`);
 }
 

@@ -104,6 +104,12 @@ describe("pinned Pi theme and layout parity", () => {
     });
   });
 
+  it("loads built-in themes from owned attributed resources", () => {
+    const themes = getAvailablePiThemes();
+    expect(themes.find(theme => theme.name === "dark")?.path).toBe("owned:builtin-theme/dark");
+    expect(themes.find(theme => theme.name === "light")?.path).toBe("owned:builtin-theme/light");
+  });
+
   it("loads and validates pinned custom theme variables and fallbacks", async () => {
     const directory = await mkdtemp(join(tmpdir(), "a1-pi-theme-"));
     const original = process.env.PI_CODING_AGENT_DIR;
