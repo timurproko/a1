@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { lstat, readFile, readdir, realpath } from "node:fs/promises";
 import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
 
-export const ADDONE_PACKAGE_NAME = "@timurproko/a1";
+export const A1_PACKAGE_NAME = "@timurproko/a1";
 
 export interface ReleaseFileIdentity {
   readonly path: string;
@@ -12,7 +12,7 @@ export interface ReleaseFileIdentity {
 }
 
 export interface AddOneReleaseIdentity {
-  readonly packageName: typeof ADDONE_PACKAGE_NAME;
+  readonly packageName: typeof A1_PACKAGE_NAME;
   readonly packageVersion: string;
   readonly contentDigest: string;
   readonly releaseId: string;
@@ -37,7 +37,7 @@ export async function deriveReleaseIdentity(packageRoot: string): Promise<AddOne
   const canonicalRoot = await realpath(packageRoot);
   const manifestPath = resolve(canonicalRoot, "package.json");
   const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as PackageManifest;
-  if (manifest.name !== ADDONE_PACKAGE_NAME) throw new Error(`unexpected AddOne package name: ${String(manifest.name)}`);
+  if (manifest.name !== A1_PACKAGE_NAME) throw new Error(`unexpected AddOne package name: ${String(manifest.name)}`);
   if (typeof manifest.version !== "string" || manifest.version.length === 0) throw new Error("AddOne package metadata has no version");
 
   const roots = distributionRoots(manifest);
@@ -66,7 +66,7 @@ export async function deriveReleaseIdentity(packageRoot: string): Promise<AddOne
   for (const file of files) digest.update(`${file.path}\0${file.bytes}\0${file.sha256}\0${file.executable ? 1 : 0}\n`);
   const contentDigest = digest.digest("hex");
   return {
-    packageName: ADDONE_PACKAGE_NAME,
+    packageName: A1_PACKAGE_NAME,
     packageVersion: manifest.version,
     contentDigest,
     releaseId: `${manifest.version}-${contentDigest.slice(0, 20)}`,

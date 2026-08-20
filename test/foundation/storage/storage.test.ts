@@ -207,7 +207,7 @@ function fourPaneTopology(revision: number): TerminalTopologySnapshot {
     executable: "C:\\Windows\\System32\\cmd.exe",
     arguments: ["/d", "/q"],
     cwd: "C:\\work",
-    environment: { ADDONE_PANE: id },
+    environment: { A1_PANE_ID: id },
     dimensions: { columns: 80, rows: 24, widthPixels: 640, heightPixels: 480 },
     inactivity: "live-unpainted",
   });

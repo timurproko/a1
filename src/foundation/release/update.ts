@@ -21,7 +21,7 @@ import { cleanupVerifiedOwner, processIsAlive } from "./process-cleanup.js";
 import { materializeRelease, readMaterializedRelease } from "./release-store.js";
 import { UpdateTransactionStore, type UpdateTransaction, type UpdateTransactionPhase } from "./update-transaction.js";
 
-export const ADDONE_PACKAGE = PRODUCT_TEXT.packageName;
+export const A1_PACKAGE = PRODUCT_TEXT.packageName;
 export type UpdateChannel = "stable" | "next";
 const UPDATE_DIST_TAGS: Readonly<Record<UpdateChannel, "latest" | "next">> = { stable: "latest", next: "next" };
 
@@ -176,7 +176,7 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
     return 1;
   }
 
-  const targetLookup = await runNpm(runner, ["view", `${ADDONE_PACKAGE}@${distTag}`, "version"], true, output, `query the npm ${distTag} channel`);
+  const targetLookup = await runNpm(runner, ["view", `${A1_PACKAGE}@${distTag}`, "version"], true, output, `query the npm ${distTag} channel`);
   if (targetLookup.result === null) return targetLookup.exitCode;
   const targetVersion = validSemver(targetLookup.result.stdout.trim());
   if (targetVersion === null) {
@@ -234,7 +234,7 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
 
     if (phaseBefore(transaction.phase, "package-installed")) {
       output.stdout(`${PRODUCT_TEXT.diagnostic(`is installing ${PRODUCT_TEXT.packageName}@${targetVersion}.`)}\n`);
-      const installation = await runNpm(runner, ["install", "--global", `${ADDONE_PACKAGE}@${targetVersion}`], false, output, "start the global npm installation", false);
+      const installation = await runNpm(runner, ["install", "--global", `${A1_PACKAGE}@${targetVersion}`], false, output, "start the global npm installation", false);
       if (installation.result === null) throw new UpdateFailure(installation.exitCode, "npm process failed");
       if (installation.result.code !== 0) throw new UpdateFailure(unsuccessfulCode(installation.result.code), `npm exited with status ${formatExitCode(installation.result.code)}`);
       transaction = await transactionStore.advance("package-installed");

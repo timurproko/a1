@@ -27,7 +27,7 @@ export async function prepareInteractiveLaunch(
   else childEnvironment.PI_CODING_AGENT_DIR = configurationRoot;
 
   const piArguments = intent.profile.projectTrust === "ignore" ? ["--no-approve"] : [];
-  childEnvironment.ADDONE_LAUNCH_ARGUMENTS_JSON = JSON.stringify(piArguments);
+  childEnvironment.A1_LAUNCH_ARGUMENTS_JSON = JSON.stringify(piArguments);
   return Object.freeze({
     intent,
     environment: childEnvironment,

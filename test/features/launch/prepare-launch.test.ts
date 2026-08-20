@@ -17,7 +17,7 @@ describe("prepared Pi launch environment", () => {
       PI_CODING_AGENT_DIR: result.configurationRoot,
       ANTHROPIC_API_KEY: "provider-secret",
       PATH: "fixture-path",
-      ADDONE_LAUNCH_ARGUMENTS_JSON: "[]",
+      A1_LAUNCH_ARGUMENTS_JSON: "[]",
     });
     expect(initializeProfile).toHaveBeenCalledExactlyOnceWith(result.configurationRoot);
   });
@@ -46,7 +46,7 @@ describe("prepared Pi launch environment", () => {
     expect(result.environment.PI_CODING_AGENT_DIR).toBe(result.configurationRoot);
     expect(result.environment.GEMINI_API_KEY).toBe("provider-secret");
     expect(result.piArguments).toEqual(["--no-approve"]);
-    expect(result.environment.ADDONE_LAUNCH_ARGUMENTS_JSON).toBe('["--no-approve"]');
+    expect(result.environment.A1_LAUNCH_ARGUMENTS_JSON).toBe('["--no-approve"]');
     expect(initializeProfile).toHaveBeenCalledExactlyOnceWith(result.configurationRoot);
   });
 });

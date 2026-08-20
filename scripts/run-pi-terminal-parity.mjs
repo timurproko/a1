@@ -82,8 +82,8 @@ async function runGate() {
     cwd: fixture.cwd,
     environment: {
       ...commonParityEnvironment(fixture.profiles["addone-owned-ui"]),
-      ADDONE_LAUNCH_PROFILE: "addone",
-      ADDONE_LAUNCH_ARGUMENTS_JSON: "[]",
+      A1_LAUNCH_PROFILE: "addone",
+      A1_LAUNCH_ARGUMENTS_JSON: "[]",
     },
     columns: DEFAULT_COLUMNS,
     rows: DEFAULT_ROWS,
@@ -95,7 +95,7 @@ async function runGate() {
   }
 
   const [upstreamCapture, originalAddoneCapture] = await Promise.all([upstream.result(), addone.result()]);
-  const mutation = process.env.ADDONE_PI_PARITY_INTENTIONAL_MUTATION;
+  const mutation = process.env.A1_PI_PARITY_INTENTIONAL_MUTATION;
   const addoneCapture = mutation === "visual" || mutation === "input-scroll"
     ? applyIntentionalMutation(originalAddoneCapture, mutation)
     : originalAddoneCapture;

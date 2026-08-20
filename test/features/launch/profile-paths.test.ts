@@ -21,15 +21,28 @@ describe("launch profile paths", () => {
     expect(paths.sandbox).toBe("C:\\Users\\Alice\\.a1\\sandbox");
   });
 
+  it("ignores the legacy profile-home variable", () => {
+    const selected = process.platform === "win32" ? "D:\\selected-home" : "/selected-home";
+    const legacy = process.platform === "win32" ? "D:\\legacy-home" : "/legacy-home";
+    const paths = resolveLaunchProfilePaths({
+      platform: process.platform,
+      environment: { ADDONE_PROFILE_HOME: legacy },
+      readHome: () => selected,
+    });
+
+    expect(paths.home).toBe(selected);
+    expect(paths.home).not.toBe(legacy);
+  });
+
   it("uses a hermetic profile-home override before the operating-system home", () => {
     const root = process.platform === "win32" ? "D:\\fixture-home" : "/fixture-home";
     const paths = resolveLaunchProfilePaths({
       platform: process.platform,
       environment: {
-        ADDONE_PROFILE_HOME: root,
-        ADDONE_CONFIG_DIR: "ignored-config",
-        ADDONE_DATA_DIR: "ignored-data",
-        ADDONE_RUNTIME_DIR: "ignored-runtime",
+        A1_PROFILE_HOME: root,
+        A1_CONFIG_DIR: "ignored-config",
+        A1_DATA_DIR: "ignored-data",
+        A1_RUNTIME_DIR: "ignored-runtime",
       },
       readHome: () => { throw new Error("OS home must not be read"); },
     });

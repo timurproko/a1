@@ -4,7 +4,7 @@ import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repository = fileURLToPath(new URL("..", import.meta.url));
-const ledgerPath = resolve(process.env.ADDONE_PI_SOURCE_LEDGER_PATH ?? join(
+const ledgerPath = resolve(process.env.A1_PI_SOURCE_LEDGER_PATH ?? join(
   repository,
   "openspec",
   "changes",
@@ -12,8 +12,8 @@ const ledgerPath = resolve(process.env.ADDONE_PI_SOURCE_LEDGER_PATH ?? join(
   "evidence",
   "pinned-pi-source-port-ledger.json",
 ));
-const sourceRoot = resolve(process.env.ADDONE_PI_SOURCE_SCAN_ROOT ?? join(repository, "src"));
-const portRoot = resolve(process.env.ADDONE_PI_PORT_ROOT ?? join(repository, "src", "foundation", "pi-component-adapter", "upstream"));
+const sourceRoot = resolve(process.env.A1_PI_SOURCE_SCAN_ROOT ?? join(repository, "src"));
+const portRoot = resolve(process.env.A1_PI_PORT_ROOT ?? join(repository, "src", "foundation", "pi-component-adapter", "upstream"));
 const expectedCommit = "914cf1472e715297caa30db4b9535d534a9eb718";
 const allowedClassifications = new Set(["public-reuse", "owned-source-port", "host-adapter"]);
 const completedStatusesByClassification = new Map([

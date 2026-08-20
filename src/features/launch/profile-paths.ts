@@ -19,7 +19,7 @@ export interface LaunchProfilePathOptions {
 export function resolveLaunchProfilePaths(options: LaunchProfilePathOptions = {}): LaunchProfilePaths {
   const environment = options.environment ?? process.env;
   const path = options.platform === "win32" || (options.platform === undefined && process.platform === "win32") ? win32 : posix;
-  const selectedHome = options.home ?? environment.ADDONE_PROFILE_HOME ?? options.readHome?.() ?? homedir();
+  const selectedHome = options.home ?? environment.A1_PROFILE_HOME ?? options.readHome?.() ?? homedir();
   const home = validateAbsolutePath(selectedHome, "effective user home", path);
   const addoneRoot = path.resolve(home, ".a1");
   return Object.freeze({

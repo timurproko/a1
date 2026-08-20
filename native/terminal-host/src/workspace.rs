@@ -238,8 +238,8 @@ impl Pane {
         for (name, value) in launch.environment {
             command.env(name, value);
         }
-        command.env("ADDONE_PANE_ID", PANE_IDS[index]);
-        command.env("ADDONE_TERMINAL_SESSION_ID", SESSION_IDS[index]);
+        command.env("A1_PANE_ID", PANE_IDS[index]);
+        command.env("A1_TERMINAL_SESSION_ID", SESSION_IDS[index]);
         let child = pair
             .slave
             .spawn_command(command)

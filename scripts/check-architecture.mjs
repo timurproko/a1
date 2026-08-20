@@ -167,7 +167,7 @@ for (const file of await walk(sourceRoot)) {
 
   if (isTerminalBoundary(path)) {
     const identityPatterns = [
-      { pattern: /native[\s_-]*pi|ADDONE_NATIVE_PI|PI_CODING_AGENT|PI_CONFIG|--tui-mode|\b(?:Claude|Codex)\b/i, label: "CLI identity or CLI-named configuration" },
+      { pattern: /native[\s_-]*pi|A1_NATIVE_PI|PI_CODING_AGENT|PI_CONFIG|--tui-mode|\b(?:Claude|Codex)\b/i, label: "CLI identity or CLI-named configuration" },
       { pattern: /(?:if|switch)\s*\([^\n]*(?:executable|arguments?)\b/i, label: "executable or argument inspection" },
       { pattern: /process\.env(?:\.|\[)(?:["']?)?(?:PI_|CLAUDE_|CODEX_)/i, label: "CLI-named environment inspection" },
       { pattern: /(?:if|switch)\s*\([^\n]*(?:output|text|content|chunk|data)[^\n]*(?:includes|match|test)\s*\(/i, label: "visible-content rendering branch" },
@@ -322,7 +322,7 @@ async function inspectReleasePolicy() {
       if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
     }
   }
-  const obsoleteGate = /test:scenario|test\/scenarios|walking-skeleton|conversation-stability|packaged-(?:real-pi|extension|multi-cli)|ADDONE_CERTIFICATION_TARBALL|ADDONE_INTERNAL_PACKAGING|simulation-first certification|generic-terminal-(?:corpus|parity)/i;
+  const obsoleteGate = /test:scenario|test\/scenarios|walking-skeleton|conversation-stability|packaged-(?:real-pi|extension|multi-cli)|A1_CERTIFICATION_TARBALL|A1_INTERNAL_PACKAGING|simulation-first certification|generic-terminal-(?:corpus|parity)/i;
   for (const [path, source] of values) {
     if (obsoleteGate.test(source)) errors.push(`${path}: obsolete retired-pipeline release gate is forbidden`);
   }

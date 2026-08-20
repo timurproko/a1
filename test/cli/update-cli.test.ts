@@ -6,14 +6,14 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { inc } from "semver";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { ADDONE_PACKAGE } from "../../src/foundation/release/index.js";
+import { A1_PACKAGE } from "../../src/foundation/release/index.js";
 
 const execFileAsync = promisify(execFile);
 const repository = resolve(fileURLToPath(new URL("../..", import.meta.url)));
 let temporaryRoot = "";
 
 beforeAll(async () => {
-  temporaryRoot = await mkdtemp(resolve(tmpdir(), "addone-update-cli-"));
+  temporaryRoot = await mkdtemp(resolve(tmpdir(), "a1-update-cli-"));
   const isolatedBuildRoot = resolve(temporaryRoot, "build");
   await mkdir(isolatedBuildRoot, { recursive: true });
   await Promise.all([
@@ -61,7 +61,7 @@ export async function resolve(specifier, context, nextResolve) {
 import { appendFileSync } from "node:fs";
 const args = process.argv.slice(2);
 appendFileSync(process.env.FAKE_NPM_LOG, JSON.stringify(args) + "\\n");
-if (args[0] === "view") console.log(args[1].endsWith("@next") ? process.env.FAKE_NPM_NEXT_TARGET : process.env.FAKE_NPM_LATEST_TARGET);
+if (args[0] === "view" && args[2] === "dist-tags") console.log(JSON.stringify({ latest: process.env.FAKE_NPM_LATEST_TARGET, next: process.env.FAKE_NPM_NEXT_TARGET }));
 else if (args[0] === "root") console.log(process.env.FAKE_NPM_ROOT);
 else if (args[0] === "install") console.log("fake npm install completed");
 else process.exitCode = 64;
@@ -94,7 +94,7 @@ else process.exitCode = 64;
       cwd: temporaryRoot,
       env: {
         ...process.env,
-        ADDONE_RUNTIME_DIR: runtimeDirectory,
+        A1_RUNTIME_DIR: runtimeDirectory,
         FAKE_NPM_LOG: npmLog,
         FAKE_NPM_ROOT: dirname(repository),
         FAKE_NPM_LATEST_TARGET: latestTarget!,
@@ -111,7 +111,7 @@ else process.exitCode = 64;
       cwd: temporaryRoot,
       env: {
         ...process.env,
-        ADDONE_RUNTIME_DIR: runtimeDirectory,
+        A1_RUNTIME_DIR: runtimeDirectory,
         FAKE_NPM_LOG: npmLog,
         FAKE_NPM_ROOT: dirname(repository),
         FAKE_NPM_LATEST_TARGET: latestTarget!,
@@ -123,10 +123,7 @@ else process.exitCode = 64;
     });
     expect(result.stdout).toBe(`Installed: ${packageJson.version}\nRelease:   ${latestTarget}\nNext:      ${nextTarget}\n`);
     const versionCalls = (await readFile(npmLog, "utf8")).trim().split("\n").map(line => JSON.parse(line) as string[]);
-    expect(versionCalls).toHaveLength(2);
-    expect(versionCalls.filter(call => call[1] === `${ADDONE_PACKAGE}@latest`)).toHaveLength(1);
-    expect(versionCalls.filter(call => call[1] === `${ADDONE_PACKAGE}@next`)).toHaveLength(1);
-    expect(versionCalls.every(call => call[0] === "view" && call[2] === "version")).toBe(true);
+    expect(versionCalls).toEqual([["view", A1_PACKAGE, "dist-tags", "--json"]]);
     await expect(access(forbiddenImportLog)).rejects.toThrow();
     await expect(access(runtimeDirectory)).rejects.toThrow();
   }, 30_000);

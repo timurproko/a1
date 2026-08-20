@@ -12,7 +12,7 @@ import {
 
 const profile: TransparentTerminalLaunchProfile = {
   id: "profile", terminalCapability: "transparent", executable: "tool", arguments: ["--exact", "value with spaces"], cwd: "workspace",
-  environment: { ADDONE_TEST_VALUE: "exact" }, terminalType: "xterm-256color", dimensions: { columns: 80, rows: 24 },
+  environment: { A1_FIXTURE_TOKEN: "exact" }, terminalType: "xterm-256color", dimensions: { columns: 80, rows: 24 },
   ownerDisconnect: "stop", recovery: "none", surface: "none", visualReconnection: "none",
 };
 
@@ -23,7 +23,7 @@ describe("platform transparent native launchers", () => {
     expect(fixture.spawn).toHaveBeenCalledWith("tool", profile.arguments, expect.objectContaining({
       cwd: "workspace", shell: false, stdio: "inherit", detached: false, windowsHide: true, windowsVerbatimArguments: false,
     }));
-    expect(fixture.options()?.env).toEqual({ ADDONE_TEST_VALUE: "exact", TERM: "xterm-256color" });
+    expect(fixture.options()?.env).toEqual({ A1_FIXTURE_TOKEN: "exact", TERM: "xterm-256color" });
     expect(handle.processIdentity).toEqual({ pid: 8123, startIdentity: "8123:native-start" });
     fixture.child.emit("close", 0, null);
     await expect(handle.outcome).resolves.toEqual({ kind: "exited", exitCode: 0 });

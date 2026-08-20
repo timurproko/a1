@@ -19,15 +19,15 @@ const launchArguments = process.argv.slice(2);
 if (launchArguments[0] === "--print-environment") {
   const inspectedArguments = launchArguments.slice(1);
   process.stdout.write(`${JSON.stringify({ checkoutId, instanceId, releaseId: release.releaseId, developmentRoot, launchArguments: inspectedArguments, directProfile: directLaunchProfile(inspectedArguments), environment: {
-    ADDONE_CONFIG_DIR: environment.ADDONE_CONFIG_DIR,
-    ADDONE_DATA_DIR: environment.ADDONE_DATA_DIR,
-    ADDONE_RUNTIME_DIR: environment.ADDONE_RUNTIME_DIR,
-    ADDONE_DATABASE_PATH: environment.ADDONE_DATABASE_PATH,
+    A1_CONFIG_DIR: environment.A1_CONFIG_DIR,
+    A1_DATA_DIR: environment.A1_DATA_DIR,
+    A1_RUNTIME_DIR: environment.A1_RUNTIME_DIR,
+    A1_DATABASE_PATH: environment.A1_DATABASE_PATH,
   } }, null, 2)}\n`);
 } else {
   const directProfile = directLaunchProfile(launchArguments);
   const entry = directProfile === null ? identity.artifacts.cliEntry : identity.artifacts.uiEntry;
-  const childEnvironment = directProfile === null ? environment : { ...environment, ADDONE_LAUNCH_PROFILE: directProfile };
+  const childEnvironment = directProfile === null ? environment : { ...environment, A1_LAUNCH_PROFILE: directProfile };
   const childArguments = directProfile === null ? launchArguments : [];
   const child = spawn(process.execPath, [resolve(packageRoot, entry), ...childArguments], {
     cwd: process.cwd(),

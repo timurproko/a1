@@ -17,19 +17,19 @@ Use isolated AddOne control state:
 
 ```powershell
 $manualRoot = (Resolve-Path "artifacts/manual-transparent").Path
-$env:ADDONE_CONFIG_DIR = "$manualRoot\state\config"
-$env:ADDONE_DATA_DIR = "$manualRoot\state\data"
-$env:ADDONE_RUNTIME_DIR = "$manualRoot\state\runtime"
-$env:ADDONE_DATABASE_PATH = "$manualRoot\state\data\control.sqlite3"
+$env:A1_CONFIG_DIR = "$manualRoot\state\config"
+$env:A1_DATA_DIR = "$manualRoot\state\data"
+$env:A1_RUNTIME_DIR = "$manualRoot\state\runtime"
+$env:A1_DATABASE_PATH = "$manualRoot\state\data\control.sqlite3"
 ```
 
 Run the installed candidate yourself:
 
 ```powershell
-& "artifacts/manual-transparent/install/node_modules/.bin/addone.cmd"
+& "artifacts/manual-transparent/install/node_modules/.bin/a1.cmd"
 ```
 
-Test each installed launch form separately: bare `a1` (the owned UI), `a1 pi` (the untouched comparison oracle), and `a1 sandbox` (the unchanged isolated vanilla profile). Confirm that files created through `/settings`, `/login`, sessions, and resource directories remain under the selected profile root. Generic transparent-fallback testing may set `ADDONE_TERMINAL_EXECUTABLE` and a JSON array in `ADDONE_TERMINAL_ARGUMENTS_JSON`.
+Test each installed launch form separately: bare `a1` (the owned UI), `a1 pi` (the untouched comparison oracle), and `a1 sandbox` (the unchanged isolated vanilla profile). Confirm that files created through `/settings`, `/login`, sessions, and resource directories remain under the selected profile root. Generic transparent-fallback testing may set `A1_TERMINAL_EXECUTABLE` and a JSON array in `A1_TERMINAL_ARGUMENTS_JSON`.
 
 Physical automation is not part of this repository baseline. Future certification tooling may run only on dedicated disposable workers or VMs with exclusive test desktops, never on this workstation.
 

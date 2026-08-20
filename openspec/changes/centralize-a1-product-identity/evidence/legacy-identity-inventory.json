@@ -41,128 +41,35 @@
     "explicit-obsolete-package-fixtures"
   ],
   "summary": {
-    "total": 1398,
-    "files": 221,
+    "total": 1260,
+    "files": 211,
     "byLocationKind": {
-      "content": 1374,
+      "content": 1236,
       "path": 24
     },
     "byClass": {
-      "runtime-symbols": 600,
-      "diagnostics": 143,
-      "environment-keys": 148,
-      "paths": 460,
-      "schemas": 122,
-      "artifacts": 117,
-      "native-names": 100,
-      "tests": 283,
-      "current-docs-specs": 761,
+      "runtime-symbols": 469,
+      "diagnostics": 137,
+      "environment-keys": 15,
+      "paths": 427,
+      "schemas": 120,
+      "artifacts": 109,
+      "native-names": 81,
+      "tests": 244,
+      "current-docs-specs": 754,
       "historical-records": 167,
       "explicit-obsolete-package-fixtures": 8
     }
   },
   "occurrences": [
     {
-      "id": ".github/workflows/publish-next.yml:90:11",
-      "path": ".github/workflows/publish-next.yml",
-      "locationKind": "content",
-      "line": 90,
-      "column": 11,
-      "value": "ADDONE",
-      "context": "ADDONE_RELEASE_RUNNER_LABEL: github-windows-2025-uncertified-next",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys"
-      ]
-    },
-    {
-      "id": ".github/workflows/publish-stable.yml:86:11",
-      "path": ".github/workflows/publish-stable.yml",
-      "locationKind": "content",
-      "line": 86,
-      "column": 11,
-      "value": "ADDONE",
-      "context": "ADDONE_RELEASE_RUNNER_LABEL: github-windows-2025-stable",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys"
-      ]
-    },
-    {
-      "id": ".github/workflows/publish-stable.yml:87:11",
-      "path": ".github/workflows/publish-stable.yml",
-      "locationKind": "content",
-      "line": 87,
-      "column": 11,
-      "value": "ADDONE",
-      "context": "ADDONE_CONFIG_DIR: ${{ runner.temp }}\\a1-config",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "paths"
-      ]
-    },
-    {
-      "id": ".github/workflows/publish-stable.yml:88:11",
-      "path": ".github/workflows/publish-stable.yml",
-      "locationKind": "content",
-      "line": 88,
-      "column": 11,
-      "value": "ADDONE",
-      "context": "ADDONE_DATA_DIR: ${{ runner.temp }}\\a1-data",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "paths"
-      ]
-    },
-    {
-      "id": ".github/workflows/publish-stable.yml:89:11",
-      "path": ".github/workflows/publish-stable.yml",
-      "locationKind": "content",
-      "line": 89,
-      "column": 11,
-      "value": "ADDONE",
-      "context": "ADDONE_RUNTIME_DIR: ${{ runner.temp }}\\a1-runtime",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "paths"
-      ]
-    },
-    {
-      "id": "bin/a1-ui.js:5:43",
+      "id": "bin/a1-ui.js:5:65",
       "path": "bin/a1-ui.js",
       "locationKind": "content",
       "line": 5,
-      "column": 43,
-      "value": "ADDONE",
-      "context": "runSelectedInteractiveRuntime(process.env.ADDONE_LAUNCH_PROFILE ?? \"addone\", {",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys"
-      ]
-    },
-    {
-      "id": "bin/a1-ui.js:5:69",
-      "path": "bin/a1-ui.js",
-      "locationKind": "content",
-      "line": 5,
-      "column": 69,
+      "column": 65,
       "value": "addone",
-      "context": "runSelectedInteractiveRuntime(process.env.ADDONE_LAUNCH_PROFILE ?? \"addone\", {",
+      "context": "runSelectedInteractiveRuntime(process.env.A1_LAUNCH_PROFILE ?? \"addone\", {",
       "matchedCase": "lower",
       "primaryClass": "runtime-symbols",
       "classes": [
@@ -775,114 +682,6 @@
       ]
     },
     {
-      "id": "docs/manual-transparent-checkpoint.md:20:6",
-      "path": "docs/manual-transparent-checkpoint.md",
-      "locationKind": "content",
-      "line": 20,
-      "column": 6,
-      "value": "ADDONE",
-      "context": "$env:ADDONE_CONFIG_DIR = \"$manualRoot\\state\\config\"",
-      "matchedCase": "upper",
-      "primaryClass": "environment-keys",
-      "classes": [
-        "environment-keys",
-        "paths",
-        "current-docs-specs"
-      ]
-    },
-    {
-      "id": "docs/manual-transparent-checkpoint.md:21:6",
-      "path": "docs/manual-transparent-checkpoint.md",
-      "locationKind": "content",
-      "line": 21,
-      "column": 6,
-      "value": "ADDONE",
-      "context": "$env:ADDONE_DATA_DIR = \"$manualRoot\\state\\data\"",
-      "matchedCase": "upper",
-      "primaryClass": "environment-keys",
-      "classes": [
-        "environment-keys",
-        "paths",
-        "current-docs-specs"
-      ]
-    },
-    {
-      "id": "docs/manual-transparent-checkpoint.md:22:6",
-      "path": "docs/manual-transparent-checkpoint.md",
-      "locationKind": "content",
-      "line": 22,
-      "column": 6,
-      "value": "ADDONE",
-      "context": "$env:ADDONE_RUNTIME_DIR = \"$manualRoot\\state\\runtime\"",
-      "matchedCase": "upper",
-      "primaryClass": "environment-keys",
-      "classes": [
-        "environment-keys",
-        "paths",
-        "current-docs-specs"
-      ]
-    },
-    {
-      "id": "docs/manual-transparent-checkpoint.md:23:6",
-      "path": "docs/manual-transparent-checkpoint.md",
-      "locationKind": "content",
-      "line": 23,
-      "column": 6,
-      "value": "ADDONE",
-      "context": "$env:ADDONE_DATABASE_PATH = \"$manualRoot\\state\\data\\control.sqlite3\"",
-      "matchedCase": "upper",
-      "primaryClass": "environment-keys",
-      "classes": [
-        "environment-keys",
-        "paths",
-        "current-docs-specs"
-      ]
-    },
-    {
-      "id": "docs/manual-transparent-checkpoint.md:29:59",
-      "path": "docs/manual-transparent-checkpoint.md",
-      "locationKind": "content",
-      "line": 29,
-      "column": 59,
-      "value": "addone",
-      "context": "& \"artifacts/manual-transparent/install/node_modules/.bin/addone.cmd\"",
-      "matchedCase": "lower",
-      "primaryClass": "paths",
-      "classes": [
-        "paths",
-        "artifacts",
-        "current-docs-specs"
-      ]
-    },
-    {
-      "id": "docs/manual-transparent-checkpoint.md:32:352",
-      "path": "docs/manual-transparent-checkpoint.md",
-      "locationKind": "content",
-      "line": 32,
-      "column": 352,
-      "value": "ADDONE",
-      "context": "Test each installed launch form separately: bare `a1` (the owned UI), `a1 pi` (the untouched comparison oracle), and `a1 sandbox` (the unchanged isolated vanilla profile). Confirm that files created through `/settings`, `/login`, session...",
-      "matchedCase": "upper",
-      "primaryClass": "current-docs-specs",
-      "classes": [
-        "current-docs-specs"
-      ]
-    },
-    {
-      "id": "docs/manual-transparent-checkpoint.md:32:401",
-      "path": "docs/manual-transparent-checkpoint.md",
-      "locationKind": "content",
-      "line": 32,
-      "column": 401,
-      "value": "ADDONE",
-      "context": "Test each installed launch form separately: bare `a1` (the owned UI), `a1 pi` (the untouched comparison oracle), and `a1 sandbox` (the unchanged isolated vanilla profile). Confirm that files created through `/settings`, `/login`, session...",
-      "matchedCase": "upper",
-      "primaryClass": "current-docs-specs",
-      "classes": [
-        "current-docs-specs"
-      ]
-    },
-    {
       "id": "docs/manual-transparent-checkpoint.md:36:17",
       "path": "docs/manual-transparent-checkpoint.md",
       "locationKind": "content",
@@ -1063,39 +862,6 @@
       ]
     },
     {
-      "id": "native/terminal-host/src/ghostty.rs:1521:26",
-      "path": "native/terminal-host/src/ghostty.rs",
-      "locationKind": "content",
-      "line": 1521,
-      "column": 26,
-      "value": "ADDONE",
-      "context": "if std::env::var_os(\"ADDONE_PROBE_TRACE\").is_some() {",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "native-names"
-      ]
-    },
-    {
-      "id": "native/terminal-host/src/main.rs:32:7",
-      "path": "native/terminal-host/src/main.rs",
-      "locationKind": "content",
-      "line": 32,
-      "column": 7,
-      "value": "ADDONE",
-      "context": "const ADDONE_PROTOCOL_VERSION: u32 = 1;",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "schemas",
-        "native-names"
-      ]
-    },
-    {
       "id": "native/terminal-host/src/main.rs:41:24",
       "path": "native/terminal-host/src/main.rs",
       "locationKind": "content",
@@ -1134,47 +900,13 @@
       "line": 87,
       "column": 25,
       "value": "addone",
-      "context": "\"{{\\\"schema\\\":\\\"addone-terminal-host-version-v1\\\",\\\"protocolVersion\\\":{ADDONE_PROTOCOL_VERSION},\\\"hostMode\\\":\\\"console-inside-existing-terminal\\\",\\\"desktopWindow\\\":false,\\\"libghosttyVtCommit\\\":\\\"{GHOSTTY_VT_COMMIT}\\\",\\\"portablePty\\\":\\\"{P...",
+      "context": "\"{{\\\"schema\\\":\\\"addone-terminal-host-version-v1\\\",\\\"protocolVersion\\\":{A1_PROTOCOL_VERSION},\\\"hostMode\\\":\\\"console-inside-existing-terminal\\\",\\\"desktopWindow\\\":false,\\\"libghosttyVtCommit\\\":\\\"{GHOSTTY_VT_COMMIT}\\\",\\\"portablePty\\\":\\\"{PORTA...",
       "matchedCase": "lower",
       "primaryClass": "runtime-symbols",
       "classes": [
         "runtime-symbols",
         "paths",
         "schemas",
-        "native-names"
-      ]
-    },
-    {
-      "id": "native/terminal-host/src/main.rs:87:80",
-      "path": "native/terminal-host/src/main.rs",
-      "locationKind": "content",
-      "line": 87,
-      "column": 80,
-      "value": "ADDONE",
-      "context": "\"{{\\\"schema\\\":\\\"addone-terminal-host-version-v1\\\",\\\"protocolVersion\\\":{ADDONE_PROTOCOL_VERSION},\\\"hostMode\\\":\\\"console-inside-existing-terminal\\\",\\\"desktopWindow\\\":false,\\\"libghosttyVtCommit\\\":\\\"{GHOSTTY_VT_COMMIT}\\\",\\\"portablePty\\\":\\\"{P...",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "paths",
-        "schemas",
-        "native-names"
-      ]
-    },
-    {
-      "id": "native/terminal-host/src/main.rs:92:21",
-      "path": "native/terminal-host/src/main.rs",
-      "locationKind": "content",
-      "line": 92,
-      "column": 21,
-      "value": "ADDONE",
-      "context": "if env::var_os(\"ADDONE_PROBE_TRACE\").is_some() {",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
         "native-names"
       ]
     },
@@ -1259,134 +991,6 @@
       ]
     },
     {
-      "id": "native/terminal-host/src/main.rs:247:21",
-      "path": "native/terminal-host/src/main.rs",
-      "locationKind": "content",
-      "line": 247,
-      "column": 21,
-      "value": "ADDONE",
-      "context": "if env::var_os(\"ADDONE_PROBE_TRACE\").is_some() {",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "native-names"
-      ]
-    },
-    {
-      "id": "native/terminal-host/src/main.rs:257:21",
-      "path": "native/terminal-host/src/main.rs",
-      "locationKind": "content",
-      "line": 257,
-      "column": 21,
-      "value": "ADDONE",
-      "context": "if env::var_os(\"ADDONE_PROBE_TRACE\").is_some() {",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "native-names"
-      ]
-    },
-    {
-      "id": "native/terminal-host/src/main.rs:295:29",
-      "path": "native/terminal-host/src/main.rs",
-      "locationKind": "content",
-      "line": 295,
-      "column": 29,
-      "value": "ADDONE",
-      "context": "let pane_id = env::var(\"ADDONE_PANE_ID\")",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "native-names"
-      ]
-    },
-    {
-      "id": "native/terminal-host/src/main.rs:297:32",
-      "path": "native/terminal-host/src/main.rs",
-      "locationKind": "content",
-      "line": 297,
-      "column": 32,
-      "value": "ADDONE",
-      "context": "let session_id = env::var(\"ADDONE_TERMINAL_SESSION_ID\")",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "native-names"
-      ]
-    },
-    {
-      "id": "native/terminal-host/src/main.rs:300:19",
-      "path": "native/terminal-host/src/main.rs",
-      "locationKind": "content",
-      "line": 300,
-      "column": 19,
-      "value": "ADDONE",
-      "context": "env::var(\"ADDONE_FIXTURE_TOKEN\").map_err(|_| \"fixture token is unavailable\".to_owned())?;",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "native-names"
-      ]
-    },
-    {
-      "id": "native/terminal-host/src/main.rs:309:10",
-      "path": "native/terminal-host/src/main.rs",
-      "locationKind": "content",
-      "line": 309,
-      "column": 10,
-      "value": "ADDONE",
-      "context": "\"ADDONE_FIXTURE|{pane_id}|{session_id}|{token}|{cwd}|pid={}\",",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "native-names"
-      ]
-    },
-    {
-      "id": "native/terminal-host/src/main.rs:315:36",
-      "path": "native/terminal-host/src/main.rs",
-      "locationKind": "content",
-      "line": 315,
-      "column": 36,
-      "value": "ADDONE",
-      "context": "let expected_input = env::var(\"ADDONE_FIXTURE_INPUT\")",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "native-names"
-      ]
-    },
-    {
-      "id": "native/terminal-host/src/main.rs:327:15",
-      "path": "native/terminal-host/src/main.rs",
-      "locationKind": "content",
-      "line": 327,
-      "column": 15,
-      "value": "ADDONE",
-      "context": "println!(\"ADDONE_INPUT_ACK|{pane_id}|{expected_input}\");",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "native-names"
-      ]
-    },
-    {
       "id": "native/terminal-host/src/main.rs:349:10",
       "path": "native/terminal-host/src/main.rs",
       "locationKind": "content",
@@ -1398,118 +1002,6 @@
       "primaryClass": "runtime-symbols",
       "classes": [
         "runtime-symbols",
-        "native-names"
-      ]
-    },
-    {
-      "id": "native/terminal-host/src/main.rs:370:23",
-      "path": "native/terminal-host/src/main.rs",
-      "locationKind": "content",
-      "line": 370,
-      "column": 23,
-      "value": "ADDONE",
-      "context": "(\"ADDONE_FIXTURE_TOKEN\".to_owned(), token),",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "native-names"
-      ]
-    },
-    {
-      "id": "native/terminal-host/src/main.rs:372:26",
-      "path": "native/terminal-host/src/main.rs",
-      "locationKind": "content",
-      "line": 372,
-      "column": 26,
-      "value": "ADDONE",
-      "context": "\"ADDONE_FIXTURE_INPUT\".to_owned(),",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "native-names"
-      ]
-    },
-    {
-      "id": "native/terminal-host/src/main.rs:380:18",
-      "path": "native/terminal-host/src/main.rs",
-      "locationKind": "content",
-      "line": 380,
-      "column": 18,
-      "value": "ADDONE",
-      "context": "\"ADDONE_FIXTURE|pane-{}|session-{}|exact-argument-{}|{}|pid=\",",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "native-names"
-      ]
-    },
-    {
-      "id": "native/terminal-host/src/main.rs:465:22",
-      "path": "native/terminal-host/src/main.rs",
-      "locationKind": "content",
-      "line": 465,
-      "column": 22,
-      "value": "ADDONE",
-      "context": "\"ADDONE_INPUT_ACK|pane-{}|focused-input-{}\",",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "native-names"
-      ]
-    },
-    {
-      "id": "native/terminal-host/src/main.rs:472:30",
-      "path": "native/terminal-host/src/main.rs",
-      "locationKind": "content",
-      "line": 472,
-      "column": 30,
-      "value": "ADDONE",
-      "context": "\"ADDONE_INPUT_ACK|pane-{}|focused-input-{}\",",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "native-names"
-      ]
-    },
-    {
-      "id": "native/terminal-host/src/workspace.rs:241:22",
-      "path": "native/terminal-host/src/workspace.rs",
-      "locationKind": "content",
-      "line": 241,
-      "column": 22,
-      "value": "ADDONE",
-      "context": "command.env(\"ADDONE_PANE_ID\", PANE_IDS[index]);",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "native-names"
-      ]
-    },
-    {
-      "id": "native/terminal-host/src/workspace.rs:242:22",
-      "path": "native/terminal-host/src/workspace.rs",
-      "locationKind": "content",
-      "line": 242,
-      "column": 22,
-      "value": "ADDONE",
-      "context": "command.env(\"ADDONE_TERMINAL_SESSION_ID\", SESSION_IDS[index]);",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
         "native-names"
       ]
     },
@@ -6879,7 +6371,7 @@
       "line": 20,
       "column": 62,
       "value": "ADDONE",
-      "context": "- [ ] 4.1 Replace every runtime, script, workflow, and test `ADDONE_*` key with the declared `A1_*` key and add tests proving legacy-only variables are ignored.",
+      "context": "- [x] 4.1 Replace every runtime, script, workflow, and test `ADDONE_*` key with the declared `A1_*` key and add tests proving legacy-only variables are ignored.",
       "matchedCase": "upper",
       "primaryClass": "current-docs-specs",
       "classes": [
@@ -12540,56 +12032,6 @@
       ]
     },
     {
-      "id": "scripts/check-architecture.mjs:170:35",
-      "path": "scripts/check-architecture.mjs",
-      "locationKind": "content",
-      "line": 170,
-      "column": 35,
-      "value": "ADDONE",
-      "context": "{ pattern: /native[\\s_-]*pi|ADDONE_NATIVE_PI|PI_CODING_AGENT|PI_CONFIG|--tui-mode|\\b(?:Claude|Codex)\\b/i, label: \"CLI identity or CLI-named configuration\" },",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "paths"
-      ]
-    },
-    {
-      "id": "scripts/check-architecture.mjs:325:136",
-      "path": "scripts/check-architecture.mjs",
-      "locationKind": "content",
-      "line": 325,
-      "column": 136,
-      "value": "ADDONE",
-      "context": "const obsoleteGate = /test:scenario|test\\/scenarios|walking-skeleton|conversation-stability|packaged-(?:real-pi|extension|multi-cli)|ADDONE_CERTIFICATION_TARBALL|ADDONE_INTERNAL_PACKAGING|simulation-first certification|generic-terminal-(...",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "paths",
-        "artifacts"
-      ]
-    },
-    {
-      "id": "scripts/check-architecture.mjs:325:165",
-      "path": "scripts/check-architecture.mjs",
-      "locationKind": "content",
-      "line": 325,
-      "column": 165,
-      "value": "ADDONE",
-      "context": "const obsoleteGate = /test:scenario|test\\/scenarios|walking-skeleton|conversation-stability|packaged-(?:real-pi|extension|multi-cli)|ADDONE_CERTIFICATION_TARBALL|ADDONE_INTERNAL_PACKAGING|simulation-first certification|generic-terminal-(...",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "paths",
-        "artifacts"
-      ]
-    },
-    {
       "id": "scripts/check-deprecated-dependencies.mjs:9:8",
       "path": "scripts/check-deprecated-dependencies.mjs",
       "locationKind": "content",
@@ -12741,52 +12183,6 @@
         "runtime-symbols",
         "diagnostics",
         "paths"
-      ]
-    },
-    {
-      "id": "scripts/check-pinned-pi-source-ledger.mjs:7:40",
-      "path": "scripts/check-pinned-pi-source-ledger.mjs",
-      "locationKind": "content",
-      "line": 7,
-      "column": 40,
-      "value": "ADDONE",
-      "context": "const ledgerPath = resolve(process.env.ADDONE_PI_SOURCE_LEDGER_PATH ?? join(",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "paths"
-      ]
-    },
-    {
-      "id": "scripts/check-pinned-pi-source-ledger.mjs:15:40",
-      "path": "scripts/check-pinned-pi-source-ledger.mjs",
-      "locationKind": "content",
-      "line": 15,
-      "column": 40,
-      "value": "ADDONE",
-      "context": "const sourceRoot = resolve(process.env.ADDONE_PI_SOURCE_SCAN_ROOT ?? join(repository, \"src\"));",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys"
-      ]
-    },
-    {
-      "id": "scripts/check-pinned-pi-source-ledger.mjs:16:38",
-      "path": "scripts/check-pinned-pi-source-ledger.mjs",
-      "locationKind": "content",
-      "line": 16,
-      "column": 38,
-      "value": "ADDONE",
-      "context": "const portRoot = resolve(process.env.ADDONE_PI_PORT_ROOT ?? join(repository, \"src\", \"foundation\", \"pi-component-adapter\", \"upstream\"));",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys"
       ]
     },
     {
@@ -13120,21 +12516,6 @@
       ]
     },
     {
-      "id": "scripts/pi-terminal-parity/scenario.mjs:239:5",
-      "path": "scripts/pi-terminal-parity/scenario.mjs",
-      "locationKind": "content",
-      "line": 239,
-      "column": 5,
-      "value": "ADDONE",
-      "context": "ADDONE_PROFILE_HOME: resolve(profile, \"..\", \"..\"),",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys"
-      ]
-    },
-    {
       "id": "scripts/pi-terminal-parity/scenario.mjs:346:24",
       "path": "scripts/pi-terminal-parity/scenario.mjs",
       "locationKind": "content",
@@ -13383,47 +12764,17 @@
       ]
     },
     {
-      "id": "scripts/run-pi-terminal-parity.mjs:85:7",
+      "id": "scripts/run-pi-terminal-parity.mjs:85:27",
       "path": "scripts/run-pi-terminal-parity.mjs",
       "locationKind": "content",
       "line": 85,
-      "column": 7,
-      "value": "ADDONE",
-      "context": "ADDONE_LAUNCH_PROFILE: \"addone\",",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys"
-      ]
-    },
-    {
-      "id": "scripts/run-pi-terminal-parity.mjs:85:31",
-      "path": "scripts/run-pi-terminal-parity.mjs",
-      "locationKind": "content",
-      "line": 85,
-      "column": 31,
+      "column": 27,
       "value": "addone",
-      "context": "ADDONE_LAUNCH_PROFILE: \"addone\",",
+      "context": "A1_LAUNCH_PROFILE: \"addone\",",
       "matchedCase": "lower",
       "primaryClass": "runtime-symbols",
       "classes": [
         "runtime-symbols"
-      ]
-    },
-    {
-      "id": "scripts/run-pi-terminal-parity.mjs:86:7",
-      "path": "scripts/run-pi-terminal-parity.mjs",
-      "locationKind": "content",
-      "line": 86,
-      "column": 7,
-      "value": "ADDONE",
-      "context": "ADDONE_LAUNCH_ARGUMENTS_JSON: \"[]\",",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys"
       ]
     },
     {
@@ -13480,21 +12831,6 @@
       "primaryClass": "runtime-symbols",
       "classes": [
         "runtime-symbols"
-      ]
-    },
-    {
-      "id": "scripts/run-pi-terminal-parity.mjs:98:32",
-      "path": "scripts/run-pi-terminal-parity.mjs",
-      "locationKind": "content",
-      "line": 98,
-      "column": 32,
-      "value": "ADDONE",
-      "context": "const mutation = process.env.ADDONE_PI_PARITY_INTENTIONAL_MUTATION;",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys"
       ]
     },
     {
@@ -13729,158 +13065,6 @@
       "classes": [
         "runtime-symbols",
         "schemas"
-      ]
-    },
-    {
-      "id": "scripts/run-release-gates.mjs:20:28",
-      "path": "scripts/run-release-gates.mjs",
-      "locationKind": "content",
-      "line": 20,
-      "column": 28,
-      "value": "ADDONE",
-      "context": "runnerLabel: process.env.ADDONE_RELEASE_RUNNER_LABEL ?? null,",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys"
-      ]
-    },
-    {
-      "id": "scripts/start-local.mjs:22:5",
-      "path": "scripts/start-local.mjs",
-      "locationKind": "content",
-      "line": 22,
-      "column": 5,
-      "value": "ADDONE",
-      "context": "ADDONE_CONFIG_DIR: environment.ADDONE_CONFIG_DIR,",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys"
-      ]
-    },
-    {
-      "id": "scripts/start-local.mjs:22:36",
-      "path": "scripts/start-local.mjs",
-      "locationKind": "content",
-      "line": 22,
-      "column": 36,
-      "value": "ADDONE",
-      "context": "ADDONE_CONFIG_DIR: environment.ADDONE_CONFIG_DIR,",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys"
-      ]
-    },
-    {
-      "id": "scripts/start-local.mjs:23:5",
-      "path": "scripts/start-local.mjs",
-      "locationKind": "content",
-      "line": 23,
-      "column": 5,
-      "value": "ADDONE",
-      "context": "ADDONE_DATA_DIR: environment.ADDONE_DATA_DIR,",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys"
-      ]
-    },
-    {
-      "id": "scripts/start-local.mjs:23:34",
-      "path": "scripts/start-local.mjs",
-      "locationKind": "content",
-      "line": 23,
-      "column": 34,
-      "value": "ADDONE",
-      "context": "ADDONE_DATA_DIR: environment.ADDONE_DATA_DIR,",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys"
-      ]
-    },
-    {
-      "id": "scripts/start-local.mjs:24:5",
-      "path": "scripts/start-local.mjs",
-      "locationKind": "content",
-      "line": 24,
-      "column": 5,
-      "value": "ADDONE",
-      "context": "ADDONE_RUNTIME_DIR: environment.ADDONE_RUNTIME_DIR,",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys"
-      ]
-    },
-    {
-      "id": "scripts/start-local.mjs:24:37",
-      "path": "scripts/start-local.mjs",
-      "locationKind": "content",
-      "line": 24,
-      "column": 37,
-      "value": "ADDONE",
-      "context": "ADDONE_RUNTIME_DIR: environment.ADDONE_RUNTIME_DIR,",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys"
-      ]
-    },
-    {
-      "id": "scripts/start-local.mjs:25:5",
-      "path": "scripts/start-local.mjs",
-      "locationKind": "content",
-      "line": 25,
-      "column": 5,
-      "value": "ADDONE",
-      "context": "ADDONE_DATABASE_PATH: environment.ADDONE_DATABASE_PATH,",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "paths"
-      ]
-    },
-    {
-      "id": "scripts/start-local.mjs:25:39",
-      "path": "scripts/start-local.mjs",
-      "locationKind": "content",
-      "line": 25,
-      "column": 39,
-      "value": "ADDONE",
-      "context": "ADDONE_DATABASE_PATH: environment.ADDONE_DATABASE_PATH,",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "paths"
-      ]
-    },
-    {
-      "id": "scripts/start-local.mjs:30:85",
-      "path": "scripts/start-local.mjs",
-      "locationKind": "content",
-      "line": 30,
-      "column": 85,
-      "value": "ADDONE",
-      "context": "const childEnvironment = directProfile === null ? environment : { ...environment, ADDONE_LAUNCH_PROFILE: directProfile };",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys"
       ]
     },
     {
@@ -14161,51 +13345,6 @@
       ]
     },
     {
-      "id": "src/features/launch/development-launch.ts:20:29",
-      "path": "src/features/launch/development-launch.ts",
-      "locationKind": "content",
-      "line": 20,
-      "column": 29,
-      "value": "ADDONE",
-      "context": "const instanceId = source.ADDONE_DEV_INSTANCE_ID",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys"
-      ]
-    },
-    {
-      "id": "src/features/launch/development-launch.ts:21:42",
-      "path": "src/features/launch/development-launch.ts",
-      "locationKind": "content",
-      "line": 21,
-      "column": 42,
-      "value": "ADDONE",
-      "context": "? createHash(\"sha256\").update(source.ADDONE_DEV_INSTANCE_ID).digest(\"hex\").slice(0, 16)",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys"
-      ]
-    },
-    {
-      "id": "src/features/launch/development-launch.ts:23:42",
-      "path": "src/features/launch/development-launch.ts",
-      "locationKind": "content",
-      "line": 23,
-      "column": 42,
-      "value": "ADDONE",
-      "context": "const developmentRoot = resolve(source.ADDONE_DEV_ROOT",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys"
-      ]
-    },
-    {
       "id": "src/features/launch/development-launch.ts:24:34",
       "path": "src/features/launch/development-launch.ts",
       "locationKind": "content",
@@ -14217,143 +13356,6 @@
       "primaryClass": "runtime-symbols",
       "classes": [
         "runtime-symbols",
-        "paths"
-      ]
-    },
-    {
-      "id": "src/features/launch/development-launch.ts:25:34",
-      "path": "src/features/launch/development-launch.ts",
-      "locationKind": "content",
-      "line": 25,
-      "column": 34,
-      "value": "ADDONE",
-      "context": "const dataDir = resolve(source.ADDONE_DATA_DIR ?? join(developmentRoot, \"data\"));",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys"
-      ]
-    },
-    {
-      "id": "src/features/launch/development-launch.ts:33:7",
-      "path": "src/features/launch/development-launch.ts",
-      "locationKind": "content",
-      "line": 33,
-      "column": 7,
-      "value": "ADDONE",
-      "context": "ADDONE_DEV_INSTANCE_ID: instanceId,",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys"
-      ]
-    },
-    {
-      "id": "src/features/launch/development-launch.ts:34:7",
-      "path": "src/features/launch/development-launch.ts",
-      "locationKind": "content",
-      "line": 34,
-      "column": 7,
-      "value": "ADDONE",
-      "context": "ADDONE_CONFIG_DIR: resolve(source.ADDONE_CONFIG_DIR ?? join(developmentRoot, \"config\")),",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys"
-      ]
-    },
-    {
-      "id": "src/features/launch/development-launch.ts:34:41",
-      "path": "src/features/launch/development-launch.ts",
-      "locationKind": "content",
-      "line": 34,
-      "column": 41,
-      "value": "ADDONE",
-      "context": "ADDONE_CONFIG_DIR: resolve(source.ADDONE_CONFIG_DIR ?? join(developmentRoot, \"config\")),",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys"
-      ]
-    },
-    {
-      "id": "src/features/launch/development-launch.ts:35:7",
-      "path": "src/features/launch/development-launch.ts",
-      "locationKind": "content",
-      "line": 35,
-      "column": 7,
-      "value": "ADDONE",
-      "context": "ADDONE_DATA_DIR: dataDir,",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys"
-      ]
-    },
-    {
-      "id": "src/features/launch/development-launch.ts:36:7",
-      "path": "src/features/launch/development-launch.ts",
-      "locationKind": "content",
-      "line": 36,
-      "column": 7,
-      "value": "ADDONE",
-      "context": "ADDONE_RUNTIME_DIR: resolve(source.ADDONE_RUNTIME_DIR ?? join(developmentRoot, \"runtime\")),",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys"
-      ]
-    },
-    {
-      "id": "src/features/launch/development-launch.ts:36:42",
-      "path": "src/features/launch/development-launch.ts",
-      "locationKind": "content",
-      "line": 36,
-      "column": 42,
-      "value": "ADDONE",
-      "context": "ADDONE_RUNTIME_DIR: resolve(source.ADDONE_RUNTIME_DIR ?? join(developmentRoot, \"runtime\")),",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys"
-      ]
-    },
-    {
-      "id": "src/features/launch/development-launch.ts:37:7",
-      "path": "src/features/launch/development-launch.ts",
-      "locationKind": "content",
-      "line": 37,
-      "column": 7,
-      "value": "ADDONE",
-      "context": "ADDONE_DATABASE_PATH: resolve(source.ADDONE_DATABASE_PATH ?? join(dataDir, \"control.sqlite3\")),",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "paths"
-      ]
-    },
-    {
-      "id": "src/features/launch/development-launch.ts:37:44",
-      "path": "src/features/launch/development-launch.ts",
-      "locationKind": "content",
-      "line": 37,
-      "column": 44,
-      "value": "ADDONE",
-      "context": "ADDONE_DATABASE_PATH: resolve(source.ADDONE_DATABASE_PATH ?? join(dataDir, \"control.sqlite3\")),",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
         "paths"
       ]
     },
@@ -14415,21 +13417,6 @@
       ]
     },
     {
-      "id": "src/features/launch/prepare-launch.ts:30:20",
-      "path": "src/features/launch/prepare-launch.ts",
-      "locationKind": "content",
-      "line": 30,
-      "column": 20,
-      "value": "ADDONE",
-      "context": "childEnvironment.ADDONE_LAUNCH_ARGUMENTS_JSON = JSON.stringify(piArguments);",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys"
-      ]
-    },
-    {
       "id": "src/features/launch/profile-paths.ts:7:12",
       "path": "src/features/launch/profile-paths.ts",
       "locationKind": "content",
@@ -14455,21 +13442,6 @@
       "primaryClass": "runtime-symbols",
       "classes": [
         "runtime-symbols"
-      ]
-    },
-    {
-      "id": "src/features/launch/profile-paths.ts:22:52",
-      "path": "src/features/launch/profile-paths.ts",
-      "locationKind": "content",
-      "line": 22,
-      "column": 52,
-      "value": "ADDONE",
-      "context": "const selectedHome = options.home ?? environment.ADDONE_PROFILE_HOME ?? options.readHome?.() ?? homedir();",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys"
       ]
     },
     {
@@ -14836,21 +13808,6 @@
       ]
     },
     {
-      "id": "src/foundation/lifecycle/paths.ts:18:41",
-      "path": "src/foundation/lifecycle/paths.ts",
-      "locationKind": "content",
-      "line": 18,
-      "column": 41,
-      "value": "ADDONE",
-      "context": "const configDir = resolve(environment.ADDONE_CONFIG_DIR",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys"
-      ]
-    },
-    {
       "id": "src/foundation/lifecycle/paths.ts:19:54",
       "path": "src/foundation/lifecycle/paths.ts",
       "locationKind": "content",
@@ -14876,21 +13833,6 @@
       "primaryClass": "runtime-symbols",
       "classes": [
         "runtime-symbols"
-      ]
-    },
-    {
-      "id": "src/foundation/lifecycle/paths.ts:20:39",
-      "path": "src/foundation/lifecycle/paths.ts",
-      "locationKind": "content",
-      "line": 20,
-      "column": 39,
-      "value": "ADDONE",
-      "context": "const dataDir = resolve(environment.ADDONE_DATA_DIR",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys"
       ]
     },
     {
@@ -14922,21 +13864,6 @@
       ]
     },
     {
-      "id": "src/foundation/lifecycle/paths.ts:22:42",
-      "path": "src/foundation/lifecycle/paths.ts",
-      "locationKind": "content",
-      "line": 22,
-      "column": 42,
-      "value": "ADDONE",
-      "context": "const runtimeDir = resolve(environment.ADDONE_RUNTIME_DIR",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys"
-      ]
-    },
-    {
       "id": "src/foundation/lifecycle/paths.ts:23:92",
       "path": "src/foundation/lifecycle/paths.ts",
       "locationKind": "content",
@@ -14948,22 +13875,6 @@
       "primaryClass": "runtime-symbols",
       "classes": [
         "runtime-symbols"
-      ]
-    },
-    {
-      "id": "src/foundation/lifecycle/paths.ts:25:32",
-      "path": "src/foundation/lifecycle/paths.ts",
-      "locationKind": "content",
-      "line": 25,
-      "column": 32,
-      "value": "ADDONE",
-      "context": "const endpoint = environment.ADDONE_ENDPOINT",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "paths"
       ]
     },
     {
@@ -14980,22 +13891,6 @@
         "runtime-symbols",
         "paths",
         "schemas"
-      ]
-    },
-    {
-      "id": "src/foundation/lifecycle/paths.ts:31:39",
-      "path": "src/foundation/lifecycle/paths.ts",
-      "locationKind": "content",
-      "line": 31,
-      "column": 39,
-      "value": "ADDONE",
-      "context": "databasePath: resolve(environment.ADDONE_DATABASE_PATH ?? join(dataDir, \"control.sqlite3\")),",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "paths"
       ]
     },
     {
@@ -15235,21 +14130,6 @@
       ]
     },
     {
-      "id": "src/foundation/release/bootstrap.ts:24:15",
-      "path": "src/foundation/release/bootstrap.ts",
-      "locationKind": "content",
-      "line": 24,
-      "column": 15,
-      "value": "ADDONE",
-      "context": "environment.ADDONE_LAUNCH_PROFILE = launchProfileId;",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys"
-      ]
-    },
-    {
       "id": "src/foundation/release/bootstrap.ts:26:24",
       "path": "src/foundation/release/bootstrap.ts",
       "locationKind": "content",
@@ -15325,51 +14205,6 @@
         "runtime-symbols",
         "diagnostics",
         "paths"
-      ]
-    },
-    {
-      "id": "src/foundation/release/bootstrap.ts:150:5",
-      "path": "src/foundation/release/bootstrap.ts",
-      "locationKind": "content",
-      "line": 150,
-      "column": 5,
-      "value": "ADDONE",
-      "context": "ADDONE_RELEASE_ID: release.releaseId,",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys"
-      ]
-    },
-    {
-      "id": "src/foundation/release/bootstrap.ts:151:5",
-      "path": "src/foundation/release/bootstrap.ts",
-      "locationKind": "content",
-      "line": 151,
-      "column": 5,
-      "value": "ADDONE",
-      "context": "ADDONE_RELEASE_ROOT: release.releaseRoot,",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys"
-      ]
-    },
-    {
-      "id": "src/foundation/release/bootstrap.ts:152:5",
-      "path": "src/foundation/release/bootstrap.ts",
-      "locationKind": "content",
-      "line": 152,
-      "column": 5,
-      "value": "ADDONE",
-      "context": "ADDONE_RELEASE_DIGEST: release.contentDigest,",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys"
       ]
     },
     {
@@ -15449,29 +14284,13 @@
       ]
     },
     {
-      "id": "src/foundation/release/release-store.ts:4:10",
+      "id": "src/foundation/release/release-store.ts:4:70",
       "path": "src/foundation/release/release-store.ts",
       "locationKind": "content",
       "line": 4,
-      "column": 10,
-      "value": "ADDONE",
-      "context": "import { ADDONE_PACKAGE_NAME, deriveReleaseIdentity, resolveWithin, type AddOneReleaseIdentity, type ReleaseFileIdentity } from \"./release.js\";",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "paths"
-      ]
-    },
-    {
-      "id": "src/foundation/release/release-store.ts:4:74",
-      "path": "src/foundation/release/release-store.ts",
-      "locationKind": "content",
-      "line": 4,
-      "column": 74,
+      "column": 70,
       "value": "AddOne",
-      "context": "import { ADDONE_PACKAGE_NAME, deriveReleaseIdentity, resolveWithin, type AddOneReleaseIdentity, type ReleaseFileIdentity } from \"./release.js\";",
+      "context": "import { A1_PACKAGE_NAME, deriveReleaseIdentity, resolveWithin, type AddOneReleaseIdentity, type ReleaseFileIdentity } from \"./release.js\";",
       "matchedCase": "title-or-mixed",
       "primaryClass": "runtime-symbols",
       "classes": [
@@ -15554,50 +14373,18 @@
       ]
     },
     {
-      "id": "src/foundation/release/release-store.ts:70:20",
+      "id": "src/foundation/release/release-store.ts:70:65",
       "path": "src/foundation/release/release-store.ts",
       "locationKind": "content",
       "line": 70,
-      "column": 20,
-      "value": "ADDONE",
-      "context": "if (!process.env.ADDONE_RELEASE_ROOT) throw new Error(\"persistent AddOne process has no immutable release root\");",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics",
-        "environment-keys"
-      ]
-    },
-    {
-      "id": "src/foundation/release/release-store.ts:70:69",
-      "path": "src/foundation/release/release-store.ts",
-      "locationKind": "content",
-      "line": 70,
-      "column": 69,
+      "column": 65,
       "value": "AddOne",
-      "context": "if (!process.env.ADDONE_RELEASE_ROOT) throw new Error(\"persistent AddOne process has no immutable release root\");",
+      "context": "if (!process.env.A1_RELEASE_ROOT) throw new Error(\"persistent AddOne process has no immutable release root\");",
       "matchedCase": "title-or-mixed",
       "primaryClass": "runtime-symbols",
       "classes": [
         "runtime-symbols",
         "diagnostics"
-      ]
-    },
-    {
-      "id": "src/foundation/release/release-store.ts:71:47",
-      "path": "src/foundation/release/release-store.ts",
-      "locationKind": "content",
-      "line": 71,
-      "column": 47,
-      "value": "ADDONE",
-      "context": "const selected = await realpath(process.env.ADDONE_RELEASE_ROOT);",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "paths"
       ]
     },
     {
@@ -15631,30 +14418,13 @@
       ]
     },
     {
-      "id": "src/foundation/release/release-store.ts:94:29",
+      "id": "src/foundation/release/release-store.ts:94:115",
       "path": "src/foundation/release/release-store.ts",
       "locationKind": "content",
       "line": 94,
-      "column": 29,
-      "value": "ADDONE",
-      "context": "if (value.packageName !== ADDONE_PACKAGE_NAME || typeof value.packageVersion !== \"string\") throw new Error(\"invalid AddOne release manifest metadata\");",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics",
-        "environment-keys",
-        "artifacts"
-      ]
-    },
-    {
-      "id": "src/foundation/release/release-store.ts:94:119",
-      "path": "src/foundation/release/release-store.ts",
-      "locationKind": "content",
-      "line": 94,
-      "column": 119,
+      "column": 115,
       "value": "AddOne",
-      "context": "if (value.packageName !== ADDONE_PACKAGE_NAME || typeof value.packageVersion !== \"string\") throw new Error(\"invalid AddOne release manifest metadata\");",
+      "context": "if (value.packageName !== A1_PACKAGE_NAME || typeof value.packageVersion !== \"string\") throw new Error(\"invalid AddOne release manifest metadata\");",
       "matchedCase": "title-or-mixed",
       "primaryClass": "runtime-symbols",
       "classes": [
@@ -15680,22 +14450,6 @@
       ]
     },
     {
-      "id": "src/foundation/release/release.ts:5:14",
-      "path": "src/foundation/release/release.ts",
-      "locationKind": "content",
-      "line": 5,
-      "column": 14,
-      "value": "ADDONE",
-      "context": "export const ADDONE_PACKAGE_NAME = \"@timurproko/a1\";",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "paths"
-      ]
-    },
-    {
       "id": "src/foundation/release/release.ts:14:18",
       "path": "src/foundation/release/release.ts",
       "locationKind": "content",
@@ -15707,21 +14461,6 @@
       "primaryClass": "runtime-symbols",
       "classes": [
         "runtime-symbols"
-      ]
-    },
-    {
-      "id": "src/foundation/release/release.ts:15:32",
-      "path": "src/foundation/release/release.ts",
-      "locationKind": "content",
-      "line": 15,
-      "column": 32,
-      "value": "ADDONE",
-      "context": "readonly packageName: typeof ADDONE_PACKAGE_NAME;",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys"
       ]
     },
     {
@@ -15753,30 +14492,13 @@
       ]
     },
     {
-      "id": "src/foundation/release/release.ts:40:25",
+      "id": "src/foundation/release/release.ts:40:70",
       "path": "src/foundation/release/release.ts",
       "locationKind": "content",
       "line": 40,
-      "column": 25,
-      "value": "ADDONE",
-      "context": "if (manifest.name !== ADDONE_PACKAGE_NAME) throw new Error(`unexpected AddOne package name: ${String(manifest.name)}`);",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics",
-        "environment-keys",
-        "artifacts"
-      ]
-    },
-    {
-      "id": "src/foundation/release/release.ts:40:74",
-      "path": "src/foundation/release/release.ts",
-      "locationKind": "content",
-      "line": 40,
-      "column": 74,
+      "column": 70,
       "value": "AddOne",
-      "context": "if (manifest.name !== ADDONE_PACKAGE_NAME) throw new Error(`unexpected AddOne package name: ${String(manifest.name)}`);",
+      "context": "if (manifest.name !== A1_PACKAGE_NAME) throw new Error(`unexpected AddOne package name: ${String(manifest.name)}`);",
       "matchedCase": "title-or-mixed",
       "primaryClass": "runtime-symbols",
       "classes": [
@@ -15799,21 +14521,6 @@
         "runtime-symbols",
         "diagnostics",
         "artifacts"
-      ]
-    },
-    {
-      "id": "src/foundation/release/release.ts:69:18",
-      "path": "src/foundation/release/release.ts",
-      "locationKind": "content",
-      "line": 69,
-      "column": 18,
-      "value": "ADDONE",
-      "context": "packageName: ADDONE_PACKAGE_NAME,",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys"
       ]
     },
     {
@@ -15925,22 +14632,6 @@
       ]
     },
     {
-      "id": "src/foundation/release/stable-release.ts:2:10",
-      "path": "src/foundation/release/stable-release.ts",
-      "locationKind": "content",
-      "line": 2,
-      "column": 10,
-      "value": "ADDONE",
-      "context": "import { ADDONE_PACKAGE_NAME } from \"./release.js\";",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "paths"
-      ]
-    },
-    {
       "id": "src/foundation/release/stable-release.ts:16:21",
       "path": "src/foundation/release/stable-release.ts",
       "locationKind": "content",
@@ -15953,22 +14644,6 @@
       "classes": [
         "runtime-symbols",
         "schemas"
-      ]
-    },
-    {
-      "id": "src/foundation/release/stable-release.ts:36:29",
-      "path": "src/foundation/release/stable-release.ts",
-      "locationKind": "content",
-      "line": 36,
-      "column": 29,
-      "value": "ADDONE",
-      "context": "if (input.packageName !== ADDONE_PACKAGE_NAME) throw new Error(`unexpected stable package: ${input.packageName}`);",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics",
-        "environment-keys"
       ]
     },
     {
@@ -16002,21 +14677,6 @@
       ]
     },
     {
-      "id": "src/foundation/release/update.ts:24:14",
-      "path": "src/foundation/release/update.ts",
-      "locationKind": "content",
-      "line": 24,
-      "column": 14,
-      "value": "ADDONE",
-      "context": "export const ADDONE_PACKAGE = PRODUCT_TEXT.packageName;",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys"
-      ]
-    },
-    {
       "id": "src/foundation/release/update.ts:88:24",
       "path": "src/foundation/release/update.ts",
       "locationKind": "content",
@@ -16046,21 +14706,6 @@
       ]
     },
     {
-      "id": "src/foundation/release/update.ts:179:57",
-      "path": "src/foundation/release/update.ts",
-      "locationKind": "content",
-      "line": 179,
-      "column": 57,
-      "value": "ADDONE",
-      "context": "const targetLookup = await runNpm(runner, [\"view\", `${ADDONE_PACKAGE}@${distTag}`, \"version\"], true, output, `query the npm ${distTag} channel`);",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys"
-      ]
-    },
-    {
       "id": "src/foundation/release/update.ts:208:24",
       "path": "src/foundation/release/update.ts",
       "locationKind": "content",
@@ -16073,21 +14718,6 @@
       "classes": [
         "runtime-symbols",
         "paths"
-      ]
-    },
-    {
-      "id": "src/foundation/release/update.ts:237:76",
-      "path": "src/foundation/release/update.ts",
-      "locationKind": "content",
-      "line": 237,
-      "column": 76,
-      "value": "ADDONE",
-      "context": "const installation = await runNpm(runner, [\"install\", \"--global\", `${ADDONE_PACKAGE}@${targetVersion}`], false, output, \"start the global npm installation\", false);",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys"
       ]
     },
     {
@@ -16117,36 +14747,6 @@
       "primaryClass": "runtime-symbols",
       "classes": [
         "runtime-symbols"
-      ]
-    },
-    {
-      "id": "src/foundation/structured-agent-runtime/handshake.ts:26:14",
-      "path": "src/foundation/structured-agent-runtime/handshake.ts",
-      "locationKind": "content",
-      "line": 26,
-      "column": 14,
-      "value": "ADDONE",
-      "context": "export const ADDONE_STRUCTURED_FLOW_LIMITS: StructuredFlowLimits = Object.freeze({",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys"
-      ]
-    },
-    {
-      "id": "src/foundation/structured-agent-runtime/handshake.ts:85:17",
-      "path": "src/foundation/structured-agent-runtime/handshake.ts",
-      "locationKind": "content",
-      "line": 85,
-      "column": 17,
-      "value": "ADDONE",
-      "context": "flowLimits: ADDONE_STRUCTURED_FLOW_LIMITS,",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys"
       ]
     },
     {
@@ -16337,21 +14937,6 @@
       ]
     },
     {
-      "id": "src/foundation/supervision/main.ts:12:35",
-      "path": "src/foundation/supervision/main.ts",
-      "locationKind": "content",
-      "line": 12,
-      "column": 35,
-      "value": "ADDONE",
-      "context": "const releaseRoot = process.env.ADDONE_RELEASE_ROOT;",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys"
-      ]
-    },
-    {
       "id": "src/foundation/supervision/main.ts:13:92",
       "path": "src/foundation/supervision/main.ts",
       "locationKind": "content",
@@ -16367,30 +14952,13 @@
       ]
     },
     {
-      "id": "src/foundation/supervision/main.ts:15:19",
+      "id": "src/foundation/supervision/main.ts:15:82",
       "path": "src/foundation/supervision/main.ts",
       "locationKind": "content",
       "line": 15,
-      "column": 19,
-      "value": "ADDONE",
-      "context": "if (process.env.ADDONE_RELEASE_ID !== release.releaseId) throw new Error(\"selected AddOne release identity does not match its verified manifest\");",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics",
-        "environment-keys",
-        "artifacts"
-      ]
-    },
-    {
-      "id": "src/foundation/supervision/main.ts:15:86",
-      "path": "src/foundation/supervision/main.ts",
-      "locationKind": "content",
-      "line": 15,
-      "column": 86,
+      "column": 82,
       "value": "AddOne",
-      "context": "if (process.env.ADDONE_RELEASE_ID !== release.releaseId) throw new Error(\"selected AddOne release identity does not match its verified manifest\");",
+      "context": "if (process.env.A1_RELEASE_ID !== release.releaseId) throw new Error(\"selected AddOne release identity does not match its verified manifest\");",
       "matchedCase": "title-or-mixed",
       "primaryClass": "runtime-symbols",
       "classes": [
@@ -16552,28 +15120,13 @@
       ]
     },
     {
-      "id": "src/foundation/transparent-terminal/main.ts:20:54",
+      "id": "src/foundation/transparent-terminal/main.ts:20:76",
       "path": "src/foundation/transparent-terminal/main.ts",
       "locationKind": "content",
       "line": 20,
-      "column": 54,
-      "value": "ADDONE",
-      "context": "const profileId = options.profileId ?? environment.ADDONE_LAUNCH_PROFILE ?? \"addone\";",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys"
-      ]
-    },
-    {
-      "id": "src/foundation/transparent-terminal/main.ts:20:80",
-      "path": "src/foundation/transparent-terminal/main.ts",
-      "locationKind": "content",
-      "line": 20,
-      "column": 80,
+      "column": 76,
       "value": "addone",
-      "context": "const profileId = options.profileId ?? environment.ADDONE_LAUNCH_PROFILE ?? \"addone\";",
+      "context": "const profileId = options.profileId ?? environment.A1_LAUNCH_PROFILE ?? \"addone\";",
       "matchedCase": "lower",
       "primaryClass": "runtime-symbols",
       "classes": [
@@ -16593,97 +15146,6 @@
       "classes": [
         "runtime-symbols",
         "paths"
-      ]
-    },
-    {
-      "id": "src/foundation/transparent-terminal/main.ts:23:51",
-      "path": "src/foundation/transparent-terminal/main.ts",
-      "locationKind": "content",
-      "line": 23,
-      "column": 51,
-      "value": "ADDONE",
-      "context": "const client = new SupervisorClient(environment.ADDONE_RELEASE_ID);",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys"
-      ]
-    },
-    {
-      "id": "src/foundation/transparent-terminal/main.ts:50:56",
-      "path": "src/foundation/transparent-terminal/main.ts",
-      "locationKind": "content",
-      "line": 50,
-      "column": 56,
-      "value": "ADDONE",
-      "context": "const executable = options.executable ?? environment.ADDONE_TERMINAL_EXECUTABLE ?? \"pi\";",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "artifacts"
-      ]
-    },
-    {
-      "id": "src/foundation/transparent-terminal/main.ts:52:35",
-      "path": "src/foundation/transparent-terminal/main.ts",
-      "locationKind": "content",
-      "line": 52,
-      "column": 35,
-      "value": "ADDONE",
-      "context": "?? parseArguments(environment.ADDONE_LAUNCH_ARGUMENTS_JSON)",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys"
-      ]
-    },
-    {
-      "id": "src/foundation/transparent-terminal/main.ts:53:35",
-      "path": "src/foundation/transparent-terminal/main.ts",
-      "locationKind": "content",
-      "line": 53,
-      "column": 35,
-      "value": "ADDONE",
-      "context": "?? parseArguments(environment.ADDONE_TERMINAL_ARGUMENTS_JSON)",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys"
-      ]
-    },
-    {
-      "id": "src/foundation/transparent-terminal/main.ts:77:26",
-      "path": "src/foundation/transparent-terminal/main.ts",
-      "locationKind": "content",
-      "line": 77,
-      "column": 26,
-      "value": "ADDONE",
-      "context": "throw new TypeError(\"ADDONE_TERMINAL_ARGUMENTS_JSON must be a JSON array of strings\");",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics",
-        "environment-keys"
-      ]
-    },
-    {
-      "id": "src/foundation/transparent-terminal/main.ts:85:50",
-      "path": "src/foundation/transparent-terminal/main.ts",
-      "locationKind": "content",
-      "line": 85,
-      "column": 50,
-      "value": "ADDONE",
-      "context": "if (value !== undefined && !name.startsWith(\"ADDONE_\")) selected[name] = value;",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols"
       ]
     },
     {
@@ -16717,105 +15179,6 @@
       ]
     },
     {
-      "id": "test/cli/update-cli.test.ts:9:10",
-      "path": "test/cli/update-cli.test.ts",
-      "locationKind": "content",
-      "line": 9,
-      "column": 10,
-      "value": "ADDONE",
-      "context": "import { ADDONE_PACKAGE } from \"../../src/foundation/release/index.js\";",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/cli/update-cli.test.ts:16:52",
-      "path": "test/cli/update-cli.test.ts",
-      "locationKind": "content",
-      "line": 16,
-      "column": 52,
-      "value": "addone",
-      "context": "temporaryRoot = await mkdtemp(resolve(tmpdir(), \"addone-update-cli-\"));",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/cli/update-cli.test.ts:97:9",
-      "path": "test/cli/update-cli.test.ts",
-      "locationKind": "content",
-      "line": 97,
-      "column": 9,
-      "value": "ADDONE",
-      "context": "ADDONE_RUNTIME_DIR: runtimeDirectory,",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/cli/update-cli.test.ts:114:9",
-      "path": "test/cli/update-cli.test.ts",
-      "locationKind": "content",
-      "line": 114,
-      "column": 9,
-      "value": "ADDONE",
-      "context": "ADDONE_RUNTIME_DIR: runtimeDirectory,",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/cli/update-cli.test.ts:127:55",
-      "path": "test/cli/update-cli.test.ts",
-      "locationKind": "content",
-      "line": 127,
-      "column": 55,
-      "value": "ADDONE",
-      "context": "expect(versionCalls.filter(call => call[1] === `${ADDONE_PACKAGE}@latest`)).toHaveLength(1);",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/cli/update-cli.test.ts:128:55",
-      "path": "test/cli/update-cli.test.ts",
-      "locationKind": "content",
-      "line": 128,
-      "column": 55,
-      "value": "ADDONE",
-      "context": "expect(versionCalls.filter(call => call[1] === `${ADDONE_PACKAGE}@next`)).toHaveLength(1);",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "tests"
-      ]
-    },
-    {
       "id": "test/features/launch/development-launch.test.ts:8:17",
       "path": "test/features/launch/development-launch.test.ts",
       "locationKind": "content",
@@ -16827,39 +15190,6 @@
       "primaryClass": "runtime-symbols",
       "classes": [
         "runtime-symbols",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/features/launch/development-launch.test.ts:22:30",
-      "path": "test/features/launch/development-launch.test.ts",
-      "locationKind": "content",
-      "line": 22,
-      "column": 30,
-      "value": "ADDONE",
-      "context": "expect(first.environment.ADDONE_RUNTIME_DIR).toBe(resolve(first.developmentRoot, \"runtime\"));",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/features/launch/development-launch.test.ts:23:30",
-      "path": "test/features/launch/development-launch.test.ts",
-      "locationKind": "content",
-      "line": 23,
-      "column": 30,
-      "value": "ADDONE",
-      "context": "expect(first.environment.ADDONE_DATABASE_PATH).toBe(resolve(first.developmentRoot, \"data/control.sqlite3\"));",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
         "paths",
         "tests"
       ]
@@ -16897,22 +15227,6 @@
       ]
     },
     {
-      "id": "test/features/launch/development-launch.test.ts:28:22",
-      "path": "test/features/launch/development-launch.test.ts",
-      "locationKind": "content",
-      "line": 28,
-      "column": 22,
-      "value": "ADDONE",
-      "context": "const source = { ADDONE_DEV_INSTANCE_ID: \"shared-debug-instance\" };",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "tests"
-      ]
-    },
-    {
       "id": "test/features/launch/development-launch.test.ts:34:19",
       "path": "test/features/launch/development-launch.test.ts",
       "locationKind": "content",
@@ -16945,53 +15259,18 @@
       ]
     },
     {
-      "id": "test/features/launch/development-launch.test.ts:39:7",
-      "path": "test/features/launch/development-launch.test.ts",
-      "locationKind": "content",
-      "line": 39,
-      "column": 7,
-      "value": "ADDONE",
-      "context": "ADDONE_DEV_ROOT: \"D:/custom/root\",",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/features/launch/development-launch.test.ts:40:7",
-      "path": "test/features/launch/development-launch.test.ts",
-      "locationKind": "content",
-      "line": 40,
-      "column": 7,
-      "value": "ADDONE",
-      "context": "ADDONE_CONFIG_DIR: \"D:/custom/config\",",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "paths",
-        "tests"
-      ]
-    },
-    {
       "id": "test/features/launch/development-launch.test.ts:41:7",
       "path": "test/features/launch/development-launch.test.ts",
       "locationKind": "content",
       "line": 41,
       "column": 7,
       "value": "ADDONE",
-      "context": "ADDONE_DATA_DIR: \"D:/custom/data\",",
+      "context": "ADDONE_DEV_INSTANCE_ID: \"legacy-instance\",",
       "matchedCase": "upper",
       "primaryClass": "runtime-symbols",
       "classes": [
         "runtime-symbols",
         "environment-keys",
-        "paths",
         "tests"
       ]
     },
@@ -17002,7 +15281,7 @@
       "line": 42,
       "column": 7,
       "value": "ADDONE",
-      "context": "ADDONE_RUNTIME_DIR: \"D:/custom/runtime\",",
+      "context": "ADDONE_DEV_ROOT: \"D:/legacy/development\",",
       "matchedCase": "upper",
       "primaryClass": "runtime-symbols",
       "classes": [
@@ -17019,7 +15298,58 @@
       "line": 43,
       "column": 7,
       "value": "ADDONE",
-      "context": "ADDONE_DATABASE_PATH: \"D:/custom/database.sqlite3\",",
+      "context": "ADDONE_CONFIG_DIR: \"D:/legacy/config\",",
+      "matchedCase": "upper",
+      "primaryClass": "runtime-symbols",
+      "classes": [
+        "runtime-symbols",
+        "environment-keys",
+        "paths",
+        "tests"
+      ]
+    },
+    {
+      "id": "test/features/launch/development-launch.test.ts:44:7",
+      "path": "test/features/launch/development-launch.test.ts",
+      "locationKind": "content",
+      "line": 44,
+      "column": 7,
+      "value": "ADDONE",
+      "context": "ADDONE_DATA_DIR: \"D:/legacy/data\",",
+      "matchedCase": "upper",
+      "primaryClass": "runtime-symbols",
+      "classes": [
+        "runtime-symbols",
+        "environment-keys",
+        "paths",
+        "tests"
+      ]
+    },
+    {
+      "id": "test/features/launch/development-launch.test.ts:45:7",
+      "path": "test/features/launch/development-launch.test.ts",
+      "locationKind": "content",
+      "line": 45,
+      "column": 7,
+      "value": "ADDONE",
+      "context": "ADDONE_RUNTIME_DIR: \"D:/legacy/runtime\",",
+      "matchedCase": "upper",
+      "primaryClass": "runtime-symbols",
+      "classes": [
+        "runtime-symbols",
+        "environment-keys",
+        "paths",
+        "tests"
+      ]
+    },
+    {
+      "id": "test/features/launch/development-launch.test.ts:46:7",
+      "path": "test/features/launch/development-launch.test.ts",
+      "locationKind": "content",
+      "line": 46,
+      "column": 7,
+      "value": "ADDONE",
+      "context": "ADDONE_DATABASE_PATH: \"D:/legacy/database.sqlite3\",",
       "matchedCase": "upper",
       "primaryClass": "runtime-symbols",
       "classes": [
@@ -17036,7 +15366,7 @@
       "line": 47,
       "column": 7,
       "value": "ADDONE",
-      "context": "ADDONE_CONFIG_DIR: resolve(\"D:/custom/config\"),",
+      "context": "ADDONE_ENDPOINT: \"legacy-endpoint\",",
       "matchedCase": "upper",
       "primaryClass": "runtime-symbols",
       "classes": [
@@ -17047,61 +15377,26 @@
       ]
     },
     {
-      "id": "test/features/launch/development-launch.test.ts:48:7",
-      "path": "test/features/launch/development-launch.test.ts",
-      "locationKind": "content",
-      "line": 48,
-      "column": 7,
-      "value": "ADDONE",
-      "context": "ADDONE_DATA_DIR: resolve(\"D:/custom/data\"),",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/features/launch/development-launch.test.ts:49:7",
-      "path": "test/features/launch/development-launch.test.ts",
-      "locationKind": "content",
-      "line": 49,
-      "column": 7,
-      "value": "ADDONE",
-      "context": "ADDONE_RUNTIME_DIR: resolve(\"D:/custom/runtime\"),",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/features/launch/development-launch.test.ts:50:7",
+      "id": "test/features/launch/development-launch.test.ts:50:26",
       "path": "test/features/launch/development-launch.test.ts",
       "locationKind": "content",
       "line": 50,
-      "column": 7,
-      "value": "ADDONE",
-      "context": "ADDONE_DATABASE_PATH: resolve(\"D:/custom/database.sqlite3\"),",
-      "matchedCase": "upper",
+      "column": 26,
+      "value": "AddOne",
+      "context": "const paths = resolveAddOnePaths(legacy);",
+      "matchedCase": "title-or-mixed",
       "primaryClass": "runtime-symbols",
       "classes": [
         "runtime-symbols",
-        "environment-keys",
         "paths",
         "tests"
       ]
     },
     {
-      "id": "test/features/launch/development-launch.test.ts:60:91",
+      "id": "test/features/launch/development-launch.test.ts:83:91",
       "path": "test/features/launch/development-launch.test.ts",
       "locationKind": "content",
-      "line": 60,
+      "line": 83,
       "column": 91,
       "value": "addone",
       "context": "expect(JSON.parse(owned.stdout)).toMatchObject({ launchArguments: [], directProfile: \"addone\" });",
@@ -17374,38 +15669,6 @@
       ]
     },
     {
-      "id": "test/features/launch/prepare-launch.test.ts:20:7",
-      "path": "test/features/launch/prepare-launch.test.ts",
-      "locationKind": "content",
-      "line": 20,
-      "column": 7,
-      "value": "ADDONE",
-      "context": "ADDONE_LAUNCH_ARGUMENTS_JSON: \"[]\",",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/features/launch/prepare-launch.test.ts:49:31",
-      "path": "test/features/launch/prepare-launch.test.ts",
-      "locationKind": "content",
-      "line": 49,
-      "column": 31,
-      "value": "ADDONE",
-      "context": "expect(result.environment.ADDONE_LAUNCH_ARGUMENTS_JSON).toBe('[\"--no-approve\"]');",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "tests"
-      ]
-    },
-    {
       "id": "test/features/launch/profile-isolation.integration.test.ts:24:51",
       "path": "test/features/launch/profile-isolation.integration.test.ts",
       "locationKind": "content",
@@ -17670,61 +15933,13 @@
       ]
     },
     {
-      "id": "test/features/launch/profile-paths.test.ts:29:9",
+      "id": "test/features/launch/profile-paths.test.ts:29:22",
       "path": "test/features/launch/profile-paths.test.ts",
       "locationKind": "content",
       "line": 29,
-      "column": 9,
+      "column": 22,
       "value": "ADDONE",
-      "context": "ADDONE_PROFILE_HOME: root,",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/features/launch/profile-paths.test.ts:30:9",
-      "path": "test/features/launch/profile-paths.test.ts",
-      "locationKind": "content",
-      "line": 30,
-      "column": 9,
-      "value": "ADDONE",
-      "context": "ADDONE_CONFIG_DIR: \"ignored-config\",",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/features/launch/profile-paths.test.ts:31:9",
-      "path": "test/features/launch/profile-paths.test.ts",
-      "locationKind": "content",
-      "line": 31,
-      "column": 9,
-      "value": "ADDONE",
-      "context": "ADDONE_DATA_DIR: \"ignored-data\",",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/features/launch/profile-paths.test.ts:32:9",
-      "path": "test/features/launch/profile-paths.test.ts",
-      "locationKind": "content",
-      "line": 32,
-      "column": 9,
-      "value": "ADDONE",
-      "context": "ADDONE_RUNTIME_DIR: \"ignored-runtime\",",
+      "context": "environment: { ADDONE_PROFILE_HOME: legacy },",
       "matchedCase": "upper",
       "primaryClass": "runtime-symbols",
       "classes": [
@@ -18355,22 +16570,6 @@
       "primaryClass": "runtime-symbols",
       "classes": [
         "runtime-symbols",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/native-host-protocol/protocol.test.ts:32:20",
-      "path": "test/foundation/native-host-protocol/protocol.test.ts",
-      "locationKind": "content",
-      "line": 32,
-      "column": 20,
-      "value": "ADDONE",
-      "context": "environment: { ADDONE_SESSION: id },",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
         "tests"
       ]
     },
@@ -19162,22 +17361,6 @@
       ]
     },
     {
-      "id": "test/foundation/release/bootstrap-boundary.test.ts:32:46",
-      "path": "test/foundation/release/bootstrap-boundary.test.ts",
-      "locationKind": "content",
-      "line": 32,
-      "column": 46,
-      "value": "ADDONE",
-      "context": "expect(bootstrap).toContain(\"environment.ADDONE_LAUNCH_PROFILE = launchProfileId\");",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "tests"
-      ]
-    },
-    {
       "id": "test/foundation/release/cohort-activation.test.ts:56:16",
       "path": "test/foundation/release/cohort-activation.test.ts",
       "locationKind": "content",
@@ -19646,38 +17829,6 @@
       ]
     },
     {
-      "id": "test/foundation/release/update-transition.integration.test.ts:107:22",
-      "path": "test/foundation/release/update-transition.integration.test.ts",
-      "locationKind": "content",
-      "line": 107,
-      "column": 22,
-      "value": "ADDONE",
-      "context": "environment: { ADDONE_DATA_DIR: dataDir, ADDONE_RUNTIME_DIR: resolve(root, \"runtime\") },",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/release/update-transition.integration.test.ts:107:48",
-      "path": "test/foundation/release/update-transition.integration.test.ts",
-      "locationKind": "content",
-      "line": 107,
-      "column": 48,
-      "value": "ADDONE",
-      "context": "environment: { ADDONE_DATA_DIR: dataDir, ADDONE_RUNTIME_DIR: resolve(root, \"runtime\") },",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "tests"
-      ]
-    },
-    {
       "id": "test/foundation/release/update-transition.integration.test.ts:165:16",
       "path": "test/foundation/release/update-transition.integration.test.ts",
       "locationKind": "content",
@@ -19693,22 +17844,6 @@
       ]
     },
     {
-      "id": "test/foundation/release/update.test.ts:4:3",
-      "path": "test/foundation/release/update.test.ts",
-      "locationKind": "content",
-      "line": 4,
-      "column": 3,
-      "value": "ADDONE",
-      "context": "ADDONE_PACKAGE,",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "tests"
-      ]
-    },
-    {
       "id": "test/foundation/release/update.test.ts:27:92",
       "path": "test/foundation/release/update.test.ts",
       "locationKind": "content",
@@ -19720,119 +17855,6 @@
       "primaryClass": "runtime-symbols",
       "classes": [
         "runtime-symbols",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/release/update.test.ts:100:48",
-      "path": "test/foundation/release/update.test.ts",
-      "locationKind": "content",
-      "line": 100,
-      "column": 48,
-      "value": "ADDONE",
-      "context": "{ command: \"npm\", arguments: [\"view\", `${ADDONE_PACKAGE}@latest`, \"version\"], request: { captureStdout: true } },",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/release/update.test.ts:102:63",
-      "path": "test/foundation/release/update.test.ts",
-      "locationKind": "content",
-      "line": 102,
-      "column": 63,
-      "value": "ADDONE",
-      "context": "{ command: \"npm\", arguments: [\"install\", \"--global\", `${ADDONE_PACKAGE}@${latest}`], request: { captureStdout: false } },",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/release/update.test.ts:120:48",
-      "path": "test/foundation/release/update.test.ts",
-      "locationKind": "content",
-      "line": 120,
-      "column": 48,
-      "value": "ADDONE",
-      "context": "{ command: \"npm\", arguments: [\"view\", `${ADDONE_PACKAGE}@latest`, \"version\"], request: { captureStdout: true } },",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/release/update.test.ts:122:63",
-      "path": "test/foundation/release/update.test.ts",
-      "locationKind": "content",
-      "line": 122,
-      "column": 63,
-      "value": "ADDONE",
-      "context": "{ command: \"npm\", arguments: [\"install\", \"--global\", `${ADDONE_PACKAGE}@1.3.0`], request: { captureStdout: false } },",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/release/update.test.ts:142:48",
-      "path": "test/foundation/release/update.test.ts",
-      "locationKind": "content",
-      "line": 142,
-      "column": 48,
-      "value": "ADDONE",
-      "context": "{ command: \"npm\", arguments: [\"view\", `${ADDONE_PACKAGE}@next`, \"version\"], request: { captureStdout: true } },",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/release/update.test.ts:144:63",
-      "path": "test/foundation/release/update.test.ts",
-      "locationKind": "content",
-      "line": 144,
-      "column": 63,
-      "value": "ADDONE",
-      "context": "{ command: \"npm\", arguments: [\"install\", \"--global\", `${ADDONE_PACKAGE}@1.3.0-dev.1`], request: { captureStdout: false } },",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/release/update.test.ts:147:67",
-      "path": "test/foundation/release/update.test.ts",
-      "locationKind": "content",
-      "line": 147,
-      "column": 67,
-      "value": "ADDONE",
-      "context": "expect(harness.stdout.join(\"\")).toContain(`A1 is installing ${ADDONE_PACKAGE}@1.3.0-dev.1.\\n`);",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "paths",
         "tests"
       ]
     },
@@ -19961,54 +17983,6 @@
       "classes": [
         "runtime-symbols",
         "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/storage/storage.test.ts:210:20",
-      "path": "test/foundation/storage/storage.test.ts",
-      "locationKind": "content",
-      "line": 210,
-      "column": 20,
-      "value": "ADDONE",
-      "context": "environment: { ADDONE_PANE: id },",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/structured-agent-runtime/handshake.test.ts:3:3",
-      "path": "test/foundation/structured-agent-runtime/handshake.test.ts",
-      "locationKind": "content",
-      "line": 3,
-      "column": 3,
-      "value": "ADDONE",
-      "context": "ADDONE_STRUCTURED_FLOW_LIMITS,",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/structured-agent-runtime/handshake.test.ts:67:10",
-      "path": "test/foundation/structured-agent-runtime/handshake.test.ts",
-      "locationKind": "content",
-      "line": 67,
-      "column": 10,
-      "value": "ADDONE",
-      "context": "...ADDONE_STRUCTURED_FLOW_LIMITS,",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
         "tests"
       ]
     },
@@ -20168,103 +18142,6 @@
       "classes": [
         "runtime-symbols",
         "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/transparent-terminal/transparent-main.test.ts:14:41",
-      "path": "test/foundation/transparent-terminal/transparent-main.test.ts",
-      "locationKind": "content",
-      "line": 14,
-      "column": 41,
-      "value": "ADDONE",
-      "context": "expect(main).toContain(\"environment.ADDONE_LAUNCH_PROFILE\");",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/transparent-terminal/transparent-main.test.ts:26:31",
-      "path": "test/foundation/transparent-terminal/transparent-main.test.ts",
-      "locationKind": "content",
-      "line": 26,
-      "column": 31,
-      "value": "ADDONE",
-      "context": "expect(source).toContain(\"ADDONE_DATA_DIR\");",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/transparent-terminal/transparent-main.test.ts:27:57",
-      "path": "test/foundation/transparent-terminal/transparent-main.test.ts",
-      "locationKind": "content",
-      "line": 27,
-      "column": 57,
-      "value": "addone",
-      "context": "expect(source).toContain(\"install/node_modules/.bin/addone.cmd\");",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "artifacts",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/transparent-terminal/transparent-native-launcher.test.ts:15:18",
-      "path": "test/foundation/transparent-terminal/transparent-native-launcher.test.ts",
-      "locationKind": "content",
-      "line": 15,
-      "column": 18,
-      "value": "ADDONE",
-      "context": "environment: { ADDONE_TEST_VALUE: \"exact\" }, terminalType: \"xterm-256color\", dimensions: { columns: 80, rows: 24 },",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/transparent-terminal/transparent-native-launcher.test.ts:26:46",
-      "path": "test/foundation/transparent-terminal/transparent-native-launcher.test.ts",
-      "locationKind": "content",
-      "line": 26,
-      "column": 46,
-      "value": "ADDONE",
-      "context": "expect(fixture.options()?.env).toEqual({ ADDONE_TEST_VALUE: \"exact\", TERM: \"xterm-256color\" });",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/workspace-contracts/contracts.test.ts:61:20",
-      "path": "test/foundation/workspace-contracts/contracts.test.ts",
-      "locationKind": "content",
-      "line": 61,
-      "column": 20,
-      "value": "ADDONE",
-      "context": "environment: { ADDONE_PANE: id },",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
         "tests"
       ]
     },
@@ -20780,23 +18657,6 @@
       ]
     },
     {
-      "id": "test/repository-governance/pinned-pi-source-ledger.test.ts:32:28",
-      "path": "test/repository-governance/pinned-pi-source-ledger.test.ts",
-      "locationKind": "content",
-      "line": 32,
-      "column": 28,
-      "value": "ADDONE",
-      "context": "env: { ...process.env, ADDONE_PI_SOURCE_LEDGER_PATH: path, ...environment },",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "paths",
-        "tests"
-      ]
-    },
-    {
       "id": "test/repository-governance/pinned-pi-source-ledger.test.ts:98:51",
       "path": "test/repository-governance/pinned-pi-source-ledger.test.ts",
       "locationKind": "content",
@@ -20813,22 +18673,6 @@
       ]
     },
     {
-      "id": "test/repository-governance/pinned-pi-source-ledger.test.ts:101:49",
-      "path": "test/repository-governance/pinned-pi-source-ledger.test.ts",
-      "locationKind": "content",
-      "line": 101,
-      "column": 49,
-      "value": "ADDONE",
-      "context": "const result = await runFixture(() => {}, { ADDONE_PI_SOURCE_SCAN_ROOT: root });",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "tests"
-      ]
-    },
-    {
       "id": "test/repository-governance/pinned-pi-source-ledger.test.ts:107:51",
       "path": "test/repository-governance/pinned-pi-source-ledger.test.ts",
       "locationKind": "content",
@@ -20841,22 +18685,6 @@
       "classes": [
         "runtime-symbols",
         "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/repository-governance/pinned-pi-source-ledger.test.ts:111:49",
-      "path": "test/repository-governance/pinned-pi-source-ledger.test.ts",
-      "locationKind": "content",
-      "line": 111,
-      "column": 49,
-      "value": "ADDONE",
-      "context": "const result = await runFixture(() => {}, { ADDONE_PI_PORT_ROOT: root });",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
         "tests"
       ]
     },
@@ -21146,5 +18974,5 @@
       ]
     }
   ],
-  "generatedAt": "2026-08-20T08:40:31.899Z"
+  "generatedAt": "2026-08-20T08:45:43.046Z"
 }

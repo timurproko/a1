@@ -29,7 +29,7 @@ function session(id: string): TerminalSessionLaunch {
     executable: "C:\\Windows\\System32\\cmd.exe",
     arguments: ["/d", "/q"],
     cwd: "C:\\work",
-    environment: { ADDONE_SESSION: id },
+    environment: { A1_TERMINAL_SESSION_ID: id },
     dimensions: { columns: 80, rows: 24, widthPixels: 640, heightPixels: 480 },
     inactivity: "live-unpainted",
   };

@@ -104,7 +104,7 @@ describe("release-gating N-1 update transitions", () => {
     const result = await runSelfUpdate({
       packageRoot,
       channel,
-      environment: { ADDONE_DATA_DIR: dataDir, ADDONE_RUNTIME_DIR: resolve(root, "runtime") },
+      environment: { A1_DATA_DIR: dataDir, A1_RUNTIME_DIR: resolve(root, "runtime") },
       fileSystem: { readFile: async path => await import("node:fs/promises").then(fs => fs.readFile(path, "utf8")), realpath: async path => resolve(path) },
       lifecycle,
       transactionStore: transaction,

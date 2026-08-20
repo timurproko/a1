@@ -1518,7 +1518,7 @@ fn write_color(out: &mut String, base: u8, color: CellColor) {
 }
 
 fn trace(step: &str) {
-    if std::env::var_os("ADDONE_PROBE_TRACE").is_some() {
+    if std::env::var_os("A1_PROBE_TRACE").is_some() {
         eprintln!("ghostty: {step}");
     }
 }

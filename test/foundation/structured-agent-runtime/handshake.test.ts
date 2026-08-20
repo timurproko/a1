@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  ADDONE_STRUCTURED_FLOW_LIMITS,
+  A1_STRUCTURED_FLOW_LIMITS,
   OPTIONAL_STRUCTURED_FEATURES,
   REQUIRED_STRUCTURED_FEATURES,
   STRUCTURED_ADAPTER_ENVELOPE,
@@ -64,7 +64,7 @@ describe("structured adapter handshake", () => {
     expect(result.capability.cancellation).toBe("correlated");
     expect(result.capability.attachmentTypes).toEqual(["text", "json"]);
     expect(result.capability.flow).toEqual({
-      ...ADDONE_STRUCTURED_FLOW_LIMITS,
+      ...A1_STRUCTURED_FLOW_LIMITS,
       maxSnapshotBytes: 512 * 1024,
       maxConcurrentCommands: 2,
     });

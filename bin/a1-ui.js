@@ -2,7 +2,7 @@
 
 const { runSelectedInteractiveRuntime } = await import("../dist/src/features/launch/index.js");
 
-runSelectedInteractiveRuntime(process.env.ADDONE_LAUNCH_PROFILE ?? "addone", {
+runSelectedInteractiveRuntime(process.env.A1_LAUNCH_PROFILE ?? "addone", {
   ownedUi: async () => {
     const { runOwnedUi } = await import("../dist/src/features/owned-ui/index.js");
     return await runOwnedUi({ cwd: process.cwd() });

@@ -1,5 +1,5 @@
 import { prerelease, valid } from "semver";
-import { ADDONE_PACKAGE_NAME } from "./release.js";
+import { A1_PACKAGE_NAME } from "./release.js";
 
 export interface StableReleaseEvidenceInput {
   readonly packageName: string;
@@ -33,7 +33,7 @@ export interface StableRegistryVerificationOptions {
 }
 
 export function createStableReleaseEvidence(input: StableReleaseEvidenceInput): StableReleaseEvidence {
-  if (input.packageName !== ADDONE_PACKAGE_NAME) throw new Error(`unexpected stable package: ${input.packageName}`);
+  if (input.packageName !== A1_PACKAGE_NAME) throw new Error(`unexpected stable package: ${input.packageName}`);
   if (valid(input.version) === null || prerelease(input.version) !== null) throw new Error(`stable release requires an exact stable version: ${input.version}`);
   if (input.tag !== `v${input.version}`) throw new Error(`stable tag ${input.tag} does not match v${input.version}`);
   if (!/^sha512-[A-Za-z0-9+/]+={0,2}$/.test(input.integrity)) throw new Error("stable release integrity is malformed");

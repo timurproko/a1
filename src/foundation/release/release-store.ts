@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { chmod, copyFile, lstat, mkdir, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
-import { ADDONE_PACKAGE_NAME, deriveReleaseIdentity, resolveWithin, type AddOneReleaseIdentity, type ReleaseFileIdentity } from "./release.js";
+import { A1_PACKAGE_NAME, deriveReleaseIdentity, resolveWithin, type AddOneReleaseIdentity, type ReleaseFileIdentity } from "./release.js";
 
 export const RELEASE_MANIFEST = ".addone-release.json";
 
@@ -67,8 +67,8 @@ export async function verifyMaterializedRelease(
 
 export async function assertImmutableExecutionRoot(release: MaterializedRelease, dataDir: string): Promise<void> {
   await verifyMaterializedRelease(release.releaseRoot, release, resolve(dataDir, "releases"));
-  if (!process.env.ADDONE_RELEASE_ROOT) throw new Error("persistent AddOne process has no immutable release root");
-  const selected = await realpath(process.env.ADDONE_RELEASE_ROOT);
+  if (!process.env.A1_RELEASE_ROOT) throw new Error("persistent AddOne process has no immutable release root");
+  const selected = await realpath(process.env.A1_RELEASE_ROOT);
   if (selected !== release.releaseRoot) throw new Error("persistent AddOne process selected a different immutable release root");
 }
 
@@ -91,7 +91,7 @@ async function verifyFile(root: string, file: ReleaseFileIdentity): Promise<void
 }
 
 function validateManifest(value: AddOneReleaseIdentity): void {
-  if (value.packageName !== ADDONE_PACKAGE_NAME || typeof value.packageVersion !== "string") throw new Error("invalid AddOne release manifest metadata");
+  if (value.packageName !== A1_PACKAGE_NAME || typeof value.packageVersion !== "string") throw new Error("invalid AddOne release manifest metadata");
   if (!/^[a-f0-9]{64}$/.test(value.contentDigest) || !/^[0-9A-Za-z.+_-]+-[a-f0-9]{20}$/.test(value.releaseId)) throw new Error("invalid AddOne release identity");
   if (!Array.isArray(value.files) || value.files.length === 0) throw new Error("release manifest contains no files");
   for (const file of value.files) {

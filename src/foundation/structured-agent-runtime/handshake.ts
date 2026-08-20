@@ -23,7 +23,7 @@ export const OPTIONAL_STRUCTURED_FEATURES = [
 ] as const;
 export type StructuredProtocolFeature = typeof REQUIRED_STRUCTURED_FEATURES[number] | typeof OPTIONAL_STRUCTURED_FEATURES[number];
 
-export const ADDONE_STRUCTURED_FLOW_LIMITS: StructuredFlowLimits = Object.freeze({
+export const A1_STRUCTURED_FLOW_LIMITS: StructuredFlowLimits = Object.freeze({
   maxEventBytes: 64 * 1024,
   maxSnapshotBytes: 1024 * 1024,
   maxAttachmentBytes: 2 * 1024 * 1024,
@@ -82,7 +82,7 @@ export function localStructuredAdapterHello(): StructuredAdapterPeerHello {
     envelopeRevision: STRUCTURED_ADAPTER_ENVELOPE_REVISION,
     requiredFeatures: REQUIRED_STRUCTURED_FEATURES,
     optionalFeatures: OPTIONAL_STRUCTURED_FEATURES,
-    flowLimits: ADDONE_STRUCTURED_FLOW_LIMITS,
+    flowLimits: A1_STRUCTURED_FLOW_LIMITS,
   };
 }
 

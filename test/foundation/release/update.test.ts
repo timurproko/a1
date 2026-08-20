@@ -1,7 +1,7 @@
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
-  ADDONE_PACKAGE,
+  A1_PACKAGE,
   runSelfUpdate,
   type ProcessRequest,
   type ProcessResult,
@@ -97,9 +97,9 @@ describe("A1 self-update orchestration", () => {
     await expect(runSelfUpdate(harness)).resolves.toBe(0);
 
     expect(harness.invocations).toEqual([
-      { command: "npm", arguments: ["view", `${ADDONE_PACKAGE}@latest`, "version"], request: { captureStdout: true } },
+      { command: "npm", arguments: ["view", `${A1_PACKAGE}@latest`, "version"], request: { captureStdout: true } },
       { command: "npm", arguments: ["root", "--global"], request: { captureStdout: true } },
-      { command: "npm", arguments: ["install", "--global", `${ADDONE_PACKAGE}@${latest}`], request: { captureStdout: false } },
+      { command: "npm", arguments: ["install", "--global", `${A1_PACKAGE}@${latest}`], request: { captureStdout: false } },
     ]);
     expect(harness.stdout.join("")).toContain(`A1 updated successfully: ${latest} (stable).`);
   });
@@ -117,9 +117,9 @@ describe("A1 self-update orchestration", () => {
     await expect(runSelfUpdate(harness)).resolves.toBe(0);
 
     expect(harness.invocations).toEqual([
-      { command: "npm", arguments: ["view", `${ADDONE_PACKAGE}@latest`, "version"], request: { captureStdout: true } },
+      { command: "npm", arguments: ["view", `${A1_PACKAGE}@latest`, "version"], request: { captureStdout: true } },
       { command: "npm", arguments: ["root", "--global"], request: { captureStdout: true } },
-      { command: "npm", arguments: ["install", "--global", `${ADDONE_PACKAGE}@1.3.0`], request: { captureStdout: false } },
+      { command: "npm", arguments: ["install", "--global", `${A1_PACKAGE}@1.3.0`], request: { captureStdout: false } },
     ]);
     expect(harness.stdout.join("")).toContain("A1 update (stable): 1.2.3 → 1.3.0.");
     expect(harness.stdout.join("")).toContain("A1 updated successfully: 1.3.0 (stable).");
@@ -139,12 +139,12 @@ describe("A1 self-update orchestration", () => {
     await expect(runSelfUpdate({ ...harness, channel: "next" })).resolves.toBe(0);
 
     expect(harness.invocations).toEqual([
-      { command: "npm", arguments: ["view", `${ADDONE_PACKAGE}@next`, "version"], request: { captureStdout: true } },
+      { command: "npm", arguments: ["view", `${A1_PACKAGE}@next`, "version"], request: { captureStdout: true } },
       { command: "npm", arguments: ["root", "--global"], request: { captureStdout: true } },
-      { command: "npm", arguments: ["install", "--global", `${ADDONE_PACKAGE}@1.3.0-dev.1`], request: { captureStdout: false } },
+      { command: "npm", arguments: ["install", "--global", `${A1_PACKAGE}@1.3.0-dev.1`], request: { captureStdout: false } },
     ]);
     expect(harness.stdout.join("")).toContain("A1 update (next): 1.3.0-dev.0 → 1.3.0-dev.1.");
-    expect(harness.stdout.join("")).toContain(`A1 is installing ${ADDONE_PACKAGE}@1.3.0-dev.1.\n`);
+    expect(harness.stdout.join("")).toContain(`A1 is installing ${A1_PACKAGE}@1.3.0-dev.1.\n`);
     expect(harness.stdout.join("")).not.toContain("globally from the next channel");
     expect(harness.stdout.join("")).toContain("A1 updated successfully: 1.3.0-dev.1 (next).");
   });

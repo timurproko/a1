@@ -21,7 +21,7 @@ export async function runBootstrap(options: BootstrapOptions): Promise<number> {
   const environment = { ...(options.environment ?? process.env) };
   const launchProfileId = options.launchIntent?.profile.id ?? "addone";
   assertLaunchProfileId(launchProfileId);
-  environment.ADDONE_LAUNCH_PROFILE = launchProfileId;
+  environment.A1_LAUNCH_PROFILE = launchProfileId;
   const output = options.output ?? process.stderr;
   const paths = resolveAddOnePaths(environment);
   await mkdir(paths.runtimeDir, { recursive: true, mode: 0o700 });
@@ -147,9 +147,9 @@ async function launchUi(release: MaterializedRelease, environment: NodeJS.Proces
 export function releaseEnvironment(environment: NodeJS.ProcessEnv, release: MaterializedRelease): NodeJS.ProcessEnv {
   return {
     ...environment,
-    ADDONE_RELEASE_ID: release.releaseId,
-    ADDONE_RELEASE_ROOT: release.releaseRoot,
-    ADDONE_RELEASE_DIGEST: release.contentDigest,
+    A1_RELEASE_ID: release.releaseId,
+    A1_RELEASE_ROOT: release.releaseRoot,
+    A1_RELEASE_DIGEST: release.contentDigest,
   };
 }
 

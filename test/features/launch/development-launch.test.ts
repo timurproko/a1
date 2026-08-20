@@ -19,13 +19,13 @@ describe("repository-local development launch", () => {
     expect(first.developmentRoot).toContain(first.checkoutId);
     expect(first.developmentRoot).toContain("0.1.4-build");
     expect(first.developmentRoot).toContain(first.instanceId);
-    expect(first.environment.ADDONE_RUNTIME_DIR).toBe(resolve(first.developmentRoot, "runtime"));
-    expect(first.environment.ADDONE_DATABASE_PATH).toBe(resolve(first.developmentRoot, "data/control.sqlite3"));
+    expect(first.environment.A1_RUNTIME_DIR).toBe(resolve(first.developmentRoot, "runtime"));
+    expect(first.environment.A1_DATABASE_PATH).toBe(resolve(first.developmentRoot, "data/control.sqlite3"));
     expect(resolveAddOnePaths(first.environment).endpoint).not.toBe(resolveAddOnePaths(second.environment).endpoint);
   });
 
   it("allows an explicit instance selector when intentional reconnection is needed", () => {
-    const source = { ADDONE_DEV_INSTANCE_ID: "shared-debug-instance" };
+    const source = { A1_DEV_INSTANCE_ID: "shared-debug-instance" };
     const first = resolveDevelopmentLaunchEnvironment("D:/Git/a1", "release", source, "D:/temp");
     const second = resolveDevelopmentLaunchEnvironment("D:/Git/a1", "release", source, "D:/temp");
 
@@ -34,20 +34,43 @@ describe("repository-local development launch", () => {
     expect(resolveAddOnePaths(first.environment).endpoint).toBe(resolveAddOnePaths(second.environment).endpoint);
   });
 
+  it("ignores legacy-only environment overrides", () => {
+    const legacy = {
+      HOME: "D:/home",
+      USERPROFILE: "D:/home",
+      ADDONE_DEV_INSTANCE_ID: "legacy-instance",
+      ADDONE_DEV_ROOT: "D:/legacy/development",
+      ADDONE_CONFIG_DIR: "D:/legacy/config",
+      ADDONE_DATA_DIR: "D:/legacy/data",
+      ADDONE_RUNTIME_DIR: "D:/legacy/runtime",
+      ADDONE_DATABASE_PATH: "D:/legacy/database.sqlite3",
+      ADDONE_ENDPOINT: "legacy-endpoint",
+    };
+    const launch = resolveDevelopmentLaunchEnvironment("D:/Git/a1", "release", legacy, "D:/temp");
+    const paths = resolveAddOnePaths(legacy);
+
+    expect(launch.developmentRoot).not.toContain("legacy/development");
+    expect(launch.environment.A1_CONFIG_DIR).not.toContain("legacy/config");
+    expect(launch.environment.A1_DATA_DIR).not.toContain("legacy/data");
+    expect(launch.environment.A1_RUNTIME_DIR).not.toContain("legacy/runtime");
+    expect(paths.databasePath).not.toContain("legacy/database.sqlite3");
+    expect(paths.endpoint).not.toBe("legacy-endpoint");
+  });
+
   it("preserves explicit development path overrides", () => {
     const environment = resolveDevelopmentLaunchEnvironment("D:/Git/a1", "release", {
-      ADDONE_DEV_ROOT: "D:/custom/root",
-      ADDONE_CONFIG_DIR: "D:/custom/config",
-      ADDONE_DATA_DIR: "D:/custom/data",
-      ADDONE_RUNTIME_DIR: "D:/custom/runtime",
-      ADDONE_DATABASE_PATH: "D:/custom/database.sqlite3",
+      A1_DEV_ROOT: "D:/custom/root",
+      A1_CONFIG_DIR: "D:/custom/config",
+      A1_DATA_DIR: "D:/custom/data",
+      A1_RUNTIME_DIR: "D:/custom/runtime",
+      A1_DATABASE_PATH: "D:/custom/database.sqlite3",
     }, "D:/temp").environment;
 
     expect(environment).toMatchObject({
-      ADDONE_CONFIG_DIR: resolve("D:/custom/config"),
-      ADDONE_DATA_DIR: resolve("D:/custom/data"),
-      ADDONE_RUNTIME_DIR: resolve("D:/custom/runtime"),
-      ADDONE_DATABASE_PATH: resolve("D:/custom/database.sqlite3"),
+      A1_CONFIG_DIR: resolve("D:/custom/config"),
+      A1_DATA_DIR: resolve("D:/custom/data"),
+      A1_RUNTIME_DIR: resolve("D:/custom/runtime"),
+      A1_DATABASE_PATH: resolve("D:/custom/database.sqlite3"),
     });
   });
 

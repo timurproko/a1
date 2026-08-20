@@ -236,7 +236,7 @@ export function commonParityEnvironment(profile, base = process.env) {
     PI_TELEMETRY: "0",
     PI_CODING_AGENT_DIR: profile,
     PI_CODING_AGENT_SESSION_DIR: join(profile, "sessions"),
-    ADDONE_PROFILE_HOME: resolve(profile, "..", ".."),
+    A1_PROFILE_HOME: resolve(profile, "..", ".."),
   };
 }
 

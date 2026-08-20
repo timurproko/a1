@@ -17,10 +17,10 @@ export interface TransparentForegroundOptions {
 
 export async function runTransparentForeground(options: TransparentForegroundOptions = {}): Promise<number> {
   const environment = { ...(options.environment ?? process.env) };
-  const profileId = options.profileId ?? environment.ADDONE_LAUNCH_PROFILE ?? "addone";
+  const profileId = options.profileId ?? environment.A1_LAUNCH_PROFILE ?? "addone";
   assertLaunchProfileId(profileId);
   const paths = resolveAddOnePaths(environment);
-  const client = new SupervisorClient(environment.ADDONE_RELEASE_ID);
+  const client = new SupervisorClient(environment.A1_RELEASE_ID);
   await client.connect(paths.endpoint);
   const ownerId = `foreground-broker-${randomUUID()}`;
   const profile = await launchProfile(environment, options, profileId);
@@ -47,10 +47,10 @@ async function launchProfile(
   options: TransparentForegroundOptions,
   profileId: LaunchProfileId,
 ): Promise<TransparentTerminalLaunchProfile> {
-  const executable = options.executable ?? environment.ADDONE_TERMINAL_EXECUTABLE ?? "pi";
+  const executable = options.executable ?? environment.A1_TERMINAL_EXECUTABLE ?? "pi";
   const arguments_ = options.arguments
-    ?? parseArguments(environment.ADDONE_LAUNCH_ARGUMENTS_JSON)
-    ?? parseArguments(environment.ADDONE_TERMINAL_ARGUMENTS_JSON)
+    ?? parseArguments(environment.A1_LAUNCH_ARGUMENTS_JSON)
+    ?? parseArguments(environment.A1_TERMINAL_ARGUMENTS_JSON)
     ?? [];
   const cwd = await realpath(options.cwd ?? process.cwd());
   const terminalType = environment.TERM?.trim() || "xterm-256color";
@@ -74,7 +74,7 @@ function parseArguments(source: string | undefined): readonly string[] | null {
   if (!source) return null;
   const value: unknown = JSON.parse(source);
   if (!Array.isArray(value) || value.some(item => typeof item !== "string")) {
-    throw new TypeError("ADDONE_TERMINAL_ARGUMENTS_JSON must be a JSON array of strings");
+    throw new TypeError("A1_TERMINAL_ARGUMENTS_JSON must be a JSON array of strings");
   }
   return value;
 }
@@ -82,7 +82,7 @@ function parseArguments(source: string | undefined): readonly string[] | null {
 function selectedChildEnvironment(environment: NodeJS.ProcessEnv): Readonly<Record<string, string>> {
   const selected: Record<string, string> = {};
   for (const [name, value] of Object.entries(environment)) {
-    if (value !== undefined && !name.startsWith("ADDONE_")) selected[name] = value;
+    if (value !== undefined && !name.startsWith("A1_")) selected[name] = value;
   }
   return selected;
 }

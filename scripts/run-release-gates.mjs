@@ -17,7 +17,7 @@ await writeFile(verdictPath, JSON.stringify({
   platform: platform(),
   architecture: arch(),
   osRelease: release(),
-  runnerLabel: process.env.ADDONE_RELEASE_RUNNER_LABEL ?? null,
+  runnerLabel: process.env.A1_RELEASE_RUNNER_LABEL ?? null,
   startedAt,
   completedAt: new Date().toISOString(),
   passed: failure === undefined,

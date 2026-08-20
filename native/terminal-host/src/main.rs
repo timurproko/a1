@@ -29,7 +29,7 @@ use crate::ghostty::{
 };
 use crate::workspace::{FixedLayout, FixedWorkspace, SessionLaunch};
 
-const ADDONE_PROTOCOL_VERSION: u32 = 1;
+const A1_PROTOCOL_VERSION: u32 = 1;
 const GHOSTTY_VT_COMMIT: &str = "c5a21edfcbc2d5b46540ad91b7980aca31f5f1f3";
 const PORTABLE_PTY_VERSION: &str = "0.9.0";
 const CROSSTERM_VERSION: &str = "0.29.0";
@@ -84,12 +84,12 @@ fn run_from_args(args: Vec<String>) -> Result<(), String> {
 
 fn print_provenance() {
     println!(
-        "{{\"schema\":\"addone-terminal-host-version-v1\",\"protocolVersion\":{ADDONE_PROTOCOL_VERSION},\"hostMode\":\"console-inside-existing-terminal\",\"desktopWindow\":false,\"libghosttyVtCommit\":\"{GHOSTTY_VT_COMMIT}\",\"portablePty\":\"{PORTABLE_PTY_VERSION}\",\"crossterm\":\"{CROSSTERM_VERSION}\"}}"
+        "{{\"schema\":\"addone-terminal-host-version-v1\",\"protocolVersion\":{A1_PROTOCOL_VERSION},\"hostMode\":\"console-inside-existing-terminal\",\"desktopWindow\":false,\"libghosttyVtCommit\":\"{GHOSTTY_VT_COMMIT}\",\"portablePty\":\"{PORTABLE_PTY_VERSION}\",\"crossterm\":\"{CROSSTERM_VERSION}\"}}"
     );
 }
 
 fn probe_trace(step: &str) {
-    if env::var_os("ADDONE_PROBE_TRACE").is_some() {
+    if env::var_os("A1_PROBE_TRACE").is_some() {
         eprintln!("probe: {step}");
     }
 }
@@ -244,7 +244,7 @@ fn probe() -> Result<(), String> {
     let scrollback_rows = terminal.scrollback_rows()?;
     terminal.scroll_delta(-1_000)?;
     let top = terminal.scrollbar()?;
-    if env::var_os("ADDONE_PROBE_TRACE").is_some() {
+    if env::var_os("A1_PROBE_TRACE").is_some() {
         eprintln!(
             "scrollbar bottom={bottom:?} top={top:?} scrollback_rows={scrollback_rows} viewport_active={}",
             terminal.viewport_active()?
@@ -254,7 +254,7 @@ fn probe() -> Result<(), String> {
         return Err("terminal scrollback probe did not move the viewport".to_owned());
     }
     let scrolled = terminal.frame()?;
-    if env::var_os("ADDONE_PROBE_TRACE").is_some() {
+    if env::var_os("A1_PROBE_TRACE").is_some() {
         eprintln!("scrolled frame: {scrolled:?}");
     }
     if !scrolled.contains("scroll-check-00") {
@@ -292,12 +292,12 @@ fn probe() -> Result<(), String> {
 }
 
 fn fixture_pane(argument: &str) -> Result<(), String> {
-    let pane_id = env::var("ADDONE_PANE_ID")
-        .map_err(|_| "fixture pane identity is unavailable".to_owned())?;
-    let session_id = env::var("ADDONE_TERMINAL_SESSION_ID")
+    let pane_id =
+        env::var("A1_PANE_ID").map_err(|_| "fixture pane identity is unavailable".to_owned())?;
+    let session_id = env::var("A1_TERMINAL_SESSION_ID")
         .map_err(|_| "fixture terminal-session identity is unavailable".to_owned())?;
     let token =
-        env::var("ADDONE_FIXTURE_TOKEN").map_err(|_| "fixture token is unavailable".to_owned())?;
+        env::var("A1_FIXTURE_TOKEN").map_err(|_| "fixture token is unavailable".to_owned())?;
     if token != argument {
         return Err("fixture exact argument did not match its environment".to_owned());
     }
@@ -306,13 +306,13 @@ fn fixture_pane(argument: &str) -> Result<(), String> {
         .to_string_lossy()
         .into_owned();
     println!(
-        "ADDONE_FIXTURE|{pane_id}|{session_id}|{token}|{cwd}|pid={}",
+        "A1_FIXTURE|{pane_id}|{session_id}|{token}|{cwd}|pid={}",
         std::process::id()
     );
     std::io::stdout()
         .flush()
         .map_err(|error| format!("flush fixture identity: {error}"))?;
-    let expected_input = env::var("ADDONE_FIXTURE_INPUT")
+    let expected_input = env::var("A1_FIXTURE_INPUT")
         .map_err(|_| "fixture input identity is unavailable".to_owned())?;
     let mut command = String::new();
     std::io::stdin()
@@ -324,7 +324,7 @@ fn fixture_pane(argument: &str) -> Result<(), String> {
             command.trim()
         ));
     }
-    println!("ADDONE_INPUT_ACK|{pane_id}|{expected_input}");
+    println!("A1_INPUT_ACK|{pane_id}|{expected_input}");
     std::io::stdout()
         .flush()
         .map_err(|error| format!("flush fixture input acknowledgement: {error}"))?;
@@ -367,9 +367,9 @@ fn probe_two_by_two() -> Result<(), String> {
                 arguments: vec!["--fixture-pane".to_owned(), token.clone()],
                 cwd: Some(cwd),
                 environment: vec![
-                    ("ADDONE_FIXTURE_TOKEN".to_owned(), token),
+                    ("A1_FIXTURE_TOKEN".to_owned(), token),
                     (
-                        "ADDONE_FIXTURE_INPUT".to_owned(),
+                        "A1_FIXTURE_INPUT".to_owned(),
                         format!("focused-input-{}", index + 1),
                     ),
                 ],
@@ -377,7 +377,7 @@ fn probe_two_by_two() -> Result<(), String> {
         });
         let mut expected = std::array::from_fn::<String, 4, _>(|index| {
             format!(
-                "ADDONE_FIXTURE|pane-{}|session-{}|exact-argument-{}|{}|pid=",
+                "A1_FIXTURE|pane-{}|session-{}|exact-argument-{}|{}|pid=",
                 index + 1,
                 index + 1,
                 index + 1,
@@ -462,14 +462,14 @@ fn probe_two_by_two() -> Result<(), String> {
             let isolated = transcripts.iter().enumerate().all(|(index, bytes)| {
                 let text = String::from_utf8_lossy(bytes);
                 let own = format!(
-                    "ADDONE_INPUT_ACK|pane-{}|focused-input-{}",
+                    "A1_INPUT_ACK|pane-{}|focused-input-{}",
                     index + 1,
                     index + 1
                 );
                 text.contains(&own)
                     && (0..4).filter(|other| *other != index).all(|other| {
                         !text.contains(&format!(
-                            "ADDONE_INPUT_ACK|pane-{}|focused-input-{}",
+                            "A1_INPUT_ACK|pane-{}|focused-input-{}",
                             index + 1,
                             other + 1
                         ))
