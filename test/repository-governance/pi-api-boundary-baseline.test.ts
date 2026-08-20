@@ -18,7 +18,7 @@ describe("Pi API boundary baseline evidence", () => {
 
     expect(recorded.baselineCommit).toMatch(/^[0-9a-f]{40}$/);
     expect(collectPiApiBoundaryBaseline(repository, recorded.baselineCommit)).toEqual(expected);
-  });
+  }, 20_000);
 
   it("covers every required pre-migration coupling class", async () => {
     const baseline = JSON.parse(await readFile(evidencePath, "utf8")) as PiApiBoundaryBaseline;

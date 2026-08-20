@@ -24,7 +24,8 @@ export class SessionFooter implements Component {
     const cost = usage?.cost ?? 0;
     const contextWindow = usage?.contextWindow ?? 0;
     const contextPercentValue = usage?.contextPercent ?? 0;
-    const contextPercent = usage?.contextPercent !== null ? contextPercentValue.toFixed(1) : "?";
+    const contextPercentSource = usage?.contextAvailable === false ? undefined : usage?.contextPercent;
+    const contextPercent = contextPercentSource !== null ? contextPercentValue.toFixed(1) : "?";
 
     let pwd = formatCwd(this.cwd, process.env.HOME || process.env.USERPROFILE);
     const branch = view.status.footer?.branch;

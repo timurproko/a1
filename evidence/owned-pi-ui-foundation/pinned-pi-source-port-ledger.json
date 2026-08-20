@@ -1636,7 +1636,7 @@
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Consumes neutral owned-UI view data instead of a fabricated concrete AgentSession while preserving footer layout and formatting.",
-      "localSha256": "f97667eadd0dbb6e6afc9c56dc10434355323c00ba573976245bb9632269231a",
+      "localSha256": "a1d98c6536ddba83f55c872e36eb15f93d3beba6e3e7ce391e7f8e40fb8d2c45",
       "approvedDeviations": [],
       "behaviorCategories": [
         "footer-status",
