@@ -41,21 +41,21 @@
     "explicit-obsolete-package-fixtures"
   ],
   "summary": {
-    "total": 1490,
-    "files": 227,
+    "total": 1435,
+    "files": 224,
     "byLocationKind": {
-      "content": 1464,
-      "path": 26
+      "content": 1411,
+      "path": 24
     },
     "byClass": {
-      "runtime-symbols": 692,
-      "diagnostics": 174,
-      "environment-keys": 159,
-      "paths": 508,
+      "runtime-symbols": 637,
+      "diagnostics": 160,
+      "environment-keys": 151,
+      "paths": 482,
       "schemas": 122,
-      "artifacts": 129,
+      "artifacts": 117,
       "native-names": 100,
-      "tests": 328,
+      "tests": 294,
       "current-docs-specs": 761,
       "historical-records": 167,
       "explicit-obsolete-package-fixtures": 8
@@ -141,69 +141,8 @@
       ]
     },
     {
-      "id": "bin/a1.js:5:17",
-      "path": "bin/a1.js",
-      "locationKind": "content",
-      "line": 5,
-      "column": 17,
-      "value": "AddOne",
-      "context": "const { dispatchAddOneCli } = await import(\"../dist/src/cli/index.js\");",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths"
-      ]
-    },
-    {
-      "id": "bin/a1.js:7:34",
-      "path": "bin/a1.js",
-      "locationKind": "content",
-      "line": 7,
-      "column": 34,
-      "value": "AddOne",
-      "context": "process.exitCode = await dispatchAddOneCli(process.argv.slice(2), {",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols"
-      ]
-    },
-    {
-      "id": "bin/addone-supervisor.js#path:5",
-      "path": "bin/addone-supervisor.js",
-      "locationKind": "path",
-      "line": null,
-      "column": 5,
-      "value": "addone",
-      "context": "bin/addone-supervisor.js",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "artifacts"
-      ]
-    },
-    {
-      "id": "bin/addone-ui.js#path:5",
-      "path": "bin/addone-ui.js",
-      "locationKind": "path",
-      "line": null,
-      "column": 5,
-      "value": "addone",
-      "context": "bin/addone-ui.js",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "artifacts"
-      ]
-    },
-    {
-      "id": "bin/addone-ui.js:5:43",
-      "path": "bin/addone-ui.js",
+      "id": "bin/a1-ui.js:5:43",
+      "path": "bin/a1-ui.js",
       "locationKind": "content",
       "line": 5,
       "column": 43,
@@ -217,8 +156,8 @@
       ]
     },
     {
-      "id": "bin/addone-ui.js:5:69",
-      "path": "bin/addone-ui.js",
+      "id": "bin/a1-ui.js:5:69",
+      "path": "bin/a1-ui.js",
       "locationKind": "content",
       "line": 5,
       "column": 69,
@@ -13363,23 +13302,7 @@
       "line": 24,
       "column": 7,
       "value": "addone",
-      "context": "const addoneCliPath = resolve(packageRoot, \"bin\", \"addone-ui.js\");",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "artifacts"
-      ]
-    },
-    {
-      "id": "scripts/run-pi-terminal-parity.mjs:24:52",
-      "path": "scripts/run-pi-terminal-parity.mjs",
-      "locationKind": "content",
-      "line": 24,
-      "column": 52,
-      "value": "addone",
-      "context": "const addoneCliPath = resolve(packageRoot, \"bin\", \"addone-ui.js\");",
+      "context": "const addoneCliPath = resolve(packageRoot, \"bin\", \"a1-ui.js\");",
       "matchedCase": "lower",
       "primaryClass": "runtime-symbols",
       "classes": [
@@ -13824,43 +13747,13 @@
       ]
     },
     {
-      "id": "scripts/start-local.mjs:21:5",
-      "path": "scripts/start-local.mjs",
-      "locationKind": "content",
-      "line": 21,
-      "column": 5,
-      "value": "ADDONE",
-      "context": "ADDONE_CONFIG_DIR: environment.ADDONE_CONFIG_DIR,",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys"
-      ]
-    },
-    {
-      "id": "scripts/start-local.mjs:21:36",
-      "path": "scripts/start-local.mjs",
-      "locationKind": "content",
-      "line": 21,
-      "column": 36,
-      "value": "ADDONE",
-      "context": "ADDONE_CONFIG_DIR: environment.ADDONE_CONFIG_DIR,",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys"
-      ]
-    },
-    {
       "id": "scripts/start-local.mjs:22:5",
       "path": "scripts/start-local.mjs",
       "locationKind": "content",
       "line": 22,
       "column": 5,
       "value": "ADDONE",
-      "context": "ADDONE_DATA_DIR: environment.ADDONE_DATA_DIR,",
+      "context": "ADDONE_CONFIG_DIR: environment.ADDONE_CONFIG_DIR,",
       "matchedCase": "upper",
       "primaryClass": "runtime-symbols",
       "classes": [
@@ -13869,13 +13762,13 @@
       ]
     },
     {
-      "id": "scripts/start-local.mjs:22:34",
+      "id": "scripts/start-local.mjs:22:36",
       "path": "scripts/start-local.mjs",
       "locationKind": "content",
       "line": 22,
-      "column": 34,
+      "column": 36,
       "value": "ADDONE",
-      "context": "ADDONE_DATA_DIR: environment.ADDONE_DATA_DIR,",
+      "context": "ADDONE_CONFIG_DIR: environment.ADDONE_CONFIG_DIR,",
       "matchedCase": "upper",
       "primaryClass": "runtime-symbols",
       "classes": [
@@ -13890,7 +13783,7 @@
       "line": 23,
       "column": 5,
       "value": "ADDONE",
-      "context": "ADDONE_RUNTIME_DIR: environment.ADDONE_RUNTIME_DIR,",
+      "context": "ADDONE_DATA_DIR: environment.ADDONE_DATA_DIR,",
       "matchedCase": "upper",
       "primaryClass": "runtime-symbols",
       "classes": [
@@ -13899,13 +13792,13 @@
       ]
     },
     {
-      "id": "scripts/start-local.mjs:23:37",
+      "id": "scripts/start-local.mjs:23:34",
       "path": "scripts/start-local.mjs",
       "locationKind": "content",
       "line": 23,
-      "column": 37,
+      "column": 34,
       "value": "ADDONE",
-      "context": "ADDONE_RUNTIME_DIR: environment.ADDONE_RUNTIME_DIR,",
+      "context": "ADDONE_DATA_DIR: environment.ADDONE_DATA_DIR,",
       "matchedCase": "upper",
       "primaryClass": "runtime-symbols",
       "classes": [
@@ -13920,6 +13813,36 @@
       "line": 24,
       "column": 5,
       "value": "ADDONE",
+      "context": "ADDONE_RUNTIME_DIR: environment.ADDONE_RUNTIME_DIR,",
+      "matchedCase": "upper",
+      "primaryClass": "runtime-symbols",
+      "classes": [
+        "runtime-symbols",
+        "environment-keys"
+      ]
+    },
+    {
+      "id": "scripts/start-local.mjs:24:37",
+      "path": "scripts/start-local.mjs",
+      "locationKind": "content",
+      "line": 24,
+      "column": 37,
+      "value": "ADDONE",
+      "context": "ADDONE_RUNTIME_DIR: environment.ADDONE_RUNTIME_DIR,",
+      "matchedCase": "upper",
+      "primaryClass": "runtime-symbols",
+      "classes": [
+        "runtime-symbols",
+        "environment-keys"
+      ]
+    },
+    {
+      "id": "scripts/start-local.mjs:25:5",
+      "path": "scripts/start-local.mjs",
+      "locationKind": "content",
+      "line": 25,
+      "column": 5,
+      "value": "ADDONE",
       "context": "ADDONE_DATABASE_PATH: environment.ADDONE_DATABASE_PATH,",
       "matchedCase": "upper",
       "primaryClass": "runtime-symbols",
@@ -13930,10 +13853,10 @@
       ]
     },
     {
-      "id": "scripts/start-local.mjs:24:39",
+      "id": "scripts/start-local.mjs:25:39",
       "path": "scripts/start-local.mjs",
       "locationKind": "content",
-      "line": 24,
+      "line": 25,
       "column": 39,
       "value": "ADDONE",
       "context": "ADDONE_DATABASE_PATH: environment.ADDONE_DATABASE_PATH,",
@@ -13946,38 +13869,10 @@
       ]
     },
     {
-      "id": "scripts/start-local.mjs:28:43",
+      "id": "scripts/start-local.mjs:30:85",
       "path": "scripts/start-local.mjs",
       "locationKind": "content",
-      "line": 28,
-      "column": 43,
-      "value": "addone",
-      "context": "const entry = directProfile === null ? \"addone.js\" : \"addone-ui.js\";",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols"
-      ]
-    },
-    {
-      "id": "scripts/start-local.mjs:28:57",
-      "path": "scripts/start-local.mjs",
-      "locationKind": "content",
-      "line": 28,
-      "column": 57,
-      "value": "addone",
-      "context": "const entry = directProfile === null ? \"addone.js\" : \"addone-ui.js\";",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols"
-      ]
-    },
-    {
-      "id": "scripts/start-local.mjs:29:85",
-      "path": "scripts/start-local.mjs",
-      "locationKind": "content",
-      "line": 29,
+      "line": 30,
       "column": 85,
       "value": "ADDONE",
       "context": "const childEnvironment = directProfile === null ? environment : { ...environment, ADDONE_LAUNCH_PROFILE: directProfile };",
@@ -13989,10 +13884,10 @@
       ]
     },
     {
-      "id": "scripts/start-local.mjs:47:40",
+      "id": "scripts/start-local.mjs:48:40",
       "path": "scripts/start-local.mjs",
       "locationKind": "content",
-      "line": 47,
+      "line": 48,
       "column": 40,
       "value": "addone",
       "context": "if (arguments_.length === 0) return \"addone\";",
@@ -14252,109 +14147,6 @@
       ]
     },
     {
-      "id": "src/cli/dispatch.ts:15:14",
-      "path": "src/cli/dispatch.ts",
-      "locationKind": "content",
-      "line": 15,
-      "column": 14,
-      "value": "ADDONE",
-      "context": "export const ADDONE_USAGE = \"Usage: a1 | a1 pi | a1 sandbox | a1 version | a1 update | a1 update:next\";",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics",
-        "environment-keys"
-      ]
-    },
-    {
-      "id": "src/cli/dispatch.ts:17:31",
-      "path": "src/cli/dispatch.ts",
-      "locationKind": "content",
-      "line": 17,
-      "column": 31,
-      "value": "AddOne",
-      "context": "export async function dispatchAddOneCli(",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols"
-      ]
-    },
-    {
-      "id": "src/cli/dispatch.ts:22:24",
-      "path": "src/cli/dispatch.ts",
-      "locationKind": "content",
-      "line": 22,
-      "column": 24,
-      "value": "AddOne",
-      "context": "const command = parseAddOneCommand(arguments_);",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols"
-      ]
-    },
-    {
-      "id": "src/cli/dispatch.ts:24:42",
-      "path": "src/cli/dispatch.ts",
-      "locationKind": "content",
-      "line": 24,
-      "column": 42,
-      "value": "ADDONE",
-      "context": "output.stderr(`${command.message}\\n${ADDONE_USAGE}\\n`);",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics",
-        "environment-keys",
-        "paths"
-      ]
-    },
-    {
-      "id": "src/cli/dispatch.ts:32:13",
-      "path": "src/cli/dispatch.ts",
-      "locationKind": "content",
-      "line": 32,
-      "column": 13,
-      "value": "AddOne",
-      "context": "export type AddOneCommand =",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols"
-      ]
-    },
-    {
-      "id": "src/cli/dispatch.ts:38:22",
-      "path": "src/cli/dispatch.ts",
-      "locationKind": "content",
-      "line": 38,
-      "column": 22,
-      "value": "AddOne",
-      "context": "export function parseAddOneCommand(arguments_: readonly string[]): AddOneCommand {",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols"
-      ]
-    },
-    {
-      "id": "src/cli/dispatch.ts:38:68",
-      "path": "src/cli/dispatch.ts",
-      "locationKind": "content",
-      "line": 38,
-      "column": 68,
-      "value": "AddOne",
-      "context": "export function parseAddOneCommand(arguments_: readonly string[]): AddOneCommand {",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols"
-      ]
-    },
-    {
       "id": "src/cli/dispatch.ts:39:69",
       "path": "src/cli/dispatch.ts",
       "locationKind": "content",
@@ -14366,51 +14158,6 @@
       "primaryClass": "runtime-symbols",
       "classes": [
         "runtime-symbols"
-      ]
-    },
-    {
-      "id": "src/cli/dispatch.ts:40:64",
-      "path": "src/cli/dispatch.ts",
-      "locationKind": "content",
-      "line": 40,
-      "column": 64,
-      "value": "AddOne",
-      "context": "if (arguments_.length > 1) return { kind: \"error\", message: \"AddOne commands do not accept additional arguments.\" };",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics"
-      ]
-    },
-    {
-      "id": "src/cli/dispatch.ts:47:77",
-      "path": "src/cli/dispatch.ts",
-      "locationKind": "content",
-      "line": 47,
-      "column": 77,
-      "value": "AddOne",
-      "context": "if (command === \"agent\") return { kind: \"error\", message: \"Bare a1 is the AddOne agent experience; there is no agent subcommand.\" };",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics"
-      ]
-    },
-    {
-      "id": "src/cli/dispatch.ts:48:45",
-      "path": "src/cli/dispatch.ts",
-      "locationKind": "content",
-      "line": 48,
-      "column": 45,
-      "value": "AddOne",
-      "context": "return { kind: \"error\", message: `Unknown AddOne command: ${command ?? \"\"}` };",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics"
       ]
     },
     {
@@ -14469,36 +14216,6 @@
       "column": 52,
       "value": "ADDONE",
       "context": "const result = await runner(\"npm\", [\"view\", `${ADDONE_PACKAGE}@${tag}`, \"version\"]);",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys"
-      ]
-    },
-    {
-      "id": "src/cli/version.ts:20:47",
-      "path": "src/cli/version.ts",
-      "locationKind": "content",
-      "line": 20,
-      "column": 47,
-      "value": "AddOne",
-      "context": "throw new Error(\"could not locate installed AddOne package metadata\");",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics"
-      ]
-    },
-    {
-      "id": "src/cli/version.ts:23:14",
-      "path": "src/cli/version.ts",
-      "locationKind": "content",
-      "line": 23,
-      "column": 14,
-      "value": "ADDONE",
-      "context": "export const ADDONE_VERSION = readInstalledVersion();",
       "matchedCase": "upper",
       "primaryClass": "runtime-symbols",
       "classes": [
@@ -15671,38 +15388,6 @@
         "runtime-symbols",
         "diagnostics",
         "paths"
-      ]
-    },
-    {
-      "id": "src/foundation/release/bootstrap.ts:120:62",
-      "path": "src/foundation/release/bootstrap.ts",
-      "locationKind": "content",
-      "line": 120,
-      "column": 62,
-      "value": "addone",
-      "context": "const entry = await resolveReleaseEntryPoint(release, \"bin/addone-supervisor.js\");",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "artifacts"
-      ]
-    },
-    {
-      "id": "src/foundation/release/bootstrap.ts:135:62",
-      "path": "src/foundation/release/bootstrap.ts",
-      "locationKind": "content",
-      "line": 135,
-      "column": 62,
-      "value": "addone",
-      "context": "const entry = await resolveReleaseEntryPoint(release, \"bin/addone-ui.js\");",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "artifacts"
       ]
     },
     {
@@ -17405,73 +17090,6 @@
       ]
     },
     {
-      "id": "test/cli/dispatch.test.ts:2:10",
-      "path": "test/cli/dispatch.test.ts",
-      "locationKind": "content",
-      "line": 2,
-      "column": 10,
-      "value": "ADDONE",
-      "context": "import { ADDONE_USAGE, dispatchAddOneCli, parseAddOneCommand } from \"../../src/cli/index.js\";",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics",
-        "environment-keys",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/cli/dispatch.test.ts:2:32",
-      "path": "test/cli/dispatch.test.ts",
-      "locationKind": "content",
-      "line": 2,
-      "column": 32,
-      "value": "AddOne",
-      "context": "import { ADDONE_USAGE, dispatchAddOneCli, parseAddOneCommand } from \"../../src/cli/index.js\";",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/cli/dispatch.test.ts:2:48",
-      "path": "test/cli/dispatch.test.ts",
-      "locationKind": "content",
-      "line": 2,
-      "column": 48,
-      "value": "AddOne",
-      "context": "import { ADDONE_USAGE, dispatchAddOneCli, parseAddOneCommand } from \"../../src/cli/index.js\";",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/cli/dispatch.test.ts:5:11",
-      "path": "test/cli/dispatch.test.ts",
-      "locationKind": "content",
-      "line": 5,
-      "column": 11,
-      "value": "AddOne",
-      "context": "describe(\"AddOne CLI dispatch\", () => {",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "tests"
-      ]
-    },
-    {
       "id": "test/cli/dispatch.test.ts:7:40",
       "path": "test/cli/dispatch.test.ts",
       "locationKind": "content",
@@ -17480,21 +17098,6 @@
       "value": "addone",
       "context": "[[], { kind: \"launch\", profileId: \"addone\" }],",
       "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/cli/dispatch.test.ts:14:17",
-      "path": "test/cli/dispatch.test.ts",
-      "locationKind": "content",
-      "line": 14,
-      "column": 17,
-      "value": "AddOne",
-      "context": "expect(parseAddOneCommand(arguments_)).toEqual(expected);",
-      "matchedCase": "title-or-mixed",
       "primaryClass": "runtime-symbols",
       "classes": [
         "runtime-symbols",
@@ -17513,131 +17116,6 @@
       "primaryClass": "runtime-symbols",
       "classes": [
         "runtime-symbols",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/cli/dispatch.test.ts:23:34",
-      "path": "test/cli/dispatch.test.ts",
-      "locationKind": "content",
-      "line": 23,
-      "column": 34,
-      "value": "AddOne",
-      "context": "const result = await dispatchAddOneCli(arguments_, {",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/cli/dispatch.test.ts:45:26",
-      "path": "test/cli/dispatch.test.ts",
-      "locationKind": "content",
-      "line": 45,
-      "column": 26,
-      "value": "AddOne",
-      "context": "expect(await dispatchAddOneCli([\"ui\"], handlers, { stderr })).toBe(2);",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/cli/dispatch.test.ts:47:65",
-      "path": "test/cli/dispatch.test.ts",
-      "locationKind": "content",
-      "line": 47,
-      "column": 65,
-      "value": "ADDONE",
-      "context": "expect(stderr).toHaveBeenCalledWith(expect.stringContaining(ADDONE_USAGE));",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics",
-        "environment-keys",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/cli/dispatch.test.ts:58:26",
-      "path": "test/cli/dispatch.test.ts",
-      "locationKind": "content",
-      "line": 58,
-      "column": 26,
-      "value": "AddOne",
-      "context": "expect(await dispatchAddOneCli([\"agent\"], handlers, { stderr })).toBe(2);",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/cli/dispatch.test.ts:59:81",
-      "path": "test/cli/dispatch.test.ts",
-      "locationKind": "content",
-      "line": 59,
-      "column": 81,
-      "value": "AddOne",
-      "context": "expect(stderr).toHaveBeenCalledWith(expect.stringContaining(\"Bare a1 is the AddOne agent experience\"));",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/cli/dispatch.test.ts:60:65",
-      "path": "test/cli/dispatch.test.ts",
-      "locationKind": "content",
-      "line": 60,
-      "column": 65,
-      "value": "ADDONE",
-      "context": "expect(stderr).toHaveBeenCalledWith(expect.stringContaining(ADDONE_USAGE));",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics",
-        "environment-keys",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/cli/dispatch.test.ts:75:26",
-      "path": "test/cli/dispatch.test.ts",
-      "locationKind": "content",
-      "line": 75,
-      "column": 26,
-      "value": "AddOne",
-      "context": "expect(await dispatchAddOneCli(arguments_, handlers, { stderr: vi.fn() })).toBe(2);",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/cli/dispatch.test.ts:77:32",
-      "path": "test/cli/dispatch.test.ts",
-      "locationKind": "content",
-      "line": 77,
-      "column": 32,
-      "value": "AddOne",
-      "context": "expect(JSON.stringify(parseAddOneCommand(arguments_))).not.toMatch(/shell|cmd\\.exe|sh -c/i);",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
         "tests"
       ]
     },
@@ -17773,38 +17251,6 @@
       ]
     },
     {
-      "id": "test/features/launch/development-launch.test.ts:13:63",
-      "path": "test/features/launch/development-launch.test.ts",
-      "locationKind": "content",
-      "line": 13,
-      "column": 63,
-      "value": "addone",
-      "context": "const first = resolveDevelopmentLaunchEnvironment(\"D:/Git/addone\", \"0.1.4-build\", {}, temporaryDirectory);",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/features/launch/development-launch.test.ts:14:64",
-      "path": "test/features/launch/development-launch.test.ts",
-      "locationKind": "content",
-      "line": 14,
-      "column": 64,
-      "value": "addone",
-      "context": "const second = resolveDevelopmentLaunchEnvironment(\"D:/Git/addone\", \"0.1.4-build\", {}, temporaryDirectory);",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "tests"
-      ]
-    },
-    {
       "id": "test/features/launch/development-launch.test.ts:22:30",
       "path": "test/features/launch/development-launch.test.ts",
       "locationKind": "content",
@@ -17886,38 +17332,6 @@
       ]
     },
     {
-      "id": "test/features/launch/development-launch.test.ts:29:63",
-      "path": "test/features/launch/development-launch.test.ts",
-      "locationKind": "content",
-      "line": 29,
-      "column": 63,
-      "value": "addone",
-      "context": "const first = resolveDevelopmentLaunchEnvironment(\"D:/Git/addone\", \"release\", source, \"D:/temp\");",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/features/launch/development-launch.test.ts:30:64",
-      "path": "test/features/launch/development-launch.test.ts",
-      "locationKind": "content",
-      "line": 30,
-      "column": 64,
-      "value": "addone",
-      "context": "const second = resolveDevelopmentLaunchEnvironment(\"D:/Git/addone\", \"release\", source, \"D:/temp\");",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "tests"
-      ]
-    },
-    {
       "id": "test/features/launch/development-launch.test.ts:34:19",
       "path": "test/features/launch/development-launch.test.ts",
       "locationKind": "content",
@@ -17942,22 +17356,6 @@
       "value": "AddOne",
       "context": "expect(resolveAddOnePaths(first.environment).endpoint).toBe(resolveAddOnePaths(second.environment).endpoint);",
       "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/features/launch/development-launch.test.ts:38:69",
-      "path": "test/features/launch/development-launch.test.ts",
-      "locationKind": "content",
-      "line": 38,
-      "column": 69,
-      "value": "addone",
-      "context": "const environment = resolveDevelopmentLaunchEnvironment(\"D:/Git/addone\", \"release\", {",
-      "matchedCase": "lower",
       "primaryClass": "runtime-symbols",
       "classes": [
         "runtime-symbols",
@@ -18126,52 +17524,6 @@
       "column": 91,
       "value": "addone",
       "context": "expect(JSON.parse(owned.stdout)).toMatchObject({ launchArguments: [], directProfile: \"addone\" });",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/features/launch/development-launch.test.ts:64:80",
-      "path": "test/features/launch/development-launch.test.ts",
-      "locationKind": "content",
-      "line": 64,
-      "column": 80,
-      "value": "addone",
-      "context": "await expect(execute(process.execPath, [\"scripts/start-local.mjs\", \"not-an-addone-command\"]))",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/features/launch/development-launch.test.ts:65:82",
-      "path": "test/features/launch/development-launch.test.ts",
-      "locationKind": "content",
-      "line": 65,
-      "column": 82,
-      "value": "AddOne",
-      "context": ".rejects.toMatchObject({ code: 2, stderr: expect.stringContaining(\"Unknown AddOne command: not-an-addone-command\") });",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/features/launch/development-launch.test.ts:65:105",
-      "path": "test/features/launch/development-launch.test.ts",
-      "locationKind": "content",
-      "line": 65,
-      "column": 105,
-      "value": "addone",
-      "context": ".rejects.toMatchObject({ code: 2, stderr: expect.stringContaining(\"Unknown AddOne command: not-an-addone-command\") });",
       "matchedCase": "lower",
       "primaryClass": "runtime-symbols",
       "classes": [
@@ -20229,40 +19581,6 @@
       ]
     },
     {
-      "id": "test/foundation/release/bootstrap-boundary.test.ts:12:52",
-      "path": "test/foundation/release/bootstrap-boundary.test.ts",
-      "locationKind": "content",
-      "line": 12,
-      "column": 52,
-      "value": "addone",
-      "context": "await expect(readFile(resolve(repository, \"bin/addone-supervisor.js\"), \"utf8\")).resolves.toContain(\"runSupervisor\");",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "artifacts",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/release/bootstrap-boundary.test.ts:18:41",
-      "path": "test/foundation/release/bootstrap-boundary.test.ts",
-      "locationKind": "content",
-      "line": 18,
-      "column": 41,
-      "value": "addone",
-      "context": "readFile(resolve(repository, \"bin/addone-ui.js\"), \"utf8\"),",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "artifacts",
-        "tests"
-      ]
-    },
-    {
       "id": "test/foundation/release/bootstrap-boundary.test.ts:32:46",
       "path": "test/foundation/release/bootstrap-boundary.test.ts",
       "locationKind": "content",
@@ -20290,23 +19608,6 @@
       "primaryClass": "runtime-symbols",
       "classes": [
         "runtime-symbols",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/release/cohort-activation.test.ts:61:238",
-      "path": "test/foundation/release/cohort-activation.test.ts",
-      "locationKind": "content",
-      "line": 61,
-      "column": 238,
-      "value": "addone",
-      "context": "return { packageName: \"@timurproko/a1\", packageVersion: version, contentDigest: digest, releaseId: `${version}-${digest.slice(0, 20)}`, packageRoot: `/package/${version}`, releaseRoot: `/data/releases/${version}`, files: [{ path: \"bin/ad...",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "artifacts",
         "tests"
       ]
     },
@@ -20359,23 +19660,6 @@
       ]
     },
     {
-      "id": "test/foundation/release/cohort-state.test.ts:80:26",
-      "path": "test/foundation/release/cohort-state.test.ts",
-      "locationKind": "content",
-      "line": 80,
-      "column": 26,
-      "value": "addone",
-      "context": "files: [{ path: \"bin/addone-ui.js\", bytes: 1, sha256: \"0\".repeat(64), executable: true }],",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "artifacts",
-        "tests"
-      ]
-    },
-    {
       "id": "test/foundation/release/development-preview-release.test.ts:24:16",
       "path": "test/foundation/release/development-preview-release.test.ts",
       "locationKind": "content",
@@ -20388,40 +19672,6 @@
       "classes": [
         "runtime-symbols",
         "schemas",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/release/package-surface.integration.test.ts:42:12",
-      "path": "test/foundation/release/package-surface.integration.test.ts",
-      "locationKind": "content",
-      "line": 42,
-      "column": 12,
-      "value": "addone",
-      "context": "\"bin/addone-ui.js\",",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "artifacts",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/release/package-surface.integration.test.ts:43:12",
-      "path": "test/foundation/release/package-surface.integration.test.ts",
-      "locationKind": "content",
-      "line": 43,
-      "column": 12,
-      "value": "addone",
-      "context": "\"bin/addone-supervisor.js\",",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "artifacts",
         "tests"
       ]
     },
@@ -20486,21 +19736,6 @@
       "classes": [
         "runtime-symbols",
         "artifacts",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/release/package-surface.integration.test.ts:80:55",
-      "path": "test/foundation/release/package-surface.integration.test.ts",
-      "locationKind": "content",
-      "line": 80,
-      "column": 55,
-      "value": "AddOne",
-      "context": "expect(launched.stderr).toContain(\"Bare a1 is the AddOne agent experience\");",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
         "tests"
       ]
     },
@@ -21508,23 +20743,6 @@
       ]
     },
     {
-      "id": "test/foundation/transparent-terminal/transparent-main.test.ts:7:21",
-      "path": "test/foundation/transparent-terminal/transparent-main.test.ts",
-      "locationKind": "content",
-      "line": 7,
-      "column": 21,
-      "value": "addone",
-      "context": "readFile(\"bin/addone-ui.js\", \"utf8\"),",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "artifacts",
-        "tests"
-      ]
-    },
-    {
       "id": "test/foundation/transparent-terminal/transparent-main.test.ts:14:41",
       "path": "test/foundation/transparent-terminal/transparent-main.test.ts",
       "locationKind": "content",
@@ -21688,41 +20906,6 @@
       ]
     },
     {
-      "id": "test/repository-governance/owned-ui-documentation.test.ts:3:10",
-      "path": "test/repository-governance/owned-ui-documentation.test.ts",
-      "locationKind": "content",
-      "line": 3,
-      "column": 10,
-      "value": "ADDONE",
-      "context": "import { ADDONE_USAGE, parseAddOneCommand } from \"../../src/cli/dispatch.js\";",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics",
-        "environment-keys",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/repository-governance/owned-ui-documentation.test.ts:3:29",
-      "path": "test/repository-governance/owned-ui-documentation.test.ts",
-      "locationKind": "content",
-      "line": 3,
-      "column": 29,
-      "value": "AddOne",
-      "context": "import { ADDONE_USAGE, parseAddOneCommand } from \"../../src/cli/dispatch.js\";",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics",
-        "paths",
-        "tests"
-      ]
-    },
-    {
       "id": "test/repository-governance/owned-ui-documentation.test.ts:13:35",
       "path": "test/repository-governance/owned-ui-documentation.test.ts",
       "locationKind": "content",
@@ -21745,38 +20928,6 @@
       "column": 48,
       "value": "AddOne",
       "context": "expect(checkpoint).toContain(\"Compare bare AddOne with `a1 pi`\");",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/repository-governance/owned-ui-documentation.test.ts:20:12",
-      "path": "test/repository-governance/owned-ui-documentation.test.ts",
-      "locationKind": "content",
-      "line": 20,
-      "column": 12,
-      "value": "ADDONE",
-      "context": "expect(ADDONE_USAGE).toBe(\"Usage: a1 | a1 pi | a1 sandbox | a1 version | a1 update | a1 update:next\");",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics",
-        "environment-keys",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/repository-governance/owned-ui-documentation.test.ts:21:17",
-      "path": "test/repository-governance/owned-ui-documentation.test.ts",
-      "locationKind": "content",
-      "line": 21,
-      "column": 17,
-      "value": "AddOne",
-      "context": "expect(parseAddOneCommand([\"ui\"])).toEqual({",
       "matchedCase": "title-or-mixed",
       "primaryClass": "runtime-symbols",
       "classes": [
@@ -22164,21 +21315,6 @@
       "classes": [
         "runtime-symbols",
         "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/repository-governance/pi-terminal-parity-gate.test.ts:127:31",
-      "path": "test/repository-governance/pi-terminal-parity-gate.test.ts",
-      "locationKind": "content",
-      "line": 127,
-      "column": 31,
-      "value": "addone",
-      "context": "expect(runner).toContain(\"addone-ui.js\");",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
         "tests"
       ]
     },
@@ -22581,5 +21717,5 @@
       ]
     }
   ],
-  "generatedAt": "2026-08-20T08:30:02.544Z"
+  "generatedAt": "2026-08-20T08:35:32.122Z"
 }

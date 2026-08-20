@@ -117,7 +117,7 @@ export async function certifyMaterializedRelease(release: MaterializedRelease, d
 }
 
 export async function startSupervisor(release: MaterializedRelease, environment: NodeJS.ProcessEnv): Promise<void> {
-  const entry = await resolveReleaseEntryPoint(release, "bin/addone-supervisor.js");
+  const entry = await resolveReleaseEntryPoint(release, "bin/a1-supervisor.js");
   const child = spawn(process.execPath, [entry], {
     detached: true,
     env: releaseEnvironment(environment, release),
@@ -132,7 +132,7 @@ export async function startSupervisor(release: MaterializedRelease, environment:
 }
 
 async function launchUi(release: MaterializedRelease, environment: NodeJS.ProcessEnv): Promise<number> {
-  const entry = await resolveReleaseEntryPoint(release, "bin/addone-ui.js");
+  const entry = await resolveReleaseEntryPoint(release, "bin/a1-ui.js");
   return await new Promise<number>((resolvePromise, rejectPromise) => {
     const child = spawn(process.execPath, [entry], {
       env: releaseEnvironment(environment, release),

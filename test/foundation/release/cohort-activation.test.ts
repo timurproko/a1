@@ -58,5 +58,5 @@ function metadata(value: MaterializedRelease, generations: readonly string[]): S
 }
 function release(version: string, seed: string): MaterializedRelease {
   const digest = seed.repeat(64);
-  return { packageName: "@timurproko/a1", packageVersion: version, contentDigest: digest, releaseId: `${version}-${digest.slice(0, 20)}`, packageRoot: `/package/${version}`, releaseRoot: `/data/releases/${version}`, files: [{ path: "bin/addone-ui.js", bytes: 1, sha256: "0".repeat(64), executable: true }] };
+  return { packageName: "@timurproko/a1", packageVersion: version, contentDigest: digest, releaseId: `${version}-${digest.slice(0, 20)}`, packageRoot: `/package/${version}`, releaseRoot: `/data/releases/${version}`, files: [{ path: "bin/a1-ui.js", bytes: 1, sha256: "0".repeat(64), executable: true }] };
 }

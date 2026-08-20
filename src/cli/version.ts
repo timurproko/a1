@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { PRODUCT_IDENTITY } from "../product-identity.js";
 
 interface PackageMetadata { readonly name?: unknown; readonly version?: unknown }
 
@@ -10,14 +11,14 @@ export function readInstalledVersion(moduleUrl = import.meta.url): string {
     const path = join(directory, "package.json");
     try {
       const metadata = JSON.parse(readFileSync(path, "utf8")) as PackageMetadata;
-      if (metadata.name === "@timurproko/a1" && typeof metadata.version === "string") return metadata.version;
+      if (metadata.name === PRODUCT_IDENTITY.packageName && typeof metadata.version === "string") return metadata.version;
     } catch (error) {
       const code = error instanceof Error && "code" in error ? String(error.code) : "";
       if (code !== "ENOENT" && !(error instanceof SyntaxError)) throw error;
     }
     directory = dirname(directory);
   }
-  throw new Error("could not locate installed AddOne package metadata");
+  throw new Error(`could not locate installed ${PRODUCT_IDENTITY.displayName} package metadata`);
 }
 
-export const ADDONE_VERSION = readInstalledVersion();
+export const INSTALLED_VERSION = readInstalledVersion();

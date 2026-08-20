@@ -124,7 +124,7 @@ describe("independent Pi terminal parity gate", () => {
       readFile(resolve("scripts/pi-terminal-parity/scenario.mjs"), "utf8"),
     ]);
     expect(runner).toContain("node_modules\", \"@earendil-works\", \"pi-coding-agent");
-    expect(runner).toContain("addone-ui.js");
+    expect(runner).toContain("a1-ui.js");
     expect(runner).not.toContain("--tui-mode");
     expect(session).toContain('from "node-pty"');
     expect(session).toContain('from "@xterm/headless"');

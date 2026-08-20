@@ -10,8 +10,8 @@ import { resolveAddOnePaths } from "../../../src/foundation/lifecycle/index.js";
 describe("repository-local development launch", () => {
   it("gives simultaneous launches from the same checkout and build independent instances", () => {
     const temporaryDirectory = resolve("C:/isolated-temp");
-    const first = resolveDevelopmentLaunchEnvironment("D:/Git/addone", "0.1.4-build", {}, temporaryDirectory);
-    const second = resolveDevelopmentLaunchEnvironment("D:/Git/addone", "0.1.4-build", {}, temporaryDirectory);
+    const first = resolveDevelopmentLaunchEnvironment("D:/Git/a1", "0.1.4-build", {}, temporaryDirectory);
+    const second = resolveDevelopmentLaunchEnvironment("D:/Git/a1", "0.1.4-build", {}, temporaryDirectory);
 
     expect(first.checkoutId).toBe(second.checkoutId);
     expect(first.instanceId).not.toBe(second.instanceId);
@@ -26,8 +26,8 @@ describe("repository-local development launch", () => {
 
   it("allows an explicit instance selector when intentional reconnection is needed", () => {
     const source = { ADDONE_DEV_INSTANCE_ID: "shared-debug-instance" };
-    const first = resolveDevelopmentLaunchEnvironment("D:/Git/addone", "release", source, "D:/temp");
-    const second = resolveDevelopmentLaunchEnvironment("D:/Git/addone", "release", source, "D:/temp");
+    const first = resolveDevelopmentLaunchEnvironment("D:/Git/a1", "release", source, "D:/temp");
+    const second = resolveDevelopmentLaunchEnvironment("D:/Git/a1", "release", source, "D:/temp");
 
     expect(first.instanceId).toBe(second.instanceId);
     expect(first.developmentRoot).toBe(second.developmentRoot);
@@ -35,7 +35,7 @@ describe("repository-local development launch", () => {
   });
 
   it("preserves explicit development path overrides", () => {
-    const environment = resolveDevelopmentLaunchEnvironment("D:/Git/addone", "release", {
+    const environment = resolveDevelopmentLaunchEnvironment("D:/Git/a1", "release", {
       ADDONE_DEV_ROOT: "D:/custom/root",
       ADDONE_CONFIG_DIR: "D:/custom/config",
       ADDONE_DATA_DIR: "D:/custom/data",
@@ -61,7 +61,7 @@ describe("repository-local development launch", () => {
     expect(JSON.parse(pi.stdout)).toMatchObject({ launchArguments: ["pi"], directProfile: "pi" });
     expect(JSON.parse(sandbox.stdout)).toMatchObject({ launchArguments: ["sandbox"], directProfile: "sandbox" });
 
-    await expect(execute(process.execPath, ["scripts/start-local.mjs", "not-an-addone-command"]))
-      .rejects.toMatchObject({ code: 2, stderr: expect.stringContaining("Unknown AddOne command: not-an-addone-command") });
+    await expect(execute(process.execPath, ["scripts/start-local.mjs", "not-an-a1-command"]))
+      .rejects.toMatchObject({ code: 2, stderr: expect.stringContaining("Unknown A1 command: not-an-a1-command") });
   });
 });

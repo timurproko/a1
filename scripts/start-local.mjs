@@ -5,6 +5,7 @@ import { join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const packageRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
+const identity = JSON.parse(await readFile(resolve(packageRoot, "src", "product-identity.json"), "utf8"));
 const canonicalRoot = await realpath(packageRoot);
 const { resolveDevelopmentLaunchEnvironment } = await import("../dist/src/features/launch/index.js");
 const release = await deriveDevelopmentReleaseIdentity(packageRoot);
@@ -25,10 +26,10 @@ if (launchArguments[0] === "--print-environment") {
   } }, null, 2)}\n`);
 } else {
   const directProfile = directLaunchProfile(launchArguments);
-  const entry = directProfile === null ? "addone.js" : "addone-ui.js";
+  const entry = directProfile === null ? identity.artifacts.cliEntry : identity.artifacts.uiEntry;
   const childEnvironment = directProfile === null ? environment : { ...environment, ADDONE_LAUNCH_PROFILE: directProfile };
   const childArguments = directProfile === null ? launchArguments : [];
-  const child = spawn(process.execPath, [resolve(packageRoot, "bin", entry), ...childArguments], {
+  const child = spawn(process.execPath, [resolve(packageRoot, entry), ...childArguments], {
     cwd: process.cwd(),
     env: childEnvironment,
     stdio: "inherit",

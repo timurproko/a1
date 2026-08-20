@@ -2,9 +2,9 @@
 
 const packageRoot = new URL("..", import.meta.url);
 const { fileURLToPath } = await import("node:url");
-const { dispatchAddOneCli } = await import("../dist/src/cli/index.js");
+const { dispatchCli } = await import("../dist/src/cli/index.js");
 
-process.exitCode = await dispatchAddOneCli(process.argv.slice(2), {
+process.exitCode = await dispatchCli(process.argv.slice(2), {
   launch: async intent => {
     const [{ prepareInteractiveLaunch }, { runBootstrap }] = await Promise.all([
       import("../dist/src/features/launch/index.js"),

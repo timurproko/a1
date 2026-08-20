@@ -21,7 +21,7 @@ const artifactRoot = resolve(packageRoot, "artifacts", "pi-terminal-parity", "la
 const workRoot = resolve(artifactRoot, "work");
 const piPackageRoot = resolve(packageRoot, "node_modules", "@earendil-works", "pi-coding-agent");
 const piCliPath = resolve(piPackageRoot, "dist", "cli.js");
-const addoneCliPath = resolve(packageRoot, "bin", "addone-ui.js");
+const addoneCliPath = resolve(packageRoot, "bin", "a1-ui.js");
 const sessions = [];
 let interrupted = false;
 

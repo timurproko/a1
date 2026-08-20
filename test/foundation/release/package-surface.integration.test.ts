@@ -39,8 +39,8 @@ describe("packed npm command surface", () => {
     expect(paths).toEqual(expect.arrayContaining([
       "package.json",
       "bin/a1.js",
-      "bin/addone-ui.js",
-      "bin/addone-supervisor.js",
+      "bin/a1-ui.js",
+      "bin/a1-supervisor.js",
       "dist/src/product-identity.js",
       "dist/src/product-identity.json",
       "dist/src/product-identity.d.ts",
@@ -77,7 +77,7 @@ describe("packed npm command surface", () => {
 
     const launched = run(a1, ["agent"], root);
     expect(launched.status).toBe(2);
-    expect(launched.stderr).toContain("Bare a1 is the AddOne agent experience");
+    expect(launched.stderr).toContain("Bare a1 is the A1 agent experience");
   }, 120_000);
 });
 

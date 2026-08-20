@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 describe("transparent CLI composition", () => {
   it("keeps explicit Pi and sandbox fallback bound to the common broker without desktop automation", async () => {
     const [entry, main] = await Promise.all([
-      readFile("bin/addone-ui.js", "utf8"),
+      readFile("bin/a1-ui.js", "utf8"),
       readFile("src/foundation/transparent-terminal/main.ts", "utf8"),
     ]);
     expect(entry).toContain("runSelectedInteractiveRuntime");
