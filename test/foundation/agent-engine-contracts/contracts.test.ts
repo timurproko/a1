@@ -39,7 +39,7 @@ const event: AgentEvent = {
   type: "content",
   sessionId: "session-1",
   sequence: 4,
-  content: { id: "content-1", role: "assistant", status: "final", text: "Done" },
+  content: { id: "content-1", role: "assistant", status: "final", content: [{ kind: "text", text: "Done" }] },
 };
 
 const snapshot: AgentSnapshot = {
@@ -90,7 +90,7 @@ describe("vendor-neutral agent engine contracts", () => {
 
   it("rejects invalid JSON and negotiated snapshot size drift", () => {
     expect(() => decodeAgentCommand("not-json", capabilities)).toThrow(/invalid JSON/);
-    const constrained = { ...snapshot, capabilities: { ...capabilities, snapshots: { supported: true, maxBytes: 1024 } }, content: [{ ...event.content, text: "x".repeat(2048) }] };
+    const constrained = { ...snapshot, capabilities: { ...capabilities, snapshots: { supported: true, maxBytes: 1024 } }, content: [{ ...event.content, content: [{ kind: "text" as const, text: "x".repeat(2048) }] }] };
     expect(() => encodeAgentSnapshot(constrained)).toThrow(/negotiated byte limit/);
   });
 });

@@ -6,6 +6,7 @@ import {
   type AgentEvent,
   type AgentSnapshot,
 } from "./model.js";
+import { assertAgentMessage } from "./domain-validation.js";
 
 const COMMANDS = new Set<AgentCommandCapability>(["prompt", "steer", "follow-up", "abort", "retry", "compact", "bash", "replace-session"]);
 const EVENTS = new Set(["lifecycle", "content", "command-outcome", "snapshot-invalidated", "diagnostic"]);
@@ -52,9 +53,7 @@ export function assertAgentEvent(event: AgentEvent, capabilities?: AgentCapabili
       if (event.reason !== null) assertText(event.reason, "agent lifecycle reason");
       return;
     case "content":
-      assertId(event.content.id, "agent content id");
-      if (!["user", "assistant", "tool", "system"].includes(event.content.role) || !["streaming", "final"].includes(event.content.status)) throw new TypeError("agent content metadata is invalid");
-      assertPossiblyEmptyText(event.content.text, "agent content text");
+      assertAgentMessage(event.content);
       return;
     case "command-outcome":
       assertId(event.commandId, "agent outcome command id");
