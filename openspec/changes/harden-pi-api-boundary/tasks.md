@@ -44,7 +44,7 @@
 ## 6. Remove Runtime Package-Layout Coupling and Reclassify UI Ownership
 
 - [x] 6.1 Move built-in theme data required by the owned presentation to attributed A1-owned resources or documented public loading APIs; remove production construction of Pi `dist` theme paths and pass theme reload/parity tests.
-- [ ] 6.2 Move optional announcement imagery and baseline changelog content to attributed A1-owned resources or omit unsupported optional content; remove production reads beneath Pi's package root and pass announcement/changelog behavior tests.
+- [x] 6.2 Move optional announcement imagery and baseline changelog content to attributed A1-owned resources or omit unsupported optional content; remove production reads beneath Pi's package root and pass announcement/changelog behavior tests.
 - [ ] 6.3 Add a production scan that rejects dependency package-directory reads, `node_modules` traversal, private distribution suffixes, and package-root-plus-internal-path construction while allowing explicitly classified test-only provenance tooling; run mutation fixtures.
 - [ ] 6.4 Reclassify the source ledger into public API reuse, A1-owned source-derived presentation, and host adaptation; ensure private upstream changes do not invalidate engine-only compatibility and pass provenance/license/governance tests.
 - [ ] 6.5 Separate optional UI synchronization/parity regeneration commands from mandatory engine candidate conformance and document the two maintenance workflows; run documentation and source-ledger policy tests.

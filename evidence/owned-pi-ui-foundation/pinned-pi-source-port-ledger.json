@@ -875,7 +875,7 @@
       "localDestination": "src/foundation/pi-component-adapter/upstream/components/earendil-announcement.ts",
       "implementationStatus": "available-through-pinned-package",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Read the unchanged bundled asset through the public package directory boundary; do not copy, transform, or patch installed package content.",
+      "modifications": "Optional package-private announcement imagery is deliberately omitted; the owned announcement preserves its text and public link without reading dependency files.",
       "approvedDeviations": [],
       "behaviorCategories": [
         "stateful-components"
@@ -1430,8 +1430,8 @@
       "localDestination": "src/foundation/pi-component-adapter/upstream/components/earendil-announcement.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Mechanical pinned source port with private imports remapped to public package-root types/APIs and A1-owned theme boundaries; behavior remains acceptance-tested.",
-      "localSha256": "f102f4e12340f882630c02fa7c25f79b40834b98dcf5707572faeb2fda6c0ecd",
+      "modifications": "Mechanical pinned source port with private imports remapped to public package-root types/APIs and owned theme boundaries; optional package-private imagery is omitted while text and link behavior remain acceptance-tested.",
+      "localSha256": "97c0c93008f050945480ee6c1f14bbdaff2e7c9a41885f51703a609f5b2fa51b",
       "approvedDeviations": [],
       "behaviorCategories": [
         "startup-composition",

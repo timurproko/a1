@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
@@ -7,7 +7,6 @@ import { PRODUCT_IDENTITY } from "../../product-identity.js";
 import {
   copyToClipboard,
   getAgentDir,
-  getPackageDir,
   ProjectTrustStore,
   SessionManager,
   type AgentSession,
@@ -2140,7 +2139,7 @@ function defaultWorkflowHost(): PiWorkflowHost {
       const result = await execFileAsync(command, [...arguments_], { encoding: "utf8" });
       return { stdout: result.stdout, stderr: result.stderr };
     },
-    readChangelog: async () => pinnedChangelogMarkdown(await readFile(join(getPackageDir(), "CHANGELOG.md"), "utf8")),
+    readChangelog: async () => "No changelog entries found.",
   };
 }
 
@@ -2446,14 +2445,6 @@ function contentImageCount(content: unknown): number {
   return Array.isArray(content)
     ? content.filter(item => isRecord(item) && item.type === "image").length
     : 0;
-}
-
-function pinnedChangelogMarkdown(content: string): string {
-  const entries = content.split(/^##\s+/m).slice(1).flatMap(section => {
-    const markdown = `## ${section}`.trim();
-    return /^##\s+\[?\d+\.\d+\.\d+\]?/.test(markdown) ? [markdown] : [];
-  });
-  return entries.reverse().join("\n\n") || "No changelog entries found.";
 }
 
 function jsonSummary(value: unknown): { readonly summary: string; readonly json: unknown } {

@@ -72,7 +72,7 @@ describe("reconciled pinned source ports", () => {
     vi.useRealTimers();
   });
 
-  it("ports the Earendil announcement while reusing the unchanged bundled asset", () => {
+  it("ports the Earendil announcement without package-private optional imagery", () => {
     const frame = new EarendilAnnouncementComponent().render(80).join("\n");
     expect(frame).toContain("pi has joined Earendil");
     expect(frame).toContain("https://mariozechner.at/posts/2026-04-08-ive-sold-out/");
