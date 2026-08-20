@@ -40,6 +40,36 @@ export interface AgentExtensionBinding {
   dispose(): Promise<void>;
 }
 
+export interface AgentExtensionCommand {
+  readonly name: string;
+  readonly description: string;
+}
+
+export interface AgentSessionMetadata {
+  readonly sessionId: string;
+  readonly sessionName: string | null;
+  readonly sessionPath: string | null;
+  readonly cwd: string;
+}
+
+export interface AgentExtensionFailure {
+  readonly extensionPath: string | null;
+  readonly operation: string;
+  readonly message: string;
+  readonly recoverable: boolean;
+}
+
+export interface AgentExtensionPort {
+  readonly capabilities: { readonly reload: boolean; readonly binding: boolean; readonly renderers: boolean };
+  discoverCommands(): Promise<readonly AgentExtensionCommand[]>;
+  sessionMetadata(): Promise<AgentSessionMetadata>;
+  bind?(sessionId: string): Promise<AgentExtensionBinding>;
+  reload?(): Promise<void>;
+  resolveMessageRenderer?(customType: string): unknown;
+  resolveToolRenderer?(toolName: string): unknown;
+  subscribeFailures(listener: (failure: AgentExtensionFailure) => void): () => void;
+}
+
 export interface AgentWorkflowDescriptor {
   readonly id: string;
   readonly label: string;
@@ -57,6 +87,7 @@ export interface AgentServicePorts {
   readonly authentication: AgentAuthenticationPort;
   readonly settings: AgentSettingsPort;
   readonly resources: AgentResourcesPort;
+  readonly extensions: AgentExtensionPort;
   readonly workflows: AgentWorkflowPort;
 }
 
@@ -73,6 +104,11 @@ export function assertAgentServicePorts(ports: AgentServicePorts): void {
   required(ports.resources, ["discoverResources"], "resources");
   advertised(ports.resources, "reload", "reload", "resources");
   advertised(ports.resources, "extensionBinding", "bindExtensions", "resources");
+  required(ports.extensions, ["discoverCommands", "sessionMetadata", "subscribeFailures"], "extensions");
+  advertised(ports.extensions, "reload", "reload", "extensions");
+  advertised(ports.extensions, "binding", "bind", "extensions");
+  advertised(ports.extensions, "renderers", "resolveMessageRenderer", "extensions");
+  advertised(ports.extensions, "renderers", "resolveToolRenderer", "extensions");
   required(ports.workflows, ["listWorkflows"], "workflow");
   advertised(ports.workflows, "execute", "executeWorkflow", "workflow");
 }

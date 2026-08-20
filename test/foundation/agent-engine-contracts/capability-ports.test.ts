@@ -21,6 +21,12 @@ function ports(): AgentServicePorts {
       capabilities: { reload: false, extensionBinding: false },
       async discoverResources() { return []; },
     },
+    extensions: {
+      capabilities: { reload: false, binding: false, renderers: false },
+      async discoverCommands() { return []; },
+      async sessionMetadata() { return { sessionId: "test", sessionName: null, sessionPath: null, cwd: "." }; },
+      subscribeFailures() { return () => {}; },
+    },
     workflows: {
       capabilities: { execute: false },
       async listWorkflows() { return []; },
