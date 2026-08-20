@@ -36,8 +36,9 @@ beforeAll(async () => {
 }, 60_000);
 
 afterAll(async () => {
+  if (root) await rm(resolve(root, "package", "node_modules"), { force: true });
   if (root) await rm(root, { recursive: true, force: true });
-});
+}, 60_000);
 
 describe("packed npm command surface", () => {
   it("packs the fresh package identity with required internal entries", async () => {

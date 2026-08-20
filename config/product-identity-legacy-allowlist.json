@@ -1,6 +1,6 @@
 {
   "schema": "a1-legacy-identity-allowlist-v1",
-  "generatedAt": "2026-08-20T17:31:30.533Z",
+  "generatedAt": "2026-08-20T17:45:29.316Z",
   "inventorySchema": "a1-legacy-identity-inventory-v1",
   "occurrences": [
     {
@@ -280,33 +280,33 @@
       "reason": "explicit legacy rejection fixture"
     },
     {
-      "id": "test/foundation/release/package-surface.integration.test.ts:48:32",
+      "id": "test/foundation/release/package-surface.integration.test.ts:49:32",
       "value": "addone",
-      "fingerprint": "26eaad81d48de70003080b866c47ab672ad30df48357b5f8e044d499ea1457ce",
-      "reason": "explicit legacy rejection fixture"
-    },
-    {
-      "id": "test/foundation/release/package-surface.integration.test.ts:97:70",
-      "value": "addone",
-      "fingerprint": "e9b07634875795c5f08e7e89fd47746796418d0d6e73b990b6a125aabf4b6102",
-      "reason": "explicit legacy rejection fixture"
-    },
-    {
-      "id": "test/foundation/release/package-surface.integration.test.ts:97:85",
-      "value": "addone",
-      "fingerprint": "6d36156c717d39849da5da8119407b656d58e593f1b11eb3c2cf17dbca9f7ee0",
+      "fingerprint": "63a92a37ff7c85e5bfdea5387ab71708b776a7a60a564f89d653090b0315331d",
       "reason": "explicit legacy rejection fixture"
     },
     {
       "id": "test/foundation/release/package-surface.integration.test.ts:98:70",
       "value": "addone",
-      "fingerprint": "737bc1bcbc4695aa0a76db76cbc07e07b90a68a8e3a265e6bfa29a21dc3fe73a",
+      "fingerprint": "194785219325508a79d6fa5acfe95f99aba296aa2895d07a3b9bd4013fdd6889",
       "reason": "explicit legacy rejection fixture"
     },
     {
-      "id": "test/foundation/release/package-surface.integration.test.ts:98:96",
+      "id": "test/foundation/release/package-surface.integration.test.ts:98:85",
       "value": "addone",
-      "fingerprint": "6fbef8577a4519dbf8060fbf3a0e8593dd4ac58a02b136d6e121c285d325a232",
+      "fingerprint": "c89e16c68e6fc64fcbe4f143018b6b82809ba1874a0ae95aa5131c92a32f19e5",
+      "reason": "explicit legacy rejection fixture"
+    },
+    {
+      "id": "test/foundation/release/package-surface.integration.test.ts:99:70",
+      "value": "addone",
+      "fingerprint": "76bc250309d0e81a75c1f28ef99511e62e0238e4df70570e443a03134c131bbe",
+      "reason": "explicit legacy rejection fixture"
+    },
+    {
+      "id": "test/foundation/release/package-surface.integration.test.ts:99:96",
+      "value": "addone",
+      "fingerprint": "14729b97367e936f9ecb313a54ede4ed165bf5e6ad110f953b605b5d3c1436fa",
       "reason": "explicit legacy rejection fixture"
     },
     {
