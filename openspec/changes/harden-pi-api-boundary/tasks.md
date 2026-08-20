@@ -24,7 +24,7 @@
 ## 4. Harden the Pi Engine Integration by Capability
 
 - [x] 4.1 Extract runtime creation, active-session replacement, rebind, disposal, and lifecycle adaptation into a Pi integration module using official exported runtime/session/service types; pass real isolated runtime and replacement tests.
-- [ ] 4.2 Extract documented session prompting, steer/follow-up queueing, abort, retry/compaction, bash, and ordered event conversion into typed integration modules; pass prompt, queue, settlement, malformed-event, and cancellation tests.
+- [x] 4.2 Extract documented session prompting, steer/follow-up queueing, abort, retry/compaction, bash, and ordered event conversion into typed integration modules; pass prompt, queue, settlement, malformed-event, and cancellation tests.
 - [ ] 4.3 Extract model selection, scoped models, catalog refresh, authentication login/logout, credential status, timeout, and cancellation behind the neutral model/auth ports; pass real API-shape and controlled provider fixture tests.
 - [ ] 4.4 Extract settings reads, writes, persistence flush, errors, and every A1-exposed setting behind the neutral settings port; pass setting coverage, invalid-value, persistence, and unavailable-capability tests.
 - [ ] 4.5 Extract resource discovery, commands, session metadata, extension binding/rebinding, reload, renderers, and extension failures behind neutral resource/extension ports; pass resource, session-switch, reload, and extension lifecycle tests.

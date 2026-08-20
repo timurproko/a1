@@ -52,6 +52,7 @@ import {
   type PiWorkflowResult,
 } from "./workflows.js";
 import { createPiRuntimeIntegration } from "./runtime-integration.js";
+import { PiSessionCommandIntegration } from "./session-integration.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -352,7 +353,7 @@ export class PiEngineAdapter {
   readonly #eventQueue: OwnedUiEvent[] = [];
   #eventQueueProcessing: Promise<void> | undefined;
   #droppedEventCount = 0;
-  #lastPrompt: string | null = null;
+  #sessionCommands: PiSessionCommandIntegration | undefined;
   #gitBranch: string | null = null;
   #extensionUi: ExtensionUIContext | undefined;
   #extensionShutdown: (() => void | Promise<void>) | undefined;
@@ -1524,37 +1525,22 @@ export class PiEngineAdapter {
     if (!runtime || !session) throw new Error("engine session is unavailable");
 
     switch (command.type) {
-      case "prompt": {
-        this.#lastPrompt = command.text;
-        await session.prompt(
-          command.text,
-          session.isStreaming ? { streamingBehavior: "followUp" } : undefined,
+      case "prompt":
+      case "steer":
+      case "follow-up":
+      case "abort":
+      case "retry":
+      case "compact": {
+        const result = await this.#sessionCommands?.execute(
+          command.type === "prompt" || command.type === "steer" || command.type === "follow-up"
+            ? { type: command.type, text: command.text }
+            : { type: command.type },
         );
+        if (!result || result.outcome === "rejected" || result.outcome === "failed") {
+          throw new Error(command.type === "retry" ? "no previous prompt is available to retry" : `Pi session command failed: ${command.type}`);
+        }
         return;
       }
-      case "steer":
-        this.#lastPrompt = command.text;
-        await session.steer(command.text);
-        return;
-      case "follow-up":
-        this.#lastPrompt = command.text;
-        await session.followUp(command.text);
-        return;
-      case "abort":
-        if (session.isRetrying) session.abortRetry();
-        if (session.isCompacting) session.abortCompaction();
-        await session.abort();
-        return;
-      case "retry":
-        if (this.#lastPrompt === null) throw new Error("no previous prompt is available to retry");
-        await session.prompt(
-          this.#lastPrompt,
-          session.isStreaming ? { streamingBehavior: "followUp" } : undefined,
-        );
-        return;
-      case "compact":
-        await session.compact();
-        return;
       case "set-model": {
         const model = runtime.services.modelRuntime.getModel(
           command.model.providerId,
@@ -1597,7 +1583,7 @@ export class PiEngineAdapter {
     this.#session = session;
     this.#activeCommandIds = [];
     this.#completedCommands.clear();
-    this.#lastPrompt = null;
+    this.#sessionCommands = new PiSessionCommandIntegration(session);
     this.#editor = {
       text: "",
       queuedSubmissions: [],
