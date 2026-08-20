@@ -1,6 +1,7 @@
 import { dirname, posix } from "node:path";
 
 export const PROJECT_OWNERS = Object.freeze({
+  "product-identity": Object.freeze({ id: "product-identity", layer: "foundation", sourceRoot: "src", testRoot: "test/product-identity", publicEntry: "src/product-identity.ts", mayImport: Object.freeze([]) }),
   cli: owner("cli", "entry", "src/cli", "test/cli", ["launch", "release"]),
   launch: owner("launch", "feature", "src/features/launch", "test/features/launch", ["lifecycle", "transparent-terminal"]),
   workspace: owner("workspace", "feature", "src/features/workspace", "test/features/workspace", [
@@ -50,7 +51,7 @@ export function inspectProjectStructureImports(files) {
         continue;
       }
       if (provider.id === consumer.id) continue;
-      if (!consumer.mayImport.includes(provider.id)) {
+      if (provider.id !== "product-identity" && !consumer.mayImport.includes(provider.id)) {
         errors.push(`${path}: ${consumer.id} may not import ${provider.id} (${specifier})`);
         continue;
       }
@@ -64,7 +65,10 @@ export function inspectProjectStructureImports(files) {
 
 export function projectOwnerForPath(path) {
   const normalized = normalize(path);
-  return Object.values(PROJECT_OWNERS).find(value => normalized === value.sourceRoot || normalized.startsWith(`${value.sourceRoot}/`)) ?? null;
+  if (normalized === "src/product-identity.ts" || normalized === "src/product-identity.json") return PROJECT_OWNERS["product-identity"];
+  return Object.values(PROJECT_OWNERS)
+    .filter(value => value.id !== "product-identity")
+    .find(value => normalized === value.sourceRoot || normalized.startsWith(`${value.sourceRoot}/`)) ?? null;
 }
 
 export function testOwnerForPath(path) {

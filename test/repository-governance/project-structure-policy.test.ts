@@ -4,11 +4,17 @@ import { inspectProjectStructureImports, PROJECT_OWNERS, projectOwnerForPath, te
 describe("project structure ownership policy", () => {
   it("declares every production and test owner with one public entry", () => {
     expect(Object.keys(PROJECT_OWNERS)).toEqual([
-      "cli", "launch", "workspace", "owned-ui", "lifecycle", "protocol", "release", "storage", "structured-agent-runtime", "native-host-protocol", "owned-ui-contracts", "pi-engine-adapter", "pi-component-adapter", "pi-tui-runtime-adapter", "supervision", "workspace-contracts", "transparent-terminal",
+      "product-identity", "cli", "launch", "workspace", "owned-ui", "lifecycle", "protocol", "release", "storage", "structured-agent-runtime", "native-host-protocol", "owned-ui-contracts", "pi-engine-adapter", "pi-component-adapter", "pi-tui-runtime-adapter", "supervision", "workspace-contracts", "transparent-terminal",
     ]);
     for (const owner of Object.values(PROJECT_OWNERS)) {
-      expect(owner.publicEntry).toBe(`${owner.sourceRoot}/index.ts`);
-      expect(projectOwnerForPath(`${owner.sourceRoot}/private.ts`)?.id).toBe(owner.id);
+      if (owner.id === "product-identity") {
+        expect(owner.publicEntry).toBe("src/product-identity.ts");
+        expect(projectOwnerForPath("src/product-identity.ts")?.id).toBe(owner.id);
+        expect(projectOwnerForPath("src/product-identity.json")?.id).toBe(owner.id);
+      } else {
+        expect(owner.publicEntry).toBe(`${owner.sourceRoot}/index.ts`);
+        expect(projectOwnerForPath(`${owner.sourceRoot}/private.ts`)?.id).toBe(owner.id);
+      }
       expect(testOwnerForPath(`${owner.testRoot}/contract.test.ts`)).toBe(owner.id);
     }
     expect(testOwnerForPath("test/repository-governance/policy.test.ts")).toBe("repository-governance");
@@ -16,7 +22,8 @@ describe("project structure ownership policy", () => {
 
   it("accepts imports through declared public entries", () => {
     expect(inspectProjectStructureImports({
-      "src/features/launch/index.ts": "export function profile() { return 'launch'; }",
+      "src/product-identity.ts": "export const PRODUCT_IDENTITY = { displayName: 'A1' };",
+      "src/features/launch/index.ts": "import { PRODUCT_IDENTITY } from '../../product-identity.js'; export function profile() { return PRODUCT_IDENTITY.displayName; }",
       "src/cli/dispatch.ts": "import { profile } from '../features/launch/index.js'; export { profile };",
       "src/foundation/lifecycle/index.ts": "export type Id = string;",
       "src/foundation/protocol/messages.ts": "import type { Id } from '../lifecycle/index.js'; export type Message = Id;",

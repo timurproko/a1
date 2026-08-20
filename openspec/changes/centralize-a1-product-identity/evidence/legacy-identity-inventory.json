@@ -41,21 +41,21 @@
     "explicit-obsolete-package-fixtures"
   ],
   "summary": {
-    "total": 1509,
-    "files": 232,
+    "total": 1510,
+    "files": 233,
     "byLocationKind": {
-      "content": 1482,
+      "content": 1483,
       "path": 27
     },
     "byClass": {
-      "runtime-symbols": 707,
+      "runtime-symbols": 708,
       "diagnostics": 177,
-      "environment-keys": 158,
-      "paths": 525,
+      "environment-keys": 159,
+      "paths": 526,
       "schemas": 122,
       "artifacts": 147,
       "native-names": 106,
-      "tests": 335,
+      "tests": 336,
       "current-docs-specs": 761,
       "historical-records": 167,
       "explicit-obsolete-package-fixtures": 8
@@ -21900,6 +21900,23 @@
       ]
     },
     {
+      "id": "test/product-identity/product-identity.test.ts:59:65",
+      "path": "test/product-identity/product-identity.test.ts",
+      "locationKind": "content",
+      "line": 59,
+      "column": 65,
+      "value": "ADDONE",
+      "context": "[\"legacy environment prefix\", withEnvironment(\"configDir\", \"ADDONE_CONFIG_DIR\"), /must use A1_/],",
+      "matchedCase": "upper",
+      "primaryClass": "runtime-symbols",
+      "classes": [
+        "runtime-symbols",
+        "environment-keys",
+        "paths",
+        "tests"
+      ]
+    },
+    {
       "id": "test/repository-governance/deprecated-dependencies.test.ts:62:46",
       "path": "test/repository-governance/deprecated-dependencies.test.ts",
       "locationKind": "content",
@@ -22893,5 +22910,5 @@
       ]
     }
   ],
-  "generatedAt": "2026-08-20T08:17:12.140Z"
+  "generatedAt": "2026-08-20T08:22:48.138Z"
 }
