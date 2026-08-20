@@ -1,6 +1,6 @@
 {
   "schema": "a1-legacy-identity-allowlist-v1",
-  "generatedAt": "2026-08-20T16:43:18.944Z",
+  "generatedAt": "2026-08-20T17:12:40.174Z",
   "inventorySchema": "a1-legacy-identity-inventory-v1",
   "occurrences": [
     {
@@ -280,33 +280,33 @@
       "reason": "explicit legacy rejection fixture"
     },
     {
-      "id": "test/foundation/release/package-surface.integration.test.ts:39:32",
+      "id": "test/foundation/release/package-surface.integration.test.ts:41:32",
       "value": "addone",
-      "fingerprint": "f68ace8b354df0ec6a112de7c316a381c198824a068019762a0d142a1db94a06",
+      "fingerprint": "0ce4fb14641658e4643b20eb8755452891f54fd18b14a97610a54be5044c14a5",
       "reason": "explicit legacy rejection fixture"
     },
     {
-      "id": "test/foundation/release/package-surface.integration.test.ts:88:70",
+      "id": "test/foundation/release/package-surface.integration.test.ts:90:70",
       "value": "addone",
-      "fingerprint": "13331dabc698cf684182b9a0cc9705ba440348d43ed6f3560d6e2acd81b9a703",
+      "fingerprint": "85f01bedf77d905dc840c514c8804c7d4b401a6decdf290a8c5229168e7b5923",
       "reason": "explicit legacy rejection fixture"
     },
     {
-      "id": "test/foundation/release/package-surface.integration.test.ts:88:85",
+      "id": "test/foundation/release/package-surface.integration.test.ts:90:85",
       "value": "addone",
-      "fingerprint": "a86949cf88e8c2410f7f89d59b680d30d13863747f08187d20055bdd3ab304b6",
+      "fingerprint": "1ead248587cf7db5d81f926de322c08a8aa1c4b39396293f8f3b9719007de35f",
       "reason": "explicit legacy rejection fixture"
     },
     {
-      "id": "test/foundation/release/package-surface.integration.test.ts:89:70",
+      "id": "test/foundation/release/package-surface.integration.test.ts:91:70",
       "value": "addone",
-      "fingerprint": "e782c69be36297ce9fc54082a200798ef8705a5b2ed12b8d52d3c12c1d54130a",
+      "fingerprint": "255fe036b159b748e42518891a2f5ccaa9783b75abad6ce945d9b02d980aede8",
       "reason": "explicit legacy rejection fixture"
     },
     {
-      "id": "test/foundation/release/package-surface.integration.test.ts:89:96",
+      "id": "test/foundation/release/package-surface.integration.test.ts:91:96",
       "value": "addone",
-      "fingerprint": "a0b61feb64fb30dbe697419a4047e941fa8c3bb95ce6ecbadd9b05e6416267f8",
+      "fingerprint": "f7e355711dd05afdb50a072db6c2dd6e2f8efd2321a59e819d01c6656c447d7f",
       "reason": "explicit legacy rejection fixture"
     },
     {
