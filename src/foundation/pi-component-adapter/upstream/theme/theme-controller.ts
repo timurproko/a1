@@ -1,6 +1,6 @@
 // Adapted from Pi 0.84.1; upstream 0.84.2 re-synchronization is tracked by task 7.4.
 // Upstream: packages/coding-agent/src/modes/interactive/theme/theme-controller.ts
-// License: MIT. Modifications: public APIs and AddOne-owned runtime/settings ports.
+// License: MIT. Modifications: public APIs and A1-owned runtime/settings ports.
 
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import {

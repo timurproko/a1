@@ -82,7 +82,7 @@ describe("repository-local development launch", () => {
       execute(process.execPath, ["scripts/start-local.mjs", "--print-environment", "pi"]),
       execute(process.execPath, ["scripts/start-local.mjs", "--print-environment", "sandbox"]),
     ]);
-    expect(JSON.parse(owned.stdout)).toMatchObject({ launchArguments: [], directProfile: "addone" });
+    expect(JSON.parse(owned.stdout)).toMatchObject({ launchArguments: [], directProfile: "a1" });
     expect(JSON.parse(pi.stdout)).toMatchObject({ launchArguments: ["pi"], directProfile: "pi" });
     expect(JSON.parse(sandbox.stdout)).toMatchObject({ launchArguments: ["sandbox"], directProfile: "sandbox" });
 

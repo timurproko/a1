@@ -42,15 +42,15 @@ describe("pinned TuiAltScreen wheel parity", () => {
     upstream.scrollToTop();
     upstream.renderNow();
 
-    const addoneTerminal = new WheelTerminal();
-    const addoneRoot = new WheelComponent("row", 16);
-    const addone = new PiTuiRuntimeAdapter({ root: addoneRoot, terminal: addoneTerminal, mode: "fullscreen", wheelScrollLines: 2 });
-    addone.start();
-    addone.renderNow(true);
-    addone.scrollToTop();
-    addone.renderNow();
+    const adapterTerminal = new WheelTerminal();
+    const adapterRoot = new WheelComponent("row", 16);
+    const adapter = new PiTuiRuntimeAdapter({ root: adapterRoot, terminal: adapterTerminal, mode: "fullscreen", wheelScrollLines: 2 });
+    adapter.start();
+    adapter.renderNow(true);
+    adapter.scrollToTop();
+    adapter.renderNow();
 
-    for (const [terminal, input] of [[upstreamTerminal, (value: string) => upstreamTerminal.input(value)], [addoneTerminal, (value: string) => addoneTerminal.input(value)]] as const) {
+    for (const [terminal, input] of [[upstreamTerminal, (value: string) => upstreamTerminal.input(value)], [adapterTerminal, (value: string) => adapterTerminal.input(value)]] as const) {
       const buffer = new StdinBuffer({ timeout: 1 });
       buffer.on("data", input);
       buffer.process("\x1b[<65;6;4M\x1b[<65;6;4M");
@@ -58,19 +58,19 @@ describe("pinned TuiAltScreen wheel parity", () => {
       expect(terminal.writes.length).toBeGreaterThan(0);
     }
     upstream.renderNow();
-    addone.renderNow();
-    expect(addone.scrollState().scrollTop).toBe(upstream.viewportTop);
-    expect(addoneTerminal.writes.at(-1)).toBe(upstreamTerminal.writes.at(-1));
+    adapter.renderNow();
+    expect(adapter.scrollState().scrollTop).toBe(upstream.viewportTop);
+    expect(adapterTerminal.writes.at(-1)).toBe(upstreamTerminal.writes.at(-1));
 
     upstream.scrollBy(-2);
-    addone.scrollBy(-2);
+    adapter.scrollBy(-2);
     upstream.renderNow();
-    addone.renderNow();
-    expect(addone.scrollState().scrollTop).toBe(upstream.viewportTop);
-    expect(addoneTerminal.writes.at(-1)).toBe(upstreamTerminal.writes.at(-1));
+    adapter.renderNow();
+    expect(adapter.scrollState().scrollTop).toBe(upstream.viewportTop);
+    expect(adapterTerminal.writes.at(-1)).toBe(upstreamTerminal.writes.at(-1));
 
     upstream.stop({ preserveScreen: true });
-    await addone.stop({ drainInput: false, preserveScreen: true });
+    await adapter.stop({ drainInput: false, preserveScreen: true });
   });
 
   it.each(["contain", "chain"] as const)("matches nested %s routing, primary fallback, scrollbar, and resize", async overscroll => {
@@ -88,53 +88,53 @@ describe("pinned TuiAltScreen wheel parity", () => {
     upstream.start();
     upstream.renderNow(true);
 
-    const addoneTerminal = new WheelTerminal();
-    const addoneNested = new WheelComponent("nested", 10);
-    const addonePrimary = new WheelComponent("primary", 16);
-    const addone = new PiTuiRuntimeAdapter({
-      root: addonePrimary,
-      terminal: addoneTerminal,
+    const adapterTerminal = new WheelTerminal();
+    const adapterNested = new WheelComponent("nested", 10);
+    const adapterPrimary = new WheelComponent("primary", 16);
+    const adapter = new PiTuiRuntimeAdapter({
+      root: adapterPrimary,
+      terminal: adapterTerminal,
       mode: "fullscreen",
       wheelScrollLines: 2,
       layoutRoot: {
         type: "stack",
         direction: "vertical",
         children: [
-          { basis: 3, node: { type: "scroll", id: "nested", overscroll, scrollbar: "always", child: { type: "component", component: addoneNested } } },
-          { basis: 0, grow: 1, minSize: 1, node: { type: "scroll", id: "primary", primary: true, scrollbar: "always", child: { type: "component", component: addonePrimary } } },
+          { basis: 3, node: { type: "scroll", id: "nested", overscroll, scrollbar: "always", child: { type: "component", component: adapterNested } } },
+          { basis: 0, grow: 1, minSize: 1, node: { type: "scroll", id: "primary", primary: true, scrollbar: "always", child: { type: "component", component: adapterPrimary } } },
         ],
       },
     });
-    addone.start();
-    addone.renderNow(true);
+    adapter.start();
+    adapter.renderNow(true);
 
     upstreamTerminal.input("\x1b[<65;6;2M");
-    addoneTerminal.input("\x1b[<65;6;2M");
+    adapterTerminal.input("\x1b[<65;6;2M");
     upstream.renderNow();
-    addone.renderNow();
-    expect(addone.scrollState("nested").scrollTop).toBe(upstreamNested.scrollTop);
-    expect(addone.scrollState("primary").scrollTop).toBe(upstreamPrimary.scrollTop);
-    expect(addone.scrollState("nested").scrollbarVisible).toBe(upstreamNested.isScrollbarVisible);
+    adapter.renderNow();
+    expect(adapter.scrollState("nested").scrollTop).toBe(upstreamNested.scrollTop);
+    expect(adapter.scrollState("primary").scrollTop).toBe(upstreamPrimary.scrollTop);
+    expect(adapter.scrollState("nested").scrollbarVisible).toBe(upstreamNested.isScrollbarVisible);
 
     upstreamNested.scrollToEnd();
-    addone.scrollToBottom("nested");
+    adapter.scrollToBottom("nested");
     upstream.renderNow();
-    addone.renderNow();
+    adapter.renderNow();
     upstreamTerminal.input("\x1b[<65;6;2M");
-    addoneTerminal.input("\x1b[<65;6;2M");
+    adapterTerminal.input("\x1b[<65;6;2M");
     upstream.renderNow();
-    addone.renderNow();
-    expect(addone.scrollState("primary").scrollTop).toBe(upstreamPrimary.scrollTop);
-    expect(addoneTerminal.writes.at(-1)).toBe(upstreamTerminal.writes.at(-1));
+    adapter.renderNow();
+    expect(adapter.scrollState("primary").scrollTop).toBe(upstreamPrimary.scrollTop);
+    expect(adapterTerminal.writes.at(-1)).toBe(upstreamTerminal.writes.at(-1));
 
     upstreamTerminal.resize(24, 10);
-    addoneTerminal.resize(24, 10);
+    adapterTerminal.resize(24, 10);
     upstream.renderNow();
-    addone.renderNow();
-    expect(addone.scrollState("nested").viewportHeight).toBe(upstreamNested.viewportHeight);
-    expect(addoneTerminal.writes.at(-1)).toBe(upstreamTerminal.writes.at(-1));
+    adapter.renderNow();
+    expect(adapter.scrollState("nested").viewportHeight).toBe(upstreamNested.viewportHeight);
+    expect(adapterTerminal.writes.at(-1)).toBe(upstreamTerminal.writes.at(-1));
 
     upstream.stop({ preserveScreen: true });
-    await addone.stop({ drainInput: false, preserveScreen: true });
+    await adapter.stop({ drainInput: false, preserveScreen: true });
   });
 });

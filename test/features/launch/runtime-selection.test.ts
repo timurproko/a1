@@ -2,8 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 import { runSelectedInteractiveRuntime, selectInteractiveRuntime } from "../../../src/features/launch/index.js";
 
 describe("interactive runtime selection", () => {
-  it("routes the AddOne profile to the owned UI", () => {
-    expect(selectInteractiveRuntime("addone")).toEqual({ kind: "owned-ui" });
+  it("routes the A1 profile to the owned UI", () => {
+    expect(selectInteractiveRuntime("a1")).toEqual({ kind: "owned-ui" });
   });
 
   it.each(["pi", "sandbox"] as const)("routes %s through transparent attachment", profileId => {
@@ -11,14 +11,14 @@ describe("interactive runtime selection", () => {
   });
 
   it("rejects unknown profile identities", () => {
-    expect(() => selectInteractiveRuntime("ui")).toThrow(/invalid AddOne launch profile/);
+    expect(() => selectInteractiveRuntime("ui")).toThrow(/A1 launch profile is invalid/);
   });
 
-  it("starts only the owned runtime for bare AddOne and returns its exit code", async () => {
+  it("starts only the owned runtime for bare A1 and returns its exit code", async () => {
     const ownedUi = vi.fn(async () => 23);
     const transparent = vi.fn(async () => 41);
 
-    await expect(runSelectedInteractiveRuntime("addone", { ownedUi, transparent })).resolves.toBe(23);
+    await expect(runSelectedInteractiveRuntime("a1", { ownedUi, transparent })).resolves.toBe(23);
     expect(ownedUi).toHaveBeenCalledOnce();
     expect(transparent).not.toHaveBeenCalled();
   });
@@ -35,7 +35,7 @@ describe("interactive runtime selection", () => {
 
   it("preserves startup failures from the selected runtime", async () => {
     const failure = new Error("owned startup failed");
-    await expect(runSelectedInteractiveRuntime("addone", {
+    await expect(runSelectedInteractiveRuntime("a1", {
       ownedUi: async () => { throw failure; },
       transparent: async () => 0,
     })).rejects.toBe(failure);

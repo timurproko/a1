@@ -37,7 +37,7 @@ export type CliCommand =
   | { readonly kind: "error"; readonly message: string };
 
 export function parseCliCommand(arguments_: readonly string[]): CliCommand {
-  if (arguments_.length === 0) return { kind: "launch", profileId: "addone" };
+  if (arguments_.length === 0) return { kind: "launch", profileId: "a1" };
   if (arguments_.length > 1) return { kind: "error", message: PRODUCT_TEXT.diagnostic("commands do not accept additional arguments.") };
   const [command] = arguments_;
   if (command === "pi" || command === "sandbox") return { kind: "launch", profileId: command };

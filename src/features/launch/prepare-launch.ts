@@ -1,5 +1,5 @@
 import { configurationRootForProfile, resolveLaunchProfilePaths, type LaunchProfilePathOptions } from "./profile-paths.js";
-import { initializeAddOneProfile } from "./initialize-profile.js";
+import { initializeProductProfile } from "./initialize-profile.js";
 import type { InteractiveLaunchIntent } from "./intent.js";
 
 export interface PreparedInteractiveLaunch {
@@ -10,7 +10,7 @@ export interface PreparedInteractiveLaunch {
 }
 
 export interface PrepareInteractiveLaunchOptions extends LaunchProfilePathOptions {
-  readonly initializeProfile?: typeof initializeAddOneProfile;
+  readonly initializeProfile?: typeof initializeProductProfile;
 }
 
 export async function prepareInteractiveLaunch(
@@ -20,7 +20,7 @@ export async function prepareInteractiveLaunch(
 ): Promise<PreparedInteractiveLaunch> {
   const paths = resolveLaunchProfilePaths({ ...options, environment });
   const configurationRoot = configurationRootForProfile(intent.profile.id, paths);
-  if (configurationRoot !== null) await (options.initializeProfile ?? initializeAddOneProfile)(configurationRoot);
+  if (configurationRoot !== null) await (options.initializeProfile ?? initializeProductProfile)(configurationRoot);
 
   const childEnvironment = { ...environment };
   if (configurationRoot === null) delete childEnvironment.PI_CODING_AGENT_DIR;

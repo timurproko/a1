@@ -2,22 +2,22 @@ import { describe, expect, it } from "vitest";
 import { configurationRootForProfile, resolveLaunchProfilePaths } from "../../../src/features/launch/index.js";
 
 describe("launch profile paths", () => {
-  it("resolves AddOne roots from an absolute Unix home", () => {
+  it("resolves A1 roots from an absolute Unix home", () => {
     const paths = resolveLaunchProfilePaths({ home: "/home/alice", environment: {}, platform: "linux" });
     expect(paths).toEqual({
       home: "/home/alice",
-      addoneRoot: "/home/alice/.a1",
-      addoneAgent: "/home/alice/.a1/agent",
+      a1Root: "/home/alice/.a1",
+      a1Agent: "/home/alice/.a1/agent",
       sandbox: "/home/alice/.a1/sandbox",
     });
-    expect(configurationRootForProfile("addone", paths)).toBe("/home/alice/.a1/agent");
+    expect(configurationRootForProfile("a1", paths)).toBe("/home/alice/.a1/agent");
     expect(configurationRootForProfile("sandbox", paths)).toBe("/home/alice/.a1/sandbox");
     expect(configurationRootForProfile("pi", paths)).toBeNull();
   });
 
-  it("resolves AddOne roots from an absolute Windows home", () => {
+  it("resolves A1 roots from an absolute Windows home", () => {
     const paths = resolveLaunchProfilePaths({ home: "C:\\Users\\Alice", environment: {}, platform: "win32" });
-    expect(paths.addoneAgent).toBe("C:\\Users\\Alice\\.a1\\agent");
+    expect(paths.a1Agent).toBe("C:\\Users\\Alice\\.a1\\agent");
     expect(paths.sandbox).toBe("C:\\Users\\Alice\\.a1\\sandbox");
   });
 

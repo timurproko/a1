@@ -1,7 +1,7 @@
 import type { LaunchProfileId } from "../../foundation/lifecycle/index.js";
 
 export type { LaunchProfileId } from "../../foundation/lifecycle/index.js";
-export type PiConfigurationRootPolicy = "addone-agent" | "pi-default" | "addone-sandbox";
+export type PiConfigurationRootPolicy = "agent-profile" | "pi-default" | "sandbox-profile";
 export type ProjectTrustPolicy = "pi-default" | "ignore";
 
 export interface LaunchProfileContract {
@@ -13,10 +13,10 @@ export interface LaunchProfileContract {
 }
 
 const contracts: Readonly<Record<LaunchProfileId, LaunchProfileContract>> = Object.freeze({
-  addone: Object.freeze({
-    id: "addone",
+  a1: Object.freeze({
+    id: "a1",
     productSurface: "agent",
-    piConfigurationRoot: "addone-agent",
+    piConfigurationRoot: "agent-profile",
     projectTrust: "pi-default",
     terminalCapability: "owned-ui",
   }),
@@ -30,7 +30,7 @@ const contracts: Readonly<Record<LaunchProfileId, LaunchProfileContract>> = Obje
   sandbox: Object.freeze({
     id: "sandbox",
     productSurface: "isolated-profile",
-    piConfigurationRoot: "addone-sandbox",
+    piConfigurationRoot: "sandbox-profile",
     projectTrust: "ignore",
     terminalCapability: "transparent",
   }),

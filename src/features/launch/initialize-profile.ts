@@ -13,7 +13,7 @@ export interface InitializedProfile {
   readonly directories: readonly string[];
 }
 
-export async function initializeAddOneProfile(root: string): Promise<InitializedProfile> {
+export async function initializeProductProfile(root: string): Promise<InitializedProfile> {
   const normalizedRoot = resolve(root);
   await ensureSafeDirectoryChain(normalizedRoot);
   const directories: string[] = [];

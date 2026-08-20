@@ -1,5 +1,8 @@
 import { availableWorkspaceActions, type WorkspaceCapabilityActionType } from "./capabilities.js";
 import type { WorkspaceAgentState, WorkspaceView } from "./reducer.js";
+import { PRODUCT_TEXT } from "../../product-identity.js";
+
+const WORKSPACE_LABEL = `${PRODUCT_TEXT.displayName} agents`;
 
 export interface WorkspacePresentationOptions {
   readonly maxRows?: number;
@@ -22,7 +25,7 @@ export interface WorkspaceAgentPresentationRow {
 
 export interface WorkspacePresentationModel {
   readonly role: "listbox";
-  readonly label: "AddOne agents";
+  readonly label: string;
   readonly selectedAgentId: string | null;
   readonly rows: readonly WorkspaceAgentPresentationRow[];
   readonly overflowCount: number;
@@ -36,11 +39,11 @@ export function presentWorkspace(view: WorkspaceView, options: WorkspacePresenta
   const rows = view.agents.slice(0, maxRows).map(agent => presentAgent(agent, view.selectedAgentId === agent.id, maxLabelWidth));
   const overflowCount = Math.max(0, view.agents.length - rows.length);
   const text = rows.length === 0
-    ? "AddOne agents\nNo managed agents."
-    : ["AddOne agents", ...rows.map(row => row.text), ...(overflowCount > 0 ? [`… ${overflowCount} more`] : [])].join("\n");
+    ? `${WORKSPACE_LABEL}\nNo managed agents.`
+    : [WORKSPACE_LABEL, ...rows.map(row => row.text), ...(overflowCount > 0 ? [`… ${overflowCount} more`] : [])].join("\n");
   return Object.freeze({
     role: "listbox",
-    label: "AddOne agents",
+    label: WORKSPACE_LABEL,
     selectedAgentId: view.selectedAgentId,
     rows: Object.freeze(rows),
     overflowCount,

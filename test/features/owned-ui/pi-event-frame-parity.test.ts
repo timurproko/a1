@@ -20,7 +20,7 @@ interface EventFrameFixture extends EventFrameParityResult {
 }
 
 describe("pinned Pi scripted event and terminal-frame parity", () => {
-  it("matches AddOne state transitions to the pinned Pi event sequence", async () => {
+  it("matches A1 state transitions to the pinned Pi event sequence", async () => {
     const fixture = await readFixture();
     const result = await buildEventFrameParityResult();
 

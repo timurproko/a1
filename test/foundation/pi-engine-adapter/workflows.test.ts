@@ -156,7 +156,7 @@ async function fixture(workflowHost = host()) {
   const runtime = new WorkflowRuntime();
   const adapter = await createPiEngineAdapter({
     cwd: "D:/work",
-    agentDir: join(tmpdir(), "addone-workflow-fixture"),
+    agentDir: join(tmpdir(), "a1-workflow-fixture"),
     createRuntime: async () => runtime,
     workflowHost,
   });

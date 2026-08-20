@@ -115,7 +115,7 @@ describe("workspace reducer", () => {
 
 describe("workspace durable storage", () => {
   it("persists reducer state, presentation metadata, selection, and revision across restart", async () => {
-    const root = await mkdtemp(join(tmpdir(), "addone-workspace-store-"));
+    const root = await mkdtemp(join(tmpdir(), "a1-workspace-store-"));
     roots.push(root);
     const path = join(root, "control.sqlite3");
     const firstStore = new WorkspaceStore(path);
@@ -148,7 +148,7 @@ describe("workspace durable storage", () => {
   });
 
   it("atomically rejects a selected identity outside the replacement set", async () => {
-    const root = await mkdtemp(join(tmpdir(), "addone-workspace-invalid-store-"));
+    const root = await mkdtemp(join(tmpdir(), "a1-workspace-invalid-store-"));
     roots.push(root);
     const store = new WorkspaceStore(join(root, "control.sqlite3"));
     const reducer = createWorkspace();

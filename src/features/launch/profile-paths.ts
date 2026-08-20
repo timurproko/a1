@@ -1,11 +1,12 @@
 import { homedir } from "node:os";
 import { posix, win32, type PlatformPath } from "node:path";
 import type { LaunchProfileId } from "./profiles.js";
+import { PRODUCT_IDENTITY } from "../../product-identity.js";
 
 export interface LaunchProfilePaths {
   readonly home: string;
-  readonly addoneRoot: string;
-  readonly addoneAgent: string;
+  readonly a1Root: string;
+  readonly a1Agent: string;
   readonly sandbox: string;
 }
 
@@ -19,14 +20,15 @@ export interface LaunchProfilePathOptions {
 export function resolveLaunchProfilePaths(options: LaunchProfilePathOptions = {}): LaunchProfilePaths {
   const environment = options.environment ?? process.env;
   const path = options.platform === "win32" || (options.platform === undefined && process.platform === "win32") ? win32 : posix;
-  const selectedHome = options.home ?? environment.A1_PROFILE_HOME ?? options.readHome?.() ?? homedir();
+  const selectedHome = options.home ?? environment[PRODUCT_IDENTITY.environment.profileHome] ?? options.readHome?.() ?? homedir();
   const home = validateAbsolutePath(selectedHome, "effective user home", path);
-  const addoneRoot = path.resolve(home, ".a1");
+  const a1Agent = path.resolve(home, PRODUCT_IDENTITY.state.piAgentProfile);
+  const a1Root = path.dirname(a1Agent);
   return Object.freeze({
     home,
-    addoneRoot,
-    addoneAgent: path.resolve(addoneRoot, "agent"),
-    sandbox: path.resolve(addoneRoot, "sandbox"),
+    a1Root,
+    a1Agent,
+    sandbox: path.resolve(home, PRODUCT_IDENTITY.state.piSandboxProfile),
   });
 }
 
@@ -34,7 +36,7 @@ export function configurationRootForProfile(
   profileId: LaunchProfileId,
   paths: LaunchProfilePaths,
 ): string | null {
-  if (profileId === "addone") return paths.addoneAgent;
+  if (profileId === "a1") return paths.a1Agent;
   if (profileId === "sandbox") return paths.sandbox;
   return null;
 }

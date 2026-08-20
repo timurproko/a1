@@ -73,7 +73,7 @@ function composedAgent(id: string, recoveryReferenceId: string): ManagedAgentDes
 }
 
 async function createStore(): Promise<{ root: string; path: string; store: WorkspaceStore }> {
-  const root = await mkdtemp(join(tmpdir(), "addone-workspace-reconcile-"));
+  const root = await mkdtemp(join(tmpdir(), "a1-workspace-reconcile-"));
   roots.push(root);
   const path = join(root, "control.sqlite3");
   return { root, path, store: new WorkspaceStore(path) };

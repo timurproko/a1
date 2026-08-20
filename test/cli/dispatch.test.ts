@@ -4,7 +4,7 @@ import type { InteractiveLaunchIntent } from "../../src/features/launch/index.js
 
 describe("A1 CLI dispatch", () => {
   it.each([
-    [[], { kind: "launch", profileId: "addone" }],
+    [[], { kind: "launch", profileId: "a1" }],
     [["pi"], { kind: "launch", profileId: "pi" }],
     [["sandbox"], { kind: "launch", profileId: "sandbox" }],
     [["version"], { kind: "version" }],
@@ -15,7 +15,7 @@ describe("A1 CLI dispatch", () => {
   });
 
   it.each([
-    { arguments_: [] as const, profileId: "addone", terminalCapability: "owned-ui" },
+    { arguments_: [] as const, profileId: "a1", terminalCapability: "owned-ui" },
     { arguments_: ["pi"] as const, profileId: "pi", terminalCapability: "transparent" },
     { arguments_: ["sandbox"] as const, profileId: "sandbox", terminalCapability: "transparent" },
   ] as const)("dispatches interactive form $arguments_ as a typed intent", async ({ arguments_, profileId, terminalCapability }) => {

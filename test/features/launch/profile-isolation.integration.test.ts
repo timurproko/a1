@@ -21,12 +21,12 @@ const profileArtifacts = [
 
 describe("launch profile filesystem isolation", () => {
   it("keeps Pi-owned settings, authentication, sessions, resources, packages, and trust in the selected root", async () => {
-    const home = await mkdtemp(resolve(tmpdir(), "addone-profile-isolation-"));
+    const home = await mkdtemp(resolve(tmpdir(), "a1-profile-isolation-"));
     roots.push(home);
     const paths = resolveLaunchProfilePaths({ home, environment: {}, platform: process.platform });
     const rootsByProfile = {
       pi: resolve(home, ".pi", "agent"),
-      addone: paths.addoneAgent,
+      a1: paths.a1Agent,
       sandbox: paths.sandbox,
     } as const;
 
@@ -37,24 +37,24 @@ describe("launch profile filesystem isolation", () => {
         await writeFile(path, `${profile}:${artifact}`);
       }
     }
-    await rm(resolve(rootsByProfile.addone, "auth.json"));
+    await rm(resolve(rootsByProfile.a1, "auth.json"));
 
-    const addone = await prepareInteractiveLaunch(interactiveLaunchIntent("addone"), {}, { home, platform: process.platform });
+    const a1 = await prepareInteractiveLaunch(interactiveLaunchIntent("a1"), {}, { home, platform: process.platform });
     const vanilla = await prepareInteractiveLaunch(interactiveLaunchIntent("pi"), { PI_CODING_AGENT_DIR: "must-be-removed" }, { home, platform: process.platform });
     const sandbox = await prepareInteractiveLaunch(interactiveLaunchIntent("sandbox"), {}, { home, platform: process.platform });
 
-    expect(addone.configurationRoot).toBe(rootsByProfile.addone);
+    expect(a1.configurationRoot).toBe(rootsByProfile.a1);
     expect(vanilla.configurationRoot).toBeNull();
     expect(vanilla.environment.PI_CODING_AGENT_DIR).toBeUndefined();
     expect(sandbox.configurationRoot).toBe(rootsByProfile.sandbox);
     expect(sandbox.piArguments).toEqual(["--no-approve"]);
 
-    await expect(stat(resolve(rootsByProfile.addone, "auth.json"))).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(stat(resolve(rootsByProfile.a1, "auth.json"))).rejects.toMatchObject({ code: "ENOENT" });
     await expect(readFile(resolve(rootsByProfile.pi, "auth.json"), "utf8")).resolves.toBe("pi:auth.json");
     await expect(readFile(resolve(rootsByProfile.sandbox, "auth.json"), "utf8")).resolves.toBe("sandbox:auth.json");
 
     for (const artifact of profileArtifacts.filter(value => value !== "auth.json")) {
-      await expect(readFile(resolve(rootsByProfile.addone, artifact), "utf8")).resolves.toBe(`addone:${artifact}`);
+      await expect(readFile(resolve(rootsByProfile.a1, artifact), "utf8")).resolves.toBe(`a1:${artifact}`);
       await expect(readFile(resolve(rootsByProfile.pi, artifact), "utf8")).resolves.toBe(`pi:${artifact}`);
       await expect(readFile(resolve(rootsByProfile.sandbox, artifact), "utf8")).resolves.toBe(`sandbox:${artifact}`);
     }

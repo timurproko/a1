@@ -53,7 +53,7 @@ describe("workspace presentation model", () => {
     const model = presentWorkspace(reducer.view(), { maxRows: 4, maxLabelWidth: 16 });
     expect(model).toMatchObject({
       role: "listbox",
-      label: "AddOne agents",
+      label: "A1 agents",
       selectedAgentId: "agent-1",
       overflowCount: 0,
       emptyMessage: null,
@@ -85,7 +85,7 @@ describe("workspace presentation model", () => {
         },
       ],
     });
-    expect(model.text).toBe("AddOne agents\n› Research — ready\n  Reviewer — ready, 2 unread, attention");
+    expect(model.text).toBe("A1 agents\n› Research — ready\n  Reviewer — ready, 2 unread, attention");
   });
 
   it("bounds row count and label width without retaining overflow rows", () => {
@@ -122,7 +122,7 @@ describe("workspace presentation model", () => {
       rows: [],
       overflowCount: 0,
       emptyMessage: "No managed agents.",
-      text: "AddOne agents\nNo managed agents.",
+      text: "A1 agents\nNo managed agents.",
     });
     expect(workspaceSelectionForKey(reducer.view(), "ArrowDown")).toBeNull();
   });

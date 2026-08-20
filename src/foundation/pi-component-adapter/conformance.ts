@@ -43,7 +43,7 @@ export async function runPiComponentConformance(): Promise<PiComponentConformanc
 
     try {
       const width = 80;
-      const user = new UserMessageComponent("hello from AddOne");
+      const user = new UserMessageComponent(`hello from ${PRODUCT_IDENTITY.displayName}`);
       const assistantBlock: OwnedUiTranscriptBlock = {
         id: "assistant-1",
         kind: "assistant",

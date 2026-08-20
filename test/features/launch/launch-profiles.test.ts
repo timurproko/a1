@@ -2,10 +2,10 @@ import { describe, expect, it } from "vitest";
 import { interactiveLaunchIntent, launchProfileContract, type LaunchProfileId } from "../../../src/features/launch/index.js";
 
 const expected = {
-  addone: {
-    id: "addone",
+  a1: {
+    id: "a1",
     productSurface: "agent",
-    piConfigurationRoot: "addone-agent",
+    piConfigurationRoot: "agent-profile",
     projectTrust: "pi-default",
     terminalCapability: "owned-ui",
   },
@@ -19,7 +19,7 @@ const expected = {
   sandbox: {
     id: "sandbox",
     productSurface: "isolated-profile",
-    piConfigurationRoot: "addone-sandbox",
+    piConfigurationRoot: "sandbox-profile",
     projectTrust: "ignore",
     terminalCapability: "transparent",
   },
@@ -31,8 +31,8 @@ describe("launch profile contracts", () => {
     expect(interactiveLaunchIntent(id)).toEqual({ kind: "interactive", profile: expected[id] });
   });
 
-  it("keeps bare AddOne as the owned agent surface and sandbox as profile isolation", () => {
-    expect(launchProfileContract("addone")).toMatchObject({
+  it("keeps bare A1 as the owned agent surface and sandbox as profile isolation", () => {
+    expect(launchProfileContract("a1")).toMatchObject({
       productSurface: "agent",
       terminalCapability: "owned-ui",
     });

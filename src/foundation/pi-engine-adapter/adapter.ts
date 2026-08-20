@@ -590,8 +590,8 @@ export class PiEngineAdapter {
       uiProperties: OWNED_UI_EXTENSION_UI_PROPERTIES,
       renderCallbacks: OWNED_UI_EXTENSION_RENDER_CALLBACKS,
       diagnostic: this.#extensionBound
-        ? "Pinned public extension UI lifecycle is bound through the AddOne-owned bridge."
-        : "The complete AddOne-owned extension UI contract is available; the active session has not been bound to the owned UI bridge.",
+        ? `Pinned public extension UI lifecycle is bound through the ${PRODUCT_IDENTITY.displayName}-owned bridge.`
+        : `The complete ${PRODUCT_IDENTITY.displayName}-owned extension UI contract is available; the active session has not been bound to the owned UI bridge.`,
     };
   }
 

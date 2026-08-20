@@ -17,7 +17,7 @@ export interface TransparentForegroundOptions {
 
 export async function runTransparentForeground(options: TransparentForegroundOptions = {}): Promise<number> {
   const environment = { ...(options.environment ?? process.env) };
-  const profileId = options.profileId ?? environment.A1_LAUNCH_PROFILE ?? "addone";
+  const profileId = options.profileId ?? environment.A1_LAUNCH_PROFILE ?? "a1";
   assertLaunchProfileId(profileId);
   const paths = resolveProductPaths(environment);
   const client = new SupervisorClient(environment.A1_RELEASE_ID);

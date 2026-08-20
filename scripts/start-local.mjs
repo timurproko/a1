@@ -45,7 +45,7 @@ if (launchArguments[0] === "--print-environment") {
 }
 
 function directLaunchProfile(arguments_) {
-  if (arguments_.length === 0) return "addone";
+  if (arguments_.length === 0) return "a1";
   if (arguments_.length === 1 && (arguments_[0] === "pi" || arguments_[0] === "sandbox")) return arguments_[0];
   return null;
 }

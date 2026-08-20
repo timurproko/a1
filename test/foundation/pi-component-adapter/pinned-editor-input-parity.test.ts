@@ -15,7 +15,7 @@ function tuiOptions() {
 
 describe("pinned editor and input parity", () => {
   it("matches configured keybindings, editing, Unicode, paste, autocomplete, app actions, queues, clipboard hooks, and cancellation", async () => {
-    const agentDir = await mkdtemp(join(tmpdir(), "addone-pi-editor-"));
+    const agentDir = await mkdtemp(join(tmpdir(), "a1-pi-editor-"));
     await mkdir(agentDir, { recursive: true });
     await writeFile(join(agentDir, "keybindings.json"), JSON.stringify({ "app.model.cycleForward": ["ctrl+y"] }));
     try {

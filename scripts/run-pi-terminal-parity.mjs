@@ -82,7 +82,7 @@ async function runGate() {
     cwd: fixture.cwd,
     environment: {
       ...commonParityEnvironment(fixture.profiles["addone-owned-ui"]),
-      A1_LAUNCH_PROFILE: "addone",
+      A1_LAUNCH_PROFILE: "a1",
       A1_LAUNCH_ARGUMENTS_JSON: "[]",
     },
     columns: DEFAULT_COLUMNS,

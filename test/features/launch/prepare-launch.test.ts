@@ -4,9 +4,9 @@ import { interactiveLaunchIntent, prepareInteractiveLaunch } from "../../../src/
 const home = process.platform === "win32" ? "C:\\fixture-home" : "/fixture-home";
 
 describe("prepared Pi launch environment", () => {
-  it("sets the AddOne agent profile and preserves provider credentials", async () => {
+  it("sets the A1 agent profile and preserves provider credentials", async () => {
     const initializeProfile = vi.fn(async (root: string) => ({ root, directories: [] }));
-    const result = await prepareInteractiveLaunch(interactiveLaunchIntent("addone"), {
+    const result = await prepareInteractiveLaunch(interactiveLaunchIntent("a1"), {
       PI_CODING_AGENT_DIR: "inherited-must-change",
       ANTHROPIC_API_KEY: "provider-secret",
       PATH: "fixture-path",

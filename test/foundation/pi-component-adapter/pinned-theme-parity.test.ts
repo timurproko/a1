@@ -105,7 +105,7 @@ describe("pinned Pi theme and layout parity", () => {
   });
 
   it("loads and validates pinned custom theme variables and fallbacks", async () => {
-    const directory = await mkdtemp(join(tmpdir(), "addone-pi-theme-"));
+    const directory = await mkdtemp(join(tmpdir(), "a1-pi-theme-"));
     const original = process.env.PI_CODING_AGENT_DIR;
     process.env.PI_CODING_AGENT_DIR = directory;
     try {

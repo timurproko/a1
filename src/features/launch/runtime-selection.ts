@@ -1,6 +1,6 @@
 import { assertLaunchProfileId, type LaunchProfileId } from "../../foundation/lifecycle/index.js";
 
-export type TransparentInteractiveProfileId = Exclude<LaunchProfileId, "addone">;
+export type TransparentInteractiveProfileId = Exclude<LaunchProfileId, "a1">;
 
 export type InteractiveRuntimeSelection =
   | { readonly kind: "owned-ui" }
@@ -13,7 +13,7 @@ export interface InteractiveRuntimeRunners {
 
 export function selectInteractiveRuntime(profileId: string): InteractiveRuntimeSelection {
   assertLaunchProfileId(profileId);
-  return profileId === "addone"
+  return profileId === "a1"
     ? Object.freeze({ kind: "owned-ui" })
     : Object.freeze({ kind: "transparent", profileId });
 }

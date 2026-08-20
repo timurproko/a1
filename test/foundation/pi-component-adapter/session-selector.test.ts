@@ -23,7 +23,7 @@ function session(path: string, id: string, name: string | undefined, modified: n
 
 describe("owned pinned session selector", () => {
   it("preserves scope, search, rename, delete confirmation, current-session protection, and silent cancel", async () => {
-    const root = await mkdtemp(join(tmpdir(), "addone-session-selector-"));
+    const root = await mkdtemp(join(tmpdir(), "a1-session-selector-"));
     const currentPath = join(root, "current.jsonl");
     const otherPath = join(root, "other.jsonl");
     await Promise.all([writeFile(currentPath, "{}\n"), writeFile(otherPath, "{}\n")]);

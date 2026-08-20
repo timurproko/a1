@@ -68,7 +68,7 @@ function view(overrides: Partial<OwnedUiSessionViewModel> = {}): OwnedUiSessionV
       submitEnabled: true,
     },
     status: {
-      title: "AddOne",
+      title: "A1",
       workingMessage: null,
       diagnostics: [],
       badges: ["ready"],

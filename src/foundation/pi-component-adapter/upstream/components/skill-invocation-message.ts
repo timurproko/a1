@@ -2,7 +2,7 @@
  * Source-synchronized from Pi 0.84.2
  * packages/coding-agent/src/modes/interactive/components/skill-invocation-message.ts
  *
- * Modified only to use AddOne's public pi-tui instance and owned theme boundary.
+ * Modified only to use A1's public pi-tui instance and owned theme boundary.
  */
 import { Box, getKeybindings, Markdown, Text, type MarkdownTheme } from "@earendil-works/pi-tui";
 import { piTheme } from "../theme/theme.js";

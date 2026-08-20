@@ -3,8 +3,8 @@ import { PiSessionShellRoot } from "../../../src/features/owned-ui/index.js";
 import { createPiShellFooter } from "../../../src/foundation/pi-component-adapter/index.js";
 import { normalizeRow, type StartupCapture, type StartupCaptureState } from "./pi-upstream-startup-fixture.js";
 
-/** AddOne producer. It deliberately shares no composition implementation with the upstream producer. */
-export function captureAddOneStartup(state: StartupCaptureState): StartupCapture {
+/** A1 producer. It deliberately shares no composition implementation with the upstream producer. */
+export function captureA1Startup(state: StartupCaptureState): StartupCapture {
   const root = new PiSessionShellRoot(toView(state), state.cwd, {
     getColumns: () => state.width,
     getRows: () => 24,
@@ -24,7 +24,7 @@ export function captureAddOneStartup(state: StartupCaptureState): StartupCapture
   return { id: state.id, width: state.width, rows };
 }
 
-export function captureAddOneFooterRows(state: StartupCaptureState): readonly string[] {
+export function captureA1FooterRows(state: StartupCaptureState): readonly string[] {
   return createPiShellFooter(toView(state), state.cwd).render(state.width);
 }
 
