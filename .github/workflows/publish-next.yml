@@ -6,10 +6,21 @@ on:
       version:
         description: Exact manually accepted development preview version
         required: true
-        default: 0.1.5-dev.11
+        type: string
+      source_commit:
+        description: Exact manually accepted develop commit
+        required: true
+        type: string
+      integrity:
+        description: Exact accepted npm pack sha512 integrity
+        required: true
+        type: string
+      shasum:
+        description: Exact accepted npm pack sha1 shasum
+        required: true
         type: string
       confirm_uncertified:
-        description: Type "publish-uncertified-next" to confirm physical certification is deferred
+        description: Type "publish-uncertified-next" to confirm deferred certification
         required: true
         type: string
 
@@ -23,26 +34,20 @@ concurrency:
 
 jobs:
   publish-next:
-    name: Publish exact uncertified preview
+    name: Publish exact accepted preview
     if: github.ref == 'refs/heads/develop'
-    # This is a GitHub-hosted non-interactive runner. It does not execute the
-    # isolated physical-terminal workflow or inject desktop input.
     runs-on: windows-2025
     timeout-minutes: 30
     environment: npm-next
-    env:
-      ACCEPTED_SOURCE_COMMIT: d407ed017a6f9216a9a0c62d85d7cd44803d4d2c
-      ACCEPTED_TARBALL_INTEGRITY: sha512-05GQdg7ZfvcEpI6wAvebyx/06JPnV5AUtSbptx7P3mzT28iU4yurP87uKIKsvpNwPzjMsr8k5RfiAeEyq/GfpQ==
-      ACCEPTED_TARBALL_SHASUM: eb9002c85632b34d5b7d5fa41beba23679d2201e
     steps:
       - name: Preserve repository bytes during checkout
         shell: bash
         run: git config --global core.autocrlf false
 
-      - name: Check out exact manually accepted source
+      - name: Check out accepted source
         uses: actions/checkout@v5
         with:
-          ref: d407ed017a6f9216a9a0c62d85d7cd44803d4d2c
+          ref: ${{ inputs.source_commit }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -52,152 +57,92 @@ jobs:
           node-version: 24
           cache: npm
 
-      - name: Validate manual publication request
+      - name: Validate exact acceptance
         shell: bash
         env:
           REQUESTED_VERSION: ${{ inputs.version }}
+          ACCEPTED_SOURCE_COMMIT: ${{ inputs.source_commit }}
+          ACCEPTED_INTEGRITY: ${{ inputs.integrity }}
+          ACCEPTED_SHASUM: ${{ inputs.shasum }}
           CONFIRM_UNCERTIFIED: ${{ inputs.confirm_uncertified }}
         run: |
           set -euo pipefail
           test "$GITHUB_REF" = "refs/heads/develop"
-          git merge-base --is-ancestor "$ACCEPTED_SOURCE_COMMIT" "$GITHUB_SHA"
           test "$(git rev-parse HEAD)" = "$ACCEPTED_SOURCE_COMMIT"
           test "$CONFIRM_UNCERTIFIED" = "publish-uncertified-next"
-          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
-          test "$PACKAGE_VERSION" = "$REQUESTED_VERSION"
-          [[ "$PACKAGE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+-dev\.[0-9]+$ ]]
-          test "$PACKAGE_VERSION" = "0.1.5-dev.11"
-          echo "version=$PACKAGE_VERSION" >> "$GITHUB_ENV"
+          test "$(node -p "require('./package.json').name")" = "@timurproko/a1"
+          test "$(node -p "require('./package.json').version")" = "$REQUESTED_VERSION"
+          [[ "$REQUESTED_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+-dev\.[0-9]+$ ]]
+          [[ "$ACCEPTED_INTEGRITY" =~ ^sha512- ]]
+          [[ "$ACCEPTED_SHASUM" =~ ^[a-f0-9]{40}$ ]]
+          echo "version=$REQUESTED_VERSION" >> "$GITHUB_ENV"
+          echo "accepted_integrity=$ACCEPTED_INTEGRITY" >> "$GITHUB_ENV"
+          echo "accepted_shasum=$ACCEPTED_SHASUM" >> "$GITHUB_ENV"
           echo "source_commit=$ACCEPTED_SOURCE_COMMIT" >> "$GITHUB_ENV"
 
-      - name: Reproduce accepted candidate line endings
-        shell: bash
-        run: |
-          node --input-type=module <<'NODE'
-          import { readFile, writeFile } from "node:fs/promises";
-          for (const path of ["package.json", "src/foundation/storage/control-store.ts"]) {
-            const source = await readFile(path, "utf8");
-            if (source.includes("\r")) throw new Error(`${path} checkout was not normalized to LF`);
-            await writeFile(path, source.replaceAll("\n", "\r\n"));
-          }
-          NODE
-          git diff --ignore-space-at-eol --exit-code
-
-      - name: Install exact locked dependencies
-        run: npm ci
-
-      - name: Run non-desktop release gates
-        run: npm run check
+      - name: Install and run non-desktop gates
+        run: npm ci && npm run check
         env:
           ADDONE_RELEASE_RUNNER_LABEL: github-windows-2025-uncertified-next
 
-      - name: Pack exact candidate once
+      - name: Pack and verify accepted bytes
         id: pack
         shell: bash
         run: |
           set -euo pipefail
           npm run build
+          mkdir -p artifacts
           npm pack --ignore-scripts --json > artifacts/npm-pack-result.json
           node --input-type=module <<'NODE'
           import { appendFile, readFile } from "node:fs/promises";
-          const pack = JSON.parse(await readFile("artifacts/npm-pack-result.json", "utf8"));
-          const result = pack[0];
+          const [result] = JSON.parse(await readFile("artifacts/npm-pack-result.json", "utf8"));
+          const manifest = JSON.parse(await readFile("package.json", "utf8"));
           if (!result?.filename || !result?.integrity || !result?.shasum) throw new Error("npm pack returned incomplete metadata");
-          if (result.integrity !== process.env.ACCEPTED_TARBALL_INTEGRITY) throw new Error(`packed integrity ${result.integrity} does not match manually accepted bytes`);
-          if (result.shasum !== process.env.ACCEPTED_TARBALL_SHASUM) throw new Error(`packed shasum ${result.shasum} does not match manually accepted bytes`);
-          await appendFile(process.env.GITHUB_OUTPUT, `tarball=${result.filename}\nintegrity=${result.integrity}\nshasum=${result.shasum}\n`);
-          NODE
-
-      - name: Record uncertified preview evidence
-        shell: bash
-        env:
-          TARBALL: ${{ steps.pack.outputs.tarball }}
-          INTEGRITY: ${{ steps.pack.outputs.integrity }}
-          SHASUM: ${{ steps.pack.outputs.shasum }}
-        run: |
-          node --input-type=module <<'NODE'
-          import { mkdir, writeFile } from "node:fs/promises";
-          import { createUncertifiedDevelopmentPreviewEvidence } from "./dist/src/foundation/release/index.js";
-          const evidence = createUncertifiedDevelopmentPreviewEvidence({
-            packageName: "@timurproko/addone",
-            version: process.env.version,
-            commit: process.env.source_commit,
-            tarball: process.env.TARBALL,
-            integrity: process.env.INTEGRITY,
-            shasum: process.env.SHASUM,
-            platform: process.platform,
-            architecture: process.arch,
-            recordedAt: new Date().toISOString(),
-          });
-          await mkdir("artifacts", { recursive: true });
-          await writeFile("artifacts/development-preview-candidate.json", JSON.stringify(evidence, null, 2));
-          NODE
-
-      - name: Check for an existing exact registry version
-        id: registry
-        shell: bash
-        run: |
-          node --input-type=module <<'NODE'
-          import { appendFile } from "node:fs/promises";
-          const response = await fetch(`https://registry.npmjs.org/@timurproko%2faddone/${process.env.version}`, {
-            headers: { accept: "application/json", "cache-control": "no-cache" },
-          });
-          if (response.status === 404) {
-            await appendFile(process.env.GITHUB_OUTPUT, "exists=false\n");
-          } else {
-            if (!response.ok) throw new Error(`registry lookup failed with HTTP ${response.status}`);
-            const manifest = await response.json();
-            if (manifest.dist?.integrity !== process.env.ACCEPTED_TARBALL_INTEGRITY) throw new Error("existing registry integrity differs from accepted bytes");
-            if (manifest.dist?.shasum !== process.env.ACCEPTED_TARBALL_SHASUM) throw new Error("existing registry shasum differs from accepted bytes");
-            await appendFile(process.env.GITHUB_OUTPUT, "exists=true\n");
-          }
+          if (manifest.name !== "@timurproko/a1" || manifest.version !== process.env.version) throw new Error("packed manifest identity changed");
+          if (JSON.stringify(manifest.bin) !== JSON.stringify({ a1: "bin/addone.js" })) throw new Error("package must expose only a1");
+          if (result.integrity !== process.env.accepted_integrity) throw new Error("packed integrity differs from accepted bytes");
+          if (result.shasum !== process.env.accepted_shasum) throw new Error("packed shasum differs from accepted bytes");
+          await appendFile(process.env.GITHUB_OUTPUT, `tarball=${result.filename}\n`);
           NODE
 
       - name: Publish exact tarball to npm next
-        if: steps.registry.outputs.exists != 'true'
         shell: bash
         env:
           TARBALL: ${{ steps.pack.outputs.tarball }}
-        run: npm publish "$TARBALL" --tag next --access public --ignore-scripts --provenance=false --registry https://registry.npmjs.org/
+        run: npm publish "$TARBALL" --tag next --access public --ignore-scripts --provenance --registry https://registry.npmjs.org/
 
-      - name: Verify exact registry artifact and preserve latest
+      - name: Verify exact registry artifact
         shell: bash
         run: |
           node --input-type=module <<'NODE'
-          const packageUrl = "https://registry.npmjs.org/@timurproko%2faddone";
+          const packageUrl = "https://registry.npmjs.org/@timurproko%2fa1";
           let lastError;
-          let verified = false;
           for (let attempt = 1; attempt <= 12; attempt += 1) {
             try {
-              const response = await fetch(`${packageUrl}?verify=${Date.now()}`, {
-                headers: { accept: "application/json", "cache-control": "no-cache" },
-              });
+              const response = await fetch(`${packageUrl}?verify=${Date.now()}`, { headers: { accept: "application/json", "cache-control": "no-cache" } });
               if (!response.ok) throw new Error(`registry returned HTTP ${response.status}`);
               const metadata = await response.json();
               const manifest = metadata.versions?.[process.env.version];
               if (!manifest) throw new Error(`${process.env.version} has not propagated`);
-              if (manifest.dist?.integrity !== process.env.ACCEPTED_TARBALL_INTEGRITY) throw new Error("registry integrity differs from accepted bytes");
-              if (manifest.dist?.shasum !== process.env.ACCEPTED_TARBALL_SHASUM) throw new Error("registry shasum differs from accepted bytes");
-              if (metadata["dist-tags"]?.next !== process.env.version) throw new Error("next tag has not propagated");
-              if (metadata["dist-tags"]?.latest !== "0.1.4") throw new Error("latest tag changed unexpectedly");
-              console.log(`Verified: ${process.env.version}\nnext: ${metadata["dist-tags"].next}\nlatest: ${metadata["dist-tags"].latest}`);
-              verified = true;
-              break;
+              if (manifest.dist?.integrity !== process.env.accepted_integrity) throw new Error("registry integrity differs from accepted bytes");
+              if (manifest.dist?.shasum !== process.env.accepted_shasum) throw new Error("registry shasum differs from accepted bytes");
+              if (metadata["dist-tags"]?.next !== process.env.version) throw new Error("next tag differs from accepted version");
+              if (JSON.stringify(manifest.bin) !== JSON.stringify({ a1: "bin/addone.js" })) throw new Error("registry package exposes unexpected bins");
+              process.exit(0);
             } catch (error) {
               lastError = error;
               if (attempt < 12) await new Promise(resolve => setTimeout(resolve, 5000));
             }
           }
-          if (!verified) throw lastError;
+          throw lastError;
           NODE
 
       - name: Upload publication evidence
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: npm-next-${{ inputs.version }}-${{ github.sha }}
+          name: npm-next-${{ inputs.version }}-${{ inputs.source_commit }}
           path: |
-            artifacts/development-preview-candidate.json
             artifacts/npm-pack-result.json
             artifacts/release-verdicts/*.json
           if-no-files-found: warn

@@ -1,0 +1,165 @@
+name: Publish npm stable
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_commit:
+        description: Exact accepted master commit
+        required: true
+        type: string
+      integrity:
+        description: Exact accepted npm pack sha512 integrity
+        required: true
+        type: string
+      shasum:
+        description: Exact accepted npm pack sha1 shasum
+        required: true
+        type: string
+      confirm_stable:
+        description: Type "publish-a1-0.1.0-latest"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: npm-stable-publication
+  cancel-in-progress: false
+
+jobs:
+  publish-stable:
+    name: Publish exact a1 0.1.0 stable
+    if: github.ref == 'refs/tags/v0.1.0'
+    runs-on: windows-2025
+    timeout-minutes: 40
+    environment: npm-stable
+    steps:
+      - name: Preserve repository bytes during checkout
+        shell: bash
+        run: git config --global core.autocrlf false
+
+      - name: Check out exact release tag
+        uses: actions/checkout@v5
+        with:
+          ref: v0.1.0
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Validate tagged master candidate
+        shell: bash
+        env:
+          ACCEPTED_SOURCE_COMMIT: ${{ inputs.source_commit }}
+          ACCEPTED_INTEGRITY: ${{ inputs.integrity }}
+          ACCEPTED_SHASUM: ${{ inputs.shasum }}
+          CONFIRM_STABLE: ${{ inputs.confirm_stable }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/tags/v0.1.0"
+          test "$CONFIRM_STABLE" = "publish-a1-0.1.0-latest"
+          test "$(git rev-parse HEAD)" = "$ACCEPTED_SOURCE_COMMIT"
+          test "$(git rev-list -n 1 v0.1.0)" = "$ACCEPTED_SOURCE_COMMIT"
+          git fetch origin master:refs/remotes/origin/master
+          test "$(git rev-parse origin/master)" = "$ACCEPTED_SOURCE_COMMIT"
+          test "$(node -p "require('./package.json').name")" = "@timurproko/a1"
+          test "$(node -p "require('./package.json').version")" = "0.1.0"
+          [[ "$ACCEPTED_INTEGRITY" =~ ^sha512- ]]
+          [[ "$ACCEPTED_SHASUM" =~ ^[a-f0-9]{40}$ ]]
+          echo "accepted_integrity=$ACCEPTED_INTEGRITY" >> "$GITHUB_ENV"
+          echo "accepted_shasum=$ACCEPTED_SHASUM" >> "$GITHUB_ENV"
+          echo "source_commit=$ACCEPTED_SOURCE_COMMIT" >> "$GITHUB_ENV"
+
+      - name: Install and run stable gates
+        run: npm ci && npm run check
+        env:
+          ADDONE_RELEASE_RUNNER_LABEL: github-windows-2025-stable
+          ADDONE_CONFIG_DIR: ${{ runner.temp }}\a1-config
+          ADDONE_DATA_DIR: ${{ runner.temp }}\a1-data
+          ADDONE_RUNTIME_DIR: ${{ runner.temp }}\a1-runtime
+
+      - name: Pack and verify exact stable bytes
+        id: pack
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run build
+          mkdir -p artifacts
+          npm pack --ignore-scripts --json > artifacts/npm-pack-result.json
+          node --input-type=module <<'NODE'
+          import { appendFile, readFile, writeFile } from "node:fs/promises";
+          import { createStableReleaseEvidence } from "./dist/src/foundation/release/index.js";
+          const [result] = JSON.parse(await readFile("artifacts/npm-pack-result.json", "utf8"));
+          const manifest = JSON.parse(await readFile("package.json", "utf8"));
+          if (!result?.filename || !result?.integrity || !result?.shasum) throw new Error("npm pack returned incomplete metadata");
+          if (manifest.name !== "@timurproko/a1" || manifest.version !== "0.1.0") throw new Error("stable package identity changed");
+          if (JSON.stringify(manifest.bin) !== JSON.stringify({ a1: "bin/addone.js" })) throw new Error("stable package must expose only a1");
+          if (result.integrity !== process.env.accepted_integrity) throw new Error("packed integrity differs from accepted bytes");
+          if (result.shasum !== process.env.accepted_shasum) throw new Error("packed shasum differs from accepted bytes");
+          const evidence = createStableReleaseEvidence({
+            packageName: manifest.name,
+            version: manifest.version,
+            commit: process.env.source_commit,
+            tag: "v0.1.0",
+            tarball: result.filename,
+            integrity: result.integrity,
+            shasum: result.shasum,
+            recordedAt: new Date().toISOString(),
+          });
+          await writeFile("artifacts/stable-release.json", JSON.stringify(evidence, null, 2));
+          await appendFile(process.env.GITHUB_OUTPUT, `tarball=${result.filename}\n`);
+          NODE
+
+      - name: Confirm version is unpublished
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          const response = await fetch(`https://registry.npmjs.org/@timurproko%2fa1/0.1.0?preflight=${Date.now()}`, { headers: { "cache-control": "no-cache" } });
+          if (response.status !== 404) throw new Error(`@timurproko/a1@0.1.0 is not available for first publication: HTTP ${response.status}`);
+          NODE
+
+      - name: Publish exact stable tarball
+        shell: bash
+        env:
+          TARBALL: ${{ steps.pack.outputs.tarball }}
+        run: npm publish "$TARBALL" --tag latest --access public --ignore-scripts --provenance --registry https://registry.npmjs.org/
+
+      - name: Verify exact registry artifact
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFile } from "node:fs/promises";
+          import { verifyStableRegistry } from "./dist/src/foundation/release/index.js";
+          const expected = JSON.parse(await readFile("artifacts/stable-release.json", "utf8"));
+          await verifyStableRegistry(expected, async () => {
+            const response = await fetch(`https://registry.npmjs.org/@timurproko%2fa1?verify=${Date.now()}`, { headers: { accept: "application/json", "cache-control": "no-cache" } });
+            if (!response.ok) return { packageName: null, version: null, latest: null, integrity: null, shasum: null, bins: [] };
+            const metadata = await response.json();
+            const manifest = metadata.versions?.[expected.version];
+            return {
+              packageName: manifest?.name ?? null,
+              version: manifest?.version ?? null,
+              latest: metadata["dist-tags"]?.latest ?? null,
+              integrity: manifest?.dist?.integrity ?? null,
+              shasum: manifest?.dist?.shasum ?? null,
+              bins: Object.keys(manifest?.bin ?? {}),
+            };
+          }, { attempts: 12, delayMs: 5000 });
+          NODE
+
+      - name: Upload stable evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: npm-stable-0.1.0-${{ inputs.source_commit }}
+          path: |
+            artifacts/stable-release.json
+            artifacts/npm-pack-result.json
+            artifacts/release-verdicts/*.json
+          if-no-files-found: error

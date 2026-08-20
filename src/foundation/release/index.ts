@@ -6,5 +6,6 @@ export * from "./process-cleanup.js";
 export * from "./release.js";
 export * from "./release-gc.js";
 export * from "./release-store.js";
+export * from "./stable-release.js";
 export * from "./update.js";
 export * from "./update-transaction.js";
