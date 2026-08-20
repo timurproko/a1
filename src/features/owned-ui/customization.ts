@@ -5,7 +5,6 @@ import {
   type OwnedUiSlotId,
   type OwnedUiTranscriptBlock,
 } from "../../foundation/owned-ui-contracts/index.js";
-import { renderPiShellTranscriptBlock } from "../../foundation/pi-component-adapter/index.js";
 
 export interface OwnedUiSlotImplementation {
   readonly payload: unknown;
@@ -124,7 +123,11 @@ export class OwnedUiCustomizationRegistry {
   }
 }
 
-export function createVanillaUiCustomizationRegistry(): OwnedUiCustomizationRegistry {
+export interface VanillaUiCustomizationPorts {
+  readonly renderTranscriptBlock: (block: OwnedUiTranscriptBlock, width: number) => readonly string[];
+}
+
+export function createVanillaUiCustomizationRegistry(ports: VanillaUiCustomizationPorts): OwnedUiCustomizationRegistry {
   const registry = new OwnedUiCustomizationRegistry();
   const register = (
     slot: OwnedUiSlotId,
@@ -145,7 +148,7 @@ export function createVanillaUiCustomizationRegistry(): OwnedUiCustomizationRegi
   });
   register("transcript-block", "vanilla-transcript", "Vanilla transcript", {
     payload: {},
-    render: (input, width) => renderPiShellTranscriptBlock(input as OwnedUiTranscriptBlock, width, process.cwd()),
+    render: (input, width) => ports.renderTranscriptBlock(input as OwnedUiTranscriptBlock, width),
   });
   register("tool-card", "vanilla-tool-card", "Vanilla tool cards");
   register("editor", "vanilla-editor", "Vanilla editor");

@@ -25,10 +25,13 @@ function customization(slot: OwnedUiSlotId, id: string, precedence = 0, version 
 
 describe("owned UI customization registry", () => {
   it("provides a vanilla preset for every stable slot", () => {
-    const registry = createVanillaUiCustomizationRegistry();
+    const registry = createVanillaUiCustomizationRegistry({
+      renderTranscriptBlock: (block, width) => [`${block.kind}:${width}`],
+    });
     for (const slot of slots.filter(slot => slot !== "command")) {
       expect(registry.resolve(slot)?.customization.id).toBe(`vanilla-${slot === "transcript-block" ? "transcript" : slot === "tool-card" ? "tool-card" : slot === "layout" ? "fullscreen" : slot}`);
     }
+    expect(registry.resolve("transcript-block")?.implementation.render?.({ kind: "assistant" }, 42)).toEqual(["assistant:42"]);
   });
 
   it("resolves precedence and version without leaking registrations across slots", () => {
