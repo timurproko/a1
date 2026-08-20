@@ -1,11 +1,11 @@
 import type { OwnedUiSessionViewModel } from "../../../src/foundation/owned-ui-contracts/index.js";
-import { PiSessionShellRoot } from "../../../src/features/owned-ui/index.js";
+import { OwnedUiSessionShellRoot } from "../../../src/features/owned-ui/index.js";
 import { createPiShellFooter } from "../../../src/foundation/pi-component-adapter/index.js";
 import { normalizeRow, type StartupCapture, type StartupCaptureState } from "./pi-upstream-startup-fixture.js";
 
 /** A1 producer. It deliberately shares no composition implementation with the upstream producer. */
 export function captureA1Startup(state: StartupCaptureState): StartupCapture {
-  const root = new PiSessionShellRoot(toView(state), state.cwd, {
+  const root = new OwnedUiSessionShellRoot(toView(state), state.cwd, {
     getColumns: () => state.width,
     getRows: () => 24,
     requestRender() {},

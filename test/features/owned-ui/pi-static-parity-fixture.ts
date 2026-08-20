@@ -1,7 +1,7 @@
 import { stripTerminalSequences } from "@earendil-works/pi-tui";
 import type { OwnedUiSessionViewModel, OwnedUiTranscriptBlock } from "../../../src/foundation/owned-ui-contracts/index.js";
 import { createPiShellDialog, createPiShellSelector } from "../../../src/foundation/pi-component-adapter/index.js";
-import { PiSessionShellRoot } from "../../../src/features/owned-ui/index.js";
+import { OwnedUiSessionShellRoot } from "../../../src/features/owned-ui/index.js";
 
 export const STATIC_PARITY_COVERAGE = [
   "transcript",
@@ -25,7 +25,7 @@ export interface StaticParityCase {
 
 export function buildStaticParityCases(): readonly StaticParityCase[] {
   const view = staticView();
-  const root = new PiSessionShellRoot(view, "D:/work", {
+  const root = new OwnedUiSessionShellRoot(view, "D:/work", {
     getColumns: () => 72,
     getRows: () => 30,
     requestRender() {},

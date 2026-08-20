@@ -1,6 +1,6 @@
 import { createPiEngineAdapter, type PiRuntimeLike, type PiSessionLike } from "../../../src/foundation/pi-engine-adapter/index.js";
 import type { PiTuiTerminalPort } from "../../../src/foundation/pi-tui-runtime-adapter/index.js";
-import { PiSessionShell } from "../../../src/features/owned-ui/index.js";
+import { OwnedUiSessionShell } from "../../../src/features/owned-ui/index.js";
 
 export interface EventStateParityEntry {
   readonly stage: string;
@@ -56,7 +56,7 @@ export async function buildEventFrameParityResult(): Promise<EventFrameParityRes
     createRuntime: async () => engine,
   });
   const physical = new CapturingTerminal(64, 18);
-  const shell = new PiSessionShell({ adapter, cwd: "D:/parity", terminal: physical });
+  const shell = new OwnedUiSessionShell({ backend: adapter, cwd: "D:/parity", terminal: physical });
   const states: EventStateParityEntry[] = [];
   const frames: TerminalFrameParityEntry[] = [];
   let writeOffset = 0;

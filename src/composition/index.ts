@@ -26,7 +26,7 @@ import {
   type PresentationTerminalPort,
 } from "../foundation/presentation-contracts/index.js";
 import type { OwnedUiCommand, OwnedUiEvent, OwnedUiTranscriptBlock } from "../foundation/owned-ui-contracts/index.js";
-import { PiSessionShell } from "../features/owned-ui/index.js";
+import { OwnedUiSessionShell } from "../features/owned-ui/index.js";
 
 const CAPABILITIES: AgentCapabilityContract = {
   contractVersion: AGENT_ENGINE_CONTRACT_VERSION,
@@ -52,8 +52,8 @@ export interface OwnedUiCompositionOptions {
 export async function composeOwnedUiApplication(options: OwnedUiCompositionOptions = {}): Promise<OwnedUiApplicationPort> {
   const cwd = options.cwd ?? process.cwd();
   const adapter = options.createPiAdapter ? await options.createPiAdapter() : await createPiEngineAdapter({ cwd });
-  const shell = new PiSessionShell({
-    adapter,
+  const shell = new OwnedUiSessionShell({
+    backend: adapter,
     cwd,
     ...(options.terminal === undefined ? {} : { terminal: toPiTerminal(options.terminal) }),
   });

@@ -23,10 +23,10 @@ describe("independent pinned Pi startup composition parity", () => {
   it("keeps the two producers independent", async () => {
     const upstreamSource = await readFile("test/features/owned-ui/pi-upstream-startup-fixture.ts", "utf8");
     const a1Source = await readFile("test/features/owned-ui/pi-a1-startup-fixture.ts", "utf8");
-    expect(upstreamSource).not.toMatch(/PiSessionShell|pi-component-adapter|src\/features\/owned-ui/);
+    expect(upstreamSource).not.toMatch(/OwnedUiSessionShell|pi-component-adapter|src\/features\/owned-ui/);
     expect(upstreamSource).toContain("FooterComponent");
     expect(upstreamSource).toContain("CustomEditor");
-    expect(a1Source).toContain("PiSessionShellRoot");
+    expect(a1Source).toContain("OwnedUiSessionShellRoot");
     expect(a1Source).not.toContain("FooterComponent");
   });
 });

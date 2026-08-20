@@ -6,7 +6,7 @@ import {
   PINNED_PI_HIDDEN_COMMAND_NAMES,
   PINNED_PI_WORKFLOW_COMMAND_NAMES,
 } from "../../../src/foundation/pi-engine-adapter/index.js";
-import { PiSessionShell } from "../../../src/features/owned-ui/index.js";
+import { OwnedUiSessionShell } from "../../../src/features/owned-ui/index.js";
 import { TestPresentationTerminal } from "./neutral-port-doubles.js";
 
 class Session {
@@ -97,13 +97,13 @@ async function fixture(messages: readonly unknown[] = []) {
   const engine = new Runtime(messages);
   const adapter = await createPiEngineAdapter({ cwd: "D:/work", sessionId: "owned-shell", createRuntime: async () => engine });
   const terminal = new TestPresentationTerminal();
-  const shell = new PiSessionShell({ adapter, cwd: "D:/work", terminal });
+  const shell = new OwnedUiSessionShell({ backend: adapter, cwd: "D:/work", terminal });
   shell.start();
   shell.runtime.renderNow();
   return { engine, adapter, terminal, shell };
 }
 
-describe("PiSessionShell", () => {
+describe("OwnedUiSessionShell", () => {
   it("composes the public Pi editor, transcript, tool/status surfaces, and runtime", async () => {
     const { engine, adapter, terminal, shell } = await fixture();
     shell.root.editor.setText("Inspect with Pi editor");
@@ -729,9 +729,13 @@ describe("PiSessionShell", () => {
     await shell.dispose();
   });
 
-  it("keeps the production bare a1 path free of the hand-written runtime, editor, and chrome", async () => {
-    const source = await readFile("src/features/owned-ui/run.ts", "utf8");
-    expect(source).toContain("PiSessionShell");
-    expect(source).not.toMatch(/OwnedTerminalRuntime|OwnedPromptEditor|OwnedSessionRootComponent|createProcessTerminalHost/);
+  it("keeps startup neutral while composition selects the owned session shell", async () => {
+    const [source, composition] = await Promise.all([
+      readFile("src/features/owned-ui/run.ts", "utf8"),
+      readFile("src/composition/index.ts", "utf8"),
+    ]);
+    expect(source).toContain("OwnedUiApplicationPort");
+    expect(source).not.toMatch(/Pi|Adapter|OwnedUiSessionShell|OwnedTerminalRuntime|OwnedPromptEditor|OwnedSessionRootComponent|createProcessTerminalHost/);
+    expect(composition).toContain("OwnedUiSessionShell");
   });
 });

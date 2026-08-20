@@ -72,14 +72,18 @@ import {
   type PiTuiTerminalPort,
 } from "../../foundation/pi-tui-runtime-adapter/index.js";
 
-export interface PiSessionShellOptions {
-  readonly adapter: PiEngineAdapter;
+type OwnedUiBackendPort = PiEngineAdapter;
+type OwnedUiTerminalPort = PiTuiTerminalPort;
+type OwnedUiStartupOptions = PiShellHeaderOptions;
+
+export interface OwnedUiSessionShellOptions {
+  readonly backend: OwnedUiBackendPort;
   readonly cwd: string;
-  readonly terminal?: PiTuiTerminalPort;
-  readonly startup?: PiShellHeaderOptions;
+  readonly terminal?: OwnedUiTerminalPort;
+  readonly startup?: OwnedUiStartupOptions;
 }
 
-export class PiSessionShellRoot implements PiTuiComponentPort {
+export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   readonly editor: PiShellEditorPort;
   readonly header: PiShellHeaderPort;
   readonly resources: PiShellLoadedResourcesPort;
@@ -612,8 +616,8 @@ function layoutPort(
   };
 }
 
-function shellResourceEntries(adapter: PiEngineAdapter): readonly PiShellResourceEntry[] {
-  const resources: PiShellResourceEntry[] = adapter.nonVisualResources().map(resource => ({
+function shellResourceEntries(backend: OwnedUiBackendPort): readonly PiShellResourceEntry[] {
+  const resources: PiShellResourceEntry[] = backend.nonVisualResources().map(resource => ({
     section: resource.kind === "skill"
       ? "Skills"
       : resource.kind === "prompt-template"
@@ -629,7 +633,7 @@ function shellResourceEntries(adapter: PiEngineAdapter): readonly PiShellResourc
     sourcePath: resource.sourcePath,
     diagnostic: resource.diagnostic,
   }));
-  for (const extension of adapter.extensionResources()) {
+  for (const extension of backend.extensionResources()) {
     if (extension.hidden) continue;
     resources.push({
       section: "Extensions",
@@ -648,9 +652,9 @@ function compactResourceLabel(path: string): string {
   return leaf;
 }
 
-export class PiSessionShell {
-  readonly adapter: PiEngineAdapter;
-  readonly root: PiSessionShellRoot;
+export class OwnedUiSessionShell {
+  readonly backend: OwnedUiBackendPort;
+  readonly root: OwnedUiSessionShellRoot;
   readonly runtime: PiTuiRuntimeAdapter;
   readonly #cwd: string;
   readonly #listeners = new Set<(view: OwnedUiSessionViewModel) => void>();
@@ -668,15 +672,15 @@ export class PiSessionShell {
   #activeLoginDialog: PiShellLoginDialogPort | undefined;
   #sessionGeneration: number;
 
-  constructor(options: PiSessionShellOptions) {
-    this.adapter = options.adapter;
-    this.#sessionGeneration = this.adapter.sessionGeneration;
+  constructor(options: OwnedUiSessionShellOptions) {
+    this.backend = options.backend;
+    this.#sessionGeneration = this.backend.sessionGeneration;
     this.#cwd = options.cwd;
     this.#stopped = new Promise(resolve => {
       this.#resolveStopped = resolve;
     });
     let runtime: PiTuiRuntimeAdapter | undefined;
-    this.root = new PiSessionShellRoot(this.adapter.view(), options.cwd, {
+    this.root = new OwnedUiSessionShellRoot(this.backend.view(), options.cwd, {
       getColumns: () => runtime?.viewport().columns ?? options.terminal?.columns ?? 80,
       getRows: () => runtime?.viewport().rows ?? options.terminal?.rows ?? 24,
       requestRender: () => runtime?.requestRender(),
@@ -696,15 +700,15 @@ export class PiSessionShell {
       onDequeue: () => this.restoreQueuedInput(),
     }, {
       ...options.startup,
-      resources: options.startup?.resources ?? shellResourceEntries(this.adapter),
-    }, this.adapter.agentDir, {
-      getMessageRenderer: customType => this.adapter.pinnedMessageRenderer(customType),
-      getToolDefinition: toolName => this.adapter.pinnedToolDefinition(toolName),
+      resources: options.startup?.resources ?? shellResourceEntries(this.backend),
+    }, this.backend.agentDir, {
+      getMessageRenderer: customType => this.backend.pinnedMessageRenderer(customType),
+      getToolDefinition: toolName => this.backend.pinnedToolDefinition(toolName),
     });
-    const tuiMode = this.adapter.disposed ? "regular" : this.adapter.pinnedSettingsSnapshot().tuiMode;
+    const tuiMode = this.backend.disposed ? "regular" : this.backend.pinnedSettingsSnapshot().tuiMode;
     const runtimeOptions = options.terminal === undefined
-      ? { root: this.root, mode: tuiMode, layoutRoot: this.root.layoutRoot(), hardwareCursor: this.adapter.view().terminal.hardwareCursor }
-      : { root: this.root, mode: tuiMode, layoutRoot: this.root.layoutRoot(), terminal: options.terminal, hardwareCursor: this.adapter.view().terminal.hardwareCursor };
+      ? { root: this.root, mode: tuiMode, layoutRoot: this.root.layoutRoot(), hardwareCursor: this.backend.view().terminal.hardwareCursor }
+      : { root: this.root, mode: tuiMode, layoutRoot: this.root.layoutRoot(), terminal: options.terminal, hardwareCursor: this.backend.view().terminal.hardwareCursor };
     runtime = new PiTuiRuntimeAdapter(runtimeOptions);
     this.runtime = runtime;
     this.#extensionBridge = createPiExtensionUiBridge({
@@ -713,7 +717,7 @@ export class PiSessionShell {
         getRows: () => this.runtime.viewport().rows,
         requestRender: () => this.runtime.requestRender(),
       },
-      agentDir: this.adapter.agentDir,
+      agentDir: this.backend.agentDir,
       setInputSurface: component => this.root.setInputSurface(component),
       showOverlay: (component, overlayOptions) => this.runtime.showOverlay(component, overlayOptions),
       listenInput: handler => this.runtime.addInputListener(handler),
@@ -733,30 +737,30 @@ export class PiSessionShell {
       getToolsExpanded: () => this.root.toolsExpanded,
       setToolsExpanded: expanded => this.root.setToolsExpanded(expanded),
     });
-    this.adapter.setWorkflowInteractionHost({
+    this.backend.setWorkflowInteractionHost({
       startLogin: request => this.#startWorkflowLogin(request),
       prompt: request => this.#requestWorkflowInput(request),
       notify: event => this.#notifyWorkflowLogin(event),
       finishLogin: () => this.#finishWorkflowLogin(),
     });
-    this.root.editor.setAutocompleteCommands(this.adapter.workflowAutocompleteCommands());
-    this.#unsubscribe = this.adapter.onEvent(event => {
+    this.root.editor.setAutocompleteCommands(this.backend.workflowAutocompleteCommands());
+    this.#unsubscribe = this.backend.onEvent(event => {
       this.#syncView();
       if (this.view().lifecycle === "ready" && this.#compactionQueue.length > 0) void this.#flushCompactionQueue();
       if (event.type === "session-lifecycle" && event.lifecycle === "stopped") this.#resolveStopped?.();
     });
-    if (this.adapter.view().lifecycle === "stopped") this.#resolveStopped?.();
+    if (this.backend.view().lifecycle === "stopped") this.#resolveStopped?.();
   }
 
   view(): OwnedUiSessionViewModel {
-    return this.adapter.view();
+    return this.backend.view();
   }
 
   start(): void {
     if (this.#started) return;
     this.#started = true;
     this.runtime.start();
-    void this.adapter.bindExtensionUi(this.#extensionBridge.context, () => { void this.shutdown(); });
+    void this.backend.bindExtensionUi(this.#extensionBridge.context, () => { void this.shutdown(); });
     this.#syncView();
   }
 
@@ -780,7 +784,7 @@ export class PiSessionShell {
       if (command) {
         this.root.editor.addToHistory(input);
         try {
-          const result = await this.adapter.executeBashWorkflow(command, excludeFromContext);
+          const result = await this.backend.executeBashWorkflow(command, excludeFromContext);
           const workflow: PiWorkflowResult = {
             command: "debug",
             outcome: result.cancelled ? "cancelled" : result.exitCode === 0 || result.exitCode === undefined ? "completed" : "failed",
@@ -810,7 +814,7 @@ export class PiSessionShell {
     return this.#execute({
       type,
       correlationId: this.#correlation(type),
-      sessionId: this.adapter.sessionId,
+      sessionId: this.backend.sessionId,
       text: input,
     });
   }
@@ -852,7 +856,7 @@ export class PiSessionShell {
     return this.#execute({
       type: "resume-session",
       correlationId: this.#correlation("resume"),
-      sessionId: this.adapter.sessionId,
+      sessionId: this.backend.sessionId,
       sessionPath,
     });
   }
@@ -861,7 +865,7 @@ export class PiSessionShell {
     return this.#execute({
       type: "set-model",
       correlationId: this.#correlation("model"),
-      sessionId: this.adapter.sessionId,
+      sessionId: this.backend.sessionId,
       model: { providerId, modelId, displayName: modelId },
     });
   }
@@ -870,7 +874,7 @@ export class PiSessionShell {
     return this.#execute({
       type: "set-thinking-level",
       correlationId: this.#correlation("thinking"),
-      sessionId: this.adapter.sessionId,
+      sessionId: this.backend.sessionId,
       thinkingLevel,
     });
   }
@@ -882,7 +886,7 @@ export class PiSessionShell {
   }
 
   async cycleModel(direction: "forward" | "backward"): Promise<AdapterCommandResult> {
-    const result = await this.adapter.cycleModelWorkflow(direction);
+    const result = await this.backend.cycleModelWorkflow(direction);
     this.root.appendWorkflowResult(result);
     if (result.outcome === "completed") this.#showDaxnutsForActiveModel();
     this.runtime.requestRender();
@@ -901,13 +905,13 @@ export class PiSessionShell {
     return this.#execute({
       type: "follow-up",
       correlationId: this.#correlation("follow-up"),
-      sessionId: this.adapter.sessionId,
+      sessionId: this.backend.sessionId,
       text,
     });
   }
 
   restoreQueuedInput(): void {
-    const queued = [...this.adapter.clearQueuedWorkflows(), ...this.#compactionQueue.map(item => item.text)];
+    const queued = [...this.backend.clearQueuedWorkflows(), ...this.#compactionQueue.map(item => item.text)];
     this.#compactionQueue = [];
     if (queued.length === 0) return;
     this.root.editor.setText(queued.join("\n"));
@@ -941,7 +945,7 @@ export class PiSessionShell {
   }
 
   showModelSelector(): void {
-    const context = this.adapter.pinnedModelSelectorContext();
+    const context = this.backend.pinnedModelSelectorContext();
     const close = () => {
       this.root.setInputSurface(null);
       this.runtime.requestRender();
@@ -964,7 +968,7 @@ export class PiSessionShell {
   }
 
   showForkSelector(): void {
-    const options = this.adapter.pinnedForkOptions();
+    const options = this.backend.pinnedForkOptions();
     if (options.length === 0) {
       this.root.appendWorkflowResult({ command: "fork", outcome: "failed", message: "No user messages available to fork from" });
       this.runtime.requestRender();
@@ -983,7 +987,7 @@ export class PiSessionShell {
   }
 
   async showLogoutSelector(): Promise<void> {
-    const options = await this.adapter.pinnedLogoutOptions();
+    const options = await this.backend.pinnedLogoutOptions();
     if (options.length === 0) {
       this.root.appendWorkflowStatus("No authenticated providers available.");
       this.runtime.requestRender();
@@ -1002,7 +1006,7 @@ export class PiSessionShell {
   }
 
   showLoginMethodSelector(providerReference: string): void {
-    const method = this.adapter.pinnedLoginMethodOptions(providerReference);
+    const method = this.backend.pinnedLoginMethodOptions(providerReference);
     if (method.options.length === 0) {
       this.root.appendWorkflowResult({ command: "login", outcome: "failed", message: `No authentication methods available for ${providerReference}` });
       this.runtime.requestRender();
@@ -1029,7 +1033,7 @@ export class PiSessionShell {
   }
 
   showTreeSelector(initialSelectedId?: string): void {
-    const context = this.adapter.pinnedTreeSelectorContext();
+    const context = this.backend.pinnedTreeSelectorContext();
     if (context.tree.length === 0) {
       this.root.appendWorkflowStatus("No entries in session");
       this.runtime.requestRender();
@@ -1081,7 +1085,7 @@ export class PiSessionShell {
   }
 
   showLoginProviderSelector(authType: "oauth" | "api_key"): void {
-    const options = this.adapter.pinnedLoginOptions(authType);
+    const options = this.backend.pinnedLoginOptions(authType);
     if (options.length === 0) {
       this.root.appendWorkflowStatus(authType === "oauth" ? "No subscription providers available." : "No API key providers available.");
       this.runtime.requestRender();
@@ -1103,7 +1107,7 @@ export class PiSessionShell {
   }
 
   showSessionSelector(): void {
-    const context = this.adapter.pinnedSessionSelectorContext();
+    const context = this.backend.pinnedSessionSelectorContext();
     const close = () => {
       this.root.setInputSurface(null);
       this.runtime.requestRender();
@@ -1129,7 +1133,7 @@ export class PiSessionShell {
   }
 
   showSettingsSelector(): void {
-    const snapshot = this.adapter.pinnedSettingsSnapshot();
+    const snapshot = this.backend.pinnedSettingsSnapshot();
     const close = () => {
       this.root.setInputSurface(null);
       this.runtime.requestRender();
@@ -1154,7 +1158,7 @@ export class PiSessionShell {
             return;
           }
         }
-        const result = this.adapter.applyPinnedSettingValue(callback, value);
+        const result = this.backend.applyPinnedSettingValue(callback, value);
         if (result.outcome === "failed") this.root.appendWorkflowResult(result);
         else if (callback === "onTuiModeChange") this.root.appendWorkflowStatus(`TUI mode: ${value}`);
         this.runtime.requestRender();
@@ -1230,7 +1234,7 @@ export class PiSessionShell {
     }
     let result: PiWorkflowResult;
     try {
-      result = await this.adapter.executeWorkflow(request);
+      result = await this.backend.executeWorkflow(request);
     } finally {
       if (operationSurface) {
         this.root.setInputSurface(null);
@@ -1247,7 +1251,7 @@ export class PiSessionShell {
       return { outcome: "failed", diagnostic: `Owned controller missing for ${request.command}` };
     }
     if (request.command === "reload" && result.outcome === "completed") {
-      this.root.editor.setAutocompleteCommands(this.adapter.workflowAutocompleteCommands());
+      this.root.editor.setAutocompleteCommands(this.backend.workflowAutocompleteCommands());
     }
     this.root.appendWorkflowResult(result);
     if (request.command === "model" && result.outcome === "completed") this.#showDaxnutsForActiveModel();
@@ -1256,7 +1260,7 @@ export class PiSessionShell {
   }
 
   showTrustSelector(): void {
-    const context = this.adapter.pinnedProjectTrustContext();
+    const context = this.backend.pinnedProjectTrustContext();
     const close = () => {
       this.root.setInputSurface(null);
       this.runtime.requestRender();
@@ -1265,7 +1269,7 @@ export class PiSessionShell {
       ...context,
       onSelect: selection => {
         try {
-          this.adapter.persistProjectTrust(selection.updates);
+          this.backend.persistProjectTrust(selection.updates);
           close();
           this.root.appendWorkflowStatus(`Saved trust decision: ${selection.trusted ? "trusted" : "untrusted"}. Restart pi for this to take effect.`);
         } catch (error) {
@@ -1281,7 +1285,7 @@ export class PiSessionShell {
   }
 
   showScopedModelsSelector(): void {
-    const initial = this.adapter.pinnedScopedModelsContext();
+    const initial = this.backend.pinnedScopedModelsContext();
     let currentEnabledIds = initial.enabledModelIds === null ? null : [...initial.enabledModelIds];
     let selectionChanged = false;
     let disposed = false;
@@ -1305,12 +1309,12 @@ export class PiSessionShell {
       onChange: enabledIds => {
         selectionChanged = true;
         currentEnabledIds = enabledIds === null ? null : [...enabledIds];
-        this.adapter.updateScopedModels(currentEnabledIds);
+        this.backend.updateScopedModels(currentEnabledIds);
         this.runtime.requestRender();
       },
       onPersist: enabledIds => {
         currentEnabledIds = enabledIds === null ? null : [...enabledIds];
-        this.adapter.persistScopedModels(currentEnabledIds);
+        this.backend.persistScopedModels(currentEnabledIds);
         this.root.appendWorkflowStatus("Model selection saved to settings");
         this.runtime.requestRender();
       },
@@ -1327,14 +1331,14 @@ export class PiSessionShell {
     };
     this.root.setInputSurface(component);
     this.runtime.requestRender();
-    void this.adapter.refreshScopedModels(controller.signal).then(refreshed => {
+    void this.backend.refreshScopedModels(controller.signal).then(refreshed => {
       if (disposed) return;
       if (!selectionChanged) {
         currentEnabledIds = refreshed.enabledModelIds === null ? null : [...refreshed.enabledModelIds];
         component.updateModels(refreshed.models, currentEnabledIds);
       } else {
         component.updateModels(refreshed.models);
-        this.adapter.updateScopedModels(currentEnabledIds);
+        this.backend.updateScopedModels(currentEnabledIds);
       }
       component.setRefreshStatus(
         timedOut ? "Model refresh timed out; showing cached models." : refreshed.status,
@@ -1365,15 +1369,15 @@ export class PiSessionShell {
     this.#disposed = true;
     this.#unsubscribe();
     this.#dialogHandle?.hide();
-    await this.adapter.unbindExtensionUi();
+    await this.backend.unbindExtensionUi();
     this.#extensionBridge.dispose();
     await this.runtime.dispose();
   }
 
   #syncView(): void {
     const view = this.view();
-    if (this.adapter.sessionGeneration !== this.#sessionGeneration) {
-      this.#sessionGeneration = this.adapter.sessionGeneration;
+    if (this.backend.sessionGeneration !== this.#sessionGeneration) {
+      this.#sessionGeneration = this.backend.sessionGeneration;
       this.#activeLoginDialog = undefined;
       this.#extensionBridge.reset();
       this.root.setInputSurface(null);
@@ -1421,7 +1425,7 @@ export class PiSessionShell {
     return this.#execute({
       type: this.view().lifecycle === "busy" ? "steer" : "prompt",
       correlationId: this.#correlation("prompt-command"),
-      sessionId: this.adapter.sessionId,
+      sessionId: this.backend.sessionId,
       text,
     });
   }
@@ -1531,18 +1535,18 @@ export class PiSessionShell {
       await this.#execute({
         type: item.type,
         correlationId: this.#correlation(`compaction-${item.type}`),
-        sessionId: this.adapter.sessionId,
+        sessionId: this.backend.sessionId,
         text: item.text,
       });
     }
   }
 
   async #execute(command: OwnedUiCommand): Promise<AdapterCommandResult> {
-    return this.adapter.execute(command);
+    return this.backend.execute(command);
   }
 
   #simple(type: "abort" | "retry" | "compact" | "shutdown" | "new-session"): OwnedUiCommand {
-    return { type, correlationId: this.#correlation(type), sessionId: this.adapter.sessionId };
+    return { type, correlationId: this.#correlation(type), sessionId: this.backend.sessionId };
   }
 
   #correlation(prefix: string): string {
