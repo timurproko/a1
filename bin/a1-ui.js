@@ -12,8 +12,8 @@ runSelectedInteractiveRuntime(process.env.A1_LAUNCH_PROFILE ?? "a1", {
     return await runOwnedUi({ application });
   },
   transparent: async profileId => {
-    const { runTransparentForeground } = await import("../dist/src/foundation/transparent-terminal/main.js");
-    return await runTransparentForeground({ profileId });
+    const { runSelectedTransparentRuntime } = await import("../dist/src/composition/transparent-runtime.js");
+    return await runSelectedTransparentRuntime(profileId);
   },
 }).then(
   code => { process.exitCode = code; },

@@ -52,7 +52,7 @@
 ## 7. Bind the Explicit Vanilla Oracle to the Selected Dependency
 
 - [x] 7.1 Add an A1-owned child entry that imports Pi's documented package-root `main(args)` API and reports bounded startup failure without resolving a private CLI file; pass direct entry argument and exit tests.
-- [ ] 7.2 Select the exact public-entry child and `process.execPath` before constructing the generic transparent launch profile, leaving the terminal launcher application-agnostic; pass launch-intent and transparent-boundary tests.
+- [x] 7.2 Select the exact public-entry child and `process.execPath` before constructing the generic transparent launch profile, leaving the terminal launcher application-agnostic; pass launch-intent and transparent-boundary tests.
 - [ ] 7.3 Prove `a1 pi` launches the selected exact dependency when ambient `pi` is missing or a conflicting fake executable appears first on `PATH`; pass exact-entry integration tests.
 - [ ] 7.4 Verify ordinary Pi profile paths, inherited physical terminal ownership, arguments, exit outcomes, and complete bypass of owned UI, workspace, and composed infrastructure; run explicit-mode regression tests.
 - [ ] 7.5 Verify the public-entry wrapper and required dependency are present in the exact packed artifact without publishing scripts, source maps, or private path assumptions; run build, pack dry-run, and packaged-oracle tests.

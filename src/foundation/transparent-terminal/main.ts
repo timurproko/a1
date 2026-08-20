@@ -11,11 +11,11 @@ export interface TransparentForegroundOptions {
   readonly environment?: NodeJS.ProcessEnv;
   readonly profileId?: LaunchProfileId;
   readonly cwd?: string;
-  readonly executable?: string;
-  readonly arguments?: readonly string[];
+  readonly executable: string;
+  readonly arguments: readonly string[];
 }
 
-export async function runTransparentForeground(options: TransparentForegroundOptions = {}): Promise<number> {
+export async function runTransparentForeground(options: TransparentForegroundOptions): Promise<number> {
   const environment = { ...(options.environment ?? process.env) };
   const profileId = options.profileId ?? environment.A1_LAUNCH_PROFILE ?? "a1";
   assertLaunchProfileId(profileId);
@@ -47,11 +47,8 @@ async function launchProfile(
   options: TransparentForegroundOptions,
   profileId: LaunchProfileId,
 ): Promise<TransparentTerminalLaunchProfile> {
-  const executable = options.executable ?? environment.A1_TERMINAL_EXECUTABLE ?? "pi";
-  const arguments_ = options.arguments
-    ?? parseArguments(environment.A1_LAUNCH_ARGUMENTS_JSON)
-    ?? parseArguments(environment.A1_TERMINAL_ARGUMENTS_JSON)
-    ?? [];
+  const executable = options.executable;
+  const arguments_ = options.arguments;
   const cwd = await realpath(options.cwd ?? process.cwd());
   const terminalType = environment.TERM?.trim() || "xterm-256color";
   return {
@@ -68,15 +65,6 @@ async function launchProfile(
     surface: "none",
     visualReconnection: "none",
   };
-}
-
-function parseArguments(source: string | undefined): readonly string[] | null {
-  if (!source) return null;
-  const value: unknown = JSON.parse(source);
-  if (!Array.isArray(value) || value.some(item => typeof item !== "string")) {
-    throw new TypeError("A1_TERMINAL_ARGUMENTS_JSON must be a JSON array of strings");
-  }
-  return value;
 }
 
 function selectedChildEnvironment(environment: NodeJS.ProcessEnv): Readonly<Record<string, string>> {
