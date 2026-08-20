@@ -3,6 +3,7 @@ import {
   MAX_NATIVE_HOST_MESSAGE_BYTES,
   NativeHostFrameCodec,
   NativeHostProtocolError,
+  NATIVE_HOST_PROTOCOL_NAME,
   createFixedTwoByTwoCommand,
   nativeHostCommandResult,
   nativeHostFailure,
@@ -52,6 +53,9 @@ function fixedCommand() {
 }
 
 describe("native-host proof protocol messages", () => {
+  it("uses the A1 native-host schema name", () => {
+    expect(NATIVE_HOST_PROTOCOL_NAME).toBe("a1-native-host-v1");
+  });
   it("negotiates build identity, platform, and required capabilities", () => {
     expect(negotiateNativeHostHello(hello())).toEqual({
       accepted: true,

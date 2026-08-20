@@ -9,6 +9,7 @@ import { cleanupProvenIdleOwner } from "../../../src/foundation/release/index.js
 import { materializeRelease, verifyMaterializedRelease, type MaterializedRelease } from "../../../src/foundation/release/index.js";
 import { runSelfUpdate, UPDATE_JOURNAL_SCHEMA, type UpdateLifecycleCoordinator, type UpdateTransactionJournal } from "../../../src/foundation/release/index.js";
 import { PRODUCT_IDENTITY } from "../../../src/product-identity.js";
+import { CONTROL_ENVELOPE } from "../../../src/foundation/protocol/index.js";
 
 const cleanupRoots: string[] = [];
 afterEach(async () => Promise.all(cleanupRoots.splice(0).map(root => rm(root, { recursive: true, force: true }))));
@@ -164,6 +165,6 @@ function metadata(release: MaterializedRelease, pid: number, generations: readon
     supervisorId: "n-minus-one", endpoint: "isolated-endpoint", pid, pidStartIdentity: `${pid}:fixture`, bootNonce: "fixture-boot", startedAt: new Date(0).toISOString(),
     releaseId: release.releaseId, releaseRoot: release.releaseRoot, contentDigest: release.contentDigest,
     ownership: { state: generations.length ? "busy" : "idle", liveGenerationIds: generations, nonResumableGenerationIds: generations },
-    envelope: "addone-control-envelope", envelopeRevision: 1, requiredFeatures: [], optionalFeatures: [], contractDigest: "fixture-contract",
+    envelope: CONTROL_ENVELOPE, envelopeRevision: 1, requiredFeatures: [], optionalFeatures: [], contractDigest: "fixture-contract",
   };
 }

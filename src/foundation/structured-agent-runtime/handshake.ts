@@ -5,8 +5,9 @@ import {
   type StructuredCapabilityContract,
   type StructuredFlowLimits,
 } from "../workspace-contracts/index.js";
+import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
 
-export const STRUCTURED_ADAPTER_ENVELOPE = "addone-structured-adapter" as const;
+export const STRUCTURED_ADAPTER_ENVELOPE = PRODUCT_IDENTITY.protocol.structuredAgentSchema;
 export const STRUCTURED_ADAPTER_ENVELOPE_REVISION = 1 as const;
 export const REQUIRED_STRUCTURED_FEATURES = [
   "identity.adapter.v1",
@@ -23,7 +24,7 @@ export const OPTIONAL_STRUCTURED_FEATURES = [
 ] as const;
 export type StructuredProtocolFeature = typeof REQUIRED_STRUCTURED_FEATURES[number] | typeof OPTIONAL_STRUCTURED_FEATURES[number];
 
-export const A1_STRUCTURED_FLOW_LIMITS: StructuredFlowLimits = Object.freeze({
+export const STRUCTURED_FLOW_LIMITS: StructuredFlowLimits = Object.freeze({
   maxEventBytes: 64 * 1024,
   maxSnapshotBytes: 1024 * 1024,
   maxAttachmentBytes: 2 * 1024 * 1024,
@@ -82,7 +83,7 @@ export function localStructuredAdapterHello(): StructuredAdapterPeerHello {
     envelopeRevision: STRUCTURED_ADAPTER_ENVELOPE_REVISION,
     requiredFeatures: REQUIRED_STRUCTURED_FEATURES,
     optionalFeatures: OPTIONAL_STRUCTURED_FEATURES,
-    flowLimits: A1_STRUCTURED_FLOW_LIMITS,
+    flowLimits: STRUCTURED_FLOW_LIMITS,
   };
 }
 
@@ -98,7 +99,7 @@ export function negotiateStructuredAdapter(
       "unsupported-version",
       [],
       [],
-      `structured adapter envelope mismatch: adapter ${String(value.envelope)}/${String(value.envelopeRevision)}; AddOne ${server.envelope}/${server.envelopeRevision}`,
+      `structured adapter envelope mismatch: adapter ${String(value.envelope)}/${String(value.envelopeRevision)}; ${PRODUCT_TEXT.displayName} ${server.envelope}/${server.envelopeRevision}`,
     );
   }
   if (!isValidIdentityText(value.adapterId) || !isValidBuildId(value.buildId)) {
@@ -133,7 +134,7 @@ export function negotiateStructuredAdapter(
       "incompatible-features",
       missingFromAdapter,
       missingFromServer,
-      `required structured features are unavailable; adapter missing [${missingFromAdapter.join(", ")}], AddOne missing [${missingFromServer.join(", ")}]`,
+      `required structured features are unavailable; adapter missing [${missingFromAdapter.join(", ")}], ${PRODUCT_TEXT.displayName} missing [${missingFromServer.join(", ")}]`,
     );
   }
 
@@ -173,14 +174,14 @@ function requiredFeaturesForCapability(capability: StructuredCapabilityContract)
   return features;
 }
 
-function negotiateFlow(adapter: StructuredFlowLimits, addone: StructuredFlowLimits): StructuredFlowLimits {
+function negotiateFlow(adapter: StructuredFlowLimits, server: StructuredFlowLimits): StructuredFlowLimits {
   return Object.freeze({
-    maxEventBytes: Math.min(adapter.maxEventBytes, addone.maxEventBytes),
-    maxSnapshotBytes: Math.min(adapter.maxSnapshotBytes, addone.maxSnapshotBytes),
-    maxAttachmentBytes: Math.min(adapter.maxAttachmentBytes, addone.maxAttachmentBytes),
-    maxQueuedEvents: Math.min(adapter.maxQueuedEvents, addone.maxQueuedEvents),
-    maxConcurrentCommands: Math.min(adapter.maxConcurrentCommands, addone.maxConcurrentCommands),
-    maxReconnectEvents: Math.min(adapter.maxReconnectEvents, addone.maxReconnectEvents),
+    maxEventBytes: Math.min(adapter.maxEventBytes, server.maxEventBytes),
+    maxSnapshotBytes: Math.min(adapter.maxSnapshotBytes, server.maxSnapshotBytes),
+    maxAttachmentBytes: Math.min(adapter.maxAttachmentBytes, server.maxAttachmentBytes),
+    maxQueuedEvents: Math.min(adapter.maxQueuedEvents, server.maxQueuedEvents),
+    maxConcurrentCommands: Math.min(adapter.maxConcurrentCommands, server.maxConcurrentCommands),
+    maxReconnectEvents: Math.min(adapter.maxReconnectEvents, server.maxReconnectEvents),
   });
 }
 

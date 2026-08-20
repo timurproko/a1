@@ -1,4 +1,5 @@
 import { mkdtemp, rm } from "node:fs/promises";
+import { DatabaseSync } from "node:sqlite";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -14,17 +15,18 @@ afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, { recursi
 
 describe("control-store migration", () => {
   it("creates an isolated WAL database and default workspace", async () => {
-    const root = await mkdtemp(join(tmpdir(), "addone-store-"));
+    const root = await mkdtemp(join(tmpdir(), "a1-store-"));
     roots.push(root);
     const store = new ControlStore(join(root, "state", "control.sqlite3"));
     expect(store.database.prepare("PRAGMA user_version").get()).toMatchObject({ user_version: 4 });
+    expect(store.database.prepare("SELECT schema FROM product_identity").get()).toMatchObject({ schema: "a1-control-store-v1" });
     expect(store.database.prepare("PRAGMA journal_mode").get()).toMatchObject({ journal_mode: "wal" });
     expect(store.database.prepare("SELECT id, selected_agent_id FROM workspaces").get()).toEqual({ id: "workspace-default", selected_agent_id: null });
     store.close();
   });
 
   it("transactionally persists one exclusive foreground lease lifecycle", async () => {
-    const root = await mkdtemp(join(tmpdir(), "addone-foreground-lease-"));
+    const root = await mkdtemp(join(tmpdir(), "a1-foreground-lease-"));
     roots.push(root);
     const store = new ControlStore(join(root, "control.sqlite3"), "boot-current");
     const profile = transparentProfile();
@@ -47,7 +49,7 @@ describe("control-store migration", () => {
   });
 
   it("reconciles foreground leases from a prior supervisor boot as non-live", async () => {
-    const root = await mkdtemp(join(tmpdir(), "addone-stale-foreground-lease-"));
+    const root = await mkdtemp(join(tmpdir(), "a1-stale-foreground-lease-"));
     roots.push(root);
     const path = join(root, "control.sqlite3");
     const first = new ControlStore(path, "boot-old");
@@ -63,7 +65,7 @@ describe("control-store migration", () => {
   });
 
   it("transactionally interrupts nonterminal generations from prior supervisor boots", async () => {
-    const root = await mkdtemp(join(tmpdir(), "addone-store-reconcile-"));
+    const root = await mkdtemp(join(tmpdir(), "a1-store-reconcile-"));
     roots.push(root);
     const path = join(root, "control.sqlite3");
     const first = new ControlStore(path, "boot-old");
@@ -83,7 +85,7 @@ describe("control-store migration", () => {
   });
 
   it("persists versioned workspace, terminal, topology, and recovery records across restart", async () => {
-    const root = await mkdtemp(join(tmpdir(), "addone-workspace-store-"));
+    const root = await mkdtemp(join(tmpdir(), "a1-workspace-store-"));
     roots.push(root);
     const path = join(root, "control.sqlite3");
     const first = new ControlStore(path, "boot-old");
@@ -122,7 +124,7 @@ describe("control-store migration", () => {
   });
 
   it("rejects stale host topology revisions while retaining backward-readable rollback metadata", async () => {
-    const root = await mkdtemp(join(tmpdir(), "addone-topology-store-"));
+    const root = await mkdtemp(join(tmpdir(), "a1-topology-store-"));
     roots.push(root);
     const store = new ControlStore(join(root, "control.sqlite3"));
     store.saveNativeHostTopology(fourPaneTopology(8), fourPaneTopology(7));
@@ -135,7 +137,7 @@ describe("control-store migration", () => {
   });
 
   it("rejects malformed recovery references before persistence", async () => {
-    const root = await mkdtemp(join(tmpdir(), "addone-recovery-store-"));
+    const root = await mkdtemp(join(tmpdir(), "a1-recovery-store-"));
     roots.push(root);
     const store = new ControlStore(join(root, "control.sqlite3"));
     const agent = workspaceAgent();
@@ -153,8 +155,21 @@ describe("control-store migration", () => {
     store.close();
   });
 
+  it("rejects a legacy product schema without migration", async () => {
+    const root = await mkdtemp(join(tmpdir(), "a1-legacy-control-store-"));
+    roots.push(root);
+    const path = join(root, "control.sqlite3");
+    const legacy = new DatabaseSync(path);
+    legacy.exec("PRAGMA user_version = 4");
+    legacy.exec("CREATE TABLE product_identity (schema TEXT PRIMARY KEY NOT NULL)");
+    legacy.prepare("INSERT INTO product_identity (schema) VALUES (?)").run("addone-control-store-v1");
+    legacy.close();
+
+    expect(() => new ControlStore(path)).toThrow(/schema addone-control-store-v1 is unsupported/);
+  });
+
   it("rolls an interrupted v3 migration back to the previous schema state", async () => {
-    const root = await mkdtemp(join(tmpdir(), "addone-migration-rollback-"));
+    const root = await mkdtemp(join(tmpdir(), "a1-migration-rollback-"));
     roots.push(root);
     const store = new ControlStore(join(root, "control.sqlite3"));
     store.database.prepare("PRAGMA user_version = 2").run();

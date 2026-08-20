@@ -41,21 +41,21 @@
     "explicit-obsolete-package-fixtures"
   ],
   "summary": {
-    "total": 1166,
-    "files": 197,
+    "total": 1135,
+    "files": 188,
     "byLocationKind": {
-      "content": 1142,
+      "content": 1111,
       "path": 24
     },
     "byClass": {
-      "runtime-symbols": 375,
-      "diagnostics": 110,
+      "runtime-symbols": 344,
+      "diagnostics": 107,
       "environment-keys": 20,
-      "paths": 369,
-      "schemas": 113,
-      "artifacts": 99,
+      "paths": 355,
+      "schemas": 112,
+      "artifacts": 97,
       "native-names": 81,
-      "tests": 222,
+      "tests": 207,
       "current-docs-specs": 754,
       "historical-records": 167,
       "explicit-obsolete-package-fixtures": 8
@@ -13733,82 +13733,6 @@
       ]
     },
     {
-      "id": "src/foundation/native-host-protocol/evidence.ts:1:46",
-      "path": "src/foundation/native-host-protocol/evidence.ts",
-      "locationKind": "content",
-      "line": 1,
-      "column": 46,
-      "value": "addone",
-      "context": "export const NATIVE_SPIKE_EVIDENCE_SCHEMA = \"addone-native-host-spike-evidence-v1\" as const;",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "schemas"
-      ]
-    },
-    {
-      "id": "src/foundation/native-host-protocol/evidence.ts:55:14",
-      "path": "src/foundation/native-host-protocol/evidence.ts",
-      "locationKind": "content",
-      "line": 55,
-      "column": 14,
-      "value": "addone",
-      "context": "readonly addoneCommit: string;",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols"
-      ]
-    },
-    {
-      "id": "src/foundation/native-host-protocol/evidence.ts:105:43",
-      "path": "src/foundation/native-host-protocol/evidence.ts",
-      "locationKind": "content",
-      "line": 105,
-      "column": 43,
-      "value": "addone",
-      "context": "if (!/^[a-f0-9]{40}$/.test(value.source.addoneCommit)) throw new TypeError(\"native spike AddOne commit is invalid\");",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics",
-        "paths"
-      ]
-    },
-    {
-      "id": "src/foundation/native-host-protocol/evidence.ts:105:92",
-      "path": "src/foundation/native-host-protocol/evidence.ts",
-      "locationKind": "content",
-      "line": 105,
-      "column": 92,
-      "value": "AddOne",
-      "context": "if (!/^[a-f0-9]{40}$/.test(value.source.addoneCommit)) throw new TypeError(\"native spike AddOne commit is invalid\");",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics",
-        "paths"
-      ]
-    },
-    {
-      "id": "src/foundation/native-host-protocol/messages.ts:14:43",
-      "path": "src/foundation/native-host-protocol/messages.ts",
-      "locationKind": "content",
-      "line": 14,
-      "column": 43,
-      "value": "addone",
-      "context": "export const NATIVE_HOST_PROTOCOL_NAME = \"addone-native-host\" as const;",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "schemas"
-      ]
-    },
-    {
       "id": "src/foundation/pi-component-adapter/conformance.ts:46:57",
       "path": "src/foundation/pi-component-adapter/conformance.ts",
       "locationKind": "content",
@@ -13881,20 +13805,6 @@
       ]
     },
     {
-      "id": "src/foundation/protocol/messages.ts:4:34",
-      "path": "src/foundation/protocol/messages.ts",
-      "locationKind": "content",
-      "line": 4,
-      "column": 34,
-      "value": "addone",
-      "context": "export const CONTROL_ENVELOPE = \"addone-control-envelope\" as const;",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols"
-      ]
-    },
-    {
       "id": "src/foundation/release/bootstrap.ts:23:64",
       "path": "src/foundation/release/bootstrap.ts",
       "locationKind": "content",
@@ -13902,147 +13812,6 @@
       "column": 64,
       "value": "addone",
       "context": "const launchProfileId = options.launchIntent?.profile.id ?? \"addone\";",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols"
-      ]
-    },
-    {
-      "id": "src/foundation/structured-agent-runtime/handshake.ts:9:45",
-      "path": "src/foundation/structured-agent-runtime/handshake.ts",
-      "locationKind": "content",
-      "line": 9,
-      "column": 45,
-      "value": "addone",
-      "context": "export const STRUCTURED_ADAPTER_ENVELOPE = \"addone-structured-adapter\" as const;",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols"
-      ]
-    },
-    {
-      "id": "src/foundation/structured-agent-runtime/handshake.ts:101:115",
-      "path": "src/foundation/structured-agent-runtime/handshake.ts",
-      "locationKind": "content",
-      "line": 101,
-      "column": 115,
-      "value": "AddOne",
-      "context": "`structured adapter envelope mismatch: adapter ${String(value.envelope)}/${String(value.envelopeRevision)}; AddOne ${server.envelope}/${server.envelopeRevision}`,",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths"
-      ]
-    },
-    {
-      "id": "src/foundation/structured-agent-runtime/handshake.ts:136:106",
-      "path": "src/foundation/structured-agent-runtime/handshake.ts",
-      "locationKind": "content",
-      "line": 136,
-      "column": 106,
-      "value": "AddOne",
-      "context": "`required structured features are unavailable; adapter missing [${missingFromAdapter.join(\", \")}], AddOne missing [${missingFromServer.join(\", \")}]`,",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols"
-      ]
-    },
-    {
-      "id": "src/foundation/structured-agent-runtime/handshake.ts:176:55",
-      "path": "src/foundation/structured-agent-runtime/handshake.ts",
-      "locationKind": "content",
-      "line": 176,
-      "column": 55,
-      "value": "addone",
-      "context": "function negotiateFlow(adapter: StructuredFlowLimits, addone: StructuredFlowLimits): StructuredFlowLimits {",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols"
-      ]
-    },
-    {
-      "id": "src/foundation/structured-agent-runtime/handshake.ts:178:52",
-      "path": "src/foundation/structured-agent-runtime/handshake.ts",
-      "locationKind": "content",
-      "line": 178,
-      "column": 52,
-      "value": "addone",
-      "context": "maxEventBytes: Math.min(adapter.maxEventBytes, addone.maxEventBytes),",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols"
-      ]
-    },
-    {
-      "id": "src/foundation/structured-agent-runtime/handshake.ts:179:58",
-      "path": "src/foundation/structured-agent-runtime/handshake.ts",
-      "locationKind": "content",
-      "line": 179,
-      "column": 58,
-      "value": "addone",
-      "context": "maxSnapshotBytes: Math.min(adapter.maxSnapshotBytes, addone.maxSnapshotBytes),",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols"
-      ]
-    },
-    {
-      "id": "src/foundation/structured-agent-runtime/handshake.ts:180:62",
-      "path": "src/foundation/structured-agent-runtime/handshake.ts",
-      "locationKind": "content",
-      "line": 180,
-      "column": 62,
-      "value": "addone",
-      "context": "maxAttachmentBytes: Math.min(adapter.maxAttachmentBytes, addone.maxAttachmentBytes),",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols"
-      ]
-    },
-    {
-      "id": "src/foundation/structured-agent-runtime/handshake.ts:181:56",
-      "path": "src/foundation/structured-agent-runtime/handshake.ts",
-      "locationKind": "content",
-      "line": 181,
-      "column": 56,
-      "value": "addone",
-      "context": "maxQueuedEvents: Math.min(adapter.maxQueuedEvents, addone.maxQueuedEvents),",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols"
-      ]
-    },
-    {
-      "id": "src/foundation/structured-agent-runtime/handshake.ts:182:68",
-      "path": "src/foundation/structured-agent-runtime/handshake.ts",
-      "locationKind": "content",
-      "line": 182,
-      "column": 68,
-      "value": "addone",
-      "context": "maxConcurrentCommands: Math.min(adapter.maxConcurrentCommands, addone.maxConcurrentCommands),",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols"
-      ]
-    },
-    {
-      "id": "src/foundation/structured-agent-runtime/handshake.ts:183:62",
-      "path": "src/foundation/structured-agent-runtime/handshake.ts",
-      "locationKind": "content",
-      "line": 183,
-      "column": 62,
-      "value": "addone",
-      "context": "maxReconnectEvents: Math.min(adapter.maxReconnectEvents, addone.maxReconnectEvents),",
       "matchedCase": "lower",
       "primaryClass": "runtime-symbols",
       "classes": [
@@ -15460,86 +15229,6 @@
       ]
     },
     {
-      "id": "test/foundation/native-host-protocol/evidence.test.ts:17:41",
-      "path": "test/foundation/native-host-protocol/evidence.test.ts",
-      "locationKind": "content",
-      "line": 17,
-      "column": 41,
-      "value": "addone",
-      "context": "artifact: { path: \"artifacts/native/addone-host.exe\", sha256: \"a\".repeat(64), sizeBytes: 10_000_000 },",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "artifacts",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/native-host-protocol/evidence.test.ts:19:7",
-      "path": "test/foundation/native-host-protocol/evidence.test.ts",
-      "locationKind": "content",
-      "line": 19,
-      "column": 7,
-      "value": "addone",
-      "context": "addoneCommit: \"b\".repeat(40),",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/native-host-protocol/proof-gate.test.ts:15:14",
-      "path": "test/foundation/native-host-protocol/proof-gate.test.ts",
-      "locationKind": "content",
-      "line": 15,
-      "column": 14,
-      "value": "addone",
-      "context": "schema: \"addone-native-host-spike-evidence-v1\",",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "schemas",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/native-host-protocol/proof-gate.test.ts:16:41",
-      "path": "test/foundation/native-host-protocol/proof-gate.test.ts",
-      "locationKind": "content",
-      "line": 16,
-      "column": 41,
-      "value": "addone",
-      "context": "artifact: { path: \"artifacts/native/addone-host.exe\", sha256: \"a\".repeat(64), sizeBytes: 10_000_000 },",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "artifacts",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/native-host-protocol/proof-gate.test.ts:18:7",
-      "path": "test/foundation/native-host-protocol/proof-gate.test.ts",
-      "locationKind": "content",
-      "line": 18,
-      "column": 7,
-      "value": "addone",
-      "context": "addoneCommit: \"b\".repeat(40),",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "tests"
-      ]
-    },
-    {
       "id": "test/foundation/owned-ui-contracts/contracts.test.ts:71:15",
       "path": "test/foundation/owned-ui-contracts/contracts.test.ts",
       "locationKind": "content",
@@ -16295,45 +15984,13 @@
       ]
     },
     {
-      "id": "test/foundation/protocol/protocol.test.ts:51:67",
+      "id": "test/foundation/protocol/protocol.test.ts:46:87",
       "path": "test/foundation/protocol/protocol.test.ts",
       "locationKind": "content",
-      "line": 51,
-      "column": 67,
+      "line": 46,
+      "column": 87,
       "value": "addone",
-      "context": "const endpoint = process.platform === \"win32\" ? `\\\\\\\\.\\\\pipe\\\\addone-client-retry-${identity}` : join(tmpdir(), `addone-client-retry-${identity}.sock`);",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/protocol/protocol.test.ts:51:118",
-      "path": "test/foundation/protocol/protocol.test.ts",
-      "locationKind": "content",
-      "line": 51,
-      "column": 118,
-      "value": "addone",
-      "context": "const endpoint = process.platform === \"win32\" ? `\\\\\\\\.\\\\pipe\\\\addone-client-retry-${identity}` : join(tmpdir(), `addone-client-retry-${identity}.sock`);",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/release/cohort-activation.test.ts:58:16",
-      "path": "test/foundation/release/cohort-activation.test.ts",
-      "locationKind": "content",
-      "line": 58,
-      "column": 16,
-      "value": "addone",
-      "context": "envelope: \"addone-control-envelope\", envelopeRevision: 1, requiredFeatures: [], optionalFeatures: [], contractDigest: \"contract\",",
+      "context": "const legacy = { type: \"client-hello\", clientId: \"legacy\", ...current, envelope: \"addone-control-envelope\" };",
       "matchedCase": "lower",
       "primaryClass": "runtime-symbols",
       "classes": [
@@ -16521,172 +16178,46 @@
       ]
     },
     {
-      "id": "test/foundation/release/update-transition.integration.test.ts:167:16",
-      "path": "test/foundation/release/update-transition.integration.test.ts",
+      "id": "test/foundation/storage/storage.test.ts:165:77",
+      "path": "test/foundation/storage/storage.test.ts",
       "locationKind": "content",
-      "line": 167,
-      "column": 16,
+      "line": 165,
+      "column": 77,
       "value": "addone",
-      "context": "envelope: \"addone-control-envelope\", envelopeRevision: 1, requiredFeatures: [], optionalFeatures: [], contractDigest: \"fixture-contract\",",
+      "context": "legacy.prepare(\"INSERT INTO product_identity (schema) VALUES (?)\").run(\"addone-control-store-v1\");",
       "matchedCase": "lower",
       "primaryClass": "runtime-symbols",
       "classes": [
         "runtime-symbols",
+        "schemas",
         "tests"
       ]
     },
     {
-      "id": "test/foundation/storage/storage.test.ts:17:48",
+      "id": "test/foundation/storage/storage.test.ts:168:58",
       "path": "test/foundation/storage/storage.test.ts",
       "locationKind": "content",
-      "line": 17,
-      "column": 48,
+      "line": 168,
+      "column": 58,
       "value": "addone",
-      "context": "const root = await mkdtemp(join(tmpdir(), \"addone-store-\"));",
+      "context": "expect(() => new ControlStore(path)).toThrow(/schema addone-control-store-v1 is unsupported/);",
       "matchedCase": "lower",
       "primaryClass": "runtime-symbols",
       "classes": [
         "runtime-symbols",
         "paths",
+        "schemas",
         "tests"
       ]
     },
     {
-      "id": "test/foundation/storage/storage.test.ts:27:48",
-      "path": "test/foundation/storage/storage.test.ts",
-      "locationKind": "content",
-      "line": 27,
-      "column": 48,
-      "value": "addone",
-      "context": "const root = await mkdtemp(join(tmpdir(), \"addone-foreground-lease-\"));",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/storage/storage.test.ts:50:48",
-      "path": "test/foundation/storage/storage.test.ts",
-      "locationKind": "content",
-      "line": 50,
-      "column": 48,
-      "value": "addone",
-      "context": "const root = await mkdtemp(join(tmpdir(), \"addone-stale-foreground-lease-\"));",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/storage/storage.test.ts:66:48",
-      "path": "test/foundation/storage/storage.test.ts",
-      "locationKind": "content",
-      "line": 66,
-      "column": 48,
-      "value": "addone",
-      "context": "const root = await mkdtemp(join(tmpdir(), \"addone-store-reconcile-\"));",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/storage/storage.test.ts:86:48",
-      "path": "test/foundation/storage/storage.test.ts",
-      "locationKind": "content",
-      "line": 86,
-      "column": 48,
-      "value": "addone",
-      "context": "const root = await mkdtemp(join(tmpdir(), \"addone-workspace-store-\"));",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/storage/storage.test.ts:125:48",
-      "path": "test/foundation/storage/storage.test.ts",
-      "locationKind": "content",
-      "line": 125,
-      "column": 48,
-      "value": "addone",
-      "context": "const root = await mkdtemp(join(tmpdir(), \"addone-topology-store-\"));",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/storage/storage.test.ts:138:48",
-      "path": "test/foundation/storage/storage.test.ts",
-      "locationKind": "content",
-      "line": 138,
-      "column": 48,
-      "value": "addone",
-      "context": "const root = await mkdtemp(join(tmpdir(), \"addone-recovery-store-\"));",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/storage/storage.test.ts:157:48",
-      "path": "test/foundation/storage/storage.test.ts",
-      "locationKind": "content",
-      "line": 157,
-      "column": 48,
-      "value": "addone",
-      "context": "const root = await mkdtemp(join(tmpdir(), \"addone-migration-rollback-\"));",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/structured-agent-runtime/handshake.test.ts:93:23",
+      "id": "test/foundation/structured-agent-runtime/handshake.test.ts:104:64",
       "path": "test/foundation/structured-agent-runtime/handshake.test.ts",
       "locationKind": "content",
-      "line": 93,
-      "column": 23,
-      "value": "AddOne",
-      "context": "it(\"rejects missing AddOne-required features with actionable diagnostics\", () => {",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/supervision/supervisor-release-exit.test.ts:77:16",
-      "path": "test/foundation/supervision/supervisor-release-exit.test.ts",
-      "locationKind": "content",
-      "line": 77,
-      "column": 16,
+      "line": 104,
+      "column": 64,
       "value": "addone",
-      "context": "envelope: \"addone-control-envelope\",",
+      "context": "expect(negotiateStructuredAdapter({ ...hello(), envelope: \"addone-structured-adapter\" })).toMatchObject({ accepted: false, code: \"unsupported-version\" });",
       "matchedCase": "lower",
       "primaryClass": "runtime-symbols",
       "classes": [
@@ -17539,5 +17070,5 @@
       ]
     }
   ],
-  "generatedAt": "2026-08-20T09:00:29.761Z"
+  "generatedAt": "2026-08-20T09:06:56.044Z"
 }

@@ -8,6 +8,7 @@ import type { MaterializedRelease } from "../../../src/foundation/release/index.
 import { ControlStore } from "../../../src/foundation/storage/index.js";
 import { SupervisorServer } from "../../../src/foundation/supervision/index.js";
 import { PRODUCT_IDENTITY } from "../../../src/product-identity.js";
+import { CONTROL_ENVELOPE } from "../../../src/foundation/protocol/index.js";
 
 const cleanupRoots: string[] = [];
 afterEach(async () => Promise.all(cleanupRoots.splice(0).map(root => rm(root, { recursive: true, force: true }))));
@@ -74,7 +75,7 @@ function metadata(): SupervisorEndpointMetadata {
     releaseRoot: value.releaseRoot,
     contentDigest: value.contentDigest,
     ownership: { state: "idle", liveGenerationIds: [], nonResumableGenerationIds: [] },
-    envelope: "addone-control-envelope",
+    envelope: CONTROL_ENVELOPE,
     envelopeRevision: 1,
     requiredFeatures: [],
     optionalFeatures: [],

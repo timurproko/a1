@@ -14,9 +14,9 @@ function metric(): NativeSpikeMetricSummary {
 function evidence(overrides: Partial<NativeSpikeEvidence> = {}): NativeSpikeEvidence {
   return {
     schema: NATIVE_SPIKE_EVIDENCE_SCHEMA,
-    artifact: { path: "artifacts/native/addone-host.exe", sha256: "a".repeat(64), sizeBytes: 10_000_000 },
+    artifact: { path: "artifacts/native/a1-host.exe", sha256: "a".repeat(64), sizeBytes: 10_000_000 },
     source: {
-      addoneCommit: "b".repeat(40),
+      a1Commit: "b".repeat(40),
       libghosttyVtCommit: "c5a21edfcbc2d5b46540ad91b7980aca31f5f1f3",
       portablePtyVersion: "0.9.0",
       crosstermVersion: "0.29.0",

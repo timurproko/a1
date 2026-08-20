@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   NATIVE_SPIKE_ACCEPTANCE_LIMITS,
+  NATIVE_SPIKE_EVIDENCE_SCHEMA,
   NATIVE_SPIKE_WORKLOADS,
   evaluateNativeSpikeGate,
   type NativeSpikeEvidence,
@@ -12,10 +13,10 @@ function metric(p95: number) {
 
 function evidence(overrides: Partial<NativeSpikeEvidence> = {}): NativeSpikeEvidence {
   return {
-    schema: "addone-native-host-spike-evidence-v1",
-    artifact: { path: "artifacts/native/addone-host.exe", sha256: "a".repeat(64), sizeBytes: 10_000_000 },
+    schema: NATIVE_SPIKE_EVIDENCE_SCHEMA,
+    artifact: { path: "artifacts/native/a1-host.exe", sha256: "a".repeat(64), sizeBytes: 10_000_000 },
     source: {
-      addoneCommit: "b".repeat(40),
+      a1Commit: "b".repeat(40),
       libghosttyVtCommit: "c5a21edfcbc2d5b46540ad91b7980aca31f5f1f3",
       portablePtyVersion: "0.9.0",
       crosstermVersion: "0.29.0",

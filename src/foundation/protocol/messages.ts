@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
 import type { CommandResult, SupervisorCommand, SupervisorSnapshot } from "../lifecycle/index.js";
+import { PRODUCT_IDENTITY } from "../../product-identity.js";
 
-export const CONTROL_ENVELOPE = "addone-control-envelope" as const;
+export const CONTROL_ENVELOPE = PRODUCT_IDENTITY.protocol.controlEnvelope;
 export const CONTROL_ENVELOPE_REVISION = 1 as const;
 export const REQUIRED_CONTROL_FEATURES = [
   "handshake.features.v1",

@@ -10,8 +10,9 @@ import {
   type TerminalSessionLaunch,
   type TerminalTopologySnapshot,
 } from "../workspace-contracts/index.js";
+import { PRODUCT_IDENTITY } from "../../product-identity.js";
 
-export const NATIVE_HOST_PROTOCOL_NAME = "addone-native-host" as const;
+export const NATIVE_HOST_PROTOCOL_NAME = PRODUCT_IDENTITY.protocol.nativeHostSchema;
 export const MAX_NATIVE_HOST_MESSAGE_BYTES = 1024 * 1024;
 
 export type NativeHostProofMessage =

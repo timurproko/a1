@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  A1_STRUCTURED_FLOW_LIMITS,
+  STRUCTURED_FLOW_LIMITS,
   OPTIONAL_STRUCTURED_FEATURES,
   REQUIRED_STRUCTURED_FEATURES,
   STRUCTURED_ADAPTER_ENVELOPE,
@@ -64,7 +64,7 @@ describe("structured adapter handshake", () => {
     expect(result.capability.cancellation).toBe("correlated");
     expect(result.capability.attachmentTypes).toEqual(["text", "json"]);
     expect(result.capability.flow).toEqual({
-      ...A1_STRUCTURED_FLOW_LIMITS,
+      ...STRUCTURED_FLOW_LIMITS,
       maxSnapshotBytes: 512 * 1024,
       maxConcurrentCommands: 2,
     });
@@ -90,7 +90,7 @@ describe("structured adapter handshake", () => {
     expect(rejected).toMatchObject({ accepted: false, code: "unsupported-feature", missingFromServer: ["future.required.v1"] });
   });
 
-  it("rejects missing AddOne-required features with actionable diagnostics", () => {
+  it("rejects missing A1-required features with actionable diagnostics", () => {
     const rejected = negotiateStructuredAdapter(hello({ requiredFeatures: ["identity.adapter.v1"], optionalFeatures: ["events.typed.v1"] }));
     expect(rejected.accepted).toBe(false);
     if (rejected.accepted) return;
@@ -101,6 +101,7 @@ describe("structured adapter handshake", () => {
 
   it("rejects unsupported protocol envelopes and capability versions without partial readiness", () => {
     expect(negotiateStructuredAdapter({ ...hello(), envelopeRevision: 2 })).toMatchObject({ accepted: false, code: "unsupported-version" });
+    expect(negotiateStructuredAdapter({ ...hello(), envelope: "addone-structured-adapter" })).toMatchObject({ accepted: false, code: "unsupported-version" });
     expect(negotiateStructuredAdapter(hello({ capability: capability({ protocolVersion: 2 as 1 }) }))).toMatchObject({ accepted: false, code: "invalid-capability" });
   });
 

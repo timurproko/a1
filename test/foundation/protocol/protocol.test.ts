@@ -6,9 +6,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { SupervisorClient } from "../../../src/foundation/protocol/index.js";
-import { encodeFrame, GENERATED_CONTRACT_DIGEST, LineFrameDecoder, localControlHello, negotiateControlFeatures } from "../../../src/foundation/protocol/index.js";
+import { CONTROL_ENVELOPE, encodeFrame, GENERATED_CONTRACT_DIGEST, isControlHello, LineFrameDecoder, localControlHello, negotiateControlFeatures } from "../../../src/foundation/protocol/index.js";
 
-describe("additive protocol framing", () => {
+describe("A1 additive protocol framing", () => {
   it("decodes partial and combined LF frames", () => {
     const decoder = new LineFrameDecoder();
     const frame = encodeFrame({ type: "client-hello", clientId: "ui-1", ...localControlHello("release-a") });
@@ -41,6 +41,15 @@ describe("additive protocol framing", () => {
     expect(result.diagnostic).not.toMatch(/invalid client message/i);
   });
 
+  it("rejects the legacy control envelope without migration", () => {
+    const current = localControlHello();
+    const legacy = { type: "client-hello", clientId: "legacy", ...current, envelope: "addone-control-envelope" };
+
+    expect(CONTROL_ENVELOPE).toBe("a1-control-envelope");
+    expect(isControlHello(legacy)).toBe(false);
+    expect(negotiateControlFeatures(legacy as typeof current, current)).toMatchObject({ ok: false });
+  });
+
   it("retains unknown additive fields", () => {
     const decoder = new LineFrameDecoder();
     expect(decoder.push('{"type":"future-event","newField":true}\n')).toEqual([{ type: "future-event", newField: true }]);
@@ -48,7 +57,7 @@ describe("additive protocol framing", () => {
 
   it("retries when the verified supervisor endpoint disappears before the client connects", async () => {
     const identity = randomUUID();
-    const endpoint = process.platform === "win32" ? `\\\\.\\pipe\\addone-client-retry-${identity}` : join(tmpdir(), `addone-client-retry-${identity}.sock`);
+    const endpoint = process.platform === "win32" ? `\\\\.\\pipe\\a1-client-retry-${identity}` : join(tmpdir(), `a1-client-retry-${identity}.sock`);
     const server = createServer(socket => {
       socket.once("data", () => socket.write(encodeFrame({
         type: "server-hello",

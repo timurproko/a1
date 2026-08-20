@@ -64,6 +64,7 @@
   },
   "protocol": {
     "namespace": "a1",
+    "controlEnvelope": "a1-control-envelope",
     "supervisorSchema": "a1-supervisor-v1",
     "nativeHostSchema": "a1-native-host-v1",
     "structuredAgentSchema": "a1-structured-agent-v1",

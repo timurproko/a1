@@ -1,6 +1,7 @@
 import { DatabaseSync } from "node:sqlite";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
+import { PRODUCT_IDENTITY } from "../../product-identity.js";
 import type {
   ManagedAgentDescriptor,
   PaneId,
@@ -49,12 +50,17 @@ export class ControlStore {
   constructor(path: string, readonly bootNonce: string | null = null) {
     mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
     this.database = new DatabaseSync(path);
-    this.database.exec("PRAGMA journal_mode = WAL");
-    this.database.exec("PRAGMA foreign_keys = ON");
-    this.migrate();
-    if (bootNonce !== null) {
-      this.reconcilePriorBootGenerations(bootNonce);
-      this.reconcilePriorBootForegroundTerminalLeases(bootNonce);
+    try {
+      this.database.exec("PRAGMA journal_mode = WAL");
+      this.database.exec("PRAGMA foreign_keys = ON");
+      this.migrate();
+      if (bootNonce !== null) {
+        this.reconcilePriorBootGenerations(bootNonce);
+        this.reconcilePriorBootForegroundTerminalLeases(bootNonce);
+      }
+    } catch (error) {
+      this.database.close();
+      throw error;
     }
   }
 
@@ -62,6 +68,7 @@ export class ControlStore {
     const versionRow = this.database.prepare("PRAGMA user_version").get() as { user_version: number };
     const version = versionRow.user_version;
     if (version > 4) throw new Error(`control database version ${version} is newer than supported version 4`);
+    if (version !== 0) this.#assertCurrentControlSchema();
     if (version === 0) {
       this.database.exec(`
         BEGIN IMMEDIATE;
@@ -202,6 +209,19 @@ export class ControlStore {
         PRAGMA user_version = 4;
         COMMIT;
       `);
+    }
+    if (version === 0) {
+      this.database.exec("CREATE TABLE product_identity (schema TEXT PRIMARY KEY NOT NULL)");
+      this.database.prepare("INSERT INTO product_identity (schema) VALUES (?)").run(PRODUCT_IDENTITY.protocol.controlStoreSchema);
+    }
+  }
+
+  #assertCurrentControlSchema(): void {
+    const table = this.database.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'product_identity'").get();
+    if (!table) throw new Error("control database has no A1 product schema; legacy state is unsupported");
+    const identity = this.database.prepare("SELECT schema FROM product_identity").get() as { schema?: unknown } | undefined;
+    if (identity?.schema !== PRODUCT_IDENTITY.protocol.controlStoreSchema) {
+      throw new Error(`control database schema ${String(identity?.schema)} is unsupported; expected ${PRODUCT_IDENTITY.protocol.controlStoreSchema}`);
     }
   }
 

@@ -4,6 +4,7 @@ import { cleanupProvenIdleOwner } from "../../../src/foundation/release/index.js
 import { emptyState, type CohortState, type SupervisorEndpointMetadata } from "../../../src/foundation/release/index.js";
 import type { MaterializedRelease } from "../../../src/foundation/release/index.js";
 import { PRODUCT_IDENTITY } from "../../../src/product-identity.js";
+import { CONTROL_ENVELOPE } from "../../../src/foundation/protocol/index.js";
 
 describe("cohort activation and stale ownership", () => {
   it("replaces an idle cohort but retains a verified busy foreground generation", () => {
@@ -55,7 +56,7 @@ function metadata(value: MaterializedRelease, generations: readonly string[]): S
     supervisorId: "supervisor-old", endpoint: "endpoint", pid: 987654, pidStartIdentity: "old-start", bootNonce: "old-boot", startedAt: new Date(0).toISOString(),
     releaseId: value.releaseId, releaseRoot: value.releaseRoot, contentDigest: value.contentDigest,
     ownership: { state: generations.length ? "busy" : "idle", liveGenerationIds: generations, nonResumableGenerationIds: generations },
-    envelope: "addone-control-envelope", envelopeRevision: 1, requiredFeatures: [], optionalFeatures: [], contractDigest: "contract",
+    envelope: CONTROL_ENVELOPE, envelopeRevision: 1, requiredFeatures: [], optionalFeatures: [], contractDigest: "contract",
   };
 }
 function release(version: string, seed: string): MaterializedRelease {
