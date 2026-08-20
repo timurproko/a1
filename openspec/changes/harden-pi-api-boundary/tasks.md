@@ -38,7 +38,7 @@
 - [x] 5.1 Replace reflected `CustomEditor` construction with a compile-time-valid public constructor path or an attributed A1-owned editor implementation; pass editor, autocomplete, history, keybinding, IME/focus, and parity tests.
 - [x] 5.2 Replace the fabricated concrete session passed to `FooterComponent` with either a real session-contained adapter or an attributed A1-owned footer over neutral view data; pass usage, model, context, branch, status, width, and parity tests.
 - [x] 5.3 Audit every reused public Pi component constructor and callback, remove constructor type escapes and structural concrete-object substitutes, and expose only neutral component ports; run component conformance and selector/dialog suites.
-- [ ] 5.4 Migrate the Pi TUI runtime implementation behind neutral terminal/layout/overlay contracts while preserving regular/fullscreen mode, scrolling, focus, restoration, and width ownership; run TUI conformance and terminal architecture tests.
+- [x] 5.4 Migrate the Pi TUI runtime implementation behind neutral terminal/layout/overlay contracts while preserving regular/fullscreen mode, scrolling, focus, restoration, and width ownership; run TUI conformance and terminal architecture tests.
 - [ ] 5.5 Keep reflection only where a documented extension callback contract inherently requires dynamic invocation, validate callback results at the boundary, and add negative extension factory tests.
 
 ## 6. Remove Runtime Package-Layout Coupling and Reclassify UI Ownership

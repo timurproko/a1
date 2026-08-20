@@ -13,16 +13,13 @@ import {
   type AgentSnapshot,
 } from "../foundation/agent-engine-contracts/index.js";
 import { createPiEngineAdapter, type PiEngineAdapter } from "../foundation/pi-engine-adapter/index.js";
-import { PiTuiRuntimeAdapter, type PiTuiTerminalPort } from "../foundation/pi-tui-runtime-adapter/index.js";
+import { createPiPresentationRuntime, createPiTerminalBridge } from "../foundation/pi-tui-runtime-adapter/index.js";
 import {
   assertPresentationComponent,
   assertPresentationRuntime,
   type OwnedUiApplicationPort,
   type PresentationComponentPort,
-  type PresentationOverlayHandle,
-  type PresentationOverlayOptions,
   type PresentationRuntimePort,
-  type PresentationRuntimeState,
   type PresentationTerminalPort,
 } from "../foundation/presentation-contracts/index.js";
 import type { OwnedUiCommand, OwnedUiEvent, OwnedUiTranscriptBlock } from "../foundation/owned-ui-contracts/index.js";
@@ -55,7 +52,7 @@ export async function composeOwnedUiApplication(options: OwnedUiCompositionOptio
   const shell = new OwnedUiSessionShell({
     backend: adapter,
     cwd,
-    ...(options.terminal === undefined ? {} : { terminal: toPiTerminal(options.terminal) }),
+    ...(options.terminal === undefined ? {} : { terminal: createPiTerminalBridge(options.terminal) }),
   });
   return {
     get disposed() { return adapter.disposed; },
@@ -92,7 +89,7 @@ export async function composeProcess(options: ProcessCompositionOptions = {}): P
     createPresentation(root, terminal) {
       if (disposed) throw new Error("process composition is disposed");
       assertPresentationComponent(root);
-      const runtime = options.presentationFactory?.(root, terminal) ?? new PiPresentationRuntimeBridge(root, terminal);
+      const runtime = options.presentationFactory?.(root, terminal) ?? createPiPresentationRuntime(root, terminal);
       assertPresentationRuntime(runtime);
       presentations.add(runtime);
       return runtime;
@@ -189,31 +186,4 @@ function toLifecycle(lifecycle: "starting" | "ready" | "busy" | "suspended" | "s
 function toMessage(block: OwnedUiTranscriptBlock): AgentMessage {
   const role = block.kind === "user" ? "user" : block.kind === "system" ? "system" : block.kind === "tool-call" || block.kind === "tool-result" ? "tool" : "assistant";
   return { id: block.id, role, status: block.status === "live" ? "streaming" : "final", content: [{ kind: "text", text: block.text }] };
-}
-
-class PiPresentationRuntimeBridge implements PresentationRuntimePort {
-  readonly #runtime: PiTuiRuntimeAdapter;
-  constructor(root: PresentationComponentPort, readonly terminal: PresentationTerminalPort) {
-    this.#runtime = new PiTuiRuntimeAdapter({ root, terminal: toPiTerminal(terminal), mouse: false });
-  }
-  get state(): PresentationRuntimeState { return this.#runtime.state; }
-  start(): void { this.#runtime.start(); }
-  render(force?: boolean): void { this.#runtime.renderNow(force); }
-  showOverlay(component: PresentationComponentPort, options: PresentationOverlayOptions): PresentationOverlayHandle {
-    const handle = this.#runtime.showOverlay(component, {
-      anchor: options.anchor === "top" ? "top-center" : options.anchor === "bottom" ? "bottom-center" : "center",
-      ...(options.width === undefined ? {} : { width: options.width }),
-    });
-    return { get visible() { return !handle.isHidden(); }, hide: () => handle.hide(), show: () => handle.setHidden(false), focus: () => handle.focus(), dispose: () => handle.hide() };
-  }
-  async stop(): Promise<void> { await this.#runtime.stop(); }
-}
-
-function toPiTerminal(terminal: PresentationTerminalPort): PiTuiTerminalPort {
-  return {
-    get columns() { return terminal.columns; }, get rows() { return terminal.rows; }, get kittyProtocolActive() { return terminal.enhancedKeyboard; },
-    start: (input, resize) => terminal.start(input, resize), stop: () => terminal.stop(), drainInput: (max, idle) => terminal.drainInput(max, idle), write: data => terminal.write(data),
-    moveBy: lines => terminal.moveBy(lines), hideCursor: () => terminal.hideCursor(), showCursor: () => terminal.showCursor(), clearLine: () => terminal.clearLine(),
-    clearFromCursor: () => terminal.clearFromCursor(), clearScreen: () => terminal.clearScreen(), setTitle: title => terminal.setTitle(title), setProgress: active => terminal.setProgress(active),
-  };
 }
