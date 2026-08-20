@@ -29,12 +29,20 @@ describe("package-derived release identity", () => {
   it("rejects distribution traversal and symlinks instead of hashing outside content", async () => {
     const root = await fixturePackage("1.0.0", "safe");
     await writeFile(resolve(root, "package.json"), JSON.stringify({
-      name: "@timurproko/addone",
+      name: "@timurproko/a1",
       version: "1.0.0",
       files: ["../outside"],
     }));
     await expect(deriveReleaseIdentity(root)).rejects.toThrow(/escapes package root/);
     expect(() => resolveWithin(root, "../../outside")).toThrow(/escapes selected root/);
+  });
+
+  it("rejects the obsolete npm package identity", async () => {
+    const root = await fixturePackage("1.0.0", "safe");
+    const manifestPath = resolve(root, "package.json");
+    const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as Record<string, unknown>;
+    await writeFile(manifestPath, JSON.stringify({ ...manifest, name: "@timurproko/addone" }));
+    await expect(deriveReleaseIdentity(root)).rejects.toThrow(/unexpected AddOne package name/);
   });
 });
 
@@ -43,7 +51,7 @@ async function fixturePackage(version: string, source: string): Promise<string> 
   roots.push(root);
   await mkdir(resolve(root, "dist"), { recursive: true });
   await writeFile(resolve(root, "package.json"), JSON.stringify({
-    name: "@timurproko/addone",
+    name: "@timurproko/a1",
     version,
     files: ["dist"],
   }));

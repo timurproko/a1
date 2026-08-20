@@ -2,7 +2,7 @@ import { chmod, mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { materializeRelease, readMaterializedRelease, resolveReleaseEntryPoint, verifyMaterializedRelease } from "../../../src/foundation/release/index.js";
+import { materializeRelease, readMaterializedRelease, RELEASE_MANIFEST, resolveReleaseEntryPoint, verifyMaterializedRelease } from "../../../src/foundation/release/index.js";
 
 const roots: string[] = [];
 afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))));
@@ -15,6 +15,16 @@ describe("immutable release materialization", () => {
     expect(await readFile(await resolveReleaseEntryPoint(release, "dist/app.js"), "utf8")).toBe("payload");
     expect((await readMaterializedRelease(release.releaseRoot)).releaseId).toBe(release.releaseId);
     await expect(resolveReleaseEntryPoint(release, "../package.json")).rejects.toThrow(/not in the verified release manifest/);
+  });
+
+  it("rejects obsolete package metadata in a materialized release", async () => {
+    const { packageRoot, dataDir } = await fixture();
+    const release = await materializeRelease(packageRoot, dataDir);
+    const manifestPath = resolve(release.releaseRoot, RELEASE_MANIFEST);
+    const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as Record<string, unknown>;
+    await chmod(manifestPath, 0o600);
+    await writeFile(manifestPath, JSON.stringify({ ...manifest, packageName: "@timurproko/addone" }));
+    await expect(readMaterializedRelease(release.releaseRoot)).rejects.toThrow(/invalid AddOne release manifest metadata/);
   });
 
   it("rejects digest mismatch, incomplete candidates, and roots outside the selected store", async () => {
@@ -37,7 +47,7 @@ async function fixture(): Promise<{ packageRoot: string; dataDir: string }> {
   const dataDir = resolve(root, "data");
   await mkdir(resolve(packageRoot, "dist"), { recursive: true });
   await writeFile(resolve(packageRoot, "package.json"), JSON.stringify({
-    name: "@timurproko/addone",
+    name: "@timurproko/a1",
     version: "2.0.0",
     files: ["dist"],
   }));

@@ -56,7 +56,7 @@ describe("AddOne CLI dispatch", () => {
     };
     const stderr = vi.fn();
     expect(await dispatchAddOneCli(["agent"], handlers, { stderr })).toBe(2);
-    expect(stderr).toHaveBeenCalledWith(expect.stringContaining("Bare a1/addone is the AddOne agent experience"));
+    expect(stderr).toHaveBeenCalledWith(expect.stringContaining("Bare a1 is the AddOne agent experience"));
     expect(stderr).toHaveBeenCalledWith(expect.stringContaining(ADDONE_USAGE));
     expect(handlers.launch).not.toHaveBeenCalled();
   });

@@ -81,7 +81,7 @@ function metadata(): SupervisorEndpointMetadata {
 function release(): MaterializedRelease {
   const digest = "a".repeat(64);
   return {
-    packageName: "@timurproko/addone",
+    packageName: "@timurproko/a1",
     packageVersion: "1.1.0",
     contentDigest: digest,
     releaseId: `1.1.0-${digest.slice(0, 20)}`,

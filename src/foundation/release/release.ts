@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { lstat, readFile, readdir, realpath } from "node:fs/promises";
 import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
 
-export const ADDONE_PACKAGE_NAME = "@timurproko/addone";
+export const ADDONE_PACKAGE_NAME = "@timurproko/a1";
 
 export interface ReleaseFileIdentity {
   readonly path: string;

@@ -11,7 +11,7 @@ import {
 describe("development preview release planning", () => {
   it("records a manually accepted preview as explicitly uncertified and stable-ineligible", () => {
     expect(createUncertifiedDevelopmentPreviewEvidence({
-      packageName: "@timurproko/addone",
+      packageName: "@timurproko/a1",
       version: "0.1.5-dev.8",
       commit: "abc123",
       tarball: "candidate.tgz",
@@ -34,7 +34,7 @@ describe("development preview release planning", () => {
 
   it("rejects stable versions as uncertified next previews", () => {
     expect(() => createUncertifiedDevelopmentPreviewEvidence({
-      packageName: "@timurproko/addone",
+      packageName: "@timurproko/a1",
       version: "0.1.5",
       commit: "abc123",
       tarball: "candidate.tgz",
@@ -130,8 +130,8 @@ describe("development preview release planning", () => {
   });
 
   it("derives npm's scoped-package tarball filename", () => {
-    expect(developmentPreviewTarballName("@timurproko/addone", "0.1.5-dev.1"))
-      .toBe("timurproko-addone-0.1.5-dev.1.tgz");
+    expect(developmentPreviewTarballName("@timurproko/a1", "0.1.5-dev.1"))
+      .toBe("timurproko-a1-0.1.5-dev.1.tgz");
   });
 
   it("rejects malformed local or registry versions", () => {

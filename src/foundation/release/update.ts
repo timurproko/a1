@@ -20,7 +20,7 @@ import { cleanupVerifiedOwner, processIsAlive } from "./process-cleanup.js";
 import { materializeRelease, readMaterializedRelease } from "./release-store.js";
 import { UpdateTransactionStore, type UpdateTransaction, type UpdateTransactionPhase } from "./update-transaction.js";
 
-export const ADDONE_PACKAGE = "@timurproko/addone";
+export const ADDONE_PACKAGE = "@timurproko/a1";
 export type UpdateChannel = "stable" | "next";
 const UPDATE_DIST_TAGS: Readonly<Record<UpdateChannel, "latest" | "next">> = { stable: "latest", next: "next" };
 

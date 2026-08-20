@@ -86,7 +86,7 @@ function transparentProfile(): TransparentTerminalLaunchProfile {
 function release(): MaterializedRelease {
   const digest = "f".repeat(64);
   return {
-    packageName: "@timurproko/addone", packageVersion: "1.0.0", contentDigest: digest,
+    packageName: "@timurproko/a1", packageVersion: "1.0.0", contentDigest: digest,
     releaseId: `1.0.0-${digest.slice(0, 20)}`, packageRoot: "/package", releaseRoot: "/release", files: [],
   };
 }

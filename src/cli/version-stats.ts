@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import crossSpawn from "cross-spawn";
 import { valid as validSemver } from "semver";
 
-const ADDONE_PACKAGE = "@timurproko/addone";
+const ADDONE_PACKAGE = "@timurproko/a1";
 interface VersionProcessResult { readonly code: number | null; readonly stdout: string }
 type VersionProcessRunner = (command: string, arguments_: readonly string[]) => Promise<VersionProcessResult>;
 interface VersionOutput { stdout(message: string): void; stderr(message: string): void }

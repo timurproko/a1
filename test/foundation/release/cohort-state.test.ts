@@ -71,7 +71,7 @@ describe("atomic release references", () => {
 function release(version: string, seed: string): MaterializedRelease {
   const digest = seed.repeat(64).slice(0, 64);
   return {
-    packageName: "@timurproko/addone",
+    packageName: "@timurproko/a1",
     packageVersion: version,
     contentDigest: digest,
     releaseId: `${version}-${digest.slice(0, 20)}`,

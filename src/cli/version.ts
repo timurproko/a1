@@ -10,7 +10,7 @@ export function readInstalledVersion(moduleUrl = import.meta.url): string {
     const path = join(directory, "package.json");
     try {
       const metadata = JSON.parse(readFileSync(path, "utf8")) as PackageMetadata;
-      if (metadata.name === "@timurproko/addone" && typeof metadata.version === "string") return metadata.version;
+      if (metadata.name === "@timurproko/a1" && typeof metadata.version === "string") return metadata.version;
     } catch (error) {
       const code = error instanceof Error && "code" in error ? String(error.code) : "";
       if (code !== "ENOENT" && !(error instanceof SyntaxError)) throw error;

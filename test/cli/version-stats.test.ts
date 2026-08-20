@@ -10,13 +10,21 @@ afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, { recursi
 describe("version stats", () => {
   it("reports installed, stable release, and next preview versions in exact order", async () => {
     const harness = await createHarness();
-    const code = await runVersionStats({ ...harness.options, runner: async (_command, arguments_) => ({
-      code: 0,
-      stdout: arguments_[1]?.endsWith("@next") ? "1.2.0-dev.3\n" : "1.1.4\n",
-    }) });
+    const calls: Array<{ command: string; arguments_: readonly string[] }> = [];
+    const code = await runVersionStats({ ...harness.options, runner: async (command, arguments_) => {
+      calls.push({ command, arguments_ });
+      return {
+        code: 0,
+        stdout: arguments_[1]?.endsWith("@next") ? "1.2.0-dev.3\n" : "1.1.4\n",
+      };
+    } });
     expect(code).toBe(0);
     expect(harness.stdout.join("")).toBe("Installed: 1.1.0\nRelease:   1.1.4\nNext:      1.2.0-dev.3\n");
     expect(harness.stderr).toEqual([]);
+    expect(calls).toEqual([
+      { command: "npm", arguments_: ["view", "@timurproko/a1@latest", "version"] },
+      { command: "npm", arguments_: ["view", "@timurproko/a1@next", "version"] },
+    ]);
   });
 
   it("keeps installed output and marks remote fields unavailable offline", async () => {

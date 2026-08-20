@@ -40,10 +40,10 @@ export function parseAddOneCommand(arguments_: readonly string[]): AddOneCommand
   if (arguments_.length > 1) return { kind: "error", message: "AddOne commands do not accept additional arguments." };
   const [command] = arguments_;
   if (command === "pi" || command === "sandbox") return { kind: "launch", profileId: command };
-  if (command === "ui") return { kind: "error", message: "The ui subcommand was removed; run bare a1 or addone for the owned UI." };
+  if (command === "ui") return { kind: "error", message: "The ui subcommand was removed; run bare a1 for the owned UI." };
   if (command === "version") return { kind: "version" };
   if (command === "update") return { kind: "update", channel: "stable" };
   if (command === "update:next") return { kind: "update", channel: "next" };
-  if (command === "agent") return { kind: "error", message: "Bare a1/addone is the AddOne agent experience; there is no agent subcommand." };
+  if (command === "agent") return { kind: "error", message: "Bare a1 is the AddOne agent experience; there is no agent subcommand." };
   return { kind: "error", message: `Unknown AddOne command: ${command ?? ""}` };
 }

@@ -1,14 +1,14 @@
 ## 1. Establish the new package and command identity
 
 - [x] 1.1 Change the root manifest and lockfile to `@timurproko/a1@0.1.0` with a bin map containing exactly `a1`, then validate lockfile consistency with `npm ci` and a manifest assertion.
-- [ ] 1.2 Update installed-metadata lookup, immutable release derivation, materialized-release validation, fixtures, and focused release tests to accept only `@timurproko/a1` and explicitly reject the old package identity.
-- [ ] 1.3 Remove `addone` alias assumptions and full-name alias guidance from CLI dispatch and tests while preserving the `a1` grammar; run the CLI dispatch and version/update isolation tests.
-- [ ] 1.4 Prove the internally launched supervisor entry remains present and executable without an npm `addone-supervisor` bin declaration; run bootstrap-boundary and supervisor startup tests.
+- [x] 1.2 Update installed-metadata lookup, immutable release derivation, materialized-release validation, fixtures, and focused release tests to accept only `@timurproko/a1` and explicitly reject the old package identity.
+- [x] 1.3 Remove `addone` alias assumptions and full-name alias guidance from CLI dispatch and tests while preserving the `a1` grammar; run the CLI dispatch and version/update isolation tests.
+- [x] 1.4 Prove the internally launched supervisor entry remains present and executable without an npm `addone-supervisor` bin declaration; run bootstrap-boundary and supervisor startup tests.
 
 ## 2. Retarget registry-dependent behavior
 
-- [ ] 2.1 Make `a1 version`, `a1 update`, and `a1 update:next` query only `@timurproko/a1`; update unit tests to assert the exact npm argument arrays.
-- [ ] 2.2 Make self-update install only the exact selected `@timurproko/a1` version and update transition tests to prove no old-package query or installation target is reachable.
+- [x] 2.1 Make `a1 version`, `a1 update`, and `a1 update:next` query only `@timurproko/a1`; update unit tests to assert the exact npm argument arrays.
+- [x] 2.2 Make self-update install only the exact selected `@timurproko/a1` version and update transition tests to prove no old-package query or installation target is reachable.
 - [ ] 2.3 Add a non-historical repository gate that rejects authoritative runtime, package, workflow, and live-documentation references to `@timurproko/addone` or public `addone` binaries; verify that archived evidence remains allowed.
 
 ## 3. Certify the sole-bin package surface

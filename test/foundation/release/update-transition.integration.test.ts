@@ -88,7 +88,7 @@ describe("release-gating N-1 update transitions", () => {
     const packageRoot = resolve(root, "global", "@timurproko", "addone");
     const dataDir = resolve(root, "data");
     await mkdir(packageRoot, { recursive: true });
-    await writeFile(resolve(packageRoot, "package.json"), JSON.stringify({ name: "@timurproko/addone", version: "1.0.0" }));
+    await writeFile(resolve(packageRoot, "package.json"), JSON.stringify({ name: "@timurproko/a1", version: "1.0.0" }));
     const calls: string[] = [];
     const stdout: string[] = [];
     const lifecycle: UpdateLifecycleCoordinator = {
@@ -119,11 +119,11 @@ describe("release-gating N-1 update transitions", () => {
 
     expect(result).toBe(0);
     expect(calls).toEqual([
-      `npm:view @timurproko/addone@${tag} version`,
+      `npm:view @timurproko/a1@${tag} version`,
       "npm:root --global",
       "shutdown:1.1.0:owned-ui,supervisor,child-process",
       "unlock:package-root",
-      "npm:install --global @timurproko/addone@1.1.0",
+      "npm:install --global @timurproko/a1@1.1.0",
       "activate:1.1.0:maintenance-mode",
     ]);
     expect(stdout.join("")).toContain(`AddOne update (${channel}): 1.0.0 → 1.1.0.`);
@@ -141,7 +141,7 @@ async function spawnOwnedProcess() {
 async function fixturePackage(root: string, version: string, payload: string): Promise<string> {
   const packageRoot = resolve(root, `package-${version}`);
   await mkdir(resolve(packageRoot, "dist"), { recursive: true });
-  await writeFile(resolve(packageRoot, "package.json"), JSON.stringify({ name: "@timurproko/addone", version, files: ["dist"] }));
+  await writeFile(resolve(packageRoot, "package.json"), JSON.stringify({ name: "@timurproko/a1", version, files: ["dist"] }));
   await writeFile(resolve(packageRoot, "dist/app.js"), payload);
   return packageRoot;
 }

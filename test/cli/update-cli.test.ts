@@ -37,7 +37,7 @@ afterAll(async () => {
 });
 
 describe("update CLI dispatch", () => {
-  it("runs hermetically through addone and a1 without loading the interactive runtime", async () => {
+  it("runs hermetically through a1 without loading the interactive runtime", async () => {
     const fakeBin = resolve(temporaryRoot, "bin");
     const npmLog = resolve(temporaryRoot, "npm-calls.jsonl");
     const forbiddenImportLog = resolve(temporaryRoot, "forbidden-imports.log");
@@ -87,50 +87,45 @@ else process.exitCode = 64;
     const nextTarget = inc(packageJson.version, "prerelease", "dev");
     expect(latestTarget).not.toBeNull();
     expect(nextTarget).not.toBeNull();
-    expect(packageJson.bin.addone).toBe(packageJson.bin.a1);
+    expect(packageJson.bin).toEqual({ a1: "bin/addone.js" });
 
-    for (const alias of ["addone", "a1"] as const) {
-      const cli = resolve(repository, packageJson.bin[alias] ?? "missing");
-      await expect(execFileAsync(process.execPath, [cli, "update", "next"], {
-        cwd: temporaryRoot,
-        env: {
-          ...process.env,
-          ADDONE_RUNTIME_DIR: runtimeDirectory,
-          FAKE_NPM_LOG: npmLog,
-          FAKE_NPM_ROOT: dirname(repository),
-          FAKE_NPM_LATEST_TARGET: latestTarget!,
-          FAKE_NPM_NEXT_TARGET: nextTarget!,
-          NODE_OPTIONS: `--no-warnings --experimental-loader=${pathToFileURL(loader).href}`,
-          PATH: fakeBin,
-        },
-        timeout: 15_000,
-      })).rejects.toMatchObject({ code: 2, stderr: expect.stringContaining("Usage: a1 | a1 pi | a1 sandbox | a1 version | a1 update | a1 update:next") });
-    }
+    const cli = resolve(repository, packageJson.bin.a1 ?? "missing");
+    await expect(execFileAsync(process.execPath, [cli, "update", "next"], {
+      cwd: temporaryRoot,
+      env: {
+        ...process.env,
+        ADDONE_RUNTIME_DIR: runtimeDirectory,
+        FAKE_NPM_LOG: npmLog,
+        FAKE_NPM_ROOT: dirname(repository),
+        FAKE_NPM_LATEST_TARGET: latestTarget!,
+        FAKE_NPM_NEXT_TARGET: nextTarget!,
+        NODE_OPTIONS: `--no-warnings --experimental-loader=${pathToFileURL(loader).href}`,
+        PATH: fakeBin,
+      },
+      timeout: 15_000,
+    })).rejects.toMatchObject({ code: 2, stderr: expect.stringContaining("Usage: a1 | a1 pi | a1 sandbox | a1 version | a1 update | a1 update:next") });
 
     await expect(access(npmLog)).rejects.toThrow();
 
-    for (const alias of ["addone", "a1"] as const) {
-      const cli = resolve(repository, packageJson.bin[alias] ?? "missing");
-      const result = await execFileAsync(process.execPath, [cli, "version"], {
-        cwd: temporaryRoot,
-        env: {
-          ...process.env,
-          ADDONE_RUNTIME_DIR: runtimeDirectory,
-          FAKE_NPM_LOG: npmLog,
-          FAKE_NPM_ROOT: dirname(repository),
-          FAKE_NPM_LATEST_TARGET: latestTarget!,
-          FAKE_NPM_NEXT_TARGET: nextTarget!,
-          NODE_OPTIONS: `--no-warnings --experimental-loader=${pathToFileURL(loader).href}`,
-          PATH: fakeBin,
-        },
-        timeout: 15_000,
-      });
-      expect(result.stdout).toBe(`Installed: ${packageJson.version}\nRelease:   ${latestTarget}\nNext:      ${nextTarget}\n`);
-    }
+    const result = await execFileAsync(process.execPath, [cli, "version"], {
+      cwd: temporaryRoot,
+      env: {
+        ...process.env,
+        ADDONE_RUNTIME_DIR: runtimeDirectory,
+        FAKE_NPM_LOG: npmLog,
+        FAKE_NPM_ROOT: dirname(repository),
+        FAKE_NPM_LATEST_TARGET: latestTarget!,
+        FAKE_NPM_NEXT_TARGET: nextTarget!,
+        NODE_OPTIONS: `--no-warnings --experimental-loader=${pathToFileURL(loader).href}`,
+        PATH: fakeBin,
+      },
+      timeout: 15_000,
+    });
+    expect(result.stdout).toBe(`Installed: ${packageJson.version}\nRelease:   ${latestTarget}\nNext:      ${nextTarget}\n`);
     const versionCalls = (await readFile(npmLog, "utf8")).trim().split("\n").map(line => JSON.parse(line) as string[]);
-    expect(versionCalls).toHaveLength(4);
-    expect(versionCalls.filter(call => call[1] === `${ADDONE_PACKAGE}@latest`)).toHaveLength(2);
-    expect(versionCalls.filter(call => call[1] === `${ADDONE_PACKAGE}@next`)).toHaveLength(2);
+    expect(versionCalls).toHaveLength(2);
+    expect(versionCalls.filter(call => call[1] === `${ADDONE_PACKAGE}@latest`)).toHaveLength(1);
+    expect(versionCalls.filter(call => call[1] === `${ADDONE_PACKAGE}@next`)).toHaveLength(1);
     expect(versionCalls.every(call => call[0] === "view" && call[2] === "version")).toBe(true);
     await expect(access(forbiddenImportLog)).rejects.toThrow();
     await expect(access(runtimeDirectory)).rejects.toThrow();
