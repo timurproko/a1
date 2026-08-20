@@ -84,18 +84,8 @@ jobs:
           echo "accepted_shasum=$ACCEPTED_SHASUM" >> "$GITHUB_ENV"
           echo "source_commit=$ACCEPTED_SOURCE_COMMIT" >> "$GITHUB_ENV"
 
-      - name: Install and run non-desktop gates
-        shell: bash
-        run: |
-          npm ci
-          npm run typecheck
-          npm run check:architecture
-          npm run check:customization-ready
-          npm run check:deprecated
-          npx vitest run --exclude test/foundation/release/package-surface.integration.test.ts
-          npm run test:release
-        env:
-          A1_RELEASE_RUNNER_LABEL: github-windows-2025-uncertified-next
+      - name: Install dependencies for exact packing
+        run: npm ci
 
       - name: Pack and verify accepted bytes
         id: pack
@@ -151,6 +141,18 @@ jobs:
           }
           throw lastError;
           NODE
+
+      - name: Run post-publication non-desktop certification
+        shell: bash
+        run: |
+          npm run typecheck
+          npm run check:architecture
+          npm run check:customization-ready
+          npm run check:deprecated
+          npx vitest run --exclude test/foundation/release/package-surface.integration.test.ts
+          npm run test:release
+        env:
+          A1_RELEASE_RUNNER_LABEL: github-windows-2025-uncertified-next
 
       - name: Upload publication evidence
         if: always()
