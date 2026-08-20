@@ -14,13 +14,17 @@ export function collectPiProductionBoundaryFindings(files) {
   const findings = [];
   for (const [rawPath, source] of Object.entries(files)) {
     const path = normalize(rawPath);
+    if (isClassifiedProvenancePath(path)) continue;
     const lines = source.split(/\r?\n/);
     lines.forEach((line, index) => {
       const expression = line.trim();
-      if (/\b(?:readFile|readFileSync)\s*\([^\n]*getPackageDir\s*\(\s*\)/.test(line)) {
-        findings.push({ category: "dependency-package-file-read", path, line: index + 1, expression });
+      if (/\bgetPackageDir\s*\(\s*\)/.test(line)) {
+        findings.push({ category: "dependency-package-directory-read", path, line: index + 1, expression });
       }
-      if (/getPackageDir\s*\(\s*\)[^\n]*["'](?:dist|src|build)["']/.test(line)) {
+      if (/node_modules[\\/].*(?:pi-coding-agent|pi-tui)|["']node_modules["'][^\n]*(?:pi-coding-agent|pi-tui)/.test(line)) {
+        findings.push({ category: "dependency-node-modules-traversal", path, line: index + 1, expression });
+      }
+      if (/getPackageDir\s*\(\s*\)[^\n]*["'](?:dist|src|build|assets|modes|CHANGELOG\.md)["']|(?:pi-coding-agent|pi-tui)[\\/](?:dist|src|build)[\\/]|["'](?:dist|src|build)["'][^\n]*(?:modes|interactive|assets|theme|CHANGELOG)/.test(line)) {
         findings.push({ category: "private-package-path-construction", path, line: index + 1, expression });
       }
       const reflected = line.match(/Reflect\.construct\(\s*([A-Za-z_$][\w$]*)/);
@@ -29,6 +33,14 @@ export function collectPiProductionBoundaryFindings(files) {
         findings.push({ category: "ambient-pi-oracle", path, line: index + 1, expression, symbol: "pi" });
       }
     });
+    for (const root of source.matchAll(/\b(?:const|let)\s+([A-Za-z_$][\w$]*)\s*=\s*getPackageDir\s*\(\s*\)/g)) {
+      const identifier = root[1];
+      const suffix = source.slice((root.index ?? 0) + root[0].length).match(new RegExp(`(?:join|resolve)\\s*\\(\\s*${identifier}\\s*,\\s*["'](?:dist|src|build|assets|modes|CHANGELOG\\.md)`));
+      if (suffix) {
+        const offset = (root.index ?? 0) + root[0].length + (suffix.index ?? 0);
+        findings.push({ category: "private-package-path-construction", path, line: source.slice(0, offset).split("\n").length, expression: suffix[0], symbol: identifier });
+      }
+    }
     for (const declaration of source.matchAll(/\bconst\s+([A-Za-z_$][\w$]*)\s*=\s*\{/g)) {
       const identifier = declaration[1];
       const after = source.slice(declaration.index ?? 0);
@@ -50,11 +62,6 @@ export function collectPiProductionBoundaryFindings(files) {
 
 function approvedFindings(baseline) {
   const approved = new Set();
-  for (const record of baseline?.packageLayoutReads ?? []) {
-    for (const category of ["dependency-package-file-read", "private-package-path-construction"]) {
-      approved.add(findingKey({ category, path: record.path, expression: record.expression }));
-    }
-  }
   for (const record of baseline?.reflectedConcreteConstructors ?? []) {
     approved.add(findingKey({ category: "reflected-concrete-constructor", path: record.path, expression: record.expression }));
   }
@@ -73,8 +80,10 @@ function findingKey(finding) {
 
 function diagnostic(finding) {
   switch (finding.category) {
-    case "dependency-package-file-read":
-      return "production reads a dependency package file; use a documented public API or an A1-owned resource";
+    case "dependency-package-directory-read":
+      return "production reads a dependency package directory; use a documented public API or an owned resource";
+    case "dependency-node-modules-traversal":
+      return "production traverses node_modules for a Pi dependency; bind only through package-root exports";
     case "private-package-path-construction":
       return "production constructs a private dependency path; internal dist/src/build layout is not a public API";
     case "reflected-concrete-constructor":
@@ -103,6 +112,11 @@ async function sourceFiles(root) {
   return output;
 }
 
+function isClassifiedProvenancePath(path) {
+  return path.startsWith("test/")
+    || /^scripts\/(?:update-pinned-pi-source|update-pinned-pi-source-ledger|update-pi-component-parity|update-pi-event-frame-parity|pi-api-boundary-baseline)\./.test(path);
+}
+
 function normalize(path) {
   return path.replaceAll("\\", "/").replace(/^\.\//, "");
 }
@@ -120,6 +134,6 @@ if (isMain) {
     process.stderr.write(`Pi production boundary failed (${errors.length}):\n${errors.map(error => `- ${error}`).join("\n")}\n`);
     process.exitCode = 1;
   } else {
-    process.stdout.write(`Pi production boundary freeze OK: ${findings.length} exact baseline couplings, 0 unapproved\n`);
+    process.stdout.write(`Pi production boundary OK: 0 unapproved findings (${findings.length} approved transitional findings)\n`);
   }
 }

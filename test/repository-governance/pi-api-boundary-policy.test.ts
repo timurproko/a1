@@ -14,7 +14,7 @@ describe("Pi production boundary freeze", () => {
       "dependency package-file read",
       "src/foundation/pi-engine-adapter/fixture.ts",
       "const text = await readFile(join(getPackageDir(), 'CHANGELOG.md'), 'utf8');",
-      "production reads a dependency package file",
+      "production reads a dependency package directory",
     ],
     [
       "private package path construction",
@@ -49,18 +49,29 @@ describe("Pi production boundary freeze", () => {
   it("allows only exact findings frozen in the accepted baseline", async () => {
     const baseline = JSON.parse(await readFile(baselinePath, "utf8")) as Record<string, any>;
     const accepted = baseline.packageLayoutReads[2];
-    expect(inspectPiProductionBoundary({ [accepted.path]: accepted.expression }, baseline)).toEqual([]);
+    const errors = inspectPiProductionBoundary({ [accepted.path]: accepted.expression }, baseline);
+    expect(errors).toContain(`${accepted.path}:1: production reads a dependency package directory; use a documented public API or an owned resource`);
+    expect(errors).toContain(`${accepted.path}:1: production constructs a private dependency path; internal dist/src/build layout is not a public API`);
+  });
 
-    const changed = accepted.expression.replace("CHANGELOG.md", "dist/private.md");
-    expect(inspectPiProductionBoundary({ [accepted.path]: changed }, baseline)).toEqual([
-      `${accepted.path}:1: production reads a dependency package file; use a documented public API or an A1-owned resource`,
-    ]);
+  it.each([
+    ["package directory binding", "const packageRoot = getPackageDir();", "dependency package directory"],
+    ["node_modules traversal", "const file = 'node_modules/@earendil-works/pi-coding-agent/dist/private.js';", "traverses node_modules"],
+    ["split private suffix", "const packageRoot = getPackageDir();\nconst file = join(packageRoot, 'dist', 'modes', 'private.js');", "private dependency path"],
+  ])("rejects %s mutation", (_name, source, diagnostic) => {
+    expect(inspectPiProductionBoundary({ "src/foundation/pi-engine-adapter/mutation.ts": source }).join("\n")).toContain(diagnostic);
+  });
+
+  it("allows classified test-only provenance inspection", () => {
+    const source = "const file = 'node_modules/@earendil-works/pi-coding-agent/dist/private.js';";
+    expect(inspectPiProductionBoundary({ "test/repository-governance/provenance.test.ts": source })).toEqual([]);
+    expect(inspectPiProductionBoundary({ "scripts/update-pinned-pi-source-ledger.mjs": source })).toEqual([]);
   });
 
   it("passes the focused production-boundary command", () => {
     const result = spawnSync(process.execPath, [policy], { cwd: repository, encoding: "utf8" });
 
     expect(result.status, result.stderr).toBe(0);
-    expect(result.stdout).toMatch(/Pi production boundary freeze OK: \d+ exact baseline couplings, 0 unapproved/);
+    expect(result.stdout).toMatch(/Pi production boundary OK: 0 unapproved findings/);
   });
 });
