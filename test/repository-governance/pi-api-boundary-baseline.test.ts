@@ -42,6 +42,9 @@ describe("Pi API boundary baseline evidence", () => {
       "src/foundation/pi-engine-adapter/adapter.ts",
     ]);
     expect(baseline.reflectedConcreteConstructors.map(record => record.target)).toEqual(["CustomEditor", "FooterComponent"]);
+    expect(baseline.structuralConcreteSessionSubstitutes).toEqual([
+      expect.objectContaining({ identifier: "session", consumer: "FooterComponent" }),
+    ]);
     expect(baseline.featureToAdapterDependencies).toHaveLength(6);
     expect(baseline.featureToAdapterDependencies.every(record => record.feature === "src/features/owned-ui")).toBe(true);
     expect(baseline.sourceDerivedUiUnits).toHaveLength(20);

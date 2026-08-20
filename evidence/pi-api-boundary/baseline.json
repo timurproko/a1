@@ -443,6 +443,15 @@
       "expression": "const footerCandidate: unknown = Reflect.construct(FooterComponent, [session, footerData]);"
     }
   ],
+  "structuralConcreteSessionSubstitutes": [
+    {
+      "path": "src/foundation/pi-component-adapter/shell-footer-status.ts",
+      "line": 136,
+      "identifier": "session",
+      "consumer": "FooterComponent",
+      "expression": "const session = {"
+    }
+  ],
   "featureToAdapterDependencies": [
     {
       "path": "src/features/owned-ui/customization.ts",
@@ -689,9 +698,10 @@
     "productionPiImports": 48,
     "packageLayoutReads": 3,
     "reflectedConcreteConstructors": 2,
+    "structuralConcreteSessionSubstitutes": 1,
     "featureToAdapterDependencies": 6,
     "sourceDerivedUiUnits": 20,
     "exactOracleBoundToSelectedDependency": false
   },
-  "recordedAt": "2026-08-20T14:34:38.424Z"
+  "recordedAt": "2026-08-20T14:40:21.803Z"
 }

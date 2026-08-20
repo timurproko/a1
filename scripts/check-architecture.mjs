@@ -1,6 +1,7 @@
 import { readFile, readdir } from "node:fs/promises";
 import { extname, relative, resolve, sep } from "node:path";
 import { inspectPiFeatureBoundaryImports, inspectProjectStructureImports, projectOwnerForPath, testOwnerForPath } from "./project-structure-policy.mjs";
+import { inspectPiProductionBoundary } from "./pi-api-boundary-policy.mjs";
 
 const rootArgument = process.argv.indexOf("--root");
 const root = resolve(rootArgument >= 0 ? process.argv[rootArgument + 1] : new URL("..", import.meta.url).pathname.replace(/^\/(.:)/, "$1"));
@@ -199,14 +200,17 @@ for (const nativeRoot of nativeRoots) {
 }
 
 errors.push(...inspectProjectStructureImports(sourceFiles));
-let approvedPiFeatureImports = [];
+let piBoundaryBaseline = null;
 try {
-  const baseline = JSON.parse(await readFile(resolve(root, "evidence", "pi-api-boundary", "baseline.json"), "utf8"));
-  approvedPiFeatureImports = Array.isArray(baseline.featureToAdapterDependencies) ? baseline.featureToAdapterDependencies : [];
+  piBoundaryBaseline = JSON.parse(await readFile(resolve(root, "evidence", "pi-api-boundary", "baseline.json"), "utf8"));
 } catch (error) {
   if (rootArgument < 0) errors.push(`Pi API boundary baseline is missing or invalid: ${error instanceof Error ? error.message : String(error)}`);
 }
+const approvedPiFeatureImports = Array.isArray(piBoundaryBaseline?.featureToAdapterDependencies)
+  ? piBoundaryBaseline.featureToAdapterDependencies
+  : [];
 errors.push(...inspectPiFeatureBoundaryImports(sourceFiles, approvedPiFeatureImports));
+errors.push(...inspectPiProductionBoundary(sourceFiles, piBoundaryBaseline));
 await inspectRepositoryStructure();
 await inspectReleasePolicy();
 await inspectTerminalParityBoundary();

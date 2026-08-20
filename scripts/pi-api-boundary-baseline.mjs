@@ -37,6 +37,7 @@ export function collectPiApiBoundaryBaseline(root, baselineCommit) {
       line => line.includes("Reflect.construct("),
       line => ({ target: line.match(/Reflect\.construct\(\s*([A-Za-z_$][\w$]*)/)?.[1] ?? "unknown", expression: line.trim() }),
     ),
+    structuralConcreteSessionSubstitutes: collectStructuralSessionSubstitutes(sources),
     featureToAdapterDependencies: relativeFeatureImports,
     sourceDerivedUiUnits: ledger.records
       .filter(record => record.classification === "owned-source-port")
@@ -55,6 +56,7 @@ export function collectPiApiBoundaryBaseline(root, baselineCommit) {
       productionPiImports: productionPiImports.filter(record => !record.specifier.startsWith(".")).length,
       packageLayoutReads: collectLineFindings(sources, line => line.includes("getPackageDir()"), line => ({ expression: line.trim() })).length,
       reflectedConcreteConstructors: collectLineFindings(sources, line => line.includes("Reflect.construct("), line => ({ expression: line.trim() })).length,
+      structuralConcreteSessionSubstitutes: collectStructuralSessionSubstitutes(sources).length,
       featureToAdapterDependencies: relativeFeatureImports.length,
       sourceDerivedUiUnits: ledger.records.filter(record => record.classification === "owned-source-port").length,
       exactOracleBoundToSelectedDependency: false,
@@ -155,6 +157,26 @@ function collectLineFindings(sources, accepts, details) {
     });
   }
   return records.sort(compareFinding);
+}
+
+function collectStructuralSessionSubstitutes(sources) {
+  const findings = [];
+  for (const [path, source] of sources) {
+    for (const declaration of source.matchAll(/\bconst\s+([A-Za-z_$][\w$]*)\s*=\s*\{/g)) {
+      const identifier = declaration[1];
+      const after = source.slice(declaration.index ?? 0);
+      const consumer = after.match(new RegExp(`Reflect\\.construct\\(\\s*([A-Za-z_$][\\w$]*)\\s*,\\s*\\[\\s*${identifier}\\b`));
+      if (!consumer) continue;
+      findings.push({
+        path,
+        line: lineAt(source, declaration.index ?? 0),
+        identifier,
+        consumer: consumer[1],
+        expression: source.slice(declaration.index ?? 0, source.indexOf("\n", declaration.index ?? 0)).trim(),
+      });
+    }
+  }
+  return findings.sort(compareFinding);
 }
 
 function collectOracleResolution(sources) {

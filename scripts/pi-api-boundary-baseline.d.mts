@@ -11,6 +11,7 @@ export interface PiApiBoundaryBaseline {
   readonly productionPiImportSites: readonly Array<{ readonly path: string; readonly line: number; readonly specifier: string; readonly statement: string }>;
   readonly packageLayoutReads: readonly Array<{ readonly path: string; readonly line: number; readonly expression: string }>;
   readonly reflectedConcreteConstructors: readonly Array<{ readonly path: string; readonly line: number; readonly target: string; readonly expression: string }>;
+  readonly structuralConcreteSessionSubstitutes: readonly Array<{ readonly path: string; readonly line: number; readonly identifier: string; readonly consumer: string; readonly expression: string }>;
   readonly featureToAdapterDependencies: readonly Array<{ readonly path: string; readonly line: number; readonly specifier: string; readonly feature: string; readonly adapter: string; readonly statement: string }>;
   readonly sourceDerivedUiUnits: readonly Array<{ readonly id: string; readonly package: string; readonly upstreamPath: string; readonly localDestination: string; readonly localSha256: string; readonly implementationStatus: string }>;
   readonly exactOracleResolution: {
@@ -28,6 +29,7 @@ export interface PiApiBoundaryBaseline {
     readonly productionPiImports: number;
     readonly packageLayoutReads: number;
     readonly reflectedConcreteConstructors: number;
+    readonly structuralConcreteSessionSubstitutes: number;
     readonly featureToAdapterDependencies: number;
     readonly sourceDerivedUiUnits: number;
     readonly exactOracleBoundToSelectedDependency: false;
