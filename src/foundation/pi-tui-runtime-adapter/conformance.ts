@@ -1,9 +1,13 @@
-import { PI_TUI_PACKAGE_VERSION, type PiTuiComponentPort, type PiTuiTerminalPort } from "./contracts.js";
+import type { PiTuiComponentPort, PiTuiTerminalPort } from "./contracts.js";
 import { PiTuiRuntimeAdapter, PiTuiRuntimeError } from "./adapter.js";
+
+export interface PiTuiRuntimeConformanceOptions {
+  readonly packageVersion: string;
+}
 
 export interface PiTuiRuntimeConformanceReport {
   readonly packageName: "@earendil-works/pi-tui";
-  readonly packageVersion: typeof PI_TUI_PACKAGE_VERSION;
+  readonly packageVersion: string;
   readonly mode: "regular" | "fullscreen";
   readonly lifecycleRestored: boolean;
   readonly inputRouted: boolean;
@@ -13,7 +17,10 @@ export interface PiTuiRuntimeConformanceReport {
   readonly terminalNativeSelection: boolean;
 }
 
-export async function runPiTuiRuntimeConformance(): Promise<PiTuiRuntimeConformanceReport> {
+export async function runPiTuiRuntimeConformance(options: PiTuiRuntimeConformanceOptions): Promise<PiTuiRuntimeConformanceReport> {
+  if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(options.packageVersion)) {
+    throw new TypeError("Pi TUI conformance requires an exact package version from compatibility authority");
+  }
   const terminal = new ConformanceTerminal();
   const root = new ConformanceComponent(["stable row", "before"]);
   const overlay = new ConformanceComponent(["overlay"]);
@@ -45,7 +52,7 @@ export async function runPiTuiRuntimeConformance(): Promise<PiTuiRuntimeConforma
     const emitted = terminal.writes.join("");
     return {
       packageName: "@earendil-works/pi-tui",
-      packageVersion: PI_TUI_PACKAGE_VERSION,
+      packageVersion: options.packageVersion,
       mode: runtime.mode,
       lifecycleRestored: terminal.startCount === 1
         && terminal.stopCount === 1

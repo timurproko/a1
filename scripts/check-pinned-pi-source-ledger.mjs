@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { access, readFile, readdir } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { readPiCompatibilityAuthority } from "./pi-compatibility-authority.mjs";
 
 const repository = fileURLToPath(new URL("..", import.meta.url));
 const identity = JSON.parse(await readFile(join(repository, "src", "product-identity.json"), "utf8"));
@@ -51,13 +52,11 @@ const packageAuthorities = [
     name: "@earendil-works/pi-coding-agent",
     sourceRoot: "packages/coding-agent",
     packageRoot: join(repository, "node_modules", "@earendil-works", "pi-coding-agent"),
-    lockKey: "node_modules/@earendil-works/pi-coding-agent",
   },
   {
     name: "@earendil-works/pi-tui",
     sourceRoot: "packages/tui",
     packageRoot: join(repository, "node_modules", "@earendil-works", "pi-tui"),
-    lockKey: "node_modules/@earendil-works/pi-tui",
   },
 ];
 
@@ -71,7 +70,7 @@ try {
 
 async function validateLedger() {
   const ledger = JSON.parse(await readFile(ledgerPath, "utf8"));
-  const lockfile = JSON.parse(await readFile(join(repository, "package-lock.json"), "utf8"));
+  const compatibilityAuthority = await readPiCompatibilityAuthority(repository);
   requiredString(ledger.schema, "ledger schema");
   if (ledger.schema !== identity.evidence.piSourceLedgerSchema) fail("unsupported ledger schema");
   if (ledger.change !== "build-owned-pi-ui-foundation" || ledger.task !== "7.2") fail("ledger change/task identity is stale");
@@ -80,7 +79,7 @@ async function validateLedger() {
   if (ledger.upstream?.license !== "MIT") fail("upstream license must be MIT");
   if (!Array.isArray(ledger.records)) fail("ledger records collection is missing");
 
-  await validatePackages(ledger.upstream.packages, lockfile);
+  await validatePackages(ledger.upstream.packages, compatibilityAuthority);
   const expected = await discoverPinnedAuthorities();
   const actual = new Map();
   for (const [index, record] of ledger.records.entries()) {
@@ -118,13 +117,13 @@ async function validateLedger() {
   return { records: ledger.records.length, behaviors: coveredBehaviors.size };
 }
 
-async function validatePackages(packages, lockfile) {
+async function validatePackages(packages, compatibilityAuthority) {
   if (!Array.isArray(packages) || packages.length !== packageAuthorities.length) fail("pinned package identities are incomplete");
   for (const authority of packageAuthorities) {
     const record = packages.find(value => value?.name === authority.name);
-    const locked = lockfile.packages?.[authority.lockKey];
+    const selected = compatibilityAuthority.packages.find(value => value.name === authority.name);
     const manifest = JSON.parse(await readFile(join(authority.packageRoot, "package.json"), "utf8"));
-    if (!record || record.version !== locked?.version || record.integrity !== locked?.integrity) {
+    if (!record || !selected || record.version !== selected.version || record.integrity !== selected.integrity) {
       fail(`pinned package identity is stale: ${authority.name}`);
     }
     if (manifest.name !== authority.name || manifest.version !== record.version || manifest.license !== "MIT") {

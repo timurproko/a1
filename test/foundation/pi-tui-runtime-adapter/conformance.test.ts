@@ -1,34 +1,32 @@
-import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 import {
-  PI_TUI_PACKAGE_VERSION,
   PiTuiRuntimeError,
   runPiTuiRuntimeConformance,
 } from "../../../src/foundation/pi-tui-runtime-adapter/index.js";
+import { readPiCompatibilityAuthority } from "../../../scripts/pi-compatibility-authority.mjs";
 
 describe("public Pi TUI runtime conformance", () => {
   it("pins the public package directly and exactly", async () => {
-    const manifest = JSON.parse(await readFile("package.json", "utf8")) as {
-      dependencies: Record<string, string>;
-    };
-    const lock = JSON.parse(await readFile("package-lock.json", "utf8")) as {
-      packages: Record<string, { version?: string; integrity?: string; dependencies?: Record<string, string> }>;
-    };
+    const authority = await readPiCompatibilityAuthority(".");
+    const tui = authority.packages.find(record => record.name === "@earendil-works/pi-tui");
 
-    expect(manifest.dependencies["@earendil-works/pi-tui"]).toBe(PI_TUI_PACKAGE_VERSION);
-    expect(lock.packages[""]?.dependencies?.["@earendil-works/pi-tui"]).toBe(PI_TUI_PACKAGE_VERSION);
-    expect(lock.packages["node_modules/@earendil-works/pi-tui"]).toMatchObject({
-      version: PI_TUI_PACKAGE_VERSION,
+    expect(tui).toMatchObject({
+      requested: tui?.version,
+      version: expect.stringMatching(/^\d+\.\d+\.\d+$/),
       integrity: expect.stringMatching(/^sha512-/),
+      lockPath: "node_modules/@earendil-works/pi-tui",
     });
   });
 
   it("validates the pinned regular main-screen runtime contract", async () => {
-    const report = await runPiTuiRuntimeConformance();
+    const authority = await readPiCompatibilityAuthority(".");
+    const tui = authority.packages.find(record => record.name === "@earendil-works/pi-tui");
+    if (!tui) throw new Error("Pi TUI compatibility authority is missing");
+    const report = await runPiTuiRuntimeConformance({ packageVersion: tui.version });
 
     expect(report).toEqual({
       packageName: "@earendil-works/pi-tui",
-      packageVersion: "0.84.2",
+      packageVersion: tui.version,
       mode: "regular",
       lifecycleRestored: true,
       inputRouted: true,
@@ -37,7 +35,7 @@ describe("public Pi TUI runtime conformance", () => {
       resizeRedraw: true,
       terminalNativeSelection: true,
     });
-    expect(report.packageVersion).toBe(PI_TUI_PACKAGE_VERSION);
+    expect(report.packageVersion).toBe(tui.version);
   });
 
   it("reports failures through an adapter-owned stage", () => {
