@@ -199,7 +199,6 @@ for (const nativeRoot of nativeRoots) {
   }
 }
 
-errors.push(...inspectProjectStructureImports(sourceFiles));
 let piBoundaryBaseline = null;
 try {
   piBoundaryBaseline = JSON.parse(await readFile(resolve(root, "evidence", "pi-api-boundary", "baseline.json"), "utf8"));
@@ -209,6 +208,7 @@ try {
 const approvedPiFeatureImports = Array.isArray(piBoundaryBaseline?.featureToAdapterDependencies)
   ? piBoundaryBaseline.featureToAdapterDependencies
   : [];
+errors.push(...inspectProjectStructureImports(sourceFiles, approvedPiFeatureImports));
 errors.push(...inspectPiFeatureBoundaryImports(sourceFiles, approvedPiFeatureImports));
 errors.push(...inspectPiProductionBoundary(sourceFiles, piBoundaryBaseline));
 await inspectRepositoryStructure();

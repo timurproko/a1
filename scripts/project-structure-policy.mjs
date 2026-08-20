@@ -5,10 +5,10 @@ export const PROJECT_OWNERS = Object.freeze({
   cli: owner("cli", "entry", "src/cli", "test/cli", ["launch", "release"]),
   launch: owner("launch", "feature", "src/features/launch", "test/features/launch", ["lifecycle", "transparent-terminal"]),
   workspace: owner("workspace", "feature", "src/features/workspace", "test/features/workspace", [
-    "storage", "workspace-contracts", "structured-agent-runtime", "native-host-protocol",
+    "storage", "workspace-contracts", "structured-agent-runtime", "native-host-protocol", "agent-engine-contracts", "presentation-contracts",
   ]),
   "owned-ui": owner("owned-ui", "feature", "src/features/owned-ui", "test/features/owned-ui", [
-    "owned-ui-contracts", "pi-engine-adapter", "pi-component-adapter", "pi-tui-runtime-adapter",
+    "owned-ui-contracts", "agent-engine-contracts", "presentation-contracts",
   ]),
   lifecycle: owner("lifecycle", "foundation", "src/foundation/lifecycle", "test/foundation/lifecycle", []),
   protocol: owner("protocol", "foundation", "src/foundation/protocol", "test/foundation/protocol", ["lifecycle"]),
@@ -19,9 +19,9 @@ export const PROJECT_OWNERS = Object.freeze({
   "owned-ui-contracts": owner("owned-ui-contracts", "foundation", "src/foundation/owned-ui-contracts", "test/foundation/owned-ui-contracts", []),
   "agent-engine-contracts": owner("agent-engine-contracts", "foundation", "src/foundation/agent-engine-contracts", "test/foundation/agent-engine-contracts", []),
   "presentation-contracts": owner("presentation-contracts", "foundation", "src/foundation/presentation-contracts", "test/foundation/presentation-contracts", []),
-  "pi-engine-adapter": owner("pi-engine-adapter", "foundation", "src/foundation/pi-engine-adapter", "test/foundation/pi-engine-adapter", ["owned-ui-contracts"]),
-  "pi-component-adapter": owner("pi-component-adapter", "foundation", "src/foundation/pi-component-adapter", "test/foundation/pi-component-adapter", ["owned-ui-contracts"]),
-  "pi-tui-runtime-adapter": owner("pi-tui-runtime-adapter", "foundation", "src/foundation/pi-tui-runtime-adapter", "test/foundation/pi-tui-runtime-adapter", []),
+  "pi-engine-adapter": owner("pi-engine-adapter", "foundation", "src/foundation/pi-engine-adapter", "test/foundation/pi-engine-adapter", ["owned-ui-contracts", "agent-engine-contracts"]),
+  "pi-component-adapter": owner("pi-component-adapter", "foundation", "src/foundation/pi-component-adapter", "test/foundation/pi-component-adapter", ["owned-ui-contracts", "presentation-contracts"]),
+  "pi-tui-runtime-adapter": owner("pi-tui-runtime-adapter", "foundation", "src/foundation/pi-tui-runtime-adapter", "test/foundation/pi-tui-runtime-adapter", ["presentation-contracts"]),
   supervision: owner("supervision", "foundation", "src/foundation/supervision", "test/foundation/supervision", ["lifecycle", "protocol", "release", "storage"]),
   "workspace-contracts": owner("workspace-contracts", "foundation", "src/foundation/workspace-contracts", "test/foundation/workspace-contracts", []),
   "transparent-terminal": owner(
@@ -38,14 +38,17 @@ export const TEST_OWNERS = Object.freeze({
   "repository-governance": "test/repository-governance",
 });
 
-export function inspectProjectStructureImports(files) {
+export function inspectProjectStructureImports(files, approvedImports = []) {
+  const approved = new Set(approvedImports.map(record => approvalKey(record.path, record.specifier, record.statement)));
   const errors = [];
   for (const [rawPath, source] of Object.entries(files)) {
     const path = normalize(rawPath);
     const consumer = projectOwnerForPath(path);
     if (!consumer) continue;
-    for (const specifier of importsFrom(source)) {
+    for (const record of importRecords(source)) {
+      const specifier = record.specifier;
       if (!specifier.startsWith(".")) continue;
+      if (approved.has(approvalKey(path, specifier, normalizeStatement(record.statement)))) continue;
       const targetPath = resolveTypeScriptImport(path, specifier);
       const provider = projectOwnerForPath(targetPath);
       if (!provider) {
@@ -106,10 +109,6 @@ export function testOwnerForPath(path) {
 
 function owner(id, layer, sourceRoot, testRoot, mayImport) {
   return Object.freeze({ id, layer, sourceRoot, testRoot, publicEntry: `${sourceRoot}/index.ts`, mayImport: Object.freeze(mayImport) });
-}
-
-function importsFrom(source) {
-  return [...source.matchAll(/(?:from\s+|import\s*\()(["'])([^"']+)\1/g)].map(match => match[2]);
 }
 
 function importRecords(source) {
