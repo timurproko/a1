@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   createUncertifiedDevelopmentPreviewEvidence,
   developmentPreviewTarballName,
+  PREVIEW_RELEASE_SCHEMA,
   publishDevelopmentPreviewWithRecovery,
   requireManuallyAcceptedDevelopmentPreview,
   selectDevelopmentPreviewCandidate,
@@ -21,7 +22,7 @@ describe("development preview release planning", () => {
       architecture: "x64",
       recordedAt: "2026-08-13T00:00:00.000Z",
     })).toMatchObject({
-      schema: "addone-development-preview-certification-v2",
+      schema: PREVIEW_RELEASE_SCHEMA,
       channel: "next",
       certificationStatus: "uncertified-development-preview",
       terminalCapability: "owned-ui",

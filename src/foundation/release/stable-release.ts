@@ -1,5 +1,8 @@
 import { prerelease, valid } from "semver";
-import { A1_PACKAGE_NAME } from "./release.js";
+import { PRODUCT_PACKAGE_NAME } from "./release.js";
+import { PRODUCT_IDENTITY } from "../../product-identity.js";
+
+export const STABLE_RELEASE_SCHEMA = PRODUCT_IDENTITY.evidence.stableReleaseSchema;
 
 export interface StableReleaseEvidenceInput {
   readonly packageName: string;
@@ -13,7 +16,7 @@ export interface StableReleaseEvidenceInput {
 }
 
 export interface StableReleaseEvidence extends StableReleaseEvidenceInput {
-  readonly schema: "addone-stable-release-v1";
+  readonly schema: typeof STABLE_RELEASE_SCHEMA;
   readonly channel: "latest";
 }
 
@@ -33,12 +36,12 @@ export interface StableRegistryVerificationOptions {
 }
 
 export function createStableReleaseEvidence(input: StableReleaseEvidenceInput): StableReleaseEvidence {
-  if (input.packageName !== A1_PACKAGE_NAME) throw new Error(`unexpected stable package: ${input.packageName}`);
+  if (input.packageName !== PRODUCT_PACKAGE_NAME) throw new Error(`unexpected stable package: ${input.packageName}`);
   if (valid(input.version) === null || prerelease(input.version) !== null) throw new Error(`stable release requires an exact stable version: ${input.version}`);
   if (input.tag !== `v${input.version}`) throw new Error(`stable tag ${input.tag} does not match v${input.version}`);
   if (!/^sha512-[A-Za-z0-9+/]+={0,2}$/.test(input.integrity)) throw new Error("stable release integrity is malformed");
   if (!/^[a-f0-9]{40}$/.test(input.shasum)) throw new Error("stable release shasum is malformed");
-  return { schema: "addone-stable-release-v1", channel: "latest", ...input };
+  return { schema: STABLE_RELEASE_SCHEMA, channel: "latest", ...input };
 }
 
 export async function verifyStableRegistry(
@@ -59,7 +62,7 @@ export async function verifyStableRegistry(
       && state.integrity === expected.integrity
       && state.shasum === expected.shasum
       && state.bins.length === 1
-      && state.bins[0] === "a1") return;
+      && state.bins[0] === PRODUCT_IDENTITY.commandName) return;
     if (attempt < attempts) await delay(delayMs);
   }
   throw new Error(`npm latest did not match accepted ${expected.packageName}@${expected.version} after ${attempts} attempts: ${JSON.stringify(state)}`);

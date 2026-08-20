@@ -7,14 +7,14 @@ import { selectCohortLaunch } from "../../../src/foundation/release/index.js";
 import { CohortStateStore, type SupervisorEndpointMetadata } from "../../../src/foundation/release/index.js";
 import { cleanupProvenIdleOwner } from "../../../src/foundation/release/index.js";
 import { materializeRelease, verifyMaterializedRelease, type MaterializedRelease } from "../../../src/foundation/release/index.js";
-import { runSelfUpdate, type UpdateLifecycleCoordinator, type UpdateTransactionJournal } from "../../../src/foundation/release/index.js";
+import { runSelfUpdate, UPDATE_JOURNAL_SCHEMA, type UpdateLifecycleCoordinator, type UpdateTransactionJournal } from "../../../src/foundation/release/index.js";
 
 const cleanupRoots: string[] = [];
 afterEach(async () => Promise.all(cleanupRoots.splice(0).map(root => rm(root, { recursive: true, force: true }))));
 
 describe("release-gating N-1 update transitions", () => {
   it("handles idle, busy, stale, failed, rollback, and blocker-exit transitions without duplicate ownership", async () => {
-    const root = await mkdtemp(resolve(tmpdir(), "addone-update-transition-"));
+    const root = await mkdtemp(resolve(tmpdir(), "a1-update-transition-"));
     cleanupRoots.push(root);
     const dataDir = resolve(root, "data");
     const artifacts = resolve(root, "artifacts");
@@ -83,9 +83,9 @@ describe("release-gating N-1 update transitions", () => {
     ["stable", "latest"],
     ["next", "next"],
   ] as const)("uses identical immediate replacement semantics for %s", async (channel, tag) => {
-    const root = await mkdtemp(resolve(tmpdir(), `addone-update-${channel}-`));
+    const root = await mkdtemp(resolve(tmpdir(), `a1-update-${channel}-`));
     cleanupRoots.push(root);
-    const packageRoot = resolve(root, "global", "@timurproko", "addone");
+    const packageRoot = resolve(root, "global", "@timurproko", "a1");
     const dataDir = resolve(root, "data");
     await mkdir(packageRoot, { recursive: true });
     await writeFile(resolve(packageRoot, "package.json"), JSON.stringify({ name: "@timurproko/a1", version: "1.0.0" }));
@@ -150,7 +150,7 @@ function memoryTransaction(root: string): UpdateTransactionJournal {
   return {
     path: resolve(root, "update-transaction.json"),
     read: async () => value,
-    begin: async input => value ??= { schemaVersion: 1, transactionId: "scenario", ...input, phase: "shutdown-intent", status: "active", error: null, startedAt: new Date(0).toISOString(), updatedAt: new Date(0).toISOString() },
+    begin: async input => value ??= { schema: UPDATE_JOURNAL_SCHEMA, transactionId: "scenario", ...input, phase: "shutdown-intent", status: "active", error: null, startedAt: new Date(0).toISOString(), updatedAt: new Date(0).toISOString() },
     advance: async phase => { if (!value) throw new Error("missing transaction"); return value = { ...value, phase }; },
     finish: async (status, error = null) => { if (!value) throw new Error("missing transaction"); return value = { ...value, status, error }; },
     clearCompleted: async () => { if (value?.status !== "active") value = null; },

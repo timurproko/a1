@@ -42,12 +42,12 @@ describe("package-derived release identity", () => {
     const manifestPath = resolve(root, "package.json");
     const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as Record<string, unknown>;
     await writeFile(manifestPath, JSON.stringify({ ...manifest, name: "@timurproko/addone" }));
-    await expect(deriveReleaseIdentity(root)).rejects.toThrow(/unexpected AddOne package name/);
+    await expect(deriveReleaseIdentity(root)).rejects.toThrow(/unexpected A1 package name/);
   });
 });
 
 async function fixturePackage(version: string, source: string): Promise<string> {
-  const root = await mkdtemp(resolve(tmpdir(), "addone-release-identity-"));
+  const root = await mkdtemp(resolve(tmpdir(), "a1-release-identity-"));
   roots.push(root);
   await mkdir(resolve(root, "dist"), { recursive: true });
   await writeFile(resolve(root, "package.json"), JSON.stringify({

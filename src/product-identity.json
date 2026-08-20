@@ -67,7 +67,9 @@
     "supervisorSchema": "a1-supervisor-v1",
     "nativeHostSchema": "a1-native-host-v1",
     "structuredAgentSchema": "a1-structured-agent-v1",
-    "controlStoreSchema": "a1-control-store-v1"
+    "controlStoreSchema": "a1-control-store-v1",
+    "releaseCohortSchema": "a1-release-cohort-v1",
+    "updateJournalSchema": "a1-update-journal-v1"
   },
   "evidence": {
     "nativeSpikeSchema": "a1-native-host-spike-evidence-v1",

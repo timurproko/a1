@@ -1,7 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, open, readFile, rename, rm } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
-import { PRODUCT_TEXT } from "../../product-identity.js";
+import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
+
+export const UPDATE_JOURNAL_SCHEMA = PRODUCT_IDENTITY.protocol.updateJournalSchema;
 import type { UpdateChannel } from "./update.js";
 
 export type UpdateTransactionPhase =
@@ -14,7 +16,7 @@ export type UpdateTransactionPhase =
   | "supervisor-verified";
 
 export interface UpdateTransaction {
-  readonly schemaVersion: 1;
+  readonly schema: typeof UPDATE_JOURNAL_SCHEMA;
   readonly transactionId: string;
   readonly channel: UpdateChannel;
   readonly targetVersion: string;
@@ -52,7 +54,7 @@ export class UpdateTransactionStore {
     }
     const now = new Date().toISOString();
     return await this.#write({
-      schemaVersion: 1,
+      schema: UPDATE_JOURNAL_SCHEMA,
       transactionId: randomUUID(),
       ...input,
       phase: "shutdown-intent",
@@ -106,7 +108,7 @@ function phaseOrder(phase: UpdateTransactionPhase): number {
   return ["shutdown-intent", "ownership-released", "package-installed", "materialized", "certified", "active-reference-committed", "supervisor-verified"].indexOf(phase);
 }
 function validate(value: UpdateTransaction): void {
-  if (value.schemaVersion !== 1 || typeof value.transactionId !== "string" || !["stable", "next"].includes(value.channel)
+  if (value.schema !== UPDATE_JOURNAL_SCHEMA || typeof value.transactionId !== "string" || !["stable", "next"].includes(value.channel)
     || typeof value.targetVersion !== "string" || typeof value.packageRoot !== "string" || typeof value.startedAt !== "string"
     || typeof value.updatedAt !== "string" || phaseOrder(value.phase) < 0 || !["active", "completed", "rolled-back", "failed"].includes(value.status)) {
     throw new Error(`invalid ${PRODUCT_TEXT.displayName} update transaction journal`);

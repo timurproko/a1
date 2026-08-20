@@ -1,8 +1,9 @@
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
-  A1_PACKAGE,
+  PRODUCT_PACKAGE,
   runSelfUpdate,
+  UPDATE_JOURNAL_SCHEMA,
   type ProcessRequest,
   type ProcessResult,
   type UpdateFileSystem,
@@ -24,7 +25,7 @@ function createHarness(options: {
   globalRoot?: string;
   responses?: Array<ProcessResult | Error>;
 } = {}) {
-  const packageRoot = options.packageRoot ?? resolve("fixtures", "global", "@timurproko", "addone");
+  const packageRoot = options.packageRoot ?? resolve("fixtures", "global", "@timurproko", "a1");
   const globalRoot = options.globalRoot ?? resolve("fixtures", "global");
   const responses = [...(options.responses ?? [])];
   const invocations: Invocation[] = [];
@@ -55,7 +56,7 @@ function createHarness(options: {
     async read() { return transaction; },
     async begin(input) {
       const now = new Date(0).toISOString();
-      transaction = transaction ?? { schemaVersion: 1, transactionId: "test-update", ...input, priorActiveReleaseId: null, phase: "shutdown-intent", status: "active", error: null, startedAt: now, updatedAt: now };
+      transaction = transaction ?? { schema: UPDATE_JOURNAL_SCHEMA, transactionId: "test-update", ...input, priorActiveReleaseId: null, phase: "shutdown-intent", status: "active", error: null, startedAt: now, updatedAt: now };
       return transaction;
     },
     async advance(phase) { if (!transaction) throw new Error("missing test transaction"); transaction = { ...transaction, phase }; return transaction; },
@@ -97,9 +98,9 @@ describe("A1 self-update orchestration", () => {
     await expect(runSelfUpdate(harness)).resolves.toBe(0);
 
     expect(harness.invocations).toEqual([
-      { command: "npm", arguments: ["view", `${A1_PACKAGE}@latest`, "version"], request: { captureStdout: true } },
+      { command: "npm", arguments: ["view", `${PRODUCT_PACKAGE}@latest`, "version"], request: { captureStdout: true } },
       { command: "npm", arguments: ["root", "--global"], request: { captureStdout: true } },
-      { command: "npm", arguments: ["install", "--global", `${A1_PACKAGE}@${latest}`], request: { captureStdout: false } },
+      { command: "npm", arguments: ["install", "--global", `${PRODUCT_PACKAGE}@${latest}`], request: { captureStdout: false } },
     ]);
     expect(harness.stdout.join("")).toContain(`A1 updated successfully: ${latest} (stable).`);
   });
@@ -117,9 +118,9 @@ describe("A1 self-update orchestration", () => {
     await expect(runSelfUpdate(harness)).resolves.toBe(0);
 
     expect(harness.invocations).toEqual([
-      { command: "npm", arguments: ["view", `${A1_PACKAGE}@latest`, "version"], request: { captureStdout: true } },
+      { command: "npm", arguments: ["view", `${PRODUCT_PACKAGE}@latest`, "version"], request: { captureStdout: true } },
       { command: "npm", arguments: ["root", "--global"], request: { captureStdout: true } },
-      { command: "npm", arguments: ["install", "--global", `${A1_PACKAGE}@1.3.0`], request: { captureStdout: false } },
+      { command: "npm", arguments: ["install", "--global", `${PRODUCT_PACKAGE}@1.3.0`], request: { captureStdout: false } },
     ]);
     expect(harness.stdout.join("")).toContain("A1 update (stable): 1.2.3 → 1.3.0.");
     expect(harness.stdout.join("")).toContain("A1 updated successfully: 1.3.0 (stable).");
@@ -139,12 +140,12 @@ describe("A1 self-update orchestration", () => {
     await expect(runSelfUpdate({ ...harness, channel: "next" })).resolves.toBe(0);
 
     expect(harness.invocations).toEqual([
-      { command: "npm", arguments: ["view", `${A1_PACKAGE}@next`, "version"], request: { captureStdout: true } },
+      { command: "npm", arguments: ["view", `${PRODUCT_PACKAGE}@next`, "version"], request: { captureStdout: true } },
       { command: "npm", arguments: ["root", "--global"], request: { captureStdout: true } },
-      { command: "npm", arguments: ["install", "--global", `${A1_PACKAGE}@1.3.0-dev.1`], request: { captureStdout: false } },
+      { command: "npm", arguments: ["install", "--global", `${PRODUCT_PACKAGE}@1.3.0-dev.1`], request: { captureStdout: false } },
     ]);
     expect(harness.stdout.join("")).toContain("A1 update (next): 1.3.0-dev.0 → 1.3.0-dev.1.");
-    expect(harness.stdout.join("")).toContain(`A1 is installing ${A1_PACKAGE}@1.3.0-dev.1.\n`);
+    expect(harness.stdout.join("")).toContain(`A1 is installing ${PRODUCT_PACKAGE}@1.3.0-dev.1.\n`);
     expect(harness.stdout.join("")).not.toContain("globally from the next channel");
     expect(harness.stdout.join("")).toContain("A1 updated successfully: 1.3.0-dev.1 (next).");
   });

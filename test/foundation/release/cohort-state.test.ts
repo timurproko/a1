@@ -1,8 +1,8 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { CohortStateStore } from "../../../src/foundation/release/index.js";
+import { CohortStateStore, emptyState, RELEASE_COHORT_SCHEMA } from "../../../src/foundation/release/index.js";
 import type { MaterializedRelease } from "../../../src/foundation/release/index.js";
 
 const roots: string[] = [];
@@ -10,7 +10,7 @@ afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, { recursi
 
 describe("atomic release references", () => {
   it("persists candidate, approval, active, rollback, and retention references", async () => {
-    const root = await mkdtemp(resolve(tmpdir(), "addone-cohort-state-"));
+    const root = await mkdtemp(resolve(tmpdir(), "a1-cohort-state-"));
     roots.push(root);
     const store = new CohortStateStore(root);
     const first = release("1.0.0", "1");
@@ -35,7 +35,7 @@ describe("atomic release references", () => {
   });
 
   it("rolls back only to a retained approved release and protects referenced releases from collection", async () => {
-    const root = await mkdtemp(resolve(tmpdir(), "addone-cohort-rollback-"));
+    const root = await mkdtemp(resolve(tmpdir(), "a1-cohort-rollback-"));
     roots.push(root);
     const store = new CohortStateStore(root);
     const first = release("1.0.0", "4");
@@ -56,8 +56,18 @@ describe("atomic release references", () => {
     await expect(store.removeUnreferencedRelease(second.releaseId, [])).rejects.toThrow(/still referenced/);
   });
 
+  it("rejects a legacy release cohort schema without migration", async () => {
+    const root = await mkdtemp(resolve(tmpdir(), "a1-cohort-legacy-schema-"));
+    roots.push(root);
+    const store = new CohortStateStore(root);
+    await writeFile(store.path, JSON.stringify({ ...emptyState(), schema: "addone-release-cohort-v1" }));
+
+    expect(RELEASE_COHORT_SCHEMA).toBe("a1-release-cohort-v1");
+    await expect(store.read()).rejects.toThrow(/invalid release cohort state/);
+  });
+
   it("durably records activation blockers", async () => {
-    const root = await mkdtemp(resolve(tmpdir(), "addone-cohort-block-"));
+    const root = await mkdtemp(resolve(tmpdir(), "a1-cohort-block-"));
     roots.push(root);
     const store = new CohortStateStore(root);
     const candidate = release("2.0.0", "3");

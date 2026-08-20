@@ -41,21 +41,21 @@
     "explicit-obsolete-package-fixtures"
   ],
   "summary": {
-    "total": 1231,
-    "files": 206,
+    "total": 1186,
+    "files": 200,
     "byLocationKind": {
-      "content": 1207,
+      "content": 1162,
       "path": 24
     },
     "byClass": {
-      "runtime-symbols": 440,
-      "diagnostics": 137,
+      "runtime-symbols": 395,
+      "diagnostics": 122,
       "environment-keys": 20,
-      "paths": 403,
-      "schemas": 119,
-      "artifacts": 109,
+      "paths": 383,
+      "schemas": 114,
+      "artifacts": 100,
       "native-names": 81,
-      "tests": 248,
+      "tests": 230,
       "current-docs-specs": 754,
       "historical-records": 167,
       "explicit-obsolete-package-fixtures": 8
@@ -14018,414 +14018,6 @@
       ]
     },
     {
-      "id": "src/foundation/release/development-preview-release.ts:37:21",
-      "path": "src/foundation/release/development-preview-release.ts",
-      "locationKind": "content",
-      "line": 37,
-      "column": 21,
-      "value": "addone",
-      "context": "readonly schema: \"addone-development-preview-certification-v2\";",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "schemas"
-      ]
-    },
-    {
-      "id": "src/foundation/release/development-preview-release.ts:55:14",
-      "path": "src/foundation/release/development-preview-release.ts",
-      "locationKind": "content",
-      "line": 55,
-      "column": 14,
-      "value": "addone",
-      "context": "schema: \"addone-development-preview-certification-v2\",",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "schemas"
-      ]
-    },
-    {
-      "id": "src/foundation/release/release-store.ts:4:70",
-      "path": "src/foundation/release/release-store.ts",
-      "locationKind": "content",
-      "line": 4,
-      "column": 70,
-      "value": "AddOne",
-      "context": "import { A1_PACKAGE_NAME, deriveReleaseIdentity, resolveWithin, type AddOneReleaseIdentity, type ReleaseFileIdentity } from \"./release.js\";",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths"
-      ]
-    },
-    {
-      "id": "src/foundation/release/release-store.ts:6:35",
-      "path": "src/foundation/release/release-store.ts",
-      "locationKind": "content",
-      "line": 6,
-      "column": 35,
-      "value": "addone",
-      "context": "export const RELEASE_MANIFEST = \".addone-release.json\";",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "artifacts"
-      ]
-    },
-    {
-      "id": "src/foundation/release/release-store.ts:8:46",
-      "path": "src/foundation/release/release-store.ts",
-      "locationKind": "content",
-      "line": 8,
-      "column": 46,
-      "value": "AddOne",
-      "context": "export interface MaterializedRelease extends AddOneReleaseIdentity {",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols"
-      ]
-    },
-    {
-      "id": "src/foundation/release/release-store.ts:42:96",
-      "path": "src/foundation/release/release-store.ts",
-      "locationKind": "content",
-      "line": 42,
-      "column": 96,
-      "value": "AddOne",
-      "context": "const manifest = JSON.parse(await readFile(resolve(canonical, RELEASE_MANIFEST), \"utf8\")) as AddOneReleaseIdentity;",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "artifacts"
-      ]
-    },
-    {
-      "id": "src/foundation/release/release-store.ts:48:14",
-      "path": "src/foundation/release/release-store.ts",
-      "locationKind": "content",
-      "line": 48,
-      "column": 14,
-      "value": "AddOne",
-      "context": "expected?: AddOneReleaseIdentity,",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols"
-      ]
-    },
-    {
-      "id": "src/foundation/release/release-store.ts:54:72",
-      "path": "src/foundation/release/release-store.ts",
-      "locationKind": "content",
-      "line": 54,
-      "column": 72,
-      "value": "AddOne",
-      "context": "const manifest = JSON.parse(await readFile(manifestPath, \"utf8\")) as AddOneReleaseIdentity;",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "artifacts"
-      ]
-    },
-    {
-      "id": "src/foundation/release/release-store.ts:70:65",
-      "path": "src/foundation/release/release-store.ts",
-      "locationKind": "content",
-      "line": 70,
-      "column": 65,
-      "value": "AddOne",
-      "context": "if (!process.env.A1_RELEASE_ROOT) throw new Error(\"persistent AddOne process has no immutable release root\");",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics"
-      ]
-    },
-    {
-      "id": "src/foundation/release/release-store.ts:72:69",
-      "path": "src/foundation/release/release-store.ts",
-      "locationKind": "content",
-      "line": 72,
-      "column": 69,
-      "value": "AddOne",
-      "context": "if (selected !== release.releaseRoot) throw new Error(\"persistent AddOne process selected a different immutable release root\");",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics"
-      ]
-    },
-    {
-      "id": "src/foundation/release/release-store.ts:93:34",
-      "path": "src/foundation/release/release-store.ts",
-      "locationKind": "content",
-      "line": 93,
-      "column": 34,
-      "value": "AddOne",
-      "context": "function validateManifest(value: AddOneReleaseIdentity): void {",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "artifacts"
-      ]
-    },
-    {
-      "id": "src/foundation/release/release-store.ts:94:115",
-      "path": "src/foundation/release/release-store.ts",
-      "locationKind": "content",
-      "line": 94,
-      "column": 115,
-      "value": "AddOne",
-      "context": "if (value.packageName !== A1_PACKAGE_NAME || typeof value.packageVersion !== \"string\") throw new Error(\"invalid AddOne release manifest metadata\");",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics",
-        "artifacts"
-      ]
-    },
-    {
-      "id": "src/foundation/release/release-store.ts:95:137",
-      "path": "src/foundation/release/release-store.ts",
-      "locationKind": "content",
-      "line": 95,
-      "column": 137,
-      "value": "AddOne",
-      "context": "if (!/^[a-f0-9]{64}$/.test(value.contentDigest) || !/^[0-9A-Za-z.+_-]+-[a-f0-9]{20}$/.test(value.releaseId)) throw new Error(\"invalid AddOne release identity\");",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics",
-        "paths"
-      ]
-    },
-    {
-      "id": "src/foundation/release/release.ts:14:18",
-      "path": "src/foundation/release/release.ts",
-      "locationKind": "content",
-      "line": 14,
-      "column": 18,
-      "value": "AddOne",
-      "context": "export interface AddOneReleaseIdentity {",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols"
-      ]
-    },
-    {
-      "id": "src/foundation/release/release.ts:32:11",
-      "path": "src/foundation/release/release.ts",
-      "locationKind": "content",
-      "line": 32,
-      "column": 11,
-      "value": "AddOne",
-      "context": "* Derive AddOne execution identity only from installed distribution metadata and",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols"
-      ]
-    },
-    {
-      "id": "src/foundation/release/release.ts:36:75",
-      "path": "src/foundation/release/release.ts",
-      "locationKind": "content",
-      "line": 36,
-      "column": 75,
-      "value": "AddOne",
-      "context": "export async function deriveReleaseIdentity(packageRoot: string): Promise<AddOneReleaseIdentity> {",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols"
-      ]
-    },
-    {
-      "id": "src/foundation/release/release.ts:40:70",
-      "path": "src/foundation/release/release.ts",
-      "locationKind": "content",
-      "line": 40,
-      "column": 70,
-      "value": "AddOne",
-      "context": "if (manifest.name !== A1_PACKAGE_NAME) throw new Error(`unexpected AddOne package name: ${String(manifest.name)}`);",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics",
-        "artifacts"
-      ]
-    },
-    {
-      "id": "src/foundation/release/release.ts:41:95",
-      "path": "src/foundation/release/release.ts",
-      "locationKind": "content",
-      "line": 41,
-      "column": 95,
-      "value": "AddOne",
-      "context": "if (typeof manifest.version !== \"string\" || manifest.version.length === 0) throw new Error(\"AddOne package metadata has no version\");",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics",
-        "artifacts"
-      ]
-    },
-    {
-      "id": "src/foundation/release/release.ts:87:56",
-      "path": "src/foundation/release/release.ts",
-      "locationKind": "content",
-      "line": 87,
-      "column": 56,
-      "value": "AddOne",
-      "context": "if (!Array.isArray(manifest.files)) throw new Error(\"AddOne package metadata has no distribution files list\");",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics",
-        "artifacts"
-      ]
-    },
-    {
-      "id": "src/foundation/release/release.ts:89:75",
-      "path": "src/foundation/release/release.ts",
-      "locationKind": "content",
-      "line": 89,
-      "column": 75,
-      "value": "AddOne",
-      "context": "if (typeof value !== \"string\" || value.length === 0) throw new Error(\"AddOne distribution file entry is invalid\");",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics"
-      ]
-    },
-    {
-      "id": "src/foundation/release/release.ts:92:100",
-      "path": "src/foundation/release/release.ts",
-      "locationKind": "content",
-      "line": 92,
-      "column": 100,
-      "value": "AddOne",
-      "context": "if (isAbsolute(value) || normalized === \"..\" || normalized.startsWith(\"../\")) throw new Error(`AddOne distribution path escapes package root: ${value}`);",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics",
-        "paths"
-      ]
-    },
-    {
-      "id": "src/foundation/release/release.ts:126:34",
-      "path": "src/foundation/release/release.ts",
-      "locationKind": "content",
-      "line": 126,
-      "column": 34,
-      "value": "AddOne",
-      "context": "throw new Error(`installed AddOne dependency is missing: ${name}`);",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics"
-      ]
-    },
-    {
-      "id": "src/foundation/release/release.ts:154:93",
-      "path": "src/foundation/release/release.ts",
-      "locationKind": "content",
-      "line": 154,
-      "column": 93,
-      "value": "AddOne",
-      "context": "if (typeof value !== \"object\" || value === null || Array.isArray(value)) throw new Error(\"AddOne dependency metadata is invalid\");",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics"
-      ]
-    },
-    {
-      "id": "src/foundation/release/release.ts:164:50",
-      "path": "src/foundation/release/release.ts",
-      "locationKind": "content",
-      "line": 164,
-      "column": 50,
-      "value": "AddOne",
-      "context": "if (url.protocol !== \"file:\") throw new Error(`AddOne module URL must be a file URL: ${moduleUrl}`);",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics",
-        "schemas"
-      ]
-    },
-    {
-      "id": "src/foundation/release/release.ts:170:37",
-      "path": "src/foundation/release/release.ts",
-      "locationKind": "content",
-      "line": 170,
-      "column": 37,
-      "value": "AddOne",
-      "context": "throw new Error(\"could not derive AddOne package root from module URL\");",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics"
-      ]
-    },
-    {
-      "id": "src/foundation/release/stable-release.ts:16:21",
-      "path": "src/foundation/release/stable-release.ts",
-      "locationKind": "content",
-      "line": 16,
-      "column": 21,
-      "value": "addone",
-      "context": "readonly schema: \"addone-stable-release-v1\";",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "schemas"
-      ]
-    },
-    {
-      "id": "src/foundation/release/stable-release.ts:41:21",
-      "path": "src/foundation/release/stable-release.ts",
-      "locationKind": "content",
-      "line": 41,
-      "column": 21,
-      "value": "addone",
-      "context": "return { schema: \"addone-stable-release-v1\", channel: \"latest\", ...input };",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "schemas"
-      ]
-    },
-    {
       "id": "src/foundation/structured-agent-runtime/handshake.ts:9:45",
       "path": "src/foundation/structured-agent-runtime/handshake.ts",
       "locationKind": "content",
@@ -16954,65 +16546,18 @@
       ]
     },
     {
-      "id": "test/foundation/release/cohort-state.test.ts:13:51",
+      "id": "test/foundation/release/cohort-state.test.ts:63:76",
       "path": "test/foundation/release/cohort-state.test.ts",
       "locationKind": "content",
-      "line": 13,
-      "column": 51,
+      "line": 63,
+      "column": 76,
       "value": "addone",
-      "context": "const root = await mkdtemp(resolve(tmpdir(), \"addone-cohort-state-\"));",
+      "context": "await writeFile(store.path, JSON.stringify({ ...emptyState(), schema: \"addone-release-cohort-v1\" }));",
       "matchedCase": "lower",
       "primaryClass": "runtime-symbols",
       "classes": [
         "runtime-symbols",
         "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/release/cohort-state.test.ts:38:51",
-      "path": "test/foundation/release/cohort-state.test.ts",
-      "locationKind": "content",
-      "line": 38,
-      "column": 51,
-      "value": "addone",
-      "context": "const root = await mkdtemp(resolve(tmpdir(), \"addone-cohort-rollback-\"));",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/release/cohort-state.test.ts:60:51",
-      "path": "test/foundation/release/cohort-state.test.ts",
-      "locationKind": "content",
-      "line": 60,
-      "column": 51,
-      "value": "addone",
-      "context": "const root = await mkdtemp(resolve(tmpdir(), \"addone-cohort-block-\"));",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/release/development-preview-release.test.ts:24:16",
-      "path": "test/foundation/release/development-preview-release.test.ts",
-      "locationKind": "content",
-      "line": 24,
-      "column": 16,
-      "value": "addone",
-      "context": "schema: \"addone-development-preview-certification-v2\",",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
         "schemas",
         "tests"
       ]
@@ -17082,26 +16627,10 @@
       ]
     },
     {
-      "id": "test/foundation/release/release-store.test.ts:11:55",
+      "id": "test/foundation/release/release-store.test.ts:27:91",
       "path": "test/foundation/release/release-store.test.ts",
       "locationKind": "content",
-      "line": 11,
-      "column": 55,
-      "value": "AddOne",
-      "context": "it(\"copies and verifies package content beneath the AddOne data directory\", async () => {",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/release/release-store.test.ts:26:91",
-      "path": "test/foundation/release/release-store.test.ts",
-      "locationKind": "content",
-      "line": 26,
+      "line": 27,
       "column": 91,
       "value": "addone",
       "context": "await writeFile(manifestPath, JSON.stringify({ ...manifest, packageName: \"@timurproko/addone\" }));",
@@ -17115,52 +16644,17 @@
       ]
     },
     {
-      "id": "test/foundation/release/release-store.test.ts:27:89",
+      "id": "test/foundation/release/release-store.test.ts:36:38",
       "path": "test/foundation/release/release-store.test.ts",
       "locationKind": "content",
-      "line": 27,
-      "column": 89,
-      "value": "AddOne",
-      "context": "await expect(readMaterializedRelease(release.releaseRoot)).rejects.toThrow(/invalid AddOne release manifest metadata/);",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics",
-        "paths",
-        "artifacts",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/release/release-store.test.ts:37:57",
-      "path": "test/foundation/release/release-store.test.ts",
-      "locationKind": "content",
-      "line": 37,
-      "column": 57,
+      "line": 36,
+      "column": 38,
       "value": "addone",
-      "context": "const otherStore = await mkdtemp(resolve(tmpdir(), \"addone-other-store-\"));",
+      "context": "resolve(release.releaseRoot, \".addone-release.json\"),",
       "matchedCase": "lower",
       "primaryClass": "runtime-symbols",
       "classes": [
         "runtime-symbols",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/release/release-store.test.ts:44:49",
-      "path": "test/foundation/release/release-store.test.ts",
-      "locationKind": "content",
-      "line": 44,
-      "column": 49,
-      "value": "addone",
-      "context": "const root = await mkdtemp(resolve(tmpdir(), \"addone-materialize-\"));",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
         "tests"
       ]
     },
@@ -17178,55 +16672,6 @@
         "runtime-symbols",
         "paths",
         "artifacts",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/release/release.test.ts:45:75",
-      "path": "test/foundation/release/release.test.ts",
-      "locationKind": "content",
-      "line": 45,
-      "column": 75,
-      "value": "AddOne",
-      "context": "await expect(deriveReleaseIdentity(root)).rejects.toThrow(/unexpected AddOne package name/);",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "diagnostics",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/release/release.test.ts:50:49",
-      "path": "test/foundation/release/release.test.ts",
-      "locationKind": "content",
-      "line": 50,
-      "column": 49,
-      "value": "addone",
-      "context": "const root = await mkdtemp(resolve(tmpdir(), \"addone-release-identity-\"));",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/release/stable-release.test.ts:18:16",
-      "path": "test/foundation/release/stable-release.test.ts",
-      "locationKind": "content",
-      "line": 18,
-      "column": 16,
-      "value": "addone",
-      "context": "schema: \"addone-stable-release-v1\",",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "schemas",
         "tests"
       ]
     },
@@ -17264,145 +16709,18 @@
       ]
     },
     {
-      "id": "test/foundation/release/update-transaction.test.ts:12:51",
-      "path": "test/foundation/release/update-transaction.test.ts",
-      "locationKind": "content",
-      "line": 12,
-      "column": 51,
-      "value": "addone",
-      "context": "const root = await mkdtemp(resolve(tmpdir(), \"addone-update-journal-\"));",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/release/update-transaction.test.ts:15:105",
-      "path": "test/foundation/release/update-transaction.test.ts",
-      "locationKind": "content",
-      "line": 15,
-      "column": 105,
-      "value": "addone",
-      "context": "const begun = await store.begin({ channel: \"next\", targetVersion: \"1.2.0-dev.1\", packageRoot: \"/npm/addone\", priorActiveReleaseId: \"old\" });",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/release/update-transaction.test.ts:16:99",
-      "path": "test/foundation/release/update-transaction.test.ts",
-      "locationKind": "content",
-      "line": 16,
-      "column": 99,
-      "value": "addone",
-      "context": "expect((await store.begin({ channel: \"next\", targetVersion: \"1.2.0-dev.1\", packageRoot: \"/npm/addone\", priorActiveReleaseId: \"old\" })).transactionId).toBe(begun.transactionId);",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/release/update-transaction.test.ts:27:51",
-      "path": "test/foundation/release/update-transaction.test.ts",
-      "locationKind": "content",
-      "line": 27,
-      "column": 51,
-      "value": "addone",
-      "context": "const root = await mkdtemp(resolve(tmpdir(), \"addone-update-journal-conflict-\"));",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/release/update-transaction.test.ts:30:87",
-      "path": "test/foundation/release/update-transaction.test.ts",
-      "locationKind": "content",
-      "line": 30,
-      "column": 87,
-      "value": "addone",
-      "context": "await store.begin({ channel: \"stable\", targetVersion: \"1.2.0\", packageRoot: \"/npm/addone\", priorActiveReleaseId: \"old\" });",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/release/update-transaction.test.ts:31:98",
+      "id": "test/foundation/release/update-transaction.test.ts:31:16",
       "path": "test/foundation/release/update-transaction.test.ts",
       "locationKind": "content",
       "line": 31,
-      "column": 98,
+      "column": 16,
       "value": "addone",
-      "context": "await expect(store.begin({ channel: \"next\", targetVersion: \"1.3.0-dev.0\", packageRoot: \"/npm/addone\", priorActiveReleaseId: \"old\" })).rejects.toThrow(/A1 has unfinished update/);",
+      "context": "schema: \"addone-update-journal-v1\",",
       "matchedCase": "lower",
       "primaryClass": "runtime-symbols",
       "classes": [
         "runtime-symbols",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/release/update-transition.integration.test.ts:17:51",
-      "path": "test/foundation/release/update-transition.integration.test.ts",
-      "locationKind": "content",
-      "line": 17,
-      "column": 51,
-      "value": "addone",
-      "context": "const root = await mkdtemp(resolve(tmpdir(), \"addone-update-transition-\"));",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/release/update-transition.integration.test.ts:86:51",
-      "path": "test/foundation/release/update-transition.integration.test.ts",
-      "locationKind": "content",
-      "line": 86,
-      "column": 51,
-      "value": "addone",
-      "context": "const root = await mkdtemp(resolve(tmpdir(), `addone-update-${channel}-`));",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/release/update-transition.integration.test.ts:88:65",
-      "path": "test/foundation/release/update-transition.integration.test.ts",
-      "locationKind": "content",
-      "line": 88,
-      "column": 65,
-      "value": "addone",
-      "context": "const packageRoot = resolve(root, \"global\", \"@timurproko\", \"addone\");",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
+        "schemas",
         "tests"
       ]
     },
@@ -17414,21 +16732,6 @@
       "column": 16,
       "value": "addone",
       "context": "envelope: \"addone-control-envelope\", envelopeRevision: 1, requiredFeatures: [], optionalFeatures: [], contractDigest: \"fixture-contract\",",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/release/update.test.ts:27:92",
-      "path": "test/foundation/release/update.test.ts",
-      "locationKind": "content",
-      "line": 27,
-      "column": 92,
-      "value": "addone",
-      "context": "const packageRoot = options.packageRoot ?? resolve(\"fixtures\", \"global\", \"@timurproko\", \"addone\");",
       "matchedCase": "lower",
       "primaryClass": "runtime-symbols",
       "classes": [
@@ -18552,5 +17855,5 @@
       ]
     }
   ],
-  "generatedAt": "2026-08-20T08:50:07.655Z"
+  "generatedAt": "2026-08-20T08:56:01.694Z"
 }

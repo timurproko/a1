@@ -1,4 +1,7 @@
 import { compare, inc, prerelease, valid } from "semver";
+import { PRODUCT_IDENTITY } from "../../product-identity.js";
+
+export const PREVIEW_RELEASE_SCHEMA = PRODUCT_IDENTITY.evidence.previewReleaseSchema;
 
 export interface DevelopmentPreviewCandidate {
   readonly version: string;
@@ -34,7 +37,7 @@ export interface UncertifiedDevelopmentPreviewEvidenceInput {
 }
 
 export interface UncertifiedDevelopmentPreviewEvidence extends UncertifiedDevelopmentPreviewEvidenceInput {
-  readonly schema: "addone-development-preview-certification-v2";
+  readonly schema: typeof PREVIEW_RELEASE_SCHEMA;
   readonly channel: "next";
   readonly certificationStatus: "uncertified-development-preview";
   readonly terminalCapability: "owned-ui";
@@ -52,7 +55,7 @@ export function createUncertifiedDevelopmentPreviewEvidence(
     throw new Error(`uncertified preview requires a development prerelease: ${input.version}`);
   }
   return {
-    schema: "addone-development-preview-certification-v2",
+    schema: PREVIEW_RELEASE_SCHEMA,
     channel: "next",
     certificationStatus: "uncertified-development-preview",
     terminalCapability: "owned-ui",

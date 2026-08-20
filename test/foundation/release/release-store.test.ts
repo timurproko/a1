@@ -1,16 +1,17 @@
-import { chmod, mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { materializeRelease, readMaterializedRelease, RELEASE_MANIFEST, resolveReleaseEntryPoint, verifyMaterializedRelease } from "../../../src/foundation/release/index.js";
+import { materializeRelease, readMaterializedRelease, RELEASE_MANIFEST_FILENAME, resolveReleaseEntryPoint, verifyMaterializedRelease } from "../../../src/foundation/release/index.js";
 
 const roots: string[] = [];
 afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))));
 
 describe("immutable release materialization", () => {
-  it("copies and verifies package content beneath the AddOne data directory", async () => {
+  it("copies and verifies package content beneath the A1 data directory", async () => {
     const { packageRoot, dataDir } = await fixture();
     const release = await materializeRelease(packageRoot, dataDir);
+    expect(RELEASE_MANIFEST_FILENAME).toBe(".a1-release.json");
     expect(release.releaseRoot).toMatch(/releases/);
     expect(await readFile(await resolveReleaseEntryPoint(release, "dist/app.js"), "utf8")).toBe("payload");
     expect((await readMaterializedRelease(release.releaseRoot)).releaseId).toBe(release.releaseId);
@@ -20,11 +21,22 @@ describe("immutable release materialization", () => {
   it("rejects obsolete package metadata in a materialized release", async () => {
     const { packageRoot, dataDir } = await fixture();
     const release = await materializeRelease(packageRoot, dataDir);
-    const manifestPath = resolve(release.releaseRoot, RELEASE_MANIFEST);
+    const manifestPath = resolve(release.releaseRoot, RELEASE_MANIFEST_FILENAME);
     const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as Record<string, unknown>;
     await chmod(manifestPath, 0o600);
     await writeFile(manifestPath, JSON.stringify({ ...manifest, packageName: "@timurproko/addone" }));
-    await expect(readMaterializedRelease(release.releaseRoot)).rejects.toThrow(/invalid AddOne release manifest metadata/);
+    await expect(readMaterializedRelease(release.releaseRoot)).rejects.toThrow(/A1 release manifest metadata is invalid/);
+  });
+
+  it("does not read a legacy-named release manifest", async () => {
+    const { packageRoot, dataDir } = await fixture();
+    const release = await materializeRelease(packageRoot, dataDir);
+    await rename(
+      resolve(release.releaseRoot, RELEASE_MANIFEST_FILENAME),
+      resolve(release.releaseRoot, ".addone-release.json"),
+    );
+
+    await expect(readMaterializedRelease(release.releaseRoot)).rejects.toMatchObject({ code: "ENOENT" });
   });
 
   it("rejects digest mismatch, incomplete candidates, and roots outside the selected store", async () => {
@@ -34,14 +46,14 @@ describe("immutable release materialization", () => {
     await writeFile(resolve(release.releaseRoot, "dist/app.js"), "tampered");
     await expect(verifyMaterializedRelease(release.releaseRoot)).rejects.toThrow(/size mismatch|digest mismatch/);
 
-    const otherStore = await mkdtemp(resolve(tmpdir(), "addone-other-store-"));
+    const otherStore = await mkdtemp(resolve(tmpdir(), "a1-other-store-"));
     roots.push(otherStore);
     await expect(verifyMaterializedRelease(release.releaseRoot, undefined, otherStore)).rejects.toThrow(/outside the selected release store/);
   });
 });
 
 async function fixture(): Promise<{ packageRoot: string; dataDir: string }> {
-  const root = await mkdtemp(resolve(tmpdir(), "addone-materialize-"));
+  const root = await mkdtemp(resolve(tmpdir(), "a1-materialize-"));
   roots.push(root);
   const packageRoot = resolve(root, "package");
   const dataDir = resolve(root, "data");

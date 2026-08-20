@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createStableReleaseEvidence, verifyStableRegistry } from "../../../src/foundation/release/index.js";
+import { createStableReleaseEvidence, STABLE_RELEASE_SCHEMA, verifyStableRegistry } from "../../../src/foundation/release/index.js";
 
 const accepted = createStableReleaseEvidence({
   packageName: "@timurproko/a1",
@@ -15,7 +15,7 @@ const accepted = createStableReleaseEvidence({
 describe("stable npm release verification", () => {
   it("records only the authoritative stable package and matching tag", () => {
     expect(accepted).toMatchObject({
-      schema: "addone-stable-release-v1",
+      schema: STABLE_RELEASE_SCHEMA,
       channel: "latest",
       packageName: "@timurproko/a1",
       version: "0.1.0",

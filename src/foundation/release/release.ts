@@ -1,8 +1,9 @@
 import { createHash } from "node:crypto";
 import { lstat, readFile, readdir, realpath } from "node:fs/promises";
 import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
+import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
 
-export const A1_PACKAGE_NAME = "@timurproko/a1";
+export const PRODUCT_PACKAGE_NAME = PRODUCT_IDENTITY.packageName;
 
 export interface ReleaseFileIdentity {
   readonly path: string;
@@ -11,8 +12,8 @@ export interface ReleaseFileIdentity {
   readonly executable: boolean;
 }
 
-export interface AddOneReleaseIdentity {
-  readonly packageName: typeof A1_PACKAGE_NAME;
+export interface ReleaseIdentity {
+  readonly packageName: typeof PRODUCT_PACKAGE_NAME;
   readonly packageVersion: string;
   readonly contentDigest: string;
   readonly releaseId: string;
@@ -29,16 +30,16 @@ interface PackageManifest {
 }
 
 /**
- * Derive AddOne execution identity only from installed distribution metadata and
+ * Derive release execution identity only from installed distribution metadata and
  * bytes. The version remains display metadata; the digest selects executable
  * content.
  */
-export async function deriveReleaseIdentity(packageRoot: string): Promise<AddOneReleaseIdentity> {
+export async function deriveReleaseIdentity(packageRoot: string): Promise<ReleaseIdentity> {
   const canonicalRoot = await realpath(packageRoot);
   const manifestPath = resolve(canonicalRoot, "package.json");
   const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as PackageManifest;
-  if (manifest.name !== A1_PACKAGE_NAME) throw new Error(`unexpected AddOne package name: ${String(manifest.name)}`);
-  if (typeof manifest.version !== "string" || manifest.version.length === 0) throw new Error("AddOne package metadata has no version");
+  if (manifest.name !== PRODUCT_PACKAGE_NAME) throw new Error(`unexpected ${PRODUCT_TEXT.displayName} package name: ${String(manifest.name)}`);
+  if (typeof manifest.version !== "string" || manifest.version.length === 0) throw new Error(PRODUCT_TEXT.diagnostic("package metadata has no version"));
 
   const roots = distributionRoots(manifest);
   const paths = new Set<string>(["package.json"]);
@@ -66,7 +67,7 @@ export async function deriveReleaseIdentity(packageRoot: string): Promise<AddOne
   for (const file of files) digest.update(`${file.path}\0${file.bytes}\0${file.sha256}\0${file.executable ? 1 : 0}\n`);
   const contentDigest = digest.digest("hex");
   return {
-    packageName: A1_PACKAGE_NAME,
+    packageName: PRODUCT_PACKAGE_NAME,
     packageVersion: manifest.version,
     contentDigest,
     releaseId: `${manifest.version}-${contentDigest.slice(0, 20)}`,
@@ -84,12 +85,12 @@ export function resolveWithin(root: string, candidate: string): string {
 }
 
 function distributionRoots(manifest: PackageManifest): string[] {
-  if (!Array.isArray(manifest.files)) throw new Error("AddOne package metadata has no distribution files list");
+  if (!Array.isArray(manifest.files)) throw new Error(PRODUCT_TEXT.diagnostic("package metadata has no distribution files list"));
   const roots = manifest.files.map(value => {
-    if (typeof value !== "string" || value.length === 0) throw new Error("AddOne distribution file entry is invalid");
+    if (typeof value !== "string" || value.length === 0) throw new Error(PRODUCT_TEXT.diagnostic("distribution file entry is invalid"));
     const normalized = normalizeRelative(value);
     if (normalized === "package.json") return normalized;
-    if (isAbsolute(value) || normalized === ".." || normalized.startsWith("../")) throw new Error(`AddOne distribution path escapes package root: ${value}`);
+    if (isAbsolute(value) || normalized === ".." || normalized.startsWith("../")) throw new Error(PRODUCT_TEXT.diagnostic(`distribution path escapes package root: ${value}`));
     return normalized;
   });
   return [...new Set(roots)];
@@ -123,7 +124,7 @@ async function collectDependencyClosure(
     const packagePath = await findInstalledDependency(root, requesterRoot, name);
     if (!packagePath) {
       if (optional.has(name)) continue;
-      throw new Error(`installed AddOne dependency is missing: ${name}`);
+      throw new Error(`installed ${PRODUCT_TEXT.displayName} dependency is missing: ${name}`);
     }
     if (visited.has(packagePath)) continue;
     visited.add(packagePath);
@@ -151,7 +152,7 @@ async function findInstalledDependency(root: string, requesterRoot: string, name
 
 function dependencyNames(value: unknown): string[] {
   if (value === undefined) return [];
-  if (typeof value !== "object" || value === null || Array.isArray(value)) throw new Error("AddOne dependency metadata is invalid");
+  if (typeof value !== "object" || value === null || Array.isArray(value)) throw new Error(PRODUCT_TEXT.diagnostic("dependency metadata is invalid"));
   return Object.keys(value);
 }
 
@@ -161,11 +162,11 @@ function normalizeRelative(path: string): string {
 
 export function packageRootFromModule(moduleUrl: string): string {
   const url = new URL(moduleUrl);
-  if (url.protocol !== "file:") throw new Error(`AddOne module URL must be a file URL: ${moduleUrl}`);
+  if (url.protocol !== "file:") throw new Error(PRODUCT_TEXT.diagnostic(`module URL must be a file URL: ${moduleUrl}`));
   let directory = dirname(url.pathname.replace(/^\/(.:)/, "$1"));
   while (basename(directory) !== "") {
     if (basename(directory) === "dist") return dirname(directory);
     directory = dirname(directory);
   }
-  throw new Error("could not derive AddOne package root from module URL");
+  throw new Error(PRODUCT_TEXT.diagnostic("package root could not be derived from module URL"));
 }

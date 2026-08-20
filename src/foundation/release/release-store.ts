@@ -1,11 +1,12 @@
 import { createHash, randomUUID } from "node:crypto";
 import { chmod, copyFile, lstat, mkdir, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
-import { A1_PACKAGE_NAME, deriveReleaseIdentity, resolveWithin, type AddOneReleaseIdentity, type ReleaseFileIdentity } from "./release.js";
+import { PRODUCT_PACKAGE_NAME, deriveReleaseIdentity, resolveWithin, type ReleaseIdentity, type ReleaseFileIdentity } from "./release.js";
+import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
 
-export const RELEASE_MANIFEST = ".addone-release.json";
+export const RELEASE_MANIFEST_FILENAME = PRODUCT_IDENTITY.manifest.releaseFilename;
 
-export interface MaterializedRelease extends AddOneReleaseIdentity {
+export interface MaterializedRelease extends ReleaseIdentity {
   readonly releaseRoot: string;
 }
 
@@ -27,7 +28,7 @@ export async function materializeRelease(packageRoot: string, dataDir: string): 
       await copyFile(source, destination);
       await chmod(destination, file.executable ? 0o500 : 0o400);
     }
-    await writeFile(resolve(candidate, RELEASE_MANIFEST), JSON.stringify(identity, null, 2), { mode: 0o400, flag: "wx" });
+    await writeFile(resolve(candidate, RELEASE_MANIFEST_FILENAME), JSON.stringify(identity, null, 2), { mode: 0o400, flag: "wx" });
     await verifyMaterializedRelease(candidate, identity);
     await rename(candidate, releaseRoot);
     return await verifyMaterializedRelease(releaseRoot, identity);
@@ -39,19 +40,19 @@ export async function materializeRelease(packageRoot: string, dataDir: string): 
 
 export async function readMaterializedRelease(releaseRoot: string): Promise<MaterializedRelease> {
   const canonical = await realpath(releaseRoot);
-  const manifest = JSON.parse(await readFile(resolve(canonical, RELEASE_MANIFEST), "utf8")) as AddOneReleaseIdentity;
+  const manifest = JSON.parse(await readFile(resolve(canonical, RELEASE_MANIFEST_FILENAME), "utf8")) as ReleaseIdentity;
   return await verifyMaterializedRelease(canonical, manifest);
 }
 
 export async function verifyMaterializedRelease(
   releaseRoot: string,
-  expected?: AddOneReleaseIdentity,
+  expected?: ReleaseIdentity,
   selectedStoreRoot?: string,
 ): Promise<MaterializedRelease> {
   const canonical = await realpath(releaseRoot);
   if (selectedStoreRoot) assertContained(await realpath(selectedStoreRoot), canonical, "release root is outside the selected release store");
-  const manifestPath = resolveWithin(canonical, RELEASE_MANIFEST);
-  const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as AddOneReleaseIdentity;
+  const manifestPath = resolveWithin(canonical, RELEASE_MANIFEST_FILENAME);
+  const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as ReleaseIdentity;
   validateManifest(manifest);
   if (expected && (manifest.releaseId !== expected.releaseId || manifest.contentDigest !== expected.contentDigest)) {
     throw new Error(`release identity mismatch for ${canonical}`);
@@ -67,9 +68,10 @@ export async function verifyMaterializedRelease(
 
 export async function assertImmutableExecutionRoot(release: MaterializedRelease, dataDir: string): Promise<void> {
   await verifyMaterializedRelease(release.releaseRoot, release, resolve(dataDir, "releases"));
-  if (!process.env.A1_RELEASE_ROOT) throw new Error("persistent AddOne process has no immutable release root");
-  const selected = await realpath(process.env.A1_RELEASE_ROOT);
-  if (selected !== release.releaseRoot) throw new Error("persistent AddOne process selected a different immutable release root");
+  const selectedRoot = process.env[PRODUCT_IDENTITY.environment.releaseRoot];
+  if (!selectedRoot) throw new Error(PRODUCT_TEXT.diagnostic("persistent process has no immutable release root"));
+  const selected = await realpath(selectedRoot);
+  if (selected !== release.releaseRoot) throw new Error(PRODUCT_TEXT.diagnostic("persistent process selected a different immutable release root"));
 }
 
 export async function resolveReleaseEntryPoint(release: MaterializedRelease, entryPoint: string): Promise<string> {
@@ -90,9 +92,9 @@ async function verifyFile(root: string, file: ReleaseFileIdentity): Promise<void
   if (digest !== file.sha256) throw new Error(`release file digest mismatch: ${file.path}`);
 }
 
-function validateManifest(value: AddOneReleaseIdentity): void {
-  if (value.packageName !== A1_PACKAGE_NAME || typeof value.packageVersion !== "string") throw new Error("invalid AddOne release manifest metadata");
-  if (!/^[a-f0-9]{64}$/.test(value.contentDigest) || !/^[0-9A-Za-z.+_-]+-[a-f0-9]{20}$/.test(value.releaseId)) throw new Error("invalid AddOne release identity");
+function validateManifest(value: ReleaseIdentity): void {
+  if (value.packageName !== PRODUCT_PACKAGE_NAME || typeof value.packageVersion !== "string") throw new Error(PRODUCT_TEXT.diagnostic("release manifest metadata is invalid"));
+  if (!/^[a-f0-9]{64}$/.test(value.contentDigest) || !/^[0-9A-Za-z.+_-]+-[a-f0-9]{20}$/.test(value.releaseId)) throw new Error(PRODUCT_TEXT.diagnostic("release identity is invalid"));
   if (!Array.isArray(value.files) || value.files.length === 0) throw new Error("release manifest contains no files");
   for (const file of value.files) {
     if (typeof file.path !== "string" || file.path.length === 0 || file.path.includes("\\") || file.path.startsWith("/") || file.path.split("/").includes("..")) {

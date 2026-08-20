@@ -6,7 +6,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { inc } from "semver";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { A1_PACKAGE } from "../../src/foundation/release/index.js";
+import { PRODUCT_PACKAGE } from "../../src/foundation/release/index.js";
 
 const execFileAsync = promisify(execFile);
 const repository = resolve(fileURLToPath(new URL("../..", import.meta.url)));
@@ -123,7 +123,7 @@ else process.exitCode = 64;
     });
     expect(result.stdout).toBe(`Installed: ${packageJson.version}\nRelease:   ${latestTarget}\nNext:      ${nextTarget}\n`);
     const versionCalls = (await readFile(npmLog, "utf8")).trim().split("\n").map(line => JSON.parse(line) as string[]);
-    expect(versionCalls).toEqual([["view", A1_PACKAGE, "dist-tags", "--json"]]);
+    expect(versionCalls).toEqual([["view", PRODUCT_PACKAGE, "dist-tags", "--json"]]);
     await expect(access(forbiddenImportLog)).rejects.toThrow();
     await expect(access(runtimeDirectory)).rejects.toThrow();
   }, 30_000);

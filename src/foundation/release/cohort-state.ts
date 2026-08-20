@@ -2,6 +2,9 @@ import { randomUUID } from "node:crypto";
 import { mkdir, open, readFile, rename, rm } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import type { MaterializedRelease } from "./release-store.js";
+import { PRODUCT_IDENTITY } from "../../product-identity.js";
+
+export const RELEASE_COHORT_SCHEMA = PRODUCT_IDENTITY.protocol.releaseCohortSchema;
 
 export type ReleaseApproval = "candidate" | "approved" | "rejected";
 
@@ -25,7 +28,7 @@ export interface ReleaseReferences {
 }
 
 export interface CohortState {
-  readonly schemaVersion: 1;
+  readonly schema: typeof RELEASE_COHORT_SCHEMA;
   readonly revision: number;
   readonly releases: Readonly<Record<string, ReleaseRecord>>;
   readonly references: ReleaseReferences;
@@ -214,7 +217,7 @@ export class CohortStateStore {
 
 export function emptyState(): CohortState {
   return {
-    schemaVersion: 1,
+    schema: RELEASE_COHORT_SCHEMA,
     revision: 0,
     releases: {},
     references: { active: null, pending: null, approved: null, rollback: null, retention: [] },
@@ -242,13 +245,13 @@ async function acquireLock(path: string) {
   }
 }
 function validateState(state: CohortState): void {
-  if (state.schemaVersion !== 1 || !Number.isSafeInteger(state.revision) || state.revision < 0) throw new Error("invalid release cohort state");
+  if (state.schema !== RELEASE_COHORT_SCHEMA || !Number.isSafeInteger(state.revision) || state.revision < 0) throw new Error("invalid release cohort state");
   for (const reference of [state.references.active, state.references.pending, state.references.approved, state.references.rollback]) {
     if (reference !== null && !state.releases[reference]) throw new Error(`release reference points to an unknown release: ${reference}`);
   }
 }
 function validateTransition(current: CohortState, next: CohortState): void {
   validateState(next);
-  if (next.schemaVersion !== current.schemaVersion) throw new Error("release cohort schema cannot change during a state update");
+  if (next.schema !== current.schema) throw new Error("release cohort schema cannot change during a state update");
   if (next.revision !== current.revision) throw new Error("release cohort revision is controlled by the state store");
 }
