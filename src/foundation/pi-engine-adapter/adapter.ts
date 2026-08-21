@@ -564,7 +564,7 @@ export class PiEngineAdapter {
       ? settingsManager
       : { setDefaultModelAndProvider() {} };
     return {
-      currentModel: session.model,
+      currentModel: this.#activeModel === null ? undefined : session.model,
       settingsManager: selectorSettings,
       modelRuntime: selectorRuntime,
       scopedModels: Array.isArray(scoped) ? scoped : [],
@@ -866,7 +866,7 @@ export class PiEngineAdapter {
         footer: {
           branch: this.#gitBranch,
           sessionName: this.#session?.sessionManager?.getSessionName() ?? null,
-          availableProviderCount: new Set(this.#runtime?.services.modelRuntime.getAvailableSnapshot?.().map(model => model.provider).filter(provider => provider !== undefined) ?? []).size || 1,
+          availableProviderCount: new Set(this.#runtime?.services.modelRuntime.getAvailableSnapshot?.().map(model => model.provider).filter(provider => provider !== undefined) ?? []).size,
           extensionStatuses: [],
         },
       },
@@ -1151,6 +1151,8 @@ export class PiEngineAdapter {
         } finally {
           this.#workflowInteraction.finishLogin?.();
         }
+        this.#reconcileActiveModelAvailability();
+        this.#emitView();
         return workflowResult(request.command, "completed", `Logged in to ${providerName}. Credentials saved to ${join(this.#agentDir, "auth.json")}`);
       }
       case "logout": {
@@ -1160,6 +1162,8 @@ export class PiEngineAdapter {
         await requireCapability(modelRuntime.logout, "logout").call(modelRuntime, providerId, { signal: AbortSignal.timeout(15_000) });
         const provider = modelRuntime.getProvider?.(providerId);
         const providerName = stringProperty(provider, "name") ?? providerId;
+        this.#reconcileActiveModelAvailability();
+        this.#emitView();
         return workflowResult(
           request.command,
           "completed",
@@ -1454,10 +1458,27 @@ export class PiEngineAdapter {
     };
     this.#status = { ...this.#status, workingMessage: null, badges: [] };
     this.#activeModel = readModel(session.model);
+    this.#reconcileActiveModelAvailability();
     this.#thinkingLevel = readThinkingLevel(session.thinkingLevel);
     this.#rebuildTranscript(session.messages, "finalized");
     this.#unsubscribe = session.subscribe(event => this.#handlePiEvent(event));
     if (this.#extensionUi !== undefined) void this.#bindExtensionUiToSession();
+  }
+
+  #reconcileActiveModelAvailability(): void {
+    const modelRuntime = this.#runtime?.services.modelRuntime;
+    if (!modelRuntime) {
+      this.#activeModel = null;
+      return;
+    }
+    const available = modelRuntime.getAvailableSnapshot?.() ?? [];
+    const sessionModel = readModel(this.#session?.model);
+    const authoritative = this.#activeModel ?? sessionModel;
+    if (authoritative === null) return;
+    const remainsAvailable = available.some(model =>
+      stringProperty(model, "provider") === authoritative.providerId
+        && stringProperty(model, "id") === authoritative.modelId);
+    this.#activeModel = remainsAvailable ? authoritative : null;
   }
 
   async #bindExtensionUiToSession(): Promise<void> {
