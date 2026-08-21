@@ -1,3 +1,4 @@
+import { realpathSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { main as runPublicMain } from "@earendil-works/pi-coding-agent";
@@ -22,5 +23,10 @@ export async function runPublicMainEntry(
   }
 }
 
-const isMain = process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+const isMain = process.argv[1] !== undefined && canonicalPath(process.argv[1]) === canonicalPath(fileURLToPath(import.meta.url));
 if (isMain) process.exitCode = await runPublicMainEntry(process.argv.slice(2));
+
+function canonicalPath(path: string): string {
+  try { return realpathSync.native(path); }
+  catch { return resolve(path); }
+}
