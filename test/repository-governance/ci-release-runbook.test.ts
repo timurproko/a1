@@ -5,7 +5,7 @@ describe("CI and release operations runbook", () => {
   it("documents stable required checks and live workflow producers", async () => {
     const runbook = await readFile("docs/ci-release-runbook.md", "utf8");
     for (const name of ["Development validation required", "Stable candidate required"]) expect(runbook).toContain(`\`${name}\``);
-    const references = [...runbook.matchAll(/`(\.github\/workflows\/[^`]+\.yml)`/g)].map(match => match[1]);
+    const references = [...runbook.matchAll(/`(\.github\/workflows\/[^`]+\.yml)`/g)].map(match => match[1]!);
     expect(references.length).toBeGreaterThanOrEqual(2);
     await Promise.all(references.map(path => access(path)));
   });
