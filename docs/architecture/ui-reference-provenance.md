@@ -27,6 +27,12 @@ its own `core` facade layer; A1 is a product, so the port adapts imports and kee
 | `ui-components/mouse.ts` — tracking sequences | `core/host/pi/providers/host-bridge-surface.ts` | Mouse modes only. A1 does not take the alternate screen, because the Pi TUI owns the screen A1 renders through. |
 | `features/owned-ui/settings-app.ts` — layout | `settings/impl.ts` — `settingsValueColumn`, `renderFieldLine`, footer and search rendering | Setting discovery is A1's own section model; presentation follows the reference. |
 
+## Ported from the pinned engine
+
+| A1 module | Pinned Pi source | Adaptation |
+| --- | --- | --- |
+| `pi-engine-adapter/settings-integration.ts` — `SETTING_LABELS` | pinned Pi settings selector | Labels and descriptions transcribed so an owned screen reads as the vanilla route words it. Ids are mapped from the selector kebab-case to the exposed camelCase keys. |
+
 ## Deliberate differences
 
 - **No alternate screen.** The reference owns its surface and can switch screens; A1 renders
