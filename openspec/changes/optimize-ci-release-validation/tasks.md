@@ -8,7 +8,7 @@
 
 - [x] 2.1 Define the version-controlled path-to-scope impact manifest, including feature owners, test self-selection, cross-cutting paths, and package-sensitive paths; validate representative mappings for CLI, launch, workspace, owned UI, Pi adapters, release/update, identity, dependencies, and CI configuration.
 - [x] 2.2 Implement the dependency-light Git change selector with merge-base/range validation, rename/deletion handling, mandatory tier expansion, full-validation widening, and machine/human-readable plans; validate table-driven focused, union, override, missing-base, unknown-path, and malformed-manifest cases.
-- [ ] 2.3 Add repository governance that rejects unmapped live source/test paths, suppressive overrides, duplicate selected commands, or selection plans without reasons; run the selector and governance suite against the current repository diff.
+- [x] 2.3 Add repository governance that rejects unmapped live source/test paths, suppressive overrides, duplicate selected commands, or selection plans without reasons; run the selector and governance suite against the current repository diff.
 
 ## 3. Automatic Development CI
 
