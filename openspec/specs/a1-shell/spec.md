@@ -5,11 +5,11 @@
 Defines the installed A1 command surface, immutable release behavior, and selected transparent single-foreground terminal handoff.
 ## Requirements
 ### Requirement: Every package update is one immediate replacement command
-The installed application SHALL expose `a1 update` as the stable update command resolving npm tag `latest`, and `a1 update:next` as the development-preview update command resolving npm tag `next`. Invocation SHALL authorize stopping verified A1-owned sessions, installing the exact resolved version, materializing and activating an immutable release, and verifying the result through one ownership-safe transaction. The command SHALL NOT require manual process IDs, state deletion, or a separate activation operation.
+The installed application SHALL expose `a1 update` as the stable update command resolving npm tag `latest`, and `a1 update:next` as the development-preview update command resolving npm tag `next`. Invocation SHALL authorize stopping verified A1-owned sessions, installing the exact resolved version, materializing and activating an immutable release, and verifying the result through one ownership-safe transaction. The command SHALL return to the invoking shell after reporting its final result and SHALL NOT require manual process IDs, state deletion, a separate activation operation, or a subsequent bare launch to finish the update.
 
 #### Scenario: Replace the current preview
 - **WHEN** the user runs `a1 update:next` while an older verified A1 cohort is active
-- **THEN** A1 SHALL perform the replacement transaction using the exact npm `next` version and report the old and active versions
+- **THEN** A1 SHALL perform the replacement transaction using the exact npm `next` version, report the old and active versions, and return to the terminal prompt
 
 #### Scenario: Selected channel is current
 - **WHEN** the selected npm tag resolves to the exact active A1 release version
@@ -22,6 +22,10 @@ The installed application SHALL expose `a1 update` as the stable update command 
 #### Scenario: Update is interrupted
 - **WHEN** an update is interrupted after a durable transaction phase
 - **THEN** the next invocation SHALL continue or roll back to one verified active cohort without manual cleanup
+
+#### Scenario: Launch after a completed update
+- **WHEN** the user runs bare `a1` after the update command reported success
+- **THEN** A1 SHALL launch the already active target without printing installation or activation messages
 
 ### Requirement: Installed and channel versions are visible without runtime startup
 The installed application SHALL expose `a1 version`. It SHALL report `Installed`, `Release`, and `Next` in that order and SHALL NOT start or mutate the interactive runtime, supervisor, storage, release cohort, or update transaction. Remote channel discovery SHALL read the authoritative package dist-tags as one coherent registry result.
