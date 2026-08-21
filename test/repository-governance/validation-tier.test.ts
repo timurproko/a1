@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createTierPlan, runTierPlan } from "../../scripts/validation-tier.mjs";
 
 describe("validation tier planning", () => {
-  it("deduplicates the complete release suite into one broad Vitest invocation", async () => {
+  it("deduplicates the complete release suite while isolating timing and package gates", async () => {
     const plan = await createTierPlan(["full-release"]);
     expect(plan.selected).toEqual([
       "invariants",
@@ -10,6 +10,7 @@ describe("validation tier planning", () => {
       "launch-integration",
       "pi-engine-conformance",
       "release-update",
+      "update-performance",
       "structured-runtime-integration",
       "package-smoke",
       "package-install",
@@ -18,7 +19,8 @@ describe("validation tier planning", () => {
     expect(plan.vitest).toMatchObject({
       mode: "full-deduplicated",
       invocations: [
-        { id: "vitest-full-without-package", arguments: expect.arrayContaining(["--exclude", "test/foundation/release/package-surface.test.ts", "test/foundation/release/package-install.integration.test.ts"]) },
+        { id: "vitest-full-without-isolated", arguments: expect.arrayContaining(["--exclude", "test/foundation/release/update-performance.integration.test.ts", "--exclude", "test/foundation/release/package-surface.test.ts", "test/foundation/release/package-install.integration.test.ts"]) },
+        { id: "vitest-update-performance", arguments: expect.arrayContaining(["test/foundation/release/update-performance.integration.test.ts", "--no-file-parallelism"]) },
         { id: "vitest-package-smoke", arguments: expect.arrayContaining(["test/foundation/release/package-surface.test.ts", "--no-file-parallelism"]) },
         { id: "vitest-package-install", arguments: expect.arrayContaining(["test/foundation/release/package-install.integration.test.ts", "--no-file-parallelism"]) },
       ],
