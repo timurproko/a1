@@ -6,6 +6,7 @@ context: |
   - Make changes in one detached worktree under the repository's `.worktrees/<task-id>` directory, based on current origin/develop unless the user selects another base.
   - Use Conventional Commits, keep unrelated changes out of commits, and integrate coherent work once after its relevant validation passes.
   - Do not remove a worktree until its commits are integrated.
+  - After manual validation is accepted, record the acceptance, archive the completed OpenSpec change, integrate the archive commit, then remove and prune every retained task or acceptance worktree for that change.
   - Store local package archives and ad hoc builds under the repository's `.builds/` directory.
 
   Validation policy (proportionate, in order of cost):
@@ -20,3 +21,6 @@ operations:
   apply:
     guidance:
       - Treat an `ON HOLD — USER-CONTROLLED RESUME ONLY` marker as a hard stop unless the user explicitly resumes that named change.
+  archive:
+    guidance:
+      - For a manually accepted change, archive only after acceptance is recorded; after the archive commit is integrated, remove and prune every task or acceptance worktree retained for that change.
