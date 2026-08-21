@@ -16,7 +16,7 @@ Bare `a1` SHALL open the A1-owned multi-agent workspace. `a1 pi` SHALL continue 
 - **THEN** A1 SHALL launch the selected explicit mode without creating or attaching to a workspace surface
 
 ### Requirement: Workspace presentation is A1-owned and SDK-backed
-The production workspace presentation SHALL use an accepted A1-owned UI foundation. Pi-backed agents SHALL use Pi's documented public SDK as their engine behind A1-owned view state, reducers, input, focus, composition, and customization slots. Pi SDK and UI types SHALL be confined to adapters and SHALL NOT become workspace-domain contracts. The presentation SHALL NOT patch or inspect Pi's stock `InteractiveMode`, prototypes, private fields, deep imports, or distribution-file hashes.
+The production workspace presentation SHALL use an A1-owned UI foundation that has renewed 1:1 parity acceptance and a separately accepted first custom single-agent Pi experience. A contradictory user-controlled parity finding SHALL reopen that prerequisite and keep structured tabs unavailable until correction and fresh acceptance. Pi-backed agents SHALL use Pi's documented public SDK as their engine behind A1-owned view state, reducers, input, focus, composition, and customization slots. Pi SDK and UI types SHALL be confined to adapters and SHALL NOT become workspace-domain contracts. The presentation SHALL NOT patch or inspect Pi's stock `InteractiveMode`, prototypes, private fields, deep imports, or distribution-file hashes.
 
 The foundation MAY wrap documented public Pi UI component exports behind A1-owned adapters and MAY port tightly coupled MIT-licensed Pi components into provenance-recorded A1 modules with retained attribution. Exact current upstream Pi SHALL remain available through `a1 pi`.
 
@@ -32,15 +32,15 @@ The foundation MAY wrap documented public Pi UI component exports behind A1-owne
 - **WHEN** A1 evaluates a newer Pi package
 - **THEN** engine and public-component adapters SHALL pass conformance tests before release, and incompatible changes SHALL remain contained at those adapters
 
-#### Scenario: Request structured tabs before base UX acceptance
-- **WHEN** multi-agent tabs are requested before the owned fullscreen base-UX and upgrade-conformance gates pass
-- **THEN** A1 SHALL keep structured tabs unavailable rather than building them on the stock Pi interactive root or the disposable 2×2 proof UI
+#### Scenario: Request structured tabs before single-agent acceptance
+- **WHEN** multi-agent tabs are requested before renewed parity, upgrade conformance, and the first custom single-agent Pi experience are accepted
+- **THEN** A1 SHALL keep structured tabs unavailable rather than building them on a contradicted parity claim, the stock Pi interactive root, or the disposable 2×2 proof UI
 
 ### Requirement: Structured agent tabs do not imply terminal composition
-After fullscreen base-UX acceptance, the workspace MAY present multiple structured SDK-backed agents as A1-owned tabs. Each structured tab SHALL bind one durable agent identity to its own semantic transcript, tools, editor state, activity, status, and command target. Creating, selecting, or closing a structured tab SHALL NOT create a pseudoterminal, initialize the terminal host, or claim arbitrary CLI-pane support.
+After renewed 1:1 parity acceptance and acceptance of the first custom single-agent Pi experience, the workspace MAY present multiple structured SDK-backed agents as A1-owned tabs. Each structured tab SHALL bind one durable agent identity to its own semantic transcript, tools, editor state, activity, status, and command target. Creating, selecting, or closing a structured tab SHALL NOT create a pseudoterminal, initialize the terminal host, or claim arbitrary CLI-pane support.
 
 #### Scenario: Open two structured Pi agents in tabs
-- **WHEN** the user creates two Pi SDK-backed agents after fullscreen base-UX acceptance
+- **WHEN** the user creates two Pi SDK-backed agents after renewed parity and custom single-agent acceptance
 - **THEN** A1 SHALL show two independently identified tabs whose views, commands, activity, and lifecycle remain isolated
 
 #### Scenario: Switch structured tabs while agents are active
