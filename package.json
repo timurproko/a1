@@ -25,6 +25,7 @@
     "check:customization-ready": "node scripts/check-owned-ui-customization-prerequisites.mjs",
     "check:deprecated": "node scripts/check-deprecated-dependencies.mjs",
     "branches:prune": "node scripts/prune-merged-branches.mjs",
+    "report:validation-inventory": "node scripts/report-validation-inventory.mjs",
     "check": "npm run typecheck && npm run check:architecture && npm run check:customization-ready && npm run check:deprecated && npm test && npm run test:release",
     "validate:agent": "npm run check",
     "publish:next": "tsx scripts/publish-next.ts",
