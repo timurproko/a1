@@ -1,0 +1,139 @@
+name: Certify stable physical platforms
+
+on:
+  workflow_dispatch:
+    inputs:
+      automated_candidate_run_id:
+        description: Successful Build stable candidate workflow run id
+        required: true
+        type: string
+      source_commit:
+        description: Exact candidate source commit
+        required: true
+        type: string
+      confirm_isolated:
+        description: Type "run-isolated-physical-certification"
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: stable-physical-${{ inputs.source_commit }}
+  cancel-in-progress: false
+
+jobs:
+  physical:
+    name: Physical ${{ matrix.platform }} certification
+    if: github.ref == 'refs/heads/develop'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: win32
+            runner-label: a1-physical-windows
+          - platform: linux
+            runner-label: a1-physical-linux
+          - platform: darwin
+            runner-label: a1-physical-macos
+    runs-on: [self-hosted, a1-physical, "${{ matrix.runner-label }}"]
+    timeout-minutes: 60
+    environment: stable-physical
+    steps:
+      - name: Require isolated worker ownership
+        shell: bash
+        env:
+          CONFIRM_ISOLATED: ${{ inputs.confirm_isolated }}
+        run: |
+          test "$CONFIRM_ISOLATED" = "run-isolated-physical-certification"
+          test "${PHYSICAL_WORKER_ISOLATED:-}" = "true"
+          test "$GITHUB_SHA" = "${{ inputs.source_commit }}"
+
+      - name: Check out exact physical certification source
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.source_commit }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Download exact automated candidate
+        uses: actions/download-artifact@v6
+        with:
+          run-id: ${{ inputs.automated_candidate_run_id }}
+          pattern: stable-automated-candidate-*
+          path: artifacts/stable
+          merge-multiple: true
+          github-token: ${{ github.token }}
+
+      - name: Locate candidate evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "STABLE_TARBALL=$(find artifacts/stable -type f -name candidate.tgz)" >> "$GITHUB_ENV"
+          echo "STABLE_PACK_RESULT=$(find artifacts/stable -type f -name npm-pack-result.json)" >> "$GITHUB_ENV"
+          echo "STABLE_CANDIDATE_IDENTITY=$(find artifacts/stable -type f -name stable-candidate.json)" >> "$GITHUB_ENV"
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install exact dependencies
+        run: npm ci
+
+      - name: Run isolated physical host probes
+        shell: bash
+        run: |
+          started="$(node -e "console.log(Date.now())")"
+          npm run test:terminal-host
+          completed="$(node -e "console.log(Date.now())")"
+          mkdir -p artifacts/physical
+          started="$started" completed="$completed" node --input-type=module -e "import{writeFile}from'node:fs/promises';await writeFile('artifacts/physical/outcomes-${{ matrix.platform }}.json',JSON.stringify({outcomes:[{id:'physical-terminal-host-${{ matrix.platform }}',exitCode:0,durationMs:Number(process.env.completed)-Number(process.env.started)}]},null,2))"
+
+      - name: Bind isolated physical verdict
+        env:
+          PHYSICAL_WORKER_ISOLATED: "true"
+        run: |
+          node scripts/create-physical-verdict.mjs \
+            --platform "${{ matrix.platform }}" \
+            --outcomes artifacts/physical/outcomes-${{ matrix.platform }}.json \
+            --candidate "$STABLE_CANDIDATE_IDENTITY" \
+            --pack-result "$STABLE_PACK_RESULT" \
+            --output artifacts/physical/verdict-${{ matrix.platform }}.json
+
+      - name: Upload exact physical verdict
+        uses: actions/upload-artifact@v6
+        with:
+          name: stable-physical-${{ matrix.platform }}-${{ inputs.source_commit }}
+          path: artifacts/physical
+          if-no-files-found: error
+          retention-days: 30
+
+  physical-required:
+    name: Physical stable evidence required
+    if: always()
+    needs: physical
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require all isolated platforms
+        env:
+          PHYSICAL_RESULT: ${{ needs.physical.result }}
+        run: test "$PHYSICAL_RESULT" = "success"
+
+      - name: Download all physical verdicts
+        uses: actions/download-artifact@v6
+        with:
+          pattern: stable-physical-*-${{ inputs.source_commit }}
+          path: artifacts/physical
+          merge-multiple: true
+
+      - name: Upload complete physical evidence
+        uses: actions/upload-artifact@v6
+        with:
+          name: stable-physical-evidence-${{ inputs.source_commit }}
+          path: artifacts/physical
+          if-no-files-found: error
+          retention-days: 30
