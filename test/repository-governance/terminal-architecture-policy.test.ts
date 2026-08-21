@@ -50,6 +50,15 @@ describe("terminal-core architecture policy", () => {
     expect(result.stderr).toContain("must disable shell execution");
   });
 
+  it("ignores detached agent worktrees and local build outputs", async () => {
+    const root = await fixture({
+      ".worktrees/task/package.json": "{}",
+      ".builds/package/package-lock.json": "{}",
+    });
+    const result = runPolicy(root);
+    expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
+  });
+
   it.each([
     ["src/orphan.ts", "export {};", "production source has no declared owner"],
     ["src/utils/helper.ts", "export {};", "generic source dumping-ground directory"],
