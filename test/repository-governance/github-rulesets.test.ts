@@ -13,6 +13,8 @@ describe("reviewable GitHub branch rulesets", () => {
     expect(value.rulesets.map(ruleset => ruleset.bypass_actors)).toEqual([[], []]);
     for (const ruleset of value.rulesets) {
       expect(ruleset.rules.map(rule => rule.type)).toEqual(expect.arrayContaining(["deletion", "non_fast_forward", "pull_request", "required_status_checks"]));
+      const pullRequest = ruleset.rules.find(rule => rule.type === "pull_request")!;
+      expect(pullRequest.parameters).toMatchObject({ required_approving_review_count: 0, require_last_push_approval: false, required_review_thread_resolution: true });
     }
     expect(JSON.stringify(value)).toContain("Development validation required");
     expect(JSON.stringify(value)).toContain("Stable candidate required");
