@@ -1505,7 +1505,7 @@ export class OwnedUiSessionShell {
       ? dialog.showManualInput(request.message)
       : dialog.showPrompt(request.message, request.placeholder);
     this.runtime.requestRender();
-    return response.then(value => value.trim() || null, () => null);
+    return response.then(value => value, () => null);
   }
 
   #notifyWorkflowLogin(event: PiWorkflowLoginNotification): void {

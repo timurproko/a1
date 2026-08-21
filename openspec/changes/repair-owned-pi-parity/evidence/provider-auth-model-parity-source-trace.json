@@ -32,6 +32,15 @@
       ]
     },
     {
+      "behavior": "OAuth prompt response semantics",
+      "upstream": "src/modes/interactive/interactive-mode.ts#showAuthPrompt and @earendil-works/pi-ai auth/oauth/github-copilot.ts#loginGitHubCopilot",
+      "authority": "exact prompt response; an empty GitHub Enterprise domain selects github.com while rejection means cancellation",
+      "local": "src/foundation/pi-owned-ui-integration/session-shell.ts#requestWorkflowInput",
+      "acceptance": [
+        "test/features/owned-ui/pi-session-shell.test.ts"
+      ]
+    },
+    {
       "behavior": "logout choices",
       "upstream": "src/modes/interactive/interactive-mode.ts#getLogoutProviderOptions",
       "authority": "modelRuntime.listCredentials() stored metadata",
@@ -74,6 +83,7 @@
     "configured provider status omitted from login selector input",
     "models from an unconfigured provider inserted from the all-model catalog",
     "stored logout represented as removal of environment or provider-config authentication",
+    "intentionally blank optional OAuth prompt normalized into cancellation",
     "stale selected model revived after provider authority is lost",
     "credential values included in fixtures or evidence"
   ]
