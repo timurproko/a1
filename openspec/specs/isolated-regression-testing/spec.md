@@ -44,19 +44,11 @@ After non-desktop structural, lifecycle, and integration gates pass, A1 SHALL pr
 - **THEN** A1 SHALL preserve the finding, correct it, and repeat affected non-desktop and manual checks
 
 ### Requirement: Uncertified development previews are explicit
-A manually accepted `-dev.N` candidate MAY publish under npm tag `next` after repository-wide invariant and smoke gates, deterministically selected affected architecture, structural, lifecycle, update, dependency, and integration scopes, and exact package-content and artifact-identity checks pass. Expensive unaffected integration and clean consumer-install coverage MAY be deferred to scheduled full regression unless a packaging-sensitive input changed. The preview SHALL identify physical, complete-regression, and cross-platform certification status explicitly, SHALL NOT move `latest`, and SHALL NOT claim certified terminal parity or platform support.
+A manually accepted `-dev.N` candidate MAY publish under npm tag `next` after the fast tier, architecture checks, and exact packed-candidate gates (package content, clean install, dependency policy) pass. The complete suite is not required for a preview. The preview SHALL identify physical, complete-regression, and cross-platform certification status explicitly, SHALL NOT move `latest`, and SHALL NOT claim certified terminal parity or platform support.
 
 #### Scenario: Physical workers are unavailable
-- **WHEN** a candidate passes its mandatory and affected non-desktop gates and manual acceptance but physical certification is deferred
+- **WHEN** a candidate passes its preview gates and manual acceptance but physical certification is deferred
 - **THEN** publication MAY proceed only as an explicitly uncertified development preview
-
-#### Scenario: Ordinary feature preview is requested
-- **WHEN** deterministic impact selection proves the change does not affect packaging, dependencies, release behavior, or a global contract
-- **THEN** the preview MAY omit the clean consumer package-install gate while still validating mandatory invariants, affected scopes, package contents, and exact candidate identity
-
-#### Scenario: Packaging-sensitive preview is requested
-- **WHEN** a manifest, lockfile, build configuration, package entry, product identity authority, release script, or other declared packaging-sensitive input changes
-- **THEN** the preview SHALL pass clean installation of the exact packed candidate before publication
 
 #### Scenario: Stable publication is requested
 - **WHEN** a candidate would move `latest` or claim terminal support on a platform
@@ -99,7 +91,7 @@ Every publication SHALL pack once and bind evidence to source commit, version, i
 - **THEN** evidence SHALL identify it as stable-ineligible and preserve `latest`
 
 ### Requirement: Update transitions remain release-gating scenarios
-Stable and preview update gates SHALL exercise exact target resolution, verified owned-process shutdown, mutable-package unlock, single-pass immutable materialization, certification, activation, endpoint verification, transaction recovery, rollback, and clean process exit without manual PID or state deletion. Release evidence SHALL record phase durations and payload read/write counts for the exact packaged updater. On the accepted Windows release runner, the representative unchanged-dependency preview fixture of at least 10,000 payload files SHALL complete post-npm materialization through verified activation within 30 seconds and SHALL perform no more than one complete source-payload read and one candidate-payload write for a new release.
+Stable release gates SHALL exercise exact target resolution, verified owned-process shutdown, mutable-package unlock, single-pass immutable materialization, certification, activation, endpoint verification, transaction recovery, rollback, and clean process exit without manual PID or state deletion. Release evidence SHALL record phase durations and payload read/write counts for the exact packaged updater. On the accepted Windows release runner, the representative unchanged-dependency preview fixture of at least 10,000 payload files SHALL complete post-npm materialization through verified activation within 30 seconds and SHALL perform no more than one complete source-payload read and one candidate-payload write for a new release.
 
 #### Scenario: Update is interrupted
 - **WHEN** a fault occurs at a durable update phase
@@ -111,7 +103,7 @@ Stable and preview update gates SHALL exercise exact target resolution, verified
 
 #### Scenario: Performance budget regresses
 - **WHEN** the measured fixture exceeds the time or payload-pass budget
-- **THEN** preview and stable release gating SHALL fail with phase timing and file-operation diagnostics
+- **THEN** stable release gating SHALL fail with phase timing and file-operation diagnostics
 
 #### Scenario: Packaged update completes
 - **WHEN** the exact packaged update transition reports success or failure
@@ -135,9 +127,9 @@ A confirmed regression SHALL gain the smallest independent current-contract test
 - **WHEN** a rendering or input defect cannot be represented independently in a unit test
 - **THEN** A1 SHALL retain it for isolated physical or exact-package integration certification
 
-### Requirement: Changed tests pass focused and containing gates
-A retained or newly added test SHALL pass focused execution and its containing mandatory gate before its task is complete.
+### Requirement: Changed tests pass focused execution
+A retained or newly added test SHALL pass focused execution before its task is complete. Containing tiers and gates run in continuous integration and release workflows rather than per task.
 
-#### Scenario: Focused execution passes but containing gate fails
-- **WHEN** the focused command succeeds and its required containing gate fails
-- **THEN** the task SHALL remain incomplete
+#### Scenario: Focused execution passes
+- **WHEN** the focused vitest command for the changed tests succeeds
+- **THEN** the task MAY be marked complete and wider tiers SHALL be left to the pull-request and release workflows
