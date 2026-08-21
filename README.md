@@ -44,6 +44,19 @@ npm start
 
 A1 control state uses `%APPDATA%\\A1` and `%LOCALAPPDATA%\\A1` on Windows, and the `a1` directory under XDG config/data/runtime roots on Unix. Override it only with declared `A1_*` variables such as `A1_CONFIG_DIR`, `A1_DATA_DIR`, `A1_RUNTIME_DIR`, `A1_DATABASE_PATH`, and `A1_ENDPOINT`. Pi profile roots remain `~/.a1/agent`, `~/.pi/agent`, and `~/.a1/sandbox`. This is a no-migration identity hard cut; see [`docs/architecture/toolchain.md`](docs/architecture/toolchain.md#identity-hard-cut-and-cleanup) before removing obsolete control state.
 
+### Branch lifecycle
+
+Create every topic or milestone branch from `develop`; never implement directly on `develop` or `master`. A source branch is closed only after this sequence completes:
+
+1. Validate the source branch with its required gates.
+2. Merge it into `develop` and push the merged `develop` commit.
+3. Switch to `develop`.
+4. Preview the exact cleanup set with `npm run branches:prune -- --branch <source>`.
+5. Safely delete the reviewed local source with `npm run branches:prune -- --apply --branch <source>`.
+6. When the non-protected remote source exists, delete it in the same cleanup with `npm run branches:prune -- --apply --branch <source> --remote origin`.
+
+The command defaults to a dry run against `develop`. It always retains `develop`, `master`, the checked-out branch, explicitly protected branches, and branches whose tips are not ancestors of the integration target. Apply mode uses only Git safe deletion (`git branch -d`), never force deletion. Use `--base <branch>` for another explicit integration target, `--protect <branch>` for additional protection, and `--json` for machine-readable review.
+
 Run the non-desktop gates with:
 
 ```sh
