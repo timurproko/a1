@@ -24,11 +24,15 @@ describe("stable candidate platform coordination", () => {
   });
 
   it("fails closed unless the complete automated matrix is present", async () => {
-    const workflow = await readFile(".github/workflows/stable-candidate.yml", "utf8");
+    const [workflow, verifier] = await Promise.all([
+      readFile(".github/workflows/stable-candidate.yml", "utf8"),
+      readFile("scripts/verify-automated-stable.mjs", "utf8"),
+    ]);
     expect(workflow).toContain("name: Stable automated candidate");
     expect(workflow).toContain('test "$PLATFORM_RESULT" = "success"');
     expect(workflow).toContain("node scripts/verify-automated-stable.mjs");
     expect(workflow).toContain("stable-automated-candidate-");
+    expect(verifier).toContain("return matches[0]");
   });
 
   it("permits three-platform dry runs but prevents them entering stable certification", async () => {
