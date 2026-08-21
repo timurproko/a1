@@ -1,6 +1,6 @@
 # Rollout validation evidence
 
-Status: **validation complete; enforcement intentionally not applied pending explicit ruleset authorization**
+Status: **validation and branch enforcement complete**
 
 ## Completed evidence
 
@@ -37,7 +37,13 @@ Status: **validation complete; enforcement intentionally not applied pending exp
   - clean package installation: 1 test, 13.25s Vitest duration;
   - exact release verdict emitted for `win32-x64`.
 - Stable no-publish plan dry run passed for a synthetic exact certified `@timurproko/a1@1.2.0` tarball via `scripts/dry-run-stable-publication.mjs`. The command emitted a plan only and did not invoke npm.
-- GitHub ruleset API dry run reported zero live rulesets and proposed two creates (`a1-protect-develop`, `a1-protect-master`) with `mutationPerformed=false`.
+- The pre-authorization GitHub ruleset API dry run reported zero live rulesets and proposed two creates (`a1-protect-develop`, `a1-protect-master`) with `mutationPerformed=false`.
+- After the reviewed solo-maintainer safeguard was merged to `develop` and post-merge development CI run [32471216096](https://github.com/timurproko/a1/actions/runs/32471216096) passed, the maintainer explicitly authorized ruleset application.
+- `scripts/check-github-rulesets.mjs --apply --confirm apply-a1-ci-rulesets` created and API-verified active rulesets `a1-protect-develop` (ID `21140393`) and `a1-protect-master` (ID `21140395`). The captured machine-readable result is `evidence/github-rulesets-apply.json`.
+  - `develop` requires pull requests, an up-to-date successful `Development validation required` status, and resolved review threads; deletion and non-fast-forward updates are blocked.
+  - `master` requires pull requests, an up-to-date successful `Stable candidate required` status, and resolved review threads; deletion and non-fast-forward updates are blocked.
+  - Both rulesets are active, have no bypass actors, require zero approving reviews, and disable last-push approval. This preserves the authorized release path for the repository's current sole collaborator without permitting direct pushes.
+  - An independent post-apply dry run read both live definitions from the API and reported `0 create`, `0 update`, `2 unchanged`, `mutationPerformed=false`, and `liveRulesetCount=2`.
 - `openspec validate optimize-ci-release-validation --strict` passed.
 - Governance assertions prove candidate/certification workflows contain no npm publication and both publishers contain no checkout, install, build, or test path.
 
@@ -47,8 +53,6 @@ The feature-only owned validation completed in 44.453s and its validation job in
 
 The publication-under-one-minute target was not measured because no publisher was invoked during certification. Publication workflows are thin by construction; no timing is inferred from source validation.
 
-## Required post-merge evidence
+## Post-merge enforcement result
 
-Only task 6.3 remains unchecked: obtain explicit maintainer authorization specifically for ruleset mutation, apply the reviewed rulesets, and capture post-apply API evidence. The final API dry run still reports two creates and `mutationPerformed=false`.
-
-No ruleset mutation was performed during this evidence collection. No certification command in this validation invoked either npm publisher.
+Task 6.3 is complete. Explicit maintainer authorization was obtained, both reviewed rulesets were applied, and exact post-apply API reconciliation found no drift. No certification command in this validation invoked either npm publisher.
