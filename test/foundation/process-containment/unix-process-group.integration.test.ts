@@ -37,7 +37,7 @@ describe("Unix process guardian", () => {
       expect(processIsAlive(unrelated.pid ?? 0)).toBe(true);
     } finally {
       guardian.kill("SIGKILL");
-      if (unrelated.pid) process.kill(unrelated.pid, "SIGKILL");
+      safeKill(unrelated.pid, "SIGKILL");
     }
   }, 12_000);
 
@@ -81,6 +81,13 @@ async function waitUntil(predicate: () => boolean | Promise<boolean>, timeoutMs:
 function processIsAlive(pid: number): boolean {
   if (!Number.isSafeInteger(pid) || pid <= 0) return false;
   try { process.kill(pid, 0); return true; } catch { return false; }
+}
+
+function safeKill(pid: number | undefined, signal: NodeJS.Signals): void {
+  if (!pid) return;
+  try { process.kill(pid, signal); } catch (error) {
+    if (!error || typeof error !== "object" || !("code" in error) || error.code !== "ESRCH") throw error;
+  }
 }
 
 async function run(executable: string, arguments_: readonly string[]): Promise<{ exitCode: number; stderr: string }> {
