@@ -28,5 +28,25 @@
       "cliSha256": "840d1e8e689ed9e4937bcb00b9a810e02a8567d9afb10a47097f11ca93ea1521",
       "usesOwnedRenderingCode": false
     }
+  },
+  "finalValidation": {
+    "releaseCommand": "npm run test:release",
+    "releasePassed": true,
+    "releaseStartedAt": "2026-08-21T12:26:53.846Z",
+    "releaseCompletedAt": "2026-08-21T12:27:56.821Z",
+    "candidateSha256": "6077a247bf01729fda978401d94f93a8550d70680dcf467248efdd49211e097d",
+    "releaseVerdictSha256": "a9cfe9149f8008e8f143ef92abd39940d341c8923e9efd99e34aee8031d50bdc",
+    "lockfileSha256": "87bed9c5ec0115c30f108ed768d935a318c07c928c82b51559cf6b0df20d0208",
+    "fullVitest": { "files": 141, "tests": 774, "passed": true },
+    "updatePerformanceDurationMs": 10191,
+    "auditCommand": "npm audit --audit-level=high",
+    "auditVulnerabilities": 0,
+    "strictOpenSpecPassed": true,
+    "preliminaryContention": {
+      "postNpmDurationMs": 34486,
+      "budgetMs": 30000,
+      "isolatedRerunDurationMs": 10477,
+      "finalReleaseRerunDurationMs": 10191
+    }
   }
 }

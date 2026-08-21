@@ -13,9 +13,9 @@
 ## 3. Prove Equivalent-State Pinned Pi Parity
 
 - [x] 3.1 Extend independent untouched-Pi versus A1 workflow and terminal parity with equivalent temporary profiles for every declared authentication/model state; compare provider labels, `/login`, `/logout`, `/models`, active model, warnings, and footer state, preserve bounded redacted evidence, and prove deliberate status/model mutations fail.
-- [ ] 3.2 Run real public-model-runtime integration using disposable synthetic credentials or non-secret configured providers, then run focused and containing test tiers, typecheck, architecture/source governance, dependency checks, packaging, release gates, audit, and strict OpenSpec validation; record exact candidate and evidence hashes.
+- [x] 3.2 Run real public-model-runtime integration using disposable synthetic credentials or non-secret configured providers, then run focused and containing test tiers, typecheck, architecture/source governance, dependency checks, packaging, release gates, audit, and strict OpenSpec validation; record exact candidate and evidence hashes.
 
 ## 4. Obtain Fresh User Acceptance
 
-- [ ] 4.1 Provide user-controlled commands that compare bare `a1` and `a1 pi` with equivalent empty profiles, then equivalent stored-provider profiles, login, model selection, restart, and logout; explicitly explain that persisted A1 credentials mean A1 is logged in even across a new process.
+- [x] 4.1 Provide user-controlled commands that compare bare `a1` and `a1 pi` with equivalent empty profiles, then equivalent stored-provider profiles, login, model selection, restart, and logout; explicitly explain that persisted A1 credentials mean A1 is logged in even across a new process.
 - [ ] 4.2 Correct every contradictory user finding with focused and containing regression gates, rerun independent parity and full release validation, and mark this change complete only after the user confirms provider status and visible models remain mutually consistent. Keep `customize-owned-pi-experience` and the held multi-agent change unstarted.
