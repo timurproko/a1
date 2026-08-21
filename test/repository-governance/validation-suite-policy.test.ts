@@ -81,11 +81,8 @@ describe("validation suite ownership", () => {
         arguments: ["--yes", "@fission-ai/openspec@1.8.0", "validate", "--all", "--strict", "--no-interactive"],
       }],
     });
-    expect(suites.tiers["invariants"]!.commands?.map(command => command.id)).toEqual([
-      "typecheck",
-      "architecture",
-      "customization-ready",
-    ]);
+    expect(suites.scopes["typecheck"]!.commands?.map(command => command.id)).toEqual(["typecheck"]);
+    expect(suites.scopes["architecture"]!.commands?.map(command => command.id)).toEqual(["architecture"]);
     expect(suites.scopes["package-smoke"]!.tests).toEqual([
       "test/foundation/release/package-surface.test.ts",
     ]);

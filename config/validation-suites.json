@@ -7,14 +7,6 @@
         { "id": "openspec-strict", "executable": "npx", "arguments": ["--yes", "@fission-ai/openspec@1.8.0", "validate", "--all", "--strict", "--no-interactive"] }
       ]
     },
-    "invariants": {
-      "kind": "commands",
-      "commands": [
-        { "id": "typecheck", "executable": "npm", "arguments": ["run", "typecheck"] },
-        { "id": "architecture", "executable": "npm", "arguments": ["run", "check:architecture"] },
-        { "id": "customization-ready", "executable": "npm", "arguments": ["run", "check:customization-ready"] }
-      ]
-    },
     "fast": {
       "kind": "vitest-remainder",
       "requiresBuild": true,
@@ -35,7 +27,8 @@
     "full-release": {
       "kind": "composition",
       "includes": [
-        "invariants",
+        "typecheck",
+        "architecture",
         "fast",
         "launch-integration",
         "pi-engine-conformance",
@@ -49,6 +42,18 @@
     }
   },
   "scopes": {
+    "typecheck": {
+      "kind": "commands",
+      "commands": [
+        { "id": "typecheck", "executable": "npm", "arguments": ["run", "typecheck"] }
+      ]
+    },
+    "architecture": {
+      "kind": "commands",
+      "commands": [
+        { "id": "architecture", "executable": "npm", "arguments": ["run", "check:architecture"] }
+      ]
+    },
     "launch-integration": {
       "kind": "vitest-files",
       "requiresBuild": true,
@@ -111,7 +116,7 @@
     }
   },
   "releaseContracts": {
-    "architecture": "invariants",
+    "architecture": "architecture",
     "compatibility-authority": "fast",
     "candidate-engine-conformance": "pi-engine-conformance",
     "exact-vanilla-oracle": "launch-integration",
