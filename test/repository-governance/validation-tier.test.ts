@@ -20,7 +20,8 @@ describe("validation tier planning", () => {
   it("deduplicates the complete release suite while isolating timing and package gates", async () => {
     const plan = await createTierPlan(["full-release"]);
     expect(plan.selected).toEqual([
-      "invariants",
+      "typecheck",
+      "architecture",
       "fast",
       "launch-integration",
       "pi-engine-conformance",
@@ -46,7 +47,6 @@ describe("validation tier planning", () => {
       "candidate-pack",
       "typecheck",
       "architecture",
-      "customization-ready",
       "candidate-engine-conformance-report",
       "deprecated-dependencies",
     ]);
@@ -55,9 +55,9 @@ describe("validation tier planning", () => {
   });
 
   it("builds ordinary fast validation once without package installation", async () => {
-    const plan = await createTierPlan(["invariants", "fast"]);
+    const plan = await createTierPlan(["typecheck", "fast"]);
     expect(plan.requiresBuild).toBe(true);
-    expect(plan.commands.map(command => command.id)).toEqual(["candidate-build", "typecheck", "architecture", "customization-ready"]);
+    expect(plan.commands.map(command => command.id)).toEqual(["candidate-build", "typecheck"]);
     expect(plan.vitest?.mode).toBe("fast-and-explicit");
     expect(plan.vitest?.invocations[0]?.arguments).toContain("--exclude");
     expect(plan.vitest?.invocations[0]?.arguments).toContain("test/foundation/release/package-surface.test.ts");

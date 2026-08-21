@@ -191,8 +191,9 @@ The first accepted presentation SHALL match pinned Pi for visible rows, ANSI sty
 - **THEN** the result SHALL be classified as regression evidence and SHALL NOT satisfy parity
 
 #### Scenario: Run the automated terminal parity gate
-- **WHEN** a coherent pinned-UI correction is ready to be marked complete or committed
-- **THEN** `npm run test:pi-terminal-parity` SHALL independently launch untouched pinned Pi and the A1-owned UI, apply equivalent deterministic terminal state and actions, compare all declared checkpoints, and pass before the correction is accepted
+- **WHEN** a completed pinned-UI change is integrated into develop or its parity-affecting behavior is released
+- **THEN** `npm run test:pi-terminal-parity` SHALL independently launch untouched pinned Pi and the A1-owned UI, apply equivalent deterministic terminal state and actions, compare all declared checkpoints, and pass once for that change
+- **AND** individual tasks within the change SHALL require only focused tests for the touched behavior, not the parity gate
 
 #### Scenario: Compare deterministic terminal sessions
 - **WHEN** a terminal parity scenario depends on resources, prior messages, model output, streaming, tools, or settlement
