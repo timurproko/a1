@@ -30,6 +30,17 @@ describe("stable candidate platform coordination", () => {
     expect(workflow).toContain("stable-automated-candidate-");
   });
 
+  it("permits three-platform dry runs but prevents them entering stable certification", async () => {
+    const [candidate, aggregate] = await Promise.all([
+      readFile(".github/workflows/stable-candidate.yml", "utf8"),
+      readFile(".github/workflows/certify-stable.yml", "utf8"),
+    ]);
+    expect(candidate).toContain("dry_run:");
+    expect(candidate).toContain('test "$GITHUB_REF" != "refs/heads/develop"');
+    expect(candidate).toContain('test "$CONFIRM_CANDIDATE" = "build-stable-dry-run"');
+    expect(aggregate).toContain('automated.head_branch !== "develop"');
+  });
+
   it("requires isolated physical workers and a separate exact-evidence aggregation", async () => {
     const [physical, aggregate] = await Promise.all([
       readFile(".github/workflows/stable-physical-certification.yml", "utf8"),

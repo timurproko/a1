@@ -11,8 +11,13 @@ on:
         description: Matching v<package-version> release tag to create after certification
         required: true
         type: string
+      dry_run:
+        description: Permit a non-develop final-version fixture that can never enter stable certification
+        required: false
+        default: false
+        type: boolean
       confirm_candidate:
-        description: Type "build-stable-candidate"
+        description: Type "build-stable-candidate" or, for dry run, "build-stable-dry-run"
         required: true
         type: string
 
@@ -26,7 +31,7 @@ concurrency:
 jobs:
   package:
     name: Build stable package once
-    if: github.ref == 'refs/heads/develop'
+    if: github.ref == 'refs/heads/develop' || inputs.dry_run == true
     runs-on: windows-2025
     timeout-minutes: 20
     outputs:
@@ -59,13 +64,19 @@ jobs:
           SOURCE_COMMIT: ${{ inputs.source_commit }}
           RELEASE_TAG: ${{ inputs.tag }}
           CONFIRM_CANDIDATE: ${{ inputs.confirm_candidate }}
+          DRY_RUN: ${{ inputs.dry_run }}
         run: |
           set -euo pipefail
-          test "$GITHUB_REF" = "refs/heads/develop"
-          test "$CONFIRM_CANDIDATE" = "build-stable-candidate"
           test "$(git rev-parse HEAD)" = "$SOURCE_COMMIT"
-          git fetch origin develop:refs/remotes/origin/develop
-          test "$(git rev-parse origin/develop)" = "$SOURCE_COMMIT"
+          if [ "$DRY_RUN" = "true" ]; then
+            test "$GITHUB_REF" != "refs/heads/develop"
+            test "$CONFIRM_CANDIDATE" = "build-stable-dry-run"
+          else
+            test "$GITHUB_REF" = "refs/heads/develop"
+            test "$CONFIRM_CANDIDATE" = "build-stable-candidate"
+            git fetch origin develop:refs/remotes/origin/develop
+            test "$(git rev-parse origin/develop)" = "$SOURCE_COMMIT"
+          fi
           node scripts/validate-stable-candidate.mjs --commit "$SOURCE_COMMIT" --tag "$RELEASE_TAG" --output artifacts/validation/stable-candidate.json
 
       - name: Pack final stable package once
