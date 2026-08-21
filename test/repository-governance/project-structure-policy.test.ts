@@ -1,5 +1,3 @@
-import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   inspectPiFeatureBoundaryImports,
@@ -38,16 +36,6 @@ describe("project structure ownership policy", () => {
       "src/foundation/protocol/index.ts": "export * from './messages.js';",
       "src/foundation/supervision/server.ts": "import type { Message } from '../protocol/index.js'; export type Server = Message;",
     })).toEqual([]);
-  });
-
-  it("keeps structured workspace tabs vendor-neutral and terminal-host independent", async () => {
-    const workspaceTabs = await readFile(resolve("src/features/workspace/structured-tabs.ts"), "utf8");
-    const composition = await readFile(resolve("src/composition/index.ts"), "utf8");
-
-    expect(inspectPiFeatureBoundaryImports({ "src/features/workspace/structured-tabs.ts": workspaceTabs })).toEqual([]);
-    expect(workspaceTabs).not.toMatch(/pi-engine-adapter|pi-owned-ui-integration|native-host-protocol|terminal-host/i);
-    expect(composition).toContain("composeStructuredWorkspace");
-    expect(composition).toContain("createPiEngineAdapter");
   });
 
   it("rejects cross-owner private deep imports", () => {

@@ -1,7 +1,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Bare A1 launches the multi-agent workspace
-Bare `a1` SHALL launch the A1-owned multi-agent workspace through an accepted A1-owned UI foundation and vendor-neutral A1 runtime contracts. The workspace SHALL own its application output and SHALL expose managed agents according to their negotiated structured or composed-terminal capabilities. Pi SHALL be selected at the composition root and integrated through a bounded implementation using documented public SDK entry points rather than by modifying its stock interactive UI or exposing Pi-specific contracts to workspace features. `a1 pi` SHALL remain exact vanilla Pi using ordinary `~/.pi/agent`, and `a1 sandbox` SHALL remain the isolated `~/.a1/sandbox` profile using transparent direct attachment.
+Bare `a1` SHALL launch the A1-owned multi-agent workspace through an accepted A1-owned UI foundation. The workspace SHALL own its application output and SHALL expose managed agents according to their negotiated structured or composed-terminal capabilities. Pi SHALL be integrated through documented public SDK adapters rather than by modifying its stock interactive UI. `a1 pi` SHALL remain exact vanilla Pi using ordinary `~/.pi/agent`, and `a1 sandbox` SHALL remain the isolated `~/.a1/sandbox` profile using transparent direct attachment.
 
 #### Scenario: Launch bare A1
 - **WHEN** the user runs `a1` in a supported terminal
@@ -13,7 +13,7 @@ Bare `a1` SHALL launch the A1-owned multi-agent workspace through an accepted A1
 
 #### Scenario: Launch vanilla Pi
 - **WHEN** the user runs `a1 pi`
-- **THEN** A1 SHALL bypass the workspace and transparently attach one exact vanilla Pi process from the A1-selected dependency using ordinary `~/.pi/agent` through a documented public child entry point rather than ambient `PATH` resolution
+- **THEN** A1 SHALL bypass the workspace and transparently attach one exact upstream vanilla Pi process using ordinary `~/.pi/agent`
 
 #### Scenario: Select an A1 vanilla-style preset
 - **WHEN** the user selects a vanilla-style presentation in bare A1

@@ -16,9 +16,9 @@ Bare `a1` SHALL open the A1-owned multi-agent workspace. `a1 pi` SHALL continue 
 - **THEN** A1 SHALL launch the selected explicit mode without creating or attaching to a workspace surface
 
 ### Requirement: Workspace presentation is A1-owned and SDK-backed
-The production workspace presentation SHALL use an accepted A1-owned UI foundation and vendor-neutral A1 runtime, session, model, authentication, settings, resource, UI-runtime, and component-factory contracts. Pi-backed agents SHALL use Pi's documented public SDK as their engine behind A1-owned view state, reducers, input, focus, composition, and customization slots. Pi selection and Pi SDK or UI types SHALL be confined to the composition root and bounded Pi integration and SHALL NOT become workspace-domain or feature contracts. The presentation SHALL NOT patch or inspect Pi's stock `InteractiveMode`, prototypes, private fields, deep imports, package-layout files, or distribution-file hashes.
+The production workspace presentation SHALL use an accepted A1-owned UI foundation. Pi-backed agents SHALL use Pi's documented public SDK as their engine behind A1-owned view state, reducers, input, focus, composition, and customization slots. Pi SDK and UI types SHALL be confined to adapters and SHALL NOT become workspace-domain contracts. The presentation SHALL NOT patch or inspect Pi's stock `InteractiveMode`, prototypes, private fields, deep imports, or distribution-file hashes.
 
-The foundation MAY wrap documented public Pi UI component exports behind A1-owned adapters and MAY retain tightly coupled MIT-licensed Pi components as provenance-recorded A1-owned modules with retained attribution. Those owned modules SHALL NOT require ongoing source synchronization for Pi API compatibility. Exact current upstream Pi SHALL remain available through `a1 pi`.
+The foundation MAY wrap documented public Pi UI component exports behind A1-owned adapters and MAY port tightly coupled MIT-licensed Pi components into provenance-recorded A1 modules with retained attribution. Exact current upstream Pi SHALL remain available through `a1 pi`.
 
 #### Scenario: Open the first accepted owned UI
 - **WHEN** the user launches the initial accepted A1-owned Pi experience
@@ -30,11 +30,11 @@ The foundation MAY wrap documented public Pi UI component exports behind A1-owne
 
 #### Scenario: Upgrade the Pi engine
 - **WHEN** A1 evaluates a newer Pi package
-- **THEN** the bounded Pi integration SHALL pass fail-closed public-API conformance for every required capability before release, and incompatible changes SHALL remain contained behind vendor-neutral A1 contracts
+- **THEN** engine and public-component adapters SHALL pass conformance tests before release, and incompatible changes SHALL remain contained at those adapters
 
-#### Scenario: Request structured tabs before Pi-boundary acceptance
-- **WHEN** multi-agent tabs are requested before the owned fullscreen base-UX, `harden-pi-api-boundary`, and candidate-upgrade conformance gates pass
-- **THEN** A1 SHALL keep structured tabs unavailable rather than exposing Pi-specific contracts to workspace features or building them on the stock Pi interactive root or disposable 2×2 proof UI
+#### Scenario: Request structured tabs before base UX acceptance
+- **WHEN** multi-agent tabs are requested before the owned fullscreen base-UX and upgrade-conformance gates pass
+- **THEN** A1 SHALL keep structured tabs unavailable rather than building them on the stock Pi interactive root or the disposable 2×2 proof UI
 
 ### Requirement: Structured agent tabs do not imply terminal composition
 After fullscreen base-UX acceptance, the workspace MAY present multiple structured SDK-backed agents as A1-owned tabs. Each structured tab SHALL bind one durable agent identity to its own semantic transcript, tools, editor state, activity, status, and command target. Creating, selecting, or closing a structured tab SHALL NOT create a pseudoterminal, initialize the terminal host, or claim arbitrary CLI-pane support.
