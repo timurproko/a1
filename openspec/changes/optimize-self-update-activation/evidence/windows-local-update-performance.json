@@ -1,0 +1,44 @@
+{
+  "schema": "a1-self-update-performance-evidence-v1",
+  "platform": "win32",
+  "architecture": "x64",
+  "nodeVersion": "24.16.0",
+  "recordedAt": "2026-08-21T10:55:00.000Z",
+  "baseline": {
+    "transition": "0.1.1-dev.3-to-0.1.1-dev.4",
+    "source": "user-controlled installed update",
+    "payloadFiles": 13810,
+    "npmInstallMs": 8000,
+    "totalMs": 78000,
+    "materializationAndCertificationMs": 68000,
+    "payloadPasses": [
+      "source-read-and-hash",
+      "source-read-and-copy",
+      "candidate-read-and-hash"
+    ]
+  },
+  "optimized": {
+    "source": "repository package with exact installed dependency closure",
+    "payloadFiles": 13810,
+    "isolatedMaterializationMs": 10485,
+    "freshCertificationMs": 1,
+    "isolatedVerifiedActivationTestMs": 11194,
+    "contendedVerifiedActivationTestMs": 25291,
+    "sourceReads": 13810,
+    "candidateWrites": 13810,
+    "freshCertificationReads": 0,
+    "postNpmBudgetMs": 30000,
+    "budgetPassed": true
+  },
+  "validation": {
+    "focusedReleaseTests": "passed",
+    "integrationTier": "8 passed",
+    "fullVitestWithContentionAllowance": "683 passed",
+    "releaseGates": "passed",
+    "openspecStrict": "passed"
+  },
+  "decision": {
+    "progressUi": "deferred",
+    "reason": "Measure one user-controlled published transition before adding progress output; deterministic activation is already below the 30-second post-npm budget."
+  }
+}

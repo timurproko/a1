@@ -298,21 +298,21 @@
       "reason": "explicit legacy rejection fixture"
     },
     {
-      "id": "test/foundation/release/release-store.test.ts:49:91",
+      "id": "test/foundation/release/release-store.test.ts:79:91",
       "value": "addone",
-      "fingerprint": "84f62cec8e869eae235138bad80a1a5ef5a3a06425e5731524c8c0fd313e6cfe",
+      "fingerprint": "1afc269d93f3a1b5048539a1710cfeb595e27d68fe57f31ebf6127c67124ec36",
       "reason": "explicit legacy rejection fixture"
     },
     {
-      "id": "test/foundation/release/release-store.test.ts:58:38",
+      "id": "test/foundation/release/release-store.test.ts:88:38",
       "value": "addone",
-      "fingerprint": "f7c1bce5ea779f7dd70e3b2c983f209fd0cd8ae2196cef626227edf13b9e589b",
+      "fingerprint": "4d8159beb64b12fd2a42eb7875a244611546f2e275ea2defdbd6ca36bea359a9",
       "reason": "explicit legacy rejection fixture"
     },
     {
-      "id": "test/foundation/release/release.test.ts:44:84",
+      "id": "test/foundation/release/release.test.ts:70:84",
       "value": "addone",
-      "fingerprint": "e641cb7098fa56086a939b9ab9aa9e3c513e859e9b104d9c19e6d49fadf36475",
+      "fingerprint": "004405980aa4a8f17078f30555a51701046532a465077d78bca8b224eaa737c9",
       "reason": "explicit legacy rejection fixture"
     },
     {

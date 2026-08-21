@@ -51,7 +51,10 @@ function createHarness(options: {
     async targetIsActive() { return false; },
     async shutdownVerifiedOwners(targetVersion) { lifecycleCalls.push(`shutdown:${targetVersion}`); return { priorActiveVersion: null }; },
     async verifyPackageUnlocked(path) { lifecycleCalls.push(`unlock:${path}`); },
-    async activateInstalled(path, targetVersion) { lifecycleCalls.push(`activate:${path}:${targetVersion}`); },
+    async activateInstalled(path, targetVersion, phase) {
+      lifecycleCalls.push(`activate:${path}:${targetVersion}`);
+      for (const value of ["materialized", "certified", "active-reference-committed"] as const) await phase(value);
+    },
   };
   let transaction: Awaited<ReturnType<UpdateTransactionJournal["read"]>> = options.transactionPhase ? {
     schema: UPDATE_JOURNAL_SCHEMA,
@@ -186,6 +189,33 @@ describe("A1 self-update orchestration", () => {
       `activate:${harness.packageRoot}:1.3.0`,
     ]);
     expect(harness.stdout.join("")).toBe("A1 update (stable): 1.2.3 → 1.3.0.\nA1 updated successfully: 1.3.0 (stable).\n");
+  });
+
+  it("records deterministic timing for every completed update phase", async () => {
+    const harness = createHarness({ responses: [success("1.3.0\n"), success(`${resolve("fixtures", "global")}\n`), success()] });
+    let tick = 0;
+    const timings: Array<{ phase: string; durationMs: number }> = [];
+
+    await expect(runSelfUpdate({
+      ...harness,
+      now: () => { tick += 5; return tick; },
+      onPhaseTiming: event => timings.push(event),
+    })).resolves.toBe(0);
+
+    expect(timings.map(event => event.phase)).toEqual([
+      "package-version",
+      "target-resolution",
+      "global-root",
+      "ownership-release",
+      "npm-install",
+      "ownership-release",
+      "materialized",
+      "certified",
+      "active-reference-committed",
+      "supervisor-verified",
+      "transaction-complete",
+    ]);
+    expect(timings.every(event => event.durationMs === 5)).toBe(true);
   });
 
   it("refuses an unmanaged checkout and prints the pinned fallback", async () => {

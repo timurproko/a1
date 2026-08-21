@@ -21,6 +21,7 @@
         "test/foundation/pi-engine-adapter/session-integration.test.ts",
         "test/foundation/release/package-surface.test.ts",
         "test/foundation/release/package-install.integration.test.ts",
+        "test/foundation/release/update-performance.integration.test.ts",
         "test/foundation/release/update-transition.integration.test.ts",
         "test/foundation/structured-agent-runtime/runtime.integration.test.ts"
       ]
@@ -64,6 +65,7 @@
     "release-update": {
       "kind": "vitest-files",
       "tests": [
+        "test/foundation/release/update-performance.integration.test.ts",
         "test/foundation/release/update-transition.integration.test.ts"
       ]
     },

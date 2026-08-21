@@ -24,6 +24,14 @@ export interface ReleaseIdentity {
   readonly files: readonly ReleaseFileIdentity[];
 }
 
+export interface DiscoveredReleasePayload {
+  readonly packageRoot: string;
+  readonly packageVersion: string;
+  readonly paths: readonly string[];
+  /** Package manifests already read to discover the dependency closure. */
+  readonly cachedFiles: ReadonlyMap<string, Buffer>;
+}
+
 interface PackageManifest {
   readonly name?: unknown;
   readonly version?: unknown;
@@ -32,51 +40,91 @@ interface PackageManifest {
   readonly optionalDependencies?: unknown;
 }
 
+export interface DiscoverReleasePayloadOptions {
+  readonly onSourceRead?: (path: string, bytes: number) => void;
+}
+
+/** Discover the complete payload without reading ordinary file contents. */
+export async function discoverReleasePayload(
+  packageRoot: string,
+  options: DiscoverReleasePayloadOptions = {},
+): Promise<DiscoveredReleasePayload> {
+  const canonicalRoot = await realpath(packageRoot);
+  const cachedFiles = new Map<string, Buffer>();
+  const readManifest = async (manifestRoot: string): Promise<PackageManifest> => {
+    const manifestPath = resolve(manifestRoot, "package.json");
+    const bytes = await readFile(manifestPath);
+    const path = normalizeRelative(relative(canonicalRoot, manifestPath));
+    cachedFiles.set(path, bytes);
+    options.onSourceRead?.(path, bytes.length);
+    return JSON.parse(bytes.toString("utf8")) as PackageManifest;
+  };
+
+  const manifest = await readManifest(canonicalRoot);
+  if (manifest.name !== PRODUCT_PACKAGE_NAME) throw new Error(`unexpected ${PRODUCT_TEXT.displayName} package name: ${String(manifest.name)}`);
+  if (typeof manifest.version !== "string" || manifest.version.length === 0) throw new Error(PRODUCT_TEXT.diagnostic("package metadata has no version"));
+
+  const roots = distributionRoots(manifest);
+  const paths = new Set<string>(["package.json"]);
+  for (const root of roots) await collectFiles(canonicalRoot, resolveWithin(canonicalRoot, root), paths);
+  await collectDependencyClosure(canonicalRoot, canonicalRoot, manifest, paths, new Set(), readManifest);
+
+  return {
+    packageRoot: canonicalRoot,
+    packageVersion: manifest.version,
+    paths: [...paths].sort(),
+    cachedFiles,
+  };
+}
+
 /**
  * Derive release execution identity only from installed distribution metadata and
  * bytes. The version remains display metadata; the digest selects executable
  * content.
  */
 export async function deriveReleaseIdentity(packageRoot: string): Promise<ReleaseIdentity> {
-  const canonicalRoot = await realpath(packageRoot);
-  const manifestPath = resolve(canonicalRoot, "package.json");
-  const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as PackageManifest;
-  if (manifest.name !== PRODUCT_PACKAGE_NAME) throw new Error(`unexpected ${PRODUCT_TEXT.displayName} package name: ${String(manifest.name)}`);
-  if (typeof manifest.version !== "string" || manifest.version.length === 0) throw new Error(PRODUCT_TEXT.diagnostic("package metadata has no version"));
-
-  const roots = distributionRoots(manifest);
-  const paths = new Set<string>(["package.json"]);
-  for (const root of roots) {
-    const absolute = resolveWithin(canonicalRoot, root);
-    await collectFiles(canonicalRoot, absolute, paths);
-  }
-  await collectDependencyClosure(canonicalRoot, canonicalRoot, manifest, paths, new Set());
-
-  const sortedPaths = [...paths].sort();
-  const files = await mapWithConcurrency(sortedPaths, RELEASE_FILE_IO_CONCURRENCY, async path => {
-    const absolute = resolveWithin(canonicalRoot, path);
+  const payload = await discoverReleasePayload(packageRoot);
+  const files = await mapWithConcurrency(payload.paths, RELEASE_FILE_IO_CONCURRENCY, async path => {
+    const absolute = resolveWithin(payload.packageRoot, path);
     const metadata = await lstat(absolute);
-    if (!metadata.isFile()) throw new Error(`release payload is not a regular file: ${path}`);
-    const bytes = await readFile(absolute);
-    return {
-      path: normalizeRelative(path),
-      bytes: bytes.length,
-      sha256: createHash("sha256").update(bytes).digest("hex"),
-      executable: (metadata.mode & 0o111) !== 0,
-    } satisfies ReleaseFileIdentity;
+    if (!metadata.isFile() || metadata.isSymbolicLink()) throw new Error(`release payload is not a regular file: ${path}`);
+    const bytes = payload.cachedFiles.get(path) ?? await readFile(absolute);
+    return releaseFileIdentity(path, bytes, (metadata.mode & 0o111) !== 0);
   });
+  return createReleaseIdentity(payload.packageRoot, payload.packageVersion, files);
+}
 
-  const digest = createHash("sha256");
-  for (const file of files) digest.update(`${file.path}\0${file.bytes}\0${file.sha256}\0${file.executable ? 1 : 0}\n`);
-  const contentDigest = digest.digest("hex");
+export function createReleaseIdentity(
+  packageRoot: string,
+  packageVersion: string,
+  files: readonly ReleaseFileIdentity[],
+): ReleaseIdentity {
+  const contentDigest = digestManifestFiles(files);
   return {
     packageName: PRODUCT_PACKAGE_NAME,
-    packageVersion: manifest.version,
+    packageVersion,
     contentDigest,
-    releaseId: `${manifest.version}-${contentDigest.slice(0, 20)}`,
-    packageRoot: canonicalRoot,
-    files,
+    releaseId: `${packageVersion}-${contentDigest.slice(0, 20)}`,
+    packageRoot,
+    files: [...files].sort(compareReleaseFiles),
   };
+}
+
+export function releaseFileIdentity(path: string, bytes: Uint8Array, executable: boolean): ReleaseFileIdentity {
+  return {
+    path: normalizeRelative(path),
+    bytes: bytes.length,
+    sha256: createHash("sha256").update(bytes).digest("hex"),
+    executable,
+  };
+}
+
+export function digestManifestFiles(files: readonly ReleaseFileIdentity[]): string {
+  const digest = createHash("sha256");
+  for (const file of [...files].sort(compareReleaseFiles)) {
+    digest.update(`${file.path}\0${file.bytes}\0${file.sha256}\0${file.executable ? 1 : 0}\n`);
+  }
+  return digest.digest("hex");
 }
 
 export function resolveWithin(root: string, candidate: string): string {
@@ -120,6 +168,7 @@ async function collectDependencyClosure(
   manifest: PackageManifest,
   output: Set<string>,
   visited: Set<string>,
+  readManifest: (manifestRoot: string) => Promise<PackageManifest>,
 ): Promise<void> {
   const required = dependencyNames(manifest.dependencies);
   const optional = new Set(dependencyNames(manifest.optionalDependencies));
@@ -132,8 +181,7 @@ async function collectDependencyClosure(
     if (visited.has(packagePath)) continue;
     visited.add(packagePath);
     await collectFiles(root, packagePath, output, true);
-    const dependencyManifest = JSON.parse(await readFile(resolve(packagePath, "package.json"), "utf8")) as PackageManifest;
-    await collectDependencyClosure(root, packagePath, dependencyManifest, output, visited);
+    await collectDependencyClosure(root, packagePath, await readManifest(packagePath), output, visited, readManifest);
   }
 }
 
@@ -157,6 +205,10 @@ function dependencyNames(value: unknown): string[] {
   if (value === undefined) return [];
   if (typeof value !== "object" || value === null || Array.isArray(value)) throw new Error(PRODUCT_TEXT.diagnostic("dependency metadata is invalid"));
   return Object.keys(value);
+}
+
+function compareReleaseFiles(left: ReleaseFileIdentity, right: ReleaseFileIdentity): number {
+  return left.path < right.path ? -1 : left.path > right.path ? 1 : 0;
 }
 
 function normalizeRelative(path: string): string {

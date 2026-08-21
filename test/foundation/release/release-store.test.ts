@@ -2,7 +2,7 @@ import { chmod, mkdtemp, mkdir, readFile, readdir, rename, rm, writeFile } from 
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { materializeRelease, readCertifiedReleaseManifest, readMaterializedRelease, RELEASE_MANIFEST_FILENAME, resolveReleaseEntryPoint, verifyMaterializedRelease } from "../../../src/foundation/release/index.js";
+import { certifyMaterializedRelease, materializeRelease, readCertifiedReleaseManifest, readMaterializedRelease, RELEASE_MANIFEST_FILENAME, resolveReleaseEntryPoint, verifyMaterializedRelease, type ReleaseContentOperationEvent } from "../../../src/foundation/release/index.js";
 
 const roots: string[] = [];
 afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))));
@@ -18,6 +18,36 @@ describe("immutable release materialization", () => {
     expect(await readFile(await resolveReleaseEntryPoint(release, "dist/app.js"), "utf8")).toBe("payload");
     expect((await readMaterializedRelease(release.releaseRoot)).releaseId).toBe(release.releaseId);
     await expect(resolveReleaseEntryPoint(release, "../package.json")).rejects.toThrow(/not in the verified release manifest/);
+  });
+
+  it("reads each source and writes each candidate file once without rereading fresh content for certification", async () => {
+    const { packageRoot, dataDir } = await fixture();
+    const operations: ReleaseContentOperationEvent[] = [];
+    const release = await materializeRelease(packageRoot, dataDir, { onOperation: event => operations.push(event) });
+
+    expect(operations.filter(event => event.operation === "source-read").map(event => event.path).sort()).toEqual(["dist/app.js", "package.json"]);
+    expect(operations.filter(event => event.operation === "candidate-write").map(event => event.path).sort()).toEqual(["dist/app.js", "package.json"]);
+    expect(operations.filter(event => event.operation === "verification-read")).toEqual([]);
+
+    const certificationReads: ReleaseContentOperationEvent[] = [];
+    await certifyMaterializedRelease(release, dataDir, { onOperation: event => certificationReads.push(event) });
+    expect(certificationReads).toEqual([]);
+
+    const fallbackReads: ReleaseContentOperationEvent[] = [];
+    await certifyMaterializedRelease({ ...release }, dataDir, { onOperation: event => fallbackReads.push(event) });
+    expect(fallbackReads.filter(event => event.operation === "verification-read").map(event => event.path).sort()).toEqual(["dist/app.js", "package.json"]);
+  });
+
+  it("removes a private candidate after a payload write failure", async () => {
+    const { packageRoot, dataDir } = await fixture();
+    await expect(materializeRelease(packageRoot, dataDir, {
+      writeCandidateFile: async (path, bytes, mode) => {
+        if (path.endsWith("app.js")) throw new Error("injected candidate write failure");
+        await writeFile(path, bytes, { flag: "wx", mode });
+        await chmod(path, mode);
+      },
+    })).rejects.toThrow(/injected candidate write failure/);
+    expect(await readdir(resolve(dataDir, "releases"))).toEqual([]);
   });
 
   it("converges concurrent materialization on one release root", async () => {
