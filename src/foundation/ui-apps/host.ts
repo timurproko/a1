@@ -4,6 +4,7 @@ import {
   type PaneInputResult,
   type PaneMouseEvent,
   type PaneRect,
+  type UiTheme,
 } from "../ui-components/index.js";
 import type { AppHostServices, AppSize, UiApp } from "./contracts.js";
 import type { UiAppRegistry } from "./registry.js";
@@ -24,6 +25,8 @@ export interface AppHostOptions {
   readonly surface: AppHostSurface;
   /** Whether an idle interrupt closes the presented app. Chosen explicitly. */
   readonly closeOnInterrupt: boolean;
+  /** Colours handed to every presented app. Absent renders plain text. */
+  readonly theme?: UiTheme;
 }
 
 const INTERRUPT = "";
@@ -37,6 +40,7 @@ export class UiAppHost {
   readonly #registry: UiAppRegistry;
   readonly #surface: AppHostSurface;
   readonly #closeOnInterrupt: boolean;
+  readonly #theme: UiTheme | undefined;
   readonly #cache = new FrameCache();
   #app: UiApp | null = null;
 
@@ -44,6 +48,7 @@ export class UiAppHost {
     this.#registry = options.registry;
     this.#surface = options.surface;
     this.#closeOnInterrupt = options.closeOnInterrupt;
+    this.#theme = options.theme;
   }
 
   get presented(): UiApp | null {
@@ -130,6 +135,7 @@ export class UiAppHost {
       close: () => this.close(),
       returnToPrevious: () => this.close(),
       closeOnInterrupt: this.#closeOnInterrupt,
+      ...(this.#theme === undefined ? {} : { theme: this.#theme }),
     };
   }
 

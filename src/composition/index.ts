@@ -26,6 +26,8 @@ import type { OwnedUiCommand, OwnedUiEvent, OwnedUiTranscriptBlock } from "../fo
 import { OwnedUiSessionShell } from "../foundation/pi-owned-ui-integration/index.js";
 import { OwnedUiSettingsSession, OwnedUiSettingsStore } from "../foundation/owned-ui-settings/index.js";
 import { UiAppHost, UiAppRegistry } from "../foundation/ui-apps/index.js";
+import { piTheme } from "../foundation/pi-component-adapter/index.js";
+import type { UiTheme, UiThemeToken } from "../foundation/ui-components/index.js";
 import { SETTINGS_APP_ID, SETTINGS_ROUTE, SettingsApp } from "../features/owned-ui/index.js";
 import type { UiRouteHost, UiRouteSurface } from "../foundation/pi-owned-ui-integration/index.js";
 import { resolveProductPaths } from "../foundation/lifecycle/index.js";
@@ -240,6 +242,7 @@ export function createOwnedRouteHost(settings: OwnedUiSettingsSession): UiRouteH
       const host = new UiAppHost({
         registry,
         closeOnInterrupt: true,
+        theme: pinnedTheme(),
         surface: {
           size: () => size,
           requestRender: () => onRender(),
@@ -265,5 +268,14 @@ export function createOwnedRouteHost(settings: OwnedUiSettingsSession): UiRouteH
       };
       return surface;
     },
+  };
+}
+
+/** Maps A1 UI tokens onto the pinned Pi theme so owned screens match the shell. */
+function pinnedTheme(): UiTheme {
+  return {
+    fg: (token: UiThemeToken, text: string) => piTheme().fg(token === "error" ? "error" : token, text),
+    bold: (text: string) => piTheme().bold(text),
+    highlight: (text: string) => `[7m${text}[27m`,
   };
 }

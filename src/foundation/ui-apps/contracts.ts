@@ -1,4 +1,4 @@
-import type { PaneInputResult, PaneMouseEvent, PaneRect } from "../ui-components/index.js";
+import type { PaneInputResult, PaneMouseEvent, PaneRect, UiTheme } from "../ui-components/index.js";
 
 export interface AppSize {
   readonly width: number;
@@ -20,6 +20,8 @@ export interface AppHostServices {
    * explicitly: a standalone screen closes, a persistent host stays open.
    */
   readonly closeOnInterrupt: boolean;
+  /** Colours for the presented app. Absent renders plain text. */
+  readonly theme?: UiTheme;
 }
 
 export interface UiApp {
