@@ -274,7 +274,7 @@ export function createOwnedRouteHost(settings: OwnedUiSettingsSession): UiRouteH
 /** Maps A1 UI tokens onto the pinned Pi theme so owned screens match the shell. */
 function pinnedTheme(): UiTheme {
   return {
-    fg: (token: UiThemeToken, text: string) => piTheme().fg(token === "error" ? "error" : token, text),
+    fg: (token: UiThemeToken, text: string) => piTheme().fg(token, text),
     bold: (text: string) => piTheme().bold(text),
     highlight: (text: string) => `[7m${text}[27m`,
   };

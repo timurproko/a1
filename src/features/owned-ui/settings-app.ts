@@ -40,6 +40,8 @@ const SCROLLBAR_TOP_INSET = 1;
 const RAIL_COLUMNS = 2;
 const HINT = "/ search • ↑↓ navigate • shift+↑↓ block • enter change/edit • ←→ adjust • esc close";
 const SEARCH_PLACEHOLDER = "search settings";
+/** Columns a number stepper hangs to the left of the value column. */
+const STEPPER_RESERVE = 2;
 
 type Action =
   | "move-up" | "move-down" | "block-up" | "block-down" | "first" | "last"
@@ -326,10 +328,15 @@ export class SettingsApp implements UiApp {
 
   #valueColumn(rows: readonly Row[]): number {
     let widest = 0;
+    let hasStepper = false;
     for (const row of rows) {
-      if (row.kind === "element") widest = Math.max(widest, displayWidth(humanizeLabel(row.value.id)));
+      if (row.kind !== "element") continue;
+      widest = Math.max(widest, displayWidth(humanizeLabel(row.value.id)));
+      if (isStepper(row.value)) hasStepper = true;
     }
-    return 2 + 2 + widest + 2;
+    // Prefix, indent, widest label, gap, plus the stepper prefix reserved for
+    // every row so a number does not shift its own value out of the column.
+    return 2 + 2 + widest + 2 + (hasStepper ? STEPPER_RESERVE : 0);
   }
 
   #header(title: string, theme: UiTheme, width: number): string {
@@ -348,12 +355,15 @@ export class SettingsApp implements UiApp {
     const left = `${prefix}  ${theme.fg(selected ? "accent" : "text", label)}`;
     const gap = Math.max(2, valueColumn - displayWidth(leftRaw));
     const raw = entry.value === null ? describeRaw(entry.rawValue) : String(entry.value);
-    const stepper = typeof entry.value === "number" && entry.editable;
+    const stepper = isStepper(entry);
+    // Only the selected row is bright; a numeric value is not special.
+    const valueToken = selected ? "text" : "muted";
     const value = stepper
-      ? `${theme.fg("muted", "- ")}${theme.fg("text", raw)}${theme.fg("muted", " +")}`
-      : theme.fg("muted", raw);
-    const suffix = entry.origin === "default" ? theme.fg("muted", "  (default)") : "";
-    return truncateToWidth(`${left}${" ".repeat(gap)}${value}${suffix}`, width);
+      ? `${theme.fg("dim", "- ")}${theme.fg(valueToken, raw)}${theme.fg("dim", " +")}`
+      : theme.fg(valueToken, raw);
+    const indent = Math.max(2, stepper ? gap - STEPPER_RESERVE : gap);
+    const suffix = entry.origin === "default" ? theme.fg("dim", "  (default)") : "";
+    return truncateToWidth(`${left}${" ".repeat(indent)}${value}${suffix}`, width);
   }
 
   /** The value menu floats over the body, anchored to the selected row. */
@@ -387,7 +397,7 @@ export class SettingsApp implements UiApp {
 
   #footerLines(width: number, theme: UiTheme): readonly string[] {
     const hint = this.#notice ?? HINT;
-    const hintLine = rightAligned(theme.fg("muted", hint), hint, width);
+    const hintLine = rightAligned(theme.fg("dim", hint), hint, width);
     const input = this.#filter;
     if (input === null) return [hintLine];
 
@@ -426,6 +436,10 @@ function overlayAt(base: string, painted: string, raw: string, column: number, w
 
 function stripStyling(text: string): string {
   return text.replace(/\[[0-9;:?]*[ -/]*[@-~]/g, "");
+}
+
+function isStepper(entry: OwnedUiSettingsEntry): boolean {
+  return typeof entry.value === "number" && entry.editable;
 }
 
 function describeRaw(value: unknown): string {
