@@ -113,7 +113,10 @@ class FakeRuntime {
           ? { provider: providerId, id: modelId, name: "GPT-5.1" }
           : undefined;
       },
-      getAvailableSnapshot: () => [{ provider: "openai" }, { provider: "anthropic" }],
+      getAvailableSnapshot: () => [
+        { provider: "openai", id: "gpt-5", name: "GPT-5" },
+        { provider: "anthropic", id: "claude", name: "Claude" },
+      ],
       isUsingSubscription: (providerId: string) => providerId === "openai",
     },
     diagnostics: [{ type: "warning", message: "service warning" }],

@@ -110,6 +110,17 @@ export interface PiWorkflowOption {
   readonly description?: string;
 }
 
+export interface PiAuthenticationProviderStatus {
+  readonly type: "oauth" | "api_key";
+  readonly source?: string;
+}
+
+export interface PiAuthenticationProviderOption extends PiWorkflowOption {
+  readonly providerId: string;
+  readonly authType: "oauth" | "api_key";
+  readonly status?: PiAuthenticationProviderStatus;
+}
+
 export interface PiWorkflowRequest {
   readonly command: PiWorkflowRoute;
   readonly argument: string;
