@@ -277,6 +277,7 @@ function pinnedTheme(): UiTheme {
   return {
     fg: (token: UiThemeToken, text: string) => piTheme().fg(token, text),
     bold: (text: string) => piTheme().bold(text),
-    highlight: (text: string) => `[7m${text}[27m`,
+    highlight: (text: string) => `[48;2;82;82;82m[97m${text}[39m[49m`,
+    panel: (text: string) => `[48;2;55;55;55m${text}[49m`,
   };
 }

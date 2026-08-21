@@ -42,7 +42,7 @@ const RAIL_COLUMNS = 2;
 const HINT = "/ search • ↑↓ navigate • shift+↑↓ block • enter change/edit • ←→ adjust • esc close";
 const SEARCH_PLACEHOLDER = "search settings";
 /** Columns a number stepper hangs to the left of the value column. */
-const STEPPER_RESERVE = 3;
+const STEPPER_RESERVE = 2;
 
 type Action =
   | "move-up" | "move-down" | "block-up" | "block-down" | "first" | "last"
@@ -107,6 +107,8 @@ export class SettingsApp implements UiApp {
   #hoverKey: string | null = null;
   #hoverRegion: "row" | "minus" | "plus" = "row";
   #frameRows: { key: string; screenRow: number; valueColumn: number; valueWidth: number }[] = [];
+  /** Where the value menu was drawn last frame, for hit testing. */
+  #menuFrame: { top: number; column: number; width: number; rows: number } | null = null;
 
   constructor(session: OwnedUiSettingsSession) {
     this.#session = session;
@@ -225,6 +227,26 @@ export class SettingsApp implements UiApp {
   }
 
   onMouse(event: PaneMouseEvent, _host: AppHostServices): PaneInputResult {
+    const menu = this.#menu;
+    const frame = this.#menuFrame;
+    if (menu !== null && frame !== null) {
+      if (event.kind !== "press") return { consumed: true, render: false };
+      const menuRow = event.row - 1 - frame.top;
+      const inside = menuRow >= 0
+        && menuRow < frame.rows
+        && event.column > frame.column
+        && event.column <= frame.column + frame.width;
+      if (!inside) {
+        // A press anywhere else dismisses the menu rather than acting through it.
+        this.#menu = null;
+        return { consumed: true };
+      }
+      const value = menu.choices[menuRow];
+      this.#menu = null;
+      if (value !== undefined) this.#apply(menu.entry, value);
+      return { consumed: true };
+    }
+
     const row = this.#frameRows.find(candidate => candidate.screenRow === event.row - 1);
     const previousKey = this.#hoverKey;
     const previousRegion = this.#hoverRegion;
@@ -247,7 +269,8 @@ export class SettingsApp implements UiApp {
       const rows = this.#rows();
       const index = rows.findIndex(candidate => rowKey(candidate) === row.key);
       if (index >= 0) {
-        this.#select(rows, index);
+        // The pointer acts where it points; the arrow belongs to the keyboard.
+        this.#notice = null;
         if (this.#hoverRegion === "minus") this.#cycle(rows, index, -1);
         else if (this.#hoverRegion === "plus") this.#cycle(rows, index, 1);
         else this.#openMenu(rows, index);
@@ -434,20 +457,28 @@ export class SettingsApp implements UiApp {
     rect: PaneRect,
   ): readonly string[] {
     const menu = this.#menu;
-    if (menu === null) return lines;
+    if (menu === null) {
+      this.#menuFrame = null;
+      return lines;
+    }
     const offset = layout.rowIndexes.indexOf(selected);
-    if (offset < 0) return lines;
+    if (offset < 0) {
+      this.#menuFrame = null;
+      return lines;
+    }
 
     const top = layout.topPadding + (layout.stickyHeader === undefined ? 0 : 1) + offset;
     const width = Math.max(...menu.choices.map(choice => displayWidth(String(choice)) + 4), 6);
     const column = Math.min(valueColumn, Math.max(0, rect.width - width - RAIL_COLUMNS));
+    this.#menuFrame = { top, column, width, rows: menu.choices.length };
+
     const output = [...lines];
     menu.choices.forEach((choice, index) => {
       const target = top + index;
       if (target < 0 || target >= output.length) return;
       const mark = choice === menu.entry.value ? "✓ " : "  ";
       const text = padToWidth(`${mark}${String(choice)} `, width);
-      const painted = index === menu.index ? theme.highlight(text) : theme.fg("text", text);
+      const painted = index === menu.index ? theme.highlight(text) : theme.panel(text);
       output[target] = overlayAt(output[target] ?? "", painted, text, column, rect.width);
     });
     return output;
