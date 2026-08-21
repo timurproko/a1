@@ -3,7 +3,7 @@
   "platform": "win32",
   "architecture": "x64",
   "nodeVersion": "24.16.0",
-  "recordedAt": "2026-08-21T10:55:00.000Z",
+  "recordedAt": "2026-08-21T09:22:07.515Z",
   "baseline": {
     "transition": "0.1.1-dev.3-to-0.1.1-dev.4",
     "source": "user-controlled installed update",
@@ -17,7 +17,7 @@
       "candidate-read-and-hash"
     ]
   },
-  "optimized": {
+  "optimizedFixture": {
     "source": "repository package with exact installed dependency closure",
     "payloadFiles": 13810,
     "isolatedMaterializationMs": 10485,
@@ -30,15 +30,39 @@
     "postNpmBudgetMs": 30000,
     "budgetPassed": true
   },
+  "publishedTransitions": {
+    "control": {
+      "transition": "0.1.1-dev.4-to-0.1.1-dev.5",
+      "updaterImplementation": "three-pass-0.1.1-dev.4",
+      "totalMs": 84972,
+      "exitCode": 0
+    },
+    "optimized": {
+      "transition": "0.1.1-dev.5-to-0.1.1-dev.6",
+      "updaterImplementation": "single-pass-0.1.1-dev.5",
+      "totalMs": 51331,
+      "packageInstalledObservedAtMs": 10560,
+      "postNpmActivationMs": 40771,
+      "freshCertificationDurableMs": 13,
+      "totalReductionPercentFromControl": 39.59,
+      "postNpmBudgetMs": 30000,
+      "postNpmBudgetPassed": false,
+      "exitCode": 0,
+      "transactionJournalCleared": true,
+      "activeReleaseId": "0.1.1-dev.6-376cd2dd5da36b3067ed",
+      "supervisorVerified": true
+    }
+  },
   "validation": {
     "focusedReleaseTests": "passed",
-    "integrationTier": "8 passed",
-    "fullVitestWithContentionAllowance": "683 passed",
+    "fullReleaseTests": "763 tests passed",
     "releaseGates": "passed",
-    "openspecStrict": "passed"
+    "openspecStrict": "passed",
+    "candidateWorkflow": "https://github.com/timurproko/a1/actions/runs/32466972861",
+    "publicationWorkflow": "https://github.com/timurproko/a1/actions/runs/32467301702"
   },
   "decision": {
-    "progressUi": "deferred",
-    "reason": "Measure one user-controlled published transition before adding progress output; deterministic activation is already below the 30-second post-npm budget."
+    "progressUi": "follow-up-recommended",
+    "reason": "Single-pass activation reduced the published user-visible transition by 39.59%, but the command remained silent for 51.331 seconds overall and the observed post-npm activation took 40.771 seconds on the user machine. Progress UI remains outside this change and should be planned separately."
   }
 }

@@ -82,3 +82,9 @@ The first accepted preview transition records actual user-visible total duration
 3. Run fault injection, transaction recovery, exact packaged update, process-exit, and Windows performance evidence; retain the old materialization implementation behind an internal rollback switch only until one accepted preview transition passes.
 4. Remove the fallback after accepted evidence confirms release identity, rollback, performance, and terminal return. Rollback before that point selects the old complete verification path; it never activates an unverified candidate.
 5. Review the optimized user-visible duration and create a separate progress-output change only if evidence shows it remains necessary.
+
+## Measured Outcome
+
+The accepted published control transition, `0.1.1-dev.4 → 0.1.1-dev.5`, ran the previously loaded three-pass updater and returned to the shell successfully in 84.972 seconds. The next unchanged-dependency transition, `0.1.1-dev.5 → 0.1.1-dev.6`, ran the single-pass updater and returned successfully in 51.331 seconds, a 39.59% reduction. The transaction journal cleared, certification took 13 ms after materialization, and the exact `0.1.1-dev.6` release became active behind a verified supervisor.
+
+The optimized fixture remains below the 30-second accepted-runner budget, but the user-machine observation reached npm completion at 10.560 seconds and required another 40.771 seconds for verified activation. A quiet 51-second command can still reasonably appear stuck. Progress UI is therefore recommended as a separate follow-up change; it is not implemented or specified by this change.
