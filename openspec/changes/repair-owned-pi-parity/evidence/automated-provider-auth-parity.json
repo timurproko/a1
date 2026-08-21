@@ -73,7 +73,7 @@
     "architecturePassed": true,
     "strictOpenSpecPassed": true,
     "auditVulnerabilities": 0,
-    "finalUserRetestPending": true
+    "finalUserRetestPending": false
   },
   "oauthPromptCorrection": {
     "credentialValuesRecorded": false,
@@ -99,6 +99,13 @@
     "architecturePassed": true,
     "strictOpenSpecPassed": true,
     "auditVulnerabilities": 0,
-    "finalUserRetestPending": true
+    "finalUserRetestPending": false
+  },
+  "userAcceptance": {
+    "confirmed": true,
+    "confirmedAt": "2026-08-21",
+    "providerStatusAndVisibleModelsConsistent": true,
+    "oauthDeviceFlowRetestWorking": true,
+    "credentialValuesRecorded": false
   }
 }
