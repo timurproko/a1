@@ -20,6 +20,8 @@ export interface UiRouteSurface {
   close(): void;
   /** Called by the shell when the surface should repaint. */
   onRenderRequested(listener: () => void): void;
+  /** The surface asks to leave A1 entirely, not merely to close itself. */
+  onExitRequested(listener: () => void): void;
 }
 
 export interface UiRouteHost {

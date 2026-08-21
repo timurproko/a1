@@ -103,6 +103,7 @@ export class SettingsApp implements UiApp {
   #filter: LineInput | null = null;
   #menu: ValueMenu | null = null;
   #loading = true;
+  #interruptArmed = false;
   /** Row key under the pointer, and where each row was drawn last frame. */
   #hoverKey: string | null = null;
   #hoverRegion: "row" | "minus" | "plus" = "row";
@@ -123,6 +124,7 @@ export class SettingsApp implements UiApp {
 
   render(rect: PaneRect, host: AppHostServices): readonly string[] {
     const theme = host.theme ?? PLAIN_THEME;
+    this.#interruptArmed = host.interruptArmed;
     const rows = this.#rows();
     const footer = this.#footerLines(rect.width, theme);
     const bodyHeight = Math.max(0, rect.height - footer.length);
@@ -485,7 +487,9 @@ export class SettingsApp implements UiApp {
   }
 
   #footerLines(width: number, theme: UiTheme): readonly string[] {
-    const hint = this.#notice ?? HINT;
+    const hint = this.#interruptArmed
+      ? "press ctrl+c again to exit A1"
+      : this.#notice ?? HINT;
     const hintLine = rightAligned(theme.fg("dim", hint), hint, width);
     const input = this.#filter;
     if (input === null) return [hintLine];

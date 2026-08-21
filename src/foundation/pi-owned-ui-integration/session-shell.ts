@@ -1430,6 +1430,10 @@ export class OwnedUiSessionShell {
       invalidate: () => this.runtime.requestRender(),
     };
     surface.onRenderRequested(() => this.runtime.requestRender());
+    surface.onExitRequested(() => {
+      closeSurface();
+      void this.shutdown();
+    });
     this.#dialogHandle = this.runtime.showOverlay(component, { width: "100%", maxHeight: "100%", anchor: "top-left" });
     this.#dialogId = surface.id;
     return { outcome: "completed", diagnostic: null };
