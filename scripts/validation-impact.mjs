@@ -50,8 +50,13 @@ export async function selectImpactFromChanges(changes, options = {}) {
   }
 
   if (packageSensitive) {
+    selected.add("package-smoke");
     selected.add("package-install");
     selected.add("dependency-policy");
+  }
+  for (const requirement of options.required ?? []) {
+    if (typeof requirement !== "string" || requirement.length === 0) throw new Error("required validation selection is invalid");
+    selected.add(requirement);
   }
   if (fallbacks.length > 0) full = true;
   if (full) {
@@ -88,7 +93,7 @@ export async function selectGitImpact(options) {
 
   try {
     const changes = parseNameStatus(difference.stdout);
-    const plan = await selectImpactFromChanges(changes, { repository, full: options.full });
+    const plan = await selectImpactFromChanges(changes, { repository, full: options.full, required: options.required });
     return { ...plan, base, head };
   } catch (error) {
     return forcedFullPlan(`selector-error:${error instanceof Error ? error.message : String(error)}`, { base, head });

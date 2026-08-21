@@ -67,14 +67,18 @@ describe("validation tier planning", () => {
       requested: ["fixture"],
       selected: ["fixture"],
       requiresBuild: true,
-      consumesPackage: false,
-      candidateTarball: "unused.tgz",
-      commands: [{ id: "candidate-build", executable: "npm", arguments: ["run", "build"], owners: ["fixture"] }],
+      consumesPackage: true,
+      candidateTarball: "accepted.tgz",
+      commands: [
+        { id: "candidate-build", executable: "npm", arguments: ["run", "build"], owners: ["fixture"] },
+        { id: "candidate-pack", executable: "node", arguments: ["scripts/prepare-validation-package.mjs"], owners: ["fixture"] },
+      ],
       vitest: null,
-    }, { env: { VALIDATION_BUILD_READY: "1" }, stdio: "pipe" });
+    }, { env: { VALIDATION_BUILD_READY: "1", VALIDATION_CANDIDATE_TARBALL: "accepted.tgz" }, stdio: "pipe" });
     expect(result.passed).toBe(true);
     expect(result.outcomes).toEqual([
       expect.objectContaining({ id: "candidate-build", durationMs: 0, skipped: "existing-explicit-build" }),
+      expect.objectContaining({ id: "candidate-pack", durationMs: 0, skipped: "existing-exact-package" }),
     ]);
   });
 

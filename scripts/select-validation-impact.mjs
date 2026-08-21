@@ -4,7 +4,7 @@ import { formatImpactSummary, selectGitImpact } from "./validation-impact.mjs";
 
 const base = valueAfter("--base");
 const head = valueAfter("--head");
-const plan = await selectGitImpact({ base, head, full: process.argv.includes("--full") });
+const plan = await selectGitImpact({ base, head, full: process.argv.includes("--full"), required: valuesAfter("--require") });
 const json = `${JSON.stringify(plan, null, 2)}\n`;
 const summary = formatImpactSummary(plan);
 
@@ -31,4 +31,10 @@ if (githubOutput) {
 function valueAfter(name) {
   const index = process.argv.indexOf(name);
   return index >= 0 ? process.argv[index + 1] : undefined;
+}
+
+function valuesAfter(name) {
+  const values = [];
+  for (let index = 0; index < process.argv.length; index += 1) if (process.argv[index] === name && process.argv[index + 1]) values.push(process.argv[index + 1]);
+  return values;
 }

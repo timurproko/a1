@@ -19,8 +19,8 @@ export interface ImpactPlan {
 }
 
 export function loadImpactManifest(repository?: string): Promise<Record<string, unknown>>;
-export function selectImpactFromChanges(changes: ChangedPath[], options?: { repository?: string; manifest?: unknown; full?: boolean }): Promise<ImpactPlan>;
-export function selectGitImpact(options: { repository?: string; base?: string; head?: string; full?: boolean }): Promise<ImpactPlan>;
+export function selectImpactFromChanges(changes: ChangedPath[], options?: { repository?: string; manifest?: unknown; full?: boolean; required?: string[] }): Promise<ImpactPlan>;
+export function selectGitImpact(options: { repository?: string; base?: string; head?: string; full?: boolean; required?: string[] }): Promise<ImpactPlan>;
 export function parseNameStatus(output: string): ChangedPath[];
 export function formatImpactSummary(plan: ImpactPlan): string;
 export function matchesImpactPattern(pattern: string, path: string): boolean;

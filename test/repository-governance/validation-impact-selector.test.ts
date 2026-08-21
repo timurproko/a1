@@ -37,8 +37,10 @@ describe("fail-closed validation impact selection", () => {
     expect(fullPlan).toMatchObject({ full: true, packageSensitive: true, selected: ["full-release"] });
   });
 
-  it("allows only widening overrides", async () => {
-    const plan = await selectImpactFromChanges([{ status: "M", path: "src/cli/dispatch.ts" }], { full: true });
+  it("allows only widening overrides and required candidate gates", async () => {
+    const candidate = await selectImpactFromChanges([{ status: "M", path: "src/cli/dispatch.ts" }], { required: ["package-smoke"] });
+    expect(candidate).toMatchObject({ full: false, selected: ["invariants", "fast", "package-smoke"] });
+    const plan = await selectImpactFromChanges([{ status: "M", path: "src/cli/dispatch.ts" }], { full: true, required: ["package-smoke"] });
     expect(plan).toMatchObject({ full: true, selected: ["full-release"] });
   });
 
