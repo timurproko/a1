@@ -1,3 +1,5 @@
+import type { PaneMouseEvent } from "../ui-components/index.js";
+
 /**
  * The seam between the pinned shell and A1-owned screens. The shell asks whether
  * a route is claimed, mounts whatever surface it is handed, and forwards keys to
@@ -11,6 +13,8 @@ export interface UiRouteSurface {
   render(width: number, height: number): readonly string[];
   /** True when the key was consumed; false leaves it to the shell. */
   handleInput(data: string): boolean;
+  /** Mouse report in surface-local coordinates. True when consumed. */
+  handleMouse(event: PaneMouseEvent): boolean;
   /** True once the surface has asked to be dismissed. */
   isClosed(): boolean;
   close(): void;

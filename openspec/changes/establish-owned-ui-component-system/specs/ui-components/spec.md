@@ -159,3 +159,51 @@ leave the caller's value unchanged.
 #### Scenario: Cancel an edit
 - **WHEN** the user cancels
 - **THEN** the edit SHALL be reported as cancelled and no value SHALL be committed
+
+### Requirement: Pointer input is decoded and delivered in pane-local coordinates
+A1 SHALL decode SGR mouse reports into press, release, motion, and wheel events with a
+one-based column and row, SHALL separate them from keyboard input in the same chunk so
+typing is never lost to a report, and SHALL deliver them to a pane in coordinates local
+to that pane. A malformed or partial report SHALL be ignored rather than surfacing as
+keystrokes.
+
+#### Scenario: Decode a click
+- **WHEN** a press report and its matching release arrive
+- **THEN** a press event and a release event SHALL be reported with the button and the
+  one-based position the terminal named
+
+#### Scenario: Decode motion and wheel
+- **WHEN** a motion report or a wheel report arrives
+- **THEN** it SHALL be reported as motion, wheel-up, or wheel-down rather than as a press
+
+#### Scenario: Keyboard input arrives in the same chunk
+- **WHEN** a chunk contains both mouse reports and typed characters
+- **THEN** the reports SHALL be extracted and the remaining characters SHALL still reach
+  keyboard handling unchanged
+
+#### Scenario: Malformed report
+- **WHEN** a chunk contains an incomplete or malformed report
+- **THEN** no event SHALL be reported for it and it SHALL NOT be delivered as keystrokes
+
+#### Scenario: Translate into a pane
+- **WHEN** an event inside a pane's rectangle is delivered to it
+- **THEN** its column and row SHALL be relative to that pane's own top-left corner
+
+### Requirement: Pointer reporting is enabled only while a screen needs it
+A1 SHALL enable terminal mouse reporting only while a screen that uses pointer input is
+presented, and SHALL disable it and restore the terminal when that screen closes, including
+when it closes through a failure. Enabling and disabling SHALL be paired so a terminal is
+never left reporting after A1 stops using it.
+
+#### Scenario: Present and close a pointer-driven screen
+- **WHEN** such a screen is presented and later closed
+- **THEN** reporting SHALL be enabled on presentation and disabled on close, leaving the
+  terminal as it was found
+
+#### Scenario: Screen closes through a failure
+- **WHEN** the screen closes because it failed
+- **THEN** reporting SHALL still be disabled and the terminal restored
+
+#### Scenario: No such screen is presented
+- **WHEN** no screen using pointer input is presented
+- **THEN** reporting SHALL remain disabled

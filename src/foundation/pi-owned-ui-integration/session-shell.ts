@@ -5,6 +5,7 @@ import type {
   OwnedUiThinkingLevel,
 } from "../owned-ui-contracts/index.js";
 import type { UiRouteHost } from "./route-host.js";
+import { MOUSE_TRACKING_OFF, MOUSE_TRACKING_ON, parseMouseInput } from "../ui-components/index.js";
 import {
   PINNED_PI_HIDDEN_COMMAND_NAMES,
   PINNED_PI_WORKFLOW_COMMAND_NAMES,
@@ -1404,15 +1405,24 @@ export class OwnedUiSessionShell {
     if (!this.runtime.active) return { outcome: "failed", diagnostic: "runtime is not active" };
 
     this.#dialogHandle?.hide();
+    // Any-event reporting: hover and drag are what the screen is driven by, and
+    // it also stops the terminal treating a drag as a text selection.
+    this.runtime.writeControl(MOUSE_TRACKING_ON);
+    const closeSurface = () => {
+      this.runtime.writeControl(MOUSE_TRACKING_OFF);
+      this.#dialogHandle?.hide();
+      this.#dialogHandle = undefined;
+      this.#dialogId = undefined;
+    };
     const rows = () => Math.max(1, this.runtime.viewport().rows);
     const component: PiShellComponentPort = {
       render: (width: number) => [...surface.render(Math.max(1, width), rows())],
       handleInput: (data: string) => {
-        surface.handleInput(data);
+        const { events, rest } = parseMouseInput(data);
+        for (const event of events) surface.handleMouse(event);
+        if (rest.length > 0) surface.handleInput(rest);
         if (surface.isClosed()) {
-          this.#dialogHandle?.hide();
-          this.#dialogHandle = undefined;
-          this.#dialogId = undefined;
+          closeSurface();
           return;
         }
         this.runtime.requestRender();

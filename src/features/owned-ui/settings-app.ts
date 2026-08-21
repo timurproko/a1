@@ -24,6 +24,7 @@ import {
   type ListRow,
   type ListRowSpan,
   type PaneInputResult,
+  type PaneMouseEvent,
   type PaneRect,
   type UiTheme,
 } from "../../foundation/ui-components/index.js";
@@ -41,7 +42,7 @@ const RAIL_COLUMNS = 2;
 const HINT = "/ search • ↑↓ navigate • shift+↑↓ block • enter change/edit • ←→ adjust • esc close";
 const SEARCH_PLACEHOLDER = "search settings";
 /** Columns a number stepper hangs to the left of the value column. */
-const STEPPER_RESERVE = 2;
+const STEPPER_RESERVE = 3;
 
 type Action =
   | "move-up" | "move-down" | "block-up" | "block-down" | "first" | "last"
@@ -102,6 +103,10 @@ export class SettingsApp implements UiApp {
   #filter: LineInput | null = null;
   #menu: ValueMenu | null = null;
   #loading = true;
+  /** Row key under the pointer, and where each row was drawn last frame. */
+  #hoverKey: string | null = null;
+  #hoverRegion: "row" | "minus" | "plus" = "row";
+  #frameRows: { key: string; screenRow: number; valueColumn: number; valueWidth: number }[] = [];
 
   constructor(session: OwnedUiSettingsSession) {
     this.#session = session;
@@ -134,6 +139,7 @@ export class SettingsApp implements UiApp {
     });
 
     const body: string[] = [];
+    this.#frameRows = [];
     if (rows.length === 0) {
       const message = this.#loading ? "Loading settings…" : "No settings found.";
       const middle = Math.floor(bodyHeight / 2);
@@ -146,7 +152,16 @@ export class SettingsApp implements UiApp {
       if (layout.topPadding > 0) body.push("");
       if (layout.stickyHeader !== undefined) body.push(this.#header(layout.stickyHeader, theme, contentWidth));
       for (const index of layout.rowIndexes) {
-        body.push(this.#renderRow(rows[index], index === selected, contentWidth, valueColumn, theme));
+        const row = rows[index];
+        if (row !== undefined && row.kind === "element") {
+          this.#frameRows.push({
+            key: `${row.value.backend}:${row.value.id}`,
+            screenRow: body.length,
+            valueColumn,
+            valueWidth: displayWidth(String(row.value.value ?? "")),
+          });
+        }
+        body.push(this.#renderRow(row, index === selected, contentWidth, valueColumn, theme));
       }
       while (body.length < bodyHeight) body.push("");
     }
@@ -207,6 +222,44 @@ export class SettingsApp implements UiApp {
       default:
         return { consumed: false };
     }
+  }
+
+  onMouse(event: PaneMouseEvent, _host: AppHostServices): PaneInputResult {
+    const row = this.#frameRows.find(candidate => candidate.screenRow === event.row - 1);
+    const previousKey = this.#hoverKey;
+    const previousRegion = this.#hoverRegion;
+
+    if (row === undefined) {
+      this.#hoverKey = null;
+      this.#hoverRegion = "row";
+      return { consumed: event.kind !== "motion", render: previousKey !== null };
+    }
+
+    this.#hoverKey = row.key;
+    // The minus sits in the reserved space before the value; the plus after it.
+    const valueStart = row.valueColumn + 1;
+    const column = event.column;
+    this.#hoverRegion = column < valueStart
+      ? "minus"
+      : column > valueStart + row.valueWidth ? "plus" : "row";
+
+    if (event.kind === "press") {
+      const rows = this.#rows();
+      const index = rows.findIndex(candidate => rowKey(candidate) === row.key);
+      if (index >= 0) {
+        this.#select(rows, index);
+        if (this.#hoverRegion === "minus") this.#cycle(rows, index, -1);
+        else if (this.#hoverRegion === "plus") this.#cycle(rows, index, 1);
+        else this.#openMenu(rows, index);
+      }
+      return { consumed: true };
+    }
+    if (event.kind === "wheel-up" || event.kind === "wheel-down") {
+      this.#scroll = Math.max(0, this.#scroll + (event.kind === "wheel-down" ? 3 : -3));
+      return { consumed: true };
+    }
+    const changed = previousKey !== this.#hoverKey || previousRegion !== this.#hoverRegion;
+    return { consumed: event.kind !== "motion", render: changed };
   }
 
   #openMenu(rows: readonly Row[], selected: number): void {
@@ -355,11 +408,16 @@ export class SettingsApp implements UiApp {
     const left = `${prefix}  ${theme.fg(selected ? "accent" : "text", label)}`;
     const gap = Math.max(2, valueColumn - displayWidth(leftRaw));
     const raw = entry.value === null ? describeRaw(entry.rawValue) : String(entry.value);
-    const stepper = isStepper(entry);
-    // Only the selected row is bright; a numeric value is not special.
-    const valueToken = selected ? "text" : "muted";
+    const key = `${entry.backend}:${entry.id}`;
+    const hovered = this.#hoverKey === key;
+    // The stepper is an affordance, not decoration: it appears under the pointer.
+    const stepper = isStepper(entry) && hovered;
+    // Bright means "what the pointer or the selection is on", never "this is a number".
+    const valueToken = hovered || selected ? "text" : "muted";
+    const minus = theme.fg(this.#hoverRegion === "minus" && hovered ? "accent" : "dim", "- ");
+    const plus = theme.fg(this.#hoverRegion === "plus" && hovered ? "accent" : "dim", " +");
     const value = stepper
-      ? `${theme.fg("dim", "- ")}${theme.fg(valueToken, raw)}${theme.fg("dim", " +")}`
+      ? `${minus}${theme.fg(valueToken, raw)}${plus}`
       : theme.fg(valueToken, raw);
     const indent = Math.max(2, stepper ? gap - STEPPER_RESERVE : gap);
     const suffix = entry.origin === "default" ? theme.fg("dim", "  (default)") : "";
