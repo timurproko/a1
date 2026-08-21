@@ -18,6 +18,8 @@ export interface AppHostSurface {
   present(lines: readonly string[] | null): void;
   /** Reports a failure that closed an app. */
   reportFailure?(appId: string, error: unknown): void;
+  /** Leaves A1 entirely. Invoked by the interrupt chord from a presented app. */
+  exit?(): void;
 }
 
 export interface AppHostOptions {
@@ -30,6 +32,8 @@ export interface AppHostOptions {
 }
 
 const INTERRUPT = "";
+/** How long the first interrupt of the chord stays armed. */
+const INTERRUPT_CHORD_MS = 1_500;
 
 /**
  * Presents at most one app. Input reaches the presented app first; anything it
@@ -41,6 +45,8 @@ export class UiAppHost {
   readonly #surface: AppHostSurface;
   readonly #closeOnInterrupt: boolean;
   readonly #theme: UiTheme | undefined;
+  /** When the first interrupt of a chord was seen, or null when disarmed. */
+  #interruptArmedAt: number | null = null;
   readonly #cache = new FrameCache();
   #app: UiApp | null = null;
 
@@ -100,10 +106,7 @@ export class UiAppHost {
       if (result.render !== false) this.render();
       return result;
     }
-    if (data === INTERRUPT && this.#closeOnInterrupt) {
-      this.close();
-      return { consumed: true, render: true };
-    }
+    if (data === INTERRUPT) return this.#interrupt();
     return { consumed: false };
   }
 
@@ -113,6 +116,29 @@ export class UiAppHost {
     const result = this.#guard(() => app.onMouse?.(event, this.#services())) ?? { consumed: false };
     if (result.consumed && result.render !== false) this.render();
     return result;
+  }
+
+  /**
+   * Two interrupts leave A1, from any screen. One arms the chord and repaints so
+   * the screen can say so; a second within the window exits rather than merely
+   * closing the screen, which is what the chord means everywhere else.
+   */
+  #interrupt(): PaneInputResult {
+    const now = Date.now();
+    const armed = this.#interruptArmedAt;
+    if (armed !== null && now - armed <= INTERRUPT_CHORD_MS) {
+      this.#interruptArmedAt = null;
+      this.close();
+      this.#surface.exit?.();
+      return { consumed: true, render: true };
+    }
+    this.#interruptArmedAt = now;
+    return { consumed: true, render: true };
+  }
+
+  get interruptArmed(): boolean {
+    const armed = this.#interruptArmedAt;
+    return armed !== null && Date.now() - armed <= INTERRUPT_CHORD_MS;
   }
 
   close(): void {
@@ -135,6 +161,11 @@ export class UiAppHost {
       close: () => this.close(),
       returnToPrevious: () => this.close(),
       closeOnInterrupt: this.#closeOnInterrupt,
+      exit: () => {
+        this.close();
+        this.#surface.exit?.();
+      },
+      interruptArmed: this.interruptArmed,
       ...(this.#theme === undefined ? {} : { theme: this.#theme }),
     };
   }

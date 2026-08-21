@@ -238,6 +238,7 @@ export function createOwnedRouteHost(settings: OwnedUiSettingsSession): UiRouteH
       let frame: readonly string[] = [];
       let closed = false;
       let onRender: () => void = () => undefined;
+      let onExit: () => void = () => undefined;
 
       const host = new UiAppHost({
         registry,
@@ -246,6 +247,7 @@ export function createOwnedRouteHost(settings: OwnedUiSettingsSession): UiRouteH
         surface: {
           size: () => size,
           requestRender: () => onRender(),
+          exit: () => onExit(),
           present: lines => {
             if (lines === null) closed = true;
             else frame = lines;
@@ -266,6 +268,7 @@ export function createOwnedRouteHost(settings: OwnedUiSettingsSession): UiRouteH
         isClosed: () => closed || !host.isPresenting,
         close: () => host.close(),
         onRenderRequested: listener => { onRender = listener; },
+        onExitRequested: listener => { onExit = listener; },
       };
       return surface;
     },

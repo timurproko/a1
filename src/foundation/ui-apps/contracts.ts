@@ -15,6 +15,10 @@ export interface AppHostServices {
   close(): void;
   /** Restores the surface that opened this app without closing the host. */
   returnToPrevious(): void;
+  /** Leaves A1 entirely, as the interrupt chord does from any screen. */
+  exit(): void;
+  /** True once one interrupt has been seen and the chord is waiting for the second. */
+  readonly interruptArmed: boolean;
   /**
    * Whether an idle interrupt closes the presented app. Every host chooses
    * explicitly: a standalone screen closes, a persistent host stays open.
