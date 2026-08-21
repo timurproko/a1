@@ -281,7 +281,7 @@ async function walkRepository(directory, prefix = "") {
   const entries = await readdir(directory, { withFileTypes: true });
   const paths = [];
   for (const entry of entries) {
-    if ([".git", "artifacts", "dist", "node_modules"].includes(entry.name) && prefix === "") continue;
+    if ([".git", ".builds", ".worktrees", "artifacts", "dist", "node_modules"].includes(entry.name) && prefix === "") continue;
     if (["target", ".zig-cache", "zig-out"].includes(entry.name)) continue;
     const path = prefix ? `${prefix}/${entry.name}` : entry.name;
     if (entry.isDirectory()) paths.push(...await walkRepository(resolve(directory, entry.name), path));
