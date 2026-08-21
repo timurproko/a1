@@ -43,3 +43,9 @@ All six merged-deletable branches listed above were deleted with Git safe deleti
 - `chore/shorter-activation-message` (unmerged, retained)
 - `develop` (protected, retained)
 - `master` (protected, retained)
+
+## Certification and post-merge obligation
+
+At `2026-08-21T06:24:29Z`, `npm run check` passed in full and `openspec validate "govern-branch-lifecycle" --type change --strict --no-interactive` reported the change valid. The first full-test attempt had one unrelated five-second integration timeout; that test passed alone and in the successful complete rerun.
+
+After `change/govern-branch-lifecycle` is merged into and pushed with `develop`, workflow must switch to `develop`, preview this source branch, safely delete it locally with `git branch -d`, and delete its non-protected remote counterpart when present. The current source branch is intentionally retained until then.

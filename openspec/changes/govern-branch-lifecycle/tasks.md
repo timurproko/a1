@@ -14,4 +14,4 @@
 
 - [x] 3.1 Run the cleanup command in dry-run mode against the current clone and review the exact protected, merged-deletable, and unmerged sets without altering working-tree files.
 - [x] 3.2 Apply cleanup to the reviewed merged-deletable local topic and milestone branches while retaining `develop`, `master`, and every unmerged branch; verify the resulting branch inventory.
-- [ ] 3.3 Run the full repository check and strict OpenSpec validation, commit only this change's files, and record that this change's own source branch must be safely deleted immediately after its later merge and push.
+- [x] 3.3 Run the full repository check and strict OpenSpec validation, commit only this change's files, and record that this change's own source branch must be safely deleted immediately after its later merge and push.
