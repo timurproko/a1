@@ -3,13 +3,13 @@
 const { runSelectedInteractiveRuntime } = await import("../dist/src/features/launch/index.js");
 
 runSelectedInteractiveRuntime(process.env.A1_LAUNCH_PROFILE ?? "a1", {
-  ownedUi: async () => {
-    const [{ runOwnedUi }, { composeOwnedUiApplication }] = await Promise.all([
+  ownedUi: async profileId => {
+    const [{ runOwnedUi }, { composeOwnedUi }] = await Promise.all([
       import("../dist/src/features/owned-ui/index.js"),
       import("../dist/src/composition/index.js"),
     ]);
-    const application = await composeOwnedUiApplication({ cwd: process.cwd() });
-    return await runOwnedUi({ application });
+    const { application, settings } = await composeOwnedUi({ cwd: process.cwd(), profileId });
+    return await runOwnedUi({ application, ...(settings === null ? {} : { settings }) });
   },
   transparent: async profileId => {
     const { runSelectedTransparentRuntime } = await import("../dist/src/composition/transparent-runtime.js");
