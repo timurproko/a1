@@ -48,6 +48,7 @@ export interface BuildOwnedUiSettingsSectionsInput {
 }
 
 export const AGENT_SECTION_ID = "agent";
+const BOOLEAN_CHOICES: readonly OwnedUiSettingValue[] = Object.freeze([true, false]);
 
 export function buildOwnedUiSettingsSections(
   input: BuildOwnedUiSettingsSectionsInput,
@@ -105,7 +106,9 @@ function agentSection(snapshot: AgentSettingsSnapshot | null): OwnedUiSettingsSe
       value: scalar(raw),
       rawValue: raw,
       editable: snapshot.writeAdvertised && descriptor.writable && descriptor.valueType !== "json",
-      choices: choicesOf(descriptor.choices),
+      // A boolean is a two-value choice even when the engine names no choices,
+      // so it opens the same menu as any other enumerated setting.
+      choices: descriptor.valueType === "boolean" ? BOOLEAN_CHOICES : choicesOf(descriptor.choices),
       origin: "engine" as const,
       application: "engine" as const,
     };

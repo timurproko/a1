@@ -85,6 +85,8 @@ type Row = ListRow<OwnedUiSettingsEntry>;
 
 interface ValueMenu {
   readonly entry: OwnedUiSettingsEntry;
+  /** Row this menu was opened from, so it anchors there rather than to the selection. */
+  readonly anchorKey: string;
   readonly choices: readonly OwnedUiSettingValue[];
   index: number;
 }
@@ -105,10 +107,11 @@ export class SettingsApp implements UiApp {
   #menu: ValueMenu | null = null;
   #loading = true;
   #interruptArmed = false;
+  #footerHeight = 1;
   /** Row key under the pointer, and where each row was drawn last frame. */
   #hoverKey: string | null = null;
-  #hoverRegion: "row" | "minus" | "plus" = "row";
-  #frameRows: { key: string; screenRow: number; valueColumn: number; valueWidth: number }[] = [];
+  #hoverRegion: "label" | "value" | "minus" | "plus" = "label";
+  #frameRows: { key: string; screenRow: number; valueColumn: number; valueWidth: number; stepper: boolean }[] = [];
   /** Where the value menu was drawn last frame, for hit testing. */
   #menuFrame: { top: number; column: number; width: number; rows: number } | null = null;
 
@@ -128,6 +131,7 @@ export class SettingsApp implements UiApp {
     this.#interruptArmed = host.interruptArmed;
     const rows = this.#rows();
     const footer = this.#footerLines(rect.width, theme);
+    this.#footerHeight = footer.length;
     const bodyHeight = Math.max(0, rect.height - footer.length);
     const selected = indexOfKey(rows, this.#selectedKey);
     this.#scroll = scrollForSelection(rows, bodyHeight, this.#scroll, selected, this.#reveal);
@@ -163,7 +167,8 @@ export class SettingsApp implements UiApp {
             key: `${row.value.backend}:${row.value.id}`,
             screenRow: body.length,
             valueColumn,
-            valueWidth: displayWidth(String(row.value.value ?? "")),
+            valueWidth: row.value.value === null ? 0 : displayWidth(displayValue(row.value.value)),
+            stepper: isStepper(row.value),
           });
         }
         body.push(this.#renderRow(row, index === selected, contentWidth, valueColumn, theme));
@@ -233,13 +238,20 @@ export class SettingsApp implements UiApp {
     const menu = this.#menu;
     const frame = this.#menuFrame;
     if (menu !== null && frame !== null) {
-      if (event.kind !== "press") return { consumed: true, render: false };
-      const menuRow = event.row - 1 - frame.top;
-      const inside = menuRow >= 0
-        && menuRow < frame.rows
+      const overRow = event.row - 1 - frame.top;
+      const overMenu = overRow >= 0
+        && overRow < frame.rows
         && event.column > frame.column
         && event.column <= frame.column + frame.width;
-      if (!inside) {
+      if (event.kind === "motion") {
+        // The pointer drives the highlight, so the row under it is the one that lights up.
+        if (!overMenu || menu.index === overRow) return { consumed: true, render: false };
+        menu.index = overRow;
+        return { consumed: true, render: true };
+      }
+      if (event.kind !== "press") return { consumed: true, render: false };
+      const menuRow = overRow;
+      if (!overMenu) {
         // A press anywhere else dismisses the menu rather than acting through it.
         this.#menu = null;
         return { consumed: true };
@@ -256,17 +268,24 @@ export class SettingsApp implements UiApp {
 
     if (row === undefined) {
       this.#hoverKey = null;
-      this.#hoverRegion = "row";
+      this.#hoverRegion = "label";
       return { consumed: event.kind !== "motion", render: previousKey !== null };
     }
 
     this.#hoverKey = row.key;
     // The minus sits in the reserved space before the value; the plus after it.
+    // The label is a label: pointing at it selects nothing and changes nothing.
+    // Only the value area acts, and only a numeric row has stepper buttons.
     const valueStart = row.valueColumn + 1;
+    const valueEnd = valueStart + row.valueWidth;
     const column = event.column;
-    this.#hoverRegion = column < valueStart
-      ? "minus"
-      : column > valueStart + row.valueWidth ? "plus" : "row";
+    this.#hoverRegion = column >= valueStart && column <= valueEnd
+      ? "value"
+      : row.stepper && column >= valueStart - STEPPER_RESERVE && column < valueStart
+        ? "minus"
+        : row.stepper && column > valueEnd && column <= valueEnd + STEPPER_RESERVE
+          ? "plus"
+          : "label";
 
     if (event.kind === "press") {
       const rows = this.#rows();
@@ -276,7 +295,7 @@ export class SettingsApp implements UiApp {
         this.#notice = null;
         if (this.#hoverRegion === "minus") this.#cycle(rows, index, -1);
         else if (this.#hoverRegion === "plus") this.#cycle(rows, index, 1);
-        else this.#openMenu(rows, index);
+        else if (this.#hoverRegion === "value") this.#openMenu(rows, index);
       }
       return { consumed: true };
     }
@@ -297,7 +316,7 @@ export class SettingsApp implements UiApp {
       return;
     }
     const current = entry.value === null ? 0 : Math.max(0, entry.choices.indexOf(entry.value));
-    this.#menu = { entry, choices: entry.choices, index: current };
+    this.#menu = { entry, anchorKey: `${entry.backend}:${entry.id}`, choices: entry.choices, index: current };
   }
 
   #menuKey(data: string): PaneInputResult {
@@ -433,7 +452,7 @@ export class SettingsApp implements UiApp {
     const leftRaw = `${selected ? "→ " : "  "}  ${label}`;
     const left = `${prefix}  ${theme.fg(selected ? "accent" : "text", label)}`;
     const gap = Math.max(2, valueColumn - displayWidth(leftRaw));
-    const raw = entry.value === null ? describeRaw(entry.rawValue) : String(entry.value);
+    const raw = entry.value === null ? describeRaw(entry.rawValue) : displayValue(entry.value);
     const key = `${entry.backend}:${entry.id}`;
     const hovered = this.#hoverKey === key;
     // The stepper is an affordance, not decoration: it appears under the pointer.
@@ -453,7 +472,7 @@ export class SettingsApp implements UiApp {
   /** The value menu floats over the body, anchored to the selected row. */
   #withMenu(
     lines: readonly string[],
-    selected: number,
+    _selected: number,
     layout: { readonly rowIndexes: readonly number[]; readonly topPadding: number; readonly stickyHeader: string | undefined },
     valueColumn: number,
     theme: UiTheme,
@@ -464,14 +483,18 @@ export class SettingsApp implements UiApp {
       this.#menuFrame = null;
       return lines;
     }
-    const offset = layout.rowIndexes.indexOf(selected);
-    if (offset < 0) {
+    const anchor = this.#frameRows.find(candidate => candidate.key === menu.anchorKey);
+    if (anchor === undefined) {
       this.#menuFrame = null;
       return lines;
     }
 
-    const top = layout.topPadding + (layout.stickyHeader === undefined ? 0 : 1) + offset;
-    const width = Math.max(...menu.choices.map(choice => displayWidth(String(choice)) + 4), 6);
+    // Opens at its own row and grows downward, flipping up only when it would
+    // run past the body rather than always covering what is above.
+    const body = lines.length - this.#footerHeight;
+    const below = anchor.screenRow;
+    const top = below + menu.choices.length <= body ? below : Math.max(0, below - menu.choices.length + 1);
+    const width = Math.max(...menu.choices.map(choice => displayWidth(displayValue(choice)) + 4), 6);
     const column = Math.min(valueColumn, Math.max(0, rect.width - width - RAIL_COLUMNS));
     this.#menuFrame = { top, column, width, rows: menu.choices.length };
 
@@ -480,7 +503,7 @@ export class SettingsApp implements UiApp {
       const target = top + index;
       if (target < 0 || target >= output.length) return;
       const mark = choice === menu.entry.value ? "✓ " : "  ";
-      const text = padToWidth(`${mark}${String(choice)} `, width);
+      const text = padToWidth(`${mark}${displayValue(choice)} `, width);
       const painted = index === menu.index ? theme.highlight(text) : theme.panel(text);
       output[target] = overlaySpan(output[target] ?? "", column, column + width, painted);
     });
@@ -522,6 +545,12 @@ function centered(painted: string, raw: string, width: number): string {
 
 function isStepper(entry: OwnedUiSettingsEntry): boolean {
   return typeof entry.value === "number" && entry.editable;
+}
+
+/** Booleans read as yes and no; everything else prints as itself. */
+function displayValue(value: OwnedUiSettingValue): string {
+  if (typeof value === "boolean") return value ? "yes" : "no";
+  return String(value);
 }
 
 function describeRaw(value: unknown): string {
