@@ -1,5 +1,6 @@
 import type { SettingsManager } from "@earendil-works/pi-coding-agent";
-import type { AgentJsonValue, AgentSettingDescriptor, AgentSettingsPort } from "../agent-engine-contracts/index.js";
+import type { AgentJsonValue, AgentSettingDescriptor, AgentSettingFlag, AgentSettingsPort } from "../agent-engine-contracts/index.js";
+import piSettingsMetadata from "./pi-settings-metadata.json" with { type: "json" };
 
 type Operation = { readonly descriptor: AgentSettingDescriptor; readonly read: () => AgentJsonValue; readonly write: (value: AgentJsonValue) => void };
 
@@ -13,57 +14,16 @@ export const EXPOSED_SETTING_KEYS = Object.freeze([
 
 
 /**
- * Labels and descriptions as the pinned engine words them, so an owned screen
- * reads the same as the vanilla settings route rather than inventing its own
- * phrasing from the key. Recorded in docs/architecture/ui-reference-provenance.md.
+ * How the engine presents these settings — wording, order, and the flags a
+ * dialog-backed setting offers — generated from its own source by
+ * `npm run update:pi-settings-metadata` and verified by a governance test, so a
+ * Pi upgrade cannot silently reword or reorder what A1 shows.
  */
-const SETTING_LABELS: Readonly<Record<string, { readonly label: string; readonly description: string }>> = Object.freeze({
-  autoCompact: { label: "Auto-compact", description: "Automatically compact context when it gets too large" },
-  showImages: { label: "Show images", description: "Render images inline in terminal" },
-  imageWidthCells: { label: "Image width", description: "Preferred inline image width in terminal cells" },
-  autoResizeImages: { label: "Auto-resize images", description: "Resize large images for better model compatibility" },
-  blockImages: { label: "Block images", description: "Prevent images from being sent to LLM providers" },
-  enableSkillCommands: { label: "Skill commands", description: "Register skills as /skill:name commands" },
-  steeringMode: { label: "Steering mode", description: "How Enter queues steering messages while streaming" },
-  followUpMode: { label: "Follow-up mode", description: "How follow-up messages are queued" },
-  transport: { label: "Transport", description: "Preferred transport for providers that support several" },
-  httpIdleTimeoutMs: { label: "HTTP idle timeout", description: "Maximum idle gap while waiting for HTTP headers or body chunks" },
-  thinkingLevel: { label: "Thinking level", description: "Reasoning depth for thinking-capable models" },
-  theme: { label: "Theme", description: "Color theme for the interface" },
-  hideThinkingBlock: { label: "Hide thinking", description: "Hide thinking blocks in assistant responses" },
-  mermaidRenderingMode: { label: "Mermaid diagrams", description: "Render Mermaid code blocks as Unicode diagrams" },
-  showCacheMissNotices: { label: "Cache miss notices", description: "Show transcript notices for significant prompt-cache misses" },
-  collapseChangelog: { label: "Collapse changelog", description: "Show condensed changelog after updates" },
-  enableInstallTelemetry: { label: "Install telemetry", description: "Send an anonymous version ping after changelog detection" },
-  quietStartup: { label: "Quiet startup", description: "Disable verbose printing at startup" },
-  defaultProjectTrust: { label: "Default project trust", description: "Fallback when no saved trust decision applies" },
-  doubleEscapeAction: { label: "Double-escape action", description: "Action when pressing Escape twice with an empty editor" },
-  treeFilterMode: { label: "Tree filter mode", description: "Default filter when opening /tree" },
-  showHardwareCursor: { label: "Show hardware cursor", description: "Show the terminal cursor while positioning it for IME" },
-  editorPaddingX: { label: "Editor padding", description: "Horizontal padding for the input editor (0-3)" },
-  outputPad: { label: "Output padding", description: "Horizontal padding for messages and thinking" },
-  autocompleteMaxVisible: { label: "Autocomplete max items", description: "Max visible items in the autocomplete dropdown (3-20)" },
-  clearOnShrink: { label: "Clear on shrink", description: "Clear empty rows when content shrinks (may cause flicker)" },
-  showTerminalProgress: { label: "Terminal progress", description: "Show progress indicators in the terminal tab bar" },
-  tuiMode: { label: "TUI mode", description: "Interface layout; fullscreen mode is experimental" },
-  fullscreenExitOutput: { label: "Fullscreen exit output", description: "Print the transcript or a resume hint when exiting fullscreen" },
-  fullscreenScrollbar: { label: "Fullscreen scrollbar", description: "Scrollbar behavior in fullscreen mode" },
-  warnings: { label: "Warnings", description: "Enable or disable individual warnings" },
-});
-
-/**
- * The order the pinned engine presents these settings in. It is neither the
- * declaration order nor alphabetical, so it is recorded rather than derived.
- * Keys absent here follow, in declaration order.
- */
-const SETTING_ORDER: readonly string[] = Object.freeze([
-  "autoCompact", "showImages", "imageWidthCells", "autoResizeImages", "blockImages", "enableSkillCommands",
-  "showHardwareCursor", "editorPaddingX", "outputPad", "autocompleteMaxVisible", "clearOnShrink",
-  "showTerminalProgress", "steeringMode", "followUpMode", "transport", "httpIdleTimeoutMs", "hideThinkingBlock",
-  "mermaidRenderingMode", "showCacheMissNotices", "collapseChangelog", "quietStartup", "enableInstallTelemetry",
-  "defaultProjectTrust", "doubleEscapeAction", "treeFilterMode", "warnings", "thinkingLevel", "tuiMode",
-  "fullscreenExitOutput", "fullscreenScrollbar", "theme",
-]);
+const PRESENTATION: {
+  readonly order: readonly string[];
+  readonly settings: Readonly<Record<string, { readonly label: string; readonly description: string; readonly opensDialog: boolean }>>;
+  readonly dialogs: Readonly<Record<string, readonly AgentSettingFlag[]>>;
+} = piSettingsMetadata;
 
 export class PiSettingsIntegration implements AgentSettingsPort {
   readonly capabilities = { write: true, flush: true };
@@ -76,13 +36,19 @@ export class PiSettingsIntegration implements AgentSettingsPort {
   }
   async listSettings(): Promise<readonly AgentSettingDescriptor[]> {
     const rank = (key: string): number => {
-      const at = SETTING_ORDER.indexOf(key);
-      return at < 0 ? SETTING_ORDER.length : at;
+      const at = PRESENTATION.order.indexOf(key);
+      return at < 0 ? PRESENTATION.order.length : at;
     };
     return [...this.#operations.values()]
       .map(operation => {
-        const wording = SETTING_LABELS[operation.descriptor.key];
-        return wording === undefined ? operation.descriptor : { ...operation.descriptor, ...wording };
+        const key = operation.descriptor.key;
+        const wording = PRESENTATION.settings[key];
+        const flags = PRESENTATION.dialogs[key];
+        return {
+          ...operation.descriptor,
+          ...(wording === undefined ? {} : { label: wording.label, description: wording.description }),
+          ...(flags === undefined ? {} : { flags }),
+        };
       })
       .sort((left, right) => rank(left.key) - rank(right.key));
   }

@@ -45,6 +45,19 @@ export interface AgentSettingDescriptor {
   readonly label?: string;
   /** One-line explanation the engine shows for this setting. */
   readonly description?: string;
+  /**
+   * Flags a structured setting offers. Declared by the source rather than read
+   * from the stored value, so an unset flag still has a row and a default.
+   */
+  readonly flags?: readonly AgentSettingFlag[];
+}
+
+export interface AgentSettingFlag {
+  readonly key: string;
+  readonly label: string;
+  readonly description: string;
+  /** Value to show when the stored object says nothing about this flag. */
+  readonly fallback: boolean;
 }
 
 export interface AgentResourceDescriptor {
