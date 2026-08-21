@@ -13,7 +13,7 @@ export function validateRulesetDefinition(definition) {
       if (!byType.has(type)) throw new Error(`${ruleset.name} is missing ${type}`);
     }
     const pull = byType.get("pull_request").parameters;
-    if (!(pull.required_approving_review_count >= 1) || pull.require_last_push_approval !== true || pull.required_review_thread_resolution !== true) throw new Error(`${ruleset.name} pull-request review policy is incomplete`);
+    if (pull.required_approving_review_count !== 0 || pull.require_last_push_approval !== false || pull.required_review_thread_resolution !== true) throw new Error(`${ruleset.name} solo-maintainer pull-request policy is incomplete`);
     const status = byType.get("required_status_checks").parameters;
     const contexts = status.required_status_checks?.map(check => check.context);
     if (status.strict_required_status_checks_policy !== true || status.do_not_enforce_on_create !== false || !contexts?.includes(expected.get(include[0]))) throw new Error(`${ruleset.name} required status is incomplete`);
