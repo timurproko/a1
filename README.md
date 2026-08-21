@@ -46,9 +46,7 @@ A1 control state uses `%APPDATA%\\A1` and `%LOCALAPPDATA%\\A1` on Windows, and t
 
 ### Worktree lifecycle
 
-The primary checkout at `D:\Git\a1` stays on `develop` and is integration-only. Agents never edit there and never create task branches. Every task uses a unique detached worktree beneath `D:\Git\a1\.worktrees`; sibling worktrees such as `D:\Git\a1-<name>` are forbidden.
-
-Create a task checkout from the current remote integration tip:
+The primary worktree stays on `develop` and is integration-only. Each task uses a detached worktree under the repository's ignored `.worktrees/` directory, based on current `origin/develop` unless another base is selected.
 
 ```sh
 git fetch origin --prune
@@ -56,19 +54,20 @@ git worktree add --detach .worktrees/<task-id> origin/develop
 cd .worktrees/<task-id>
 ```
 
-Validate and commit coherent changes in that detached worktree. After validation, serialize integration in the primary checkout: fast-forward `develop`, cherry-pick the validated commit or commits, run any required integration gate, and push. Only after those commits are reachable from `develop` may the task worktree be removed:
+Commit and validate coherent work there. Because `develop` is protected, push the detached commit to one temporary remote branch and merge one pull request for the requested change. After merge, update the primary worktree and remove the task worktree only when its commits are reachable from `develop`:
 
 ```sh
-git -C D:/Git/a1 pull --ff-only origin develop
-git -C D:/Git/a1 cherry-pick <validated-commit>
-git -C D:/Git/a1 push origin develop
-git -C D:/Git/a1 worktree remove .worktrees/<task-id>
-git -C D:/Git/a1 worktree prune
+git push origin HEAD:refs/heads/<task-id>
+gh pr create --base develop --head <task-id>
+# After the pull request is merged:
+cd <repository-root>
+git fetch origin --prune
+git merge --ff-only origin/develop
+git worktree remove .worktrees/<task-id>
+git worktree prune
 ```
 
-Do not remove a detached worktree before integration; its commits otherwise have no branch reference. `npm run branches:prune` remains available only for safe cleanup of historical branches: it defaults to a dry run, protects `develop`, `master`, and unmerged tips, uses `git branch -d`, and never force-deletes.
-
-Local package archives and ad hoc test builds belong under `D:\Git\a1\.builds`, never in the repository root. For manual package tests, use:
+Local package archives and ad hoc test builds belong under `.builds/`, never in the repository root. For manual package tests, use:
 
 ```sh
 mkdir -p .builds

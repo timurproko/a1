@@ -14,6 +14,7 @@ interface ImpactRule {
 interface ImpactManifest {
   schema: string;
   mandatory: string[];
+  planningOnly: { patterns: string[]; selected: string[] };
   rules: ImpactRule[];
 }
 
@@ -45,6 +46,7 @@ describe("validation impact manifest", () => {
 
     expect(manifest.schema).toBe("a1-validation-impact-v1");
     expect(manifest.mandatory).toEqual(["invariants", "fast"]);
+    expect(manifest.planningOnly).toEqual({ patterns: ["openspec/**"], selected: ["planning"] });
     for (const [path, owner, scopes] of representatives) {
       const rule = matchingRules(manifest, path).find(candidate => candidate.owner === owner);
       expect(rule, path).toBeDefined();
@@ -68,7 +70,7 @@ describe("validation impact manifest", () => {
       readFile("config/validation-suites.json", "utf8").then(value => JSON.parse(value) as { tiers: Record<string, unknown>; scopes: Record<string, unknown> }),
     ]);
     const declared = new Set([...Object.keys(suites.tiers), ...Object.keys(suites.scopes)]);
-    const references = [...impact.mandatory, ...impact.rules.flatMap(rule => rule.scopes)];
+    const references = [...impact.mandatory, ...impact.planningOnly.selected, ...impact.rules.flatMap(rule => rule.scopes)];
     expect(references.filter(reference => !declared.has(reference))).toEqual([]);
     expect(impact.rules.filter(rule => rule.selectChangedTests)).toEqual([
       expect.objectContaining({ id: "test-self-selection", patterns: ["test/**/*.test.ts"] }),
