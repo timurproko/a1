@@ -356,21 +356,31 @@ export function createPiShellReloadBox(): PiShellComponentPort {
   return componentPort(container);
 }
 
+export interface PiShellAuthProviderOption extends PiShellSelectorOption {
+  readonly providerId: string;
+  readonly authType: "oauth" | "api_key";
+  readonly status?: {
+    readonly type: "oauth" | "api_key";
+    readonly source?: string;
+  };
+}
+
 export function createPiShellAuthProviderSelector(
   mode: "login" | "logout",
-  providers: readonly PiShellSelectorOption[],
+  providers: readonly PiShellAuthProviderOption[],
   onSelect: (id: string) => void,
   onCancel: () => void,
 ): PiShellComponentPort {
   ensureTheme();
-  const selector = new OAuthSelectorComponent(mode, providers.map(provider => {
-    const [authType, providerId] = provider.id.includes(":") ? provider.id.split(":", 2) : ["oauth", provider.id];
-    return {
-      id: providerId!,
-      name: provider.label,
-      authType: authType === "api_key" ? "api_key" as const : "oauth" as const,
-    };
-  }), (providerId, authType) => onSelect(`${authType}:${providerId}`), onCancel);
+  const selector = new OAuthSelectorComponent(mode, providers.map(provider => ({
+    id: provider.providerId,
+    name: provider.label,
+    authType: provider.authType,
+    ...(provider.status === undefined ? {} : { status: provider.status }),
+  })), (providerId, authType) => {
+    const selected = providers.find(provider => provider.providerId === providerId && provider.authType === authType);
+    if (selected) onSelect(selected.id);
+  }, onCancel);
   return componentPort(selector);
 }
 
