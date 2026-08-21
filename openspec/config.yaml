@@ -28,6 +28,7 @@ operations:
   apply:
     guidance:
       - Before editing, verify the current checkout is a dedicated detached worktree beneath D:/Git/a1/.worktrees and is based on current origin/develop unless the user selected another base.
+      - Treat an `ON HOLD — USER-CONTROLLED RESUME ONLY` marker in a change artifact as a hard apply stop; prerequisite completion, automation, or agent inference never lifts it without the user's explicit instruction to resume that named change.
       - Never edit in the primary checkout, create a sibling worktree, switch the primary checkout branch, or implement directly on master.
       - Keep local package archives and ad hoc test builds beneath D:/Git/a1/.builds; pass --pack-destination .builds to manual npm pack commands.
       - Run targeted validation before marking a task complete.
