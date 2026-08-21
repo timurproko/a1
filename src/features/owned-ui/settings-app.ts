@@ -18,6 +18,7 @@ import {
   padToWidth,
   rowKey,
   scrollForSelection,
+  overlaySpan,
   scrollbarGeometry,
   selectableIndexes,
   truncateToWidth,
@@ -173,7 +174,7 @@ export class SettingsApp implements UiApp {
     const withRail = body.slice(0, bodyHeight).map((line, offset) => {
       const cell = offset < SCROLLBAR_TOP_INSET || geometry === null
         ? " "
-        : isThumbRow(geometry, offset - SCROLLBAR_TOP_INSET) ? theme.fg("border", "█") : theme.fg("muted", "│");
+        : isThumbRow(geometry, offset - SCROLLBAR_TOP_INSET) ? theme.fg("accent", "│") : theme.fg("dim", "│");
       return `${padVisible(line, contentWidth)} ${cell}`;
     });
     return this.#withMenu([...withRail, ...footer], selected, layout, valueColumn, theme, rect);
@@ -481,7 +482,7 @@ export class SettingsApp implements UiApp {
       const mark = choice === menu.entry.value ? "✓ " : "  ";
       const text = padToWidth(`${mark}${String(choice)} `, width);
       const painted = index === menu.index ? theme.highlight(text) : theme.panel(text);
-      output[target] = overlayAt(output[target] ?? "", painted, text, column, rect.width);
+      output[target] = overlaySpan(output[target] ?? "", column, column + width, painted);
     });
     return output;
   }
@@ -518,18 +519,6 @@ function centered(painted: string, raw: string, width: number): string {
   return `${" ".repeat(Math.max(0, Math.floor((width - displayWidth(raw)) / 2)))}${painted}`;
 }
 
-/** Writes an overlay over a rendered row at a visible column. */
-function overlayAt(base: string, painted: string, raw: string, column: number, width: number): string {
-  const plain = stripStyling(base);
-  const head = plain.slice(0, column).padEnd(column, " ");
-  const covered = column + displayWidth(raw);
-  const tail = " ".repeat(Math.max(0, width - covered));
-  return truncateToWidth(`${head}${painted}${tail}`, width);
-}
-
-function stripStyling(text: string): string {
-  return text.replace(/\[[0-9;:?]*[ -/]*[@-~]/g, "");
-}
 
 function isStepper(entry: OwnedUiSettingsEntry): boolean {
   return typeof entry.value === "number" && entry.editable;

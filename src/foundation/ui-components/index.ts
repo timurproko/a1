@@ -7,5 +7,6 @@ export * from "./pane.js";
 export * from "./revision.js";
 export * from "./scrollbar.js";
 export * from "./shortcuts.js";
+export * from "./spans.js";
 export * from "./text.js";
 export * from "./theme.js";
