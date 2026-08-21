@@ -60,7 +60,7 @@
     {
       "id": "package-surface",
       "owner": "package-release",
-      "patterns": ["package.json", "package-lock.json", "bin/**", "src/product-identity.*", "src/product-identity.json", "test/product-identity/**"],
+      "patterns": ["package.json", "package-lock.json", "bin/**", "src/product-identity.*", "src/product-identity.json", "test/product-identity/**", "test/foundation/release/package-surface.integration.test.ts"],
       "scopes": ["package-install", "dependency-policy"],
       "packageSensitive": true
     },
