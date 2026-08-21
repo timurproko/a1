@@ -41,7 +41,7 @@ afterEach(async () => {
 describe("bounded development branch lifecycle", () => {
   it("documents branch creation, integration, preview, and safe local and remote cleanup", async () => {
     const readme = await readFile(resolve("README.md"), "utf8");
-    expect(readme).toContain("Create every topic or milestone branch from `develop`");
+    expect(readme).toContain("Create every topic branch and every `milestone/<name>` work branch from `develop`");
     expect(readme).toContain("Merge it into `develop` and push the merged `develop` commit");
     expect(readme).toContain("Switch to `develop`");
     expect(readme).toContain("npm run branches:prune -- --branch <source>");

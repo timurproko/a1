@@ -8,7 +8,7 @@
 
 - [x] 2.1 Document the required branch lifecycle: branch from `develop`, validate, merge, push, switch to the integration branch, preview cleanup, safely delete the local source branch, then delete its non-protected remote counterpart when present.
 - [x] 2.2 Add deterministic governance tests proving `develop`, `master`, the checked-out branch, and unmerged branches cannot enter the deletion set and proving force deletion is never used.
-- [ ] 2.3 Update affected repository governance inventories or allowlists only when deterministic checks require it, then run typecheck, architecture checks, and focused branch-governance tests.
+- [x] 2.3 Update affected repository governance inventories or allowlists only when deterministic checks require it, then run typecheck, architecture checks, and focused branch-governance tests.
 
 ## 3. Existing branch reconciliation and certification
 

@@ -46,7 +46,7 @@ A1 control state uses `%APPDATA%\\A1` and `%LOCALAPPDATA%\\A1` on Windows, and t
 
 ### Branch lifecycle
 
-Create every topic or milestone branch from `develop`; never implement directly on `develop` or `master`. A source branch is closed only after this sequence completes:
+Create every topic branch and every `milestone/<name>` work branch from `develop`; never implement directly on `develop` or `master`. A source branch is closed only after this sequence completes:
 
 1. Validate the source branch with its required gates.
 2. Merge it into `develop` and push the merged `develop` commit.
