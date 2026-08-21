@@ -7,12 +7,6 @@ on:
   push:
     branches: [develop]
   workflow_dispatch:
-    inputs:
-      full:
-        description: Widen this run to complete non-physical validation
-        required: false
-        default: false
-        type: boolean
 
 permissions:
   contents: read
@@ -22,64 +16,75 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  impact:
-    name: Plan validation impact
+  changes:
+    name: Detect change surface
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
-    runs-on: windows-2025
-    timeout-minutes: 10
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
     outputs:
-      selected: ${{ steps.impact.outputs.selected }}
-      full: ${{ steps.impact.outputs.full }}
-      package-sensitive: ${{ steps.impact.outputs.package_sensitive }}
+      docs-only: ${{ steps.diff.outputs.docs_only }}
     steps:
-      - name: Preserve repository bytes during checkout
-        shell: bash
-        run: git config --global core.autocrlf false
-
-      - name: Check out validation head
+      - name: Check out head
         uses: actions/checkout@v5
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Select trusted change impact
-        id: impact
+      - name: Classify changed paths
+        id: diff
         shell: bash
         env:
           EVENT_NAME: ${{ github.event_name }}
           EVENT_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
           EVENT_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-          REQUEST_FULL: ${{ inputs.full || false }}
         run: |
           set -euo pipefail
           head_sha="$(git rev-parse "$EVENT_HEAD_SHA")"
           if [ "$EVENT_NAME" = "pull_request" ]; then
             base_sha="$(git merge-base "$EVENT_BASE_SHA" "$head_sha")"
-          elif [ "$EVENT_NAME" = "push" ] && [[ "$EVENT_BASE_SHA" =~ ^[a-f0-9]{40}$ ]] && [ "$EVENT_BASE_SHA" != "0000000000000000000000000000000000000000" ]; then
+          elif [[ "$EVENT_BASE_SHA" =~ ^[a-f0-9]{40}$ ]] && [ "$EVENT_BASE_SHA" != "0000000000000000000000000000000000000000" ] && git cat-file -e "$EVENT_BASE_SHA^{commit}" 2>/dev/null; then
             base_sha="$EVENT_BASE_SHA"
           else
             base_sha="$(git rev-parse "$head_sha^")"
           fi
-          arguments=(--base "$base_sha" --head "$head_sha" --output artifacts/validation/impact.json --github-output "$GITHUB_OUTPUT")
-          if [ "$REQUEST_FULL" = "true" ]; then arguments+=(--full); fi
-          node scripts/select-validation-impact.mjs "${arguments[@]}"
+          docs_only=true
+          while IFS= read -r path; do
+            case "$path" in
+              docs/*|openspec/*|*.md|LICENSE|.gitignore) ;;
+              *) docs_only=false; break ;;
+            esac
+          done < <(git diff --name-only "$base_sha" "$head_sha")
+          echo "docs_only=$docs_only" >> "$GITHUB_OUTPUT"
+          echo "Docs-only change: $docs_only" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Upload impact evidence
-        uses: actions/upload-artifact@v6
+  docs:
+    name: OpenSpec validation
+    needs: changes
+    if: needs.changes.outputs.docs-only == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out head
+        uses: actions/checkout@v5
         with:
-          name: validation-impact-${{ github.run_id }}-${{ github.run_attempt }}
-          path: artifacts/validation/impact.json
-          if-no-files-found: error
-          retention-days: 14
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - name: Validate OpenSpec artifacts strictly
+        run: npx --yes @fission-ai/openspec@1.8.0 validate --all --strict --no-interactive
 
   validate:
-    name: Execute selected validation
-    needs: impact
+    name: Fast validation
+    needs: changes
+    if: needs.changes.outputs.docs-only != 'true'
     runs-on: windows-2025
-    timeout-minutes: 30
-    env:
-      VALIDATION_SELECTION_JSON: ${{ needs.impact.outputs.selected }}
+    timeout-minutes: 25
     steps:
       - name: Preserve repository bytes during checkout
         shell: bash
@@ -89,7 +94,6 @@ jobs:
         uses: actions/checkout@v5
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          fetch-depth: 0
           persist-credentials: false
 
       - name: Set up Node
@@ -101,14 +105,13 @@ jobs:
       - name: Install exact dependencies
         run: npm ci
 
-      - name: Execute selected tiers
+      - name: Run fast tier and architecture checks
         shell: bash
         env:
-          VALIDATION_BUILD_READY: "1"
           A1_CONFIG_DIR: ${{ runner.temp }}\a1-ci-config
           A1_DATA_DIR: ${{ runner.temp }}\a1-ci-data
           A1_RUNTIME_DIR: ${{ runner.temp }}\a1-ci-runtime
-        run: node scripts/run-validation-tier.mjs --result artifacts/validation/outcomes.json
+        run: node scripts/run-validation-tier.mjs typecheck architecture fast --result artifacts/validation/outcomes.json
 
       - name: Add timing summary
         if: always()
@@ -125,33 +128,25 @@ jobs:
           NODE
           fi
 
-      - name: Upload validation outcomes
-        if: always()
-        uses: actions/upload-artifact@v6
-        with:
-          name: validation-outcomes-${{ github.run_id }}-${{ github.run_attempt }}
-          path: |
-            artifacts/validation/outcomes.json
-            artifacts/release-verdicts/*.json
-          if-no-files-found: warn
-          retention-days: 14
-
   required:
     name: Development validation required
     if: always() && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
-    needs: [impact, validate]
+    needs: [changes, docs, validate]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - name: Check out validation policy
-        uses: actions/checkout@v5
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          persist-credentials: false
-
-      - name: Require a non-empty successful validation
+      - name: Require the validation matching the change surface
         env:
-          IMPACT_JOB_RESULT: ${{ needs.impact.result }}
-          VALIDATION_JOB_RESULT: ${{ needs.validate.result }}
-          SELECTED_VALIDATION_JSON: ${{ needs.impact.outputs.selected }}
-        run: node scripts/check-development-validation.mjs
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          DOCS_RESULT: ${{ needs.docs.result }}
+          VALIDATE_RESULT: ${{ needs.validate.result }}
+          DOCS_ONLY: ${{ needs.changes.outputs.docs-only }}
+        run: |
+          set -euo pipefail
+          test "$CHANGES_RESULT" = "success"
+          if [ "$DOCS_ONLY" = "true" ]; then
+            echo "Docs-only change: OpenSpec validation only."
+            test "$DOCS_RESULT" = "success"
+          else
+            test "$VALIDATE_RESULT" = "success"
+          fi
