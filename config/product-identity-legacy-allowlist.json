@@ -1,6 +1,6 @@
 {
   "schema": "a1-legacy-identity-allowlist-v1",
-  "generatedAt": "2026-08-21T09:40:23.275Z",
+  "generatedAt": "2026-08-21T12:48:55.762Z",
   "inventorySchema": "a1-legacy-identity-inventory-v1",
   "occurrences": [
     {
@@ -160,51 +160,51 @@
       "reason": "explicit obsolete-package rejection or deprecation fixture"
     },
     {
-      "id": "test/features/launch/development-launch.test.ts:21:50",
+      "id": "test/features/launch/development-launch.test.ts:23:50",
       "value": "addone",
-      "fingerprint": "557096c12e53c40e00cd38a7b33f6a8ed3de16f502ff500cf43d0452534fed38",
-      "reason": "explicit legacy rejection fixture"
-    },
-    {
-      "id": "test/features/launch/development-launch.test.ts:43:7",
-      "value": "ADDONE",
-      "fingerprint": "9b3bd7e075de5e7d6955f89cc2e1160ab5adb1164bf0738723e5e6c16f2e1f4f",
-      "reason": "explicit legacy rejection fixture"
-    },
-    {
-      "id": "test/features/launch/development-launch.test.ts:44:7",
-      "value": "ADDONE",
-      "fingerprint": "db1e5b434edf1c18a413c1e0f3ebc759a150f6875c236875585d23035fc8d3d9",
+      "fingerprint": "30c817627bf6dc466f6b947c32f3df3673bfcbb47cd9da33539763169744c337",
       "reason": "explicit legacy rejection fixture"
     },
     {
       "id": "test/features/launch/development-launch.test.ts:45:7",
       "value": "ADDONE",
-      "fingerprint": "4f803c4c1b23d142dc7ade21f78fb2e528e384fd9531212e4cbce41845093fe3",
+      "fingerprint": "44c2d4b8e737ca630daa5c421607cb19e073d36968cdb068cfd9da039ec1d4e2",
       "reason": "explicit legacy rejection fixture"
     },
     {
       "id": "test/features/launch/development-launch.test.ts:46:7",
       "value": "ADDONE",
-      "fingerprint": "7b76b393913855d5239c99eb6242b8a139b9a29a4c2a00fc7a2f36c7994fd274",
+      "fingerprint": "6fd77982b91533c6653294c592f88947c2ea5924862c8a9ef9d6c4265bf42f32",
       "reason": "explicit legacy rejection fixture"
     },
     {
       "id": "test/features/launch/development-launch.test.ts:47:7",
       "value": "ADDONE",
-      "fingerprint": "e0ecfb1f11fdabbe92adc68f47348f8f4dbde40c167f8f0bddeb321f7c3dbe40",
+      "fingerprint": "bf1ba13184e129544ae436fa30c47dade7064f4d1bc21cd598fd41e269a5fc28",
       "reason": "explicit legacy rejection fixture"
     },
     {
       "id": "test/features/launch/development-launch.test.ts:48:7",
       "value": "ADDONE",
-      "fingerprint": "4ac20d41d5c9d94efdbe9e442a0a8a9741368946192e9cb041ffc801e76be6e5",
+      "fingerprint": "da05dc560bc934e40386abeb2a5a42ef211dfb7c52c8e0eca3b6eedb8eed685f",
       "reason": "explicit legacy rejection fixture"
     },
     {
       "id": "test/features/launch/development-launch.test.ts:49:7",
       "value": "ADDONE",
-      "fingerprint": "b5af6c8d5e9306979f9f5c3827a001cc4f6a965b5ccb81c0abab67224a2b5e37",
+      "fingerprint": "3f7bf9b7c70e5968ff25c030babff991d4f0ced85615adf3a7d47070b68b5c1a",
+      "reason": "explicit legacy rejection fixture"
+    },
+    {
+      "id": "test/features/launch/development-launch.test.ts:50:7",
+      "value": "ADDONE",
+      "fingerprint": "59d29ae066279ad88cafdfb7c01ec20c9d373cdfa7703ac472ef39aca2e086a9",
+      "reason": "explicit legacy rejection fixture"
+    },
+    {
+      "id": "test/features/launch/development-launch.test.ts:51:7",
+      "value": "ADDONE",
+      "fingerprint": "59ffc0efb3c65aabd9a4d84ef7f84c3d96be7c4b35f1f32499061ce4911c8e01",
       "reason": "explicit legacy rejection fixture"
     },
     {

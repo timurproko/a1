@@ -16,18 +16,21 @@ const { checkoutId, instanceId, developmentRoot, environment } = resolveDevelopm
 );
 
 const launchArguments = process.argv.slice(2);
+const inspectedArguments = launchArguments[0] === "--print-environment" ? launchArguments.slice(1) : launchArguments;
+const directProfile = directLaunchProfile(inspectedArguments);
+const prepared = directProfile === null ? null : await prepareDirectProfile(directProfile, environment);
+const childEnvironment = prepared === null ? environment : { ...prepared.environment, A1_LAUNCH_PROFILE: directProfile };
+
 if (launchArguments[0] === "--print-environment") {
-  const inspectedArguments = launchArguments.slice(1);
-  process.stdout.write(`${JSON.stringify({ checkoutId, instanceId, releaseId: release.releaseId, developmentRoot, launchArguments: inspectedArguments, directProfile: directLaunchProfile(inspectedArguments), environment: {
-    A1_CONFIG_DIR: environment.A1_CONFIG_DIR,
-    A1_DATA_DIR: environment.A1_DATA_DIR,
-    A1_RUNTIME_DIR: environment.A1_RUNTIME_DIR,
-    A1_DATABASE_PATH: environment.A1_DATABASE_PATH,
+  process.stdout.write(`${JSON.stringify({ checkoutId, instanceId, releaseId: release.releaseId, developmentRoot, launchArguments: inspectedArguments, directProfile, profileConfigurationRoot: prepared?.configurationRoot ?? null, environment: {
+    A1_CONFIG_DIR: childEnvironment.A1_CONFIG_DIR,
+    A1_DATA_DIR: childEnvironment.A1_DATA_DIR,
+    A1_RUNTIME_DIR: childEnvironment.A1_RUNTIME_DIR,
+    A1_DATABASE_PATH: childEnvironment.A1_DATABASE_PATH,
+    PI_CODING_AGENT_DIR: childEnvironment.PI_CODING_AGENT_DIR ?? null,
   } }, null, 2)}\n`);
 } else {
-  const directProfile = directLaunchProfile(launchArguments);
   const entry = directProfile === null ? identity.artifacts.cliEntry : identity.artifacts.uiEntry;
-  const childEnvironment = directProfile === null ? environment : { ...environment, A1_LAUNCH_PROFILE: directProfile };
   const childArguments = directProfile === null ? launchArguments : [];
   const child = spawn(process.execPath, [resolve(packageRoot, entry), ...childArguments], {
     cwd: process.cwd(),
@@ -48,6 +51,11 @@ function directLaunchProfile(arguments_) {
   if (arguments_.length === 0) return "a1";
   if (arguments_.length === 1 && (arguments_[0] === "pi" || arguments_[0] === "sandbox")) return arguments_[0];
   return null;
+}
+
+async function prepareDirectProfile(profileId, sourceEnvironment) {
+  const { interactiveLaunchIntent, prepareInteractiveLaunch } = await import("../dist/src/features/launch/index.js");
+  return await prepareInteractiveLaunch(interactiveLaunchIntent(profileId), sourceEnvironment);
 }
 
 async function deriveDevelopmentReleaseIdentity(root) {
