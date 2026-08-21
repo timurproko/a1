@@ -100,6 +100,7 @@ export class StructuredWorkspaceTabs {
   readonly #limits: StructuredWorkspaceLimits;
   readonly #now: () => string;
   readonly #tabs = new Map<string, MutableStructuredTab>();
+  readonly #listeners = new Set<(view: StructuredWorkspaceTabsView) => void>();
   #disposed = false;
 
   constructor(options: StructuredWorkspaceTabsOptions) {
@@ -110,6 +111,12 @@ export class StructuredWorkspaceTabs {
     this.#limits = validateLimits({ ...DEFAULT_LIMITS, ...options.limits });
     this.#now = options.now ?? (() => new Date().toISOString());
     this.router = new WorkspaceRouter(new WorkspaceReducer(options.workspaceId ?? "workspace-default"));
+  }
+
+  subscribe(listener: (view: StructuredWorkspaceTabsView) => void): () => void {
+    this.#listeners.add(listener);
+    listener(this.view());
+    return () => this.#listeners.delete(listener);
   }
 
   async createAgent(input: { readonly id: string; readonly displayName: string; readonly sessionId?: string }): Promise<StructuredWorkspaceTabsResult<StructuredAgentTabView>> {
@@ -158,6 +165,7 @@ export class StructuredWorkspaceTabs {
     tab.unsubscribe = tab.session.subscribe(event => this.#queueEvent(tab, event));
     this.#tabs.set(input.id, tab);
     await this.#reflectLifecycle(tab, runtime.snapshot.lifecycle, null);
+    this.#notify();
     return applied(this.view(), this.#tabView(tab));
   }
 
@@ -165,7 +173,9 @@ export class StructuredWorkspaceTabs {
     const selected = await this.router.selectAgent(agentId);
     if (selected.kind === "rejected") return selected;
     const tab = this.#tabs.get(agentId);
-    return tab ? applied(this.view(), this.#tabView(tab)) : rejected("missing-runtime", `structured runtime is missing for ${agentId}`);
+    if (!tab) return rejected("missing-runtime", `structured runtime is missing for ${agentId}`);
+    this.#notify();
+    return applied(this.view(), this.#tabView(tab));
   }
 
   setEditorText(agentId: string, text: string): StructuredWorkspaceTabsResult<StructuredAgentTabView> {
@@ -175,6 +185,7 @@ export class StructuredWorkspaceTabs {
       return rejected("editor-limit", `structured editor exceeds ${this.#limits.maxEditorBytes} bytes`);
     }
     tab.editorText = text;
+    this.#notify();
     return applied(this.view(), this.#tabView(tab));
   }
 
@@ -214,6 +225,7 @@ export class StructuredWorkspaceTabs {
       tab.activeCommandIds.delete(correlationId);
       await this.router.settleStructuredCommand(agentId, correlationId, outcome === "completed" ? "completed" : "failed");
     }
+    this.#notify();
     return applied(this.view(), { correlationId, outcome });
   }
 
@@ -230,7 +242,9 @@ export class StructuredWorkspaceTabs {
     tab.lifecycle = "stopped";
     tab.activeCommandIds.clear();
     const stopped = await this.router.stopAgent(agentId);
-    return stopped.kind === "rejected" ? stopped : applied(this.view(), this.#tabView(tab));
+    if (stopped.kind === "rejected") return stopped;
+    this.#notify();
+    return applied(this.view(), this.#tabView(tab));
   }
 
   async restartAgent(agentId: string): Promise<StructuredWorkspaceTabsResult<StructuredAgentTabView>> {
@@ -251,6 +265,7 @@ export class StructuredWorkspaceTabs {
       tab.eventTail = Promise.resolve();
       tab.unsubscribe = tab.session.subscribe(event => this.#queueEvent(tab, event));
       await this.#reflectLifecycle(tab, runtime.snapshot.lifecycle, null);
+      this.#notify();
       return applied(this.view(), this.#tabView(tab));
     } catch (error) {
       await this.#failTab(tab, "restart-failed", diagnostic(error));
@@ -271,6 +286,7 @@ export class StructuredWorkspaceTabs {
       tab.lastSequence = snapshot.sequence;
       tab.failure = null;
       await this.#reflectLifecycle(tab, snapshot.lifecycle, null);
+      this.#notify();
       return applied(this.view(), this.#tabView(tab));
     } catch (error) {
       await this.#failTab(tab, "snapshot-failed", diagnostic(error));
@@ -286,6 +302,7 @@ export class StructuredWorkspaceTabs {
     tab.unsubscribe();
     await disposeRuntime(tab.session, tab.engine).catch(() => undefined);
     this.#tabs.delete(agentId);
+    this.#notify();
     return applied(this.view(), agentId);
   }
 
@@ -331,6 +348,7 @@ export class StructuredWorkspaceTabs {
       await disposeRuntime(tab.session, tab.engine).catch(error => failures.push(error));
     }
     this.#tabs.clear();
+    this.#listeners.clear();
     if (failures.length > 0) throw new AggregateError(failures, "structured workspace disposal failed");
   }
 
@@ -351,7 +369,10 @@ export class StructuredWorkspaceTabs {
   }
 
   #queueEvent(tab: MutableStructuredTab, event: AgentEvent): void {
-    tab.eventTail = tab.eventTail.then(() => this.#applyEvent(tab, event)).catch(error => this.#failTab(tab, "event-failed", diagnostic(error)));
+    tab.eventTail = tab.eventTail
+      .then(() => this.#applyEvent(tab, event))
+      .catch(error => this.#failTab(tab, "event-failed", diagnostic(error)))
+      .then(() => this.#notify());
   }
 
   async #applyEvent(tab: MutableStructuredTab, event: AgentEvent): Promise<void> {
@@ -412,6 +433,11 @@ export class StructuredWorkspaceTabs {
     tab.failure = `${code}: ${message}`;
     tab.activeCommandIds.clear();
     await this.router.markFailed(tab.agentId, code, message);
+  }
+
+  #notify(): void {
+    const view = this.view();
+    for (const listener of this.#listeners) listener(view);
   }
 
   #tabView(tab: MutableStructuredTab): StructuredAgentTabView {

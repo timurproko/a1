@@ -4,11 +4,11 @@ const { runSelectedInteractiveRuntime } = await import("../dist/src/features/lau
 
 runSelectedInteractiveRuntime(process.env.A1_LAUNCH_PROFILE ?? "a1", {
   ownedUi: async () => {
-    const [{ runOwnedUi }, { composeOwnedUiApplication }] = await Promise.all([
+    const [{ runOwnedUi }, { composeStructuredWorkspaceApplication }] = await Promise.all([
       import("../dist/src/features/owned-ui/index.js"),
       import("../dist/src/composition/index.js"),
     ]);
-    const application = await composeOwnedUiApplication({ cwd: process.cwd() });
+    const application = await composeStructuredWorkspaceApplication({ cwd: process.cwd() });
     return await runOwnedUi({ application });
   },
   transparent: async profileId => {

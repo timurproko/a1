@@ -28,6 +28,8 @@ import {
   StructuredWorkspaceTabs,
   type StructuredWorkspaceLimits,
 } from "../features/workspace/index.js";
+import { StructuredWorkspaceApplication } from "./structured-workspace-application.js";
+export * from "./structured-workspace-application.js";
 
 const CAPABILITIES: AgentCapabilityContract = {
   contractVersion: AGENT_ENGINE_CONTRACT_VERSION,
@@ -89,6 +91,31 @@ export function composeStructuredWorkspace(options: StructuredWorkspaceCompositi
     createEngine,
     ...(options.workspaceId === undefined ? {} : { workspaceId: options.workspaceId }),
     ...(options.limits === undefined ? {} : { limits: options.limits }),
+  });
+}
+
+export interface StructuredWorkspaceApplicationCompositionOptions extends StructuredWorkspaceCompositionOptions {
+  readonly terminal?: PresentationTerminalPort;
+  readonly mode?: "regular" | "fullscreen";
+  readonly initialAgentId?: string;
+  readonly initialAgentName?: string;
+}
+
+export async function composeStructuredWorkspaceApplication(options: StructuredWorkspaceApplicationCompositionOptions = {}): Promise<StructuredWorkspaceApplication> {
+  const workspace = composeStructuredWorkspace(options);
+  const created = await workspace.createAgent({
+    id: options.initialAgentId ?? "agent-1",
+    displayName: options.initialAgentName ?? "Agent 1",
+  });
+  if (created.kind === "rejected") {
+    await workspace.dispose();
+    throw new Error(`could not create the initial structured workspace agent: ${created.diagnostic}`);
+  }
+  return new StructuredWorkspaceApplication({
+    workspace,
+    cwd: options.cwd ?? process.cwd(),
+    ...(options.terminal === undefined ? {} : { terminal: options.terminal }),
+    ...(options.mode === undefined ? {} : { mode: options.mode }),
   });
 }
 
