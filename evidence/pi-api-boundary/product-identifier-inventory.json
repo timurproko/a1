@@ -37,27 +37,27 @@
     {
       "path": "scripts/start-local.mjs",
       "line": 22,
+      "identifier": "A1_LAUNCH_PROFILE"
+    },
+    {
+      "path": "scripts/start-local.mjs",
+      "line": 26,
       "identifier": "A1_CONFIG_DIR"
     },
     {
       "path": "scripts/start-local.mjs",
-      "line": 23,
+      "line": 27,
       "identifier": "A1_DATA_DIR"
     },
     {
       "path": "scripts/start-local.mjs",
-      "line": 24,
+      "line": 28,
       "identifier": "A1_RUNTIME_DIR"
     },
     {
       "path": "scripts/start-local.mjs",
-      "line": 25,
+      "line": 29,
       "identifier": "A1_DATABASE_PATH"
-    },
-    {
-      "path": "scripts/start-local.mjs",
-      "line": 30,
-      "identifier": "A1_LAUNCH_PROFILE"
     },
     {
       "path": "src/composition/transparent-runtime.ts",
@@ -101,78 +101,83 @@
     },
     {
       "path": "test/features/launch/development-launch.test.ts",
-      "line": 24,
+      "line": 26,
       "identifier": "A1_RUNTIME_DIR"
     },
     {
       "path": "test/features/launch/development-launch.test.ts",
-      "line": 25,
+      "line": 27,
       "identifier": "A1_DATABASE_PATH"
     },
     {
       "path": "test/features/launch/development-launch.test.ts",
-      "line": 30,
+      "line": 32,
       "identifier": "A1_DEV_INSTANCE_ID"
     },
     {
       "path": "test/features/launch/development-launch.test.ts",
-      "line": 55,
+      "line": 57,
       "identifier": "A1_CONFIG_DIR"
     },
     {
       "path": "test/features/launch/development-launch.test.ts",
-      "line": 56,
+      "line": 58,
       "identifier": "A1_DATA_DIR"
     },
     {
       "path": "test/features/launch/development-launch.test.ts",
-      "line": 57,
+      "line": 59,
       "identifier": "A1_RUNTIME_DIR"
-    },
-    {
-      "path": "test/features/launch/development-launch.test.ts",
-      "line": 64,
-      "identifier": "A1_DEV_ROOT"
-    },
-    {
-      "path": "test/features/launch/development-launch.test.ts",
-      "line": 65,
-      "identifier": "A1_CONFIG_DIR"
     },
     {
       "path": "test/features/launch/development-launch.test.ts",
       "line": 66,
-      "identifier": "A1_DATA_DIR"
+      "identifier": "A1_DEV_ROOT"
     },
     {
       "path": "test/features/launch/development-launch.test.ts",
       "line": 67,
-      "identifier": "A1_RUNTIME_DIR"
-    },
-    {
-      "path": "test/features/launch/development-launch.test.ts",
-      "line": 68,
-      "identifier": "A1_DATABASE_PATH"
-    },
-    {
-      "path": "test/features/launch/development-launch.test.ts",
-      "line": 72,
       "identifier": "A1_CONFIG_DIR"
     },
     {
       "path": "test/features/launch/development-launch.test.ts",
-      "line": 73,
+      "line": 68,
       "identifier": "A1_DATA_DIR"
     },
     {
       "path": "test/features/launch/development-launch.test.ts",
-      "line": 74,
+      "line": 69,
       "identifier": "A1_RUNTIME_DIR"
     },
     {
       "path": "test/features/launch/development-launch.test.ts",
-      "line": 75,
+      "line": 70,
       "identifier": "A1_DATABASE_PATH"
+    },
+    {
+      "path": "test/features/launch/development-launch.test.ts",
+      "line": 74,
+      "identifier": "A1_CONFIG_DIR"
+    },
+    {
+      "path": "test/features/launch/development-launch.test.ts",
+      "line": 75,
+      "identifier": "A1_DATA_DIR"
+    },
+    {
+      "path": "test/features/launch/development-launch.test.ts",
+      "line": 76,
+      "identifier": "A1_RUNTIME_DIR"
+    },
+    {
+      "path": "test/features/launch/development-launch.test.ts",
+      "line": 77,
+      "identifier": "A1_DATABASE_PATH"
+    },
+    {
+      "path": "test/features/launch/development-launch.test.ts",
+      "line": 84,
+      "identifier": "A1_PROFILE_HOME"
     },
     {
       "path": "test/features/launch/exact-pi-entry.integration.test.ts",

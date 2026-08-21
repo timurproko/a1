@@ -19,8 +19,10 @@ New-Item -ItemType Directory -Force `
 
 $SavedUserProfile = $env:USERPROFILE
 $SavedHome = $env:HOME
+$SavedA1ProfileHome = $env:A1_PROFILE_HOME
 $env:USERPROFILE = $ParityHome
 $env:HOME = $ParityHome
+$env:A1_PROFILE_HOME = $ParityHome
 ```
 
 Keep this PowerShell window open through all comparisons so both programs resolve the same disposable home.
@@ -78,6 +80,7 @@ After exiting both programs:
 ```powershell
 $env:USERPROFILE = $SavedUserProfile
 $env:HOME = $SavedHome
+$env:A1_PROFILE_HOME = $SavedA1ProfileHome
 Remove-Item -LiteralPath $ParityHome -Recurse -Force
 cd D:\Git\a1
 git worktree remove .worktrees\accept-owned-pi-parity

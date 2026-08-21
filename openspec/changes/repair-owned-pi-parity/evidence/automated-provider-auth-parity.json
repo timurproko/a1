@@ -48,5 +48,64 @@
       "isolatedRerunDurationMs": 10477,
       "finalReleaseRerunDurationMs": 10191
     }
+  },
+  "manualAcceptanceCorrection": {
+    "credentialValuesRecorded": false,
+    "finding": "direct npm-start launch skipped profile preparation and could use vanilla Pi's default profile",
+    "correctedCommit": "a7904aab24d6fc49e9a15bbf3092eeb8d9646d2d",
+    "focusedLaunchIsolationTests": { "files": 2, "tests": 8, "passed": true },
+    "containingAuthAndLaunchTests": { "files": 12, "tests": 80, "passed": true },
+    "terminalParity": {
+      "passed": true,
+      "differenceCount": 0,
+      "reportSha256": "815c1d98bacba5bdb84d1e40b04a25c892178ec6d1cf84a8a1c1d7cee4bf4b56",
+      "upstreamCheckpointsSha256": "f06b544b9507e4e48eea46087add634c71787967d05efb3f5f37a032e70e3f75",
+      "ownedCheckpointsSha256": "30db1e0292dec3cad149d968367c7ce00f6b629b532607aab5d8fa57b87c95ec"
+    },
+    "release": {
+      "passed": true,
+      "startedAt": "2026-08-21T12:51:26.846Z",
+      "completedAt": "2026-08-21T12:52:44.497Z",
+      "fullVitest": { "files": 141, "tests": 775, "passed": true },
+      "candidateSha256": "6077a247bf01729fda978401d94f93a8550d70680dcf467248efdd49211e097d",
+      "releaseVerdictSha256": "d950a8a2e88024952708204fca4d8e973f5df7b32f75a98f8f80051c23923af6"
+    },
+    "architecturePassed": true,
+    "strictOpenSpecPassed": true,
+    "auditVulnerabilities": 0,
+    "finalUserRetestPending": false
+  },
+  "oauthPromptCorrection": {
+    "credentialValuesRecorded": false,
+    "finding": "an intentionally blank GitHub Copilot enterprise-domain prompt was normalized into cancellation",
+    "correctedCommit": "756173a452d0610cfbfffe89dc7dc7476fc2fd54",
+    "focusedAuthWorkflowTests": { "files": 3, "tests": 44, "passed": true },
+    "containingOwnedUiAuthAndLaunchTests": { "files": 26, "tests": 145, "passed": true },
+    "terminalParity": {
+      "passed": true,
+      "differenceCount": 0,
+      "reportSha256": "300634e5f0a74fba34dc20f2b2c127003b17d4adb52b3ccb67149063c7bd94e3",
+      "upstreamCheckpointsSha256": "30642fb765e26e5ab9cf9f5802b6535b0f2d2843a61feb93368e251047d4852a",
+      "ownedCheckpointsSha256": "394a0703ce043d34d33cfb312f38da2b3f0119754d595289146aa0a9d76885ea"
+    },
+    "release": {
+      "passed": true,
+      "startedAt": "2026-08-21T13:15:47.683Z",
+      "completedAt": "2026-08-21T13:17:09.082Z",
+      "fullVitest": { "files": 141, "tests": 779, "passed": true },
+      "candidateSha256": "caaa0c0b848e1399836ff55088e047e8b9a4b3267b182820c5dd82b51372d9e8",
+      "releaseVerdictSha256": "faedd4b07e0428858c6484f2adc26ff27c431ea24df65be177243eb077f656da"
+    },
+    "architecturePassed": true,
+    "strictOpenSpecPassed": true,
+    "auditVulnerabilities": 0,
+    "finalUserRetestPending": false
+  },
+  "userAcceptance": {
+    "confirmed": true,
+    "confirmedAt": "2026-08-21",
+    "providerStatusAndVisibleModelsConsistent": true,
+    "oauthDeviceFlowRetestWorking": true,
+    "credentialValuesRecorded": false
   }
 }
