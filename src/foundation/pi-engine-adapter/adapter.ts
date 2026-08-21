@@ -57,7 +57,7 @@ import {
 import { createPiRuntimeIntegration } from "./runtime-integration.js";
 import { PiSessionCommandIntegration } from "./session-integration.js";
 import { PiSettingsIntegration } from "./settings-integration.js";
-import type { AgentJsonValue } from "../agent-engine-contracts/index.js";
+import type { AgentJsonValue, AgentSettingsPort } from "../agent-engine-contracts/index.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -538,6 +538,12 @@ export class PiEngineAdapter {
     } catch (error) {
       return workflowResult("model", "failed", error instanceof Error ? error.message : String(error));
     }
+  }
+
+  /** Settings port for the live runtime, or null before the runtime is available. */
+  settingsPort(): AgentSettingsPort | null {
+    const settings = this.#runtime?.services.settingsManager;
+    return settings ? new PiSettingsIntegration(settings) : null;
   }
 
   pinnedModelSelectorContext(): {
