@@ -39,16 +39,23 @@ afterEach(async () => {
 });
 
 describe("bounded development branch lifecycle", () => {
-  it("documents branch creation, integration, preview, and safe local and remote cleanup", async () => {
-    const readme = await readFile(resolve("README.md"), "utf8");
-    expect(readme).toContain("Create every topic branch and every `milestone/<name>` work branch from `develop`");
-    expect(readme).toContain("Merge it into `develop` and push the merged `develop` commit");
-    expect(readme).toContain("Switch to `develop`");
-    expect(readme).toContain("npm run branches:prune -- --branch <source>");
-    expect(readme).toContain("--apply --branch <source>");
-    expect(readme).toContain("--apply --branch <source> --remote origin");
+  it("requires detached in-repository worktrees and isolated local build outputs", async () => {
+    const [readme, config, gitignore] = await Promise.all([
+      readFile(resolve("README.md"), "utf8"),
+      readFile(resolve("openspec/config.yaml"), "utf8"),
+      readFile(resolve(".gitignore"), "utf8"),
+    ]);
+    expect(readme).toContain("The primary checkout at `D:\\Git\\a1` stays on `develop` and is integration-only");
+    expect(readme).toContain("git worktree add --detach .worktrees/<task-id> origin/develop");
+    expect(readme).toContain("git -C D:/Git/a1 cherry-pick <validated-commit>");
+    expect(readme).toContain("npm pack --ignore-scripts --pack-destination .builds");
     expect(readme).toContain("`git branch -d`");
-    expect(readme).toContain("never force deletion");
+    expect(readme).toContain("never force-deletes");
+    expect(config).toContain("Every agent task uses its own detached Git worktree under D:/Git/a1/.worktrees/<task-id>");
+    expect(config).toContain("never emit npm pack tarballs or similar build artifacts into the repository root");
+    expect(gitignore).toContain("/.worktrees/");
+    expect(gitignore).toContain("/.builds/");
+    expect(gitignore).not.toMatch(/^\*\.tgz$/m);
   });
 
   it("reports protected, merged-deletable, and unmerged branches without changing the repository", async () => {
