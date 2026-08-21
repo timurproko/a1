@@ -25,7 +25,7 @@
 
 ## 5. Full Regression and Stable Certification
 
-- [ ] 5.1 Add scheduled and manually dispatchable full-regression automation that runs the deduplicated complete non-physical suite, clean package installation, and per-scope timing/outcome evidence; validate schedule/manual triggers and failure ownership reporting.
+- [x] 5.1 Add scheduled and manually dispatchable full-regression automation that runs the deduplicated complete non-physical suite, clean package installation, and per-scope timing/outcome evidence; validate schedule/manual triggers and failure ownership reporting.
 - [ ] 5.2 Generalize stable release validation and evidence to derive package version, matching `v<version>` tag, package identity, and registry target without hardcoded `0.1.0`; validate compatible patch/minor/major examples and reject prerelease, mismatched tag, dirty source, changed tree, and published-version cases.
 - [ ] 5.3 Add stable candidate coordination that packs the final-version artifact once and fans the verified digest to Windows, Linux, and macOS full automated/clean-install jobs while aggregating required independent physical evidence; validate matrix completeness and fail-closed missing/failed platform or physical verdicts.
 - [ ] 5.4 Convert stable publication to consume only the exact successful stable candidate artifact from the release-ready master/tag state, preserving npm approval, provenance, registry preflight, and post-publication verification; validate a no-publish dry run and governance assertions that the publisher performs no build or tests.
