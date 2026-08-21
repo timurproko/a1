@@ -1,4 +1,13 @@
-> **ON HOLD — USER-CONTROLLED RESUME ONLY.** Preserve completed work, but do not execute any unchecked task in this change until the user explicitly says to resume multi-agent work. Completion of `repair-owned-pi-parity` or `customize-owned-pi-experience` does not lift this hold.
+> **ON HOLD — USER-CONTROLLED RESUME ONLY. SCHEDULED AFTER THE A1 CUSTOM-EXPERIENCE MILESTONES.**
+>
+> Every unchecked task below is deliberately deferred future work, not stale, blocked, or forgotten work. This change is not incomplete by accident: it is parked by design until its predecessors finish.
+>
+> Order of work:
+> 1. `repair-owned-pi-parity` — **done and archived** (`openspec/changes/archive/2026-08-21-repair-owned-pi-parity`).
+> 2. The A1 custom-experience milestones, which together are the "first custom single-agent Pi experience" this change depends on, and which replace the previously planned single `customize-owned-pi-experience` change: settings foundation, custom viewport, paste chips, and input behavior.
+> 3. Only then, and only when the user explicitly says to resume multi-agent work, may any unchecked task here be executed.
+>
+> Preserve completed work. Do not implement, continue, or publish any unchecked task before that explicit resume; finishing the milestones above does not lift this hold.
 
 ## 1. Establish the Milestone and Contracts
 
@@ -39,7 +48,7 @@
 - [x] 5.2 Implement one tab with a fixed revisioned 2×2 split tree, four durable A1 pane mappings, and four independently PTY-backed terminal models; pass topology, exact-command, environment/cwd, independent-process, resize, and cleanup integration fixtures.
 - [x] 5.3 Preserve terminal-host hot paths for PTY output, retained terminal state, buffered outer-terminal presentation, keyboard/text/mouse/IME encoding, clipboard, and selection without Node relay; pass static boundary checks and host instrumentation showing four isolated stream/input identities.
 - [x] 5.4 Record completion of the separately archived `build-owned-pi-ui-foundation` implementation as the historical UI handoff. Its later contradictory parity finding is owned by `repair-owned-pi-parity` and does not create executable work inside this held checklist.
-- [ ] 5.5 After `repair-owned-pi-parity` and `customize-owned-pi-experience` are accepted **and the user explicitly resumes this change**, integrate the existing structured workspace into A1-owned tabs for multiple SDK-backed Pi agents; pass independent transcript/tool/editor state, switching and input-target races, background activity/attention, lifecycle, failure isolation, restart/recovery, accessibility, and bounded-resource tests without importing, launching, or connecting to composed terminal-host code.
+- [ ] 5.5 After the archived `repair-owned-pi-parity` and every A1 custom-experience milestone are accepted **and the user explicitly resumes this change**, integrate the existing structured workspace into A1-owned tabs for multiple SDK-backed Pi agents; pass independent transcript/tool/editor state, switching and input-target races, background activity/attention, lifecycle, failure isolation, restart/recovery, accessibility, and bounded-resource tests without importing, launching, or connecting to composed terminal-host code.
 - [ ] 5.6 Run custom single-agent and structured-tab base-UX acceptance with the terminal multiplexer unavailable, then cut bare `a1` over to that structured workspace only: compare preserved vanilla workflows with `a1 pi`, verify accepted customization slots, recovery, the sole command, and explicit modes, and record that structured tabs create no PTYs and make no composed-terminal support claim.
 - [ ] 5.7 Integrate the independently accepted owned-UI and structured-tab slice from validated detached-worktree commits into clean `develop` and publish a unique `-dev.N` package under npm `next` with composed multipane behavior disabled, `latest` unchanged, no composed support claim, and registry/package-integrity verification.
 - [ ] 5.8 On an isolated Windows worker only, exercise the preserved exact 2×2 artifact under simultaneous high-rate output, rapid focus/input switching, alternate-screen applications, Unicode, cursor/modes, paste, mouse reporting, IME where supported, live resize, terminal-size changes, one-pane abnormal exit, and terminal-host abnormal exit; record all required machine-readable latency, paint, cleanup, CPU, and memory diagnostics.
