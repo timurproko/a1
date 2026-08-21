@@ -5,7 +5,10 @@ Run this only from the exact repaired checkout or candidate. These commands use 
 ## Prepare the disposable profiles
 
 ```powershell
-cd D:\Git\a1\.worktrees\apply-repair-owned-pi-parity
+cd D:\Git\a1
+git fetch origin --prune
+git worktree add --detach .worktrees\accept-owned-pi-parity origin/develop
+cd .worktrees\accept-owned-pi-parity
 npm ci
 npm run build
 
@@ -76,6 +79,9 @@ After exiting both programs:
 $env:USERPROFILE = $SavedUserProfile
 $env:HOME = $SavedHome
 Remove-Item -LiteralPath $ParityHome -Recurse -Force
+cd D:\Git\a1
+git worktree remove .worktrees\accept-owned-pi-parity
+git worktree prune
 ```
 
 Acceptance requires the user to confirm that configured-provider labels and visible models are mutually consistent in both empty and stored states.
