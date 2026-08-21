@@ -1,6 +1,10 @@
 {
   "schema": "a1-validation-impact-v1",
   "mandatory": ["invariants", "fast"],
+  "planningOnly": {
+    "patterns": ["openspec/**"],
+    "selected": ["planning"]
+  },
   "rules": [
     {
       "id": "cli",

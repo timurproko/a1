@@ -6,6 +6,7 @@ export interface ChangedPath {
 
 export interface ImpactPlan {
   schema: string;
+  planningOnly: boolean;
   full: boolean;
   packageSensitive: boolean;
   selected: string[];

@@ -143,31 +143,18 @@ Production source, scripts, workflows, current tests and fixtures, current docum
 - **WHEN** an archived change or immutable historical evidence contains a factually correct legacy identity
 - **THEN** governance SHALL preserve and allow that record while proving no live runtime or generation path consumes it as current identity
 
-### Requirement: Development branches have a bounded lifecycle
-Repository work SHALL use a short-lived topic or milestone branch created from `develop`, except for the explicitly protected long-lived `develop` and `master` branches. After the source branch is merged into and pushed with its integration target, repository workflow SHALL delete the merged local source branch and SHALL delete its corresponding remote branch when one exists and is not protected. Cleanup SHALL use Git's merged-ancestor proof and safe deletion, SHALL NOT force-delete a branch, and SHALL retain the current branch and every branch containing commits not merged into the selected integration target.
+### Requirement: Development work is isolated and integrated once
+Planning and implementation SHALL occur in one detached worktree under `.worktrees/`, based on current `origin/develop` unless another base is selected. The primary worktree SHALL remain on `develop` for integration only. Coherent work for one request SHALL use one temporary pull-request branch, one relevant validation cycle, and one integration; planning SHALL NOT be merged separately when implementation is part of the same approved request.
 
 #### Scenario: Work begins
-- **WHEN** implementation or planning work begins from the accepted integration baseline
-- **THEN** the work SHALL occur on a named topic or milestone branch created from `develop` rather than directly on `develop` or `master`
+- **WHEN** a request requires repository changes
+- **THEN** work SHALL begin in one detached worktree rather than editing the primary worktree
 
-#### Scenario: Topic branch is integrated successfully
-- **WHEN** a topic or milestone branch has passed its required gates, been merged into `develop`, and the merged `develop` commit has been pushed
-- **THEN** workflow SHALL switch away from the source branch and delete it locally using Git's safe merged-branch deletion
-- **AND** workflow SHALL delete the corresponding remote source branch when one exists and is not protected
+#### Scenario: Approved implementation has ready scope
+- **WHEN** the user requests implementation and its planning artifacts are ready
+- **THEN** the agent SHALL use those artifacts as context and begin implementation without proposing, revising, or separately merging them
 
-#### Scenario: Branch contains unmerged work
-- **WHEN** Git cannot prove that a candidate branch is an ancestor of the selected integration target
-- **THEN** cleanup SHALL retain the branch, report it as unmerged, and SHALL NOT use force deletion to remove it
-
-#### Scenario: Protected or checked-out branch is encountered
-- **WHEN** cleanup encounters `develop`, `master`, the current branch, or another explicitly protected branch
-- **THEN** cleanup SHALL retain it regardless of merged status
-
-#### Scenario: Existing branch inventory is reconciled
-- **WHEN** branch hygiene runs against an existing clone
-- **THEN** it SHALL first report the protected, merged-deletable, and unmerged branch sets
-- **AND** applying cleanup SHALL remove only the merged-deletable set
-
-#### Scenario: Merge workflow completes
-- **WHEN** an agent or maintainer completes a future merge into `develop`
-- **THEN** safe source-branch deletion SHALL be part of the same workflow completion rather than deferred as optional housekeeping
+#### Scenario: Work is integrated
+- **WHEN** the requested change is coherent and its relevant validation passes
+- **THEN** it SHALL integrate through one pull request, after which its temporary remote branch and clean worktree SHALL be removed
+- **AND** unintegrated commits or changes SHALL never be discarded during cleanup
