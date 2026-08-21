@@ -48,5 +48,31 @@
       "isolatedRerunDurationMs": 10477,
       "finalReleaseRerunDurationMs": 10191
     }
+  },
+  "manualAcceptanceCorrection": {
+    "credentialValuesRecorded": false,
+    "finding": "direct npm-start launch skipped profile preparation and could use vanilla Pi's default profile",
+    "correctedCommit": "a7904aab24d6fc49e9a15bbf3092eeb8d9646d2d",
+    "focusedLaunchIsolationTests": { "files": 2, "tests": 8, "passed": true },
+    "containingAuthAndLaunchTests": { "files": 12, "tests": 80, "passed": true },
+    "terminalParity": {
+      "passed": true,
+      "differenceCount": 0,
+      "reportSha256": "815c1d98bacba5bdb84d1e40b04a25c892178ec6d1cf84a8a1c1d7cee4bf4b56",
+      "upstreamCheckpointsSha256": "f06b544b9507e4e48eea46087add634c71787967d05efb3f5f37a032e70e3f75",
+      "ownedCheckpointsSha256": "30db1e0292dec3cad149d968367c7ce00f6b629b532607aab5d8fa57b87c95ec"
+    },
+    "release": {
+      "passed": true,
+      "startedAt": "2026-08-21T12:51:26.846Z",
+      "completedAt": "2026-08-21T12:52:44.497Z",
+      "fullVitest": { "files": 141, "tests": 775, "passed": true },
+      "candidateSha256": "6077a247bf01729fda978401d94f93a8550d70680dcf467248efdd49211e097d",
+      "releaseVerdictSha256": "d950a8a2e88024952708204fca4d8e973f5df7b32f75a98f8f80051c23923af6"
+    },
+    "architecturePassed": true,
+    "strictOpenSpecPassed": true,
+    "auditVulnerabilities": 0,
+    "finalUserRetestPending": true
   }
 }
