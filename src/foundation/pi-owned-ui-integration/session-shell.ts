@@ -4,6 +4,7 @@ import type {
   OwnedUiSessionViewModel,
   OwnedUiThinkingLevel,
 } from "../owned-ui-contracts/index.js";
+import type { UiRouteHost } from "./route-host.js";
 import {
   PINNED_PI_HIDDEN_COMMAND_NAMES,
   PINNED_PI_WORKFLOW_COMMAND_NAMES,
@@ -81,6 +82,11 @@ export interface OwnedUiSessionShellOptions {
   readonly cwd: string;
   readonly terminal?: OwnedUiTerminalPort;
   readonly startup?: OwnedUiStartupOptions;
+  /**
+   * Declared A1-owned routes. A route this host claims resolves to its app;
+   * every other route continues to the pinned workflow table unchanged.
+   */
+  readonly routeHost?: UiRouteHost;
 }
 
 export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
@@ -663,6 +669,7 @@ export class OwnedUiSessionShell {
   readonly #stopped: Promise<void>;
   #resolveStopped: (() => void) | undefined;
   #dialogId: string | undefined;
+  readonly #routeHost: UiRouteHost | null;
   #dialogHandle: PiTuiOverlayHandle | undefined;
   #sequence = 0;
   #started = false;
@@ -676,6 +683,7 @@ export class OwnedUiSessionShell {
     this.backend = options.backend;
     this.#sessionGeneration = this.backend.sessionGeneration;
     this.#cwd = options.cwd;
+    this.#routeHost = options.routeHost ?? null;
     this.#stopped = new Promise(resolve => {
       this.#resolveStopped = resolve;
     });
@@ -1390,6 +1398,33 @@ export class OwnedUiSessionShell {
     for (const listener of this.#listeners) listener(view);
   }
 
+  #openOwnedRoute(route: string): AdapterCommandResult {
+    const surface = this.#routeHost?.open(route) ?? null;
+    if (surface === null) return { outcome: "failed", diagnostic: `route is unavailable: ${route}` };
+    if (!this.runtime.active) return { outcome: "failed", diagnostic: "runtime is not active" };
+
+    this.#dialogHandle?.hide();
+    const rows = () => Math.max(1, this.runtime.viewport().rows - 1);
+    const component: PiShellComponentPort = {
+      render: (width: number) => [...surface.render(Math.max(1, width), rows())],
+      handleInput: (data: string) => {
+        surface.handleInput(data);
+        if (surface.isClosed()) {
+          this.#dialogHandle?.hide();
+          this.#dialogHandle = undefined;
+          this.#dialogId = undefined;
+          return;
+        }
+        this.runtime.requestRender();
+      },
+      invalidate: () => this.runtime.requestRender(),
+    };
+    surface.onRenderRequested(() => this.runtime.requestRender());
+    this.#dialogHandle = this.runtime.showOverlay(component, { width: "100%", maxHeight: "100%", anchor: "center" });
+    this.#dialogId = surface.id;
+    return { outcome: "completed", diagnostic: null };
+  }
+
   #syncDialog(dialog: OwnedUiDialog | null): void {
     if (!this.runtime.active) return;
     if (dialog === null) {
@@ -1419,6 +1454,7 @@ export class OwnedUiSessionShell {
     const separator = body.search(/\s/);
     const name = separator < 0 ? body : body.slice(0, separator);
     const argument = separator < 0 ? "" : body.slice(separator + 1).trimStart();
+    if (this.#routeHost?.claims(name)) return this.#openOwnedRoute(name);
     if (isWorkflowRoute(name)) return this.runWorkflow({ command: name, argument });
     // Unknown slash input, prompt templates, skills, and extension commands remain Pi prompt input.
     this.root.editor.addToHistory(text);

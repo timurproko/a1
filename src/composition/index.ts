@@ -25,6 +25,9 @@ import {
 import type { OwnedUiCommand, OwnedUiEvent, OwnedUiTranscriptBlock } from "../foundation/owned-ui-contracts/index.js";
 import { OwnedUiSessionShell } from "../foundation/pi-owned-ui-integration/index.js";
 import { OwnedUiSettingsSession, OwnedUiSettingsStore } from "../foundation/owned-ui-settings/index.js";
+import { UiAppHost, UiAppRegistry } from "../foundation/ui-apps/index.js";
+import { SETTINGS_APP_ID, SETTINGS_ROUTE, SettingsApp } from "../features/owned-ui/index.js";
+import type { UiRouteHost, UiRouteSurface } from "../foundation/pi-owned-ui-integration/index.js";
 import { resolveProductPaths } from "../foundation/lifecycle/index.js";
 
 const CAPABILITIES: AgentCapabilityContract = {
@@ -72,10 +75,12 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
       store: new OwnedUiSettingsStore({ configDir: resolveProductPaths().configDir, profileId: options.profileId }),
       agentProvider: () => adapter.settingsPort(),
     });
+  const routeHost = settings === null ? null : createOwnedRouteHost(settings);
   const shell = new OwnedUiSessionShell({
     backend: adapter,
     cwd,
     ...(options.terminal === undefined ? {} : { terminal: createPiTerminalBridge(options.terminal) }),
+    ...(routeHost === null ? {} : { routeHost }),
   });
   const application: OwnedUiApplicationPort = {
     get disposed() { return adapter.disposed; },
@@ -210,4 +215,55 @@ function toLifecycle(lifecycle: "starting" | "ready" | "busy" | "suspended" | "s
 function toMessage(block: OwnedUiTranscriptBlock): AgentMessage {
   const role = block.kind === "user" ? "user" : block.kind === "system" ? "system" : block.kind === "tool-call" || block.kind === "tool-result" ? "tool" : "assistant";
   return { id: block.id, role, status: block.status === "live" ? "streaming" : "final", content: [{ kind: "text", text: block.text }] };
+}
+
+/**
+ * Registers the A1-owned screens and adapts the app host to the shell's route
+ * seam. The shell mounts whatever surface it is handed and forwards keys; it
+ * never learns what an app is.
+ */
+export function createOwnedRouteHost(settings: OwnedUiSettingsSession): UiRouteHost {
+  const registry = new UiAppRegistry();
+  registry.register({ id: SETTINGS_APP_ID, route: SETTINGS_ROUTE, create: () => new SettingsApp(settings) });
+
+  return {
+    claims: route => registry.forRoute(route) !== null,
+    open: route => {
+      const registration = registry.forRoute(route);
+      if (registration === null) return null;
+
+      let size = { width: 80, height: 24 };
+      let frame: readonly string[] = [];
+      let closed = false;
+      let onRender: () => void = () => undefined;
+
+      const host = new UiAppHost({
+        registry,
+        closeOnInterrupt: true,
+        surface: {
+          size: () => size,
+          requestRender: () => onRender(),
+          present: lines => {
+            if (lines === null) closed = true;
+            else frame = lines;
+          },
+        },
+      });
+      host.open(registration.id);
+
+      const surface: UiRouteSurface = {
+        id: registration.id,
+        render: (width, height) => {
+          size = { width, height };
+          host.render();
+          return frame.length === height ? frame : [...frame.slice(0, height), ...Array(Math.max(0, height - frame.length)).fill("")];
+        },
+        handleInput: data => host.handleInput(data).consumed,
+        isClosed: () => closed || !host.isPresenting,
+        close: () => host.close(),
+        onRenderRequested: listener => { onRender = listener; },
+      };
+      return surface;
+    },
+  };
 }
