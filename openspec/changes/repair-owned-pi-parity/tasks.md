@@ -18,4 +18,4 @@
 ## 4. Obtain Fresh User Acceptance
 
 - [x] 4.1 Provide user-controlled commands that compare bare `a1` and `a1 pi` with equivalent empty profiles, then equivalent stored-provider profiles, login, model selection, restart, and logout; explicitly explain that persisted A1 credentials mean A1 is logged in even across a new process.
-- [ ] 4.2 Correct every contradictory user finding with focused and containing regression gates, rerun independent parity and full release validation, and mark this change complete only after the user confirms provider status and visible models remain mutually consistent. Keep `customize-owned-pi-experience` and the held multi-agent change unstarted.
+- [x] 4.2 Correct every contradictory user finding with focused and containing regression gates, rerun independent parity and full release validation, and mark this change complete only after the user confirms provider status and visible models remain mutually consistent. Keep `customize-owned-pi-experience` and the held multi-agent change unstarted.
