@@ -25,7 +25,7 @@ afterAll(async () => {
 
 describe("clean installation of the exact candidate", () => {
   it("installs only the authoritative a1 command and package identity", async () => {
-    const packageRoot = resolve(prefix, "node_modules", "@timurproko", "a1");
+    const packageRoot = resolve(prefix, ...(process.platform === "win32" ? [] : ["lib"]), "node_modules", "@timurproko", "a1");
     const manifest = JSON.parse(await readFile(resolve(packageRoot, "package.json"), "utf8")) as {
       name: string; version: string; bin: Record<string, string>; dependencies: Record<string, string>;
     };
