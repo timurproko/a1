@@ -12,6 +12,7 @@ describe("stable candidate platform coordination", () => {
     expect(workflow).toContain("platform: darwin");
     expect(workflow).toContain("os: macos-15");
     expect(workflow).toContain("stable package digest changed across platform fan-out");
+    expect(workflow).toContain('VALIDATION_CANDIDATE_TARBALL="$tarball" STABLE_PACK_RESULT="$pack_result" node');
   });
 
   it("runs complete validation and clean installation on every platform", async () => {
@@ -23,11 +24,26 @@ describe("stable candidate platform coordination", () => {
   });
 
   it("fails closed unless the complete automated matrix is present", async () => {
-    const workflow = await readFile(".github/workflows/stable-candidate.yml", "utf8");
+    const [workflow, verifier] = await Promise.all([
+      readFile(".github/workflows/stable-candidate.yml", "utf8"),
+      readFile("scripts/verify-automated-stable.mjs", "utf8"),
+    ]);
     expect(workflow).toContain("name: Stable automated candidate");
     expect(workflow).toContain('test "$PLATFORM_RESULT" = "success"');
     expect(workflow).toContain("node scripts/verify-automated-stable.mjs");
     expect(workflow).toContain("stable-automated-candidate-");
+    expect(verifier).toContain("return matches[0]");
+  });
+
+  it("permits three-platform dry runs but prevents them entering stable certification", async () => {
+    const [candidate, aggregate] = await Promise.all([
+      readFile(".github/workflows/stable-candidate.yml", "utf8"),
+      readFile(".github/workflows/certify-stable.yml", "utf8"),
+    ]);
+    expect(candidate).toContain("dry_run:");
+    expect(candidate).toContain('test "$GITHUB_REF" != "refs/heads/develop"');
+    expect(candidate).toContain('test "$CONFIRM_CANDIDATE" = "build-stable-dry-run"');
+    expect(aggregate).toContain('automated.head_branch !== "develop"');
   });
 
   it("requires isolated physical workers and a separate exact-evidence aggregation", async () => {

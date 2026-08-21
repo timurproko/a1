@@ -1,5 +1,6 @@
 import type { AgentSessionRuntime } from "@earendil-works/pi-coding-agent";
 import { createPiEngineAdapter } from "../../../src/foundation/pi-engine-adapter/index.js";
+import { applyPiTheme } from "../../../src/foundation/pi-component-adapter/index.js";
 import type { PiTuiTerminalPort } from "../../../src/foundation/pi-tui-runtime-adapter/index.js";
 import { OwnedUiSessionShell } from "../../../src/foundation/pi-owned-ui-integration/index.js";
 
@@ -50,6 +51,7 @@ export const SCRIPTED_PI_EVENTS: readonly { readonly stage: string; readonly eve
 ];
 
 export async function buildEventFrameParityResult(): Promise<EventFrameParityResult> {
+  applyPiTheme("dark", false, "truecolor");
   const engine = new ScriptedRuntime();
   const adapter = await createPiEngineAdapter({
     cwd: "D:/parity",
