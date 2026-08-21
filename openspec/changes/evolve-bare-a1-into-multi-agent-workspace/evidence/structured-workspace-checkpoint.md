@@ -23,14 +23,3 @@ Recorded at `2026-08-21T06:48:20Z` from milestone baseline commit `41378b1e2c05f
 - Strict OpenSpec validation — passed.
 
 The first containing-suite invocation overlapped `npm run build`; its clean step temporarily removed `dist` and caused one development-launch import failure. The affected test and complete containing suite passed sequentially after the build completed.
-
-## Development preview publication
-
-The accepted structured-only slice was merged into `develop`, versioned as `0.1.1-dev.3`, and validated again against exact commit `c98df94e63bdfbb1b28fb95f30e01207f8b7f6ed`. GitHub Actions run [32456288769](https://github.com/timurproko/a1/actions/runs/32456288769) completed successfully at `2026-08-21T06:58:40Z` and published the exact package under npm tag `next` with provenance.
-
-- Integrity: `sha512-tUuTvHOsC3I034itSKF7m1z9qRP6GBdpS6ceqxa0TstiEIrFycQyGCwHveVeEGlLTkDVrlU7haQv9pVduRkMFg==`
-- Shasum: `d9ebf55e5c082e84d676930e36c9ee0fc1a8075a`
-- `next`: `0.1.1-dev.3`
-- `latest`: unchanged at `0.1.0`
-
-This is an uncertified Windows development preview of the structured workspace only. Composed multipane behavior remains unavailable and no composed-terminal or stable cross-platform support claim is made.
