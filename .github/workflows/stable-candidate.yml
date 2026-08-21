@@ -148,7 +148,7 @@ jobs:
           echo "VALIDATION_CANDIDATE_TARBALL=$tarball" >> "$GITHUB_ENV"
           echo "STABLE_PACK_RESULT=$pack_result" >> "$GITHUB_ENV"
           echo "STABLE_CANDIDATE_IDENTITY=$candidate" >> "$GITHUB_ENV"
-          node --input-type=module <<'NODE'
+          VALIDATION_CANDIDATE_TARBALL="$tarball" STABLE_PACK_RESULT="$pack_result" node --input-type=module <<'NODE'
           import { createHash } from "node:crypto";
           import { readFile } from "node:fs/promises";
           const bytes = await readFile(process.env.VALIDATION_CANDIDATE_TARBALL);
