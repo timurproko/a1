@@ -1,0 +1,89 @@
+{
+  "schema": "a1-validation-impact-v1",
+  "mandatory": ["invariants", "fast"],
+  "rules": [
+    {
+      "id": "cli",
+      "owner": "cli",
+      "patterns": ["src/cli/**", "test/cli/**"],
+      "scopes": []
+    },
+    {
+      "id": "launch-composition",
+      "owner": "launch",
+      "patterns": ["src/features/launch/**", "src/composition/**", "test/features/launch/**", "test/composition/**", "src/foundation/transparent-terminal/**", "test/foundation/transparent-terminal/**"],
+      "scopes": ["launch-integration"]
+    },
+    {
+      "id": "workspace",
+      "owner": "workspace",
+      "patterns": ["src/features/workspace/**", "src/foundation/workspace-contracts/**", "test/features/workspace/**", "test/foundation/workspace-contracts/**"],
+      "scopes": ["structured-runtime-integration"]
+    },
+    {
+      "id": "owned-ui",
+      "owner": "owned-ui",
+      "patterns": ["src/features/owned-ui/**", "src/foundation/owned-ui-contracts/**", "src/foundation/presentation-contracts/**", "src/foundation/pi-component-adapter/**", "src/foundation/pi-owned-ui-integration/**", "src/foundation/pi-tui-runtime-adapter/**", "test/features/owned-ui/**", "test/foundation/owned-ui-contracts/**", "test/foundation/presentation-contracts/**", "test/foundation/pi-component-adapter/**", "test/foundation/pi-tui-runtime-adapter/**"],
+      "scopes": []
+    },
+    {
+      "id": "pi-engine",
+      "owner": "pi-engine-adapter",
+      "patterns": ["src/foundation/pi-engine-adapter/**", "src/foundation/agent-engine-contracts/**", "test/foundation/pi-engine-adapter/**", "test/foundation/agent-engine-contracts/**"],
+      "scopes": ["pi-engine-conformance"]
+    },
+    {
+      "id": "release-lifecycle",
+      "owner": "release-update",
+      "patterns": ["src/foundation/release/**", "src/foundation/lifecycle/**", "src/foundation/supervision/**", "test/foundation/release/**", "test/foundation/lifecycle/**", "test/foundation/supervision/**"],
+      "scopes": ["release-update"]
+    },
+    {
+      "id": "structured-runtime",
+      "owner": "structured-agent-runtime",
+      "patterns": ["src/foundation/structured-agent-runtime/**", "src/foundation/protocol/**", "test/foundation/structured-agent-runtime/**", "test/foundation/protocol/**"],
+      "scopes": ["structured-runtime-integration"]
+    },
+    {
+      "id": "native-host",
+      "owner": "native-host",
+      "patterns": ["native/**", "src/foundation/native-host-protocol/**", "test/foundation/native-host-protocol/**"],
+      "scopes": ["full-release"],
+      "full": true
+    },
+    {
+      "id": "storage-and-contracts",
+      "owner": "foundation-contracts",
+      "patterns": ["src/foundation/storage/**", "test/foundation/storage/**"],
+      "scopes": ["release-update"]
+    },
+    {
+      "id": "package-surface",
+      "owner": "package-release",
+      "patterns": ["package.json", "package-lock.json", "bin/**", "src/product-identity.*", "src/product-identity.json", "test/product-identity/**"],
+      "scopes": ["package-install", "dependency-policy"],
+      "packageSensitive": true
+    },
+    {
+      "id": "build-and-test-configuration",
+      "owner": "toolchain",
+      "patterns": ["tsconfig*.json", "vitest.config.*", ".github/workflows/**", "config/validation-*.json", "scripts/run-*-gates.mjs", "scripts/*validation*.mjs", "scripts/*validation*.mts"],
+      "scopes": ["full-release"],
+      "full": true,
+      "packageSensitive": true
+    },
+    {
+      "id": "repository-governance",
+      "owner": "repository-governance",
+      "patterns": ["scripts/**", "config/**", "evidence/**", "test/repository-governance/**", "docs/**", "README.md", "LICENSE", ".gitignore", "openspec/**"],
+      "scopes": []
+    },
+    {
+      "id": "test-self-selection",
+      "owner": "tests",
+      "patterns": ["test/**/*.test.ts"],
+      "scopes": [],
+      "selectChangedTests": true
+    }
+  ]
+}
