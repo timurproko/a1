@@ -1,13 +1,13 @@
 ## 1. Baseline and Work Accounting
 
-- [ ] 1.1 Add an instrumented release filesystem/stream harness that records source content reads, destination writes, destination verification reads, file counts, bytes, and phase durations for a representative large payload; validate the current three-pass baseline with focused release-store tests.
-- [ ] 1.2 Add deterministic phase timing and operation-count evidence for npm completion, payload discovery, materialization, certification, activation, endpoint verification, and process settlement; validate ordering and accounting with focused update tests and typecheck.
+- [x] 1.1 Add an instrumented release filesystem/stream harness that records source content reads, destination writes, destination verification reads, file counts, bytes, and phase durations for a representative large payload; validate the current three-pass baseline with focused release-store tests.
+- [x] 1.2 Add deterministic phase timing and operation-count evidence for npm completion, payload discovery, materialization, certification, activation, endpoint verification, and process settlement; validate ordering and accounting with focused update tests and typecheck.
 
 ## 2. Single-Pass Immutable Materialization
 
-- [ ] 2.1 Refactor payload discovery from content hashing so all declared package/dependency paths and totals are known before copy without reading file contents; validate symlink, unsupported-entry, missing-dependency, path-escape, and deterministic-order cases.
-- [ ] 2.2 Implement bounded-concurrency source-to-candidate streaming that hashes the exact written buffers, records metadata, computes the unchanged release identity/manifest, and atomically commits the candidate; validate one source read plus one destination write per file, content identity parity, concurrent materialization, and cleanup after injected stream/write/rename failures.
-- [ ] 2.3 Add an opaque module-private, single-use fresh-materialization proof and make certification consume it without a destination payload reread; validate that forged, reused, restarted, pre-existing, concurrent-winner, and uncertified release paths still require complete content verification.
+- [x] 2.1 Refactor payload discovery from content hashing so all declared package/dependency paths and totals are known before copy without reading file contents; validate symlink, unsupported-entry, missing-dependency, path-escape, and deterministic-order cases.
+- [x] 2.2 Implement bounded-concurrency source-to-candidate streaming that hashes the exact written buffers, records metadata, computes the unchanged release identity/manifest, and atomically commits the candidate; validate one source read plus one destination write per file, content identity parity, concurrent materialization, and cleanup after injected stream/write/rename failures.
+- [x] 2.3 Add an opaque module-private, single-use fresh-materialization proof and make certification consume it without a destination payload reread; validate that forged, reused, restarted, pre-existing, concurrent-winner, and uncertified release paths still require complete content verification.
 - [ ] 2.4 Preserve full verification, certified-manifest reuse, immutable entry resolution, rollback, and release garbage collection for existing on-disk cohorts; run the complete release-store, cohort-state, cohort-activation, and release-gating test groups.
 
 ## 3. Update Transaction Integration
