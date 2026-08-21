@@ -112,6 +112,8 @@ export class SettingsApp implements UiApp {
   #structured: { entry: OwnedUiSettingsEntry; flags: readonly string[]; index: number } | null = null;
   #loading = true;
   #interruptArmed = false;
+  /** Values requested but not yet reflected by the source, keyed by entry. */
+  readonly #pending = new Map<string, OwnedUiSettingValue>();
   #footerHeight = 1;
   /** Row key under the pointer, and where each row was drawn last frame. */
   #hoverKey: string | null = null;
@@ -357,7 +359,8 @@ export class SettingsApp implements UiApp {
       this.#notice = `${labelOf(entry)} cannot be changed here`;
       return;
     }
-    const current = entry.value === null ? 0 : Math.max(0, entry.choices.indexOf(entry.value));
+    const shown = this.#shownValue(entry);
+    const current = shown === null ? 0 : Math.max(0, entry.choices.indexOf(shown));
     // Nothing is highlighted until the pointer or a key picks a row, so opening
     // the menu does not flash a highlight the reader did not ask for.
     this.#menu = { entry, current, anchorKey: `${entry.backend}:${entry.id}`, choices: entry.choices, index: -1 };
@@ -368,17 +371,13 @@ export class SettingsApp implements UiApp {
    * than as a value menu: each row names one flag and toggles it in place.
    */
   #openStructured(entry: OwnedUiSettingsEntry): void {
-    const record = entry.rawValue;
-    if (typeof record !== "object" || record === null || Array.isArray(record)) {
-      this.#notice = `${labelOf(entry)} cannot be configured here`;
-      return;
-    }
-    const flags = Object.entries(record).filter(([, value]) => typeof value === "boolean");
-    if (flags.length === 0) {
+    // The flags come from the declaration, not from the stored value: an unset
+    // flag still has a row, showing the default the source would apply.
+    if (entry.flags.length === 0) {
       this.#notice = `${labelOf(entry)} has nothing to configure`;
       return;
     }
-    this.#structured = { entry, flags: flags.map(([key]) => key), index: 0 };
+    this.#structured = { entry, flags: entry.flags.map(flag => flag.key), index: 0 };
   }
 
   #structuredKey(data: string): PaneInputResult {
@@ -401,8 +400,10 @@ export class SettingsApp implements UiApp {
     if (open === null || open === undefined || flag === undefined) return;
     const record = open.entry.rawValue;
     if (typeof record !== "object" || record === null) return;
-    const current = (record as Record<string, unknown>)[flag];
-    const next = { ...(record as Record<string, unknown>), [flag]: !(current === true) };
+    const declared = open.entry.flags.find(candidate => candidate.key === flag);
+    const stored = (record as Record<string, unknown>)[flag];
+    const current = typeof stored === "boolean" ? stored : declared?.fallback ?? false;
+    const next = { ...(record as Record<string, unknown>), [flag]: !current };
     void this.#session.changeStructured(open.entry.backend, open.entry.id, next).then(outcome => {
       this.#notice = outcome.failure === null ? null : `Could not save ${labelOf(open.entry)}: ${outcome.failure}`;
     });
@@ -447,8 +448,9 @@ export class SettingsApp implements UiApp {
       this.#notice = `${labelOf(entry)} cannot be changed here`;
       return;
     }
-    if (typeof entry.value === "number") {
-      this.#apply(entry, entry.value + delta);
+    const shown = this.#shownValue(entry);
+    if (typeof shown === "number") {
+      this.#apply(entry, shown + delta);
       return;
     }
     const choices = entry.choices;
@@ -456,7 +458,7 @@ export class SettingsApp implements UiApp {
       this.#notice = `${labelOf(entry)} cannot be changed here`;
       return;
     }
-    const current = entry.value === null ? -1 : choices.indexOf(entry.value);
+    const current = shown === null ? -1 : choices.indexOf(shown);
     const next = choices[current < 0
       ? (delta > 0 ? 0 : choices.length - 1)
       : (current + delta + choices.length) % choices.length];
@@ -464,13 +466,25 @@ export class SettingsApp implements UiApp {
   }
 
   #apply(entry: OwnedUiSettingsEntry, value: OwnedUiSettingValue): void {
+    const key = `${entry.backend}:${entry.id}`;
+    // Shown immediately so the row never lags a keypress, and so the next press
+    // steps from here rather than from a value the source has not caught up to.
+    this.#pending.set(key, value);
     void this.#session.change(entry.backend, entry.id, value).then(outcome => {
-      this.#notice = outcome.failure !== null
-        ? `Could not save ${labelOf(entry)}: ${outcome.failure}`
-        : outcome.pendingRestart
-          ? `${labelOf(entry)} applies on the next start`
-          : null;
+      if (outcome.failure !== null) {
+        this.#pending.delete(key);
+        this.#notice = `Could not save ${labelOf(entry)}: ${outcome.failure}`;
+        return;
+      }
+      // A later press may have moved on; only the last request clears itself.
+      if (this.#pending.get(key) === value) this.#pending.delete(key);
+      this.#notice = outcome.pendingRestart ? `${labelOf(entry)} applies on the next start` : null;
     });
+  }
+
+  /** What the row shows: the value asked for if one is outstanding, else the source's. */
+  #shownValue(entry: OwnedUiSettingsEntry): OwnedUiSettingValue | null {
+    return this.#pending.get(`${entry.backend}:${entry.id}`) ?? entry.value;
   }
 
   #jump(rows: readonly Row[], target: number): void {
@@ -549,14 +563,15 @@ export class SettingsApp implements UiApp {
     const leftRaw = `${selected ? "→ " : "  "}  ${label}`;
     const left = `${prefix}  ${theme.fg(selected ? "accent" : "text", label)}`;
     const gap = Math.max(2, valueColumn - displayWidth(leftRaw));
+    const shown = this.#shownValue(entry);
     const raw = entry.structured
       ? CONFIGURE
-      : entry.value === null ? describeRaw(entry.rawValue) : displayValue(entry.value);
+      : shown === null ? describeRaw(entry.rawValue) : displayValue(shown);
     // Pointing anywhere on the row is hovering the item; pointing at the value
     // is what brightens the value. Selection speaks through the label alone.
     const valueHovered = hovered && this.#hoverRegion !== "label";
     // The stepper is an affordance, not decoration: it appears under the pointer.
-    const stepper = isStepper(entry) && hovered;
+    const stepper = isStepper(entry, shown) && hovered;
     const valueToken = valueHovered ? "text" : "muted";
     const minus = theme.fg(this.#hoverRegion === "minus" && hovered ? "accent" : "dim", "- ");
     const plus = theme.fg(this.#hoverRegion === "plus" && hovered ? "accent" : "dim", " +");
@@ -601,7 +616,7 @@ export class SettingsApp implements UiApp {
     menu.choices.forEach((choice, index) => {
       const target = top + index;
       if (target < 0 || target >= output.length) return;
-      const mark = choice === menu.entry.value ? "✓ " : "  ";
+      const mark = choice === this.#shownValue(menu.entry) ? "✓ " : "  ";
       const text = padToWidth(`${mark}${displayValue(choice)} `, width);
       const painted = index === menu.index ? theme.highlight(text) : theme.panel(text);
       output[target] = overlaySpan(output[target] ?? "", column, column + width, painted);
@@ -615,17 +630,22 @@ export class SettingsApp implements UiApp {
     width: number,
     theme: UiTheme,
   ): readonly string[] {
-    const record = open.entry.rawValue as Record<string, unknown>;
-    const labelWidth = Math.max(...open.flags.map(flag => displayWidth(humanizeLabel(flag))), 0);
+    const record = (open.entry.rawValue ?? {}) as Record<string, unknown>;
+    const flagLabel = (key: string): string =>
+      open.entry.flags.find(flag => flag.key === key)?.label ?? humanizeLabel(key);
+    const labelWidth = Math.max(...open.flags.map(key => displayWidth(flagLabel(key))), 0);
     const rows: string[] = ["", this.#header(labelOf(open.entry), theme, width)];
     this.#frameRows = [];
 
     open.flags.forEach((flag, index) => {
       const selected = index === open.index;
-      const label = humanizeLabel(flag);
+      const label = flagLabel(flag);
       const left = `${selected ? theme.fg("accent", "→ ") : "  "}  ${theme.fg(selected ? "accent" : "text", label)}`;
       const gap = Math.max(2, 4 + labelWidth + 2 - (4 + displayWidth(label)));
-      const value = theme.fg(selected ? "text" : "muted", record[flag] === true ? "yes" : "no");
+      const stored = record[flag];
+      const declared = open.entry.flags.find(candidate => candidate.key === flag);
+      const on = typeof stored === "boolean" ? stored : declared?.fallback ?? false;
+      const value = theme.fg(selected ? "text" : "muted", on ? "yes" : "no");
       this.#frameRows.push({
         key: `flag:${flag}`,
         screenRow: rows.length,
@@ -653,8 +673,13 @@ export class SettingsApp implements UiApp {
     const rule = theme.fg("border", "─".repeat(Math.max(0, width)));
     const view = input.view(Math.max(0, width - 2));
     const empty = view.text.length === 0;
-    const painted = `${theme.fg("text", "❯ ")}${empty ? theme.fg("muted", SEARCH_PLACEHOLDER) : theme.fg("text", view.text)}`;
-    const raw = `❯ ${empty ? SEARCH_PLACEHOLDER : view.text}`;
+    const before = view.text.slice(0, view.caretColumn);
+    const under = view.text.slice(view.caretColumn, view.caretColumn + 1) || " ";
+    const after = view.text.slice(view.caretColumn + 1);
+    const typed = `${theme.fg("text", before)}${theme.highlight(under)}${theme.fg("text", after)}`;
+    const placeholder = `${theme.highlight(SEARCH_PLACEHOLDER.slice(0, 1))}${theme.fg("dim", SEARCH_PLACEHOLDER.slice(1))}`;
+    const painted = `${theme.fg("text", "❯ ")}${empty ? placeholder : typed}`;
+    const raw = `❯ ${empty ? SEARCH_PLACEHOLDER : `${view.text}${view.caretColumn >= view.text.length ? " " : ""}`}`;
     return [rule, padVisible(truncateToWidth(painted, width), width, raw), rule, hintLine];
   }
 }
@@ -680,8 +705,8 @@ function labelOf(entry: OwnedUiSettingsEntry): string {
   return entry.label ?? humanizeLabel(entry.id);
 }
 
-function isStepper(entry: OwnedUiSettingsEntry): boolean {
-  return typeof entry.value === "number" && entry.editable;
+function isStepper(entry: OwnedUiSettingsEntry, shown: OwnedUiSettingValue | null = entry.value): boolean {
+  return typeof shown === "number" && entry.editable;
 }
 
 /** Booleans read as yes and no; everything else prints as itself. */

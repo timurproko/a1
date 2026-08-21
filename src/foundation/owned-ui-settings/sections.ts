@@ -17,6 +17,8 @@ export interface OwnedUiSettingsEntry {
   readonly choices: readonly OwnedUiSettingValue[] | null;
   /** True when the value is a structured object edited through its own surface. */
   readonly structured: boolean;
+  /** Flags that surface offers, declared by the source rather than by the value. */
+  readonly flags: readonly { readonly key: string; readonly label: string; readonly description: string; readonly fallback: boolean }[];
   readonly origin: "default" | "stored" | "engine";
   readonly application: "live" | "restart" | "engine";
 }
@@ -39,6 +41,7 @@ export interface AgentSettingsSnapshot {
     readonly choices?: readonly unknown[];
     readonly label?: string;
     readonly description?: string;
+    readonly flags?: readonly { readonly key: string; readonly label: string; readonly description: string; readonly fallback: boolean }[];
   }[];
   readonly values: Readonly<Record<string, unknown>>;
   /** Whether the engine advertises settings write capability at all. */
@@ -71,6 +74,7 @@ export function buildOwnedUiSettingsSections(
       rawValue: setting.value,
       editable: true,
       structured: false,
+      flags: [],
       choices: setting.declaration.allowedValues,
       origin: setting.source,
       application: setting.declaration.application,
@@ -118,6 +122,7 @@ function agentSection(snapshot: AgentSettingsSnapshot | null): OwnedUiSettingsSe
       // value menu, so it stays reachable instead of being reported as fixed.
       editable: snapshot.writeAdvertised && descriptor.writable,
       structured: descriptor.valueType === "json",
+      flags: descriptor.flags ?? [],
       // A boolean is a two-value choice even when the engine names no choices,
       // so it opens the same menu as any other enumerated setting.
       choices: descriptor.valueType === "boolean" ? BOOLEAN_CHOICES : choicesOf(descriptor.choices),
