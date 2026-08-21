@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { TransparentTerminalLaunchProfile } from "../../../src/foundation/lifecycle/index.js";
+import type { LaunchInstance, LaunchProfileId } from "../../../src/foundation/lifecycle/index.js";
 import type { MaterializedRelease } from "../../../src/foundation/release/index.js";
 import { ControlStore } from "../../../src/foundation/storage/index.js";
 import { SupervisorServer } from "../../../src/foundation/supervision/index.js";
@@ -12,58 +12,140 @@ import { SupervisorClient } from "../../../src/foundation/protocol/index.js";
 const roots: string[] = [];
 afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))));
 
-describe("foreground terminal lease supervision", () => {
-  it("acquires, activates, heartbeats, and releases one exclusive lease", async () => {
+describe("plural launch-instance supervision", () => {
+  it("tracks several authenticated owners and completes them independently", async () => {
     const harness = await createHarness();
-    const client = new SupervisorClient();
-    await client.connect(harness.paths.endpoint);
-    const profile = transparentProfile();
+    const first = new SupervisorClient();
+    const second = new SupervisorClient();
+    await first.connect(harness.paths.endpoint);
+    await second.connect(harness.paths.endpoint);
 
-    await expect(client.command({ type: "acquire-foreground-terminal-lease", requestId: "acquire-1", leaseId: "lease-1", ownerId: "broker-1", profile }))
-      .resolves.toMatchObject({ ok: true });
-    await expect(client.command({ type: "acquire-foreground-terminal-lease", requestId: "acquire-2", leaseId: "lease-2", ownerId: "broker-2", profile }))
-      .resolves.toMatchObject({ ok: false, error: { code: "driver-error", message: expect.stringMatching(/exclusive/) } });
+    await expect(first.command(createCommand("create-1", "instance-1", "a1"))).resolves.toMatchObject({ ok: true });
+    await expect(second.command(createCommand("create-2", "instance-2", "sandbox"))).resolves.toMatchObject({ ok: true });
+    await expect(first.command(createCommand("create-1-repeat", "instance-1", "a1"))).resolves.toMatchObject({ ok: true });
+    await expect(second.command({
+      type: "activate-launch-instance", requestId: "wrong-owner", instanceId: "instance-1",
+      rootIdentity: { pid: 4001, startIdentity: "4001:start" }, containmentIdentity: { provider: "test", token: "scope-1" },
+    })).resolves.toMatchObject({ ok: false, error: { code: "ownership-error" } });
 
-    const processIdentity = { pid: 4001, startIdentity: "4001:start" };
-    await expect(client.command({ type: "activate-foreground-terminal-lease", requestId: "activate", leaseId: "lease-1", generationId: "generation-1", processIdentity }))
-      .resolves.toMatchObject({ ok: true });
-    await expect(client.command({ type: "heartbeat-foreground-terminal-lease", requestId: "wrong-heartbeat", leaseId: "lease-1", processIdentity: { ...processIdentity, startIdentity: "reused" } }))
-      .resolves.toMatchObject({ ok: false, error: { message: expect.stringMatching(/ownership mismatch/) } });
-    await expect(client.command({ type: "heartbeat-foreground-terminal-lease", requestId: "heartbeat", leaseId: "lease-1", processIdentity }))
-      .resolves.toMatchObject({ ok: true });
+    await expect(first.command({
+      type: "activate-launch-instance", requestId: "activate-1", instanceId: "instance-1",
+      rootIdentity: { pid: 4001, startIdentity: "4001:start" }, containmentIdentity: { provider: "test", token: "scope-1" },
+    })).resolves.toMatchObject({ ok: true });
+    await expect(second.command({
+      type: "activate-launch-instance", requestId: "activate-2", instanceId: "instance-2",
+      rootIdentity: { pid: 4002, startIdentity: "4002:start" }, containmentIdentity: { provider: "test", token: "scope-2" },
+    })).resolves.toMatchObject({ ok: true });
 
     const metadata = JSON.parse(await readFile(harness.paths.endpointMetadataPath, "utf8"));
-    expect(metadata.ownership).toEqual({ state: "busy", liveGenerationIds: ["generation-1"], nonResumableGenerationIds: ["generation-1"] });
+    expect(metadata.ownership).toMatchObject({
+      state: "busy",
+      liveInstanceIds: ["instance-1", "instance-2"],
+      nonResumableInstanceIds: ["instance-1", "instance-2"],
+    });
 
-    await expect(client.command({ type: "release-foreground-terminal-lease", requestId: "release", leaseId: "lease-1", processIdentity, outcome: { kind: "exited", exitCode: 0 } }))
-      .resolves.toMatchObject({ ok: true });
-    expect(harness.store.loadLiveForegroundTerminalLease()).toBeNull();
-    client.close();
+    await expect(first.command({
+      type: "complete-launch-instance", requestId: "complete-1", instanceId: "instance-1",
+      terminalState: "completed", outcome: { kind: "exited", exitCode: 0 },
+    })).resolves.toMatchObject({ ok: true });
+    expect(harness.store.loadActiveLaunchInstances().map(instance => instance.id)).toEqual(["instance-2"]);
+
+    first.close();
+    second.close();
     await harness.server.close();
   });
 
-  it("reconciles stale prior-boot foreground ownership before endpoint publication", async () => {
-    const root = await mkdtemp(resolve(tmpdir(), "a1-stale-foreground-supervisor-"));
+  it("reconciles only instances owned by a disconnected socket", async () => {
+    const harness = await createHarness();
+    const owner = new SupervisorClient();
+    const other = new SupervisorClient();
+    await owner.connect(harness.paths.endpoint);
+    await other.connect(harness.paths.endpoint);
+    await owner.command(createCommand("create-owner", "instance-owner", "pi"));
+    await other.command(createCommand("create-other", "instance-other", "sandbox"));
+
+    owner.close();
+    await vi.waitFor(() => expect(harness.store.loadLaunchInstance("instance-owner")?.state).toBe("interrupted"));
+    expect(harness.store.loadLaunchInstance("instance-other")?.state).toBe("requested");
+
+    other.close();
+    await harness.server.close();
+  });
+
+  it("preserves a live uncertain process without blocking another launch", async () => {
+    const harness = await createHarness();
+    const owner = new SupervisorClient();
+    const next = new SupervisorClient();
+    await owner.connect(harness.paths.endpoint);
+    await next.connect(harness.paths.endpoint);
+    await owner.command(createCommand("create-live", "instance-live", "pi"));
+    await owner.command({
+      type: "activate-launch-instance", requestId: "activate-live", instanceId: "instance-live",
+      rootIdentity: { pid: process.pid, startIdentity: `${process.pid}:test-live` },
+      containmentIdentity: { provider: "test", token: "scope-live" },
+    });
+    owner.close();
+    await vi.waitFor(async () => {
+      const metadata = JSON.parse(await readFile(harness.paths.endpointMetadataPath, "utf8"));
+      expect(metadata.ownership).toMatchObject({ state: "blocked", uncertainInstanceIds: ["instance-live"] });
+    });
+
+    await expect(next.command(createCommand("create-next", "instance-next", "a1"))).resolves.toMatchObject({ ok: true });
+    expect(harness.store.loadLaunchInstance("instance-live")?.state).toBe("active");
+    expect(harness.store.loadLaunchInstance("instance-next")?.state).toBe("requested");
+
+    next.close();
+    await harness.server.close();
+  });
+
+  it("reconciles stale prior-boot instance ownership before endpoint publication", async () => {
+    const root = await mkdtemp(resolve(tmpdir(), "a1-stale-launch-supervisor-"));
     roots.push(root);
     const databasePath = resolve(root, "control.sqlite3");
     const oldStore = new ControlStore(databasePath, "boot-old");
-    oldStore.acquireForegroundTerminalLease({
-      id: "lease-live", ownerId: "broker", profile: transparentProfile(), state: "requested", generationId: null, processIdentity: null,
-      acquiredAt: new Date(0).toISOString(), heartbeatAt: null, releasedAt: null, outcome: null,
-    });
+    oldStore.createLaunchInstance(launchInstance("instance-live", "client-old", "pi"));
     oldStore.close();
     const reopenedStore = new ControlStore(databasePath, "boot-reopened");
-    expect(reopenedStore.loadLiveForegroundTerminalLease()).toBeNull();
-    expect(reopenedStore.database.prepare("SELECT state FROM foreground_terminal_leases WHERE id = ?").get("lease-live")).toEqual({ state: "released" });
+    expect(reopenedStore.loadActiveLaunchInstances()).toEqual([]);
+    expect(reopenedStore.loadLaunchInstance("instance-live")).toMatchObject({ state: "interrupted" });
     reopenedStore.close();
   });
 });
 
+function createCommand(requestId: string, instanceId: string, profileId: LaunchProfileId) {
+  return {
+    type: "create-launch-instance" as const,
+    requestId,
+    instanceId,
+    profileId,
+    shutdownPolicy: "terminate-tree-on-close" as const,
+    guardianIdentity: { pid: instanceId === "instance-2" ? 3002 : 3001, startIdentity: `${instanceId}:guardian` },
+  };
+}
+
+function launchInstance(id: string, ownerClientId: string, profileId: LaunchProfileId): LaunchInstance {
+  return {
+    id,
+    ownerClientId,
+    profileId,
+    state: "requested",
+    shutdownPolicy: "terminate-tree-on-close",
+    guardianIdentity: { pid: 3001, startIdentity: "3001:guardian" },
+    rootIdentity: null,
+    containmentIdentity: null,
+    createdAt: "2026-08-21T20:00:00.000Z",
+    activatedAt: null,
+    stoppingAt: null,
+    completedAt: null,
+    outcome: null,
+  };
+}
+
 async function createHarness() {
-  const root = await mkdtemp(resolve(tmpdir(), "a1-foreground-supervisor-"));
+  const root = await mkdtemp(resolve(tmpdir(), "a1-launch-supervisor-"));
   roots.push(root);
   const runtimeDir = resolve(root, "runtime");
-  const endpoint = process.platform === "win32" ? `\\\\.\\pipe\\a1-foreground-${process.pid}-${randomUUID()}` : resolve(runtimeDir, "supervisor.sock");
+  const endpoint = process.platform === "win32" ? `\\\\.\\pipe\\a1-launch-${process.pid}-${randomUUID()}` : resolve(runtimeDir, "supervisor.sock");
   const paths = {
     configDir: resolve(root, "config"), dataDir: root, runtimeDir, databasePath: resolve(root, "control.sqlite3"),
     endpoint,
@@ -73,14 +155,6 @@ async function createHarness() {
   const server = new SupervisorServer(store, paths, release(), "boot-current", vi.fn());
   await server.listen();
   return { root, paths, store, server };
-}
-
-function transparentProfile(): TransparentTerminalLaunchProfile {
-  return {
-    id: "profile-transparent", terminalCapability: "transparent", executable: "pi", arguments: [], cwd: ".", environment: {},
-    terminalType: "xterm-256color", dimensions: { columns: 80, rows: 24 }, ownerDisconnect: "stop", recovery: "none",
-    surface: "none", visualReconnection: "none",
-  };
 }
 
 function release(): MaterializedRelease {

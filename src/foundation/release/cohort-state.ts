@@ -42,6 +42,10 @@ export interface CohortState {
 
 export interface EndpointOwnership {
   readonly state: "idle" | "busy" | "draining" | "released" | "blocked";
+  readonly liveInstanceIds: readonly string[];
+  readonly nonResumableInstanceIds: readonly string[];
+  readonly uncertainInstanceIds: readonly string[];
+  /** Transitional aliases consumed by retained pre-instance release coordination. */
   readonly liveGenerationIds: readonly string[];
   readonly nonResumableGenerationIds: readonly string[];
 }

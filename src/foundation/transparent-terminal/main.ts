@@ -22,12 +22,17 @@ export async function runTransparentForeground(options: TransparentForegroundOpt
   const paths = resolveProductPaths(environment);
   const client = new SupervisorClient(environment.A1_RELEASE_ID);
   await client.connect(paths.endpoint);
-  const ownerId = `foreground-broker-${randomUUID()}`;
   const profile = await launchProfile(environment, options, profileId);
   const stop = stopSignal();
   try {
     const result = await runForegroundBroker(
-      { leaseId: randomUUID(), generationId: randomUUID(), ownerId, profile, stopRequested: stop.requested },
+      {
+        instanceId: randomUUID(),
+        profileId,
+        guardianIdentity: { pid: process.pid, startIdentity: `${process.pid}:${Math.floor(Date.now() - process.uptime() * 1_000)}` },
+        profile,
+        stopRequested: stop.requested,
+      },
       client,
       createPlatformTransparentLauncher(),
       randomUUID,

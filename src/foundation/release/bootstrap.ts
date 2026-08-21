@@ -208,6 +208,8 @@ export async function readEndpointMetadata(path: string): Promise<SupervisorEndp
     if (!value || value.schema !== PRODUCT_IDENTITY.protocol.supervisorSchema || typeof value.supervisorId !== "string" || typeof value.endpoint !== "string" || !Number.isSafeInteger(value.pid)
       || typeof value.pidStartIdentity !== "string" || typeof value.bootNonce !== "string" || typeof value.releaseId !== "string"
       || typeof value.releaseRoot !== "string" || typeof value.contentDigest !== "string" || !value.ownership
+      || !Array.isArray(value.ownership.liveInstanceIds) || !Array.isArray(value.ownership.nonResumableInstanceIds)
+      || !Array.isArray(value.ownership.uncertainInstanceIds)
       || !Array.isArray(value.ownership.liveGenerationIds) || !Array.isArray(value.ownership.nonResumableGenerationIds)) {
       return null;
     }

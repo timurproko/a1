@@ -165,7 +165,14 @@ function metadata(release: MaterializedRelease, pid: number, generations: readon
     schema: PRODUCT_IDENTITY.protocol.supervisorSchema,
     supervisorId: "n-minus-one", endpoint: "isolated-endpoint", pid, pidStartIdentity: `${pid}:fixture`, bootNonce: "fixture-boot", startedAt: new Date(0).toISOString(),
     releaseId: release.releaseId, releaseRoot: release.releaseRoot, contentDigest: release.contentDigest,
-    ownership: { state: generations.length ? "busy" : "idle", liveGenerationIds: generations, nonResumableGenerationIds: generations },
+    ownership: {
+      state: generations.length ? "busy" : "idle",
+      liveInstanceIds: generations,
+      nonResumableInstanceIds: generations,
+      uncertainInstanceIds: [],
+      liveGenerationIds: generations,
+      nonResumableGenerationIds: generations,
+    },
     envelope: CONTROL_ENVELOPE, envelopeRevision: 1, requiredFeatures: [], optionalFeatures: [], contractDigest: "fixture-contract",
   };
 }

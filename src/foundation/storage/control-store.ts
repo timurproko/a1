@@ -20,8 +20,18 @@ import type {
   ForegroundTerminalLease,
   ForegroundTerminalLeaseId,
   GenerationId,
+  LaunchInstance,
+  LaunchInstanceId,
+  LaunchInstanceOutcome,
   NativeProcessIdentity,
+  ProcessContainmentIdentity,
   TransparentTerminalLifecycleOutcome,
+} from "../lifecycle/index.js";
+import {
+  assertLaunchInstance,
+  assertLaunchInstanceOutcome,
+  assertNativeProcessIdentity,
+  assertProcessContainmentIdentity,
 } from "../lifecycle/index.js";
 
 export const DEFAULT_WORKSPACE_ID = "workspace-default";
@@ -39,6 +49,7 @@ export interface StoredWorkspaceAgent {
 }
 
 interface ForegroundLeaseRow { id: string; owner_id: string; profile_json: string; state: ForegroundTerminalLease["state"]; generation_id: string | null; process_identity_json: string | null; acquired_at: string; heartbeat_at: string | null; released_at: string | null; outcome_json: string | null; owner_boot_nonce: string }
+interface LaunchInstanceRow { id: string; owner_client_id: string; profile_id: LaunchInstance["profileId"]; state: LaunchInstance["state"]; shutdown_policy: LaunchInstance["shutdownPolicy"]; guardian_identity_json: string; root_identity_json: string | null; containment_identity_json: string | null; created_at: string; activated_at: string | null; stopping_at: string | null; completed_at: string | null; outcome_json: string | null; owner_boot_nonce: string }
 interface WorkspaceAgentRow { id: string; workspace_id: string; display_name: string; adapter_id: string; runtime_kind: string; lifecycle: string; capability_json: string; recovery_reference_id: string | null; unread_count: number; attention: number; failure_json: string | null; created_at: string; updated_at: string }
 interface HostTopologyRow { host_instance_id: string; protocol_version: number; revision: number; topology_json: string; rollback_json: string; updated_at: string }
 interface TerminalSessionRow { id: string; host_instance_id: string; pane_id: string; lifecycle: string; launch_json: string; recovery_reference_id: string | null; updated_at: string }
@@ -57,6 +68,7 @@ export class ControlStore {
       if (bootNonce !== null) {
         this.reconcilePriorBootGenerations(bootNonce);
         this.reconcilePriorBootForegroundTerminalLeases(bootNonce);
+        this.reconcilePriorBootLaunchInstances(bootNonce);
       }
     } catch (error) {
       this.database.close();
@@ -67,7 +79,7 @@ export class ControlStore {
   migrate(): void {
     const versionRow = this.database.prepare("PRAGMA user_version").get() as { user_version: number };
     const version = versionRow.user_version;
-    if (version > 4) throw new Error(`control database version ${version} is newer than supported version 4`);
+    if (version > 5) throw new Error(`control database version ${version} is newer than supported version 5`);
     if (version !== 0) this.#assertCurrentControlSchema();
     if (version === 0) {
       this.database.exec(`
@@ -210,6 +222,41 @@ export class ControlStore {
         COMMIT;
       `);
     }
+    if (version <= 4) {
+      this.database.exec(`
+        BEGIN IMMEDIATE;
+        UPDATE foreground_terminal_leases
+          SET state = 'interrupted',
+              released_at = COALESCE(released_at, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+              outcome_json = '{"kind":"interrupted","reason":"legacy-migration","message":"legacy foreground ownership cannot prove current launch-instance liveness"}'
+          WHERE state IN ('requested', 'active');
+        DROP INDEX IF EXISTS idx_one_live_foreground_lease;
+        CREATE TABLE launch_instances (
+          id TEXT PRIMARY KEY,
+          owner_client_id TEXT NOT NULL,
+          profile_id TEXT NOT NULL CHECK (profile_id IN ('a1', 'pi', 'sandbox')),
+          state TEXT NOT NULL CHECK (state IN ('requested', 'active', 'stopping', 'completed', 'interrupted')),
+          shutdown_policy TEXT NOT NULL CHECK (shutdown_policy = 'terminate-tree-on-close'),
+          guardian_identity_json TEXT NOT NULL CHECK (json_valid(guardian_identity_json)),
+          root_identity_json TEXT CHECK (root_identity_json IS NULL OR json_valid(root_identity_json)),
+          containment_identity_json TEXT CHECK (containment_identity_json IS NULL OR json_valid(containment_identity_json)),
+          created_at TEXT NOT NULL,
+          activated_at TEXT,
+          stopping_at TEXT,
+          completed_at TEXT,
+          outcome_json TEXT CHECK (outcome_json IS NULL OR json_valid(outcome_json)),
+          owner_boot_nonce TEXT NOT NULL,
+          CHECK ((state = 'requested' AND root_identity_json IS NULL AND containment_identity_json IS NULL AND activated_at IS NULL AND stopping_at IS NULL AND completed_at IS NULL AND outcome_json IS NULL)
+            OR (state = 'active' AND root_identity_json IS NOT NULL AND containment_identity_json IS NOT NULL AND activated_at IS NOT NULL AND stopping_at IS NULL AND completed_at IS NULL AND outcome_json IS NULL)
+            OR (state = 'stopping' AND root_identity_json IS NOT NULL AND containment_identity_json IS NOT NULL AND activated_at IS NOT NULL AND stopping_at IS NOT NULL AND completed_at IS NULL AND outcome_json IS NULL)
+            OR (state IN ('completed', 'interrupted') AND completed_at IS NOT NULL AND outcome_json IS NOT NULL))
+        );
+        CREATE INDEX idx_launch_instances_owner ON launch_instances(owner_client_id, state);
+        CREATE INDEX idx_launch_instances_boot ON launch_instances(owner_boot_nonce, state);
+        PRAGMA user_version = 5;
+        COMMIT;
+      `);
+    }
     if (version === 0) {
       this.database.exec("CREATE TABLE product_identity (schema TEXT PRIMARY KEY NOT NULL)");
       this.database.prepare("INSERT INTO product_identity (schema) VALUES (?)").run(PRODUCT_IDENTITY.protocol.controlStoreSchema);
@@ -235,6 +282,86 @@ export class ControlStore {
         .run(now, bootNonce);
       return Number(result.changes);
     });
+  }
+
+  createLaunchInstance(instance: LaunchInstance): void {
+    if (this.bootNonce === null) throw new Error("launch instance storage requires a supervisor boot identity");
+    assertLaunchInstance(instance);
+    if (instance.state !== "requested") throw new Error("new launch instance must be requested");
+    this.database.prepare(`INSERT INTO launch_instances
+      (id, owner_client_id, profile_id, state, shutdown_policy, guardian_identity_json, root_identity_json, containment_identity_json,
+       created_at, activated_at, stopping_at, completed_at, outcome_json, owner_boot_nonce)
+      VALUES (?, ?, ?, 'requested', ?, ?, NULL, NULL, ?, NULL, NULL, NULL, NULL, ?)`)
+      .run(instance.id, instance.ownerClientId, instance.profileId, instance.shutdownPolicy, JSON.stringify(instance.guardianIdentity), instance.createdAt, this.bootNonce);
+  }
+
+  activateLaunchInstance(
+    instanceId: LaunchInstanceId,
+    ownerClientId: string,
+    rootIdentity: NativeProcessIdentity,
+    containmentIdentity: ProcessContainmentIdentity,
+    activatedAt: string,
+  ): boolean {
+    if (this.bootNonce === null) throw new Error("launch instance storage requires a supervisor boot identity");
+    assertNativeProcessIdentity(rootIdentity);
+    assertProcessContainmentIdentity(containmentIdentity);
+    const result = this.database.prepare(`UPDATE launch_instances
+      SET state = 'active', root_identity_json = ?, containment_identity_json = ?, activated_at = ?
+      WHERE id = ? AND owner_client_id = ? AND owner_boot_nonce = ? AND state = 'requested'`)
+      .run(JSON.stringify(rootIdentity), JSON.stringify(containmentIdentity), activatedAt, instanceId, ownerClientId, this.bootNonce);
+    return Number(result.changes) === 1;
+  }
+
+  beginLaunchInstanceStop(instanceId: LaunchInstanceId, ownerClientId: string, stoppingAt: string): boolean {
+    if (this.bootNonce === null) throw new Error("launch instance storage requires a supervisor boot identity");
+    const result = this.database.prepare(`UPDATE launch_instances SET state = 'stopping', stopping_at = ?
+      WHERE id = ? AND owner_client_id = ? AND owner_boot_nonce = ? AND state = 'active'`)
+      .run(stoppingAt, instanceId, ownerClientId, this.bootNonce);
+    return Number(result.changes) === 1;
+  }
+
+  completeLaunchInstance(
+    instanceId: LaunchInstanceId,
+    ownerClientId: string,
+    terminalState: "completed" | "interrupted",
+    outcome: LaunchInstanceOutcome,
+    completedAt: string,
+  ): boolean {
+    if (this.bootNonce === null) throw new Error("launch instance storage requires a supervisor boot identity");
+    assertLaunchInstanceOutcome(outcome);
+    if (terminalState === "completed" && outcome.kind === "interrupted") throw new Error("completed launch instance cannot carry an interrupted outcome");
+    if (terminalState === "interrupted" && outcome.kind !== "interrupted" && outcome.kind !== "cleanup-error") {
+      throw new Error("interrupted launch instance requires an interrupted or cleanup-error outcome");
+    }
+    const result = this.database.prepare(`UPDATE launch_instances
+      SET state = ?, completed_at = ?, outcome_json = ?
+      WHERE id = ? AND owner_client_id = ? AND owner_boot_nonce = ? AND state IN ('requested', 'active', 'stopping')`)
+      .run(terminalState, completedAt, JSON.stringify(outcome), instanceId, ownerClientId, this.bootNonce);
+    return Number(result.changes) === 1;
+  }
+
+  loadActiveLaunchInstances(): LaunchInstance[] {
+    return (this.database.prepare(`SELECT * FROM launch_instances
+      WHERE state IN ('requested', 'active', 'stopping') ORDER BY created_at, id`).all() as unknown as LaunchInstanceRow[])
+      .map(launchInstanceFromRow);
+  }
+
+  loadLaunchInstance(instanceId: LaunchInstanceId): LaunchInstance | null {
+    const row = this.database.prepare("SELECT * FROM launch_instances WHERE id = ?").get(instanceId) as LaunchInstanceRow | undefined;
+    return row ? launchInstanceFromRow(row) : null;
+  }
+
+  reconcilePriorBootLaunchInstances(bootNonce: string, reconciledAt = new Date().toISOString()): number {
+    const outcome: LaunchInstanceOutcome = {
+      kind: "interrupted",
+      reason: "supervisor-disconnect",
+      message: "launch instance ownership ended with a prior supervisor boot",
+    };
+    const result = this.database.prepare(`UPDATE launch_instances
+      SET state = 'interrupted', completed_at = ?, outcome_json = ?
+      WHERE state IN ('requested', 'active', 'stopping') AND owner_boot_nonce <> ?`)
+      .run(reconciledAt, JSON.stringify(outcome), bootNonce);
+    return Number(result.changes);
   }
 
   acquireForegroundTerminalLease(lease: ForegroundTerminalLease): void {
@@ -535,6 +662,26 @@ function assertWorkspaceAgentPresentation(presentation: WorkspaceAgentPresentati
       throw new TypeError("workspace failure message is invalid");
     }
   }
+}
+
+function launchInstanceFromRow(row: LaunchInstanceRow): LaunchInstance {
+  const instance: LaunchInstance = {
+    id: row.id,
+    ownerClientId: row.owner_client_id,
+    profileId: row.profile_id,
+    state: row.state,
+    shutdownPolicy: row.shutdown_policy,
+    guardianIdentity: JSON.parse(row.guardian_identity_json) as NativeProcessIdentity,
+    rootIdentity: row.root_identity_json ? JSON.parse(row.root_identity_json) as NativeProcessIdentity : null,
+    containmentIdentity: row.containment_identity_json ? JSON.parse(row.containment_identity_json) as ProcessContainmentIdentity : null,
+    createdAt: row.created_at,
+    activatedAt: row.activated_at,
+    stoppingAt: row.stopping_at,
+    completedAt: row.completed_at,
+    outcome: row.outcome_json ? JSON.parse(row.outcome_json) as LaunchInstanceOutcome : null,
+  };
+  assertLaunchInstance(instance);
+  return instance;
 }
 
 function foregroundLeaseFromRow(row: ForegroundLeaseRow): ForegroundTerminalLease {
