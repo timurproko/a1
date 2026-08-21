@@ -1,11 +1,12 @@
 import { EventEmitter } from "node:events";
 import { connect, type Socket } from "node:net";
 import { randomUUID } from "node:crypto";
-import type { CommandResult, SupervisorCommand, SupervisorSnapshot } from "../lifecycle/index.js";
+import type { CommandResult, LaunchInstanceStopIntent, SupervisorCommand, SupervisorSnapshot } from "../lifecycle/index.js";
 import { CONTROL_ENVELOPE, CONTROL_ENVELOPE_REVISION, encodeFrame, LineFrameDecoder, localControlHello, negotiateControlFeatures, type ControlHello, type ServerMessage } from "./messages.js";
 
 interface ClientEvents {
   snapshot: [SupervisorSnapshot];
+  stopIntent: [LaunchInstanceStopIntent];
   disconnect: [];
 }
 
@@ -92,6 +93,8 @@ export class SupervisorClient extends EventEmitter<ClientEvents> {
                 this.#pending.delete(message.result.requestId);
                 pending.resolve(message.result);
               }
+            } else if (message.type === "stop-launch-instance" && message.instanceId && message.requestId && message.reason) {
+              this.emit("stopIntent", message as LaunchInstanceStopIntent);
             } else if (message.type === "protocol-error") {
               fail(new Error(message.message ?? "protocol error"));
             }

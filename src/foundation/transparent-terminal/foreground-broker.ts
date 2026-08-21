@@ -1,14 +1,20 @@
 import type {
   CommandResult,
-  ForegroundTerminalLeaseId,
-  GenerationId,
+  LaunchInstanceId,
+  LaunchInstanceOutcome,
+  LaunchProfileId,
   NativeProcessIdentity,
+  ProcessContainmentIdentity,
   RequestId,
   SupervisorCommand,
   TransparentTerminalLaunchProfile,
   TransparentTerminalLifecycleOutcome,
 } from "../lifecycle/index.js";
-import { assertNativeProcessIdentity, assertTransparentTerminalLaunchProfile } from "../lifecycle/index.js";
+import {
+  assertNativeProcessIdentity,
+  assertProcessContainmentIdentity,
+  assertTransparentTerminalLaunchProfile,
+} from "../lifecycle/index.js";
 
 export interface ForegroundLeaseControl {
   command(command: SupervisorCommand): Promise<CommandResult>;
@@ -27,24 +33,22 @@ export interface TransparentNativeLauncher {
 }
 
 export interface ForegroundBrokerRequest {
-  readonly leaseId: ForegroundTerminalLeaseId;
-  readonly generationId: GenerationId;
-  readonly ownerId: string;
+  readonly instanceId: LaunchInstanceId;
+  readonly profileId: LaunchProfileId;
+  readonly guardianIdentity: NativeProcessIdentity;
   readonly profile: TransparentTerminalLaunchProfile;
   readonly stopRequested?: Promise<TransparentStopReason>;
 }
 
 export interface ForegroundBrokerResult {
-  readonly leaseId: ForegroundTerminalLeaseId;
-  readonly generationId: GenerationId;
+  readonly instanceId: LaunchInstanceId;
   readonly processIdentity: NativeProcessIdentity | null;
   readonly outcome: TransparentTerminalLifecycleOutcome;
 }
 
 /**
- * Coordinates ownership around one natively attached child. Ordinary terminal
- * data never enters this object: the launcher owns native attachment and this
- * broker observes only process identity and the final lifecycle outcome.
+ * Coordinates one directly attached child inside an independently registered
+ * launch instance. Ordinary terminal data never enters this object.
  */
 export async function runForegroundBroker(
   request: ForegroundBrokerRequest,
@@ -54,11 +58,12 @@ export async function runForegroundBroker(
 ): Promise<ForegroundBrokerResult> {
   assertRequest(request);
   await requireAccepted(control, {
-    type: "acquire-foreground-terminal-lease",
+    type: "create-launch-instance",
     requestId: createRequestId(),
-    leaseId: request.leaseId,
-    ownerId: request.ownerId,
-    profile: request.profile,
+    instanceId: request.instanceId,
+    profileId: request.profileId,
+    shutdownPolicy: "terminate-tree-on-close",
+    guardianIdentity: request.guardianIdentity,
   });
 
   let handle: TransparentChildHandle;
@@ -71,55 +76,81 @@ export async function runForegroundBroker(
       message: errorMessage(error),
       code: errorCode(error),
     };
-    await requireAccepted(control, {
-      type: "release-foreground-terminal-lease",
-      requestId: createRequestId(),
-      leaseId: request.leaseId,
-      processIdentity: null,
-      outcome,
-    });
-    return { leaseId: request.leaseId, generationId: request.generationId, processIdentity: null, outcome };
+    await requireAccepted(control, completionCommand(request.instanceId, createRequestId(), outcome));
+    return { instanceId: request.instanceId, processIdentity: null, outcome };
   }
+
+  const containmentIdentity: ProcessContainmentIdentity = {
+    provider: "direct-child-transition",
+    token: handle.processIdentity.startIdentity,
+  };
+  assertProcessContainmentIdentity(containmentIdentity);
 
   try {
     await requireAccepted(control, {
-      type: "activate-foreground-terminal-lease",
+      type: "activate-launch-instance",
       requestId: createRequestId(),
-      leaseId: request.leaseId,
-      generationId: request.generationId,
-      processIdentity: handle.processIdentity,
+      instanceId: request.instanceId,
+      rootIdentity: handle.processIdentity,
+      containmentIdentity,
     });
     const outcome = request.stopRequested
-      ? await Promise.race([handle.outcome, request.stopRequested.then(async reason => await handle.stop(reason))])
+      ? await Promise.race([
+          handle.outcome,
+          request.stopRequested.then(async reason => {
+            await requireAccepted(control, {
+              type: "begin-launch-instance-stop",
+              requestId: createRequestId(),
+              instanceId: request.instanceId,
+              reason,
+            });
+            return await handle.stop(reason);
+          }),
+        ])
       : await handle.outcome;
-    await requireAccepted(control, {
-      type: "release-foreground-terminal-lease",
-      requestId: createRequestId(),
-      leaseId: request.leaseId,
-      processIdentity: handle.processIdentity,
-      outcome,
-    });
-    return { leaseId: request.leaseId, generationId: request.generationId, processIdentity: handle.processIdentity, outcome };
+    await requireAccepted(control, completionCommand(request.instanceId, createRequestId(), outcome));
+    return { instanceId: request.instanceId, processIdentity: handle.processIdentity, outcome };
   } catch (error) {
     const outcome: TransparentTerminalLifecycleOutcome = {
       kind: "broker-error",
       message: errorMessage(error),
       code: errorCode(error),
     };
-    await control.command({
-      type: "release-foreground-terminal-lease",
-      requestId: createRequestId(),
-      leaseId: request.leaseId,
-      processIdentity: handle.processIdentity,
-      outcome,
-    }).catch(() => undefined);
+    await control.command(completionCommand(request.instanceId, createRequestId(), outcome)).catch(() => undefined);
     throw error;
   }
 }
 
 function assertRequest(request: ForegroundBrokerRequest): void {
-  if (!request.leaseId || !request.generationId || !request.ownerId) throw new TypeError("foreground broker identities are required");
+  if (!request.instanceId) throw new TypeError("foreground broker instance identity is required");
+  assertNativeProcessIdentity(request.guardianIdentity);
   assertTransparentTerminalLaunchProfile(request.profile);
+}
+
+function completionCommand(
+  instanceId: LaunchInstanceId,
+  requestId: RequestId,
+  outcome: TransparentTerminalLifecycleOutcome,
+): Extract<SupervisorCommand, { type: "complete-launch-instance" }> {
+  const mapped = launchInstanceOutcome(outcome);
+  return {
+    type: "complete-launch-instance",
+    requestId,
+    instanceId,
+    terminalState: mapped.kind === "interrupted" || mapped.kind === "cleanup-error" ? "interrupted" : "completed",
+    outcome: mapped,
+  };
+}
+
+function launchInstanceOutcome(outcome: TransparentTerminalLifecycleOutcome): LaunchInstanceOutcome {
+  if (outcome.kind === "exited") return outcome;
+  if (outcome.kind === "signaled") return outcome;
+  if (outcome.kind === "stopped") return outcome;
+  if (outcome.kind === "detached") {
+    return { kind: "interrupted", reason: "owner-disconnect", message: "transparent child detached from a non-resident launch instance" };
+  }
+  if (outcome.kind === "spawn-error") return { kind: "spawn-error", message: outcome.message, code: outcome.code };
+  return { kind: "guardian-error", message: outcome.message, code: outcome.code };
 }
 
 async function requireAccepted(control: ForegroundLeaseControl, command: SupervisorCommand): Promise<void> {
