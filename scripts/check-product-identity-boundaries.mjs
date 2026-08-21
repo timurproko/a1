@@ -38,7 +38,7 @@ async function checkWorkflows(identity) {
   for (const path of [".github/workflows/publish-next.yml", ".github/workflows/publish-stable.yml"]) {
     const source = await text(path, "publication workflow");
     if (source === null) continue;
-    const consumesCertifiedIdentity = source.includes("candidate-evidence.json");
+    const consumesCertifiedIdentity = source.includes("candidate-evidence.json") || source.includes("certified-stable-evidence.json");
     if (!source.includes("src/product-identity.json") && !consumesCertifiedIdentity) fail(`${path} does not consume the product identity authority`);
     if (source.includes(identity.packageName)) fail(`${path} duplicates the authoritative package name`);
     if (source.includes(identity.artifacts.cliEntry)) fail(`${path} duplicates the authoritative CLI entry`);

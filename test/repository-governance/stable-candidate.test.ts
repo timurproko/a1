@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { deriveStableCandidate, observeStableRegistry } from "../../scripts/stable-candidate.mjs";
+import { createStablePublicationPlan, deriveStableCandidate, observeStableRegistry } from "../../scripts/stable-candidate.mjs";
+import type { CandidateEvidence } from "../../scripts/candidate-evidence.mjs";
 
 const identity = {
   packageName: "@timurproko/a1",
@@ -46,6 +47,23 @@ describe("version-independent stable candidate preflight", () => {
 
   it("rejects an already-published version", () => {
     expect(() => deriveStableCandidate({ ...input(), registryStatus: "published" })).toThrow("not available");
+  });
+
+  it("creates a no-side-effect publication plan only for exact eligible evidence", () => {
+    const evidence = {
+      channel: "latest",
+      source: { commit: "a".repeat(40), tree: "b".repeat(40) },
+      identity: { packageName: identity.packageName },
+      package: { version: "1.2.0" },
+      certification: { stableEligible: true },
+    } as CandidateEvidence;
+    const plan = createStablePublicationPlan(evidence, {
+      commit: "a".repeat(40), tree: "b".repeat(40), tag: "v1.2.0", registryStatus: "unpublished", tarballPath: "candidate.tgz",
+    });
+    expect(plan.command).toEqual(["npm", "publish", "candidate.tgz", "--tag", "latest", "--access", "public", "--ignore-scripts", "--provenance", "--registry", "https://registry.npmjs.org/"]);
+    expect(() => createStablePublicationPlan(evidence, {
+      commit: "a".repeat(40), tree: "b".repeat(40), tag: "v1.2.0", registryStatus: "published", tarballPath: "candidate.tgz",
+    })).toThrow("already registered");
   });
 
   it("classifies registry availability without accepting registry errors", async () => {

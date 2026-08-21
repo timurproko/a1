@@ -27,6 +27,21 @@ export function deriveStableCandidate(input) {
   };
 }
 
+export function createStablePublicationPlan(evidence, input) {
+  if (evidence?.channel !== "latest" || evidence.certification?.stableEligible !== true) throw new Error("stable publication requires eligible latest evidence");
+  if (evidence.source?.commit !== input.commit || evidence.source?.tree !== input.tree) throw new Error("stable publication source differs from certified evidence");
+  if (input.tag !== `v${evidence.package?.version}`) throw new Error("stable publication tag differs from certified version");
+  if (input.registryStatus !== "unpublished") throw new Error("stable publication version is already registered");
+  return {
+    schema: "a1-stable-publication-plan-v1",
+    packageName: evidence.identity.packageName,
+    version: evidence.package.version,
+    tag: input.tag,
+    tarball: input.tarballPath,
+    command: ["npm", "publish", input.tarballPath, "--tag", "latest", "--access", "public", "--ignore-scripts", "--provenance", "--registry", "https://registry.npmjs.org/"],
+  };
+}
+
 export async function observeStableRegistry(packageName, version, fetcher = fetch) {
   const response = await fetcher(`https://registry.npmjs.org/${encodeURIComponent(packageName)}/${version}?preflight=${Date.now()}`, {
     headers: { accept: "application/json", "cache-control": "no-cache" },
