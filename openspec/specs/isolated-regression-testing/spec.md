@@ -44,15 +44,23 @@ After non-desktop structural, lifecycle, and integration gates pass, A1 SHALL pr
 - **THEN** A1 SHALL preserve the finding, correct it, and repeat affected non-desktop and manual checks
 
 ### Requirement: Uncertified development previews are explicit
-A manually accepted `-dev.N` candidate MAY publish under npm tag `next` after applicable architecture, structural, lifecycle, update, dependency, build, package-content, and exact-artifact gates pass. It SHALL identify physical and cross-platform certification as deferred, SHALL NOT move `latest`, and SHALL NOT claim certified terminal parity or platform support.
+A manually accepted `-dev.N` candidate MAY publish under npm tag `next` after repository-wide invariant and smoke gates, deterministically selected affected architecture, structural, lifecycle, update, dependency, and integration scopes, and exact package-content and artifact-identity checks pass. Expensive unaffected integration and clean consumer-install coverage MAY be deferred to scheduled full regression unless a packaging-sensitive input changed. The preview SHALL identify physical, complete-regression, and cross-platform certification status explicitly, SHALL NOT move `latest`, and SHALL NOT claim certified terminal parity or platform support.
 
 #### Scenario: Physical workers are unavailable
-- **WHEN** a candidate passes non-desktop gates and manual acceptance but physical certification is deferred
+- **WHEN** a candidate passes its mandatory and affected non-desktop gates and manual acceptance but physical certification is deferred
 - **THEN** publication MAY proceed only as an explicitly uncertified development preview
+
+#### Scenario: Ordinary feature preview is requested
+- **WHEN** deterministic impact selection proves the change does not affect packaging, dependencies, release behavior, or a global contract
+- **THEN** the preview MAY omit the clean consumer package-install gate while still validating mandatory invariants, affected scopes, package contents, and exact candidate identity
+
+#### Scenario: Packaging-sensitive preview is requested
+- **WHEN** a manifest, lockfile, build configuration, package entry, product identity authority, release script, or other declared packaging-sensitive input changes
+- **THEN** the preview SHALL pass clean installation of the exact packed candidate before publication
 
 #### Scenario: Stable publication is requested
 - **WHEN** a candidate would move `latest` or claim terminal support on a platform
-- **THEN** deferred physical and cross-platform certification SHALL complete against the exact candidate first
+- **THEN** complete automated, clean-package, deferred physical, and cross-platform certification SHALL complete against the exact candidate first
 
 ### Requirement: Architecture-independent tests survive terminal changes
 Domain, storage, release-cohort, update-transaction, protocol, package identity, dependency-policy, and non-terminal lifecycle tests SHALL remain mandatory when they express current contracts rather than retired implementation assumptions.
