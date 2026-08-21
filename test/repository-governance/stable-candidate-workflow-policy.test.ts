@@ -12,6 +12,7 @@ describe("stable candidate platform coordination", () => {
     expect(workflow).toContain("platform: darwin");
     expect(workflow).toContain("os: macos-15");
     expect(workflow).toContain("stable package digest changed across platform fan-out");
+    expect(workflow).toContain('VALIDATION_CANDIDATE_TARBALL="$tarball" STABLE_PACK_RESULT="$pack_result" node');
   });
 
   it("runs complete validation and clean installation on every platform", async () => {
