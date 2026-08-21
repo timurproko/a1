@@ -127,9 +127,9 @@ A confirmed regression SHALL gain the smallest independent current-contract test
 - **WHEN** a rendering or input defect cannot be represented independently in a unit test
 - **THEN** A1 SHALL retain it for isolated physical or exact-package integration certification
 
-### Requirement: Changed tests pass focused execution
-A retained or newly added test SHALL pass focused execution before its task is complete. Containing tiers and gates run in continuous integration and release workflows rather than per task.
+### Requirement: Changed tests pass in pull-request validation
+A retained or newly added test SHALL pass in the pull-request validation of continuous integration before its change is integrated. Local execution is an optional debugging aid, not a completion gate.
 
-#### Scenario: Focused execution passes
-- **WHEN** the focused vitest command for the changed tests succeeds
-- **THEN** the task MAY be marked complete and wider tiers SHALL be left to the pull-request and release workflows
+#### Scenario: Pull-request validation passes
+- **WHEN** continuous integration validates the pull request containing the changed tests
+- **THEN** the change MAY be integrated and no local suite execution SHALL be required
