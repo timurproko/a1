@@ -4,13 +4,14 @@
     "invariants": {
       "kind": "commands",
       "commands": [
-        "npm run typecheck",
-        "npm run check:architecture",
-        "npm run check:customization-ready"
+        { "id": "typecheck", "executable": "npm", "arguments": ["run", "typecheck"] },
+        { "id": "architecture", "executable": "npm", "arguments": ["run", "check:architecture"] },
+        { "id": "customization-ready", "executable": "npm", "arguments": ["run", "check:customization-ready"] }
       ]
     },
     "fast": {
       "kind": "vitest-remainder",
+      "requiresBuild": true,
       "includeRoot": "test",
       "exclude": [
         "test/features/launch/exact-pi-entry.integration.test.ts",
@@ -40,6 +41,7 @@
   "scopes": {
     "launch-integration": {
       "kind": "vitest-files",
+      "requiresBuild": true,
       "tests": [
         "test/features/launch/exact-pi-entry.integration.test.ts",
         "test/features/launch/profile-isolation.integration.test.ts"
@@ -47,13 +49,14 @@
     },
     "pi-engine-conformance": {
       "kind": "mixed",
+      "requiresBuild": true,
       "tests": [
         "test/foundation/pi-engine-adapter/conformance.test.ts",
         "test/foundation/pi-engine-adapter/runtime-integration.test.ts",
         "test/foundation/pi-engine-adapter/session-integration.test.ts"
       ],
       "commands": [
-        "node scripts/run-pi-engine-conformance.mjs"
+        { "id": "candidate-engine-conformance-report", "executable": "node", "arguments": ["scripts/run-pi-engine-conformance.mjs"] }
       ]
     },
     "release-update": {
@@ -77,7 +80,7 @@
     "dependency-policy": {
       "kind": "commands",
       "commands": [
-        "npm run check:deprecated"
+        { "id": "deprecated-dependencies", "executable": "npm", "arguments": ["run", "check:deprecated"] }
       ]
     }
   },

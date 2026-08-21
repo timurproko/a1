@@ -2,7 +2,7 @@
 
 - [x] 1.1 Add a reproducible timing/invocation inventory for the current fast, integration, package, and release commands, recording duplicate tests and builds; validate the inventory generator against the current package scripts and one measured local or GitHub Actions result.
 - [x] 1.2 Define one declarative validation-suite manifest covering invariant, fast, feature/foundation integration, package, and full-release tiers, then add governance tests proving every retained test and mandatory release gate has exactly one owner.
-- [ ] 1.3 Refactor package scripts and the release-gate runner to consume the shared tiers without duplicate architecture checks, tests, or candidate builds; validate focused tier commands and the deduplicated full non-physical suite.
+- [x] 1.3 Refactor package scripts and the release-gate runner to consume the shared tiers without duplicate architecture checks, tests, or candidate builds; validate focused tier commands and the deduplicated full non-physical suite.
 
 ## 2. Fail-Closed Affected-Scope Selection
 

@@ -2,12 +2,16 @@ import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
 describe("mandatory release compatibility policy", () => {
-  it("gates architecture, authority, candidate conformance, oracle, package, UI, and extensions", async () => {
+  it("owns architecture, authority, candidate conformance, oracle, package, UI, and extension contracts once", async () => {
     const source = await readFile("scripts/run-release-gates.mjs", "utf8");
-    for (const gate of [
+    const suites = JSON.parse(await readFile("config/validation-suites.json", "utf8")) as { releaseContracts: Record<string, string> };
+    expect(Object.keys(suites.releaseContracts)).toEqual([
       "architecture", "compatibility-authority", "candidate-engine-conformance", "exact-vanilla-oracle",
       "packaged-public-entry", "owned-ui-regression", "extension-behavior", "architecture-independent-n-minus-one-update-transition",
-    ]) expect(source, gate).toContain(`id: "${gate}"`);
+    ]);
+    expect(new Set(Object.keys(suites.releaseContracts)).size).toBe(8);
+    expect(source).toContain("createTierPlan([\"full-release\"])");
+    expect(source).toContain("Object.entries(suites.releaseContracts)");
     expect(source).toContain("MANDATORY_RELEASE_GATES.map");
   });
 

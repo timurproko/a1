@@ -5,10 +5,10 @@ import { pathToFileURL } from "node:url";
 const root = resolve(process.cwd());
 
 export async function createValidationInventory(repository = root) {
-  const [manifest, baseline, releaseSource, previewSource, exactEntrySource, packageSurfaceSource] = await Promise.all([
+  const [manifest, baseline, suites, previewSource, exactEntrySource, packageSurfaceSource] = await Promise.all([
     readJson(resolve(repository, "package.json")),
     readJson(resolve(repository, "config", "validation-baseline.json")),
-    readFile(resolve(repository, "scripts", "run-release-gates.mjs"), "utf8"),
+    readJson(resolve(repository, "config", "validation-suites.json")),
     readFile(resolve(repository, ".github", "workflows", "publish-next.yml"), "utf8"),
     readFile(resolve(repository, "test", "features", "launch", "exact-pi-entry.integration.test.ts"), "utf8"),
     readFile(resolve(repository, "test", "foundation", "release", "package-surface.integration.test.ts"), "utf8"),
@@ -18,7 +18,8 @@ export async function createValidationInventory(repository = root) {
   const missingPreviewCommands = baseline.previewCommands.filter(command => !previewSource.includes(command));
   if (missingPreviewCommands.length > 0) throw new Error(`preview workflow no longer contains baseline commands: ${missingPreviewCommands.join(", ")}`);
 
-  const releaseGates = parseReleaseGates(releaseSource);
+  if (suites.schema !== "a1-validation-suites-v1") throw new Error("unsupported validation suite schema");
+  const releaseGates = Object.entries(suites.releaseContracts).map(([id, owner]) => ({ id, owner }));
   const releaseGateIds = new Set(releaseGates.map(gate => gate.id));
   for (const duplicate of baseline.knownDuplicateContracts) {
     if (!releaseGateIds.has(duplicate.repeatedByReleaseGate)) throw new Error(`baseline duplicate references missing release gate: ${duplicate.repeatedByReleaseGate}`);
@@ -45,16 +46,6 @@ export async function createValidationInventory(repository = root) {
     duplicateContracts: baseline.knownDuplicateContracts,
     buildTriggers: buildTriggers.map(({ id, source }) => ({ id, source })),
   };
-}
-
-export function parseReleaseGates(source) {
-  const gates = [];
-  const pattern = /\{ id: "([^"]+)", executable: ([^,]+), arguments: (\[[^\]]+\]) \}/g;
-  for (const match of source.matchAll(pattern)) {
-    gates.push({ id: match[1], executable: match[2].trim(), arguments: JSON.parse(match[3]) });
-  }
-  if (gates.length === 0) throw new Error("no mandatory release gates found");
-  return gates;
 }
 
 async function readJson(path) {

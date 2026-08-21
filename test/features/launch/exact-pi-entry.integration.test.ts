@@ -13,7 +13,9 @@ let selectedVersion: string;
 beforeAll(async () => {
   const manifest = JSON.parse(await readFile("package.json", "utf8")) as { dependencies: Record<string, string> };
   selectedVersion = manifest.dependencies["@earendil-works/pi-coding-agent"]!;
-  await execute(process.execPath, [resolve("node_modules/typescript/bin/tsc"), "-p", "tsconfig.build.json"], { cwd: resolve("."), timeout: 120_000 });
+  if (process.env.VALIDATION_BUILD_READY !== "1") {
+    await execute(process.execPath, [resolve("node_modules/typescript/bin/tsc"), "-p", "tsconfig.build.json"], { cwd: resolve("."), timeout: 120_000 });
+  }
   fakeBin = await mkdtemp(join(tmpdir(), "selected-pi-entry-"));
   if (process.platform === "win32") {
     await writeFile(join(fakeBin, "pi.cmd"), "@echo conflicting-ambient-pi\r\n");
