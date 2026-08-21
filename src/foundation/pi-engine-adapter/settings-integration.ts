@@ -51,6 +51,20 @@ const SETTING_LABELS: Readonly<Record<string, { readonly label: string; readonly
   warnings: { label: "Warnings", description: "Enable or disable individual warnings" },
 });
 
+/**
+ * The order the pinned engine presents these settings in. It is neither the
+ * declaration order nor alphabetical, so it is recorded rather than derived.
+ * Keys absent here follow, in declaration order.
+ */
+const SETTING_ORDER: readonly string[] = Object.freeze([
+  "autoCompact", "showImages", "imageWidthCells", "autoResizeImages", "blockImages", "enableSkillCommands",
+  "showHardwareCursor", "editorPaddingX", "outputPad", "autocompleteMaxVisible", "clearOnShrink",
+  "showTerminalProgress", "steeringMode", "followUpMode", "transport", "httpIdleTimeoutMs", "hideThinkingBlock",
+  "mermaidRenderingMode", "showCacheMissNotices", "collapseChangelog", "quietStartup", "enableInstallTelemetry",
+  "defaultProjectTrust", "doubleEscapeAction", "treeFilterMode", "warnings", "thinkingLevel", "tuiMode",
+  "fullscreenExitOutput", "fullscreenScrollbar", "theme",
+]);
+
 export class PiSettingsIntegration implements AgentSettingsPort {
   readonly capabilities = { write: true, flush: true };
   readonly #operations: ReadonlyMap<string, Operation>;
@@ -61,10 +75,16 @@ export class PiSettingsIntegration implements AgentSettingsPort {
     }
   }
   async listSettings(): Promise<readonly AgentSettingDescriptor[]> {
-    return [...this.#operations.values()].map(operation => {
-      const wording = SETTING_LABELS[operation.descriptor.key];
-      return wording === undefined ? operation.descriptor : { ...operation.descriptor, ...wording };
-    });
+    const rank = (key: string): number => {
+      const at = SETTING_ORDER.indexOf(key);
+      return at < 0 ? SETTING_ORDER.length : at;
+    };
+    return [...this.#operations.values()]
+      .map(operation => {
+        const wording = SETTING_LABELS[operation.descriptor.key];
+        return wording === undefined ? operation.descriptor : { ...operation.descriptor, ...wording };
+      })
+      .sort((left, right) => rank(left.key) - rank(right.key));
   }
   async readSetting(key: string): Promise<AgentJsonValue | undefined> { return this.#operations.get(key)?.read(); }
   async writeSetting(key: string, value: AgentJsonValue): Promise<void> { this.writeSettingNow(key, value); }

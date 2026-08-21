@@ -42,6 +42,8 @@ const SCROLLBAR_TOP_INSET = 1;
 const RAIL_COLUMNS = 2;
 const HINT = "/ search • ↑↓ navigate • shift+↑↓ block • enter change/edit • ←→ adjust • esc close";
 const SEARCH_PLACEHOLDER = "search settings";
+/** What a structured value offers instead of printing itself. */
+const CONFIGURE = "configure";
 /** Columns a number stepper hangs to the left of the value column. */
 const STEPPER_RESERVE = 2;
 
@@ -85,6 +87,8 @@ type Row = ListRow<OwnedUiSettingsEntry>;
 
 interface ValueMenu {
   readonly entry: OwnedUiSettingsEntry;
+  /** Index of the value in effect, where the keyboard starts from. */
+  readonly current: number;
   /** Row this menu was opened from, so it anchors there rather than to the selection. */
   readonly anchorKey: string;
   readonly choices: readonly OwnedUiSettingValue[];
@@ -105,6 +109,7 @@ export class SettingsApp implements UiApp {
   #notice: string | null = null;
   #filter: LineInput | null = null;
   #menu: ValueMenu | null = null;
+  #structured: { entry: OwnedUiSettingsEntry; flags: readonly string[]; index: number } | null = null;
   #loading = true;
   #interruptArmed = false;
   #footerHeight = 1;
@@ -147,6 +152,11 @@ export class SettingsApp implements UiApp {
       trackHeight: Math.max(0, bodyHeight - SCROLLBAR_TOP_INSET),
     });
 
+    const structured = this.#structured;
+    if (structured !== null) {
+      return [...this.#structuredBody(structured, bodyHeight, contentWidth, theme), ...footer];
+    }
+
     const body: string[] = [];
     this.#frameRows = [];
     if (rows.length === 0) {
@@ -167,7 +177,9 @@ export class SettingsApp implements UiApp {
             key: `${row.value.backend}:${row.value.id}`,
             screenRow: body.length,
             valueColumn,
-            valueWidth: row.value.value === null ? 0 : displayWidth(displayValue(row.value.value)),
+            valueWidth: row.value.structured
+              ? CONFIGURE.length
+              : row.value.value === null ? 0 : displayWidth(displayValue(row.value.value)),
             stepper: isStepper(row.value),
           });
         }
@@ -186,6 +198,7 @@ export class SettingsApp implements UiApp {
   }
 
   onInput(data: string, host: AppHostServices): PaneInputResult {
+    if (this.#structured !== null) return this.#structuredKey(data);
     if (this.#menu !== null) return this.#menuKey(data);
     if (this.#filter !== null) return this.#filterKey(data);
 
@@ -270,6 +283,23 @@ export class SettingsApp implements UiApp {
       return { consumed: true };
     }
 
+    const open = this.#structured;
+    if (open !== null) {
+      const flagRow = this.#frameRows.findIndex(candidate => candidate.screenRow === event.row - 1);
+      if (flagRow < 0) return { consumed: event.kind !== "motion", render: false };
+      if (event.kind === "motion") {
+        if (open.index === flagRow) return { consumed: true, render: false };
+        open.index = flagRow;
+        return { consumed: true, render: true };
+      }
+      if (event.kind === "press") {
+        open.index = flagRow;
+        this.#toggleFlag(flagRow);
+        return { consumed: true };
+      }
+      return { consumed: true, render: false };
+    }
+
     const row = this.#frameRows.find(candidate => candidate.screenRow === event.row - 1);
     const previousKey = this.#hoverKey;
     const previousRegion = this.#hoverRegion;
@@ -319,12 +349,63 @@ export class SettingsApp implements UiApp {
     const row = rows[selected];
     if (row === undefined || row.kind !== "element") return;
     const entry = row.value;
+    if (entry.structured) {
+      this.#openStructured(entry);
+      return;
+    }
     if (!entry.editable || entry.choices === null || entry.choices.length === 0) {
       this.#notice = `${labelOf(entry)} cannot be changed here`;
       return;
     }
     const current = entry.value === null ? 0 : Math.max(0, entry.choices.indexOf(entry.value));
-    this.#menu = { entry, anchorKey: `${entry.backend}:${entry.id}`, choices: entry.choices, index: current };
+    // Nothing is highlighted until the pointer or a key picks a row, so opening
+    // the menu does not flash a highlight the reader did not ask for.
+    this.#menu = { entry, current, anchorKey: `${entry.backend}:${entry.id}`, choices: entry.choices, index: -1 };
+  }
+
+  /**
+   * A structured setting is a set of flags, so it opens as its own list rather
+   * than as a value menu: each row names one flag and toggles it in place.
+   */
+  #openStructured(entry: OwnedUiSettingsEntry): void {
+    const record = entry.rawValue;
+    if (typeof record !== "object" || record === null || Array.isArray(record)) {
+      this.#notice = `${labelOf(entry)} cannot be configured here`;
+      return;
+    }
+    const flags = Object.entries(record).filter(([, value]) => typeof value === "boolean");
+    if (flags.length === 0) {
+      this.#notice = `${labelOf(entry)} has nothing to configure`;
+      return;
+    }
+    this.#structured = { entry, flags: flags.map(([key]) => key), index: 0 };
+  }
+
+  #structuredKey(data: string): PaneInputResult {
+    const open = this.#structured;
+    if (open === null) return { consumed: false };
+    const key = KEYS[data] ?? data;
+    if (key === "escape") {
+      this.#structured = null;
+      return { consumed: true };
+    }
+    if (key === "up") open.index = Math.max(0, open.index - 1);
+    else if (key === "down") open.index = Math.min(open.flags.length - 1, open.index + 1);
+    else if (key === "enter" || data === " ") this.#toggleFlag(open.index);
+    return { consumed: true };
+  }
+
+  #toggleFlag(index: number): void {
+    const open = this.#structured;
+    const flag = open?.flags[index];
+    if (open === null || open === undefined || flag === undefined) return;
+    const record = open.entry.rawValue;
+    if (typeof record !== "object" || record === null) return;
+    const current = (record as Record<string, unknown>)[flag];
+    const next = { ...(record as Record<string, unknown>), [flag]: !(current === true) };
+    void this.#session.changeStructured(open.entry.backend, open.entry.id, next).then(outcome => {
+      this.#notice = outcome.failure === null ? null : `Could not save ${labelOf(open.entry)}: ${outcome.failure}`;
+    });
   }
 
   #menuKey(data: string): PaneInputResult {
@@ -335,8 +416,12 @@ export class SettingsApp implements UiApp {
       this.#menu = null;
       return { consumed: true };
     }
-    if (key === "up") menu.index = Math.max(0, menu.index - 1);
-    else if (key === "down") menu.index = Math.min(menu.choices.length - 1, menu.index + 1);
+    if (key === "up" || key === "down") {
+      // The keyboard starts from the value in effect rather than from the top.
+      menu.index = menu.index < 0
+        ? menu.current
+        : Math.min(menu.choices.length - 1, Math.max(0, menu.index + (key === "down" ? 1 : -1)));
+    }
     else if (key === "enter") {
       const value = menu.choices[menu.index];
       this.#menu = null;
@@ -419,10 +504,9 @@ export class SettingsApp implements UiApp {
       if (section.readOnlyReason !== null && needle.length === 0) {
         rows.push({ kind: "note", group: section.id, text: section.readOnlyReason });
       }
-      // Alphabetical by the label the reader sees, as vanilla orders its own.
-      const ordered = [...entries].sort((left, right) =>
-        labelOf(left).localeCompare(labelOf(right)));
-      for (const entry of ordered) {
+      // Presented in the order the source reports, which is the order the
+      // pinned engine shows and is neither declaration order nor alphabetical.
+      for (const entry of entries) {
         rows.push({
           kind: "element",
           group: section.id,
@@ -465,7 +549,9 @@ export class SettingsApp implements UiApp {
     const leftRaw = `${selected ? "→ " : "  "}  ${label}`;
     const left = `${prefix}  ${theme.fg(selected ? "accent" : "text", label)}`;
     const gap = Math.max(2, valueColumn - displayWidth(leftRaw));
-    const raw = entry.value === null ? describeRaw(entry.rawValue) : displayValue(entry.value);
+    const raw = entry.structured
+      ? CONFIGURE
+      : entry.value === null ? describeRaw(entry.rawValue) : displayValue(entry.value);
     // Pointing anywhere on the row is hovering the item; pointing at the value
     // is what brightens the value. Selection speaks through the label alone.
     const valueHovered = hovered && this.#hoverRegion !== "label";
@@ -523,10 +609,43 @@ export class SettingsApp implements UiApp {
     return output;
   }
 
+  #structuredBody(
+    open: { entry: OwnedUiSettingsEntry; flags: readonly string[]; index: number },
+    bodyHeight: number,
+    width: number,
+    theme: UiTheme,
+  ): readonly string[] {
+    const record = open.entry.rawValue as Record<string, unknown>;
+    const labelWidth = Math.max(...open.flags.map(flag => displayWidth(humanizeLabel(flag))), 0);
+    const rows: string[] = ["", this.#header(labelOf(open.entry), theme, width)];
+    this.#frameRows = [];
+
+    open.flags.forEach((flag, index) => {
+      const selected = index === open.index;
+      const label = humanizeLabel(flag);
+      const left = `${selected ? theme.fg("accent", "→ ") : "  "}  ${theme.fg(selected ? "accent" : "text", label)}`;
+      const gap = Math.max(2, 4 + labelWidth + 2 - (4 + displayWidth(label)));
+      const value = theme.fg(selected ? "text" : "muted", record[flag] === true ? "yes" : "no");
+      this.#frameRows.push({
+        key: `flag:${flag}`,
+        screenRow: rows.length,
+        valueColumn: 4 + labelWidth + 2,
+        valueWidth: 3,
+        stepper: false,
+      });
+      rows.push(truncateToWidth(`${left}${" ".repeat(gap)}${value}`, width));
+    });
+
+    while (rows.length < bodyHeight) rows.push("");
+    return rows.slice(0, bodyHeight).map(line => `${padVisible(line, width)}  `);
+  }
+
   #footerLines(width: number, theme: UiTheme): readonly string[] {
     const hint = this.#interruptArmed
       ? "press ctrl+c again to exit A1"
-      : this.#notice ?? HINT;
+      : this.#structured !== null
+        ? "↑↓ navigate • enter/space change • esc back"
+        : this.#notice ?? HINT;
     const hintLine = rightAligned(theme.fg("dim", hint), hint, width);
     const input = this.#filter;
     if (input === null) return [hintLine];
@@ -534,7 +653,7 @@ export class SettingsApp implements UiApp {
     const rule = theme.fg("border", "─".repeat(Math.max(0, width)));
     const view = input.view(Math.max(0, width - 2));
     const empty = view.text.length === 0;
-    const painted = `${theme.fg("accent", "❯ ")}${empty ? theme.fg("muted", SEARCH_PLACEHOLDER) : theme.fg("text", view.text)}`;
+    const painted = `${theme.fg("text", "❯ ")}${empty ? theme.fg("muted", SEARCH_PLACEHOLDER) : theme.fg("text", view.text)}`;
     const raw = `❯ ${empty ? SEARCH_PLACEHOLDER : view.text}`;
     return [rule, padVisible(truncateToWidth(painted, width), width, raw), rule, hintLine];
   }

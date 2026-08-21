@@ -15,7 +15,10 @@ describe("Pi settings integration", () => {
   it("covers every A1-exposed setting with an explicit descriptor", async () => {
     const port = integration();
     const descriptors = await port.listSettings();
-    expect(descriptors.map(value => value.key)).toEqual(EXPOSED_SETTING_KEYS);
+    // Presented in the engine order, so the set is what is compared here.
+    expect([...descriptors.map(value => value.key)].sort()).toEqual([...EXPOSED_SETTING_KEYS].sort());
+    expect(descriptors[0]?.key).toBe("autoCompact");
+    expect(descriptors.at(-1)?.key).toBe("theme");
     expect(descriptors.every(value => value.writable)).toBe(true);
     expect(new Set(descriptors.map(value => value.key)).size).toBe(EXPOSED_SETTING_KEYS.length);
   });
