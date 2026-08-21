@@ -12,6 +12,8 @@ export const PROJECT_OWNERS = Object.freeze({
     "owned-ui-contracts", "owned-ui-settings", "agent-engine-contracts", "presentation-contracts",
   ]),
   lifecycle: owner("lifecycle", "foundation", "src/foundation/lifecycle", "test/foundation/lifecycle", []),
+  "process-containment": owner("process-containment", "foundation", "src/foundation/process-containment", "test/foundation/process-containment", ["lifecycle"]),
+  "launch-guardian": owner("launch-guardian", "foundation", "src/foundation/launch-guardian", "test/foundation/launch-guardian", ["lifecycle", "process-containment", "protocol", "supervision"]),
   protocol: owner("protocol", "foundation", "src/foundation/protocol", "test/foundation/protocol", ["lifecycle"]),
   release: owner("release", "foundation", "src/foundation/release", "test/foundation/release", ["lifecycle", "protocol"]),
   storage: owner("storage", "foundation", "src/foundation/storage", "test/foundation/storage", ["lifecycle", "workspace-contracts"]),

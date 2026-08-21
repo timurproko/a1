@@ -42,8 +42,8 @@ export type ClientMessage =
 
 export type ServerMessage =
   | { readonly type: "identity"; readonly supervisorId: string; readonly bootNonce: string; readonly pidStartIdentity: string; readonly releaseId: string }
-  | { readonly type: "release-ownership-result"; readonly released: boolean; readonly reason: string; readonly liveGenerationIds: readonly string[] }
-  | { readonly type: "release-update-result"; readonly accepted: boolean; readonly reason: string; readonly liveGenerationIds: readonly string[] }
+  | { readonly type: "release-ownership-result"; readonly released: boolean; readonly reason: string; readonly liveInstanceIds: readonly string[] }
+  | { readonly type: "release-update-result"; readonly accepted: boolean; readonly reason: string; readonly liveInstanceIds: readonly string[] }
   | ({ readonly type: "server-hello"; readonly supervisorId: string; readonly bootNonce: string; readonly pidStartIdentity: string; readonly negotiatedFeatures: readonly string[]; readonly snapshot: SupervisorSnapshot } & ControlHello)
   | { readonly type: "snapshot"; readonly snapshot: SupervisorSnapshot }
   | { readonly type: "command-result"; readonly result: CommandResult }

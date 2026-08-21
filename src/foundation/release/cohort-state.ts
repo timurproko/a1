@@ -45,9 +45,6 @@ export interface EndpointOwnership {
   readonly liveInstanceIds: readonly string[];
   readonly nonResumableInstanceIds: readonly string[];
   readonly uncertainInstanceIds: readonly string[];
-  /** Transitional aliases consumed by retained pre-instance release coordination. */
-  readonly liveGenerationIds: readonly string[];
-  readonly nonResumableGenerationIds: readonly string[];
 }
 
 export interface SupervisorEndpointMetadata {

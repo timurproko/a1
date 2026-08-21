@@ -51,13 +51,14 @@ The immutable bootstrap will start a launch guardian instead of starting `a1-ui`
 ```text
 mutable a1 command
   -> immutable bootstrap
-    -> launch guardian (instance owner; inherited stdio)
-      -> a1-ui (runtime selector)
-        -> owned UI, vanilla Pi, or sandbox Pi
-          -> extensions, tools, agents, daemons, descendants
+    -> Node launch guardian (authenticated instance coordinator)
+      -> native process guardian (containment owner; lifecycle-only side channel)
+        -> a1-ui (runtime selector; inherited terminal handles)
+          -> owned UI, vanilla Pi, or sandbox Pi
+            -> extensions, tools, agents, daemons, descendants
 ```
 
-The guardian owns the supervisor connection, containment handle, close ordering, and final outcome. It does not read stdin, inspect stdout/stderr, reserve terminal rows, create a PTY, parse bytes, render, or synthesize responses. Runtime stdio remains inherited directly. The guardian ignores ordinary foreground interrupt delivery where necessary so the selected runtime remains the terminal interaction owner; it reacts only to declared lifecycle shutdown conditions.
+The Node guardian owns the supervisor connection, instance protocol, close ordering, and final outcome. The approved native boundary is a standalone Rust `a1-process-guardian` executable rather than a Node-API addon. It owns the platform containment handle, launches `a1-ui`, monitors both its Node parent and runtime child, and exchanges only bounded lifecycle/identity messages with the Node guardian over a private local side channel. Neither guardian reads ordinary stdin, inspects stdout/stderr, reserves terminal rows, creates a PTY, parses bytes, renders, or synthesizes responses. Runtime terminal handles remain inherited directly. The guardians ignore ordinary foreground interrupt delivery where necessary so the selected runtime remains the terminal interaction owner; they react only to declared lifecycle shutdown conditions.
 
 Putting separate lifecycle wrappers inside each runtime was rejected because it duplicates failure handling and cannot reliably clean descendants after the runtime wrapper itself crashes. Having the detached supervisor spawn transparent Pi was rejected because it would not inherit the invoking physical terminal correctly.
 
@@ -65,17 +66,17 @@ Putting separate lifecycle wrappers inside each runtime was rejected because it 
 
 The guardian will depend on a narrow `ProcessContainment` boundary that can create a containment scope, spawn the root inside it with inherited handles, expose a verifiable containment identity, request graceful stop, force stop once, wait within deadlines, and close its ownership handle.
 
-On Windows, the supported adapter must use a Job Object configured with kill-on-job-close and no silent breakaway. The guardian holds the job handle; root and descendant processes join the job. Closing or crashing the guardian therefore causes the kernel to terminate remaining members. Because Node does not expose Job Objects, the packaged implementation will use a minimal integrity-verified native helper or Node-API boundary isolated behind `ProcessContainment`; it will not be coupled to the future terminal host.
+On Windows, the supported adapter uses the standalone Rust process guardian to create a Job Object configured with `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` and without breakaway permission. The helper holds the job handle; `a1-ui` and every descendant join the job. The helper monitors the Node guardian's verified process handle, so Node guardian death closes the Job Object even when the helper itself remains scheduled. Normal root exit, lifecycle stop, parent death, and helper failure all converge on bounded Job Object closure. The helper is built independently from the held terminal host and packaged under `dist/native/<platform>-<arch>/a1-process-guardian[.exe]` with an integrity manifest.
 
 Unix adapters must preserve the invoking controlling terminal and foreground behavior while using the strongest certifiable native ownership available, such as a dedicated command process group plus parent-death/subreaper or equivalent process-observation support. They must not blindly signal a process group that can include the parent shell. A platform that cannot prove containment and close isolation remains uncertified/unsupported for this guarantee rather than silently claiming process-tree cleanup.
 
 Using only `ChildProcess.kill()` was rejected because it does not own grandchildren. Using `taskkill` as the primary Windows boundary was rejected because it cannot provide kill-on-guardian-crash semantics and creates a PID-reuse race. Platform tree-kill commands may be used only as a bounded verified fallback after native identity comparison.
 
-### 4. Make the guardian the authenticated protocol owner
+### 4. Make the Node guardian the authenticated protocol owner
 
-The control handshake's client ID becomes authoritative for the instance. Creation records that client ID; later activate, stop, and complete operations must arrive over the same authenticated connection and name the same instance. The protocol will reject caller-supplied owner identity that does not match the handshake.
+The Node guardian's control-handshake client ID becomes authoritative for the instance. Creation records that client ID; later activate, stop, and complete operations must arrive over the same authenticated connection and name the same instance. The protocol rejects caller-supplied owner identity that does not match the handshake. The Rust helper never connects to the supervisor and therefore cannot become a second ownership authority.
 
-The guardian creates the instance before spawning the runtime, activates it after obtaining root and containment identities, and completes it only after the root outcome is known and containment reports no remaining members. Socket closure before completion triggers per-instance reconciliation. Closing an unrelated socket has no effect.
+The Node guardian creates the instance before spawning the helper, activates it after the helper reports verified runtime and containment identities, and completes it only after the helper reports the root outcome and confirms containment closure. Socket closure before completion triggers per-instance reconciliation. Closing an unrelated socket has no effect. The private Node/helper side channel carries only bounded ready, stop, outcome, and error messages and is never used for terminal input or output.
 
 An arbitrary owner string disconnected from the authenticated socket was rejected because the supervisor could not determine which lease to reconcile safely.
 

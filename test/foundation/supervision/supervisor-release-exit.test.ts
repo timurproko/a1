@@ -85,8 +85,6 @@ function metadata(): SupervisorEndpointMetadata {
       liveInstanceIds: [],
       nonResumableInstanceIds: [],
       uncertainInstanceIds: [],
-      liveGenerationIds: [],
-      nonResumableGenerationIds: [],
     },
     envelope: CONTROL_ENVELOPE,
     envelopeRevision: 1,

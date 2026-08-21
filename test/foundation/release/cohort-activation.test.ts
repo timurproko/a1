@@ -60,8 +60,6 @@ function metadata(value: MaterializedRelease, generations: readonly string[]): S
       liveInstanceIds: generations,
       nonResumableInstanceIds: generations,
       uncertainInstanceIds: [],
-      liveGenerationIds: generations,
-      nonResumableGenerationIds: generations,
     },
     envelope: CONTROL_ENVELOPE, envelopeRevision: 1, requiredFeatures: [], optionalFeatures: [], contractDigest: "contract",
   };

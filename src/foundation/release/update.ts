@@ -136,14 +136,14 @@ export function createUpdateLifecycleCoordinator(
         // Explicit update consent permits bounded cleanup of an authenticated
         // older owner that predates the update-shutdown message.
         const cleanup = await cleanupVerifiedOwner(endpoint, {
-          allowLiveGenerations: true,
+          allowLiveInstances: true,
           reason: legacyMutableInstall ? "legacy-mutable-install" : "explicit-update",
         });
         if (!cleanup.terminated) throw new Error(`verified ${PRODUCT_TEXT.displayName} owner ${endpoint.pid} rejected shutdown and could not be terminated: ${identity.reason}`);
       } else if (identity.accepted) {
         await waitForProcessExit(endpoint.pid, 3_000).catch(async () => {
           const cleanup = await cleanupVerifiedOwner(endpoint, {
-            allowLiveGenerations: true,
+            allowLiveInstances: true,
             reason: legacyMutableInstall ? "legacy-mutable-install" : "explicit-update",
           });
           if (!cleanup.terminated) throw new Error(`verified ${PRODUCT_TEXT.displayName} owner ${endpoint.pid} did not terminate`);

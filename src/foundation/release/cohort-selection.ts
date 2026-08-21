@@ -28,7 +28,7 @@ export function selectCohortLaunch(
         pid: endpoint.pid,
       };
     }
-    if (endpoint.releaseId !== candidate.releaseId && endpoint.ownership.liveGenerationIds.length === 0) {
+    if (endpoint.releaseId !== candidate.releaseId && endpoint.ownership.liveInstanceIds.length === 0) {
       return {
         action: "replace-idle-cohort",
         releaseId: candidate.releaseId,
@@ -49,12 +49,12 @@ export function selectCohortLaunch(
   }
 
   if (endpoint && probe === "unresponsive") {
-    if (endpoint.ownership.liveGenerationIds.length > 0 || endpoint.ownership.nonResumableGenerationIds.length > 0) {
+    if (endpoint.ownership.liveInstanceIds.length > 0 || endpoint.ownership.nonResumableInstanceIds.length > 0) {
       return {
         action: "blocked",
         releaseId: endpoint.releaseId,
         releaseRoot: endpoint.releaseRoot,
-        reason: "ownership of live generations is uncertain; preserving the unresponsive supervisor",
+        reason: "ownership of live launch instances is uncertain; preserving the unresponsive supervisor",
         pid: endpoint.pid,
       };
     }

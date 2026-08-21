@@ -25,8 +25,50 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  guardians:
+    name: Build process guardian (${{ matrix.os }})
+    if: github.ref == 'refs/heads/develop'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2025, ubuntu-24.04, macos-15]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - name: Preserve repository bytes during checkout
+        if: runner.os == 'Windows'
+        shell: bash
+        run: git config --global core.autocrlf false
+
+      - name: Check out exact candidate source
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.source_commit }}
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install build dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts
+
+      - name: Build integrity-bound process guardian
+        run: npm run build:process-guardian
+
+      - name: Upload platform guardian
+        uses: actions/upload-artifact@v6
+        with:
+          name: process-guardian-${{ runner.os }}-${{ runner.arch }}
+          path: dist/native
+          if-no-files-found: error
+          retention-days: 1
+
   candidate:
     name: Certified next candidate
+    needs: guardians
     if: github.ref == 'refs/heads/develop'
     runs-on: windows-2025
     timeout-minutes: 30
@@ -85,6 +127,13 @@ jobs:
 
       - name: Install dependencies and build once
         run: npm ci
+
+      - name: Assemble all platform process guardians
+        uses: actions/download-artifact@v7
+        with:
+          pattern: process-guardian-*
+          path: dist/native
+          merge-multiple: true
 
       - name: Pack candidate once
         run: node scripts/prepare-validation-package.mjs

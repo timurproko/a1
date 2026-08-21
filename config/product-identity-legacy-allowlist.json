@@ -1,48 +1,48 @@
 {
   "schema": "a1-legacy-identity-allowlist-v1",
-  "generatedAt": "2026-08-21T12:48:55.762Z",
+  "generatedAt": "2026-08-21T19:23:53.447Z",
   "inventorySchema": "a1-legacy-identity-inventory-v1",
   "occurrences": [
     {
-      "id": "docs/architecture/toolchain.md:86:37",
+      "id": "docs/architecture/toolchain.md:92:37",
       "value": "ADDONE",
-      "fingerprint": "77a33474133399020a87a47f40b0e8f8549ece83d7f60c6289a4518faf1ce23c",
+      "fingerprint": "f6bd104e8f9ea561dc89c64703efac6e6344bd9dbb955239aadb6a077459924c",
       "reason": "documented hard-cut or deprecation assertion"
     },
     {
-      "id": "docs/architecture/toolchain.md:86:59",
+      "id": "docs/architecture/toolchain.md:92:59",
       "value": "AddOne",
-      "fingerprint": "04e5f681ba41f9a1db4802756ff98126adc906cd68c0fa2964f25c5ff88c5df0",
+      "fingerprint": "dd10a79d8173262f05a29c9e0edc9861b15baaf5d7df53e93260df8426a06f31",
       "reason": "documented hard-cut or deprecation assertion"
     },
     {
-      "id": "docs/architecture/toolchain.md:86:68",
+      "id": "docs/architecture/toolchain.md:92:68",
       "value": "addone",
-      "fingerprint": "76d86f049e5f9852ba4e0b50be3d348efbb23051973e2ff28a723309fb54a660",
+      "fingerprint": "1f7a26a275c6465190c312c9e78169bf5dccd88dc2e384acdd4c5441ddd934b3",
       "reason": "documented hard-cut or deprecation assertion"
     },
     {
-      "id": "docs/architecture/toolchain.md:86:255",
+      "id": "docs/architecture/toolchain.md:92:255",
       "value": "AddOne",
-      "fingerprint": "e8599c174ff9108db2d4841155e87add79f38f6d89f3b7dfa54535903d5c1ced",
+      "fingerprint": "755f45e1ff80cb715db4ed9c7eb9a809420ff3f48f37d867cd60099fb78cc712",
       "reason": "documented hard-cut or deprecation assertion"
     },
     {
-      "id": "docs/architecture/toolchain.md:86:284",
+      "id": "docs/architecture/toolchain.md:92:284",
       "value": "AddOne",
-      "fingerprint": "292026d4d8e7c046f1cd7b99a01df3932b4e3fd101fc5cc82af899d02450cec0",
+      "fingerprint": "ba85063a914c7723772c3a3bba24bada1ddc484aa3c93762880c1786195dd966",
       "reason": "documented hard-cut or deprecation assertion"
     },
     {
-      "id": "docs/architecture/toolchain.md:86:319",
+      "id": "docs/architecture/toolchain.md:92:319",
       "value": "addone",
-      "fingerprint": "313b51a172133db1101b97bd455eb4fef696e87d8b536b61f9d34a45d18216e4",
+      "fingerprint": "b4cac33923af5806973cde2e1c38ad779c5be167e66c8157c08dea1c34b75e10",
       "reason": "documented hard-cut or deprecation assertion"
     },
     {
-      "id": "docs/architecture/toolchain.md:90:39",
+      "id": "docs/architecture/toolchain.md:96:39",
       "value": "addone",
-      "fingerprint": "a4d31a94bdce56fa40bc46413394edd7490174774a68d1851ec185b5a69aa9f3",
+      "fingerprint": "2ac62bac087407884ec40a11e7d3e494c0f109c482ef2a3fa5dd96abde9de44b",
       "reason": "explicit obsolete-package rejection or deprecation fixture"
     },
     {
@@ -116,6 +116,18 @@
       "value": "AddOne",
       "fingerprint": "8c554ce61f73ee648e94484e4fac538c2b05a40326c53fc2f85c9c114f0e1ef9",
       "reason": "exact historical evidence record"
+    },
+    {
+      "id": "openspec/changes/unify-launch-instance-lifecycle/specs/launch-profiles/spec.md:4:339",
+      "value": "addone",
+      "fingerprint": "13d4cf7fa78d9897fa2edbeef99de7751528db4d3da5efb84e876ef1771a4643",
+      "reason": "migration baseline pending final closure"
+    },
+    {
+      "id": "openspec/changes/unify-launch-instance-lifecycle/specs/launch-profiles/spec.md:20:50",
+      "value": "addone",
+      "fingerprint": "4721946bb69f13d8fd17e369fbee0a49104ce8722f11ab460178d84902c12ea7",
+      "reason": "migration baseline pending final closure"
     },
     {
       "id": "openspec/specs/a1-shell/spec.md:94:391",
@@ -268,9 +280,9 @@
       "reason": "explicit legacy rejection fixture"
     },
     {
-      "id": "test/foundation/protocol/protocol.test.ts:46:87",
+      "id": "test/foundation/protocol/protocol.test.ts:59:87",
       "value": "addone",
-      "fingerprint": "674cad0ed5c511b79dd7d9edf0484bdc5ae02ed93e1f5ffdc4a0856dc55edd55",
+      "fingerprint": "afb18a103d8ebf3a637cf075365f3886cbf0a9f15bbb147b0ea23237fe54ac86",
       "reason": "explicit legacy rejection fixture"
     },
     {
@@ -292,9 +304,9 @@
       "reason": "explicit legacy rejection fixture"
     },
     {
-      "id": "test/foundation/release/package-surface.test.ts:38:32",
+      "id": "test/foundation/release/package-surface.test.ts:41:32",
       "value": "addone",
-      "fingerprint": "056d6e7dc6da8871d913afc00bdf7d0215f680019f8d583235525fe68856d4fa",
+      "fingerprint": "4876b13cae5de1e288d50a8757833e93ec01558be2e370b5f5b224bc60af0fc3",
       "reason": "explicit legacy rejection fixture"
     },
     {
@@ -334,15 +346,15 @@
       "reason": "explicit legacy rejection fixture"
     },
     {
-      "id": "test/foundation/storage/storage.test.ts:165:77",
+      "id": "test/foundation/storage/storage.test.ts:206:77",
       "value": "addone",
-      "fingerprint": "8b3541299a4ce04ed5f7ef2ee1df50512abf30d73d73315c9f4ce75f1a56ff2a",
+      "fingerprint": "bf60d7ed774244d7465f211c1b5519bdbdae7476ccb99fbf6289fc79457843f0",
       "reason": "explicit legacy rejection fixture"
     },
     {
-      "id": "test/foundation/storage/storage.test.ts:168:58",
+      "id": "test/foundation/storage/storage.test.ts:209:58",
       "value": "addone",
-      "fingerprint": "cd153313504c42e4a5618a035985e2be121668bca0b6acb9b2681db1eec2de70",
+      "fingerprint": "f7fe2b34564aef9c9ac57bc67eb8f7af3a2c0444b7f783237b4059b878310ab6",
       "reason": "explicit legacy rejection fixture"
     },
     {
