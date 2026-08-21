@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createTierPlan } from "../../scripts/validation-tier.mjs";
+import { createTierPlan, runTierPlan } from "../../scripts/validation-tier.mjs";
 
 describe("validation tier planning", () => {
   it("deduplicates the complete release suite into one broad Vitest invocation", async () => {
@@ -55,6 +55,21 @@ describe("validation tier planning", () => {
         ]),
       }],
     });
+  });
+
+  it("reuses an explicit install-time build without spawning another build", async () => {
+    const result = await runTierPlan({
+      schema: "a1-validation-plan-v1",
+      requested: ["fixture"],
+      selected: ["fixture"],
+      requiresBuild: true,
+      commands: [{ id: "candidate-build", executable: "npm", arguments: ["run", "build"], owners: ["fixture"] }],
+      vitest: null,
+    }, { env: { VALIDATION_BUILD_READY: "1" }, stdio: "pipe" });
+    expect(result.passed).toBe(true);
+    expect(result.outcomes).toEqual([
+      expect.objectContaining({ id: "candidate-build", durationMs: 0, skipped: "existing-explicit-build" }),
+    ]);
   });
 
   it("rejects unknown selections", async () => {

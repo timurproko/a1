@@ -96,6 +96,10 @@ export async function runTierPlan(plan, options = {}) {
   const environment = { ...process.env, ...(options.env ?? {}) };
 
   for (const command of plan.commands) {
+    if (command.id === "candidate-build" && environment.VALIDATION_BUILD_READY === "1") {
+      outcomes.push({ id: command.id, command: `${command.executable} ${command.arguments.join(" ")}`, exitCode: 0, durationMs: 0, skipped: "existing-explicit-build" });
+      continue;
+    }
     const outcome = await runCommand(command, environment, options.stdio ?? "inherit");
     outcomes.push(outcome);
     if (outcome.exitCode !== 0) return finish(false);

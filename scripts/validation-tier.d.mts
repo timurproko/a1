@@ -25,5 +25,5 @@ export function runTierPlan(plan: ValidationPlan, options?: { env?: NodeJS.Proce
   passed: boolean;
   startedAt: number;
   completedAt: number;
-  outcomes: Array<{ id: string; command: string; exitCode: number; durationMs: number }>;
+  outcomes: Array<{ id: string; command: string; exitCode: number; durationMs: number; skipped?: string }>;
 }>;

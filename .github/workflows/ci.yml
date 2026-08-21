@@ -1,0 +1,137 @@
+name: Development validation
+
+on:
+  pull_request:
+    branches: [develop]
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches: [develop]
+  workflow_dispatch:
+    inputs:
+      full:
+        description: Widen this run to complete non-physical validation
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: development-validation-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  impact:
+    name: Plan validation impact
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    runs-on: windows-2025
+    timeout-minutes: 10
+    outputs:
+      selected: ${{ steps.impact.outputs.selected }}
+      full: ${{ steps.impact.outputs.full }}
+      package-sensitive: ${{ steps.impact.outputs.package_sensitive }}
+    steps:
+      - name: Preserve repository bytes during checkout
+        shell: bash
+        run: git config --global core.autocrlf false
+
+      - name: Check out validation head
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Select trusted change impact
+        id: impact
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          EVENT_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          REQUEST_FULL: ${{ inputs.full || false }}
+        run: |
+          set -euo pipefail
+          head_sha="$(git rev-parse "$EVENT_HEAD_SHA")"
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            base_sha="$(git merge-base "$EVENT_BASE_SHA" "$head_sha")"
+          elif [ "$EVENT_NAME" = "push" ] && [[ "$EVENT_BASE_SHA" =~ ^[a-f0-9]{40}$ ]] && [ "$EVENT_BASE_SHA" != "0000000000000000000000000000000000000000" ]; then
+            base_sha="$EVENT_BASE_SHA"
+          else
+            base_sha="$(git rev-parse "$head_sha^")"
+          fi
+          arguments=(--base "$base_sha" --head "$head_sha" --output artifacts/validation/impact.json --github-output "$GITHUB_OUTPUT")
+          if [ "$REQUEST_FULL" = "true" ]; then arguments+=(--full); fi
+          node scripts/select-validation-impact.mjs "${arguments[@]}"
+
+      - name: Upload impact evidence
+        uses: actions/upload-artifact@v6
+        with:
+          name: validation-impact-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/validation/impact.json
+          if-no-files-found: error
+          retention-days: 14
+
+  validate:
+    name: Execute selected validation
+    needs: impact
+    runs-on: windows-2025
+    timeout-minutes: 30
+    env:
+      VALIDATION_SELECTION_JSON: ${{ needs.impact.outputs.selected }}
+    steps:
+      - name: Preserve repository bytes during checkout
+        shell: bash
+        run: git config --global core.autocrlf false
+
+      - name: Check out validation head
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install exact dependencies
+        run: npm ci
+
+      - name: Execute selected tiers
+        shell: bash
+        env:
+          VALIDATION_BUILD_READY: "1"
+          A1_CONFIG_DIR: ${{ runner.temp }}\a1-ci-config
+          A1_DATA_DIR: ${{ runner.temp }}\a1-ci-data
+          A1_RUNTIME_DIR: ${{ runner.temp }}\a1-ci-runtime
+        run: node scripts/run-validation-tier.mjs --result artifacts/validation/outcomes.json
+
+      - name: Add timing summary
+        if: always()
+        shell: bash
+        run: |
+          if [ -f artifacts/validation/outcomes.json ]; then
+            node --input-type=module <<'NODE' >> "$GITHUB_STEP_SUMMARY"
+          import { readFile } from "node:fs/promises";
+          const result = JSON.parse(await readFile("artifacts/validation/outcomes.json", "utf8"));
+          console.log("## Validation timing\n");
+          console.log(`Total: **${((result.completedAt - result.startedAt) / 1000).toFixed(2)}s**\n`);
+          console.log("| Gate | Seconds | Result |\n| --- | ---: | --- |");
+          for (const outcome of result.outcomes) console.log(`| ${outcome.id} | ${(outcome.durationMs / 1000).toFixed(2)} | ${outcome.exitCode === 0 ? outcome.skipped ?? "passed" : "failed"} |`);
+          NODE
+          fi
+
+      - name: Upload validation outcomes
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: validation-outcomes-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            artifacts/validation/outcomes.json
+            artifacts/release-verdicts/*.json
+          if-no-files-found: warn
+          retention-days: 14
