@@ -2,6 +2,32 @@ import { describe, expect, it } from "vitest";
 import { formatImpactSummary, parseNameStatus, selectGitImpact, selectImpactFromChanges } from "../../scripts/validation-impact.mjs";
 
 describe("fail-closed validation impact selection", () => {
+  it("never selects runtime or full validation for planning-only changes", async () => {
+    for (const changes of [
+      [{ status: "M", path: "openspec/changes/example/specs/example/spec.md" }],
+      [{ status: "D", path: "openspec/changes/example/tasks.md" }],
+      [{ status: "R", previousPath: "openspec/changes/old/spec.md", path: "openspec/changes/new/spec.md" }],
+    ]) {
+      const plan = await selectImpactFromChanges(changes, { full: true, required: ["package-smoke"] });
+      expect(plan).toMatchObject({
+        planningOnly: true,
+        full: false,
+        packageSensitive: false,
+        selected: ["planning"],
+        fallbacks: [],
+      });
+      expect(plan.selected).not.toEqual(expect.arrayContaining(["invariants", "fast", "full-release", "package-smoke"]));
+    }
+  });
+
+  it("uses normal validation when planning and runtime paths are mixed", async () => {
+    const plan = await selectImpactFromChanges([
+      { status: "M", path: "openspec/changes/example/tasks.md" },
+      { status: "M", path: "src/cli/dispatch.ts" },
+    ]);
+    expect(plan).toMatchObject({ planningOnly: false, selected: ["invariants", "fast"] });
+  });
+
   it("keeps focused CLI changes on mandatory validation", async () => {
     const plan = await selectImpactFromChanges([{ status: "M", path: "src/cli/dispatch.ts" }]);
     expect(plan).toMatchObject({

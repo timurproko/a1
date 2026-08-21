@@ -11,8 +11,18 @@ const [impact, suites, selectorSource] = await Promise.all([
 const errors = [];
 const declaredSelections = new Set([...Object.keys(suites.tiers ?? {}), ...Object.keys(suites.scopes ?? {})]);
 
-for (const selection of [...impact.mandatory, ...impact.rules.flatMap(rule => rule.scopes ?? [])]) {
+for (const selection of [...impact.mandatory, ...(impact.planningOnly?.selected ?? []), ...impact.rules.flatMap(rule => rule.scopes ?? [])]) {
   if (!declaredSelections.has(selection)) errors.push(`impact policy references unknown validation selection: ${selection}`);
+}
+
+if (JSON.stringify(impact.planningOnly?.patterns) !== JSON.stringify(["openspec/**"])) {
+  errors.push("planning-only validation must be limited to openspec/**");
+}
+if (impact.planningOnly?.selected?.length !== 1 || impact.planningOnly.selected[0] !== "planning") {
+  errors.push("planning-only changes must select only the planning tier");
+}
+if ((impact.planningOnly?.selected ?? []).some(selection => impact.mandatory.includes(selection) || selection === "full-release")) {
+  errors.push("planning-only validation must not include runtime or full-release tiers");
 }
 
 for (const rule of impact.rules) {
