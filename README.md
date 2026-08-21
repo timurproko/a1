@@ -44,18 +44,36 @@ npm start
 
 A1 control state uses `%APPDATA%\\A1` and `%LOCALAPPDATA%\\A1` on Windows, and the `a1` directory under XDG config/data/runtime roots on Unix. Override it only with declared `A1_*` variables such as `A1_CONFIG_DIR`, `A1_DATA_DIR`, `A1_RUNTIME_DIR`, `A1_DATABASE_PATH`, and `A1_ENDPOINT`. Pi profile roots remain `~/.a1/agent`, `~/.pi/agent`, and `~/.a1/sandbox`. This is a no-migration identity hard cut; see [`docs/architecture/toolchain.md`](docs/architecture/toolchain.md#identity-hard-cut-and-cleanup) before removing obsolete control state.
 
-### Branch lifecycle
+### Worktree lifecycle
 
-Create every topic branch and every `milestone/<name>` work branch from `develop`; never implement directly on `develop` or `master`. A source branch is closed only after this sequence completes:
+The primary checkout at `D:\Git\a1` stays on `develop` and is integration-only. Agents never edit there and never create task branches. Every task uses a unique detached worktree beneath `D:\Git\a1\.worktrees`; sibling worktrees such as `D:\Git\a1-<name>` are forbidden.
 
-1. Validate the source branch with its required gates.
-2. Merge it into `develop` and push the merged `develop` commit.
-3. Switch to `develop`.
-4. Preview the exact cleanup set with `npm run branches:prune -- --branch <source>`.
-5. Safely delete the reviewed local source with `npm run branches:prune -- --apply --branch <source>`.
-6. When the non-protected remote source exists, delete it in the same cleanup with `npm run branches:prune -- --apply --branch <source> --remote origin`.
+Create a task checkout from the current remote integration tip:
 
-The command defaults to a dry run against `develop`. It always retains `develop`, `master`, the checked-out branch, explicitly protected branches, and branches whose tips are not ancestors of the integration target. Apply mode uses only Git safe deletion (`git branch -d`), never force deletion. Use `--base <branch>` for another explicit integration target, `--protect <branch>` for additional protection, and `--json` for machine-readable review.
+```sh
+git fetch origin --prune
+git worktree add --detach .worktrees/<task-id> origin/develop
+cd .worktrees/<task-id>
+```
+
+Validate and commit coherent changes in that detached worktree. After validation, serialize integration in the primary checkout: fast-forward `develop`, cherry-pick the validated commit or commits, run any required integration gate, and push. Only after those commits are reachable from `develop` may the task worktree be removed:
+
+```sh
+git -C D:/Git/a1 pull --ff-only origin develop
+git -C D:/Git/a1 cherry-pick <validated-commit>
+git -C D:/Git/a1 push origin develop
+git -C D:/Git/a1 worktree remove .worktrees/<task-id>
+git -C D:/Git/a1 worktree prune
+```
+
+Do not remove a detached worktree before integration; its commits otherwise have no branch reference. `npm run branches:prune` remains available only for safe cleanup of historical branches: it defaults to a dry run, protects `develop`, `master`, and unmerged tips, uses `git branch -d`, and never force-deletes.
+
+Local package archives and ad hoc test builds belong under `D:\Git\a1\.builds`, never in the repository root. For manual package tests, use:
+
+```sh
+mkdir -p .builds
+npm pack --ignore-scripts --pack-destination .builds
+```
 
 Run the non-desktop gates with:
 

@@ -3,12 +3,15 @@ schema: spec-driven
 context: |
   Git workflow:
   - master contains release-ready builds only.
-  - develop is the default integration and development branch.
-  - Large milestones use milestone/<name> branches created from develop.
+  - develop is the default integration branch; the primary checkout stays on develop and is used only to synchronize and integrate completed work.
+  - Never edit implementation, planning, tests, or documentation in the primary checkout. Every agent task uses its own detached Git worktree under D:/Git/a1/.worktrees/<task-id>, created from current origin/develop unless the user explicitly selects another base.
+  - Never create sibling worktrees such as D:/Git/a1-<name>, and never switch the primary checkout away from develop.
+  - Detached worktrees replace topic and milestone branches. Commit coherent work in the task worktree, validate it there, integrate the commit into current develop, then remove and prune the task worktree. Do not remove a detached worktree before its commits are integrated.
+  - Store every local agent-generated package archive and ad hoc test build under D:/Git/a1/.builds; never emit npm pack tarballs or similar build artifacts into the repository root.
   - Use Conventional Commits.
   - Commit automatically after each completed OpenSpec task or coherent tested subtask without requesting confirmation.
   - Never include unrelated working-tree changes in a task commit.
-  - Merge milestone branches into develop only after milestone gates pass.
+  - Integrate task-worktree commits into develop only after their required gates pass.
   - Merge develop into master only after all mandatory release gates pass.
   - Windows development previews may publish a clean develop commit using a unique -dev.N SemVer prerelease and the npm next tag after the available Windows gates pass; Linux and macOS certification may remain pending for previews.
   - Preview publication does not merge to master, move the latest tag, or claim stable cross-platform support.
@@ -24,11 +27,12 @@ rules:
 operations:
   apply:
     guidance:
-      - Check the current Git branch before editing.
-      - Never implement directly on master.
-      - Create or switch to the appropriate milestone branch for substantial work.
+      - Before editing, verify the current checkout is a dedicated detached worktree beneath D:/Git/a1/.worktrees and is based on current origin/develop unless the user selected another base.
+      - Never edit in the primary checkout, create a sibling worktree, switch the primary checkout branch, or implement directly on master.
+      - Keep local package archives and ad hoc test builds beneath D:/Git/a1/.builds; pass --pack-destination .builds to manual npm pack commands.
       - Run targeted validation before marking a task complete.
       - Commit each completed task with its tests and OpenSpec evidence without asking for confirmation.
+      - Integrate validated detached-worktree commits into current develop, then remove and prune the worktree.
       - For a publication task, bump and commit the package version before running candidate release gates; never publish an already registered version.
       - Publish an approved Windows-only development preview from clean develop as -dev.N under next without merging master; retain full supported-platform gates for stable latest publication.
       - Do not stage unrelated or pre-existing changes.
