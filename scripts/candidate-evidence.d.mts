@@ -8,6 +8,7 @@ export interface CandidateOutcome {
 export interface CandidateEvidence {
   schema: string;
   source: { commit: string; tree: string };
+  identity: { schema: string; packageName: string; commandName: string; cliEntry: string };
   package: { name: string; version: string; bin: Record<string, string>; tarball: string; integrity: string; shasum: string };
   channel: "next" | "latest";
   validation: { selected: string[]; outcomes: CandidateOutcome[]; gateIds: string[] };
@@ -25,6 +26,7 @@ export function createCandidateEvidence(input: {
   outcomes: CandidateOutcome[];
   runner: CandidateEvidence["runner"];
   certification?: CandidateEvidence["certification"];
+  identity?: { schema: string; packageName: string; commandName: string; artifacts: { cliEntry: string } };
   createdAt?: string;
 }): Promise<CandidateEvidence>;
 export function verifyCandidateEvidence(evidence: CandidateEvidence, options: {

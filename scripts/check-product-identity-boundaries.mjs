@@ -38,12 +38,13 @@ async function checkWorkflows(identity) {
   for (const path of [".github/workflows/publish-next.yml", ".github/workflows/publish-stable.yml"]) {
     const source = await text(path, "publication workflow");
     if (source === null) continue;
-    if (!source.includes("src/product-identity.json")) fail(`${path} does not consume the product identity authority`);
+    const consumesCertifiedIdentity = source.includes("candidate-evidence.json");
+    if (!source.includes("src/product-identity.json") && !consumesCertifiedIdentity) fail(`${path} does not consume the product identity authority`);
     if (source.includes(identity.packageName)) fail(`${path} duplicates the authoritative package name`);
     if (source.includes(identity.artifacts.cliEntry)) fail(`${path} duplicates the authoritative CLI entry`);
-    if (!source.includes("identity.packageName") || !source.includes("identity.commandName") || !source.includes("identity.artifacts.cliEntry")) {
-      fail(`${path} does not derive package and bin metadata from product identity`);
-    }
+    const derivesSourceIdentity = source.includes("identity.packageName") && source.includes("identity.commandName") && source.includes("identity.artifacts.cliEntry");
+    const derivesCertifiedIdentity = consumesCertifiedIdentity && source.includes("evidence.identity.packageName") && source.includes("evidence.identity.commandName") && source.includes("evidence.identity.cliEntry");
+    if (!derivesSourceIdentity && !derivesCertifiedIdentity) fail(`${path} does not derive package and bin metadata from product identity`);
   }
 }
 

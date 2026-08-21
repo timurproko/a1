@@ -1,11 +1,14 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
-import { basename } from "node:path";
+import { basename, resolve } from "node:path";
 import { gunzipSync } from "node:zlib";
 
 export async function createCandidateEvidence(input) {
   const tarball = await readFile(input.tarballPath);
   const manifest = readPackedManifest(tarball);
+  const identity = input.identity ?? JSON.parse(await readFile(resolve("src", "product-identity.json"), "utf8"));
+  if (manifest.name !== identity.packageName) throw new Error("packed package name differs from product identity");
+  if (JSON.stringify(manifest.bin) !== JSON.stringify({ [identity.commandName]: identity.artifacts.cliEntry })) throw new Error("packed bin map differs from product identity");
   const integrity = `sha512-${createHash("sha512").update(tarball).digest("base64")}`;
   const shasum = createHash("sha1").update(tarball).digest("hex");
   const selected = uniqueStrings(input.selected, "selected validation");
@@ -19,6 +22,12 @@ export async function createCandidateEvidence(input) {
   const evidence = {
     schema: "a1-release-certification-v1",
     source: { commit: input.commit, tree: input.tree },
+    identity: {
+      schema: identity.schema,
+      packageName: identity.packageName,
+      commandName: identity.commandName,
+      cliEntry: identity.artifacts.cliEntry,
+    },
     package: {
       name: manifest.name,
       version: manifest.version,
@@ -52,6 +61,8 @@ export async function verifyCandidateEvidence(evidence, options) {
   assertEqual(evidence.package.integrity, integrity, "tarball integrity");
   assertEqual(evidence.package.shasum, shasum, "tarball shasum");
   assertEqual(evidence.package.name, manifest.name, "packed package name");
+  assertEqual(evidence.package.name, evidence.identity.packageName, "evidence package identity");
+  assertEqual(JSON.stringify(manifest.bin), JSON.stringify({ [evidence.identity.commandName]: evidence.identity.cliEntry }), "evidence bin identity");
   assertEqual(evidence.package.version, manifest.version, "packed package version");
   assertEqual(JSON.stringify(evidence.package.bin), JSON.stringify(manifest.bin), "packed bin map");
   if (options.commit) assertEqual(evidence.source.commit, options.commit, "source commit");
@@ -100,6 +111,7 @@ function validateEvidenceShape(evidence) {
   if (!evidence || evidence.schema !== "a1-release-certification-v1") throw new Error("candidate evidence schema is missing or unsupported");
   validateSourceIdentity(evidence.source?.commit, "commit");
   validateSourceIdentity(evidence.source?.tree, "tree");
+  if (!evidence.identity?.schema || !evidence.identity?.packageName || !evidence.identity?.commandName || !evidence.identity?.cliEntry) throw new Error("candidate product identity is incomplete");
   if (!evidence.package?.name || !evidence.package?.version || !evidence.package?.tarball) throw new Error("candidate package evidence is incomplete");
   if (!/^sha512-/.test(evidence.package.integrity ?? "") || !/^[a-f0-9]{40}$/.test(evidence.package.shasum ?? "")) throw new Error("candidate package digests are incomplete");
   if (!Array.isArray(evidence.validation?.selected) || evidence.validation.selected.length === 0) throw new Error("candidate selected validation is incomplete");

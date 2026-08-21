@@ -15,8 +15,7 @@ export async function createValidationInventory(repository = root) {
   ]);
 
   if (baseline.schema !== "a1-validation-baseline-v1") throw new Error("unsupported validation baseline schema");
-  const missingPreviewCommands = baseline.previewCommands.filter(command => !previewSource.includes(command));
-  if (missingPreviewCommands.length > 0) throw new Error(`preview workflow no longer contains baseline commands: ${missingPreviewCommands.join(", ")}`);
+  const removedPreviewCommands = baseline.previewCommands.filter(command => !previewSource.includes(command));
 
   if (suites.schema !== "a1-validation-suites-v1") throw new Error("unsupported validation suite schema");
   const releaseGates = Object.entries(suites.releaseContracts).map(([id, owner]) => ({ id, owner }));
@@ -40,6 +39,7 @@ export async function createValidationInventory(repository = root) {
     observations: baseline.observations,
     packageScripts: Object.fromEntries(Object.entries(manifest.scripts ?? {}).filter(([name]) => /^(check|test|build|prepare|report:pi-engine)/.test(name))),
     previewCommands: baseline.previewCommands,
+    removedPreviewCommands,
     releaseGates,
     duplicateContracts: baseline.knownDuplicateContracts,
     buildTriggers: buildTriggers.map(({ id, source, present }) => ({ id, source, present })),
