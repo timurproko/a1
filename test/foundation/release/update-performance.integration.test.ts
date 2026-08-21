@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { performance } from "node:perf_hooks";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
+import { PRODUCT_IDENTITY } from "../../../src/product-identity.js";
 import {
   assertUpdatePerformanceBudget,
   certifyMaterializedRelease,
@@ -25,12 +26,13 @@ describe("packaged update activation performance", () => {
     const root = await mkdtemp(resolve(tmpdir(), "a1-update-performance-"));
     roots.push(root);
     const dataDir = resolve(root, "data");
+    const runtimeDir = resolve(root, "runtime");
     const environment = {
       ...process.env,
-      A1_DATA_DIR: dataDir,
-      A1_RUNTIME_DIR: resolve(root, "runtime"),
-      A1_CONFIG_DIR: resolve(root, "config"),
-      A1_DATABASE_PATH: resolve(root, "control.sqlite3"),
+      [PRODUCT_IDENTITY.environment.dataDir]: dataDir,
+      [PRODUCT_IDENTITY.environment.runtimeDir]: runtimeDir,
+      [PRODUCT_IDENTITY.environment.configDir]: resolve(root, "config"),
+      [PRODUCT_IDENTITY.environment.databasePath]: resolve(root, "control.sqlite3"),
     };
     const operations: ReleaseContentOperationEvent[] = [];
     const startedAt = performance.now();
@@ -45,7 +47,7 @@ describe("packaged update activation performance", () => {
       await state.approve(release.releaseId, diagnostics);
       await state.activate(release.releaseId);
       await startSupervisor(release, environment);
-      await waitForVerifiedEndpoint(resolve(environment.A1_RUNTIME_DIR, "supervisor.json"), release, 8_000);
+      await waitForVerifiedEndpoint(resolve(runtimeDir, "supervisor.json"), release, 8_000);
 
       const durationMs = performance.now() - startedAt;
       const counts = operationCounts(operations);
@@ -59,7 +61,7 @@ describe("packaged update activation performance", () => {
         ...counts,
         postNpmDurationMs: durationMs,
       }, process.platform === "win32" ? 30_000 : Number.POSITIVE_INFINITY);
-      expect(await readEndpointMetadata(resolve(environment.A1_RUNTIME_DIR, "supervisor.json"))).toMatchObject({ releaseId: release.releaseId });
+      expect(await readEndpointMetadata(resolve(runtimeDir, "supervisor.json"))).toMatchObject({ releaseId: release.releaseId });
       expect((await state.read()).references).toMatchObject({ active: release.releaseId, pending: null });
     } finally {
       if (release) await createUpdateLifecycleCoordinator(environment).shutdownVerifiedOwners(release.packageVersion).catch(() => {});
@@ -73,7 +75,7 @@ describe("packaged update activation performance", () => {
       candidateWrites: 10_001,
       verificationReads: 10_000,
       postNpmDurationMs: 30_001,
-    })).toThrow(/source payload was read 20000 times.*candidate payload was written 10001 times.*fresh certification reread 10000.*took 30001ms/);
+    })).toThrow(/source payload read count is 20000.*candidate payload write count is 10001.*fresh certification reread 10000.*took 30001ms/);
   });
 
   it("keeps bare launch free of installation output after update activation", async () => {

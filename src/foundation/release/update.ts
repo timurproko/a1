@@ -315,8 +315,8 @@ export function assertUpdatePerformanceBudget(
 ): void {
   const failures: string[] = [];
   if (evidence.fileCount < 1) failures.push("fixture contains no payload files");
-  if (evidence.sourceReads > evidence.fileCount) failures.push(`source payload was read ${evidence.sourceReads} times for ${evidence.fileCount} files`);
-  if (evidence.candidateWrites > evidence.fileCount) failures.push(`candidate payload was written ${evidence.candidateWrites} times for ${evidence.fileCount} files`);
+  if (evidence.sourceReads !== evidence.fileCount) failures.push(`source payload read count is ${evidence.sourceReads} for ${evidence.fileCount} files`);
+  if (evidence.candidateWrites !== evidence.fileCount) failures.push(`candidate payload write count is ${evidence.candidateWrites} for ${evidence.fileCount} files`);
   if (evidence.verificationReads > 0) failures.push(`fresh certification reread ${evidence.verificationReads} candidate files`);
   if (evidence.postNpmDurationMs > maximumPostNpmDurationMs) failures.push(`post-npm activation took ${Math.round(evidence.postNpmDurationMs)}ms; budget is ${maximumPostNpmDurationMs}ms`);
   if (failures.length > 0) throw new Error(`update performance budget failed: ${failures.join("; ")}`);
