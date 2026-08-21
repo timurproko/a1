@@ -18,7 +18,7 @@ Ghostty's application runtimes are not the right first stack for that requiremen
 - Validate four-pane latency, flicker, resize, input, resource use, and cleanup before product integration.
 - Preserve transparent direct attachment unchanged for explicit Pi modes and fallback comparison.
 - Dispose of the fixed multipane proof presentation after its verdict and restore a one-session fullscreen checkpoint before any product composition work.
-- Require a separately accepted A1-owned Pi UI foundation, using Pi as a public-SDK engine, before structured multi-agent tabs; separately require the isolated composed proof before arbitrary terminal panes, split layouts, or multiplexer presentation.
+- Require a separately accepted A1-owned Pi UI foundation and completed `harden-pi-api-boundary` change, using Pi only through a bounded public-API integration behind vendor-neutral A1 ports, before structured multi-agent tabs; separately require the isolated composed proof before arbitrary terminal panes, split layouts, or multiplexer presentation.
 - Produce exact-artifact evidence tied to source revisions, platform, measurements, diagnostics, and physical/manual verdicts.
 
 **Non-Goals:**
@@ -172,7 +172,7 @@ A separate desktop-native host can be reconsidered only after the in-terminal ar
 
 ### 14. Delivery is split, capability-flagged, and reversible
 
-Structured contracts, adapters, and workspace behavior may proceed independently. Composed work remains a development-only capability through the in-terminal proof and subsequent per-platform integration. Bare `a1` changes only after workspace recovery and explicit-mode regression gates pass. Composed failure cannot remove transparent fallback.
+Generic structured contracts, adapters, and workspace behavior may proceed independently. Pi-backed workspace integration and structured Pi tabs remain blocked until `harden-pi-api-boundary` is accepted. Composed work remains a development-only capability through the in-terminal proof and subsequent per-platform integration. Bare `a1` changes only after workspace recovery and explicit-mode regression gates pass. Composed failure cannot remove transparent fallback.
 
 Rollback disables workspace cutover or composed capability as applicable, restores the accepted bare transparent profile when necessary, and preserves backward-readable versioned records. `a1 pi` and `a1 sandbox` remain unchanged throughout.
 
@@ -184,22 +184,24 @@ After task 5.3 establishes native hot-path isolation, remaining automated stress
 
 After task 5.10 records the resumed isolated-worker verdict, the proof presentation is removed from the shipping path and the terminal host returns to one fullscreen session. Accepted evidence remains immutable and refers to the exact historical artifact. Production multiplexer integration then continues separately only if the proof passes.
 
-### 16. A1 owns the customizable Pi UI while Pi remains the agent engine
+### 16. A1 owns the customizable Pi UI while Pi remains a replaceable engine integration
 
-The production bare-`a1` interface uses this boundary:
+The production bare-`a1` interface uses this dependency-inverted boundary:
 
 ```text
-A1-owned fullscreen UI
-  -> A1 view state, reducers, input, focus, composition, and customization slots
-  -> PiEngineAdapter using documented public SDK entry points
-  -> Pi AgentSessionRuntime and services
+A1-owned fullscreen UI and workspace features
+  -> vendor-neutral A1 runtime, session, model, auth, settings,
+     resource, UI-runtime, and component-factory ports
+  -> A1 composition root
+  -> bounded Pi integration using documented public SDK entry points
+  -> Pi session runtime and public services
 ```
 
-The A1 root SHALL NOT instantiate or patch Pi's stock `InteractiveMode`. Pi SDK and UI types remain inside narrow adapters; A1-owned dependency-free commands, events, snapshots, and view models cross into the workspace and presentation layers. Engine upgrades therefore require adapter conformance work rather than workspace-wide architectural refactoring.
+The A1 root SHALL NOT instantiate or patch Pi's stock `InteractiveMode`. Workspace and feature modules depend only on A1-owned contracts. Pi selection and Pi SDK or UI types remain inside the composition root and bounded Pi integration; dependency-free commands, events, snapshots, and view models cross into workspace and presentation layers. The integration validates every required public capability eagerly and fails closed, so engine upgrades remain localized integration and conformance work rather than workspace-wide architectural refactoring.
 
-Vanilla-first delivery does not require redrawing every Pi component. A1 may wrap documented root-package exports such as message, tool, editor, footer, and selector components behind A1-owned component adapters. Components too coupled to Pi's stock root may be ported from Pi's MIT-licensed source into an A1-owned module with source revision, license, attribution, and local conformance coverage recorded. A1 never patches installed package code, reads private fields, relies on deep imports, or hashes distribution internals to authorize UI behavior.
+Vanilla-first delivery does not require redrawing every Pi component. A1 may wrap documented root-package exports such as message, tool, editor, footer, and selector components behind A1-owned component factories. Components retained from Pi's MIT-licensed source become provenance-recorded A1-owned modules with source revision, license, attribution, and local coverage. They are a frozen owned baseline, not an API-compatibility dependency requiring exact ongoing source synchronization. Production integration never patches installed package code, reads private fields, uses deep imports, assumes package `dist` layout, or hashes distribution internals to authorize behavior.
 
-Exact current upstream Pi remains `a1 pi`. The A1 UI may provide a vanilla-style preset, but that preset is an A1-owned composition and does not claim byte-for-byte identity with upstream Pi.
+Exact current upstream Pi remains available through `a1 pi`, launched from the exact A1-selected dependency through a documented public child entry point rather than an ambient `PATH` executable. The A1 UI may provide a vanilla-style preset, but that preset is an A1-owned composition and does not claim byte-for-byte identity with upstream Pi.
 
 ### 17. Fullscreen vanilla-first acceptance precedes customization and composition
 
@@ -207,7 +209,7 @@ The separate owned-UI change first proves one high-quality fullscreen Pi session
 
 Customization is exposed through stable A1 component, theme, command, and layout slots rather than host mutation. Non-visual Pi extensions and resources may be adapted where the public SDK supports them. Visual extension compatibility requires an explicit A1 bridge and SHALL NOT receive implicit access to Pi's absent stock UI context.
 
-The owned UI must first pass fullscreen base-UX and Pi-upgrade conformance with one session. It may then expose multiple structured SDK-backed agents as A1-owned tabs. Those tabs switch semantic agent views; they do not create PTYs, invoke the terminal host, display arbitrary CLI surfaces, or satisfy the composed-terminal proof.
+The owned UI must first pass fullscreen base-UX with one session. The separate `harden-pi-api-boundary` change must then establish vendor-neutral ports, bounded composition-root wiring, fail-closed public-API compatibility, owned resource/UI boundaries, deterministic exact-version `a1 pi` launch, and candidate-upgrade conformance. Only after both changes are accepted may the workspace expose multiple structured SDK-backed agents as A1-owned tabs. Those tabs switch semantic agent views; they do not create PTYs, invoke the terminal host, display arbitrary CLI surfaces, or satisfy the composed-terminal proof.
 
 Arbitrary terminal panes, split layouts, and multiplexer integration remain blocked until the postponed isolated-worker 2×2 gate passes. The owned UI is designed as composable views from the start so structured tabs can later coexist with separately certified composed panes without sharing terminal authority.
 
@@ -225,8 +227,8 @@ Arbitrary terminal panes, split layouts, and multiplexer integration remain bloc
 - **[Physical quality cannot be established hermetically]** → Require exact-artifact manual or isolated-worker acceptance and prohibit active-workstation automation.
 - **[The proof may fail]** → Treat failure as useful evidence, stop composed integration, preserve transparent and structured paths, and avoid both custom rendering/input remediation and desktop-app investment.
 - **[Owning the UI increases initial implementation scope]** → Start from public Pi components and narrow provenance-recorded ports, establish vanilla-first parity, and replace components incrementally behind stable slots.
-- **[Public Pi SDK or component APIs may change]** → Pin release inputs, confine Pi types to adapters, run engine and component conformance suites against upgrade candidates, and keep `a1 pi` as the exact upstream recovery path.
-- **[A port can become an accidental permanent fork]** → Port only tightly coupled components, preserve attribution and provenance, accept deliberate local ownership, and synchronize upstream UI changes only when they provide chosen product value.
+- **[Public Pi SDK or component APIs may change]** → Pin release inputs, confine Pi types and selection to the bounded integration, validate required capabilities eagerly, run broad candidate-version conformance, and launch `a1 pi` from the exact selected dependency through its public entry point.
+- **[An owned source port can be mistaken for a live Pi API dependency]** → Preserve attribution and provenance, treat retained components as a frozen A1-owned baseline, and ingest later upstream UI changes only when they provide chosen product value.
 - **[Extension compatibility could recreate host coupling]** → Support only explicitly mapped public runtime/resource behavior and require an A1-owned bridge for visual extension surfaces.
 - **[Postponing the VM gate could let proof code drift while UI work proceeds]** → Freeze composed behavior behind a development-only path, prohibit production dependencies on the fixed grid, and rerun every exact-artifact workload after structured tabs are accepted and before multiplexer work begins.
 
@@ -237,9 +239,9 @@ Arbitrary terminal panes, split layouts, and multiplexer integration remain bloc
 3. Build and gate the structured adapter runtime with a synthetic adapter independently of composed work.
 4. Record provenance for the narrow terminal-core stack and build a minimal one-pane in-terminal host without a desktop window.
 5. Expand to side-by-side panes and then the fixed 2×2 proof inside an existing terminal; establish native hot-path isolation and preserve that development artifact without promoting its presentation.
-6. Complete a separate OpenSpec change for the A1-owned Pi UI foundation over the documented public SDK. Reach accepted fullscreen vanilla-first base UX and upgrade conformance with one Pi session.
-7. Integrate the existing structured workspace into A1-owned tabs for multiple SDK-backed Pi agents. Prove switching, background activity, lifecycle, failure isolation, recovery, and resource bounds without initializing the terminal host.
-8. Cut bare `a1` over to the accepted structured workspace, then merge the independently accepted owned-UI/structured-tab slice through `develop` and publish a clean development checkpoint under npm `next` with composed multipane behavior disabled and no composed support claim.
+6. Complete the separate `build-owned-pi-ui-foundation` change over the documented public SDK and reach accepted fullscreen vanilla-first base UX with one Pi session.
+7. Complete the separate `harden-pi-api-boundary` change: introduce vendor-neutral A1 ports, move Pi selection and wiring to one composition root, remove package-layout and structural-instance coupling, provide deterministic exact-version `a1 pi` launch, and pass fail-closed candidate-version conformance.
+8. Integrate the existing structured workspace into A1-owned tabs for multiple SDK-backed Pi agents. Prove switching, background activity, lifecycle, failure isolation, recovery, and resource bounds without Pi-specific feature contracts or initialization of the terminal host; then cut bare `a1` over, merge the independently accepted slice through `develop`, and publish a clean development checkpoint under npm `next` with composed multipane behavior disabled and no composed support claim.
 9. Resume the fixed 2×2 proof on an isolated Windows worker. Record every technical measurement and obtain an accepted user-controlled manual or isolated-worker physical verdict against exact bytes. Do not merge composed work or begin production multiplexer integration if this gate fails.
 10. Remove the fixed 2×2 geometry and dashed proof chrome, restore the one-session fullscreen terminal-host path, preserve exact-artifact evidence, and rerun fullscreen and explicit-mode regressions.
 11. Finalize component ingestion, protocol, packaging, and platform support for the console host, then implement arbitrary terminal layouts, generic CLI fixtures, bounded reconnection, and exact-package certification through the accepted owned-UI composition boundary.
