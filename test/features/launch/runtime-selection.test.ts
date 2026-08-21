@@ -3,7 +3,7 @@ import { runSelectedInteractiveRuntime, selectInteractiveRuntime } from "../../.
 
 describe("interactive runtime selection", () => {
   it("routes the A1 profile to the owned UI", () => {
-    expect(selectInteractiveRuntime("a1")).toEqual({ kind: "owned-ui" });
+    expect(selectInteractiveRuntime("a1")).toEqual({ kind: "owned-ui", profileId: "a1" });
   });
 
   it.each(["pi", "sandbox"] as const)("routes %s through transparent attachment", profileId => {
@@ -20,6 +20,7 @@ describe("interactive runtime selection", () => {
 
     await expect(runSelectedInteractiveRuntime("a1", { ownedUi, transparent })).resolves.toBe(23);
     expect(ownedUi).toHaveBeenCalledOnce();
+    expect(ownedUi).toHaveBeenCalledWith("a1");
     expect(transparent).not.toHaveBeenCalled();
   });
 
