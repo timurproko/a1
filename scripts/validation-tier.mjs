@@ -63,14 +63,18 @@ export async function createTierPlan(requested, repository = process.cwd()) {
 
   const packageSmokeTests = new Set(suites.scopes["package-smoke"]?.tests ?? []);
   const packageInstallTests = new Set(suites.scopes["package-install"]?.tests ?? []);
+  const performanceTests = new Set(suites.scopes["update-performance"]?.tests ?? []);
   const packageTests = new Set([...packageSmokeTests, ...packageInstallTests]);
-  const regularExplicitTests = explicitTests.filter(entry => !packageTests.has(entry.test));
+  const independentlyTimedTests = new Set([...performanceTests]);
+  const regularExplicitTests = explicitTests.filter(entry => !packageTests.has(entry.test) && !independentlyTimedTests.has(entry.test));
   const selectedTestPaths = new Set(explicitTests.map(entry => entry.test));
+  const requestedPerformance = [...performanceTests].filter(path => selectedTestPaths.has(path));
   const requestedPackageSmoke = [...packageSmokeTests].filter(path => selectedTestPaths.has(path));
   const requestedPackageInstall = [...packageInstallTests].filter(path => selectedTestPaths.has(path));
   const regularInvocations = [
     ...(fast ? [{ id: "vitest-fast", arguments: ["vitest", "run", fast.definition.includeRoot, ...fast.definition.exclude.flatMap(path => ["--exclude", path])] }] : []),
     ...(regularExplicitTests.length > 0 ? [{ id: "vitest-explicit", arguments: ["vitest", "run", ...regularExplicitTests.map(entry => entry.test), "--testTimeout=30000"] }] : []),
+    ...(requestedPerformance.length > 0 ? [{ id: "vitest-update-performance", arguments: ["vitest", "run", ...requestedPerformance, "--no-file-parallelism", "--testTimeout=120000"] }] : []),
     ...(requestedPackageSmoke.length > 0 ? [{ id: "vitest-package-smoke", arguments: ["vitest", "run", ...requestedPackageSmoke, "--no-file-parallelism", "--testTimeout=120000"] }] : []),
     ...(requestedPackageInstall.length > 0 ? [{ id: "vitest-package-install", arguments: ["vitest", "run", ...requestedPackageInstall, "--no-file-parallelism", "--testTimeout=600000"] }] : []),
   ];
@@ -78,7 +82,8 @@ export async function createTierPlan(requested, repository = process.cwd()) {
     ? {
         mode: "full-deduplicated",
         invocations: [
-          { id: "vitest-full-without-package", arguments: ["vitest", "run", ...[...packageTests].flatMap(path => ["--exclude", path]), "--testTimeout=30000"] },
+          { id: "vitest-full-without-isolated", arguments: ["vitest", "run", ...[...packageTests, ...independentlyTimedTests].flatMap(path => ["--exclude", path]), "--testTimeout=30000"] },
+          { id: "vitest-update-performance", arguments: ["vitest", "run", ...performanceTests, "--no-file-parallelism", "--testTimeout=120000"] },
           { id: "vitest-package-smoke", arguments: ["vitest", "run", ...packageSmokeTests, "--no-file-parallelism", "--testTimeout=120000"] },
           { id: "vitest-package-install", arguments: ["vitest", "run", ...packageInstallTests, "--no-file-parallelism", "--testTimeout=600000"] },
         ],
