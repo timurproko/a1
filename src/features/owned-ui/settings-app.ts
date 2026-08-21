@@ -244,8 +244,12 @@ export class SettingsApp implements UiApp {
         && event.column > frame.column
         && event.column <= frame.column + frame.width;
       if (event.kind === "motion") {
-        // The pointer drives the highlight, so the row under it is the one that lights up.
-        if (!overMenu || menu.index === overRow) return { consumed: true, render: false };
+        // While the menu is open it owns the pointer: the row under it lights up,
+        // and nothing behind it hovers.
+        const hadHover = this.#hoverKey !== null;
+        this.#hoverKey = null;
+        if (!overMenu) return { consumed: true, render: hadHover };
+        if (menu.index === overRow) return { consumed: true, render: hadHover };
         menu.index = overRow;
         return { consumed: true, render: true };
       }
@@ -411,7 +415,10 @@ export class SettingsApp implements UiApp {
       if (section.readOnlyReason !== null && needle.length === 0) {
         rows.push({ kind: "note", group: section.id, text: section.readOnlyReason });
       }
-      for (const entry of entries) {
+      // Alphabetical by the label the reader sees, as vanilla orders its own.
+      const ordered = [...entries].sort((left, right) =>
+        humanizeLabel(left.id).localeCompare(humanizeLabel(right.id)));
+      for (const entry of ordered) {
         rows.push({
           kind: "element",
           group: section.id,
@@ -448,17 +455,20 @@ export class SettingsApp implements UiApp {
 
     const entry = row.value;
     const label = humanizeLabel(entry.id);
-    const prefix = selected ? theme.fg("accent", "→ ") : "  ";
-    const leftRaw = `${selected ? "→ " : "  "}  ${label}`;
-    const left = `${prefix}  ${theme.fg(selected ? "accent" : "text", label)}`;
-    const gap = Math.max(2, valueColumn - displayWidth(leftRaw));
-    const raw = entry.value === null ? describeRaw(entry.rawValue) : displayValue(entry.value);
     const key = `${entry.backend}:${entry.id}`;
     const hovered = this.#hoverKey === key;
+    const prefix = selected ? theme.fg("accent", "→ ") : "  ";
+    const leftRaw = `${selected ? "→ " : "  "}  ${label}`;
+    const painted = theme.fg(selected ? "accent" : "text", label);
+    const left = `${prefix}  ${hovered ? theme.bold(painted) : painted}`;
+    const gap = Math.max(2, valueColumn - displayWidth(leftRaw));
+    const raw = entry.value === null ? describeRaw(entry.rawValue) : displayValue(entry.value);
+    // Pointing anywhere on the row is hovering the item; pointing at the value
+    // is what brightens the value. Selection speaks through the label alone.
+    const valueHovered = hovered && this.#hoverRegion !== "label";
     // The stepper is an affordance, not decoration: it appears under the pointer.
     const stepper = isStepper(entry) && hovered;
-    // Bright means "what the pointer or the selection is on", never "this is a number".
-    const valueToken = hovered || selected ? "text" : "muted";
+    const valueToken = valueHovered ? "text" : "muted";
     const minus = theme.fg(this.#hoverRegion === "minus" && hovered ? "accent" : "dim", "- ");
     const plus = theme.fg(this.#hoverRegion === "plus" && hovered ? "accent" : "dim", " +");
     const value = stepper
@@ -492,8 +502,8 @@ export class SettingsApp implements UiApp {
     // Opens at its own row and grows downward, flipping up only when it would
     // run past the body rather than always covering what is above.
     const body = lines.length - this.#footerHeight;
-    const below = anchor.screenRow;
-    const top = below + menu.choices.length <= body ? below : Math.max(0, below - menu.choices.length + 1);
+    const below = anchor.screenRow + 1;
+    const top = below + menu.choices.length <= body ? below : Math.max(0, anchor.screenRow - menu.choices.length);
     const width = Math.max(...menu.choices.map(choice => displayWidth(displayValue(choice)) + 4), 6);
     const column = Math.min(valueColumn, Math.max(0, rect.width - width - RAIL_COLUMNS));
     this.#menuFrame = { top, column, width, rows: menu.choices.length };
