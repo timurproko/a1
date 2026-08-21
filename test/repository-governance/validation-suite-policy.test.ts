@@ -70,9 +70,17 @@ describe("validation suite ownership", () => {
     expect(suites.tiers["full-release"]!.includes).toEqual(expect.arrayContaining(Object.keys(suites.scopes)));
   });
 
-  it("keeps invariant commands separate from test owners", async () => {
+  it("keeps planning and invariant commands separate from test owners", async () => {
     const suites = JSON.parse(await readFile("config/validation-suites.json", "utf8")) as SuiteManifest;
     expect(suites.schema).toBe("a1-validation-suites-v1");
+    expect(suites.tiers["planning"]).toEqual({
+      kind: "commands",
+      commands: [{
+        id: "openspec-strict",
+        executable: "npx",
+        arguments: ["--yes", "@fission-ai/openspec@1.8.0", "validate", "--all", "--strict", "--no-interactive"],
+      }],
+    });
     expect(suites.tiers["invariants"]!.commands?.map(command => command.id)).toEqual([
       "typecheck",
       "architecture",
