@@ -1408,7 +1408,27 @@ export class OwnedUiSessionShell {
     // Any-event reporting: hover and drag are what the screen is driven by, and
     // it also stops the terminal treating a drag as a text selection.
     this.runtime.writeControl(MOUSE_TRACKING_ON);
+    // The interrupt chord is global, so it is watched on raw input rather than
+    // through the overlay: the pinned shell handles that key before an overlay
+    // ever sees it, which is why an owned screen must not rely on being asked.
+    let armedAt = 0;
+    const removeInterruptWatch = this.runtime.addInputListener(data => {
+      if (!data.includes(INTERRUPT)) return undefined;
+      const now = Date.now();
+      if (armedAt !== 0 && now - armedAt <= INTERRUPT_CHORD_MS) {
+        armedAt = 0;
+        closeSurface();
+        void this.shutdown();
+        return { consume: true };
+      }
+      armedAt = now;
+      this.runtime.requestRender();
+      // The presented screen owns the chord, so the pinned shell never sees a
+      // stray interrupt while it is up.
+      return { consume: true };
+    });
     const closeSurface = () => {
+      removeInterruptWatch();
       this.runtime.writeControl(MOUSE_TRACKING_OFF);
       this.#dialogHandle?.hide();
       this.#dialogHandle = undefined;
@@ -1622,6 +1642,9 @@ function workflowAdapterResult(result: PiWorkflowResult): AdapterCommandResult {
   if (result.outcome === "failed") return { outcome: "failed", diagnostic: result.message };
   return { outcome: "rejected", diagnostic: result.message };
 }
+
+const INTERRUPT = "";
+const INTERRUPT_CHORD_MS = 1_500;
 
 function isWorkflowRoute(value: string): value is PiWorkflowRoute {
   return (PINNED_PI_WORKFLOW_COMMAND_NAMES as readonly string[]).includes(value)
