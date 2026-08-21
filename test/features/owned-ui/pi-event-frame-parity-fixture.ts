@@ -128,7 +128,13 @@ class ScriptedSession {
 
 class ScriptedRuntime {
   readonly session = new ScriptedSession();
-  readonly services = { modelRuntime: { getModel: () => undefined }, diagnostics: [] };
+  readonly services = {
+    modelRuntime: {
+      getModel: () => undefined,
+      getAvailableSnapshot: () => [{ provider: "openai", id: "gpt-5", name: "GPT-5" }],
+    },
+    diagnostics: [],
+  };
   readonly diagnostics = [];
   setRebindSession(): void {}
   async newSession(): Promise<void> {}

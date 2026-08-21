@@ -53,13 +53,20 @@ class Runtime {
     { provider: "openai", id: "gpt-5", name: "GPT-5" },
     { provider: "anthropic", id: "claude", name: "Claude" },
   ];
+  readonly providerAuthStatus = new Map<string, { configured: boolean; source?: "stored" | "environment"; label?: string }>([
+    ["openai", { configured: true, source: "stored" }],
+    ["anthropic", { configured: true, source: "environment", label: "ANTHROPIC_API_KEY" }],
+  ]);
+  readonly credentialTypes = new Map<string, "oauth" | "api_key">([["openai", "oauth"]]);
   readonly services = {
     modelRuntime: {
       getModel: (provider: string, id: string) => this.availableModels.find(model => model.provider === provider && model.id === id),
-      getAvailableSnapshot: () => this.availableModels,
+      getAvailableSnapshot: () => this.availableModels.filter(model => this.providerAuthStatus.get(model.provider)?.configured === true),
       getProviders: () => [{ id: "openai", name: "OpenAI Codex", auth: { oauth: {}, apiKey: {} } }],
       getProvider: (id: string) => id === "openai" ? { id, name: "OpenAI Codex", auth: { oauth: {}, apiKey: {} } } : undefined,
-      listCredentials: async () => [],
+      getProviderAuthStatus: (id: string) => this.providerAuthStatus.get(id) ?? { configured: false },
+      isUsingOAuth: (id: string) => this.credentialTypes.get(id) === "oauth",
+      listCredentials: async () => [...this.credentialTypes].map(([providerId, type]) => ({ providerId, type })),
       login: async (_providerId: string, _authType: string, interaction: {
         prompt(request: unknown): Promise<string>;
         notify(event: unknown): void;
@@ -74,7 +81,13 @@ class Runtime {
           ],
         });
         this.calls.push(`login-method:${method}`);
+        this.providerAuthStatus.set("openai", { configured: true, source: "stored" });
+        this.credentialTypes.set("openai", "oauth");
         return { type: "oauth" };
+      },
+      logout: async (providerId: string) => {
+        this.providerAuthStatus.set(providerId, { configured: false });
+        this.credentialTypes.delete(providerId);
       },
       refresh: async () => ({ aborted: false, errors: new Map() }),
     },
@@ -365,12 +378,36 @@ describe("OwnedUiSessionShell", () => {
     await shell.dispose();
   });
 
+  it("renders configured and unconfigured provider state from the model authority", async () => {
+    const { terminal, shell } = await fixture();
+    await shell.submit("/login");
+    terminal.input("\r");
+    let frame = stripTerminalSequences(shell.root.render(100).join("\n"));
+    expect(frame).toContain("OpenAI Codex");
+    expect(frame).toContain("✓ stored");
+    expect(frame).not.toContain("OpenAI Codex • unconfigured");
+
+    terminal.input("\x1b");
+    terminal.input("\x1b");
+    await shell.runWorkflow({ command: "logout", argument: "", selection: "oauth:openai" });
+    expect(shell.view().activeModel).toBeNull();
+    expect(shell.view().status.footer?.availableProviderCount).toBe(1);
+    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).not.toContain("gpt-5 • medium");
+    await shell.submit("/login");
+    terminal.input("\r");
+    frame = stripTerminalSequences(shell.root.render(100).join("\n"));
+    expect(frame).toContain("OpenAI Codex • unconfigured");
+    await shell.dispose();
+  });
+
   it("nests login authentication type and provider selection with pinned cancellation", async () => {
     const { adapter, terminal, shell } = await fixture();
     vi.spyOn(adapter, "pinnedLoginOptions").mockImplementation(authType => [{
       id: `${authType ?? "oauth"}:openai`,
+      providerId: "openai",
       label: "OpenAI",
       description: authType === "api_key" ? "API key" : "Account / OAuth",
+      authType: authType ?? "oauth",
     }]);
     const execute = vi.spyOn(adapter, "executeWorkflow").mockImplementation(async request => ({
       command: request.command,

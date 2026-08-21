@@ -223,8 +223,42 @@ describe("Pi shell public component adapters", () => {
     const messages = createPiShellUserMessageSelector([{ id: "entry-1", label: "first prompt" }], selected, cancelled);
     messages.handleInput?.("\r");
     expect(selected).toHaveBeenCalledWith("entry-1");
-    const auth = createPiShellAuthProviderSelector("login", [{ id: "oauth:openai", label: "OpenAI" }], selected, cancelled);
-    expect(stripTerminalSequences(auth.render(80).join("\n"))).toContain("OpenAI");
+    const auth = createPiShellAuthProviderSelector("login", [{
+      id: "oauth:openai",
+      providerId: "openai",
+      label: "OpenAI",
+      authType: "oauth",
+      status: { type: "oauth", source: "stored" },
+    }], selected, cancelled);
+    expect(stripTerminalSequences(auth.render(80).join("\n"))).toContain("OpenAI ✓ stored");
+    auth.handleInput?.("\r");
+    expect(selected).toHaveBeenCalledWith("oauth:openai");
+
+    const unconfigured = createPiShellAuthProviderSelector("login", [{
+      id: "api_key:anthropic",
+      providerId: "anthropic",
+      label: "Anthropic",
+      authType: "api_key",
+    }], selected, cancelled);
+    expect(stripTerminalSequences(unconfigured.render(44).join("\n"))).toContain("Anthropic • unconfigured");
+
+    const environment = createPiShellAuthProviderSelector("login", [{
+      id: "api_key:anthropic",
+      providerId: "anthropic",
+      label: "Anthropic",
+      authType: "api_key",
+      status: { type: "api_key", source: "ANTHROPIC_API_KEY" },
+    }], selected, cancelled);
+    expect(stripTerminalSequences(environment.render(80).join("\n"))).toContain("Anthropic ✓ env: ANTHROPIC_API_KEY");
+
+    const mismatchedMethod = createPiShellAuthProviderSelector("login", [{
+      id: "api_key:openai",
+      providerId: "openai",
+      label: "OpenAI",
+      authType: "api_key",
+      status: { type: "oauth", source: "stored" },
+    }], selected, cancelled);
+    expect(stripTerminalSequences(mismatchedMethod.render(80).join("\n"))).toContain("OpenAI • subscription configured");
   });
 
   it("adapts selectors, dialogs, and status through public Pi TUI components", () => {
