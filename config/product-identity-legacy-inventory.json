@@ -486,10 +486,10 @@
       ]
     },
     {
-      "id": "test/features/launch/development-launch.test.ts:21:50",
+      "id": "test/features/launch/development-launch.test.ts:23:50",
       "path": "test/features/launch/development-launch.test.ts",
       "locationKind": "content",
-      "line": 21,
+      "line": 23,
       "column": 50,
       "value": "addone",
       "context": "expect(first.developmentRoot).not.toContain(\"addone-development\");",
@@ -501,10 +501,10 @@
       ]
     },
     {
-      "id": "test/features/launch/development-launch.test.ts:43:7",
+      "id": "test/features/launch/development-launch.test.ts:45:7",
       "path": "test/features/launch/development-launch.test.ts",
       "locationKind": "content",
-      "line": 43,
+      "line": 45,
       "column": 7,
       "value": "ADDONE",
       "context": "ADDONE_DEV_INSTANCE_ID: \"legacy-instance\",",
@@ -517,47 +517,13 @@
       ]
     },
     {
-      "id": "test/features/launch/development-launch.test.ts:44:7",
-      "path": "test/features/launch/development-launch.test.ts",
-      "locationKind": "content",
-      "line": 44,
-      "column": 7,
-      "value": "ADDONE",
-      "context": "ADDONE_DEV_ROOT: \"D:/legacy/development\",",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/features/launch/development-launch.test.ts:45:7",
-      "path": "test/features/launch/development-launch.test.ts",
-      "locationKind": "content",
-      "line": 45,
-      "column": 7,
-      "value": "ADDONE",
-      "context": "ADDONE_CONFIG_DIR: \"D:/legacy/config\",",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "paths",
-        "tests"
-      ]
-    },
-    {
       "id": "test/features/launch/development-launch.test.ts:46:7",
       "path": "test/features/launch/development-launch.test.ts",
       "locationKind": "content",
       "line": 46,
       "column": 7,
       "value": "ADDONE",
-      "context": "ADDONE_DATA_DIR: \"D:/legacy/data\",",
+      "context": "ADDONE_DEV_ROOT: \"D:/legacy/development\",",
       "matchedCase": "upper",
       "primaryClass": "runtime-symbols",
       "classes": [
@@ -574,7 +540,7 @@
       "line": 47,
       "column": 7,
       "value": "ADDONE",
-      "context": "ADDONE_RUNTIME_DIR: \"D:/legacy/runtime\",",
+      "context": "ADDONE_CONFIG_DIR: \"D:/legacy/config\",",
       "matchedCase": "upper",
       "primaryClass": "runtime-symbols",
       "classes": [
@@ -591,7 +557,7 @@
       "line": 48,
       "column": 7,
       "value": "ADDONE",
-      "context": "ADDONE_DATABASE_PATH: \"D:/legacy/database.sqlite3\",",
+      "context": "ADDONE_DATA_DIR: \"D:/legacy/data\",",
       "matchedCase": "upper",
       "primaryClass": "runtime-symbols",
       "classes": [
@@ -606,6 +572,40 @@
       "path": "test/features/launch/development-launch.test.ts",
       "locationKind": "content",
       "line": 49,
+      "column": 7,
+      "value": "ADDONE",
+      "context": "ADDONE_RUNTIME_DIR: \"D:/legacy/runtime\",",
+      "matchedCase": "upper",
+      "primaryClass": "runtime-symbols",
+      "classes": [
+        "runtime-symbols",
+        "environment-keys",
+        "paths",
+        "tests"
+      ]
+    },
+    {
+      "id": "test/features/launch/development-launch.test.ts:50:7",
+      "path": "test/features/launch/development-launch.test.ts",
+      "locationKind": "content",
+      "line": 50,
+      "column": 7,
+      "value": "ADDONE",
+      "context": "ADDONE_DATABASE_PATH: \"D:/legacy/database.sqlite3\",",
+      "matchedCase": "upper",
+      "primaryClass": "runtime-symbols",
+      "classes": [
+        "runtime-symbols",
+        "environment-keys",
+        "paths",
+        "tests"
+      ]
+    },
+    {
+      "id": "test/features/launch/development-launch.test.ts:51:7",
+      "path": "test/features/launch/development-launch.test.ts",
+      "locationKind": "content",
+      "line": 51,
       "column": 7,
       "value": "ADDONE",
       "context": "ADDONE_ENDPOINT: \"legacy-endpoint\",",
@@ -1295,6 +1295,5 @@
         "tests"
       ]
     }
-  ],
-  "generatedAt": "2026-08-21T09:40:23.189Z"
+  ]
 }
