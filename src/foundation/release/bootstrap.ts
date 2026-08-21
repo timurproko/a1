@@ -52,7 +52,7 @@ export async function runBootstrap(options: BootstrapOptions): Promise<number> {
   }
 
   const candidate = await materializeRelease(options.packageRoot, paths.dataDir, {
-    onProgress: progress => output.write(`${PRODUCT_TEXT.diagnostic(`preparing ${progress.fileCount} installed release files; first launch may take a moment.`)}\n`),
+    onProgress: progress => output.write(`${PRODUCT_TEXT.diagnostic(`installing ${progress.fileCount} files.`)}\n`),
   });
   await stateStore.recordCandidate(candidate);
   state = await stateStore.read();

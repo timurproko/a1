@@ -145,7 +145,7 @@ export function createUpdateLifecycleCoordinator(
     },
     async activateInstalled(packageRoot, targetVersion, phase) {
       const candidate = await materializeRelease(packageRoot, paths.dataDir, {
-        onProgress: progress => output.stdout(`${PRODUCT_TEXT.diagnostic(`preparing ${progress.fileCount} installed release files; this one-time activation may take a moment.`)}\n`),
+        onProgress: progress => output.stdout(`${PRODUCT_TEXT.diagnostic(`installing ${progress.fileCount} files.`)}\n`),
       });
       if (candidate.packageVersion !== targetVersion) throw new Error(`installed ${PRODUCT_TEXT.displayName} version ${candidate.packageVersion} does not match target ${targetVersion}`);
       await stateStore.recordCandidate(candidate);
