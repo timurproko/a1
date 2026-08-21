@@ -67,6 +67,8 @@ git worktree remove .worktrees/<task-id>
 git worktree prune
 ```
 
+Manual acceptance does not leave a permanent validation checkout. Once acceptance is recorded, archive the completed OpenSpec change, integrate the archive commit into `develop`, then remove and prune every task or acceptance worktree retained for that change. Never remove a worktree before all of its implementation, acceptance, and archive commits are reachable from `develop`.
+
 Local package archives and ad hoc test builds belong under `.builds/`, never in the repository root. For manual package tests, use:
 
 ```sh
