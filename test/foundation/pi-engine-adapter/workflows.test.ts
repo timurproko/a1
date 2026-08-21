@@ -92,13 +92,20 @@ class WorkflowRuntime {
       return undefined;
     },
   });
+  readonly providerAuthStatus = new Map<string, { configured: boolean; source?: "stored" | "runtime" | "environment"; label?: string }>([
+    ["openai", { configured: true, source: "stored" }],
+  ]);
+  readonly credentialTypes = new Map<string, "oauth" | "api_key">([["openai", "oauth"]]);
+  readonly allModels = [{ provider: "openai", id: "gpt-5", name: "GPT-5" }];
   readonly modelRuntime = {
-    getModel: (provider: string, id: string) => provider === "openai" && id === "missing" ? undefined : ({ provider, id, name: id }),
-    getAvailableSnapshot: () => [{ provider: "openai", id: "gpt-5", name: "GPT-5" }],
+    getModel: (provider: string, id: string) => provider === "openai" && id === "missing" ? undefined : this.allModels.find(model => model.provider === provider && model.id === id),
+    getAvailableSnapshot: () => this.allModels.filter(model => this.providerAuthStatus.get(model.provider)?.configured === true),
     getProviders: () => [{ id: "openai", name: "OpenAI", auth: { oauth: {}, apiKey: {} } }],
-    listCredentials: async () => [{ providerId: "openai", type: "oauth" }],
+    getProviderAuthStatus: (providerId: string) => this.providerAuthStatus.get(providerId) ?? { configured: false },
+    isUsingOAuth: (providerId: string) => this.credentialTypes.get(providerId) === "oauth",
+    listCredentials: async () => [...this.credentialTypes].map(([providerId, type]) => ({ providerId, type })),
     getProvider: (providerId: string) => providerId === "openai" ? { id: providerId, name: "OpenAI Codex" } : undefined,
-    login: async (_provider: string, _type: string, interaction: { prompt(input: unknown): Promise<string>; notify(event: unknown): void }) => {
+    login: async (provider: string, type: "oauth" | "api_key", interaction: { prompt(input: unknown): Promise<string>; notify(event: unknown): void }) => {
       if (this.loginSelect) {
         interaction.notify({ type: "auth_url", url: "https://example.test/auth", instructions: "Continue in browser" });
         await interaction.prompt({
@@ -109,9 +116,14 @@ class WorkflowRuntime {
       } else if (this.loginPrompt) {
         await interaction.prompt({ type: "input", message: "API key", placeholder: "secret" });
       }
-      return { type: "oauth" };
+      this.providerAuthStatus.set(provider, { configured: true, source: "stored" });
+      this.credentialTypes.set(provider, type);
+      return { type };
     },
-    logout: async () => {},
+    logout: async (provider: string) => {
+      this.providerAuthStatus.set(provider, { configured: false });
+      this.credentialTypes.delete(provider);
+    },
   };
   readonly resourceLoader = {
     getSkills: () => ({ skills: [{ name: "review", description: "Review code" }], diagnostics: [] }),
@@ -151,8 +163,9 @@ function host(overrides: Partial<PiWorkflowHost> = {}): PiWorkflowHost {
   };
 }
 
-async function fixture(workflowHost = host()) {
+async function fixture(workflowHost = host(), configure?: (runtime: WorkflowRuntime) => void) {
   const runtime = new WorkflowRuntime();
+  configure?.(runtime);
   const adapter = await createPiEngineAdapter({
     cwd: "D:/work",
     agentDir: join(tmpdir(), "a1-workflow-fixture"),
@@ -302,6 +315,135 @@ describe("pinned Pi command and input workflows", () => {
     runtime.session.reloadFails = true;
     await expect(adapter.executeWorkflow({ command: "reload", argument: "" })).resolves.toMatchObject({ outcome: "failed", message: "Reload failed: reload exploded" });
     await expect(adapter.executeWorkflow({ command: "model", argument: "openai/missing" })).resolves.toMatchObject({ outcome: "failed" });
+  });
+
+  it("preserves authoritative provider authentication status beside available models", async () => {
+    const { adapter, runtime } = await fixture();
+    expect(runtime.modelRuntime.getAvailableSnapshot()).toEqual([
+      { provider: "openai", id: "gpt-5", name: "GPT-5" },
+    ]);
+    expect(adapter.pinnedLoginOptions("oauth")).toEqual([{
+      id: "oauth:openai",
+      providerId: "openai",
+      label: "OpenAI",
+      description: "Account / OAuth",
+      authType: "oauth",
+      status: { type: "oauth", source: "stored" },
+    }]);
+    await expect(adapter.pinnedLogoutOptions()).resolves.toEqual([{
+      id: "oauth:openai",
+      providerId: "openai",
+      label: "OpenAI Codex",
+      description: "oauth",
+      authType: "oauth",
+      status: { type: "oauth", source: "stored credential" },
+    }]);
+
+    runtime.providerAuthStatus.set("openai", { configured: false });
+    runtime.credentialTypes.delete("openai");
+    expect(runtime.modelRuntime.getAvailableSnapshot()).toEqual([]);
+    expect(adapter.pinnedLoginOptions("oauth")).toEqual([{
+      id: "oauth:openai",
+      providerId: "openai",
+      label: "OpenAI",
+      description: "Account / OAuth",
+      authType: "oauth",
+    }]);
+    await expect(adapter.pinnedLogoutOptions()).resolves.toEqual([]);
+    await adapter.dispose();
+  });
+
+  it("keeps provider status, credential ownership, and model availability aligned across auth states", async () => {
+    const { adapter, runtime } = await fixture();
+    const states = [
+      {
+        name: "empty",
+        status: { configured: false } as const,
+        credentialType: undefined,
+        expectedStatus: undefined,
+        expectedModels: 0,
+        expectedLogout: 0,
+      },
+      {
+        name: "stored OAuth",
+        status: { configured: true, source: "stored" as const },
+        credentialType: "oauth" as const,
+        expectedStatus: { type: "oauth", source: "stored" },
+        expectedModels: 1,
+        expectedLogout: 1,
+      },
+      {
+        name: "stored API key",
+        status: { configured: true, source: "stored" as const },
+        credentialType: "api_key" as const,
+        expectedStatus: { type: "api_key", source: "stored" },
+        expectedModels: 1,
+        expectedLogout: 1,
+      },
+      {
+        name: "environment",
+        status: { configured: true, source: "environment" as const, label: "OPENAI_API_KEY" },
+        credentialType: undefined,
+        expectedStatus: { type: "api_key", source: "OPENAI_API_KEY" },
+        expectedModels: 1,
+        expectedLogout: 0,
+      },
+      {
+        name: "expired without refresh",
+        status: { configured: false } as const,
+        credentialType: undefined,
+        expectedStatus: undefined,
+        expectedModels: 0,
+        expectedLogout: 0,
+      },
+    ];
+
+    for (const state of states) {
+      runtime.providerAuthStatus.set("openai", state.status);
+      if (state.credentialType === undefined) runtime.credentialTypes.delete("openai");
+      else runtime.credentialTypes.set("openai", state.credentialType);
+      const option = adapter.pinnedLoginOptions("oauth")[0];
+      expect(option?.status, state.name).toEqual(state.expectedStatus);
+      expect(runtime.modelRuntime.getAvailableSnapshot(), state.name).toHaveLength(state.expectedModels);
+      await expect(adapter.pinnedLogoutOptions(), state.name).resolves.toHaveLength(state.expectedLogout);
+    }
+    await adapter.dispose();
+  });
+
+  it("drops a stale selected model when an empty profile starts", async () => {
+    const { adapter } = await fixture(host(), runtime => {
+      runtime.providerAuthStatus.set("openai", { configured: false });
+      runtime.credentialTypes.delete("openai");
+    });
+    expect(adapter.view().activeModel).toBeNull();
+    expect(adapter.view().status.footer?.availableProviderCount).toBe(0);
+    expect(adapter.pinnedModelSelectorContext().currentModel).toBeUndefined();
+    await adapter.dispose();
+  });
+
+  it("reconciles login and stored logout without a process restart", async () => {
+    const { adapter, runtime } = await fixture();
+    runtime.providerAuthStatus.set("openai", { configured: false });
+    runtime.credentialTypes.delete("openai");
+    expect(runtime.modelRuntime.getAvailableSnapshot()).toEqual([]);
+
+    await expect(adapter.executeWorkflow({ command: "login", argument: "", selection: "oauth:openai" })).resolves.toMatchObject({ outcome: "completed" });
+    expect(adapter.pinnedLoginOptions("oauth")[0]?.status).toEqual({ type: "oauth", source: "stored" });
+    expect(runtime.modelRuntime.getAvailableSnapshot()).toHaveLength(1);
+    expect(adapter.view().activeModel).toMatchObject({ providerId: "openai", modelId: "gpt-5" });
+    expect(adapter.view().status.footer?.availableProviderCount).toBe(1);
+    expect(adapter.pinnedScopedModelsContext().models).toHaveLength(1);
+    await expect(adapter.pinnedLogoutOptions()).resolves.toHaveLength(1);
+
+    await expect(adapter.executeWorkflow({ command: "logout", argument: "", selection: "oauth:openai" })).resolves.toMatchObject({ outcome: "completed" });
+    expect(adapter.pinnedLoginOptions("oauth")[0]?.status).toBeUndefined();
+    expect(runtime.modelRuntime.getAvailableSnapshot()).toEqual([]);
+    expect(adapter.view().activeModel).toBeNull();
+    expect(adapter.view().status.footer?.availableProviderCount).toBe(0);
+    expect(adapter.pinnedModelSelectorContext().currentModel).toBeUndefined();
+    expect(adapter.pinnedScopedModelsContext().models).toEqual([]);
+    await expect(adapter.pinnedLogoutOptions()).resolves.toEqual([]);
+    await adapter.dispose();
   });
 
   it("preserves the provider-specific authentication-type level before login", async () => {

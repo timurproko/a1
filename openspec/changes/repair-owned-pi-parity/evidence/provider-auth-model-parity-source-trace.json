@@ -1,0 +1,80 @@
+{
+  "schema": "a1-owned-pi-provider-auth-parity-trace-v1",
+  "pinnedPi": {
+    "version": "0.84.2",
+    "commit": "914cf1472e715297caa30db4b9535d534a9eb718",
+    "producer": "untouched @earendil-works/pi-coding-agent"
+  },
+  "originatingFinding": {
+    "summary": "A1 models were available from persisted profile credentials while the login selector labeled the same providers unconfigured.",
+    "credentialValuesRecorded": false,
+    "profileState": "A1 and vanilla profile roots differed; equivalent-state fixtures are required for parity."
+  },
+  "sourceTrace": [
+    {
+      "behavior": "login provider status",
+      "upstream": "src/modes/interactive/interactive-mode.ts#getLoginProviderOptions",
+      "authority": "modelRuntime.getProviderAuthStatus(provider.id) plus modelRuntime.isUsingOAuth(provider.id)",
+      "local": "src/foundation/pi-engine-adapter/adapter.ts#loginOptions",
+      "acceptance": [
+        "test/foundation/pi-engine-adapter/workflows.test.ts",
+        "test/features/owned-ui/pi-session-shell.test.ts"
+      ]
+    },
+    {
+      "behavior": "login provider rendering",
+      "upstream": "src/modes/interactive/components/oauth-selector.ts#formatStatusIndicator",
+      "authority": "provider status type and source",
+      "local": "src/foundation/pi-component-adapter/shell-selectors-dialogs.ts#createPiShellAuthProviderSelector",
+      "acceptance": [
+        "test/foundation/pi-component-adapter/shell-components.test.ts",
+        "test/features/owned-ui/pi-session-shell.test.ts"
+      ]
+    },
+    {
+      "behavior": "logout choices",
+      "upstream": "src/modes/interactive/interactive-mode.ts#getLogoutProviderOptions",
+      "authority": "modelRuntime.listCredentials() stored metadata",
+      "local": "src/foundation/pi-engine-adapter/adapter.ts#logoutOptions",
+      "acceptance": [
+        "test/foundation/pi-engine-adapter/workflows.test.ts"
+      ]
+    },
+    {
+      "behavior": "available model filtering",
+      "upstream": "src/core/model-runtime.ts#getAvailableSnapshot",
+      "authority": "configuredProviders snapshot",
+      "local": "src/foundation/pi-engine-adapter/adapter.ts#pinnedModelSelectorContext",
+      "acceptance": [
+        "test/foundation/pi-engine-adapter/model-auth-integration.test.ts",
+        "test/features/owned-ui/pi-session-shell.test.ts"
+      ]
+    },
+    {
+      "behavior": "saved and restored model eligibility",
+      "upstream": "src/core/model-resolver.ts#resolveInitialModel and restoreModelFromSession",
+      "authority": "model existence plus configured provider auth",
+      "local": "src/foundation/pi-engine-adapter/runtime-integration.ts#createPiRuntimeIntegration",
+      "acceptance": [
+        "test/foundation/pi-engine-adapter/model-auth-integration.test.ts",
+        "test/features/launch/profile-isolation.integration.test.ts"
+      ]
+    },
+    {
+      "behavior": "footer model and provider state",
+      "upstream": "src/modes/interactive/components/footer.ts",
+      "authority": "active session model and available provider count",
+      "local": "src/foundation/pi-component-adapter/shell-footer-status.ts#createPiShellFooter",
+      "acceptance": [
+        "test/features/owned-ui/pi-session-shell.test.ts"
+      ]
+    }
+  ],
+  "intentionalDivergencesThatMustFail": [
+    "configured provider status omitted from login selector input",
+    "models from an unconfigured provider inserted from the all-model catalog",
+    "stored logout represented as removal of environment or provider-config authentication",
+    "stale selected model revived after provider authority is lost",
+    "credential values included in fixtures or evidence"
+  ]
+}
