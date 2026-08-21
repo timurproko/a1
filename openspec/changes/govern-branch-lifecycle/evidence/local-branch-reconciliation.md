@@ -28,3 +28,18 @@ The command left the working tree unchanged.
 - `chore/shorter-activation-message`
 
 Apply mode was not used during this review.
+
+## Applied cleanup
+
+At `2026-08-21T06:18:45Z`, the reviewed set was applied locally with:
+
+```sh
+npm run branches:prune -- --apply --json
+```
+
+All six merged-deletable branches listed above were deleted with Git safe deletion. No remote deletion was requested. The resulting local inventory is:
+
+- `change/govern-branch-lifecycle` (current, retained)
+- `chore/shorter-activation-message` (unmerged, retained)
+- `develop` (protected, retained)
+- `master` (protected, retained)
