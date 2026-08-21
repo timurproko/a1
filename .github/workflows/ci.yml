@@ -135,3 +135,23 @@ jobs:
             artifacts/release-verdicts/*.json
           if-no-files-found: warn
           retention-days: 14
+
+  required:
+    name: Development validation required
+    if: always() && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
+    needs: [impact, validate]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check out validation policy
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Require a non-empty successful validation
+        env:
+          IMPACT_JOB_RESULT: ${{ needs.impact.result }}
+          VALIDATION_JOB_RESULT: ${{ needs.validate.result }}
+          SELECTED_VALIDATION_JSON: ${{ needs.impact.outputs.selected }}
+        run: node scripts/check-development-validation.mjs

@@ -13,7 +13,7 @@
 ## 3. Automatic Development CI
 
 - [x] 3.1 Add a least-privilege GitHub Actions workflow for pull requests to `develop` and pushes to `develop`, with trusted base/head selection, dependency caching, affected-scope planning, invariant/fast execution, selected integrations, timing evidence, and stale-PR cancellation; validate workflow policy tests and a local full-selection simulation.
-- [ ] 3.2 Add a stable required development-validation aggregator job that fails on any required selected job and cannot be skipped by an empty matrix; validate success, selected failure, selector failure, and cancellation policy through governance fixtures.
+- [x] 3.2 Add a stable required development-validation aggregator job that fails on any required selected job and cannot be skipped by an empty matrix; validate success, selected failure, selector failure, and cancellation policy through governance fixtures.
 - [ ] 3.3 Run the new workflow in advisory mode on representative feature-only and cross-cutting branches, compare selected outcomes with complete runs, record timing evidence, and correct any missing or unnecessarily broad mappings before enabling required status.
 
 ## 4. Exact Preview Candidate Construction

@@ -38,4 +38,15 @@ describe("automatic development validation workflow", () => {
     expect(workflow).toContain("## Validation timing");
     expect(workflow).toContain("validation-outcomes-${{ github.run_id }}-${{ github.run_attempt }}");
   });
+
+  it("publishes one stable fail-closed required check", async () => {
+    const workflow = await readFile(".github/workflows/ci.yml", "utf8");
+    expect(workflow).toContain("name: Development validation required");
+    expect(workflow).toContain("if: always()");
+    expect(workflow).toContain("needs: [impact, validate]");
+    expect(workflow).toContain("IMPACT_JOB_RESULT: ${{ needs.impact.result }}");
+    expect(workflow).toContain("VALIDATION_JOB_RESULT: ${{ needs.validate.result }}");
+    expect(workflow).toContain("SELECTED_VALIDATION_JSON: ${{ needs.impact.outputs.selected }}");
+    expect(workflow).toContain("node scripts/check-development-validation.mjs");
+  });
 });
