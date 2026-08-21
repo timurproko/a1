@@ -2,6 +2,21 @@ import { describe, expect, it } from "vitest";
 import { createTierPlan, runTierPlan } from "../../scripts/validation-tier.mjs";
 
 describe("validation tier planning", () => {
+  it("keeps planning validation free of builds and runtime tests", async () => {
+    const plan = await createTierPlan(["planning"]);
+    expect(plan.selected).toEqual(["planning"]);
+    expect(plan.requiresBuild).toBe(false);
+    expect(plan.consumesPackage).toBe(false);
+    expect(plan.vitest).toBeNull();
+    expect(plan.commands).toEqual([
+      expect.objectContaining({
+        id: "openspec-strict",
+        executable: "npx",
+        arguments: ["--yes", "@fission-ai/openspec@1.8.0", "validate", "--all", "--strict", "--no-interactive"],
+      }),
+    ]);
+  });
+
   it("deduplicates the complete release suite while isolating timing and package gates", async () => {
     const plan = await createTierPlan(["full-release"]);
     expect(plan.selected).toEqual([

@@ -1,6 +1,12 @@
 {
   "schema": "a1-validation-suites-v1",
   "tiers": {
+    "planning": {
+      "kind": "commands",
+      "commands": [
+        { "id": "openspec-strict", "executable": "npx", "arguments": ["--yes", "@fission-ai/openspec@1.8.0", "validate", "--all", "--strict", "--no-interactive"] }
+      ]
+    },
     "invariants": {
       "kind": "commands",
       "commands": [

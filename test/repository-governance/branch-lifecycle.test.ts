@@ -45,14 +45,14 @@ describe("bounded development branch lifecycle", () => {
       readFile(resolve("openspec/config.yaml"), "utf8"),
       readFile(resolve(".gitignore"), "utf8"),
     ]);
-    expect(readme).toContain("The primary checkout at `D:\\Git\\a1` stays on `develop` and is integration-only");
+    expect(readme).toContain("The primary worktree stays on `develop` and is integration-only");
     expect(readme).toContain("git worktree add --detach .worktrees/<task-id> origin/develop");
-    expect(readme).toContain("git -C D:/Git/a1 cherry-pick <validated-commit>");
+    expect(readme).toContain("git push origin HEAD:refs/heads/<task-id>");
+    expect(readme).toContain("gh pr create --base develop --head <task-id>");
     expect(readme).toContain("npm pack --ignore-scripts --pack-destination .builds");
-    expect(readme).toContain("`git branch -d`");
-    expect(readme).toContain("never force-deletes");
-    expect(config).toContain("Every agent task uses its own detached Git worktree under D:/Git/a1/.worktrees/<task-id>");
-    expect(config).toContain("never emit npm pack tarballs or similar build artifacts into the repository root");
+    expect(config).toContain("the repository's `.worktrees/<task-id>` directory");
+    expect(config).toContain("the repository's `.builds/` directory");
+    expect(`${readme}\n${config}`).not.toMatch(/[A-Za-z]:[\\/]/);
     expect(gitignore).toContain("/.worktrees/");
     expect(gitignore).toContain("/.builds/");
     expect(gitignore).not.toMatch(/^\*\.tgz$/m);

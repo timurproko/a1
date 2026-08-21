@@ -14,13 +14,11 @@ Repository rules use job display names, not internal job keys. Keep these names 
 
 Matrix and tier job names are implementation details. Change a required name only by updating the reviewable ruleset definition, its governance tests, this runbook, and the live ruleset together.
 
-## Advisory rollout and widening validation
+## Validation selection
 
-New or materially changed selection rules run in advisory mode before their check becomes required. Compare at least one feature-only change and one cross-cutting change with a complete run. A selection miss is a policy defect: widen `config/validation-impact.json`, add a regression test, and rerun complete validation before enabling enforcement.
+A change entirely under `openspec/**` runs only strict OpenSpec validation. It does not alter product bytes, so typecheck, build, runtime, integration, package, audit, and release gates do not apply. Any changed path outside `openspec/**` uses normal affected implementation validation.
 
-The selector can only widen validation. To override an affected plan, dispatch **Development validation** at the exact `develop` ref with `full: true`. This selects `full-release`; it cannot suppress mandatory tiers. Dispatch **Full regression** for the complete non-physical package and clean-install path. Scheduled Full regression is also the backstop for impact-map mistakes.
-
-When selection is uncertain, deleted, renamed, unmapped, or based on an unavailable Git range, it must fail closed to full validation. Do not bypass this fallback with labels or edited workflow inputs.
+For implementation changes, a selection miss is a policy defect: widen `config/validation-impact.json`, add a regression test, and compare the correction with a complete run. An authorized `full: true` dispatch may widen implementation validation but cannot suppress required tiers. Unknown or unsafe implementation impact fails closed to full validation. Scheduled **Full regression** remains the backstop for impact-map mistakes.
 
 ## Preview candidate and `next` publication
 

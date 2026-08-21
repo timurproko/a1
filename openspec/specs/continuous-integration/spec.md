@@ -18,24 +18,24 @@ GitHub Actions SHALL validate every pull request targeting `develop` and every c
 - **WHEN** a commit is pushed or merged into `develop`
 - **THEN** automatic integration validation SHALL run for that exact commit and preserve its result independently of any publication request
 
-### Requirement: Affected-scope selection is deterministic and fail-closed
-Development validation SHALL derive affected test scopes from a version-controlled mapping of changed repository paths to owned test and gate scopes. The selector SHALL always include repository-wide invariant checks and mandatory smoke coverage, SHALL emit the changed paths, selected scopes, commands, and selection reasons as evidence, and SHALL select full validation when it cannot prove a safe bounded scope.
+### Requirement: Validation matches changed content
+Development validation SHALL derive its scope from changed paths. A change entirely under `openspec/**` SHALL run only strict OpenSpec validation because it changes no product bytes. Any change outside that path SHALL use normal affected implementation validation, including mandatory invariants and fail-closed full validation when its scope cannot be determined safely. The selector SHALL record changed paths, selected scopes, commands, and reasons.
 
-#### Scenario: Feature-owned paths change
-- **WHEN** every changed path has an unambiguous mapping to one or more feature or foundation scopes
-- **THEN** validation SHALL run the union of those affected scopes plus mandatory invariant and smoke gates
+#### Scenario: Only planning changes
+- **WHEN** every changed path is under `openspec/**`
+- **THEN** validation SHALL run strict OpenSpec validation without typecheck, build, architecture, runtime, integration, package, audit, or release gates
 
-#### Scenario: Shared or packaging-sensitive input changes
-- **WHEN** a manifest, lockfile, build configuration, package entry, product identity authority, shared contract, test configuration, release script, or CI policy changes
-- **THEN** the selector SHALL widen validation to every scope required by that cross-cutting input, including full and package-install validation when declared by policy
+#### Scenario: Implementation changes
+- **WHEN** any changed path is outside `openspec/**`
+- **THEN** validation SHALL select affected implementation scopes plus mandatory invariants and smoke coverage
 
-#### Scenario: Selection is uncertain
-- **WHEN** a path is unknown, deleted, renamed without a safe mapping, or cannot be compared with a trusted base
-- **THEN** validation SHALL fail closed by selecting the complete automated suite
+#### Scenario: Implementation scope is uncertain
+- **WHEN** an implementation path is unknown or cannot be compared safely with a trusted base
+- **THEN** validation SHALL select the complete automated suite
 
-#### Scenario: An operator requests wider validation
-- **WHEN** an authorized label or manual dispatch requests full validation
-- **THEN** the selector SHALL widen the run to the complete suite and SHALL NOT allow an override to remove automatically required gates
+#### Scenario: Wider implementation validation is requested
+- **WHEN** an authorized request selects full validation for an implementation change
+- **THEN** validation SHALL widen to the complete suite and SHALL NOT remove automatically required gates
 
 ### Requirement: Validation tiers avoid duplicate work
 The repository SHALL define non-overlapping fast, affected-integration, package, and full-release validation tiers. A workflow SHALL execute each selected test or deterministic gate at most once for a candidate, and build output reused by later validation or packaging SHALL be produced once rather than rebuilt independently by overlapping gates.
