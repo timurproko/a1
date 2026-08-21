@@ -74,5 +74,31 @@
     "strictOpenSpecPassed": true,
     "auditVulnerabilities": 0,
     "finalUserRetestPending": true
+  },
+  "oauthPromptCorrection": {
+    "credentialValuesRecorded": false,
+    "finding": "an intentionally blank GitHub Copilot enterprise-domain prompt was normalized into cancellation",
+    "correctedCommit": "756173a452d0610cfbfffe89dc7dc7476fc2fd54",
+    "focusedAuthWorkflowTests": { "files": 3, "tests": 44, "passed": true },
+    "containingOwnedUiAuthAndLaunchTests": { "files": 26, "tests": 145, "passed": true },
+    "terminalParity": {
+      "passed": true,
+      "differenceCount": 0,
+      "reportSha256": "300634e5f0a74fba34dc20f2b2c127003b17d4adb52b3ccb67149063c7bd94e3",
+      "upstreamCheckpointsSha256": "30642fb765e26e5ab9cf9f5802b6535b0f2d2843a61feb93368e251047d4852a",
+      "ownedCheckpointsSha256": "394a0703ce043d34d33cfb312f38da2b3f0119754d595289146aa0a9d76885ea"
+    },
+    "release": {
+      "passed": true,
+      "startedAt": "2026-08-21T13:15:47.683Z",
+      "completedAt": "2026-08-21T13:17:09.082Z",
+      "fullVitest": { "files": 141, "tests": 779, "passed": true },
+      "candidateSha256": "caaa0c0b848e1399836ff55088e047e8b9a4b3267b182820c5dd82b51372d9e8",
+      "releaseVerdictSha256": "faedd4b07e0428858c6484f2adc26ff27c431ea24df65be177243eb077f656da"
+    },
+    "architecturePassed": true,
+    "strictOpenSpecPassed": true,
+    "auditVulnerabilities": 0,
+    "finalUserRetestPending": true
   }
 }
