@@ -1,8 +1,8 @@
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { deriveReleaseIdentity, resolveWithin } from "../../../src/foundation/release/index.js";
+import { deriveReleaseIdentity, discoverReleasePayload, resolveWithin } from "../../../src/foundation/release/index.js";
 
 const roots: string[] = [];
 
@@ -35,6 +35,32 @@ describe("package-derived release identity", () => {
     }));
     await expect(deriveReleaseIdentity(root)).rejects.toThrow(/escapes package root/);
     expect(() => resolveWithin(root, "../../outside")).toThrow(/escapes selected root/);
+  });
+
+  it("discovers deterministic payload paths without reading ordinary contents", async () => {
+    const root = await fixturePackage("1.0.0", "safe");
+    await writeFile(resolve(root, "dist/z.js"), "z");
+    await writeFile(resolve(root, "dist/a.js"), "a");
+    const reads: string[] = [];
+
+    const payload = await discoverReleasePayload(root, { onSourceRead: path => reads.push(path) });
+
+    expect(payload.paths).toEqual(["dist/a.js", "dist/app.js", "dist/z.js", "package.json"]);
+    expect(reads).toEqual(["package.json"]);
+  });
+
+  it("rejects missing dependencies and linked payload entries during discovery", async () => {
+    const root = await fixturePackage("1.0.0", "safe");
+    const manifestPath = resolve(root, "package.json");
+    const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as Record<string, unknown>;
+    await writeFile(manifestPath, JSON.stringify({ ...manifest, dependencies: { "missing-package": "1.0.0" } }));
+    await expect(discoverReleasePayload(root)).rejects.toThrow(/dependency is missing/);
+
+    await writeFile(manifestPath, JSON.stringify(manifest));
+    const outside = resolve(root, "outside");
+    await mkdir(outside);
+    await symlink(outside, resolve(root, "dist/link"), "junction");
+    await expect(discoverReleasePayload(root)).rejects.toThrow(/symbolic link/);
   });
 
   it("rejects the obsolete npm package identity", async () => {

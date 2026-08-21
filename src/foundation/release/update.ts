@@ -34,6 +34,18 @@ export interface UpdateFileSystem {
   access?(path: string): Promise<void>;
 }
 export interface UpdateOutput { stdout(message: string): void; stderr(message: string): void }
+export type UpdateMeasuredPhase =
+  | "package-version"
+  | "target-resolution"
+  | "global-root"
+  | "ownership-release"
+  | "npm-install"
+  | "materialized"
+  | "certified"
+  | "active-reference-committed"
+  | "supervisor-verified"
+  | "transaction-complete";
+export interface UpdatePhaseTimingEvent { readonly phase: UpdateMeasuredPhase; readonly durationMs: number }
 export interface SelfUpdateOptions {
   packageRoot: string;
   channel?: UpdateChannel;
@@ -43,12 +55,15 @@ export interface SelfUpdateOptions {
   runner?: UpdateProcessRunner;
   lifecycle?: UpdateLifecycleCoordinator;
   transactionStore?: UpdateTransactionJournal;
+  onPhaseTiming?: (event: UpdatePhaseTimingEvent) => void;
+  now?: () => number;
 }
+export type UpdateActivationPhase = Extract<UpdateTransactionPhase, "materialized" | "certified" | "active-reference-committed">;
 export interface UpdateLifecycleCoordinator {
   targetIsActive(targetVersion: string): Promise<boolean>;
   shutdownVerifiedOwners(targetVersion: string): Promise<{ priorActiveVersion: string | null }>;
   verifyPackageUnlocked(packageRoot: string): Promise<void>;
-  activateInstalled(packageRoot: string, targetVersion: string, phase: (phase: UpdateTransactionPhase) => Promise<void>): Promise<void>;
+  activateInstalled(packageRoot: string, targetVersion: string, phase: (phase: UpdateActivationPhase) => Promise<void>): Promise<void>;
 }
 export interface UpdateTransactionJournal {
   readonly path: string;
@@ -165,10 +180,16 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
   const runner = options.runner ?? createNpmProcessRunner();
   const channel = options.channel ?? "stable";
   const distTag = UPDATE_DIST_TAGS[channel];
+  const now = options.now ?? (() => performance.now());
+  const measure = async <Value>(phase: UpdateMeasuredPhase, operation: () => Promise<Value>): Promise<Value> => {
+    const startedAt = now();
+    try { return await operation(); }
+    finally { options.onPhaseTiming?.({ phase, durationMs: Math.max(0, now() - startedAt) }); }
+  };
 
   let runningVersion: string;
   try {
-    const packageJson = JSON.parse(await fileSystem.readFile(resolve(options.packageRoot, "package.json"))) as { version?: unknown };
+    const packageJson = JSON.parse(await measure("package-version", async () => await fileSystem.readFile(resolve(options.packageRoot, "package.json")))) as { version?: unknown };
     const parsedVersion = typeof packageJson.version === "string" ? validSemver(packageJson.version) : null;
     if (parsedVersion === null) throw new Error("package.json does not contain a valid semantic version");
     runningVersion = parsedVersion;
@@ -177,7 +198,7 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
     return 1;
   }
 
-  const targetLookup = await runNpm(runner, ["view", `${PRODUCT_PACKAGE}@${distTag}`, "version"], true, output, `query the npm ${distTag} channel`);
+  const targetLookup = await measure("target-resolution", async () => await runNpm(runner, ["view", `${PRODUCT_PACKAGE}@${distTag}`, "version"], true, output, `query the npm ${distTag} channel`));
   if (targetLookup.result === null) return targetLookup.exitCode;
   const targetVersion = validSemver(targetLookup.result.stdout.trim());
   if (targetVersion === null) {
@@ -186,7 +207,7 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
   }
   output.stdout(`${PRODUCT_TEXT.diagnostic(`update (${channel}): ${runningVersion} → ${targetVersion}.`)}\n`);
 
-  const rootLookup = await runNpm(runner, ["root", "--global"], true, output, "resolve npm's global package root");
+  const rootLookup = await measure("global-root", async () => await runNpm(runner, ["root", "--global"], true, output, "resolve npm's global package root"));
   if (rootLookup.result === null) return rootLookup.exitCode;
   if (rootLookup.result.stdout.trim().length === 0) {
     output.stderr(`${PRODUCT_TEXT.diagnostic("could not verify its installation because npm returned an empty global package root.")}\n`);
@@ -228,20 +249,22 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
       priorActiveReleaseId: cohortState.references.active,
     });
     if (phaseBefore(transaction.phase, "ownership-released")) {
-      await lifecycle.shutdownVerifiedOwners(targetVersion);
-      await lifecycle.verifyPackageUnlocked(packageRoot);
+      await measure("ownership-release", async () => {
+        await lifecycle.shutdownVerifiedOwners(targetVersion);
+        await lifecycle.verifyPackageUnlocked(packageRoot);
+      });
       transaction = await transactionStore.advance("ownership-released");
     }
 
     if (phaseBefore(transaction.phase, "package-installed")) {
-      const installation = await runNpm(
+      const installation = await measure("npm-install", async () => await runNpm(
         runner,
         ["install", "--global", "--loglevel=error", "--no-fund", "--no-audit", `${PRODUCT_PACKAGE}@${targetVersion}`],
         true,
         output,
         "start the global npm installation",
         false,
-      );
+      ));
       if (installation.result === null) throw new UpdateFailure(installation.exitCode, "npm process failed");
       if (installation.result.code !== 0) {
         if (installation.result.stdout.trim().length > 0) output.stderr(`${installation.result.stdout.trimEnd()}\n`);
@@ -253,11 +276,19 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
     // Ownership can be reacquired after an interrupted installation (for
     // example, if bare A1 is launched before the update is resumed). Recheck
     // immediately before activation so recovery cannot start a second cohort.
-    await lifecycle.shutdownVerifiedOwners(targetVersion);
-    await lifecycle.activateInstalled(packageRoot, targetVersion, async phase => { transaction = await transactionStore.advance(phase); });
+    await measure("ownership-release", async () => { await lifecycle.shutdownVerifiedOwners(targetVersion); });
+    let activationPhaseStartedAt = now();
+    await lifecycle.activateInstalled(packageRoot, targetVersion, async phase => {
+      options.onPhaseTiming?.({ phase, durationMs: Math.max(0, now() - activationPhaseStartedAt) });
+      transaction = await transactionStore.advance(phase);
+      activationPhaseStartedAt = now();
+    });
+    options.onPhaseTiming?.({ phase: "supervisor-verified", durationMs: Math.max(0, now() - activationPhaseStartedAt) });
+    const transactionStartedAt = now();
     await transactionStore.advance("supervisor-verified");
     await transactionStore.finish("completed");
     await transactionStore.clearCompleted();
+    options.onPhaseTiming?.({ phase: "transaction-complete", durationMs: Math.max(0, now() - transactionStartedAt) });
     output.stdout(`${PRODUCT_TEXT.diagnostic(`updated successfully: ${targetVersion} (${channel}).`)}\n`);
     return 0;
   } catch (error) {

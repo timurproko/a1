@@ -8,7 +8,7 @@ import { CohortStateStore, type SupervisorEndpointMetadata } from "./cohort-stat
 import { assertLaunchProfileId, resolveProductPaths, type LaunchProfileId } from "../lifecycle/index.js";
 import { encodeFrame, LineFrameDecoder } from "../protocol/index.js";
 import { cleanupProvenIdleOwner, processIsAlive } from "./process-cleanup.js";
-import { materializeRelease, readCertifiedReleaseManifest, readMaterializedRelease, resolveReleaseEntryPoint, verifyMaterializedRelease, type MaterializedRelease } from "./release-store.js";
+import { consumeMaterializationProof, materializeRelease, readCertifiedReleaseManifest, readMaterializedRelease, resolveReleaseEntryPoint, verifyMaterializedRelease, type MaterializedRelease, type VerifyMaterializedReleaseOptions } from "./release-store.js";
 import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
 
 export interface BootstrapOptions {
@@ -136,8 +136,14 @@ async function readInstalledVersion(packageRoot: string): Promise<string> {
   return manifest.version;
 }
 
-export async function certifyMaterializedRelease(release: MaterializedRelease, dataDir: string): Promise<string> {
-  await verifyMaterializedRelease(release.releaseRoot, release, resolve(dataDir, "releases"));
+export async function certifyMaterializedRelease(
+  release: MaterializedRelease,
+  dataDir: string,
+  verification: VerifyMaterializedReleaseOptions = {},
+): Promise<string> {
+  if (!consumeMaterializationProof(release)) {
+    await verifyMaterializedRelease(release.releaseRoot, release, resolve(dataDir, "releases"), verification);
+  }
   const path = resolve(dataDir, `certification-${release.releaseId}.json`);
   await writeFile(path, JSON.stringify({
     schema: PRODUCT_IDENTITY.evidence.releaseCertificationSchema,

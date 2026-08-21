@@ -1,11 +1,21 @@
 import { createHash, randomUUID } from "node:crypto";
-import { chmod, copyFile, lstat, mkdir, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdir, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
-import { PRODUCT_PACKAGE_NAME, deriveReleaseIdentity, resolveWithin, type ReleaseIdentity, type ReleaseFileIdentity } from "./release.js";
+import {
+  PRODUCT_PACKAGE_NAME,
+  createReleaseIdentity,
+  digestManifestFiles,
+  discoverReleasePayload,
+  releaseFileIdentity,
+  resolveWithin,
+  type ReleaseFileIdentity,
+  type ReleaseIdentity,
+} from "./release.js";
 import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
 import { mapWithConcurrency } from "./concurrency.js";
 
 const RELEASE_FILE_IO_CONCURRENCY = 32;
+const certificationReady = new WeakSet<MaterializedRelease>();
 
 export const RELEASE_MANIFEST_FILENAME = PRODUCT_IDENTITY.manifest.releaseFilename;
 
@@ -13,8 +23,22 @@ export interface MaterializedRelease extends ReleaseIdentity {
   readonly releaseRoot: string;
 }
 
+export type ReleaseContentOperation = "source-read" | "candidate-write" | "verification-read";
+export interface ReleaseContentOperationEvent {
+  readonly operation: ReleaseContentOperation;
+  readonly path: string;
+  readonly bytes: number;
+}
+
 export interface MaterializeReleaseOptions {
   readonly onProgress?: (progress: { readonly phase: "copying"; readonly fileCount: number }) => void;
+  readonly onOperation?: (event: ReleaseContentOperationEvent) => void;
+  /** Test seam for deterministic write-failure coverage. */
+  readonly writeCandidateFile?: (path: string, bytes: Uint8Array, mode: number) => Promise<void>;
+}
+
+export interface VerifyMaterializedReleaseOptions {
+  readonly onOperation?: (event: ReleaseContentOperationEvent) => void;
 }
 
 export interface CertifiedReleaseRecord {
@@ -25,40 +49,65 @@ export interface CertifiedReleaseRecord {
 }
 
 export async function materializeRelease(packageRoot: string, dataDir: string, options: MaterializeReleaseOptions = {}): Promise<MaterializedRelease> {
-  const identity = await deriveReleaseIdentity(packageRoot);
+  const payload = await discoverReleasePayload(packageRoot, {
+    onSourceRead: (path, bytes) => options.onOperation?.({ operation: "source-read", path, bytes }),
+  });
   const storeRoot = resolve(dataDir, "releases");
   await mkdir(storeRoot, { recursive: true, mode: 0o700 });
-  const releaseRoot = resolveWithin(storeRoot, identity.releaseId);
-  const existing = await lstat(releaseRoot).catch(() => null);
-  if (existing) return await verifyMaterializedRelease(releaseRoot, identity);
+  options.onProgress?.({ phase: "copying", fileCount: payload.paths.length });
 
-  options.onProgress?.({ phase: "copying", fileCount: identity.files.length });
-  const candidate = resolveWithin(storeRoot, `.candidate-${identity.releaseId}-${randomUUID()}`);
+  const candidate = resolveWithin(storeRoot, `.candidate-${randomUUID()}`);
   await mkdir(candidate, { recursive: false, mode: 0o700 });
   try {
-    const directories = [...new Set(identity.files.map(file => dirname(resolveWithin(candidate, file.path))))];
+    const directories = [...new Set(payload.paths.map(path => dirname(resolveWithin(candidate, path))))];
     await mapWithConcurrency(directories, RELEASE_FILE_IO_CONCURRENCY, async directory => {
       await mkdir(directory, { recursive: true, mode: 0o700 });
     });
-    await mapWithConcurrency(identity.files, RELEASE_FILE_IO_CONCURRENCY, async file => {
-      const source = resolveWithin(identity.packageRoot, file.path);
-      const destination = resolveWithin(candidate, file.path);
-      await copyFile(source, destination);
-      await chmod(destination, file.executable ? 0o500 : 0o400);
+    const files = await mapWithConcurrency(payload.paths, RELEASE_FILE_IO_CONCURRENCY, async path => {
+      const source = resolveWithin(payload.packageRoot, path);
+      const destination = resolveWithin(candidate, path);
+      const metadata = await lstat(source);
+      if (!metadata.isFile() || metadata.isSymbolicLink()) throw new Error(`release payload is not a regular file: ${path}`);
+      const cached = payload.cachedFiles.get(path);
+      const bytes = cached ?? await readFile(source);
+      if (!cached) options.onOperation?.({ operation: "source-read", path, bytes: bytes.length });
+      const mode = (metadata.mode & 0o111) !== 0 ? 0o500 : 0o400;
+      if (options.writeCandidateFile) await options.writeCandidateFile(destination, bytes, mode);
+      else {
+        await writeFile(destination, bytes, { flag: "wx", mode });
+        await chmod(destination, mode);
+      }
+      options.onOperation?.({ operation: "candidate-write", path, bytes: bytes.length });
+      return releaseFileIdentity(path, bytes, (metadata.mode & 0o111) !== 0);
     });
+
+    const identity = createReleaseIdentity(payload.packageRoot, payload.packageVersion, files);
+    const releaseRoot = resolveWithin(storeRoot, identity.releaseId);
+    if (await lstat(releaseRoot).catch(() => null)) {
+      await rm(candidate, { recursive: true, force: true });
+      return certificationReadyRelease(await verifyMaterializedRelease(releaseRoot, identity));
+    }
+
     await writeFile(resolve(candidate, RELEASE_MANIFEST_FILENAME), JSON.stringify(identity, null, 2), { mode: 0o400, flag: "wx" });
     try {
       await rename(candidate, releaseRoot);
     } catch (error) {
       if (!await lstat(releaseRoot).catch(() => null)) throw error;
       await rm(candidate, { recursive: true, force: true });
-      return await verifyMaterializedRelease(releaseRoot, identity);
+      return certificationReadyRelease(await verifyMaterializedRelease(releaseRoot, identity));
     }
-    return { ...identity, releaseRoot: await realpath(releaseRoot) };
+    return certificationReadyRelease({ ...identity, releaseRoot: await realpath(releaseRoot) });
   } catch (error) {
     await rm(candidate, { recursive: true, force: true });
     throw error;
   }
+}
+
+/** Consume proof that this exact object was freshly materialized or fully verified in this process. */
+export function consumeMaterializationProof(release: MaterializedRelease): boolean {
+  if (!certificationReady.has(release)) return false;
+  certificationReady.delete(release);
+  return true;
 }
 
 export async function readMaterializedRelease(releaseRoot: string): Promise<MaterializedRelease> {
@@ -93,6 +142,7 @@ export async function verifyMaterializedRelease(
   releaseRoot: string,
   expected?: ReleaseIdentity,
   selectedStoreRoot?: string,
+  options: VerifyMaterializedReleaseOptions = {},
 ): Promise<MaterializedRelease> {
   const canonical = await realpath(releaseRoot);
   if (selectedStoreRoot) assertContained(await realpath(selectedStoreRoot), canonical, "release root is outside the selected release store");
@@ -106,7 +156,7 @@ export async function verifyMaterializedRelease(
     throw new Error(`release directory does not match identity ${manifest.releaseId}`);
   }
   await mapWithConcurrency(manifest.files, RELEASE_FILE_IO_CONCURRENCY, async file => {
-    await verifyFile(canonical, file);
+    await verifyFile(canonical, file, options);
   });
   const recomputed = digestManifestFiles(manifest.files);
   if (recomputed !== manifest.contentDigest) throw new Error(`release content digest mismatch for ${manifest.releaseId}`);
@@ -131,13 +181,20 @@ export async function resolveReleaseEntryPoint(release: MaterializedRelease, ent
   return canonical;
 }
 
-async function verifyFile(root: string, file: ReleaseFileIdentity): Promise<void> {
+async function verifyFile(root: string, file: ReleaseFileIdentity, options: VerifyMaterializedReleaseOptions): Promise<void> {
   const path = resolveWithin(root, file.path);
   const metadata = await lstat(path).catch(() => null);
   if (!metadata?.isFile() || metadata.isSymbolicLink()) throw new Error(`release candidate is incomplete: ${file.path}`);
   if (metadata.size !== file.bytes) throw new Error(`release file size mismatch: ${file.path}`);
-  const digest = createHash("sha256").update(await readFile(path)).digest("hex");
+  const bytes = await readFile(path);
+  options.onOperation?.({ operation: "verification-read", path: file.path, bytes: bytes.length });
+  const digest = createHash("sha256").update(bytes).digest("hex");
   if (digest !== file.sha256) throw new Error(`release file digest mismatch: ${file.path}`);
+}
+
+function certificationReadyRelease(release: MaterializedRelease): MaterializedRelease {
+  certificationReady.add(release);
+  return release;
 }
 
 function validateManifest(value: ReleaseIdentity): void {
@@ -150,14 +207,6 @@ function validateManifest(value: ReleaseIdentity): void {
     }
     if (!Number.isSafeInteger(file.bytes) || file.bytes < 0 || !/^[a-f0-9]{64}$/.test(file.sha256)) throw new Error(`invalid release manifest file identity: ${file.path}`);
   }
-}
-
-function digestManifestFiles(files: readonly ReleaseFileIdentity[]): string {
-  const digest = createHash("sha256");
-  for (const file of [...files].sort((left, right) => left.path < right.path ? -1 : left.path > right.path ? 1 : 0)) {
-    digest.update(`${file.path}\0${file.bytes}\0${file.sha256}\0${file.executable ? 1 : 0}\n`);
-  }
-  return digest.digest("hex");
 }
 
 function assertContained(parent: string, child: string, message: string): void {
