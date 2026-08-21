@@ -1,0 +1,94 @@
+{
+  "schema": "a1-validation-suites-v1",
+  "tiers": {
+    "invariants": {
+      "kind": "commands",
+      "commands": [
+        "npm run typecheck",
+        "npm run check:architecture",
+        "npm run check:customization-ready"
+      ]
+    },
+    "fast": {
+      "kind": "vitest-remainder",
+      "includeRoot": "test",
+      "exclude": [
+        "test/features/launch/exact-pi-entry.integration.test.ts",
+        "test/features/launch/profile-isolation.integration.test.ts",
+        "test/foundation/pi-engine-adapter/conformance.test.ts",
+        "test/foundation/pi-engine-adapter/runtime-integration.test.ts",
+        "test/foundation/pi-engine-adapter/session-integration.test.ts",
+        "test/foundation/release/package-surface.integration.test.ts",
+        "test/foundation/release/update-transition.integration.test.ts",
+        "test/foundation/structured-agent-runtime/runtime.integration.test.ts"
+      ]
+    },
+    "full-release": {
+      "kind": "composition",
+      "includes": [
+        "invariants",
+        "fast",
+        "launch-integration",
+        "pi-engine-conformance",
+        "release-update",
+        "structured-runtime-integration",
+        "package-install",
+        "dependency-policy"
+      ]
+    }
+  },
+  "scopes": {
+    "launch-integration": {
+      "kind": "vitest-files",
+      "tests": [
+        "test/features/launch/exact-pi-entry.integration.test.ts",
+        "test/features/launch/profile-isolation.integration.test.ts"
+      ]
+    },
+    "pi-engine-conformance": {
+      "kind": "mixed",
+      "tests": [
+        "test/foundation/pi-engine-adapter/conformance.test.ts",
+        "test/foundation/pi-engine-adapter/runtime-integration.test.ts",
+        "test/foundation/pi-engine-adapter/session-integration.test.ts"
+      ],
+      "commands": [
+        "node scripts/run-pi-engine-conformance.mjs"
+      ]
+    },
+    "release-update": {
+      "kind": "vitest-files",
+      "tests": [
+        "test/foundation/release/update-transition.integration.test.ts"
+      ]
+    },
+    "structured-runtime-integration": {
+      "kind": "vitest-files",
+      "tests": [
+        "test/foundation/structured-agent-runtime/runtime.integration.test.ts"
+      ]
+    },
+    "package-install": {
+      "kind": "vitest-files",
+      "tests": [
+        "test/foundation/release/package-surface.integration.test.ts"
+      ]
+    },
+    "dependency-policy": {
+      "kind": "commands",
+      "commands": [
+        "npm run check:deprecated"
+      ]
+    }
+  },
+  "releaseContracts": {
+    "architecture": "invariants",
+    "compatibility-authority": "fast",
+    "candidate-engine-conformance": "pi-engine-conformance",
+    "exact-vanilla-oracle": "launch-integration",
+    "packaged-public-entry": "package-install",
+    "owned-ui-regression": "fast",
+    "extension-behavior": "fast",
+    "architecture-independent-n-minus-one-update-transition": "release-update"
+  }
+}
