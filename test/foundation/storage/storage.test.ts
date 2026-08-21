@@ -26,24 +26,6 @@ describe("control-store migration", () => {
     store.close();
   });
 
-  it("transactionally persists the legacy foreground lease lifecycle during cutover", async () => {
-    const root = await mkdtemp(join(tmpdir(), "a1-foreground-lease-"));
-    roots.push(root);
-    const store = new ControlStore(join(root, "control.sqlite3"), "boot-current");
-    const profile = transparentProfile();
-    store.acquireForegroundTerminalLease({
-      id: "lease-1", ownerId: "broker-1", profile, state: "requested", generationId: null, processIdentity: null,
-      acquiredAt: new Date(0).toISOString(), heartbeatAt: null, releasedAt: null, outcome: null,
-    });
-    const identity = { pid: 1234, startIdentity: "1234:start" };
-    expect(store.activateForegroundTerminalLease("lease-1", "generation-1", identity, new Date(1).toISOString())).toBe(true);
-    expect(store.heartbeatForegroundTerminalLease("lease-1", identity, new Date(2).toISOString())).toBe(true);
-    expect(store.heartbeatForegroundTerminalLease("lease-1", { ...identity, startIdentity: "reused" }, new Date(2).toISOString())).toBe(false);
-    expect(store.releaseForegroundTerminalLease("lease-1", identity, { kind: "exited", exitCode: 0 }, new Date(3).toISOString())).toBe(true);
-    expect(store.loadLiveForegroundTerminalLease()).toBeNull();
-    store.close();
-  });
-
   it("persists several launch instances independently with immutable terminal outcomes", async () => {
     const root = await mkdtemp(join(tmpdir(), "a1-launch-instances-"));
     roots.push(root);
@@ -97,17 +79,13 @@ describe("control-store migration", () => {
     const root = await mkdtemp(join(tmpdir(), "a1-legacy-lease-migration-"));
     roots.push(root);
     const path = join(root, "control.sqlite3");
-    const first = new ControlStore(path, "boot-old");
-    const profile = transparentProfile();
-    first.acquireForegroundTerminalLease({
-      id: "lease-released", ownerId: "broker-old", profile, state: "requested", generationId: null, processIdentity: null,
-      acquiredAt: new Date(0).toISOString(), heartbeatAt: null, releasedAt: null, outcome: null,
-    });
-    first.releaseForegroundTerminalLease("lease-released", null, { kind: "exited", exitCode: 0 }, new Date(1).toISOString());
-    first.acquireForegroundTerminalLease({
-      id: "lease-live", ownerId: "broker-old", profile, state: "requested", generationId: null, processIdentity: null,
-      acquiredAt: new Date(2).toISOString(), heartbeatAt: null, releasedAt: null, outcome: null,
-    });
+    const first = new ControlStore(path);
+    const profileJson = JSON.stringify(transparentProfile());
+    const insert = first.database.prepare(`INSERT INTO foreground_terminal_leases
+      (id, owner_id, profile_json, state, generation_id, process_identity_json, acquired_at, heartbeat_at, released_at, outcome_json, owner_boot_nonce)
+      VALUES (?, 'broker-old', ?, ?, NULL, NULL, ?, NULL, ?, ?, 'boot-old')`);
+    insert.run("lease-released", profileJson, "released", new Date(0).toISOString(), new Date(1).toISOString(), JSON.stringify({ kind: "exited", exitCode: 0 }));
+    insert.run("lease-live", profileJson, "requested", new Date(2).toISOString(), null, null);
     first.close();
 
     const legacy = new DatabaseSync(path);
@@ -125,22 +103,6 @@ describe("control-store migration", () => {
       .toMatchObject({ state: "released", outcome_json: JSON.stringify({ kind: "exited", exitCode: 0 }) });
     expect(migrated.loadActiveLaunchInstances()).toEqual([]);
     migrated.close();
-  });
-
-  it("reconciles foreground leases from a prior supervisor boot as non-live", async () => {
-    const root = await mkdtemp(join(tmpdir(), "a1-stale-foreground-lease-"));
-    roots.push(root);
-    const path = join(root, "control.sqlite3");
-    const first = new ControlStore(path, "boot-old");
-    first.acquireForegroundTerminalLease({
-      id: "lease-stale", ownerId: "broker-old", profile: transparentProfile(), state: "requested", generationId: null, processIdentity: null,
-      acquiredAt: new Date(0).toISOString(), heartbeatAt: null, releasedAt: null, outcome: null,
-    });
-    first.close();
-    const second = new ControlStore(path, "boot-new");
-    expect(second.loadLiveForegroundTerminalLease()).toBeNull();
-    expect(second.database.prepare("SELECT state, outcome_json FROM foreground_terminal_leases WHERE id = ?").get("lease-stale")).toMatchObject({ state: "released" });
-    second.close();
   });
 
   it("transactionally interrupts nonterminal generations from prior supervisor boots", async () => {

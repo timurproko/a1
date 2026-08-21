@@ -17,15 +17,11 @@ import {
   assertTerminalTopologySnapshot,
 } from "../workspace-contracts/index.js";
 import type {
-  ForegroundTerminalLease,
-  ForegroundTerminalLeaseId,
-  GenerationId,
   LaunchInstance,
   LaunchInstanceId,
   LaunchInstanceOutcome,
   NativeProcessIdentity,
   ProcessContainmentIdentity,
-  TransparentTerminalLifecycleOutcome,
 } from "../lifecycle/index.js";
 import {
   assertLaunchInstance,
@@ -48,7 +44,6 @@ export interface StoredWorkspaceAgent {
   readonly presentation: WorkspaceAgentPresentation;
 }
 
-interface ForegroundLeaseRow { id: string; owner_id: string; profile_json: string; state: ForegroundTerminalLease["state"]; generation_id: string | null; process_identity_json: string | null; acquired_at: string; heartbeat_at: string | null; released_at: string | null; outcome_json: string | null; owner_boot_nonce: string }
 interface LaunchInstanceRow { id: string; owner_client_id: string; profile_id: LaunchInstance["profileId"]; state: LaunchInstance["state"]; shutdown_policy: LaunchInstance["shutdownPolicy"]; guardian_identity_json: string; root_identity_json: string | null; containment_identity_json: string | null; created_at: string; activated_at: string | null; stopping_at: string | null; completed_at: string | null; outcome_json: string | null; owner_boot_nonce: string }
 interface WorkspaceAgentRow { id: string; workspace_id: string; display_name: string; adapter_id: string; runtime_kind: string; lifecycle: string; capability_json: string; recovery_reference_id: string | null; unread_count: number; attention: number; failure_json: string | null; created_at: string; updated_at: string }
 interface HostTopologyRow { host_instance_id: string; protocol_version: number; revision: number; topology_json: string; rollback_json: string; updated_at: string }
@@ -67,7 +62,6 @@ export class ControlStore {
       this.migrate();
       if (bootNonce !== null) {
         this.reconcilePriorBootGenerations(bootNonce);
-        this.reconcilePriorBootForegroundTerminalLeases(bootNonce);
         this.reconcilePriorBootLaunchInstances(bootNonce);
       }
     } catch (error) {
@@ -364,64 +358,6 @@ export class ControlStore {
     return Number(result.changes);
   }
 
-  acquireForegroundTerminalLease(lease: ForegroundTerminalLease): void {
-    if (this.bootNonce === null) throw new Error("foreground lease storage requires a supervisor boot identity");
-    if (lease.state !== "requested" || lease.generationId !== null || lease.processIdentity !== null || lease.releasedAt !== null || lease.outcome !== null) {
-      throw new Error("new foreground lease must be requested and unactivated");
-    }
-    try {
-      this.database.prepare(`INSERT INTO foreground_terminal_leases
-        (id, owner_id, profile_json, state, generation_id, process_identity_json, acquired_at, heartbeat_at, released_at, outcome_json, owner_boot_nonce)
-        VALUES (?, ?, ?, 'requested', NULL, NULL, ?, NULL, NULL, NULL, ?)`)
-        .run(lease.id, lease.ownerId, JSON.stringify(lease.profile), lease.acquiredAt, this.bootNonce);
-    } catch (error) {
-      if (error instanceof Error && /UNIQUE constraint failed/i.test(error.message)) throw new Error("an exclusive foreground terminal lease is already live");
-      throw error;
-    }
-  }
-
-  activateForegroundTerminalLease(leaseId: ForegroundTerminalLeaseId, generationId: GenerationId, processIdentity: NativeProcessIdentity, heartbeatAt: string): boolean {
-    if (this.bootNonce === null) throw new Error("foreground lease storage requires a supervisor boot identity");
-    const result = this.database.prepare(`UPDATE foreground_terminal_leases
-      SET state = 'active', generation_id = ?, process_identity_json = ?, heartbeat_at = ?
-      WHERE id = ? AND state = 'requested' AND owner_boot_nonce = ?`)
-      .run(generationId, JSON.stringify(processIdentity), heartbeatAt, leaseId, this.bootNonce);
-    return Number(result.changes) === 1;
-  }
-
-  heartbeatForegroundTerminalLease(leaseId: ForegroundTerminalLeaseId, processIdentity: NativeProcessIdentity, heartbeatAt: string): boolean {
-    if (this.bootNonce === null) throw new Error("foreground lease storage requires a supervisor boot identity");
-    const result = this.database.prepare(`UPDATE foreground_terminal_leases SET heartbeat_at = ?
-      WHERE id = ? AND state = 'active' AND owner_boot_nonce = ? AND process_identity_json = ?`)
-      .run(heartbeatAt, leaseId, this.bootNonce, JSON.stringify(processIdentity));
-    return Number(result.changes) === 1;
-  }
-
-  releaseForegroundTerminalLease(leaseId: ForegroundTerminalLeaseId, processIdentity: NativeProcessIdentity | null, outcome: TransparentTerminalLifecycleOutcome, releasedAt: string): boolean {
-    if (this.bootNonce === null) throw new Error("foreground lease storage requires a supervisor boot identity");
-    const expectedIdentity = processIdentity === null ? null : JSON.stringify(processIdentity);
-    const result = this.database.prepare(`UPDATE foreground_terminal_leases
-      SET state = 'released', released_at = ?, outcome_json = ?
-      WHERE id = ? AND state IN ('requested', 'active') AND owner_boot_nonce = ?
-        AND ((process_identity_json IS NULL AND ? IS NULL) OR process_identity_json = ?)`)
-      .run(releasedAt, JSON.stringify(outcome), leaseId, this.bootNonce, expectedIdentity, expectedIdentity);
-    return Number(result.changes) === 1;
-  }
-
-  loadLiveForegroundTerminalLease(): ForegroundTerminalLease | null {
-    const row = this.database.prepare("SELECT * FROM foreground_terminal_leases WHERE state IN ('requested', 'active') LIMIT 1").get() as ForegroundLeaseRow | undefined;
-    return row ? foregroundLeaseFromRow(row) : null;
-  }
-
-  reconcilePriorBootForegroundTerminalLeases(bootNonce: string, reconciledAt = new Date().toISOString()): number {
-    const outcome: TransparentTerminalLifecycleOutcome = { kind: "broker-error", message: "foreground lease owner ended before a terminal outcome", code: "stale-owner-boot" };
-    const result = this.database.prepare(`UPDATE foreground_terminal_leases
-      SET state = 'released', released_at = ?, outcome_json = ?
-      WHERE state IN ('requested', 'active') AND owner_boot_nonce <> ?`)
-      .run(reconciledAt, JSON.stringify(outcome), bootNonce);
-    return Number(result.changes);
-  }
-
   persistWorkspaceAgent(agent: ManagedAgentDescriptor, updatedAt = new Date().toISOString()): void {
     const existing = this.loadWorkspaceAgentRecord(agent.id);
     this.persistWorkspaceAgentRecord({
@@ -682,19 +618,4 @@ function launchInstanceFromRow(row: LaunchInstanceRow): LaunchInstance {
   };
   assertLaunchInstance(instance);
   return instance;
-}
-
-function foregroundLeaseFromRow(row: ForegroundLeaseRow): ForegroundTerminalLease {
-  return {
-    id: row.id,
-    ownerId: row.owner_id,
-    profile: JSON.parse(row.profile_json) as ForegroundTerminalLease["profile"],
-    state: row.state,
-    generationId: row.generation_id,
-    processIdentity: row.process_identity_json ? JSON.parse(row.process_identity_json) as NativeProcessIdentity : null,
-    acquiredAt: row.acquired_at,
-    heartbeatAt: row.heartbeat_at,
-    releasedAt: row.released_at,
-    outcome: row.outcome_json ? JSON.parse(row.outcome_json) as TransparentTerminalLifecycleOutcome : null,
-  };
 }

@@ -9,6 +9,8 @@ Requirements:
 - Node.js 22.19 through 24.x
 - npm 11
 
+Published packages include the integrity-verified process guardian for supported platforms. Building A1 from source additionally requires Rust/Cargo 1.85 or newer.
+
 ```sh
 npm install --global @timurproko/a1@latest
 ```
@@ -31,6 +33,8 @@ Bare `a1` owns its Pi-compatible TUI composition and uses the public Pi engine, 
 `a1 pi` is the untouched upstream fallback and comparison oracle. Use it to distinguish A1-owned UI problems from upstream Pi, profile, provider, or terminal problems. The `a1 ui` subcommand was removed and is not a compatibility alias; run bare `a1` for the owned UI.
 
 `a1 sandbox` is unchanged: it launches vanilla Pi with isolated Pi configuration and resources. “Sandbox” does not mean operating-system, filesystem, process, network, or credential security isolation. See [`docs/features/launch-profiles.md`](docs/features/launch-profiles.md) for first-run directories, independent `/login`, trust behavior, extension placement, and recovery.
+
+Every interactive command creates an independent, non-detachable launch instance. Any number of `a1`, `a1 pi`, and `a1 sandbox` commands may run in separate terminals at the same time. Closing one command closes only its owned UI/Pi process and all agents, extensions, tools, daemons, and descendants created by that invocation; it never requires finding PIDs, deleting control state, or restarting the supervisor. The idle supervisor may remain available for release coordination after all interactive instances close, but it owns no surviving instance runtime.
 
 ## Develop
 

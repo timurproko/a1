@@ -22,6 +22,7 @@ const ENVIRONMENT_KEYS = [
   "piSourceLedgerPath",
   "piSourceScanRoot",
   "probeTrace",
+  "processGuardianPath",
   "profileHome",
   "protocolVersion",
   "releaseDigest",
@@ -40,7 +41,7 @@ const ENDPOINT_KEYS = ["windowsPipeStem", "unixSocketFilename", "metadataFilenam
 const MANIFEST_KEYS = ["releaseFilename", "packageFilename"] as const;
 const PROTOCOL_KEYS = ["namespace", "controlEnvelope", "supervisorSchema", "nativeHostSchema", "structuredAgentSchema", "controlStoreSchema", "releaseCohortSchema", "updateJournalSchema"] as const;
 const EVIDENCE_KEYS = ["nativeSpikeSchema", "terminalProvenanceSchema", "terminalProofSchema", "stableReleaseSchema", "previewReleaseSchema", "releaseCertificationSchema", "previewPlatformVerdictSchema", "piSourceLedgerSchema", "piComponentParitySchema", "piEventFrameParitySchema"] as const;
-const ARTIFACT_KEYS = ["cliEntry", "supervisorEntry", "uiEntry", "nativeExecutable", "nativeCrate", "releaseTarballStem", "diagnosticStem"] as const;
+const ARTIFACT_KEYS = ["cliEntry", "supervisorEntry", "guardianEntry", "uiEntry", "nativeExecutable", "nativeCrate", "processGuardianExecutable", "releaseTarballStem", "diagnosticStem"] as const;
 const ROOT_KEYS = ["schema", "displayName", "commandName", "packageName", "filesystem", "environment", "state", "endpoint", "manifest", "protocol", "evidence", "artifacts"] as const;
 
 type StringRecord<Keys extends readonly string[]> = { readonly [Key in Keys[number]]: string };

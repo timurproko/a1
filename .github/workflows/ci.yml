@@ -106,12 +106,17 @@ jobs:
       - name: Install exact dependencies
         run: npm ci
 
+      - name: Build process guardian fixture artifact
+        shell: bash
+        run: cargo build --locked --manifest-path native/process-guardian/Cargo.toml
+
       - name: Run fast tier and architecture checks
         shell: bash
         env:
           A1_CONFIG_DIR: ${{ runner.temp }}\a1-ci-config
           A1_DATA_DIR: ${{ runner.temp }}\a1-ci-data
           A1_RUNTIME_DIR: ${{ runner.temp }}\a1-ci-runtime
+          A1_PROCESS_GUARDIAN_PATH: ${{ github.workspace }}\native\process-guardian\target\debug\a1-process-guardian.exe
         run: node scripts/run-validation-tier.mjs typecheck architecture fast --result artifacts/validation/outcomes.json
 
       - name: Add timing summary
@@ -129,10 +134,57 @@ jobs:
           NODE
           fi
 
+  containment:
+    name: Process containment (${{ matrix.os }})
+    needs: changes
+    if: needs.changes.outputs.docs-only != 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-2025
+            binary: a1-process-guardian.exe
+          - os: ubuntu-24.04
+            binary: a1-process-guardian
+          - os: macos-15
+            binary: a1-process-guardian
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - name: Preserve repository bytes during checkout
+        if: runner.os == 'Windows'
+        shell: bash
+        run: git config --global core.autocrlf false
+
+      - name: Check out validation head
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install exact dependencies
+        run: npm ci
+
+      - name: Build exact process guardian
+        shell: bash
+        run: cargo build --locked --manifest-path native/process-guardian/Cargo.toml
+
+      - name: Verify process containment contracts
+        shell: bash
+        env:
+          A1_PROCESS_GUARDIAN_PATH: ${{ github.workspace }}/native/process-guardian/target/debug/${{ matrix.binary }}
+        run: npx vitest run test/foundation/process-containment --testTimeout=15000
+
   required:
     name: Development validation required
     if: always() && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
-    needs: [changes, docs, validate]
+    needs: [changes, docs, validate, containment]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -141,6 +193,7 @@ jobs:
           CHANGES_RESULT: ${{ needs.changes.result }}
           DOCS_RESULT: ${{ needs.docs.result }}
           VALIDATE_RESULT: ${{ needs.validate.result }}
+          CONTAINMENT_RESULT: ${{ needs.containment.result }}
           DOCS_ONLY: ${{ needs.changes.outputs.docs-only }}
         run: |
           set -euo pipefail
@@ -150,4 +203,5 @@ jobs:
             test "$DOCS_RESULT" = "success"
           else
             test "$VALIDATE_RESULT" = "success"
+            test "$CONTAINMENT_RESULT" = "success"
           fi

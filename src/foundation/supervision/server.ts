@@ -43,6 +43,8 @@ export class SupervisorServer {
     readonly release: MaterializedRelease,
     bootNonce: string = randomUUID(),
     readonly terminateProcess: (code: number) => void = code => process.exit(code),
+    readonly reconciliationDeadlineMs = 3_000,
+    readonly shutdownDeadlineMs = 1_500,
   ) {
     this.bootNonce = bootNonce;
     this.paths = paths;
@@ -79,8 +81,10 @@ export class SupervisorServer {
   }
 
   async close(stopAgents = false): Promise<void> {
+    if (stopAgents && !await this.#drainInstances("update", this.shutdownDeadlineMs)) {
+      throw new Error("active launch instances did not release ownership within the shutdown deadline");
+    }
     this.#closing = true;
-    if (stopAgents) this.#requestStopAll("update");
     for (const client of this.#clients) client.destroy();
     if (this.#server) await new Promise<void>(resolve => this.#server?.close(() => resolve()));
     this.#server = null;
@@ -116,21 +120,14 @@ export class SupervisorServer {
                 released,
                 reason: released ? "idle cohort released ownership"
                   : identityMatches ? "launch instances are still active" : "boot nonce or candidate release mismatch",
-                liveGenerationIds: this.#liveInstanceIds(),
+                liveInstanceIds: this.#liveInstanceIds(),
               });
               if (released) setTimeout(() => void this.closeForReleaseReplacement(false), 25);
               continue;
             }
             if (isMessageType(value, "release-update-ownership")) {
               const request = value as { bootNonce?: unknown; targetVersion?: unknown };
-              const accepted = request.bootNonce === this.bootNonce && typeof request.targetVersion === "string";
-              this.#send(socket, {
-                type: "release-update-result",
-                accepted,
-                reason: accepted ? `verified ${PRODUCT_TEXT.displayName} owner accepted immediate update shutdown` : "boot nonce or target version mismatch",
-                liveGenerationIds: this.#liveInstanceIds(),
-              });
-              if (accepted) setTimeout(() => void this.closeForReleaseReplacement(true), 25);
+              void this.#handleUpdateRelease(socket, request);
               continue;
             }
             if (!isControlHello(value)) {
@@ -181,7 +178,10 @@ export class SupervisorServer {
       if (command.type === "activate-launch-instance") this.#activateLaunchInstance(command, socket, clientId);
       if (command.type === "begin-launch-instance-stop") this.#beginLaunchInstanceStop(command, socket, clientId);
       if (command.type === "complete-launch-instance") this.#completeLaunchInstance(command, socket, clientId);
-      if (command.type === "reconcile-launch-instance") await this.#reconcileLaunchInstance(command.instanceId);
+      if (command.type === "reconcile-launch-instance") {
+        this.#ownedInstance(command.instanceId, socket, clientId);
+        await this.#reconcileLaunchInstance(command.instanceId);
+      }
       if (command.type === "resynchronize") this.#send(socket, { type: "snapshot", snapshot: this.snapshot() });
       await this.#metadataWrites;
       result = { requestId: command.requestId, ok: true, revision: this.#revision };
@@ -316,6 +316,10 @@ export class SupervisorServer {
   async #performReconciliation(instanceId: string): Promise<void> {
     const instance = this.#instances.get(instanceId);
     if (!instance) return;
+    const deadline = Date.now() + this.reconciliationDeadlineMs;
+    while (instance.rootIdentity && processIsAlive(instance.rootIdentity.pid) && Date.now() < deadline) {
+      await new Promise(resolvePromise => setTimeout(resolvePromise, 25));
+    }
     if (instance.state === "requested" || (instance.rootIdentity && !processIsAlive(instance.rootIdentity.pid))) {
       const outcome = { kind: "interrupted", reason: "owner-disconnect", message: "launch instance owner disconnected before reporting a terminal outcome" } as const;
       if (this.store.completeLaunchInstance(instance.id, instance.ownerClientId, "interrupted", outcome, new Date().toISOString())) {
@@ -327,6 +331,40 @@ export class SupervisorServer {
     }
     this.#uncertainInstances.add(instance.id);
     await this.#writeEndpointMetadata();
+  }
+
+  async #handleUpdateRelease(socket: Socket, request: { bootNonce?: unknown; targetVersion?: unknown }): Promise<void> {
+    const identityMatches = request.bootNonce === this.bootNonce && typeof request.targetVersion === "string";
+    if (!identityMatches) {
+      this.#send(socket, {
+        type: "release-update-result",
+        accepted: false,
+        reason: "boot nonce or target version mismatch",
+        liveInstanceIds: this.#liveInstanceIds(),
+      });
+      return;
+    }
+    const released = await this.#drainInstances("update", this.shutdownDeadlineMs);
+    this.#send(socket, {
+      type: "release-update-result",
+      accepted: released,
+      reason: released
+        ? `verified ${PRODUCT_TEXT.displayName} owner drained all launch instances for immediate update shutdown`
+        : "one or more launch instances did not release verified ownership within the update deadline",
+      liveInstanceIds: this.#liveInstanceIds(),
+    });
+    if (released) setTimeout(() => void this.closeForReleaseReplacement(false), 25);
+  }
+
+  async #drainInstances(reason: LaunchInstanceStopReason, timeoutMs: number): Promise<boolean> {
+    if (this.#instances.size === 0) return true;
+    this.#requestStopAll(reason);
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      if (this.#instances.size === 0) return true;
+      await new Promise(resolvePromise => setTimeout(resolvePromise, 25));
+    }
+    return this.#instances.size === 0;
   }
 
   #requestStopAll(reason: LaunchInstanceStopReason): void {
@@ -364,8 +402,6 @@ export class SupervisorServer {
         liveInstanceIds,
         nonResumableInstanceIds: liveInstanceIds,
         uncertainInstanceIds: [...this.#uncertainInstances],
-        liveGenerationIds: liveInstanceIds,
-        nonResumableGenerationIds: liveInstanceIds,
       },
     };
     const temporary = `${this.paths.endpointMetadataPath}.${process.pid}.tmp`;

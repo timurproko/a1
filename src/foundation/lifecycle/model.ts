@@ -4,7 +4,6 @@ export type LaunchProfileId = "a1" | "pi" | "sandbox";
 export type GenerationId = string;
 export type DriverProfileId = string;
 export type RequestId = string;
-export type ForegroundTerminalLeaseId = string;
 
 export interface TerminalDimensions {
   readonly columns: number;
@@ -37,21 +36,6 @@ export type TransparentTerminalLifecycleOutcome =
   | { readonly kind: "stopped"; readonly reason: "owner-disconnect" | "user-request" | "update" }
   | { readonly kind: "detached"; readonly reason: "owner-disconnect" }
   | { readonly kind: "spawn-error" | "broker-error"; readonly message: string; readonly code: string | null };
-
-export type ForegroundTerminalLeaseState = "requested" | "active" | "released";
-
-export interface ForegroundTerminalLease {
-  readonly id: ForegroundTerminalLeaseId;
-  readonly ownerId: string;
-  readonly profile: TransparentTerminalLaunchProfile;
-  readonly state: ForegroundTerminalLeaseState;
-  readonly generationId: GenerationId | null;
-  readonly processIdentity: NativeProcessIdentity | null;
-  readonly acquiredAt: string;
-  readonly heartbeatAt: string | null;
-  readonly releasedAt: string | null;
-  readonly outcome: TransparentTerminalLifecycleOutcome | null;
-}
 
 export interface SupervisorSnapshot {
   readonly revision: number;

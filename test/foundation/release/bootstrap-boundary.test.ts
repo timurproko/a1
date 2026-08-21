@@ -13,20 +13,22 @@ describe("mutable bootstrap boundary", () => {
   });
 
   it("routes interactive launch through bootstrap and selects the owned or transparent runtime lazily", async () => {
-    const [bin, ui] = await Promise.all([
+    const [bin, guardian, ui] = await Promise.all([
       readFile(resolve(repository, "bin/a1.js"), "utf8"),
+      readFile(resolve(repository, "bin/a1-guardian.js"), "utf8"),
       readFile(resolve(repository, "bin/a1-ui.js"), "utf8"),
     ]);
     expect(bin).toContain('import("../dist/src/foundation/release/index.js")');
     expect(bin).not.toContain("runOwnedUi");
+    expect(guardian).toContain("runLaunchGuardian");
     expect(ui).toContain("runSelectedInteractiveRuntime");
     expect(ui).toContain("runOwnedUi");
     expect(ui).toContain("runSelectedTransparentRuntime");
     const transparentComposition = await readFile(resolve(repository, "src/composition/transparent-runtime.ts"), "utf8");
     expect(transparentComposition).toContain("runTransparentForeground");
     expect(transparentComposition).not.toMatch(/features\/owned-ui|features\/workspace|composeOwnedUiApplication|pi-owned-ui-integration/);
-    expect(`${bin}\n${ui}`).not.toMatch(/node-pty|pi-tui|@xterm|host-terminal-renderer|terminal-input/);
-    expect(`${bin}\n${ui}`).not.toMatch(/Start-Process|wt\.exe|SendInput|SetForegroundWindow/);
+    expect(`${bin}\n${guardian}\n${ui}`).not.toMatch(/node-pty|pi-tui|@xterm|host-terminal-renderer|terminal-input/);
+    expect(`${bin}\n${guardian}\n${ui}`).not.toMatch(/Start-Process|wt\.exe|SendInput|SetForegroundWindow/);
   });
 
   it("carries selected launch identity without importing terminal implementation", async () => {
