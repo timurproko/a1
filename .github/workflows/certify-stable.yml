@@ -1,0 +1,109 @@
+name: Certify stable candidate
+
+on:
+  workflow_dispatch:
+    inputs:
+      automated_candidate_run_id:
+        description: Successful Build stable candidate workflow run id
+        required: true
+        type: string
+      physical_evidence_run_id:
+        description: Successful isolated physical evidence workflow run id
+        required: true
+        type: string
+      confirm_certification:
+        description: Type "certify-stable-candidate"
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: stable-certification-${{ inputs.automated_candidate_run_id }}
+  cancel-in-progress: false
+
+jobs:
+  certify:
+    name: Stable candidate required
+    if: github.ref == 'refs/heads/develop'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    outputs:
+      source-commit: ${{ steps.runs.outputs.source_commit }}
+      version: ${{ steps.evidence.outputs.version }}
+    steps:
+      - name: Validate trusted evidence runs
+        id: runs
+        env:
+          AUTOMATED_RUN_ID: ${{ inputs.automated_candidate_run_id }}
+          PHYSICAL_RUN_ID: ${{ inputs.physical_evidence_run_id }}
+          CONFIRM_CERTIFICATION: ${{ inputs.confirm_certification }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          test "$CONFIRM_CERTIFICATION" = "certify-stable-candidate"
+          node --input-type=module <<'NODE'
+          import { appendFile } from "node:fs/promises";
+          const headers = { accept: "application/vnd.github+json", authorization: `Bearer ${process.env.GITHUB_TOKEN}`, "x-github-api-version": "2022-11-28" };
+          const load = async id => {
+            if (!/^[0-9]+$/.test(id ?? "")) throw new Error("evidence run id is invalid");
+            const response = await fetch(`https://api.github.com/repos/${process.env.GITHUB_REPOSITORY}/actions/runs/${id}`, { headers });
+            if (!response.ok) throw new Error(`evidence run lookup returned HTTP ${response.status}`);
+            return await response.json();
+          };
+          const automated = await load(process.env.AUTOMATED_RUN_ID);
+          const physical = await load(process.env.PHYSICAL_RUN_ID);
+          if (automated.conclusion !== "success" || automated.path !== ".github/workflows/stable-candidate.yml" || automated.head_branch !== "develop") throw new Error("automated stable run is not trusted and successful");
+          if (physical.conclusion !== "success" || physical.path !== ".github/workflows/stable-physical-certification.yml" || physical.head_sha !== automated.head_sha || physical.head_repository?.full_name !== process.env.GITHUB_REPOSITORY) throw new Error("physical evidence run does not match the stable source");
+          if (automated.head_repository?.full_name !== process.env.GITHUB_REPOSITORY) throw new Error("automated stable run came from another repository");
+          await appendFile(process.env.GITHUB_OUTPUT, `source_commit=${automated.head_sha}\n`);
+          NODE
+
+      - name: Check out exact certification policy
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ steps.runs.outputs.source_commit }}
+          persist-credentials: false
+
+      - name: Download automated candidate
+        uses: actions/download-artifact@v6
+        with:
+          run-id: ${{ inputs.automated_candidate_run_id }}
+          pattern: stable-automated-candidate-*
+          path: artifacts/stable
+          merge-multiple: true
+          github-token: ${{ github.token }}
+
+      - name: Download independent physical verdicts
+        uses: actions/download-artifact@v6
+        with:
+          run-id: ${{ inputs.physical_evidence_run_id }}
+          pattern: stable-physical-evidence-*
+          path: artifacts/physical
+          merge-multiple: true
+          github-token: ${{ github.token }}
+
+      - name: Aggregate exact automated and physical evidence
+        id: evidence
+        run: |
+          node scripts/aggregate-stable-evidence.mjs \
+            --candidate-directory artifacts/stable \
+            --physical-directory artifacts/physical \
+            --output artifacts/stable/certified-stable-evidence.json
+          node --input-type=module <<'NODE'
+          import { appendFile, readFile } from "node:fs/promises";
+          const evidence = JSON.parse(await readFile("artifacts/stable/certified-stable-evidence.json", "utf8"));
+          if (evidence.certification?.stableEligible !== true) throw new Error("aggregated candidate is not stable eligible");
+          await appendFile(process.env.GITHUB_OUTPUT, `version=${evidence.package.version}\n`);
+          NODE
+
+      - name: Upload certified stable candidate
+        uses: actions/upload-artifact@v6
+        with:
+          name: stable-certified-candidate-${{ steps.evidence.outputs.version }}-${{ steps.runs.outputs.source_commit }}
+          path: |
+            artifacts/stable
+            artifacts/physical
+          if-no-files-found: error
+          retention-days: 30

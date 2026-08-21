@@ -1,0 +1,85 @@
+name: Full regression
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: full-regression-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  full-regression:
+    name: Complete non-physical regression
+    runs-on: windows-2025
+    timeout-minutes: 40
+    steps:
+      - name: Preserve repository bytes during checkout
+        shell: bash
+        run: git config --global core.autocrlf false
+
+      - name: Check out exact regression source
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies and build once
+        run: npm ci
+
+      - name: Pack exact regression candidate once
+        run: node scripts/prepare-validation-package.mjs
+
+      - name: Run complete non-physical validation
+        shell: bash
+        env:
+          VALIDATION_SELECTION_JSON: '["full-release"]'
+          VALIDATION_BUILD_READY: "1"
+          VALIDATION_CANDIDATE_TARBALL: ${{ github.workspace }}\artifacts\validation\package\candidate.tgz
+          A1_RELEASE_RUNNER_LABEL: github-windows-2025-full-regression
+          A1_CONFIG_DIR: ${{ runner.temp }}\a1-full-config
+          A1_DATA_DIR: ${{ runner.temp }}\a1-full-data
+          A1_RUNTIME_DIR: ${{ runner.temp }}\a1-full-runtime
+        run: node scripts/run-validation-tier.mjs --result artifacts/validation/full-regression.json
+
+      - name: Report gate ownership and timing
+        if: always()
+        shell: bash
+        run: |
+          if [ -f artifacts/validation/full-regression.json ]; then
+            node --input-type=module <<'NODE' >> "$GITHUB_STEP_SUMMARY"
+          import { readFile } from "node:fs/promises";
+          const result = JSON.parse(await readFile("artifacts/validation/full-regression.json", "utf8"));
+          console.log("## Complete regression outcomes\n");
+          console.log(`Selected owners: ${result.selected.map(value => `\`${value}\``).join(", ")}\n`);
+          console.log(`Total: **${((result.completedAt - result.startedAt) / 1000).toFixed(2)}s**\n`);
+          console.log("| Owned gate | Seconds | Result |\n| --- | ---: | --- |");
+          for (const outcome of result.outcomes) console.log(`| ${outcome.id} | ${(outcome.durationMs / 1000).toFixed(2)} | ${outcome.exitCode === 0 ? outcome.skipped ?? "passed" : "failed"} |`);
+          NODE
+          else
+            echo "## Complete regression outcomes" >> "$GITHUB_STEP_SUMMARY"
+            echo "Validation orchestration failed before producing owned outcomes." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload complete regression evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: full-regression-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            artifacts/validation/full-regression.json
+            artifacts/validation/package/npm-pack-result.json
+            artifacts/release-verdicts/*.json
+          if-no-files-found: warn
+          retention-days: 30

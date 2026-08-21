@@ -1,0 +1,109 @@
+{
+  "schema": "a1-validation-suites-v1",
+  "tiers": {
+    "invariants": {
+      "kind": "commands",
+      "commands": [
+        { "id": "typecheck", "executable": "npm", "arguments": ["run", "typecheck"] },
+        { "id": "architecture", "executable": "npm", "arguments": ["run", "check:architecture"] },
+        { "id": "customization-ready", "executable": "npm", "arguments": ["run", "check:customization-ready"] }
+      ]
+    },
+    "fast": {
+      "kind": "vitest-remainder",
+      "requiresBuild": true,
+      "includeRoot": "test",
+      "exclude": [
+        "test/features/launch/exact-pi-entry.integration.test.ts",
+        "test/features/launch/profile-isolation.integration.test.ts",
+        "test/foundation/pi-engine-adapter/conformance.test.ts",
+        "test/foundation/pi-engine-adapter/runtime-integration.test.ts",
+        "test/foundation/pi-engine-adapter/session-integration.test.ts",
+        "test/foundation/release/package-surface.test.ts",
+        "test/foundation/release/package-install.integration.test.ts",
+        "test/foundation/release/update-transition.integration.test.ts",
+        "test/foundation/structured-agent-runtime/runtime.integration.test.ts"
+      ]
+    },
+    "full-release": {
+      "kind": "composition",
+      "includes": [
+        "invariants",
+        "fast",
+        "launch-integration",
+        "pi-engine-conformance",
+        "release-update",
+        "structured-runtime-integration",
+        "package-smoke",
+        "package-install",
+        "dependency-policy"
+      ]
+    }
+  },
+  "scopes": {
+    "launch-integration": {
+      "kind": "vitest-files",
+      "requiresBuild": true,
+      "tests": [
+        "test/features/launch/exact-pi-entry.integration.test.ts",
+        "test/features/launch/profile-isolation.integration.test.ts"
+      ]
+    },
+    "pi-engine-conformance": {
+      "kind": "mixed",
+      "requiresBuild": true,
+      "tests": [
+        "test/foundation/pi-engine-adapter/conformance.test.ts",
+        "test/foundation/pi-engine-adapter/runtime-integration.test.ts",
+        "test/foundation/pi-engine-adapter/session-integration.test.ts"
+      ],
+      "commands": [
+        { "id": "candidate-engine-conformance-report", "executable": "node", "arguments": ["scripts/run-pi-engine-conformance.mjs"] }
+      ]
+    },
+    "release-update": {
+      "kind": "vitest-files",
+      "tests": [
+        "test/foundation/release/update-transition.integration.test.ts"
+      ]
+    },
+    "structured-runtime-integration": {
+      "kind": "vitest-files",
+      "tests": [
+        "test/foundation/structured-agent-runtime/runtime.integration.test.ts"
+      ]
+    },
+    "package-smoke": {
+      "kind": "vitest-files",
+      "requiresBuild": true,
+      "consumesPackage": true,
+      "tests": [
+        "test/foundation/release/package-surface.test.ts"
+      ]
+    },
+    "package-install": {
+      "kind": "vitest-files",
+      "requiresBuild": true,
+      "consumesPackage": true,
+      "tests": [
+        "test/foundation/release/package-install.integration.test.ts"
+      ]
+    },
+    "dependency-policy": {
+      "kind": "commands",
+      "commands": [
+        { "id": "deprecated-dependencies", "executable": "npm", "arguments": ["run", "check:deprecated"] }
+      ]
+    }
+  },
+  "releaseContracts": {
+    "architecture": "invariants",
+    "compatibility-authority": "fast",
+    "candidate-engine-conformance": "pi-engine-conformance",
+    "exact-vanilla-oracle": "launch-integration",
+    "packaged-public-entry": "package-smoke",
+    "owned-ui-regression": "fast",
+    "extension-behavior": "fast",
+    "architecture-independent-n-minus-one-update-transition": "release-update"
+  }
+}

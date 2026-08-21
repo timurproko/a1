@@ -1,0 +1,231 @@
+name: Build stable candidate
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_commit:
+        description: Exact final-version develop commit
+        required: true
+        type: string
+      tag:
+        description: Matching v<package-version> release tag to create after certification
+        required: true
+        type: string
+      confirm_candidate:
+        description: Type "build-stable-candidate"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stable-candidate-${{ inputs.source_commit }}
+  cancel-in-progress: false
+
+jobs:
+  package:
+    name: Build stable package once
+    if: github.ref == 'refs/heads/develop'
+    runs-on: windows-2025
+    timeout-minutes: 20
+    outputs:
+      version: ${{ steps.identity.outputs.version }}
+      source-commit: ${{ inputs.source_commit }}
+    steps:
+      - name: Preserve repository bytes during checkout
+        shell: bash
+        run: git config --global core.autocrlf false
+
+      - name: Check out final version source
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.source_commit }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies and build once
+        run: npm ci
+
+      - name: Validate exact release-ready develop source
+        shell: bash
+        env:
+          SOURCE_COMMIT: ${{ inputs.source_commit }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          CONFIRM_CANDIDATE: ${{ inputs.confirm_candidate }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/develop"
+          test "$CONFIRM_CANDIDATE" = "build-stable-candidate"
+          test "$(git rev-parse HEAD)" = "$SOURCE_COMMIT"
+          git fetch origin develop:refs/remotes/origin/develop
+          test "$(git rev-parse origin/develop)" = "$SOURCE_COMMIT"
+          node scripts/validate-stable-candidate.mjs --commit "$SOURCE_COMMIT" --tag "$RELEASE_TAG" --output artifacts/validation/stable-candidate.json
+
+      - name: Pack final stable package once
+        run: node scripts/prepare-validation-package.mjs
+
+      - name: Export derived version
+        id: identity
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import { appendFile, readFile } from "node:fs/promises";
+          const candidate = JSON.parse(await readFile("artifacts/validation/stable-candidate.json", "utf8"));
+          await appendFile(process.env.GITHUB_OUTPUT, `version=${candidate.version}\n`);
+          NODE
+
+      - name: Upload single stable package
+        uses: actions/upload-artifact@v6
+        with:
+          name: stable-package-${{ steps.identity.outputs.version }}-${{ inputs.source_commit }}
+          path: |
+            artifacts/validation/stable-candidate.json
+            artifacts/validation/package/candidate.tgz
+            artifacts/validation/package/npm-pack-result.json
+          if-no-files-found: error
+          retention-days: 30
+
+  platform:
+    name: Stable ${{ matrix.platform }} validation
+    needs: package
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-2025
+            platform: win32
+          - os: ubuntu-24.04
+            platform: linux
+          - os: macos-15
+            platform: darwin
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    steps:
+      - name: Preserve repository bytes during checkout
+        shell: bash
+        run: git config --global core.autocrlf false
+
+      - name: Check out exact stable source
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.source_commit }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Download single stable package
+        uses: actions/download-artifact@v6
+        with:
+          pattern: stable-package-*
+          path: artifacts/stable
+          merge-multiple: true
+
+      - name: Locate and verify downloaded package digest
+        shell: bash
+        run: |
+          set -euo pipefail
+          tarball="$(find artifacts/stable -type f -name candidate.tgz)"
+          pack_result="$(find artifacts/stable -type f -name npm-pack-result.json)"
+          candidate="$(find artifacts/stable -type f -name stable-candidate.json)"
+          test -n "$tarball" && test -n "$pack_result" && test -n "$candidate"
+          echo "VALIDATION_CANDIDATE_TARBALL=$tarball" >> "$GITHUB_ENV"
+          echo "STABLE_PACK_RESULT=$pack_result" >> "$GITHUB_ENV"
+          echo "STABLE_CANDIDATE_IDENTITY=$candidate" >> "$GITHUB_ENV"
+          node --input-type=module <<'NODE'
+          import { createHash } from "node:crypto";
+          import { readFile } from "node:fs/promises";
+          const bytes = await readFile(process.env.VALIDATION_CANDIDATE_TARBALL);
+          const [pack] = JSON.parse(await readFile(process.env.STABLE_PACK_RESULT, "utf8"));
+          const integrity = `sha512-${createHash("sha512").update(bytes).digest("base64")}`;
+          const shasum = createHash("sha1").update(bytes).digest("hex");
+          if (pack.integrity !== integrity || pack.shasum !== shasum) throw new Error("stable package digest changed across platform fan-out");
+          NODE
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install exact platform dependencies
+        run: npm ci
+
+      - name: Run complete platform validation
+        shell: bash
+        env:
+          VALIDATION_SELECTION_JSON: '["full-release"]'
+          VALIDATION_BUILD_READY: "1"
+          A1_RELEASE_RUNNER_LABEL: github-${{ matrix.platform }}-stable-candidate
+          A1_CONFIG_DIR: ${{ runner.temp }}/a1-stable-config
+          A1_DATA_DIR: ${{ runner.temp }}/a1-stable-data
+          A1_RUNTIME_DIR: ${{ runner.temp }}/a1-stable-runtime
+        run: node scripts/run-validation-tier.mjs --result artifacts/validation/stable-${{ matrix.platform }}.json
+
+      - name: Create exact platform verdict
+        if: always()
+        shell: bash
+        run: |
+          if [ -f artifacts/validation/stable-${{ matrix.platform }}.json ]; then
+            node scripts/create-platform-verdict.mjs \
+              --platform "${{ matrix.platform }}" \
+              --outcomes artifacts/validation/stable-${{ matrix.platform }}.json \
+              --candidate "$STABLE_CANDIDATE_IDENTITY" \
+              --pack-result "$STABLE_PACK_RESULT" \
+              --output artifacts/validation/verdict-${{ matrix.platform }}.json
+          fi
+
+      - name: Upload platform verdict
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: stable-platform-${{ matrix.platform }}-${{ inputs.source_commit }}
+          path: |
+            artifacts/validation/stable-${{ matrix.platform }}.json
+            artifacts/validation/verdict-${{ matrix.platform }}.json
+          if-no-files-found: error
+          retention-days: 30
+
+  automated-candidate:
+    name: Stable automated candidate
+    if: always()
+    needs: [package, platform]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Require package and platform matrix success
+        env:
+          PACKAGE_RESULT: ${{ needs.package.result }}
+          PLATFORM_RESULT: ${{ needs.platform.result }}
+        run: |
+          test "$PACKAGE_RESULT" = "success"
+          test "$PLATFORM_RESULT" = "success"
+
+      - name: Check out certification policy
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.source_commit }}
+          persist-credentials: false
+
+      - name: Download package and platform verdicts
+        uses: actions/download-artifact@v6
+        with:
+          pattern: stable-*
+          path: artifacts/stable
+          merge-multiple: true
+
+      - name: Verify complete automated matrix
+        run: node scripts/verify-automated-stable.mjs --directory artifacts/stable --output artifacts/stable/automated-certification.json
+
+      - name: Upload automated stable candidate
+        uses: actions/upload-artifact@v6
+        with:
+          name: stable-automated-candidate-${{ needs.package.outputs.version }}-${{ inputs.source_commit }}
+          path: artifacts/stable
+          if-no-files-found: error
+          retention-days: 30

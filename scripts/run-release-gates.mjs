@@ -1,30 +1,25 @@
-import crossSpawn from "cross-spawn";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { arch, platform, release } from "node:os";
 import { resolve } from "node:path";
+import { createTierPlan, loadValidationSuites, runTierPlan } from "./validation-tier.mjs";
 
 const identity = JSON.parse(await readFile(resolve("src/product-identity.json"), "utf8"));
+const suites = await loadValidationSuites();
 const startedAt = new Date().toISOString();
-const npm = process.platform === "win32" ? "npm.cmd" : "npm";
-const npx = process.platform === "win32" ? "npx.cmd" : "npx";
-export const MANDATORY_RELEASE_GATES = Object.freeze([
-  { id: "architecture", executable: npm, arguments: ["run", "check:architecture"] },
-  { id: "compatibility-authority", executable: npx, arguments: ["vitest", "run", "test/repository-governance/pi-compatibility-authority.test.ts", "test/foundation/pi-engine-adapter/candidate-capability-mutations.test.ts", "test/repository-governance/pi-candidate-evaluator.test.ts"] },
-  { id: "candidate-engine-conformance", executable: npm, arguments: ["run", "report:pi-engine-conformance"] },
-  { id: "exact-vanilla-oracle", executable: npx, arguments: ["vitest", "run", "test/features/launch/exact-pi-entry.integration.test.ts"] },
-  { id: "packaged-public-entry", executable: npx, arguments: ["vitest", "run", "test/foundation/release/package-surface.integration.test.ts", "--no-file-parallelism"] },
-  { id: "owned-ui-regression", executable: npx, arguments: ["vitest", "run", "test/features/owned-ui/pi-session-shell.test.ts", "test/features/owned-ui/pi-startup-composition-parity.test.ts"] },
-  { id: "extension-behavior", executable: npx, arguments: ["vitest", "run", "test/foundation/pi-component-adapter/extension-ui-bridge.test.ts"] },
-  { id: "architecture-independent-n-minus-one-update-transition", executable: npx, arguments: ["vitest", "run", "test/foundation/release/update-transition.integration.test.ts", "--no-file-parallelism", "--testTimeout=120000"] },
-]);
 
+export const MANDATORY_RELEASE_GATES = Object.freeze(Object.entries(suites.releaseContracts).map(([id, owner]) => Object.freeze({ id, owner })));
+
+let result;
 let failure;
-for (const gate of MANDATORY_RELEASE_GATES) {
-  const code = await run(gate.executable, gate.arguments);
-  if (code !== 0) {
-    failure = { gate: gate.id, command: `${gate.executable} ${gate.arguments.join(" ")}`, exitCode: code };
-    break;
+try {
+  const plan = await createTierPlan(["full-release"]);
+  result = await runTierPlan(plan);
+  if (!result.passed) {
+    const outcome = result.outcomes.find(candidate => candidate.exitCode !== 0);
+    failure = { gate: outcome?.id ?? "unknown", command: outcome?.command ?? "unknown", exitCode: outcome?.exitCode ?? 1 };
   }
+} catch (error) {
+  failure = { gate: "validation-orchestration", command: "node scripts/run-validation-tier.mjs full-release", exitCode: 1, message: error instanceof Error ? error.message : String(error) };
 }
 
 const verdictDirectory = resolve("artifacts", "release-verdicts");
@@ -38,15 +33,9 @@ await writeFile(verdictPath, JSON.stringify({
   channel: "next", certificationStatus: "uncertified-development-preview", terminalCapability: "transparent",
   physicalHostCertification: "deferred", crossPlatformCertification: "deferred", stableReleaseEligible: false,
   requiredGates: MANDATORY_RELEASE_GATES.map(gate => gate.id),
+  gateOwners: Object.fromEntries(MANDATORY_RELEASE_GATES.map(gate => [gate.id, gate.owner])),
+  outcomes: result?.outcomes ?? [],
   ...(failure ? { failure } : {}),
 }, null, 2));
 process.stdout.write(`Release verdict: ${verdictPath}\n`);
 process.exit(failure ? 1 : 0);
-
-function run(executable, arguments_) {
-  return new Promise((resolvePromise, rejectPromise) => {
-    const child = crossSpawn(executable, arguments_, { stdio: "inherit", env: process.env, windowsHide: true });
-    child.once("error", rejectPromise);
-    child.once("exit", (exitCode, signal) => signal ? rejectPromise(new Error(`${executable} terminated by ${signal}`)) : resolvePromise(exitCode ?? 1));
-  });
-}

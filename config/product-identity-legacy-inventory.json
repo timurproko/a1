@@ -43,21 +43,21 @@
     "explicit-obsolete-package-fixtures"
   ],
   "summary": {
-    "total": 78,
-    "files": 23,
+    "total": 76,
+    "files": 24,
     "byLocationKind": {
-      "content": 78,
+      "content": 76,
       "path": 0
     },
     "byClass": {
-      "runtime-symbols": 52,
+      "runtime-symbols": 50,
       "diagnostics": 3,
       "environment-keys": 15,
       "paths": 49,
       "schemas": 13,
-      "artifacts": 19,
+      "artifacts": 17,
       "native-names": 3,
-      "tests": 52,
+      "tests": 50,
       "current-docs-specs": 26,
       "historical-records": 12,
       "explicit-obsolete-package-fixtures": 5
@@ -816,26 +816,10 @@
       ]
     },
     {
-      "id": "test/foundation/release/package-surface.integration.test.ts:49:32",
-      "path": "test/foundation/release/package-surface.integration.test.ts",
+      "id": "test/foundation/release/package-install.integration.test.ts:50:70",
+      "path": "test/foundation/release/package-install.integration.test.ts",
       "locationKind": "content",
-      "line": 49,
-      "column": 32,
-      "value": "addone",
-      "context": "expect(paths.some(path => /addone/i.test(path))).toBe(false);",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/release/package-surface.integration.test.ts:104:70",
-      "path": "test/foundation/release/package-surface.integration.test.ts",
-      "locationKind": "content",
-      "line": 104,
+      "line": 50,
       "column": 70,
       "value": "addone",
       "context": "await expect(access(resolve(bin, process.platform === \"win32\" ? \"addone.cmd\" : \"addone\"))).rejects.toThrow();",
@@ -848,10 +832,10 @@
       ]
     },
     {
-      "id": "test/foundation/release/package-surface.integration.test.ts:104:85",
-      "path": "test/foundation/release/package-surface.integration.test.ts",
+      "id": "test/foundation/release/package-install.integration.test.ts:50:85",
+      "path": "test/foundation/release/package-install.integration.test.ts",
       "locationKind": "content",
-      "line": 104,
+      "line": 50,
       "column": 85,
       "value": "addone",
       "context": "await expect(access(resolve(bin, process.platform === \"win32\" ? \"addone.cmd\" : \"addone\"))).rejects.toThrow();",
@@ -864,34 +848,18 @@
       ]
     },
     {
-      "id": "test/foundation/release/package-surface.integration.test.ts:105:70",
-      "path": "test/foundation/release/package-surface.integration.test.ts",
+      "id": "test/foundation/release/package-surface.test.ts:38:32",
+      "path": "test/foundation/release/package-surface.test.ts",
       "locationKind": "content",
-      "line": 105,
-      "column": 70,
+      "line": 38,
+      "column": 32,
       "value": "addone",
-      "context": "await expect(access(resolve(bin, process.platform === \"win32\" ? \"addone-supervisor.cmd\" : \"addone-supervisor\"))).rejects.toThrow();",
+      "context": "expect(paths.some(path => /addone/i.test(path))).toBe(false);",
       "matchedCase": "lower",
       "primaryClass": "runtime-symbols",
       "classes": [
         "runtime-symbols",
-        "artifacts",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/release/package-surface.integration.test.ts:105:96",
-      "path": "test/foundation/release/package-surface.integration.test.ts",
-      "locationKind": "content",
-      "line": 105,
-      "column": 96,
-      "value": "addone",
-      "context": "await expect(access(resolve(bin, process.platform === \"win32\" ? \"addone-supervisor.cmd\" : \"addone-supervisor\"))).rejects.toThrow();",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "artifacts",
+        "paths",
         "tests"
       ]
     },
@@ -1328,5 +1296,5 @@
       ]
     }
   ],
-  "generatedAt": "2026-08-20T19:12:01.893Z"
+  "generatedAt": "2026-08-21T07:51:48.027Z"
 }
