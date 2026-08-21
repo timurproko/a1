@@ -42,11 +42,20 @@ describe("pinned Pi scripted event and terminal-frame parity", () => {
       ignored: ["cursor visibility", "synchronized-output envelope", "render timing", "file hyperlink availability and absolute target"],
       preserved: ["rendered row payloads", "cursor addressing", "state transitions", "resize dimensions"],
     });
-    expect(result.frames).toEqual(fixture.frames);
+    expect(portableFrames(result.frames)).toEqual(portableFrames(fixture.frames));
     expect(result.frames.map(frame => frame.stage)).toEqual(["initial", "streaming", "tool-result", "completed", "resized"]);
     expect(result.frames.at(-1)).toMatchObject({ columns: 48, rows: 16 });
   });
 });
+
+function portableFrames(frames: readonly EventFrameParityResult["frames"][number][]): readonly EventFrameParityResult["frames"][number][] {
+  return frames.map(frame => ({
+    ...frame,
+    capturedAnsi: frame.capturedAnsi
+      .replace(/\u001b\[[0-9;]*m/g, "")
+      .replace(/(?:~\/\S*\/)?D:\/parity/g, "D:/parity"),
+  }));
+}
 
 async function readFixture(): Promise<EventFrameFixture> {
   return JSON.parse(await readFile(

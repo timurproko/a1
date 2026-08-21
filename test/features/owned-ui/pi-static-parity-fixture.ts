@@ -1,4 +1,3 @@
-import { stripTerminalSequences } from "@earendil-works/pi-tui";
 import type { OwnedUiSessionViewModel, OwnedUiTranscriptBlock } from "../../../src/foundation/owned-ui-contracts/index.js";
 import { applyPiTheme, createPiShellDialog, createPiShellSelector } from "../../../src/foundation/pi-component-adapter/index.js";
 import { OwnedUiSessionShellRoot } from "../../../src/foundation/pi-owned-ui-integration/index.js";
@@ -67,7 +66,11 @@ function parityCase(id: string, width: number, coverage: readonly string[], rows
 }
 
 export function normalizeParityRow(row: string): string {
-  return stripTerminalSequences(row).replace("\u001b_pi:c\u0007", "");
+  return row
+    .replace(/\u001b\][\s\S]*?(?:\u0007|\u001b\\)/g, "")
+    .replace(/\u001b\[[0-?]*[ -/]*[@-~]/g, "")
+    .replace("\u001b_pi:c\u0007", "")
+    .replace(/(?:~\/\S*\/)?D:\/work/g, "D:/work");
 }
 
 function staticView(): OwnedUiSessionViewModel {
