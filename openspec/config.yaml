@@ -8,13 +8,13 @@ context: |
   - Do not remove a worktree until its commits are integrated.
   - Store local package archives and ad hoc builds under the repository's `.builds/` directory.
 
-  Validation policy (proportionate, in order of cost):
-  - Per task: run only the focused tests for the behavior you touched (`npx vitest run <files>`) plus `npm run typecheck`. Nothing more.
-  - Per change, once before opening the PR: `npm run test:fast`.
-  - Docs/spec-only changes: no tests at all; CI skips them too.
-  - CI on the pull request runs the fast tier and architecture checks; do not duplicate CI locally.
-  - Never run `npm run test:full`, `npm run test:release`, or `npm run test:pi-terminal-parity` on your own initiative; they belong to release workflows or an explicit user request.
-  - After pushing a PR, do not poll or watch CI in the foreground; continue with the next task and check results when integrating.
+  Validation policy — CI validates, not the workstation:
+  - GitHub Actions on the pull request is the only required validation. Write the code, commit, open the PR, and let CI test it.
+  - Do not run test suites locally as a gate. `npm run typecheck` before pushing is a fast optional sanity check; `npx vitest run <files>` is for debugging a specific failure, never a completion requirement.
+  - Never run `npm run test:fast`, `test:full`, `test:release`, or `test:pi-terminal-parity` locally on your own initiative; the first belongs to CI, the rest to release workflows or an explicit user request.
+  - Docs/spec-only changes get no tests anywhere; CI runs only the OpenSpec lint.
+  - After pushing a PR, do not poll or watch CI in the foreground; continue with the next task and return when CI reports a result.
+  - If CI fails, fix and push again; the round trip is about two minutes.
 
 operations:
   apply:
