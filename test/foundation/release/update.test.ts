@@ -11,6 +11,7 @@ import {
   type UpdateOutput,
   type UpdateProcessRunner,
   type UpdateTransactionJournal,
+  type UpdateTransactionPhase,
 } from "../../../src/foundation/release/index.js";
 
 interface Invocation {
@@ -24,6 +25,8 @@ function createHarness(options: {
   packageRoot?: string;
   globalRoot?: string;
   responses?: Array<ProcessResult | Error>;
+  transactionPhase?: UpdateTransactionPhase;
+  transactionTarget?: string;
 } = {}) {
   const packageRoot = options.packageRoot ?? resolve("fixtures", "global", "@timurproko", "a1");
   const globalRoot = options.globalRoot ?? resolve("fixtures", "global");
@@ -50,7 +53,19 @@ function createHarness(options: {
     async verifyPackageUnlocked(path) { lifecycleCalls.push(`unlock:${path}`); },
     async activateInstalled(path, targetVersion) { lifecycleCalls.push(`activate:${path}:${targetVersion}`); },
   };
-  let transaction: Awaited<ReturnType<UpdateTransactionJournal["read"]>> = null;
+  let transaction: Awaited<ReturnType<UpdateTransactionJournal["read"]>> = options.transactionPhase ? {
+    schema: UPDATE_JOURNAL_SCHEMA,
+    transactionId: "interrupted-update",
+    channel: "stable",
+    targetVersion: options.transactionTarget ?? "1.3.0",
+    packageRoot,
+    priorActiveReleaseId: "prior-release",
+    phase: options.transactionPhase,
+    status: "active",
+    error: null,
+    startedAt: new Date(0).toISOString(),
+    updatedAt: new Date(0).toISOString(),
+  } : null;
   const transactionStore: UpdateTransactionJournal = {
     path: resolve("fixtures", "update-transaction.json"),
     async read() { return transaction; },
@@ -87,6 +102,14 @@ function createHarness(options: {
 }
 
 const success = (stdout = ""): ProcessResult => ({ code: 0, stdout });
+const installArguments = (version: string) => [
+  "install",
+  "--global",
+  "--loglevel=error",
+  "--no-fund",
+  "--no-audit",
+  `${PRODUCT_PACKAGE}@${version}`,
+];
 
 describe("A1 self-update orchestration", () => {
   it.each([
@@ -100,7 +123,7 @@ describe("A1 self-update orchestration", () => {
     expect(harness.invocations).toEqual([
       { command: "npm", arguments: ["view", `${PRODUCT_PACKAGE}@latest`, "version"], request: { captureStdout: true } },
       { command: "npm", arguments: ["root", "--global"], request: { captureStdout: true } },
-      { command: "npm", arguments: ["install", "--global", `${PRODUCT_PACKAGE}@${latest}`], request: { captureStdout: false } },
+      { command: "npm", arguments: installArguments(latest), request: { captureStdout: true } },
     ]);
     expect(harness.stdout.join("")).toContain(`A1 updated successfully: ${latest} (stable).`);
   });
@@ -120,10 +143,9 @@ describe("A1 self-update orchestration", () => {
     expect(harness.invocations).toEqual([
       { command: "npm", arguments: ["view", `${PRODUCT_PACKAGE}@latest`, "version"], request: { captureStdout: true } },
       { command: "npm", arguments: ["root", "--global"], request: { captureStdout: true } },
-      { command: "npm", arguments: ["install", "--global", `${PRODUCT_PACKAGE}@1.3.0`], request: { captureStdout: false } },
+      { command: "npm", arguments: installArguments("1.3.0"), request: { captureStdout: true } },
     ]);
-    expect(harness.stdout.join("")).toContain("A1 update (stable): 1.2.3 → 1.3.0.");
-    expect(harness.stdout.join("")).toContain("A1 updated successfully: 1.3.0 (stable).");
+    expect(harness.stdout.join("")).toBe("A1 update (stable): 1.2.3 → 1.3.0.\nA1 updated successfully: 1.3.0 (stable).\n");
     expect(harness.stderr).toEqual([]);
   });
 
@@ -142,12 +164,28 @@ describe("A1 self-update orchestration", () => {
     expect(harness.invocations).toEqual([
       { command: "npm", arguments: ["view", `${PRODUCT_PACKAGE}@next`, "version"], request: { captureStdout: true } },
       { command: "npm", arguments: ["root", "--global"], request: { captureStdout: true } },
-      { command: "npm", arguments: ["install", "--global", `${PRODUCT_PACKAGE}@1.3.0-dev.1`], request: { captureStdout: false } },
+      { command: "npm", arguments: installArguments("1.3.0-dev.1"), request: { captureStdout: true } },
     ]);
-    expect(harness.stdout.join("")).toContain("A1 update (next): 1.3.0-dev.0 → 1.3.0-dev.1.");
-    expect(harness.stdout.join("")).toContain(`A1 is installing ${PRODUCT_PACKAGE}@1.3.0-dev.1.\n`);
-    expect(harness.stdout.join("")).not.toContain("globally from the next channel");
-    expect(harness.stdout.join("")).toContain("A1 updated successfully: 1.3.0-dev.1 (next).");
+    expect(harness.stdout.join("")).toBe("A1 update (next): 1.3.0-dev.0 → 1.3.0-dev.1.\nA1 updated successfully: 1.3.0-dev.1 (next).\n");
+  });
+
+  it("rechecks ownership before activating an installation resumed after interruption", async () => {
+    const harness = createHarness({
+      responses: [success("1.3.0\n"), success(`${resolve("fixtures", "global")}\n`)],
+      transactionPhase: "package-installed",
+    });
+
+    await expect(runSelfUpdate(harness)).resolves.toBe(0);
+
+    expect(harness.invocations).toEqual([
+      { command: "npm", arguments: ["view", `${PRODUCT_PACKAGE}@latest`, "version"], request: { captureStdout: true } },
+      { command: "npm", arguments: ["root", "--global"], request: { captureStdout: true } },
+    ]);
+    expect(harness.lifecycleCalls).toEqual([
+      "shutdown:1.3.0",
+      `activate:${harness.packageRoot}:1.3.0`,
+    ]);
+    expect(harness.stdout.join("")).toBe("A1 update (stable): 1.2.3 → 1.3.0.\nA1 updated successfully: 1.3.0 (stable).\n");
   });
 
   it("refuses an unmanaged checkout and prints the pinned fallback", async () => {

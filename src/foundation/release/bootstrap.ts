@@ -51,9 +51,7 @@ export async function runBootstrap(options: BootstrapOptions): Promise<number> {
     }
   }
 
-  const candidate = await materializeRelease(options.packageRoot, paths.dataDir, {
-    onProgress: progress => output.write(`${PRODUCT_TEXT.diagnostic(`installing ${progress.fileCount} files.`)}\n`),
-  });
+  const candidate = await materializeRelease(options.packageRoot, paths.dataDir);
   await stateStore.recordCandidate(candidate);
   state = await stateStore.read();
   if (!state.references.active) {

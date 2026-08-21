@@ -125,7 +125,8 @@ describe("release-gating N-1 update transitions", () => {
       "npm:root --global",
       "shutdown:1.1.0:owned-ui,supervisor,child-process",
       "unlock:package-root",
-      "npm:install --global @timurproko/a1@1.1.0",
+      "npm:install --global --loglevel=error --no-fund --no-audit @timurproko/a1@1.1.0",
+      "shutdown:1.1.0:owned-ui,supervisor,child-process",
       "activate:1.1.0:maintenance-mode",
     ]);
     expect(stdout.join("")).toContain(`A1 update (${channel}): 1.0.0 → 1.1.0.`);

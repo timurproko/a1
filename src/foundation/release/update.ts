@@ -144,9 +144,7 @@ export function createUpdateLifecycleCoordinator(
       }
     },
     async activateInstalled(packageRoot, targetVersion, phase) {
-      const candidate = await materializeRelease(packageRoot, paths.dataDir, {
-        onProgress: progress => output.stdout(`${PRODUCT_TEXT.diagnostic(`installing ${progress.fileCount} files.`)}\n`),
-      });
+      const candidate = await materializeRelease(packageRoot, paths.dataDir);
       if (candidate.packageVersion !== targetVersion) throw new Error(`installed ${PRODUCT_TEXT.displayName} version ${candidate.packageVersion} does not match target ${targetVersion}`);
       await stateStore.recordCandidate(candidate);
       await phase("materialized");
@@ -236,13 +234,26 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
     }
 
     if (phaseBefore(transaction.phase, "package-installed")) {
-      output.stdout(`${PRODUCT_TEXT.diagnostic(`is installing ${PRODUCT_TEXT.packageName}@${targetVersion}.`)}\n`);
-      const installation = await runNpm(runner, ["install", "--global", `${PRODUCT_PACKAGE}@${targetVersion}`], false, output, "start the global npm installation", false);
+      const installation = await runNpm(
+        runner,
+        ["install", "--global", "--loglevel=error", "--no-fund", "--no-audit", `${PRODUCT_PACKAGE}@${targetVersion}`],
+        true,
+        output,
+        "start the global npm installation",
+        false,
+      );
       if (installation.result === null) throw new UpdateFailure(installation.exitCode, "npm process failed");
-      if (installation.result.code !== 0) throw new UpdateFailure(unsuccessfulCode(installation.result.code), `npm exited with status ${formatExitCode(installation.result.code)}`);
+      if (installation.result.code !== 0) {
+        if (installation.result.stdout.trim().length > 0) output.stderr(`${installation.result.stdout.trimEnd()}\n`);
+        throw new UpdateFailure(unsuccessfulCode(installation.result.code), `npm exited with status ${formatExitCode(installation.result.code)}`);
+      }
       transaction = await transactionStore.advance("package-installed");
     }
 
+    // Ownership can be reacquired after an interrupted installation (for
+    // example, if bare A1 is launched before the update is resumed). Recheck
+    // immediately before activation so recovery cannot start a second cohort.
+    await lifecycle.shutdownVerifiedOwners(targetVersion);
     await lifecycle.activateInstalled(packageRoot, targetVersion, async phase => { transaction = await transactionStore.advance(phase); });
     await transactionStore.advance("supervisor-verified");
     await transactionStore.finish("completed");

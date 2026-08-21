@@ -46,6 +46,16 @@ describe("mutable bootstrap boundary", () => {
     expect(bootstrap).toContain('active?.approval === "approved"');
   });
 
+  it("keeps launch and update activation progress out of the user-facing terminal", async () => {
+    const [bootstrap, update] = await Promise.all([
+      readFile(resolve(repository, "src/foundation/release/bootstrap.ts"), "utf8"),
+      readFile(resolve(repository, "src/foundation/release/update.ts"), "utf8"),
+    ]);
+    expect(bootstrap).not.toContain("onProgress:");
+    expect(update).not.toContain("onProgress:");
+    expect(`${bootstrap}\n${update}`).not.toMatch(/installing .* files/);
+  });
+
   it("keeps the dependency-light coordinator free of terminal implementation imports", async () => {
     const bootstrap = await readFile(resolve(repository, "src/foundation/release/bootstrap.ts"), "utf8");
     expect(bootstrap).not.toMatch(/from ["']\.\/(?:ui|supervisor|drivers|presentation)/);
