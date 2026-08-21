@@ -91,7 +91,7 @@ dispatch uses.
 
 ### Ports live in foundation, screens in features
 
-`owned-ui-components` and `owned-ui-apps` are foundation owners with no dependency on any feature.
+`ui-components` and `ui-apps` are foundation owners with no dependency on any feature.
 The settings screen consumes them plus `owned-ui-settings`. Rationale: the layering already forbids a
 foundation module importing a feature, and it is the rule that keeps the layer reusable — if the
 component layer knew what a setting was, the next screen could not use it.

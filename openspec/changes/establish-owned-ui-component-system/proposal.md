@@ -44,13 +44,13 @@ layer stays provable. Also excluded: any change to the pinned Pi shell's own com
 
 ### New Capabilities
 
-- `owned-ui-components`: the rendering and composition primitives A1 screens are built from — the
+- `ui-components`: the rendering and composition primitives A1 screens are built from — the
   invalidation and frame contracts, display-width measurement, the scrollbar, the pane contract, the
   grouped list block with sticky headers and block navigation, and the single-line input.
-- `owned-ui-apps`: A1-owned applications and the host that runs them — registration by stable id,
+- `ui-apps`: A1-owned applications and the host that runs them — registration by stable id,
   fullscreen presentation, host services (size, theme, render request, close, return-to-previous),
   input and mouse dispatch, the explicit Ctrl+C policy, and app lifecycle.
-- `owned-ui-shortcuts`: declared keyboard shortcuts as data — per-screen and global bindings,
+- `ui-shortcuts`: declared keyboard shortcuts as data — per-screen and global bindings,
   conflict detection, and one registry that both dispatch and the shortcut listing read.
 
 ### Modified Capabilities
@@ -68,7 +68,7 @@ layer stays provable. Also excluded: any change to the pinned Pi shell's own com
 
 ## Impact
 
-- New: `src/foundation/owned-ui-components/` and `src/foundation/owned-ui-apps/` with their tests;
+- New: `src/foundation/ui-components/` and `src/foundation/ui-apps/` with their tests;
   a shortcut registry alongside them.
 - Modified: `src/foundation/pi-owned-ui-integration/session-shell.ts` gains a route-resolution seam so
   a declared A1 app can supersede a pinned route; `src/composition/` wires the registry and the
