@@ -23,8 +23,9 @@ describe("Pi settings presentation metadata", () => {
     const metadata = extractPiSettingsMetadata();
     // Taken from the declaration, not from a stored value: an unset flag still
     // has a row, which is why an untouched profile still shows something.
-    expect(metadata.dialogs.warnings.length).toBeGreaterThan(0);
-    for (const flag of metadata.dialogs.warnings) {
+    const warnings = metadata.dialogs["warnings"] ?? [];
+    expect(warnings.length).toBeGreaterThan(0);
+    for (const flag of warnings) {
       expect(flag.key).not.toHaveLength(0);
       expect(flag.label).not.toHaveLength(0);
       expect(typeof flag.fallback).toBe("boolean");

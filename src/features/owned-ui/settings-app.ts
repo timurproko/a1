@@ -115,6 +115,9 @@ export class SettingsApp implements UiApp {
   /** Values requested but not yet reflected by the source, keyed by entry. */
   readonly #pending = new Map<string, OwnedUiSettingValue>();
   #footerHeight = 1;
+  /** Screen row the dialog panel starts on, for pointer hits. */
+  #panelTop = 0;
+  #panelTopForFrame = 0;
   /** Row key under the pointer, and where each row was drawn last frame. */
   #hoverKey: string | null = null;
   #hoverRegion: "label" | "value" | "minus" | "plus" = "label";
@@ -139,6 +142,8 @@ export class SettingsApp implements UiApp {
     const rows = this.#rows();
     const footer = this.#footerLines(rect.width, theme);
     this.#footerHeight = footer.length;
+    this.#panelTopForFrame = Math.max(0, rect.height - footer.length);
+    this.#panelTop = this.#panelTopForFrame;
     const bodyHeight = Math.max(0, rect.height - footer.length);
     const selected = indexOfKey(rows, this.#selectedKey);
     this.#scroll = scrollForSelection(rows, bodyHeight, this.#scroll, selected, this.#reveal);
@@ -153,11 +158,6 @@ export class SettingsApp implements UiApp {
       scroll: layout.scroll,
       trackHeight: Math.max(0, bodyHeight - SCROLLBAR_TOP_INSET),
     });
-
-    const structured = this.#structured;
-    if (structured !== null) {
-      return [...this.#structuredBody(structured, bodyHeight, contentWidth, theme), ...footer];
-    }
 
     const body: string[] = [];
     this.#frameRows = [];
@@ -285,21 +285,10 @@ export class SettingsApp implements UiApp {
       return { consumed: true };
     }
 
-    const open = this.#structured;
-    if (open !== null) {
-      const flagRow = this.#frameRows.findIndex(candidate => candidate.screenRow === event.row - 1);
-      if (flagRow < 0) return { consumed: event.kind !== "motion", render: false };
-      if (event.kind === "motion") {
-        if (open.index === flagRow) return { consumed: true, render: false };
-        open.index = flagRow;
-        return { consumed: true, render: true };
-      }
-      if (event.kind === "press") {
-        open.index = flagRow;
-        this.#toggleFlag(flagRow);
-        return { consumed: true };
-      }
-      return { consumed: true, render: false };
+    if (this.#structured !== null) {
+      // The panel owns the pointer while it is open; its own row is the target.
+      if (event.kind === "press" && event.row - 1 === this.#panelTop + 1) this.#toggleFlag(this.#structured.index);
+      return { consumed: true, render: event.kind === "press" };
     }
 
     const row = this.#frameRows.find(candidate => candidate.screenRow === event.row - 1);
@@ -624,53 +613,53 @@ export class SettingsApp implements UiApp {
     return output;
   }
 
-  #structuredBody(
+  /**
+   * The dialog the engine shows for a structured setting: a bottom panel naming
+   * the flag, what it does, and how to change it, over the list it came from.
+   */
+  #dialogLines(
     open: { entry: OwnedUiSettingsEntry; flags: readonly string[]; index: number },
-    bodyHeight: number,
     width: number,
     theme: UiTheme,
   ): readonly string[] {
     const record = (open.entry.rawValue ?? {}) as Record<string, unknown>;
-    const flagLabel = (key: string): string =>
-      open.entry.flags.find(flag => flag.key === key)?.label ?? humanizeLabel(key);
-    const labelWidth = Math.max(...open.flags.map(key => displayWidth(flagLabel(key))), 0);
-    const rows: string[] = ["", this.#header(labelOf(open.entry), theme, width)];
-    this.#frameRows = [];
+    const key = open.flags[open.index] ?? "";
+    const declared = open.entry.flags.find(flag => flag.key === key);
+    const stored = record[key];
+    const on = typeof stored === "boolean" ? stored : declared?.fallback ?? false;
 
-    open.flags.forEach((flag, index) => {
-      const selected = index === open.index;
-      const label = flagLabel(flag);
-      const left = `${selected ? theme.fg("accent", "→ ") : "  "}  ${theme.fg(selected ? "accent" : "text", label)}`;
-      const gap = Math.max(2, 4 + labelWidth + 2 - (4 + displayWidth(label)));
-      const stored = record[flag];
-      const declared = open.entry.flags.find(candidate => candidate.key === flag);
-      const on = typeof stored === "boolean" ? stored : declared?.fallback ?? false;
-      const value = theme.fg(selected ? "text" : "muted", on ? "yes" : "no");
-      this.#frameRows.push({
-        key: `flag:${flag}`,
-        screenRow: rows.length,
-        valueColumn: 4 + labelWidth + 2,
-        valueWidth: 3,
-        stepper: false,
-      });
-      rows.push(truncateToWidth(`${left}${" ".repeat(gap)}${value}`, width));
-    });
+    const label = declared?.label ?? humanizeLabel(key);
+    const value = on ? "yes" : "no";
+    const rowRaw = `→ ${label}  ${value}`;
+    const row = `${theme.fg("accent", "→ ")}${theme.fg("text", label)}  ${theme.fg("muted", value)}`;
+    const description = declared?.description ?? "";
+    const hint = "↑↓ navigate • enter/space change • esc back";
+    const rule = theme.fg("dim", "─".repeat(Math.max(0, width)));
 
-    while (rows.length < bodyHeight) rows.push("");
-    return rows.slice(0, bodyHeight).map(line => `${padVisible(line, width)}  `);
+    this.#panelTop = this.#panelTopForFrame;
+    return [
+      rule,
+      padVisible(truncateToWidth(row, width), width, rowRaw),
+      "",
+      padVisible(truncateToWidth(theme.fg("muted", `  ${description}`), width), width, `  ${description}`),
+      "",
+      padVisible(truncateToWidth(theme.fg("dim", `  ${hint}`), width), width, `  ${hint}`),
+      rule,
+    ];
   }
 
   #footerLines(width: number, theme: UiTheme): readonly string[] {
+    const open = this.#structured;
+    if (open !== null) return this.#dialogLines(open, width, theme);
+
     const hint = this.#interruptArmed
       ? "press ctrl+c again to exit A1"
-      : this.#structured !== null
-        ? "↑↓ navigate • enter/space change • esc back"
-        : this.#notice ?? HINT;
+      : this.#notice ?? HINT;
     const hintLine = rightAligned(theme.fg("dim", hint), hint, width);
     const input = this.#filter;
     if (input === null) return [hintLine];
 
-    const rule = theme.fg("border", "─".repeat(Math.max(0, width)));
+    const rule = theme.fg("dim", "─".repeat(Math.max(0, width)));
     const view = input.view(Math.max(0, width - 2));
     const empty = view.text.length === 0;
     const before = view.text.slice(0, view.caretColumn);
