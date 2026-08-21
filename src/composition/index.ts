@@ -24,6 +24,10 @@ import {
 } from "../foundation/presentation-contracts/index.js";
 import type { OwnedUiCommand, OwnedUiEvent, OwnedUiTranscriptBlock } from "../foundation/owned-ui-contracts/index.js";
 import { OwnedUiSessionShell } from "../foundation/pi-owned-ui-integration/index.js";
+import {
+  StructuredWorkspaceTabs,
+  type StructuredWorkspaceLimits,
+} from "../features/workspace/index.js";
 
 const CAPABILITIES: AgentCapabilityContract = {
   contractVersion: AGENT_ENGINE_CONTRACT_VERSION,
@@ -61,6 +65,31 @@ export async function composeOwnedUiApplication(options: OwnedUiCompositionOptio
     waitUntilStopped: () => shell.waitUntilStopped(),
     dispose: () => shell.dispose(),
   };
+}
+
+export interface StructuredWorkspaceCompositionOptions {
+  readonly cwd?: string;
+  readonly workspaceId?: string;
+  readonly limits?: Partial<StructuredWorkspaceLimits>;
+  readonly createEngine?: (agentId: string) => Promise<AgentEnginePort>;
+  readonly createPiAdapter?: (agentId: string) => Promise<PiEngineAdapter>;
+}
+
+export function composeStructuredWorkspace(options: StructuredWorkspaceCompositionOptions = {}): StructuredWorkspaceTabs {
+  const cwd = options.cwd ?? process.cwd();
+  const createEngine = options.createEngine ?? (async (agentId: string): Promise<AgentEnginePort> => {
+    const sessionId = `${agentId}.session`;
+    const adapter = options.createPiAdapter
+      ? await options.createPiAdapter(agentId)
+      : await createPiEngineAdapter({ cwd, sessionId });
+    return new PiAgentEngineBridge(adapter, cwd);
+  });
+  return new StructuredWorkspaceTabs({
+    cwd,
+    createEngine,
+    ...(options.workspaceId === undefined ? {} : { workspaceId: options.workspaceId }),
+    ...(options.limits === undefined ? {} : { limits: options.limits }),
+  });
 }
 
 export interface ProcessComposition {

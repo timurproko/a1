@@ -39,6 +39,22 @@ export class WorkspaceRouter {
     return this.#enqueue(() => this.reducer.selectAgent(agentId));
   }
 
+  restartAgent(agentId: string): Promise<WorkspaceRouterResult<WorkspaceAgentState>> {
+    return this.#enqueue(() => this.reducer.restartAgent(agentId));
+  }
+
+  markRecovered(agentId: string): Promise<WorkspaceRouterResult<WorkspaceAgentState>> {
+    return this.#enqueue(() => this.reducer.markRecovered(agentId));
+  }
+
+  markFailed(agentId: string, code: string, message: string): Promise<WorkspaceRouterResult<WorkspaceAgentState>> {
+    return this.#enqueue(() => this.reducer.markFailed(agentId, code, message));
+  }
+
+  requestAttention(agentId: string): Promise<WorkspaceRouterResult<WorkspaceAgentState>> {
+    return this.#enqueue(() => this.reducer.requestAttention(agentId));
+  }
+
   stopAgent(agentId: string): Promise<WorkspaceRouterResult<WorkspaceAgentState>> {
     return this.#enqueue(() => this.reducer.stopAgent(agentId));
   }
@@ -97,6 +113,18 @@ export class WorkspaceRouter {
         agentId: agent.id,
         targetCorrelationId,
       });
+      if (result.kind === "rejected") return result;
+      return applied(this.reducer.view(), result.record);
+    });
+  }
+
+  settleStructuredCommand(agentId: string, correlationId: string, outcome: "completed" | "failed"): Promise<WorkspaceRouterResult<StructuredCommandRecord>> {
+    return this.#enqueue(() => {
+      const agent = this.reducer.view().agents.find(candidate => candidate.id === agentId);
+      if (!agent) return reject("unknown-agent", `workspace agent does not exist: ${agentId}`);
+      const tracker = this.#trackerFor(agent);
+      if (!tracker) return reject("capability-mismatch", `agent ${agent.id} is not structured`);
+      const result = tracker.complete(correlationId, outcome);
       if (result.kind === "rejected") return result;
       return applied(this.reducer.view(), result.record);
     });

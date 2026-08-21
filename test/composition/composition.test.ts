@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { composeProcess } from "../../src/composition/index.js";
+import { composeProcess, composeStructuredWorkspace } from "../../src/composition/index.js";
 import { TestAgentEngine, TestPresentationRuntime, TestPresentationTerminal } from "../features/owned-ui/neutral-port-doubles.js";
 
 const component = { render: (width: number) => [`width:${width}`], invalidate() {} };
@@ -22,6 +22,27 @@ describe("process composition root", () => {
     await composition.dispose();
     expect(engine.disposed).toBe(true);
     expect(presentation.state).toBe("stopped");
+  });
+
+  it("creates independent structured workspace engines through neutral composition wiring", async () => {
+    const engines = new Map<string, TestAgentEngine>();
+    const workspace = composeStructuredWorkspace({
+      createEngine: async agentId => {
+        const engine = new TestAgentEngine(`${agentId}.session`);
+        engines.set(agentId, engine);
+        return engine;
+      },
+    });
+
+    await workspace.createAgent({ id: "agent-1", displayName: "Research" });
+    await workspace.createAgent({ id: "agent-2", displayName: "Review" });
+    await workspace.selectAgent("agent-2");
+    await workspace.sendPrompt("agent-2", "review this");
+
+    expect(workspace.view()).toMatchObject({ role: "tablist", workspace: { selectedAgentId: "agent-2" } });
+    expect(engines.get("agent-1")?.session.commands).toEqual([]);
+    expect(engines.get("agent-2")?.session.commands).toMatchObject([{ type: "prompt", text: "review this" }]);
+    await workspace.dispose();
   });
 
   it("rejects malformed engine and presentation implementations at construction boundaries", async () => {
