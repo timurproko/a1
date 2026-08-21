@@ -1404,7 +1404,7 @@ export class OwnedUiSessionShell {
     if (!this.runtime.active) return { outcome: "failed", diagnostic: "runtime is not active" };
 
     this.#dialogHandle?.hide();
-    const rows = () => Math.max(1, this.runtime.viewport().rows - 1);
+    const rows = () => Math.max(1, this.runtime.viewport().rows);
     const component: PiShellComponentPort = {
       render: (width: number) => [...surface.render(Math.max(1, width), rows())],
       handleInput: (data: string) => {
@@ -1420,7 +1420,7 @@ export class OwnedUiSessionShell {
       invalidate: () => this.runtime.requestRender(),
     };
     surface.onRenderRequested(() => this.runtime.requestRender());
-    this.#dialogHandle = this.runtime.showOverlay(component, { width: "100%", maxHeight: "100%", anchor: "center" });
+    this.#dialogHandle = this.runtime.showOverlay(component, { width: "100%", maxHeight: "100%", anchor: "top-left" });
     this.#dialogId = surface.id;
     return { outcome: "completed", diagnostic: null };
   }
