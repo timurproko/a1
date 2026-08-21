@@ -262,6 +262,7 @@ export function createOwnedRouteHost(settings: OwnedUiSettingsSession): UiRouteH
           return frame.length === height ? frame : [...frame.slice(0, height), ...Array(Math.max(0, height - frame.length)).fill("")];
         },
         handleInput: data => host.handleInput(data).consumed,
+        handleMouse: event => host.handleMouse(event).consumed,
         isClosed: () => closed || !host.isPresenting,
         close: () => host.close(),
         onRenderRequested: listener => { onRender = listener; },

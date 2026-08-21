@@ -2,6 +2,7 @@ export * from "./frame.js";
 export * from "./label.js";
 export * from "./line-input.js";
 export * from "./list-block.js";
+export * from "./mouse.js";
 export * from "./pane.js";
 export * from "./revision.js";
 export * from "./scrollbar.js";
