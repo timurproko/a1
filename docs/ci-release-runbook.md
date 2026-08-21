@@ -56,6 +56,8 @@ Stable automated and physical candidate artifacts expire after 30 days. Publicat
 
 ## Enforcement rollout and rollback
 
+The repository is currently operated by one GitHub collaborator. Both rulesets therefore require a pull request, successful required status, resolved review threads, and an up-to-date branch, but set required approving reviews to zero and disable last-push approval. A PR author cannot approve their own change, so requiring one approval with no bypass actor would deadlock the authorized solo-maintainer path. Increase the approval count only after a second eligible reviewer is registered; do not add a direct-push bypass as a substitute.
+
 Ruleset mutation is a separate administrative operation. First run `node scripts/check-github-rulesets.mjs` in report mode and review the proposed diff. Apply only after workflows exist on the default branch, representative advisory runs pass, and a maintainer explicitly confirms the exact ruleset change. Capture the post-apply repository API response as evidence.
 
 If a required check is operationally broken, prefer correcting the workflow. Emergency rollback may disable only the affected required context after restoring the previous blocking validation path and recording maintainer approval. Never weaken force-push/deletion protection to release. Never route around certification by rebuilding inside a publisher.

@@ -23,6 +23,8 @@ describe("CI and release operations runbook", () => {
       "Never upload locally rebuilt bytes",
       "Ruleset mutation is a separate administrative operation",
       "maintainer explicitly confirms",
+      "required approving reviews to zero",
+      "deadlock the authorized solo-maintainer path",
     ]) expect(runbook).toContain(required);
   });
 
