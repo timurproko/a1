@@ -49,6 +49,8 @@ class Session {
 class Runtime {
   readonly session: Session;
   enabledModels: readonly string[] | undefined;
+  loginPromptKind: "select" | "optional-text" = "select";
+  completeLogin: (() => void) | undefined;
   readonly availableModels = [
     { provider: "openai", id: "gpt-5", name: "GPT-5" },
     { provider: "anthropic", id: "claude", name: "Claude" },
@@ -72,15 +74,27 @@ class Runtime {
         notify(event: unknown): void;
       }) => {
         interaction.notify({ type: "progress", message: "Preparing authentication..." });
-        const method = await interaction.prompt({
-          type: "select",
-          message: "Select OpenAI Codex login method:",
-          options: [
-            { id: "browser", label: "Browser login (default)" },
-            { id: "device", label: "Device code login (headless)" },
-          ],
-        });
-        this.calls.push(`login-method:${method}`);
+        if (this.loginPromptKind === "optional-text") {
+          const domain = await interaction.prompt({
+            type: "text",
+            message: "GitHub Enterprise URL/domain (blank for github.com)",
+            placeholder: "company.ghe.com",
+          });
+          this.calls.push(`login-domain:${domain}`);
+          interaction.notify({ type: "device_code", verificationUri: "https://github.test/login/device", userCode: "SAFE-CODE" });
+          await new Promise<void>(resolve => { this.completeLogin = resolve; });
+          this.completeLogin = undefined;
+        } else {
+          const method = await interaction.prompt({
+            type: "select",
+            message: "Select OpenAI Codex login method:",
+            options: [
+              { id: "browser", label: "Browser login (default)" },
+              { id: "device", label: "Device code login (headless)" },
+            ],
+          });
+          this.calls.push(`login-method:${method}`);
+        }
         this.providerAuthStatus.set("openai", { configured: true, source: "stored" });
         this.credentialTypes.set("openai", "oauth");
         return { type: "oauth" };
@@ -426,6 +440,28 @@ describe("OwnedUiSessionShell", () => {
     await new Promise(resolve => setTimeout(resolve, 0));
     expect(execute).toHaveBeenCalledWith({ command: "login", argument: "", selection: "oauth:openai" });
     expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("completed oauth:openai");
+    await shell.dispose();
+  });
+
+  it("preserves a blank optional OAuth prompt before a device-code flow", async () => {
+    const { engine, terminal, shell } = await fixture();
+    engine.loginPromptKind = "optional-text";
+
+    const login = shell.runWorkflow({ command: "login", argument: "", selection: "oauth:openai" });
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("GitHub Enterprise URL/domain (blank for github.com)");
+
+    terminal.input("\r");
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(engine.calls).toContain("login-domain:");
+    const deviceCode = stripTerminalSequences(shell.root.render(100).join("\n"));
+    expect(deviceCode).toContain("https://github.test/login/device");
+    expect(deviceCode).toContain("Enter code: SAFE-CODE");
+    expect(deviceCode).toContain("Waiting for authentication...");
+
+    engine.completeLogin?.();
+    await login;
+    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Logged in to OpenAI Codex");
     await shell.dispose();
   });
 
