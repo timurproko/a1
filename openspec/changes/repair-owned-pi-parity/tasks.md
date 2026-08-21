@@ -12,7 +12,7 @@
 
 ## 3. Prove Equivalent-State Pinned Pi Parity
 
-- [ ] 3.1 Extend independent untouched-Pi versus A1 workflow and terminal parity with equivalent temporary profiles for every declared authentication/model state; compare provider labels, `/login`, `/logout`, `/models`, active model, warnings, and footer state, preserve bounded redacted evidence, and prove deliberate status/model mutations fail.
+- [x] 3.1 Extend independent untouched-Pi versus A1 workflow and terminal parity with equivalent temporary profiles for every declared authentication/model state; compare provider labels, `/login`, `/logout`, `/models`, active model, warnings, and footer state, preserve bounded redacted evidence, and prove deliberate status/model mutations fail.
 - [ ] 3.2 Run real public-model-runtime integration using disposable synthetic credentials or non-secret configured providers, then run focused and containing test tiers, typecheck, architecture/source governance, dependency checks, packaging, release gates, audit, and strict OpenSpec validation; record exact candidate and evidence hashes.
 
 ## 4. Obtain Fresh User Acceptance

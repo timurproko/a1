@@ -1,0 +1,32 @@
+{
+  "schema": "a1-owned-pi-provider-auth-parity-evidence-v1",
+  "generatedAt": "2026-08-21T14:22:15+02:00",
+  "credentialValuesRecorded": false,
+  "focusedParity": {
+    "command": "npx vitest run test/foundation/pi-component-adapter/provider-auth-parity.test.ts",
+    "passed": true,
+    "states": [
+      "empty",
+      "stored OAuth",
+      "stored API key",
+      "environment API key",
+      "other configured method"
+    ],
+    "intentionalConfiguredStatusDropRejected": true
+  },
+  "terminalParity": {
+    "command": "npm run test:pi-terminal-parity",
+    "passed": true,
+    "differenceCount": 0,
+    "providerStatusCheckpointMatched": true,
+    "reportSha256": "56ff043923bd885d426912e34ed35255cdb7cd9f362844bbd59c0a5d3bf43d99",
+    "upstreamRawSha256": "aeb8a0ef9398a84d0e9def2ffe8c47b062428234a3dc507768b96c7d727f8065",
+    "ownedRawSha256": "07ba1ba75abb3a286fed5ab0a082dec727927ab1adca2fd108139d1f2823529c",
+    "pinnedPi": {
+      "version": "0.84.2",
+      "commit": "914cf1472e715297caa30db4b9535d534a9eb718",
+      "cliSha256": "840d1e8e689ed9e4937bcb00b9a810e02a8567d9afb10a47097f11ca93ea1521",
+      "usesOwnedRenderingCode": false
+    }
+  }
+}
