@@ -58,7 +58,7 @@ describe("Windows Job Object process guardian", () => {
       expect(processIsAlive(unrelated.pid ?? 0)).toBe(true);
     } finally {
       guardian.kill();
-      if (unrelated.pid) process.kill(unrelated.pid, "SIGKILL");
+      safeKill(unrelated.pid, "SIGKILL");
     }
   }, 10_000);
 });
@@ -110,5 +110,14 @@ function processIsAlive(pid: number): boolean {
     return true;
   } catch {
     return false;
+  }
+}
+
+function safeKill(pid: number | undefined, signal: NodeJS.Signals): void {
+  if (!pid) return;
+  try {
+    process.kill(pid, signal);
+  } catch (error) {
+    if (!error || typeof error !== "object" || !("code" in error) || error.code !== "ESRCH") throw error;
   }
 }
