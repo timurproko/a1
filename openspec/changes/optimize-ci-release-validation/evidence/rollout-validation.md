@@ -1,6 +1,6 @@
 # Rollout validation evidence
 
-Status: **partial; enforcement intentionally not applied**
+Status: **validation complete; enforcement intentionally not applied pending explicit ruleset authorization**
 
 ## Completed evidence
 
@@ -23,6 +23,14 @@ Status: **partial; enforcement intentionally not applied**
   - complete non-physical Full regression run [32464376454](https://github.com/timurproko/a1/actions/runs/32464376454), 179.637s owned validation;
   - preview candidate run [32464378769](https://github.com/timurproko/a1/actions/runs/32464378769), which built `0.1.1-dev.4` once, passed full validation in 207.354s, and uploaded exact immutable evidence marked `uncertified-development-preview`, physical/cross-platform `deferred`, and `stableEligible=false`;
   - no preview publisher was invoked.
+- Final three-platform stable dry run: [Build stable candidate 32469289917](https://github.com/timurproko/a1/actions/runs/32469289917), temporary non-merge fixture commit `f8bdec9d2310315b5da443c9dfd32f5cddac5f0b`, successful.
+  - packed `@timurproko/a1@0.1.1` once and fanned identical integrity `sha512-XKfJdtUDXTyB4Ht64YbKZeN/ewiapQFflVkspqqi+pVagpXqv6RJQdyTi5C5LZ3MugMT+Fz88wgmMo2AJDGhzQ==` and shasum `5e5af1c1ea2dfdbb492c5e454b25881aee11076e` to all platforms;
+  - Windows passed full automated validation and clean installation in 193.956s owned time (53.106s broad suite, 125.909s clean install), 4m09s platform-job wall time;
+  - Linux passed in 52.381s owned time (33.994s broad suite, 6.012s clean install), 1m18s platform-job wall time;
+  - macOS passed in 48.435s owned time (32.520s broad suite, 4.905s clean install), 1m11s platform-job wall time;
+  - the complete aggregator accepted exactly `win32`, `linux`, and `darwin`, while retaining `stableEligible=false` and `physical=required` because this was a non-develop dry run;
+  - preliminary fail-closed dry runs exposed and led to corrections for same-step digest environment handling, Unix socket length, Windows path simulation, portable ANSI/CWD fixture normalization, Unix npm global layout, macOS realpath entry identity, and one-element evidence extraction;
+  - npm still returned 404 for `@timurproko/a1@0.1.1`; no stable tag, physical certification, publisher, or npm upload was invoked. The temporary fixture branch is not eligible for `.github/workflows/certify-stable.yml`, which requires the automated run head branch to be `develop`.
 - Final local complete non-physical release validation passed on Windows:
   - broad suite: 139 files / 752 tests;
   - package smoke: 2 tests, 1.54s Vitest duration;
@@ -37,14 +45,10 @@ Status: **partial; enforcement intentionally not applied**
 
 The feature-only owned validation completed in 44.453s and its validation job in 1m40s, within the under-two-minute target. The cross-cutting implementation selected complete package validation; its 162.103s owned validation is recorded as a full fallback baseline, not a feature-only budget failure. Clean npm installation remains the dominant hosted-runner cost and is excluded from ordinary non-package-sensitive development plans.
 
-The publication-under-one-minute target cannot be measured safely until the immutable-artifact publisher exists on the default branch and an approved candidate is available. Publication workflows are thin by construction; no timing is inferred from source validation.
+The publication-under-one-minute target was not measured because no publisher was invoked during certification. Publication workflows are thin by construction; no timing is inferred from source validation.
 
 ## Required post-merge evidence
 
-The following remain unchecked in `tasks.md`:
-
-1. Prepare a non-release test fixture or actual final SemVer commit and run the Windows/Linux/macOS stable candidate matrix. Run independent isolated physical evidence only on configured `a1-physical-*` workers.
-2. Obtain explicit maintainer authorization specifically for ruleset mutation, apply the reviewed rulesets, and capture post-apply API evidence (task 6.3).
-3. Record the stable matrix timing and mark task 6.4 only after the remaining evidence succeeds.
+Only task 6.3 remains unchecked: obtain explicit maintainer authorization specifically for ruleset mutation, apply the reviewed rulesets, and capture post-apply API evidence. The final API dry run still reports two creates and `mutationPerformed=false`.
 
 No ruleset mutation was performed during this evidence collection. No certification command in this validation invoked either npm publisher.
