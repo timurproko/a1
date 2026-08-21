@@ -41,6 +41,7 @@ import {
 import {
   PINNED_PI_SETTINGS_CALLBACKS,
   PINNED_PI_WORKFLOW_COMMAND_NAMES,
+  type PiAuthenticationProviderOption,
   type PiBashWorkflowResult,
   type PiPinnedSettingsCallback,
   type PiPinnedSettingsSnapshot,
@@ -689,7 +690,7 @@ export class PiEngineAdapter {
     return { ...context, status: "Model catalogs refreshed.", statusKind: "success" };
   }
 
-  pinnedLoginOptions(authType?: "oauth" | "api_key"): readonly PiWorkflowOption[] {
+  pinnedLoginOptions(authType?: "oauth" | "api_key"): readonly PiAuthenticationProviderOption[] {
     return this.#loginOptions(authType);
   }
 
@@ -708,13 +709,14 @@ export class PiEngineAdapter {
     const oauth = dynamicObject(dynamicObject(provider, "auth"), "oauth");
     const loginLabel = stringProperty(oauth, "loginLabel") ?? "Sign in with an account";
     const options = this.#loginOptions().filter(option => option.id.endsWith(`:${providerId}`)).map(option => ({
-      ...option,
+      id: option.id,
       label: option.id.startsWith("api_key:") ? "Sign in with an API key" : loginLabel,
+      ...(option.description === undefined ? {} : { description: option.description }),
     }));
     return { title: `Select authentication method for ${providerName}:`, options };
   }
 
-  pinnedLogoutOptions(): Promise<readonly PiWorkflowOption[]> {
+  pinnedLogoutOptions(): Promise<readonly PiAuthenticationProviderOption[]> {
     return this.#logoutOptions();
   }
 
@@ -1241,23 +1243,47 @@ export class PiEngineAdapter {
     });
   }
 
-  #loginOptions(authType?: "oauth" | "api_key"): readonly PiWorkflowOption[] {
+  #loginOptions(authType?: "oauth" | "api_key"): readonly PiAuthenticationProviderOption[] {
     const runtime = this.#runtime;
-    const providers = runtime?.services.modelRuntime.getProviders?.();
+    const modelRuntime = runtime?.services.modelRuntime;
+    if (!modelRuntime) return [];
+    const providers = modelRuntime.getProviders?.();
     if (!Array.isArray(providers)) return [];
     return providers.filter(isRecord).flatMap(provider => {
       const id = stringProperty(provider, "id");
       if (!id) return [];
       const name = stringProperty(provider, "name") ?? id;
       const auth = isRecord(provider.auth) ? provider.auth : {};
+      const authStatus = modelRuntime.getProviderAuthStatus?.(id);
+      const source = authStatus?.label ?? authStatus?.source;
+      const status = authStatus?.configured === true
+        ? {
+            type: modelRuntime.isUsingOAuth?.(id) === true ? "oauth" as const : "api_key" as const,
+            ...(source === undefined ? {} : { source }),
+          }
+        : undefined;
       return [
-        ...(authType !== "api_key" && auth.oauth ? [{ id: `oauth:${id}`, label: name, description: "Account / OAuth" }] : []),
-        ...(authType !== "oauth" && auth.apiKey ? [{ id: `api_key:${id}`, label: name, description: "API key" }] : []),
+        ...(authType !== "api_key" && auth.oauth ? [{
+          id: `oauth:${id}`,
+          providerId: id,
+          label: name,
+          description: "Account / OAuth",
+          authType: "oauth" as const,
+          ...(status === undefined ? {} : { status }),
+        }] : []),
+        ...(authType !== "oauth" && auth.apiKey ? [{
+          id: `api_key:${id}`,
+          providerId: id,
+          label: name,
+          description: "API key",
+          authType: "api_key" as const,
+          ...(status === undefined ? {} : { status }),
+        }] : []),
       ];
-    });
+    }).sort((left, right) => left.label.localeCompare(right.label));
   }
 
-  async #logoutOptions(): Promise<readonly PiWorkflowOption[]> {
+  async #logoutOptions(): Promise<readonly PiAuthenticationProviderOption[]> {
     const runtime = this.#runtime;
     if (!runtime) return [];
     const modelRuntime = runtime.services.modelRuntime;
@@ -1270,8 +1296,11 @@ export class PiEngineAdapter {
       const provider = modelRuntime.getProvider?.(providerId);
       return [{
         id: `${credentialType}:${providerId}`,
+        providerId,
         label: stringProperty(provider, "name") ?? providerId,
         description: credentialType,
+        authType: credentialType,
+        status: { type: credentialType, source: "stored credential" },
       }];
     });
   }

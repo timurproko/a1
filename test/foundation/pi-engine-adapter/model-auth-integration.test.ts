@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { ModelRuntime } from "@earendil-works/pi-coding-agent";
@@ -43,6 +43,53 @@ describe("Pi model and authentication integration", () => {
       expect(selected).toEqual([`${models[0].providerId}/${models[0].modelId}`]);
     }
     await expect(integration.selectModel("missing", "missing")).rejects.toThrow(/unavailable/);
+  });
+
+  it("keeps real runtime availability aligned with empty, stored, runtime, logout, and restart auth states", async () => {
+    const root = await mkdtemp(resolve(tmpdir(), "a1-model-auth-state-"));
+    roots.push(root);
+    const authPath = resolve(root, "auth.json");
+
+    const empty = await ModelRuntime.create({ authPath, modelsPath: null, refreshOnCreate: true, allowModelNetwork: false });
+    expect(empty.getAvailableSnapshot()).toEqual([]);
+    expect(empty.getProviderAuthStatus("anthropic")).toEqual({ configured: false });
+
+    await writeFile(authPath, JSON.stringify({ anthropic: { type: "api_key", key: "synthetic-test-key" } }), "utf8");
+    const stored = await ModelRuntime.create({ authPath, modelsPath: null, refreshOnCreate: true, allowModelNetwork: false });
+    expect(stored.getProviderAuthStatus("anthropic")).toEqual({ configured: true, source: "stored" });
+    expect(stored.getAvailableSnapshot().filter(model => model.provider === "anthropic").length).toBeGreaterThan(0);
+    await stored.logout("anthropic");
+    expect(stored.getProviderAuthStatus("anthropic")).toEqual({ configured: false });
+    expect(stored.getAvailableSnapshot().filter(model => model.provider === "anthropic")).toEqual([]);
+
+    const restarted = await ModelRuntime.create({ authPath, modelsPath: null, refreshOnCreate: true, allowModelNetwork: false });
+    expect(restarted.getProviderAuthStatus("anthropic")).toEqual({ configured: false });
+    expect(restarted.getAvailableSnapshot().filter(model => model.provider === "anthropic")).toEqual([]);
+
+    await restarted.setRuntimeApiKey("anthropic", "synthetic-runtime-key");
+    expect(restarted.getProviderAuthStatus("anthropic")).toEqual({ configured: true, source: "runtime" });
+    expect(restarted.getAvailableSnapshot().filter(model => model.provider === "anthropic").length).toBeGreaterThan(0);
+    await restarted.removeRuntimeApiKey("anthropic");
+    expect(restarted.getProviderAuthStatus("anthropic")).toEqual({ configured: false });
+
+    await writeFile(authPath, JSON.stringify({
+      "openai-codex": {
+        type: "oauth",
+        access: "synthetic-access",
+        refresh: "synthetic-refresh",
+        expires: Date.now() + 3_600_000,
+        accountId: "synthetic-account",
+      },
+    }), "utf8");
+    const oauth = await ModelRuntime.create({ authPath, modelsPath: null, refreshOnCreate: true, allowModelNetwork: false });
+    expect(oauth.getProviderAuthStatus("openai-codex")).toEqual({ configured: true, source: "stored" });
+    expect(oauth.isUsingOAuth("openai-codex")).toBe(true);
+    expect(oauth.getAvailableSnapshot().filter(model => model.provider === "openai-codex").length).toBeGreaterThan(0);
+    const beforeAbortedRefresh = oauth.getAvailableSnapshot().filter(model => model.provider === "openai-codex").map(model => model.id);
+    const controller = new AbortController();
+    controller.abort(new Error("synthetic refresh timeout"));
+    await expect(oauth.refresh({ signal: controller.signal })).resolves.toMatchObject({ aborted: true });
+    expect(oauth.getAvailableSnapshot().filter(model => model.provider === "openai-codex").map(model => model.id)).toEqual(beforeAbortedRefresh);
   });
 
   it("routes controlled provider login and propagates caller cancellation", async () => {
