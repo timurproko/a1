@@ -4,7 +4,14 @@ import { resolve } from "node:path";
 
 export async function loadImpactManifest(repository = process.cwd()) {
   const manifest = JSON.parse(await readFile(resolve(repository, "config", "validation-impact.json"), "utf8"));
-  if (manifest.schema !== "a1-validation-impact-v1" || !Array.isArray(manifest.mandatory) || !Array.isArray(manifest.rules)) {
+  if (manifest.schema !== "a1-validation-impact-v1"
+    || !Array.isArray(manifest.mandatory)
+    || !Array.isArray(manifest.rules)
+    || !manifest.planningOnly
+    || !Array.isArray(manifest.planningOnly.patterns)
+    || manifest.planningOnly.patterns.length === 0
+    || !Array.isArray(manifest.planningOnly.selected)
+    || manifest.planningOnly.selected.length === 0) {
     throw new Error("invalid validation impact manifest");
   }
   return manifest;
@@ -13,7 +20,10 @@ export async function loadImpactManifest(repository = process.cwd()) {
 export async function selectImpactFromChanges(changes, options = {}) {
   const manifest = options.manifest ?? await loadImpactManifest(options.repository);
   validateChanges(changes);
-  const selected = new Set(manifest.mandatory);
+  const planningOnly = changes.length > 0 && changes.every(change =>
+    matchesPlanningPath(manifest, change.path)
+    && (!change.previousPath || matchesPlanningPath(manifest, change.previousPath)));
+  const selected = new Set(planningOnly ? manifest.planningOnly.selected : manifest.mandatory);
   const owners = new Set();
   const changedTests = new Set();
   const reasons = [];
@@ -26,19 +36,21 @@ export async function selectImpactFromChanges(changes, options = {}) {
     const pathRules = matchingRules(manifest, change.path);
     const previousRules = change.previousPath ? matchingRules(manifest, change.previousPath) : [];
     if (pathRules.length === 0) fallbacks.push(`unmapped:${change.path}`);
-    if (change.status === "D") fallbacks.push(`deleted:${change.path}`);
-    if (change.status === "R" && !sameRuleSet(pathRules, previousRules)) fallbacks.push(`unsafe-rename:${change.previousPath}->${change.path}`);
+    if (!planningOnly && change.status === "D") fallbacks.push(`deleted:${change.path}`);
+    if (!planningOnly && change.status === "R" && !sameRuleSet(pathRules, previousRules)) fallbacks.push(`unsafe-rename:${change.previousPath}->${change.path}`);
 
     const scopes = new Set();
     for (const rule of pathRules) {
       owners.add(rule.owner);
-      for (const scope of rule.scopes) {
-        selected.add(scope);
-        scopes.add(scope);
+      if (!planningOnly) {
+        for (const scope of rule.scopes) {
+          selected.add(scope);
+          scopes.add(scope);
+        }
+        if (rule.full) full = true;
+        if (rule.packageSensitive) packageSensitive = true;
+        if (rule.selectChangedTests && change.path.endsWith(".test.ts")) changedTests.add(change.path);
       }
-      if (rule.full) full = true;
-      if (rule.packageSensitive) packageSensitive = true;
-      if (rule.selectChangedTests && change.path.endsWith(".test.ts")) changedTests.add(change.path);
     }
     reasons.push({
       path: change.path,
@@ -47,6 +59,21 @@ export async function selectImpactFromChanges(changes, options = {}) {
       rules: pathRules.map(rule => rule.id),
       scopes: [...scopes],
     });
+  }
+
+  if (planningOnly) {
+    return {
+      schema: "a1-validation-impact-plan-v1",
+      planningOnly: true,
+      full: false,
+      packageSensitive: false,
+      selected: [...selected],
+      owners: [...owners].sort(),
+      changedTests: [],
+      changes,
+      reasons,
+      fallbacks: [],
+    };
   }
 
   if (packageSensitive) {
@@ -66,6 +93,7 @@ export async function selectImpactFromChanges(changes, options = {}) {
 
   return {
     schema: "a1-validation-impact-plan-v1",
+    planningOnly: false,
     full,
     packageSensitive,
     selected: [...selected],
@@ -127,6 +155,7 @@ export function formatImpactSummary(plan) {
   const lines = [
     "## Validation impact",
     "",
+    `- Planning-only: **${plan.planningOnly ? "yes" : "no"}**`,
     `- Full validation: **${plan.full ? "yes" : "no"}**`,
     `- Package-sensitive: **${plan.packageSensitive ? "yes" : "no"}**`,
     `- Selected: ${plan.selected.map(value => `\`${value}\``).join(", ") || "none"}`,
@@ -153,6 +182,10 @@ function matchingRules(manifest, path) {
   return manifest.rules.filter(rule => rule.patterns.some(pattern => matchesImpactPattern(pattern, path)));
 }
 
+function matchesPlanningPath(manifest, path) {
+  return manifest.planningOnly.patterns.some(pattern => matchesImpactPattern(pattern, path));
+}
+
 function sameRuleSet(left, right) {
   return left.map(rule => rule.id).sort().join("\0") === right.map(rule => rule.id).sort().join("\0");
 }
@@ -167,6 +200,7 @@ function validateChanges(changes) {
 function forcedFullPlan(reason, metadata) {
   return {
     schema: "a1-validation-impact-plan-v1",
+    planningOnly: false,
     full: true,
     packageSensitive: false,
     selected: ["full-release"],

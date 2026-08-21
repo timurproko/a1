@@ -17,11 +17,13 @@ async function createFixture(options: { rules?: unknown[]; duplicateCommands?: b
   await writeFile(resolve(root, "config/validation-impact.json"), JSON.stringify({
     schema: "a1-validation-impact-v1",
     mandatory: ["fast"],
+    planningOnly: { patterns: ["openspec/**"], selected: ["planning"] },
     rules: options.rules ?? [{ id: "cli", owner: "cli", patterns: ["src/cli/**", "test/cli/**"], scopes: [] }],
   }));
   await writeFile(resolve(root, "config/validation-suites.json"), JSON.stringify({
     schema: "a1-validation-suites-v1",
     tiers: {
+      planning: { kind: "commands", commands: [{ id: "planning", executable: "node", arguments: ["--version"] }] },
       fast: { kind: "commands", commands: [{ id: "fast", executable: "node", arguments: ["--version"] }] },
     },
     scopes: options.duplicateCommands ? {
