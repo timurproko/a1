@@ -143,6 +143,7 @@ jobs:
         run: |
           node --input-type=module <<'NODE'
           let lastError;
+          let verified = false;
           for (let attempt = 1; attempt <= 12; attempt += 1) {
             try {
               const response = await fetch(`https://registry.npmjs.org/${encodeURIComponent(process.env.package_name)}?verify=${Date.now()}`, { headers: { accept: "application/json", "cache-control": "no-cache" } });
@@ -152,13 +153,14 @@ jobs:
               if (!manifest) throw new Error(`${process.env.version} has not propagated`);
               if (manifest.dist?.integrity !== process.env.accepted_integrity || manifest.dist?.shasum !== process.env.accepted_shasum) throw new Error("registry bytes differ from candidate");
               if (metadata["dist-tags"]?.next !== process.env.version) throw new Error("next tag differs from candidate");
-              process.exit(0);
+              verified = true;
+              break;
             } catch (error) {
               lastError = error;
               if (attempt < 12) await new Promise(resolve => setTimeout(resolve, 5000));
             }
           }
-          throw lastError;
+          if (!verified) throw lastError;
           NODE
 
       - name: Upload publication evidence
