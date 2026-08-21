@@ -24,6 +24,7 @@
     "check:architecture": "node scripts/check-architecture.mjs && node scripts/product-identifier-policy.mjs --check && node scripts/check-product-identity-boundaries.mjs && node scripts/check-package-identity.mjs && node scripts/check-pinned-pi-source-ledger.mjs && node scripts/check-terminal-host-provenance.mjs",
     "check:customization-ready": "node scripts/check-owned-ui-customization-prerequisites.mjs",
     "check:deprecated": "node scripts/check-deprecated-dependencies.mjs",
+    "branches:prune": "node scripts/prune-merged-branches.mjs",
     "check": "npm run typecheck && npm run check:architecture && npm run check:customization-ready && npm run check:deprecated && npm test && npm run test:release",
     "validate:agent": "npm run check",
     "publish:next": "tsx scripts/publish-next.ts",
