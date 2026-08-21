@@ -1,6 +1,6 @@
 ## Context
 
-See `proposal.md` for motivation. The accepted baseline routes one foreground Pi process directly to the physical terminal and intentionally owns no screen model. Bare `a1` is reserved for the product workspace; `a1 pi` and `a1 sandbox` are stable explicit transparent modes.
+See `proposal.md` for motivation. Bare `a1` currently launches one A1-owned Pi experience, while `a1 pi` and `a1 sandbox` remain stable explicit transparent modes. The previously recorded 1:1 acceptance is reopened because user-controlled comparison found contradictory authentication and model state: persisted A1 provider credentials make models available while the A1 `/login` surface labels those providers unconfigured.
 
 The product requirement is a multi-agent workspace inside terminals the user already owns, such as Windows Terminal, macOS terminals, WezTerm, and similar emulators. A separate native desktop application is not required and is postponed. The first presentation proof must therefore run as a console/fullscreen terminal program inside an existing terminal, not as a Win32/OpenGL window.
 
@@ -18,7 +18,7 @@ Ghostty's application runtimes are not the right first stack for that requiremen
 - Validate four-pane latency, flicker, resize, input, resource use, and cleanup before product integration.
 - Preserve transparent direct attachment unchanged for explicit Pi modes and fallback comparison.
 - Dispose of the fixed multipane proof presentation after its verdict and restore a one-session fullscreen checkpoint before any product composition work.
-- Require a separately accepted A1-owned Pi UI foundation, using Pi as a public-SDK engine, before structured multi-agent tabs; separately require the isolated composed proof before arbitrary terminal panes, split layouts, or multiplexer presentation.
+- Require renewed equivalent-state 1:1 acceptance and then an accepted custom single-agent Pi experience before structured multi-agent tabs; separately require the isolated composed proof before arbitrary terminal panes, split layouts, or multiplexer presentation.
 - Produce exact-artifact evidence tied to source revisions, platform, measurements, diagnostics, and physical/manual verdicts.
 
 **Non-Goals:**
@@ -180,7 +180,7 @@ Rollback disables workspace cutover or composed capability as applicable, restor
 
 The 2×2 split tree, fixed geometry, and dashed pane chrome exist only to expose four simultaneous terminal sessions to the exact-artifact proof gates. They are not an initial product layout and SHALL NOT become the basis of structured agent tabs, product splits, or customization.
 
-After task 5.3 establishes native hot-path isolation, remaining automated stress and physical acceptance may be postponed while the owned fullscreen UI and structured-agent tabs are implemented. During that interval the proof path remains development-only, composed capability remains disabled in normal A1 use, and no arbitrary CLI pane, split, composed merge, or composed release claim is permitted. An independently accepted owned-UI and structured-tab slice may still merge through `develop` and publish under npm `next` because it does not package, launch, or connect to the terminal host.
+After task 5.3 establishes native hot-path isolation, remaining automated stress and physical acceptance may be postponed while single-agent parity is repaired, the first custom Pi experience is accepted, and only then structured-agent tabs are implemented. During that interval the proof path remains development-only, composed capability remains disabled in normal A1 use, and no arbitrary CLI pane, split, composed integration, or composed release claim is permitted. Each independently accepted single-agent or structured-tab slice may still integrate through `develop` and publish under npm `next` because it does not package, launch, or connect to the terminal host.
 
 After task 5.10 records the resumed isolated-worker verdict, the proof presentation is removed from the shipping path and the terminal host returns to one fullscreen session. Accepted evidence remains immutable and refers to the exact historical artifact. Production multiplexer integration then continues separately only if the proof passes.
 
@@ -201,15 +201,15 @@ Vanilla-first delivery does not require redrawing every Pi component. A1 may wra
 
 Exact current upstream Pi remains `a1 pi`. The A1 UI may provide a vanilla-style preset, but that preset is an A1-owned composition and does not claim byte-for-byte identity with upstream Pi.
 
-### 17. Fullscreen vanilla-first acceptance precedes customization and composition
+### 17. Renewed single-agent parity and customization precede multi-agent composition
 
-The separate owned-UI change first proves one high-quality fullscreen Pi session: transcript and streaming, tool presentation, editor and queued input, abort/retry/compaction, model and thinking controls, session creation/resume, settings, clipboard, resize, diagnostics, and clean shutdown. A vanilla-style preset is the baseline acceptance oracle, and Pi's stock explicit mode remains the comparison path.
+`repair-owned-pi-parity` reopens the single-agent baseline whenever user-controlled comparison contradicts prior acceptance. Equivalent-state comparison means untouched Pi and A1 receive separate profile roots with the same declared authentication, settings, resources, session state, and terminal conditions. Profile isolation remains intentional, but it cannot excuse a disagreement between credential state, `/login`, `/logout`, available models, selected model, footer state, or restart behavior within either profile.
 
-Customization is exposed through stable A1 component, theme, command, and layout slots rather than host mutation. Non-visual Pi extensions and resources may be adapted where the public SDK supports them. Visual extension compatibility requires an explicit A1 bridge and SHALL NOT receive implicit access to Pi's absent stock UI context.
+The first recorded finding covers four authoritative states: no credentials yields no selectable models and an unconfigured login surface; stored credentials mark only those providers configured and expose only their available models; logout removes unavailable models and stale selections immediately; restart restores one internally consistent state. Cached catalogs, settings, prior session records, or refresh failures cannot make an unauthenticated provider appear configured or selectable.
 
-The owned UI must first pass fullscreen base-UX and Pi-upgrade conformance with one session. It may then expose multiple structured SDK-backed agents as A1-owned tabs. Those tabs switch semantic agent views; they do not create PTYs, invoke the terminal host, display arbitrary CLI surfaces, or satisfy the composed-terminal proof.
+Only after every known 1:1 finding has independent pinned-Pi versus A1 evidence and fresh user acceptance may `customize-owned-pi-experience` introduce the first A1-specific single-agent experience. Customization uses stable A1 component, theme, command, and layout slots rather than host mutation. Non-visual Pi extensions and resources may be adapted where the public SDK supports them. Visual extension compatibility requires an explicit A1 bridge and SHALL NOT receive implicit access to Pi's absent stock UI context.
 
-Arbitrary terminal panes, split layouts, and multiplexer integration remain blocked until the postponed isolated-worker 2×2 gate passes. The owned UI is designed as composable views from the start so structured tabs can later coexist with separately certified composed panes without sharing terminal authority.
+Structured SDK-backed tabs remain unavailable until both changes are accepted. They then switch semantic agent views without creating PTYs, invoking the terminal host, displaying arbitrary CLI surfaces, or satisfying the composed-terminal proof. Arbitrary terminal panes, split layouts, and multiplexer integration additionally remain blocked until the postponed isolated-worker 2×2 gate passes.
 
 ## Risks / Trade-offs
 
@@ -225,6 +225,7 @@ Arbitrary terminal panes, split layouts, and multiplexer integration remain bloc
 - **[Physical quality cannot be established hermetically]** → Require exact-artifact manual or isolated-worker acceptance and prohibit active-workstation automation.
 - **[The proof may fail]** → Treat failure as useful evidence, stop composed integration, preserve transparent and structured paths, and avoid both custom rendering/input remediation and desktop-app investment.
 - **[Owning the UI increases initial implementation scope]** → Start from public Pi components and narrow provenance-recorded ports, establish vanilla-first parity, and replace components incrementally behind stable slots.
+- **[Persisted credentials, catalog caches, settings, and visible login status can diverge]** → Use one authoritative provider-state snapshot per profile and gate startup, login/logout, model selection, footer state, refresh, and restart against equivalent-state untouched-Pi evidence.
 - **[Public Pi SDK or component APIs may change]** → Pin release inputs, confine Pi types to adapters, run engine and component conformance suites against upgrade candidates, and keep `a1 pi` as the exact upstream recovery path.
 - **[A port can become an accidental permanent fork]** → Port only tightly coupled components, preserve attribution and provenance, accept deliberate local ownership, and synchronize upstream UI changes only when they provide chosen product value.
 - **[Extension compatibility could recreate host coupling]** → Support only explicitly mapped public runtime/resource behavior and require an A1-owned bridge for visual extension surfaces.
@@ -232,19 +233,15 @@ Arbitrary terminal panes, split layouts, and multiplexer integration remain bloc
 
 ## Migration Plan
 
-1. Create `milestone/multi-agent-workspace` from clean `develop` and record baseline package/profile/transparent evidence.
-2. Add dormant workspace, structured capability, terminal-host protocol, topology, storage, and architecture contracts without changing launch behavior.
-3. Build and gate the structured adapter runtime with a synthetic adapter independently of composed work.
-4. Record provenance for the narrow terminal-core stack and build a minimal one-pane in-terminal host without a desktop window.
-5. Expand to side-by-side panes and then the fixed 2×2 proof inside an existing terminal; establish native hot-path isolation and preserve that development artifact without promoting its presentation.
-6. Complete a separate OpenSpec change for the A1-owned Pi UI foundation over the documented public SDK. Reach accepted fullscreen vanilla-first base UX and upgrade conformance with one Pi session.
-7. Integrate the existing structured workspace into A1-owned tabs for multiple SDK-backed Pi agents. Prove switching, background activity, lifecycle, failure isolation, recovery, and resource bounds without initializing the terminal host.
-8. Cut bare `a1` over to the accepted structured workspace, then merge the independently accepted owned-UI/structured-tab slice through `develop` and publish a clean development checkpoint under npm `next` with composed multipane behavior disabled and no composed support claim.
-9. Resume the fixed 2×2 proof on an isolated Windows worker. Record every technical measurement and obtain an accepted user-controlled manual or isolated-worker physical verdict against exact bytes. Do not merge composed work or begin production multiplexer integration if this gate fails.
-10. Remove the fixed 2×2 geometry and dashed proof chrome, restore the one-session fullscreen terminal-host path, preserve exact-artifact evidence, and rerun fullscreen and explicit-mode regressions.
-11. Finalize component ingestion, protocol, packaging, and platform support for the console host, then implement arbitrary terminal layouts, generic CLI fixtures, bounded reconnection, and exact-package certification through the accepted owned-UI composition boundary.
-12. Enable composed surfaces inside the already shipped bare workspace only after composed recovery and capability-disable rollback gates pass.
-13. Publish composed previews and stable support only under existing per-platform exact-package policy.
-14. Reconsider a separate desktop-native application only as a later optional follow-up after the terminal-hosted product is accepted.
+1. Preserve the completed workspace contracts, structured runtime, synthetic multi-agent domain, terminal-host protocol, native hot-path isolation, and fixed 2×2 development proof as dormant foundations; future edits occur only in detached task worktrees.
+2. Complete `repair-owned-pi-parity`: reproduce every user finding with equivalent profile state, fix authentication/model-state consistency and any additional divergences without customization, and obtain fresh independent and user-controlled acceptance.
+3. Complete `customize-owned-pi-experience`: define and accept the first A1-specific single-agent Pi experience through owned slots while preserving the accepted workflows and explicit upstream oracle.
+4. Integrate the existing structured workspace into A1-owned tabs for multiple SDK-backed Pi agents. Prove switching, background activity, lifecycle, failure isolation, recovery, and resource bounds without initializing the terminal host.
+5. Cut bare `a1` over to the accepted structured workspace, integrate validated detached-worktree commits into `develop`, and publish a clean development checkpoint under npm `next` with composed multipane behavior disabled and no composed support claim.
+6. Resume the fixed 2×2 proof on an isolated Windows worker. Record every technical measurement and obtain an accepted user-controlled manual or isolated-worker physical verdict against exact bytes. Do not integrate composed work or begin production multiplexer integration if this gate fails.
+7. Remove the fixed 2×2 geometry and dashed proof chrome, restore the one-session fullscreen terminal-host path, preserve exact-artifact evidence, and rerun fullscreen and explicit-mode regressions.
+8. Finalize component ingestion, protocol, packaging, and platform support for the console host, then implement arbitrary terminal layouts, generic CLI fixtures, bounded reconnection, and exact-package certification through the accepted owned-UI composition boundary.
+9. Enable composed surfaces inside the already shipped bare workspace only after composed recovery and capability-disable rollback gates pass, and publish support only under existing per-platform exact-package policy.
+10. Reconsider a separate desktop-native application only as a later optional follow-up after the terminal-hosted product is accepted.
 
 Rollback disables composed capability and workspace cutover independently, restores the accepted transparent bare launch if needed, preserves explicit modes, and leaves versioned records available for a later compatible retry.

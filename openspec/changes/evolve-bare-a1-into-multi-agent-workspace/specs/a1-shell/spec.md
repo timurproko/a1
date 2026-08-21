@@ -1,14 +1,18 @@
 ## MODIFIED Requirements
 
 ### Requirement: Bare A1 launches the multi-agent workspace
-Bare `a1` SHALL launch the A1-owned multi-agent workspace through an accepted A1-owned UI foundation. The workspace SHALL own its application output and SHALL expose managed agents according to their negotiated structured or composed-terminal capabilities. Pi SHALL be integrated through documented public SDK adapters rather than by modifying its stock interactive UI. `a1 pi` SHALL remain exact vanilla Pi using ordinary `~/.pi/agent`, and `a1 sandbox` SHALL remain the isolated `~/.a1/sandbox` profile using transparent direct attachment.
+After renewed 1:1 parity acceptance and acceptance of the first custom single-agent Pi experience, bare `a1` SHALL launch the A1-owned multi-agent workspace through that accepted A1-owned UI foundation. Until both prerequisites pass, bare `a1` SHALL remain a single-agent owned Pi experience and SHALL NOT expose structured tabs. The eventual workspace SHALL own its application output and SHALL expose managed agents according to their negotiated structured or composed-terminal capabilities. Pi SHALL be integrated through documented public SDK adapters rather than by modifying its stock interactive UI. `a1 pi` SHALL remain exact vanilla Pi using ordinary `~/.pi/agent`, and `a1 sandbox` SHALL remain the isolated `~/.a1/sandbox` profile using transparent direct attachment.
 
 #### Scenario: Launch bare A1
 - **WHEN** the user runs `a1` in a supported terminal
 - **THEN** A1 SHALL start or reconnect the multi-agent workspace without silently launching the vanilla or sandbox profile
 
+#### Scenario: Launch while parity remediation is active
+- **WHEN** user-controlled comparison has found an unresolved divergence between bare `a1` and equivalent-state `a1 pi`
+- **THEN** bare A1 SHALL remain the single-agent owned Pi experience, structured tabs SHALL remain unavailable, and the prior parity acceptance SHALL NOT authorize multi-agent work
+
 #### Scenario: Launch the structured-only development preview
-- **WHEN** the user runs bare A1 after fullscreen UI and structured tabs are accepted but composed proof remains pending
+- **WHEN** renewed parity, the custom single-agent experience, and structured tabs are accepted but composed proof remains pending
 - **THEN** A1 SHALL provide the structured SDK-backed workspace without launching or connecting to the terminal host and SHALL keep arbitrary terminal panes and splits unavailable
 
 #### Scenario: Launch vanilla Pi
