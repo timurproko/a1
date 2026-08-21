@@ -7,8 +7,8 @@
 
 - [x] 2.1 Add an A1-owned typed authentication-provider option carrying provider identity, auth method, and bounded configured source/status from the public model runtime; replace the lossy generic workflow mapping and pass focused adapter contract, malformed-shape, upgrade-conformance, architecture, and typecheck gates.
 - [x] 2.2 Preserve that typed status through the public authentication-selector component boundary so empty providers render unconfigured and stored or otherwise configured providers render the pinned type/source state; pass focused component frames, search/filter, duplicate-method, narrow/wide, login, logout, and cancellation tests.
-- [ ] 2.3 Reconcile successful login and logout with available models, selected-model fallback, no-model warnings, scoped models, footer state, and subsequent selectors without restart; keep ambient configuration after stored logout and pass focused state-transition, race, refresh-failure, and shell integration tests.
-- [ ] 2.4 Make startup, restart, expiry/refresh, and stale settings reconstruct only models from currently configured providers; prove the A1 and vanilla profile roots stay isolated and pass focused runtime, restart, profile-isolation, and N-1-compatible state tests.
+- [x] 2.3 Reconcile successful login and logout with available models, selected-model fallback, no-model warnings, scoped models, footer state, and subsequent selectors without restart; keep ambient configuration after stored logout and pass focused state-transition, race, refresh-failure, and shell integration tests.
+- [x] 2.4 Make startup, restart, expiry/refresh, and stale settings reconstruct only models from currently configured providers; prove the A1 and vanilla profile roots stay isolated and pass focused runtime, restart, profile-isolation, and N-1-compatible state tests.
 
 ## 3. Prove Equivalent-State Pinned Pi Parity
 

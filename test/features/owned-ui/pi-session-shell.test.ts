@@ -379,7 +379,7 @@ describe("OwnedUiSessionShell", () => {
   });
 
   it("renders configured and unconfigured provider state from the model authority", async () => {
-    const { engine, terminal, shell } = await fixture();
+    const { terminal, shell } = await fixture();
     await shell.submit("/login");
     terminal.input("\r");
     let frame = stripTerminalSequences(shell.root.render(100).join("\n"));
@@ -389,8 +389,10 @@ describe("OwnedUiSessionShell", () => {
 
     terminal.input("\x1b");
     terminal.input("\x1b");
-    engine.providerAuthStatus.set("openai", { configured: false });
-    engine.credentialTypes.delete("openai");
+    await shell.runWorkflow({ command: "logout", argument: "", selection: "oauth:openai" });
+    expect(shell.view().activeModel).toBeNull();
+    expect(shell.view().status.footer?.availableProviderCount).toBe(1);
+    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).not.toContain("gpt-5 • medium");
     await shell.submit("/login");
     terminal.input("\r");
     frame = stripTerminalSequences(shell.root.render(100).join("\n"));

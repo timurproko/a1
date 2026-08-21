@@ -163,8 +163,9 @@ function host(overrides: Partial<PiWorkflowHost> = {}): PiWorkflowHost {
   };
 }
 
-async function fixture(workflowHost = host()) {
+async function fixture(workflowHost = host(), configure?: (runtime: WorkflowRuntime) => void) {
   const runtime = new WorkflowRuntime();
+  configure?.(runtime);
   const adapter = await createPiEngineAdapter({
     cwd: "D:/work",
     agentDir: join(tmpdir(), "a1-workflow-fixture"),
@@ -409,6 +410,17 @@ describe("pinned Pi command and input workflows", () => {
     await adapter.dispose();
   });
 
+  it("drops a stale selected model when an empty profile starts", async () => {
+    const { adapter } = await fixture(host(), runtime => {
+      runtime.providerAuthStatus.set("openai", { configured: false });
+      runtime.credentialTypes.delete("openai");
+    });
+    expect(adapter.view().activeModel).toBeNull();
+    expect(adapter.view().status.footer?.availableProviderCount).toBe(0);
+    expect(adapter.pinnedModelSelectorContext().currentModel).toBeUndefined();
+    await adapter.dispose();
+  });
+
   it("reconciles login and stored logout without a process restart", async () => {
     const { adapter, runtime } = await fixture();
     runtime.providerAuthStatus.set("openai", { configured: false });
@@ -418,11 +430,18 @@ describe("pinned Pi command and input workflows", () => {
     await expect(adapter.executeWorkflow({ command: "login", argument: "", selection: "oauth:openai" })).resolves.toMatchObject({ outcome: "completed" });
     expect(adapter.pinnedLoginOptions("oauth")[0]?.status).toEqual({ type: "oauth", source: "stored" });
     expect(runtime.modelRuntime.getAvailableSnapshot()).toHaveLength(1);
+    expect(adapter.view().activeModel).toMatchObject({ providerId: "openai", modelId: "gpt-5" });
+    expect(adapter.view().status.footer?.availableProviderCount).toBe(1);
+    expect(adapter.pinnedScopedModelsContext().models).toHaveLength(1);
     await expect(adapter.pinnedLogoutOptions()).resolves.toHaveLength(1);
 
     await expect(adapter.executeWorkflow({ command: "logout", argument: "", selection: "oauth:openai" })).resolves.toMatchObject({ outcome: "completed" });
     expect(adapter.pinnedLoginOptions("oauth")[0]?.status).toBeUndefined();
     expect(runtime.modelRuntime.getAvailableSnapshot()).toEqual([]);
+    expect(adapter.view().activeModel).toBeNull();
+    expect(adapter.view().status.footer?.availableProviderCount).toBe(0);
+    expect(adapter.pinnedModelSelectorContext().currentModel).toBeUndefined();
+    expect(adapter.pinnedScopedModelsContext().models).toEqual([]);
     await expect(adapter.pinnedLogoutOptions()).resolves.toEqual([]);
     await adapter.dispose();
   });
