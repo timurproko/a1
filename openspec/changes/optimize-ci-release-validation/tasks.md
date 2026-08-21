@@ -18,7 +18,7 @@
 
 ## 4. Exact Preview Candidate Construction
 
-- [ ] 4.1 Introduce candidate evidence generation and verification binding commit, Git tree, version, channel, tarball integrity/shasum, scope plan, gate outcomes, runner identity, and certification class; validate accepted, altered-byte, altered-version, altered-commit, and incomplete-evidence cases.
+- [x] 4.1 Introduce candidate evidence generation and verification binding commit, Git tree, version, channel, tarball integrity/shasum, scope plan, gate outcomes, runner identity, and certification class; validate accepted, altered-byte, altered-version, altered-commit, and incomplete-evidence cases.
 - [ ] 4.2 Refactor package-surface validation into fast exact-tarball content/launch checks and a separate clean consumer-install gate that consumes the same tarball; validate both tiers and prove ordinary feature selection omits only the clean install.
 - [ ] 4.3 Add the trusted `develop` preview-candidate workflow that installs once, runs selected validation, builds once, packs once, verifies package identity, and uploads the tarball/evidence with bounded retention; validate package-sensitive and ordinary-feature execution plans plus artifact digest consistency.
 - [ ] 4.4 Replace the `next` publication workflow inputs with an approved trusted candidate run reference and make the job verify/download/publish the exact certified tarball without checkout, install, build, or tests; validate publisher isolation, clean-`develop`, `-dev.N`, registry idempotency, and mismatch rejection policies.
