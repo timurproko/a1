@@ -1,6 +1,8 @@
 import { execFile } from "node:child_process";
-import { promisify } from "node:util";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { resolve } from "node:path";
+import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 
 const execute = promisify(execFile);
@@ -76,16 +78,41 @@ describe("repository-local development launch", () => {
     });
   });
 
-  it("launches interactive development profiles directly and preserves CLI validation", async () => {
-    const [owned, pi, sandbox] = await Promise.all([
-      execute(process.execPath, ["scripts/start-local.mjs", "--print-environment"]),
-      execute(process.execPath, ["scripts/start-local.mjs", "--print-environment", "pi"]),
-      execute(process.execPath, ["scripts/start-local.mjs", "--print-environment", "sandbox"]),
-    ]);
-    expect(JSON.parse(owned.stdout)).toMatchObject({ launchArguments: [], directProfile: "a1" });
-    expect(JSON.parse(pi.stdout)).toMatchObject({ launchArguments: ["pi"], directProfile: "pi" });
-    expect(JSON.parse(sandbox.stdout)).toMatchObject({ launchArguments: ["sandbox"], directProfile: "sandbox" });
+  it("prepares isolated interactive profiles before direct development launch", async () => {
+    const profileHome = await mkdtemp(resolve(tmpdir(), "a1-development-profile-"));
+    const inheritedPiProfile = resolve(profileHome, "inherited-shared-profile");
+    const environment = { ...process.env, A1_PROFILE_HOME: profileHome, PI_CODING_AGENT_DIR: inheritedPiProfile };
+    try {
+      const [owned, pi, sandbox] = await Promise.all([
+        execute(process.execPath, ["scripts/start-local.mjs", "--print-environment"], { env: environment }),
+        execute(process.execPath, ["scripts/start-local.mjs", "--print-environment", "pi"], { env: environment }),
+        execute(process.execPath, ["scripts/start-local.mjs", "--print-environment", "sandbox"], { env: environment }),
+      ]);
+      expect(JSON.parse(owned.stdout)).toMatchObject({
+        launchArguments: [],
+        directProfile: "a1",
+        profileConfigurationRoot: resolve(profileHome, ".a1/agent"),
+        environment: { PI_CODING_AGENT_DIR: resolve(profileHome, ".a1/agent") },
+      });
+      expect(JSON.parse(pi.stdout)).toMatchObject({
+        launchArguments: ["pi"],
+        directProfile: "pi",
+        profileConfigurationRoot: null,
+        environment: { PI_CODING_AGENT_DIR: null },
+      });
+      expect(JSON.parse(sandbox.stdout)).toMatchObject({
+        launchArguments: ["sandbox"],
+        directProfile: "sandbox",
+        profileConfigurationRoot: resolve(profileHome, ".a1/sandbox"),
+        environment: { PI_CODING_AGENT_DIR: resolve(profileHome, ".a1/sandbox") },
+      });
+      expect(JSON.parse(owned.stdout).environment.PI_CODING_AGENT_DIR).not.toBe(inheritedPiProfile);
+    } finally {
+      await rm(profileHome, { recursive: true, force: true });
+    }
+  });
 
+  it("preserves CLI validation for non-profile development commands", async () => {
     await expect(execute(process.execPath, ["scripts/start-local.mjs", "not-an-a1-command"]))
       .rejects.toMatchObject({ code: 2, stderr: expect.stringContaining("A1 received an unknown command: not-an-a1-command") });
   });
