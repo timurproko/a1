@@ -1,5 +1,7 @@
 ## Context
 
+> **Status: ON HOLD by user direction.** This design is retained as future architecture only. No remaining task may be applied until the user explicitly resumes this change; completion of prerequisite changes does not imply authorization.
+
 See `proposal.md` for motivation. Bare `a1` currently launches one A1-owned Pi experience, while `a1 pi` and `a1 sandbox` remain stable explicit transparent modes. The previously recorded 1:1 acceptance is reopened because user-controlled comparison found contradictory authentication and model state: persisted A1 provider credentials make models available while the A1 `/login` surface labels those providers unconfigured.
 
 The product requirement is a multi-agent workspace inside terminals the user already owns, such as Windows Terminal, macOS terminals, WezTerm, and similar emulators. A separate native desktop application is not required and is postponed. The first presentation proof must therefore run as a console/fullscreen terminal program inside an existing terminal, not as a Win32/OpenGL window.
@@ -209,7 +211,7 @@ The first recorded finding covers four authoritative states: no credentials yiel
 
 Only after every known 1:1 finding has independent pinned-Pi versus A1 evidence and fresh user acceptance may `customize-owned-pi-experience` introduce the first A1-specific single-agent experience. Customization uses stable A1 component, theme, command, and layout slots rather than host mutation. Non-visual Pi extensions and resources may be adapted where the public SDK supports them. Visual extension compatibility requires an explicit A1 bridge and SHALL NOT receive implicit access to Pi's absent stock UI context.
 
-Structured SDK-backed tabs remain unavailable until both changes are accepted. They then switch semantic agent views without creating PTYs, invoking the terminal host, displaying arbitrary CLI surfaces, or satisfying the composed-terminal proof. Arbitrary terminal panes, split layouts, and multiplexer integration additionally remain blocked until the postponed isolated-worker 2×2 gate passes.
+Structured SDK-backed tabs remain unavailable until both changes are accepted and the user explicitly resumes this held change. Acceptance of either prerequisite SHALL NOT trigger implementation automatically. After explicit resumption, the tabs switch semantic agent views without creating PTYs, invoking the terminal host, displaying arbitrary CLI surfaces, or satisfying the composed-terminal proof. Arbitrary terminal panes, split layouts, and multiplexer integration additionally remain blocked until the postponed isolated-worker 2×2 gate passes.
 
 ## Risks / Trade-offs
 
@@ -236,7 +238,7 @@ Structured SDK-backed tabs remain unavailable until both changes are accepted. T
 1. Preserve the completed workspace contracts, structured runtime, synthetic multi-agent domain, terminal-host protocol, native hot-path isolation, and fixed 2×2 development proof as dormant foundations; future edits occur only in detached task worktrees.
 2. Complete `repair-owned-pi-parity`: reproduce every user finding with equivalent profile state, fix authentication/model-state consistency and any additional divergences without customization, and obtain fresh independent and user-controlled acceptance.
 3. Complete `customize-owned-pi-experience`: define and accept the first A1-specific single-agent Pi experience through owned slots while preserving the accepted workflows and explicit upstream oracle.
-4. Integrate the existing structured workspace into A1-owned tabs for multiple SDK-backed Pi agents. Prove switching, background activity, lifecycle, failure isolation, recovery, and resource bounds without initializing the terminal host.
+4. Stop at the hold boundary. Only after the user explicitly resumes this change, integrate the existing structured workspace into A1-owned tabs for multiple SDK-backed Pi agents. Prove switching, background activity, lifecycle, failure isolation, recovery, and resource bounds without initializing the terminal host.
 5. Cut bare `a1` over to the accepted structured workspace, integrate validated detached-worktree commits into `develop`, and publish a clean development checkpoint under npm `next` with composed multipane behavior disabled and no composed support claim.
 6. Resume the fixed 2×2 proof on an isolated Windows worker. Record every technical measurement and obtain an accepted user-controlled manual or isolated-worker physical verdict against exact bytes. Do not integrate composed work or begin production multiplexer integration if this gate fails.
 7. Remove the fixed 2×2 geometry and dashed proof chrome, restore the one-session fullscreen terminal-host path, preserve exact-artifact evidence, and rerun fullscreen and explicit-mode regressions.
