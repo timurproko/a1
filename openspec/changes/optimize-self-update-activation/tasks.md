@@ -8,11 +8,11 @@
 - [x] 2.1 Refactor payload discovery from content hashing so all declared package/dependency paths and totals are known before copy without reading file contents; validate symlink, unsupported-entry, missing-dependency, path-escape, and deterministic-order cases.
 - [x] 2.2 Implement bounded-concurrency source-to-candidate streaming that hashes the exact written buffers, records metadata, computes the unchanged release identity/manifest, and atomically commits the candidate; validate one source read plus one destination write per file, content identity parity, concurrent materialization, and cleanup after injected stream/write/rename failures.
 - [x] 2.3 Add an opaque module-private, single-use fresh-materialization proof and make certification consume it without a destination payload reread; validate that forged, reused, restarted, pre-existing, concurrent-winner, and uncertified release paths still require complete content verification.
-- [ ] 2.4 Preserve full verification, certified-manifest reuse, immutable entry resolution, rollback, and release garbage collection for existing on-disk cohorts; run the complete release-store, cohort-state, cohort-activation, and release-gating test groups.
+- [x] 2.4 Preserve full verification, certified-manifest reuse, immutable entry resolution, rollback, and release garbage collection for existing on-disk cohorts; run the complete release-store, cohort-state, cohort-activation, and release-gating test groups.
 
 ## 3. Update Transaction Integration
 
-- [ ] 3.1 Integrate single-pass materialization and timing evidence through npm execution, ownership release, package unlock, certification, activation, and endpoint verification without changing durable transaction phase ordering; validate stable/next success, already-current, interruption at every phase, resumed ownership recheck, and rollback tests.
+- [x] 3.1 Integrate single-pass materialization and timing evidence through npm execution, ownership release, package unlock, certification, activation, and endpoint verification without changing durable transaction phase ordering; validate stable/next success, already-current, interruption at every phase, resumed ownership recheck, and rollback tests.
 - [ ] 3.2 Ensure every success and failure path closes child streams, sockets, timers, and listeners before `runSelfUpdate` resolves; validate a packaged outer-process regression that observes the terminal prompt/clean process exit without `Ctrl+C`.
 - [ ] 3.3 Verify a successful update leaves the exact target certified and active so the next bare `a1` launch emits no installation/activation message and performs no package materialization; validate packaged update-to-launch transition evidence.
 
