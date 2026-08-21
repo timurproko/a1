@@ -1,0 +1,135 @@
+{
+  "schema": "a1-github-ruleset-plan-v1",
+  "repository": "timurproko/a1",
+  "mode": "apply",
+  "mutationPerformed": true,
+  "changes": [
+    {
+      "name": "a1-protect-develop",
+      "action": "none",
+      "id": 21140393,
+      "desired": {
+        "name": "a1-protect-develop",
+        "target": "branch",
+        "enforcement": "active",
+        "bypass_actors": [],
+        "conditions": {
+          "ref_name": {
+            "include": [
+              "refs/heads/develop"
+            ],
+            "exclude": []
+          }
+        },
+        "rules": [
+          {
+            "type": "deletion"
+          },
+          {
+            "type": "non_fast_forward"
+          },
+          {
+            "type": "pull_request",
+            "parameters": {
+              "dismiss_stale_reviews_on_push": true,
+              "require_code_owner_review": false,
+              "require_last_push_approval": false,
+              "required_approving_review_count": 0,
+              "required_review_thread_resolution": true,
+              "allowed_merge_methods": [
+                "merge",
+                "squash"
+              ]
+            }
+          },
+          {
+            "type": "required_status_checks",
+            "parameters": {
+              "strict_required_status_checks_policy": true,
+              "do_not_enforce_on_create": false,
+              "required_status_checks": [
+                {
+                  "context": "Development validation required"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "a1-protect-master",
+      "action": "none",
+      "id": 21140395,
+      "desired": {
+        "name": "a1-protect-master",
+        "target": "branch",
+        "enforcement": "active",
+        "bypass_actors": [],
+        "conditions": {
+          "ref_name": {
+            "include": [
+              "refs/heads/master"
+            ],
+            "exclude": []
+          }
+        },
+        "rules": [
+          {
+            "type": "deletion"
+          },
+          {
+            "type": "non_fast_forward"
+          },
+          {
+            "type": "pull_request",
+            "parameters": {
+              "dismiss_stale_reviews_on_push": true,
+              "require_code_owner_review": false,
+              "require_last_push_approval": false,
+              "required_approving_review_count": 0,
+              "required_review_thread_resolution": true,
+              "allowed_merge_methods": [
+                "merge"
+              ]
+            }
+          },
+          {
+            "type": "required_status_checks",
+            "parameters": {
+              "strict_required_status_checks_policy": true,
+              "do_not_enforce_on_create": false,
+              "required_status_checks": [
+                {
+                  "context": "Stable candidate required"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "summary": {
+    "create": 0,
+    "update": 0,
+    "unchanged": 2
+  },
+  "mutations": [
+    {
+      "name": "a1-protect-develop",
+      "action": "create",
+      "id": 21140393
+    },
+    {
+      "name": "a1-protect-master",
+      "action": "create",
+      "id": 21140395
+    }
+  ],
+  "api": {
+    "repository": "timurproko/a1",
+    "fetchedAt": "2026-08-21T10:17:47.262Z",
+    "liveRulesetCount": 2
+  }
+}
