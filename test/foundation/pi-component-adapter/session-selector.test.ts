@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { stripTerminalSequences } from "@earendil-works/pi-tui";
 import type { SessionInfo } from "@earendil-works/pi-coding-agent";
 import { describe, expect, it } from "vitest";
-import { createPiShellSessionSelector } from "../../../src/foundation/pi-component-adapter/index.js";
+import { applyPiTheme, createPiShellSessionSelector } from "../../../src/foundation/pi-component-adapter/index.js";
 
 function session(path: string, id: string, name: string | undefined, modified: number): SessionInfo {
   return {
@@ -23,6 +23,7 @@ function session(path: string, id: string, name: string | undefined, modified: n
 
 describe("owned pinned session selector", () => {
   it("preserves scope, search, rename, delete confirmation, current-session protection, and silent cancel", async () => {
+    applyPiTheme("dark", false, "truecolor");
     const root = await mkdtemp(join(tmpdir(), "a1-session-selector-"));
     const currentPath = join(root, "current.jsonl");
     const otherPath = join(root, "other.jsonl");
