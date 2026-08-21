@@ -248,7 +248,11 @@ export class SettingsApp implements UiApp {
         // and nothing behind it hovers.
         const hadHover = this.#hoverKey !== null;
         this.#hoverKey = null;
-        if (!overMenu) return { consumed: true, render: hadHover };
+        if (!overMenu) {
+          const cleared = menu.index !== -1;
+          menu.index = -1;
+          return { consumed: true, render: hadHover || cleared };
+        }
         if (menu.index === overRow) return { consumed: true, render: hadHover };
         menu.index = overRow;
         return { consumed: true, render: true };
@@ -316,7 +320,7 @@ export class SettingsApp implements UiApp {
     if (row === undefined || row.kind !== "element") return;
     const entry = row.value;
     if (!entry.editable || entry.choices === null || entry.choices.length === 0) {
-      this.#notice = `${humanizeLabel(entry.id)} cannot be changed here`;
+      this.#notice = `${labelOf(entry)} cannot be changed here`;
       return;
     }
     const current = entry.value === null ? 0 : Math.max(0, entry.choices.indexOf(entry.value));
@@ -355,7 +359,7 @@ export class SettingsApp implements UiApp {
     if (row === undefined || row.kind !== "element") return;
     const entry = row.value;
     if (!entry.editable) {
-      this.#notice = `${humanizeLabel(entry.id)} cannot be changed here`;
+      this.#notice = `${labelOf(entry)} cannot be changed here`;
       return;
     }
     if (typeof entry.value === "number") {
@@ -364,7 +368,7 @@ export class SettingsApp implements UiApp {
     }
     const choices = entry.choices;
     if (choices === null || choices.length === 0) {
-      this.#notice = `${humanizeLabel(entry.id)} cannot be changed here`;
+      this.#notice = `${labelOf(entry)} cannot be changed here`;
       return;
     }
     const current = entry.value === null ? -1 : choices.indexOf(entry.value);
@@ -377,9 +381,9 @@ export class SettingsApp implements UiApp {
   #apply(entry: OwnedUiSettingsEntry, value: OwnedUiSettingValue): void {
     void this.#session.change(entry.backend, entry.id, value).then(outcome => {
       this.#notice = outcome.failure !== null
-        ? `Could not save ${humanizeLabel(entry.id)}: ${outcome.failure}`
+        ? `Could not save ${labelOf(entry)}: ${outcome.failure}`
         : outcome.pendingRestart
-          ? `${humanizeLabel(entry.id)} applies on the next start`
+          ? `${labelOf(entry)} applies on the next start`
           : null;
     });
   }
@@ -400,7 +404,7 @@ export class SettingsApp implements UiApp {
     const matches = (entry: OwnedUiSettingsEntry): boolean =>
       needle.length === 0
       || entry.id.toLowerCase().includes(needle)
-      || humanizeLabel(entry.id).toLowerCase().includes(needle);
+      || labelOf(entry).toLowerCase().includes(needle);
 
     const rows: Row[] = [];
     for (const section of this.#session.sections()) {
@@ -417,7 +421,7 @@ export class SettingsApp implements UiApp {
       }
       // Alphabetical by the label the reader sees, as vanilla orders its own.
       const ordered = [...entries].sort((left, right) =>
-        humanizeLabel(left.id).localeCompare(humanizeLabel(right.id)));
+        labelOf(left).localeCompare(labelOf(right)));
       for (const entry of ordered) {
         rows.push({
           kind: "element",
@@ -436,7 +440,7 @@ export class SettingsApp implements UiApp {
     let hasStepper = false;
     for (const row of rows) {
       if (row.kind !== "element") continue;
-      widest = Math.max(widest, displayWidth(humanizeLabel(row.value.id)));
+      widest = Math.max(widest, displayWidth(labelOf(row.value)));
       if (isStepper(row.value)) hasStepper = true;
     }
     // Prefix, indent, widest label, gap, plus the stepper prefix reserved for
@@ -454,13 +458,12 @@ export class SettingsApp implements UiApp {
     if (row.kind === "note") return truncateToWidth(theme.fg("muted", `    ${row.text}`), width);
 
     const entry = row.value;
-    const label = humanizeLabel(entry.id);
+    const label = labelOf(entry);
     const key = `${entry.backend}:${entry.id}`;
     const hovered = this.#hoverKey === key;
     const prefix = selected ? theme.fg("accent", "→ ") : "  ";
     const leftRaw = `${selected ? "→ " : "  "}  ${label}`;
-    const painted = theme.fg(selected ? "accent" : "text", label);
-    const left = `${prefix}  ${hovered ? theme.bold(painted) : painted}`;
+    const left = `${prefix}  ${theme.fg(selected ? "accent" : "text", label)}`;
     const gap = Math.max(2, valueColumn - displayWidth(leftRaw));
     const raw = entry.value === null ? describeRaw(entry.rawValue) : displayValue(entry.value);
     // Pointing anywhere on the row is hovering the item; pointing at the value
@@ -552,6 +555,11 @@ function centered(painted: string, raw: string, width: number): string {
   return `${" ".repeat(Math.max(0, Math.floor((width - displayWidth(raw)) / 2)))}${painted}`;
 }
 
+
+/** The source's own wording when it has one, otherwise the id made readable. */
+function labelOf(entry: OwnedUiSettingsEntry): string {
+  return entry.label ?? humanizeLabel(entry.id);
+}
 
 function isStepper(entry: OwnedUiSettingsEntry): boolean {
   return typeof entry.value === "number" && entry.editable;

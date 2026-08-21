@@ -11,6 +11,46 @@ export const EXPOSED_SETTING_KEYS = Object.freeze([
   "autocompleteMaxVisible", "clearOnShrink", "showTerminalProgress", "tuiMode", "fullscreenExitOutput", "fullscreenScrollbar", "warnings",
 ] as const);
 
+
+/**
+ * Labels and descriptions as the pinned engine words them, so an owned screen
+ * reads the same as the vanilla settings route rather than inventing its own
+ * phrasing from the key. Recorded in docs/architecture/ui-reference-provenance.md.
+ */
+const SETTING_LABELS: Readonly<Record<string, { readonly label: string; readonly description: string }>> = Object.freeze({
+  autoCompact: { label: "Auto-compact", description: "Automatically compact context when it gets too large" },
+  showImages: { label: "Show images", description: "Render images inline in terminal" },
+  imageWidthCells: { label: "Image width", description: "Preferred inline image width in terminal cells" },
+  autoResizeImages: { label: "Auto-resize images", description: "Resize large images for better model compatibility" },
+  blockImages: { label: "Block images", description: "Prevent images from being sent to LLM providers" },
+  enableSkillCommands: { label: "Skill commands", description: "Register skills as /skill:name commands" },
+  steeringMode: { label: "Steering mode", description: "How Enter queues steering messages while streaming" },
+  followUpMode: { label: "Follow-up mode", description: "How follow-up messages are queued" },
+  transport: { label: "Transport", description: "Preferred transport for providers that support several" },
+  httpIdleTimeoutMs: { label: "HTTP idle timeout", description: "Maximum idle gap while waiting for HTTP headers or body chunks" },
+  thinkingLevel: { label: "Thinking level", description: "Reasoning depth for thinking-capable models" },
+  theme: { label: "Theme", description: "Color theme for the interface" },
+  hideThinkingBlock: { label: "Hide thinking", description: "Hide thinking blocks in assistant responses" },
+  mermaidRenderingMode: { label: "Mermaid diagrams", description: "Render Mermaid code blocks as Unicode diagrams" },
+  showCacheMissNotices: { label: "Cache miss notices", description: "Show transcript notices for significant prompt-cache misses" },
+  collapseChangelog: { label: "Collapse changelog", description: "Show condensed changelog after updates" },
+  enableInstallTelemetry: { label: "Install telemetry", description: "Send an anonymous version ping after changelog detection" },
+  quietStartup: { label: "Quiet startup", description: "Disable verbose printing at startup" },
+  defaultProjectTrust: { label: "Default project trust", description: "Fallback when no saved trust decision applies" },
+  doubleEscapeAction: { label: "Double-escape action", description: "Action when pressing Escape twice with an empty editor" },
+  treeFilterMode: { label: "Tree filter mode", description: "Default filter when opening /tree" },
+  showHardwareCursor: { label: "Show hardware cursor", description: "Show the terminal cursor while positioning it for IME" },
+  editorPaddingX: { label: "Editor padding", description: "Horizontal padding for the input editor (0-3)" },
+  outputPad: { label: "Output padding", description: "Horizontal padding for messages and thinking" },
+  autocompleteMaxVisible: { label: "Autocomplete max items", description: "Max visible items in the autocomplete dropdown (3-20)" },
+  clearOnShrink: { label: "Clear on shrink", description: "Clear empty rows when content shrinks (may cause flicker)" },
+  showTerminalProgress: { label: "Terminal progress", description: "Show progress indicators in the terminal tab bar" },
+  tuiMode: { label: "TUI mode", description: "Interface layout; fullscreen mode is experimental" },
+  fullscreenExitOutput: { label: "Fullscreen exit output", description: "Print the transcript or a resume hint when exiting fullscreen" },
+  fullscreenScrollbar: { label: "Fullscreen scrollbar", description: "Scrollbar behavior in fullscreen mode" },
+  warnings: { label: "Warnings", description: "Enable or disable individual warnings" },
+});
+
 export class PiSettingsIntegration implements AgentSettingsPort {
   readonly capabilities = { write: true, flush: true };
   readonly #operations: ReadonlyMap<string, Operation>;
@@ -20,7 +60,12 @@ export class PiSettingsIntegration implements AgentSettingsPort {
       throw new Error("Pi settings integration does not cover every A1-exposed setting");
     }
   }
-  async listSettings(): Promise<readonly AgentSettingDescriptor[]> { return [...this.#operations.values()].map(operation => operation.descriptor); }
+  async listSettings(): Promise<readonly AgentSettingDescriptor[]> {
+    return [...this.#operations.values()].map(operation => {
+      const wording = SETTING_LABELS[operation.descriptor.key];
+      return wording === undefined ? operation.descriptor : { ...operation.descriptor, ...wording };
+    });
+  }
   async readSetting(key: string): Promise<AgentJsonValue | undefined> { return this.#operations.get(key)?.read(); }
   async writeSetting(key: string, value: AgentJsonValue): Promise<void> { this.writeSettingNow(key, value); }
   writeSettingNow(key: string, value: AgentJsonValue): void {

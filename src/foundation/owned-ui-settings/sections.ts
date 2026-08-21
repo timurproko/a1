@@ -5,6 +5,8 @@ export type OwnedUiSettingsBackend = "a1" | "agent";
 
 export interface OwnedUiSettingsEntry {
   readonly id: string;
+  /** Label to show, when its source provides one. Falls back to the id. */
+  readonly label: string | null;
   readonly backend: OwnedUiSettingsBackend;
   readonly description: string | null;
   /** Present when the value is a scalar the surface can offer as a choice. */
@@ -33,6 +35,8 @@ export interface AgentSettingsSnapshot {
     readonly valueType: "boolean" | "number" | "string" | "enum" | "json";
     readonly writable: boolean;
     readonly choices?: readonly unknown[];
+    readonly label?: string;
+    readonly description?: string;
   }[];
   readonly values: Readonly<Record<string, unknown>>;
   /** Whether the engine advertises settings write capability at all. */
@@ -58,6 +62,7 @@ export function buildOwnedUiSettingsSections(
     title: "A1",
     entries: Object.freeze(input.resolution.settings.map(setting => ({
       id: setting.declaration.id,
+      label: null,
       backend: "a1" as const,
       description: setting.declaration.description,
       value: setting.value,
@@ -101,8 +106,9 @@ function agentSection(snapshot: AgentSettingsSnapshot | null): OwnedUiSettingsSe
     const raw = Object.hasOwn(snapshot.values, descriptor.key) ? snapshot.values[descriptor.key] : null;
     return {
       id: descriptor.key,
+      label: descriptor.label ?? null,
       backend: "agent" as const,
-      description: null,
+      description: descriptor.description ?? null,
       value: scalar(raw),
       rawValue: raw,
       editable: snapshot.writeAdvertised && descriptor.writable && descriptor.valueType !== "json",

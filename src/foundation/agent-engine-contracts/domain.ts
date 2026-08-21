@@ -41,6 +41,10 @@ export interface AgentSettingDescriptor {
   readonly valueType: "boolean" | "number" | "string" | "enum" | "json";
   readonly writable: boolean;
   readonly choices?: readonly AgentJsonValue[];
+  /** Label the engine shows for this setting, when it has one. */
+  readonly label?: string;
+  /** One-line explanation the engine shows for this setting. */
+  readonly description?: string;
 }
 
 export interface AgentResourceDescriptor {
