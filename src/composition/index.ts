@@ -10,6 +10,8 @@ import {
   type AgentMessage,
   type AgentSessionLifecycle,
   type AgentSessionPort,
+  type AgentSettingDescriptor,
+  type AgentSettingsPort,
   type AgentSnapshot,
 } from "../foundation/agent-engine-contracts/index.js";
 import { createPiEngineAdapter, type PiEngineAdapter } from "../foundation/pi-engine-adapter/index.js";
@@ -26,7 +28,7 @@ import type { OwnedUiCommand, OwnedUiEvent, OwnedUiTranscriptBlock } from "../fo
 import { OwnedUiSessionShell } from "../foundation/pi-owned-ui-integration/index.js";
 import { OwnedUiSettingsSession, OwnedUiSettingsStore } from "../foundation/owned-ui-settings/index.js";
 import { UiAppHost, UiAppRegistry } from "../foundation/ui-apps/index.js";
-import { piTheme } from "../foundation/pi-component-adapter/index.js";
+import { getAvailablePiThemes, piTheme } from "../foundation/pi-component-adapter/index.js";
 import type { UiTheme, UiThemeToken } from "../foundation/ui-components/index.js";
 import { SETTINGS_APP_ID, SETTINGS_ROUTE, SettingsApp } from "../features/owned-ui/index.js";
 import type { UiRouteHost, UiRouteSurface } from "../foundation/pi-owned-ui-integration/index.js";
@@ -64,6 +66,30 @@ export interface OwnedUiComposition {
   readonly settings: OwnedUiSettingsSession | null;
 }
 
+/**
+ * The engine's settings port knows a theme is named by a string but not which
+ * themes exist: that is a runtime read of the built-ins plus whatever theme files
+ * the reader has installed. Attaching the list here keeps the choice live rather
+ * than pinned to whatever happened to be installed when metadata was generated.
+ */
+function withInstalledThemes(port: AgentSettingsPort | null): AgentSettingsPort | null {
+  if (port === null) return null;
+  const write = port.writeSetting?.bind(port);
+  const flush = port.flush?.bind(port);
+  return {
+    capabilities: port.capabilities,
+    async listSettings(): Promise<readonly AgentSettingDescriptor[]> {
+      const names = getAvailablePiThemes().map(theme => theme.name);
+      const descriptors = await port.listSettings();
+      if (names.length === 0) return descriptors;
+      return descriptors.map(descriptor => (descriptor.key === "theme" ? { ...descriptor, choices: names } : descriptor));
+    },
+    readSetting: key => port.readSetting(key),
+    ...(write === undefined ? {} : { writeSetting: write }),
+    ...(flush === undefined ? {} : { flush }),
+  };
+}
+
 export async function composeOwnedUiApplication(options: OwnedUiCompositionOptions = {}): Promise<OwnedUiApplicationPort> {
   return (await composeOwnedUi(options)).application;
 }
@@ -75,7 +101,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     ? null
     : new OwnedUiSettingsSession({
       store: new OwnedUiSettingsStore({ configDir: resolveProductPaths().configDir, profileId: options.profileId }),
-      agentProvider: () => adapter.settingsPort(),
+      agentProvider: () => withInstalledThemes(adapter.settingsPort()),
     });
   const routeHost = settings === null ? null : createOwnedRouteHost(settings);
   const shell = new OwnedUiSessionShell({
