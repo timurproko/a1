@@ -1,19 +1,19 @@
 ## 1. Establish the rendering discipline
 
-- [ ] 1.1 Add `src/foundation/owned-ui-components/` as a declared owner in
+- [x] 1.1 Add `src/foundation/ui-components/` as a declared owner in
   `scripts/project-structure-policy.mjs` and in the pinned owner list in
   `test/repository-governance/project-structure-policy.test.ts`; verify `npm run check:architecture`
   passes with the new owner
-- [ ] 1.2 Implement the frame contract: a pane renders into `{ width, height }` and returns exactly
+- [x] 1.2 Implement the frame contract: a pane renders into `{ width, height }` and returns exactly
   that many rows within that width, with validation naming the offending pane; verify with unit tests
   for short content, over-wide rows, wrong row counts, and an embedded newline
-- [ ] 1.3 Implement declared invalidation with revision kinds and a frame cache keyed by revisions and
+- [x] 1.3 Implement declared invalidation with revision kinds and a frame cache keyed by revisions and
   rectangle; verify a cached frame is reused while nothing changes, discarded on any revision or
   rectangle change, and never cached for a component that declares no contract
 
 ## 2. Presentation primitives
 
-- [ ] 2.1 Implement display-width measurement, truncation, and padding that account for wide
+- [x] 2.1 Implement display-width measurement, truncation, and padding that account for wide
   characters, combining marks, zero-width sequences, and styling escapes; verify with unit tests over
   CJK, emoji with joiners, combining accents, and styled text that must not lose its terminator
 - [ ] 2.2 Implement the scrollbar: geometry from content length, viewport height, and scroll position,
@@ -42,7 +42,7 @@
 
 ## 4. Applications and their host
 
-- [ ] 4.1 Add `src/foundation/owned-ui-apps/` as a declared owner in the policy and the pinned owner
+- [ ] 4.1 Add `src/foundation/ui-apps/` as a declared owner in the policy and the pinned owner
   list; verify `npm run check:architecture` passes
 - [ ] 4.2 Implement app registration by stable identity with replace-on-re-register and a reported
   failure for opening an unregistered identity; verify all three scenarios
