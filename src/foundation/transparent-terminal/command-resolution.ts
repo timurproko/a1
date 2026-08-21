@@ -1,5 +1,5 @@
 import { access, readFile } from "node:fs/promises";
-import { delimiter, extname, isAbsolute, resolve } from "node:path";
+import { extname, isAbsolute, resolve } from "node:path";
 
 export interface ResolvedTransparentCommand {
   readonly executable: string;
@@ -45,7 +45,7 @@ async function resolveWindowsPathCommand(
   environment: Readonly<Record<string, string>>,
 ): Promise<string | null> {
   const hasPath = isAbsolute(executable) || executable.includes("/") || executable.includes("\\");
-  const roots = hasPath ? [cwd] : windowsPath(environment).split(delimiter).filter(Boolean);
+  const roots = hasPath ? [cwd] : windowsPath(environment).split(";").filter(Boolean);
   const extension = extname(executable);
   const extensions = extension ? [""] : windowsExecutableExtensions(environment);
   for (const root of roots) {
@@ -92,7 +92,10 @@ function windowsPath(environment: Readonly<Record<string, string>>): string {
 
 function windowsExecutableExtensions(environment: Readonly<Record<string, string>>): readonly string[] {
   const source = environment.PATHEXT ?? ".COM;.EXE;.BAT;.CMD";
-  return source.split(";").filter(Boolean).map(value => value.startsWith(".") ? value : `.${value}`);
+  return [...new Set(source.split(";").filter(Boolean).flatMap(value => {
+    const extension = value.startsWith(".") ? value : `.${value}`;
+    return [extension, extension.toLowerCase()];
+  }))];
 }
 
 async function isFile(path: string): Promise<boolean> {

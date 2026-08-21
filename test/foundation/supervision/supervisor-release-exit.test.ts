@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
@@ -33,6 +34,8 @@ describe("supervisor release replacement exit", () => {
     const root = await mkdtemp(resolve(tmpdir(), "a1-supervisor-release-exit-"));
     cleanupRoots.push(root);
     const runtimeDir = resolve(root, "runtime");
+    const endpoint = process.platform === "win32" ? `\\\\.\\pipe\\a1-release-exit-${process.pid}-${Date.now()}` : resolve(tmpdir(), `a1-sre-${randomUUID().slice(0, 8)}.sock`);
+    if (process.platform !== "win32") cleanupRoots.push(endpoint);
     const terminate = vi.fn();
     const store = new ControlStore(resolve(root, "control.sqlite3"), "boot");
     const server = new SupervisorServer(
@@ -42,7 +45,7 @@ describe("supervisor release replacement exit", () => {
         dataDir: root,
         runtimeDir,
         databasePath: resolve(root, "control.sqlite3"),
-        endpoint: process.platform === "win32" ? `\\\\.\\pipe\\a1-release-exit-${process.pid}-${Date.now()}` : resolve(runtimeDir, "supervisor.sock"),
+        endpoint,
         endpointMetadataPath: resolve(runtimeDir, "supervisor.json"),
         supervisorLogPath: resolve(runtimeDir, "supervisor.log"),
       },

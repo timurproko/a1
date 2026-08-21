@@ -2,10 +2,15 @@ import { existsSync } from "node:fs";
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { stripTerminalSequences } from "@earendil-works/pi-tui";
 import type { SessionInfo } from "@earendil-works/pi-coding-agent";
 import { describe, expect, it } from "vitest";
-import { createPiShellSessionSelector } from "../../../src/foundation/pi-component-adapter/index.js";
+import { applyPiTheme, createPiShellSessionSelector } from "../../../src/foundation/pi-component-adapter/index.js";
+
+function stripPortableTerminalSequences(value: string): string {
+  return value
+    .replace(/\u001b\][\s\S]*?(?:\u0007|\u001b\\)/g, "")
+    .replace(/\u001b\[[0-?]*[ -/]*[@-~]/g, "");
+}
 
 function session(path: string, id: string, name: string | undefined, modified: number): SessionInfo {
   return {
@@ -23,7 +28,8 @@ function session(path: string, id: string, name: string | undefined, modified: n
 
 describe("owned pinned session selector", () => {
   it("preserves scope, search, rename, delete confirmation, current-session protection, and silent cancel", async () => {
-    const root = await mkdtemp(join(tmpdir(), "a1-session-selector-"));
+    applyPiTheme("dark", false, "truecolor");
+    const root = await mkdtemp(join(tmpdir(), "a1-ss-"));
     const currentPath = join(root, "current.jsonl");
     const otherPath = join(root, "other.jsonl");
     await Promise.all([writeFile(currentPath, "{}\n"), writeFile(otherPath, "{}\n")]);
@@ -54,7 +60,7 @@ describe("owned pinned session selector", () => {
     });
     await new Promise(resolve => setTimeout(resolve, 0));
 
-    const frame = () => stripTerminalSequences(component.render(100).join("\n"));
+    const frame = () => stripPortableTerminalSequences(component.render(100).join("\n"));
     const input = (data: string) => component.handleInput?.(data);
     expect(frame()).toContain("Resume Session (Current Folder)");
     expect(frame()).toContain("Current session");

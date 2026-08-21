@@ -14,7 +14,7 @@
 
 - [x] 3.1 Add a least-privilege GitHub Actions workflow for pull requests to `develop` and pushes to `develop`, with trusted base/head selection, dependency caching, affected-scope planning, invariant/fast execution, selected integrations, timing evidence, and stale-PR cancellation; validate workflow policy tests and a local full-selection simulation.
 - [x] 3.2 Add a stable required development-validation aggregator job that fails on any required selected job and cannot be skipped by an empty matrix; validate success, selected failure, selector failure, and cancellation policy through governance fixtures.
-- [ ] 3.3 Run the new workflow in advisory mode on representative feature-only and cross-cutting branches, compare selected outcomes with complete runs, record timing evidence, and correct any missing or unnecessarily broad mappings before enabling required status.
+- [x] 3.3 Run the new workflow in advisory mode on representative feature-only and cross-cutting branches, compare selected outcomes with complete runs, record timing evidence, and correct any missing or unnecessarily broad mappings before enabling required status.
 
 ## 4. Exact Preview Candidate Construction
 
@@ -35,4 +35,4 @@
 - [x] 6.1 Document stable status names, advisory rollout, full-validation override, candidate approval, artifact expiry, failure recovery, physical-evidence handling, and rollback without publishing rebuilt bytes; validate documentation and workflow references through repository-governance tests.
 - [x] 6.2 Add a reviewable GitHub ruleset definition/check procedure for `develop` and `master`, including pull-request requirements, stable status checks, no force push/deletion, and direct-push restrictions; validate its dry-run report against the repository API without changing remote settings.
 - [ ] 6.3 After the workflows exist on the default branch and representative advisory runs pass, obtain explicit maintainer confirmation, apply the GitHub rulesets, and capture API evidence that both branches enforce the intended checks without blocking the authorized release path.
-- [ ] 6.4 Run final focused selector/governance tests, automatic development CI, complete non-physical regression, preview candidate dry run, three-platform stable dry run, and OpenSpec strict validation; record timing against the advisory budgets and confirm no npm publication occurs during certification.
+- [x] 6.4 Run final focused selector/governance tests, automatic development CI, complete non-physical regression, preview candidate dry run, three-platform stable dry run, and OpenSpec strict validation; record timing against the advisory budgets and confirm no npm publication occurs during certification.

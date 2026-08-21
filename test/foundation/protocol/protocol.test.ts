@@ -57,7 +57,7 @@ describe("A1 additive protocol framing", () => {
 
   it("retries when the verified supervisor endpoint disappears before the client connects", async () => {
     const identity = randomUUID();
-    const endpoint = process.platform === "win32" ? `\\\\.\\pipe\\a1-client-retry-${identity}` : join(tmpdir(), `a1-client-retry-${identity}.sock`);
+    const endpoint = process.platform === "win32" ? `\\\\.\\pipe\\a1-client-retry-${identity}` : join(tmpdir(), `a1-cr-${identity.slice(0, 8)}.sock`);
     const server = createServer(socket => {
       socket.once("data", () => socket.write(encodeFrame({
         type: "server-hello",

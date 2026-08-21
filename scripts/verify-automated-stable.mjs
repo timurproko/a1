@@ -16,7 +16,7 @@ process.stdout.write(`Automated stable certification: ${output}\n`);
 async function findJson(predicate, name) {
   const matches = await findAll(predicate);
   if (matches.length !== 1) throw new Error(`expected exactly one ${name}, found ${matches.length}`);
-  return matches;
+  return matches[0];
 }
 async function findAll(predicate) {
   const values = [];

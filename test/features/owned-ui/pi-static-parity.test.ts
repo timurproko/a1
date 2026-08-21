@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
-import { buildStaticParityCases, STATIC_PARITY_COVERAGE } from "./pi-static-parity-fixture.js";
+import { buildStaticParityCases, normalizeParityRow, STATIC_PARITY_COVERAGE } from "./pi-static-parity-fixture.js";
 
 interface StaticParityFixture {
   readonly schema: string;
@@ -34,7 +34,8 @@ describe("pinned Pi static component parity", () => {
       preserved: ["visible text", "row order", "row count", "wrapping", "width truncation"],
     });
     expect(fixture.coverage).toEqual(STATIC_PARITY_COVERAGE);
-    expect(buildStaticParityCases()).toEqual(fixture.cases);
+    const portableFixture = fixture.cases.map(entry => ({ ...entry, rows: entry.rows.map(normalizeParityRow) }));
+    expect(buildStaticParityCases()).toEqual(portableFixture);
   });
 
   it("fails coverage when any required baseline surface is absent", async () => {
