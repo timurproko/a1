@@ -16,14 +16,19 @@ Matrix and tier job names are implementation details. Change a required name onl
 
 ## Validation selection
 
-A change entirely under `openspec/**` runs only strict OpenSpec validation. It does not alter product bytes, so typecheck, build, runtime, integration, package, audit, and release gates do not apply. Any changed path outside `openspec/**` uses normal affected implementation validation.
+Validation is proportionate to the change and the channel:
 
-For implementation changes, a selection miss is a policy defect: widen `config/validation-impact.json`, add a regression test, and compare the correction with a complete run. An authorized `full: true` dispatch may widen implementation validation but cannot suppress required tiers. Unknown or unsafe implementation impact fails closed to full validation. Scheduled **Full regression** remains the backstop for impact-map mistakes.
+- A change entirely under `docs/**`, `openspec/**`, Markdown files, `LICENSE`, or `.gitignore` runs only strict OpenSpec validation. It does not alter product bytes, so typecheck, build, runtime, integration, package, audit, and release gates do not apply.
+- Any other pull request runs the fast tier: typecheck, architecture checks, and the unit/contract vitest remainder.
+- Preview (`next`) candidates add the exact-package gates: package content, clean install, and dependency policy.
+- Only stable (`latest`) certification runs the complete suite (`full-release`) across the supported-platform matrix.
+
+An authorized `full: true` dispatch may widen preview validation to the complete non-physical suite but cannot suppress required tiers. Manually dispatched **Full regression** remains the on-demand backstop when a change feels risky.
 
 ## Preview candidate and `next` publication
 
 1. Confirm `Development validation required` is green for the exact `develop` tip.
-2. Dispatch **Build npm next candidate** on `develop` with the exact source commit, a trusted ancestor base commit, and `confirm_candidate=build-uncertified-next-candidate`. Use `full: true` whenever ordinary affected coverage is not sufficient for the release decision.
+2. Dispatch **Build npm next candidate** on `develop` with the exact source commit and `confirm_candidate=build-uncertified-next-candidate`. It runs the fast tier, architecture checks, and exact-package gates. Use `full: true` whenever that coverage is not sufficient for the release decision.
 3. Review `candidate-evidence.json`, selected scopes, gate outcomes, package integrity, and source tree. The candidate remains explicitly stable-ineligible.
 4. Approve the protected `npm-next` environment and dispatch **Publish npm next** with the successful candidate run id and `confirm_next=publish-certified-next`.
 5. The publisher downloads and verifies the certified tarball, then publishes those bytes without checkout, installation, build, or tests. Verify its registry digest and `next` tag result.
@@ -44,7 +49,7 @@ Stable automated and physical candidate artifacts expire after 30 days. Publicat
 
 ## Failure recovery
 
-- **Development failure:** inspect impact and outcome artifacts. Fix the source or mapping and rerun. Do not mark a failed tier optional.
+- **Development failure:** inspect the validation outcome artifact, fix the source, and rerun. Do not mark a failed tier optional.
 - **Candidate validation failure:** discard the candidate. Any source change, package change, or uncertain evidence requires a new candidate run.
 - **Physical failure:** quarantine the worker result, fix or replace the isolated worker, and rerun all evidence needed for one exact package. A hosted matrix cannot substitute for physical evidence.
 - **Approval or artifact expiry:** create and certify a new candidate. Never upload locally rebuilt bytes.
@@ -54,7 +59,7 @@ Stable automated and physical candidate artifacts expire after 30 days. Publicat
 
 ## Enforcement rollout and rollback
 
-The repository is currently operated by one GitHub collaborator. Both rulesets therefore require a pull request, successful required status, resolved review threads, and an up-to-date branch, but set required approving reviews to zero and disable last-push approval. A PR author cannot approve their own change, so requiring one approval with no bypass actor would deadlock the authorized solo-maintainer path. Increase the approval count only after a second eligible reviewer is registered; do not add a direct-push bypass as a substitute.
+The repository is currently operated by one GitHub collaborator. Both rulesets therefore require a pull request, successful required status, and resolved review threads, but set required approving reviews to zero and disable last-push approval. The develop ruleset does not require an up-to-date branch, so an approved pull request merges without re-running validation when unrelated work lands first; master keeps the strict up-to-date requirement for stable promotion. A PR author cannot approve their own change, so requiring one approval with no bypass actor would deadlock the authorized solo-maintainer path. Increase the approval count only after a second eligible reviewer is registered; do not add a direct-push bypass as a substitute.
 
 Ruleset mutation is a separate administrative operation. First run `node scripts/check-github-rulesets.mjs` in report mode and review the proposed diff. Apply only after workflows exist on the default branch, representative advisory runs pass, and a maintainer explicitly confirms the exact ruleset change. Capture the post-apply repository API response as evidence.
 
