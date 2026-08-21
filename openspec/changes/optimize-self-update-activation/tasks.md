@@ -13,12 +13,12 @@
 ## 3. Update Transaction Integration
 
 - [x] 3.1 Integrate single-pass materialization and timing evidence through npm execution, ownership release, package unlock, certification, activation, and endpoint verification without changing durable transaction phase ordering; validate stable/next success, already-current, interruption at every phase, resumed ownership recheck, and rollback tests.
-- [ ] 3.2 Ensure every success and failure path closes child streams, sockets, timers, and listeners before `runSelfUpdate` resolves; validate a packaged outer-process regression that observes the terminal prompt/clean process exit without `Ctrl+C`.
-- [ ] 3.3 Verify a successful update leaves the exact target certified and active so the next bare `a1` launch emits no installation/activation message and performs no package materialization; validate packaged update-to-launch transition evidence.
+- [x] 3.2 Ensure every success and failure path closes child streams, sockets, timers, and listeners before `runSelfUpdate` resolves; validate a packaged outer-process regression that observes the terminal prompt/clean process exit without `Ctrl+C`.
+- [x] 3.3 Verify a successful update leaves the exact target certified and active so the next bare `a1` launch emits no installation/activation message and performs no package materialization; validate packaged update-to-launch transition evidence.
 
 ## 4. Performance and Release Acceptance
 
-- [ ] 4.1 Add the exact packaged Windows update fixture with at least 10,000 files and unchanged dependency versions, recording npm-excluded phase durations, payload operation counts, active endpoint identity, and process settlement; validate it independently on the accepted Windows release runner.
-- [ ] 4.2 Enforce the 30-second post-npm activation budget and one-read/one-write fresh-payload budget with cause-specific diagnostics, while keeping deterministic operation counts blocking on every platform; validate both passing evidence and deliberate extra-read/time-budget failures.
+- [x] 4.1 Add the exact packaged Windows update fixture with at least 10,000 files and unchanged dependency versions, recording npm-excluded phase durations, payload operation counts, active endpoint identity, and process settlement; validate it independently on the accepted Windows release runner.
+- [x] 4.2 Enforce the 30-second post-npm activation budget and one-read/one-write fresh-payload budget with cause-specific diagnostics, while keeping deterministic operation counts blocking on every platform; validate both passing evidence and deliberate extra-read/time-budget failures.
 - [ ] 4.3 Run typecheck, architecture/customization/dependency checks, focused CLI/release/update suites, containing unit and integration tiers, exact package-surface/install gates, complete non-physical release gates, and strict OpenSpec validation; record the accepted before/after Windows timing and confirm no weakening of release identity, recovery, rollback, or terminal return.
 - [ ] 4.4 Review the optimized packaged and user-visible update duration before deciding whether progress UI is necessary; document the result and leave progress-bar implementation outside this change.
