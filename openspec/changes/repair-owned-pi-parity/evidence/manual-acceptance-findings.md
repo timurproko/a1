@@ -20,4 +20,6 @@ The user confirmed provider/model status but reported that selecting GitHub Copi
 
 Pinned Pi returns the exact authentication prompt value. GitHub Copilot intentionally accepts an empty response to its `GitHub Enterprise URL/domain (blank for github.com)` prompt. The owned shell incorrectly normalized a blank string to `null`, which the engine adapter correctly interpreted as cancellation. The correction preserves an intentionally blank response and reserves `null` for actual cancellation. A synthetic device-code regression uses no live URL, device code, or credential.
 
-Final user acceptance remains pending after this correction is integrated and retested.
+## Final acceptance
+
+After both corrections were integrated, the user manually retested the repaired A1 login flow and confirmed it was working. Combined with the earlier confirmation that provider status and visible models were consistent, this closes the required user-controlled acceptance without recording credentials, device codes, or tokens.
