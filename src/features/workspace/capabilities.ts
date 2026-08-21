@@ -16,6 +16,7 @@ export type WorkspaceActionGateResult =
   | { readonly kind: "allowed"; readonly action: WorkspaceCapabilityAction }
   | { readonly kind: "rejected"; readonly code: string; readonly diagnostic: string };
 
+// Advisory fixture: this feature-only branch exercises workspace impact selection without changing behavior.
 const STRUCTURED_ACTIONS = [
   "structured-command",
   "cancel-structured-command",
