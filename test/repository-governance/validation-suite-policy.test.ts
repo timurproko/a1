@@ -78,8 +78,11 @@ describe("validation suite ownership", () => {
       "architecture",
       "customization-ready",
     ]);
+    expect(suites.scopes["package-smoke"]!.tests).toEqual([
+      "test/foundation/release/package-surface.test.ts",
+    ]);
     expect(suites.scopes["package-install"]!.tests).toEqual([
-      "test/foundation/release/package-surface.integration.test.ts",
+      "test/foundation/release/package-install.integration.test.ts",
     ]);
   });
 });

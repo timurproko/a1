@@ -11,19 +11,22 @@ describe("validation tier planning", () => {
       "pi-engine-conformance",
       "release-update",
       "structured-runtime-integration",
+      "package-smoke",
       "package-install",
       "dependency-policy",
     ]);
     expect(plan.vitest).toMatchObject({
       mode: "full-deduplicated",
       invocations: [
-        { id: "vitest-full-without-package-install", arguments: expect.arrayContaining(["--exclude", "test/foundation/release/package-surface.integration.test.ts"]) },
-        { id: "vitest-package-install", arguments: expect.arrayContaining(["test/foundation/release/package-surface.integration.test.ts", "--no-file-parallelism"]) },
+        { id: "vitest-full-without-package", arguments: expect.arrayContaining(["--exclude", "test/foundation/release/package-surface.test.ts", "test/foundation/release/package-install.integration.test.ts"]) },
+        { id: "vitest-package-smoke", arguments: expect.arrayContaining(["test/foundation/release/package-surface.test.ts", "--no-file-parallelism"]) },
+        { id: "vitest-package-install", arguments: expect.arrayContaining(["test/foundation/release/package-install.integration.test.ts", "--no-file-parallelism"]) },
       ],
     });
     expect(plan.requiresBuild).toBe(true);
     expect(plan.commands.map(command => command.id)).toEqual([
       "candidate-build",
+      "candidate-pack",
       "typecheck",
       "architecture",
       "customization-ready",
@@ -40,7 +43,8 @@ describe("validation tier planning", () => {
     expect(plan.commands.map(command => command.id)).toEqual(["candidate-build", "typecheck", "architecture", "customization-ready"]);
     expect(plan.vitest?.mode).toBe("fast-and-explicit");
     expect(plan.vitest?.invocations[0]?.arguments).toContain("--exclude");
-    expect(plan.vitest?.invocations[0]?.arguments).toContain("test/foundation/release/package-surface.integration.test.ts");
+    expect(plan.vitest?.invocations[0]?.arguments).toContain("test/foundation/release/package-surface.test.ts");
+    expect(plan.vitest?.invocations[0]?.arguments).toContain("test/foundation/release/package-install.integration.test.ts");
   });
 
   it("builds once for multiple build-dependent integration scopes", async () => {
@@ -63,6 +67,8 @@ describe("validation tier planning", () => {
       requested: ["fixture"],
       selected: ["fixture"],
       requiresBuild: true,
+      consumesPackage: false,
+      candidateTarball: "unused.tgz",
       commands: [{ id: "candidate-build", executable: "npm", arguments: ["run", "build"], owners: ["fixture"] }],
       vitest: null,
     }, { env: { VALIDATION_BUILD_READY: "1" }, stdio: "pipe" });

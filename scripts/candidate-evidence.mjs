@@ -65,29 +65,35 @@ export async function verifyCandidateEvidence(evidence, options) {
 }
 
 export function readPackedManifest(tarball) {
+  const entry = readPackedEntries(tarball).find(candidate => candidate.path === "package/package.json");
+  if (!entry) throw new Error("candidate tarball does not contain package/package.json");
+  const manifest = JSON.parse(entry.content.toString("utf8"));
+  if (!manifest?.name || !manifest?.version || !manifest?.bin) throw new Error("packed package manifest is incomplete");
+  return manifest;
+}
+
+export function readPackedEntries(tarball) {
   let archive;
   try { archive = gunzipSync(tarball); }
   catch { throw new Error("candidate tarball is not valid gzip content"); }
+  const entries = [];
   for (let offset = 0; offset + 512 <= archive.length;) {
     const header = archive.subarray(offset, offset + 512);
     if (header.every(byte => byte === 0)) break;
     const name = readTarString(header.subarray(0, 100));
     const prefix = readTarString(header.subarray(345, 500));
     const path = prefix ? `${prefix}/${name}` : name;
+    if (!path.startsWith("package/") || path.includes("../") || path.includes("\\")) throw new Error(`candidate tarball has unsafe entry path: ${path}`);
     const sizeSource = readTarString(header.subarray(124, 136)).trim();
     const size = Number.parseInt(sizeSource || "0", 8);
     if (!Number.isSafeInteger(size) || size < 0) throw new Error("candidate tarball has an invalid entry size");
     const contentStart = offset + 512;
     const contentEnd = contentStart + size;
     if (contentEnd > archive.length) throw new Error("candidate tarball entry is truncated");
-    if (path === "package/package.json") {
-      const manifest = JSON.parse(archive.subarray(contentStart, contentEnd).toString("utf8"));
-      if (!manifest?.name || !manifest?.version || !manifest?.bin) throw new Error("packed package manifest is incomplete");
-      return manifest;
-    }
+    entries.push({ path, content: Buffer.from(archive.subarray(contentStart, contentEnd)), type: String.fromCharCode(header[156] || 48) });
     offset = contentStart + Math.ceil(size / 512) * 512;
   }
-  throw new Error("candidate tarball does not contain package/package.json");
+  return entries;
 }
 
 function validateEvidenceShape(evidence) {

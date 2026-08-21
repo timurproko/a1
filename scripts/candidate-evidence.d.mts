@@ -35,4 +35,5 @@ export function verifyCandidateEvidence(evidence: CandidateEvidence, options: {
   channel?: "next" | "latest";
   requireStable?: boolean;
 }): Promise<{ packageName: string; version: string; integrity: string; shasum: string; bin: Record<string, string> }>;
-export function readPackedManifest(tarball: Buffer): { name: string; version: string; bin: Record<string, string> };
+export function readPackedManifest(tarball: Buffer): { name: string; version: string; bin: Record<string, string>; dependencies?: Record<string, string>; repository?: { type: string; url: string } };
+export function readPackedEntries(tarball: Buffer): Array<{ path: string; content: Buffer; type: string }>;

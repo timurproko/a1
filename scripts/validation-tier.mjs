@@ -33,6 +33,8 @@ export async function createTierPlan(requested, repository = process.cwd()) {
   const definitions = atomic.map(name => ({ name, definition: suites.tiers[name] ?? suites.scopes[name] }));
   const full = requested.includes("full-release");
   const requiresBuild = definitions.some(({ definition }) => definition.requiresBuild === true);
+  const consumesPackage = definitions.some(({ definition }) => definition.consumesPackage === true);
+  const candidateTarball = resolve(repository, "artifacts", "validation", "package", "candidate.tgz");
   const commands = [];
   const commandIds = new Map();
 
@@ -49,6 +51,7 @@ export async function createTierPlan(requested, repository = process.cwd()) {
   }
 
   if (requiresBuild) addCommand({ id: "candidate-build", executable: "npm", arguments: ["run", "build", "--silent"] }, "build-prerequisite");
+  if (consumesPackage) addCommand({ id: "candidate-pack", executable: "node", arguments: ["scripts/prepare-validation-package.mjs"] }, "package-prerequisite");
   for (const { name, definition } of definitions) {
     for (const command of definition.commands ?? []) addCommand(command, name);
   }
@@ -58,32 +61,39 @@ export async function createTierPlan(requested, repository = process.cwd()) {
   const duplicateTests = explicitTests.filter((entry, index) => explicitTests.findIndex(candidate => candidate.test === entry.test) !== index);
   if (duplicateTests.length > 0) throw new Error(`tests have duplicate selected owners: ${duplicateTests.map(entry => entry.test).join(", ")}`);
 
-  const packageTests = new Set(suites.scopes["package-install"]?.tests ?? []);
+  const packageSmokeTests = new Set(suites.scopes["package-smoke"]?.tests ?? []);
+  const packageInstallTests = new Set(suites.scopes["package-install"]?.tests ?? []);
+  const packageTests = new Set([...packageSmokeTests, ...packageInstallTests]);
+  const regularExplicitTests = explicitTests.filter(entry => !packageTests.has(entry.test));
+  const selectedTestPaths = new Set(explicitTests.map(entry => entry.test));
+  const requestedPackageSmoke = [...packageSmokeTests].filter(path => selectedTestPaths.has(path));
+  const requestedPackageInstall = [...packageInstallTests].filter(path => selectedTestPaths.has(path));
+  const regularInvocations = [
+    ...(fast ? [{ id: "vitest-fast", arguments: ["vitest", "run", fast.definition.includeRoot, ...fast.definition.exclude.flatMap(path => ["--exclude", path])] }] : []),
+    ...(regularExplicitTests.length > 0 ? [{ id: "vitest-explicit", arguments: ["vitest", "run", ...regularExplicitTests.map(entry => entry.test), "--testTimeout=30000"] }] : []),
+    ...(requestedPackageSmoke.length > 0 ? [{ id: "vitest-package-smoke", arguments: ["vitest", "run", ...requestedPackageSmoke, "--no-file-parallelism", "--testTimeout=120000"] }] : []),
+    ...(requestedPackageInstall.length > 0 ? [{ id: "vitest-package-install", arguments: ["vitest", "run", ...requestedPackageInstall, "--no-file-parallelism", "--testTimeout=600000"] }] : []),
+  ];
   const vitest = full
     ? {
         mode: "full-deduplicated",
         invocations: [
-          { id: "vitest-full-without-package-install", arguments: ["vitest", "run", ...[...packageTests].flatMap(path => ["--exclude", path]), "--testTimeout=30000"] },
-          { id: "vitest-package-install", arguments: ["vitest", "run", ...packageTests, "--no-file-parallelism", "--testTimeout=600000"] },
+          { id: "vitest-full-without-package", arguments: ["vitest", "run", ...[...packageTests].flatMap(path => ["--exclude", path]), "--testTimeout=30000"] },
+          { id: "vitest-package-smoke", arguments: ["vitest", "run", ...packageSmokeTests, "--no-file-parallelism", "--testTimeout=120000"] },
+          { id: "vitest-package-install", arguments: ["vitest", "run", ...packageInstallTests, "--no-file-parallelism", "--testTimeout=600000"] },
         ],
       }
-    : fast
-      ? {
-          mode: "fast-and-explicit",
-          invocations: [
-            { id: "vitest-fast", arguments: ["vitest", "run", fast.definition.includeRoot, ...fast.definition.exclude.flatMap(path => ["--exclude", path]) ] },
-            ...(explicitTests.length > 0 ? [{ id: "vitest-explicit", arguments: ["vitest", "run", ...explicitTests.map(entry => entry.test), "--testTimeout=30000"] }] : []),
-          ],
-        }
-      : explicitTests.length > 0
-        ? { mode: "explicit", invocations: [{ id: "vitest-explicit", arguments: ["vitest", "run", ...explicitTests.map(entry => entry.test), "--testTimeout=30000"] }] }
-        : null;
+    : regularInvocations.length > 0
+      ? { mode: fast ? "fast-and-explicit" : "explicit", invocations: regularInvocations }
+      : null;
 
   return {
     schema: "a1-validation-plan-v1",
     requested,
     selected: atomic,
     requiresBuild,
+    consumesPackage,
+    candidateTarball,
     commands,
     vitest,
     releaseContracts: full ? suites.releaseContracts : undefined,
@@ -100,10 +110,15 @@ export async function runTierPlan(plan, options = {}) {
       outcomes.push({ id: command.id, command: `${command.executable} ${command.arguments.join(" ")}`, exitCode: 0, durationMs: 0, skipped: "existing-explicit-build" });
       continue;
     }
+    if (command.id === "candidate-pack" && environment.VALIDATION_CANDIDATE_TARBALL) {
+      outcomes.push({ id: command.id, command: `${command.executable} ${command.arguments.join(" ")}`, exitCode: 0, durationMs: 0, skipped: "existing-exact-package" });
+      continue;
+    }
     const outcome = await runCommand(command, environment, options.stdio ?? "inherit");
     outcomes.push(outcome);
     if (outcome.exitCode !== 0) return finish(false);
     if (command.id === "candidate-build") environment.VALIDATION_BUILD_READY = "1";
+    if (command.id === "candidate-pack") environment.VALIDATION_CANDIDATE_TARBALL = plan.candidateTarball;
   }
 
   if (plan.vitest) {

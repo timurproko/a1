@@ -31,7 +31,7 @@ describe("fail-closed validation impact selection", () => {
   it("widens package and cross-cutting changes", async () => {
     const packagePlan = await selectImpactFromChanges([{ status: "M", path: "package.json" }]);
     expect(packagePlan.packageSensitive).toBe(true);
-    expect(packagePlan.selected).toEqual(expect.arrayContaining(["package-install", "dependency-policy"]));
+    expect(packagePlan.selected).toEqual(expect.arrayContaining(["package-smoke", "package-install", "dependency-policy"]));
 
     const fullPlan = await selectImpactFromChanges([{ status: "M", path: "vitest.config.ts" }]);
     expect(fullPlan).toMatchObject({ full: true, packageSensitive: true, selected: ["full-release"] });

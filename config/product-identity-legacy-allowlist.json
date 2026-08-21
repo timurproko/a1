@@ -1,6 +1,6 @@
 {
   "schema": "a1-legacy-identity-allowlist-v1",
-  "generatedAt": "2026-08-20T19:12:01.966Z",
+  "generatedAt": "2026-08-21T07:51:48.095Z",
   "inventorySchema": "a1-legacy-identity-inventory-v1",
   "occurrences": [
     {
@@ -280,33 +280,21 @@
       "reason": "explicit legacy rejection fixture"
     },
     {
-      "id": "test/foundation/release/package-surface.integration.test.ts:49:32",
+      "id": "test/foundation/release/package-install.integration.test.ts:50:70",
       "value": "addone",
-      "fingerprint": "63a92a37ff7c85e5bfdea5387ab71708b776a7a60a564f89d653090b0315331d",
+      "fingerprint": "49cdf1e52ffee73098486f5d26cba1ea2b997169b1ffeefc8822d2ba3fe36521",
       "reason": "explicit legacy rejection fixture"
     },
     {
-      "id": "test/foundation/release/package-surface.integration.test.ts:104:70",
+      "id": "test/foundation/release/package-install.integration.test.ts:50:85",
       "value": "addone",
-      "fingerprint": "897cc7c78f447403ffb69d010c8374001e6f5d1a0e54c5f7c4a02f801672372e",
+      "fingerprint": "88df0be25b9e327bd8217766693f3eceb7cde28b60c49283158a960c815bda06",
       "reason": "explicit legacy rejection fixture"
     },
     {
-      "id": "test/foundation/release/package-surface.integration.test.ts:104:85",
+      "id": "test/foundation/release/package-surface.test.ts:38:32",
       "value": "addone",
-      "fingerprint": "b15f65d01f30c351d7a3515372aa17dc5f9609407bae9e66fb65659c32508709",
-      "reason": "explicit legacy rejection fixture"
-    },
-    {
-      "id": "test/foundation/release/package-surface.integration.test.ts:105:70",
-      "value": "addone",
-      "fingerprint": "0f15574006682a22dbcc934a631d176df133fb20bc941f8b23f124411692ece3",
-      "reason": "explicit legacy rejection fixture"
-    },
-    {
-      "id": "test/foundation/release/package-surface.integration.test.ts:105:96",
-      "value": "addone",
-      "fingerprint": "6973307b1867136692150caa6b3ad88f62441b51c82948b6e31f582f9ba6556b",
+      "fingerprint": "056d6e7dc6da8871d913afc00bdf7d0215f680019f8d583235525fe68856d4fa",
       "reason": "explicit legacy rejection fixture"
     },
     {

@@ -14,7 +14,7 @@ beforeEach(async () => {
   await writeFile(tarballPath, createTarball({
     name: "@timurproko/a1",
     version: "0.1.1-dev.2",
-    bin: { a1: "bin/a1.js" },
+    bin: { "a1": "bin/a1.js" },
   }));
 });
 
@@ -44,7 +44,7 @@ describe("exact candidate evidence", () => {
     expect(evidence).toMatchObject({
       schema: "a1-release-certification-v1",
       source: { commit: "a".repeat(40), tree: "b".repeat(40) },
-      package: { name: "@timurproko/a1", version: "0.1.1-dev.2", bin: { a1: "bin/a1.js" } },
+      package: { name: "@timurproko/a1", version: "0.1.1-dev.2", bin: { "a1": "bin/a1.js" } },
       channel: "next",
       validation: { selected: ["invariants", "fast"], gateIds: ["typecheck", "vitest-fast"] },
       certification: { class: "uncertified-development-preview", stableEligible: false },

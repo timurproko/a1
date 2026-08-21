@@ -40,7 +40,7 @@ describe("validation impact manifest", () => {
       ["src/foundation/pi-engine-adapter/index.ts", "pi-engine-adapter", ["pi-engine-conformance"]],
       ["src/foundation/release/update.ts", "release-update", ["release-update"]],
       ["src/foundation/structured-agent-runtime/runtime.ts", "structured-agent-runtime", ["structured-runtime-integration"]],
-      ["src/product-identity.ts", "package-release", ["package-install", "dependency-policy"]],
+      ["src/product-identity.ts", "package-release", ["package-smoke", "package-install", "dependency-policy"]],
     ];
 
     expect(manifest.schema).toBe("a1-validation-impact-v1");

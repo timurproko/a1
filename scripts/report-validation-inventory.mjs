@@ -11,7 +11,7 @@ export async function createValidationInventory(repository = root) {
     readJson(resolve(repository, "config", "validation-suites.json")),
     readFile(resolve(repository, ".github", "workflows", "publish-next.yml"), "utf8"),
     readFile(resolve(repository, "test", "features", "launch", "exact-pi-entry.integration.test.ts"), "utf8"),
-    readFile(resolve(repository, "test", "foundation", "release", "package-surface.integration.test.ts"), "utf8"),
+    readFile(resolve(repository, "test", "foundation", "release", "package-surface.test.ts"), "utf8"),
   ]);
 
   if (baseline.schema !== "a1-validation-baseline-v1") throw new Error("unsupported validation baseline schema");
@@ -29,11 +29,9 @@ export async function createValidationInventory(repository = root) {
     { id: "root-prepare", present: manifest.scripts?.prepare === "npm run build", source: "package.json#scripts.prepare" },
     { id: "engine-conformance", present: manifest.scripts?.["report:pi-engine-conformance"]?.includes("npm run build") === true, source: "package.json#scripts.report:pi-engine-conformance" },
     { id: "exact-entry", present: exactEntrySource.includes("tsconfig.build.json"), source: "test/features/launch/exact-pi-entry.integration.test.ts" },
-    { id: "package-surface", present: packageSurfaceSource.includes("tsconfig.build.json"), source: "test/foundation/release/package-surface.integration.test.ts" },
+    { id: "package-surface", present: packageSurfaceSource.includes("tsconfig.build.json"), source: "test/foundation/release/package-surface.test.ts" },
     { id: "preview-pack", present: /Pack and verify accepted bytes[\s\S]*?npm run build/.test(previewSource), source: ".github/workflows/publish-next.yml" },
   ];
-  const missingBuildTriggers = buildTriggers.filter(trigger => !trigger.present);
-  if (missingBuildTriggers.length > 0) throw new Error(`baseline build trigger changed: ${missingBuildTriggers.map(trigger => trigger.id).join(", ")}`);
 
   return {
     schema: "a1-validation-inventory-v1",
@@ -44,7 +42,7 @@ export async function createValidationInventory(repository = root) {
     previewCommands: baseline.previewCommands,
     releaseGates,
     duplicateContracts: baseline.knownDuplicateContracts,
-    buildTriggers: buildTriggers.map(({ id, source }) => ({ id, source })),
+    buildTriggers: buildTriggers.map(({ id, source, present }) => ({ id, source, present })),
   };
 }
 

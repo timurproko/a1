@@ -19,7 +19,8 @@
         "test/foundation/pi-engine-adapter/conformance.test.ts",
         "test/foundation/pi-engine-adapter/runtime-integration.test.ts",
         "test/foundation/pi-engine-adapter/session-integration.test.ts",
-        "test/foundation/release/package-surface.integration.test.ts",
+        "test/foundation/release/package-surface.test.ts",
+        "test/foundation/release/package-install.integration.test.ts",
         "test/foundation/release/update-transition.integration.test.ts",
         "test/foundation/structured-agent-runtime/runtime.integration.test.ts"
       ]
@@ -33,6 +34,7 @@
         "pi-engine-conformance",
         "release-update",
         "structured-runtime-integration",
+        "package-smoke",
         "package-install",
         "dependency-policy"
       ]
@@ -71,10 +73,20 @@
         "test/foundation/structured-agent-runtime/runtime.integration.test.ts"
       ]
     },
+    "package-smoke": {
+      "kind": "vitest-files",
+      "requiresBuild": true,
+      "consumesPackage": true,
+      "tests": [
+        "test/foundation/release/package-surface.test.ts"
+      ]
+    },
     "package-install": {
       "kind": "vitest-files",
+      "requiresBuild": true,
+      "consumesPackage": true,
       "tests": [
-        "test/foundation/release/package-surface.integration.test.ts"
+        "test/foundation/release/package-install.integration.test.ts"
       ]
     },
     "dependency-policy": {
@@ -89,7 +101,7 @@
     "compatibility-authority": "fast",
     "candidate-engine-conformance": "pi-engine-conformance",
     "exact-vanilla-oracle": "launch-integration",
-    "packaged-public-entry": "package-install",
+    "packaged-public-entry": "package-smoke",
     "owned-ui-regression": "fast",
     "extension-behavior": "fast",
     "architecture-independent-n-minus-one-update-transition": "release-update"

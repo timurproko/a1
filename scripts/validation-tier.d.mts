@@ -10,6 +10,8 @@ export interface ValidationPlan {
   requested: string[];
   selected: string[];
   requiresBuild: boolean;
+  consumesPackage: boolean;
+  candidateTarball: string;
   commands: ValidationCommandPlan[];
   vitest: null | {
     mode: string;
