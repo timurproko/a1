@@ -1,0 +1,13 @@
+#!/bin/sh
+# Development launcher.
+#
+# Node decides once, at startup, whether it may pass VT sequences through to the
+# terminal; when it decides it may not, it renders ANSI itself and knows only the
+# sixteen SGR colours, so every 24-bit colour the interface draws is replaced by
+# the terminal's nearest palette entry. Which console handle Node is handed makes
+# that decision, and a shell that execs into Node hands it a usable one while a
+# directly launched `node` under Git Bash does not.
+#
+# The installed `a1` command is an npm shim of exactly this shape, so this keeps
+# a repository-local run showing the same colours a user sees.
+exec node "$(dirname "$0")/start-local.mjs" "$@"

@@ -549,6 +549,14 @@ export class PiEngineAdapter {
     }
   }
 
+  /**
+   * The theme the engine is configured with, in the engine's own grammar: a
+   * theme's name, or a `light/dark` pair meaning "follow the terminal".
+   */
+  configuredTheme(): string | undefined {
+    return this.#runtime?.services.settingsManager.getThemeSetting();
+  }
+
   /** Settings port for the live runtime, or null before the runtime is available. */
   settingsPort(): AgentSettingsPort | null {
     const settings = this.#runtime?.services.settingsManager;
