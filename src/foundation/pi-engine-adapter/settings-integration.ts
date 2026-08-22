@@ -23,6 +23,7 @@ const PRESENTATION: {
   readonly order: readonly string[];
   readonly settings: Readonly<Record<string, { readonly label: string; readonly description: string; readonly opensDialog: boolean }>>;
   readonly dialogs: Readonly<Record<string, readonly AgentSettingFlag[]>>;
+  readonly bounds: Readonly<Record<string, { readonly minimum: number; readonly maximum?: number }>>;
 } = piSettingsMetadata;
 
 export class PiSettingsIntegration implements AgentSettingsPort {
@@ -44,8 +45,10 @@ export class PiSettingsIntegration implements AgentSettingsPort {
         const key = operation.descriptor.key;
         const wording = PRESENTATION.settings[key];
         const flags = PRESENTATION.dialogs[key];
+        const bounds = PRESENTATION.bounds[key];
         return {
           ...operation.descriptor,
+          ...(bounds === undefined ? {} : bounds),
           ...(wording === undefined ? {} : { label: wording.label, description: wording.description }),
           ...(flags === undefined ? {} : { flags }),
         };
@@ -102,7 +105,17 @@ function bool(key: string, read: () => boolean, write: (value: boolean) => void)
   return { descriptor: { key, valueType: "boolean", writable: true }, read, write(value) { if (typeof value !== "boolean") invalid(key); write(value); } };
 }
 function numberSetting(key: string, read: () => number, write: (value: number) => void, minimum: number): Operation {
-  return { descriptor: { key, valueType: "number", writable: true }, read, write(value) { if (typeof value !== "number" || !Number.isSafeInteger(value) || value < minimum) invalid(key); write(value); } };
+  const declared = PRESENTATION.bounds[key];
+  const low = declared?.minimum ?? minimum;
+  const high = declared?.maximum;
+  return {
+    descriptor: { key, valueType: "number", writable: true },
+    read,
+    write(value) {
+      if (typeof value !== "number" || !Number.isSafeInteger(value) || value < low || (high !== undefined && value > high)) invalid(key);
+      write(value);
+    },
+  };
 }
 function stringSetting(key: string, read: () => string, write: (value: string) => void): Operation {
   return { descriptor: { key, valueType: "string", writable: true }, read, write(value) { if (typeof value !== "string" || value.length === 0) invalid(key); write(value); } };

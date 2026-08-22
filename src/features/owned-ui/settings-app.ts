@@ -9,6 +9,7 @@ import {
   caretCell,
   blockRowSpan,
   displayWidth,
+  faint,
   handleLineInputKey,
   humanizeLabel,
   humanizeTitle,
@@ -379,11 +380,14 @@ export class SettingsApp implements UiApp {
       this.#openStructured(entry);
       return;
     }
+    const shown = this.#shownValue(entry);
+    // A number is stepped, not picked from a list: it has its own two controls,
+    // and pointing at it is not a request for anything else.
+    if (typeof shown === "number") return;
     if (!entry.editable || entry.choices === null || entry.choices.length === 0) {
       this.#notice = `${labelOf(entry)} cannot be changed here`;
       return;
     }
-    const shown = this.#shownValue(entry);
     const current = shown === null ? 0 : Math.max(0, entry.choices.indexOf(shown));
     // Nothing is highlighted until the pointer or a key picks a row, so opening
     // the menu does not flash a highlight the reader did not ask for.
@@ -482,7 +486,10 @@ export class SettingsApp implements UiApp {
     }
     const shown = this.#shownValue(entry);
     if (typeof shown === "number") {
-      this.#apply(entry, shown + delta);
+      // At the end of the range there is nothing to say: the arrow already reads
+      // as unavailable, so a message would only repeat it.
+      const next = steppedValue(entry, shown, delta);
+      if (next !== null) this.#apply(entry, next);
       return;
     }
     const choices = entry.choices;
@@ -605,8 +612,10 @@ export class SettingsApp implements UiApp {
     // The stepper is an affordance, not decoration: it appears under the pointer.
     const stepper = isStepper(entry, shown) && hovered;
     const valueToken = valueHovered ? "text" : "muted";
-    const minus = theme.fg(this.#hoverRegion === "minus" && hovered ? "text" : "dim", "- ");
-    const plus = theme.fg(this.#hoverRegion === "plus" && hovered ? "text" : "dim", " +");
+    const canLower = steppedValue(entry, shown, -1) !== null;
+    const canRaise = steppedValue(entry, shown, 1) !== null;
+    const minus = canLower ? theme.fg(this.#hoverRegion === "minus" && hovered ? "text" : "dim", "- ") : faint(theme.fg("dim", "- "));
+    const plus = canRaise ? theme.fg(this.#hoverRegion === "plus" && hovered ? "text" : "dim", " +") : faint(theme.fg("dim", " +"));
     const value = stepper
       ? `${minus}${theme.fg(valueToken, raw)}${plus}`
       : theme.fg(valueToken, raw);
@@ -754,6 +763,28 @@ function labelOf(entry: OwnedUiSettingsEntry): string {
 
 function isStepper(entry: OwnedUiSettingsEntry, shown: OwnedUiSettingValue | null = entry.value): boolean {
   return typeof shown === "number" && entry.editable;
+}
+
+/** The numbers a setting offers, in order, when it names them rather than a range. */
+function numericChoices(entry: OwnedUiSettingsEntry): readonly number[] | null {
+  const choices = entry.choices;
+  if (choices === null || choices.length === 0) return null;
+  const numbers = choices.filter((choice): choice is number => typeof choice === "number");
+  return numbers.length === choices.length ? [...numbers].sort((left, right) => left - right) : null;
+}
+
+/** The value a step lands on, or null when there is nowhere further to go. */
+function steppedValue(entry: OwnedUiSettingsEntry, shown: OwnedUiSettingValue | null, delta: -1 | 1): number | null {
+  if (typeof shown !== "number") return null;
+  const offered = numericChoices(entry);
+  if (offered !== null) {
+    const at = offered.indexOf(shown);
+    const next = (at < 0 ? 0 : at) + delta;
+    return next >= 0 && next < offered.length ? offered[next] ?? null : null;
+  }
+  const next = shown + delta;
+  if (entry.minimum !== null && next < entry.minimum) return null;
+  return entry.maximum !== null && next > entry.maximum ? null : next;
 }
 
 /** Booleans read as yes and no; everything else prints as itself. */
