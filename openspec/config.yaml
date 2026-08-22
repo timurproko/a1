@@ -12,7 +12,7 @@ context: |
   - When a pull request merges — armed to merge on its own, or merged by hand after acceptance — delete its remote branch and remove its worktree, then prune. A merged branch left behind is one more thing to read past when looking for what is live.
   - Judge merged by what the pull request says, not by whether the branch is an ancestor of `develop`: these merges are squashed, so the branch tip never becomes an ancestor and `git branch --merged` reports a landed branch as unmerged. `gh pr view <n> --json state` is the answer.
   - Leave alone a worktree that belongs to another session's open pull request, and say when a directory could not be removed because something is still running in it.
-  - `npm run clean:worktrees` lists what has landed and `npm run clean:worktrees -- --apply` removes it, asking GitHub which pull request carried each commit. A directory Windows will not release is scheduled for deletion on the next restart rather than left to be found later.
+  - Remove a worktree deliberately once its pull request has merged: confirm with `gh pr view <n> --json state`, then `git worktree remove` it and prune. A directory Windows will not release is closed and removed by hand rather than left behind.
   - After manual validation is accepted, record the acceptance, archive the completed OpenSpec change, integrate the archive commit, then remove and prune every retained task or acceptance worktree for that change.
   - Store local package archives and ad hoc builds under the repository's `.builds/` directory.
 
@@ -33,7 +33,7 @@ context: |
   Validation policy — CI validates, not the workstation:
   - GitHub Actions on the pull request is the only required validation. Write the code, commit, open the PR, and let CI test it.
   - Do not run test suites locally as a gate. `npm run typecheck` before pushing is a fast optional sanity check; `npx vitest run <files>` is for debugging a specific failure, never a completion requirement.
-  - Never run `npm run test:fast`, `test:full`, `test:release`, or `test:pi-terminal-parity` locally on your own initiative; the first belongs to CI, the rest to release workflows or an explicit user request.
+  - Never run `npm run test:fast`, `test:full`, or `test:release` locally on your own initiative; the first belongs to CI, the rest to release workflows or an explicit user request.
   - Docs/spec-only changes get no tests anywhere; CI runs only the OpenSpec lint.
   - After pushing a PR, do not poll or watch CI in the foreground. Fill the wait with work on that same change if there is any, then read the result before anything else starts.
   - A red pull request is the next task. Fix it and push again — the round trip is about two minutes — before starting new work, and never stack new work on top of a change whose validation is failing.

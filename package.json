@@ -34,7 +34,6 @@
     "test:full": "node scripts/run-validation-tier.mjs full-release",
     "test:release": "node scripts/run-release-gates.mjs",
     "test:terminal-host": "node scripts/run-terminal-host-probe.mjs",
-    "test:pi-terminal-parity": "npm run build --silent && node scripts/run-pi-terminal-parity.mjs",
     "test:pi-engine-conformance": "vitest run test/foundation/pi-engine-adapter/conformance.test.ts test/foundation/pi-engine-adapter/runtime-integration.test.ts test/foundation/pi-engine-adapter/session-integration.test.ts",
     "report:pi-engine-conformance": "npm run build --silent && node scripts/run-pi-engine-conformance.mjs",
     "sync:pi-ui": "npm run update:pi-component-parity && npm run update:pi-event-frame-parity && npm run update:pi-settings-metadata",
@@ -47,8 +46,7 @@
     "prepack": "node scripts/prepack-gate.mjs",
     "prepublishOnly": "npm run test:release",
     "prepare": "npm run build",
-    "update:pi-settings-metadata": "node scripts/update-pi-settings-metadata.mjs",
-    "clean:worktrees": "node scripts/clean-worktrees.mjs"
+    "update:pi-settings-metadata": "node scripts/update-pi-settings-metadata.mjs"
   },
   "dependencies": {
     "@earendil-works/pi-coding-agent": "0.84.2",

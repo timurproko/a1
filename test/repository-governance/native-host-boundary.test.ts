@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 const FORBIDDEN_NODE_PROTOCOL_PAYLOADS = /ptyBytes|terminalBytes|terminalOutput|inputBytes|renderedCells?|cellGrid|screenBuffer|ansiStream|framebuffer|base64Terminal|rawTerminal|opaqueChild/i;
 const FORBIDDEN_EXPLICIT_MODE_COMPOSED = /native-host-protocol|structured-agent-runtime|features\/workspace|features\/owned-ui|NativeHost|composedTerminal|createFixedTwoByTwo/i;
 
-describe("native host and transparent-mode executable boundaries", () => {
+describe("native host and launch executable boundaries", () => {
   it("keeps hot-path payload fields out of every Node-facing protocol and workspace source", async () => {
     const files = [
       ...await sourceFiles("src/foundation/native-host-protocol"),
@@ -18,10 +18,9 @@ describe("native host and transparent-mode executable boundaries", () => {
     }
   });
 
-  it("keeps explicit launch and transparent attachment independent from composed host code", async () => {
+  it("keeps explicit launch independent from composed host code", async () => {
     const files = [
       ...await sourceFiles("src/features/launch"),
-      ...await sourceFiles("src/foundation/transparent-terminal"),
       ...await sourceFiles("src/cli"),
     ];
     expect(files.length).toBeGreaterThan(0);
@@ -58,14 +57,11 @@ describe("native host and transparent-mode executable boundaries", () => {
     expect(runner).not.toContain("encoding:");
   });
 
-  it("bounds the Node-to-native proof frame and preserves exact transparent stdio inheritance", async () => {
+  it("bounds the Node-to-native proof frame", async () => {
     const codec = await readFile("src/foundation/native-host-protocol/codec.ts", "utf8");
     const messages = await readFile("src/foundation/native-host-protocol/messages.ts", "utf8");
-    const launcher = await readFile("src/foundation/transparent-terminal/native-launcher.ts", "utf8");
     expect(messages).toContain("MAX_NATIVE_HOST_MESSAGE_BYTES = 1024 * 1024");
     expect(codec).toContain("frame-too-large");
-    expect(launcher).toContain('stdio: "inherit"');
-    expect(launcher).toContain("shell: false");
   });
 });
 
