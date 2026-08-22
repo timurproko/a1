@@ -87,8 +87,8 @@
 
 ## 7. Validate and integrate
 
-- [ ] 7.1 `npm run typecheck`, `npm run check:architecture`, and `openspec validate --strict` pass
-- [ ] 7.2 Confirm the settings screen behaves as it did before this change — no visible difference for
+- [x] 7.1 `npm run typecheck`, `npm run check:architecture`, and `openspec validate --strict` pass
+- [x] 7.2 Confirm the settings screen behaves as it did before this change — no visible difference for
   the reader in the list, the menu, the dialog, the search row, or the status line
-- [ ] 7.3 Open the pull request and let CI validate
+- [x] 7.3 Open the pull request and let CI validate
 - [ ] 7.4 Record manual acceptance, then archive
