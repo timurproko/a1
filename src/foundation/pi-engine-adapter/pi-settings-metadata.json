@@ -319,5 +319,18 @@
         "fallback": true
       }
     ]
+  },
+  "bounds": {
+    "imageWidthCells": {
+      "minimum": 1
+    },
+    "editorPaddingX": {
+      "minimum": 0,
+      "maximum": 3
+    },
+    "autocompleteMaxVisible": {
+      "minimum": 3,
+      "maximum": 20
+    }
   }
 }

@@ -45,6 +45,10 @@ export interface AgentSettingDescriptor {
   readonly label?: string;
   /** One-line explanation the engine shows for this setting. */
   readonly description?: string;
+  /** Smallest value a numeric setting accepts, when the engine states one. */
+  readonly minimum?: number;
+  /** Largest value a numeric setting accepts, when the engine states one. */
+  readonly maximum?: number;
   /**
    * Flags a structured setting offers. Declared by the source rather than read
    * from the stored value, so an unset flag still has a row and a default.

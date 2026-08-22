@@ -19,7 +19,7 @@ const WARNING_FLAGS = [
 ] as const;
 
 function port(): { port: AgentSettingsPort; writes: { key: string; value: AgentJsonValue }[] } {
-  const values: Record<string, AgentJsonValue> = { warnings: {}, thinkingLevel: "low" };
+  const values: Record<string, AgentJsonValue> = { warnings: {}, thinkingLevel: "low", editorPaddingX: 3, outputPad: 0 };
   const writes: { key: string; value: AgentJsonValue }[] = [];
   return {
     writes,
@@ -29,6 +29,8 @@ function port(): { port: AgentSettingsPort; writes: { key: string; value: AgentJ
         return [
           { key: "warnings", valueType: "json", writable: true, label: "Warnings", flags: WARNING_FLAGS },
           { key: "thinkingLevel", valueType: "enum", writable: true, choices: ["low", "high"], label: "Thinking level" },
+          { key: "editorPaddingX", valueType: "number", writable: true, label: "Editor padding", minimum: 0, maximum: 3 },
+          { key: "outputPad", valueType: "enum", writable: true, choices: [0, 1], label: "Output padding" },
         ];
       },
       async readSetting(key: string): Promise<AgentJsonValue | undefined> {
@@ -94,6 +96,38 @@ describe("the settings screen", () => {
     selectRow(target, "Thinking level");
     target.onInput?.(ENTER, HOST);
     expect(writes).toEqual([{ key: "thinkingLevel", value: "high" }]);
+  });
+
+  it("stops at the end of a range instead of reporting a rejected write", async () => {
+    const { app: target, writes } = await app();
+    selectRow(target, "Editor padding");
+
+    // Already at the top of what the engine accepts: the step is not taken, and
+    // nothing is said about it.
+    target.onInput?.(`${ESC}[C`, HOST);
+    expect(writes).toHaveLength(0);
+    expect(find(target, "Could not save")).toBe("");
+
+    target.onInput?.(`${ESC}[D`, HOST);
+    expect(writes).toEqual([{ key: "editorPaddingX", value: 2 }]);
+  });
+
+  it("steps a number offered as a list, without a menu or a message", async () => {
+    const { app: target, writes } = await app();
+    selectRow(target, "Output padding");
+
+    const lines = screen(target);
+    const row = lines.findIndex(line => line.includes("Output padding"));
+    const valueColumn = (lines[row] ?? "").indexOf("0") + 1;
+    target.onMouse?.({ kind: "press", button: 0, row: row + 1, column: valueColumn }, HOST);
+    expect(writes).toHaveLength(0);
+    expect(find(target, "cannot be changed")).toBe("");
+
+    target.onInput?.(`${ESC}[C`, HOST);
+    expect(writes).toEqual([{ key: "outputPad", value: 1 }]);
+    // One and zero are its ends: there is nowhere above one to go.
+    target.onInput?.(`${ESC}[C`, HOST);
+    expect(writes).toHaveLength(1);
   });
 
   it("opens the dialog for a structured setting and answers from what it is editing", async () => {

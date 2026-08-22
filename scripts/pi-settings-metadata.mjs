@@ -150,6 +150,29 @@ function dialogFlags(source, className) {
   }));
 }
 
+/** The engine's own settings file, where it clamps what a number may be. */
+export const SETTINGS_MANAGER_PATH = "node_modules/@earendil-works/pi-coding-agent/dist/core/settings-manager.js";
+
+export function settingsManagerSource() {
+  return readFileSync(fileURLToPath(new URL(`../${SETTINGS_MANAGER_PATH}`, import.meta.url)), "utf8");
+}
+
+/**
+ * What each numeric setting may hold. The engine writes its own limits as a
+ * clamp on the way in, so a surface that offers a value outside them is offering
+ * something that will be quietly changed underneath the reader.
+ */
+export function numericBounds(source) {
+  const bounds = {};
+  const pattern = /this\.globalSettings(?:\.\w+)*\.(\w+)\s*=\s*Math\.max\((-?\d+),\s*(?:Math\.min\((-?\d+),)?/g;
+  for (const match of source.matchAll(pattern)) {
+    const entry = { minimum: Number.parseInt(match[2], 10) };
+    if (match[3] !== undefined) entry.maximum = Number.parseInt(match[3], 10);
+    bounds[match[1]] = entry;
+  }
+  return bounds;
+}
+
 export function extractPiSettingsMetadata() {
   const source = settingsSelectorSource();
   const byId = new Map(describedItems(source).map(item => [item.id, item]));
@@ -171,5 +194,6 @@ export function extractPiSettingsMetadata() {
     order: presentedOrder(source).map(id => ID_TO_KEY[id]).filter(key => key !== undefined),
     settings,
     dialogs: { warnings: dialogFlags(source, "WarningSettingsSubmenu") },
+    bounds: numericBounds(settingsManagerSource()),
   };
 }
