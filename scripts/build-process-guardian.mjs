@@ -8,12 +8,21 @@ const architecture = process.arch;
 const executable = platform === "win32" ? "a1-process-guardian.exe" : "a1-process-guardian";
 const cargo = process.env.CARGO ?? "cargo";
 const manifestPath = resolve("native/process-guardian/Cargo.toml");
+// A build that worked has nothing to say. Its output is kept and shown only when
+// it failed, or when the reader asked for it with A1_BUILD_VERBOSE=1.
+const verbose = process.env.A1_BUILD_VERBOSE === "1";
 const build = crossSpawn.sync(cargo, ["build", "--release", "--locked", "--manifest-path", manifestPath], {
-  stdio: "inherit",
+  stdio: verbose ? "inherit" : ["ignore", "pipe", "pipe"],
   env: process.env,
   windowsHide: true,
 });
-if (build.status !== 0) throw new Error(`process guardian Cargo build failed with ${build.status}`);
+if (build.status !== 0) {
+  if (!verbose) {
+    process.stderr.write(build.stdout?.toString() ?? "");
+    process.stderr.write(build.stderr?.toString() ?? "");
+  }
+  throw new Error(`process guardian Cargo build failed with ${build.status}`);
+}
 
 const source = resolve("native/process-guardian/target/release", executable);
 const targetDirectory = resolve("dist/native", `${platform}-${architecture}`);
@@ -50,4 +59,4 @@ const manifest = {
   },
 };
 await writeFile(resolve(targetDirectory, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
-process.stdout.write(`Built ${target} (${manifest.artifact.sha256})\n`);
+if (verbose) process.stdout.write(`Built ${target} (${manifest.artifact.sha256})\n`);

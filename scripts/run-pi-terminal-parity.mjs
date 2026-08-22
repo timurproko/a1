@@ -56,9 +56,8 @@ try {
   await writeFile(resolve(artifactRoot, "report.json"), `${JSON.stringify(diagnostic, null, 2)}\n`, "utf8");
   const rendered = diagnostic.producers
     .map(producer => {
-      const excerpt = typeof producer.raw?.excerpt === "string" ? producer.raw.excerpt : "";
-      const visible = excerpt.replace(/\\x1b\[[0-9;?]*[a-zA-Z]/g, "").replace(/\\x1b\][^\\]*?\\x07/g, "").replace(/\\r/g, "");
-      return `--- ${producer.producer ?? "unknown"} had drawn ---\n${visible.slice(0, 2_000)}`;
+      const screen = typeof producer.screen === "string" ? producer.screen : "(no screen captured)";
+      return `--- ${producer.producer ?? "unknown"}: what the comparison sees ---\n${screen}`;
     })
     .join("\n\n");
   await writeFile(
@@ -93,13 +92,11 @@ async function runGate() {
     cwd: fixture.cwd,
     environment: {
       ...commonParityEnvironment(fixture.profiles["a1-owned-ui"]),
-      A1_LAUNCH_PROFILE: "a1",
+      // `a1 pi` is pinned Pi's interface through A1's own rendering and input,
+      // with none of A1's own surfaces. Comparing that against pinned Pi is what
+      // says whether A1 draws and reads it faithfully.
+      A1_LAUNCH_PROFILE: "pi",
       A1_LAUNCH_ARGUMENTS_JSON: "[]",
-      // A1's own surfaces are switched off: this run measures whether A1 draws
-      // and reads pinned Pi faithfully, so pinned Pi is all that may be on
-      // screen. The composition is the product's own, with those surfaces
-      // withheld — a parity run built beside the product would measure itself.
-      A1_OWNED_SURFACES: "off",
     },
     columns: DEFAULT_COLUMNS,
     rows: DEFAULT_ROWS,
@@ -111,6 +108,8 @@ async function runGate() {
   }
 
   const [upstreamCapture, originalOwnedCapture] = await Promise.all([upstream.result(), ownedSession.result()]);
+  assertTrueColourCarried(upstreamCapture);
+  assertTrueColourCarried(originalOwnedCapture);
   const mutation = process.env.A1_PI_PARITY_INTENTIONAL_MUTATION;
   const ownedCapture = mutation === "visual" || mutation === "input-scroll"
     ? applyIntentionalMutation(originalOwnedCapture, mutation)
@@ -133,6 +132,23 @@ async function runGate() {
     owned: ownedCapture,
     comparison,
   };
+}
+
+/**
+ * Node renders ANSI itself when it decides the console cannot take VT sequences,
+ * and then knows only the sixteen SGR colours, so every 24-bit colour becomes the
+ * terminal's nearest palette entry. Two runs collapsed that way agree with each
+ * other while both differ from what a user sees, so the gate refuses to grade
+ * them rather than report a parity it did not measure.
+ */
+function assertTrueColourCarried(capture) {
+  const carried = capture.checkpoints.some(checkpoint =>
+    checkpoint.rows.some(row => row.styles.some(style =>
+      style.foreground.startsWith("rgb:") || style.background.startsWith("rgb:"))));
+  if (carried) return;
+  throw new Error(
+    `${capture.producer} rendered no 24-bit colour: this launch collapsed colour to the terminal palette, so parity would be graded on colours no user sees`,
+  );
 }
 
 async function performAction(producers, action) {
@@ -191,7 +207,7 @@ async function pinnedIdentity() {
       executable: process.execPath,
       arguments: [ownedCliPath],
       launchPath: "owned-ui",
-      ownedSurfaces: "off",
+      launchProfile: "pi",
     },
   };
 }
