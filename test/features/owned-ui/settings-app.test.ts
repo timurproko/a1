@@ -136,10 +136,10 @@ describe("the settings screen", () => {
     const row = lines.findIndex(line => line.includes("Anthropic extra usage"));
     const valueColumn = (lines[row] ?? "").indexOf("true") + 1;
 
-    target.onMouse?.({ kind: "press", button: "left", row: row + 1, column: 6 }, HOST);
+    target.onMouse?.({ kind: "press", button: 0, row: row + 1, column: 6 }, HOST);
     expect(writes).toHaveLength(0);
 
-    target.onMouse?.({ kind: "press", button: "left", row: row + 1, column: valueColumn }, HOST);
+    target.onMouse?.({ kind: "press", button: 0, row: row + 1, column: valueColumn }, HOST);
     expect(writes.at(-1)).toEqual({ key: "warnings", value: { anthropicExtraUsage: false, unknownTools: false } });
   });
 
