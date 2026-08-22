@@ -285,10 +285,22 @@ export class SettingsApp implements UiApp {
       return { consumed: true };
     }
 
-    if (this.#structured !== null) {
-      // The panel owns the pointer while it is open; its own row is the target.
-      if (event.kind === "press" && event.row - 1 === this.#panelTop + 1) this.#toggleFlag(this.#structured.index);
-      return { consumed: true, render: event.kind === "press" };
+    const open = this.#structured;
+    if (open !== null) {
+      // The panel owns the pointer while it is open; its flag rows are the targets.
+      const row = event.row - 1 - (this.#panelTop + 1);
+      if (row < 0 || row >= open.flags.length) return { consumed: true, render: false };
+      if (event.kind === "motion") {
+        if (open.index === row) return { consumed: true, render: false };
+        open.index = row;
+        return { consumed: true, render: true };
+      }
+      if (event.kind === "press") {
+        open.index = row;
+        this.#toggleFlag(row);
+        return { consumed: true };
+      }
+      return { consumed: true, render: false };
     }
 
     const row = this.#frameRows.find(candidate => candidate.screenRow === event.row - 1);
@@ -614,8 +626,10 @@ export class SettingsApp implements UiApp {
   }
 
   /**
-   * The dialog the engine shows for a structured setting: a bottom panel naming
-   * the flag, what it does, and how to change it, over the list it came from.
+   * The dialog the engine shows for a structured setting: every flag it offers,
+   * what the chosen one does, and how to change it, over the list it came from.
+   * Laid out as the engine lays its own out — labels padded to a shared column,
+   * the description of the chosen row below, and its wording for the keys.
    */
   #dialogLines(
     open: { entry: OwnedUiSettingsEntry; flags: readonly string[]; index: number },
@@ -623,27 +637,37 @@ export class SettingsApp implements UiApp {
     theme: UiTheme,
   ): readonly string[] {
     const record = (open.entry.rawValue ?? {}) as Record<string, unknown>;
-    const key = open.flags[open.index] ?? "";
-    const declared = open.entry.flags.find(flag => flag.key === key);
-    const stored = record[key];
-    const on = typeof stored === "boolean" ? stored : declared?.fallback ?? false;
+    const declaredFor = (key: string): { label: string; description: string; fallback: boolean } | undefined =>
+      open.entry.flags.find(flag => flag.key === key);
+    const labelOfFlag = (key: string): string => declaredFor(key)?.label ?? humanizeLabel(key);
+    const labelColumn = Math.min(30, Math.max(...open.flags.map(key => displayWidth(labelOfFlag(key))), 0));
 
-    const label = declared?.label ?? humanizeLabel(key);
-    const value = on ? "yes" : "no";
-    const rowRaw = `→ ${label}  ${value}`;
-    const row = `${theme.fg("accent", "→ ")}${theme.fg("text", label)}  ${theme.fg("muted", value)}`;
-    const description = declared?.description ?? "";
-    const hint = "↑↓ navigate • enter/space change • esc back";
+    const rows = open.flags.map((key, index) => {
+      const selected = index === open.index;
+      const stored = record[key];
+      const on = typeof stored === "boolean" ? stored : declaredFor(key)?.fallback ?? false;
+      // The engine writes these as the booleans they are rather than as yes/no.
+      const value = on ? "true" : "false";
+      const label = labelOfFlag(key);
+      const padded = `${label}${" ".repeat(Math.max(0, labelColumn - displayWidth(label)))}`;
+      const cursor = selected ? "→ " : "  ";
+      const raw = `${cursor}${padded}  ${value}`;
+      const painted = `${theme.fg("accent", cursor)}${theme.fg(selected ? "text" : "muted", padded)}  ${theme.fg(selected ? "text" : "muted", value)}`;
+      return padVisible(truncateToWidth(painted, width), width, raw);
+    });
+
+    const description = declaredFor(open.flags[open.index] ?? "")?.description ?? "";
+    const hint = "  Enter/Space to change · Esc to cancel";
     const rule = theme.fg("dim", "─".repeat(Math.max(0, width)));
 
     this.#panelTop = this.#panelTopForFrame;
     return [
       rule,
-      padVisible(truncateToWidth(row, width), width, rowRaw),
+      ...rows,
       "",
       padVisible(truncateToWidth(theme.fg("muted", `  ${description}`), width), width, `  ${description}`),
       "",
-      padVisible(truncateToWidth(theme.fg("dim", `  ${hint}`), width), width, `  ${hint}`),
+      padVisible(truncateToWidth(theme.fg("dim", hint), width), width, hint),
       rule,
     ];
   }
