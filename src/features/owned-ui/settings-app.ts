@@ -725,7 +725,9 @@ export class SettingsApp implements UiApp {
     const input = this.#filter;
     if (input === null) return [hintLine];
 
-    const rule = theme.fg("border", "─".repeat(Math.max(0, width)));
+    // The input is its own component: it is ruled off quietly rather than with
+    // the border the dialog draws, which belongs to the dialog.
+    const rule = theme.fg("dim", "─".repeat(Math.max(0, width)));
     const view = input.view(Math.max(0, width - 2));
     const empty = view.text.length === 0;
     const before = view.text.slice(0, view.caretColumn);
