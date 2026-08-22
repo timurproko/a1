@@ -66,7 +66,7 @@ export async function runBootstrap(options: BootstrapOptions): Promise<number> {
   let decision = selectCohortLaunch(candidate, state, endpoint, probe);
 
   if (decision.action === "blocked") {
-    await stateStore.blockPending(decision.reason, endpoint?.ownership.liveGenerationIds ?? []);
+    await stateStore.blockPending(decision.reason, endpoint?.ownership.liveInstanceIds ?? []);
     output.write(`${PRODUCT_TEXT.diagnostic(`startup is blocked to preserve uncertain live ownership: ${decision.reason}`)}\n`);
     return 1;
   }
@@ -84,7 +84,7 @@ export async function runBootstrap(options: BootstrapOptions): Promise<number> {
   if (decision.action === "launch-retained-ui") {
     const retained = await verifyMaterializedRelease(decision.releaseRoot, undefined, resolve(paths.dataDir, "releases"));
     if (decision.recordPending && endpoint) {
-      await stateStore.blockPending("candidate activation deferred by live non-resumable generations", endpoint.ownership.nonResumableGenerationIds);
+      await stateStore.blockPending("candidate activation deferred by live non-resumable instances", endpoint.ownership.nonResumableInstanceIds);
     }
     const code = await launchUi(retained, environment);
     if (decision.recordPending) await activatePendingAfterBlockerExit(candidate, stateStore, paths, environment);
@@ -96,12 +96,12 @@ export async function runBootstrap(options: BootstrapOptions): Promise<number> {
     await stateStore.approve(candidate.releaseId, diagnosticsPath);
     const released = await requestIdleOwnershipRelease(endpoint, candidate.releaseId, 2_000);
     if (!released) {
-      await stateStore.blockPending("idle supervisor did not verify ownership release", endpoint.ownership.liveGenerationIds);
+      await stateStore.blockPending("idle supervisor did not verify ownership release", endpoint.ownership.liveInstanceIds);
       output.write(`${PRODUCT_TEXT.diagnostic("could not verify idle cohort ownership release; the retained release remains selected.")}\n`);
       return 1;
     }
     if (!await releaseVerifiedIdleOwner(endpoint, paths.dataDir)) {
-      await stateStore.blockPending("idle supervisor acknowledged release but did not terminate", endpoint.ownership.liveGenerationIds);
+      await stateStore.blockPending("idle supervisor acknowledged release but did not terminate", endpoint.ownership.liveInstanceIds);
       output.write(`${PRODUCT_TEXT.diagnostic("could not complete bounded idle cohort shutdown; the candidate remains pending.")}\n`);
       return 1;
     }
@@ -171,7 +171,7 @@ export async function startSupervisor(release: MaterializedRelease, environment:
 }
 
 async function launchUi(release: MaterializedRelease, environment: NodeJS.ProcessEnv): Promise<number> {
-  const entry = await resolveReleaseEntryPoint(release, "bin/a1-ui.js");
+  const entry = await resolveReleaseEntryPoint(release, "bin/a1-guardian.js");
   return await new Promise<number>((resolvePromise, rejectPromise) => {
     const child = spawn(process.execPath, [entry], {
       env: releaseEnvironment(environment, release),
@@ -204,14 +204,30 @@ export async function waitForVerifiedEndpoint(path: string, release: Materialize
 
 export async function readEndpointMetadata(path: string): Promise<SupervisorEndpointMetadata | null> {
   try {
-    const value = JSON.parse(await readFile(path, "utf8")) as SupervisorEndpointMetadata;
+    const value = JSON.parse(await readFile(path, "utf8")) as Record<string, unknown>;
+    const ownership = value.ownership as Record<string, unknown> | undefined;
+    const liveInstanceIds = Array.isArray(ownership?.liveInstanceIds)
+      ? ownership.liveInstanceIds
+      : Array.isArray(ownership?.liveGenerationIds) ? ownership.liveGenerationIds : null;
+    const nonResumableInstanceIds = Array.isArray(ownership?.nonResumableInstanceIds)
+      ? ownership.nonResumableInstanceIds
+      : Array.isArray(ownership?.nonResumableGenerationIds) ? ownership.nonResumableGenerationIds : null;
+    const uncertainInstanceIds = Array.isArray(ownership?.uncertainInstanceIds) ? ownership.uncertainInstanceIds : [];
     if (!value || value.schema !== PRODUCT_IDENTITY.protocol.supervisorSchema || typeof value.supervisorId !== "string" || typeof value.endpoint !== "string" || !Number.isSafeInteger(value.pid)
       || typeof value.pidStartIdentity !== "string" || typeof value.bootNonce !== "string" || typeof value.releaseId !== "string"
-      || typeof value.releaseRoot !== "string" || typeof value.contentDigest !== "string" || !value.ownership
-      || !Array.isArray(value.ownership.liveGenerationIds) || !Array.isArray(value.ownership.nonResumableGenerationIds)) {
+      || typeof value.releaseRoot !== "string" || typeof value.contentDigest !== "string" || !ownership
+      || !isStringArray(liveInstanceIds) || !isStringArray(nonResumableInstanceIds) || !isStringArray(uncertainInstanceIds)) {
       return null;
     }
-    return value;
+    return {
+      ...value,
+      ownership: {
+        ...ownership,
+        liveInstanceIds,
+        nonResumableInstanceIds,
+        uncertainInstanceIds,
+      },
+    } as unknown as SupervisorEndpointMetadata;
   } catch {
     return null;
   }
@@ -265,10 +281,10 @@ async function activatePendingAfterBlockerExit(
   let endpoint: SupervisorEndpointMetadata | null = null;
   while (Date.now() < deadline) {
     endpoint = await readEndpointMetadata(paths.endpointMetadataPath);
-    if (!endpoint || endpoint.ownership.liveGenerationIds.length === 0) break;
+    if (!endpoint || endpoint.ownership.liveInstanceIds.length === 0) break;
     await new Promise(resolvePromise => setTimeout(resolvePromise, 40));
   }
-  if (!endpoint || endpoint.ownership.liveGenerationIds.length > 0 || await probeOwnership(endpoint) !== "live-verified") return;
+  if (!endpoint || endpoint.ownership.liveInstanceIds.length > 0 || await probeOwnership(endpoint) !== "live-verified") return;
   const diagnosticsPath = await certifyMaterializedRelease(candidate, paths.dataDir);
   await stateStore.approve(candidate.releaseId, diagnosticsPath);
   if (!await requestIdleOwnershipRelease(endpoint, candidate.releaseId, 2_000)) return;
@@ -320,6 +336,10 @@ async function requestIdleOwnershipRelease(metadata: SupervisorEndpointMetadata,
     });
     setTimeout(() => finish(false), timeoutMs).unref();
   });
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every(item => typeof item === "string" && item.length > 0);
 }
 
 export async function waitForProcessExit(pid: number, timeoutMs: number): Promise<void> {
