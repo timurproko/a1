@@ -25,6 +25,11 @@
       "identifier": "A1_LAUNCH_PROFILE"
     },
     {
+      "path": "bin/a1-ui.js",
+      "line": 13,
+      "identifier": "A1_OWNED_SURFACES"
+    },
+    {
       "path": "scripts/pi-terminal-parity/scenario.mjs",
       "line": 243,
       "identifier": "A1_PROFILE_HOME"
@@ -41,7 +46,12 @@
     },
     {
       "path": "scripts/run-pi-terminal-parity.mjs",
-      "line": 98,
+      "line": 91,
+      "identifier": "A1_OWNED_SURFACES"
+    },
+    {
+      "path": "scripts/run-pi-terminal-parity.mjs",
+      "line": 103,
       "identifier": "A1_PI_PARITY_INTENTIONAL_MUTATION"
     },
     {

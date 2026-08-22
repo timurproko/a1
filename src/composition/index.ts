@@ -56,6 +56,13 @@ export interface OwnedUiCompositionOptions {
    * session settings-free, which is what the pinned comparison paths use.
    */
   readonly profileId?: string;
+  /**
+   * Whether A1's own surfaces are reachable. Withheld for the rendering parity
+   * comparison, which measures this composition against pinned Pi and so must
+   * present Pi's interface and nothing of A1's own. It is the same composition
+   * either way: a parity run built beside the product would measure itself.
+   */
+  readonly ownedSurfaces?: "on" | "off";
 }
 
 export interface OwnedUiComposition {
@@ -79,7 +86,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
       store: new OwnedUiSettingsStore({ configDir: resolveProductPaths().configDir, profileId: options.profileId }),
       agentProvider: () => adapter.settingsPort(),
     });
-  const routeHost = settings === null ? null : createOwnedRouteHost(settings);
+  const routeHost = settings === null || options.ownedSurfaces === "off" ? null : createOwnedRouteHost(settings);
   const shell = new OwnedUiSessionShell({
     backend: adapter,
     cwd,
