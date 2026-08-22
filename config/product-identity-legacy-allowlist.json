@@ -1,6 +1,6 @@
 {
   "schema": "a1-legacy-identity-allowlist-v1",
-  "generatedAt": "2026-08-21T19:23:53.447Z",
+  "generatedAt": "2026-08-22T08:25:07.996Z",
   "inventorySchema": "a1-legacy-identity-inventory-v1",
   "occurrences": [
     {
@@ -121,13 +121,13 @@
       "id": "openspec/changes/unify-launch-instance-lifecycle/specs/launch-profiles/spec.md:4:339",
       "value": "addone",
       "fingerprint": "13d4cf7fa78d9897fa2edbeef99de7751528db4d3da5efb84e876ef1771a4643",
-      "reason": "migration baseline pending final closure"
+      "reason": "documented hard-cut or deprecation assertion"
     },
     {
       "id": "openspec/changes/unify-launch-instance-lifecycle/specs/launch-profiles/spec.md:20:50",
       "value": "addone",
       "fingerprint": "4721946bb69f13d8fd17e369fbee0a49104ce8722f11ab460178d84902c12ea7",
-      "reason": "migration baseline pending final closure"
+      "reason": "documented hard-cut or deprecation assertion"
     },
     {
       "id": "openspec/specs/a1-shell/spec.md:94:391",

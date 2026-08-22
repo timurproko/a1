@@ -361,7 +361,11 @@ export class SupervisorServer {
     this.#requestStopAll(reason);
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
-      if (this.#instances.size === 0) return true;
+      if (this.#instances.size === 0) {
+        // Let the terminal command result flush before closing owner sockets.
+        await new Promise(resolvePromise => setTimeout(resolvePromise, 25));
+        return this.#instances.size === 0;
+      }
       await new Promise(resolvePromise => setTimeout(resolvePromise, 25));
     }
     return this.#instances.size === 0;

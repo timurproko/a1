@@ -179,7 +179,8 @@ jobs:
         shell: bash
         env:
           A1_PROCESS_GUARDIAN_PATH: ${{ github.workspace }}/native/process-guardian/target/debug/${{ matrix.binary }}
-        run: npx vitest run test/foundation/process-containment --testTimeout=15000
+          A1_RUN_PROCESS_CONTAINMENT_INTEGRATION: "1"
+        run: npx vitest run test/foundation/process-containment --testTimeout=30000
 
   required:
     name: Development validation required

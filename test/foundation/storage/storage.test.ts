@@ -153,7 +153,7 @@ describe("control-store migration", () => {
     first.close();
 
     const second = new ControlStore(path, "boot-new");
-    expect(second.database.prepare("PRAGMA user_version").get()).toMatchObject({ user_version: 4 });
+    expect(second.database.prepare("PRAGMA user_version").get()).toMatchObject({ user_version: 5 });
     expect(second.loadWorkspaceAgents()).toEqual([agent]);
     expect(second.loadNativeHostTopology("host-1")?.topology).toEqual(topology);
     expect(second.loadTerminalSessions()).toHaveLength(4);
