@@ -1,4 +1,4 @@
-import { displayWidth, truncateToWidth } from "./text.js";
+import { displayWidth, faint, truncateToWidth } from "./text.js";
 
 export type LineInputOutcome =
   | { readonly kind: "editing" }
@@ -232,4 +232,48 @@ export const PROMPT_GLYPH = `\u001b[38;2;154;160;166m❯\u001b[39m `;
  */
 export function caretCell(text: string): string {
   return `\u001b[7m${text}\u001b[27m`;
+}
+
+export interface InputRowOptions {
+  /** Shown quietly while nothing has been typed, with the caret on its first cell. */
+  readonly placeholder?: string;
+  /** Rules above and below, in the prompt's own grey. Default true. */
+  readonly ruled?: boolean;
+}
+
+export interface InputRow {
+  /** The rows to draw, already padded to the width. */
+  readonly lines: readonly string[];
+}
+
+/** The input row as the reference draws one, padded to exactly the width. */
+export function renderInputRow(input: LineInput, width: number, options: InputRowOptions = {}): InputRow {
+  const inner = Math.max(0, width - 2);
+  const view = input.view(inner);
+  const placeholder = options.placeholder ?? "";
+  const empty = view.text.length === 0 && placeholder.length > 0;
+
+  const before = view.text.slice(0, view.caretColumn);
+  const under = view.text.slice(view.caretColumn, view.caretColumn + 1) || " ";
+  const after = view.text.slice(view.caretColumn + 1);
+
+  // Typed text is left unpainted, the caret reverses its cell, and the
+  // placeholder is quietened by weight rather than by a colour of its own.
+  const body = empty
+    ? `${caretCell(placeholder.slice(0, 1))}${faint(placeholder.slice(1))}`
+    : `${before}${caretCell(under)}${after}`;
+  const plain = empty
+    ? placeholder
+    : `${view.text}${view.caretColumn >= view.text.length ? " " : ""}`;
+
+  const row = padVisible(truncateToWidth(`${PROMPT_GLYPH}${body}`, width), width, `❯ ${plain}`);
+  if (options.ruled === false) return { lines: [row] };
+  const rule = promptRule(width);
+  return { lines: [rule, row, rule] };
+}
+
+/** Pads by visible width, so styling escapes do not shift the layout. */
+function padVisible(line: string, width: number, raw: string): string {
+  const visible = displayWidth(raw);
+  return visible >= width ? line : line + " ".repeat(width - visible);
 }

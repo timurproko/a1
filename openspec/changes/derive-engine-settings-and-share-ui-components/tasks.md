@@ -55,17 +55,17 @@
 
 ## 5. Extract the components
 
-- [ ] 5.1 Extract the list view — rows with an aligned value column, pointer regions for label, value,
+- [x] 5.1 Extract the list view — rows with an aligned value column, pointer regions for label, value,
   and the controls beside it, hover distinct from selection — into `ui-components` with its own tests
-- [ ] 5.2 Extract the value menu — anchored to the row it opened from, flipping above when there is no
+- [x] 5.2 Extract the value menu — anchored to the row it opened from, flipping above when there is no
   room below, nothing highlighted until picked, press-outside closes — with its own tests
-- [ ] 5.3 Extract the dialog panel — its layout, its own record of what it is editing, pointer
+- [x] 5.3 Extract the dialog panel — its layout, its own record of what it is editing, pointer
   ownership, and clearing the hover behind it — with its own tests
-- [ ] 5.4 Extract the bounded control — stepping through a range or a list of values, doing nothing at
+- [x] 5.4 Extract the bounded control — stepping through a range or a list of values, doing nothing at
   either end, drawn over the value it belongs to — with its own tests
-- [ ] 5.5 Extract the input row and the status line, and add the unavailable role to the theme so the
+- [x] 5.5 Extract the input row and the status line, and add the unavailable role to the theme so the
   faint escape written at the call site goes
-- [ ] 5.6 Reduce `src/features/owned-ui/settings-app.ts` to what is about settings — which sections
+- [x] 5.6 Reduce `src/features/owned-ui/settings-app.ts` to what is about settings — which sections
   exist, how a value is shown, where an accepted change is routed — and confirm it no longer draws
   chrome of its own
 
