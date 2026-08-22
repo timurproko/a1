@@ -104,6 +104,13 @@ export async function runLaunchGuardian(options: LaunchGuardianOptions): Promise
         if (!rootIdentity) return failureOutcome(new Error("launch root identity is unavailable"), "cleanup-error");
         const result = await closeVerifiedContainment(containment, inspector, rootIdentity, reason);
         await containment.close();
+        if (reason === "supervisor-disconnect" && result.outcome.kind === "stopped") {
+          return {
+            kind: "interrupted",
+            reason,
+            message: "supervisor disconnected after local launch-instance containment closed",
+          } satisfies LaunchInstanceOutcome;
+        }
         return result.outcome;
       }),
     ]);

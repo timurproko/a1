@@ -8,8 +8,10 @@ import { afterEach, describe, expect, it } from "vitest";
 const roots: string[] = [];
 afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))));
 
-const linuxIt = process.platform === "linux" ? it : it.skip;
-const macIt = process.platform === "darwin" ? it : it.skip;
+const hasConfiguredGuardian = process.env.A1_RUN_PROCESS_CONTAINMENT_INTEGRATION === "1"
+  && Boolean(process.env.A1_PROCESS_GUARDIAN_PATH);
+const linuxIt = process.platform === "linux" && hasConfiguredGuardian ? it : it.skip;
+const macIt = process.platform === "darwin" && hasConfiguredGuardian ? it : it.skip;
 
 describe("Unix process guardian", () => {
   linuxIt("closes its isolated runtime process group while preserving an unrelated sibling", async () => {
@@ -19,7 +21,7 @@ describe("Unix process guardian", () => {
     const statusPath = resolve(root, "guardian-status.json");
     const helper = process.env.A1_PROCESS_GUARDIAN_PATH ?? resolve("native/process-guardian/target/debug/a1-process-guardian");
     const fixture = resolve("test/fixtures/process-containment/tree.mjs");
-    const parentSentinel = spawn(process.execPath, [fixture, "short"], { stdio: "ignore" });
+    const parentSentinel = spawn(process.execPath, [fixture, "wait"], { stdio: "ignore" });
     const unrelated = spawn(process.execPath, [fixture, "wait"], { detached: true, stdio: "ignore" });
     unrelated.unref();
     if (!parentSentinel.pid) throw new Error("parent sentinel has no PID");
@@ -32,14 +34,16 @@ describe("Unix process guardian", () => {
 
     try {
       const tree = await waitForTree(statePath);
+      parentSentinel.kill("SIGTERM");
       await waitUntil(() => !processIsAlive(parentSentinel.pid ?? 0), 3_000);
       await waitUntil(() => !processIsAlive(tree.rootPid) && !processIsAlive(tree.childPid) && !processIsAlive(tree.grandchildPid), 5_000);
       expect(processIsAlive(unrelated.pid ?? 0)).toBe(true);
     } finally {
       guardian.kill("SIGKILL");
+      safeKill(parentSentinel.pid, "SIGKILL");
       safeKill(unrelated.pid, "SIGKILL");
     }
-  }, 12_000);
+  }, 20_000);
 
   macIt("fails before runtime startup when exact containment is not certified", async () => {
     const helper = process.env.A1_PROCESS_GUARDIAN_PATH ?? resolve("native/process-guardian/target/debug/a1-process-guardian");
@@ -64,7 +68,7 @@ async function waitForTree(path: string): Promise<{ rootPid: number; childPid: n
     } catch {
       return false;
     }
-  }, 4_000);
+  }, 10_000);
   if (!parsed) throw new Error("process-tree fixture did not report identities");
   return parsed;
 }

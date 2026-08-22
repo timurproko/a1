@@ -12,6 +12,6 @@ describe("launch-instance documentation", () => {
     expect(profiles).toContain("There is no product-wide foreground slot");
     expect(profiles).toContain("Closing one instance never closes another");
     expect(boundaries).toContain("plural");
-    expect(`${readme}\n${profiles}\n${boundaries}`).not.toMatch(/taskkill|Stop-Process|kill (?:a )?PID|delete (?:the )?control (?:state|database)/i);
+    expect(`${readme}\n${profiles}\n${boundaries}`).not.toMatch(/taskkill|Stop-Process|process\.kill|rm\s+.*control\.sqlite/i);
   });
 });

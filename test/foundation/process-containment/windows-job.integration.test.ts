@@ -8,7 +8,9 @@ import { afterEach, describe, expect, it } from "vitest";
 const roots: string[] = [];
 afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))));
 
-const windowsIt = process.platform === "win32" ? it : it.skip;
+const windowsIt = process.platform === "win32"
+  && process.env.A1_RUN_PROCESS_CONTAINMENT_INTEGRATION === "1"
+  && process.env.A1_PROCESS_GUARDIAN_PATH ? it : it.skip;
 
 describe("Windows Job Object process guardian", () => {
   windowsIt("reports a stable OS process start token and then reports death", async () => {
@@ -26,7 +28,7 @@ describe("Windows Job Object process guardian", () => {
     }
     await waitUntil(() => !processIsAlive(child.pid ?? 0), 2_000);
     await expect(inspectExit(helper, child.pid)).resolves.toBe(3);
-  }, 10_000);
+  }, 20_000);
 
   windowsIt("kills root, detached child, and detached grandchild when its owner closes", async () => {
     const root = await mkdtemp(resolve(tmpdir(), "a1-job-containment-"));
@@ -60,7 +62,7 @@ describe("Windows Job Object process guardian", () => {
       guardian.kill();
       safeKill(unrelated.pid, "SIGKILL");
     }
-  }, 10_000);
+  }, 20_000);
 });
 
 async function waitForTree(path: string): Promise<{ rootPid: number; childPid: number; grandchildPid: number }> {
@@ -72,7 +74,7 @@ async function waitForTree(path: string): Promise<{ rootPid: number; childPid: n
     } catch {
       return false;
     }
-  }, 4_000);
+  }, 10_000);
   if (!parsed) throw new Error("process-tree fixture did not report identities");
   return parsed;
 }

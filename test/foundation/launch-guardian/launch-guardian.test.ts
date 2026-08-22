@@ -38,7 +38,10 @@ describe("launch guardian", () => {
     expect(control.commands.map(command => command.type)).toEqual([
       "create-launch-instance", "activate-launch-instance", "complete-launch-instance",
     ]);
-    expect(control.commands[0]).toMatchObject({ profileId: "sandbox", guardianIdentity });
+    expect(control.commands[0]).toMatchObject({
+      profileId: "sandbox",
+      guardianIdentity: { pid: process.pid, startIdentity: guardianIdentity.startIdentity },
+    });
     expect(control.commands[1]).toMatchObject({ rootIdentity, containmentIdentity: fixture.containment.identity });
     expect(fixture.containment.close).toHaveBeenCalledOnce();
     expect(control.close).toHaveBeenCalledOnce();
