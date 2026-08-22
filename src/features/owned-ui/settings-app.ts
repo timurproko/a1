@@ -402,6 +402,10 @@ export class SettingsApp implements UiApp {
       const value = stored[flag.key];
       record[flag.key] = typeof value === "boolean" ? value : flag.fallback;
     }
+    // The dialog takes the screen: the row it was opened from stops being the
+    // thing under the pointer, so it stops looking like it.
+    this.#hoverKey = null;
+    this.#hoverRegion = "label";
     this.#structured = { entry, flags: entry.flags.map(flag => flag.key), index: 0, record };
   }
 
