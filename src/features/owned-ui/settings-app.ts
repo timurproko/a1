@@ -4,7 +4,9 @@ import {
   LineInput,
   PLAIN_THEME,
   ShortcutRegistry,
+  PROMPT_GLYPH,
   blockJumpTarget,
+  caretCell,
   blockRowSpan,
   displayWidth,
   handleLineInputKey,
@@ -12,7 +14,6 @@ import {
   humanizeTitle,
   indexOfKey,
   isThumbRow,
-  lastBlockTarget,
   layoutList,
   moveSelection,
   padToWidth,
@@ -241,7 +242,9 @@ export class SettingsApp implements UiApp {
       }
       case "first":
       case "last": {
-        const target = action === "last" ? lastBlockTarget(rows) : selectableIndexes(rows)[0];
+        // End lands on the very last setting, not on the head of its section.
+        const selectable = selectableIndexes(rows);
+        const target = action === "last" ? selectable.at(-1) : selectable[0];
         if (target !== undefined) this.#jump(rows, target);
         return { consumed: true };
       }
@@ -665,7 +668,7 @@ export class SettingsApp implements UiApp {
 
     const description = declaredFor(open.flags[open.index] ?? "")?.description ?? "";
     const hint = "  Enter/Space to change · Esc to cancel";
-    const rule = theme.fg("borderMuted", "─".repeat(Math.max(0, width)));
+    const rule = theme.fg("border", "─".repeat(Math.max(0, width)));
 
     this.#panelTop = this.#panelTopForFrame;
     return [
@@ -690,15 +693,17 @@ export class SettingsApp implements UiApp {
     const input = this.#filter;
     if (input === null) return [hintLine];
 
-    const rule = theme.fg("dim", "─".repeat(Math.max(0, width)));
+    const rule = theme.fg("border", "─".repeat(Math.max(0, width)));
     const view = input.view(Math.max(0, width - 2));
     const empty = view.text.length === 0;
     const before = view.text.slice(0, view.caretColumn);
     const under = view.text.slice(view.caretColumn, view.caretColumn + 1) || " ";
     const after = view.text.slice(view.caretColumn + 1);
-    const typed = `${theme.fg("text", before)}${theme.highlight(under)}${theme.fg("text", after)}`;
-    const placeholder = `${theme.highlight(SEARCH_PLACEHOLDER.slice(0, 1))}${theme.fg("dim", SEARCH_PLACEHOLDER.slice(1))}`;
-    const painted = `${theme.fg("text", "❯ ")}${empty ? placeholder : typed}`;
+    // Typed text is left unpainted and the caret reverses its cell, which is how
+    // the reference draws an input row.
+    const typed = `${before}${caretCell(under)}${after}`;
+    const placeholder = `${caretCell(SEARCH_PLACEHOLDER.slice(0, 1))}${theme.fg("dim", SEARCH_PLACEHOLDER.slice(1))}`;
+    const painted = `${PROMPT_GLYPH}${empty ? placeholder : typed}`;
     const raw = `❯ ${empty ? SEARCH_PLACEHOLDER : `${view.text}${view.caretColumn >= view.text.length ? " " : ""}`}`;
     return [rule, padVisible(truncateToWidth(painted, width), width, raw), rule, hintLine];
   }
