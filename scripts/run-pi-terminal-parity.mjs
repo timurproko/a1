@@ -54,7 +54,18 @@ try {
       : { captureError: result.reason instanceof Error ? result.reason.message : String(result.reason) }),
   };
   await writeFile(resolve(artifactRoot, "report.json"), `${JSON.stringify(diagnostic, null, 2)}\n`, "utf8");
-  await writeFile(resolve(artifactRoot, "diff.txt"), `Pi terminal parity harness failure\n${diagnostic.error.message}\n`, "utf8");
+  const rendered = diagnostic.producers
+    .map(producer => {
+      const excerpt = typeof producer.raw?.excerpt === "string" ? producer.raw.excerpt : "";
+      const visible = excerpt.replace(/\\x1b\[[0-9;?]*[a-zA-Z]/g, "").replace(/\\x1b\][^\\]*?\\x07/g, "").replace(/\\r/g, "");
+      return `--- ${producer.producer ?? "unknown"} had drawn ---\n${visible.slice(0, 2_000)}`;
+    })
+    .join("\n\n");
+  await writeFile(
+    resolve(artifactRoot, "diff.txt"),
+    `Pi terminal parity harness failure\n${diagnostic.error.message}\n\n${rendered}\n`,
+    "utf8",
+  );
   console.error(`Pi terminal parity harness failed: ${diagnostic.error.message}`);
   console.error(`Artifacts: ${artifactRoot}`);
   process.exitCode = 2;
@@ -127,7 +138,9 @@ async function runGate() {
 async function performAction(producers, action) {
   if (action.type === "wait") {
     await delay(action.milliseconds);
-    if (action.until) await Promise.all(producers.map(producer => producer.waitForText(action.until)));
+    if (action.until) {
+      await Promise.all(producers.map(producer => producer.waitForText(action.until, action.timeoutMs)));
+    }
     if (action.settle !== false) await Promise.all(producers.map(producer => producer.settle()));
     return;
   }
