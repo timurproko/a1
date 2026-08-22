@@ -188,9 +188,7 @@ jobs:
           # Marked as a prerelease, so the releases page reads as a history of what
           # was published to the next tag rather than as a claim about stability.
           {
-            echo "Published to npm under the next tag from ${candidate_source_commit}."
-            echo
-            echo "Install: npm install -g ${package_name}@next"
+            echo "Published to the npm next tag from ${candidate_source_commit}."
             echo
             echo "Shasum: ${accepted_shasum}"
           } > release-notes.md
