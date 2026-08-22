@@ -18,7 +18,7 @@ const WARNING_FLAGS = [
   { key: "unknownTools", label: "Unknown tools", description: "Warn about unknown tools", fallback: false },
 ] as const;
 
-function port(): { port: AgentSettingsPort; writes: { key: string; value: AgentJsonValue }[] } {
+function port(failWrites = false): { port: AgentSettingsPort; writes: { key: string; value: AgentJsonValue }[] } {
   const values: Record<string, AgentJsonValue> = { warnings: {}, thinkingLevel: "low", editorPaddingX: 3, outputPad: 0 };
   const writes: { key: string; value: AgentJsonValue }[] = [];
   return {
@@ -37,6 +37,7 @@ function port(): { port: AgentSettingsPort; writes: { key: string; value: AgentJ
         return values[key];
       },
       async writeSetting(key: string, value: AgentJsonValue): Promise<void> {
+        if (failWrites) throw new Error("the engine refused");
         writes.push({ key, value });
         values[key] = value;
       },
@@ -56,8 +57,8 @@ const HOST: AppHostServices = {
 
 let root: string;
 
-async function app(): Promise<{ app: SettingsApp; writes: { key: string; value: AgentJsonValue }[] }> {
-  const backing = port();
+async function app(failWrites = false): Promise<{ app: SettingsApp; writes: { key: string; value: AgentJsonValue }[] }> {
+  const backing = port(failWrites);
   const store = new OwnedUiSettingsStore({ configDir: root, profileId: "profile", declarations: [], migrations: [] });
   const session = new OwnedUiSettingsSession({ store, agent: backing.port });
   await session.load();
@@ -228,5 +229,106 @@ describe("the settings screen", () => {
     expect(find(target, "Anthropic extra usage")).not.toBe("");
     target.onInput?.(ESC, HOST);
     expect(find(target, "Anthropic extra usage")).toBe("");
+  });
+});
+
+describe("the list view behind the screen", () => {
+  it("begins every value at one column, however wide the labels are", async () => {
+    const { app: target } = await app();
+    const rows = screen(target).filter(line => /\b(true|false|low|high|3|0)\s*$/.test(line) && line.includes(" "));
+    const columns = new Set(rows.map(line => line.search(/\S+\s*$/)));
+    expect(columns.size, `values start at ${[...columns].join(", ")}`).toBe(1);
+  });
+
+  it("reads the pointer as a label, a value, or a control beside it", async () => {
+    const { app: target, writes } = await app();
+    const lines = screen(target);
+    const row = lines.findIndex(line => line.includes("Thinking level"));
+    const valueColumn = (lines[row] ?? "").indexOf("low") + 1;
+
+    // The label selects and changes nothing.
+    target.onMouse?.({ kind: "press", button: 0, row: row + 1, column: 8 }, HOST);
+    expect(writes).toHaveLength(0);
+
+    // The value acts.
+    target.onMouse?.({ kind: "press", button: 0, row: row + 1, column: valueColumn }, HOST);
+    expect(screen(target).some(line => line.includes("✓"))).toBe(true);
+  });
+
+  it("raises the stepper over a number, and only over its value", async () => {
+    const { app: target } = await app();
+    const lines = screen(target);
+    const row = lines.findIndex(line => line.includes("Editor padding"));
+    const valueColumn = (lines[row] ?? "").indexOf("3") + 1;
+
+    target.onMouse?.({ kind: "motion", button: 0, row: row + 1, column: 8 }, HOST);
+    expect(find(target, "Editor padding")).not.toContain("+");
+
+    target.onMouse?.({ kind: "motion", button: 0, row: row + 1, column: valueColumn }, HOST);
+    expect(find(target, "Editor padding")).toContain("+");
+  });
+});
+
+describe("the value menu behind the screen", () => {
+  async function openMenu(height = 24): Promise<{ target: SettingsApp; row: number; lines: string[] }> {
+    const { app: target } = await app();
+    const drawn = (): string[] => target.render({ width: 80, height }, HOST).map(line => line.replace(STYLE, "").trimEnd());
+    const lines = drawn();
+    const row = lines.findIndex(line => line.includes("Thinking level"));
+    const valueColumn = (lines[row] ?? "").indexOf("low") + 1;
+    target.onMouse?.({ kind: "press", button: 0, row: row + 1, column: valueColumn }, HOST);
+    return { target, row, lines: drawn() };
+  }
+
+  it("opens under the row it was opened from and marks the value in effect", async () => {
+    const { row, lines } = await openMenu();
+    expect(lines[row + 1]).toContain("✓ low");
+    expect(lines[row + 2]).toContain("high");
+  });
+
+  it("highlights nothing until a key or the pointer picks an entry", async () => {
+    const { target, row } = await openMenu();
+    const painted = target.render({ width: 80, height: 24 }, HOST)[row + 1] ?? "";
+    expect(painted).not.toContain(String.fromCharCode(27) + "[48");
+  });
+
+  it("closes on a press outside it, without acting on what is behind", async () => {
+    const { app: target, writes } = await app();
+    const lines = screen(target);
+    const row = lines.findIndex(line => line.includes("Thinking level"));
+    const valueColumn = (lines[row] ?? "").indexOf("low") + 1;
+    target.onMouse?.({ kind: "press", button: 0, row: row + 1, column: valueColumn }, HOST);
+    expect(screen(target).some(line => line.includes("✓"))).toBe(true);
+
+    target.onMouse?.({ kind: "press", button: 0, row: 2, column: 2 }, HOST);
+    expect(screen(target).some(line => line.includes("✓"))).toBe(false);
+    expect(writes).toHaveLength(0);
+  });
+});
+
+describe("the input row and status line behind the screen", () => {
+  it("shows the placeholder with the caret over its first cell", async () => {
+    const { app: target } = await app();
+    target.onInput?.("/", HOST);
+    const painted = target.render({ width: 80, height: 24 }, HOST).find(line => line.includes("earch settings")) ?? "";
+    expect(painted).toContain(String.fromCharCode(27) + "[7m");
+    expect(painted.replace(STYLE, "")).toContain("❯ search settings");
+  });
+
+  it("says one thing at a time, reporting over the standing hint", async () => {
+    const { app: target } = await app();
+    // The hint is one line; at a width that fits it, it names every key.
+    const wide = target.render({ width: 200, height: 24 }, HOST).map(line => line.replace(STYLE, ""));
+    expect(wide.find(line => line.includes("to search"))).toContain("Esc to cancel");
+  });
+
+  it("reports a failed write instead of the hint", async () => {
+    const { app: target } = await app(true);
+    selectRow(target, "Thinking level");
+    target.onInput?.(ENTER, HOST);
+    // The write is reported once it has been attempted, not on the keypress.
+    await new Promise(resolve => setTimeout(resolve, 0));
+    const wide = target.render({ width: 200, height: 24 }, HOST).map(line => line.replace(STYLE, ""));
+    expect(wide.find(line => line.includes("Could not save"))).toContain("Thinking level");
   });
 });

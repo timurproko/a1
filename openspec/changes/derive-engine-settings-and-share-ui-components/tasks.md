@@ -9,11 +9,11 @@
 
 ## 2. Cover the behaviour before moving it
 
-- [ ] 2.1 Extend `test/features/owned-ui/settings-app.test.ts` to cover what is about to move: value
+- [x] 2.1 Extend `test/features/owned-ui/settings-app.test.ts` to cover what is about to move: value
   column alignment across differing label widths, pointer regions, the menu's anchor and its flip near
   the bottom, press-outside-closes, the status line's hint and report, and the search row's placeholder
   and caret
-- [ ] 2.2 Record which of those assertions belong to the component layer, so each moves with its
+- [x] 2.2 Record which of those assertions belong to the component layer, so each moves with its
   component rather than being duplicated
 
 ## 2b. Cover the component layer it stands on
