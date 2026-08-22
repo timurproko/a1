@@ -27,7 +27,7 @@ import { OwnedUiSessionShell } from "../foundation/pi-owned-ui-integration/index
 import { OwnedUiSettingsSession, OwnedUiSettingsStore } from "../foundation/owned-ui-settings/index.js";
 import { UiAppHost, UiAppRegistry } from "../foundation/ui-apps/index.js";
 import { getAvailablePiThemes, piTheme } from "../foundation/pi-component-adapter/index.js";
-import type { UiTheme, UiThemeToken } from "../foundation/ui-components/index.js";
+import { faint, type UiTheme, type UiThemeToken } from "../foundation/ui-components/index.js";
 import { SETTINGS_APP_ID, SETTINGS_ROUTE, SettingsApp } from "../features/owned-ui/index.js";
 import type { UiRouteHost, UiRouteSurface } from "../foundation/pi-owned-ui-integration/index.js";
 import { resolveProductPaths } from "../foundation/lifecycle/index.js";
@@ -282,6 +282,9 @@ function pinnedTheme(): UiTheme {
   return {
     fg: (token: UiThemeToken, text: string) => piTheme().fg(token, text),
     bold: (text: string) => piTheme().bold(text),
+    // Quiet, and quieter again: the terminal's own faint attribute over the
+    // dimmest colour the theme has.
+    disabled: (text: string) => faint(piTheme().fg("dim", text)),
     highlight: (text: string) => `[48;2;82;82;82m[97m${text}[39m[49m`,
     panel: (text: string) => `[48;2;55;55;55m${text}[49m`,
   };

@@ -1643,7 +1643,7 @@ function workflowAdapterResult(result: PiWorkflowResult): AdapterCommandResult {
   return { outcome: "rejected", diagnostic: result.message };
 }
 
-const INTERRUPT = "";
+const INTERRUPT = "\u0003";
 const INTERRUPT_CHORD_MS = 1_500;
 
 function isWorkflowRoute(value: string): value is PiWorkflowRoute {

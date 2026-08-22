@@ -5,10 +5,10 @@ import type { PaneMouseEvent } from "./pane.js";
  * terminal to send reports; nothing else in A1 turns this on, and the sequences
  * are paired so the terminal is always left as it was found.
  */
-export const MOUSE_TRACKING_ON = "[?1006h[?1000h[?1003h";
-export const MOUSE_TRACKING_OFF = "[?1003l[?1000l[?1006l";
+export const MOUSE_TRACKING_ON = "\u001b[?1006h\u001b[?1000h\u001b[?1003h";
+export const MOUSE_TRACKING_OFF = "\u001b[?1003l\u001b[?1000l\u001b[?1006l";
 
-const SGR_PATTERN = /\[<(\d+);(\d+);(\d+)([Mm])/g;
+const SGR_PATTERN = /\u001b\[<(\d+);(\d+);(\d+)([Mm])/g;
 
 export interface ParsedMouseInput {
   readonly events: readonly PaneMouseEvent[];
@@ -18,7 +18,7 @@ export interface ParsedMouseInput {
 
 /** Extracts SGR mouse reports, leaving any keyboard input untouched. */
 export function parseMouseInput(data: string): ParsedMouseInput {
-  if (!data.includes("[<")) return { events: [], rest: data };
+  if (!data.includes("\u001b[<")) return { events: [], rest: data };
 
   const events: PaneMouseEvent[] = [];
   let rest = "";
