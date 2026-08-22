@@ -26,12 +26,11 @@ import type { OwnedUiCommand, OwnedUiEvent, OwnedUiTranscriptBlock } from "../fo
 import { OwnedUiSessionShell } from "../foundation/pi-owned-ui-integration/index.js";
 import { OwnedUiSettingsSession, OwnedUiSettingsStore } from "../foundation/owned-ui-settings/index.js";
 import { UiAppHost, UiAppRegistry } from "../foundation/ui-apps/index.js";
-import { piTheme } from "../foundation/pi-component-adapter/index.js";
+import { getAvailablePiThemes, piTheme } from "../foundation/pi-component-adapter/index.js";
 import type { UiTheme, UiThemeToken } from "../foundation/ui-components/index.js";
 import { SETTINGS_APP_ID, SETTINGS_ROUTE, SettingsApp } from "../features/owned-ui/index.js";
 import type { UiRouteHost, UiRouteSurface } from "../foundation/pi-owned-ui-integration/index.js";
 import { resolveProductPaths } from "../foundation/lifecycle/index.js";
-import { withInstalledThemes } from "./theme-settings.js";
 
 const CAPABILITIES: AgentCapabilityContract = {
   contractVersion: AGENT_ENGINE_CONTRACT_VERSION,
@@ -71,12 +70,14 @@ export async function composeOwnedUiApplication(options: OwnedUiCompositionOptio
 
 export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): Promise<OwnedUiComposition> {
   const cwd = options.cwd ?? process.cwd();
-  const adapter = options.createPiAdapter ? await options.createPiAdapter() : await createPiEngineAdapter({ cwd });
+  const adapter = options.createPiAdapter
+    ? await options.createPiAdapter()
+    : await createPiEngineAdapter({ cwd, availableThemes: () => getAvailablePiThemes().map(theme => theme.name) });
   const settings = options.profileId === undefined
     ? null
     : new OwnedUiSettingsSession({
       store: new OwnedUiSettingsStore({ configDir: resolveProductPaths().configDir, profileId: options.profileId }),
-      agentProvider: () => withInstalledThemes(adapter.settingsPort()),
+      agentProvider: () => adapter.settingsPort(),
     });
   const routeHost = settings === null ? null : createOwnedRouteHost(settings);
   const shell = new OwnedUiSessionShell({

@@ -1,6 +1,6 @@
 ## 1. Record the standing rules
 
-- [ ] 1.1 Add the `owned-ux-architecture` capability so the rules that apply to every surface —
+- [x] 1.1 Add the `owned-ux-architecture` capability so the rules that apply to every surface —
   derived vendor data, loud failure on an unabsorbed vendor change, vendor knowledge behind the
   boundary, screens composing components, state shown rather than narrated, colour from theme roles,
   one declaration for dispatch and description — are stated once rather than per feature
@@ -30,14 +30,16 @@
 
 ## 3. Derive the Pi settings data
 
-- [ ] 3.1 Read the offered values from the generated metadata in
+- [x] 3.1 Read the offered values from the generated metadata in
   `src/foundation/pi-engine-adapter/settings-integration.ts` and delete the hand-written choice lists;
   verify the double-escape action offers Pi's order rather than the transcribed one
-- [ ] 3.2 Extract the values Pi states in a submenu rather than an inline list — the thinking level and
-  the default project trust — in `scripts/pi-settings-metadata.mjs`, and regenerate
-- [ ] 3.3 Emit the inventory of settings Pi presents into the generated metadata, and derive
+- [x] 3.2 Extract the values Pi states through a declared map rather than an inline list — the default
+  project trust — in `scripts/pi-settings-metadata.mjs`, and regenerate. The thinking level turned out
+  not to be extractable: Pi reads it from the running session, so it moves to the runtime provider in
+  section 4 alongside the installed themes
+- [x] 3.3 Emit the inventory of settings Pi presents into the generated metadata, and derive
   `EXPOSED_SETTING_KEYS` from it rather than keeping the list by hand
-- [ ] 3.4 Add a governance test that fails naming any setting Pi presents that the accessor table does
+- [x] 3.4 Add a governance test that fails naming any setting Pi presents that the accessor table does
   not map, and any setting the table maps that Pi no longer presents; verify both directions with a
   fixture
 

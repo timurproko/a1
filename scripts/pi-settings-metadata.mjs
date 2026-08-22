@@ -66,14 +66,29 @@ function itemChunks(source) {
   });
 }
 
+/**
+ * The keys of a declared map, in the order it declares them. The engine words
+ * some settings through such a map, offering the wording while storing the key.
+ */
+function mapKeys(source, name) {
+  const start = source.indexOf(`const ${name} = {`);
+  if (start < 0) return [];
+  const end = source.indexOf("};", start);
+  const body = source.slice(start, end < 0 ? undefined : end);
+  return [...body.matchAll(/^\s*(\w+):/gm)].map(match => match[1]);
+}
+
 function describedItems(source) {
   return itemChunks(source).map(chunk => {
     const description = /description:\s*"([^"]*)"/.exec(chunk.body)?.[1] ?? "";
     // An entry either offers a value list or opens its own dialog. That is the
     // engine's own distinction rather than a guess from the value's type.
     const opensDialog = /\bsubmenu:/.test(chunk.body);
-    const values = [...(/values:\s*\[([^\]]*)\]/.exec(chunk.body)?.[1] ?? "").matchAll(/"([^"]*)"/g)]
+    const listed = [...(/values:\s*\[([^\]]*)\]/.exec(chunk.body)?.[1] ?? "").matchAll(/"([^"]*)"/g)]
       .map(match => match[1]);
+    // A map's keys are what the engine stores; its values are only how it words them.
+    const fromMap = /values:\s*Object\.values\((\w+)\)/.exec(chunk.body)?.[1];
+    const values = listed.length > 0 ? listed : fromMap === undefined ? [] : mapKeys(source, fromMap);
     const literalValue = /currentValue:\s*"([^"]+)"/.exec(chunk.body)?.[1];
     return { id: chunk.id, label: chunk.label, description, opensDialog, values, literalValue };
   });
@@ -190,8 +205,12 @@ export function extractPiSettingsMetadata() {
     };
   }
 
+  const presented = presentedOrder(source).map(id => ID_TO_KEY[id]).filter(key => key !== undefined);
   return {
-    order: presentedOrder(source).map(id => ID_TO_KEY[id]).filter(key => key !== undefined),
+    // What the engine presents, in its order. A1's exposed set is checked
+    // against this, so a setting it adds or renames fails a test by name.
+    presented,
+    order: presented,
     settings,
     dialogs: { warnings: dialogFlags(source, "WarningSettingsSubmenu") },
     bounds: numericBounds(settingsManagerSource()),
