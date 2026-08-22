@@ -14,14 +14,14 @@ const expected = {
     productSurface: "vanilla-baseline",
     configurationRootPolicy: "pi-default",
     projectTrust: "pi-default",
-    terminalCapability: "transparent",
+    terminalCapability: "owned-ui",
   },
   sandbox: {
     id: "sandbox",
     productSurface: "isolated-profile",
     configurationRootPolicy: "sandbox-profile",
     projectTrust: "ignore",
-    terminalCapability: "transparent",
+    terminalCapability: "owned-ui",
   },
 } as const;
 
@@ -39,7 +39,7 @@ describe("launch profile contracts", () => {
     expect(launchProfileContract("sandbox")).toMatchObject({
       productSurface: "isolated-profile",
       projectTrust: "ignore",
-      terminalCapability: "transparent",
+      terminalCapability: "owned-ui",
     });
     expect(JSON.stringify(expected)).not.toMatch(/pty|renderer|security-boundary|a1 agent/i);
   });

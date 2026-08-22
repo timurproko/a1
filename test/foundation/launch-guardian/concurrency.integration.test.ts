@@ -80,7 +80,7 @@ function launch(harness: Awaited<ReturnType<typeof createHarness>>, profileId: L
   const result = runLaunchGuardian({
     profileId,
     releaseRoot: "/release",
-    uiEntry: "/release/bin/a1-ui.js",
+    uiEntry: "/release/bin/ui.js",
     environment: { A1_ENDPOINT: harness.paths.endpoint, A1_RELEASE_ID: "release-1" },
     helperPath: "fixture-helper",
     containment,

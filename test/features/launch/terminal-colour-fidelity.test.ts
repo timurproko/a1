@@ -38,12 +38,12 @@ describe("terminal colour fidelity", () => {
     expect(guardian).toMatch(/CREATE_SUSPENDED \| CREATE_UNICODE_ENVIRONMENT/u);
   });
 
-  it("keeps the bootstrap and transparent launches attached to the inherited streams", async () => {
+  it("keeps every launched process attached to the inherited streams", async () => {
     const bootstrap = await source("src/foundation/release/bootstrap.ts");
-    const transparent = await source("src/foundation/transparent-terminal/native-launcher.ts");
+    const developmentLauncher = await source("scripts/dev-launch.mjs");
 
     expect(bootstrap).toMatch(/stdio: "inherit"/u);
-    expect(transparent).toMatch(/stdio: "inherit"/u);
+    expect(developmentLauncher).toMatch(/stdio: "inherit"/u);
   });
 
   it("gives development runs the launch shape the installed command has", async () => {

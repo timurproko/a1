@@ -112,7 +112,7 @@ function options(control: FakeControl, containment: ProcessContainment, inspecto
   return {
     profileId: "sandbox" as const,
     releaseRoot: "D:/release",
-    uiEntry: "D:/release/bin/a1-ui.js",
+    uiEntry: "D:/release/bin/ui.js",
     environment: { A1_ENDPOINT: "test-endpoint", A1_RELEASE_ID: "release-1" },
     cwd: "D:/workspace",
     helperPath: "guardian-fixture",

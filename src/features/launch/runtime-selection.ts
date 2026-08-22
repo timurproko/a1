@@ -1,24 +1,31 @@
 import { assertLaunchProfileId, type LaunchProfileId } from "../../foundation/lifecycle/index.js";
 
-export type TransparentInteractiveProfileId = Extract<LaunchProfileId, "sandbox">;
-export type OwnedUiProfileId = Exclude<LaunchProfileId, "sandbox">;
+/**
+ * Every interactive command is the same composition. What differs is the
+ * configuration root each one reads and whether A1's own screens are reachable:
+ * bare `a1` is the product, while `a1 pi` and `a1 sandbox` present pinned Pi's
+ * interface and nothing of A1's own, against Pi's own profile and against an
+ * isolated one.
+ */
+export type OwnedUiProfileId = LaunchProfileId;
 
-export type InteractiveRuntimeSelection =
-  | { readonly kind: "owned-ui"; readonly profileId: OwnedUiProfileId; readonly ownedSurfaces: "on" | "off" }
-  | { readonly kind: "transparent"; readonly profileId: TransparentInteractiveProfileId };
+export interface InteractiveRuntimeSelection {
+  readonly kind: "owned-ui";
+  readonly profileId: OwnedUiProfileId;
+  readonly ownedSurfaces: "on" | "off";
+}
 
 export interface InteractiveRuntimeRunners {
   readonly ownedUi: (profileId: OwnedUiProfileId, ownedSurfaces: "on" | "off") => Promise<number>;
-  readonly transparent: (profileId: TransparentInteractiveProfileId) => Promise<number>;
 }
 
 export function selectInteractiveRuntime(profileId: string): InteractiveRuntimeSelection {
   assertLaunchProfileId(profileId);
-  // Bare A1 is the product. `a1 pi` is the same rendering with A1's own
-  // surfaces withheld, so only pinned Pi's interface is on screen.
-  if (profileId === "a1") return Object.freeze({ kind: "owned-ui", profileId: "a1", ownedSurfaces: "on" });
-  if (profileId === "pi") return Object.freeze({ kind: "owned-ui", profileId: "pi", ownedSurfaces: "off" });
-  return Object.freeze({ kind: "transparent", profileId: "sandbox" });
+  return Object.freeze({
+    kind: "owned-ui",
+    profileId,
+    ownedSurfaces: profileId === "a1" ? "on" : "off",
+  });
 }
 
 export async function runSelectedInteractiveRuntime(
@@ -26,7 +33,5 @@ export async function runSelectedInteractiveRuntime(
   runners: InteractiveRuntimeRunners,
 ): Promise<number> {
   const selection = selectInteractiveRuntime(profileId);
-  return selection.kind === "owned-ui"
-    ? await runners.ownedUi(selection.profileId, selection.ownedSurfaces)
-    : await runners.transparent(selection.profileId);
+  return await runners.ownedUi(selection.profileId, selection.ownedSurfaces);
 }

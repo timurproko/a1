@@ -5,7 +5,7 @@ import { basename, resolve } from "node:path";
 
 const platform = process.platform;
 const architecture = process.arch;
-const executable = platform === "win32" ? "a1-process-guardian.exe" : "a1-process-guardian";
+const executable = platform === "win32" ? "process-guardian.exe" : "process-guardian";
 const cargo = process.env.CARGO ?? "cargo";
 const manifestPath = resolve("native/process-guardian/Cargo.toml");
 // A build that worked has nothing to say. Its output is kept and shown only when

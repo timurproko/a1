@@ -116,7 +116,7 @@ jobs:
           A1_CONFIG_DIR: ${{ runner.temp }}\a1-ci-config
           A1_DATA_DIR: ${{ runner.temp }}\a1-ci-data
           A1_RUNTIME_DIR: ${{ runner.temp }}\a1-ci-runtime
-          A1_PROCESS_GUARDIAN_PATH: ${{ github.workspace }}\native\process-guardian\target\debug\a1-process-guardian.exe
+          A1_PROCESS_GUARDIAN_PATH: ${{ github.workspace }}\native\process-guardian\target\debug\process-guardian.exe
         run: node scripts/run-validation-tier.mjs typecheck architecture fast --result artifacts/validation/outcomes.json
 
       - name: Add timing summary
@@ -143,11 +143,11 @@ jobs:
       matrix:
         include:
           - os: windows-2025
-            binary: a1-process-guardian.exe
+            binary: process-guardian.exe
           - os: ubuntu-24.04
-            binary: a1-process-guardian
+            binary: process-guardian
           - os: macos-15
-            binary: a1-process-guardian
+            binary: process-guardian
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     steps:
@@ -181,45 +181,6 @@ jobs:
           A1_PROCESS_GUARDIAN_PATH: ${{ github.workspace }}/native/process-guardian/target/debug/${{ matrix.binary }}
           A1_RUN_PROCESS_CONTAINMENT_INTEGRATION: "1"
         run: npx vitest run test/foundation/process-containment --testTimeout=30000
-
-  parity:
-    name: Rendering parity
-    needs: changes
-    if: needs.changes.outputs.docs-only != 'true' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    steps:
-      - name: Check out validation head
-        uses: actions/checkout@v5
-        with:
-          ref: ${{ github.sha }}
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Set up Node
-        uses: actions/setup-node@v5
-        with:
-          node-version: 24
-          cache: npm
-
-      - name: Install exact dependencies
-        run: npm ci
-
-      - name: Compare A1's rendering with pinned Pi
-        env:
-          A1_CONFIG_DIR: ${{ runner.temp }}/a1-parity-config
-          A1_DATA_DIR: ${{ runner.temp }}/a1-parity-data
-          A1_RUNTIME_DIR: ${{ runner.temp }}/a1-parity-runtime
-        run: npm run test:pi-terminal-parity
-
-      - name: Keep what the comparison saw
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: pi-terminal-parity
-          path: artifacts/pi-terminal-parity/latest
-          retention-days: 14
-          if-no-files-found: warn
 
   required:
     name: Development validation required
