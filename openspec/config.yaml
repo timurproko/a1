@@ -4,7 +4,8 @@ context: |
   Development workflow:
   - Keep the primary worktree on develop for integration only.
   - Make changes in one detached worktree under the repository's `.worktrees/<task-id>` directory, based on current origin/develop unless the user selects another base.
-  - Use Conventional Commits, keep unrelated changes out of commits, and integrate coherent work once after its relevant validation passes.
+  - Keep unrelated changes out of commits, and integrate coherent work once after its relevant validation passes.
+  - Name a commit `type(scope): subject`, and name the branch it lands on `type/short-description` with the same type. The types are `feature` for behaviour a reader could notice, `fix` for a repair, `refactor` for a change of shape that leaves behaviour alone, and `docs`, `test`, `chore`, and `style` as they sound; an incompatible change says `BREAKING CHANGE:` in its body. This is Conventional Commits with `feat` written out as `feature`, because an abbreviation nobody expands reads as a truncation rather than a word. A tool added later that expects the standard spelling takes `feature` as a configured type.
   - Do not remove a worktree until its commits are integrated.
   - After manual validation is accepted, record the acceptance, archive the completed OpenSpec change, integrate the archive commit, then remove and prune every retained task or acceptance worktree for that change.
   - Store local package archives and ad hoc builds under the repository's `.builds/` directory.
