@@ -18,14 +18,14 @@
 
 ## 2b. Cover the component layer it stands on
 
-- [ ] 2b.1 Test the scrollbar: geometry from content length, viewport height, and scroll position, a
+- [x] 2b.1 Test the scrollbar: geometry from content length, viewport height, and scroll position, a
   minimum one-row thumb clamped inside the track, and the fits-in-viewport case reserving no space
-- [ ] 2b.2 Test rail-scoped hover and drag, driving two rails and asserting each affects only the one
+- [x] 2b.2 Test rail-scoped hover and drag, driving two rails and asserting each affects only the one
   addressed
-- [ ] 2b.3 Test app registration and the host: replace-on-re-register, a reported failure for an
+- [x] 2b.3 Test app registration and the host: replace-on-re-register, a reported failure for an
   unregistered identity, resize re-rendering, a second app replacing the first, the declared interrupt
   policy, and a throwing app being closed with the previous surface restored
-- [ ] 2b.4 Test the shortcut registry: in-scope dispatch, out-of-scope and undeclared pass-through, and
+- [x] 2b.4 Test the shortcut registry: in-scope dispatch, out-of-scope and undeclared pass-through, and
   conflict detection naming both declarations including a screen shadowing a global
 
 ## 3. Derive the Pi settings data

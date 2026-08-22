@@ -163,53 +163,53 @@ export class LineInput {
 /** Applies one key to the input and reports whether the caller should commit. */
 export function handleLineInputKey(input: LineInput, data: string): LineInputOutcome {
   if (data === "\r" || data === "\n") return { kind: "accepted", value: input.value };
-  if (data === "" || data === "") return { kind: "cancelled" };
+  if (data === "\u001b" || data === "\u0003") return { kind: "cancelled" };
   // A word delete is decided before a plain one: on Windows Terminal the raw
   // backspace byte IS ctrl+backspace, and the plain branch would swallow it.
-  if (data === "" || data === "" || data === "") {
+  if (data === "\b" || data === "\u001b\u007f" || data === "\u0017") {
     input.deleteWordBefore();
     return { kind: "editing" };
   }
-  if (data === "[3;5~" || data === "[3;3~" || data === "d") {
+  if (data === "\u001b[3;5~" || data === "\u001b[3;3~" || data === "\u001bd") {
     input.deleteWordAfter();
     return { kind: "editing" };
   }
-  if (data === "") {
+  if (data === "\u007f") {
     input.backspace();
     return { kind: "editing" };
   }
-  if (data === "[3~") {
+  if (data === "\u001b[3~") {
     input.deleteForward();
     return { kind: "editing" };
   }
-  if (data === "[1;5D" || data === "[1;3D" || data === "b") {
+  if (data === "\u001b[1;5D" || data === "\u001b[1;3D" || data === "\u001bb") {
     input.moveCaretByWord(-1);
     return { kind: "editing" };
   }
-  if (data === "[1;5C" || data === "[1;3C" || data === "f") {
+  if (data === "\u001b[1;5C" || data === "\u001b[1;3C" || data === "\u001bf") {
     input.moveCaretByWord(1);
     return { kind: "editing" };
   }
-  if (data === "[D") {
+  if (data === "\u001b[D") {
     input.moveCaret(-1);
     return { kind: "editing" };
   }
-  if (data === "[C") {
+  if (data === "\u001b[C") {
     input.moveCaret(1);
     return { kind: "editing" };
   }
-  if (data === "[H" || data === "") {
+  if (data === "\u001b[H" || data === "\u0001") {
     input.moveCaretToStart();
     return { kind: "editing" };
   }
-  if (data === "[F" || data === "") {
+  if (data === "\u001b[F" || data === "\u0005") {
     input.moveCaretToEnd();
     return { kind: "editing" };
   }
   // Any other escape sequence is a key this input has no answer for - a page
   // key, a function key, a chord. It is swallowed rather than typed, because the
   // one thing it certainly is not is text the reader meant to enter.
-  if (data.startsWith("")) return { kind: "editing" };
+  if (data.startsWith("\u001b")) return { kind: "editing" };
   input.insert(data);
   return { kind: "editing" };
 }
@@ -221,15 +221,15 @@ export function handleLineInputKey(input: LineInput, data: string): LineInputOut
  */
 /** A rule drawn in the prompt's own grey, as the reference rules an input row. */
 export function promptRule(width: number): string {
-  return `[38;2;154;160;166m${"─".repeat(Math.max(0, width))}[39m`;
+  return `\u001b[38;2;154;160;166m${"─".repeat(Math.max(0, width))}\u001b[39m`;
 }
 
-export const PROMPT_GLYPH = `[38;2;154;160;166m❯[39m `;
+export const PROMPT_GLYPH = `\u001b[38;2;154;160;166m❯\u001b[39m `;
 
 /**
  * The caret the reference draws: the cell under it is reversed rather than given
  * a colour of its own, so it reads as a block in whatever theme is in use.
  */
 export function caretCell(text: string): string {
-  return `[7m${text}[27m`;
+  return `\u001b[7m${text}\u001b[27m`;
 }
