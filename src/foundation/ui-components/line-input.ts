@@ -14,6 +14,45 @@ export interface LineInputView {
 
 const MAX_VALUE_LENGTH = 4_096;
 
+const GRAPHEMES = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+
+/** Character class for a word boundary: 0 space, 1 word, 2 anything else. */
+function charClass(character: string): number {
+  if (/\s/.test(character)) return 0;
+  if (/[\p{L}\p{N}_]/u.test(character)) return 1;
+  return 2;
+}
+
+/**
+ * Where a word jump to the left lands: past any whitespace, then past the run of
+ * characters of one class, so a word and a run of punctuation each count as one.
+ */
+export function wordLeft(text: string, from: number): number {
+  const graphemes = [...GRAPHEMES.segment(text.slice(0, from))].map(entry => entry.segment);
+  let at = from;
+  let index = graphemes.length - 1;
+  while (index >= 0 && charClass(graphemes[index] ?? "") === 0) at -= (graphemes[index--] ?? "").length;
+  if (index >= 0) {
+    const cls = charClass(graphemes[index] ?? "");
+    while (index >= 0 && charClass(graphemes[index] ?? "") === cls) at -= (graphemes[index--] ?? "").length;
+  }
+  return at;
+}
+
+/** Where a word jump to the right lands, by the same rules mirrored. */
+export function wordRight(text: string, from: number): number {
+  const graphemes = [...GRAPHEMES.segment(text.slice(from))].map(entry => entry.segment);
+  let at = from;
+  let index = 0;
+  while (index < graphemes.length && charClass(graphemes[index] ?? "") === 0) at += (graphemes[index++] ?? "").length;
+  if (index < graphemes.length) {
+    const cls = charClass(graphemes[index] ?? "");
+    while (index < graphemes.length && charClass(graphemes[index] ?? "") === cls) at += (graphemes[index++] ?? "").length;
+  }
+  return at;
+}
+
+
 /**
  * A single-line editable value with a caret and horizontal scrolling. Accept and
  * cancel are reported distinctly so a caller can commit or discard; cancelling
@@ -70,6 +109,26 @@ export class LineInput {
     this.#caret = Math.min(Math.max(this.#caret + delta, 0), this.#value.length);
   }
 
+  /** Moves the caret one word, in whichever direction the sign says. */
+  moveCaretByWord(direction: -1 | 1): void {
+    this.#caret = direction < 0 ? wordLeft(this.#value, this.#caret) : wordRight(this.#value, this.#caret);
+  }
+
+  /** Removes the word before the caret, leaving the caret where it began. */
+  deleteWordBefore(): void {
+    const to = wordLeft(this.#value, this.#caret);
+    if (to >= this.#caret) return;
+    this.#value = this.#value.slice(0, to) + this.#value.slice(this.#caret);
+    this.#caret = to;
+  }
+
+  /** Removes the word after the caret, leaving the caret where it is. */
+  deleteWordAfter(): void {
+    const to = wordRight(this.#value, this.#caret);
+    if (to <= this.#caret) return;
+    this.#value = this.#value.slice(0, this.#caret) + this.#value.slice(to);
+  }
+
   moveCaretToStart(): void {
     this.#caret = 0;
   }
@@ -105,12 +164,30 @@ export class LineInput {
 export function handleLineInputKey(input: LineInput, data: string): LineInputOutcome {
   if (data === "\r" || data === "\n") return { kind: "accepted", value: input.value };
   if (data === "" || data === "") return { kind: "cancelled" };
-  if (data === "" || data === "\b") {
+  // A word delete is decided before a plain one: on Windows Terminal the raw
+  // backspace byte IS ctrl+backspace, and the plain branch would swallow it.
+  if (data === "" || data === "" || data === "") {
+    input.deleteWordBefore();
+    return { kind: "editing" };
+  }
+  if (data === "[3;5~" || data === "[3;3~" || data === "d") {
+    input.deleteWordAfter();
+    return { kind: "editing" };
+  }
+  if (data === "") {
     input.backspace();
     return { kind: "editing" };
   }
   if (data === "[3~") {
     input.deleteForward();
+    return { kind: "editing" };
+  }
+  if (data === "[1;5D" || data === "[1;3D" || data === "b") {
+    input.moveCaretByWord(-1);
+    return { kind: "editing" };
+  }
+  if (data === "[1;5C" || data === "[1;3C" || data === "f") {
+    input.moveCaretByWord(1);
     return { kind: "editing" };
   }
   if (data === "[D") {

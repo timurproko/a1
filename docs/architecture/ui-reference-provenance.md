@@ -18,6 +18,7 @@ its own `core` facade layer; A1 is a product, so the port adapts imports and kee
 
 | A1 module | Reference unit | Adaptation |
 | --- | --- | --- |
+| `ui-components/line-input.ts` — word motion and word delete | `core/panes/line-input.ts` | `wordLeft`/`wordRight` and their key bindings ported verbatim, including deciding a word delete before a plain one because a raw backspace byte is ctrl+backspace on Windows Terminal. |
 | `ui-components/spans.ts` — `overlaySpan` | `core/presentation/spans.ts` | Uses A1 `displayWidth`; hyperlink and style replay kept verbatim. |
 | `ui-components/scrollbar.ts` — geometry | `core/presentation/scrollbar.ts` — `scrollbarGeom` | Same formula; A1 names the fields and returns null rather than undefined. |
 | `ui-components/scrollbar.ts` — rails | `core/presentation/scrollbar.ts` — zone and hover state | Rail identity kept; A1 holds state in an instance rather than a module global. |
