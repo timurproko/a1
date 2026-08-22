@@ -16,6 +16,18 @@
 - [ ] 2.2 Record which of those assertions belong to the component layer, so each moves with its
   component rather than being duplicated
 
+## 2b. Cover the component layer it stands on
+
+- [ ] 2b.1 Test the scrollbar: geometry from content length, viewport height, and scroll position, a
+  minimum one-row thumb clamped inside the track, and the fits-in-viewport case reserving no space
+- [ ] 2b.2 Test rail-scoped hover and drag, driving two rails and asserting each affects only the one
+  addressed
+- [ ] 2b.3 Test app registration and the host: replace-on-re-register, a reported failure for an
+  unregistered identity, resize re-rendering, a second app replacing the first, the declared interrupt
+  policy, and a throwing app being closed with the previous surface restored
+- [ ] 2b.4 Test the shortcut registry: in-scope dispatch, out-of-scope and undeclared pass-through, and
+  conflict detection naming both declarations including a screen shadowing a global
+
 ## 3. Derive the Pi settings data
 
 - [ ] 3.1 Read the offered values from the generated metadata in
@@ -55,11 +67,21 @@
   exist, how a value is shown, where an accepted change is routed — and confirm it no longer draws
   chrome of its own
 
-## 6. Derive the hint line
+## 6. Derive what the keys say
 
 - [ ] 6.1 Render the settings screen's hint from `SETTINGS_SHORTCUTS` rather than the written constant,
   naming each key as the registry names it
-- [ ] 6.2 Add a check that fails when a surface describes a key the declaration does not bind
+- [ ] 6.2 Derive the shortcut listing from the registry as well, so a newly declared shortcut appears
+  without a separate edit and every listed entry dispatches what it describes
+- [ ] 6.3 Add a check that fails when a surface describes a key the declaration does not bind
+
+## 6b. Write down what the settings screen already does
+
+- [x] 6b.1 Add the settings requirements for behaviour that has none: a setting whose value is an
+  object edited through its own dialog, a theme that may follow the terminal appearance, and a search
+  that reads section names
+- [x] 6b.2 After this change and the component change are archived, revisit the settings screen
+  requirement so it states that the screen composes shared components rather than drawing its own
 
 ## 7. Validate and integrate
 
