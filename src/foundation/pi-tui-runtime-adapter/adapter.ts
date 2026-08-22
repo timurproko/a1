@@ -269,6 +269,16 @@ export class PiTuiRuntimeAdapter {
     return this.#tui.hasOverlay();
   }
 
+  /**
+   * Writes a terminal control sequence. Used to enable and disable mouse
+   * reporting while an A1-owned application is presented, and for nothing else:
+   * the transparent and pinned paths never call it.
+   */
+  writeControl(data: string): void {
+    this.#assertRunning("control sequence");
+    this.#terminal.write(data);
+  }
+
   addInputListener(listener: PiTuiInputListener): () => void {
     this.#assertRunning("input listener");
     if (this.#inputListeners.has(listener)) throw new TypeError("Pi TUI input listener is already registered");

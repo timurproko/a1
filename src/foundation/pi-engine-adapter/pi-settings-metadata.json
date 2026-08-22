@@ -1,0 +1,336 @@
+{
+  "order": [
+    "autoCompact",
+    "showImages",
+    "imageWidthCells",
+    "autoResizeImages",
+    "blockImages",
+    "enableSkillCommands",
+    "showHardwareCursor",
+    "editorPaddingX",
+    "outputPad",
+    "autocompleteMaxVisible",
+    "clearOnShrink",
+    "showTerminalProgress",
+    "steeringMode",
+    "followUpMode",
+    "transport",
+    "httpIdleTimeoutMs",
+    "hideThinkingBlock",
+    "mermaidRenderingMode",
+    "showCacheMissNotices",
+    "collapseChangelog",
+    "quietStartup",
+    "enableInstallTelemetry",
+    "defaultProjectTrust",
+    "doubleEscapeAction",
+    "treeFilterMode",
+    "warnings",
+    "thinkingLevel",
+    "tuiMode",
+    "fullscreenExitOutput",
+    "fullscreenScrollbar",
+    "theme"
+  ],
+  "settings": {
+    "autoCompact": {
+      "label": "Auto-compact",
+      "description": "Automatically compact context when it gets too large",
+      "opensDialog": false,
+      "values": [
+        "true",
+        "false"
+      ]
+    },
+    "showImages": {
+      "label": "Show images",
+      "description": "Render images inline in terminal",
+      "opensDialog": false,
+      "values": [
+        "true",
+        "false"
+      ]
+    },
+    "imageWidthCells": {
+      "label": "Image width",
+      "description": "Preferred inline image width in terminal cells",
+      "opensDialog": false,
+      "values": [
+        "60",
+        "80",
+        "120"
+      ]
+    },
+    "autoResizeImages": {
+      "label": "Auto-resize images",
+      "description": "Resize large images to 2000x2000 max for better model compatibility",
+      "opensDialog": false,
+      "values": [
+        "true",
+        "false"
+      ]
+    },
+    "blockImages": {
+      "label": "Block images",
+      "description": "Prevent images from being sent to LLM providers",
+      "opensDialog": false,
+      "values": [
+        "true",
+        "false"
+      ]
+    },
+    "enableSkillCommands": {
+      "label": "Skill commands",
+      "description": "Register skills as /skill:name commands",
+      "opensDialog": false,
+      "values": [
+        "true",
+        "false"
+      ]
+    },
+    "showHardwareCursor": {
+      "label": "Show hardware cursor",
+      "description": "Show the terminal cursor while still positioning it for IME support",
+      "opensDialog": false,
+      "values": [
+        "true",
+        "false"
+      ]
+    },
+    "editorPaddingX": {
+      "label": "Editor padding",
+      "description": "Horizontal padding for input editor (0-3)",
+      "opensDialog": false,
+      "values": [
+        "0",
+        "1",
+        "2",
+        "3"
+      ]
+    },
+    "outputPad": {
+      "label": "Output padding",
+      "description": "Horizontal padding for user messages, assistant messages, and thinking",
+      "opensDialog": false,
+      "values": [
+        "0",
+        "1"
+      ]
+    },
+    "autocompleteMaxVisible": {
+      "label": "Autocomplete max items",
+      "description": "Max visible items in autocomplete dropdown (3-20)",
+      "opensDialog": false,
+      "values": [
+        "3",
+        "5",
+        "7",
+        "10",
+        "15",
+        "20"
+      ]
+    },
+    "clearOnShrink": {
+      "label": "Clear on shrink",
+      "description": "Clear empty rows when content shrinks (may cause flicker)",
+      "opensDialog": false,
+      "values": [
+        "true",
+        "false"
+      ]
+    },
+    "showTerminalProgress": {
+      "label": "Terminal progress",
+      "description": "Show OSC 9;4 progress indicators in the terminal tab bar",
+      "opensDialog": false,
+      "values": [
+        "true",
+        "false"
+      ]
+    },
+    "steeringMode": {
+      "label": "Steering mode",
+      "description": "Enter while streaming queues steering messages. 'one-at-a-time': deliver one, wait for response. 'all': deliver all at once.",
+      "opensDialog": false,
+      "values": [
+        "one-at-a-time",
+        "all"
+      ]
+    },
+    "followUpMode": {
+      "label": "Follow-up mode",
+      "description": "",
+      "opensDialog": false,
+      "values": [
+        "one-at-a-time",
+        "all"
+      ]
+    },
+    "transport": {
+      "label": "Transport",
+      "description": "Preferred transport for providers that support multiple transports",
+      "opensDialog": false,
+      "values": [
+        "sse",
+        "websocket",
+        "websocket-cached",
+        "auto"
+      ]
+    },
+    "httpIdleTimeoutMs": {
+      "label": "HTTP idle timeout",
+      "description": "Maximum idle gap while waiting for HTTP headers or body chunks. Disable for local models that pause longer than five minutes.",
+      "opensDialog": false
+    },
+    "hideThinkingBlock": {
+      "label": "Hide thinking",
+      "description": "Hide thinking blocks in assistant responses",
+      "opensDialog": false,
+      "values": [
+        "true",
+        "false"
+      ]
+    },
+    "mermaidRenderingMode": {
+      "label": "Mermaid diagrams",
+      "description": "Render Mermaid code blocks as Unicode diagrams",
+      "opensDialog": false,
+      "values": [
+        "off",
+        "final",
+        "streaming"
+      ]
+    },
+    "showCacheMissNotices": {
+      "label": "Cache miss notices",
+      "description": "Show transcript notices for significant prompt-cache misses",
+      "opensDialog": false,
+      "values": [
+        "true",
+        "false"
+      ]
+    },
+    "collapseChangelog": {
+      "label": "Collapse changelog",
+      "description": "Show condensed changelog after updates",
+      "opensDialog": false,
+      "values": [
+        "true",
+        "false"
+      ]
+    },
+    "quietStartup": {
+      "label": "Quiet startup",
+      "description": "Disable verbose printing at startup",
+      "opensDialog": false,
+      "values": [
+        "true",
+        "false"
+      ]
+    },
+    "enableInstallTelemetry": {
+      "label": "Install telemetry",
+      "description": "Send an anonymous version/update ping after changelog-detected updates",
+      "opensDialog": false,
+      "values": [
+        "true",
+        "false"
+      ]
+    },
+    "defaultProjectTrust": {
+      "label": "Default project trust",
+      "description": "Fallback behavior when no extension or saved trust decision decides project trust",
+      "opensDialog": false
+    },
+    "doubleEscapeAction": {
+      "label": "Double-escape action",
+      "description": "Action when pressing Escape twice with empty editor",
+      "opensDialog": false,
+      "values": [
+        "tree",
+        "fork",
+        "none"
+      ]
+    },
+    "treeFilterMode": {
+      "label": "Tree filter mode",
+      "description": "Default filter when opening /tree",
+      "opensDialog": false,
+      "values": [
+        "default",
+        "no-tools",
+        "user-only",
+        "labeled-only",
+        "all"
+      ]
+    },
+    "warnings": {
+      "label": "Warnings",
+      "description": "Enable or disable individual warnings",
+      "opensDialog": true,
+      "literalValue": "configure"
+    },
+    "thinkingLevel": {
+      "label": "Thinking level",
+      "description": "Reasoning depth for thinking-capable models",
+      "opensDialog": true
+    },
+    "tuiMode": {
+      "label": "TUI mode",
+      "description": "Interface layout; fullscreen mode is experimental",
+      "opensDialog": false,
+      "values": [
+        "regular",
+        "fullscreen"
+      ]
+    },
+    "fullscreenExitOutput": {
+      "label": "Fullscreen exit output",
+      "description": "Print the transcript or only a session resume hint when exiting fullscreen mode",
+      "opensDialog": false,
+      "values": [
+        "transcript",
+        "resume-hint"
+      ]
+    },
+    "fullscreenScrollbar": {
+      "label": "Fullscreen scrollbar",
+      "description": "Scrollbar behavior in fullscreen mode; has no effect in regular mode",
+      "opensDialog": false,
+      "values": [
+        "auto",
+        "always",
+        "hidden"
+      ]
+    },
+    "theme": {
+      "label": "Theme",
+      "description": "Color theme for the interface",
+      "opensDialog": true
+    }
+  },
+  "dialogs": {
+    "warnings": [
+      {
+        "id": "anthropic-extra-usage",
+        "label": "Anthropic extra usage",
+        "description": "Warn when Anthropic subscription auth may use paid extra usage",
+        "key": "anthropicExtraUsage",
+        "fallback": true
+      }
+    ]
+  },
+  "bounds": {
+    "imageWidthCells": {
+      "minimum": 1
+    },
+    "editorPaddingX": {
+      "minimum": 0,
+      "maximum": 3
+    },
+    "autocompleteMaxVisible": {
+      "minimum": 3,
+      "maximum": 20
+    }
+  }
+}
