@@ -29,8 +29,12 @@ context: |
   - Do not run test suites locally as a gate. `npm run typecheck` before pushing is a fast optional sanity check; `npx vitest run <files>` is for debugging a specific failure, never a completion requirement.
   - Never run `npm run test:fast`, `test:full`, `test:release`, or `test:pi-terminal-parity` locally on your own initiative; the first belongs to CI, the rest to release workflows or an explicit user request.
   - Docs/spec-only changes get no tests anywhere; CI runs only the OpenSpec lint.
-  - After pushing a PR, do not poll or watch CI in the foreground; continue with the next task and return when CI reports a result.
-  - If CI fails, fix and push again; the round trip is about two minutes.
+  - After pushing a PR, do not poll or watch CI in the foreground. Fill the wait with work on that same change if there is any, then read the result before anything else starts.
+  - A red pull request is the next task. Fix it and push again — the round trip is about two minutes — before starting new work, and never stack new work on top of a change whose validation is failing.
+  - Report what CI said rather than assuming it passed. A result that has not been read is not a result.
+  - Where a failure is not this change's doing, say so with the evidence and still deal with it before moving on, because it fails every pull request behind it too.
+  - Arm auto-merge on a pull request that changes nothing a reader would see — a specification, documentation, a refactor whose tests prove the behaviour is unchanged — so it lands the moment validation passes. Say that it is armed.
+  - Leave a pull request that changes what a reader sees to merge by hand, after the manual acceptance that change needs. A feature is accepted before it lands, not explained after it.
 
 operations:
   apply:
