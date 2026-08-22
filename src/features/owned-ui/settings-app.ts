@@ -605,8 +605,8 @@ export class SettingsApp implements UiApp {
     // The stepper is an affordance, not decoration: it appears under the pointer.
     const stepper = isStepper(entry, shown) && hovered;
     const valueToken = valueHovered ? "text" : "muted";
-    const minus = theme.fg(this.#hoverRegion === "minus" && hovered ? "accent" : "dim", "- ");
-    const plus = theme.fg(this.#hoverRegion === "plus" && hovered ? "accent" : "dim", " +");
+    const minus = theme.fg(this.#hoverRegion === "minus" && hovered ? "text" : "dim", "- ");
+    const plus = theme.fg(this.#hoverRegion === "plus" && hovered ? "text" : "dim", " +");
     const value = stepper
       ? `${minus}${theme.fg(valueToken, raw)}${plus}`
       : theme.fg(valueToken, raw);
