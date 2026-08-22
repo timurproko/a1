@@ -200,6 +200,17 @@ describe("the settings screen", () => {
     expect(after.some(line => line.trimStart().startsWith("→"))).toBe(true);
   });
 
+  it("shows a whole section when the search names it", async () => {
+    const { app: target } = await app();
+    target.onInput?.("/", HOST);
+    for (const letter of "agen") target.onInput?.(letter, HOST);
+
+    const shown = screen(target);
+    for (const label of ["Warnings", "Thinking level", "Editor padding", "Output padding"]) {
+      expect(shown.some(line => line.includes(label))).toBe(true);
+    }
+  });
+
   it("swallows the arrows when the search found nothing", async () => {
     const { app: target } = await app();
     target.onInput?.("/", HOST);
