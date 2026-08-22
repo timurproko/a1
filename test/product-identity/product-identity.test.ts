@@ -21,7 +21,7 @@ describe("product identity authority", () => {
         piVanillaProfile: ".pi/agent",
         piSandboxProfile: ".a1/sandbox",
       },
-      artifacts: { cliEntry: "bin/a1.js", nativeExecutable: "a1-terminal-host" },
+      artifacts: { cliEntry: "bin/cli.js", nativeExecutable: "terminal-host" },
     });
     expect(allObjectsFrozen(PRODUCT_IDENTITY)).toBe(true);
     expect(() => { (PRODUCT_IDENTITY as { displayName: string }).displayName = "changed"; }).toThrow(TypeError);

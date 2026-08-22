@@ -116,7 +116,7 @@ jobs:
           A1_CONFIG_DIR: ${{ runner.temp }}\a1-ci-config
           A1_DATA_DIR: ${{ runner.temp }}\a1-ci-data
           A1_RUNTIME_DIR: ${{ runner.temp }}\a1-ci-runtime
-          A1_PROCESS_GUARDIAN_PATH: ${{ github.workspace }}\native\process-guardian\target\debug\a1-process-guardian.exe
+          A1_PROCESS_GUARDIAN_PATH: ${{ github.workspace }}\native\process-guardian\target\debug\process-guardian.exe
         run: node scripts/run-validation-tier.mjs typecheck architecture fast --result artifacts/validation/outcomes.json
 
       - name: Add timing summary
@@ -143,11 +143,11 @@ jobs:
       matrix:
         include:
           - os: windows-2025
-            binary: a1-process-guardian.exe
+            binary: process-guardian.exe
           - os: ubuntu-24.04
-            binary: a1-process-guardian
+            binary: process-guardian
           - os: macos-15
-            binary: a1-process-guardian
+            binary: process-guardian
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     steps:

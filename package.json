@@ -5,7 +5,7 @@
   "type": "module",
   "packageManager": "npm@11.13.0",
   "bin": {
-    "a1": "bin/a1.js"
+    "a1": "bin/cli.js"
   },
   "files": [
     "bin",

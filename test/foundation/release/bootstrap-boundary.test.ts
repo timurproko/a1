@@ -8,15 +8,15 @@ const repository = resolve(fileURLToPath(new URL("../../..", import.meta.url)));
 describe("mutable bootstrap boundary", () => {
   it("keeps the supervisor internal while publishing only the a1 executable", async () => {
     const manifest = JSON.parse(await readFile(resolve(repository, "package.json"), "utf8")) as { bin?: unknown };
-    expect(manifest.bin).toEqual({ "a1": "bin/a1.js" });
-    await expect(readFile(resolve(repository, "bin/a1-supervisor.js"), "utf8")).resolves.toContain("runSupervisor");
+    expect(manifest.bin).toEqual({ "a1": "bin/cli.js" });
+    await expect(readFile(resolve(repository, "bin/supervisor.js"), "utf8")).resolves.toContain("runSupervisor");
   });
 
   it("routes interactive launch through bootstrap and starts the owned runtime lazily", async () => {
     const [bin, guardian, ui] = await Promise.all([
-      readFile(resolve(repository, "bin/a1.js"), "utf8"),
-      readFile(resolve(repository, "bin/a1-guardian.js"), "utf8"),
-      readFile(resolve(repository, "bin/a1-ui.js"), "utf8"),
+      readFile(resolve(repository, "bin/cli.js"), "utf8"),
+      readFile(resolve(repository, "bin/guardian.js"), "utf8"),
+      readFile(resolve(repository, "bin/ui.js"), "utf8"),
     ]);
     expect(bin).toContain('import("../dist/src/foundation/release/index.js")');
     expect(bin).not.toContain("runOwnedUi");

@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 describe("launch guardian terminal boundary", () => {
   it("inherits terminal handles without reading, parsing, relaying, or rendering traffic", async () => {
     const [entry, guardian, containment, windows, linux] = await Promise.all([
-      readFile("bin/a1-guardian.js", "utf8"),
+      readFile("bin/guardian.js", "utf8"),
       readFile("src/foundation/launch-guardian/main.ts", "utf8"),
       readFile("src/foundation/process-containment/native-guardian-containment.ts", "utf8"),
       readFile("native/process-guardian/src/windows.rs", "utf8"),

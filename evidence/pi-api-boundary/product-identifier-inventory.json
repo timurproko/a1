@@ -10,17 +10,17 @@
   "internalIdentifiers": [],
   "externalIdentityIdentifiers": [
     {
-      "path": "bin/a1-guardian.js",
+      "path": "bin/guardian.js",
       "line": 7,
       "identifier": "A1_RELEASE_ROOT"
     },
     {
-      "path": "bin/a1-guardian.js",
+      "path": "bin/guardian.js",
       "line": 8,
       "identifier": "A1_LAUNCH_PROFILE"
     },
     {
-      "path": "bin/a1-ui.js",
+      "path": "bin/ui.js",
       "line": 5,
       "identifier": "A1_LAUNCH_PROFILE"
     },

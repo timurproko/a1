@@ -32,7 +32,7 @@ describe("clean installation of the exact candidate", () => {
     expect(manifest).toMatchObject({
       name: "@timurproko/a1",
       version: candidate.manifest.version,
-      bin: { "a1": "bin/a1.js" },
+      bin: { "a1": "bin/cli.js" },
     });
     expect(Object.keys(manifest.bin)).toEqual(["a1"]);
     expect(manifest.dependencies["@earendil-works/pi-coding-agent"]).toMatch(/^\d+\.\d+\.\d+$/);

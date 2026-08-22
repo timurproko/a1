@@ -1,6 +1,6 @@
 # Process guardian provenance
 
-A1 launch-instance containment uses a standalone native executable named `a1-process-guardian`. The approved implementation is a separate Rust crate at `native/process-guardian`; it is not a Node-API addon and does not reuse or resume the held composed terminal-host implementation.
+A1 launch-instance containment uses a standalone native executable named `process-guardian`. The approved implementation is a separate Rust crate at `native/process-guardian`; it is not a Node-API addon and does not reuse or resume the held composed terminal-host implementation.
 
 ## Boundary
 
@@ -13,10 +13,10 @@ On Windows it uses `windows-sys 0.61.2` to create a Job Object, enables `JOB_OBJ
 Release builds place the exact executable at:
 
 ```text
-dist/native/win32-x64/a1-process-guardian.exe
-dist/native/linux-x64/a1-process-guardian
-dist/native/darwin-x64/a1-process-guardian
-dist/native/darwin-arm64/a1-process-guardian
+dist/native/win32-x64/process-guardian.exe
+dist/native/linux-x64/process-guardian
+dist/native/darwin-x64/process-guardian
+dist/native/darwin-arm64/process-guardian
 ```
 
 Each supported artifact must be named in the release integrity manifest with target triple, crate version, guardian protocol version, SHA-256, byte size, build provenance, and signature/attestation status. A missing, altered, incompatible, or wrong-platform artifact is a concise unsupported-containment launch error; A1 never silently falls back to PID-only cleanup.

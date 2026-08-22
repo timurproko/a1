@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
-import { captureOwnedFooterRows, captureOwnedStartup } from "./pi-a1-startup-fixture.js";
+import { captureOwnedFooterRows, captureOwnedStartup } from "./pi-startup-fixture.js";
 import { capturePinnedUpstreamFooterRows, capturePinnedUpstreamStartup, PINNED_STARTUP_STATES } from "./pi-upstream-startup-fixture.js";
 
 describe("independent pinned Pi startup composition parity", () => {
@@ -22,7 +22,7 @@ describe("independent pinned Pi startup composition parity", () => {
 
   it("keeps the two producers independent", async () => {
     const upstreamSource = await readFile("test/features/owned-ui/pi-upstream-startup-fixture.ts", "utf8");
-    const ownedSource = await readFile("test/features/owned-ui/pi-a1-startup-fixture.ts", "utf8");
+    const ownedSource = await readFile("test/features/owned-ui/pi-startup-fixture.ts", "utf8");
     expect(upstreamSource).not.toMatch(/OwnedUiSessionShell|pi-component-adapter|src\/features\/owned-ui/);
     expect(upstreamSource).toContain("FooterComponent");
     expect(upstreamSource).toContain("CustomEditor");
