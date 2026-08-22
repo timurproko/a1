@@ -290,10 +290,12 @@ export class SettingsApp implements UiApp {
       const overRow = menuRowAt(frame, event.row - 1, event.column);
       const overMenu = overRow !== null;
       if (event.kind === "motion") {
-        // While the menu is open it owns the pointer: the row under it lights up,
-        // and nothing behind it hovers.
-        const hadHover = this.#hoverKey !== null;
-        this.#hoverKey = null;
+        // The menu owns the pointer, but the row it came from is still the thing
+        // being changed, so its value keeps reading as the one under the pointer.
+        // Only a dialog that takes the screen puts that out.
+        const hadHover = this.#hoverKey !== menu.anchorKey || this.#hoverRegion !== "value";
+        this.#hoverKey = menu.anchorKey;
+        this.#hoverRegion = "value";
         if (!overMenu) {
           const cleared = menu.index !== -1;
           menu.index = -1;

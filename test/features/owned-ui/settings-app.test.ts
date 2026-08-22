@@ -304,6 +304,18 @@ describe("the value menu behind the screen", () => {
     expect(screen(target).some(line => line.includes("✓"))).toBe(false);
     expect(writes).toHaveLength(0);
   });
+
+  // The row the menu came from is still the thing being changed, so it keeps
+  // reading as the one under the pointer while the reader moves over the menu.
+  it("keeps the row it came from looking pointed at while the pointer is in the menu", async () => {
+    const { target, row } = await openMenu();
+    const painted = (): string => target.render({ width: 80, height: 24 }, HOST)[row] ?? "";
+    const pointedAtValue = painted();
+
+    target.onMouse?.({ kind: "motion", button: 0, row: row + 2, column: 6 }, HOST);
+
+    expect(painted()).toBe(pointedAtValue);
+  });
 });
 
 describe("the input row and status line behind the screen", () => {

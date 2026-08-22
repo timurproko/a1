@@ -293,6 +293,9 @@ function pinnedTheme(): UiTheme {
   return {
     fg: (token: UiThemeToken, text: string) => piTheme().fg(token, text),
     bold: (text: string) => piTheme().bold(text),
+    // Unpainted, so a list reads against the terminal the reader actually has
+    // rather than against the background the configured theme was built for.
+    plain: (text: string) => text,
     // Quiet, and quieter again: the terminal's own faint attribute over the
     // dimmest colour the theme has.
     disabled: (text: string) => faint(piTheme().fg("dim", text)),
