@@ -36,7 +36,7 @@ describe("exact packed npm command surface", () => {
       "dist/src/product-identity.d.ts",
       "dist/src/foundation/pi-engine-adapter/public-main-entry.js",
       `dist/native/${process.platform}-${process.arch}/manifest.json`,
-      `dist/native/${process.platform}-${process.arch}/${process.platform === "win32" ? "process-guardian.exe" : "a1-process-guardian"}`,
+      `dist/native/${process.platform}-${process.arch}/${process.platform === "win32" ? "process-guardian.exe" : "process-guardian"}`,
     ]));
     expect(paths.some(path => /addone/i.test(path))).toBe(false);
     expect(paths.some(path => path.startsWith("scripts/") || path.endsWith(".map"))).toBe(false);
@@ -48,7 +48,7 @@ describe("exact packed npm command surface", () => {
     expect(oracle.status, oracle.stderr).toBe(0);
     expect(oracle.stdout.trim()).toBe(candidate.manifest.dependencies?.["@earendil-works/pi-coding-agent"]);
 
-    const command = crossSpawn.sync(process.execPath, [resolve(extracted.packageRoot, "bin", "a1.js"), "agent"], {
+    const command = crossSpawn.sync(process.execPath, [resolve(extracted.packageRoot, "bin", "cli.js"), "agent"], {
       cwd: extracted.root, encoding: "utf8", env: process.env, windowsHide: true,
     });
     expect(command.status).toBe(2);
