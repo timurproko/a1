@@ -32,5 +32,7 @@ if (mode === "root" || mode === "root-group") {
 }
 
 function waitForever() {
-  return new Promise(() => undefined);
+  return new Promise(() => {
+    setInterval(() => undefined, 1_000);
+  });
 }
