@@ -177,6 +177,50 @@ describe("the settings screen", () => {
     expect(writes.at(-1)).toEqual({ key: "warnings", value: { anthropicExtraUsage: false, unknownTools: false } });
   });
 
+  it("moves through what the search found instead of typing the arrows", async () => {
+    const { app: target } = await app();
+    target.onInput?.("/", HOST);
+    target.onInput?.("t", HOST);
+    const before = find(target, "❯").replace(/\s+$/, "");
+
+    target.onInput?.(DOWN, HOST);
+    const after = screen(target);
+    expect(after.find(line => line.includes("❯"))?.replace(/\s+$/, "")).toBe(before);
+    expect(after.some(line => line.trimStart().startsWith("→"))).toBe(true);
+  });
+
+  it("jumps a section from the search, as the arrows move through it", async () => {
+    const { app: target } = await app();
+    target.onInput?.("/", HOST);
+    const before = find(target, "❯").replace(/s+$/, "");
+
+    target.onInput?.(`${ESC}[1;2B`, HOST);
+    const after = screen(target);
+    expect(after.find(line => line.includes("❯"))?.replace(/s+$/, "")).toBe(before);
+    expect(after.some(line => line.trimStart().startsWith("→"))).toBe(true);
+  });
+
+  it("shows a whole section when the search names it", async () => {
+    const { app: target } = await app();
+    target.onInput?.("/", HOST);
+    for (const letter of "agen") target.onInput?.(letter, HOST);
+
+    const shown = screen(target);
+    for (const label of ["Warnings", "Thinking level", "Editor padding", "Output padding"]) {
+      expect(shown.some(line => line.includes(label))).toBe(true);
+    }
+  });
+
+  it("swallows the arrows when the search found nothing", async () => {
+    const { app: target } = await app();
+    target.onInput?.("/", HOST);
+    for (const letter of "zzzz") target.onInput?.(letter, HOST);
+    target.onInput?.(DOWN, HOST);
+    target.onInput?.(`${ESC}[1;2B`, HOST);
+    expect(find(target, "❯")).toContain("zzzz");
+    expect(screen(target).some(line => line.trimStart().startsWith("→"))).toBe(false);
+  });
+
   it("leaves the dialog on escape", async () => {
     const { app: target } = await app();
     selectRow(target, "Warnings");
