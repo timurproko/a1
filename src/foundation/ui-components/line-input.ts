@@ -206,6 +206,10 @@ export function handleLineInputKey(input: LineInput, data: string): LineInputOut
     input.moveCaretToEnd();
     return { kind: "editing" };
   }
+  // Any other escape sequence is a key this input has no answer for - a page
+  // key, a function key, a chord. It is swallowed rather than typed, because the
+  // one thing it certainly is not is text the reader meant to enter.
+  if (data.startsWith("")) return { kind: "editing" };
   input.insert(data);
   return { kind: "editing" };
 }
