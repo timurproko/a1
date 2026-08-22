@@ -10,21 +10,26 @@ import { describe, expect, it } from "vitest";
 const RUNNER = readFileSync("scripts/run-pi-terminal-parity.mjs", "utf8");
 const LAUNCHER = readFileSync("bin/a1-ui.js", "utf8");
 const COMPOSITION = readFileSync("src/composition/index.ts", "utf8");
+const SELECTION = readFileSync("src/features/launch/runtime-selection.ts", "utf8");
 
 describe("what the parity run measures", () => {
   it("launches the product's own entry point", () => {
     expect(RUNNER).toContain(`resolve(packageRoot, "bin", "a1-ui.js")`);
   });
 
-  it("launches it with A1's own surfaces withheld", () => {
-    expect(RUNNER).toContain(`A1_OWNED_SURFACES: "off"`);
+  it("launches the command that withholds A1's own surfaces", () => {
+    // `a1 pi` is Pi's interface through A1's rendering, with none of A1's own
+    // screens — a command anyone can run, not a mode kept alive for this test.
+    expect(RUNNER).toContain(`A1_LAUNCH_PROFILE: "pi"`);
   });
 
   it("reaches the same composition the product uses, rather than one of its own", () => {
     expect(LAUNCHER).toContain("composeOwnedUi");
-    expect(LAUNCHER).toContain("A1_OWNED_SURFACES");
+    expect(LAUNCHER).toContain("ownedSurfaces");
     // Withholding the surfaces is a switch inside that composition, not a second one.
     expect(COMPOSITION).toContain(`options.ownedSurfaces === "off"`);
+    // And the profile decides it, so the command carries the meaning.
+    expect(SELECTION).toContain(`profileId === "pi"`);
   });
 
   it("withholds the surfaces by withholding the route they are reached through", () => {

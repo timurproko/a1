@@ -1,4 +1,5 @@
 {
+  "generatedAt": "2026-08-22T13:50:57.851Z",
   "schema": "a1-legacy-identity-inventory-v1",
   "scan": {
     "roots": [
@@ -43,10 +44,10 @@
     "explicit-obsolete-package-fixtures"
   ],
   "summary": {
-    "total": 78,
-    "files": 25,
+    "total": 80,
+    "files": 26,
     "byLocationKind": {
-      "content": 78,
+      "content": 80,
       "path": 0
     },
     "byClass": {
@@ -55,10 +56,10 @@
       "environment-keys": 15,
       "paths": 49,
       "schemas": 13,
-      "artifacts": 19,
+      "artifacts": 21,
       "native-names": 3,
       "tests": 50,
-      "current-docs-specs": 28,
+      "current-docs-specs": 30,
       "historical-records": 12,
       "explicit-obsolete-package-fixtures": 5
     }
@@ -375,6 +376,36 @@
       "classes": [
         "current-docs-specs",
         "historical-records"
+      ]
+    },
+    {
+      "id": "openspec/changes/render-pi-through-a1/specs/launch-profiles/spec.md:4:413",
+      "path": "openspec/changes/render-pi-through-a1/specs/launch-profiles/spec.md",
+      "locationKind": "content",
+      "line": 4,
+      "column": 413,
+      "value": "addone",
+      "context": "The `a1` binary SHALL be the sole installed public command. Bare invocation SHALL be the A1 agent product surface and initially launch the normal single-foreground A1 profile, the `pi` subcommand SHALL present pinned Pi's interface throu...",
+      "matchedCase": "lower",
+      "primaryClass": "artifacts",
+      "classes": [
+        "artifacts",
+        "current-docs-specs"
+      ]
+    },
+    {
+      "id": "openspec/changes/render-pi-through-a1/specs/launch-profiles/spec.md:23:50",
+      "path": "openspec/changes/render-pi-through-a1/specs/launch-profiles/spec.md",
+      "locationKind": "content",
+      "line": 23,
+      "column": 50,
+      "value": "addone",
+      "context": "- **THEN** the installation SHALL NOT create an `addone` executable",
+      "matchedCase": "lower",
+      "primaryClass": "artifacts",
+      "classes": [
+        "artifacts",
+        "current-docs-specs"
       ]
     },
     {
@@ -1325,6 +1356,5 @@
         "tests"
       ]
     }
-  ],
-  "generatedAt": "2026-08-22T08:25:50.851Z"
+  ]
 }
