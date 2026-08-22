@@ -319,8 +319,7 @@ function coalesceGeometry(rows) {
 
 function writtenText(terminal) {
   const buffer = terminal.buffer.active;
-  return Array.from({ length: buffer.length }, (_, index) => buffer.getLine(index)?.translateToString(true) ?? "").join("
-");
+  return Array.from({ length: buffer.length }, (_, index) => buffer.getLine(index)?.translateToString(true) ?? "").join(String.fromCharCode(10));
 }
 
 function visibleText(terminal) {
