@@ -473,13 +473,19 @@ export class SettingsApp implements UiApp {
     if (input === null) return { consumed: false };
 
     const key = KEYS[data];
-    if (key === "up" || key === "down") {
+    if (key === "up" || key === "down" || key === "shift+up" || key === "shift+down") {
       const rows = this.#rows();
       // Nothing found means nothing to move through; the key is still swallowed
       // rather than typed into the search.
       if (selectableIndexes(rows).length === 0) return { consumed: true, render: false };
       const selected = indexOfKey(rows, this.#selectedKey);
-      this.#select(rows, moveSelection(rows, selected, key === "down" ? 1 : -1));
+      const forward = key === "down" || key === "shift+down";
+      if (key === "shift+up" || key === "shift+down") {
+        const target = blockJumpTarget(rows, selected, forward ? 1 : -1);
+        if (target !== undefined) this.#jump(rows, target);
+        return { consumed: true };
+      }
+      this.#select(rows, moveSelection(rows, selected, forward ? 1 : -1));
       return { consumed: true };
     }
 

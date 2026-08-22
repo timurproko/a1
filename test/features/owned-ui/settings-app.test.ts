@@ -189,11 +189,23 @@ describe("the settings screen", () => {
     expect(after.some(line => line.trimStart().startsWith("→"))).toBe(true);
   });
 
+  it("jumps a section from the search, as the arrows move through it", async () => {
+    const { app: target } = await app();
+    target.onInput?.("/", HOST);
+    const before = find(target, "❯").replace(/s+$/, "");
+
+    target.onInput?.(`${ESC}[1;2B`, HOST);
+    const after = screen(target);
+    expect(after.find(line => line.includes("❯"))?.replace(/s+$/, "")).toBe(before);
+    expect(after.some(line => line.trimStart().startsWith("→"))).toBe(true);
+  });
+
   it("swallows the arrows when the search found nothing", async () => {
     const { app: target } = await app();
     target.onInput?.("/", HOST);
     for (const letter of "zzzz") target.onInput?.(letter, HOST);
     target.onInput?.(DOWN, HOST);
+    target.onInput?.(`${ESC}[1;2B`, HOST);
     expect(find(target, "❯")).toContain("zzzz");
     expect(screen(target).some(line => line.trimStart().startsWith("→"))).toBe(false);
   });
