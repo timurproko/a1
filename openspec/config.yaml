@@ -12,6 +12,7 @@ context: |
   - When a pull request merges — armed to merge on its own, or merged by hand after acceptance — delete its remote branch and remove its worktree, then prune. A merged branch left behind is one more thing to read past when looking for what is live.
   - Judge merged by what the pull request says, not by whether the branch is an ancestor of `develop`: these merges are squashed, so the branch tip never becomes an ancestor and `git branch --merged` reports a landed branch as unmerged. `gh pr view <n> --json state` is the answer.
   - Leave alone a worktree that belongs to another session's open pull request, and say when a directory could not be removed because something is still running in it.
+  - `npm run clean:worktrees` lists what has landed and `npm run clean:worktrees -- --apply` removes it, asking GitHub which pull request carried each commit. A directory Windows will not release is scheduled for deletion on the next restart rather than left to be found later.
   - After manual validation is accepted, record the acceptance, archive the completed OpenSpec change, integrate the archive commit, then remove and prune every retained task or acceptance worktree for that change.
   - Store local package archives and ad hoc builds under the repository's `.builds/` directory.
 

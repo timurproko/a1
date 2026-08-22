@@ -45,7 +45,8 @@
     "prepack": "node scripts/prepack-gate.mjs",
     "prepublishOnly": "npm run test:release",
     "prepare": "npm run build",
-    "update:pi-settings-metadata": "node scripts/update-pi-settings-metadata.mjs"
+    "update:pi-settings-metadata": "node scripts/update-pi-settings-metadata.mjs",
+    "clean:worktrees": "node scripts/clean-worktrees.mjs"
   },
   "dependencies": {
     "@earendil-works/pi-coding-agent": "0.84.2",
