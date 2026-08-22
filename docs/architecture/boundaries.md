@@ -52,3 +52,13 @@ The structured-agent runtime uses a versioned adapter hello and feature negotiat
 The terminal-host protocol boundary may carry only bounded typed control and semantic lifecycle messages. Pseudoterminal bytes, per-event child input, rendered cells, cell grids, framebuffers, and screen buffers are forbidden across it. Console host executables and packaging live outside the current JavaScript production owners and remain unavailable until the isolated in-terminal proof passes; replacing them with a lightweight custom parser/renderer is forbidden. A desktop-native window and GPU application shell are postponed and are not required for the terminal-hosted product.
 
 Resource queues, retained state, evidence, logs, and diagnostics follow `docs/architecture/resource-and-data-policy.md`. Terminal content and authentication material are never control-store records. Unknown data is potentially sensitive by default and must be rejected or redacted before persistence.
+
+## The rules every surface follows
+
+How A1 builds what a reader sees — deriving a vendor engine's data rather than
+transcribing it, failing the build by name when a vendor change has not been
+absorbed, keeping vendor knowledge behind the vendor boundary, composing screens
+from shared components, showing state rather than narrating it, taking colour
+from declared theme roles, and answering both dispatch and description from one
+declaration — is stated once in the `owned-ux-architecture` capability rather
+than restated per feature.
