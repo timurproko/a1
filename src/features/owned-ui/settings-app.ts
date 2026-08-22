@@ -58,31 +58,39 @@ import type {
 export const SETTINGS_APP_ID = "settings";
 export const SETTINGS_ROUTE = "settings";
 const SCOPE = SETTINGS_APP_ID;
+/** The panel a setting with parts opens: its own keys, its own hint. */
+const DIALOG_SCOPE = `${SETTINGS_APP_ID}-parts`;
 const SCROLLBAR_TOP_INSET = 1;
-const HINT = "/ to search · ↑↓ to navigate · Shift+↑↓ to jump · Enter/Space to change · ←→ to adjust · Esc to cancel";
 const SEARCH_PLACEHOLDER = "search settings";
 /** What a structured value offers instead of printing itself. */
 const CONFIGURE = "configure";
 
 type Action =
   | "move-up" | "move-down" | "block-up" | "block-down" | "first" | "last"
-  | "page-up" | "page-down" | "previous-value" | "next-value" | "activate" | "open-filter" | "close";
+  | "page-up" | "page-down" | "previous-value" | "next-value" | "activate" | "open-filter" | "close"
+  | "part-previous" | "part-next" | "part-change";
 
 export const SETTINGS_SHORTCUTS = new ShortcutRegistry<Action>();
-SETTINGS_SHORTCUTS.declare({ key: "up", scope: SCOPE, description: "Previous setting", section: "Navigate" }, "move-up");
-SETTINGS_SHORTCUTS.declare({ key: "down", scope: SCOPE, description: "Next setting", section: "Navigate" }, "move-down");
-SETTINGS_SHORTCUTS.declare({ key: "shift+up", scope: SCOPE, description: "Previous section", section: "Navigate" }, "block-up");
-SETTINGS_SHORTCUTS.declare({ key: "shift+down", scope: SCOPE, description: "Next section", section: "Navigate" }, "block-down");
+SETTINGS_SHORTCUTS.declare({ key: "/", scope: SCOPE, description: "Search settings", section: "Change", hint: { keys: "/", does: "to search" } }, "open-filter");
+SETTINGS_SHORTCUTS.declare({ key: "up", scope: SCOPE, description: "Previous setting", section: "Navigate", hint: { keys: "↑↓", does: "to navigate" } }, "move-up");
+SETTINGS_SHORTCUTS.declare({ key: "down", scope: SCOPE, description: "Next setting", section: "Navigate", hint: { keys: "↑↓", does: "to navigate" } }, "move-down");
+SETTINGS_SHORTCUTS.declare({ key: "shift+up", scope: SCOPE, description: "Previous section", section: "Navigate", hint: { keys: "Shift+↑↓", does: "to jump" } }, "block-up");
+SETTINGS_SHORTCUTS.declare({ key: "shift+down", scope: SCOPE, description: "Next section", section: "Navigate", hint: { keys: "Shift+↑↓", does: "to jump" } }, "block-down");
 SETTINGS_SHORTCUTS.declare({ key: "pageUp", scope: SCOPE, description: "Up a page", section: "Navigate" }, "page-up");
 SETTINGS_SHORTCUTS.declare({ key: "pageDown", scope: SCOPE, description: "Down a page", section: "Navigate" }, "page-down");
 SETTINGS_SHORTCUTS.declare({ key: "home", scope: SCOPE, description: "First setting", section: "Navigate" }, "first");
 SETTINGS_SHORTCUTS.declare({ key: "end", scope: SCOPE, description: "Last setting", section: "Navigate" }, "last");
-SETTINGS_SHORTCUTS.declare({ key: "left", scope: SCOPE, description: "Previous value", section: "Change" }, "previous-value");
-SETTINGS_SHORTCUTS.declare({ key: "right", scope: SCOPE, description: "Next value", section: "Change" }, "next-value");
-SETTINGS_SHORTCUTS.declare({ key: "enter", scope: SCOPE, description: "Change value", section: "Change" }, "activate");
-SETTINGS_SHORTCUTS.declare({ key: "space", scope: SCOPE, description: "Change value", section: "Change" }, "activate");
-SETTINGS_SHORTCUTS.declare({ key: "/", scope: SCOPE, description: "Search settings", section: "Change" }, "open-filter");
-SETTINGS_SHORTCUTS.declare({ key: "escape", scope: GLOBAL_SCOPE, description: "Close", section: "Screen" }, "close");
+SETTINGS_SHORTCUTS.declare({ key: "enter", scope: SCOPE, description: "Change value", section: "Change", hint: { keys: "Enter/Space", does: "to change" } }, "activate");
+SETTINGS_SHORTCUTS.declare({ key: "space", scope: SCOPE, description: "Change value", section: "Change", hint: { keys: "Enter/Space", does: "to change" } }, "activate");
+SETTINGS_SHORTCUTS.declare({ key: "left", scope: SCOPE, description: "Previous value", section: "Change", hint: { keys: "←→", does: "to adjust" } }, "previous-value");
+SETTINGS_SHORTCUTS.declare({ key: "right", scope: SCOPE, description: "Next value", section: "Change", hint: { keys: "←→", does: "to adjust" } }, "next-value");
+SETTINGS_SHORTCUTS.declare({ key: "escape", scope: GLOBAL_SCOPE, description: "Close", section: "Screen", hint: { keys: "Esc", does: "to cancel" } }, "close");
+SETTINGS_SHORTCUTS.declare({ key: "enter", scope: DIALOG_SCOPE, description: "Change this part", section: "Parts", hint: { keys: "Enter/Space", does: "to change" } }, "part-change");
+SETTINGS_SHORTCUTS.declare({ key: "space", scope: DIALOG_SCOPE, description: "Change this part", section: "Parts", hint: { keys: "Enter/Space", does: "to change" } }, "part-change");
+SETTINGS_SHORTCUTS.declare({ key: "left", scope: DIALOG_SCOPE, description: "Change this part", section: "Parts" }, "part-change");
+SETTINGS_SHORTCUTS.declare({ key: "right", scope: DIALOG_SCOPE, description: "Change this part", section: "Parts" }, "part-change");
+SETTINGS_SHORTCUTS.declare({ key: "up", scope: DIALOG_SCOPE, description: "Previous part", section: "Parts" }, "part-previous");
+SETTINGS_SHORTCUTS.declare({ key: "down", scope: DIALOG_SCOPE, description: "Next part", section: "Parts" }, "part-next");
 
 const KEYS: Readonly<Record<string, string>> = {
   "\u001b[A": "up",
@@ -415,15 +423,22 @@ export class SettingsApp implements UiApp {
   #structuredKey(data: string): PaneInputResult {
     const open = this.#structured;
     if (open === null) return { consumed: false };
-    const key = KEYS[data] ?? data;
-    if (key === "escape") {
-      this.#structured = null;
-      return { consumed: true };
+    switch (SETTINGS_SHORTCUTS.resolve(KEYS[data] ?? data, DIALOG_SCOPE)) {
+      case "close":
+        this.#structured = null;
+        return { consumed: true };
+      case "part-previous":
+        open.index = Math.max(0, open.index - 1);
+        return { consumed: true };
+      case "part-next":
+        open.index = Math.min(open.flags.length - 1, open.index + 1);
+        return { consumed: true };
+      case "part-change":
+        this.#toggleFlag(open.index);
+        return { consumed: true };
+      default:
+        return { consumed: true, render: false };
     }
-    if (key === "up") open.index = Math.max(0, open.index - 1);
-    else if (key === "down") open.index = Math.min(open.flags.length - 1, open.index + 1);
-    else if (key === "enter" || key === "left" || key === "right" || data === " ") this.#toggleFlag(open.index);
-    return { consumed: true };
   }
 
   #toggleFlag(index: number): void {
@@ -663,14 +678,16 @@ export class SettingsApp implements UiApp {
     });
     this.#dialogValueColumn = dialogValueColumn(rows);
     this.#panelTop = this.#panelTopForFrame;
-    return renderDialogPanel({ rows, index: open.index, hint: "Enter/Space to change · Esc to cancel" }, width, theme);
+    return renderDialogPanel({ rows, index: open.index, hint: SETTINGS_SHORTCUTS.hint(DIALOG_SCOPE) }, width, theme);
   }
 
   #footerLines(width: number, theme: UiTheme): readonly string[] {
     const open = this.#structured;
     if (open !== null) return this.#dialogLines(open, width, theme);
 
-    const hint = this.#interruptArmed ? "press ctrl+c again to exit A1" : HINT;
+    // The hint is the declarations, so a key cannot be described here and bound
+    // to something else.
+    const hint = this.#interruptArmed ? "press ctrl+c again to exit A1" : SETTINGS_SHORTCUTS.hint(SCOPE);
     const status = renderStatusLine({ hint, report: this.#notice }, width, theme);
     const input = this.#filter;
     if (input === null) return [status];

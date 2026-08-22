@@ -13,6 +13,12 @@ export interface ShortcutDeclaration {
   readonly description: string;
   /** Grouping label for the listing. */
   readonly section?: string;
+  /**
+   * How this key reads on a screen's hint line, when it belongs there. Keys that
+   * do one thing together — the two arrows, enter and space — declare the same
+   * pair and are shown once.
+   */
+  readonly hint?: { readonly keys: string; readonly does: string };
 }
 
 export const GLOBAL_SCOPE = "global";
@@ -83,6 +89,21 @@ export class ShortcutRegistry<Action extends string = string> {
 
   assemble(): ShortcutRegistryResult {
     return assembleShortcuts(this.#declarations);
+  }
+
+  /**
+   * The hint line, in the order the screen declares its keys. It is rendered from
+   * the same declarations dispatch reads, so a key cannot be described here and
+   * bound to something else, or bound and never mentioned.
+   */
+  hint(scope: string, separator = " · "): string {
+    const shown = new Map<string, string>();
+    for (const declaration of this.#declarations) {
+      if (declaration.hint === undefined) continue;
+      if (declaration.scope !== scope && declaration.scope !== GLOBAL_SCOPE) continue;
+      if (!shown.has(declaration.hint.keys)) shown.set(declaration.hint.keys, declaration.hint.does);
+    }
+    return [...shown].map(([keys, does]) => `${keys} ${does}`).join(separator);
   }
 
   /** The listing, derived from the declarations dispatch reads. */

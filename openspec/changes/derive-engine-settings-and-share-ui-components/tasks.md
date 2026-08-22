@@ -4,7 +4,7 @@
   derived vendor data, loud failure on an unabsorbed vendor change, vendor knowledge behind the
   boundary, screens composing components, state shown rather than narrated, colour from theme roles,
   one declaration for dispatch and description — are stated once rather than per feature
-- [ ] 1.2 Reference it from `docs/architecture/boundaries.md` so a reader of the architecture notes
+- [x] 1.2 Reference it from `docs/architecture/boundaries.md` so a reader of the architecture notes
   arrives at the same rules
 
 ## 2. Cover the behaviour before moving it
@@ -71,11 +71,11 @@
 
 ## 6. Derive what the keys say
 
-- [ ] 6.1 Render the settings screen's hint from `SETTINGS_SHORTCUTS` rather than the written constant,
+- [x] 6.1 Render the settings screen's hint from `SETTINGS_SHORTCUTS` rather than the written constant,
   naming each key as the registry names it
-- [ ] 6.2 Derive the shortcut listing from the registry as well, so a newly declared shortcut appears
+- [x] 6.2 Derive the shortcut listing from the registry as well, so a newly declared shortcut appears
   without a separate edit and every listed entry dispatches what it describes
-- [ ] 6.3 Add a check that fails when a surface describes a key the declaration does not bind
+- [x] 6.3 Add a check that fails when a surface describes a key the declaration does not bind
 
 ## 6b. Write down what the settings screen already does
 
