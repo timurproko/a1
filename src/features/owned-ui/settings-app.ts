@@ -6,6 +6,7 @@ import {
   ShortcutRegistry,
   PROMPT_GLYPH,
   blockJumpTarget,
+  promptRule,
   caretCell,
   blockRowSpan,
   displayWidth,
@@ -42,7 +43,7 @@ export const SETTINGS_ROUTE = "settings";
 const SCOPE = SETTINGS_APP_ID;
 const SCROLLBAR_TOP_INSET = 1;
 const RAIL_COLUMNS = 2;
-const HINT = "/ to search · ↑↓ to navigate · Shift+↑↓ to jump a section · Enter/Space to change · ←→ to adjust · Esc to cancel";
+const HINT = "/ to search · ↑↓ to navigate · Shift+↑↓ to jump · Enter/Space to change · ←→ to adjust · Esc to cancel";
 const SEARCH_PLACEHOLDER = "search settings";
 /** What a structured value offers instead of printing itself. */
 const CONFIGURE = "configure";
@@ -470,6 +471,24 @@ export class SettingsApp implements UiApp {
   #filterKey(data: string): PaneInputResult {
     const input = this.#filter;
     if (input === null) return { consumed: false };
+
+    const key = KEYS[data];
+    if (key === "up" || key === "down" || key === "shift+up" || key === "shift+down") {
+      const rows = this.#rows();
+      // Nothing found means nothing to move through; the key is still swallowed
+      // rather than typed into the search.
+      if (selectableIndexes(rows).length === 0) return { consumed: true, render: false };
+      const selected = indexOfKey(rows, this.#selectedKey);
+      const forward = key === "down" || key === "shift+down";
+      if (key === "shift+up" || key === "shift+down") {
+        const target = blockJumpTarget(rows, selected, forward ? 1 : -1);
+        if (target !== undefined) this.#jump(rows, target);
+        return { consumed: true };
+      }
+      this.#select(rows, moveSelection(rows, selected, forward ? 1 : -1));
+      return { consumed: true };
+    }
+
     const outcome = handleLineInputKey(input, data);
     if (outcome.kind === "cancelled") this.#filter = null;
     this.#scroll = 0;
@@ -546,7 +565,10 @@ export class SettingsApp implements UiApp {
 
     const rows: Row[] = [];
     for (const section of this.#session.sections()) {
-      const entries = section.entries.filter(matches);
+      // A section named by the search is what the reader asked for, so it arrives
+      // whole rather than narrowed to the entries that happen to repeat its name.
+      const named = needle.length > 0 && section.title.toLowerCase().includes(needle);
+      const entries = named ? section.entries : section.entries.filter(matches);
       if (needle.length > 0 && entries.length === 0) continue;
       if (rows.length > 0) rows.push({ kind: "spacer" });
       rows.push({ kind: "group", group: section.id, title: section.title });
@@ -554,7 +576,7 @@ export class SettingsApp implements UiApp {
         rows.push({ kind: "note", group: section.id, text: section.unavailableReason });
         continue;
       }
-      if (section.readOnlyReason !== null && needle.length === 0) {
+      if (section.readOnlyReason !== null && (needle.length === 0 || named)) {
         rows.push({ kind: "note", group: section.id, text: section.readOnlyReason });
       }
       // Presented in the order the source reports, which is the order the
@@ -725,7 +747,9 @@ export class SettingsApp implements UiApp {
     const input = this.#filter;
     if (input === null) return [hintLine];
 
-    const rule = theme.fg("border", "─".repeat(Math.max(0, width)));
+    // The input is its own component, ruled off in the prompt's own grey rather
+    // than with the border the dialog draws.
+    const rule = promptRule(width);
     const view = input.view(Math.max(0, width - 2));
     const empty = view.text.length === 0;
     const before = view.text.slice(0, view.caretColumn);
@@ -734,7 +758,9 @@ export class SettingsApp implements UiApp {
     // Typed text is left unpainted and the caret reverses its cell, which is how
     // the reference draws an input row.
     const typed = `${before}${caretCell(under)}${after}`;
-    const placeholder = `${caretCell(SEARCH_PLACEHOLDER.slice(0, 1))}${theme.fg("dim", SEARCH_PLACEHOLDER.slice(1))}`;
+    // The reference quietens the placeholder with the terminal own faint
+    // attribute over the ordinary foreground, not with a colour of its own.
+    const placeholder = `${caretCell(SEARCH_PLACEHOLDER.slice(0, 1))}${faint(SEARCH_PLACEHOLDER.slice(1))}`;
     const painted = `${PROMPT_GLYPH}${empty ? placeholder : typed}`;
     const raw = `❯ ${empty ? SEARCH_PLACEHOLDER : `${view.text}${view.caretColumn >= view.text.length ? " " : ""}`}`;
     return [rule, padVisible(truncateToWidth(painted, width), width, raw), rule, hintLine];
