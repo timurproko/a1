@@ -32,6 +32,12 @@ The published package contains:
 
 It contains no PTY, terminal emulator, browser/desktop GUI, custom renderer, input translator, physical automation driver, or generated runtime data.
 
+## Native launch containment
+
+Source builds require Rust/Cargo 1.85 or newer. `npm run build` compiles the standalone `native/process-guardian` crate for the host platform, places it under `dist/native/<platform>-<architecture>/`, and writes an integrity manifest. Preview and stable candidate workflows build platform artifacts on isolated Windows, Linux, and macOS runners and assemble them before packing. macOS remains explicitly unsupported until its exact containment adapter is certified; the package must fail before runtime startup rather than use PID-only cleanup.
+
+The process guardian inherits terminal handles but transports no terminal bytes. See [`process-guardian-provenance.md`](process-guardian-provenance.md).
+
 ## Gates
 
 ```sh

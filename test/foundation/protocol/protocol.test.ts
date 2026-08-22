@@ -16,13 +16,24 @@ describe("A1 additive protocol framing", () => {
     expect(decoder.push(`${frame.slice(4)}${frame}`)).toHaveLength(2);
   });
 
-  it("round-trips lifecycle commands without terminal input or rendering payloads", () => {
+  it("round-trips lifecycle commands and stop intent without terminal input or rendering payloads", () => {
     const decoder = new LineFrameDecoder();
-    const [decoded] = decoder.push(encodeFrame({
-      type: "command",
-      command: { type: "resynchronize", requestId: "sync-1" },
-    })) as [{ command: Record<string, unknown> }];
-    expect(decoded.command).toMatchObject({ type: "resynchronize", requestId: "sync-1" });
+    const decoded = decoder.push([
+      encodeFrame({
+        type: "command",
+        command: {
+          type: "create-launch-instance",
+          requestId: "create-1",
+          instanceId: "instance-1",
+          profileId: "sandbox",
+          shutdownPolicy: "terminate-tree-on-close",
+          guardianIdentity: { pid: 101, startIdentity: "101:start" },
+        },
+      }),
+      encodeFrame({ type: "stop-launch-instance", requestId: "stop-1", instanceId: "instance-1", reason: "update" }),
+    ].join("")) as Record<string, unknown>[];
+    expect(decoded[0]).toMatchObject({ type: "command", command: { type: "create-launch-instance", requestId: "create-1" } });
+    expect(decoded[1]).toMatchObject({ type: "stop-launch-instance", instanceId: "instance-1", reason: "update" });
     expect(JSON.stringify(decoded)).not.toMatch(/terminal-input|render-transaction|surface|dataBase64/);
   });
 
@@ -32,6 +43,8 @@ describe("A1 additive protocol framing", () => {
     expect(negotiateControlFeatures(local, additivePeer)).toMatchObject({ ok: true });
     expect(GENERATED_CONTRACT_DIGEST).toMatch(/^[a-f0-9]{64}$/);
     expect(local.requiredFeatures).toContain("generation.lifecycle.v1");
+    expect(local.requiredFeatures).toContain("launch.instance-lifecycle.v1");
+    expect(local.requiredFeatures).not.toContain("terminal.foreground-lease.v1");
     expect(local.requiredFeatures.join(" ")).not.toMatch(/terminal\.(?:virtual-state|render-transactions|input-batch)/);
 
     const incompatiblePeer = { ...local, requiredFeatures: [...local.requiredFeatures, "future.required.v1"] };
@@ -62,7 +75,7 @@ describe("A1 additive protocol framing", () => {
       socket.once("data", () => socket.write(encodeFrame({
         type: "server-hello",
         ...localControlHello(),
-        snapshot: { revision: 0 },
+        snapshot: { revision: 0, activeInstances: [] },
       })));
     });
     const client = new SupervisorClient();
@@ -73,7 +86,7 @@ describe("A1 additive protocol framing", () => {
     try {
       const connected = client.connect(endpoint, 1_000);
       await listening;
-      await expect(connected).resolves.toEqual({ revision: 0 });
+      await expect(connected).resolves.toEqual({ revision: 0, activeInstances: [] });
     } finally {
       client.close();
       if (server.listening) {

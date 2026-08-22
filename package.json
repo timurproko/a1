@@ -19,7 +19,8 @@
   },
   "scripts": {
     "clean": "node scripts/clean.mjs",
-    "build": "npm run clean && tsc -p tsconfig.build.json",
+    "build": "npm run clean && tsc -p tsconfig.build.json && node scripts/build-process-guardian.mjs",
+    "build:process-guardian": "node scripts/build-process-guardian.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "check:architecture": "node scripts/check-architecture.mjs && node scripts/product-identifier-policy.mjs --check && node scripts/check-product-identity-boundaries.mjs && node scripts/check-package-identity.mjs && node scripts/check-pinned-pi-source-ledger.mjs && node scripts/check-terminal-host-provenance.mjs",
     "check:customization-ready": "node scripts/check-owned-ui-customization-prerequisites.mjs",

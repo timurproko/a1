@@ -27,7 +27,10 @@ describe("supervisor release replacement exit", () => {
 
     expect(released).toBe(true);
     expect(cleanup).toHaveBeenCalledOnce();
-    expect(cleanup).toHaveBeenCalledWith(expect.objectContaining({ pid: 20740, ownership: { state: "idle", liveGenerationIds: [], nonResumableGenerationIds: [] } }));
+    expect(cleanup).toHaveBeenCalledWith(expect.objectContaining({
+      pid: 20740,
+      ownership: expect.objectContaining({ state: "idle", liveInstanceIds: [], nonResumableInstanceIds: [], uncertainInstanceIds: [] }),
+    }));
   });
 
   it("terminates the dedicated supervisor only after owned resources close", async () => {
@@ -77,7 +80,12 @@ function metadata(): SupervisorEndpointMetadata {
     releaseId: value.releaseId,
     releaseRoot: value.releaseRoot,
     contentDigest: value.contentDigest,
-    ownership: { state: "idle", liveGenerationIds: [], nonResumableGenerationIds: [] },
+    ownership: {
+      state: "idle",
+      liveInstanceIds: [],
+      nonResumableInstanceIds: [],
+      uncertainInstanceIds: [],
+    },
     envelope: CONTROL_ENVELOPE,
     envelopeRevision: 1,
     requiredFeatures: [],

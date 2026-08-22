@@ -28,12 +28,15 @@ describe("exact packed npm command surface", () => {
     expect(paths).toEqual(expect.arrayContaining([
       "package.json",
       "bin/a1.js",
+      "bin/a1-guardian.js",
       "bin/a1-ui.js",
       "bin/a1-supervisor.js",
       "dist/src/product-identity.js",
       "dist/src/product-identity.json",
       "dist/src/product-identity.d.ts",
       "dist/src/foundation/pi-engine-adapter/public-main-entry.js",
+      `dist/native/${process.platform}-${process.arch}/manifest.json`,
+      `dist/native/${process.platform}-${process.arch}/${process.platform === "win32" ? "a1-process-guardian.exe" : "a1-process-guardian"}`,
     ]));
     expect(paths.some(path => /addone/i.test(path))).toBe(false);
     expect(paths.some(path => path.startsWith("scripts/") || path.endsWith(".map"))).toBe(false);

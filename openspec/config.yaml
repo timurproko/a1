@@ -9,6 +9,20 @@ context: |
   - After manual validation is accepted, record the acceptance, archive the completed OpenSpec change, integrate the archive commit, then remove and prune every retained task or acceptance worktree for that change.
   - Store local package archives and ad hoc builds under the repository's `.builds/` directory.
 
+  Manual testing handoff — never make the user ask how to run it:
+  - The moment work becomes drivable by hand, send the exact commands unprompted: the `cd` path, the branch name and commit, whether a build is needed, and what to type once it is running.
+  - Give one copy-pasteable block. Do not describe the steps in prose and do not assume the user knows which worktree, branch, or build state is current.
+  - State what to try and what is expected, then state plainly what is not implemented yet, so a known gap is not reported as a bug.
+  - When nothing is testable by hand, say so explicitly and say which task makes it testable, rather than leaving the user to discover there is nothing to see.
+  - Repeat the commands after any push that changes what the user would run, including a rebuild step when the built output is now stale.
+  - When there is something new to try, end the reply with the run commands as the very last thing, with nothing after them — no summary, no question, no sign-off. The block is exactly a `Test Commands:` line, then the `cd` to the active worktree, then the build-and-run command:
+
+        Test Commands:
+        cd <active worktree path>
+        npm run build && npm start
+
+  - Send that block only when the reply changed what the user would see or do by running it. A reply that changed nothing runnable — analysis, a plan, a spec, a question, a status report — ends without it, because a block that appears every time stops meaning "there is something to test".
+
   Validation policy — CI validates, not the workstation:
   - GitHub Actions on the pull request is the only required validation. Write the code, commit, open the PR, and let CI test it.
   - Do not run test suites locally as a gate. `npm run typecheck` before pushing is a fast optional sanity check; `npx vitest run <files>` is for debugging a specific failure, never a completion requirement.

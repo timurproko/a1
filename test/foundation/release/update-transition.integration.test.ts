@@ -37,7 +37,7 @@ describe("release-gating N-1 update transitions", () => {
       const busyDecision = selectCohortLaunch(candidate, await store.read(), busy, "live-verified");
       expect(busyDecision).toMatchObject({ action: "launch-retained-ui", releaseId: old.releaseId, recordPending: true });
       expect(busyDecision.reason).not.toMatch(/invalid client message|malformed-message|manual|taskkill|kill -9/i);
-      await store.blockPending("busy generic owned process", busy.ownership.liveGenerationIds);
+      await store.blockPending("busy generic owned process", busy.ownership.liveInstanceIds);
       blocker.kill();
       assertions.push({ id: "busy-owned-process-defers-with-retained-ui", passed: true });
 
@@ -165,7 +165,12 @@ function metadata(release: MaterializedRelease, pid: number, generations: readon
     schema: PRODUCT_IDENTITY.protocol.supervisorSchema,
     supervisorId: "n-minus-one", endpoint: "isolated-endpoint", pid, pidStartIdentity: `${pid}:fixture`, bootNonce: "fixture-boot", startedAt: new Date(0).toISOString(),
     releaseId: release.releaseId, releaseRoot: release.releaseRoot, contentDigest: release.contentDigest,
-    ownership: { state: generations.length ? "busy" : "idle", liveGenerationIds: generations, nonResumableGenerationIds: generations },
+    ownership: {
+      state: generations.length ? "busy" : "idle",
+      liveInstanceIds: generations,
+      nonResumableInstanceIds: generations,
+      uncertainInstanceIds: [],
+    },
     envelope: CONTROL_ENVELOPE, envelopeRevision: 1, requiredFeatures: [], optionalFeatures: [], contractDigest: "fixture-contract",
   };
 }

@@ -4,7 +4,6 @@ export type LaunchProfileId = "a1" | "pi" | "sandbox";
 export type GenerationId = string;
 export type DriverProfileId = string;
 export type RequestId = string;
-export type ForegroundTerminalLeaseId = string;
 
 export interface TerminalDimensions {
   readonly columns: number;
@@ -38,37 +37,20 @@ export type TransparentTerminalLifecycleOutcome =
   | { readonly kind: "detached"; readonly reason: "owner-disconnect" }
   | { readonly kind: "spawn-error" | "broker-error"; readonly message: string; readonly code: string | null };
 
-export type ForegroundTerminalLeaseState = "requested" | "active" | "released";
-
-export interface ForegroundTerminalLease {
-  readonly id: ForegroundTerminalLeaseId;
-  readonly ownerId: string;
-  readonly profile: TransparentTerminalLaunchProfile;
-  readonly state: ForegroundTerminalLeaseState;
-  readonly generationId: GenerationId | null;
-  readonly processIdentity: NativeProcessIdentity | null;
-  readonly acquiredAt: string;
-  readonly heartbeatAt: string | null;
-  readonly releasedAt: string | null;
-  readonly outcome: TransparentTerminalLifecycleOutcome | null;
-}
-
 export interface SupervisorSnapshot {
   readonly revision: number;
+  readonly activeInstances: readonly {
+    readonly id: string;
+    readonly profileId: LaunchProfileId;
+    readonly state: "requested" | "active" | "stopping";
+  }[];
 }
-
-export type SupervisorCommand =
-  | { readonly type: "acquire-foreground-terminal-lease"; readonly requestId: RequestId; readonly leaseId: ForegroundTerminalLeaseId; readonly ownerId: string; readonly profile: TransparentTerminalLaunchProfile }
-  | { readonly type: "activate-foreground-terminal-lease"; readonly requestId: RequestId; readonly leaseId: ForegroundTerminalLeaseId; readonly generationId: GenerationId; readonly processIdentity: NativeProcessIdentity }
-  | { readonly type: "heartbeat-foreground-terminal-lease"; readonly requestId: RequestId; readonly leaseId: ForegroundTerminalLeaseId; readonly processIdentity: NativeProcessIdentity }
-  | { readonly type: "release-foreground-terminal-lease"; readonly requestId: RequestId; readonly leaseId: ForegroundTerminalLeaseId; readonly processIdentity: NativeProcessIdentity | null; readonly outcome: TransparentTerminalLifecycleOutcome }
-  | { readonly type: "resynchronize"; readonly requestId: RequestId };
 
 export interface CommandResult {
   readonly requestId: RequestId;
   readonly ok: boolean;
   readonly revision: number;
-  readonly error?: { readonly code: "invalid-command" | "not-found" | "stale-generation" | "capability-error" | "driver-error"; readonly message: string };
+  readonly error?: { readonly code: "invalid-command" | "not-found" | "stale-generation" | "capability-error" | "containment-unsupported" | "ownership-error" | "driver-error"; readonly message: string };
 }
 
 export function assertLaunchProfileId(value: unknown): asserts value is LaunchProfileId {

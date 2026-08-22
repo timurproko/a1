@@ -3,15 +3,17 @@ import { mkdir, rename, rm, writeFile } from "node:fs/promises";
 import { createConnection, createServer, type Server, type Socket } from "node:net";
 import { platform } from "node:os";
 import {
+  assertLaunchInstanceOutcome,
   assertNativeProcessIdentity,
-  assertTransparentTerminalLaunchProfile,
+  assertProcessContainmentIdentity,
   type CommandResult,
-  type ForegroundTerminalLease,
+  type LaunchInstance,
+  type LaunchInstanceStopReason,
   type SupervisorCommand,
   type SupervisorSnapshot,
 } from "../lifecycle/index.js";
 import { encodeFrame, isCommandMessage, isControlHello, LineFrameDecoder, localControlHello, MAX_CONTROL_FRAME_BYTES, negotiateControlFeatures, type ServerMessage } from "../protocol/index.js";
-import type { MaterializedRelease } from "../release/index.js";
+import { processIsAlive, type MaterializedRelease } from "../release/index.js";
 import { ControlStore } from "../storage/index.js";
 import { resolveProductPaths, type ProductPaths } from "./paths.js";
 import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
@@ -23,11 +25,17 @@ export class SupervisorServer {
   readonly startedAt = new Date().toISOString();
   readonly paths: ProductPaths;
   #server: Server | null = null;
-  #foregroundLease: ForegroundTerminalLease | null;
+  #instances = new Map<string, LaunchInstance>();
+  #instanceOwners = new Map<string, Socket>();
+  #clientIds = new Map<Socket, string>();
+  #clientInstances = new Map<Socket, Set<string>>();
+  #uncertainInstances = new Set<string>();
+  #reconciliations = new Map<string, Promise<void>>();
   #revision = 0;
   #clients = new Set<Socket>();
   #results = new Map<string, CommandResult>();
   #metadataWrites: Promise<void> = Promise.resolve();
+  #closing = false;
 
   constructor(
     readonly store: ControlStore,
@@ -35,14 +43,22 @@ export class SupervisorServer {
     readonly release: MaterializedRelease,
     bootNonce: string = randomUUID(),
     readonly terminateProcess: (code: number) => void = code => process.exit(code),
+    readonly reconciliationDeadlineMs = 3_000,
+    readonly shutdownDeadlineMs = 1_500,
   ) {
     this.bootNonce = bootNonce;
     this.paths = paths;
-    this.#foregroundLease = store.loadLiveForegroundTerminalLease();
+    for (const instance of store.loadActiveLaunchInstances()) this.#instances.set(instance.id, instance);
   }
 
   snapshot(): SupervisorSnapshot {
-    return { revision: this.#revision };
+    return {
+      revision: this.#revision,
+      activeInstances: [...this.#instances.values()].flatMap(instance => {
+        if (instance.state !== "requested" && instance.state !== "active" && instance.state !== "stopping") return [];
+        return [{ id: instance.id, profileId: instance.profileId, state: instance.state }];
+      }),
+    };
   }
 
   async listen(): Promise<void> {
@@ -65,7 +81,10 @@ export class SupervisorServer {
   }
 
   async close(stopAgents = false): Promise<void> {
-    if (stopAgents && this.#foregroundLease) this.#releaseForegroundLeaseForUpdate();
+    if (stopAgents && !await this.#drainInstances("update", this.shutdownDeadlineMs)) {
+      throw new Error("active launch instances did not release ownership within the shutdown deadline");
+    }
+    this.#closing = true;
     for (const client of this.#clients) client.destroy();
     if (this.#server) await new Promise<void>(resolve => this.#server?.close(() => resolve()));
     this.#server = null;
@@ -95,27 +114,20 @@ export class SupervisorServer {
             if (isMessageType(value, "release-idle-ownership")) {
               const request = value as { bootNonce?: unknown; candidateReleaseId?: unknown };
               const identityMatches = request.bootNonce === this.bootNonce && typeof request.candidateReleaseId === "string";
-              const released = identityMatches && this.#foregroundLease === null;
+              const released = identityMatches && this.#instances.size === 0;
               this.#send(socket, {
                 type: "release-ownership-result",
                 released,
                 reason: released ? "idle cohort released ownership"
-                  : identityMatches ? "foreground terminal lease is still live" : "boot nonce or candidate release mismatch",
-                liveGenerationIds: this.#liveGenerationIds(),
+                  : identityMatches ? "launch instances are still active" : "boot nonce or candidate release mismatch",
+                liveInstanceIds: this.#liveInstanceIds(),
               });
               if (released) setTimeout(() => void this.closeForReleaseReplacement(false), 25);
               continue;
             }
             if (isMessageType(value, "release-update-ownership")) {
               const request = value as { bootNonce?: unknown; targetVersion?: unknown };
-              const accepted = request.bootNonce === this.bootNonce && typeof request.targetVersion === "string";
-              this.#send(socket, {
-                type: "release-update-result",
-                accepted,
-                reason: accepted ? `verified ${PRODUCT_TEXT.displayName} owner accepted immediate update shutdown` : "boot nonce or target version mismatch",
-                liveGenerationIds: this.#liveGenerationIds(),
-              });
-              if (accepted) setTimeout(() => void this.closeForReleaseReplacement(true), 25);
+              void this.#handleUpdateRelease(socket, request);
               continue;
             }
             if (!isControlHello(value)) {
@@ -132,6 +144,8 @@ export class SupervisorServer {
             }
             welcomed = true;
             this.#clients.add(socket);
+            this.#clientIds.set(socket, value.clientId);
+            this.#clientInstances.set(socket, new Set());
             this.#send(socket, { type: "server-hello", ...serverHello, releaseId: this.release.releaseId, supervisorId: this.id, bootNonce: this.bootNonce, pidStartIdentity: this.pidStartIdentity, negotiatedFeatures: negotiation.negotiatedFeatures, snapshot: this.snapshot() });
           } else if (isCommandMessage(value)) {
             void this.#execute(value.command, socket);
@@ -142,93 +156,238 @@ export class SupervisorServer {
         socket.destroy();
       }
     });
-    socket.on("close", () => this.#clients.delete(socket));
-    socket.on("error", () => this.#clients.delete(socket));
+    socket.on("close", () => this.#onSocketClosed(socket));
+    socket.on("error", () => this.#onSocketClosed(socket));
   }
 
   async #execute(command: SupervisorCommand, socket: Socket): Promise<void> {
-    const recorded = this.#results.get(command.requestId);
+    const clientId = this.#clientIds.get(socket);
+    if (!clientId) {
+      this.#send(socket, { type: "protocol-error", code: "unauthenticated-command", message: "launch-instance commands require an authenticated client" });
+      return;
+    }
+    const resultKey = `${clientId}:${command.requestId}`;
+    const recorded = this.#results.get(resultKey);
     if (recorded) {
       this.#send(socket, { type: "command-result", result: recorded });
       return;
     }
     let result: CommandResult;
     try {
-      if (command.type === "acquire-foreground-terminal-lease") this.#acquireForegroundLease(command);
-      if (command.type === "activate-foreground-terminal-lease") this.#activateForegroundLease(command);
-      if (command.type === "heartbeat-foreground-terminal-lease") this.#heartbeatForegroundLease(command);
-      if (command.type === "release-foreground-terminal-lease") this.#releaseForegroundLease(command);
+      if (command.type === "create-launch-instance") this.#createLaunchInstance(command, socket, clientId);
+      if (command.type === "activate-launch-instance") this.#activateLaunchInstance(command, socket, clientId);
+      if (command.type === "begin-launch-instance-stop") this.#beginLaunchInstanceStop(command, socket, clientId);
+      if (command.type === "complete-launch-instance") this.#completeLaunchInstance(command, socket, clientId);
+      if (command.type === "reconcile-launch-instance") {
+        this.#ownedInstance(command.instanceId, socket, clientId);
+        await this.#reconcileLaunchInstance(command.instanceId);
+      }
       if (command.type === "resynchronize") this.#send(socket, { type: "snapshot", snapshot: this.snapshot() });
       await this.#metadataWrites;
       result = { requestId: command.requestId, ok: true, revision: this.#revision };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      const code = /not found/i.test(message) ? "not-found" : "driver-error";
+      const code = /not found/i.test(message) ? "not-found" : /owner|ownership|authenticated/i.test(message) ? "ownership-error" : "driver-error";
       result = { requestId: command.requestId, ok: false, revision: this.#revision, error: { code, message } };
     }
-    this.#results.set(command.requestId, result);
+    this.#results.set(resultKey, result);
     this.#send(socket, { type: "command-result", result });
   }
 
-  #acquireForegroundLease(command: Extract<SupervisorCommand, { type: "acquire-foreground-terminal-lease" }>): void {
-    if (!command.leaseId || !command.ownerId) throw new Error("foreground lease and owner identities are required");
-    assertTransparentTerminalLaunchProfile(command.profile);
-    const lease: ForegroundTerminalLease = {
-      id: command.leaseId,
-      ownerId: command.ownerId,
-      profile: command.profile,
+  #createLaunchInstance(command: Extract<SupervisorCommand, { type: "create-launch-instance" }>, socket: Socket, clientId: string): void {
+    assertNativeProcessIdentity(command.guardianIdentity);
+    const existing = this.store.loadLaunchInstance(command.instanceId);
+    if (existing) {
+      if (existing.ownerClientId !== clientId
+        || existing.profileId !== command.profileId
+        || existing.shutdownPolicy !== command.shutdownPolicy
+        || !sameProcessIdentity(existing.guardianIdentity, command.guardianIdentity)) {
+        throw new Error("launch instance already exists with different authenticated ownership");
+      }
+      if (existing.state === "completed" || existing.state === "interrupted") throw new Error("launch instance already has a terminal outcome");
+      this.#instances.set(existing.id, existing);
+      this.#bindOwner(existing.id, socket);
+      return;
+    }
+    const instance: LaunchInstance = {
+      id: command.instanceId,
+      ownerClientId: clientId,
+      profileId: command.profileId,
       state: "requested",
-      generationId: null,
-      processIdentity: null,
-      acquiredAt: new Date().toISOString(),
-      heartbeatAt: null,
-      releasedAt: null,
+      shutdownPolicy: command.shutdownPolicy,
+      guardianIdentity: command.guardianIdentity,
+      rootIdentity: null,
+      containmentIdentity: null,
+      createdAt: new Date().toISOString(),
+      activatedAt: null,
+      stoppingAt: null,
+      completedAt: null,
       outcome: null,
     };
-    this.store.acquireForegroundTerminalLease(lease);
-    this.#foregroundLease = lease;
+    this.store.createLaunchInstance(instance);
+    this.#instances.set(instance.id, instance);
+    this.#bindOwner(instance.id, socket);
+    this.#mutated();
+  }
+
+  #activateLaunchInstance(command: Extract<SupervisorCommand, { type: "activate-launch-instance" }>, socket: Socket, clientId: string): void {
+    assertNativeProcessIdentity(command.rootIdentity);
+    assertProcessContainmentIdentity(command.containmentIdentity);
+    const instance = this.#ownedInstance(command.instanceId, socket, clientId);
+    if (instance.state === "active"
+      && sameProcessIdentity(instance.rootIdentity, command.rootIdentity)
+      && sameContainmentIdentity(instance.containmentIdentity, command.containmentIdentity)) return;
+    if (instance.state !== "requested") throw new Error("launch instance is not requested");
+    const activatedAt = new Date().toISOString();
+    if (!this.store.activateLaunchInstance(instance.id, clientId, command.rootIdentity, command.containmentIdentity, activatedAt)) {
+      throw new Error("launch instance activation ownership mismatch");
+    }
+    this.#instances.set(instance.id, { ...instance, state: "active", rootIdentity: command.rootIdentity, containmentIdentity: command.containmentIdentity, activatedAt });
+    this.#mutated();
+  }
+
+  #beginLaunchInstanceStop(command: Extract<SupervisorCommand, { type: "begin-launch-instance-stop" }>, socket: Socket, clientId: string): void {
+    const instance = this.#ownedInstance(command.instanceId, socket, clientId);
+    if (instance.state === "stopping") return;
+    if (instance.state !== "active") throw new Error("active launch instance not found");
+    const stoppingAt = new Date().toISOString();
+    if (!this.store.beginLaunchInstanceStop(instance.id, clientId, stoppingAt)) throw new Error("launch instance stop ownership mismatch");
+    this.#instances.set(instance.id, { ...instance, state: "stopping", stoppingAt });
+    this.#mutated();
+  }
+
+  #completeLaunchInstance(command: Extract<SupervisorCommand, { type: "complete-launch-instance" }>, socket: Socket, clientId: string): void {
+    assertLaunchInstanceOutcome(command.outcome);
+    const stored = this.store.loadLaunchInstance(command.instanceId);
+    if (!stored) throw new Error("launch instance not found");
+    if (stored.ownerClientId !== clientId || this.#instanceOwners.get(stored.id) !== socket) throw new Error("launch instance ownership mismatch");
+    if (stored.state === "completed" || stored.state === "interrupted") {
+      if (stored.state === command.terminalState && JSON.stringify(stored.outcome) === JSON.stringify(command.outcome)) return;
+      throw new Error("launch instance already has a different terminal outcome");
+    }
+    const completedAt = new Date().toISOString();
+    if (!this.store.completeLaunchInstance(stored.id, clientId, command.terminalState, command.outcome, completedAt)) {
+      throw new Error("launch instance completion ownership mismatch");
+    }
+    this.#instances.delete(stored.id);
+    this.#uncertainInstances.delete(stored.id);
+    this.#unbindOwner(stored.id, socket);
+    this.#mutated();
+  }
+
+  #ownedInstance(instanceId: string, socket: Socket, clientId: string): LaunchInstance {
+    const instance = this.#instances.get(instanceId) ?? this.store.loadLaunchInstance(instanceId);
+    if (!instance || instance.state === "completed" || instance.state === "interrupted") throw new Error("active launch instance not found");
+    if (instance.ownerClientId !== clientId || this.#instanceOwners.get(instanceId) !== socket) throw new Error("launch instance ownership mismatch");
+    return instance;
+  }
+
+  #bindOwner(instanceId: string, socket: Socket): void {
+    const current = this.#instanceOwners.get(instanceId);
+    if (current && current !== socket) throw new Error("launch instance already belongs to another authenticated connection");
+    this.#instanceOwners.set(instanceId, socket);
+    this.#clientInstances.get(socket)?.add(instanceId);
+  }
+
+  #unbindOwner(instanceId: string, socket: Socket): void {
+    this.#instanceOwners.delete(instanceId);
+    this.#clientInstances.get(socket)?.delete(instanceId);
+  }
+
+  #onSocketClosed(socket: Socket): void {
+    if (!this.#clients.delete(socket) && !this.#clientIds.has(socket)) return;
+    const instanceIds = [...(this.#clientInstances.get(socket) ?? [])];
+    this.#clientInstances.delete(socket);
+    this.#clientIds.delete(socket);
+    for (const instanceId of instanceIds) {
+      if (this.#instanceOwners.get(instanceId) === socket) this.#instanceOwners.delete(instanceId);
+      if (!this.#closing) void this.#reconcileLaunchInstance(instanceId);
+    }
+  }
+
+  #reconcileLaunchInstance(instanceId: string): Promise<void> {
+    const existing = this.#reconciliations.get(instanceId);
+    if (existing) return existing;
+    const reconciliation = this.#performReconciliation(instanceId).finally(() => this.#reconciliations.delete(instanceId));
+    this.#reconciliations.set(instanceId, reconciliation);
+    return reconciliation;
+  }
+
+  async #performReconciliation(instanceId: string): Promise<void> {
+    const instance = this.#instances.get(instanceId);
+    if (!instance) return;
+    const deadline = Date.now() + this.reconciliationDeadlineMs;
+    while (instance.rootIdentity && processIsAlive(instance.rootIdentity.pid) && Date.now() < deadline) {
+      await new Promise(resolvePromise => setTimeout(resolvePromise, 25));
+    }
+    if (instance.state === "requested" || (instance.rootIdentity && !processIsAlive(instance.rootIdentity.pid))) {
+      const outcome = { kind: "interrupted", reason: "owner-disconnect", message: "launch instance owner disconnected before reporting a terminal outcome" } as const;
+      if (this.store.completeLaunchInstance(instance.id, instance.ownerClientId, "interrupted", outcome, new Date().toISOString())) {
+        this.#instances.delete(instance.id);
+        this.#uncertainInstances.delete(instance.id);
+        this.#mutated();
+      }
+      return;
+    }
+    this.#uncertainInstances.add(instance.id);
+    await this.#writeEndpointMetadata();
+  }
+
+  async #handleUpdateRelease(socket: Socket, request: { bootNonce?: unknown; targetVersion?: unknown }): Promise<void> {
+    const identityMatches = request.bootNonce === this.bootNonce && typeof request.targetVersion === "string";
+    if (!identityMatches) {
+      this.#send(socket, {
+        type: "release-update-result",
+        accepted: false,
+        reason: "boot nonce or target version mismatch",
+        liveInstanceIds: this.#liveInstanceIds(),
+      });
+      return;
+    }
+    const released = await this.#drainInstances("update", this.shutdownDeadlineMs);
+    this.#send(socket, {
+      type: "release-update-result",
+      accepted: released,
+      reason: released
+        ? `verified ${PRODUCT_TEXT.displayName} owner drained all launch instances for immediate update shutdown`
+        : "one or more launch instances did not release verified ownership within the update deadline",
+      liveInstanceIds: this.#liveInstanceIds(),
+    });
+    if (released) setTimeout(() => void this.closeForReleaseReplacement(false), 25);
+  }
+
+  async #drainInstances(reason: LaunchInstanceStopReason, timeoutMs: number): Promise<boolean> {
+    if (this.#instances.size === 0) return true;
+    this.#requestStopAll(reason);
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      if (this.#instances.size === 0) {
+        // Let the terminal command result flush before closing owner sockets.
+        await new Promise(resolvePromise => setTimeout(resolvePromise, 25));
+        return this.#instances.size === 0;
+      }
+      await new Promise(resolvePromise => setTimeout(resolvePromise, 25));
+    }
+    return this.#instances.size === 0;
+  }
+
+  #requestStopAll(reason: LaunchInstanceStopReason): void {
+    for (const [instanceId, socket] of this.#instanceOwners) {
+      this.#send(socket, { type: "stop-launch-instance", requestId: randomUUID(), instanceId, reason });
+    }
+  }
+
+  #mutated(): void {
+    this.#revision += 1;
     void this.#writeEndpointMetadata();
   }
 
-  #activateForegroundLease(command: Extract<SupervisorCommand, { type: "activate-foreground-terminal-lease" }>): void {
-    assertNativeProcessIdentity(command.processIdentity);
-    if (!this.#foregroundLease || this.#foregroundLease.id !== command.leaseId || this.#foregroundLease.state !== "requested") throw new Error("foreground terminal lease not found or is not requested");
-    const heartbeatAt = new Date().toISOString();
-    if (!this.store.activateForegroundTerminalLease(command.leaseId, command.generationId, command.processIdentity, heartbeatAt)) throw new Error("foreground terminal lease activation was rejected");
-    this.#foregroundLease = { ...this.#foregroundLease, state: "active", generationId: command.generationId, processIdentity: command.processIdentity, heartbeatAt };
-    void this.#writeEndpointMetadata();
-  }
-
-  #heartbeatForegroundLease(command: Extract<SupervisorCommand, { type: "heartbeat-foreground-terminal-lease" }>): void {
-    assertNativeProcessIdentity(command.processIdentity);
-    if (!this.#foregroundLease || this.#foregroundLease.id !== command.leaseId || this.#foregroundLease.state !== "active") throw new Error("active foreground terminal lease not found");
-    const heartbeatAt = new Date().toISOString();
-    if (!this.store.heartbeatForegroundTerminalLease(command.leaseId, command.processIdentity, heartbeatAt)) throw new Error("foreground terminal lease ownership mismatch");
-    this.#foregroundLease = { ...this.#foregroundLease, heartbeatAt };
-  }
-
-  #releaseForegroundLease(command: Extract<SupervisorCommand, { type: "release-foreground-terminal-lease" }>): void {
-    if (command.processIdentity) assertNativeProcessIdentity(command.processIdentity);
-    if (!this.#foregroundLease || this.#foregroundLease.id !== command.leaseId) throw new Error("foreground terminal lease not found");
-    const releasedAt = new Date().toISOString();
-    if (!this.store.releaseForegroundTerminalLease(command.leaseId, command.processIdentity, command.outcome, releasedAt)) throw new Error("foreground terminal lease ownership mismatch");
-    this.#foregroundLease = null;
-    void this.#writeEndpointMetadata();
-  }
-
-  #releaseForegroundLeaseForUpdate(): void {
-    const lease = this.#foregroundLease;
-    if (!lease) return;
-    const outcome = { kind: "stopped", reason: "update" } as const;
-    if (!this.store.releaseForegroundTerminalLease(lease.id, lease.processIdentity, outcome, new Date().toISOString())) throw new Error("foreground terminal lease update shutdown was rejected");
-    this.#foregroundLease = null;
-  }
-
-  #liveGenerationIds(): string[] {
-    return this.#foregroundLease?.generationId ? [this.#foregroundLease.generationId] : [];
+  #liveInstanceIds(): string[] {
+    return [...this.#instances.keys()];
   }
 
   #writeEndpointMetadata(): Promise<void> {
+    const liveInstanceIds = this.#liveInstanceIds();
     const metadata = {
       schema: PRODUCT_IDENTITY.protocol.supervisorSchema,
       ...localControlHello(this.release.releaseId),
@@ -243,9 +402,10 @@ export class SupervisorServer {
       releaseRoot: this.release.releaseRoot,
       contentDigest: this.release.contentDigest,
       ownership: {
-        state: this.#foregroundLease ? "busy" : "idle",
-        liveGenerationIds: this.#liveGenerationIds(),
-        nonResumableGenerationIds: this.#liveGenerationIds(),
+        state: this.#uncertainInstances.size > 0 ? "blocked" : liveInstanceIds.length > 0 ? "busy" : "idle",
+        liveInstanceIds,
+        nonResumableInstanceIds: liveInstanceIds,
+        uncertainInstanceIds: [...this.#uncertainInstances],
       },
     };
     const temporary = `${this.paths.endpointMetadataPath}.${process.pid}.tmp`;
@@ -266,6 +426,14 @@ export class SupervisorServer {
     }
     socket.write(frame);
   }
+}
+
+function sameProcessIdentity(left: { pid: number; startIdentity: string } | null, right: { pid: number; startIdentity: string }): boolean {
+  return left !== null && left.pid === right.pid && left.startIdentity === right.startIdentity;
+}
+
+function sameContainmentIdentity(left: { provider: string; token: string } | null, right: { provider: string; token: string }): boolean {
+  return left !== null && left.provider === right.provider && left.token === right.token;
 }
 
 function isMessageType(value: unknown, type: string): value is Record<string, unknown> {
