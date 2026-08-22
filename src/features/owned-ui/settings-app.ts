@@ -88,6 +88,14 @@ const KEYS: Readonly<Record<string, string>> = {
 
 type Row = ListRow<OwnedUiSettingsEntry>;
 
+/** A structured setting being edited: its flags, the row in hand, and their values. */
+interface StructuredEdit {
+  readonly entry: OwnedUiSettingsEntry;
+  readonly flags: readonly string[];
+  index: number;
+  readonly record: Record<string, boolean>;
+}
+
 interface ValueMenu {
   readonly entry: OwnedUiSettingsEntry;
   /** Index of the value in effect, where the keyboard starts from. */
@@ -112,7 +120,7 @@ export class SettingsApp implements UiApp {
   #notice: string | null = null;
   #filter: LineInput | null = null;
   #menu: ValueMenu | null = null;
-  #structured: { entry: OwnedUiSettingsEntry; flags: readonly string[]; index: number } | null = null;
+  #structured: StructuredEdit | null = null;
   #loading = true;
   #interruptArmed = false;
   /** Values requested but not yet reflected by the source, keyed by entry. */
@@ -386,7 +394,15 @@ export class SettingsApp implements UiApp {
       this.#notice = `${labelOf(entry)} has nothing to configure`;
       return;
     }
-    this.#structured = { entry, flags: entry.flags.map(flag => flag.key), index: 0 };
+    const stored = typeof entry.rawValue === "object" && entry.rawValue !== null && !Array.isArray(entry.rawValue)
+      ? (entry.rawValue as Record<string, unknown>)
+      : {};
+    const record: Record<string, boolean> = {};
+    for (const flag of entry.flags) {
+      const value = stored[flag.key];
+      record[flag.key] = typeof value === "boolean" ? value : flag.fallback;
+    }
+    this.#structured = { entry, flags: entry.flags.map(flag => flag.key), index: 0, record };
   }
 
   #structuredKey(data: string): PaneInputResult {
@@ -407,12 +423,8 @@ export class SettingsApp implements UiApp {
     const open = this.#structured;
     const flag = open?.flags[index];
     if (open === null || open === undefined || flag === undefined) return;
-    const record = open.entry.rawValue;
-    if (typeof record !== "object" || record === null) return;
-    const declared = open.entry.flags.find(candidate => candidate.key === flag);
-    const stored = (record as Record<string, unknown>)[flag];
-    const current = typeof stored === "boolean" ? stored : declared?.fallback ?? false;
-    const next = { ...(record as Record<string, unknown>), [flag]: !current };
+    open.record[flag] = !(open.record[flag] ?? false);
+    const next = { ...open.record };
     void this.#session.changeStructured(open.entry.backend, open.entry.id, next).then(outcome => {
       this.#notice = outcome.failure === null ? null : `Could not save ${labelOf(open.entry)}: ${outcome.failure}`;
     });
@@ -640,11 +652,10 @@ export class SettingsApp implements UiApp {
    * the description of the chosen row below, and its wording for the keys.
    */
   #dialogLines(
-    open: { entry: OwnedUiSettingsEntry; flags: readonly string[]; index: number },
+    open: StructuredEdit,
     width: number,
     theme: UiTheme,
   ): readonly string[] {
-    const record = (open.entry.rawValue ?? {}) as Record<string, unknown>;
     const declaredFor = (key: string): { label: string; description: string; fallback: boolean } | undefined =>
       open.entry.flags.find(flag => flag.key === key);
     const labelOfFlag = (key: string): string => declaredFor(key)?.label ?? humanizeLabel(key);
@@ -652,17 +663,15 @@ export class SettingsApp implements UiApp {
 
     const rows = open.flags.map((key, index) => {
       const selected = index === open.index;
-      const stored = record[key];
-      const on = typeof stored === "boolean" ? stored : declaredFor(key)?.fallback ?? false;
       // The engine writes these as the booleans they are rather than as yes/no.
-      const value = on ? "true" : "false";
+      const value = (open.record[key] ?? false) ? "true" : "false";
       const label = labelOfFlag(key);
       const padded = `${label}${" ".repeat(Math.max(0, labelColumn - displayWidth(label)))}`;
       const cursor = selected ? "→ " : "  ";
       const raw = `${cursor}${padded}  ${value}`;
       // The engine leaves an unselected label unpainted and quietens its value,
       // and lifts both to the accent on the row the cursor is on.
-      const painted = `${theme.fg("accent", cursor)}${selected ? theme.fg("accent", padded) : padded}  ${theme.fg(selected ? "accent" : "muted", value)}`;
+      const painted = `${theme.fg("accent", cursor)}${selected ? theme.fg("accent", padded) : padded}  ${theme.fg("muted", value)}`;
       return padVisible(truncateToWidth(painted, width), width, raw);
     });
 
