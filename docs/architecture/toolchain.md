@@ -73,7 +73,7 @@ Presentation acceptance is the reader comparing `a1 pi` with pinned Pi. `node sc
 
 A preview candidate must use a unique `-dev.N` version and exact manually accepted bytes. Publication packs once, binds evidence to source commit/version/integrity, runs applicable non-desktop gates, publishes under npm `next`, and verifies registry identity. It must keep `latest` unchanged and record physical/cross-platform certification as deferred.
 
-The GitHub trusted-publishing workflow is `.github/workflows/publish-next.yml`. Stable publication remains a separate release process from a clean tagged `master` commit after all mandatory platform gates pass.
+The GitHub trusted-publishing workflow is `.github/workflows/npm-publish.yml`. Stable publication remains a separate release process from a clean tagged `master` commit after all mandatory platform gates pass.
 
 ## A1 state paths
 
