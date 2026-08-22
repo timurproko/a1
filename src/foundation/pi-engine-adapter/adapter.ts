@@ -156,6 +156,12 @@ export interface PiEngineAdapterOptions {
   readonly sessionId?: string;
   readonly createRuntime?: PiEngineRuntimeFactory;
   readonly workflowHost?: PiWorkflowHost;
+  /**
+   * Themes installed on this machine. Supplied because listing them belongs to
+   * the component adapter that owns the engine's theme unit; the grammar and the
+   * offering stay here.
+   */
+  readonly availableThemes?: () => readonly string[];
 }
 
 export interface AdapterCommandResult {
@@ -220,12 +226,15 @@ export class PiEngineAdapter {
   #extensionBound = false;
   #disposed = false;
 
+  /** Lists the themes installed on this machine, when the caller supplies one. */
+  readonly #availableThemes: (() => readonly string[]) | null;
   constructor(options: PiEngineAdapterOptions = {}) {
     this.#cwd = options.cwd ?? process.cwd();
     this.#agentDir = options.agentDir ?? getAgentDir();
     this.#sessionId = options.sessionId ?? "owned-session-1";
     this.#runtimeFactory = options.createRuntime ?? createDefaultPiRuntime;
     this.#workflowHost = options.workflowHost ?? defaultWorkflowHost();
+    this.#availableThemes = options.availableThemes ?? null;
     this.#workflowInteraction = { prompt: async () => null, notify() {} };
   }
 
@@ -543,7 +552,15 @@ export class PiEngineAdapter {
   /** Settings port for the live runtime, or null before the runtime is available. */
   settingsPort(): AgentSettingsPort | null {
     const settings = this.#runtime?.services.settingsManager;
-    return settings ? new PiSettingsIntegration(settings) : null;
+    if (!settings) return null;
+    const session = this.#runtime?.session;
+    return new PiSettingsIntegration(settings, {
+      ...(this.#availableThemes === null ? {} : { themes: this.#availableThemes }),
+      thinkingLevels: () => {
+        const levels = session?.getAvailableThinkingLevels?.();
+        return Array.isArray(levels) ? levels.map(level => String(level)) : [];
+      },
+    });
   }
 
   pinnedModelSelectorContext(): {
