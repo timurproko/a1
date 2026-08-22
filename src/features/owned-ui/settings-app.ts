@@ -365,16 +365,6 @@ export class SettingsApp implements UiApp {
       return { consumed: true };
     }
     if (event.kind === "wheel-up" || event.kind === "wheel-down") {
-      // Over a number the wheel is the stepper: it turns the value rather than
-      // the list under it. Anywhere else it scrolls.
-      const rows = this.#rows();
-      const index = rows.findIndex(candidate => rowKey(candidate) === row.key);
-      const entry = index >= 0 && rows[index]?.kind === "element" ? rows[index].value : undefined;
-      if (entry !== undefined && this.#hoverRegion !== "label" && isStepper(entry, this.#shownValue(entry))) {
-        this.#notice = null;
-        this.#cycle(rows, index, event.kind === "wheel-up" ? 1 : -1);
-        return { consumed: true };
-      }
       this.#scroll = Math.max(0, this.#scroll + (event.kind === "wheel-down" ? 3 : -3));
       return { consumed: true };
     }
