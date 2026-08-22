@@ -108,6 +108,8 @@ async function runGate() {
   }
 
   const [upstreamCapture, originalOwnedCapture] = await Promise.all([upstream.result(), ownedSession.result()]);
+  assertTrueColourCarried(upstreamCapture);
+  assertTrueColourCarried(originalOwnedCapture);
   const mutation = process.env.A1_PI_PARITY_INTENTIONAL_MUTATION;
   const ownedCapture = mutation === "visual" || mutation === "input-scroll"
     ? applyIntentionalMutation(originalOwnedCapture, mutation)
@@ -130,6 +132,23 @@ async function runGate() {
     owned: ownedCapture,
     comparison,
   };
+}
+
+/**
+ * Node renders ANSI itself when it decides the console cannot take VT sequences,
+ * and then knows only the sixteen SGR colours, so every 24-bit colour becomes the
+ * terminal's nearest palette entry. Two runs collapsed that way agree with each
+ * other while both differ from what a user sees, so the gate refuses to grade
+ * them rather than report a parity it did not measure.
+ */
+function assertTrueColourCarried(capture) {
+  const carried = capture.checkpoints.some(checkpoint =>
+    checkpoint.rows.some(row => row.styles.some(style =>
+      style.foreground.startsWith("rgb:") || style.background.startsWith("rgb:"))));
+  if (carried) return;
+  throw new Error(
+    `${capture.producer} rendered no 24-bit colour: this launch collapsed colour to the terminal palette, so parity would be graded on colours no user sees`,
+  );
 }
 
 async function performAction(producers, action) {
