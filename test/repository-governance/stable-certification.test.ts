@@ -46,7 +46,7 @@ describe("stable platform certification aggregation", () => {
     const root = await mkdtemp(resolve(tmpdir(), "stable-certification-"));
     roots.push(root);
     const tarballPath = resolve(root, "candidate.tgz");
-    const bytes = createTarball({ name: expected.packageName, version: expected.version, bin: { "a1": "bin/a1.js" } });
+    const bytes = createTarball({ name: expected.packageName, version: expected.version, bin: { "a1": "bin/cli.js" } });
     await writeFile(tarballPath, bytes);
     const crypto = await import("node:crypto");
     const exact = {
