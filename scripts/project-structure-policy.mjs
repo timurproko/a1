@@ -3,13 +3,13 @@ import { dirname, posix } from "node:path";
 export const PROJECT_OWNERS = Object.freeze({
   "product-identity": Object.freeze({ id: "product-identity", layer: "foundation", sourceRoot: "src", testRoot: "test/product-identity", publicEntry: "src/product-identity.ts", mayImport: Object.freeze([]) }),
   cli: owner("cli", "entry", "src/cli", "test/cli", ["launch", "release"]),
-  composition: owner("composition", "entry", "src/composition", "test/composition", ["agent-engine-contracts", "presentation-contracts", "owned-ui-contracts", "owned-ui-settings", "lifecycle", "transparent-terminal", "pi-engine-adapter", "pi-tui-runtime-adapter", "pi-owned-ui-integration"]),
+  composition: owner("composition", "entry", "src/composition", "test/composition", ["agent-engine-contracts", "presentation-contracts", "owned-ui-contracts", "owned-ui-settings", "lifecycle", "transparent-terminal", "pi-engine-adapter", "pi-tui-runtime-adapter", "pi-owned-ui-integration", "ui-apps", "ui-components", "owned-ui"]),
   launch: owner("launch", "feature", "src/features/launch", "test/features/launch", ["lifecycle", "transparent-terminal"]),
   workspace: owner("workspace", "feature", "src/features/workspace", "test/features/workspace", [
     "storage", "workspace-contracts", "structured-agent-runtime", "native-host-protocol", "agent-engine-contracts", "presentation-contracts",
   ]),
   "owned-ui": owner("owned-ui", "feature", "src/features/owned-ui", "test/features/owned-ui", [
-    "owned-ui-contracts", "owned-ui-settings", "agent-engine-contracts", "presentation-contracts",
+    "owned-ui-contracts", "owned-ui-settings", "ui-components", "ui-apps", "agent-engine-contracts", "presentation-contracts",
   ]),
   lifecycle: owner("lifecycle", "foundation", "src/foundation/lifecycle", "test/foundation/lifecycle", []),
   "process-containment": owner("process-containment", "foundation", "src/foundation/process-containment", "test/foundation/process-containment", ["lifecycle"]),
@@ -20,6 +20,8 @@ export const PROJECT_OWNERS = Object.freeze({
   "structured-agent-runtime": owner("structured-agent-runtime", "foundation", "src/foundation/structured-agent-runtime", "test/foundation/structured-agent-runtime", ["workspace-contracts"]),
   "native-host-protocol": owner("native-host-protocol", "foundation", "src/foundation/native-host-protocol", "test/foundation/native-host-protocol", ["workspace-contracts"]),
   "owned-ui-contracts": owner("owned-ui-contracts", "foundation", "src/foundation/owned-ui-contracts", "test/foundation/owned-ui-contracts", []),
+  "ui-components": owner("ui-components", "foundation", "src/foundation/ui-components", "test/foundation/ui-components", []),
+  "ui-apps": owner("ui-apps", "foundation", "src/foundation/ui-apps", "test/foundation/ui-apps", ["ui-components"]),
   "owned-ui-settings": owner("owned-ui-settings", "foundation", "src/foundation/owned-ui-settings", "test/foundation/owned-ui-settings", ["agent-engine-contracts", "owned-ui-contracts"]),
   "agent-engine-contracts": owner("agent-engine-contracts", "foundation", "src/foundation/agent-engine-contracts", "test/foundation/agent-engine-contracts", []),
   "presentation-contracts": owner("presentation-contracts", "foundation", "src/foundation/presentation-contracts", "test/foundation/presentation-contracts", []),
