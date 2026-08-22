@@ -82,7 +82,7 @@ describe("a single-line input", () => {
 
   it("swallows a key it has no answer for rather than typing it", () => {
     const input = typed("alpha");
-    for (const sequence of [`${ESC}[5~`, `${ESC}[6~`, `${ESC}[15~`, `${ESC}[1;2A`]) {
+    for (const sequence of [`${ESC}[5~`, `${ESC}[6~`, `${ESC}[15~`, `${ESC}[1;2A`, `${ESC}OP`, `${ESC}OQ`, `${ESC}[23~`]) {
       handleLineInputKey(input, sequence);
     }
     expect(input.value).toBe("alpha");

@@ -95,3 +95,19 @@ written where it is used.
 - **WHEN** a component draws a control that cannot act
 - **THEN** it SHALL name the unavailable role
 - **AND** the drawn control SHALL read as quieter than quiet text in the theme in use
+
+### Requirement: An input accepts text, never a key it has no answer for
+An input row SHALL insert only what the reader typed as text. A key the input does
+not handle - a page key, a function key, a chord, an arrow the surrounding screen
+owns - SHALL be swallowed rather than inserted, whichever escape form the terminal
+sends it in. A surrounding screen MAY claim such a key for its own navigation, and
+SHALL do so before the input sees it.
+
+#### Scenario: Press a key the input does not handle
+- **WHEN** a key arrives that the input has no behaviour for
+- **THEN** the value SHALL be unchanged
+- **AND** no part of the key sequence SHALL appear in the text
+
+#### Scenario: The screen owns the key
+- **WHEN** a screen navigates with a key while its input is open
+- **THEN** the screen SHALL act on it and the input SHALL NOT receive it
