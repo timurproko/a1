@@ -138,6 +138,11 @@ export function handleLineInputKey(input: LineInput, data: string): LineInputOut
  * uses for one (#9AA0A6), painted foreground-only so anything drawn behind the
  * row survives.
  */
+/** A rule drawn in the prompt's own grey, as the reference rules an input row. */
+export function promptRule(width: number): string {
+  return `[38;2;154;160;166m${"─".repeat(Math.max(0, width))}[39m`;
+}
+
 export const PROMPT_GLYPH = `[38;2;154;160;166m❯[39m `;
 
 /**
