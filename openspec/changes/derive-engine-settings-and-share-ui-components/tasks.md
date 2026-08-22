@@ -45,12 +45,12 @@
 
 ## 4. Move Pi grammar behind the boundary
 
-- [ ] 4.1 Add a declared provider on the settings contract for values resolved at read time, so a
+- [x] 4.1 Add a declared provider on the settings contract for values resolved at read time, so a
   descriptor can name one instead of carrying a fixed list
-- [ ] 4.2 Move the theme's composite grammar and the installed-theme lookup out of
+- [x] 4.2 Move the theme's composite grammar and the installed-theme lookup out of
   `src/composition/theme-settings.ts` into the Pi adapter, exposing the automatic mode and its two
   parts as ordinary descriptors; resolve the import boundary this requires and record the resolution
-- [ ] 4.3 Reduce composition to wiring: no interpretation of a Pi value, no port wrapper; move
+- [x] 4.3 Reduce composition to wiring: no interpretation of a Pi value, no port wrapper; move
   `test/composition/theme-settings.test.ts` to the adapter's tests
 
 ## 5. Extract the components
