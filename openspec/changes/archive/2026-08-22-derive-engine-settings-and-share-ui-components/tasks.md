@@ -91,4 +91,7 @@
 - [x] 7.2 Confirm the settings screen behaves as it did before this change — no visible difference for
   the reader in the list, the menu, the dialog, the search row, or the status line
 - [x] 7.3 Open the pull request and let CI validate
-- [ ] 7.4 Record manual acceptance, then archive
+- [x] 7.4 Record manual acceptance, then archive
+  - Accepted 2026-08-22 by the user after driving the screen: it behaves as it did before
+    the components were taken out of it, the theme follows the terminal appearance with both
+    of its entries reachable, and the hint line reads with adjust beside navigate.
