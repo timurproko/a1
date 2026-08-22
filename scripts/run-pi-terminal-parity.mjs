@@ -84,6 +84,11 @@ async function runGate() {
       ...commonParityEnvironment(fixture.profiles["a1-owned-ui"]),
       A1_LAUNCH_PROFILE: "a1",
       A1_LAUNCH_ARGUMENTS_JSON: "[]",
+      // A1's own surfaces are switched off: this run measures whether A1 draws
+      // and reads pinned Pi faithfully, so pinned Pi is all that may be on
+      // screen. The composition is the product's own, with those surfaces
+      // withheld — a parity run built beside the product would measure itself.
+      A1_OWNED_SURFACES: "off",
     },
     columns: DEFAULT_COLUMNS,
     rows: DEFAULT_ROWS,
@@ -173,6 +178,7 @@ async function pinnedIdentity() {
       executable: process.execPath,
       arguments: [ownedCliPath],
       launchPath: "owned-ui",
+      ownedSurfaces: "off",
     },
   };
 }

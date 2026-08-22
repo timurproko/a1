@@ -8,7 +8,10 @@ runSelectedInteractiveRuntime(process.env.A1_LAUNCH_PROFILE ?? "a1", {
       import("../dist/src/features/owned-ui/index.js"),
       import("../dist/src/composition/index.js"),
     ]);
-    const { application, settings } = await composeOwnedUi({ cwd: process.cwd(), profileId });
+    // A1_OWNED_SURFACES=off presents pinned Pi's interface through A1's own
+    // rendering and input, which is what the parity comparison measures.
+    const ownedSurfaces = process.env.A1_OWNED_SURFACES === "off" ? "off" : "on";
+    const { application, settings } = await composeOwnedUi({ cwd: process.cwd(), profileId, ownedSurfaces });
     return await runOwnedUi({ application, ...(settings === null ? {} : { settings }) });
   },
   transparent: async profileId => {
