@@ -20,8 +20,9 @@ export interface PiSettingsProviders {
  * entry per terminal appearance.
  */
 export const AUTOMATIC_THEME = "automatic";
-export const LIGHT_THEME_KEY = "themeLight";
-export const DARK_THEME_KEY = "themeDark";
+/** The themes an automatic setting names for each terminal appearance. */
+const LIGHT_APPEARANCE_THEME = "light";
+const DARK_APPEARANCE_THEME = "dark";
 const THEME_KEY = "theme";
 const THINKING_KEY = "thinkingLevel";
 
@@ -82,11 +83,6 @@ export function settingsInventoryDrift(
 }
 
 /** What the engine offers for a setting, as the strings it words them with. */
-/** One appearance of an automatic theme, offered as an ordinary setting. */
-function appearance(key: string, label: string, description: string, themes: readonly string[]): AgentSettingDescriptor {
-  return { key, valueType: "enum", writable: true, choices: themes, label, description, resolvedWhenRead: true };
-}
-
 function offered(key: string): readonly string[] {
   return PRESENTATION.settings[key]?.values ?? [];
 }
@@ -131,14 +127,9 @@ export class PiSettingsIntegration implements AgentSettingsPort {
       })
       .map(descriptor => this.#resolved(descriptor))
       .sort((left, right) => rank(left.key) - rank(right.key));
-    const pair = parseAutomaticTheme(this.#storedTheme());
-    if (pair === null) return listed;
-    const themes = this.#themes();
-    return [
-      ...listed,
-      appearance(LIGHT_THEME_KEY, "Light theme", "Theme to use in automatic mode when the terminal is light", themes),
-      appearance(DARK_THEME_KEY, "Dark theme", "Theme to use in automatic mode when the terminal is dark", themes),
-    ];
+    // Following the terminal is one choice on the theme itself, not two further
+    // settings: the pair behind it is the engine's grammar, not a reader's task.
+    return listed;
   }
 
   /** Overlays the values a setting can only offer once something is running. */
@@ -165,18 +156,16 @@ export class PiSettingsIntegration implements AgentSettingsPort {
     return typeof stored === "string" ? stored : "";
   }
   async readSetting(key: string): Promise<AgentJsonValue | undefined> {
-    if (key === THEME_KEY || key === LIGHT_THEME_KEY || key === DARK_THEME_KEY) {
+    if (key === THEME_KEY) {
       const pair = parseAutomaticTheme(this.#storedTheme());
-      if (key === THEME_KEY) return pair === null ? this.#operations.get(key)?.read() : AUTOMATIC_THEME;
-      if (pair === null) return undefined;
-      return key === LIGHT_THEME_KEY ? pair.light : pair.dark;
+      return pair === null ? this.#operations.get(key)?.read() : AUTOMATIC_THEME;
     }
     return this.#operations.get(key)?.read();
   }
   async writeSetting(key: string, value: AgentJsonValue): Promise<void> { this.writeSettingNow(key, value); }
   writeSettingNow(key: string, value: AgentJsonValue): void {
-    if (typeof value === "string" && (key === THEME_KEY || key === LIGHT_THEME_KEY || key === DARK_THEME_KEY)) {
-      this.#writeTheme(key, value);
+    if (typeof value === "string" && key === THEME_KEY) {
+      this.#writeTheme(value);
       return;
     }
     const operation = this.#operations.get(key);
@@ -185,22 +174,24 @@ export class PiSettingsIntegration implements AgentSettingsPort {
   }
 
   /**
-   * Composes the stored theme from the part that changed. Turning automatic on
-   * starts from the theme already in use for both appearances, which is where
-   * the engine's own editor starts too.
+   * Writes the theme in the engine's own grammar. Following the terminal is
+   * stored as the pair the engine reads for it, made of the themes named for
+   * each appearance when they are installed; where they are not, the theme
+   * already in use stands for both, so the setting still round-trips.
    */
-  #writeTheme(key: string, value: string): void {
+  #writeTheme(value: string): void {
     const theme = this.#operations.get(THEME_KEY);
-    if (!theme) throw new Error(`setting is unavailable: ${key}`);
-    const current = this.#storedTheme();
-    const pair = parseAutomaticTheme(current);
-    if (key === THEME_KEY) {
-      if (value !== AUTOMATIC_THEME) theme.write(value);
-      else if (pair === null) theme.write(`${current}/${current}`);
+    if (!theme) throw new Error(`setting is unavailable: ${THEME_KEY}`);
+    if (value !== AUTOMATIC_THEME) {
+      theme.write(value);
       return;
     }
-    if (pair === null) return;
-    theme.write(key === LIGHT_THEME_KEY ? `${value}/${pair.dark}` : `${pair.light}/${value}`);
+    if (parseAutomaticTheme(this.#storedTheme()) !== null) return;
+    const installed = this.#themes();
+    const current = this.#storedTheme();
+    const light = installed.includes(LIGHT_APPEARANCE_THEME) ? LIGHT_APPEARANCE_THEME : current;
+    const dark = installed.includes(DARK_APPEARANCE_THEME) ? DARK_APPEARANCE_THEME : current;
+    theme.write(`${light}/${dark}`);
   }
   async flush(): Promise<void> { await this.settings.flush(); }
 }
