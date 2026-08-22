@@ -1,4 +1,5 @@
 import type { AppHostServices, UiApp } from "../../foundation/ui-apps/index.js";
+import type { ListViewRow, NumericRange } from "../../foundation/ui-components/index.js";
 import {
   GLOBAL_SCOPE,
   LineInput,
@@ -6,6 +7,25 @@ import {
   ShortcutRegistry,
   PROMPT_GLYPH,
   blockJumpTarget,
+  dialogValueColumn,
+  numericValues,
+  RAIL_COLUMNS,
+  renderDialogPanel,
+  renderEmptyState,
+  renderGroupHeader,
+  renderInputRow,
+  renderStatusLine,
+  renderListRow,
+  renderNote,
+  dialogRowAt,
+  menuRowAt,
+  regionAt,
+  renderValueMenu,
+  withScrollbarRail,
+  stepperEnds,
+  steppedValue,
+  valueColumnFor,
+  valueMenuFrame,
   promptRule,
   caretCell,
   blockRowSpan,
@@ -18,13 +38,10 @@ import {
   isThumbRow,
   layoutList,
   moveSelection,
-  padToWidth,
   rowKey,
   scrollForSelection,
-  overlaySpan,
   scrollbarGeometry,
   selectableIndexes,
-  truncateToWidth,
   type ListRow,
   type ListRowSpan,
   type PaneInputResult,
@@ -42,13 +59,10 @@ export const SETTINGS_APP_ID = "settings";
 export const SETTINGS_ROUTE = "settings";
 const SCOPE = SETTINGS_APP_ID;
 const SCROLLBAR_TOP_INSET = 1;
-const RAIL_COLUMNS = 2;
 const HINT = "/ to search · ↑↓ to navigate · Shift+↑↓ to jump · Enter/Space to change · ←→ to adjust · Esc to cancel";
 const SEARCH_PLACEHOLDER = "search settings";
 /** What a structured value offers instead of printing itself. */
 const CONFIGURE = "configure";
-/** Columns a number stepper hangs to the left of the value column. */
-const STEPPER_RESERVE = 2;
 
 type Action =
   | "move-up" | "move-down" | "block-up" | "block-down" | "first" | "last"
@@ -178,12 +192,7 @@ export class SettingsApp implements UiApp {
     this.#frameRows = [];
     if (rows.length === 0) {
       const message = this.#loading ? "Loading settings…" : "No settings found.";
-      const middle = Math.floor(bodyHeight / 2);
-      for (let index = 0; index < bodyHeight; index++) {
-        body.push(index === middle - 1
-          ? centered(theme.fg("muted", "👀"), "👀", contentWidth)
-          : index === middle ? centered(theme.fg("muted", message), message, contentWidth) : "");
-      }
+      body.push(...renderEmptyState(message, "👀", bodyHeight, contentWidth, theme));
     } else {
       if (layout.topPadding > 0) body.push("");
       if (layout.stickyHeader !== undefined) body.push(this.#header(layout.stickyHeader, theme, contentWidth));
@@ -205,11 +214,8 @@ export class SettingsApp implements UiApp {
       while (body.length < bodyHeight) body.push("");
     }
 
-    const withRail = body.slice(0, bodyHeight).map((line, offset) => {
-      const cell = offset < SCROLLBAR_TOP_INSET || geometry === null
-        ? " "
-        : isThumbRow(geometry, offset - SCROLLBAR_TOP_INSET) ? theme.fg("accent", "│") : theme.fg("dim", "│");
-      return `${padVisible(line, contentWidth)} ${cell}`;
+    const withRail = withScrollbarRail(body.slice(0, bodyHeight), geometry, contentWidth, theme, {
+      topInset: SCROLLBAR_TOP_INSET,
     });
     return this.#withMenu([...withRail, ...footer], selected, layout, valueColumn, theme, rect);
   }
@@ -273,11 +279,8 @@ export class SettingsApp implements UiApp {
     const menu = this.#menu;
     const frame = this.#menuFrame;
     if (menu !== null && frame !== null) {
-      const overRow = event.row - 1 - frame.top;
-      const overMenu = overRow >= 0
-        && overRow < frame.rows
-        && event.column > frame.column
-        && event.column <= frame.column + frame.width;
+      const overRow = menuRowAt(frame, event.row - 1, event.column);
+      const overMenu = overRow !== null;
       if (event.kind === "motion") {
         // While the menu is open it owns the pointer: the row under it lights up,
         // and nothing behind it hovers.
@@ -289,17 +292,16 @@ export class SettingsApp implements UiApp {
           return { consumed: true, render: hadHover || cleared };
         }
         if (menu.index === overRow) return { consumed: true, render: hadHover };
-        menu.index = overRow;
+        menu.index = overRow ?? -1;
         return { consumed: true, render: true };
       }
       if (event.kind !== "press") return { consumed: true, render: false };
-      const menuRow = overRow;
-      if (!overMenu) {
+      if (overRow === null) {
         // A press anywhere else dismisses the menu rather than acting through it.
         this.#menu = null;
         return { consumed: true };
       }
-      const value = menu.choices[menuRow];
+      const value = menu.choices[overRow];
       this.#menu = null;
       if (value !== undefined) this.#apply(menu.entry, value);
       return { consumed: true };
@@ -308,8 +310,10 @@ export class SettingsApp implements UiApp {
     const open = this.#structured;
     if (open !== null) {
       // The panel owns the pointer while it is open; its flag rows are the targets.
-      const row = event.row - 1 - (this.#panelTop + 1);
-      if (row < 0 || row >= open.flags.length) return { consumed: true, render: false };
+      // The panel's rows begin one line below its rule.
+      const panel = { firstRow: this.#panelTop + 1, rows: open.flags.length, valueColumn: this.#dialogValueColumn };
+      const row = event.row - 1 - panel.firstRow;
+      if (row < 0 || row >= panel.rows) return { consumed: true, render: false };
       if (event.kind === "motion") {
         if (open.index === row) return { consumed: true, render: false };
         open.index = row;
@@ -321,8 +325,7 @@ export class SettingsApp implements UiApp {
         // exactly as in the list behind the dialog.
         const key = open.flags[row] ?? "";
         const width = displayWidth((open.record[key] ?? false) ? "true" : "false");
-        const start = this.#dialogValueColumn + 1;
-        if (event.column >= start && event.column < start + width) this.#toggleFlag(row);
+        if (dialogRowAt(panel, event.row - 1, event.column, width) !== null) this.#toggleFlag(row);
         return { consumed: true };
       }
       return { consumed: true, render: false };
@@ -339,19 +342,7 @@ export class SettingsApp implements UiApp {
     }
 
     this.#hoverKey = row.key;
-    // The minus sits in the reserved space before the value; the plus after it.
-    // The label is a label: pointing at it selects nothing and changes nothing.
-    // Only the value area acts, and only a numeric row has stepper buttons.
-    const valueStart = row.valueColumn + 1;
-    const valueEnd = valueStart + row.valueWidth;
-    const column = event.column;
-    this.#hoverRegion = column >= valueStart && column <= valueEnd
-      ? "value"
-      : row.stepper && column >= valueStart - STEPPER_RESERVE && column < valueStart
-        ? "minus"
-        : row.stepper && column > valueEnd && column <= valueEnd + STEPPER_RESERVE
-          ? "plus"
-          : "label";
+    this.#hoverRegion = regionAt(row, event.column);
 
     if (event.kind === "press") {
       const rows = this.#rows();
@@ -507,7 +498,7 @@ export class SettingsApp implements UiApp {
     if (typeof shown === "number") {
       // At the end of the range there is nothing to say: the arrow already reads
       // as unavailable, so a message would only repeat it.
-      const next = steppedValue(entry, shown, delta);
+      const next = steppedValue(rangeOf(entry), shown, delta);
       if (next !== null) this.#apply(entry, next);
       return;
     }
@@ -595,191 +586,96 @@ export class SettingsApp implements UiApp {
   }
 
   #valueColumn(rows: readonly Row[]): number {
-    let widest = 0;
-    let hasStepper = false;
-    for (const row of rows) {
-      if (row.kind !== "element") continue;
-      widest = Math.max(widest, displayWidth(labelOf(row.value)));
-      if (isStepper(row.value)) hasStepper = true;
-    }
-    // Prefix, indent, widest label, gap, plus the stepper prefix reserved for
-    // every row so a number does not shift its own value out of the column.
-    return 2 + 2 + widest + 2 + (hasStepper ? STEPPER_RESERVE : 0);
+    const shown = rows.flatMap(row => (row.kind === "element" ? [this.#viewRow(row.value)] : []));
+    return valueColumnFor(shown);
   }
 
   #header(title: string, theme: UiTheme, width: number): string {
-    return truncateToWidth(theme.fg("accent", theme.bold(humanizeTitle(title))), width);
+    return renderGroupHeader(humanizeTitle(title), width, theme);
   }
 
   #renderRow(row: Row | undefined, selected: boolean, width: number, valueColumn: number, theme: UiTheme): string {
     if (row === undefined || row.kind === "spacer") return "";
     if (row.kind === "group") return this.#header(row.title, theme, width);
-    if (row.kind === "note") return truncateToWidth(theme.fg("muted", `    ${row.text}`), width);
+    if (row.kind === "note") return renderNote(row.text, width, theme);
 
     const entry = row.value;
-    const label = labelOf(entry);
     const key = `${entry.backend}:${entry.id}`;
     const hovered = this.#hoverKey === key;
-    const prefix = selected ? theme.fg("accent", "→ ") : "  ";
-    const leftRaw = `${selected ? "→ " : "  "}  ${label}`;
-    const left = `${prefix}  ${theme.fg(selected ? "accent" : "text", label)}`;
-    const gap = Math.max(2, valueColumn - displayWidth(leftRaw));
-    const shown = this.#shownValue(entry);
-    const raw = entry.structured
-      ? CONFIGURE
-      : shown === null ? describeRaw(entry.rawValue) : displayValue(shown);
-    // Pointing anywhere on the row is hovering the item; pointing at the value
-    // is what brightens the value. Selection speaks through the label alone.
-    const valueHovered = hovered && this.#hoverRegion !== "label";
-    // The stepper is an affordance, not decoration: it appears when the pointer
-    // is on the value it belongs to, not merely somewhere on the row.
-    const stepper = isStepper(entry, shown) && valueHovered;
-    const valueToken = valueHovered ? "text" : "muted";
-    const canLower = steppedValue(entry, shown, -1) !== null;
-    const canRaise = steppedValue(entry, shown, 1) !== null;
-    const minus = canLower ? theme.fg(this.#hoverRegion === "minus" && hovered ? "text" : "dim", "- ") : faint(theme.fg("dim", "- "));
-    const plus = canRaise ? theme.fg(this.#hoverRegion === "plus" && hovered ? "text" : "dim", " +") : faint(theme.fg("dim", " +"));
-    const value = stepper
-      ? `${minus}${theme.fg(valueToken, raw)}${plus}`
-      : theme.fg(valueToken, raw);
-    const indent = Math.max(2, stepper ? gap - STEPPER_RESERVE : gap);
-    const suffix = entry.origin === "default" ? theme.fg("dim", "  (default)") : "";
-    return truncateToWidth(`${left}${" ".repeat(indent)}${value}${suffix}`, width);
+    return renderListRow(this.#viewRow(entry), { selected, hovered, region: this.#hoverRegion }, valueColumn, width, theme);
   }
 
-  /** The value menu floats over the body, anchored to the selected row. */
+  /** What the list view needs to draw a setting: its words, and where it can go. */
+  #viewRow(entry: OwnedUiSettingsEntry): ListViewRow {
+    const shown = this.#shownValue(entry);
+    const value = entry.structured
+      ? CONFIGURE
+      : shown === null ? describeRaw(entry.rawValue) : displayValue(shown);
+    const range = rangeOf(entry);
+    return {
+      key: `${entry.backend}:${entry.id}`,
+      label: labelOf(entry),
+      value,
+      ...(entry.origin === "default" ? { suffix: "(default)" } : {}),
+      ...(typeof shown === "number" && entry.editable ? { stepper: stepperEnds(range, shown) } : {}),
+    };
+  }
+
   #withMenu(
     lines: readonly string[],
     _selected: number,
-    layout: { readonly rowIndexes: readonly number[]; readonly topPadding: number; readonly stickyHeader: string | undefined },
+    _layout: { readonly rowIndexes: readonly number[]; readonly topPadding: number; readonly stickyHeader: string | undefined },
     valueColumn: number,
     theme: UiTheme,
     rect: PaneRect,
   ): readonly string[] {
     const menu = this.#menu;
-    if (menu === null) {
-      this.#menuFrame = null;
-      return lines;
-    }
-    const anchor = this.#frameRows.find(candidate => candidate.key === menu.anchorKey);
-    if (anchor === undefined) {
+    const anchor = menu === null ? undefined : this.#frameRows.find(candidate => candidate.key === menu.anchorKey);
+    if (menu === null || anchor === undefined) {
       this.#menuFrame = null;
       return lines;
     }
 
-    // Opens at its own row and grows downward, flipping up only when it would
-    // run past the body rather than always covering what is above.
-    const body = lines.length - this.#footerHeight;
-    const below = anchor.screenRow + 1;
-    const top = below + menu.choices.length <= body ? below : Math.max(0, anchor.screenRow - menu.choices.length);
-    const width = Math.max(...menu.choices.map(choice => displayWidth(displayValue(choice)) + 4), 6);
-    const column = Math.min(valueColumn, Math.max(0, rect.width - width - RAIL_COLUMNS));
-    this.#menuFrame = { top, column, width, rows: menu.choices.length };
-
-    const output = [...lines];
-    menu.choices.forEach((choice, index) => {
-      const target = top + index;
-      if (target < 0 || target >= output.length) return;
-      const mark = choice === this.#shownValue(menu.entry) ? "✓ " : "  ";
-      const text = padToWidth(`${mark}${displayValue(choice)} `, width);
-      const painted = index === menu.index ? theme.highlight(text) : theme.panel(text);
-      output[target] = overlaySpan(output[target] ?? "", column, column + width, painted);
+    const state = {
+      choices: menu.choices.map(choice => displayValue(choice)),
+      current: this.#shownValue(menu.entry) === null ? null : displayValue(this.#shownValue(menu.entry)!),
+      index: menu.index,
+    };
+    const frame = valueMenuFrame(state, { screenRow: anchor.screenRow, valueColumn }, {
+      bodyHeight: lines.length - this.#footerHeight,
+      surfaceWidth: rect.width,
+      reservedRight: RAIL_COLUMNS,
     });
-    return output;
+    this.#menuFrame = frame;
+    return renderValueMenu(lines, state, frame, theme);
   }
 
-  /**
-   * The dialog the engine shows for a structured setting: every flag it offers,
-   * what the chosen one does, and how to change it, over the list it came from.
-   * Laid out as the engine lays its own out — labels padded to a shared column,
-   * the description of the chosen row below, and its wording for the keys.
-   */
-  #dialogLines(
-    open: StructuredEdit,
-    width: number,
-    theme: UiTheme,
-  ): readonly string[] {
-    const declaredFor = (key: string): { label: string; description: string; fallback: boolean } | undefined =>
-      open.entry.flags.find(flag => flag.key === key);
-    const labelOfFlag = (key: string): string => declaredFor(key)?.label ?? humanizeLabel(key);
-    const labelColumn = Math.min(30, Math.max(...open.flags.map(key => displayWidth(labelOfFlag(key))), 0));
-    // Cursor, label column, and the two spaces before a value.
-    this.#dialogValueColumn = 2 + labelColumn + 2;
-
-    const rows = open.flags.map((key, index) => {
-      const selected = index === open.index;
-      // The engine writes these as the booleans they are rather than as yes/no.
-      const value = (open.record[key] ?? false) ? "true" : "false";
-      const label = labelOfFlag(key);
-      const padded = `${label}${" ".repeat(Math.max(0, labelColumn - displayWidth(label)))}`;
-      const cursor = selected ? "→ " : "  ";
-      const raw = `${cursor}${padded}  ${value}`;
-      // The engine leaves an unselected label unpainted and quietens its value,
-      // and lifts both to the accent on the row the cursor is on.
-      const painted = `${theme.fg("accent", cursor)}${selected ? theme.fg("accent", padded) : padded}  ${theme.fg("muted", value)}`;
-      return padVisible(truncateToWidth(painted, width), width, raw);
+  /** What the panel needs to present a structured setting's parts. */
+  #dialogLines(open: StructuredEdit, width: number, theme: UiTheme): readonly string[] {
+    const rows = open.flags.map(key => {
+      const declared = open.entry.flags.find(flag => flag.key === key);
+      return {
+        label: declared?.label ?? humanizeLabel(key),
+        // The engine writes these as the booleans they are rather than as yes/no.
+        value: (open.record[key] ?? false) ? "true" : "false",
+        ...(declared?.description === undefined ? {} : { description: declared.description }),
+      };
     });
-
-    const description = declaredFor(open.flags[open.index] ?? "")?.description ?? "";
-    const hint = "  Enter/Space to change · Esc to cancel";
-    const rule = theme.fg("border", "─".repeat(Math.max(0, width)));
-
+    this.#dialogValueColumn = dialogValueColumn(rows);
     this.#panelTop = this.#panelTopForFrame;
-    return [
-      rule,
-      ...rows,
-      "",
-      padVisible(truncateToWidth(theme.fg("dim", `  ${description}`), width), width, `  ${description}`),
-      "",
-      padVisible(truncateToWidth(theme.fg("dim", hint), width), width, hint),
-      rule,
-    ];
+    return renderDialogPanel({ rows, index: open.index, hint: "Enter/Space to change · Esc to cancel" }, width, theme);
   }
 
   #footerLines(width: number, theme: UiTheme): readonly string[] {
     const open = this.#structured;
     if (open !== null) return this.#dialogLines(open, width, theme);
 
-    const hint = this.#interruptArmed
-      ? "press ctrl+c again to exit A1"
-      : this.#notice ?? HINT;
-    const hintLine = rightAligned(theme.fg("dim", hint), hint, width);
+    const hint = this.#interruptArmed ? "press ctrl+c again to exit A1" : HINT;
+    const status = renderStatusLine({ hint, report: this.#notice }, width, theme);
     const input = this.#filter;
-    if (input === null) return [hintLine];
-
-    // The input is its own component, ruled off in the prompt's own grey rather
-    // than with the border the dialog draws.
-    const rule = promptRule(width);
-    const view = input.view(Math.max(0, width - 2));
-    const empty = view.text.length === 0;
-    const before = view.text.slice(0, view.caretColumn);
-    const under = view.text.slice(view.caretColumn, view.caretColumn + 1) || " ";
-    const after = view.text.slice(view.caretColumn + 1);
-    // Typed text is left unpainted and the caret reverses its cell, which is how
-    // the reference draws an input row.
-    const typed = `${before}${caretCell(under)}${after}`;
-    // The reference quietens the placeholder with the terminal own faint
-    // attribute over the ordinary foreground, not with a colour of its own.
-    const placeholder = `${caretCell(SEARCH_PLACEHOLDER.slice(0, 1))}${faint(SEARCH_PLACEHOLDER.slice(1))}`;
-    const painted = `${PROMPT_GLYPH}${empty ? placeholder : typed}`;
-    const raw = `❯ ${empty ? SEARCH_PLACEHOLDER : `${view.text}${view.caretColumn >= view.text.length ? " " : ""}`}`;
-    return [rule, padVisible(truncateToWidth(painted, width), width, raw), rule, hintLine];
+    if (input === null) return [status];
+    return [...renderInputRow(input, width, { placeholder: SEARCH_PLACEHOLDER }).lines, status];
   }
-}
-
-/** Pads by visible width so styling escapes do not shift the layout. */
-function padVisible(line: string, width: number, raw?: string): string {
-  const visible = displayWidth(raw ?? line);
-  return visible >= width ? line : line + " ".repeat(width - visible);
-}
-
-function rightAligned(painted: string, raw: string, width: number): string {
-  if (displayWidth(raw) >= width) return truncateToWidth(painted, width);
-  return `${" ".repeat(width - displayWidth(raw))}${painted}`;
-}
-
-function centered(painted: string, raw: string, width: number): string {
-  return `${" ".repeat(Math.max(0, Math.floor((width - displayWidth(raw)) / 2)))}${painted}`;
 }
 
 
@@ -792,26 +688,9 @@ function isStepper(entry: OwnedUiSettingsEntry, shown: OwnedUiSettingValue | nul
   return typeof shown === "number" && entry.editable;
 }
 
-/** The numbers a setting offers, in order, when it names them rather than a range. */
-function numericChoices(entry: OwnedUiSettingsEntry): readonly number[] | null {
-  const choices = entry.choices;
-  if (choices === null || choices.length === 0) return null;
-  const numbers = choices.filter((choice): choice is number => typeof choice === "number");
-  return numbers.length === choices.length ? [...numbers].sort((left, right) => left - right) : null;
-}
-
-/** The value a step lands on, or null when there is nowhere further to go. */
-function steppedValue(entry: OwnedUiSettingsEntry, shown: OwnedUiSettingValue | null, delta: -1 | 1): number | null {
-  if (typeof shown !== "number") return null;
-  const offered = numericChoices(entry);
-  if (offered !== null) {
-    const at = offered.indexOf(shown);
-    const next = (at < 0 ? 0 : at) + delta;
-    return next >= 0 && next < offered.length ? offered[next] ?? null : null;
-  }
-  const next = shown + delta;
-  if (entry.minimum !== null && next < entry.minimum) return null;
-  return entry.maximum !== null && next > entry.maximum ? null : next;
+/** Where a setting's number may go: what the engine states, or what it offers. */
+function rangeOf(entry: OwnedUiSettingsEntry): NumericRange {
+  return { minimum: entry.minimum, maximum: entry.maximum, values: numericValues(entry.choices) };
 }
 
 /** Booleans read as yes and no; everything else prints as itself. */

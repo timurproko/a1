@@ -10,6 +10,8 @@ export interface UiTheme {
   bold(text: string): string;
   /** Inverted styling for the active row of a floating surface. */
   highlight(text: string): string;
+  /** A control that is present but cannot act: quieter than quiet text. */
+  disabled(text: string): string;
   /** Background for a floating surface, so it reads as above the content. */
   panel(text: string): string;
 }
@@ -19,5 +21,6 @@ export const PLAIN_THEME: UiTheme = Object.freeze({
   fg: (_token: UiThemeToken, text: string) => text,
   bold: (text: string) => text,
   highlight: (text: string) => text,
+  disabled: (text: string) => text,
   panel: (text: string) => text,
 });
