@@ -12,7 +12,7 @@ describe("mutable bootstrap boundary", () => {
     await expect(readFile(resolve(repository, "bin/a1-supervisor.js"), "utf8")).resolves.toContain("runSupervisor");
   });
 
-  it("routes interactive launch through bootstrap and selects the owned or transparent runtime lazily", async () => {
+  it("routes interactive launch through bootstrap and starts the owned runtime lazily", async () => {
     const [bin, guardian, ui] = await Promise.all([
       readFile(resolve(repository, "bin/a1.js"), "utf8"),
       readFile(resolve(repository, "bin/a1-guardian.js"), "utf8"),
@@ -23,10 +23,6 @@ describe("mutable bootstrap boundary", () => {
     expect(guardian).toContain("runLaunchGuardian");
     expect(ui).toContain("runSelectedInteractiveRuntime");
     expect(ui).toContain("runOwnedUi");
-    expect(ui).toContain("runSelectedTransparentRuntime");
-    const transparentComposition = await readFile(resolve(repository, "src/composition/transparent-runtime.ts"), "utf8");
-    expect(transparentComposition).toContain("runTransparentForeground");
-    expect(transparentComposition).not.toMatch(/features\/owned-ui|features\/workspace|composeOwnedUiApplication|pi-owned-ui-integration/);
     expect(`${bin}\n${guardian}\n${ui}`).not.toMatch(/node-pty|pi-tui|@xterm|host-terminal-renderer|terminal-input/);
     expect(`${bin}\n${guardian}\n${ui}`).not.toMatch(/Start-Process|wt\.exe|SendInput|SetForegroundWindow/);
   });

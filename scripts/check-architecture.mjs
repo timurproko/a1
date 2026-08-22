@@ -303,17 +303,13 @@ async function inspectTerminalParityBoundary() {
     if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
     return;
   }
-  const parityCommand = manifest.scripts?.["test:pi-terminal-parity"];
-  if (parityCommand === undefined) return;
+  // Terminal capture belongs to tests alone: a pseudo-terminal or cell reader
+  // shipped in the product would be a second way to draw the screen.
   for (const dependency of ["node-pty", "@xterm/headless"]) {
-    if (manifest.dependencies?.[dependency]) errors.push(`package.json: terminal parity dependency '${dependency}' must be development-only`);
-    if (!manifest.devDependencies?.[dependency]) errors.push(`package.json: terminal parity development dependency '${dependency}' is missing`);
-  }
-  if (parityCommand !== "npm run build --silent && node scripts/run-pi-terminal-parity.mjs") {
-    errors.push("package.json: terminal parity must expose only the canonical full test command");
+    if (manifest.dependencies?.[dependency]) errors.push(`package.json: terminal capture dependency '${dependency}' must be development-only`);
   }
   if ((manifest.files ?? []).some(path => path === "scripts" || path.startsWith("scripts/"))) {
-    errors.push("package.json: test-only terminal parity scripts must not be published");
+    errors.push("package.json: test-only scripts must not be published");
   }
 }
 
