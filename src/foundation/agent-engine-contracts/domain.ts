@@ -45,6 +45,12 @@ export interface AgentSettingDescriptor {
   readonly label?: string;
   /** One-line explanation the engine shows for this setting. */
   readonly description?: string;
+  /**
+   * True when the values this setting offers are resolved as it is read rather
+   * than declared: what is installed, what the running session supports. The
+   * boundary resolves them; nothing above it supplies them.
+   */
+  readonly resolvedWhenRead?: boolean;
   /** Smallest value a numeric setting accepts, when the engine states one. */
   readonly minimum?: number;
   /** Largest value a numeric setting accepts, when the engine states one. */
