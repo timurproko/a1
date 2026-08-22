@@ -3,7 +3,9 @@ schema: spec-driven
 context: |
   Development workflow:
   - Keep the primary worktree on develop for integration only.
-  - Make changes in one detached worktree under the repository's `.worktrees/<task-id>` directory, based on current origin/develop unless the user selects another base.
+  - Make changes in one detached worktree under the repository's `.worktrees/<task-id>` directory, based on current origin/develop unless the user selects another base. The worktree is detached because a branch can be checked out in only one worktree at a time; commit there and push with `git push origin HEAD:refs/heads/<branch>`, so the branch exists on the remote and no local ref goes stale.
+  - Worktree-per-task is not the overhead to cut. Several agents work this repository at once, and isolated worktrees are what keeps one stream from editing another's checkout. Where the per-worktree cost hurts — installing, building, validating — cut that, never the model.
+  - Working directories are shared between concurrent sessions and can change under a command, so address a worktree explicitly: `cd <worktree> && …` or `git -C <worktree> …`, never a bare relative path. A command that assumed its directory once landed deletions in another agent's worktree.
   - Keep unrelated changes out of commits, and integrate coherent work once after its relevant validation passes.
   - Name a commit `type(scope): subject`, and name the branch it lands on `type/short-description` with the same type. The types are `feature` for behaviour a reader could notice, `fix` for a repair, `refactor` for a change of shape that leaves behaviour alone, and `docs`, `test`, `chore`, and `style` as they sound; an incompatible change says `BREAKING CHANGE:` in its body. This is Conventional Commits with `feat` written out as `feature`, because an abbreviation nobody expands reads as a truncation rather than a word. A tool added later that expects the standard spelling takes `feature` as a configured type.
   - Do not remove a worktree until its commits are integrated.
@@ -33,6 +35,7 @@ context: |
   - A red pull request is the next task. Fix it and push again — the round trip is about two minutes — before starting new work, and never stack new work on top of a change whose validation is failing.
   - Report what CI said rather than assuming it passed. A result that has not been read is not a result.
   - Where a failure is not this change's doing, say so with the evidence and still deal with it before moving on, because it fails every pull request behind it too.
+  - `develop` requires the `Development validation required` check before a merge. Admin bypass stays on, no reviews are required, a branch need not be up to date with `develop` to merge, and force-pushing or deleting `develop` is refused.
   - Arm auto-merge on a pull request that changes nothing a reader would see — a specification, documentation, a refactor whose tests prove the behaviour is unchanged — so it lands the moment validation passes. Say that it is armed.
   - Leave a pull request that changes what a reader sees to merge by hand, after the manual acceptance that change needs. A feature is accepted before it lands, not explained after it.
 
