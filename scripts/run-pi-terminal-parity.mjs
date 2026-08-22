@@ -56,9 +56,8 @@ try {
   await writeFile(resolve(artifactRoot, "report.json"), `${JSON.stringify(diagnostic, null, 2)}\n`, "utf8");
   const rendered = diagnostic.producers
     .map(producer => {
-      const excerpt = typeof producer.raw?.excerpt === "string" ? producer.raw.excerpt : "";
-      const visible = excerpt.replace(/\\x1b\[[0-9;?]*[a-zA-Z]/g, "").replace(/\\x1b\][^\\]*?\\x07/g, "").replace(/\\r/g, "");
-      return `--- ${producer.producer ?? "unknown"} had drawn ---\n${visible.slice(0, 2_000)}`;
+      const screen = typeof producer.screen === "string" ? producer.screen : "(no screen captured)";
+      return `--- ${producer.producer ?? "unknown"}: what the comparison sees ---\n${screen}`;
     })
     .join("\n\n");
   await writeFile(
