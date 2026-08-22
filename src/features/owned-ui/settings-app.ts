@@ -6,6 +6,7 @@ import {
   ShortcutRegistry,
   PROMPT_GLYPH,
   blockJumpTarget,
+  promptRule,
   caretCell,
   blockRowSpan,
   displayWidth,
@@ -470,6 +471,18 @@ export class SettingsApp implements UiApp {
   #filterKey(data: string): PaneInputResult {
     const input = this.#filter;
     if (input === null) return { consumed: false };
+
+    const key = KEYS[data];
+    if (key === "up" || key === "down") {
+      const rows = this.#rows();
+      // Nothing found means nothing to move through; the key is still swallowed
+      // rather than typed into the search.
+      if (selectableIndexes(rows).length === 0) return { consumed: true, render: false };
+      const selected = indexOfKey(rows, this.#selectedKey);
+      this.#select(rows, moveSelection(rows, selected, key === "down" ? 1 : -1));
+      return { consumed: true };
+    }
+
     const outcome = handleLineInputKey(input, data);
     if (outcome.kind === "cancelled") this.#filter = null;
     this.#scroll = 0;
@@ -725,9 +738,9 @@ export class SettingsApp implements UiApp {
     const input = this.#filter;
     if (input === null) return [hintLine];
 
-    // The input is its own component: it is ruled off quietly rather than with
-    // the border the dialog draws, which belongs to the dialog.
-    const rule = theme.fg("dim", "─".repeat(Math.max(0, width)));
+    // The input is its own component, ruled off in the prompt's own grey rather
+    // than with the border the dialog draws.
+    const rule = promptRule(width);
     const view = input.view(Math.max(0, width - 2));
     const empty = view.text.length === 0;
     const before = view.text.slice(0, view.caretColumn);
