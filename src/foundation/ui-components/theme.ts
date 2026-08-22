@@ -3,7 +3,7 @@
  * or a theme, and so the component layer never imports a Pi adapter.
  */
 
-export type UiThemeToken = "accent" | "text" | "muted" | "dim" | "border" | "borderMuted" | "error";
+export type UiThemeToken = "accent" | "text" | "muted" | "dim" | "border" | "error";
 
 export interface UiTheme {
   fg(token: UiThemeToken, text: string): string;

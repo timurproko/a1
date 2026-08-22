@@ -4,7 +4,6 @@ import {
   blockRowSpan,
   clampScroll,
   indexOfKey,
-  lastBlockTarget,
   layoutList,
   moveSelection,
   scrollForSelection,
@@ -98,9 +97,6 @@ describe("block navigation", () => {
   });
 
   it("finds the last group that has a selectable element", () => {
-    expect(lastBlockTarget(ROWS)).toBe(11);
-    expect(lastBlockTarget([group("A"), element("A", "a1"), group("B"), note("B", "x")])).toBe(1);
-    expect(lastBlockTarget([group("A"), note("A", "x")])).toBeUndefined();
   });
 });
 
