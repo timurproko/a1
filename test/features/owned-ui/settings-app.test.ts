@@ -117,6 +117,32 @@ describe("the settings screen", () => {
     expect(writes.at(-1)).toEqual({ key: "warnings", value: { anthropicExtraUsage: true, unknownTools: false } });
   });
 
+  it("adjusts a flag with the arrows, as the list adjusts a value", async () => {
+    const { app: target, writes } = await app();
+    selectRow(target, "Warnings");
+    target.onInput?.(ENTER, HOST);
+    target.onInput?.(`${ESC}[C`, HOST);
+    expect(writes.at(-1)).toEqual({ key: "warnings", value: { anthropicExtraUsage: false, unknownTools: false } });
+    target.onInput?.(`${ESC}[D`, HOST);
+    expect(writes.at(-1)).toEqual({ key: "warnings", value: { anthropicExtraUsage: true, unknownTools: false } });
+  });
+
+  it("acts on the dialog's value and leaves its label alone", async () => {
+    const { app: target, writes } = await app();
+    selectRow(target, "Warnings");
+    target.onInput?.(ENTER, HOST);
+
+    const lines = screen(target);
+    const row = lines.findIndex(line => line.includes("Anthropic extra usage"));
+    const valueColumn = (lines[row] ?? "").indexOf("true") + 1;
+
+    target.onMouse?.({ kind: "press", button: "left", row: row + 1, column: 6 }, HOST);
+    expect(writes).toHaveLength(0);
+
+    target.onMouse?.({ kind: "press", button: "left", row: row + 1, column: valueColumn }, HOST);
+    expect(writes.at(-1)).toEqual({ key: "warnings", value: { anthropicExtraUsage: false, unknownTools: false } });
+  });
+
   it("leaves the dialog on escape", async () => {
     const { app: target } = await app();
     selectRow(target, "Warnings");

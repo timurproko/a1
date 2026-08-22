@@ -126,6 +126,8 @@ export class SettingsApp implements UiApp {
   /** Values requested but not yet reflected by the source, keyed by entry. */
   readonly #pending = new Map<string, OwnedUiSettingValue>();
   #footerHeight = 1;
+  /** Column the dialog's values start at, so a label stays a label. */
+  #dialogValueColumn = 0;
   /** Screen row the dialog panel starts on, for pointer hits. */
   #panelTop = 0;
   #panelTopForFrame = 0;
@@ -313,7 +315,12 @@ export class SettingsApp implements UiApp {
       }
       if (event.kind === "press") {
         open.index = row;
-        this.#toggleFlag(row);
+        // Pointing at the label picks the row; the value is what changes it,
+        // exactly as in the list behind the dialog.
+        const key = open.flags[row] ?? "";
+        const width = displayWidth((open.record[key] ?? false) ? "true" : "false");
+        const start = this.#dialogValueColumn + 1;
+        if (event.column >= start && event.column < start + width) this.#toggleFlag(row);
         return { consumed: true };
       }
       return { consumed: true, render: false };
@@ -419,7 +426,7 @@ export class SettingsApp implements UiApp {
     }
     if (key === "up") open.index = Math.max(0, open.index - 1);
     else if (key === "down") open.index = Math.min(open.flags.length - 1, open.index + 1);
-    else if (key === "enter" || data === " ") this.#toggleFlag(open.index);
+    else if (key === "enter" || key === "left" || key === "right" || data === " ") this.#toggleFlag(open.index);
     return { consumed: true };
   }
 
@@ -664,6 +671,8 @@ export class SettingsApp implements UiApp {
       open.entry.flags.find(flag => flag.key === key);
     const labelOfFlag = (key: string): string => declaredFor(key)?.label ?? humanizeLabel(key);
     const labelColumn = Math.min(30, Math.max(...open.flags.map(key => displayWidth(labelOfFlag(key))), 0));
+    // Cursor, label column, and the two spaces before a value.
+    this.#dialogValueColumn = 2 + labelColumn + 2;
 
     const rows = open.flags.map((key, index) => {
       const selected = index === open.index;
