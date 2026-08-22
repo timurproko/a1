@@ -40,7 +40,7 @@ export const SETTINGS_ROUTE = "settings";
 const SCOPE = SETTINGS_APP_ID;
 const SCROLLBAR_TOP_INSET = 1;
 const RAIL_COLUMNS = 2;
-const HINT = "/ search • ↑↓ navigate • shift+↑↓ block • enter change/edit • ←→ adjust • esc close";
+const HINT = "/ to search · ↑↓ to navigate · Shift+↑↓ to jump a section · Enter/Space to change · ←→ to adjust · Esc to cancel";
 const SEARCH_PLACEHOLDER = "search settings";
 /** What a structured value offers instead of printing itself. */
 const CONFIGURE = "configure";
@@ -49,7 +49,7 @@ const STEPPER_RESERVE = 2;
 
 type Action =
   | "move-up" | "move-down" | "block-up" | "block-down" | "first" | "last"
-  | "page-up" | "page-down" | "previous-value" | "next-value" | "open-menu" | "open-filter" | "close";
+  | "page-up" | "page-down" | "previous-value" | "next-value" | "activate" | "open-filter" | "close";
 
 export const SETTINGS_SHORTCUTS = new ShortcutRegistry<Action>();
 SETTINGS_SHORTCUTS.declare({ key: "up", scope: SCOPE, description: "Previous setting", section: "Navigate" }, "move-up");
@@ -62,7 +62,8 @@ SETTINGS_SHORTCUTS.declare({ key: "home", scope: SCOPE, description: "First sett
 SETTINGS_SHORTCUTS.declare({ key: "end", scope: SCOPE, description: "Last setting", section: "Navigate" }, "last");
 SETTINGS_SHORTCUTS.declare({ key: "left", scope: SCOPE, description: "Previous value", section: "Change" }, "previous-value");
 SETTINGS_SHORTCUTS.declare({ key: "right", scope: SCOPE, description: "Next value", section: "Change" }, "next-value");
-SETTINGS_SHORTCUTS.declare({ key: "enter", scope: SCOPE, description: "Open value menu", section: "Change" }, "open-menu");
+SETTINGS_SHORTCUTS.declare({ key: "enter", scope: SCOPE, description: "Change value", section: "Change" }, "activate");
+SETTINGS_SHORTCUTS.declare({ key: "space", scope: SCOPE, description: "Change value", section: "Change" }, "activate");
 SETTINGS_SHORTCUTS.declare({ key: "/", scope: SCOPE, description: "Search settings", section: "Change" }, "open-filter");
 SETTINGS_SHORTCUTS.declare({ key: "escape", scope: GLOBAL_SCOPE, description: "Close", section: "Screen" }, "close");
 
@@ -80,6 +81,7 @@ const KEYS: Readonly<Record<string, string>> = {
   "": "escape",
   "\r": "enter",
   "\n": "enter",
+  " ": "space",
   "/": "/",
 };
 
@@ -217,9 +219,12 @@ export class SettingsApp implements UiApp {
         this.#filter = new LineInput("");
         this.#notice = null;
         return { consumed: true };
-      case "open-menu":
-        this.#openMenu(rows, selected);
+      case "activate": {
+        const row = rows[selected];
+        if (row?.kind === "element" && row.value.structured) this.#openStructured(row.value);
+        else this.#cycle(rows, selected, 1);
         return { consumed: true };
+      }
       case "move-up":
       case "move-down":
         this.#select(rows, moveSelection(rows, selected, action === "move-down" ? 1 : -1));
