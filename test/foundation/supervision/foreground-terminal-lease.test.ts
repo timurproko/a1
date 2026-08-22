@@ -37,11 +37,13 @@ describe("plural launch-instance supervision", () => {
       rootIdentity: { pid: 4002, startIdentity: "4002:start" }, containmentIdentity: { provider: "test", token: "scope-2" },
     })).resolves.toMatchObject({ ok: true });
 
-    const metadata = JSON.parse(await readFile(harness.paths.endpointMetadataPath, "utf8"));
-    expect(metadata.ownership).toMatchObject({
-      state: "busy",
-      liveInstanceIds: ["instance-1", "instance-2"],
-      nonResumableInstanceIds: ["instance-1", "instance-2"],
+    await vi.waitFor(async () => {
+      const metadata = JSON.parse(await readFile(harness.paths.endpointMetadataPath, "utf8"));
+      expect(metadata.ownership).toMatchObject({
+        state: "busy",
+        liveInstanceIds: ["instance-1", "instance-2"],
+        nonResumableInstanceIds: ["instance-1", "instance-2"],
+      });
     });
 
     await expect(first.command({
@@ -87,8 +89,10 @@ describe("plural launch-instance supervision", () => {
 
     await vi.waitFor(() => expect(harness.store.loadLaunchInstance("instance-fast-race")?.state).toBe("interrupted"));
     await vi.waitFor(() => expect(harness.store.loadLaunchInstance("instance-live-race")?.state).toBe("active"));
-    const metadata = JSON.parse(await readFile(harness.paths.endpointMetadataPath, "utf8"));
-    expect(metadata.ownership.uncertainInstanceIds).toEqual(["instance-live-race"]);
+    await vi.waitFor(async () => {
+      const metadata = JSON.parse(await readFile(harness.paths.endpointMetadataPath, "utf8"));
+      expect(metadata.ownership.uncertainInstanceIds).toEqual(["instance-live-race"]);
+    });
     await harness.server.close();
   });
 

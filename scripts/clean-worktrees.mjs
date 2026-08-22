@@ -48,12 +48,17 @@ function git(args, cwd = ROOT) {
 /** The pull requests GitHub associates with a commit, which survives a squash. */
 function pullsFor(sha) {
   try {
-    const raw = execFileSync("gh", ["api", `repos/{owner}/{repo}/commits/${sha}/pulls`, "--jq", "[.[] | {number, state}]"], {
+    const raw = execFileSync("gh", ["api", `repos/{owner}/{repo}/commits/${sha}/pulls`, "--jq", "[.[] | {number, state, merged: (.merged_at != null)}]"], {
       cwd: ROOT,
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
     });
-    return JSON.parse(raw.trim() || "[]").map(pull => ({ number: pull.number, state: String(pull.state).toUpperCase() }));
+    // The REST answer says closed for a merged pull request, and only merged_at
+    // tells the two apart; MERGED is the other API vocabulary.
+    return JSON.parse(raw.trim() || "[]").map(pull => ({
+      number: pull.number,
+      state: pull.merged ? "MERGED" : String(pull.state).toUpperCase(),
+    }));
   } catch {
     return [];
   }

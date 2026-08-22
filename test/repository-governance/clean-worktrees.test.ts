@@ -32,6 +32,13 @@ describe("deciding what to remove", () => {
     expect(decision.reason).toContain("uncommitted");
   });
 
+  it("reads a closed-and-merged pull request as merged", () => {
+    // The REST answer says closed for a merged pull request; only merged_at tells
+    // the two apart, and reading state alone kept every landed worktree.
+    expect(decideWorktree(state({ pulls: [{ number: 35, state: "MERGED" }] })).action).toBe("remove");
+    expect(decideWorktree(state({ pulls: [{ number: 35, state: "CLOSED" }] })).action).toBe("keep");
+  });
+
   it("keeps the primary checkout", () => {
     expect(decideWorktree(state({ isPrimary: true, ancestorOfBase: true })).action).toBe("keep");
   });
