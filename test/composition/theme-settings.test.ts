@@ -24,12 +24,12 @@ function port(theme: string): { port: AgentSettingsPort; written: string[] } {
 }
 
 describe("withInstalledThemes", () => {
-  it("offers the installed themes and automatic as the theme's choices", async () => {
+  it("leads the theme choices with automatic, then the installed themes", async () => {
     const decorated = withInstalledThemes(port("dark").port);
     const theme = (await decorated!.listSettings()).find(descriptor => descriptor.key === "theme");
     expect(theme?.choices).toContain("dark");
     expect(theme?.choices).toContain("light");
-    expect(theme?.choices?.at(-1)).toBe("automatic");
+    expect(theme?.choices?.[0]).toBe("automatic");
   });
 
   it("keeps the pair out of the way until the theme is automatic", async () => {

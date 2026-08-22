@@ -12,9 +12,9 @@ import { getAvailablePiThemes } from "../foundation/pi-component-adapter/index.j
  * that grammar are anything its source declares — the theme list is a runtime
  * read of the built-ins plus whatever theme files the reader has installed.
  *
- * This presents both forms as ordinary settings: the theme row offers the
- * installed themes plus `automatic`, and choosing `automatic` reveals the two
- * rows that say which theme each terminal appearance uses.
+ * This presents both forms as ordinary settings: the theme row leads with
+ * `automatic` ahead of the installed themes, and choosing it reveals the two rows
+ * that say which theme each terminal appearance uses.
  */
 
 /** Value the theme row carries while the engine is following the terminal. */
@@ -73,7 +73,7 @@ export function withInstalledThemes(port: AgentSettingsPort | null): AgentSettin
       const theme = descriptors.find(descriptor => descriptor.key === THEME_KEY);
       const writable = theme?.writable === true;
       const listed = descriptors.map(descriptor =>
-        descriptor.key === THEME_KEY ? { ...descriptor, valueType: "enum" as const, choices: [...names, AUTOMATIC_THEME] } : descriptor);
+        descriptor.key === THEME_KEY ? { ...descriptor, valueType: "enum" as const, choices: [AUTOMATIC_THEME, ...names] } : descriptor);
 
       // The pair only means anything while the theme is automatic, so those rows
       // appear with it rather than sitting unexplained under a single theme.
