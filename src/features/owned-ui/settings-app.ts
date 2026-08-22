@@ -609,8 +609,9 @@ export class SettingsApp implements UiApp {
     // Pointing anywhere on the row is hovering the item; pointing at the value
     // is what brightens the value. Selection speaks through the label alone.
     const valueHovered = hovered && this.#hoverRegion !== "label";
-    // The stepper is an affordance, not decoration: it appears under the pointer.
-    const stepper = isStepper(entry, shown) && hovered;
+    // The stepper is an affordance, not decoration: it appears when the pointer
+    // is on the value it belongs to, not merely somewhere on the row.
+    const stepper = isStepper(entry, shown) && valueHovered;
     const valueToken = valueHovered ? "text" : "muted";
     const canLower = steppedValue(entry, shown, -1) !== null;
     const canRaise = steppedValue(entry, shown, 1) !== null;
