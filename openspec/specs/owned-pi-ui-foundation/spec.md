@@ -7,7 +7,7 @@ Defines A1's independently owned Pi shell with vanilla-default regular main-scre
 ## Requirements
 
 ### Requirement: The owned shell presents the complete pinned Pi interactive UI
-The A1-owned UI SHALL reproduce the complete visible and interactive behavior of pinned Pi `0.84.2` at commit `914cf1472e715297caa30db4b9535d534a9eb718`. The baseline SHALL include startup composition, themes, colors, spacing, layout, editor, autocomplete, keybindings, commands, prompt execution, transcript, streaming, tools, selectors, dialogs, settings, sessions, models, thinking, status/footer state, clipboard, resize, errors, and shutdown. A1 SHALL NOT substitute approximate layouts, colors, controllers, or workflows for covered pinned behavior.
+The A1-owned UI SHALL reproduce the complete visible and interactive behavior of pinned Pi `0.84.2` at commit `914cf1472e715297caa30db4b9535d534a9eb718`. The baseline SHALL include startup composition, themes, colors, spacing, layout, editor, autocomplete, keybindings, commands, prompt execution, transcript, streaming, tools, selectors, dialogs, settings, sessions, models, thinking, status/footer state, clipboard, resize, errors, and shutdown. A1 SHALL NOT substitute approximate layouts, colors, controllers, or workflows for covered pinned behavior. After parity acceptance a route MAY be superseded by a declared A1-owned replacement; the pinned behavior of a superseded route SHALL remain provable through `a1 pi`, and every capability the pinned route exposed SHALL remain reachable from its replacement.
 
 #### Scenario: Start an owned Pi session
 - **WHEN** the user starts the owned UI in an equivalent terminal and session state
@@ -34,8 +34,10 @@ The A1-owned UI SHALL reproduce the complete visible and interactive behavior of
 - **THEN** the footer SHALL compute, format, color, truncate, and align those values exactly as pinned `FooterComponent` rather than showing placeholder statistics
 
 #### Scenario: Open settings
-- **WHEN** the user invokes `/settings`
-- **THEN** the owned UI SHALL present the pinned specialized settings selector with current values, descriptions, search, instructions, nested flows, navigation, cancellation, change callbacks, focus restoration, and resize behavior, and SHALL NOT expose internal callback names as settings values
+- **WHEN** the user invokes `/settings` in bare A1
+- **THEN** the declared A1-owned settings app SHALL open as the replacement for the pinned settings route, and every agent setting the pinned selector exposed SHALL remain reachable there and editable wherever the engine advertises settings write capability
+- **AND** the pinned specialized settings selector with its current values, descriptions, search, instructions, nested flows, navigation, cancellation, change callbacks, focus restoration, and resize behavior SHALL remain the behavior proven through `a1 pi`
+- **AND** neither surface SHALL expose internal callback names as settings values
 
 #### Scenario: Show keyboard shortcuts
 - **WHEN** the user invokes `/hotkeys`
@@ -50,9 +52,16 @@ The A1-owned UI SHALL reproduce the complete visible and interactive behavior of
 - **THEN** the owned UI SHALL preserve source order, streaming state, component identity, adjacent-content spacing, tool boundaries, and terminal status content exactly as pinned `AssistantMessageComponent`
 
 #### Scenario: Use vanilla regular-mode terminal ownership
-- **WHEN** the user starts A1 without explicitly selecting fullscreen mode
+- **WHEN** the user starts A1 without explicitly selecting fullscreen mode and no A1-owned application is presented
 - **THEN** the runtime SHALL use public `TuiMainScreen` in `regular` mode exactly as default vanilla Pi does
 - **AND** it SHALL NOT enter the alternate screen, enable mouse tracking, intercept drag/release events, rewrite selected ANSI cells, synthesize clipboard output, or maintain screen-coordinate selection state
+
+#### Scenario: Present an A1-owned application over regular mode
+- **WHEN** a declared A1-owned application is presented in regular mode
+- **THEN** A1 MAY enable mouse reporting for the lifetime of that application, because pointer hover, click, and drag are how such a screen is operated
+- **AND** it SHALL disable reporting and restore the terminal exactly as it was found when the application closes, including when it closes through a failure
+- **AND** it SHALL still not enter the alternate screen, rewrite selected ANSI cells, synthesize clipboard output, or maintain screen-coordinate selection state
+- **AND** reporting SHALL never be enabled while no A1-owned application is presented, so `a1 pi` and every pinned surface are unaffected
 
 #### Scenario: Select, copy, and scroll in regular mode
 - **WHEN** the user selects character, word, line, or multi-row content, presses `Ctrl+C` with or without a terminal selection, scrolls the wheel, or types `/` after selecting text
@@ -302,3 +311,38 @@ The owned Pi UI SHALL derive visible provider configuration, available models, a
 #### Scenario: Prove authentication and model parity independently
 - **WHEN** this requirement is accepted
 - **THEN** untouched pinned Pi and A1 SHALL be run with equivalent isolated profile fixtures for empty, stored OAuth, stored API-key, non-stored configuration, logout, stale setting, refresh failure, and restart cases, and credential values SHALL NOT be copied into evidence
+
+### Requirement: Declared A1-owned additions and replacements extend the accepted baseline
+After parity acceptance, A1 MAY present surfaces, commands, and content that pinned Pi does not have, and MAY supersede a specific pinned route with an A1-owned replacement. Every such surface SHALL be declared, as an addition or as a replacement naming the route it supersedes. A declared addition SHALL NOT replace, reorder, restyle, intercept, or change the reachability of any pinned surface. A declared replacement SHALL keep every capability of the route it supersedes reachable, and SHALL leave every other pinned surface untouched. Parity comparison SHALL evaluate every pinned surface that is neither declared as replaced nor part of a declaration against pinned Pi, SHALL treat a declared addition or replacement as expected rather than as divergence, and SHALL fail on an undeclared one. The classification SHALL be derived from the declaration rather than from a separately maintained exclusion list.
+
+#### Scenario: Declare and present an A1-owned addition
+- **WHEN** an accepted A1-owned surface is declared as an addition and the user reaches it through its A1-owned route
+- **THEN** it SHALL open, and every pinned surface SHALL remain reachable and unchanged
+
+#### Scenario: Declare and present an A1-owned replacement
+- **WHEN** an accepted A1-owned surface is declared as the replacement for a named pinned route and the user invokes that route
+- **THEN** the replacement SHALL open, every capability the pinned route exposed SHALL remain reachable from it, and no other pinned surface SHALL change
+
+#### Scenario: Compare parity with a declared surface present
+- **WHEN** parity comparison runs against pinned Pi while a declared addition or replacement exists
+- **THEN** every pinned surface outside the declarations SHALL still be required to match pinned Pi, and the declared surface SHALL NOT be reported as a divergence
+
+#### Scenario: Classification follows the declaration
+- **WHEN** a declared replacement is added or removed
+- **THEN** the parity classification SHALL follow from the declaration without editing a separate exclusion list
+
+#### Scenario: Encounter an undeclared surface
+- **WHEN** a surface, command, or content region diverges from pinned Pi without being declared
+- **THEN** parity SHALL fail
+
+#### Scenario: Addition displaces pinned behavior
+- **WHEN** a surface declared as an addition replaces, reorders, restyles, or intercepts a pinned surface, or inserts itself into a pinned surface content, options, or command list
+- **THEN** parity SHALL fail even though the surface itself is declared
+
+#### Scenario: Replacement drops a superseded capability
+- **WHEN** a declared replacement omits a capability that the route it supersedes exposed
+- **THEN** parity SHALL fail and the replacement SHALL remain unaccepted
+
+#### Scenario: Declared surface requested before acceptance
+- **WHEN** an A1-owned addition or replacement is requested while the customization prerequisite is unmet
+- **THEN** it SHALL remain unavailable, as the customization requirement already provides

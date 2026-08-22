@@ -69,7 +69,16 @@ views, context menus. They arrive with the feature that needs them.
   exposed set is governed so an engine change fails the build rather than disappearing, and a value
   list that can only be resolved at runtime arrives through a declared provider on the boundary.
 
+## Capabilities, continued
+
+- `owned-ui-settings`: gains requirements for behaviour the screen already has and the spec never
+  described — a setting whose value is an object edited through its own dialog, a theme that may
+  follow the terminal appearance, and a search that reads section names as well as setting names.
+
 ## Sequencing
 
 This change follows `establish-owned-ui-component-system`, which introduces `ui-components`,
-`ui-apps`, and the settings screen it refactors.
+`ui-apps`, and the settings screen it refactors. It also picks up that change's unwritten component
+tests and its shortcut listing, because the extraction here needs those tests as its safety net and
+the listing shares a source with the hint line. The parity gate it also left open is a separate
+concern and goes to `govern-owned-surface-parity`.
