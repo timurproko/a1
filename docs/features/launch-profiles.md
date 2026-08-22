@@ -43,7 +43,13 @@ Run Pi’s normal `/login` independently in each profile that needs stored authe
 
 Bare `a1` runs the A1-owned full-viewport TUI over public Pi engine, component, and terminal APIs. A1 owns composition, input routing, modal focus, selection behavior, scrolling, and restoration without inserting a PTY or terminal-byte relay. Its default presentation is pinned to vanilla Pi parity; structured tabs and A1-specific visual customization are not enabled.
 
-`a1 pi` and `a1 sandbox` retain transparent direct attachment. In those profiles, one untouched Pi process and the physical terminal own rendering, input, selection, clipboard, scrollback, and terminal modes; A1 owns foreground lease and lifecycle only.
+`a1 pi` and `a1 sandbox` retain transparent direct attachment. In those profiles, untouched Pi and the physical terminal own rendering, input, selection, clipboard, scrollback, and terminal modes; A1 owns only per-invocation process containment and lifecycle evidence.
+
+## Concurrent instance lifecycle
+
+Every `a1`, `a1 pi`, and `a1 sandbox` invocation receives a unique non-detachable launch instance. There is no product-wide foreground slot: the same profile or any mixture of profiles may run concurrently in separate terminals. Profile files remain shared according to the selected profile root, while process ownership, lifecycle outcome, and cleanup remain scoped to the command that launched them.
+
+Normal root exit, terminal closure, guardian failure, and verified update shutdown all close the instance's remaining process tree within bounded graceful and forced deadlines. Closing one instance never closes another. A control supervisor may remain idle afterward, but closed instances leave no UI, Pi, extension daemon, agent worker, tool, or descendant process. Ordinary recovery never asks users to kill a PID or delete the control database.
 
 ## Recovery and comparison
 

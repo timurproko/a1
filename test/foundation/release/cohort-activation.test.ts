@@ -55,7 +55,12 @@ function metadata(value: MaterializedRelease, generations: readonly string[]): S
     schema: PRODUCT_IDENTITY.protocol.supervisorSchema,
     supervisorId: "supervisor-old", endpoint: "endpoint", pid: 987654, pidStartIdentity: "old-start", bootNonce: "old-boot", startedAt: new Date(0).toISOString(),
     releaseId: value.releaseId, releaseRoot: value.releaseRoot, contentDigest: value.contentDigest,
-    ownership: { state: generations.length ? "busy" : "idle", liveGenerationIds: generations, nonResumableGenerationIds: generations },
+    ownership: {
+      state: generations.length ? "busy" : "idle",
+      liveInstanceIds: generations,
+      nonResumableInstanceIds: generations,
+      uncertainInstanceIds: [],
+    },
     envelope: CONTROL_ENVELOPE, envelopeRevision: 1, requiredFeatures: [], optionalFeatures: [], contractDigest: "contract",
   };
 }

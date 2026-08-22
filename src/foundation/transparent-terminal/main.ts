@@ -2,8 +2,6 @@ import { randomUUID } from "node:crypto";
 import { realpath } from "node:fs/promises";
 import { resolve } from "node:path";
 import { assertLaunchProfileId, type LaunchProfileId, type TransparentTerminalLaunchProfile } from "../lifecycle/index.js";
-import { SupervisorClient } from "../protocol/index.js";
-import { resolveProductPaths } from "../supervision/index.js";
 import { runForegroundBroker, type TransparentStopReason } from "./foreground-broker.js";
 import { createPlatformTransparentLauncher } from "./native-launcher.js";
 
@@ -19,18 +17,12 @@ export async function runTransparentForeground(options: TransparentForegroundOpt
   const environment = { ...(options.environment ?? process.env) };
   const profileId = options.profileId ?? environment.A1_LAUNCH_PROFILE ?? "a1";
   assertLaunchProfileId(profileId);
-  const paths = resolveProductPaths(environment);
-  const client = new SupervisorClient(environment.A1_RELEASE_ID);
-  await client.connect(paths.endpoint);
-  const ownerId = `foreground-broker-${randomUUID()}`;
   const profile = await launchProfile(environment, options, profileId);
   const stop = stopSignal();
   try {
     const result = await runForegroundBroker(
-      { leaseId: randomUUID(), generationId: randomUUID(), ownerId, profile, stopRequested: stop.requested },
-      client,
+      { profile, stopRequested: stop.requested },
       createPlatformTransparentLauncher(),
-      randomUUID,
     );
     if (result.outcome.kind === "exited") return result.outcome.exitCode;
     if (result.outcome.kind === "signaled") return 1;
@@ -38,7 +30,6 @@ export async function runTransparentForeground(options: TransparentForegroundOpt
     throw Object.assign(new Error(result.outcome.message), { code: result.outcome.code ?? undefined });
   } finally {
     stop.dispose();
-    client.close();
   }
 }
 

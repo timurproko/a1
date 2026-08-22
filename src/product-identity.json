@@ -31,6 +31,7 @@
     "piSourceLedgerPath": "A1_PI_SOURCE_LEDGER_PATH",
     "piSourceScanRoot": "A1_PI_SOURCE_SCAN_ROOT",
     "probeTrace": "A1_PROBE_TRACE",
+    "processGuardianPath": "A1_PROCESS_GUARDIAN_PATH",
     "profileHome": "A1_PROFILE_HOME",
     "protocolVersion": "A1_PROTOCOL_VERSION",
     "releaseDigest": "A1_RELEASE_DIGEST",
@@ -87,9 +88,11 @@
   "artifacts": {
     "cliEntry": "bin/a1.js",
     "supervisorEntry": "bin/a1-supervisor.js",
+    "guardianEntry": "bin/a1-guardian.js",
     "uiEntry": "bin/a1-ui.js",
     "nativeExecutable": "a1-terminal-host",
     "nativeCrate": "a1-terminal-host",
+    "processGuardianExecutable": "a1-process-guardian",
     "releaseTarballStem": "timurproko-a1",
     "diagnosticStem": "a1"
   }

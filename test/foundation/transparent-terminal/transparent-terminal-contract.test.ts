@@ -1,10 +1,9 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
 import type {
-  ForegroundTerminalLease,
+  LaunchInstance,
   NativeProcessIdentity,
   SupervisorCommand,
   TransparentTerminalLaunchProfile,
-  TransparentTerminalLifecycleOutcome,
 } from "../../../src/foundation/lifecycle/index.js";
 import { encodeFrame, LineFrameDecoder, localControlHello } from "../../../src/foundation/protocol/index.js";
 
@@ -23,7 +22,24 @@ const profile: TransparentTerminalLaunchProfile = {
   visualReconnection: "none",
 };
 
-const identity: NativeProcessIdentity = { pid: 1234, startIdentity: "boot-observed-start-identity" };
+const guardianIdentity: NativeProcessIdentity = { pid: 1233, startIdentity: "1233:guardian-start" };
+const rootIdentity: NativeProcessIdentity = { pid: 1234, startIdentity: "1234:process-start" };
+
+const instance: LaunchInstance = {
+  id: "instance-1",
+  ownerClientId: "client-1",
+  profileId: "sandbox",
+  state: "active",
+  shutdownPolicy: "terminate-tree-on-close",
+  guardianIdentity,
+  rootIdentity,
+  containmentIdentity: { provider: "test", token: "scope-1" },
+  createdAt: "2026-01-01T00:00:00.000Z",
+  activatedAt: "2026-01-01T00:00:01.000Z",
+  stoppingAt: null,
+  completedAt: null,
+  outcome: null,
+};
 
 describe("transparent terminal contracts", () => {
   it("declares exact launch identity and explicit absence of surface/reconnection", () => {
@@ -39,42 +55,36 @@ describe("transparent terminal contracts", () => {
     expect(Object.keys(profile)).not.toContain("contentMatcher");
   });
 
-  it("models one foreground lease with boot-observed process identity and outcome", () => {
-    const outcome: TransparentTerminalLifecycleOutcome = { kind: "exited", exitCode: 0 };
-    const lease: ForegroundTerminalLease = {
-      id: "lease-1",
-      ownerId: "broker-1",
-      profile,
-      state: "released",
-      generationId: "generation-1",
-      processIdentity: identity,
-      acquiredAt: "2026-01-01T00:00:00.000Z",
-      heartbeatAt: "2026-01-01T00:00:01.000Z",
-      releasedAt: "2026-01-01T00:00:02.000Z",
-      outcome,
-    };
-    expect(lease).toMatchObject({ state: "released", processIdentity: identity, outcome });
-    expectTypeOf(lease.profile.surface).toEqualTypeOf<"none">();
-    expectTypeOf(lease.profile.visualReconnection).toEqualTypeOf<"none">();
+  it("models independent instance ownership and no terminal surface", () => {
+    expect(instance).toMatchObject({
+      id: "instance-1",
+      profileId: "sandbox",
+      shutdownPolicy: "terminate-tree-on-close",
+      rootIdentity,
+    });
+    expectTypeOf(profile.surface).toEqualTypeOf<"none">();
+    expectTypeOf(profile.visualReconnection).toEqualTypeOf<"none">();
   });
 
-  it("round-trips lease lifecycle commands without terminal bytes or surfaces", () => {
+  it("round-trips instance lifecycle commands without terminal bytes or surfaces", () => {
     const commands: SupervisorCommand[] = [
-      { type: "acquire-foreground-terminal-lease", requestId: "request-1", leaseId: "lease-1", ownerId: "broker-1", profile },
-      { type: "activate-foreground-terminal-lease", requestId: "request-2", leaseId: "lease-1", generationId: "generation-1", processIdentity: identity },
-      { type: "heartbeat-foreground-terminal-lease", requestId: "request-3", leaseId: "lease-1", processIdentity: identity },
-      { type: "release-foreground-terminal-lease", requestId: "request-4", leaseId: "lease-1", processIdentity: identity, outcome: { kind: "exited", exitCode: 0 } },
+      { type: "create-launch-instance", requestId: "request-1", instanceId: instance.id, profileId: "sandbox", shutdownPolicy: "terminate-tree-on-close", guardianIdentity },
+      { type: "activate-launch-instance", requestId: "request-2", instanceId: instance.id, rootIdentity, containmentIdentity: { provider: "test", token: "scope-1" } },
+      { type: "begin-launch-instance-stop", requestId: "request-3", instanceId: instance.id, reason: "user-request" },
+      { type: "complete-launch-instance", requestId: "request-4", instanceId: instance.id, terminalState: "completed", outcome: { kind: "stopped", reason: "user-request" } },
+      { type: "reconcile-launch-instance", requestId: "request-5", instanceId: instance.id },
     ];
     const decoder = new LineFrameDecoder();
     const decoded = decoder.push(commands.map(command => encodeFrame({ type: "command", command })).join(""));
-    expect(decoded).toHaveLength(4);
+    expect(decoded).toHaveLength(5);
     expect(decoded).toEqual(commands.map(command => ({ type: "command", command })));
     expect(JSON.stringify(decoded)).not.toMatch(/dataBase64|terminal-input|terminal-output|render-transaction|framebuffer|surface_json/);
   });
 
-  it("requires foreground lease negotiation independently of composed surfaces", () => {
+  it("negotiates launch-instance lifecycle independently of composed surfaces", () => {
     const hello = localControlHello();
-    expect(hello.requiredFeatures).toContain("terminal.foreground-lease.v1");
+    expect(hello.requiredFeatures).toContain("launch.instance-lifecycle.v1");
+    expect(hello.requiredFeatures).not.toContain("terminal.foreground-lease.v1");
     expect(hello.requiredFeatures.join(" ")).not.toMatch(/composed|surface|framebuffer|render/);
   });
 });
