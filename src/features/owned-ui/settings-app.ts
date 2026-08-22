@@ -652,20 +652,22 @@ export class SettingsApp implements UiApp {
       const padded = `${label}${" ".repeat(Math.max(0, labelColumn - displayWidth(label)))}`;
       const cursor = selected ? "→ " : "  ";
       const raw = `${cursor}${padded}  ${value}`;
-      const painted = `${theme.fg("accent", cursor)}${theme.fg(selected ? "text" : "muted", padded)}  ${theme.fg(selected ? "text" : "muted", value)}`;
+      // The engine leaves an unselected label unpainted and quietens its value,
+      // and lifts both to the accent on the row the cursor is on.
+      const painted = `${theme.fg("accent", cursor)}${selected ? theme.fg("accent", padded) : padded}  ${theme.fg(selected ? "accent" : "muted", value)}`;
       return padVisible(truncateToWidth(painted, width), width, raw);
     });
 
     const description = declaredFor(open.flags[open.index] ?? "")?.description ?? "";
     const hint = "  Enter/Space to change · Esc to cancel";
-    const rule = theme.fg("dim", "─".repeat(Math.max(0, width)));
+    const rule = theme.fg("borderMuted", "─".repeat(Math.max(0, width)));
 
     this.#panelTop = this.#panelTopForFrame;
     return [
       rule,
       ...rows,
       "",
-      padVisible(truncateToWidth(theme.fg("muted", `  ${description}`), width), width, `  ${description}`),
+      padVisible(truncateToWidth(theme.fg("dim", `  ${description}`), width), width, `  ${description}`),
       "",
       padVisible(truncateToWidth(theme.fg("dim", hint), width), width, hint),
       rule,
