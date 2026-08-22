@@ -1,4 +1,37 @@
 {
+  "presented": [
+    "autoCompact",
+    "showImages",
+    "imageWidthCells",
+    "autoResizeImages",
+    "blockImages",
+    "enableSkillCommands",
+    "showHardwareCursor",
+    "editorPaddingX",
+    "outputPad",
+    "autocompleteMaxVisible",
+    "clearOnShrink",
+    "showTerminalProgress",
+    "steeringMode",
+    "followUpMode",
+    "transport",
+    "httpIdleTimeoutMs",
+    "hideThinkingBlock",
+    "mermaidRenderingMode",
+    "showCacheMissNotices",
+    "collapseChangelog",
+    "quietStartup",
+    "enableInstallTelemetry",
+    "defaultProjectTrust",
+    "doubleEscapeAction",
+    "treeFilterMode",
+    "warnings",
+    "thinkingLevel",
+    "tuiMode",
+    "fullscreenExitOutput",
+    "fullscreenScrollbar",
+    "theme"
+  ],
   "order": [
     "autoCompact",
     "showImages",
@@ -240,7 +273,12 @@
     "defaultProjectTrust": {
       "label": "Default project trust",
       "description": "Fallback behavior when no extension or saved trust decision decides project trust",
-      "opensDialog": false
+      "opensDialog": false,
+      "values": [
+        "ask",
+        "always",
+        "never"
+      ]
     },
     "doubleEscapeAction": {
       "label": "Double-escape action",
