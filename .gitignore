@@ -171,7 +171,8 @@ $RECYCLE.BIN/
 # Windows shortcuts
 *.lnk
 
-# AddOne terminal host build outputs
+# A1 native build outputs
+/native/process-guardian/target/
 /native/terminal-host/target/
 /native/terminal-host/target-check/
 /native/terminal-host/vendor/**/.zig-cache/

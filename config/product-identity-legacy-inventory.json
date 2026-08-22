@@ -43,10 +43,10 @@
     "explicit-obsolete-package-fixtures"
   ],
   "summary": {
-    "total": 76,
-    "files": 24,
+    "total": 78,
+    "files": 25,
     "byLocationKind": {
-      "content": 76,
+      "content": 78,
       "path": 0
     },
     "byClass": {
@@ -55,20 +55,20 @@
       "environment-keys": 15,
       "paths": 49,
       "schemas": 13,
-      "artifacts": 17,
+      "artifacts": 19,
       "native-names": 3,
       "tests": 50,
-      "current-docs-specs": 26,
+      "current-docs-specs": 28,
       "historical-records": 12,
       "explicit-obsolete-package-fixtures": 5
     }
   },
   "occurrences": [
     {
-      "id": "docs/architecture/toolchain.md:86:37",
+      "id": "docs/architecture/toolchain.md:92:37",
       "path": "docs/architecture/toolchain.md",
       "locationKind": "content",
-      "line": 86,
+      "line": 92,
       "column": 37,
       "value": "ADDONE",
       "context": "A1 does not read or migrate legacy `ADDONE_*` variables, `AddOne`/`addone` control-state directories, release manifests, database schemas, endpoint records, or protocol frames. Remove obsolete control state only after stopping old proces...",
@@ -82,10 +82,10 @@
       ]
     },
     {
-      "id": "docs/architecture/toolchain.md:86:59",
+      "id": "docs/architecture/toolchain.md:92:59",
       "path": "docs/architecture/toolchain.md",
       "locationKind": "content",
-      "line": 86,
+      "line": 92,
       "column": 59,
       "value": "AddOne",
       "context": "A1 does not read or migrate legacy `ADDONE_*` variables, `AddOne`/`addone` control-state directories, release manifests, database schemas, endpoint records, or protocol frames. Remove obsolete control state only after stopping old proces...",
@@ -99,10 +99,10 @@
       ]
     },
     {
-      "id": "docs/architecture/toolchain.md:86:68",
+      "id": "docs/architecture/toolchain.md:92:68",
       "path": "docs/architecture/toolchain.md",
       "locationKind": "content",
-      "line": 86,
+      "line": 92,
       "column": 68,
       "value": "addone",
       "context": "A1 does not read or migrate legacy `ADDONE_*` variables, `AddOne`/`addone` control-state directories, release manifests, database schemas, endpoint records, or protocol frames. Remove obsolete control state only after stopping old proces...",
@@ -116,10 +116,10 @@
       ]
     },
     {
-      "id": "docs/architecture/toolchain.md:86:255",
+      "id": "docs/architecture/toolchain.md:92:255",
       "path": "docs/architecture/toolchain.md",
       "locationKind": "content",
-      "line": 86,
+      "line": 92,
       "column": 255,
       "value": "AddOne",
       "context": "A1 does not read or migrate legacy `ADDONE_*` variables, `AddOne`/`addone` control-state directories, release manifests, database schemas, endpoint records, or protocol frames. Remove obsolete control state only after stopping old proces...",
@@ -133,10 +133,10 @@
       ]
     },
     {
-      "id": "docs/architecture/toolchain.md:86:284",
+      "id": "docs/architecture/toolchain.md:92:284",
       "path": "docs/architecture/toolchain.md",
       "locationKind": "content",
-      "line": 86,
+      "line": 92,
       "column": 284,
       "value": "AddOne",
       "context": "A1 does not read or migrate legacy `ADDONE_*` variables, `AddOne`/`addone` control-state directories, release manifests, database schemas, endpoint records, or protocol frames. Remove obsolete control state only after stopping old proces...",
@@ -150,10 +150,10 @@
       ]
     },
     {
-      "id": "docs/architecture/toolchain.md:86:319",
+      "id": "docs/architecture/toolchain.md:92:319",
       "path": "docs/architecture/toolchain.md",
       "locationKind": "content",
-      "line": 86,
+      "line": 92,
       "column": 319,
       "value": "addone",
       "context": "A1 does not read or migrate legacy `ADDONE_*` variables, `AddOne`/`addone` control-state directories, release manifests, database schemas, endpoint records, or protocol frames. Remove obsolete control state only after stopping old proces...",
@@ -167,10 +167,10 @@
       ]
     },
     {
-      "id": "docs/architecture/toolchain.md:90:39",
+      "id": "docs/architecture/toolchain.md:96:39",
       "path": "docs/architecture/toolchain.md",
       "locationKind": "content",
-      "line": 90,
+      "line": 96,
       "column": 39,
       "value": "addone",
       "context": "The obsolete npm package `@timurproko/addone` is deprecated with the registry message `This package is obsolete. Use @timurproko/a1 instead.` It is not a current identity, compatibility channel, or rollback source. Whole-package unpublic...",
@@ -375,6 +375,36 @@
       "classes": [
         "current-docs-specs",
         "historical-records"
+      ]
+    },
+    {
+      "id": "openspec/changes/unify-launch-instance-lifecycle/specs/launch-profiles/spec.md:4:339",
+      "path": "openspec/changes/unify-launch-instance-lifecycle/specs/launch-profiles/spec.md",
+      "locationKind": "content",
+      "line": 4,
+      "column": 339,
+      "value": "addone",
+      "context": "The `a1` binary SHALL be the sole installed public command. Bare invocation SHALL be the A1-owned agent product surface, the `pi` subcommand SHALL launch the vanilla Pi baseline, and the `sandbox` subcommand SHALL launch the isolated san...",
+      "matchedCase": "lower",
+      "primaryClass": "artifacts",
+      "classes": [
+        "artifacts",
+        "current-docs-specs"
+      ]
+    },
+    {
+      "id": "openspec/changes/unify-launch-instance-lifecycle/specs/launch-profiles/spec.md:20:50",
+      "path": "openspec/changes/unify-launch-instance-lifecycle/specs/launch-profiles/spec.md",
+      "locationKind": "content",
+      "line": 20,
+      "column": 50,
+      "value": "addone",
+      "context": "- **THEN** the installation SHALL NOT create an `addone` executable",
+      "matchedCase": "lower",
+      "primaryClass": "artifacts",
+      "classes": [
+        "artifacts",
+        "current-docs-specs"
       ]
     },
     {
@@ -784,10 +814,10 @@
       ]
     },
     {
-      "id": "test/foundation/protocol/protocol.test.ts:46:87",
+      "id": "test/foundation/protocol/protocol.test.ts:59:87",
       "path": "test/foundation/protocol/protocol.test.ts",
       "locationKind": "content",
-      "line": 46,
+      "line": 59,
       "column": 87,
       "value": "addone",
       "context": "const legacy = { type: \"client-hello\", clientId: \"legacy\", ...current, envelope: \"addone-control-envelope\" };",
@@ -848,10 +878,10 @@
       ]
     },
     {
-      "id": "test/foundation/release/package-surface.test.ts:38:32",
+      "id": "test/foundation/release/package-surface.test.ts:41:32",
       "path": "test/foundation/release/package-surface.test.ts",
       "locationKind": "content",
-      "line": 38,
+      "line": 41,
       "column": 32,
       "value": "addone",
       "context": "expect(paths.some(path => /addone/i.test(path))).toBe(false);",
@@ -962,10 +992,10 @@
       ]
     },
     {
-      "id": "test/foundation/storage/storage.test.ts:165:77",
+      "id": "test/foundation/storage/storage.test.ts:206:77",
       "path": "test/foundation/storage/storage.test.ts",
       "locationKind": "content",
-      "line": 165,
+      "line": 206,
       "column": 77,
       "value": "addone",
       "context": "legacy.prepare(\"INSERT INTO product_identity (schema) VALUES (?)\").run(\"addone-control-store-v1\");",
@@ -978,10 +1008,10 @@
       ]
     },
     {
-      "id": "test/foundation/storage/storage.test.ts:168:58",
+      "id": "test/foundation/storage/storage.test.ts:209:58",
       "path": "test/foundation/storage/storage.test.ts",
       "locationKind": "content",
-      "line": 168,
+      "line": 209,
       "column": 58,
       "value": "addone",
       "context": "expect(() => new ControlStore(path)).toThrow(/schema addone-control-store-v1 is unsupported/);",
@@ -1295,5 +1325,6 @@
         "tests"
       ]
     }
-  ]
+  ],
+  "generatedAt": "2026-08-22T08:25:50.851Z"
 }

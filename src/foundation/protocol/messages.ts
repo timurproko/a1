@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { CommandResult, SupervisorCommand, SupervisorSnapshot } from "../lifecycle/index.js";
+import type { CommandResult, LaunchInstanceStopIntent, SupervisorCommand, SupervisorSnapshot } from "../lifecycle/index.js";
 import { PRODUCT_IDENTITY } from "../../product-identity.js";
 
 export const CONTROL_ENVELOPE = PRODUCT_IDENTITY.protocol.controlEnvelope;
@@ -9,7 +9,7 @@ export const REQUIRED_CONTROL_FEATURES = [
   "snapshot.revision.v1",
   "commands.request-identity.v1",
   "generation.lifecycle.v1",
-  "terminal.foreground-lease.v1",
+  "launch.instance-lifecycle.v1",
 ] as const;
 export const OPTIONAL_CONTROL_FEATURES = [
   "messages.unknown-additive-ignore.v1",
@@ -42,11 +42,12 @@ export type ClientMessage =
 
 export type ServerMessage =
   | { readonly type: "identity"; readonly supervisorId: string; readonly bootNonce: string; readonly pidStartIdentity: string; readonly releaseId: string }
-  | { readonly type: "release-ownership-result"; readonly released: boolean; readonly reason: string; readonly liveGenerationIds: readonly string[] }
-  | { readonly type: "release-update-result"; readonly accepted: boolean; readonly reason: string; readonly liveGenerationIds: readonly string[] }
+  | { readonly type: "release-ownership-result"; readonly released: boolean; readonly reason: string; readonly liveInstanceIds: readonly string[] }
+  | { readonly type: "release-update-result"; readonly accepted: boolean; readonly reason: string; readonly liveInstanceIds: readonly string[] }
   | ({ readonly type: "server-hello"; readonly supervisorId: string; readonly bootNonce: string; readonly pidStartIdentity: string; readonly negotiatedFeatures: readonly string[]; readonly snapshot: SupervisorSnapshot } & ControlHello)
   | { readonly type: "snapshot"; readonly snapshot: SupervisorSnapshot }
   | { readonly type: "command-result"; readonly result: CommandResult }
+  | LaunchInstanceStopIntent
   | { readonly type: "protocol-error"; readonly code: string; readonly message: string; readonly diagnostics?: unknown };
 
 export interface ControlNegotiation {

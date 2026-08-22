@@ -10,6 +10,16 @@
   "internalIdentifiers": [],
   "externalIdentityIdentifiers": [
     {
+      "path": "bin/a1-guardian.js",
+      "line": 7,
+      "identifier": "A1_RELEASE_ROOT"
+    },
+    {
+      "path": "bin/a1-guardian.js",
+      "line": 8,
+      "identifier": "A1_LAUNCH_PROFILE"
+    },
+    {
       "path": "bin/a1-ui.js",
       "line": 5,
       "identifier": "A1_LAUNCH_PROFILE"
@@ -71,13 +81,8 @@
     },
     {
       "path": "src/foundation/transparent-terminal/main.ts",
-      "line": 20,
+      "line": 18,
       "identifier": "A1_LAUNCH_PROFILE"
-    },
-    {
-      "path": "src/foundation/transparent-terminal/main.ts",
-      "line": 23,
-      "identifier": "A1_RELEASE_ID"
     },
     {
       "path": "test/cli/update-cli.test.ts",
@@ -215,6 +220,26 @@
       "identifier": "A1_RUNTIME_DIR"
     },
     {
+      "path": "test/foundation/launch-guardian/concurrency.integration.test.ts",
+      "line": 84,
+      "identifier": "A1_ENDPOINT"
+    },
+    {
+      "path": "test/foundation/launch-guardian/concurrency.integration.test.ts",
+      "line": 84,
+      "identifier": "A1_RELEASE_ID"
+    },
+    {
+      "path": "test/foundation/launch-guardian/launch-guardian.test.ts",
+      "line": 116,
+      "identifier": "A1_ENDPOINT"
+    },
+    {
+      "path": "test/foundation/launch-guardian/launch-guardian.test.ts",
+      "line": 116,
+      "identifier": "A1_RELEASE_ID"
+    },
+    {
       "path": "test/foundation/lifecycle/paths.test.ts",
       "line": 40,
       "identifier": "A1_CONFIG_DIR"
@@ -265,6 +290,46 @@
       "identifier": "A1_TERMINAL_SESSION_ID"
     },
     {
+      "path": "test/foundation/process-containment/unix-process-group.integration.test.ts",
+      "line": 11,
+      "identifier": "A1_RUN_PROCESS_CONTAINMENT_INTEGRATION"
+    },
+    {
+      "path": "test/foundation/process-containment/unix-process-group.integration.test.ts",
+      "line": 12,
+      "identifier": "A1_PROCESS_GUARDIAN_PATH"
+    },
+    {
+      "path": "test/foundation/process-containment/unix-process-group.integration.test.ts",
+      "line": 22,
+      "identifier": "A1_PROCESS_GUARDIAN_PATH"
+    },
+    {
+      "path": "test/foundation/process-containment/unix-process-group.integration.test.ts",
+      "line": 49,
+      "identifier": "A1_PROCESS_GUARDIAN_PATH"
+    },
+    {
+      "path": "test/foundation/process-containment/windows-job.integration.test.ts",
+      "line": 12,
+      "identifier": "A1_RUN_PROCESS_CONTAINMENT_INTEGRATION"
+    },
+    {
+      "path": "test/foundation/process-containment/windows-job.integration.test.ts",
+      "line": 13,
+      "identifier": "A1_PROCESS_GUARDIAN_PATH"
+    },
+    {
+      "path": "test/foundation/process-containment/windows-job.integration.test.ts",
+      "line": 17,
+      "identifier": "A1_PROCESS_GUARDIAN_PATH"
+    },
+    {
+      "path": "test/foundation/process-containment/windows-job.integration.test.ts",
+      "line": 38,
+      "identifier": "A1_PROCESS_GUARDIAN_PATH"
+    },
+    {
       "path": "test/foundation/release/update-transition.integration.test.ts",
       "line": 109,
       "identifier": "A1_DATA_DIR"
@@ -276,7 +341,7 @@
     },
     {
       "path": "test/foundation/storage/storage.test.ts",
-      "line": 225,
+      "line": 284,
       "identifier": "A1_PANE_ID"
     },
     {
