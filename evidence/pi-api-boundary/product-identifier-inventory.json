@@ -25,33 +25,23 @@
       "identifier": "A1_LAUNCH_PROFILE"
     },
     {
-      "path": "bin/a1-ui.js",
-      "line": 13,
-      "identifier": "A1_OWNED_SURFACES"
-    },
-    {
       "path": "scripts/pi-terminal-parity/scenario.mjs",
       "line": 245,
       "identifier": "A1_PROFILE_HOME"
     },
     {
       "path": "scripts/run-pi-terminal-parity.mjs",
-      "line": 96,
+      "line": 99,
       "identifier": "A1_LAUNCH_PROFILE"
     },
     {
       "path": "scripts/run-pi-terminal-parity.mjs",
-      "line": 97,
+      "line": 100,
       "identifier": "A1_LAUNCH_ARGUMENTS_JSON"
     },
     {
       "path": "scripts/run-pi-terminal-parity.mjs",
-      "line": 102,
-      "identifier": "A1_OWNED_SURFACES"
-    },
-    {
-      "path": "scripts/run-pi-terminal-parity.mjs",
-      "line": 114,
+      "line": 112,
       "identifier": "A1_PI_PARITY_INTENTIONAL_MUTATION"
     },
     {
