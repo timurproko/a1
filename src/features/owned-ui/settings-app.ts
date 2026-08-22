@@ -42,7 +42,7 @@ export const SETTINGS_ROUTE = "settings";
 const SCOPE = SETTINGS_APP_ID;
 const SCROLLBAR_TOP_INSET = 1;
 const RAIL_COLUMNS = 2;
-const HINT = "/ to search · ↑↓ to navigate · Shift+↑↓ to jump a section · Enter/Space to change · ←→ to adjust · Esc to cancel";
+const HINT = "/ to search · ↑↓ to navigate · Shift+↑↓ to jump · Enter/Space to change · ←→ to adjust · Esc to cancel";
 const SEARCH_PLACEHOLDER = "search settings";
 /** What a structured value offers instead of printing itself. */
 const CONFIGURE = "configure";
