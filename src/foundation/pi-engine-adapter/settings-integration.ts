@@ -2,6 +2,43 @@ import type { SettingsManager } from "@earendil-works/pi-coding-agent";
 import type { AgentJsonValue, AgentSettingDescriptor, AgentSettingFlag, AgentSettingsPort } from "../agent-engine-contracts/index.js";
 import piSettingsMetadata from "./pi-settings-metadata.json" with { type: "json" };
 
+/**
+ * Values only the running engine knows: the themes installed on this machine and
+ * the thinking levels this session supports. The boundary asks for them as it is
+ * read, so no layer above has to know they are not fixed.
+ */
+export interface PiSettingsProviders {
+  readonly themes?: () => readonly string[];
+  readonly thinkingLevels?: () => readonly string[];
+}
+
+/**
+ * The engine stores a theme as one string with two forms: a theme's name, or a
+ * `light/dark` pair meaning "follow the terminal". That grammar is the engine's,
+ * so it is parsed and composed here and reaches the surfaces above as ordinary
+ * settings — a theme entry that offers `automatic`, and, while automatic, one
+ * entry per terminal appearance.
+ */
+export const AUTOMATIC_THEME = "automatic";
+export const LIGHT_THEME_KEY = "themeLight";
+export const DARK_THEME_KEY = "themeDark";
+const THEME_KEY = "theme";
+const THINKING_KEY = "thinkingLevel";
+
+interface AutomaticTheme {
+  readonly light: string;
+  readonly dark: string;
+}
+
+/** A stored theme is automatic when it names one theme per terminal appearance. */
+export function parseAutomaticTheme(stored: string): AutomaticTheme | null {
+  const at = stored.indexOf("/");
+  if (at < 0 || stored.indexOf("/", at + 1) >= 0) return null;
+  const light = stored.slice(0, at).trim();
+  const dark = stored.slice(at + 1).trim();
+  return light.length > 0 && dark.length > 0 ? { light, dark } : null;
+}
+
 type Operation = { readonly descriptor: AgentSettingDescriptor; readonly read: () => AgentJsonValue; readonly write: (value: AgentJsonValue) => void };
 
 
@@ -45,6 +82,11 @@ export function settingsInventoryDrift(
 }
 
 /** What the engine offers for a setting, as the strings it words them with. */
+/** One appearance of an automatic theme, offered as an ordinary setting. */
+function appearance(key: string, label: string, description: string, themes: readonly string[]): AgentSettingDescriptor {
+  return { key, valueType: "enum", writable: true, choices: themes, label, description, resolvedWhenRead: true };
+}
+
 function offered(key: string): readonly string[] {
   return PRESENTATION.settings[key]?.values ?? [];
 }
@@ -61,7 +103,9 @@ function offeredNumbers(key: string): readonly number[] {
 export class PiSettingsIntegration implements AgentSettingsPort {
   readonly capabilities = { write: true, flush: true };
   readonly #operations: ReadonlyMap<string, Operation>;
-  constructor(private readonly settings: SettingsManager) {
+  readonly #providers: PiSettingsProviders;
+  constructor(private readonly settings: SettingsManager, providers: PiSettingsProviders = {}) {
+    this.#providers = providers;
     this.#operations = new Map(operations(settings).map(operation => [operation.descriptor.key, operation]));
     if (this.#operations.size !== EXPOSED_SETTING_KEYS.length || EXPOSED_SETTING_KEYS.some(key => !this.#operations.has(key))) {
       throw new Error("Pi settings integration does not cover every A1-exposed setting");
@@ -72,7 +116,7 @@ export class PiSettingsIntegration implements AgentSettingsPort {
       const at = PRESENTATION.order.indexOf(key);
       return at < 0 ? PRESENTATION.order.length : at;
     };
-    return [...this.#operations.values()]
+    const listed = [...this.#operations.values()]
       .map(operation => {
         const key = operation.descriptor.key;
         const wording = PRESENTATION.settings[key];
@@ -85,14 +129,78 @@ export class PiSettingsIntegration implements AgentSettingsPort {
           ...(flags === undefined ? {} : { flags }),
         };
       })
+      .map(descriptor => this.#resolved(descriptor))
       .sort((left, right) => rank(left.key) - rank(right.key));
+    const pair = parseAutomaticTheme(this.#storedTheme());
+    if (pair === null) return listed;
+    const themes = this.#themes();
+    return [
+      ...listed,
+      appearance(LIGHT_THEME_KEY, "Light theme", "Theme to use in automatic mode when the terminal is light", themes),
+      appearance(DARK_THEME_KEY, "Dark theme", "Theme to use in automatic mode when the terminal is dark", themes),
+    ];
   }
-  async readSetting(key: string): Promise<AgentJsonValue | undefined> { return this.#operations.get(key)?.read(); }
+
+  /** Overlays the values a setting can only offer once something is running. */
+  #resolved(descriptor: AgentSettingDescriptor): AgentSettingDescriptor {
+    if (descriptor.key === THEME_KEY) {
+      const themes = this.#themes();
+      if (themes.length === 0) return descriptor;
+      return { ...descriptor, valueType: "enum", writable: true, resolvedWhenRead: true, choices: [AUTOMATIC_THEME, ...themes] };
+    }
+    if (descriptor.key === THINKING_KEY) {
+      const levels = this.#providers.thinkingLevels?.() ?? [];
+      if (levels.length === 0) return descriptor;
+      return { ...descriptor, resolvedWhenRead: true, choices: [...levels] };
+    }
+    return descriptor;
+  }
+
+  #themes(): readonly string[] {
+    return this.#providers.themes?.() ?? [];
+  }
+
+  #storedTheme(): string {
+    const stored = this.#operations.get(THEME_KEY)?.read();
+    return typeof stored === "string" ? stored : "";
+  }
+  async readSetting(key: string): Promise<AgentJsonValue | undefined> {
+    if (key === THEME_KEY || key === LIGHT_THEME_KEY || key === DARK_THEME_KEY) {
+      const pair = parseAutomaticTheme(this.#storedTheme());
+      if (key === THEME_KEY) return pair === null ? this.#operations.get(key)?.read() : AUTOMATIC_THEME;
+      if (pair === null) return undefined;
+      return key === LIGHT_THEME_KEY ? pair.light : pair.dark;
+    }
+    return this.#operations.get(key)?.read();
+  }
   async writeSetting(key: string, value: AgentJsonValue): Promise<void> { this.writeSettingNow(key, value); }
   writeSettingNow(key: string, value: AgentJsonValue): void {
+    if (typeof value === "string" && (key === THEME_KEY || key === LIGHT_THEME_KEY || key === DARK_THEME_KEY)) {
+      this.#writeTheme(key, value);
+      return;
+    }
     const operation = this.#operations.get(key);
     if (!operation) throw new Error(`setting is unavailable: ${key}`);
     operation.write(value);
+  }
+
+  /**
+   * Composes the stored theme from the part that changed. Turning automatic on
+   * starts from the theme already in use for both appearances, which is where
+   * the engine's own editor starts too.
+   */
+  #writeTheme(key: string, value: string): void {
+    const theme = this.#operations.get(THEME_KEY);
+    if (!theme) throw new Error(`setting is unavailable: ${key}`);
+    const current = this.#storedTheme();
+    const pair = parseAutomaticTheme(current);
+    if (key === THEME_KEY) {
+      if (value !== AUTOMATIC_THEME) theme.write(value);
+      else if (pair === null) theme.write(`${current}/${current}`);
+      return;
+    }
+    if (pair === null) return;
+    theme.write(key === LIGHT_THEME_KEY ? `${value}/${pair.dark}` : `${pair.light}/${value}`);
   }
   async flush(): Promise<void> { await this.settings.flush(); }
 }
@@ -112,7 +220,9 @@ function operations(settings: SettingsManager): readonly Operation[] {
     // The engine reads these from the running session rather than declaring them,
     // so they arrive through the runtime provider rather than from its source.
     choice("thinkingLevel", ["off", "minimal", "low", "medium", "high", "xhigh"], () => settings.getDefaultThinkingLevel() ?? "medium", value => settings.setDefaultThinkingLevel(value as NonNullable<ReturnType<SettingsManager["getDefaultThinkingLevel"]>>)),
-    stringSetting("theme", () => settings.getTheme() ?? "default", value => settings.setTheme(value)),
+    // The raw setting, not the resolved theme: the engine hides the automatic
+    // pair behind getTheme, and the pair is the thing A1 presents parts of.
+    stringSetting("theme", () => settings.getThemeSetting() ?? "default", value => settings.setTheme(value)),
     bool("hideThinkingBlock", () => settings.getHideThinkingBlock(), value => settings.setHideThinkingBlock(value)),
     choice("mermaidRenderingMode", offered("mermaidRenderingMode"), () => settings.getMermaidRenderingMode(), value => settings.setMermaidRenderingMode(value as ReturnType<SettingsManager["getMermaidRenderingMode"]>)),
     bool("showCacheMissNotices", () => settings.getShowCacheMissNotices(), value => settings.setShowCacheMissNotices(value)),
