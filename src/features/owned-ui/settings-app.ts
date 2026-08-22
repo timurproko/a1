@@ -734,7 +734,9 @@ export class SettingsApp implements UiApp {
     // Typed text is left unpainted and the caret reverses its cell, which is how
     // the reference draws an input row.
     const typed = `${before}${caretCell(under)}${after}`;
-    const placeholder = `${caretCell(SEARCH_PLACEHOLDER.slice(0, 1))}${theme.fg("dim", SEARCH_PLACEHOLDER.slice(1))}`;
+    // The reference quietens the placeholder with the terminal own faint
+    // attribute over the ordinary foreground, not with a colour of its own.
+    const placeholder = `${caretCell(SEARCH_PLACEHOLDER.slice(0, 1))}${faint(SEARCH_PLACEHOLDER.slice(1))}`;
     const painted = `${PROMPT_GLYPH}${empty ? placeholder : typed}`;
     const raw = `❯ ${empty ? SEARCH_PLACEHOLDER : `${view.text}${view.caretColumn >= view.text.length ? " " : ""}`}`;
     return [rule, padVisible(truncateToWidth(painted, width), width, raw), rule, hintLine];
