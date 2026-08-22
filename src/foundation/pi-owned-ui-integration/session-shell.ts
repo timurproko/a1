@@ -5,6 +5,7 @@ import type {
   OwnedUiThinkingLevel,
 } from "../owned-ui-contracts/index.js";
 import type { UiRouteHost } from "./route-host.js";
+import { MOUSE_TRACKING_OFF, MOUSE_TRACKING_ON, parseMouseInput } from "../ui-components/index.js";
 import {
   PINNED_PI_HIDDEN_COMMAND_NAMES,
   PINNED_PI_WORKFLOW_COMMAND_NAMES,
@@ -1404,15 +1405,44 @@ export class OwnedUiSessionShell {
     if (!this.runtime.active) return { outcome: "failed", diagnostic: "runtime is not active" };
 
     this.#dialogHandle?.hide();
-    const rows = () => Math.max(1, this.runtime.viewport().rows - 1);
+    // Any-event reporting: hover and drag are what the screen is driven by, and
+    // it also stops the terminal treating a drag as a text selection.
+    this.runtime.writeControl(MOUSE_TRACKING_ON);
+    // The interrupt chord is global, so it is watched on raw input rather than
+    // through the overlay: the pinned shell handles that key before an overlay
+    // ever sees it, which is why an owned screen must not rely on being asked.
+    let armedAt = 0;
+    const removeInterruptWatch = this.runtime.addInputListener(data => {
+      if (!data.includes(INTERRUPT)) return undefined;
+      const now = Date.now();
+      if (armedAt !== 0 && now - armedAt <= INTERRUPT_CHORD_MS) {
+        armedAt = 0;
+        closeSurface();
+        void this.shutdown();
+        return { consume: true };
+      }
+      armedAt = now;
+      this.runtime.requestRender();
+      // The presented screen owns the chord, so the pinned shell never sees a
+      // stray interrupt while it is up.
+      return { consume: true };
+    });
+    const closeSurface = () => {
+      removeInterruptWatch();
+      this.runtime.writeControl(MOUSE_TRACKING_OFF);
+      this.#dialogHandle?.hide();
+      this.#dialogHandle = undefined;
+      this.#dialogId = undefined;
+    };
+    const rows = () => Math.max(1, this.runtime.viewport().rows);
     const component: PiShellComponentPort = {
       render: (width: number) => [...surface.render(Math.max(1, width), rows())],
       handleInput: (data: string) => {
-        surface.handleInput(data);
+        const { events, rest } = parseMouseInput(data);
+        for (const event of events) surface.handleMouse(event);
+        if (rest.length > 0) surface.handleInput(rest);
         if (surface.isClosed()) {
-          this.#dialogHandle?.hide();
-          this.#dialogHandle = undefined;
-          this.#dialogId = undefined;
+          closeSurface();
           return;
         }
         this.runtime.requestRender();
@@ -1420,7 +1450,11 @@ export class OwnedUiSessionShell {
       invalidate: () => this.runtime.requestRender(),
     };
     surface.onRenderRequested(() => this.runtime.requestRender());
-    this.#dialogHandle = this.runtime.showOverlay(component, { width: "100%", maxHeight: "100%", anchor: "center" });
+    surface.onExitRequested(() => {
+      closeSurface();
+      void this.shutdown();
+    });
+    this.#dialogHandle = this.runtime.showOverlay(component, { width: "100%", maxHeight: "100%", anchor: "top-left" });
     this.#dialogId = surface.id;
     return { outcome: "completed", diagnostic: null };
   }
@@ -1608,6 +1642,9 @@ function workflowAdapterResult(result: PiWorkflowResult): AdapterCommandResult {
   if (result.outcome === "failed") return { outcome: "failed", diagnostic: result.message };
   return { outcome: "rejected", diagnostic: result.message };
 }
+
+const INTERRUPT = "";
+const INTERRUPT_CHORD_MS = 1_500;
 
 function isWorkflowRoute(value: string): value is PiWorkflowRoute {
   return (PINNED_PI_WORKFLOW_COMMAND_NAMES as readonly string[]).includes(value)

@@ -5,6 +5,8 @@ export type OwnedUiSettingsBackend = "a1" | "agent";
 
 export interface OwnedUiSettingsEntry {
   readonly id: string;
+  /** Label to show, when its source provides one. Falls back to the id. */
+  readonly label: string | null;
   readonly backend: OwnedUiSettingsBackend;
   readonly description: string | null;
   /** Present when the value is a scalar the surface can offer as a choice. */
@@ -13,6 +15,13 @@ export interface OwnedUiSettingsEntry {
   readonly rawValue: unknown;
   readonly editable: boolean;
   readonly choices: readonly OwnedUiSettingValue[] | null;
+  /** True when the value is a structured object edited through its own surface. */
+  readonly structured: boolean;
+  /** Limits a numeric setting accepts, when the engine states them. */
+  readonly minimum: number | null;
+  readonly maximum: number | null;
+  /** Flags that surface offers, declared by the source rather than by the value. */
+  readonly flags: readonly { readonly key: string; readonly label: string; readonly description: string; readonly fallback: boolean }[];
   readonly origin: "default" | "stored" | "engine";
   readonly application: "live" | "restart" | "engine";
 }
@@ -33,6 +42,11 @@ export interface AgentSettingsSnapshot {
     readonly valueType: "boolean" | "number" | "string" | "enum" | "json";
     readonly writable: boolean;
     readonly choices?: readonly unknown[];
+    readonly label?: string;
+    readonly description?: string;
+    readonly minimum?: number;
+    readonly maximum?: number;
+    readonly flags?: readonly { readonly key: string; readonly label: string; readonly description: string; readonly fallback: boolean }[];
   }[];
   readonly values: Readonly<Record<string, unknown>>;
   /** Whether the engine advertises settings write capability at all. */
@@ -48,6 +62,7 @@ export interface BuildOwnedUiSettingsSectionsInput {
 }
 
 export const AGENT_SECTION_ID = "agent";
+const BOOLEAN_CHOICES: readonly OwnedUiSettingValue[] = Object.freeze([true, false]);
 
 export function buildOwnedUiSettingsSections(
   input: BuildOwnedUiSettingsSectionsInput,
@@ -57,11 +72,16 @@ export function buildOwnedUiSettingsSections(
     title: "A1",
     entries: Object.freeze(input.resolution.settings.map(setting => ({
       id: setting.declaration.id,
+      label: null,
       backend: "a1" as const,
       description: setting.declaration.description,
       value: setting.value,
       rawValue: setting.value,
       editable: true,
+      structured: false,
+      minimum: null,
+      maximum: null,
+      flags: [],
       choices: setting.declaration.allowedValues,
       origin: setting.source,
       application: setting.declaration.application,
@@ -100,12 +120,21 @@ function agentSection(snapshot: AgentSettingsSnapshot | null): OwnedUiSettingsSe
     const raw = Object.hasOwn(snapshot.values, descriptor.key) ? snapshot.values[descriptor.key] : null;
     return {
       id: descriptor.key,
+      label: descriptor.label ?? null,
       backend: "agent" as const,
-      description: null,
+      description: descriptor.description ?? null,
       value: scalar(raw),
       rawValue: raw,
-      editable: snapshot.writeAdvertised && descriptor.writable && descriptor.valueType !== "json",
-      choices: choicesOf(descriptor.choices),
+      // A structured value is editable through its own surface rather than a
+      // value menu, so it stays reachable instead of being reported as fixed.
+      editable: snapshot.writeAdvertised && descriptor.writable,
+      structured: descriptor.valueType === "json",
+      minimum: descriptor.minimum ?? null,
+      maximum: descriptor.maximum ?? null,
+      flags: descriptor.flags ?? [],
+      // A boolean is a two-value choice even when the engine names no choices,
+      // so it opens the same menu as any other enumerated setting.
+      choices: descriptor.valueType === "boolean" ? BOOLEAN_CHOICES : choicesOf(descriptor.choices),
       origin: "engine" as const,
       application: "engine" as const,
     };

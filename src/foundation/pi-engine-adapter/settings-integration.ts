@@ -1,5 +1,6 @@
 import type { SettingsManager } from "@earendil-works/pi-coding-agent";
-import type { AgentJsonValue, AgentSettingDescriptor, AgentSettingsPort } from "../agent-engine-contracts/index.js";
+import type { AgentJsonValue, AgentSettingDescriptor, AgentSettingFlag, AgentSettingsPort } from "../agent-engine-contracts/index.js";
+import piSettingsMetadata from "./pi-settings-metadata.json" with { type: "json" };
 
 type Operation = { readonly descriptor: AgentSettingDescriptor; readonly read: () => AgentJsonValue; readonly write: (value: AgentJsonValue) => void };
 
@@ -11,6 +12,20 @@ export const EXPOSED_SETTING_KEYS = Object.freeze([
   "autocompleteMaxVisible", "clearOnShrink", "showTerminalProgress", "tuiMode", "fullscreenExitOutput", "fullscreenScrollbar", "warnings",
 ] as const);
 
+
+/**
+ * How the engine presents these settings — wording, order, and the flags a
+ * dialog-backed setting offers — generated from its own source by
+ * `npm run update:pi-settings-metadata` and verified by a governance test, so a
+ * Pi upgrade cannot silently reword or reorder what A1 shows.
+ */
+const PRESENTATION: {
+  readonly order: readonly string[];
+  readonly settings: Readonly<Record<string, { readonly label: string; readonly description: string; readonly opensDialog: boolean }>>;
+  readonly dialogs: Readonly<Record<string, readonly AgentSettingFlag[]>>;
+  readonly bounds: Readonly<Record<string, { readonly minimum: number; readonly maximum?: number }>>;
+} = piSettingsMetadata;
+
 export class PiSettingsIntegration implements AgentSettingsPort {
   readonly capabilities = { write: true, flush: true };
   readonly #operations: ReadonlyMap<string, Operation>;
@@ -20,7 +35,26 @@ export class PiSettingsIntegration implements AgentSettingsPort {
       throw new Error("Pi settings integration does not cover every A1-exposed setting");
     }
   }
-  async listSettings(): Promise<readonly AgentSettingDescriptor[]> { return [...this.#operations.values()].map(operation => operation.descriptor); }
+  async listSettings(): Promise<readonly AgentSettingDescriptor[]> {
+    const rank = (key: string): number => {
+      const at = PRESENTATION.order.indexOf(key);
+      return at < 0 ? PRESENTATION.order.length : at;
+    };
+    return [...this.#operations.values()]
+      .map(operation => {
+        const key = operation.descriptor.key;
+        const wording = PRESENTATION.settings[key];
+        const flags = PRESENTATION.dialogs[key];
+        const bounds = PRESENTATION.bounds[key];
+        return {
+          ...operation.descriptor,
+          ...(bounds === undefined ? {} : bounds),
+          ...(wording === undefined ? {} : { label: wording.label, description: wording.description }),
+          ...(flags === undefined ? {} : { flags }),
+        };
+      })
+      .sort((left, right) => rank(left.key) - rank(right.key));
+  }
   async readSetting(key: string): Promise<AgentJsonValue | undefined> { return this.#operations.get(key)?.read(); }
   async writeSetting(key: string, value: AgentJsonValue): Promise<void> { this.writeSettingNow(key, value); }
   writeSettingNow(key: string, value: AgentJsonValue): void {
@@ -71,7 +105,17 @@ function bool(key: string, read: () => boolean, write: (value: boolean) => void)
   return { descriptor: { key, valueType: "boolean", writable: true }, read, write(value) { if (typeof value !== "boolean") invalid(key); write(value); } };
 }
 function numberSetting(key: string, read: () => number, write: (value: number) => void, minimum: number): Operation {
-  return { descriptor: { key, valueType: "number", writable: true }, read, write(value) { if (typeof value !== "number" || !Number.isSafeInteger(value) || value < minimum) invalid(key); write(value); } };
+  const declared = PRESENTATION.bounds[key];
+  const low = declared?.minimum ?? minimum;
+  const high = declared?.maximum;
+  return {
+    descriptor: { key, valueType: "number", writable: true },
+    read,
+    write(value) {
+      if (typeof value !== "number" || !Number.isSafeInteger(value) || value < low || (high !== undefined && value > high)) invalid(key);
+      write(value);
+    },
+  };
 }
 function stringSetting(key: string, read: () => string, write: (value: string) => void): Operation {
   return { descriptor: { key, valueType: "string", writable: true }, read, write(value) { if (typeof value !== "string" || value.length === 0) invalid(key); write(value); } };
