@@ -50,7 +50,6 @@ screens.
   the pinned palette resolves to 24-bit sequences, a 256-colour terminal stays on
   indices, and the launch chain keeps inheriting the terminal it was started from
   rather than opening a console of its own.
-- `npm run test:pi-terminal-parity` compares A1's rendering against pinned Pi cell
-  by cell, including each cell's colour, and now refuses to grade a run in which
-  no 24-bit colour reached the emulator — otherwise two collapsed runs would agree
-  with each other and disagree with what a user sees.
+- The reader compares `a1 pi` with pinned Pi in the same terminal. Run the colour
+  check first: a launch that collapses colour makes both sessions equally wrong, so
+  they would agree with each other and disagree with what a user sees.

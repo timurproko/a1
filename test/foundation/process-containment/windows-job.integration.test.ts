@@ -15,7 +15,7 @@ const windowsIt = process.platform === "win32"
 describe("Windows Job Object process guardian", () => {
   windowsIt("reports a stable OS process start token and then reports death", async () => {
     const helper = process.env.A1_PROCESS_GUARDIAN_PATH
-      ?? resolve("native/process-guardian/target/debug/a1-process-guardian.exe");
+      ?? resolve("native/process-guardian/target/debug/process-guardian.exe");
     const child = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { stdio: "ignore", windowsHide: true });
     if (!child.pid) throw new Error("identity fixture has no PID");
     try {
@@ -36,7 +36,7 @@ describe("Windows Job Object process guardian", () => {
     const statePath = resolve(root, "tree.json");
     const statusPath = resolve(root, "guardian-status.json");
     const helper = process.env.A1_PROCESS_GUARDIAN_PATH
-      ?? resolve("native/process-guardian/target/debug/a1-process-guardian.exe");
+      ?? resolve("native/process-guardian/target/debug/process-guardian.exe");
     const fixture = resolve("test/fixtures/process-containment/tree.mjs");
     const unrelated = spawn(process.execPath, [fixture, "wait"], { detached: true, stdio: "ignore", windowsHide: true });
     unrelated.unref();

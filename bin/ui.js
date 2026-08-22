@@ -11,10 +11,6 @@ runSelectedInteractiveRuntime(process.env.A1_LAUNCH_PROFILE ?? "a1", {
     const { application, settings } = await composeOwnedUi({ cwd: process.cwd(), profileId, ownedSurfaces });
     return await runOwnedUi({ application, ...(settings === null ? {} : { settings }) });
   },
-  transparent: async profileId => {
-    const { runSelectedTransparentRuntime } = await import("../dist/src/composition/transparent-runtime.js");
-    return await runSelectedTransparentRuntime(profileId);
-  },
 }).then(
   code => { process.exitCode = code; },
   error => {

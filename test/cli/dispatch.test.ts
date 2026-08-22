@@ -16,8 +16,8 @@ describe("A1 CLI dispatch", () => {
 
   it.each([
     { arguments_: [] as const, profileId: "a1", terminalCapability: "owned-ui" },
-    { arguments_: ["pi"] as const, profileId: "pi", terminalCapability: "transparent" },
-    { arguments_: ["sandbox"] as const, profileId: "sandbox", terminalCapability: "transparent" },
+    { arguments_: ["pi"] as const, profileId: "pi", terminalCapability: "owned-ui" },
+    { arguments_: ["sandbox"] as const, profileId: "sandbox", terminalCapability: "owned-ui" },
   ] as const)("dispatches interactive form $arguments_ as a typed intent", async ({ arguments_, profileId, terminalCapability }) => {
     const launch = vi.fn(async (_intent: InteractiveLaunchIntent) => 17);
     const result = await dispatchCli(arguments_, {

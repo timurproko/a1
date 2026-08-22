@@ -28,7 +28,7 @@ describe("terminal-host provenance policy", () => {
     expect(task53.schema).toBe("a1-terminal-host-task-5-3-v1");
     expect(task53.identityObservation?.schema).toBe("a1-terminal-host-hot-path-v1");
     expect(task53.artifact).toEqual(artifact);
-    expect(artifact.path).toMatch(/a1-terminal-host\.exe$/);
+    expect(artifact.path).toMatch(/terminal-host\.exe$/);
     expect(artifact.sha256).toMatch(/^[a-f0-9]{64}$/);
     expect(artifact.sizeBytes).toBeGreaterThan(0);
   });

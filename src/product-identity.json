@@ -86,13 +86,13 @@
     "piEventFrameParitySchema": "a1-pi-event-frame-parity-v1"
   },
   "artifacts": {
-    "cliEntry": "bin/a1.js",
-    "supervisorEntry": "bin/a1-supervisor.js",
-    "guardianEntry": "bin/a1-guardian.js",
-    "uiEntry": "bin/a1-ui.js",
-    "nativeExecutable": "a1-terminal-host",
-    "nativeCrate": "a1-terminal-host",
-    "processGuardianExecutable": "a1-process-guardian",
+    "cliEntry": "bin/cli.js",
+    "supervisorEntry": "bin/supervisor.js",
+    "guardianEntry": "bin/guardian.js",
+    "uiEntry": "bin/ui.js",
+    "nativeExecutable": "terminal-host",
+    "nativeCrate": "terminal-host",
+    "processGuardianExecutable": "process-guardian",
     "releaseTarballStem": "timurproko-a1",
     "diagnosticStem": "a1"
   }
