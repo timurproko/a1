@@ -2875,7 +2875,7 @@
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Source-synchronized theme port: retain pinned theme schema, variable/color resolution, custom loading, terminal detection, and layout defaults while constructing the public package-root Theme class; built-in color data is an attributed owned resource and no dependency package path is constructed.",
-      "localSha256": "9525f4b9d867af6c3c927bdc1936bfb8c8ecab3fc0276ef6591ad562b61adb87",
+      "localSha256": "fe3e79eddfec98cc6900b308cc66331549634737d95e1ee0af978464c1540b25",
       "approvedDeviations": [
         {
           "id": "theme-public-api-boundary",
