@@ -16,9 +16,9 @@ context: |
   - State what to try and what is expected, then state plainly what is not implemented yet, so a known gap is not reported as a bug.
   - When nothing is testable by hand, say so explicitly and say which task makes it testable, rather than leaving the user to discover there is nothing to see.
   - Repeat the commands after any push that changes what the user would run, including a rebuild step when the built output is now stale.
-  - When there is something new to try, end the reply with the run commands as the very last thing, with nothing after them — no summary, no question, no sign-off. The block is exactly a `Test Commands:` line, then the `cd` to the active worktree, then the build-and-run command:
+  - When there is something new to try, end the reply with the run commands as the very last thing, with nothing after them — no summary, no question, no sign-off. The block is exactly a `🔬 Manual test:` line, then the `cd` to the active worktree, then the build-and-run command:
 
-        Test Commands:
+        🔬 Manual test:
         cd <active worktree path>
         npm run build && npm start
 
