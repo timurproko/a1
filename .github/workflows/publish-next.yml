@@ -27,9 +27,7 @@ jobs:
     if: github.ref == 'refs/heads/develop'
     runs-on: windows-2025
     timeout-minutes: 15
-    environment:
-      name: npm-publish
-      url: https://www.npmjs.com/package/@timurproko/a1/v/${{ env.version }}
+    environment: npm-publish
     steps:
       - name: Set up trusted Node
         uses: actions/setup-node@v5
