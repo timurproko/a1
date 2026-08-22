@@ -25,6 +25,16 @@
       "identifier": "A1_LAUNCH_PROFILE"
     },
     {
+      "path": "scripts/build-process-guardian.mjs",
+      "line": 13,
+      "identifier": "A1_BUILD_VERBOSE"
+    },
+    {
+      "path": "scripts/dev-launch.mjs",
+      "line": 49,
+      "identifier": "A1_DEV_SHELL"
+    },
+    {
       "path": "scripts/pi-terminal-parity/scenario.mjs",
       "line": 245,
       "identifier": "A1_PROFILE_HOME"
@@ -41,7 +51,7 @@
     },
     {
       "path": "scripts/run-pi-terminal-parity.mjs",
-      "line": 111,
+      "line": 113,
       "identifier": "A1_PI_PARITY_INTENTIONAL_MUTATION"
     },
     {
