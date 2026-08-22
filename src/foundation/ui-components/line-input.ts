@@ -1,4 +1,4 @@
-import { displayWidth, truncateToWidth } from "./text.js";
+import { displayWidth, faint, truncateToWidth } from "./text.js";
 
 export type LineInputOutcome =
   | { readonly kind: "editing" }
@@ -163,53 +163,53 @@ export class LineInput {
 /** Applies one key to the input and reports whether the caller should commit. */
 export function handleLineInputKey(input: LineInput, data: string): LineInputOutcome {
   if (data === "\r" || data === "\n") return { kind: "accepted", value: input.value };
-  if (data === "" || data === "") return { kind: "cancelled" };
+  if (data === "\u001b" || data === "\u0003") return { kind: "cancelled" };
   // A word delete is decided before a plain one: on Windows Terminal the raw
   // backspace byte IS ctrl+backspace, and the plain branch would swallow it.
-  if (data === "" || data === "" || data === "") {
+  if (data === "\b" || data === "\u001b\u007f" || data === "\u0017") {
     input.deleteWordBefore();
     return { kind: "editing" };
   }
-  if (data === "[3;5~" || data === "[3;3~" || data === "d") {
+  if (data === "\u001b[3;5~" || data === "\u001b[3;3~" || data === "\u001bd") {
     input.deleteWordAfter();
     return { kind: "editing" };
   }
-  if (data === "") {
+  if (data === "\u007f") {
     input.backspace();
     return { kind: "editing" };
   }
-  if (data === "[3~") {
+  if (data === "\u001b[3~") {
     input.deleteForward();
     return { kind: "editing" };
   }
-  if (data === "[1;5D" || data === "[1;3D" || data === "b") {
+  if (data === "\u001b[1;5D" || data === "\u001b[1;3D" || data === "\u001bb") {
     input.moveCaretByWord(-1);
     return { kind: "editing" };
   }
-  if (data === "[1;5C" || data === "[1;3C" || data === "f") {
+  if (data === "\u001b[1;5C" || data === "\u001b[1;3C" || data === "\u001bf") {
     input.moveCaretByWord(1);
     return { kind: "editing" };
   }
-  if (data === "[D") {
+  if (data === "\u001b[D") {
     input.moveCaret(-1);
     return { kind: "editing" };
   }
-  if (data === "[C") {
+  if (data === "\u001b[C") {
     input.moveCaret(1);
     return { kind: "editing" };
   }
-  if (data === "[H" || data === "") {
+  if (data === "\u001b[H" || data === "\u0001") {
     input.moveCaretToStart();
     return { kind: "editing" };
   }
-  if (data === "[F" || data === "") {
+  if (data === "\u001b[F" || data === "\u0005") {
     input.moveCaretToEnd();
     return { kind: "editing" };
   }
   // Any other escape sequence is a key this input has no answer for - a page
   // key, a function key, a chord. It is swallowed rather than typed, because the
   // one thing it certainly is not is text the reader meant to enter.
-  if (data.startsWith("")) return { kind: "editing" };
+  if (data.startsWith("\u001b")) return { kind: "editing" };
   input.insert(data);
   return { kind: "editing" };
 }
@@ -221,15 +221,59 @@ export function handleLineInputKey(input: LineInput, data: string): LineInputOut
  */
 /** A rule drawn in the prompt's own grey, as the reference rules an input row. */
 export function promptRule(width: number): string {
-  return `[38;2;154;160;166m${"─".repeat(Math.max(0, width))}[39m`;
+  return `\u001b[38;2;154;160;166m${"─".repeat(Math.max(0, width))}\u001b[39m`;
 }
 
-export const PROMPT_GLYPH = `[38;2;154;160;166m❯[39m `;
+export const PROMPT_GLYPH = `\u001b[38;2;154;160;166m❯\u001b[39m `;
 
 /**
  * The caret the reference draws: the cell under it is reversed rather than given
  * a colour of its own, so it reads as a block in whatever theme is in use.
  */
 export function caretCell(text: string): string {
-  return `[7m${text}[27m`;
+  return `\u001b[7m${text}\u001b[27m`;
+}
+
+export interface InputRowOptions {
+  /** Shown quietly while nothing has been typed, with the caret on its first cell. */
+  readonly placeholder?: string;
+  /** Rules above and below, in the prompt's own grey. Default true. */
+  readonly ruled?: boolean;
+}
+
+export interface InputRow {
+  /** The rows to draw, already padded to the width. */
+  readonly lines: readonly string[];
+}
+
+/** The input row as the reference draws one, padded to exactly the width. */
+export function renderInputRow(input: LineInput, width: number, options: InputRowOptions = {}): InputRow {
+  const inner = Math.max(0, width - 2);
+  const view = input.view(inner);
+  const placeholder = options.placeholder ?? "";
+  const empty = view.text.length === 0 && placeholder.length > 0;
+
+  const before = view.text.slice(0, view.caretColumn);
+  const under = view.text.slice(view.caretColumn, view.caretColumn + 1) || " ";
+  const after = view.text.slice(view.caretColumn + 1);
+
+  // Typed text is left unpainted, the caret reverses its cell, and the
+  // placeholder is quietened by weight rather than by a colour of its own.
+  const body = empty
+    ? `${caretCell(placeholder.slice(0, 1))}${faint(placeholder.slice(1))}`
+    : `${before}${caretCell(under)}${after}`;
+  const plain = empty
+    ? placeholder
+    : `${view.text}${view.caretColumn >= view.text.length ? " " : ""}`;
+
+  const row = padVisible(truncateToWidth(`${PROMPT_GLYPH}${body}`, width), width, `❯ ${plain}`);
+  if (options.ruled === false) return { lines: [row] };
+  const rule = promptRule(width);
+  return { lines: [rule, row, rule] };
+}
+
+/** Pads by visible width, so styling escapes do not shift the layout. */
+function padVisible(line: string, width: number, raw: string): string {
+  const visible = displayWidth(raw);
+  return visible >= width ? line : line + " ".repeat(width - visible);
 }

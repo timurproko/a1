@@ -31,7 +31,9 @@ export interface AppHostOptions {
   readonly theme?: UiTheme;
 }
 
-const INTERRUPT = "";
+// The interrupt byte, written as an escape: as a raw byte it is invisible to
+// every text tool, and this constant had already been emptied by one.
+const INTERRUPT = "";
 /** How long the first interrupt of the chord stays armed. */
 const INTERRUPT_CHORD_MS = 1_500;
 
