@@ -26,7 +26,7 @@ import type { OwnedUiCommand, OwnedUiEvent, OwnedUiTranscriptBlock } from "../fo
 import { OwnedUiSessionShell } from "../foundation/pi-owned-ui-integration/index.js";
 import { OwnedUiSettingsSession, OwnedUiSettingsStore } from "../foundation/owned-ui-settings/index.js";
 import { UiAppHost, UiAppRegistry } from "../foundation/ui-apps/index.js";
-import { getAvailablePiThemes, piTheme } from "../foundation/pi-component-adapter/index.js";
+import { applyConfiguredPiTheme, getAvailablePiThemes, piTheme } from "../foundation/pi-component-adapter/index.js";
 import { faint, type UiTheme, type UiThemeToken } from "../foundation/ui-components/index.js";
 import { SETTINGS_APP_ID, SETTINGS_ROUTE, SettingsApp } from "../features/owned-ui/index.js";
 import type { UiRouteHost, UiRouteSurface } from "../foundation/pi-owned-ui-integration/index.js";
@@ -86,6 +86,10 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
       store: new OwnedUiSettingsStore({ configDir: resolveProductPaths().configDir, profileId: options.profileId }),
       agentProvider: () => adapter.settingsPort(),
     });
+  // Before anything is drawn, so every surface uses the configured theme rather
+  // than the one guessed from the terminal's background.
+  applyConfiguredPiTheme(adapter.configuredTheme());
+
   const routeHost = settings === null || options.ownedSurfaces === "off" ? null : createOwnedRouteHost(settings);
   const shell = new OwnedUiSessionShell({
     backend: adapter,

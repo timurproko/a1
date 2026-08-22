@@ -88,7 +88,10 @@ export class TerminalParitySession {
     const startedAt = Date.now();
     while (Date.now() - startedAt < timeoutMs) {
       await this.#writeQueue;
-      const rows = visibleText(this.#terminal);
+      // Everything written so far, not only what is still on screen: startup
+      // output can scroll the very text being waited for out of the viewport,
+      // which is what a taller startup on one platform does.
+      const rows = writtenText(this.#terminal);
       if (typeof pattern === "string" ? rows.includes(pattern) : pattern.test(rows)) return;
       if (this.#exit) throw new Error(`${this.#producer} exited before expected terminal text appeared`);
       await delay(50);
@@ -312,6 +315,12 @@ function coalesceGeometry(rows) {
     else result.push({ ...row });
   }
   return result;
+}
+
+function writtenText(terminal) {
+  const buffer = terminal.buffer.active;
+  return Array.from({ length: buffer.length }, (_, index) => buffer.getLine(index)?.translateToString(true) ?? "").join("
+");
 }
 
 function visibleText(terminal) {
