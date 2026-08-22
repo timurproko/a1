@@ -349,3 +349,16 @@ function ansi256ToHex(index: number): string {
 function isRecord(value: unknown): value is Record<string, any> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
+
+/**
+ * Applies the theme the reader configured, as the engine does at startup. The
+ * setting is either a theme's name or the `light/dark` pair meaning "follow the
+ * terminal", and only the pair consults the terminal's own background. An
+ * unreadable or absent setting falls back to that detection, which is what the
+ * engine does with an unset theme.
+ */
+export function applyConfiguredPiTheme(setting: string | undefined): PiThemeResult {
+  const detected = detectPiTerminalBackgroundFromEnv();
+  const resolved = resolvePiThemeSetting(setting, detected.theme);
+  return applyPiTheme(resolved ?? detected.theme);
+}

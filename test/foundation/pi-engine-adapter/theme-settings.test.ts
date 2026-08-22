@@ -37,39 +37,48 @@ describe("the theme at the engine boundary", () => {
     expect(thinking?.resolvedWhenRead).toBe(true);
   });
 
-  it("keeps the appearances out of the way until the theme follows the terminal", async () => {
+  // Following the terminal is one choice on the theme, not two further settings
+  // a reader has to keep in step: the pair is the engine's grammar for it.
+  it("never turns the appearances into settings of their own", async () => {
     expect(await keys(integration("dark"))).not.toContain("themeLight");
     const automatic = await keys(integration("light/dark"));
-    expect(automatic).toContain("themeLight");
-    expect(automatic).toContain("themeDark");
+    expect(automatic).not.toContain("themeLight");
+    expect(automatic).not.toContain("themeDark");
   });
 
-  it("reads an automatic theme as its parts", async () => {
-    const target = integration("light/dark");
-    expect(await target.readSetting("theme")).toBe(AUTOMATIC_THEME);
-    expect(await target.readSetting("themeLight")).toBe("light");
-    expect(await target.readSetting("themeDark")).toBe("dark");
+  it("reads a stored pair as following the terminal", async () => {
+    expect(await integration("light/dark").readSetting("theme")).toBe(AUTOMATIC_THEME);
   });
 
-  it("starts automatic from the theme already in use", async () => {
-    const target = integration("light");
+  it("stores following the terminal as the theme named for each appearance", async () => {
+    const settings = SettingsManager.inMemory({ theme: "ocean" });
+    const target = new PiSettingsIntegration(settings, { themes: () => THEMES, thinkingLevels: () => ["low"] });
+
     await target.writeSetting("theme", AUTOMATIC_THEME);
-    expect(await target.readSetting("themeLight")).toBe("light");
-    expect(await target.readSetting("themeDark")).toBe("light");
+
+    expect(settings.getThemeSetting()).toBe("light/dark");
+    expect(await target.readSetting("theme")).toBe(AUTOMATIC_THEME);
   });
 
-  it("writes a part back as the pair it belongs to", async () => {
-    const target = integration("light/dark");
-    await target.writeSetting("themeDark", "ocean");
-    expect(await target.readSetting("themeDark")).toBe("ocean");
-    expect(await target.readSetting("themeLight")).toBe("light");
+  it("keeps the theme in use for both appearances when neither is installed", async () => {
+    const settings = SettingsManager.inMemory({ theme: "ocean" });
+    const target = new PiSettingsIntegration(settings, { themes: () => ["ocean"], thinkingLevels: () => ["low"] });
+
+    await target.writeSetting("theme", AUTOMATIC_THEME);
+
+    expect(settings.getThemeSetting()).toBe("ocean/ocean");
+  });
+
+  it("leaves an automatic theme alone when it is chosen again", async () => {
+    const target = integration("light/ocean");
+    await target.writeSetting("theme", AUTOMATIC_THEME);
+    expect(await target.readSetting("theme")).toBe(AUTOMATIC_THEME);
   });
 
   it("returns to a single theme", async () => {
     const target = integration("light/dark");
     await target.writeSetting("theme", "ocean");
     expect(await target.readSetting("theme")).toBe("ocean");
-    expect(await keys(target)).not.toContain("themeLight");
   });
 
   it("offers no automatic option when nothing lists the themes", async () => {

@@ -1,6 +1,6 @@
 {
   "schema": "a1-legacy-identity-allowlist-v1",
-  "generatedAt": "2026-08-22T08:25:50.919Z",
+  "generatedAt": "2026-08-22T13:50:57.961Z",
   "inventorySchema": "a1-legacy-identity-inventory-v1",
   "occurrences": [
     {
@@ -116,6 +116,18 @@
       "value": "AddOne",
       "fingerprint": "8c554ce61f73ee648e94484e4fac538c2b05a40326c53fc2f85c9c114f0e1ef9",
       "reason": "exact historical evidence record"
+    },
+    {
+      "id": "openspec/changes/render-pi-through-a1/specs/launch-profiles/spec.md:4:413",
+      "value": "addone",
+      "fingerprint": "1ec8359e19847e981d9049dc9414c517704e1a55718b704b92a8091882cc2e7d",
+      "reason": "documented hard-cut or deprecation assertion"
+    },
+    {
+      "id": "openspec/changes/render-pi-through-a1/specs/launch-profiles/spec.md:23:50",
+      "value": "addone",
+      "fingerprint": "1bcb63f9e0259e4c7767535609e494d01dd78a4a3cedf21aad6140a007261b6d",
+      "reason": "documented hard-cut or deprecation assertion"
     },
     {
       "id": "openspec/changes/unify-launch-instance-lifecycle/specs/launch-profiles/spec.md:4:339",
