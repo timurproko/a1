@@ -66,9 +66,13 @@ describe("owned UI settings sections", () => {
     expect(findOwnedUiSettingsEntry(sections, "autoCompact", "agent")?.value).toBe(true);
   });
 
-  it("marks json and non-writable engine settings as not editable here", () => {
+  it("marks a structured setting editable through its own surface", () => {
     const sections = buildOwnedUiSettingsSections({ resolution: resolution(), agent: AGENT });
-    expect(findOwnedUiSettingsEntry(sections, "providerProfile", "agent")?.editable).toBe(false);
+    // A structured value is edited through its own surface rather than a value
+    // menu, so it stays reachable instead of being reported as fixed.
+    expect(findOwnedUiSettingsEntry(sections, "providerProfile", "agent")?.editable).toBe(true);
+    expect(findOwnedUiSettingsEntry(sections, "providerProfile", "agent")?.structured).toBe(true);
+    expect(findOwnedUiSettingsEntry(sections, "autoCompact", "agent")?.structured).toBe(false);
     expect(findOwnedUiSettingsEntry(sections, "installId", "agent")?.editable).toBe(false);
     expect(findOwnedUiSettingsEntry(sections, "autoCompact", "agent")?.editable).toBe(true);
   });
