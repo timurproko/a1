@@ -2,28 +2,37 @@ import type { AppHostServices, UiApp } from "../../foundation/ui-apps/index.js";
 import {
   GLOBAL_SCOPE,
   LineInput,
+  PLAIN_THEME,
   ShortcutRegistry,
+  PROMPT_GLYPH,
   blockJumpTarget,
+  caretCell,
   blockRowSpan,
   displayWidth,
+  faint,
   handleLineInputKey,
+  humanizeLabel,
+  humanizeTitle,
   indexOfKey,
   isThumbRow,
-  lastBlockTarget,
   layoutList,
   moveSelection,
   padToWidth,
   rowKey,
   scrollForSelection,
+  overlaySpan,
   scrollbarGeometry,
   selectableIndexes,
   truncateToWidth,
   type ListRow,
   type ListRowSpan,
   type PaneInputResult,
+  type PaneMouseEvent,
   type PaneRect,
+  type UiTheme,
 } from "../../foundation/ui-components/index.js";
 import type {
+  OwnedUiSettingValue,
   OwnedUiSettingsEntry,
   OwnedUiSettingsSession,
 } from "../../foundation/owned-ui-settings/index.js";
@@ -33,10 +42,16 @@ export const SETTINGS_ROUTE = "settings";
 const SCOPE = SETTINGS_APP_ID;
 const SCROLLBAR_TOP_INSET = 1;
 const RAIL_COLUMNS = 2;
+const HINT = "/ to search · ↑↓ to navigate · Shift+↑↓ to jump a section · Enter/Space to change · ←→ to adjust · Esc to cancel";
+const SEARCH_PLACEHOLDER = "search settings";
+/** What a structured value offers instead of printing itself. */
+const CONFIGURE = "configure";
+/** Columns a number stepper hangs to the left of the value column. */
+const STEPPER_RESERVE = 2;
 
 type Action =
   | "move-up" | "move-down" | "block-up" | "block-down" | "first" | "last"
-  | "page-up" | "page-down" | "previous-value" | "next-value" | "open-filter" | "close";
+  | "page-up" | "page-down" | "previous-value" | "next-value" | "activate" | "open-filter" | "close";
 
 export const SETTINGS_SHORTCUTS = new ShortcutRegistry<Action>();
 SETTINGS_SHORTCUTS.declare({ key: "up", scope: SCOPE, description: "Previous setting", section: "Navigate" }, "move-up");
@@ -49,30 +64,53 @@ SETTINGS_SHORTCUTS.declare({ key: "home", scope: SCOPE, description: "First sett
 SETTINGS_SHORTCUTS.declare({ key: "end", scope: SCOPE, description: "Last setting", section: "Navigate" }, "last");
 SETTINGS_SHORTCUTS.declare({ key: "left", scope: SCOPE, description: "Previous value", section: "Change" }, "previous-value");
 SETTINGS_SHORTCUTS.declare({ key: "right", scope: SCOPE, description: "Next value", section: "Change" }, "next-value");
+SETTINGS_SHORTCUTS.declare({ key: "enter", scope: SCOPE, description: "Change value", section: "Change" }, "activate");
+SETTINGS_SHORTCUTS.declare({ key: "space", scope: SCOPE, description: "Change value", section: "Change" }, "activate");
 SETTINGS_SHORTCUTS.declare({ key: "/", scope: SCOPE, description: "Search settings", section: "Change" }, "open-filter");
 SETTINGS_SHORTCUTS.declare({ key: "escape", scope: GLOBAL_SCOPE, description: "Close", section: "Screen" }, "close");
 
 const KEYS: Readonly<Record<string, string>> = {
-  "[A": "up",
-  "[B": "down",
-  "[1;2A": "shift+up",
-  "[1;2B": "shift+down",
-  "[D": "left",
-  "[C": "right",
-  "[5~": "pageUp",
-  "[6~": "pageDown",
-  "[H": "home",
-  "[F": "end",
-  "": "escape",
+  "[A": "up",
+  "[B": "down",
+  "[1;2A": "shift+up",
+  "[1;2B": "shift+down",
+  "[D": "left",
+  "[C": "right",
+  "[5~": "pageUp",
+  "[6~": "pageDown",
+  "[H": "home",
+  "[F": "end",
+  "": "escape",
+  "\r": "enter",
+  "\n": "enter",
+  " ": "space",
   "/": "/",
 };
 
 type Row = ListRow<OwnedUiSettingsEntry>;
 
+/** A structured setting being edited: its flags, the row in hand, and their values. */
+interface StructuredEdit {
+  readonly entry: OwnedUiSettingsEntry;
+  readonly flags: readonly string[];
+  index: number;
+  readonly record: Record<string, boolean>;
+}
+
+interface ValueMenu {
+  readonly entry: OwnedUiSettingsEntry;
+  /** Index of the value in effect, where the keyboard starts from. */
+  readonly current: number;
+  /** Row this menu was opened from, so it anchors there rather than to the selection. */
+  readonly anchorKey: string;
+  readonly choices: readonly OwnedUiSettingValue[];
+  index: number;
+}
+
 /**
- * The settings screen. Rows, sticky headers, scrolling, and the keymap all come
- * from the shared component layer; what belongs to settings is which sections
- * exist, how a value is shown, and where an accepted change is routed.
+ * The settings screen. Rows, sticky headers, scrolling, and the keymap come from
+ * the shared component layer; what belongs to settings is which sections exist,
+ * how a value is shown, and where an accepted change is routed.
  */
 export class SettingsApp implements UiApp {
   readonly id = SETTINGS_APP_ID;
@@ -82,22 +120,44 @@ export class SettingsApp implements UiApp {
   #reveal: ListRowSpan | undefined;
   #notice: string | null = null;
   #filter: LineInput | null = null;
-  #pending: Promise<void> | null = null;
+  #menu: ValueMenu | null = null;
+  #structured: StructuredEdit | null = null;
+  #loading = true;
+  #interruptArmed = false;
+  /** Values requested but not yet reflected by the source, keyed by entry. */
+  readonly #pending = new Map<string, OwnedUiSettingValue>();
+  #footerHeight = 1;
+  /** Column the dialog's values start at, so a label stays a label. */
+  #dialogValueColumn = 0;
+  /** Screen row the dialog panel starts on, for pointer hits. */
+  #panelTop = 0;
+  #panelTopForFrame = 0;
+  /** Row key under the pointer, and where each row was drawn last frame. */
+  #hoverKey: string | null = null;
+  #hoverRegion: "label" | "value" | "minus" | "plus" = "label";
+  #frameRows: { key: string; screenRow: number; valueColumn: number; valueWidth: number; stepper: boolean }[] = [];
+  /** Where the value menu was drawn last frame, for hit testing. */
+  #menuFrame: { top: number; column: number; width: number; rows: number } | null = null;
 
   constructor(session: OwnedUiSettingsSession) {
     this.#session = session;
   }
 
   onActivate(host: AppHostServices): void {
-    this.#pending = this.#session.load().then(() => {
-      this.#pending = null;
+    void this.#session.load().then(() => {
+      this.#loading = false;
       host.requestRender();
     });
   }
 
-  render(rect: PaneRect, _host: AppHostServices): readonly string[] {
+  render(rect: PaneRect, host: AppHostServices): readonly string[] {
+    const theme = host.theme ?? PLAIN_THEME;
+    this.#interruptArmed = host.interruptArmed;
     const rows = this.#rows();
-    const footer = this.#footerLines(rect.width);
+    const footer = this.#footerLines(rect.width, theme);
+    this.#footerHeight = footer.length;
+    this.#panelTopForFrame = Math.max(0, rect.height - footer.length);
+    this.#panelTop = this.#panelTopForFrame;
     const bodyHeight = Math.max(0, rect.height - footer.length);
     const selected = indexOfKey(rows, this.#selectedKey);
     this.#scroll = scrollForSelection(rows, bodyHeight, this.#scroll, selected, this.#reveal);
@@ -114,31 +174,48 @@ export class SettingsApp implements UiApp {
     });
 
     const body: string[] = [];
+    this.#frameRows = [];
     if (rows.length === 0) {
-      const message = this.#pending === null ? "No settings found." : "Loading settings…";
-      const top = Math.floor(bodyHeight / 2);
+      const message = this.#loading ? "Loading settings…" : "No settings found.";
+      const middle = Math.floor(bodyHeight / 2);
       for (let index = 0; index < bodyHeight; index++) {
-        body.push(index === top ? centered(message, contentWidth) : "");
+        body.push(index === middle - 1
+          ? centered(theme.fg("muted", "👀"), "👀", contentWidth)
+          : index === middle ? centered(theme.fg("muted", message), message, contentWidth) : "");
       }
     } else {
       if (layout.topPadding > 0) body.push("");
-      if (layout.stickyHeader !== undefined) body.push(header(layout.stickyHeader, contentWidth));
+      if (layout.stickyHeader !== undefined) body.push(this.#header(layout.stickyHeader, theme, contentWidth));
       for (const index of layout.rowIndexes) {
-        body.push(this.#renderRow(rows[index], index === selected, contentWidth, valueColumn));
+        const row = rows[index];
+        if (row !== undefined && row.kind === "element") {
+          this.#frameRows.push({
+            key: `${row.value.backend}:${row.value.id}`,
+            screenRow: body.length,
+            valueColumn,
+            valueWidth: row.value.structured
+              ? CONFIGURE.length
+              : row.value.value === null ? 0 : displayWidth(displayValue(row.value.value)),
+            stepper: isStepper(row.value),
+          });
+        }
+        body.push(this.#renderRow(row, index === selected, contentWidth, valueColumn, theme));
       }
       while (body.length < bodyHeight) body.push("");
     }
 
     const withRail = body.slice(0, bodyHeight).map((line, offset) => {
-      const cell = offset < SCROLLBAR_TOP_INSET
+      const cell = offset < SCROLLBAR_TOP_INSET || geometry === null
         ? " "
-        : isThumbRow(geometry, offset - SCROLLBAR_TOP_INSET) ? "█" : geometry === null ? " " : "│";
-      return `${padToWidth(line, contentWidth)} ${cell}`;
+        : isThumbRow(geometry, offset - SCROLLBAR_TOP_INSET) ? theme.fg("accent", "│") : theme.fg("dim", "│");
+      return `${padVisible(line, contentWidth)} ${cell}`;
     });
-    return [...withRail, ...footer];
+    return this.#withMenu([...withRail, ...footer], selected, layout, valueColumn, theme, rect);
   }
 
   onInput(data: string, host: AppHostServices): PaneInputResult {
+    if (this.#structured !== null) return this.#structuredKey(data);
+    if (this.#menu !== null) return this.#menuKey(data);
     if (this.#filter !== null) return this.#filterKey(data);
 
     const action = SETTINGS_SHORTCUTS.resolve(KEYS[data] ?? data, SCOPE);
@@ -152,78 +229,306 @@ export class SettingsApp implements UiApp {
         return { consumed: true };
       case "open-filter":
         this.#filter = new LineInput("");
+        this.#notice = null;
         return { consumed: true };
+      case "activate": {
+        const row = rows[selected];
+        if (row?.kind === "element" && row.value.structured) this.#openStructured(row.value);
+        else this.#cycle(rows, selected, 1);
+        return { consumed: true };
+      }
       case "move-up":
-        this.#select(rows, moveSelection(rows, selected, -1));
-        return { consumed: true };
       case "move-down":
-        this.#select(rows, moveSelection(rows, selected, 1));
+        this.#select(rows, moveSelection(rows, selected, action === "move-down" ? 1 : -1));
         return { consumed: true };
       case "page-up":
-        this.#select(rows, moveSelection(rows, selected, -8));
-        return { consumed: true };
       case "page-down":
-        this.#select(rows, moveSelection(rows, selected, 8));
+        this.#select(rows, moveSelection(rows, selected, action === "page-down" ? 8 : -8));
         return { consumed: true };
       case "block-up":
       case "block-down": {
         const target = blockJumpTarget(rows, selected, action === "block-down" ? 1 : -1);
-        if (target !== undefined) {
-          this.#select(rows, target);
-          this.#reveal = blockRowSpan(rows, target);
-        }
+        if (target !== undefined) this.#jump(rows, target);
         return { consumed: true };
       }
       case "first":
       case "last": {
-        const target = action === "last" ? lastBlockTarget(rows) : selectableIndexes(rows)[0];
-        if (target !== undefined) {
-          this.#select(rows, target);
-          this.#reveal = blockRowSpan(rows, target);
-        }
+        // End lands on the very last setting, not on the head of its section.
+        const selectable = selectableIndexes(rows);
+        const target = action === "last" ? selectable.at(-1) : selectable[0];
+        if (target !== undefined) this.#jump(rows, target);
         return { consumed: true };
       }
       case "previous-value":
       case "next-value":
-        this.#change(rows, selected, action === "next-value" ? 1 : -1, host);
+        this.#cycle(rows, selected, action === "next-value" ? 1 : -1);
         return { consumed: true };
       default:
         return { consumed: false };
     }
   }
 
+  onMouse(event: PaneMouseEvent, _host: AppHostServices): PaneInputResult {
+    const menu = this.#menu;
+    const frame = this.#menuFrame;
+    if (menu !== null && frame !== null) {
+      const overRow = event.row - 1 - frame.top;
+      const overMenu = overRow >= 0
+        && overRow < frame.rows
+        && event.column > frame.column
+        && event.column <= frame.column + frame.width;
+      if (event.kind === "motion") {
+        // While the menu is open it owns the pointer: the row under it lights up,
+        // and nothing behind it hovers.
+        const hadHover = this.#hoverKey !== null;
+        this.#hoverKey = null;
+        if (!overMenu) {
+          const cleared = menu.index !== -1;
+          menu.index = -1;
+          return { consumed: true, render: hadHover || cleared };
+        }
+        if (menu.index === overRow) return { consumed: true, render: hadHover };
+        menu.index = overRow;
+        return { consumed: true, render: true };
+      }
+      if (event.kind !== "press") return { consumed: true, render: false };
+      const menuRow = overRow;
+      if (!overMenu) {
+        // A press anywhere else dismisses the menu rather than acting through it.
+        this.#menu = null;
+        return { consumed: true };
+      }
+      const value = menu.choices[menuRow];
+      this.#menu = null;
+      if (value !== undefined) this.#apply(menu.entry, value);
+      return { consumed: true };
+    }
+
+    const open = this.#structured;
+    if (open !== null) {
+      // The panel owns the pointer while it is open; its flag rows are the targets.
+      const row = event.row - 1 - (this.#panelTop + 1);
+      if (row < 0 || row >= open.flags.length) return { consumed: true, render: false };
+      if (event.kind === "motion") {
+        if (open.index === row) return { consumed: true, render: false };
+        open.index = row;
+        return { consumed: true, render: true };
+      }
+      if (event.kind === "press") {
+        open.index = row;
+        // Pointing at the label picks the row; the value is what changes it,
+        // exactly as in the list behind the dialog.
+        const key = open.flags[row] ?? "";
+        const width = displayWidth((open.record[key] ?? false) ? "true" : "false");
+        const start = this.#dialogValueColumn + 1;
+        if (event.column >= start && event.column < start + width) this.#toggleFlag(row);
+        return { consumed: true };
+      }
+      return { consumed: true, render: false };
+    }
+
+    const row = this.#frameRows.find(candidate => candidate.screenRow === event.row - 1);
+    const previousKey = this.#hoverKey;
+    const previousRegion = this.#hoverRegion;
+
+    if (row === undefined) {
+      this.#hoverKey = null;
+      this.#hoverRegion = "label";
+      return { consumed: event.kind !== "motion", render: previousKey !== null };
+    }
+
+    this.#hoverKey = row.key;
+    // The minus sits in the reserved space before the value; the plus after it.
+    // The label is a label: pointing at it selects nothing and changes nothing.
+    // Only the value area acts, and only a numeric row has stepper buttons.
+    const valueStart = row.valueColumn + 1;
+    const valueEnd = valueStart + row.valueWidth;
+    const column = event.column;
+    this.#hoverRegion = column >= valueStart && column <= valueEnd
+      ? "value"
+      : row.stepper && column >= valueStart - STEPPER_RESERVE && column < valueStart
+        ? "minus"
+        : row.stepper && column > valueEnd && column <= valueEnd + STEPPER_RESERVE
+          ? "plus"
+          : "label";
+
+    if (event.kind === "press") {
+      const rows = this.#rows();
+      const index = rows.findIndex(candidate => rowKey(candidate) === row.key);
+      if (index >= 0) {
+        // The pointer acts where it points; the arrow belongs to the keyboard.
+        this.#notice = null;
+        if (this.#hoverRegion === "minus") this.#cycle(rows, index, -1);
+        else if (this.#hoverRegion === "plus") this.#cycle(rows, index, 1);
+        else if (this.#hoverRegion === "value") this.#openMenu(rows, index);
+      }
+      return { consumed: true };
+    }
+    if (event.kind === "wheel-up" || event.kind === "wheel-down") {
+      this.#scroll = Math.max(0, this.#scroll + (event.kind === "wheel-down" ? 3 : -3));
+      return { consumed: true };
+    }
+    const changed = previousKey !== this.#hoverKey || previousRegion !== this.#hoverRegion;
+    return { consumed: event.kind !== "motion", render: changed };
+  }
+
+  #openMenu(rows: readonly Row[], selected: number): void {
+    const row = rows[selected];
+    if (row === undefined || row.kind !== "element") return;
+    const entry = row.value;
+    if (entry.structured) {
+      this.#openStructured(entry);
+      return;
+    }
+    const shown = this.#shownValue(entry);
+    // A number is stepped, not picked from a list: it has its own two controls,
+    // and pointing at it is not a request for anything else.
+    if (typeof shown === "number") return;
+    if (!entry.editable || entry.choices === null || entry.choices.length === 0) {
+      this.#notice = `${labelOf(entry)} cannot be changed here`;
+      return;
+    }
+    const current = shown === null ? 0 : Math.max(0, entry.choices.indexOf(shown));
+    // Nothing is highlighted until the pointer or a key picks a row, so opening
+    // the menu does not flash a highlight the reader did not ask for.
+    this.#menu = { entry, current, anchorKey: `${entry.backend}:${entry.id}`, choices: entry.choices, index: -1 };
+  }
+
+  /**
+   * A structured setting is a set of flags, so it opens as its own list rather
+   * than as a value menu: each row names one flag and toggles it in place.
+   */
+  #openStructured(entry: OwnedUiSettingsEntry): void {
+    // The flags come from the declaration, not from the stored value: an unset
+    // flag still has a row, showing the default the source would apply.
+    if (entry.flags.length === 0) {
+      this.#notice = `${labelOf(entry)} has nothing to configure`;
+      return;
+    }
+    const stored = typeof entry.rawValue === "object" && entry.rawValue !== null && !Array.isArray(entry.rawValue)
+      ? (entry.rawValue as Record<string, unknown>)
+      : {};
+    const record: Record<string, boolean> = {};
+    for (const flag of entry.flags) {
+      const value = stored[flag.key];
+      record[flag.key] = typeof value === "boolean" ? value : flag.fallback;
+    }
+    // The dialog takes the screen: the row it was opened from stops being the
+    // thing under the pointer, so it stops looking like it.
+    this.#hoverKey = null;
+    this.#hoverRegion = "label";
+    this.#structured = { entry, flags: entry.flags.map(flag => flag.key), index: 0, record };
+  }
+
+  #structuredKey(data: string): PaneInputResult {
+    const open = this.#structured;
+    if (open === null) return { consumed: false };
+    const key = KEYS[data] ?? data;
+    if (key === "escape") {
+      this.#structured = null;
+      return { consumed: true };
+    }
+    if (key === "up") open.index = Math.max(0, open.index - 1);
+    else if (key === "down") open.index = Math.min(open.flags.length - 1, open.index + 1);
+    else if (key === "enter" || key === "left" || key === "right" || data === " ") this.#toggleFlag(open.index);
+    return { consumed: true };
+  }
+
+  #toggleFlag(index: number): void {
+    const open = this.#structured;
+    const flag = open?.flags[index];
+    if (open === null || open === undefined || flag === undefined) return;
+    open.record[flag] = !(open.record[flag] ?? false);
+    const next = { ...open.record };
+    void this.#session.changeStructured(open.entry.backend, open.entry.id, next).then(outcome => {
+      this.#notice = outcome.failure === null ? null : `Could not save ${labelOf(open.entry)}: ${outcome.failure}`;
+    });
+  }
+
+  #menuKey(data: string): PaneInputResult {
+    const menu = this.#menu;
+    if (menu === null) return { consumed: false };
+    const key = KEYS[data] ?? data;
+    if (key === "escape") {
+      this.#menu = null;
+      return { consumed: true };
+    }
+    if (key === "up" || key === "down") {
+      // The keyboard starts from the value in effect rather than from the top.
+      menu.index = menu.index < 0
+        ? menu.current
+        : Math.min(menu.choices.length - 1, Math.max(0, menu.index + (key === "down" ? 1 : -1)));
+    }
+    else if (key === "enter") {
+      const value = menu.choices[menu.index];
+      this.#menu = null;
+      if (value !== undefined) this.#apply(menu.entry, value);
+    }
+    return { consumed: true };
+  }
+
   #filterKey(data: string): PaneInputResult {
     const input = this.#filter;
     if (input === null) return { consumed: false };
     const outcome = handleLineInputKey(input, data);
-    if (outcome.kind !== "editing") this.#filter = outcome.kind === "accepted" ? input : null;
+    if (outcome.kind === "cancelled") this.#filter = null;
     this.#scroll = 0;
     return { consumed: true };
   }
 
-  #change(rows: readonly Row[], selected: number, delta: -1 | 1, host: AppHostServices): void {
+  #cycle(rows: readonly Row[], selected: number, delta: -1 | 1): void {
     const row = rows[selected];
     if (row === undefined || row.kind !== "element") return;
     const entry = row.value;
-    const choices = entry.choices;
-    if (!entry.editable || choices === null || choices.length === 0) {
-      this.#notice = `${entry.id} is not editable here`;
+    if (!entry.editable) {
+      this.#notice = `${labelOf(entry)} cannot be changed here`;
       return;
     }
-    const current = entry.value === null ? -1 : choices.indexOf(entry.value);
+    const shown = this.#shownValue(entry);
+    if (typeof shown === "number") {
+      // At the end of the range there is nothing to say: the arrow already reads
+      // as unavailable, so a message would only repeat it.
+      const next = steppedValue(entry, shown, delta);
+      if (next !== null) this.#apply(entry, next);
+      return;
+    }
+    const choices = entry.choices;
+    if (choices === null || choices.length === 0) {
+      this.#notice = `${labelOf(entry)} cannot be changed here`;
+      return;
+    }
+    const current = shown === null ? -1 : choices.indexOf(shown);
     const next = choices[current < 0
       ? (delta > 0 ? 0 : choices.length - 1)
       : (current + delta + choices.length) % choices.length];
-    if (next === undefined) return;
+    if (next !== undefined) this.#apply(entry, next);
+  }
 
-    void this.#session.change(entry.backend, entry.id, next).then(outcome => {
-      this.#notice = outcome.failure !== null
-        ? `Could not save ${entry.id}: ${outcome.failure}`
-        : outcome.pendingRestart
-          ? `${entry.id} applies on the next start`
-          : null;
-      host.requestRender();
+  #apply(entry: OwnedUiSettingsEntry, value: OwnedUiSettingValue): void {
+    const key = `${entry.backend}:${entry.id}`;
+    // Shown immediately so the row never lags a keypress, and so the next press
+    // steps from here rather than from a value the source has not caught up to.
+    this.#pending.set(key, value);
+    void this.#session.change(entry.backend, entry.id, value).then(outcome => {
+      if (outcome.failure !== null) {
+        this.#pending.delete(key);
+        this.#notice = `Could not save ${labelOf(entry)}: ${outcome.failure}`;
+        return;
+      }
+      // A later press may have moved on; only the last request clears itself.
+      if (this.#pending.get(key) === value) this.#pending.delete(key);
+      this.#notice = outcome.pendingRestart ? `${labelOf(entry)} applies on the next start` : null;
     });
+  }
+
+  /** What the row shows: the value asked for if one is outstanding, else the source's. */
+  #shownValue(entry: OwnedUiSettingsEntry): OwnedUiSettingValue | null {
+    return this.#pending.get(`${entry.backend}:${entry.id}`) ?? entry.value;
+  }
+
+  #jump(rows: readonly Row[], target: number): void {
+    this.#select(rows, target);
+    this.#reveal = blockRowSpan(rows, target);
   }
 
   #select(rows: readonly Row[], index: number): void {
@@ -234,11 +539,14 @@ export class SettingsApp implements UiApp {
 
   #rows(): readonly Row[] {
     const needle = this.#filter?.value.trim().toLowerCase() ?? "";
+    const matches = (entry: OwnedUiSettingsEntry): boolean =>
+      needle.length === 0
+      || entry.id.toLowerCase().includes(needle)
+      || labelOf(entry).toLowerCase().includes(needle);
+
     const rows: Row[] = [];
     for (const section of this.#session.sections()) {
-      const entries = needle.length === 0
-        ? section.entries
-        : section.entries.filter(entry => entry.id.toLowerCase().includes(needle));
+      const entries = section.entries.filter(matches);
       if (needle.length > 0 && entries.length === 0) continue;
       if (rows.length > 0) rows.push({ kind: "spacer" });
       rows.push({ kind: "group", group: section.id, title: section.title });
@@ -246,9 +554,11 @@ export class SettingsApp implements UiApp {
         rows.push({ kind: "note", group: section.id, text: section.unavailableReason });
         continue;
       }
-      if (section.readOnlyReason !== null) {
+      if (section.readOnlyReason !== null && needle.length === 0) {
         rows.push({ kind: "note", group: section.id, text: section.readOnlyReason });
       }
+      // Presented in the order the source reports, which is the order the
+      // pinned engine shows and is neither declaration order nor alphabetical.
       for (const entry of entries) {
         rows.push({
           kind: "element",
@@ -264,52 +574,224 @@ export class SettingsApp implements UiApp {
 
   #valueColumn(rows: readonly Row[]): number {
     let widest = 0;
+    let hasStepper = false;
     for (const row of rows) {
-      if (row.kind === "element") widest = Math.max(widest, displayWidth(row.value.id));
+      if (row.kind !== "element") continue;
+      widest = Math.max(widest, displayWidth(labelOf(row.value)));
+      if (isStepper(row.value)) hasStepper = true;
     }
-    return 2 + 2 + widest + 2;
+    // Prefix, indent, widest label, gap, plus the stepper prefix reserved for
+    // every row so a number does not shift its own value out of the column.
+    return 2 + 2 + widest + 2 + (hasStepper ? STEPPER_RESERVE : 0);
   }
 
-  #renderRow(row: Row | undefined, selected: boolean, width: number, valueColumn: number): string {
-    if (row === undefined) return "";
-    switch (row.kind) {
-      case "spacer":
-        return "";
-      case "group":
-        return header(row.title, width);
-      case "note":
-        return truncateToWidth(`    ${row.text}`, width);
-      case "element": {
-        const entry = row.value;
-        const left = `${selected ? "→ " : "  "}  ${entry.id}`;
-        const gap = Math.max(2, valueColumn - displayWidth(left));
-        const value = entry.value === null ? describeRaw(entry.rawValue) : String(entry.value);
-        const suffix = entry.origin === "default" ? "  (default)" : "";
-        return truncateToWidth(`${left}${" ".repeat(gap)}${value}${suffix}`, width);
-      }
-    }
+  #header(title: string, theme: UiTheme, width: number): string {
+    return truncateToWidth(theme.fg("accent", theme.bold(humanizeTitle(title))), width);
   }
 
-  #footerLines(width: number): readonly string[] {
+  #renderRow(row: Row | undefined, selected: boolean, width: number, valueColumn: number, theme: UiTheme): string {
+    if (row === undefined || row.kind === "spacer") return "";
+    if (row.kind === "group") return this.#header(row.title, theme, width);
+    if (row.kind === "note") return truncateToWidth(theme.fg("muted", `    ${row.text}`), width);
+
+    const entry = row.value;
+    const label = labelOf(entry);
+    const key = `${entry.backend}:${entry.id}`;
+    const hovered = this.#hoverKey === key;
+    const prefix = selected ? theme.fg("accent", "→ ") : "  ";
+    const leftRaw = `${selected ? "→ " : "  "}  ${label}`;
+    const left = `${prefix}  ${theme.fg(selected ? "accent" : "text", label)}`;
+    const gap = Math.max(2, valueColumn - displayWidth(leftRaw));
+    const shown = this.#shownValue(entry);
+    const raw = entry.structured
+      ? CONFIGURE
+      : shown === null ? describeRaw(entry.rawValue) : displayValue(shown);
+    // Pointing anywhere on the row is hovering the item; pointing at the value
+    // is what brightens the value. Selection speaks through the label alone.
+    const valueHovered = hovered && this.#hoverRegion !== "label";
+    // The stepper is an affordance, not decoration: it appears when the pointer
+    // is on the value it belongs to, not merely somewhere on the row.
+    const stepper = isStepper(entry, shown) && valueHovered;
+    const valueToken = valueHovered ? "text" : "muted";
+    const canLower = steppedValue(entry, shown, -1) !== null;
+    const canRaise = steppedValue(entry, shown, 1) !== null;
+    const minus = canLower ? theme.fg(this.#hoverRegion === "minus" && hovered ? "text" : "dim", "- ") : faint(theme.fg("dim", "- "));
+    const plus = canRaise ? theme.fg(this.#hoverRegion === "plus" && hovered ? "text" : "dim", " +") : faint(theme.fg("dim", " +"));
+    const value = stepper
+      ? `${minus}${theme.fg(valueToken, raw)}${plus}`
+      : theme.fg(valueToken, raw);
+    const indent = Math.max(2, stepper ? gap - STEPPER_RESERVE : gap);
+    const suffix = entry.origin === "default" ? theme.fg("dim", "  (default)") : "";
+    return truncateToWidth(`${left}${" ".repeat(indent)}${value}${suffix}`, width);
+  }
+
+  /** The value menu floats over the body, anchored to the selected row. */
+  #withMenu(
+    lines: readonly string[],
+    _selected: number,
+    layout: { readonly rowIndexes: readonly number[]; readonly topPadding: number; readonly stickyHeader: string | undefined },
+    valueColumn: number,
+    theme: UiTheme,
+    rect: PaneRect,
+  ): readonly string[] {
+    const menu = this.#menu;
+    if (menu === null) {
+      this.#menuFrame = null;
+      return lines;
+    }
+    const anchor = this.#frameRows.find(candidate => candidate.key === menu.anchorKey);
+    if (anchor === undefined) {
+      this.#menuFrame = null;
+      return lines;
+    }
+
+    // Opens at its own row and grows downward, flipping up only when it would
+    // run past the body rather than always covering what is above.
+    const body = lines.length - this.#footerHeight;
+    const below = anchor.screenRow + 1;
+    const top = below + menu.choices.length <= body ? below : Math.max(0, anchor.screenRow - menu.choices.length);
+    const width = Math.max(...menu.choices.map(choice => displayWidth(displayValue(choice)) + 4), 6);
+    const column = Math.min(valueColumn, Math.max(0, rect.width - width - RAIL_COLUMNS));
+    this.#menuFrame = { top, column, width, rows: menu.choices.length };
+
+    const output = [...lines];
+    menu.choices.forEach((choice, index) => {
+      const target = top + index;
+      if (target < 0 || target >= output.length) return;
+      const mark = choice === this.#shownValue(menu.entry) ? "✓ " : "  ";
+      const text = padToWidth(`${mark}${displayValue(choice)} `, width);
+      const painted = index === menu.index ? theme.highlight(text) : theme.panel(text);
+      output[target] = overlaySpan(output[target] ?? "", column, column + width, painted);
+    });
+    return output;
+  }
+
+  /**
+   * The dialog the engine shows for a structured setting: every flag it offers,
+   * what the chosen one does, and how to change it, over the list it came from.
+   * Laid out as the engine lays its own out — labels padded to a shared column,
+   * the description of the chosen row below, and its wording for the keys.
+   */
+  #dialogLines(
+    open: StructuredEdit,
+    width: number,
+    theme: UiTheme,
+  ): readonly string[] {
+    const declaredFor = (key: string): { label: string; description: string; fallback: boolean } | undefined =>
+      open.entry.flags.find(flag => flag.key === key);
+    const labelOfFlag = (key: string): string => declaredFor(key)?.label ?? humanizeLabel(key);
+    const labelColumn = Math.min(30, Math.max(...open.flags.map(key => displayWidth(labelOfFlag(key))), 0));
+    // Cursor, label column, and the two spaces before a value.
+    this.#dialogValueColumn = 2 + labelColumn + 2;
+
+    const rows = open.flags.map((key, index) => {
+      const selected = index === open.index;
+      // The engine writes these as the booleans they are rather than as yes/no.
+      const value = (open.record[key] ?? false) ? "true" : "false";
+      const label = labelOfFlag(key);
+      const padded = `${label}${" ".repeat(Math.max(0, labelColumn - displayWidth(label)))}`;
+      const cursor = selected ? "→ " : "  ";
+      const raw = `${cursor}${padded}  ${value}`;
+      // The engine leaves an unselected label unpainted and quietens its value,
+      // and lifts both to the accent on the row the cursor is on.
+      const painted = `${theme.fg("accent", cursor)}${selected ? theme.fg("accent", padded) : padded}  ${theme.fg("muted", value)}`;
+      return padVisible(truncateToWidth(painted, width), width, raw);
+    });
+
+    const description = declaredFor(open.flags[open.index] ?? "")?.description ?? "";
+    const hint = "  Enter/Space to change · Esc to cancel";
+    const rule = theme.fg("border", "─".repeat(Math.max(0, width)));
+
+    this.#panelTop = this.#panelTopForFrame;
+    return [
+      rule,
+      ...rows,
+      "",
+      padVisible(truncateToWidth(theme.fg("dim", `  ${description}`), width), width, `  ${description}`),
+      "",
+      padVisible(truncateToWidth(theme.fg("dim", hint), width), width, hint),
+      rule,
+    ];
+  }
+
+  #footerLines(width: number, theme: UiTheme): readonly string[] {
+    const open = this.#structured;
+    if (open !== null) return this.#dialogLines(open, width, theme);
+
+    const hint = this.#interruptArmed
+      ? "press ctrl+c again to exit A1"
+      : this.#notice ?? HINT;
+    const hintLine = rightAligned(theme.fg("dim", hint), hint, width);
     const input = this.#filter;
-    const hint = this.#notice
-      ?? (input !== null
-        ? "enter apply • esc cancel"
-        : "/ search • ↑↓ move • shift+↑↓ section • ←→ change • esc close");
-    const hintLine = padToWidth(truncateToWidth(hint, width), width);
     if (input === null) return [hintLine];
+
+    const rule = theme.fg("border", "─".repeat(Math.max(0, width)));
     const view = input.view(Math.max(0, width - 2));
-    return [padToWidth(truncateToWidth(`> ${view.text}`, width), width), hintLine];
+    const empty = view.text.length === 0;
+    const before = view.text.slice(0, view.caretColumn);
+    const under = view.text.slice(view.caretColumn, view.caretColumn + 1) || " ";
+    const after = view.text.slice(view.caretColumn + 1);
+    // Typed text is left unpainted and the caret reverses its cell, which is how
+    // the reference draws an input row.
+    const typed = `${before}${caretCell(under)}${after}`;
+    const placeholder = `${caretCell(SEARCH_PLACEHOLDER.slice(0, 1))}${theme.fg("dim", SEARCH_PLACEHOLDER.slice(1))}`;
+    const painted = `${PROMPT_GLYPH}${empty ? placeholder : typed}`;
+    const raw = `❯ ${empty ? SEARCH_PLACEHOLDER : `${view.text}${view.caretColumn >= view.text.length ? " " : ""}`}`;
+    return [rule, padVisible(truncateToWidth(painted, width), width, raw), rule, hintLine];
   }
 }
 
-function header(title: string, width: number): string {
-  return truncateToWidth(title.toUpperCase(), width);
+/** Pads by visible width so styling escapes do not shift the layout. */
+function padVisible(line: string, width: number, raw?: string): string {
+  const visible = displayWidth(raw ?? line);
+  return visible >= width ? line : line + " ".repeat(width - visible);
 }
 
-function centered(text: string, width: number): string {
-  const pad = Math.max(0, Math.floor((width - displayWidth(text)) / 2));
-  return truncateToWidth(" ".repeat(pad) + text, width);
+function rightAligned(painted: string, raw: string, width: number): string {
+  if (displayWidth(raw) >= width) return truncateToWidth(painted, width);
+  return `${" ".repeat(width - displayWidth(raw))}${painted}`;
+}
+
+function centered(painted: string, raw: string, width: number): string {
+  return `${" ".repeat(Math.max(0, Math.floor((width - displayWidth(raw)) / 2)))}${painted}`;
+}
+
+
+/** The source's own wording when it has one, otherwise the id made readable. */
+function labelOf(entry: OwnedUiSettingsEntry): string {
+  return entry.label ?? humanizeLabel(entry.id);
+}
+
+function isStepper(entry: OwnedUiSettingsEntry, shown: OwnedUiSettingValue | null = entry.value): boolean {
+  return typeof shown === "number" && entry.editable;
+}
+
+/** The numbers a setting offers, in order, when it names them rather than a range. */
+function numericChoices(entry: OwnedUiSettingsEntry): readonly number[] | null {
+  const choices = entry.choices;
+  if (choices === null || choices.length === 0) return null;
+  const numbers = choices.filter((choice): choice is number => typeof choice === "number");
+  return numbers.length === choices.length ? [...numbers].sort((left, right) => left - right) : null;
+}
+
+/** The value a step lands on, or null when there is nowhere further to go. */
+function steppedValue(entry: OwnedUiSettingsEntry, shown: OwnedUiSettingValue | null, delta: -1 | 1): number | null {
+  if (typeof shown !== "number") return null;
+  const offered = numericChoices(entry);
+  if (offered !== null) {
+    const at = offered.indexOf(shown);
+    const next = (at < 0 ? 0 : at) + delta;
+    return next >= 0 && next < offered.length ? offered[next] ?? null : null;
+  }
+  const next = shown + delta;
+  if (entry.minimum !== null && next < entry.minimum) return null;
+  return entry.maximum !== null && next > entry.maximum ? null : next;
+}
+
+/** Booleans read as yes and no; everything else prints as itself. */
+function displayValue(value: OwnedUiSettingValue): string {
+  if (typeof value === "boolean") return value ? "yes" : "no";
+  return String(value);
 }
 
 function describeRaw(value: unknown): string {

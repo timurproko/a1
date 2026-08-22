@@ -132,3 +132,18 @@ export function handleLineInputKey(input: LineInput, data: string): LineInputOut
   input.insert(data);
   return { kind: "editing" };
 }
+
+/**
+ * The prompt the reference draws at the head of an input row, in the grey it
+ * uses for one (#9AA0A6), painted foreground-only so anything drawn behind the
+ * row survives.
+ */
+export const PROMPT_GLYPH = `[38;2;154;160;166m❯[39m `;
+
+/**
+ * The caret the reference draws: the cell under it is reversed rather than given
+ * a colour of its own, so it reads as a block in whatever theme is in use.
+ */
+export function caretCell(text: string): string {
+  return `[7m${text}[27m`;
+}
