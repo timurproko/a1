@@ -96,3 +96,12 @@ export function padToWidth(text: string, width: number): string {
   if (current > width) return truncateToWidth(text, width);
   return text + " ".repeat(width - current);
 }
+
+/**
+ * A control that is present but cannot be used: the terminal own faint
+ * attribute over whatever colour it already carries, so it reads as half of what
+ * it would otherwise be in any theme.
+ */
+export function faint(text: string): string {
+  return `[2m${text}[22m`;
+}

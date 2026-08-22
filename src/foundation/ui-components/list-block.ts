@@ -107,16 +107,6 @@ export function blockRowSpan<T>(rows: readonly ListRow<T>[], index: number): Lis
   return { from, to };
 }
 
-/** First selectable element of the last group that has one — the End target. */
-export function lastBlockTarget<T>(rows: readonly ListRow<T>[]): number | undefined {
-  for (let index = rows.length - 1; index >= 0; index--) {
-    if (rows[index]?.kind !== "group") continue;
-    const first = firstElementOfBlock(rows, index);
-    if (first !== undefined) return first;
-  }
-  return undefined;
-}
-
 /** The header pinned above the body when the top visible row belongs to a group. */
 export function stickyHeaderFor<T>(rows: readonly ListRow<T>[], scroll: number): string | undefined {
   const row = rows[scroll];

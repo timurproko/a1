@@ -41,6 +41,27 @@ export interface AgentSettingDescriptor {
   readonly valueType: "boolean" | "number" | "string" | "enum" | "json";
   readonly writable: boolean;
   readonly choices?: readonly AgentJsonValue[];
+  /** Label the engine shows for this setting, when it has one. */
+  readonly label?: string;
+  /** One-line explanation the engine shows for this setting. */
+  readonly description?: string;
+  /** Smallest value a numeric setting accepts, when the engine states one. */
+  readonly minimum?: number;
+  /** Largest value a numeric setting accepts, when the engine states one. */
+  readonly maximum?: number;
+  /**
+   * Flags a structured setting offers. Declared by the source rather than read
+   * from the stored value, so an unset flag still has a row and a default.
+   */
+  readonly flags?: readonly AgentSettingFlag[];
+}
+
+export interface AgentSettingFlag {
+  readonly key: string;
+  readonly label: string;
+  readonly description: string;
+  /** Value to show when the stored object says nothing about this flag. */
+  readonly fallback: boolean;
 }
 
 export interface AgentResourceDescriptor {

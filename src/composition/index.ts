@@ -26,9 +26,12 @@ import type { OwnedUiCommand, OwnedUiEvent, OwnedUiTranscriptBlock } from "../fo
 import { OwnedUiSessionShell } from "../foundation/pi-owned-ui-integration/index.js";
 import { OwnedUiSettingsSession, OwnedUiSettingsStore } from "../foundation/owned-ui-settings/index.js";
 import { UiAppHost, UiAppRegistry } from "../foundation/ui-apps/index.js";
+import { piTheme } from "../foundation/pi-component-adapter/index.js";
+import type { UiTheme, UiThemeToken } from "../foundation/ui-components/index.js";
 import { SETTINGS_APP_ID, SETTINGS_ROUTE, SettingsApp } from "../features/owned-ui/index.js";
 import type { UiRouteHost, UiRouteSurface } from "../foundation/pi-owned-ui-integration/index.js";
 import { resolveProductPaths } from "../foundation/lifecycle/index.js";
+import { withInstalledThemes } from "./theme-settings.js";
 
 const CAPABILITIES: AgentCapabilityContract = {
   contractVersion: AGENT_ENGINE_CONTRACT_VERSION,
@@ -73,7 +76,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     ? null
     : new OwnedUiSettingsSession({
       store: new OwnedUiSettingsStore({ configDir: resolveProductPaths().configDir, profileId: options.profileId }),
-      agentProvider: () => adapter.settingsPort(),
+      agentProvider: () => withInstalledThemes(adapter.settingsPort()),
     });
   const routeHost = settings === null ? null : createOwnedRouteHost(settings);
   const shell = new OwnedUiSessionShell({
@@ -236,13 +239,16 @@ export function createOwnedRouteHost(settings: OwnedUiSettingsSession): UiRouteH
       let frame: readonly string[] = [];
       let closed = false;
       let onRender: () => void = () => undefined;
+      let onExit: () => void = () => undefined;
 
       const host = new UiAppHost({
         registry,
         closeOnInterrupt: true,
+        theme: pinnedTheme(),
         surface: {
           size: () => size,
           requestRender: () => onRender(),
+          exit: () => onExit(),
           present: lines => {
             if (lines === null) closed = true;
             else frame = lines;
@@ -259,11 +265,23 @@ export function createOwnedRouteHost(settings: OwnedUiSettingsSession): UiRouteH
           return frame.length === height ? frame : [...frame.slice(0, height), ...Array(Math.max(0, height - frame.length)).fill("")];
         },
         handleInput: data => host.handleInput(data).consumed,
+        handleMouse: event => host.handleMouse(event).consumed,
         isClosed: () => closed || !host.isPresenting,
         close: () => host.close(),
         onRenderRequested: listener => { onRender = listener; },
+        onExitRequested: listener => { onExit = listener; },
       };
       return surface;
     },
+  };
+}
+
+/** Maps A1 UI tokens onto the pinned Pi theme so owned screens match the shell. */
+function pinnedTheme(): UiTheme {
+  return {
+    fg: (token: UiThemeToken, text: string) => piTheme().fg(token, text),
+    bold: (text: string) => piTheme().bold(text),
+    highlight: (text: string) => `[48;2;82;82;82m[97m${text}[39m[49m`,
+    panel: (text: string) => `[48;2;55;55;55m${text}[49m`,
   };
 }

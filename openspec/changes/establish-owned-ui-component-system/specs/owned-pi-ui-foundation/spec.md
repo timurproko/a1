@@ -46,9 +46,16 @@ The A1-owned UI SHALL reproduce the complete visible and interactive behavior of
 - **THEN** the owned UI SHALL preserve source order, streaming state, component identity, adjacent-content spacing, tool boundaries, and terminal status content exactly as pinned `AssistantMessageComponent`
 
 #### Scenario: Use vanilla regular-mode terminal ownership
-- **WHEN** the user starts A1 without explicitly selecting fullscreen mode
+- **WHEN** the user starts A1 without explicitly selecting fullscreen mode and no A1-owned application is presented
 - **THEN** the runtime SHALL use public `TuiMainScreen` in `regular` mode exactly as default vanilla Pi does
 - **AND** it SHALL NOT enter the alternate screen, enable mouse tracking, intercept drag/release events, rewrite selected ANSI cells, synthesize clipboard output, or maintain screen-coordinate selection state
+
+#### Scenario: Present an A1-owned application over regular mode
+- **WHEN** a declared A1-owned application is presented in regular mode
+- **THEN** A1 MAY enable mouse reporting for the lifetime of that application, because pointer hover, click, and drag are how such a screen is operated
+- **AND** it SHALL disable reporting and restore the terminal exactly as it was found when the application closes, including when it closes through a failure
+- **AND** it SHALL still not enter the alternate screen, rewrite selected ANSI cells, synthesize clipboard output, or maintain screen-coordinate selection state
+- **AND** reporting SHALL never be enabled while no A1-owned application is presented, so `a1 pi` and every pinned surface are unaffected
 
 #### Scenario: Select, copy, and scroll in regular mode
 - **WHEN** the user selects character, word, line, or multi-row content, presses `Ctrl+C` with or without a terminal selection, scrolls the wheel, or types `/` after selecting text
