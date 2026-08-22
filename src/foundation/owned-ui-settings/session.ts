@@ -83,6 +83,29 @@ export class OwnedUiSettingsSession {
     return () => this.#listeners.delete(listener);
   }
 
+  /** Writes a structured value, which only an engine-backed setting can hold. */
+  async changeStructured(
+    backend: OwnedUiSettingsBackend,
+    id: string,
+    value: Readonly<Record<string, unknown>>,
+  ): Promise<OwnedUiSettingsChangeOutcome> {
+    if (backend !== "agent") return failed("only an agent setting holds a structured value");
+    const agent = this.#agentProvider === null ? this.#agent : this.#agentProvider();
+    if (agent === null) return failed("no agent engine is attached");
+    if (!agent.capabilities.write || !agent.writeSetting) {
+      return failed("the agent engine does not support changing settings from this surface");
+    }
+    try {
+      await agent.writeSetting(id, value as AgentJsonValue);
+      if (agent.capabilities.flush && agent.flush) await agent.flush();
+    } catch (error) {
+      return failed(`${id} could not be written to the agent engine: ${describe(error)}`);
+    }
+    this.#agentSnapshot = await snapshotOf(agent);
+    this.#notify();
+    return { applied: true, pendingRestart: false, failure: null };
+  }
+
   async change(
     backend: OwnedUiSettingsBackend,
     id: string,
