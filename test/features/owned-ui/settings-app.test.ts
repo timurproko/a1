@@ -130,6 +130,25 @@ describe("the settings screen", () => {
     expect(writes).toHaveLength(1);
   });
 
+  it("turns a number under the pointer with the wheel", async () => {
+    const { app: target, writes } = await app();
+    const lines = screen(target);
+    const row = lines.findIndex(line => line.includes("Editor padding"));
+    const valueColumn = (lines[row] ?? "").indexOf("3") + 1;
+    const at = { row: row + 1, column: valueColumn, button: 0 } as const;
+
+    target.onMouse?.({ ...at, kind: "motion" }, HOST);
+    target.onMouse?.({ ...at, kind: "wheel-down" }, HOST);
+    expect(writes).toEqual([{ key: "editorPaddingX", value: 2 }]);
+    target.onMouse?.({ ...at, kind: "wheel-up" }, HOST);
+    expect(writes.at(-1)).toEqual({ key: "editorPaddingX", value: 3 });
+
+    // Away from a value the wheel is a scroll again, so nothing is written.
+    target.onMouse?.({ kind: "motion", button: 0, row: row + 1, column: 6 }, HOST);
+    target.onMouse?.({ kind: "wheel-down", button: 0, row: row + 1, column: 6 }, HOST);
+    expect(writes).toHaveLength(2);
+  });
+
   it("opens the dialog for a structured setting and answers from what it is editing", async () => {
     const { app: target, writes } = await app();
     selectRow(target, "Warnings");
