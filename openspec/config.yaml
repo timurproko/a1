@@ -9,6 +9,9 @@ context: |
   - Keep unrelated changes out of commits, and integrate coherent work once after its relevant validation passes.
   - Name a commit `type(scope): subject`, and name the branch it lands on `type/short-description` with the same type. The types are `feature` for behaviour a reader could notice, `fix` for a repair, `refactor` for a change of shape that leaves behaviour alone, and `docs`, `test`, `chore`, and `style` as they sound; an incompatible change says `BREAKING CHANGE:` in its body. This is Conventional Commits with `feat` written out as `feature`, because an abbreviation nobody expands reads as a truncation rather than a word. A tool added later that expects the standard spelling takes `feature` as a configured type.
   - Do not remove a worktree until its commits are integrated.
+  - When a pull request merges — armed to merge on its own, or merged by hand after acceptance — delete its remote branch and remove its worktree, then prune. A merged branch left behind is one more thing to read past when looking for what is live.
+  - Judge merged by what the pull request says, not by whether the branch is an ancestor of `develop`: these merges are squashed, so the branch tip never becomes an ancestor and `git branch --merged` reports a landed branch as unmerged. `gh pr view <n> --json state` is the answer.
+  - Leave alone a worktree that belongs to another session's open pull request, and say when a directory could not be removed because something is still running in it.
   - After manual validation is accepted, record the acceptance, archive the completed OpenSpec change, integrate the archive commit, then remove and prune every retained task or acceptance worktree for that change.
   - Store local package archives and ad hoc builds under the repository's `.builds/` directory.
 
