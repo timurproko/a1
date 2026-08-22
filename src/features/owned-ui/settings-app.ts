@@ -565,7 +565,10 @@ export class SettingsApp implements UiApp {
 
     const rows: Row[] = [];
     for (const section of this.#session.sections()) {
-      const entries = section.entries.filter(matches);
+      // A section named by the search is what the reader asked for, so it arrives
+      // whole rather than narrowed to the entries that happen to repeat its name.
+      const named = needle.length > 0 && section.title.toLowerCase().includes(needle);
+      const entries = named ? section.entries : section.entries.filter(matches);
       if (needle.length > 0 && entries.length === 0) continue;
       if (rows.length > 0) rows.push({ kind: "spacer" });
       rows.push({ kind: "group", group: section.id, title: section.title });
@@ -573,7 +576,7 @@ export class SettingsApp implements UiApp {
         rows.push({ kind: "note", group: section.id, text: section.unavailableReason });
         continue;
       }
-      if (section.readOnlyReason !== null && needle.length === 0) {
+      if (section.readOnlyReason !== null && (needle.length === 0 || named)) {
         rows.push({ kind: "note", group: section.id, text: section.readOnlyReason });
       }
       // Presented in the order the source reports, which is the order the
