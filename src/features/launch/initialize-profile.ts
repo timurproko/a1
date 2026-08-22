@@ -42,7 +42,7 @@ async function ensureSafeDirectoryChain(root: string): Promise<void> {
     if (parent === current) throw new Error(`profile path has no existing directory ancestor: ${root}`);
     current = parent;
   }
-  for (const path of missing.reverse()) await mkdir(path, { mode: 0o700 });
+  for (const path of missing.reverse()) await createOwnedDirectory(path, "profile path");
 }
 
 async function ensureOwnedDirectory(path: string): Promise<void> {
@@ -54,7 +54,27 @@ async function ensureOwnedDirectory(path: string): Promise<void> {
     if (!metadata.isDirectory() || metadata.isSymbolicLink()) throw new Error(`profile resource path is not an owned directory: ${path}`);
     return;
   }
-  await mkdir(path, { mode: 0o700 });
+  await createOwnedDirectory(path, "profile resource path");
+}
+
+/**
+ * Creates a directory, treating "it already exists" as another launch having won
+ * the race rather than as a failure — but still refusing what it finds if that is
+ * not an owned directory.
+ */
+async function createOwnedDirectory(path: string, subject: string): Promise<void> {
+  try {
+    await mkdir(path, { mode: 0o700 });
+    return;
+  } catch (error) {
+    if (!isAlreadyThere(error)) throw error;
+  }
+  const metadata = await lstat(path);
+  if (!metadata.isDirectory() || metadata.isSymbolicLink()) throw new Error(`${subject} is not an owned directory: ${path}`);
+}
+
+function isAlreadyThere(error: unknown): boolean {
+  return typeof error === "object" && error !== null && (error as { code?: string }).code === "EEXIST";
 }
 
 function isMissing(error: unknown): boolean {

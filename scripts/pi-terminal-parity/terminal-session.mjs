@@ -62,6 +62,11 @@ export class TerminalParitySession {
     this.#terminal.onBinary(data => this.#safeWrite(Buffer.from(data, "binary")));
   }
 
+  /** What the emulator has on screen right now, as the waits read it. */
+  get screen() {
+    return visibleText(this.#terminal);
+  }
+
   get checkpoints() {
     return this.#checkpoints;
   }
@@ -83,7 +88,10 @@ export class TerminalParitySession {
     const startedAt = Date.now();
     while (Date.now() - startedAt < timeoutMs) {
       await this.#writeQueue;
-      const rows = visibleText(this.#terminal);
+      // Everything written so far, not only what is still on screen: startup
+      // output can scroll the very text being waited for out of the viewport,
+      // which is what a taller startup on one platform does.
+      const rows = writtenText(this.#terminal);
       if (typeof pattern === "string" ? rows.includes(pattern) : pattern.test(rows)) return;
       if (this.#exit) throw new Error(`${this.#producer} exited before expected terminal text appeared`);
       await delay(50);
@@ -174,6 +182,7 @@ export class TerminalParitySession {
       capabilities: this.capabilities,
       checkpoints: this.#checkpoints,
       exit: this.#exit ?? { code: null, signal: null },
+      screen: visibleText(this.#terminal),
       restoration: {
         cursorShown: /\x1b\[\?25h/.test(raw),
         alternateScreenLeft: /\x1b\[\?(?:47|1047|1049)l/.test(raw),
@@ -306,6 +315,11 @@ function coalesceGeometry(rows) {
     else result.push({ ...row });
   }
   return result;
+}
+
+function writtenText(terminal) {
+  const buffer = terminal.buffer.active;
+  return Array.from({ length: buffer.length }, (_, index) => buffer.getLine(index)?.translateToString(true) ?? "").join(String.fromCharCode(10));
 }
 
 function visibleText(terminal) {

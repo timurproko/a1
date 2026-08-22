@@ -76,23 +76,23 @@ export function renderListRow(
 ): string {
   const cursor = state.selected ? "→ " : "  ";
   const leftRaw = `${cursor}  ${row.label}`;
-  const left = `${theme.fg("accent", cursor)}  ${theme.fg(state.selected ? "accent" : "text", row.label)}`;
+  const left = `${theme.fg("accent", cursor)}  ${state.selected ? theme.fg("accent", row.label) : theme.plain(row.label)}`;
   const gap = Math.max(2, valueColumn - displayWidth(leftRaw));
 
   // Pointing anywhere on the row is pointing at the item; pointing at the value
   // is what brightens it. The selection speaks through the label alone.
   const valueHovered = state.hovered && state.region !== "label";
   const stepper = row.stepper !== undefined && valueHovered;
-  const value = theme.fg(valueHovered ? "text" : "muted", row.value);
+  const value = valueHovered ? theme.plain(row.value) : theme.fg("muted", row.value);
 
   const minus = stepper
     ? row.stepper?.lower === true
-      ? theme.fg(state.region === "minus" ? "text" : "dim", "- ")
+      ? state.region === "minus" ? theme.plain("- ") : theme.fg("dim", "- ")
       : theme.disabled("- ")
     : "";
   const plus = stepper
     ? row.stepper?.raise === true
-      ? theme.fg(state.region === "plus" ? "text" : "dim", " +")
+      ? state.region === "plus" ? theme.plain(" +") : theme.fg("dim", " +")
       : theme.disabled(" +")
     : "";
 
