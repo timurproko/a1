@@ -62,6 +62,11 @@ export class TerminalParitySession {
     this.#terminal.onBinary(data => this.#safeWrite(Buffer.from(data, "binary")));
   }
 
+  /** What the emulator has on screen right now, as the waits read it. */
+  get screen() {
+    return visibleText(this.#terminal);
+  }
+
   get checkpoints() {
     return this.#checkpoints;
   }
@@ -174,6 +179,7 @@ export class TerminalParitySession {
       capabilities: this.capabilities,
       checkpoints: this.#checkpoints,
       exit: this.#exit ?? { code: null, signal: null },
+      screen: visibleText(this.#terminal),
       restoration: {
         cursorShown: /\x1b\[\?25h/.test(raw),
         alternateScreenLeft: /\x1b\[\?(?:47|1047|1049)l/.test(raw),

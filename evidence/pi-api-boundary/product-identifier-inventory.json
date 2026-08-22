@@ -31,17 +31,17 @@
     },
     {
       "path": "scripts/run-pi-terminal-parity.mjs",
-      "line": 99,
+      "line": 98,
       "identifier": "A1_LAUNCH_PROFILE"
     },
     {
       "path": "scripts/run-pi-terminal-parity.mjs",
-      "line": 100,
+      "line": 99,
       "identifier": "A1_LAUNCH_ARGUMENTS_JSON"
     },
     {
       "path": "scripts/run-pi-terminal-parity.mjs",
-      "line": 112,
+      "line": 111,
       "identifier": "A1_PI_PARITY_INTENTIONAL_MUTATION"
     },
     {
