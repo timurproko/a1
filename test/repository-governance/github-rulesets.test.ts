@@ -7,48 +7,55 @@ async function definition(): Promise<GithubRulesetDefinition> {
 }
 
 describe("reviewable GitHub rulesets", () => {
-  it("protects develop with pull requests and its check, and release tags from deletion and movement", async () => {
+  it("gates develop, forward-only-protects master, and freezes release tags", async () => {
     const value = validateRulesetDefinition(await definition());
-    expect(value.rulesets.map(ruleset => ruleset.conditions.ref_name.include[0])).toEqual(["refs/heads/develop", "refs/tags/v*"]);
-    expect(value.rulesets.map(ruleset => ruleset.target)).toEqual(["branch", "tag"]);
-    expect(value.rulesets.map(ruleset => ruleset.bypass_actors)).toEqual([[], []]);
+    expect(value.rulesets.map(ruleset => ruleset.conditions.ref_name.include[0])).toEqual(["refs/heads/develop", "refs/heads/master", "refs/tags/v*"]);
+    expect(value.rulesets.map(ruleset => ruleset.target)).toEqual(["branch", "branch", "tag"]);
+    expect(value.rulesets.map(ruleset => ruleset.bypass_actors)).toEqual([[], [], []]);
     for (const ruleset of value.rulesets) {
       expect(ruleset.rules.map(rule => rule.type)).toEqual(expect.arrayContaining(["deletion", "non_fast_forward"]));
     }
 
-    const [branch, tag] = value.rulesets;
-    expect(branch!.rules.map(rule => rule.type)).toEqual(expect.arrayContaining(["pull_request", "required_status_checks"]));
-    const pullRequest = branch!.rules.find(rule => rule.type === "pull_request")!;
+    const [develop, master, tag] = value.rulesets;
+    expect(develop!.rules.map(rule => rule.type)).toEqual(expect.arrayContaining(["pull_request", "required_status_checks"]));
+    const pullRequest = develop!.rules.find(rule => rule.type === "pull_request")!;
     expect(pullRequest.parameters).toMatchObject({ required_approving_review_count: 0, require_last_push_approval: false, required_review_thread_resolution: true });
-    // A tag is cut from an already-validated commit, so it carries no check of its
-    // own; what matters is that it can never be moved afterwards.
-    expect(tag!.rules.map(rule => rule.type)).not.toContain("required_status_checks");
+    // master only ever fast-forwards to a commit the release already published, and
+    // a tag is cut from an already-validated commit. Neither carries a check; what
+    // matters is that neither can be rewritten.
+    for (const ruleset of [master, tag]) {
+      expect(ruleset!.rules.map(rule => rule.type)).not.toContain("required_status_checks");
+      expect(ruleset!.rules.map(rule => rule.type)).not.toContain("pull_request");
+    }
     expect(JSON.stringify(value)).toContain("Development validation required");
-    expect(JSON.stringify(value)).not.toContain("refs/heads/master");
   });
 
-  it("rejects a definition that drops either protection", async () => {
+  it("rejects a definition that drops or over-gates a protection", async () => {
     const branchOnly = await definition();
-    branchOnly.rulesets = [branchOnly.rulesets[0]!, structuredClone(branchOnly.rulesets[0]!)];
-    expect(() => validateRulesetDefinition(branchOnly)).toThrow(/one branch ruleset and one tag ruleset/);
+    branchOnly.rulesets = [branchOnly.rulesets[0]!, branchOnly.rulesets[1]!, structuredClone(branchOnly.rulesets[0]!)];
+    expect(() => validateRulesetDefinition(branchOnly)).toThrow(/two branch rulesets and one tag ruleset/);
 
     const unprotectedTag = await definition();
-    unprotectedTag.rulesets[1]!.rules = unprotectedTag.rulesets[1]!.rules.filter(rule => rule.type !== "deletion");
+    unprotectedTag.rulesets[2]!.rules = unprotectedTag.rulesets[2]!.rules.filter(rule => rule.type !== "deletion");
     expect(() => validateRulesetDefinition(unprotectedTag)).toThrow(/missing deletion/);
+
+    const gatedMaster = await definition();
+    gatedMaster.rulesets[1]!.rules = [...gatedMaster.rulesets[1]!.rules, structuredClone(gatedMaster.rulesets[0]!.rules.find(rule => rule.type === "pull_request")!)];
+    expect(() => validateRulesetDefinition(gatedMaster)).toThrow(/must not gate a ref only the release writes/);
   });
 
   it("plans creates, updates, and unchanged rulesets without mutation", async () => {
     const value = await definition();
     const missing = planRulesetChanges(value, []);
-    expect(missing).toMatchObject({ mode: "dry-run", mutationPerformed: false, summary: { create: 2, update: 0, unchanged: 0 } });
+    expect(missing).toMatchObject({ mode: "dry-run", mutationPerformed: false, summary: { create: 3, update: 0, unchanged: 0 } });
 
     const exact = planRulesetChanges(value, value.rulesets.map((ruleset, index) => ({ ...ruleset, id: index + 1 })));
-    expect(exact.summary).toEqual({ create: 0, update: 0, unchanged: 2 });
+    expect(exact.summary).toEqual({ create: 0, update: 0, unchanged: 3 });
 
     const drifted = structuredClone(value.rulesets);
     drifted[0]!.enforcement = "disabled";
     const drift = planRulesetChanges(value, drifted);
-    expect(drift.summary).toEqual({ create: 0, update: 1, unchanged: 1 });
+    expect(drift.summary).toEqual({ create: 0, update: 1, unchanged: 2 });
     expect(drift.mutationPerformed).toBe(false);
   });
 

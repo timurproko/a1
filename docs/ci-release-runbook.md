@@ -1,17 +1,20 @@
 # CI and release operations
 
-GitHub Actions is the only automation platform. Two things are protected:
+GitHub Actions is the only automation platform. Three refs are protected:
 
 | Ref | Protection | Produced by |
 | --- | --- | --- |
 | `develop` | `Development validation required` on every pull request | `.github/workflows/ci.yml` |
+| `master` | cannot be deleted or force-updated | ruleset only |
 | `refs/tags/v*` | cannot be deleted or moved | ruleset only |
 
 Publishing is one workflow, `.github/workflows/release.yml`, triggered by pushes
 rather than dispatched by hand.
 
-`develop` is the only branch. A release is a tag on it, not a promotion to another
-branch, so there is nothing to keep in sync and nothing to drift.
+`develop` is where work lands. `master` records what the npm `latest` tag serves:
+the release fast-forwards it to the commit it published, and nothing else ever
+writes it. There is no promotion to arrange and nothing to keep in sync — `master`
+is an effect of publishing, not a step before it.
 
 ## How much validation runs when
 
@@ -58,8 +61,9 @@ resume immediately. It publishes nothing itself — pushing the tag is what publ
 The tag triggers the same pipeline in its stable form: build the process guardian on
 all three platforms, pack once, run the complete suite against those exact bytes on
 all three platforms, stage a draft GitHub Release, publish to npm `latest` with
-provenance from the `npm-publish` environment, then publish the staged release. If
-anything fails after the draft exists, the draft is removed.
+provenance from the `npm-publish` environment, publish the staged release, and
+fast-forward `master` to the published commit. If anything fails after the draft
+exists, the draft is removed.
 
 Rules that do not bend:
 
@@ -91,8 +95,10 @@ approving reviews to zero. It does not require the branch to be up to date: once
 PR is green it merges even if unrelated work landed first, with no re-validation
 loop.
 
-The tag ruleset carries no checks at all. A tag is created from an already-validated
-commit, and what matters is that it can never be deleted or moved afterwards.
+The `master` and tag rulesets carry no checks at all. Both only ever receive a commit
+that has already been validated and published, so what matters about them is that
+neither can be rewritten. Requiring a pull request on `master` would stop the release
+from recording itself there.
 
 Do not add a direct-push bypass as a shortcut, and never weaken the force-push or
 deletion protection. Ruleset mutation is a separate administrative operation: run
