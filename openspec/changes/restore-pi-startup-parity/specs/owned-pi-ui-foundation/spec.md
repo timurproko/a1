@@ -18,8 +18,9 @@ acts on at startup SHALL NOT be silently ignored by the owned surface.
 
 - **WHEN** startup diagnostics exist when the owned shell renders
 - **THEN** every startup diagnostic SHALL render above the banner in pinned
-  `reportDiagnostics` style — the whole line in the severity colour with the
-  `Warning: ` or `Error: ` prefix, info lines dim without a prefix
+  `reportDiagnostics` style — the whole line in chalk's basic ANSI severity
+  colour (yellow warning, red error, dim info), not the theme's tokens, with
+  the `Warning: ` or `Error: ` prefix and info lines unprefixed
 - **AND** no startup diagnostic SHALL be dropped by a display cap
 
 #### Scenario: Apply the configured model scope
