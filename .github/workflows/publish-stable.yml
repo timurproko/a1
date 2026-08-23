@@ -14,7 +14,7 @@ on:
 
 permissions:
   actions: read
-  contents: read
+  contents: write
   id-token: write
 
 concurrency:
@@ -154,6 +154,30 @@ jobs:
           }
           throw lastError;
           NODE
+
+      - name: Record the certified release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "release $GITHUB_REF_NAME already exists"
+            exit 0
+          fi
+          # --verify-tag refuses to invent a tag: this attaches the release to the
+          # tag already reviewed onto master, or it does nothing at all.
+          {
+            echo "Published to the npm latest tag from ${certified_source_commit}."
+            echo
+            echo "Shasum: ${accepted_shasum}"
+          } > release-notes.md
+          gh release create "$GITHUB_REF_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --verify-tag \
+            --title "$package_name $version" \
+            --latest \
+            --notes-file release-notes.md
 
       - name: Upload stable publication evidence
         if: always()

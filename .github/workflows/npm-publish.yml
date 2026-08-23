@@ -14,7 +14,7 @@ on:
 
 permissions:
   actions: read
-  contents: write
+  contents: read
   id-token: write
 
 concurrency:
@@ -173,29 +173,3 @@ jobs:
             artifacts/candidate/**/npm-pack-result.json
           if-no-files-found: warn
           retention-days: 30
-
-      - name: Record the published preview as a release
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          tag="v${version}"
-          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "release $tag already exists"
-            exit 0
-          fi
-          # Marked as a prerelease, so the releases page reads as a history of what
-          # was published to the next tag rather than as a claim about stability.
-          {
-            echo "Published to the npm next tag from ${candidate_source_commit}."
-            echo
-            echo "Shasum: ${accepted_shasum}"
-          } > release-notes.md
-          gh release create "$tag" \
-            --repo "$GITHUB_REPOSITORY" \
-            --target "$candidate_source_commit" \
-            --title "$package_name $version" \
-            --prerelease \
-            --latest \
-            --notes-file release-notes.md
