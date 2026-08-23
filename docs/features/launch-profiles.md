@@ -8,6 +8,8 @@
 | `a1 pi` | Untouched vanilla Pi fallback and comparison oracle | ordinary `~/.pi/agent` |
 | `a1 sandbox` | Unchanged isolated vanilla Pi profile for experiments | `~/.a1/sandbox` |
 
+`a1 pi` and `a1 sandbox` are development instruments: one compares A1 against pinned Pi, the other tries resources against an isolated profile. Prerelease builds — what `a1 update:next` installs — expose them. A release build does not, and does not recognize the words: what it exposes is bare `a1` plus the maintenance and package commands. Working in this repository is unaffected, because `npm start:pi` and `npm run start:sandbox` prepare the profile and launch directly rather than through the command line.
+
 There is no `a1 agent` command. The former `a1 ui` subcommand is removed. Bare `a1` is the owned agent product surface and remains the entry point when multi-agent UX is introduced.
 
 ## First launch

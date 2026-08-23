@@ -2,7 +2,12 @@
 
 const packageRoot = new URL("..", import.meta.url);
 const { fileURLToPath } = await import("node:url");
-const { dispatchCli } = await import("../dist/src/cli/index.js");
+const { readFile } = await import("node:fs/promises");
+const { cliCapabilities, dispatchCli } = await import("../dist/src/cli/index.js");
+
+// Which commands this build exposes follows from the build's own version, so a
+// released a1 cannot be argued into offering the development profiles.
+const capabilities = cliCapabilities(JSON.parse(await readFile(new URL("package.json", packageRoot), "utf8")).version);
 
 process.exitCode = await dispatchCli(process.argv.slice(2), {
   launch: async intent => {
@@ -30,4 +35,4 @@ process.exitCode = await dispatchCli(process.argv.slice(2), {
   },
 }, {
   stderr: message => process.stderr.write(message),
-});
+}, capabilities);
