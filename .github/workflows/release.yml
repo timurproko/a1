@@ -440,10 +440,22 @@ jobs:
           if [ -n "$existing" ]; then
             # Only the exact commit that was just published may already carry it,
             # which is what a re-run of this job looks like.
-            test "$existing" = "$GITHUB_SHA"
+            if [ "$existing" != "$GITHUB_SHA" ]; then
+              echo "::error::${tag} already names ${existing}, not the published commit ${GITHUB_SHA}. A release tag is never moved." >&2
+              exit 1
+            fi
+            echo "${tag} already names the published commit."
             exit 0
           fi
-          gh api -X POST "repos/$GITHUB_REPOSITORY/git/refs" -f "ref=refs/tags/${tag}" -f "sha=$GITHUB_SHA" --silent
+          # The response is captured rather than suppressed: this step records a
+          # release the registry already serves, so a failure here has to say what
+          # went wrong rather than leave the package published and the repository
+          # saying nothing about it.
+          if ! response="$(gh api -X POST "repos/$GITHUB_REPOSITORY/git/refs" -f "ref=refs/tags/${tag}" -f "sha=$GITHUB_SHA" 2>&1)"; then
+            echo "::error::could not create ${tag} at ${GITHUB_SHA}: ${response}" >&2
+            exit 1
+          fi
+          echo "created ${tag} at ${GITHUB_SHA}."
 
       - name: Record the GitHub Release
         if: needs.plan.outputs.channel == 'latest'
@@ -473,4 +485,10 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh api -X PATCH "repos/$GITHUB_REPOSITORY/git/refs/heads/master" -f "sha=$GITHUB_SHA" -F force=false --silent
+        run: |
+          set -uo pipefail
+          if ! response="$(gh api -X PATCH "repos/$GITHUB_REPOSITORY/git/refs/heads/master" -f "sha=$GITHUB_SHA" -F force=false 2>&1)"; then
+            echo "::error::could not fast-forward master to ${GITHUB_SHA}: ${response}" >&2
+            exit 1
+          fi
+          echo "master now names ${GITHUB_SHA}."
