@@ -1,5 +1,5 @@
 import { resolve } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   PRODUCT_PACKAGE,
   runSelfUpdate,
@@ -128,7 +128,7 @@ describe("A1 self-update orchestration", () => {
       { command: "npm", arguments: ["root", "--global"], request: { captureStdout: true } },
       { command: "npm", arguments: installArguments(latest), request: { captureStdout: true } },
     ]);
-    expect(harness.stdout.join("")).toContain(`A1 updated successfully: ${latest} (stable).`);
+    expect(harness.stdout.join("")).toContain(`a1 updated successfully: ${latest} (stable).`);
   });
 
   it("installs an exact newer version for a canonical managed global package", async () => {
@@ -148,7 +148,7 @@ describe("A1 self-update orchestration", () => {
       { command: "npm", arguments: ["root", "--global"], request: { captureStdout: true } },
       { command: "npm", arguments: installArguments("1.3.0"), request: { captureStdout: true } },
     ]);
-    expect(harness.stdout.join("")).toBe("A1 update (stable): 1.2.3 → 1.3.0.\nA1 updated successfully: 1.3.0 (stable).\n");
+    expect(harness.stdout.join("")).toBe("a1 update (stable): 1.2.3 → 1.3.0.\na1 updated successfully: 1.3.0 (stable).\n");
     expect(harness.stderr).toEqual([]);
   });
 
@@ -169,7 +169,62 @@ describe("A1 self-update orchestration", () => {
       { command: "npm", arguments: ["root", "--global"], request: { captureStdout: true } },
       { command: "npm", arguments: installArguments("1.3.0-dev.1"), request: { captureStdout: true } },
     ]);
-    expect(harness.stdout.join("")).toBe("A1 update (next): 1.3.0-dev.0 → 1.3.0-dev.1.\nA1 updated successfully: 1.3.0-dev.1 (next).\n");
+    expect(harness.stdout.join("")).toBe("a1 update (next): 1.3.0-dev.0 → 1.3.0-dev.1.\na1 updated successfully: 1.3.0-dev.1 (next).\n");
+  });
+
+  it("prints the shortened no-change message when the target is already active", async () => {
+    const harness = createHarness({ responses: [success("1.2.3\n"), success(`${resolve("fixtures", "global")}\n`)] });
+    harness.lifecycle.targetIsActive = async () => true;
+
+    await expect(runSelfUpdate(harness)).resolves.toBe(0);
+
+    expect(harness.stdout.join("")).toBe("a1 update (stable): 1.2.3 → 1.2.3.\na1 is already current and active for this channel.\n");
+    expect(harness.stderr).toEqual([]);
+  });
+
+  it("renders a progress bar that completes at 100% when progress is enabled", async () => {
+    const harness = createHarness({ responses: [success("1.3.0\n"), success(`${resolve("fixtures", "global")}\n`), success()] });
+
+    await expect(runSelfUpdate({ ...harness, progress: true })).resolves.toBe(0);
+
+    const text = harness.stdout.join("");
+    expect(text).toContain("░");
+    expect(text).toContain(`\r${"█".repeat(39)} 100%\n`);
+    expect(text.endsWith("a1 updated successfully: 1.3.0 (stable).\n")).toBe(true);
+  });
+
+  it("creeps the progress bar between milestones while npm install runs", async () => {
+    vi.useFakeTimers();
+    try {
+      const harness = createHarness();
+      let installStarted!: () => void;
+      let releaseInstall!: () => void;
+      const started = new Promise<void>(resolvePromise => { installStarted = resolvePromise; });
+      const gate = new Promise<void>(resolvePromise => { releaseInstall = resolvePromise; });
+      harness.runner = async (command, arguments_, request) => {
+        harness.invocations.push({ command, arguments: arguments_, request });
+        if (arguments_[0] === "view") return success("1.3.0\n");
+        if (arguments_[0] === "root") return success(`${harness.globalRoot}\n`);
+        installStarted();
+        await gate;
+        return success();
+      };
+
+      const run = runSelfUpdate({ ...harness, progress: true });
+      await started;
+      await vi.advanceTimersByTimeAsync(10_000);
+      releaseInstall();
+      await expect(run).resolves.toBe(0);
+
+      const percents = harness.stdout.join("").split("\r")
+        .map(frame => /(\d+)%/.exec(frame)?.[1])
+        .filter((value): value is string => value !== undefined)
+        .map(Number);
+      expect(percents.some(percent => percent > 15 && percent < 70)).toBe(true);
+      expect(percents.at(-1)).toBe(100);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("rechecks ownership before activating an installation resumed after interruption", async () => {
@@ -188,7 +243,7 @@ describe("A1 self-update orchestration", () => {
       "shutdown:1.3.0",
       `activate:${harness.packageRoot}:1.3.0`,
     ]);
-    expect(harness.stdout.join("")).toBe("A1 update (stable): 1.2.3 → 1.3.0.\nA1 updated successfully: 1.3.0 (stable).\n");
+    expect(harness.stdout.join("")).toBe("a1 update (stable): 1.2.3 → 1.3.0.\na1 updated successfully: 1.3.0 (stable).\n");
   });
 
   it("records deterministic timing for every completed update phase", async () => {

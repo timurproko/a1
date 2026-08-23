@@ -129,8 +129,8 @@ describe("release-gating N-1 update transitions", () => {
       "shutdown:1.1.0:owned-ui,supervisor,child-process",
       "activate:1.1.0:maintenance-mode",
     ]);
-    expect(stdout.join("")).toContain(`A1 update (${channel}): 1.0.0 → 1.1.0.`);
-    expect(stdout.join("")).toContain(`A1 updated successfully: 1.1.0 (${channel}).`);
+    expect(stdout.join("")).toContain(`a1 update (${channel}): 1.0.0 → 1.1.0.`);
+    expect(stdout.join("")).toContain(`a1 updated successfully: 1.1.0 (${channel}).`);
     expect(JSON.stringify(calls)).not.toMatch(/taskkill|Remove-Item|release-state deletion|database deletion/i);
   });
 });
