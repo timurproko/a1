@@ -62,6 +62,7 @@ export interface SelfUpdateOptions {
   runner?: UpdateProcessRunner;
   lifecycle?: UpdateLifecycleCoordinator;
   transactionStore?: UpdateTransactionJournal;
+  progress?: boolean;
   onPhaseTiming?: (event: UpdatePhaseTimingEvent) => void;
   now?: () => number;
 }
@@ -181,6 +182,69 @@ export function createUpdateLifecycleCoordinator(
   };
 }
 
+const PROGRESS_BAR_WIDTH = 39;
+const PROGRESS_TICK_MS = 200;
+const ACTIVATION_PROGRESS: Readonly<Record<UpdateActivationPhase, { at: number; creepTo: number }>> = {
+  materialized: { at: 85, creepTo: 90 },
+  certified: { at: 90, creepTo: 95 },
+  "active-reference-committed": { at: 95, creepTo: 99 },
+};
+
+interface UpdateProgress { set(percent: number, creepTo?: number): void; finish(): void; clear(): void }
+
+function renderProgressBar(percent: number): string {
+  const bounded = Math.min(100, Math.max(0, Math.round(percent)));
+  const filled = Math.round((bounded / 100) * PROGRESS_BAR_WIDTH);
+  return `${"█".repeat(filled)}${"░".repeat(PROGRESS_BAR_WIDTH - filled)} ${bounded}%`;
+}
+
+function createUpdateProgress(output: UpdateOutput, enabled: boolean): UpdateProgress {
+  let visible = false;
+  let current = 0;
+  let shown = -1;
+  let timer: ReturnType<typeof setInterval> | null = null;
+  const draw = () => {
+    const rounded = Math.round(current);
+    if (rounded === shown) return;
+    shown = rounded;
+    visible = true;
+    output.stdout(`\r${renderProgressBar(rounded)}`);
+  };
+  const stopCreep = () => {
+    if (timer !== null) { clearInterval(timer); timer = null; }
+  };
+  return {
+    set(percent, creepTo = percent) {
+      if (!enabled) return;
+      stopCreep();
+      current = Math.max(current, percent);
+      shown = -1;
+      draw();
+      if (creepTo <= current) return;
+      // Creep asymptotically toward (but never reach) the next milestone so
+      // long opaque phases such as npm install still show visible motion.
+      timer = setInterval(() => {
+        current = Math.min(creepTo - 0.5, current + (creepTo - current) * 0.04);
+        draw();
+      }, PROGRESS_TICK_MS);
+      timer.unref?.();
+    },
+    finish() {
+      stopCreep();
+      if (!visible) return;
+      output.stdout(`\r${renderProgressBar(100)}\n`);
+      visible = false;
+    },
+    clear() {
+      stopCreep();
+      if (!visible) return;
+      output.stdout(`\r${" ".repeat(PROGRESS_BAR_WIDTH + 6)}\r`);
+      visible = false;
+      shown = -1;
+    },
+  };
+}
+
 export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number> {
   const fileSystem = options.fileSystem ?? defaultFileSystem;
   const output = options.output ?? defaultOutput;
@@ -212,7 +276,9 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
     output.stderr(`${PRODUCT_TEXT.diagnostic(`received a malformed ${distTag} version from npm: ${JSON.stringify(targetLookup.result.stdout.trim())}.`)}\n`);
     return 1;
   }
-  output.stdout(`${PRODUCT_TEXT.diagnostic(`update (${channel}): ${runningVersion} → ${targetVersion}.`)}\n`);
+  output.stdout(`${PRODUCT_TEXT.commandName} update (${channel}): ${runningVersion} → ${targetVersion}.\n`);
+  const progress = createUpdateProgress(output, options.progress ?? (options.output === undefined && process.stdout.isTTY === true));
+  progress.set(3, 15);
 
   const rootLookup = await measure("global-root", async () => await runNpm(runner, ["root", "--global"], true, output, "resolve npm's global package root"));
   if (rootLookup.result === null) return rootLookup.exitCode;
@@ -245,7 +311,8 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
         await transactionStore.finish("completed");
       }
       await transactionStore.clearCompleted();
-      output.stdout(`${PRODUCT_TEXT.diagnostic("is already current and active for this channel; no installation was changed.")}\n`);
+      progress.clear();
+      output.stdout(`${PRODUCT_TEXT.commandName} is already current and active for this channel.\n`);
       return 0;
     }
     const cohortState = await new CohortStateStore(paths.dataDir).read();
@@ -262,6 +329,7 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
       });
       transaction = await transactionStore.advance("ownership-released");
     }
+    progress.set(15, 70);
 
     if (phaseBefore(transaction.phase, "package-installed")) {
       const installation = await measure("npm-install", async () => await runNpm(
@@ -279,15 +347,18 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
       }
       transaction = await transactionStore.advance("package-installed");
     }
+    progress.set(70, 75);
 
     // Ownership can be reacquired after an interrupted installation (for
     // example, if bare A1 is launched before the update is resumed). Recheck
     // immediately before activation so recovery cannot start a second cohort.
     await measure("ownership-release", async () => { await lifecycle.shutdownVerifiedOwners(targetVersion); });
+    progress.set(75, 85);
     let activationPhaseStartedAt = now();
     await lifecycle.activateInstalled(packageRoot, targetVersion, async phase => {
       options.onPhaseTiming?.({ phase, durationMs: Math.max(0, now() - activationPhaseStartedAt) });
       transaction = await transactionStore.advance(phase);
+      progress.set(ACTIVATION_PROGRESS[phase].at, ACTIVATION_PROGRESS[phase].creepTo);
       activationPhaseStartedAt = now();
     });
     options.onPhaseTiming?.({ phase: "supervisor-verified", durationMs: Math.max(0, now() - activationPhaseStartedAt) });
@@ -296,9 +367,11 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
     await transactionStore.finish("completed");
     await transactionStore.clearCompleted();
     options.onPhaseTiming?.({ phase: "transaction-complete", durationMs: Math.max(0, now() - transactionStartedAt) });
-    output.stdout(`${PRODUCT_TEXT.diagnostic(`updated successfully: ${targetVersion} (${channel}).`)}\n`);
+    progress.finish();
+    output.stdout(`${PRODUCT_TEXT.commandName} updated successfully: ${targetVersion} (${channel}).\n`);
     return 0;
   } catch (error) {
+    progress.clear();
     const message = errorMessage(error);
     const rollback = options.lifecycle
       ? "previous test lifecycle retained"
