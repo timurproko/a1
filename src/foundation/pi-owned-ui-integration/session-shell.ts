@@ -48,6 +48,8 @@ import {
   createPiShellTrustSelector,
   createPiShellUserMessageSelector,
   piTheme,
+  renderPiShellPackageUpdateNotice,
+  renderPiShellStartupDiagnostic,
   renderPiShellStatusText,
   renderPiShellTranscriptBlock,
   type PiExtensionUiBridge,
@@ -252,22 +254,37 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       if (index > 0 && block?.kind === "user") return ["", ...rows];
       return rows;
     });
-    const diagnosticRows = this.#view.diagnostics.slice(-3).flatMap(diagnostic =>
-      renderPiShellTranscriptBlock({
-        id: `diagnostic-${diagnostic.sequence}`,
-        kind: diagnostic.severity === "error" ? "error" : "system",
-        status: "finalized",
-        revision: diagnostic.sequence,
-        title: diagnostic.code,
-        text: diagnostic.message,
-        payload: {},
-      }, width, this.#cwd));
+    const diagnostics = this.#view.diagnostics;
+    const startupRows = diagnostics
+      .filter(diagnostic => diagnostic.code === "engine-startup")
+      .flatMap(diagnostic => renderPiShellStartupDiagnostic(diagnostic, width));
+    const packageUpdateRows = diagnostics
+      .filter(diagnostic => diagnostic.code === "package-updates")
+      .flatMap(diagnostic => renderPiShellPackageUpdateNotice(
+        diagnostic.message.split("\n").filter(line => line.startsWith("- ")).map(line => line.slice(2)),
+        width,
+      ));
+    const diagnosticRows = diagnostics
+      .filter(diagnostic => diagnostic.code !== "engine-startup" && diagnostic.code !== "package-updates")
+      .slice(-3)
+      .flatMap(diagnostic =>
+        renderPiShellTranscriptBlock({
+          id: `diagnostic-${diagnostic.sequence}`,
+          kind: diagnostic.severity === "error" ? "error" : "system",
+          status: "finalized",
+          revision: diagnostic.sequence,
+          title: diagnostic.code,
+          text: diagnostic.message,
+          payload: {},
+        }, width, this.#cwd));
     const resourceRows = [...this.resources.render(width)];
     if (resourceRows.at(-1) === "") resourceRows.pop();
     return [
+      ...startupRows,
       ...(this.#extensionHeader ?? this.header).render(width),
       ...resourceRows,
       ...transcript,
+      ...packageUpdateRows,
       ...diagnosticRows,
     ];
   }

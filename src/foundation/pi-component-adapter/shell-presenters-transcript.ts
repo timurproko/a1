@@ -212,6 +212,47 @@ export function renderPiShellTranscriptBlock(
   return transcriptComponent(block, cwd, true).render(width);
 }
 
+/**
+ * Pinned Pi's CLI prints startup diagnostics with `reportDiagnostics` before
+ * the banner: the whole line, prefix included, in chalk's basic ANSI severity
+ * colour — not the theme's tokens — with info lines dim and unprefixed.
+ */
+export function renderPiShellStartupDiagnostic(
+  diagnostic: { readonly severity: "info" | "warning" | "error"; readonly message: string },
+  width: number,
+): readonly string[] {
+  ensureTheme();
+  const escape = String.fromCharCode(27);
+  const chalk = diagnostic.severity === "error"
+    ? { open: `${escape}[31m`, close: `${escape}[39m`, prefix: "Error: " }
+    : diagnostic.severity === "warning"
+      ? { open: `${escape}[33m`, close: `${escape}[39m`, prefix: "Warning: " }
+      : { open: `${escape}[2m`, close: `${escape}[22m`, prefix: "" };
+  return new Text(`${chalk.open}${chalk.prefix}${diagnostic.message}${chalk.close}`, 0, 0).render(width);
+}
+
+/**
+ * Pinned Pi's `showPackageUpdateNotification` banner: warning-coloured dynamic
+ * borders around a bold warning title, the muted update instruction with the
+ * accent command, and the package list.
+ */
+export function renderPiShellPackageUpdateNotice(packages: readonly string[], width: number): readonly string[] {
+  ensureTheme();
+  const theme = piTheme();
+  const container = new Container();
+  container.addChild(new Spacer(1));
+  container.addChild(new DynamicBorder(text => theme.fg("warning", text)));
+  container.addChild(new Text(
+    `${theme.bold(theme.fg("warning", "Package Updates Available"))}\n`
+    + `${theme.fg("muted", "Package updates are available. Run ")}${theme.fg("accent", "pi update --extensions")}\n`
+    + `${theme.fg("muted", "Packages:")}\n`
+    + packages.map(name => `- ${name}`).join("\n"),
+    1, 0,
+  ));
+  container.addChild(new DynamicBorder(text => theme.fg("warning", text)));
+  return container.render(width);
+}
+
 function transcriptComponent(
   block: OwnedUiTranscriptBlock,
   cwd: string,
