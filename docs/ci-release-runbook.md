@@ -1,13 +1,17 @@
 # CI and release operations
 
-GitHub Actions is the only automation platform. Two required checks protect the branches:
+GitHub Actions is the only automation platform. Two things are protected:
 
-| Branch | Required check | Produced by |
+| Ref | Protection | Produced by |
 | --- | --- | --- |
-| `develop` | `Development validation required` | `.github/workflows/ci.yml` |
-| `master` | `Stable candidate required` | `.github/workflows/certify-stable.yml` |
+| `develop` | `Development validation required` on every pull request | `.github/workflows/ci.yml` |
+| `refs/tags/v*` | cannot be deleted or moved | ruleset only |
 
-These are job display names. If you rename one, update the ruleset definition, this runbook, and the live ruleset together.
+Publishing is one workflow, `.github/workflows/release.yml`, triggered by pushes
+rather than dispatched by hand.
+
+`develop` is the only branch. A release is a tag on it, not a promotion to another
+branch, so there is nothing to keep in sync and nothing to drift.
 
 ## How much validation runs when
 
@@ -15,53 +19,82 @@ These are job display names. If you rename one, update the ruleset definition, t
 | --- | --- |
 | Docs or specs only | OpenSpec strict lint, nothing else |
 | Any code PR into `develop` | Fast tier: typecheck, architecture checks, unit/contract tests |
-| Preview candidate (`next`) | Fast tier + package gates: content, clean install, dependency policy |
-| Stable candidate (`latest`) | Complete suite on Windows, Linux, and macOS + physical evidence |
+| Preview publish (`next`) | Fast tier + package gates on Windows, Linux, and macOS |
+| Stable publish (`latest`) | Complete suite on Windows, Linux, and macOS |
 
-Need more coverage for a risky preview? Dispatch the candidate with `full: true`, or run the **Full regression** workflow on demand.
+Need more coverage for something risky? Run the **Full regression** workflow on
+demand.
 
-## Publish a preview to npm `next`
+## Previews publish themselves
 
-One command from a clean `develop` checkout runs the whole chain — candidate build, publish, registry verification:
+Every push to `develop` publishes a preview to the npm `next` tag. Nothing to
+dispatch and nothing to approve.
+
+The version is stamped at publish time — `<major.minor.patch>-dev.<run number>`,
+derived from whatever `package.json` declares — and is never written back to the
+repository. `develop` therefore carries one open prerelease version between
+releases, and no commit is ever spent on a preview.
+
+Two consequences worth knowing:
+
+- Between `chore(release): x.y.z` landing and its tag being pushed, `develop`
+  declares a stable version. The pipeline publishes nothing in that window and says
+  so, because a `x.y.z-dev.N` published then would rank *below* the release.
+- A push that would republish an existing version fails early, before anything is
+  packed.
+
+## Cutting a stable release
+
+One command, from a clean `develop` that matches its remote:
 
 ```sh
-npm run release:next
+npm run release -- patch     # or minor, major, or an exact x.y.z
 ```
 
-It dispatches the same trusted workflows below and never publishes local bytes. The manual steps remain the reference path:
+It lands `x.y.z` on `develop` through a pull request that merges itself, tags that
+exact commit `vx.y.z`, pushes the tag, and then lands `x.y.(z+1)-dev.0` so previews
+resume immediately. It publishes nothing itself — pushing the tag is what publishes.
 
-1. Make sure `Development validation required` is green on the `develop` tip.
-2. Dispatch **Build npm next candidate** with the exact commit and `confirm_candidate=build-uncertified-next-candidate`.
-3. Check the resulting `candidate-evidence.json`: gates passed, package integrity matches.
-4. Approve the `npm-publish` environment and dispatch **Publish npm next** with the candidate run id.
+The tag triggers the same pipeline in its stable form: build the process guardian on
+all three platforms, pack once, run the complete suite against those exact bytes on
+all three platforms, stage a draft GitHub Release, publish to npm `latest` with
+provenance from the `npm-publish` environment, then publish the staged release. If
+anything fails after the draft exists, the draft is removed.
 
-The publisher uploads the exact validated tarball — it never rebuilds. Candidates expire after 14 days; an expired or mismatched artifact means building a new candidate, not patching the old one.
+Rules that do not bend:
 
-## Publish a stable release to npm `latest`
-
-1. Commit the final version to `develop` (clean tree, version not yet on the registry).
-2. Dispatch **Build stable candidate** — it packs once and validates the same bytes on all three platforms.
-3. Dispatch **Certify stable physical platforms** on the dedicated isolated workers (they set `PHYSICAL_WORKER_ISOLATED=true` and run under the `stable-physical` environment). Never run physical host probes on a developer workstation.
-4. Dispatch **Certify stable candidate** with both run ids. `Stable candidate required` passes only when every verdict binds the same commit, version, and digest.
-5. Merge that exact commit to `master`, tag it `v<version>`, and dispatch **Publish npm stable**, then approve `npm-publish`.
-
-Stable artifacts expire after 30 days. The same rule as previews applies: publication still requires exact certified bytes. Never upload locally rebuilt bytes, and never route around certification by rebuilding inside a publisher.
+- **Never upload locally rebuilt bytes.** The publisher uploads the artifact the
+  validation ran against, and re-checks its digest before and after.
+- **Never route around validation by rebuilding inside a publisher.** The publish
+  job has no checkout of dependencies, no build, and no pack step.
+- **Never move a release tag.** A wrong tag is superseded by the next version, not
+  repointed.
 
 ## When something fails
 
 - **PR validation fails:** fix the code and push. Do not mark a failed tier optional.
-- **Candidate validation fails:** discard the candidate and build a new one after the fix.
-- **Physical worker fails:** fix or replace the worker, then rerun the full physical evidence for the candidate.
-- **Publisher fails before npm accepted the bytes:** diagnose and retry with the same candidate while it is unexpired and the version is still unpublished.
-- **Publisher is uncertain after npm accepted the bytes:** stop. Check the registry for the version, tag, and digest. Repair a dist-tag only as a separate reviewed operation — never republish.
+- **Preview publish fails:** fix and push again; the next push publishes the next
+  run number. Nothing needs cleaning up.
+- **Stable publish fails before npm accepted the bytes:** the draft release is
+  removed automatically. Fix, then cut the next version — the tag stays where it is.
+- **Stable publish is uncertain after npm accepted the bytes:** stop. Check the
+  registry for the version, tag, and digest. Repair a dist-tag only as a separate
+  reviewed operation — never republish.
 
-## Why the rulesets look the way they do
+## Why the ruleset looks the way it does
 
-One person maintains this repository, and GitHub does not let a PR author approve their own PR. Requiring even one approval would therefore deadlock the authorized solo-maintainer path — no PR could ever merge. So both rulesets require a pull request, a green required check, and resolved review threads, but set required approving reviews to zero.
+One person maintains this repository, and GitHub does not let a PR author approve
+their own PR. Requiring even one approval would deadlock the authorized
+solo-maintainer path — no PR could ever merge. So the `develop` ruleset requires a
+pull request, a green required check, and resolved review threads, but sets required
+approving reviews to zero. It does not require the branch to be up to date: once a
+PR is green it merges even if unrelated work landed first, with no re-validation
+loop.
 
-- `develop` does not require the branch to be up to date: once a PR is approved and green, it merges even if unrelated work landed first — no re-validation loop.
-- `master` does require it: a stable promotion always validates the exact final state.
+The tag ruleset carries no checks at all. A tag is created from an already-validated
+commit, and what matters is that it can never be deleted or moved afterwards.
 
-If a second maintainer joins, raise the approval count. Do not add a direct-push bypass as a shortcut, and never weaken the force-push or deletion protection.
-
-Ruleset mutation is a separate administrative operation: run `node scripts/check-github-rulesets.mjs` to see the diff, and apply only when a maintainer explicitly confirms with `--apply --confirm apply-a1-ci-rulesets`.
+Do not add a direct-push bypass as a shortcut, and never weaken the force-push or
+deletion protection. Ruleset mutation is a separate administrative operation: run
+`node scripts/check-github-rulesets.mjs` to see the diff, and apply only when a
+maintainer explicitly confirms with `--apply --confirm apply-a1-ci-rulesets`.

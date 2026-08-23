@@ -21,8 +21,8 @@ describe("product identity declarative boundaries", () => {
     ["package manifest", async (root: string) => writeJson(root, "package.json", { name: "@example/other", bin: { "a1": "bin/cli.js" } }), "package.json name differs"],
     ["npm bin", async (root: string) => writeJson(root, "package.json", { name: "@timurproko/a1", bin: { "a1": "bin/other.js" } }), "package.json bin differs"],
     ["lockfile", async (root: string) => writeJson(root, "package-lock.json", { name: "@example/other", packages: { "": { name: "@example/other", bin: { "a1": "bin/cli.js" } } } }), "package-lock.json name differs"],
-    ["workflow", async (root: string) => writeFile(resolve(root, ".github/workflows/npm-publish.yml"), "run: echo @timurproko/a1", "utf8"), "does not consume the product identity authority"],
-    ["candidate evidence workflow", async (root: string) => writeFile(resolve(root, ".github/workflows/npm-publish.yml"), "candidate-evidence.json\nevidence.package.name", "utf8"), "does not derive package and bin metadata from product identity"],
+    ["workflow", async (root: string) => writeFile(resolve(root, ".github/workflows/release.yml"), "run: echo @timurproko/a1", "utf8"), "does not consume the product identity authority"],
+    ["identity-blind workflow", async (root: string) => writeFile(resolve(root, ".github/workflows/release.yml"), "candidate-evidence.json\nevidence.package.name", "utf8"), "does not derive package and bin metadata from product identity"],
     ["native crate", async (root: string) => writeFile(resolve(root, "native/terminal-host/Cargo.toml"), "[package]\nname = \"other-host\"\n", "utf8"), "native Cargo package name differs"],
     ["duplicate authority", async (root: string) => writeJson(root, "src/application-identity.json", { duplicate: true }), "expected one executable JSON identity authority"],
   ])("rejects divergent %s metadata", async (_name, mutate, expected) => {
@@ -53,8 +53,7 @@ async function fixture(): Promise<string> {
   await writeJson(root, "package.json", { name: identity.packageName, bin });
   await writeJson(root, "package-lock.json", { name: identity.packageName, packages: { "": { name: identity.packageName, bin } } });
   await writeText(root, identity.artifacts.cliEntry, "#!/usr/bin/env node\n");
-  await writeText(root, ".github/workflows/npm-publish.yml", workflow);
-  await writeText(root, ".github/workflows/publish-stable.yml", workflow);
+  await writeText(root, ".github/workflows/release.yml", workflow);
   await writeText(root, "native/terminal-host/Cargo.toml", `[package]\nname = "${identity.artifacts.nativeCrate}"\n`);
   await writeText(root, "native/terminal-host/Cargo.lock", `[[package]]\nname = "${identity.artifacts.nativeCrate}"\n`);
   return root;

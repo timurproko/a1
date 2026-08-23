@@ -69,11 +69,11 @@ This optional, mutating presentation-maintenance workflow regenerates component 
 
 Presentation acceptance is the reader comparing `a1 pi` with pinned Pi. `node scripts/check-pinned-pi-source-ledger.mjs` validates accepted provenance; its `--engine-only` mode validates the ownership partition without comparing private upstream source.
 
-## Preview publication
+## Publication
 
-A preview candidate must use a unique `-dev.N` version and exact manually accepted bytes. Publication packs once, binds evidence to source commit/version/integrity, runs applicable non-desktop gates, publishes under npm `next`, and verifies registry identity. It must keep `latest` unchanged and record physical/cross-platform certification as deferred.
+One workflow publishes both channels: `.github/workflows/release.yml`. A push to `develop` publishes a preview under npm `next` at a unique `-dev.N` version stamped at publish time; a pushed `v<version>` tag publishes that version under npm `latest` and records its GitHub Release. Both routes pack once, validate those exact bytes on Windows, Linux, and macOS, and publish with provenance from the `npm-publish` environment. The publisher never rebuilds and a preview never changes `latest`.
 
-The GitHub trusted-publishing workflow is `.github/workflows/npm-publish.yml`. Stable publication remains a separate release process from a clean tagged `master` commit after all mandatory platform gates pass.
+`docs/ci-release-runbook.md` is the operational reference.
 
 ## A1 state paths
 

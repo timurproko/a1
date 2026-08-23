@@ -1,23 +1,42 @@
 export function validateRulesetDefinition(definition) {
   if (definition?.schema !== "a1-github-rulesets-v1") throw new Error("GitHub ruleset schema is invalid");
   if (!/^[^/]+\/[^/]+$/.test(definition.repository ?? "")) throw new Error("GitHub ruleset repository is invalid");
-  if (!Array.isArray(definition.rulesets) || definition.rulesets.length !== 2) throw new Error("exactly two branch rulesets are required");
-  const expected = new Map([["refs/heads/develop", "Development validation required"], ["refs/heads/master", "Stable candidate required"]]);
+  if (!Array.isArray(definition.rulesets) || definition.rulesets.length !== 2) throw new Error("exactly one branch ruleset and one tag ruleset are required");
+  // One branch carries the work and one tag pattern carries the releases, so the
+  // protections are one of each: develop cannot be pushed to without a green
+  // pull request, and a release tag can never be deleted or moved.
+  const branches = new Map([["refs/heads/develop", "Development validation required"]]);
+  const tags = new Set(["refs/tags/v*"]);
+  let branchRulesets = 0;
+  let tagRulesets = 0;
   for (const ruleset of definition.rulesets) {
-    if (ruleset.target !== "branch" || ruleset.enforcement !== "active") throw new Error(`${ruleset.name} must actively target branches`);
+    if (ruleset.enforcement !== "active") throw new Error(`${ruleset.name} must be actively enforced`);
     if (!Array.isArray(ruleset.bypass_actors) || ruleset.bypass_actors.length !== 0) throw new Error(`${ruleset.name} must not permit direct-push bypass actors`);
     const include = ruleset.conditions?.ref_name?.include;
-    if (!Array.isArray(include) || include.length !== 1 || !expected.has(include[0])) throw new Error(`${ruleset.name} targets an unexpected branch`);
+    if (!Array.isArray(include) || include.length !== 1) throw new Error(`${ruleset.name} must target exactly one ref pattern`);
     const byType = new Map(ruleset.rules?.map(rule => [rule.type, rule]));
-    for (const type of ["deletion", "non_fast_forward", "pull_request", "required_status_checks"]) {
+    for (const type of ["deletion", "non_fast_forward"]) {
+      if (!byType.has(type)) throw new Error(`${ruleset.name} is missing ${type}`);
+    }
+
+    if (ruleset.target === "tag") {
+      tagRulesets += 1;
+      if (!tags.has(include[0])) throw new Error(`${ruleset.name} targets an unexpected tag pattern`);
+      continue;
+    }
+    if (ruleset.target !== "branch") throw new Error(`${ruleset.name} must target branches or tags`);
+    branchRulesets += 1;
+    if (!branches.has(include[0])) throw new Error(`${ruleset.name} targets an unexpected branch`);
+    for (const type of ["pull_request", "required_status_checks"]) {
       if (!byType.has(type)) throw new Error(`${ruleset.name} is missing ${type}`);
     }
     const pull = byType.get("pull_request").parameters;
     if (pull.required_approving_review_count !== 0 || pull.require_last_push_approval !== false || pull.required_review_thread_resolution !== true) throw new Error(`${ruleset.name} solo-maintainer pull-request policy is incomplete`);
     const status = byType.get("required_status_checks").parameters;
     const contexts = status.required_status_checks?.map(check => check.context);
-    if (typeof status.strict_required_status_checks_policy !== "boolean" || status.do_not_enforce_on_create !== false || !contexts?.includes(expected.get(include[0]))) throw new Error(`${ruleset.name} required status is incomplete`);
+    if (typeof status.strict_required_status_checks_policy !== "boolean" || status.do_not_enforce_on_create !== false || !contexts?.includes(branches.get(include[0]))) throw new Error(`${ruleset.name} required status is incomplete`);
   }
+  if (branchRulesets !== 1 || tagRulesets !== 1) throw new Error("exactly one branch ruleset and one tag ruleset are required");
   return definition;
 }
 
