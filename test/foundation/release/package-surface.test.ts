@@ -20,23 +20,23 @@ describe("exact packed npm command surface", () => {
   it("contains only the authoritative package and public command surface", () => {
     expect(candidate.manifest).toMatchObject({
       name: "@timurproko/a1",
-      bin: { "a1": "bin/a1.js" },
+      bin: { "a1": "bin/cli.js" },
       repository: { type: "git", url: "https://github.com/timurproko/a1" },
     });
     expect(Object.keys(candidate.manifest.bin)).toEqual(["a1"]);
     const paths = candidate.entries.map(entry => entry.path.slice("package/".length));
     expect(paths).toEqual(expect.arrayContaining([
       "package.json",
-      "bin/a1.js",
-      "bin/a1-guardian.js",
-      "bin/a1-ui.js",
-      "bin/a1-supervisor.js",
+      "bin/cli.js",
+      "bin/guardian.js",
+      "bin/ui.js",
+      "bin/supervisor.js",
       "dist/src/product-identity.js",
       "dist/src/product-identity.json",
       "dist/src/product-identity.d.ts",
       "dist/src/foundation/pi-engine-adapter/public-main-entry.js",
       `dist/native/${process.platform}-${process.arch}/manifest.json`,
-      `dist/native/${process.platform}-${process.arch}/${process.platform === "win32" ? "a1-process-guardian.exe" : "a1-process-guardian"}`,
+      `dist/native/${process.platform}-${process.arch}/${process.platform === "win32" ? "process-guardian.exe" : "process-guardian"}`,
     ]));
     expect(paths.some(path => /addone/i.test(path))).toBe(false);
     expect(paths.some(path => path.startsWith("scripts/") || path.endsWith(".map"))).toBe(false);
@@ -48,7 +48,7 @@ describe("exact packed npm command surface", () => {
     expect(oracle.status, oracle.stderr).toBe(0);
     expect(oracle.stdout.trim()).toBe(candidate.manifest.dependencies?.["@earendil-works/pi-coding-agent"]);
 
-    const command = crossSpawn.sync(process.execPath, [resolve(extracted.packageRoot, "bin", "a1.js"), "agent"], {
+    const command = crossSpawn.sync(process.execPath, [resolve(extracted.packageRoot, "bin", "cli.js"), "agent"], {
       cwd: extracted.root, encoding: "utf8", env: process.env, windowsHide: true,
     });
     expect(command.status).toBe(2);

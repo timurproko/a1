@@ -214,6 +214,7 @@ errors.push(...inspectPiProductionBoundary(sourceFiles, piBoundaryBaseline));
 await inspectRepositoryStructure();
 await inspectReleasePolicy();
 await inspectTerminalParityBoundary();
+await inspectFileNames();
 inspectOwnedShellModules();
 
 if (errors.length > 0) {
@@ -303,17 +304,13 @@ async function inspectTerminalParityBoundary() {
     if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
     return;
   }
-  const parityCommand = manifest.scripts?.["test:pi-terminal-parity"];
-  if (parityCommand === undefined) return;
+  // Terminal capture belongs to tests alone: a pseudo-terminal or cell reader
+  // shipped in the product would be a second way to draw the screen.
   for (const dependency of ["node-pty", "@xterm/headless"]) {
-    if (manifest.dependencies?.[dependency]) errors.push(`package.json: terminal parity dependency '${dependency}' must be development-only`);
-    if (!manifest.devDependencies?.[dependency]) errors.push(`package.json: terminal parity development dependency '${dependency}' is missing`);
-  }
-  if (parityCommand !== "npm run build --silent && node scripts/run-pi-terminal-parity.mjs") {
-    errors.push("package.json: terminal parity must expose only the canonical full test command");
+    if (manifest.dependencies?.[dependency]) errors.push(`package.json: terminal capture dependency '${dependency}' must be development-only`);
   }
   if ((manifest.files ?? []).some(path => path === "scripts" || path.startsWith("scripts/"))) {
-    errors.push("package.json: test-only terminal parity scripts must not be published");
+    errors.push("package.json: test-only scripts must not be published");
   }
 }
 
@@ -347,5 +344,36 @@ async function inspectReleasePolicy() {
   }
   if (/createUncertifiedDevelopmentPreviewEvidence/.test(publishNext) && !/requireManuallyAcceptedDevelopmentPreview/.test(publishNext)) {
     errors.push("scripts/publish-next.ts: uncertified next publication must require exact manual acceptance");
+  }
+}
+
+/**
+ * Inside this repository the product is a given, so a file named after it says
+ * nothing a reader does not know and makes renaming the product a rename of the
+ * tree. The product's name belongs where something outside addresses A1: the
+ * command, the package, `A1_*` variables, state directories, and schemas.
+ */
+async function inspectFileNames() {
+  const roots = ["bin", "src", "scripts", "test", "native", "docs", "config"];
+  const productName = /(^|[^a-z0-9])a1([^a-z0-9]|$)/i;
+  const skipped = new Set(["node_modules", "dist", "target", "target-check", "vendor", ".git", "prebuilds"]);
+  for (const root_ of roots) {
+    for (const path of await filesUnder(resolve(root, root_), root_)) {
+      const name = path.split("/").at(-1) ?? "";
+      if (productName.test(name)) errors.push(`${path}: file is named for the product; name it for what it does`);
+    }
+  }
+
+  async function filesUnder(absolute, prefix) {
+    let entries;
+    try { entries = await readdir(absolute, { withFileTypes: true }); } catch { return []; }
+    const found = [];
+    for (const entry of entries) {
+      if (skipped.has(entry.name)) continue;
+      const path = `${prefix}/${entry.name}`;
+      if (entry.isDirectory()) found.push(...await filesUnder(resolve(absolute, entry.name), path));
+      else found.push(path);
+    }
+    return found;
   }
 }

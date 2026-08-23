@@ -5,7 +5,7 @@ import type { CandidateEvidence } from "../../scripts/candidate-evidence.mjs";
 const identity = {
   packageName: "@timurproko/a1",
   commandName: "a1",
-  artifacts: { cliEntry: "bin/a1.js" },
+  artifacts: { cliEntry: "bin/cli.js" },
 };
 
 function input(version = "0.1.1") {

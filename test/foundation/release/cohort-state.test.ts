@@ -87,6 +87,6 @@ function release(version: string, seed: string): MaterializedRelease {
     releaseId: `${version}-${digest.slice(0, 20)}`,
     packageRoot: `/package/${version}`,
     releaseRoot: `/data/releases/${version}`,
-    files: [{ path: "bin/a1-ui.js", bytes: 1, sha256: "0".repeat(64), executable: true }],
+    files: [{ path: "bin/ui.js", bytes: 1, sha256: "0".repeat(64), executable: true }],
   };
 }

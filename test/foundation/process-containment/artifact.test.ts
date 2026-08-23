@@ -32,7 +32,7 @@ describe("process guardian artifact verification", () => {
 
 async function artifactFixture(overrides: { capability?: "supported" | "unsupported" } = {}) {
   const directory = await root();
-  const path = resolve(directory, "a1-process-guardian.exe");
+  const path = resolve(directory, "process-guardian.exe");
   const bytes = Buffer.from("exact guardian fixture");
   await writeFile(path, bytes);
   await writeFile(resolve(directory, "manifest.json"), JSON.stringify({
@@ -43,7 +43,7 @@ async function artifactFixture(overrides: { capability?: "supported" | "unsuppor
     architecture: "x64",
     capability: overrides.capability ?? "supported",
     artifact: {
-      filename: "a1-process-guardian.exe",
+      filename: "process-guardian.exe",
       sha256: createHash("sha256").update(bytes).digest("hex"),
       size: bytes.length,
     },
