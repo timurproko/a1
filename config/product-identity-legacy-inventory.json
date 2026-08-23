@@ -1,5 +1,4 @@
 {
-  "generatedAt": "2026-08-22T13:50:57.851Z",
   "schema": "a1-legacy-identity-inventory-v1",
   "scan": {
     "roots": [
@@ -44,10 +43,10 @@
     "explicit-obsolete-package-fixtures"
   ],
   "summary": {
-    "total": 80,
-    "files": 26,
+    "total": 82,
+    "files": 27,
     "byLocationKind": {
-      "content": 80,
+      "content": 82,
       "path": 0
     },
     "byClass": {
@@ -56,10 +55,10 @@
       "environment-keys": 15,
       "paths": 49,
       "schemas": 13,
-      "artifacts": 21,
+      "artifacts": 23,
       "native-names": 3,
       "tests": 50,
-      "current-docs-specs": 30,
+      "current-docs-specs": 32,
       "historical-records": 12,
       "explicit-obsolete-package-fixtures": 5
     }
@@ -182,6 +181,36 @@
         "paths",
         "current-docs-specs",
         "explicit-obsolete-package-fixtures"
+      ]
+    },
+    {
+      "id": "openspec/changes/development-profiles-are-prerelease-only/specs/launch-profiles/spec.md:9:2",
+      "path": "openspec/changes/development-profiles-are-prerelease-only/specs/launch-profiles/spec.md",
+      "locationKind": "content",
+      "line": 9,
+      "column": 2,
+      "value": "addone",
+      "context": "`addone` executable or expose an `agent` subcommand alias; future multi-agent UX",
+      "matchedCase": "lower",
+      "primaryClass": "artifacts",
+      "classes": [
+        "artifacts",
+        "current-docs-specs"
+      ]
+    },
+    {
+      "id": "openspec/changes/development-profiles-are-prerelease-only/specs/launch-profiles/spec.md:54:50",
+      "path": "openspec/changes/development-profiles-are-prerelease-only/specs/launch-profiles/spec.md",
+      "locationKind": "content",
+      "line": 54,
+      "column": 50,
+      "value": "addone",
+      "context": "- **THEN** the installation SHALL NOT create an `addone` executable",
+      "matchedCase": "lower",
+      "primaryClass": "artifacts",
+      "classes": [
+        "artifacts",
+        "current-docs-specs"
       ]
     },
     {
@@ -1356,5 +1385,6 @@
         "tests"
       ]
     }
-  ]
+  ],
+  "generatedAt": "2026-08-23T14:13:30.215Z"
 }
