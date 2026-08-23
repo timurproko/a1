@@ -67,11 +67,27 @@ export interface SelfUpdateOptions {
   now?: () => number;
 }
 export type UpdateActivationPhase = Extract<UpdateTransactionPhase, "materialized" | "certified" | "active-reference-committed">;
+
+/**
+ * Copying the release is the longest step with nothing to say for itself, so it
+ * reports the files it has written against the files it must write. A caller that
+ * shows progress can then move with the work instead of guessing at it.
+ */
+export interface UpdateMaterializationProgress {
+  readonly completed: number;
+  readonly total: number;
+}
+
 export interface UpdateLifecycleCoordinator {
   targetIsActive(targetVersion: string): Promise<boolean>;
   shutdownVerifiedOwners(targetVersion: string): Promise<{ priorActiveVersion: string | null }>;
   verifyPackageUnlocked(packageRoot: string): Promise<void>;
-  activateInstalled(packageRoot: string, targetVersion: string, phase: (phase: UpdateActivationPhase) => Promise<void>): Promise<void>;
+  activateInstalled(
+    packageRoot: string,
+    targetVersion: string,
+    phase: (phase: UpdateActivationPhase) => Promise<void>,
+    onMaterializing?: (progress: UpdateMaterializationProgress) => void,
+  ): Promise<void>;
 }
 export interface UpdateTransactionJournal {
   readonly path: string;
@@ -166,8 +182,20 @@ export function createUpdateLifecycleCoordinator(
         throw new Error(PRODUCT_TEXT.diagnostic(`package remains locked after verified shutdown: ${errorMessage(error)}`));
       }
     },
-    async activateInstalled(packageRoot, targetVersion, phase) {
-      const candidate = await materializeRelease(packageRoot, paths.dataDir);
+    async activateInstalled(packageRoot, targetVersion, phase, onMaterializing) {
+      let total = 0;
+      let completed = 0;
+      const candidate = await materializeRelease(packageRoot, paths.dataDir, {
+        onProgress: event => {
+          total = event.fileCount;
+          onMaterializing?.({ completed, total });
+        },
+        onOperation: event => {
+          if (event.operation !== "candidate-write") return;
+          completed += 1;
+          onMaterializing?.({ completed, total });
+        },
+      });
       if (candidate.packageVersion !== targetVersion) throw new Error(`installed ${PRODUCT_TEXT.displayName} version ${candidate.packageVersion} does not match target ${targetVersion}`);
       await stateStore.recordCandidate(candidate);
       await phase("materialized");
@@ -184,10 +212,16 @@ export function createUpdateLifecycleCoordinator(
 
 const PROGRESS_BAR_WIDTH = 39;
 const PROGRESS_TICK_MS = 200;
+/**
+ * Copying the release owns 78–92 and is reported file by file, so the bar crosses
+ * that span with the work rather than parking at its start. What follows is short,
+ * which is why the remaining milestones sit close together.
+ */
+const MATERIALIZE_PROGRESS = Object.freeze({ from: 78, to: 92 });
 const ACTIVATION_PROGRESS: Readonly<Record<UpdateActivationPhase, { at: number; creepTo: number }>> = {
-  materialized: { at: 85, creepTo: 90 },
-  certified: { at: 90, creepTo: 95 },
-  "active-reference-committed": { at: 95, creepTo: 99 },
+  materialized: { at: 92, creepTo: 94 },
+  certified: { at: 94, creepTo: 96 },
+  "active-reference-committed": { at: 96, creepTo: 99 },
 };
 
 interface UpdateProgress { set(percent: number, creepTo?: number): void; finish(): void; clear(): void }
@@ -222,9 +256,12 @@ function createUpdateProgress(output: UpdateOutput, enabled: boolean): UpdatePro
       draw();
       if (creepTo <= current) return;
       // Creep asymptotically toward (but never reach) the next milestone so
-      // long opaque phases such as npm install still show visible motion.
+      // long opaque phases such as npm install still show visible motion. The
+      // ceiling stays a whole point below the milestone: settling on `creepTo`
+      // itself would render as that milestone and make arriving at it invisible,
+      // which is what a stalled bar looks like.
       timer = setInterval(() => {
-        current = Math.min(creepTo - 0.5, current + (creepTo - current) * 0.04);
+        current = Math.min(creepTo - 1, current + (creepTo - current) * 0.04);
         draw();
       }, PROGRESS_TICK_MS);
       timer.unref?.();
@@ -353,13 +390,17 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
     // example, if bare A1 is launched before the update is resumed). Recheck
     // immediately before activation so recovery cannot start a second cohort.
     await measure("ownership-release", async () => { await lifecycle.shutdownVerifiedOwners(targetVersion); });
-    progress.set(75, 85);
+    progress.set(75, MATERIALIZE_PROGRESS.from);
     let activationPhaseStartedAt = now();
     await lifecycle.activateInstalled(packageRoot, targetVersion, async phase => {
       options.onPhaseTiming?.({ phase, durationMs: Math.max(0, now() - activationPhaseStartedAt) });
       transaction = await transactionStore.advance(phase);
       progress.set(ACTIVATION_PROGRESS[phase].at, ACTIVATION_PROGRESS[phase].creepTo);
       activationPhaseStartedAt = now();
+    }, ({ completed, total }) => {
+      const span = MATERIALIZE_PROGRESS.to - MATERIALIZE_PROGRESS.from;
+      const done = total > 0 ? Math.min(1, completed / total) : 0;
+      progress.set(MATERIALIZE_PROGRESS.from + span * done);
     });
     options.onPhaseTiming?.({ phase: "supervisor-verified", durationMs: Math.max(0, now() - activationPhaseStartedAt) });
     const transactionStartedAt = now();

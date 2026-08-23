@@ -49,8 +49,11 @@ describe("mutable bootstrap boundary", () => {
       readFile(resolve(repository, "src/foundation/release/bootstrap.ts"), "utf8"),
       readFile(resolve(repository, "src/foundation/release/update.ts"), "utf8"),
     ]);
+    // Launch says nothing about activation at all. Update may say how far along it
+    // is, because the user asked for the update and waits on it — but only as the
+    // percentage of its one progress bar, never as a file name or a running count.
     expect(bootstrap).not.toContain("onProgress:");
-    expect(update).not.toContain("onProgress:");
+    expect(update).not.toMatch(/output\.std(?:out|err)\([^\n]*(?:event\.path|fileCount|completed|\btotal\b)/);
     expect(`${bootstrap}\n${update}`).not.toMatch(/installing .* files/);
   });
 

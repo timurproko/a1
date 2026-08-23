@@ -227,6 +227,59 @@ describe("A1 self-update orchestration", () => {
     }
   });
 
+  it("moves the bar with the files being copied rather than parking until they are done", async () => {
+    const harness = createHarness({ responses: [success("1.3.0\n"), success(`${resolve("fixtures", "global")}\n`), success()] });
+    harness.lifecycle.activateInstalled = async (_path, _targetVersion, phase, onMaterializing) => {
+      for (let file = 1; file <= 20; file += 1) onMaterializing?.({ completed: file, total: 20 });
+      for (const value of ["materialized", "certified", "active-reference-committed"] as const) await phase(value);
+    };
+
+    await expect(runSelfUpdate({ ...harness, progress: true })).resolves.toBe(0);
+
+    const percents = harness.stdout.join("").split("\r")
+      .map(frame => /(\d+)%/.exec(frame)?.[1])
+      .filter((value): value is string => value !== undefined)
+      .map(Number);
+    const copying = percents.filter(percent => percent > 78 && percent < 92);
+    // Several distinct readings across the copy span, not one jump over it.
+    expect(new Set(copying).size).toBeGreaterThan(4);
+    expect(percents).toEqual([...percents].sort((left, right) => left - right));
+    expect(percents.at(-1)).toBe(100);
+  });
+
+  it("never settles on a milestone it has not reached, so arriving at one is visible", async () => {
+    vi.useFakeTimers();
+    try {
+      const harness = createHarness();
+      let installStarted!: () => void;
+      let releaseInstall!: () => void;
+      const started = new Promise<void>(resolvePromise => { installStarted = resolvePromise; });
+      const gate = new Promise<void>(resolvePromise => { releaseInstall = resolvePromise; });
+      harness.runner = async (command, arguments_, request) => {
+        harness.invocations.push({ command, arguments: arguments_, request });
+        if (arguments_[0] === "view") return success("1.3.0\n");
+        if (arguments_[0] === "root") return success(`${harness.globalRoot}\n`);
+        installStarted();
+        await gate;
+        return success();
+      };
+
+      const run = runSelfUpdate({ ...harness, progress: true });
+      await started;
+      await vi.advanceTimersByTimeAsync(600_000);
+      const duringInstall = harness.stdout.join("").split("\r")
+        .map(frame => /(\d+)%/.exec(frame)?.[1])
+        .filter((value): value is string => value !== undefined)
+        .map(Number);
+      expect(Math.max(...duringInstall)).toBeLessThan(70);
+
+      releaseInstall();
+      await expect(run).resolves.toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("rechecks ownership before activating an installation resumed after interruption", async () => {
     const harness = createHarness({
       responses: [success("1.3.0\n"), success(`${resolve("fixtures", "global")}\n`)],
