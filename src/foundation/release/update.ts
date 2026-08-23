@@ -278,7 +278,6 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
   }
   output.stdout(`${PRODUCT_TEXT.commandName} update (${channel}): ${runningVersion} → ${targetVersion}.\n`);
   const progress = createUpdateProgress(output, options.progress ?? (options.output === undefined && process.stdout.isTTY === true));
-  progress.set(3, 15);
 
   const rootLookup = await measure("global-root", async () => await runNpm(runner, ["root", "--global"], true, output, "resolve npm's global package root"));
   if (rootLookup.result === null) return rootLookup.exitCode;
@@ -311,10 +310,11 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
         await transactionStore.finish("completed");
       }
       await transactionStore.clearCompleted();
-      progress.clear();
       output.stdout(`${PRODUCT_TEXT.commandName} is already current and active for this channel.\n`);
       return 0;
     }
+    // The bar first appears here so a no-change run never flashes it.
+    progress.set(3, 15);
     const cohortState = await new CohortStateStore(paths.dataDir).read();
     transaction = await transactionStore.begin({
       channel,
