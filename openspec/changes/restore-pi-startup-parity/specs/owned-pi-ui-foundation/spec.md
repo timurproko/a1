@@ -14,6 +14,14 @@ acts on at startup SHALL NOT be silently ignored by the owned surface.
 - **THEN** the owned UI SHALL surface pinned Pi's
   `No models match pattern "<pattern>"` warning as a startup diagnostic
 
+#### Scenario: Render startup diagnostics in pinned style and position
+
+- **WHEN** startup diagnostics exist when the owned shell renders
+- **THEN** every startup diagnostic SHALL render above the banner in pinned
+  `reportDiagnostics` style — the whole line in the severity colour with the
+  `Warning: ` or `Error: ` prefix, info lines dim without a prefix
+- **AND** no startup diagnostic SHALL be dropped by a display cap
+
 #### Scenario: Apply the configured model scope
 
 - **WHEN** `enabledModels` patterns resolve to one or more available models
@@ -25,7 +33,9 @@ acts on at startup SHALL NOT be silently ignored by the owned surface.
 #### Scenario: Announce available extension-package updates
 
 - **WHEN** the startup probe finds extension packages with available updates
-- **THEN** the owned UI SHALL surface a recoverable startup diagnostic naming
-  the packages and pinned Pi's `pi update --extensions` instruction
+- **THEN** the owned UI SHALL render pinned Pi's notification banner —
+  warning-coloured dynamic borders around the bold `Package Updates Available`
+  title, the muted instruction with the accent `pi update --extensions`
+  command, and the package list — after the banner and loaded resources
 - **AND** with `PI_OFFLINE` set, or when the probe fails, no notice SHALL
   appear
