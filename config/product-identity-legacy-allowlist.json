@@ -1,6 +1,6 @@
 {
   "schema": "a1-legacy-identity-allowlist-v1",
-  "generatedAt": "2026-08-22T13:50:57.961Z",
+  "generatedAt": "2026-08-23T14:13:30.294Z",
   "inventorySchema": "a1-legacy-identity-inventory-v1",
   "occurrences": [
     {
@@ -44,6 +44,18 @@
       "value": "addone",
       "fingerprint": "2ac62bac087407884ec40a11e7d3e494c0f109c482ef2a3fa5dd96abde9de44b",
       "reason": "explicit obsolete-package rejection or deprecation fixture"
+    },
+    {
+      "id": "openspec/changes/development-profiles-are-prerelease-only/specs/launch-profiles/spec.md:9:2",
+      "value": "addone",
+      "fingerprint": "e92dc11b28f8cf3f96a3d6e1cd4f599445525020e9b93eaa1a0cec35061f7552",
+      "reason": "documented hard-cut or deprecation assertion"
+    },
+    {
+      "id": "openspec/changes/development-profiles-are-prerelease-only/specs/launch-profiles/spec.md:54:50",
+      "value": "addone",
+      "fingerprint": "128ab5c897b31ff21a81132c7ed26de35e0ccfc765e43d01722157e742325b6b",
+      "reason": "documented hard-cut or deprecation assertion"
     },
     {
       "id": "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/manual-one-pane-terminal-host.md:5:48",

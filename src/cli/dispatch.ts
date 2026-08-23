@@ -1,4 +1,5 @@
 import { interactiveLaunchIntent, type InteractiveLaunchIntent, type LaunchProfileId } from "../features/launch/index.js";
+import type { CliCapabilities } from "./capabilities.js";
 import type { PackageCommandRequest } from "./packages.js";
 import { PRODUCT_TEXT } from "../product-identity.js";
 
@@ -15,17 +16,18 @@ export interface CliOutput {
   readonly stderr: (message: string) => void;
 }
 
-export const CLI_USAGE = PRODUCT_TEXT.usage([
-  "",
-  "pi",
-  "sandbox",
-  "version",
-  "update [self|<source>|--extensions|--models]",
-  "update:next",
-  "install <source>",
-  "remove <source>",
-  "list",
-]);
+export function cliUsage(capabilities: CliCapabilities): string {
+  return PRODUCT_TEXT.usage([
+    "",
+    ...(capabilities.developmentProfiles ? ["pi", "sandbox"] : []),
+    "version",
+    "update [self|<source>|--extensions|--models]",
+    "update:next",
+    "install <source>",
+    "remove <source>",
+    "list",
+  ]);
+}
 
 const PROFILE_WORDS = new Set(["pi", "sandbox"]);
 
@@ -33,10 +35,11 @@ export async function dispatchCli(
   arguments_: readonly string[],
   handlers: CliHandlers,
   output: CliOutput,
+  capabilities: CliCapabilities,
 ): Promise<number> {
-  const command = parseCliCommand(arguments_);
+  const command = parseCliCommand(arguments_, capabilities);
   if (command.kind === "error") {
-    output.stderr(`${command.message}\n${CLI_USAGE}\n`);
+    output.stderr(`${command.message}\n${cliUsage(capabilities)}\n`);
     return 2;
   }
   if (command.kind === "launch") return await handlers.launch(interactiveLaunchIntent(command.profileId));
@@ -52,11 +55,13 @@ export type CliCommand =
   | { readonly kind: "packages"; readonly request: PackageCommandRequest }
   | { readonly kind: "error"; readonly message: string };
 
-export function parseCliCommand(arguments_: readonly string[]): CliCommand {
+export function parseCliCommand(arguments_: readonly string[], capabilities: CliCapabilities): CliCommand {
   if (arguments_.length === 0) return { kind: "launch", profileId: "a1" };
   const [command, ...rest] = arguments_;
 
-  if (command === "pi" || command === "sandbox") return withoutArguments(rest, { kind: "launch", profileId: command });
+  if (capabilities.developmentProfiles && (command === "pi" || command === "sandbox")) {
+    return withoutArguments(rest, { kind: "launch", profileId: command });
+  }
   if (command === "version") return withoutArguments(rest, { kind: "version" });
   if (command === "update:next") return withoutArguments(rest, { kind: "update", channel: "next" });
   if (command === "update") return parseUpdate(rest);
@@ -121,7 +126,7 @@ function withoutArguments(rest: readonly string[], command: CliCommand): CliComm
 function profileRejection(verb: string): CliCommand {
   return {
     kind: "error",
-    message: PRODUCT_TEXT.diagnostic(`manages packages in its own profile, so ${verb} takes no profile; Pi manages ${PRODUCT_TEXT.commandName} pi and the sandbox takes no packages.`),
+    message: PRODUCT_TEXT.diagnostic(`manages packages in its own profile, so ${verb} takes no profile; Pi manages Pi's own profile.`),
   };
 }
 
