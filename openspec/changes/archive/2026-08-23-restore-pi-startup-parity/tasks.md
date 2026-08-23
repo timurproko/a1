@@ -28,7 +28,7 @@
 ## 4. Validate and integrate
 
 - [x] 4.1 `npm run typecheck` and `openspec validate --strict` pass
-- [ ] 4.2 Open the pull request and let CI validate
-- [ ] 4.3 Record manual acceptance — `a1 pi` beside vanilla `pi` shows the same
-  model-pattern warnings and package-update notice, in the same style and
-  order — then archive
+- [x] 4.2 Open the pull request and let CI validate (PR #62, all checks green)
+- [x] 4.3 Record manual acceptance — accepted 2026-08-23: the user compared
+  `a1 pi` beside vanilla `pi` and confirmed 1:1 parity of the model-pattern
+  warnings and package-update notice, including colour, style, and order
