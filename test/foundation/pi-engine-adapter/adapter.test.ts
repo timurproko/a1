@@ -203,6 +203,31 @@ describe("Pi engine adapter", () => {
     expect(adapter.view().lifecycle).toBe("stopped");
   });
 
+  it("announces extension package updates from the startup probe as a recoverable diagnostic", async () => {
+    const runtime = new FakeRuntime(new FakeSession("pi-session-1"));
+    let probed = 0;
+    const adapter = await createPiEngineAdapter({
+      cwd: "D:/work",
+      agentDir: "D:/agent",
+      sessionId: "owned-1",
+      createRuntime: async () => runtime as unknown as AgentSessionRuntime,
+      checkPackageUpdates: async () => {
+        probed += 1;
+        return ["pi-mcp-adapter"];
+      },
+    });
+    await vi.waitFor(() => {
+      expect(adapter.view().diagnostics.some(diagnostic => diagnostic.code === "package-updates")).toBe(true);
+    });
+    const diagnostic = adapter.view().diagnostics.find(item => item.code === "package-updates")!;
+    expect(diagnostic.severity).toBe("info");
+    expect(diagnostic.recoverable).toBe(true);
+    expect(diagnostic.message).toContain("Package updates are available. Run pi update --extensions");
+    expect(diagnostic.message).toContain("- pi-mcp-adapter");
+    expect(probed).toBe(1);
+    await adapter.execute(command("shutdown", "shutdown-updates"));
+  });
+
   it("maps public session usage and footer state without placeholder statistics", async () => {
     const session = new FakeSession("pi-session-1");
     session.contextUsage = { tokens: 86_768, contextWindow: 272_000, percent: 31.9 };
