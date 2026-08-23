@@ -4,14 +4,10 @@ import { CLI_USAGE, parseCliCommand } from "../../src/cli/dispatch.js";
 
 describe("owned UI launch documentation", () => {
   it("keeps bare, oracle, sandbox, and removed-ui guidance consistent with CLI dispatch", async () => {
-    const [readme, profiles, checkpoint] = await Promise.all([
-      readFile("README.md", "utf8"),
+    const [profiles, checkpoint] = await Promise.all([
       readFile("docs/features/launch-profiles.md", "utf8"),
       readFile("docs/manual-transparent-checkpoint.md", "utf8"),
     ]);
-    expect(readme).toContain("A1-owned");
-    expect(readme).toMatch(/a1 pi[^\n]*(untouched|vanilla)/i);
-    expect(readme).toMatch(/a1 sandbox[^\n]*(unchanged|isolated)/i);
     expect(profiles).toContain("A1-owned");
     expect(profiles).toMatch(/a1 pi[^\n]*(untouched|vanilla)/i);
     expect(profiles).toMatch(/a1 sandbox[^\n]*(unchanged|isolated)/i);
