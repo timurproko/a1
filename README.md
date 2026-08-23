@@ -10,11 +10,18 @@ npm install --global @timurproko/a1@latest
 
 ```sh
 a1              # A1-owned UI and profile: ~/.a1/agent
-a1 pi           # untouched vanilla Pi oracle: ~/.pi/agent
-a1 sandbox      # unchanged isolated vanilla Pi profile: ~/.a1/sandbox
 a1 version      # show Installed, Release (latest), and Next versions
 a1 update       # update to npm latest
 a1 update:next  # update to npm next
+```
+
+Prerelease builds — what `a1 update:next` installs — add two development profiles
+for comparing against pinned Pi and for experimenting against an isolated profile.
+A release build does not carry them.
+
+```sh
+a1 pi           # untouched vanilla Pi oracle: ~/.pi/agent
+a1 sandbox      # unchanged isolated vanilla Pi profile: ~/.a1/sandbox
 ```
 
 ## Extensions
