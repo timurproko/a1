@@ -1,11 +1,13 @@
 export function validateRulesetDefinition(definition) {
   if (definition?.schema !== "a1-github-rulesets-v1") throw new Error("GitHub ruleset schema is invalid");
   if (!/^[^/]+\/[^/]+$/.test(definition.repository ?? "")) throw new Error("GitHub ruleset repository is invalid");
-  if (!Array.isArray(definition.rulesets) || definition.rulesets.length !== 2) throw new Error("exactly one branch ruleset and one tag ruleset are required");
-  // One branch carries the work and one tag pattern carries the releases, so the
-  // protections are one of each: develop cannot be pushed to without a green
-  // pull request, and a release tag can never be deleted or moved.
-  const branches = new Map([["refs/heads/develop", "Development validation required"]]);
+  if (!Array.isArray(definition.rulesets) || definition.rulesets.length !== 3) throw new Error("exactly two branch rulesets and one tag ruleset are required");
+  // Three refs, three jobs. develop takes the work and cannot be pushed to without
+  // a green pull request. master records what the latest npm tag serves and is only
+  // ever fast-forwarded there by the release, so it needs no check of its own — it
+  // never holds anything a check has not already seen. Release tags are immovable.
+  const gated = new Map([["refs/heads/develop", "Development validation required"]]);
+  const forwardOnly = new Set(["refs/heads/master"]);
   const tags = new Set(["refs/tags/v*"]);
   let branchRulesets = 0;
   let tagRulesets = 0;
@@ -26,7 +28,14 @@ export function validateRulesetDefinition(definition) {
     }
     if (ruleset.target !== "branch") throw new Error(`${ruleset.name} must target branches or tags`);
     branchRulesets += 1;
-    if (!branches.has(include[0])) throw new Error(`${ruleset.name} targets an unexpected branch`);
+    if (forwardOnly.has(include[0])) {
+      // Requiring a pull request here would stop the release from recording itself.
+      for (const type of ["pull_request", "required_status_checks"]) {
+        if (byType.has(type)) throw new Error(`${ruleset.name} must not gate a ref only the release writes`);
+      }
+      continue;
+    }
+    if (!gated.has(include[0])) throw new Error(`${ruleset.name} targets an unexpected branch`);
     for (const type of ["pull_request", "required_status_checks"]) {
       if (!byType.has(type)) throw new Error(`${ruleset.name} is missing ${type}`);
     }
@@ -34,9 +43,9 @@ export function validateRulesetDefinition(definition) {
     if (pull.required_approving_review_count !== 0 || pull.require_last_push_approval !== false || pull.required_review_thread_resolution !== true) throw new Error(`${ruleset.name} solo-maintainer pull-request policy is incomplete`);
     const status = byType.get("required_status_checks").parameters;
     const contexts = status.required_status_checks?.map(check => check.context);
-    if (typeof status.strict_required_status_checks_policy !== "boolean" || status.do_not_enforce_on_create !== false || !contexts?.includes(branches.get(include[0]))) throw new Error(`${ruleset.name} required status is incomplete`);
+    if (typeof status.strict_required_status_checks_policy !== "boolean" || status.do_not_enforce_on_create !== false || !contexts?.includes(gated.get(include[0]))) throw new Error(`${ruleset.name} required status is incomplete`);
   }
-  if (branchRulesets !== 1 || tagRulesets !== 1) throw new Error("exactly one branch ruleset and one tag ruleset are required");
+  if (branchRulesets !== 2 || tagRulesets !== 1) throw new Error("exactly two branch rulesets and one tag ruleset are required");
   return definition;
 }
 

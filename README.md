@@ -91,6 +91,9 @@ command then lands the next `-dev.0` version so previews resume immediately.
 a1 update        # install the newest stable release
 ```
 
+After a stable publish, `master` fast-forwards to the released commit, so `master`
+always points at what npm `latest` serves while `develop` carries the work.
+
 Between a version landing and its tag being pushed, `develop` declares a stable
 version and no preview is published — a `-dev.N` published then would rank below the
 release. Release tags are protected from deletion and movement; a wrong tag is

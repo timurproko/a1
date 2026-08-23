@@ -18,7 +18,8 @@
 
 - [x] 3.1 Delete the preview and stable candidate, certification, physical, and
   publisher workflows and their scripts
-- [x] 3.2 Replace the `master` ruleset with release-tag protection
+- [x] 3.2 Make `master` a fast-forward-only record the release writes, and add
+  release-tag protection beside it
 - [x] 3.3 Point the product identity boundary check at the new publisher
 
 ## 4. Say how it works
@@ -36,6 +37,5 @@
 
 - [x] 6.1 `npm run typecheck`, `npm run check:architecture`, and `openspec validate --strict` pass
 - [ ] 6.2 Open the pull request and let CI validate
-- [ ] 6.3 Delete the `master` branch once the ruleset no longer protects it
 - [ ] 6.4 Record manual acceptance — a preview publishes from a push, then `0.1.1`
   publishes from its tag — then archive
