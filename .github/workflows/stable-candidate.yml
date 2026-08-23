@@ -45,13 +45,13 @@ jobs:
         run: git config --global core.autocrlf false
 
       - name: Check out exact candidate source
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           ref: ${{ inputs.source_commit }}
           persist-credentials: false
 
       - name: Set up Node
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: 24
           cache: npm
@@ -63,7 +63,7 @@ jobs:
         run: npm run build:process-guardian
 
       - name: Upload platform guardian
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: stable-process-guardian-${{ runner.os }}-${{ runner.arch }}
           path: dist/native
@@ -85,14 +85,14 @@ jobs:
         run: git config --global core.autocrlf false
 
       - name: Check out final version source
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           ref: ${{ inputs.source_commit }}
           fetch-depth: 0
           persist-credentials: false
 
       - name: Set up Node
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: 24
           cache: npm
@@ -101,7 +101,7 @@ jobs:
         run: npm ci
 
       - name: Assemble all platform process guardians
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           pattern: stable-process-guardian-*
           path: dist/native
@@ -131,6 +131,13 @@ jobs:
       - name: Pack final stable package once
         run: node scripts/prepare-validation-package.mjs
 
+      - name: Run platform-independent static analysis once
+        shell: bash
+        env:
+          VALIDATION_SELECTION_JSON: '["typecheck","architecture","dependency-policy"]'
+          VALIDATION_BUILD_READY: "1"
+        run: node scripts/run-validation-tier.mjs --result artifacts/validation/stable-static.json
+
       - name: Export derived version
         id: identity
         shell: bash
@@ -142,11 +149,12 @@ jobs:
           NODE
 
       - name: Upload single stable package
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: stable-package-${{ steps.identity.outputs.version }}-${{ inputs.source_commit }}
           path: |
             artifacts/validation/stable-candidate.json
+            artifacts/validation/stable-static.json
             artifacts/validation/package/candidate.tgz
             artifacts/validation/package/npm-pack-result.json
           if-no-files-found: error
@@ -173,14 +181,14 @@ jobs:
         run: git config --global core.autocrlf false
 
       - name: Check out exact stable source
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           ref: ${{ inputs.source_commit }}
           fetch-depth: 0
           persist-credentials: false
 
       - name: Download single stable package
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
         with:
           pattern: stable-package-*
           path: artifacts/stable
@@ -208,7 +216,7 @@ jobs:
           NODE
 
       - name: Set up Node
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: 24
           cache: npm
@@ -219,7 +227,7 @@ jobs:
       - name: Run complete platform validation
         shell: bash
         env:
-          VALIDATION_SELECTION_JSON: '["full-release"]'
+          VALIDATION_SELECTION_JSON: '["fast","dist-integration","launch-integration","pi-engine-conformance","release-update","update-performance","structured-runtime-integration","package-smoke","package-install"]'
           VALIDATION_BUILD_READY: "1"
           A1_RELEASE_RUNNER_LABEL: github-${{ matrix.platform }}-stable-candidate
           A1_CONFIG_DIR: ${{ runner.temp }}/a1-stable-config
@@ -242,7 +250,7 @@ jobs:
 
       - name: Upload platform verdict
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: stable-platform-${{ matrix.platform }}-${{ inputs.source_commit }}
           path: |
@@ -267,13 +275,13 @@ jobs:
           test "$PLATFORM_RESULT" = "success"
 
       - name: Check out certification policy
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           ref: ${{ inputs.source_commit }}
           persist-credentials: false
 
       - name: Download package and platform verdicts
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
         with:
           pattern: stable-*
           path: artifacts/stable
@@ -283,7 +291,7 @@ jobs:
         run: node scripts/verify-automated-stable.mjs --directory artifacts/stable --output artifacts/stable/automated-certification.json
 
       - name: Upload automated stable candidate
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: stable-automated-candidate-${{ needs.package.outputs.version }}-${{ inputs.source_commit }}
           path: artifacts/stable

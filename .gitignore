@@ -179,3 +179,5 @@ $RECYCLE.BIN/
 /native/terminal-host/vendor/**/zig-out/
 
 # End of https://www.toptal.com/developers/gitignore/api/windows,node
+# Pi agent workspace configuration
+/.pi/

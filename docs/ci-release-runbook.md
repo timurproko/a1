@@ -25,7 +25,7 @@ Need more coverage for a risky preview? Dispatch the candidate with `full: true`
 1. Make sure `Development validation required` is green on the `develop` tip.
 2. Dispatch **Build npm next candidate** with the exact commit and `confirm_candidate=build-uncertified-next-candidate`.
 3. Check the resulting `candidate-evidence.json`: gates passed, package integrity matches.
-4. Approve the `npm-next` environment and dispatch **Publish npm next** with the candidate run id.
+4. Approve the `npm-develop` environment and dispatch **Publish npm next** with the candidate run id.
 
 The publisher uploads the exact validated tarball — it never rebuilds. Candidates expire after 14 days; an expired or mismatched artifact means building a new candidate, not patching the old one.
 
@@ -35,7 +35,7 @@ The publisher uploads the exact validated tarball — it never rebuilds. Candida
 2. Dispatch **Build stable candidate** — it packs once and validates the same bytes on all three platforms.
 3. Dispatch **Certify stable physical platforms** on the dedicated isolated workers (they set `PHYSICAL_WORKER_ISOLATED=true` and run under the `stable-physical` environment). Never run physical host probes on a developer workstation.
 4. Dispatch **Certify stable candidate** with both run ids. `Stable candidate required` passes only when every verdict binds the same commit, version, and digest.
-5. Merge that exact commit to `master`, tag it `v<version>`, and dispatch **Publish npm stable**, then approve `npm-stable`.
+5. Merge that exact commit to `master`, tag it `v<version>`, and dispatch **Publish npm stable**, then approve `npm-develop`.
 
 Stable artifacts expire after 30 days. The same rule as previews applies: publication still requires exact certified bytes. Never upload locally rebuilt bytes, and never route around certification by rebuilding inside a publisher.
 

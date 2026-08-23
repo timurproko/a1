@@ -52,14 +52,14 @@ jobs:
           test "$GITHUB_SHA" = "${{ inputs.source_commit }}"
 
       - name: Check out exact physical certification source
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           ref: ${{ inputs.source_commit }}
           fetch-depth: 0
           persist-credentials: false
 
       - name: Download exact automated candidate
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
         with:
           run-id: ${{ inputs.automated_candidate_run_id }}
           pattern: stable-automated-candidate-*
@@ -76,7 +76,7 @@ jobs:
           echo "STABLE_CANDIDATE_IDENTITY=$(find artifacts/stable -type f -name stable-candidate.json)" >> "$GITHUB_ENV"
 
       - name: Set up Node
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: 24
           cache: npm
@@ -105,7 +105,7 @@ jobs:
             --output artifacts/physical/verdict-${{ matrix.platform }}.json
 
       - name: Upload exact physical verdict
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: stable-physical-${{ matrix.platform }}-${{ inputs.source_commit }}
           path: artifacts/physical
@@ -124,14 +124,14 @@ jobs:
         run: test "$PHYSICAL_RESULT" = "success"
 
       - name: Download all physical verdicts
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
         with:
           pattern: stable-physical-*-${{ inputs.source_commit }}
           path: artifacts/physical
           merge-multiple: true
 
       - name: Upload complete physical evidence
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: stable-physical-evidence-${{ inputs.source_commit }}
           path: artifacts/physical
