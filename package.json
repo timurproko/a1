@@ -46,7 +46,7 @@
     "start:sandbox": "npm run build && node scripts/dev-launch.mjs sandbox",
     "prepack": "node scripts/prepack-gate.mjs",
     "prepublishOnly": "npm run test:release",
-    "prepare": "npm run build",
+    "prepare": "node scripts/unify-pi-tui.mjs && npm run build",
     "update:pi-settings-metadata": "node scripts/update-pi-settings-metadata.mjs"
   },
   "dependencies": {
