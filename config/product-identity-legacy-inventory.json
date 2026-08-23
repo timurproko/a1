@@ -986,10 +986,10 @@
       ]
     },
     {
-      "id": "test/foundation/release/release.test.ts:70:84",
+      "id": "test/foundation/release/release.test.ts:107:84",
       "path": "test/foundation/release/release.test.ts",
       "locationKind": "content",
-      "line": 70,
+      "line": 107,
       "column": 84,
       "value": "addone",
       "context": "await writeFile(manifestPath, JSON.stringify({ ...manifest, name: \"@timurproko/addone\" }));",
@@ -1386,5 +1386,5 @@
       ]
     }
   ],
-  "generatedAt": "2026-08-23T14:13:30.215Z"
+  "generatedAt": "2026-08-23T17:46:30.004Z"
 }
