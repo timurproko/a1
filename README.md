@@ -17,10 +17,6 @@ a1 update       # update to npm latest
 a1 update:next  # update to npm next
 ```
 
-The `a1 ui` subcommand was removed; run bare `a1` for the owned UI.
-
-Any number of `a1`, `a1 pi`, and `a1 sandbox` commands can run at once; closing one closes only its own processes.
-
 ## Develop
 
 ```sh
