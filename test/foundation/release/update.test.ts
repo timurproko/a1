@@ -176,9 +176,9 @@ describe("A1 self-update orchestration", () => {
     const harness = createHarness({ responses: [success("1.2.3\n"), success(`${resolve("fixtures", "global")}\n`)] });
     harness.lifecycle.targetIsActive = async () => true;
 
-    await expect(runSelfUpdate(harness)).resolves.toBe(0);
+    await expect(runSelfUpdate({ ...harness, progress: true })).resolves.toBe(0);
 
-    expect(harness.stdout.join("")).toBe("a1 update (stable): 1.2.3 → 1.2.3.\na1 is already current and active for this channel.\n");
+    expect(harness.stdout.join("")).toBe("a1 update (stable): 1.2.3 → 1.2.3.\na1 is up to date — no update needed.\n");
     expect(harness.stderr).toEqual([]);
   });
 
