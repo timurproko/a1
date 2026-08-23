@@ -81,11 +81,12 @@ npm run release -- major     # 0.1.1        -> 1.0.0
 npm run release -- 0.4.0     # an exact version
 ```
 
-It lands the version on `develop` through a pull request that merges itself, tags
-that commit `v<version>`, and pushes the tag. **Pushing the tag is what publishes** —
-the workflow builds, validates the packed release on Windows, Linux, and macOS,
-publishes to npm `latest` with provenance, and records the GitHub Release. The
-command then lands the next `-dev.0` version so previews resume immediately.
+It lands the version on `develop` through a pull request that merges itself.
+**Landing it is what publishes** — the workflow builds, validates the packed release
+on Windows, Linux, and macOS, publishes to npm `latest` with provenance, and only
+then writes the `v<version>` tag and records the GitHub Release. The command waits
+for that to succeed, then lands the next `-dev.0` version so previews resume
+immediately.
 
 ```sh
 a1 update        # install the newest stable release
@@ -94,9 +95,9 @@ a1 update        # install the newest stable release
 After a stable publish, `master` fast-forwards to the released commit, so `master`
 always points at what npm `latest` serves while `develop` carries the work.
 
-Between a version landing and its tag being pushed, `develop` declares a stable
-version and no preview is published — a `-dev.N` published then would rank below the
-release. Release tags are protected from deletion and movement; a wrong tag is
+A release that fails leaves nothing behind: no tag, no GitHub Release, no moved
+branch. Every version you can see somewhere is a version the registry actually
+serves. Release tags are protected from deletion and movement; a wrong tag is
 superseded by the next version, never repointed.
 
 `docs/ci-release-runbook.md` has the full picture, including what happens when a

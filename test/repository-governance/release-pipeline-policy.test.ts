@@ -17,19 +17,19 @@ describe("one release pipeline", () => {
 
     const workflow = await releaseWorkflow();
     expect(workflow).toContain("branches: [develop]");
-    expect(workflow).toContain('tags: ["v*"]');
     expect(workflow).not.toContain("workflow_dispatch");
+    // The tag is written by the release, so it can never also be its trigger.
+    expect(workflow).not.toMatch(/^\s*tags:/m);
   });
 
-  it("derives the channel from the ref and refuses a tag that disagrees with its source", async () => {
+  it("derives the channel from what the pushed commit declares", async () => {
     const workflow = await releaseWorkflow();
-    expect(workflow).toContain('reference.startsWith("refs/tags/v")');
-    expect(workflow).toContain("does not match the packaged version");
+    expect(workflow).toContain("release runs from develop, not");
     expect(workflow).toContain("channel=latest");
     expect(workflow).toContain("channel=next");
-    // A stable version on develop is the window between preparing a release and
-    // tagging it; publishing a preview from it would rank below the release.
-    expect(workflow).toContain("awaiting its tag");
+    // Nothing about the plan reads a tag: at plan time no tag exists yet.
+    const plan = workflow.slice(workflow.indexOf("Resolve channel and version"), workflow.indexOf("Say what will happen"));
+    expect(plan).not.toContain("refs/tags");
   });
 
   it("packs once and publishes the bytes that were validated", async () => {
@@ -69,18 +69,21 @@ describe("one release pipeline", () => {
     expect(workflow.slice(moveMaster)).toContain("needs.plan.outputs.channel == 'latest'");
   });
 
-  it("stages the GitHub Release as a draft, publishes it only after npm, and removes it on failure", async () => {
+  it("records the tag and the release only after the registry has the package", async () => {
     const workflow = await releaseWorkflow();
-    const stage = workflow.indexOf("Stage the draft GitHub Release");
     const publishNpm = workflow.indexOf("Publish the exact package");
-    const publishRelease = workflow.indexOf("Publish the staged GitHub Release");
-    expect(stage).toBeGreaterThan(0);
-    expect(publishNpm).toBeGreaterThan(stage);
-    expect(publishRelease).toBeGreaterThan(publishNpm);
+    const verified = workflow.indexOf("Verify the registry serves exactly what was uploaded");
+    const tagged = workflow.indexOf("Tag the published commit");
+    const released = workflow.indexOf("Record the GitHub Release");
+    expect(publishNpm).toBeGreaterThan(0);
+    expect(verified).toBeGreaterThan(publishNpm);
+    expect(tagged).toBeGreaterThan(verified);
+    expect(released).toBeGreaterThan(tagged);
+    // The tag exists by then, so the release attaches to it rather than making one.
     expect(workflow).toContain("--verify-tag");
-    expect(workflow).toContain("--draft");
-    expect(workflow).toContain("gh release delete");
-    expect(workflow).toContain("if: failure() && needs.plan.outputs.channel == 'latest'");
+    // A failed release leaves nothing to clean up, so there is nothing to delete.
+    expect(workflow).not.toContain("gh release delete");
+    expect(workflow).not.toContain("--draft");
   });
 
   it("publishes only through the reviewed environment with provenance identity", async () => {
@@ -98,17 +101,26 @@ describe("one release pipeline", () => {
 });
 
 describe("the release command", () => {
-  it("cuts a stable release by landing the version, tagging it, and reopening develop", async () => {
+  it("cuts a stable release by landing the version, waiting for it, and reopening develop", async () => {
     const script = await readFile("scripts/release.mjs", "utf8");
     expect(script).toContain("release runs from develop");
     expect(script).toContain("commit or stash tracked changes first");
     expect(script).toContain("develop is not at the origin tip");
     expect(script).toContain("already exists on the registry");
     expect(script).toContain("a release tag is never moved");
-    const tagged = script.indexOf('git(["tag", tag, "origin/develop"])');
+    const landed = script.indexOf("await landVersion(version,");
+    const waited = script.indexOf("await waitForRelease(");
     const reopened = script.indexOf("open ${opening}");
-    expect(tagged).toBeGreaterThan(0);
-    expect(reopened).toBeGreaterThan(tagged);
+    expect(landed).toBeGreaterThan(0);
+    expect(waited).toBeGreaterThan(landed);
+    expect(reopened).toBeGreaterThan(waited);
+  });
+
+  it("creates no tag of its own, and says so when a release fails", async () => {
+    const script = await readFile("scripts/release.mjs", "utf8");
+    expect(script).not.toMatch(/git\(\["tag"/);
+    expect(script).not.toMatch(/git\(\["push", "origin", tag\]\)/);
+    expect(script).toContain("Nothing was tagged or released");
   });
 
   it("never publishes from the workstation", async () => {

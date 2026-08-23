@@ -1,23 +1,23 @@
 name: Release
 
-# One pipeline, two triggers, same shape.
+# One pipeline, one trigger: every push to develop.
 #
-# A push to develop publishes a preview to the npm `next` tag, versioned
-# `<major.minor.patch>-dev.<run number>` and stamped at publish time — the
-# repository never carries a commit per preview.
+# What the pushed commit declares decides the channel. A prerelease version
+# publishes a preview to the npm `next` tag, versioned
+# `<major.minor.patch>-dev.<run number>` and stamped at publish time, so the
+# repository never carries a commit per preview. A stable version publishes that
+# version to the npm `latest` tag.
 #
-# A pushed `v<version>` tag publishes that exact version to the npm `latest`
-# tag and records a GitHub Release for it. The release is staged as a draft
-# before npm is touched and published only after npm accepted the bytes, so a
-# half-finished release is never visible.
+# The tag, the GitHub Release, and master all come after the registry has the
+# package. A release that fails therefore leaves nothing behind to explain: no
+# tag, no release, no moved branch, only a red run.
 #
-# Both routes pack once and validate those exact bytes on every platform. The
+# Both channels pack once and validate those exact bytes on every platform. The
 # publisher never rebuilds: it uploads the artifact the validation ran against.
 
 on:
   push:
     branches: [develop]
-    tags: ["v*"]
 
 permissions:
   contents: read
@@ -57,19 +57,14 @@ jobs:
           const base = /^(\d+\.\d+\.\d+)/.exec(declared)?.[1];
           if (!base) throw new Error(`package version is not semantic: ${declared}`);
 
-          // A tag names the version outright, and the commit it points at must
-          // already declare it — a tag that disagrees with its own source is the
-          // one thing that must never reach the registry.
-          if (reference.startsWith("refs/tags/v")) {
-            const tagged = reference.slice("refs/tags/v".length);
-            if (!/^\d+\.\d+\.\d+$/.test(tagged)) throw new Error(`release tag is not a stable version: ${tagged}`);
-            if (tagged !== declared) throw new Error(`tag v${tagged} does not match the packaged version ${declared}`);
-            console.log(`publish=true\nchannel=latest\nversion=${tagged}\nreason=tagged stable release`);
-          } else if (declared === base) {
-            // Between "prepare x.y.z" landing and its tag being pushed, develop
-            // declares a stable version. Publishing a preview from it would put a
-            // version below the release on the next tag, so this window is quiet.
-            console.log(`publish=false\nchannel=none\nversion=${declared}\nreason=develop declares stable ${declared}; awaiting its tag`);
+          if (reference !== "refs/heads/develop") throw new Error(`release runs from develop, not ${reference}`);
+          // What the commit declares is what it means. A stable version declared on
+          // develop is the release itself; anything else is a preview. Nothing here
+          // reads a tag, because the tag does not exist yet: it is written after the
+          // registry has the package, so a release that fails leaves no version
+          // standing anywhere.
+          if (declared === base) {
+            console.log(`publish=true\nchannel=latest\nversion=${declared}\nreason=develop declares stable ${declared}`);
           } else {
             console.log(`publish=true\nchannel=next\nversion=${base}-dev.${process.env.RUN_NUMBER}\nreason=preview from develop`);
           }
@@ -396,29 +391,6 @@ jobs:
           if (JSON.stringify(manifest.bin) !== JSON.stringify({ [identity.commandName]: identity.artifacts.cliEntry })) throw new Error("packed command differs from product identity");
           NODE
 
-      # Staged before npm so a failed publication never leaves a release standing,
-      # and published only once npm has the bytes.
-      - name: Stage the draft GitHub Release
-        if: needs.plan.outputs.channel == 'latest'
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_VERSION: ${{ needs.plan.outputs.version }}
-        run: |
-          set -euo pipefail
-          tag="v${RELEASE_VERSION}"
-          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            test "$(gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)" = "true"
-            exit 0
-          fi
-          gh release create "$tag" \
-            --repo "$GITHUB_REPOSITORY" \
-            --verify-tag \
-            --draft \
-            --title "$(node -p "JSON.parse(require('node:fs').readFileSync('src/product-identity.json','utf8')).displayName") ${RELEASE_VERSION}" \
-            --notes "Published to the npm latest tag from ${GITHUB_SHA}." \
-            "$release_tarball"
-
       - name: Publish the exact package
         run: npm publish "$release_tarball" --tag "${{ needs.plan.outputs.channel }}" --access public --ignore-scripts --provenance --registry https://registry.npmjs.org/
 
@@ -452,13 +424,46 @@ jobs:
           throw lastError;
           NODE
 
-      - name: Publish the staged GitHub Release
+      # Everything below records a release that already exists on the registry.
+      # Nothing here runs before the publish, so a release that fails leaves no
+      # tag, no GitHub Release, and no moved branch — only a red run.
+      - name: Tag the published commit
         if: needs.plan.outputs.channel == 'latest'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_VERSION: ${{ needs.plan.outputs.version }}
-        run: gh release edit "v${RELEASE_VERSION}" --repo "$GITHUB_REPOSITORY" --draft=false --latest
+        run: |
+          set -euo pipefail
+          tag="v${RELEASE_VERSION}"
+          existing="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/${tag}" --jq .object.sha 2>/dev/null || true)"
+          if [ -n "$existing" ]; then
+            # Only the exact commit that was just published may already carry it,
+            # which is what a re-run of this job looks like.
+            test "$existing" = "$GITHUB_SHA"
+            exit 0
+          fi
+          gh api -X POST "repos/$GITHUB_REPOSITORY/git/refs" -f "ref=refs/tags/${tag}" -f "sha=$GITHUB_SHA" --silent
+
+      - name: Record the GitHub Release
+        if: needs.plan.outputs.channel == 'latest'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ needs.plan.outputs.version }}
+        run: |
+          set -euo pipefail
+          tag="v${RELEASE_VERSION}"
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            exit 0
+          fi
+          gh release create "$tag" \
+            --repo "$GITHUB_REPOSITORY" \
+            --verify-tag \
+            --latest \
+            --title "$(node -p "JSON.parse(require('node:fs').readFileSync('src/product-identity.json','utf8')).displayName") ${RELEASE_VERSION}" \
+            --notes "Published to the npm latest tag from ${GITHUB_SHA}." \
+            "$release_tarball"
 
       # master means "what is on the latest npm tag", and nothing but this step
       # ever writes it. The update is a plain fast-forward: no force, so a master
@@ -469,15 +474,3 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh api -X PATCH "repos/$GITHUB_REPOSITORY/git/refs/heads/master" -f "sha=$GITHUB_SHA" -F force=false --silent
-
-      - name: Remove the staged release when publication did not complete
-        if: failure() && needs.plan.outputs.channel == 'latest'
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_VERSION: ${{ needs.plan.outputs.version }}
-        run: |
-          tag="v${RELEASE_VERSION}"
-          if [ "$(gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft 2>/dev/null || echo missing)" = "true" ]; then
-            gh release delete "$tag" --repo "$GITHUB_REPOSITORY" --yes
-          fi
