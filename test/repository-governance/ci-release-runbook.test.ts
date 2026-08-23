@@ -21,6 +21,7 @@ describe("CI and release operations runbook", () => {
     const runbook = await readFile("docs/ci-release-runbook.md", "utf8");
     expect(runbook).toContain("Every push to `develop` publishes a preview");
     expect(runbook).toContain("npm run release --");
-    expect(runbook).toContain("pushing the tag is what publishes");
+    expect(runbook).toContain("Landing the stable version is what publishes");
+    expect(runbook).toContain("A release that fails leaves no tag");
   });
 });

@@ -38,13 +38,8 @@ derived from whatever `package.json` declares — and is never written back to t
 repository. `develop` therefore carries one open prerelease version between
 releases, and no commit is ever spent on a preview.
 
-Two consequences worth knowing:
-
-- Between `chore(release): x.y.z` landing and its tag being pushed, `develop`
-  declares a stable version. The pipeline publishes nothing in that window and says
-  so, because a `x.y.z-dev.N` published then would rank *below* the release.
-- A push that would republish an existing version fails early, before anything is
-  packed.
+One consequence worth knowing: a push that would republish an existing version
+fails early, before anything is packed.
 
 ## Cutting a stable release
 
@@ -54,16 +49,20 @@ One command, from a clean `develop` that matches its remote:
 npm run release -- patch     # or minor, major, or an exact x.y.z
 ```
 
-It lands `x.y.z` on `develop` through a pull request that merges itself, tags that
-exact commit `vx.y.z`, pushes the tag, and then lands `x.y.(z+1)-dev.0` so previews
-resume immediately. It publishes nothing itself — pushing the tag is what publishes.
+It lands `x.y.z` on `develop` through a pull request that merges itself, waits for
+that publication to succeed, and then lands `x.y.(z+1)-dev.0` so previews resume
+immediately. It publishes nothing itself and creates no tag.
 
-The tag triggers the same pipeline in its stable form: build the process guardian on
+Landing the stable version is what publishes. The same pipeline sees a commit
+declaring a stable version and runs its stable form: build the process guardian on
 all three platforms, pack once, run the complete suite against those exact bytes on
-all three platforms, stage a draft GitHub Release, publish to npm `latest` with
-provenance from the `npm-publish` environment, publish the staged release, and
-fast-forward `master` to the published commit. If anything fails after the draft
-exists, the draft is removed.
+all three platforms, publish to npm `latest` with provenance from the
+`npm-publish` environment, and only then write the tag `vx.y.z`, record the GitHub
+Release, and fast-forward `master`.
+
+That order is the point. A release that fails leaves no tag, no release, and no
+moved branch — only a red run. Nothing ever advertises a version that does not
+exist on the registry.
 
 Rules that do not bend:
 
@@ -72,15 +71,17 @@ Rules that do not bend:
 - **Never route around validation by rebuilding inside a publisher.** The publish
   job has no checkout of dependencies, no build, and no pack step.
 - **Never move a release tag.** A wrong tag is superseded by the next version, not
-  repointed.
+  repointed. The tag is written by the publication itself, so it exists only for
+  versions that shipped.
 
 ## When something fails
 
 - **PR validation fails:** fix the code and push. Do not mark a failed tier optional.
 - **Preview publish fails:** fix and push again; the next push publishes the next
   run number. Nothing needs cleaning up.
-- **Stable publish fails before npm accepted the bytes:** the draft release is
-  removed automatically. Fix, then cut the next version — the tag stays where it is.
+- **Stable publish fails:** nothing was recorded — no tag, no release, no moved
+  branch. Fix the cause and release the next version. The failed version number is
+  spent, because `develop` has already moved past it.
 - **Stable publish is uncertain after npm accepted the bytes:** stop. Check the
   registry for the version, tag, and digest. Repair a dist-tag only as a separate
   reviewed operation — never republish.

@@ -13,12 +13,13 @@
  * command does, in order:
  *
  *   1. Refuse anything but a clean develop that matches its remote.
- *   2. Land `x.y.z` on develop.
- *   3. Tag that exact commit `vx.y.z` and push the tag, which publishes it.
+ *   2. Land `x.y.z` on develop, which is what publishes it.
+ *   3. Wait for that publication to succeed.
  *   4. Land `x.y.(z+1)-dev.0` on develop, so previews resume immediately.
  *
- * The tag is what releases. Everything else here exists to make the tag point
- * at a commit that declares the version it names.
+ * Landing the stable version is the release. This command creates no tag: the
+ * tag is written by the pipeline after the registry has the package, so a
+ * release that fails leaves no version standing anywhere.
  */
 
 import { execFileSync } from "node:child_process";
@@ -29,6 +30,7 @@ const BUMPS = new Set(["major", "minor", "patch"]);
 const EXACT = /^\d+\.\d+\.\d+$/;
 const POLL_INTERVAL_MS = 20_000;
 const MERGE_TIMEOUT_MS = 30 * 60_000;
+const RELEASE_TIMEOUT_MS = 60 * 60_000;
 
 const target = process.argv[2];
 if (!target || (!BUMPS.has(target) && !EXACT.test(target))) {
@@ -100,6 +102,34 @@ async function landVersion(version, subject) {
   throw new Error(`pull request ${number} did not merge within ${MERGE_TIMEOUT_MS / 60_000} minutes`);
 }
 
+/**
+ * Follow the publication the stable version commit started. A release is not a
+ * release until the registry serves it, so the next version is not opened —
+ * and this command does not claim success — before that is true.
+ */
+async function waitForRelease(commit, version) {
+  const deadline = Date.now() + RELEASE_TIMEOUT_MS;
+  let reported;
+  while (Date.now() < deadline) {
+    const runs = JSON.parse(gh(["run", "list", "--workflow", "release.yml", "--json", "databaseId,headSha,status,conclusion", "--limit", "20"]));
+    const run = runs.find(entry => entry.headSha === commit);
+    if (run === undefined) {
+      log("waiting for the release run to appear...");
+    } else if (run.status === "completed") {
+      if (run.conclusion !== "success") {
+        throw new Error(`release run ${run.databaseId} concluded: ${run.conclusion}. Nothing was tagged or released; fix the cause and release the next version.`);
+      }
+      log(`release run ${run.databaseId} published ${version}`);
+      return;
+    } else if (run.status !== reported) {
+      reported = run.status;
+      log(`release run ${run.databaseId} is ${run.status}...`);
+    }
+    await sleep(POLL_INTERVAL_MS);
+  }
+  throw new Error(`the release run for ${version} did not finish within ${RELEASE_TIMEOUT_MS / 60_000} minutes`);
+}
+
 if (git(["rev-parse", "--abbrev-ref", "HEAD"]) !== "develop") throw new Error("release runs from develop");
 if (git(["status", "--porcelain", "-uno"]) !== "") throw new Error("commit or stash tracked changes first");
 git(["fetch", "origin", "develop"], { stdio: ["ignore", "ignore", "inherit"] });
@@ -113,6 +143,11 @@ const { name } = JSON.parse(await readFile("package.json", "utf8"));
 const registry = await fetch(`https://registry.npmjs.org/${encodeURIComponent(name)}/${version}`, { headers: { "cache-control": "no-cache" } });
 if (registry.status !== 404) throw new Error(`${name}@${version} already exists on the registry (HTTP ${registry.status})`);
 
+const tag = `v${version}`;
+if (git(["ls-remote", "--tags", "origin", tag]) !== "") {
+  throw new Error(`${tag} already exists; a release tag is never moved`);
+}
+
 log(`releasing ${name}@${version} from ${current}`);
 
 if (current !== version) {
@@ -120,14 +155,8 @@ if (current !== version) {
   current = version;
 }
 
-const tag = `v${version}`;
-if (git(["tag", "--list", tag]) !== "" || git(["ls-remote", "--tags", "origin", tag]) !== "") {
-  throw new Error(`${tag} already exists; a release tag is never moved`);
-}
-git(["tag", tag, "origin/develop"]);
-git(["push", "origin", tag]);
-log(`pushed ${tag}; the Release workflow publishes it to npm latest and records the GitHub Release`);
+await waitForRelease(git(["rev-parse", "origin/develop"]), version);
 
 const opening = `${nextVersion(version, "patch")}-dev.0`;
 await landVersion(opening, `chore(release): open ${opening}`);
-log(`develop is open at ${opening}; previews resume on the next push`);
+log(`${version} is published and develop is open at ${opening}; previews resume on the next push`);
