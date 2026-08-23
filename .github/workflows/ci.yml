@@ -22,6 +22,7 @@ jobs:
     outputs:
       docs-only: ${{ steps.diff.outputs.docs_only }}
       version-only: ${{ steps.diff.outputs.version_only }}
+      openspec-touched: ${{ steps.diff.outputs.openspec_touched }}
     steps:
       - name: Check out head
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
@@ -48,10 +49,12 @@ jobs:
             base_sha="$(git rev-parse "$head_sha^")"
           fi
           docs_only=true
+          openspec_touched=false
           while IFS= read -r path; do
             case "$path" in
-              docs/*|openspec/*|*.md|LICENSE|.gitignore) ;;
-              *) docs_only=false; break ;;
+              openspec/*) openspec_touched=true ;;
+              docs/*|*.md|LICENSE|.gitignore) ;;
+              *) docs_only=false ;;
             esac
           done < <(git diff --name-only "$base_sha" "$head_sha")
           version_only=false
@@ -67,13 +70,15 @@ jobs:
           fi
           echo "docs_only=$docs_only" >> "$GITHUB_OUTPUT"
           echo "version_only=$version_only" >> "$GITHUB_OUTPUT"
+          echo "openspec_touched=$openspec_touched" >> "$GITHUB_OUTPUT"
           echo "Docs-only change: $docs_only" >> "$GITHUB_STEP_SUMMARY"
           echo "Version-only change: $version_only" >> "$GITHUB_STEP_SUMMARY"
+          echo "OpenSpec touched: $openspec_touched" >> "$GITHUB_STEP_SUMMARY"
 
   docs:
     name: OpenSpec validation
     needs: changes
-    if: needs.changes.outputs.docs-only == 'true'
+    if: needs.changes.outputs.docs-only == 'true' && needs.changes.outputs.openspec-touched == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -227,12 +232,17 @@ jobs:
           CONTAINMENT_RESULT: ${{ needs.containment.result }}
           DOCS_ONLY: ${{ needs.changes.outputs.docs-only }}
           VERSION_ONLY: ${{ needs.changes.outputs.version-only }}
+          OPENSPEC_TOUCHED: ${{ needs.changes.outputs.openspec-touched }}
         run: |
           set -euo pipefail
           test "$CHANGES_RESULT" = "success"
           if [ "$DOCS_ONLY" = "true" ]; then
-            echo "Docs-only change: OpenSpec validation only."
-            test "$DOCS_RESULT" = "success"
+            if [ "$OPENSPEC_TOUCHED" = "true" ]; then
+              echo "Docs-only change: OpenSpec validation only."
+              test "$DOCS_RESULT" = "success"
+            else
+              echo "Docs-only change without spec edits: nothing to validate."
+            fi
           elif [ "$VERSION_ONLY" = "true" ]; then
             echo "Version-only change: exact package gates only."
             test "$VALIDATE_RESULT" = "success"
