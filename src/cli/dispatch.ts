@@ -87,6 +87,12 @@ function parseUpdate(rest: readonly string[]): CliCommand {
       message: PRODUCT_TEXT.diagnostic(`pins the Pi version it was certified against; run ${PRODUCT_TEXT.commandName} update to move ${PRODUCT_TEXT.displayName} itself.`),
     };
   }
+  // A release channel is spelled with the colon. Taking the bare word as a package
+  // source would turn a near miss into a confident search for a package nobody has.
+  if (target === "next" || target === "stable") {
+    const form = target === "next" ? `${PRODUCT_TEXT.commandName} update:next` : `${PRODUCT_TEXT.commandName} update`;
+    return { kind: "error", message: PRODUCT_TEXT.diagnostic(`selects a release channel with a colon; run ${form}.`) };
+  }
   if (target === "--extensions") return { kind: "packages", request: { verb: "update", source: null } };
   if (target === "--models") return { kind: "packages", request: { verb: "refresh-models", source: null } };
   if (target === undefined || target.startsWith("-")) return unknownOption(target ?? "", "update");
