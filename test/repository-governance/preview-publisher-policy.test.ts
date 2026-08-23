@@ -39,4 +39,11 @@ describe("exact next artifact publisher", () => {
     expect(workflow).toContain("registry bytes differ from candidate");
     expect(workflow).toContain("metadata[\"dist-tags\"]?.next !== process.env.version");
   });
+
+  it("leaves no tag or release behind, because a preview's record is the npm next tag", async () => {
+    const workflow = await readFile(".github/workflows/npm-publish.yml", "utf8");
+    expect(workflow).not.toMatch(/gh release create|git tag|refs\/tags/);
+    expect(workflow).toContain("contents: read");
+    expect(workflow).not.toContain("contents: write");
+  });
 });

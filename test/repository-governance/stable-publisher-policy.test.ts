@@ -40,4 +40,13 @@ describe("exact stable artifact publisher", () => {
     expect(workflow).toContain("registry bytes differ from certified package");
     expect(workflow).not.toContain("0.1.0");
   });
+
+  it("records the release against the reviewed tag rather than creating one", async () => {
+    const workflow = await readFile(".github/workflows/publish-stable.yml", "utf8");
+    expect(workflow).toContain("gh release create \"$GITHUB_REF_NAME\"");
+    expect(workflow).toContain("--verify-tag");
+    expect(workflow).toContain("--latest");
+    expect(workflow).not.toContain("--prerelease");
+    expect(workflow).toContain("contents: write");
+  });
 });
