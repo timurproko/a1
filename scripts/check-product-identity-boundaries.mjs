@@ -35,7 +35,7 @@ if (errors.length > 0) {
 }
 
 async function checkWorkflows(identity) {
-  for (const path of [".github/workflows/npm-publish.yml", ".github/workflows/publish-stable.yml"]) {
+  for (const path of [".github/workflows/release.yml"]) {
     const source = await text(path, "publication workflow");
     if (source === null) continue;
     const consumesCertifiedIdentity = source.includes("candidate-evidence.json") || source.includes("certified-stable-evidence.json");

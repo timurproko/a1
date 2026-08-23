@@ -56,6 +56,45 @@ npm run test:full       # complete non-physical suite
 
 ## Release
 
+Two channels, both published by CI from the exact bytes it validated. Nothing is
+ever published from a workstation.
+
+### Previews — npm `next`
+
+Automatic. Every push to `develop` publishes one, versioned
+`<major.minor.patch>-dev.<run number>` from whatever `package.json` declares. The
+preview version is stamped at publish time and never committed, so previews cost no
+commits and need no command.
+
 ```sh
-npm run release:next   # publish current develop tip to npm next via trusted CI workflows
+a1 update:next   # install the newest preview
 ```
+
+### Stable — npm `latest`
+
+One command, from a clean `develop` that matches its remote:
+
+```sh
+npm run release -- patch     # 0.1.1        -> 0.1.2
+npm run release -- minor     # 0.1.1        -> 0.2.0
+npm run release -- major     # 0.1.1        -> 1.0.0
+npm run release -- 0.4.0     # an exact version
+```
+
+It lands the version on `develop` through a pull request that merges itself, tags
+that commit `v<version>`, and pushes the tag. **Pushing the tag is what publishes** —
+the workflow builds, validates the packed release on Windows, Linux, and macOS,
+publishes to npm `latest` with provenance, and records the GitHub Release. The
+command then lands the next `-dev.0` version so previews resume immediately.
+
+```sh
+a1 update        # install the newest stable release
+```
+
+Between a version landing and its tag being pushed, `develop` declares a stable
+version and no preview is published — a `-dev.N` published then would rank below the
+release. Release tags are protected from deletion and movement; a wrong tag is
+superseded by the next version, never repointed.
+
+`docs/ci-release-runbook.md` has the full picture, including what happens when a
+publish fails partway.
