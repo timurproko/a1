@@ -189,16 +189,39 @@ async function findInstalledDependency(root: string, requesterRoot: string, name
   let directory = requesterRoot;
   while (true) {
     const candidate = resolve(directory, "node_modules", name);
-    const fromRoot = relative(root, candidate);
-    if (fromRoot !== ".." && !fromRoot.startsWith(`..${sep}`) && !isAbsolute(fromRoot)) {
+    if (await isContained(root, candidate)) {
       const metadata = await lstat(candidate).catch(() => null);
       if (metadata?.isDirectory() && !metadata.isSymbolicLink()) return candidate;
+      // A linked dependency directory is how this installation unifies a module
+      // that would otherwise be present twice, and the link is made by A1 itself
+      // at install and at every launch. Follow it to the directory it names and
+      // collect from there, so the payload still reads only real files — but
+      // only when the target is inside this installation, so a link can never
+      // pull bytes in from somewhere else.
+      if (metadata?.isSymbolicLink()) {
+        const target = await realpath(candidate).catch(() => null);
+        if (target !== null && await isContained(root, target)) {
+          const targetMetadata = await lstat(target).catch(() => null);
+          if (targetMetadata?.isDirectory()) return target;
+        }
+      }
     }
     if (directory === root) return null;
     const parent = dirname(directory);
     if (parent === directory || relative(root, parent).startsWith("..")) return null;
     directory = parent;
   }
+}
+
+/** True when `path` sits inside `root`, comparing what each one actually resolves to. */
+async function isContained(root: string, path: string): Promise<boolean> {
+  const within = (from: string, to: string): boolean => {
+    const value = relative(from, to);
+    return value !== ".." && !value.startsWith(`..${sep}`) && !isAbsolute(value);
+  };
+  if (within(root, path)) return true;
+  const canonicalRoot = await realpath(root).catch(() => null);
+  return canonicalRoot !== null && within(canonicalRoot, path);
 }
 
 function dependencyNames(value: unknown): string[] {
