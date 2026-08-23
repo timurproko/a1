@@ -6,6 +6,7 @@ import { promisify } from "node:util";
 import { PRODUCT_IDENTITY } from "../../product-identity.js";
 import {
   copyToClipboard,
+  DefaultPackageManager,
   getAgentDir,
   ProjectTrustStore,
   SessionManager,
@@ -162,6 +163,11 @@ export interface PiEngineAdapterOptions {
    * offering stay here.
    */
   readonly availableThemes?: () => readonly string[];
+  /**
+   * Startup extension-package update probe, mirroring pinned Pi's interactive
+   * mode. Returns display names of packages with updates available.
+   */
+  readonly checkPackageUpdates?: (settingsManager: PiServicesApi["settingsManager"]) => Promise<readonly string[]>;
 }
 
 export interface AdapterCommandResult {
@@ -178,6 +184,7 @@ const DEFAULT_SURFACE: OwnedUiTerminalSurface = {
 
 export class PiEngineAdapter {
   readonly #runtimeFactory: PiEngineRuntimeFactory;
+  readonly #checkPackageUpdates: (settingsManager: PiServicesApi["settingsManager"]) => Promise<readonly string[]>;
   readonly #cwd: string;
   readonly #agentDir: string;
   readonly #sessionId: string;
@@ -233,6 +240,10 @@ export class PiEngineAdapter {
     this.#agentDir = options.agentDir ?? getAgentDir();
     this.#sessionId = options.sessionId ?? "owned-session-1";
     this.#runtimeFactory = options.createRuntime ?? createDefaultPiRuntime;
+    this.#checkPackageUpdates = options.checkPackageUpdates
+      ?? (options.createRuntime
+        ? async () => []
+        : settingsManager => checkDefaultPiPackageUpdates(this.#cwd, this.#agentDir, settingsManager));
     this.#workflowHost = options.workflowHost ?? defaultWorkflowHost();
     this.#availableThemes = options.availableThemes ?? null;
     this.#workflowInteraction = { prompt: async () => null, notify() {} };
@@ -292,7 +303,27 @@ export class PiEngineAdapter {
     this.#editor = { ...this.#editor, submitEnabled: true };
     this.#emitEvent({ type: "session-lifecycle", lifecycle: "ready", reason: null });
     this.#emitView();
+    void this.#announcePackageUpdates(runtime.services.settingsManager);
     return this.view();
+  }
+
+  async #announcePackageUpdates(settingsManager: PiServicesApi["settingsManager"]): Promise<void> {
+    if (process.env.PI_OFFLINE) return;
+    let updates: readonly string[];
+    try {
+      updates = await this.#checkPackageUpdates(settingsManager);
+    } catch {
+      return;
+    }
+    if (this.#disposed || updates.length === 0) return;
+    const packages = updates.map(name => `- ${name}`).join("\n");
+    this.#addDiagnostic(
+      "info",
+      "package-updates",
+      `Package updates are available. Run pi update --extensions\nPackages:\n${packages}`,
+      true,
+    );
+    this.#emitView();
   }
 
   onEvent(listener: (event: OwnedUiEvent) => void): () => void {
@@ -2094,6 +2125,16 @@ export async function createPiEngineAdapter(
 
 async function createDefaultPiRuntime(input: PiEngineRuntimeFactoryInput): Promise<AgentSessionRuntime> {
   return createPiRuntimeIntegration({ cwd: input.cwd, agentDir: input.agentDir });
+}
+
+async function checkDefaultPiPackageUpdates(
+  cwd: string,
+  agentDir: string,
+  settingsManager: PiServicesApi["settingsManager"],
+): Promise<readonly string[]> {
+  const packageManager = new DefaultPackageManager({ cwd, agentDir, settingsManager });
+  const updates = await packageManager.checkForAvailableUpdates();
+  return updates.map(update => update.displayName);
 }
 
 function pinnedSessionInfoPresentation(

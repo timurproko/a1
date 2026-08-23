@@ -803,6 +803,47 @@ describe("OwnedUiSessionShell", () => {
     await shell.dispose();
   });
 
+  it("renders startup warnings and the package-update banner with pinned styling and order", async () => {
+    const engine = new Runtime();
+    (engine.diagnostics as { type: string; message: string }[]).push(
+      { type: "warning", message: 'No models match pattern "github-copilot/gpt-5.6-sol"' },
+      { type: "warning", message: 'No models match pattern "github-copilot/gpt-5.5"' },
+      { type: "warning", message: 'No models match pattern "github-copilot/claude-opus-5"' },
+    );
+    const adapter = await createPiEngineAdapter({
+      cwd: "D:/work",
+      sessionId: "owned-shell",
+      createRuntime: async () => engine as unknown as AgentSessionRuntime,
+      checkPackageUpdates: async () => ["pi-mcp-adapter"],
+    });
+    await vi.waitFor(() => {
+      expect(adapter.view().diagnostics.some(diagnostic => diagnostic.code === "package-updates")).toBe(true);
+    });
+    const terminal = new TestPresentationTerminal();
+    const shell = new OwnedUiSessionShell({ backend: adapter, cwd: "D:/work", terminal });
+    shell.start();
+    shell.runtime.renderNow();
+
+    const rawRows = shell.root.render(100);
+    const rows = rawRows.map(row => stripTerminalSequences(row));
+    const frame = rows.join("\n");
+    for (const pattern of ["github-copilot/gpt-5.6-sol", "github-copilot/gpt-5.5", "github-copilot/claude-opus-5"]) {
+      expect(frame).toContain(`Warning: No models match pattern "${pattern}"`);
+    }
+    const firstWarningRow = rows.findIndex(row => row.startsWith("Warning: No models match"));
+    const bannerRow = rows.findIndex(row => row.includes("v0.84.2"));
+    const updateTitleRow = rows.findIndex(row => row.includes("Package Updates Available"));
+    expect(firstWarningRow).toBeGreaterThanOrEqual(0);
+    expect(firstWarningRow).toBeLessThan(bannerRow);
+    expect(rawRows[firstWarningRow]).toContain(`${String.fromCharCode(27)}[33mWarning: `);
+    expect(updateTitleRow).toBeGreaterThan(bannerRow);
+    expect(frame).toContain("Package updates are available. Run pi update --extensions");
+    expect(frame).toContain("Packages:");
+    expect(frame).toContain("- pi-mcp-adapter");
+    expect(rows[updateTitleRow - 1]).toMatch(/─/);
+    await shell.dispose();
+  });
+
   it("keeps startup neutral while composition selects the owned session shell", async () => {
     const [source, composition] = await Promise.all([
       readFile("src/features/owned-ui/run.ts", "utf8"),
