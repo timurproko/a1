@@ -46,7 +46,7 @@ jobs:
         id: plan
         shell: bash
         env:
-          RUN_NUMBER: ${{ github.run_number }}
+          COMMIT_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
           node --input-type=module <<'NODE' >> "$GITHUB_OUTPUT"
@@ -66,7 +66,13 @@ jobs:
           if (declared === base) {
             console.log(`publish=true\nchannel=latest\nversion=${declared}\nreason=develop declares stable ${declared}`);
           } else {
-            console.log(`publish=true\nchannel=next\nversion=${base}-dev.${process.env.RUN_NUMBER}\nreason=preview from develop`);
+            // A preview names the commit it was built from, so an installed one
+            // says exactly which source produced it. The same commit is always the
+            // same version, which the republish guard then refuses — a rebuild
+            // cannot mint a new version for bytes that already shipped.
+            const commit = (process.env.COMMIT_SHA ?? "").slice(0, 7);
+            if (!/^[0-9a-f]{7}$/.test(commit)) throw new Error(`commit is not a resolvable sha: ${process.env.COMMIT_SHA}`);
+            console.log(`publish=true\nchannel=next\nversion=${base}-dev.${commit}\nreason=preview of ${commit}`);
           }
           NODE
 

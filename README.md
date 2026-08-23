@@ -62,9 +62,10 @@ ever published from a workstation.
 ### Previews — npm `next`
 
 Automatic. Every push to `develop` publishes one, versioned
-`<major.minor.patch>-dev.<run number>` from whatever `package.json` declares. The
-preview version is stamped at publish time and never committed, so previews cost no
-commits and need no command.
+`<major.minor.patch>-dev.<short commit>` — the base from whatever `package.json`
+declares, the suffix naming the commit it was built from. It is stamped at publish
+time and never committed, so previews cost no commits and need no command, and an
+installed preview says exactly which source produced it.
 
 ```sh
 a1 update:next   # install the newest preview

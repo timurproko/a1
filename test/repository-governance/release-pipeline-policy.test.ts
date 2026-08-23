@@ -108,6 +108,15 @@ describe("one release pipeline", () => {
     expect(workflow).toContain("--no-git-tag-version");
     expect(workflow).not.toMatch(/git (commit|push)/);
   });
+
+  it("names a preview after the commit it was built from, not after the run", async () => {
+    const workflow = await releaseWorkflow();
+    expect(workflow).toContain("COMMIT_SHA: ${{ github.sha }}");
+    expect(workflow).toContain("version=${base}-dev.${commit}");
+    expect(workflow).toContain("commit is not a resolvable sha");
+    // A run counter would give the same code a different version on every re-run.
+    expect(workflow).not.toContain("github.run_number");
+  });
 });
 
 describe("the release command", () => {
