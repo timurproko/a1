@@ -27,10 +27,10 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-24.04
     timeout-minutes: 15
-    environment: npm-stable
+    environment: npm-publish
     steps:
       - name: Set up trusted Node
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: 24
 
@@ -64,7 +64,7 @@ jobs:
           NODE
 
       - name: Download certified stable candidate
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
         with:
           run-id: ${{ inputs.certification_run_id }}
           pattern: stable-certified-candidate-*
@@ -157,7 +157,7 @@ jobs:
 
       - name: Upload stable publication evidence
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: npm-stable-publication-${{ inputs.certification_run_id }}
           path: artifacts/stable/**/certified-stable-evidence.json

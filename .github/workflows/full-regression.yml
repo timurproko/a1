@@ -14,25 +14,37 @@ concurrency:
 
 jobs:
   full-regression:
-    name: Complete non-physical regression
-    runs-on: windows-2025
+    name: Complete non-physical regression (${{ matrix.os }}, node ${{ matrix.node }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-2025
+            node: 24
+          - os: ubuntu-24.04
+            node: 24
+          - os: macos-15
+            node: 24
+          - os: windows-2025
+            node: 22
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 40
     steps:
       - name: Preserve repository bytes during checkout
+        if: runner.os == 'Windows'
         shell: bash
         run: git config --global core.autocrlf false
 
       - name: Check out exact regression source
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           ref: ${{ github.sha }}
-          fetch-depth: 0
           persist-credentials: false
 
       - name: Set up Node
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
-          node-version: 24
+          node-version: ${{ matrix.node }}
           cache: npm
 
       - name: Install dependencies and build once
@@ -46,11 +58,11 @@ jobs:
         env:
           VALIDATION_SELECTION_JSON: '["full-release"]'
           VALIDATION_BUILD_READY: "1"
-          VALIDATION_CANDIDATE_TARBALL: ${{ github.workspace }}\artifacts\validation\package\candidate.tgz
-          A1_RELEASE_RUNNER_LABEL: github-windows-2025-full-regression
-          A1_CONFIG_DIR: ${{ runner.temp }}\a1-full-config
-          A1_DATA_DIR: ${{ runner.temp }}\a1-full-data
-          A1_RUNTIME_DIR: ${{ runner.temp }}\a1-full-runtime
+          VALIDATION_CANDIDATE_TARBALL: ${{ github.workspace }}/artifacts/validation/package/candidate.tgz
+          A1_RELEASE_RUNNER_LABEL: github-${{ matrix.os }}-node${{ matrix.node }}-full-regression
+          A1_CONFIG_DIR: ${{ runner.temp }}/a1-full-config
+          A1_DATA_DIR: ${{ runner.temp }}/a1-full-data
+          A1_RUNTIME_DIR: ${{ runner.temp }}/a1-full-runtime
         run: node scripts/run-validation-tier.mjs --result artifacts/validation/full-regression.json
 
       - name: Report gate ownership and timing
@@ -74,9 +86,9 @@ jobs:
 
       - name: Upload complete regression evidence
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
-          name: full-regression-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          name: full-regression-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.os }}-node${{ matrix.node }}
           path: |
             artifacts/validation/full-regression.json
             artifacts/validation/package/npm-pack-result.json
