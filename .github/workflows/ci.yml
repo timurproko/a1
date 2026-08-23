@@ -4,8 +4,6 @@ on:
   pull_request:
     branches: [develop]
     types: [opened, synchronize, reopened, ready_for_review]
-  push:
-    branches: [develop]
   workflow_dispatch:
 
 permissions:
@@ -23,9 +21,10 @@ jobs:
     timeout-minutes: 5
     outputs:
       docs-only: ${{ steps.diff.outputs.docs_only }}
+      version-only: ${{ steps.diff.outputs.version_only }}
     steps:
       - name: Check out head
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
@@ -55,8 +54,21 @@ jobs:
               *) docs_only=false; break ;;
             esac
           done < <(git diff --name-only "$base_sha" "$head_sha")
+          version_only=false
+          if [ "$docs_only" != "true" ]; then
+            changed="$(git diff --name-only "$base_sha" "$head_sha")"
+            if [ -n "$changed" ] && ! grep -qvE '^(package\.json|package-lock\.json)$' <<< "$changed"; then
+              if ! git diff --unified=0 "$base_sha" "$head_sha" -- package.json package-lock.json \
+                | grep -E '^[+-]' | grep -vE '^(\+\+\+|---)' \
+                | grep -qvE '^[+-][[:space:]]*"version": "[^"]+",?$'; then
+                version_only=true
+              fi
+            fi
+          fi
           echo "docs_only=$docs_only" >> "$GITHUB_OUTPUT"
+          echo "version_only=$version_only" >> "$GITHUB_OUTPUT"
           echo "Docs-only change: $docs_only" >> "$GITHUB_STEP_SUMMARY"
+          echo "Version-only change: $version_only" >> "$GITHUB_STEP_SUMMARY"
 
   docs:
     name: OpenSpec validation
@@ -66,13 +78,13 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Check out head
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
 
       - name: Set up Node
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: 24
 
@@ -91,17 +103,22 @@ jobs:
         run: git config --global core.autocrlf false
 
       - name: Check out validation head
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
 
       - name: Set up Node
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: 24
           cache: npm
+
+      - name: Cache process guardian build
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          workspaces: native/process-guardian
 
       - name: Install exact dependencies
         run: npm ci
@@ -110,14 +127,29 @@ jobs:
         shell: bash
         run: cargo build --locked --manifest-path native/process-guardian/Cargo.toml
 
-      - name: Run fast tier and architecture checks
+      - name: Select validation matching the change surface
+        id: selection
         shell: bash
         env:
+          VERSION_ONLY: ${{ needs.changes.outputs.version-only }}
+        run: |
+          set -euo pipefail
+          if [ "$VERSION_ONLY" = "true" ]; then
+            echo 'selected=["package-smoke","package-install"]' >> "$GITHUB_OUTPUT"
+          else
+            echo 'selected=["typecheck","architecture","fast","dist-integration"]' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run selected validation
+        shell: bash
+        env:
+          VALIDATION_SELECTION_JSON: ${{ steps.selection.outputs.selected }}
           A1_CONFIG_DIR: ${{ runner.temp }}\a1-ci-config
           A1_DATA_DIR: ${{ runner.temp }}\a1-ci-data
           A1_RUNTIME_DIR: ${{ runner.temp }}\a1-ci-runtime
           A1_PROCESS_GUARDIAN_PATH: ${{ github.workspace }}\native\process-guardian\target\debug\process-guardian.exe
-        run: node scripts/run-validation-tier.mjs typecheck architecture fast --result artifacts/validation/outcomes.json
+          A1_RUN_PROCESS_CONTAINMENT_INTEGRATION: "1"
+        run: node scripts/run-validation-tier.mjs --result artifacts/validation/outcomes.json
 
       - name: Add timing summary
         if: always()
@@ -137,13 +169,11 @@ jobs:
   containment:
     name: Process containment (${{ matrix.os }})
     needs: changes
-    if: needs.changes.outputs.docs-only != 'true'
+    if: needs.changes.outputs.docs-only != 'true' && needs.changes.outputs.version-only != 'true'
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: windows-2025
-            binary: process-guardian.exe
           - os: ubuntu-24.04
             binary: process-guardian
           - os: macos-15
@@ -151,22 +181,22 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     steps:
-      - name: Preserve repository bytes during checkout
-        if: runner.os == 'Windows'
-        shell: bash
-        run: git config --global core.autocrlf false
-
       - name: Check out validation head
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
 
       - name: Set up Node
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: 24
           cache: npm
+
+      - name: Cache process guardian build
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          workspaces: native/process-guardian
 
       - name: Install exact dependencies
         run: npm ci
@@ -196,12 +226,16 @@ jobs:
           VALIDATE_RESULT: ${{ needs.validate.result }}
           CONTAINMENT_RESULT: ${{ needs.containment.result }}
           DOCS_ONLY: ${{ needs.changes.outputs.docs-only }}
+          VERSION_ONLY: ${{ needs.changes.outputs.version-only }}
         run: |
           set -euo pipefail
           test "$CHANGES_RESULT" = "success"
           if [ "$DOCS_ONLY" = "true" ]; then
             echo "Docs-only change: OpenSpec validation only."
             test "$DOCS_RESULT" = "success"
+          elif [ "$VERSION_ONLY" = "true" ]; then
+            echo "Version-only change: exact package gates only."
+            test "$VALIDATE_RESULT" = "success"
           else
             test "$VALIDATE_RESULT" = "success"
             test "$CONTAINMENT_RESULT" = "success"

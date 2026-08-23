@@ -3,7 +3,7 @@ import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { SessionInfo } from "@earendil-works/pi-coding-agent";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { applyPiTheme, createPiShellSessionSelector } from "../../../src/foundation/pi-component-adapter/index.js";
 
 function stripPortableTerminalSequences(value: string): string {
@@ -93,9 +93,10 @@ describe("owned pinned session selector", () => {
     input("\x04");
     expect(frame()).toContain("Delete session?");
     input("\r");
-    await new Promise(resolve => setTimeout(resolve, 30));
-    expect(existsSync(otherPath)).toBe(false);
-    expect(frame()).toMatch(/Session (moved to trash|deleted)/);
+    await vi.waitFor(() => {
+      expect(existsSync(otherPath)).toBe(false);
+      expect(frame()).toMatch(/Session (moved to trash|deleted)/);
+    }, { timeout: 5000, interval: 25 });
 
     input("\t");
     await new Promise(resolve => setTimeout(resolve, 0));

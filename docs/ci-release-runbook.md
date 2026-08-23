@@ -35,7 +35,7 @@ The publisher uploads the exact validated tarball — it never rebuilds. Candida
 2. Dispatch **Build stable candidate** — it packs once and validates the same bytes on all three platforms.
 3. Dispatch **Certify stable physical platforms** on the dedicated isolated workers (they set `PHYSICAL_WORKER_ISOLATED=true` and run under the `stable-physical` environment). Never run physical host probes on a developer workstation.
 4. Dispatch **Certify stable candidate** with both run ids. `Stable candidate required` passes only when every verdict binds the same commit, version, and digest.
-5. Merge that exact commit to `master`, tag it `v<version>`, and dispatch **Publish npm stable**, then approve `npm-stable`.
+5. Merge that exact commit to `master`, tag it `v<version>`, and dispatch **Publish npm stable**, then approve `npm-publish`.
 
 Stable artifacts expire after 30 days. The same rule as previews applies: publication still requires exact certified bytes. Never upload locally rebuilt bytes, and never route around certification by rebuilding inside a publisher.
 

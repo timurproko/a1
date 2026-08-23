@@ -74,8 +74,7 @@ export async function createTierPlan(requested, repository = process.cwd()) {
   const regularInvocations = [
     ...(fast ? [{ id: "vitest-fast", arguments: ["vitest", "run", fast.definition.includeRoot, ...fast.definition.exclude.flatMap(path => ["--exclude", path])] }] : []),
     ...(regularExplicitTests.length > 0 ? [{ id: "vitest-explicit", arguments: ["vitest", "run", ...regularExplicitTests.map(entry => entry.test), "--testTimeout=30000"] }] : []),
-    ...(requestedPerformance.length > 0 ? [{ id: "vitest-update-performance", arguments: ["vitest", "run", ...requestedPerformance, "--no-file-parallelism", "--testTimeout=120000"] }] : []),
-    ...(requestedPackageSmoke.length > 0 ? [{ id: "vitest-package-smoke", arguments: ["vitest", "run", ...requestedPackageSmoke, "--no-file-parallelism", "--testTimeout=120000"] }] : []),
+    ...(requestedPerformance.length + requestedPackageSmoke.length > 0 ? [{ id: "vitest-isolated-timing", arguments: ["vitest", "run", ...requestedPerformance, ...requestedPackageSmoke, "--no-file-parallelism", "--testTimeout=120000"] }] : []),
     ...(requestedPackageInstall.length > 0 ? [{ id: "vitest-package-install", arguments: ["vitest", "run", ...requestedPackageInstall, "--no-file-parallelism", "--testTimeout=600000"] }] : []),
   ];
   const vitest = full
@@ -83,8 +82,7 @@ export async function createTierPlan(requested, repository = process.cwd()) {
         mode: "full-deduplicated",
         invocations: [
           { id: "vitest-full-without-isolated", arguments: ["vitest", "run", ...[...packageTests, ...independentlyTimedTests].flatMap(path => ["--exclude", path]), "--testTimeout=30000"] },
-          { id: "vitest-update-performance", arguments: ["vitest", "run", ...performanceTests, "--no-file-parallelism", "--testTimeout=120000"] },
-          { id: "vitest-package-smoke", arguments: ["vitest", "run", ...packageSmokeTests, "--no-file-parallelism", "--testTimeout=120000"] },
+          { id: "vitest-isolated-timing", arguments: ["vitest", "run", ...performanceTests, ...packageSmokeTests, "--no-file-parallelism", "--testTimeout=120000"] },
           { id: "vitest-package-install", arguments: ["vitest", "run", ...packageInstallTests, "--no-file-parallelism", "--testTimeout=600000"] },
         ],
       }

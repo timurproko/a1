@@ -9,9 +9,10 @@
     },
     "fast": {
       "kind": "vitest-remainder",
-      "requiresBuild": true,
       "includeRoot": "test",
       "exclude": [
+        "test/cli/update-cli.test.ts",
+        "test/features/launch/development-launch.test.ts",
         "test/features/launch/exact-pi-entry.integration.test.ts",
         "test/features/launch/profile-isolation.integration.test.ts",
         "test/foundation/pi-engine-adapter/conformance.test.ts",
@@ -30,6 +31,7 @@
         "typecheck",
         "architecture",
         "fast",
+        "dist-integration",
         "launch-integration",
         "pi-engine-conformance",
         "release-update",
@@ -52,6 +54,14 @@
       "kind": "commands",
       "commands": [
         { "id": "architecture", "executable": "npm", "arguments": ["run", "check:architecture"] }
+      ]
+    },
+    "dist-integration": {
+      "kind": "vitest-files",
+      "requiresBuild": true,
+      "tests": [
+        "test/cli/update-cli.test.ts",
+        "test/features/launch/development-launch.test.ts"
       ]
     },
     "launch-integration": {
