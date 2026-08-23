@@ -310,7 +310,7 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
         await transactionStore.finish("completed");
       }
       await transactionStore.clearCompleted();
-      output.stdout(`${PRODUCT_TEXT.commandName} is already current and active for this channel.\n`);
+      output.stdout(`${PRODUCT_TEXT.commandName} is up to date — no update needed.\n`);
       return 0;
     }
     // The bar first appears here so a no-change run never flashes it.

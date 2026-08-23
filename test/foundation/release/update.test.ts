@@ -178,7 +178,7 @@ describe("A1 self-update orchestration", () => {
 
     await expect(runSelfUpdate({ ...harness, progress: true })).resolves.toBe(0);
 
-    expect(harness.stdout.join("")).toBe("a1 update (stable): 1.2.3 → 1.2.3.\na1 is already current and active for this channel.\n");
+    expect(harness.stdout.join("")).toBe("a1 update (stable): 1.2.3 → 1.2.3.\na1 is up to date — no update needed.\n");
     expect(harness.stderr).toEqual([]);
   });
 
