@@ -2,7 +2,7 @@ import { dirname, posix } from "node:path";
 
 export const PROJECT_OWNERS = Object.freeze({
   "product-identity": Object.freeze({ id: "product-identity", layer: "foundation", sourceRoot: "src", testRoot: "test/product-identity", publicEntry: "src/product-identity.ts", mayImport: Object.freeze([]) }),
-  cli: owner("cli", "entry", "src/cli", "test/cli", ["launch", "release"]),
+  cli: owner("cli", "entry", "src/cli", "test/cli", ["launch", "release", "agent-engine-contracts"]),
   composition: owner("composition", "entry", "src/composition", "test/composition", ["agent-engine-contracts", "presentation-contracts", "owned-ui-contracts", "owned-ui-settings", "lifecycle", "transparent-terminal", "pi-engine-adapter", "pi-component-adapter", "pi-tui-runtime-adapter", "pi-owned-ui-integration", "ui-apps", "ui-components", "owned-ui"]),
   launch: owner("launch", "feature", "src/features/launch", "test/features/launch", ["lifecycle", "transparent-terminal"]),
   workspace: owner("workspace", "feature", "src/features/workspace", "test/features/workspace", [
