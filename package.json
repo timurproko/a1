@@ -1,6 +1,6 @@
 {
   "name": "@timurproko/a1",
-  "version": "0.1.5-dev.0",
+  "version": "0.1.6",
   "description": "Standalone terminal workspace for supervised native and managed agents",
   "type": "module",
   "packageManager": "npm@11.13.0",
