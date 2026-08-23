@@ -41,7 +41,9 @@ for (const file of await walk(sourceRoot)) {
   const imports = [...source.matchAll(/(?:from\s+|import\s*\()(["'])([^"']+)\1/g)].map(match => match[2]);
 
   for (const specifier of imports) {
-    const isPi = !specifier.startsWith(".") && /(?:^|\/)(?:pi-agent|pi-ai|pi-coding-agent|pi-tui|@mariozechner\/pi-|@oh-my-pi\/pi-)/.test(specifier);
+    // `#pi-tui` is A1's own alias for pinned Pi's terminal package, so it is a Pi
+    // import wherever it appears and belongs to the same adapter boundary.
+    const isPi = !specifier.startsWith(".") && /(?:^|[#/])(?:pi-agent|pi-ai|pi-coding-agent|pi-tui|@mariozechner\/pi-|@oh-my-pi\/pi-)/.test(specifier);
     const piAdapterPath = /^src\/(?:foundation\/(?:pi-engine-adapter|pi-component-adapter|pi-tui-runtime-adapter)|drivers\/pi|profiles\/pi)\//.test(path);
     if (/@oh-my-pi\//.test(specifier)) {
       errors.push(`${path}: oh-my-pi fork package import '${specifier}' is forbidden`);

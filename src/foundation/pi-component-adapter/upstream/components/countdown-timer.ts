@@ -2,7 +2,7 @@
  * Source-synchronized from Pi 0.84.2
  * packages/coding-agent/src/modes/interactive/components/countdown-timer.ts
  */
-import type { TUI } from "@earendil-works/pi-tui";
+import type { TUI } from "#pi-tui";
 
 export class CountdownTimer {
   #intervalId: ReturnType<typeof setInterval> | undefined;

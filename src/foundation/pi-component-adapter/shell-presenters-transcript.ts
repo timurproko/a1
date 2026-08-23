@@ -18,7 +18,7 @@ import {
   Spacer,
   Text,
   type Component,
-} from "@earendil-works/pi-tui";
+} from "#pi-tui";
 import type {
   OwnedUiTranscriptBlock,
 } from "../owned-ui-contracts/index.js";

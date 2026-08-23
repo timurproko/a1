@@ -18,7 +18,7 @@ import {
 	matchesKey,
 	Spacer,
 	Text,
-} from "@earendil-works/pi-tui";
+} from "#pi-tui";
 import { DynamicBorder } from "@earendil-works/pi-coding-agent";
 import { getModelSearchText } from "../model-search.js";
 import { piTheme } from "../theme/theme.js";

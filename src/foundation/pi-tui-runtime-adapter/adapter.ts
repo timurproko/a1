@@ -12,7 +12,7 @@ import {
   type TUI,
   type TuiAltScreenOptions,
   visibleWidth,
-} from "@earendil-works/pi-tui";
+} from "#pi-tui";
 import type {
   PiTuiComponentPort,
   PiTuiInputListener,

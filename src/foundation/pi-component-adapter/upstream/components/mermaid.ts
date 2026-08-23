@@ -1,7 +1,7 @@
 // Mechanically adapted from Pi commit 914cf14
 // packages/coding-agent/src/modes/interactive/components/mermaid.ts (MIT).
 // Local modifications: remap private imports to public package-root or owned theme boundaries.
-import { Marked, type Token } from "@earendil-works/pi-tui";
+import { Marked, type Token } from "#pi-tui";
 import { type MermaidArt, render, type Span } from "grok-mermaid";
 import type { MarkdownTransformer, Theme } from "@earendil-works/pi-coding-agent";
 

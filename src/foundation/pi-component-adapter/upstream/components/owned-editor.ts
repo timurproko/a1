@@ -3,7 +3,7 @@
  * packages/coding-agent/src/modes/interactive/components/custom-editor.ts (MIT).
  * Modifications: A1-owned class name and A1-owned synchronized keybinding contract.
  */
-import { Editor, type EditorOptions, type EditorTheme, type TUI } from "@earendil-works/pi-tui";
+import { Editor, type EditorOptions, type EditorTheme, type TUI } from "#pi-tui";
 import type { AppKeybinding, KeybindingsManager } from "../adjacent/core/keybindings.js";
 
 export class OwnedEditor extends Editor {

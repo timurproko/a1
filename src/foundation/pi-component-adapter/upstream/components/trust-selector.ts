@@ -2,7 +2,7 @@
 // packages/coding-agent/src/modes/interactive/components/trust-selector.ts (MIT).
 // Local modifications: inject trust options and remap theme/import boundaries.
 import { DynamicBorder, keyHint, rawKeyHint } from "@earendil-works/pi-coding-agent";
-import { Container, getKeybindings, Spacer, Text } from "@earendil-works/pi-tui";
+import { Container, getKeybindings, Spacer, Text } from "#pi-tui";
 import { piTheme } from "../theme/theme.js";
 
 export interface TrustDecision { readonly path: string; readonly decision: boolean }
