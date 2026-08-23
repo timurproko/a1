@@ -9,13 +9,19 @@
       "bypass_actors": [],
       "conditions": {
         "ref_name": {
-          "include": ["refs/heads/develop"],
+          "include": [
+            "refs/heads/develop"
+          ],
           "exclude": []
         }
       },
       "rules": [
-        { "type": "deletion" },
-        { "type": "non_fast_forward" },
+        {
+          "type": "deletion"
+        },
+        {
+          "type": "non_fast_forward"
+        },
         {
           "type": "pull_request",
           "parameters": {
@@ -24,7 +30,10 @@
             "require_last_push_approval": false,
             "required_approving_review_count": 0,
             "required_review_thread_resolution": true,
-            "allowed_merge_methods": ["merge", "squash"]
+            "allowed_merge_methods": [
+              "merge",
+              "squash"
+            ]
           }
         },
         {
@@ -33,46 +42,33 @@
             "strict_required_status_checks_policy": false,
             "do_not_enforce_on_create": false,
             "required_status_checks": [
-              { "context": "Development validation required" }
+              {
+                "context": "Development validation required"
+              }
             ]
           }
         }
       ]
     },
     {
-      "name": "a1-protect-master",
-      "target": "branch",
+      "name": "a1-protect-release-tags",
+      "target": "tag",
       "enforcement": "active",
       "bypass_actors": [],
       "conditions": {
         "ref_name": {
-          "include": ["refs/heads/master"],
+          "include": [
+            "refs/tags/v*"
+          ],
           "exclude": []
         }
       },
       "rules": [
-        { "type": "deletion" },
-        { "type": "non_fast_forward" },
         {
-          "type": "pull_request",
-          "parameters": {
-            "dismiss_stale_reviews_on_push": true,
-            "require_code_owner_review": false,
-            "require_last_push_approval": false,
-            "required_approving_review_count": 0,
-            "required_review_thread_resolution": true,
-            "allowed_merge_methods": ["merge"]
-          }
+          "type": "deletion"
         },
         {
-          "type": "required_status_checks",
-          "parameters": {
-            "strict_required_status_checks_policy": true,
-            "do_not_enforce_on_create": false,
-            "required_status_checks": [
-              { "context": "Stable candidate required" }
-            ]
-          }
+          "type": "non_fast_forward"
         }
       ]
     }
