@@ -3,7 +3,7 @@ import {
   CombinedAutocompleteProvider,
   setKeybindings,
   type AutocompleteProvider,
-} from "@earendil-works/pi-tui";
+} from "#pi-tui";
 import type {
   OwnedUiThinkingLevel,
 } from "../owned-ui-contracts/index.js";

@@ -4,7 +4,7 @@
  * Modifications: consumes neutral owned-UI view data rather than a concrete AgentSession.
  */
 import { isAbsolute, relative, resolve, sep } from "node:path";
-import { truncateToWidth, visibleWidth, type Component } from "@earendil-works/pi-tui";
+import { truncateToWidth, visibleWidth, type Component } from "#pi-tui";
 import type { OwnedUiSessionViewModel } from "../../../owned-ui-contracts/index.js";
 import { piTheme } from "../../theme.js";
 

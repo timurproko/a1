@@ -7,6 +7,12 @@
   "bin": {
     "a1": "bin/cli.js"
   },
+  "imports": {
+    "#pi-tui": [
+      "./node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-tui/dist/index.js",
+      "@earendil-works/pi-tui"
+    ]
+  },
   "files": [
     "bin",
     "dist",
@@ -45,7 +51,7 @@
     "start:sandbox": "npm run build && node scripts/dev-launch.mjs sandbox",
     "prepack": "node scripts/prepack-gate.mjs",
     "prepublishOnly": "npm run test:release",
-    "prepare": "node scripts/unify-pi-tui.mjs && npm run build",
+    "prepare": "npm run build",
     "update:pi-settings-metadata": "node scripts/update-pi-settings-metadata.mjs"
   },
   "dependencies": {

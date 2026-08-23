@@ -2,7 +2,7 @@
  * Source-synchronized from Pi 0.84.2
  * packages/coding-agent/src/modes/interactive/components/status-indicator.ts
  */
-import { type Component, Loader, type LoaderIndicatorOptions, type TUI } from "@earendil-works/pi-tui";
+import { type Component, Loader, type LoaderIndicatorOptions, type TUI } from "#pi-tui";
 import { keyText } from "@earendil-works/pi-coding-agent";
 import { piTheme } from "../theme/theme.js";
 import { CountdownTimer } from "./countdown-timer.js";

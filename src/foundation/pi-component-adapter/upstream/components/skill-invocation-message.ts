@@ -4,7 +4,7 @@
  *
  * Modified only to use A1's public pi-tui instance and owned theme boundary.
  */
-import { Box, getKeybindings, Markdown, Text, type MarkdownTheme } from "@earendil-works/pi-tui";
+import { Box, getKeybindings, Markdown, Text, type MarkdownTheme } from "#pi-tui";
 import { piTheme } from "../theme/theme.js";
 
 export interface SkillInvocationBlock {

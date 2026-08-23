@@ -6,7 +6,7 @@ import {
   Theme,
   type ThemeColor,
 } from "@earendil-works/pi-coding-agent";
-import { getCapabilities, type RgbColor } from "@earendil-works/pi-tui";
+import { getCapabilities, type RgbColor } from "#pi-tui";
 import { BUILTIN_THEME_RESOURCES, isBuiltinThemeName } from "../../resources/builtin-themes.js";
 
 export const PINNED_PI_LAYOUT = Object.freeze({

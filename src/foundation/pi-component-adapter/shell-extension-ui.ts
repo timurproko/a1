@@ -12,7 +12,7 @@ import {
   Text,
   type Component,
   type OverlayHandle,
-} from "@earendil-works/pi-tui";
+} from "#pi-tui";
 import type {
   OwnedUiExtensionOverlayHandle,
   OwnedUiExtensionOverlayOptions,

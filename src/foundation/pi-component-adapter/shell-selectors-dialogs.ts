@@ -36,7 +36,7 @@ import {
   Spacer,
   Text,
   type SelectItem,
-} from "@earendil-works/pi-tui";
+} from "#pi-tui";
 import type {
   OwnedUiDialog,
 } from "../owned-ui-contracts/index.js";

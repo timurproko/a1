@@ -4,7 +4,7 @@ import {
   type Component,
   type Focusable,
   type TUI,
-} from "@earendil-works/pi-tui";
+} from "#pi-tui";
 import type {
   OwnedUiSessionViewModel,
   OwnedUiThinkingLevel,

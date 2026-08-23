@@ -1,29 +1,64 @@
-import { mkdtempSync, lstatSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-// The repair lives in bin/ (shipped, outside the Pi API boundary): its whole
-// job is fixing the node_modules layout, which src/ code must never touch.
+// The check lives in bin/ (shipped, outside the Pi API boundary): it inspects
+// dependency resolution, which src/ code must never touch.
 // @ts-expect-error — plain shipped JS module without type declarations.
-import { ensureSinglePiTuiModule } from "../../../bin/module-identity.js";
+import { inspectPiTuiModuleIdentity } from "../../../bin/module-identity.js";
 
 const roots: string[] = [];
 
-function packageRootWith(layout: { root?: string; nested?: string }): string {
+interface Layout {
+  /** Version of the copy at the installation's own node_modules root. */
+  readonly root?: string;
+  /** Version of the copy nested inside pinned Pi. */
+  readonly nested?: string;
+  /** Where the `#pi-tui` alias points, in order. */
+  readonly alias?: readonly string[];
+}
+
+/**
+ * Build a package root shaped like a real installation: A1's manifest declaring
+ * the alias, pinned Pi with its own entry, and whichever pi-tui copies the
+ * layout asks for.
+ */
+function packageRootWith(layout: Layout): string {
   const packageRoot = mkdtempSync(join(tmpdir(), "a1-pi-tui-identity-"));
   roots.push(packageRoot);
   const scope = join(packageRoot, "node_modules", "@earendil-works");
-  if (layout.root !== undefined) {
-    const rootCopy = join(scope, "pi-tui");
-    mkdirSync(rootCopy, { recursive: true });
-    writeFileSync(join(rootCopy, "package.json"), JSON.stringify({ name: "@earendil-works/pi-tui", version: layout.root }));
-    writeFileSync(join(rootCopy, "marker.txt"), "root");
-  }
-  if (layout.nested !== undefined) {
-    const nestedCopy = join(scope, "pi-coding-agent", "node_modules", "@earendil-works", "pi-tui");
-    mkdirSync(nestedCopy, { recursive: true });
-    writeFileSync(join(nestedCopy, "package.json"), JSON.stringify({ name: "@earendil-works/pi-tui", version: layout.nested }));
-    writeFileSync(join(nestedCopy, "marker.txt"), "nested");
+
+  writeFileSync(join(packageRoot, "package.json"), JSON.stringify({
+    name: "@timurproko/a1",
+    version: "0.0.0",
+    type: "module",
+    imports: {
+      "#pi-tui": [...(layout.alias ?? [
+        "./node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-tui/dist/index.js",
+        "@earendil-works/pi-tui",
+      ])],
+    },
+  }));
+
+  const pi = join(scope, "pi-coding-agent");
+  mkdirSync(pi, { recursive: true });
+  writeFileSync(join(pi, "package.json"), JSON.stringify({
+    name: "@earendil-works/pi-coding-agent",
+    version: "0.0.0",
+    type: "module",
+    exports: { ".": { import: "./dist/index.js" } },
+  }));
+  mkdirSync(join(pi, "dist"), { recursive: true });
+  writeFileSync(join(pi, "dist", "index.js"), "export default 1;\n");
+
+  for (const [version, directory] of [
+    [layout.root, join(scope, "pi-tui")],
+    [layout.nested, join(pi, "node_modules", "@earendil-works", "pi-tui")],
+  ] as const) {
+    if (version === undefined) continue;
+    mkdirSync(join(directory, "dist"), { recursive: true });
+    writeFileSync(join(directory, "package.json"), JSON.stringify({ name: "@earendil-works/pi-tui", version, main: "dist/index.js" }));
+    writeFileSync(join(directory, "dist", "index.js"), "export class Component {}\n");
   }
   return packageRoot;
 }
@@ -32,40 +67,52 @@ afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 
-describe("pi-tui module identity repair", () => {
-  it("leaves a hoisted single-copy tree untouched", () => {
+describe("pi-tui module identity", () => {
+  it("agrees with pinned Pi when both copies exist, without touching the tree", () => {
+    const packageRoot = packageRootWith({ root: "0.84.2", nested: "0.84.2" });
+
+    const outcome = inspectPiTuiModuleIdentity(packageRoot) as { kind: string; path: string };
+
+    expect(outcome.kind).toBe("unified");
+    expect(outcome.path).toContain(join("pi-coding-agent", "node_modules"));
+    // The duplicate is left exactly where npm put it: nothing is linked, moved,
+    // or deleted. Which copy A1 uses is decided by resolution alone.
+    expect(() => rmSync(join(packageRoot, "node_modules", "@earendil-works", "pi-tui", "package.json"))).not.toThrow();
+  });
+
+  it("agrees when npm hoisted a single copy, because both sides then find it", () => {
     const packageRoot = packageRootWith({ root: "0.84.2" });
-    expect(ensureSinglePiTuiModule(packageRoot)).toEqual({ kind: "single-copy" });
-    expect(lstatSync(join(packageRoot, "node_modules", "@earendil-works", "pi-tui")).isSymbolicLink()).toBe(false);
+
+    const outcome = inspectPiTuiModuleIdentity(packageRoot) as { kind: string; path: string };
+
+    expect(outcome.kind).toBe("unified");
+    expect(outcome.path).not.toContain(join("pi-coding-agent", "node_modules"));
   });
 
-  it("links a same-version duplicate onto pinned Pi's nested copy", () => {
-    const packageRoot = packageRootWith({ root: "0.84.2", nested: "0.84.2" });
-    expect(ensureSinglePiTuiModule(packageRoot)).toEqual({ kind: "linked" });
-    const rootCopy = join(packageRoot, "node_modules", "@earendil-works", "pi-tui");
-    expect(lstatSync(rootCopy).isSymbolicLink()).toBe(true);
-    expect(readFileSync(join(rootCopy, "marker.txt"), "utf8")).toBe("nested");
-    expect(realpathSync(rootCopy)).toBe(realpathSync(join(
-      packageRoot, "node_modules", "@earendil-works", "pi-coding-agent", "node_modules", "@earendil-works", "pi-tui",
-    )));
+  it("reports a split when the alias no longer names the copy pinned Pi uses", () => {
+    const packageRoot = packageRootWith({ root: "0.84.2", nested: "0.84.2", alias: ["@earendil-works/pi-tui"] });
+
+    const outcome = inspectPiTuiModuleIdentity(packageRoot) as { kind: string; own: string; pinned: string };
+
+    expect(outcome.kind).toBe("split");
+    expect(outcome.own).not.toBe(outcome.pinned);
+    expect(outcome.pinned).toContain(join("pi-coding-agent", "node_modules"));
   });
 
-  it("is idempotent on the second launch", () => {
-    const packageRoot = packageRootWith({ root: "0.84.2", nested: "0.84.2" });
-    expect(ensureSinglePiTuiModule(packageRoot)).toEqual({ kind: "linked" });
-    expect(ensureSinglePiTuiModule(packageRoot)).toEqual({ kind: "already-linked" });
+  it("reports which side could not be resolved rather than throwing", () => {
+    const packageRoot = packageRootWith({ alias: ["@earendil-works/pi-tui"] });
+
+    const outcome = inspectPiTuiModuleIdentity(packageRoot) as { kind: string; side: string };
+
+    expect(outcome.kind).toBe("unresolved");
+    expect(outcome.side).toBe("a1");
   });
 
-  it("creates the link even when npm materialized only the nested copy", () => {
+  it("still agrees when the tree carries a link left by an older A1", () => {
     const packageRoot = packageRootWith({ nested: "0.84.2" });
-    expect(ensureSinglePiTuiModule(packageRoot)).toEqual({ kind: "linked" });
-    expect(readFileSync(join(packageRoot, "node_modules", "@earendil-works", "pi-tui", "marker.txt"), "utf8")).toBe("nested");
-  });
+    const nested = join(packageRoot, "node_modules", "@earendil-works", "pi-coding-agent", "node_modules", "@earendil-works", "pi-tui");
+    symlinkSync(nested, join(packageRoot, "node_modules", "@earendil-works", "pi-tui"), "junction");
 
-  it("refuses to link across different versions and reports both", () => {
-    const packageRoot = packageRootWith({ root: "0.84.2", nested: "0.85.0" });
-    expect(ensureSinglePiTuiModule(packageRoot)).toEqual({ kind: "version-mismatch", rootVersion: "0.84.2", nestedVersion: "0.85.0" });
-    expect(lstatSync(join(packageRoot, "node_modules", "@earendil-works", "pi-tui")).isSymbolicLink()).toBe(false);
-    expect(readFileSync(join(packageRoot, "node_modules", "@earendil-works", "pi-tui", "marker.txt"), "utf8")).toBe("root");
+    expect((inspectPiTuiModuleIdentity(packageRoot) as { kind: string }).kind).toBe("unified");
   });
 });

@@ -1,8 +1,8 @@
 // Mechanically adapted from Pi commit 914cf14
 // packages/coding-agent/src/modes/interactive/components/custom-entry.ts (MIT).
 // Local modifications: remap private imports to public package-root or owned theme boundaries.
-import type { Component } from "@earendil-works/pi-tui";
-import { Box, Container, Spacer, Text } from "@earendil-works/pi-tui";
+import type { Component } from "#pi-tui";
+import { Box, Container, Spacer, Text } from "#pi-tui";
 import type { CustomEntry, EntryRenderer } from "@earendil-works/pi-coding-agent";
 import { piTheme } from "../theme/theme.js";
 

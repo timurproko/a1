@@ -1,7 +1,7 @@
 // Mechanically adapted from Pi commit 914cf14
 // packages/coding-agent/src/modes/interactive/components/first-time-setup.ts (MIT).
 // Local modifications: remap private imports to public package-root or owned theme boundaries.
-import { Container, getKeybindings, Spacer, Text } from "@earendil-works/pi-tui";
+import { Container, getKeybindings, Spacer, Text } from "#pi-tui";
 import { DynamicBorder, keyHint, rawKeyHint } from "@earendil-works/pi-coding-agent";
 import { piTheme } from "../theme/theme.js";
 
