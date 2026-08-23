@@ -14,7 +14,10 @@ describe("owned UI launch documentation", () => {
     expect(profiles).toMatch(/a1 ui[^\n]*remove/i);
     expect(checkpoint).toContain("Compare bare A1 with `a1 pi`");
     expect(checkpoint).toContain("For recovery, use `a1 pi`");
-    expect(CLI_USAGE).toBe("Usage: a1 | a1 pi | a1 sandbox | a1 version | a1 update | a1 update:next");
+    expect(CLI_USAGE).toBe(
+      "Usage: a1 | a1 pi | a1 sandbox | a1 version | a1 update [self|<source>|--extensions|--models]"
+      + " | a1 update:next | a1 install <source> | a1 remove <source> | a1 list",
+    );
     expect(parseCliCommand(["ui"])).toEqual({
       kind: "error",
       message: "The ui subcommand was removed; run bare a1 for the owned UI.",
