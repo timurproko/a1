@@ -20,12 +20,14 @@ a1 update:next  # update to npm next
 ## Develop
 
 ```sh
-npm ci              # install exact locked dependencies
-npm run build       # compile TypeScript and the process guardian into dist
-npm start           # build and launch an isolated development instance
-npm run test:fast   # typecheck + fast suite, no build needed
-npm test            # same as test:fast
-npm run test:full   # complete non-physical suite
+npm ci                  # install exact locked dependencies
+npm run build           # compile TypeScript and the process guardian into dist
+npm start               # build and launch an isolated development `a1`
+npm run start:pi        # build and launch an isolated development `a1 pi`
+npm run start:sandbox   # build and launch an isolated development `a1 sandbox`
+npm run test:fast       # typecheck + fast suite, no build needed
+npm test                # same as test:fast
+npm run test:full       # complete non-physical suite
 ```
 
 ## Release
