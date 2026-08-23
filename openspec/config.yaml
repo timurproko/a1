@@ -25,9 +25,10 @@ context: |
   - When there is something new to try, end the reply with the run commands as the very last thing, with nothing after them — no summary, no question, no sign-off. The block is exactly a `🔬 Manual test:` line, then the `cd` to the active worktree, then the build-and-run command:
 
         🔬 Manual test:
-        cd <active worktree path>
+        cd D:/Git/a1/.worktrees/<task-id>
         npm run build && npm start
 
+  - Write the `cd` path with forward slashes, exactly as in the example. A backslashed Windows path breaks in the chat rendering — `\.` is eaten as an escape, so `D:\Git\a1\.worktrees\x` reaches the user as the nonexistent `D:\Git\a1.worktrees\x` — and forward slashes paste fine into every shell used here.
   - Send that block only when the reply changed what the user would see or do by running it. A reply that changed nothing runnable — analysis, a plan, a spec, a question, a status report — ends without it, because a block that appears every time stops meaning "there is something to test".
 
   Validation policy — CI validates, not the workstation:
