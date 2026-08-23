@@ -214,17 +214,21 @@ export function renderPiShellTranscriptBlock(
 
 /**
  * Pinned Pi's CLI prints startup diagnostics with `reportDiagnostics` before
- * the banner: the whole line, prefix included, in the severity colour; info
- * lines dim with no prefix.
+ * the banner: the whole line, prefix included, in chalk's basic ANSI severity
+ * colour — not the theme's tokens — with info lines dim and unprefixed.
  */
 export function renderPiShellStartupDiagnostic(
   diagnostic: { readonly severity: "info" | "warning" | "error"; readonly message: string },
   width: number,
 ): readonly string[] {
   ensureTheme();
-  const prefix = diagnostic.severity === "error" ? "Error: " : diagnostic.severity === "warning" ? "Warning: " : "";
-  const color = diagnostic.severity === "info" ? "dim" : diagnostic.severity;
-  return new Text(piTheme().fg(color, `${prefix}${diagnostic.message}`), 0, 0).render(width);
+  const escape = String.fromCharCode(27);
+  const chalk = diagnostic.severity === "error"
+    ? { open: `${escape}[31m`, close: `${escape}[39m`, prefix: "Error: " }
+    : diagnostic.severity === "warning"
+      ? { open: `${escape}[33m`, close: `${escape}[39m`, prefix: "Warning: " }
+      : { open: `${escape}[2m`, close: `${escape}[22m`, prefix: "" };
+  return new Text(`${chalk.open}${chalk.prefix}${diagnostic.message}${chalk.close}`, 0, 0).render(width);
 }
 
 /**

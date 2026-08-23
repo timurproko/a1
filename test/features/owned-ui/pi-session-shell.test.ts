@@ -824,7 +824,8 @@ describe("OwnedUiSessionShell", () => {
     shell.start();
     shell.runtime.renderNow();
 
-    const rows = shell.root.render(100).map(row => stripTerminalSequences(row));
+    const rawRows = shell.root.render(100);
+    const rows = rawRows.map(row => stripTerminalSequences(row));
     const frame = rows.join("\n");
     for (const pattern of ["github-copilot/gpt-5.6-sol", "github-copilot/gpt-5.5", "github-copilot/claude-opus-5"]) {
       expect(frame).toContain(`Warning: No models match pattern "${pattern}"`);
@@ -834,6 +835,7 @@ describe("OwnedUiSessionShell", () => {
     const updateTitleRow = rows.findIndex(row => row.includes("Package Updates Available"));
     expect(firstWarningRow).toBeGreaterThanOrEqual(0);
     expect(firstWarningRow).toBeLessThan(bannerRow);
+    expect(rawRows[firstWarningRow]).toContain(`${String.fromCharCode(27)}[33mWarning: `);
     expect(updateTitleRow).toBeGreaterThan(bannerRow);
     expect(frame).toContain("Package updates are available. Run pi update --extensions");
     expect(frame).toContain("Packages:");
