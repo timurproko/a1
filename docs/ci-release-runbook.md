@@ -22,6 +22,14 @@ Need more coverage for a risky preview? Dispatch the candidate with `full: true`
 
 ## Publish a preview to npm `next`
 
+One command from a clean `develop` checkout runs the whole chain — candidate build, publish, registry verification:
+
+```sh
+npm run release:next
+```
+
+It dispatches the same trusted workflows below and never publishes local bytes. The manual steps remain the reference path:
+
 1. Make sure `Development validation required` is green on the `develop` tip.
 2. Dispatch **Build npm next candidate** with the exact commit and `confirm_candidate=build-uncertified-next-candidate`.
 3. Check the resulting `candidate-evidence.json`: gates passed, package integrity matches.
