@@ -17,6 +17,23 @@ a1 update       # update to npm latest
 a1 update:next  # update to npm next
 ```
 
+## Extensions
+
+Pi extension packages install into A1's own profile, so bare `a1` loads them and
+`a1 pi` and `a1 sandbox` do not. Sources are Pi's: `npm:`, git, or a local path.
+
+```sh
+a1 install npm:pi-mcp-adapter   # install a package into ~/.a1/agent
+a1 remove npm:pi-mcp-adapter    # remove it again (alias: a1 uninstall)
+a1 list                         # list packages installed for a1
+a1 update --extensions          # update every installed package
+a1 update npm:pi-mcp-adapter    # update one of them
+a1 update --models              # refresh model catalogs
+```
+
+A running session loads a newly installed package after a restart. Pi's own
+profile at `~/.pi/agent` is managed by Pi itself.
+
 ## Develop
 
 ```sh
