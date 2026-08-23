@@ -10,7 +10,7 @@ const POLL_INTERVAL_MS = 30_000;
 const RUN_TIMEOUT_MS = 45 * 60_000;
 
 function run(executable, args, options = {}) {
-  return execFileSync(executable, args, { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"], ...options }).trim();
+  return (execFileSync(executable, args, { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"], ...options } ) ?? "").trim();
 }
 function gh(args) {
   return run("gh", args);
