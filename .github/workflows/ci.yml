@@ -99,7 +99,7 @@ jobs:
   validate:
     name: Fast validation
     needs: changes
-    if: needs.changes.outputs.docs-only != 'true'
+    if: needs.changes.outputs.docs-only != 'true' && needs.changes.outputs.version-only != 'true'
     runs-on: windows-2025
     timeout-minutes: 25
     steps:
@@ -135,15 +135,7 @@ jobs:
       - name: Select validation matching the change surface
         id: selection
         shell: bash
-        env:
-          VERSION_ONLY: ${{ needs.changes.outputs.version-only }}
-        run: |
-          set -euo pipefail
-          if [ "$VERSION_ONLY" = "true" ]; then
-            echo 'selected=["package-smoke","package-install"]' >> "$GITHUB_OUTPUT"
-          else
-            echo 'selected=["typecheck","architecture","fast","dist-integration"]' >> "$GITHUB_OUTPUT"
-          fi
+        run: echo 'selected=["typecheck","architecture","fast","dist-integration"]' >> "$GITHUB_OUTPUT"
 
       - name: Run selected validation
         shell: bash
@@ -244,8 +236,7 @@ jobs:
               echo "Docs-only change without spec edits: nothing to validate."
             fi
           elif [ "$VERSION_ONLY" = "true" ]; then
-            echo "Version-only change: exact package gates only."
-            test "$VALIDATE_RESULT" = "success"
+            echo "Version-only change: the release pipeline revalidates the exact candidate; nothing to validate here."
           else
             test "$VALIDATE_RESULT" = "success"
             test "$CONTAINMENT_RESULT" = "success"
