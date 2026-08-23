@@ -1,6 +1,6 @@
 import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { resolve } from "node:path";
+import { basename, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { deriveReleaseIdentity, discoverReleasePayload, resolveWithin } from "../../../src/foundation/release/index.js";
 
@@ -61,6 +61,43 @@ describe("package-derived release identity", () => {
     await mkdir(outside);
     await symlink(outside, resolve(root, "dist/link"), "junction");
     await expect(discoverReleasePayload(root)).rejects.toThrow(/symbolic link/);
+  });
+
+  it("follows a dependency linked inside the installation, because A1 links one itself", async () => {
+    const root = await fixturePackage("1.0.0", "safe");
+    const manifestPath = resolve(root, "package.json");
+    const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as Record<string, unknown>;
+    await writeFile(manifestPath, JSON.stringify({ ...manifest, dependencies: { "linked-package": "1.0.0" } }));
+
+    // The real copy lives nested, exactly as pinned Pi's pi-tui does.
+    const nested = resolve(root, "node_modules/host/node_modules/linked-package");
+    await mkdir(nested, { recursive: true });
+    await writeFile(resolve(nested, "package.json"), JSON.stringify({ name: "linked-package", version: "1.0.0" }));
+    await writeFile(resolve(nested, "index.js"), "export default 1;\n");
+    await mkdir(resolve(root, "node_modules"), { recursive: true });
+    await symlink(nested, resolve(root, "node_modules/linked-package"), "junction");
+
+    const payload = await discoverReleasePayload(root);
+
+    expect(payload.paths).toContain("node_modules/host/node_modules/linked-package/index.js");
+    // Collected from where the files really are, never through the link itself.
+    expect(payload.paths.some(path => path.startsWith("node_modules/linked-package/"))).toBe(false);
+  });
+
+  it("refuses a dependency linked to somewhere outside the installation", async () => {
+    const root = await fixturePackage("1.0.0", "safe");
+    const manifestPath = resolve(root, "package.json");
+    const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as Record<string, unknown>;
+    await writeFile(manifestPath, JSON.stringify({ ...manifest, dependencies: { "escaping-package": "1.0.0" } }));
+
+    const elsewhere = resolve(root, "..", `escape-${basename(root)}`);
+    await mkdir(elsewhere, { recursive: true });
+    roots.push(elsewhere);
+    await writeFile(resolve(elsewhere, "package.json"), JSON.stringify({ name: "escaping-package", version: "1.0.0" }));
+    await mkdir(resolve(root, "node_modules"), { recursive: true });
+    await symlink(elsewhere, resolve(root, "node_modules/escaping-package"), "junction");
+
+    await expect(discoverReleasePayload(root)).rejects.toThrow(/dependency is missing/);
   });
 
   it("rejects the obsolete npm package identity", async () => {
