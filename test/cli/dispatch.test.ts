@@ -69,6 +69,18 @@ describe("A1 CLI dispatch", () => {
     expect(commands.packages).not.toHaveBeenCalled();
   });
 
+  it.each([
+    { arguments_: ["update", "next"], guidance: "a1 update:next" },
+    { arguments_: ["update", "stable"], guidance: "a1 update" },
+  ])("keeps the channel word $arguments_ off the package path", async ({ arguments_, guidance }) => {
+    const commands = handlers();
+    const stderr = vi.fn();
+    expect(await dispatchCli(arguments_, commands, { stderr })).toBe(2);
+    expect(stderr).toHaveBeenCalledWith(expect.stringContaining(`run ${guidance}`));
+    expect(commands.packages).not.toHaveBeenCalled();
+    expect(commands.update).not.toHaveBeenCalled();
+  });
+
   it("refuses to update the pinned Pi and points at updating A1 itself", async () => {
     const commands = handlers();
     const stderr = vi.fn();
