@@ -12,7 +12,6 @@
       "includeRoot": "test",
       "exclude": [
         "test/cli/update-cli.test.ts",
-        "test/composition/transparent-runtime.test.ts",
         "test/features/launch/development-launch.test.ts",
         "test/features/launch/exact-pi-entry.integration.test.ts",
         "test/features/launch/profile-isolation.integration.test.ts",
@@ -62,7 +61,6 @@
       "requiresBuild": true,
       "tests": [
         "test/cli/update-cli.test.ts",
-        "test/composition/transparent-runtime.test.ts",
         "test/features/launch/development-launch.test.ts"
       ]
     },

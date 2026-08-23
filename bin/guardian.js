@@ -10,7 +10,7 @@ const profileId = process.env.A1_LAUNCH_PROFILE ?? "a1";
 runLaunchGuardian({
   profileId,
   releaseRoot,
-  uiEntry: resolve(releaseRoot, "bin", "a1-ui.js"),
+  uiEntry: resolve(releaseRoot, "bin", "ui.js"),
   environment: process.env,
   cwd: process.cwd(),
 }).then(

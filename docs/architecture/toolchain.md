@@ -65,15 +65,15 @@ This mandatory candidate workflow checks documented package-root exports and the
 npm run sync:pi-ui
 ```
 
-This optional, mutating presentation-maintenance workflow regenerates component and event-frame parity evidence when maintainers deliberately adopt upstream UI changes. Review generated diffs, attribution, source-ledger records, and terminal parity before committing them. It is never an engine candidate acceptance gate and is not run by `check`, `prepack`, or release publication.
+This optional, mutating presentation-maintenance workflow regenerates component and event-frame parity evidence when maintainers deliberately adopt upstream UI changes. Review generated diffs, attribution, and source-ledger records before committing them. It is never an engine candidate acceptance gate and is not run by `check`, `prepack`, or release publication.
 
-`npm run test:pi-terminal-parity` remains an explicit presentation acceptance command. `node scripts/check-pinned-pi-source-ledger.mjs` validates accepted provenance; its `--engine-only` mode validates the ownership partition without comparing private upstream source.
+Presentation acceptance is the reader comparing `a1 pi` with pinned Pi. `node scripts/check-pinned-pi-source-ledger.mjs` validates accepted provenance; its `--engine-only` mode validates the ownership partition without comparing private upstream source.
 
 ## Preview publication
 
 A preview candidate must use a unique `-dev.N` version and exact manually accepted bytes. Publication packs once, binds evidence to source commit/version/integrity, runs applicable non-desktop gates, publishes under npm `next`, and verifies registry identity. It must keep `latest` unchanged and record physical/cross-platform certification as deferred.
 
-The GitHub trusted-publishing workflow is `.github/workflows/publish-next.yml`. Stable publication remains a separate release process from a clean tagged `master` commit after all mandatory platform gates pass.
+The GitHub trusted-publishing workflow is `.github/workflows/npm-publish.yml`. Stable publication remains a separate release process from a clean tagged `master` commit after all mandatory platform gates pass.
 
 ## A1 state paths
 

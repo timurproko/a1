@@ -10,17 +10,17 @@
   "internalIdentifiers": [],
   "externalIdentityIdentifiers": [
     {
-      "path": "bin/a1-guardian.js",
+      "path": "bin/guardian.js",
       "line": 7,
       "identifier": "A1_RELEASE_ROOT"
     },
     {
-      "path": "bin/a1-guardian.js",
+      "path": "bin/guardian.js",
       "line": 8,
       "identifier": "A1_LAUNCH_PROFILE"
     },
     {
-      "path": "bin/a1-ui.js",
+      "path": "bin/ui.js",
       "line": 5,
       "identifier": "A1_LAUNCH_PROFILE"
     },
@@ -33,26 +33,6 @@
       "path": "scripts/dev-launch.mjs",
       "line": 49,
       "identifier": "A1_DEV_SHELL"
-    },
-    {
-      "path": "scripts/pi-terminal-parity/scenario.mjs",
-      "line": 245,
-      "identifier": "A1_PROFILE_HOME"
-    },
-    {
-      "path": "scripts/run-pi-terminal-parity.mjs",
-      "line": 98,
-      "identifier": "A1_LAUNCH_PROFILE"
-    },
-    {
-      "path": "scripts/run-pi-terminal-parity.mjs",
-      "line": 99,
-      "identifier": "A1_LAUNCH_ARGUMENTS_JSON"
-    },
-    {
-      "path": "scripts/run-pi-terminal-parity.mjs",
-      "line": 113,
-      "identifier": "A1_PI_PARITY_INTENTIONAL_MUTATION"
     },
     {
       "path": "scripts/start-local.mjs",
@@ -80,19 +60,9 @@
       "identifier": "A1_DATABASE_PATH"
     },
     {
-      "path": "src/composition/transparent-runtime.ts",
-      "line": 11,
-      "identifier": "A1_LAUNCH_ARGUMENTS_JSON"
-    },
-    {
       "path": "src/features/launch/prepare-launch.ts",
       "line": 30,
       "identifier": "A1_LAUNCH_ARGUMENTS_JSON"
-    },
-    {
-      "path": "src/foundation/transparent-terminal/main.ts",
-      "line": 18,
-      "identifier": "A1_LAUNCH_PROFILE"
     },
     {
       "path": "test/cli/update-cli.test.ts",
@@ -103,16 +73,6 @@
       "path": "test/cli/update-cli.test.ts",
       "line": 116,
       "identifier": "A1_RUNTIME_DIR"
-    },
-    {
-      "path": "test/composition/transparent-runtime.test.ts",
-      "line": 8,
-      "identifier": "A1_LAUNCH_ARGUMENTS_JSON"
-    },
-    {
-      "path": "test/composition/transparent-runtime.test.ts",
-      "line": 17,
-      "identifier": "A1_LAUNCH_ARGUMENTS_JSON"
     },
     {
       "path": "test/features/launch/development-launch.test.ts",
@@ -193,11 +153,6 @@
       "path": "test/features/launch/development-launch.test.ts",
       "line": 84,
       "identifier": "A1_PROFILE_HOME"
-    },
-    {
-      "path": "test/features/launch/exact-pi-entry.integration.test.ts",
-      "line": 33,
-      "identifier": "A1_LAUNCH_ARGUMENTS_JSON"
     },
     {
       "path": "test/features/launch/prepare-launch.test.ts",
@@ -355,16 +310,6 @@
       "identifier": "A1_PANE_ID"
     },
     {
-      "path": "test/foundation/transparent-terminal/transparent-native-launcher.test.ts",
-      "line": 15,
-      "identifier": "A1_FIXTURE_TOKEN"
-    },
-    {
-      "path": "test/foundation/transparent-terminal/transparent-native-launcher.test.ts",
-      "line": 26,
-      "identifier": "A1_FIXTURE_TOKEN"
-    },
-    {
       "path": "test/foundation/workspace-contracts/contracts.test.ts",
       "line": 61,
       "identifier": "A1_PANE_ID"
@@ -395,116 +340,6 @@
       "path": "native/terminal-host/src/workspace.rs",
       "line": 981,
       "identifier": "topology_has_stable_revisioned_a1_mappings"
-    },
-    {
-      "path": "scripts/run-pi-terminal-parity.mjs",
-      "line": 24,
-      "identifier": "a1CliPath"
-    },
-    {
-      "path": "scripts/run-pi-terminal-parity.mjs",
-      "line": 41,
-      "identifier": "a1"
-    },
-    {
-      "path": "scripts/run-pi-terminal-parity.mjs",
-      "line": 78,
-      "identifier": "a1"
-    },
-    {
-      "path": "scripts/run-pi-terminal-parity.mjs",
-      "line": 81,
-      "identifier": "a1CliPath"
-    },
-    {
-      "path": "scripts/run-pi-terminal-parity.mjs",
-      "line": 91,
-      "identifier": "a1"
-    },
-    {
-      "path": "scripts/run-pi-terminal-parity.mjs",
-      "line": 94,
-      "identifier": "a1"
-    },
-    {
-      "path": "scripts/run-pi-terminal-parity.mjs",
-      "line": 97,
-      "identifier": "a1"
-    },
-    {
-      "path": "scripts/run-pi-terminal-parity.mjs",
-      "line": 97,
-      "identifier": "originalA1Capture"
-    },
-    {
-      "path": "scripts/run-pi-terminal-parity.mjs",
-      "line": 99,
-      "identifier": "a1Capture"
-    },
-    {
-      "path": "scripts/run-pi-terminal-parity.mjs",
-      "line": 100,
-      "identifier": "originalA1Capture"
-    },
-    {
-      "path": "scripts/run-pi-terminal-parity.mjs",
-      "line": 101,
-      "identifier": "originalA1Capture"
-    },
-    {
-      "path": "scripts/run-pi-terminal-parity.mjs",
-      "line": 102,
-      "identifier": "a1Capture"
-    },
-    {
-      "path": "scripts/run-pi-terminal-parity.mjs",
-      "line": 117,
-      "identifier": "a1"
-    },
-    {
-      "path": "scripts/run-pi-terminal-parity.mjs",
-      "line": 117,
-      "identifier": "a1Capture"
-    },
-    {
-      "path": "scripts/run-pi-terminal-parity.mjs",
-      "line": 159,
-      "identifier": "a1Manifest"
-    },
-    {
-      "path": "scripts/run-pi-terminal-parity.mjs",
-      "line": 168,
-      "identifier": "usesA1RenderingCode"
-    },
-    {
-      "path": "scripts/run-pi-terminal-parity.mjs",
-      "line": 170,
-      "identifier": "a1"
-    },
-    {
-      "path": "scripts/run-pi-terminal-parity.mjs",
-      "line": 171,
-      "identifier": "a1Manifest"
-    },
-    {
-      "path": "scripts/run-pi-terminal-parity.mjs",
-      "line": 172,
-      "identifier": "a1Manifest"
-    },
-    {
-      "path": "scripts/run-pi-terminal-parity.mjs",
-      "line": 174,
-      "identifier": "a1CliPath"
-    },
-    {
-      "path": "scripts/run-pi-terminal-parity.mjs",
-      "line": 186,
-      "identifier": "a1"
-    },
-    {
-      "path": "scripts/run-pi-terminal-parity.mjs",
-      "line": 188,
-      "identifier": "a1"
     },
     {
       "path": "src/features/launch/profile-paths.ts",

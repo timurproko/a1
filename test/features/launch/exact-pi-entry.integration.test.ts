@@ -4,7 +4,6 @@ import { tmpdir } from "node:os";
 import { delimiter, join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { selectTransparentChild } from "../../../src/composition/transparent-runtime.js";
 
 const execute = promisify(execFile);
 let fakeBin: string;
@@ -29,9 +28,10 @@ beforeAll(async () => {
 afterAll(async () => { if (fakeBin) await rm(fakeBin, { recursive: true, force: true }); });
 
 async function launchWithPath(path: string) {
-  const compositionUrl = new URL("../../../dist/src/composition/transparent-runtime.js", import.meta.url).href;
-  const selected = selectTransparentChild({ A1_LAUNCH_ARGUMENTS_JSON: '["--version"]', PATH: path }, process.execPath, compositionUrl);
-  return await execute(selected.executable, [...selected.arguments], {
+  // The engine A1 runs is the pinned dependency, never whichever Pi executable a
+  // PATH happens to offer, so the entry that loads it is asked for its version.
+  const entry = resolve("dist/src/foundation/pi-engine-adapter/public-main-entry.js");
+  return await execute(process.execPath, [entry, "--version"], {
     cwd: resolve("."),
     env: { ...process.env, PATH: path },
     timeout: 30_000,

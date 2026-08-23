@@ -19,7 +19,7 @@ describe("Unix process guardian", () => {
     roots.push(root);
     const statePath = resolve(root, "tree.json");
     const statusPath = resolve(root, "guardian-status.json");
-    const helper = process.env.A1_PROCESS_GUARDIAN_PATH ?? resolve("native/process-guardian/target/debug/a1-process-guardian");
+    const helper = process.env.A1_PROCESS_GUARDIAN_PATH ?? resolve("native/process-guardian/target/debug/process-guardian");
     const fixture = resolve("test/fixtures/process-containment/tree.mjs");
     const parentSentinel = spawn(process.execPath, [fixture, "wait"], { stdio: "ignore" });
     const unrelated = spawn(process.execPath, [fixture, "wait"], { detached: true, stdio: "ignore" });
@@ -46,7 +46,7 @@ describe("Unix process guardian", () => {
   }, 20_000);
 
   macIt("fails before runtime startup when exact containment is not certified", async () => {
-    const helper = process.env.A1_PROCESS_GUARDIAN_PATH ?? resolve("native/process-guardian/target/debug/a1-process-guardian");
+    const helper = process.env.A1_PROCESS_GUARDIAN_PATH ?? resolve("native/process-guardian/target/debug/process-guardian");
     const marker = resolve(await mkdtemp(resolve(tmpdir(), "a1-mac-containment-")), "started");
     roots.push(resolve(marker, ".."));
     const result = await run(helper, [

@@ -7,7 +7,7 @@ const environment = { ...process.env, ZIG: process.env.ZIG ?? "zig" };
 const manifest = resolve("native/terminal-host/Cargo.toml");
 run(cargo, ["build", "--manifest-path", manifest], environment, "pipe");
 
-const executable = resolve("native/terminal-host/target/debug", platform() === "win32" ? "a1-terminal-host.exe" : "a1-terminal-host");
+const executable = resolve("native/terminal-host/target/debug", platform() === "win32" ? "terminal-host.exe" : "terminal-host");
 const args = process.argv.slice(2);
 const hostArgs = args.length > 0 ? args : ["--run"];
 run(executable, hostArgs, environment, "inherit");

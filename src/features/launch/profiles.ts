@@ -9,7 +9,7 @@ export interface LaunchProfileContract {
   readonly productSurface: "agent" | "vanilla-baseline" | "isolated-profile";
   readonly configurationRootPolicy: ConfigurationRootPolicy;
   readonly projectTrust: ProjectTrustPolicy;
-  readonly terminalCapability: "owned-ui" | "transparent";
+  readonly terminalCapability: "owned-ui";
 }
 
 const contracts: Readonly<Record<LaunchProfileId, LaunchProfileContract>> = Object.freeze({
@@ -25,14 +25,14 @@ const contracts: Readonly<Record<LaunchProfileId, LaunchProfileContract>> = Obje
     productSurface: "vanilla-baseline",
     configurationRootPolicy: "pi-default",
     projectTrust: "pi-default",
-    terminalCapability: "transparent",
+    terminalCapability: "owned-ui",
   }),
   sandbox: Object.freeze({
     id: "sandbox",
     productSurface: "isolated-profile",
     configurationRootPolicy: "sandbox-profile",
     projectTrust: "ignore",
-    terminalCapability: "transparent",
+    terminalCapability: "owned-ui",
   }),
 });
 

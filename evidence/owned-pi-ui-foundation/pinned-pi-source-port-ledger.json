@@ -2337,8 +2337,7 @@
         "7.8"
       ],
       "tests": [
-        "test/features/owned-ui/pi-session-shell.test.ts",
-        "test/repository-governance/pi-terminal-parity-gate.test.ts"
+        "test/features/owned-ui/pi-session-shell.test.ts"
       ],
       "localSha256": "329e255c45b3fda782a4b550100c0d3cc8ff6ca5e1116fbd76c041ab5e7e6ef7"
     },
@@ -4186,8 +4185,7 @@
       "tests": [
         "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts",
         "test/foundation/pi-tui-runtime-adapter/adapter.test.ts",
-        "test/foundation/pi-tui-runtime-adapter/pinned-wheel-parity.test.ts",
-        "test/repository-governance/pi-terminal-parity-gate.test.ts"
+        "test/foundation/pi-tui-runtime-adapter/pinned-wheel-parity.test.ts"
       ]
     },
     {
