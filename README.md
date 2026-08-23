@@ -28,10 +28,16 @@ Any number of `a1`, `a1 pi`, and `a1 sandbox` commands may run in separate termi
 ## Develop
 
 ```sh
-npm ci
-npm run build
-npm start           # isolated development launch
+npm ci              # install exact locked dependencies
+npm run build       # compile TypeScript and the process guardian into dist
+npm start           # build and launch an isolated development instance
 npm run test:fast   # typecheck + fast suite, no build needed
 npm test            # same as test:fast
 npm run test:full   # complete non-physical suite
+```
+
+## Release
+
+```sh
+npm run release:next   # publish current develop tip to npm next via trusted CI workflows
 ```
