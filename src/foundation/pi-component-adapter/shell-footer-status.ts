@@ -4,7 +4,7 @@ import {
   Text,
   type Component,
   type TUI,
-} from "@earendil-works/pi-tui";
+} from "#pi-tui";
 import type {
   OwnedUiSessionViewModel,
 } from "../owned-ui-contracts/index.js";

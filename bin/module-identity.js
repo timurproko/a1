@@ -1,75 +1,132 @@
 /**
  * One pi-tui module identity per process.
  *
- * npm can materialize @earendil-works/pi-tui twice under A1's package root:
- * once as A1's direct dependency at the node_modules root, and once nested
- * inside @earendil-works/pi-coding-agent's isolated dependency tree. A1's
- * owned UI imports the root copy while pinned Pi's extension loader hands
- * extensions the nested copy, so every TUI class exists twice: `instanceof`
- * checks and prototype patches made by extensions land on classes the
- * renderer never uses — extension chrome silently disappears and routed
- * input dead-ends.
+ * npm materializes @earendil-works/pi-tui twice under A1's package root: once
+ * as A1's direct dependency at the node_modules root, and once nested inside
+ * @earendil-works/pi-coding-agent, whose published npm-shrinkwrap.json makes
+ * npm build its dependency tree exactly as shrinkwrapped instead of sharing a
+ * hoisted copy. Both are the same version; npm just cannot tell them apart.
  *
- * Repair runs at launch, not at install: npm's `prepare` hook is skipped for
- * registry installs, so an installed A1 must self-heal the same way a source
- * checkout does. The root copy is replaced with a junction (Windows) or
- * directory symlink to the nested copy so every loader resolves the same
- * files and therefore the same module instances.
+ * Two copies means two of every TUI class. Pinned Pi hands extensions the
+ * nested copy — its extension loader aliases the specifier to whatever it
+ * resolves from its own directory — so an extension's `instanceof` check and
+ * its prototype patches land on classes A1's renderer never uses. Extension
+ * chrome silently disappears and routed input dead-ends, with no error.
  *
- * This lives in bin/ (shipped, plain JS) rather than src/ deliberately: its
- * whole job is repairing the node_modules layout, which the Pi API boundary
- * policy rightly forbids ordinary production code from touching.
+ * A1 therefore does not import the specifier at all. Its package declares the
+ * subpath import `#pi-tui`, resolving to pinned Pi's copy first and to the
+ * hoisted one only when that is absent — which is exactly the case where there
+ * is one copy and both sides agree anyway. Every A1 module imports `#pi-tui`,
+ * so which copy A1 uses is stated in package.json and enforced by Node at
+ * resolution, rather than arranged by rewriting an installed tree.
  *
- * The repair is idempotent and fail-open: a hoisted tree (single copy), an
- * already-linked root, a version mismatch, or a filesystem that refuses the
- * link all leave the tree as it was — launch proceeds with a warning rather
- * than failing, because a degraded UI beats no UI.
+ * What remains here is the check that it worked. The alias names one path
+ * inside pinned Pi; if a future layout moved that copy, resolution would fall
+ * back to A1's own and the split would return — silently, which is what made
+ * this expensive the first time. So launch compares the two resolutions and
+ * says so when they differ, loudly and once, instead of leaving a user to
+ * discover it as missing extension UI.
+ *
+ * This lives in bin/ (shipped, plain JS) because it inspects dependency
+ * resolution, which the Pi API boundary policy rightly forbids ordinary
+ * production code from touching.
  */
-import { existsSync, lstatSync, readFileSync, renameSync, rmSync, symlinkSync } from "node:fs";
-import { join } from "node:path";
+import { createRequire } from "node:module";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { pathToFileURL } from "node:url";
 
-function packageVersion(directory) {
-  return JSON.parse(readFileSync(join(directory, "package.json"), "utf8")).version;
+/**
+ * What A1's own modules resolve `#pi-tui` to, as a real path.
+ *
+ * The alias is read from the manifest and its entries tried in order, which is
+ * what Node does for a subpath import: a relative target is a file within the
+ * package, and a bare one goes through ordinary resolution. Asking Node
+ * directly is not an option here — `import.meta.resolve` ignores the parent it
+ * is given unless an experimental flag is set, so it would always answer for
+ * the running process rather than for the installation being inspected.
+ */
+function resolveOwnPiTui(packageRoot) {
+  const manifest = JSON.parse(readFileSync(join(packageRoot, "package.json"), "utf8"));
+  const alias = manifest.imports?.["#pi-tui"];
+  const targets = Array.isArray(alias) ? alias : alias === undefined ? [] : [alias];
+  if (targets.length === 0) throw new Error("package.json declares no #pi-tui alias");
+  for (const target of targets) {
+    if (typeof target !== "string") continue;
+    if (target.startsWith("./") || target.startsWith("../")) {
+      const candidate = join(packageRoot, target);
+      if (existsSync(candidate)) return canonical(candidate);
+      continue;
+    }
+    try {
+      return canonical(createRequire(pathToFileURL(join(packageRoot, "package.json")).href).resolve(target));
+    } catch {
+      continue;
+    }
+  }
+  throw new Error(`no #pi-tui target resolves: ${targets.join(", ")}`);
 }
 
 /**
- * Collapse a duplicated @earendil-works/pi-tui under `packageRoot` onto the
- * copy pinned Pi resolves, so extensions and the owned UI share one module
- * instance. Must run before anything in the process imports pi-tui.
- * Returns a discriminated outcome; never throws.
+ * What pinned Pi resolves the same specifier to, as a real path — asked from
+ * inside Pi's own directory, which is where Pi asks it.
+ *
+ * Pi's directory is located by walking node_modules outward, the way Node
+ * itself would, rather than by resolving Pi's entry: its `exports` map offers
+ * no CommonJS condition, so an ordinary require cannot name it. From there a
+ * require resolves pi-tui, which publishes no `exports` map at all.
  */
-export function ensureSinglePiTuiModule(packageRoot) {
-  const rootCopy = join(packageRoot, "node_modules", "@earendil-works", "pi-tui");
-  const nestedCopy = join(
-    packageRoot,
-    "node_modules", "@earendil-works", "pi-coding-agent",
-    "node_modules", "@earendil-works", "pi-tui",
-  );
-  try {
-    if (!existsSync(nestedCopy)) return { kind: "single-copy" };
-    if (existsSync(rootCopy) && lstatSync(rootCopy).isSymbolicLink()) return { kind: "already-linked" };
-    if (existsSync(rootCopy)) {
-      const rootVersion = packageVersion(rootCopy);
-      const nestedVersion = packageVersion(nestedCopy);
-      if (rootVersion !== nestedVersion) return { kind: "version-mismatch", rootVersion, nestedVersion };
-      const retired = `${rootCopy}.duplicate`;
-      rmSync(retired, { recursive: true, force: true });
-      renameSync(rootCopy, retired);
-      rmSync(retired, { recursive: true, force: true });
+function resolvePinnedPiTui(packageRoot) {
+  let directory = packageRoot;
+  while (true) {
+    const candidate = join(directory, "node_modules", "@earendil-works", "pi-coding-agent");
+    if (existsSync(join(candidate, "package.json"))) {
+      return canonical(createRequire(pathToFileURL(join(candidate, "package.json")).href).resolve("@earendil-works/pi-tui"));
     }
-    symlinkSync(nestedCopy, rootCopy, "junction");
-    return { kind: "linked" };
-  } catch (error) {
-    return { kind: "failed", message: error instanceof Error ? error.message : String(error) };
+    const parent = dirname(directory);
+    if (parent === directory) throw new Error("pinned Pi is not installed beneath this package root");
+    directory = parent;
   }
 }
 
-/** Launch-entry wrapper: repair, and warn on stderr when the tree stays split. */
-export function ensureSinglePiTuiModuleAtLaunch(packageRoot, warn) {
-  const outcome = ensureSinglePiTuiModule(packageRoot);
-  if (outcome.kind === "version-mismatch") {
-    warn(`a1: pi-tui is duplicated at incompatible versions (${outcome.rootVersion} vs ${outcome.nestedVersion}); extension UI may not render.\n`);
-  } else if (outcome.kind === "failed") {
-    warn(`a1: could not unify the duplicated pi-tui module (${outcome.message}); extension UI may not render.\n`);
+function canonical(path) {
+  try {
+    return realpathSync.native(path);
+  } catch {
+    return path;
+  }
+}
+
+/**
+ * Report whether A1 and pinned Pi resolve pi-tui to the same file.
+ * Returns a discriminated outcome; never throws.
+ */
+export function inspectPiTuiModuleIdentity(packageRoot) {
+  let own;
+  let pinned;
+  try {
+    own = resolveOwnPiTui(packageRoot);
+  } catch (error) {
+    return { kind: "unresolved", side: "a1", message: message(error) };
+  }
+  try {
+    pinned = resolvePinnedPiTui(packageRoot);
+  } catch (error) {
+    return { kind: "unresolved", side: "pi", message: message(error) };
+  }
+  return own === pinned ? { kind: "unified", path: own } : { kind: "split", own, pinned };
+}
+
+function message(error) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+/** Launch-entry wrapper: warn on stderr when the two sides disagree. */
+export function assertSinglePiTuiModuleAtLaunch(packageRoot, warn) {
+  const outcome = inspectPiTuiModuleIdentity(packageRoot);
+  if (outcome.kind === "split") {
+    warn(`a1: pi-tui resolves to two different copies (${outcome.own} for a1, ${outcome.pinned} for Pi); extension UI may not render. The #pi-tui alias in a1's package.json no longer names Pi's copy.\n`);
+  } else if (outcome.kind === "unresolved") {
+    warn(`a1: could not resolve pi-tui from ${outcome.side === "a1" ? "a1" : "pinned Pi"} (${outcome.message}); extension UI may not render.\n`);
   }
 }

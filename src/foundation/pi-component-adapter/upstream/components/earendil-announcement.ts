@@ -1,7 +1,7 @@
 // Mechanically adapted from Pi commit 914cf14
 // packages/coding-agent/src/modes/interactive/components/earendil-announcement.ts (MIT).
 // Local modifications: remap private imports to public package-root/owned theme boundaries and omit optional package-private imagery.
-import { Container, Spacer, Text } from "@earendil-works/pi-tui";
+import { Container, Spacer, Text } from "#pi-tui";
 import { DynamicBorder } from "@earendil-works/pi-coding-agent";
 import { piTheme } from "../theme/theme.js";
 

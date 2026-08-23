@@ -3,7 +3,7 @@
  * packages/coding-agent/src/modes/interactive/components/session-selector-search.ts
  * Mechanical change: public SessionInfo type import.
  */
-import { fuzzyMatch } from "@earendil-works/pi-tui";
+import { fuzzyMatch } from "#pi-tui";
 import type { SessionInfo } from "@earendil-works/pi-coding-agent";
 
 export type SortMode = "threaded" | "recent" | "relevance";
