@@ -21,6 +21,13 @@ process.exitCode = await dispatchCli(process.argv.slice(2), {
     const { runSelfUpdate } = await import("../dist/src/foundation/release/index.js");
     return await runSelfUpdate({ packageRoot: fileURLToPath(packageRoot), channel });
   },
+  packages: async request => {
+    const [{ runPackageCommand }, { createPiPackagesPort }] = await Promise.all([
+      import("../dist/src/cli/index.js"),
+      import("../dist/src/foundation/pi-engine-adapter/index.js"),
+    ]);
+    return await runPackageCommand(request, { createPort: createPiPackagesPort });
+  },
 }, {
   stderr: message => process.stderr.write(message),
 });
