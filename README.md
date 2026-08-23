@@ -35,3 +35,9 @@ npm run test:fast   # typecheck + fast suite, no build needed
 npm test            # same as test:fast
 npm run test:full   # complete non-physical suite
 ```
+
+## Release
+
+```sh
+npm run release:next   # publish current develop tip to npm next via trusted CI workflows
+```
