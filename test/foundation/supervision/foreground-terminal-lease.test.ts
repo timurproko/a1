@@ -209,7 +209,7 @@ async function createHarness() {
     endpointMetadataPath: resolve(runtimeDir, "supervisor.json"), supervisorLogPath: resolve(runtimeDir, "supervisor.log"),
   };
   const store = new ControlStore(paths.databasePath, "boot-current");
-  const server = new SupervisorServer(store, paths, release(), "boot-current", vi.fn(), 25, 100);
+  const server = new SupervisorServer(store, paths, release(), "boot-current", vi.fn(), 25, 2_000);
   await server.listen();
   return { root, paths, store, server };
 }
