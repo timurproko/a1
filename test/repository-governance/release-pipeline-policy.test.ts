@@ -58,6 +58,17 @@ describe("one release pipeline", () => {
     expect(workflow).toContain("tag differs from the published version");
   });
 
+  it("records the published commit on master by fast-forward only", async () => {
+    const workflow = await releaseWorkflow();
+    expect(workflow).toContain("git/refs/heads/master");
+    expect(workflow).toContain("-F force=false");
+    const publishRelease = workflow.indexOf("Publish the staged GitHub Release");
+    const moveMaster = workflow.indexOf("Move master to the published release");
+    expect(moveMaster).toBeGreaterThan(publishRelease);
+    // Only a stable publication records itself there; a preview leaves it alone.
+    expect(workflow.slice(moveMaster)).toContain("needs.plan.outputs.channel == 'latest'");
+  });
+
   it("stages the GitHub Release as a draft, publishes it only after npm, and removes it on failure", async () => {
     const workflow = await releaseWorkflow();
     const stage = workflow.indexOf("Stage the draft GitHub Release");

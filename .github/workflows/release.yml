@@ -460,6 +460,16 @@ jobs:
           RELEASE_VERSION: ${{ needs.plan.outputs.version }}
         run: gh release edit "v${RELEASE_VERSION}" --repo "$GITHUB_REPOSITORY" --draft=false --latest
 
+      # master means "what is on the latest npm tag", and nothing but this step
+      # ever writes it. The update is a plain fast-forward: no force, so a master
+      # that is somehow not an ancestor fails loudly instead of being overwritten.
+      - name: Move master to the published release
+        if: needs.plan.outputs.channel == 'latest'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X PATCH "repos/$GITHUB_REPOSITORY/git/refs/heads/master" -f "sha=$GITHUB_SHA" -F force=false --silent
+
       - name: Remove the staged release when publication did not complete
         if: failure() && needs.plan.outputs.channel == 'latest'
         shell: bash

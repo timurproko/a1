@@ -51,6 +51,28 @@
       ]
     },
     {
+      "name": "a1-protect-master",
+      "target": "branch",
+      "enforcement": "active",
+      "bypass_actors": [],
+      "conditions": {
+        "ref_name": {
+          "include": [
+            "refs/heads/master"
+          ],
+          "exclude": []
+        }
+      },
+      "rules": [
+        {
+          "type": "deletion"
+        },
+        {
+          "type": "non_fast_forward"
+        }
+      ]
+    },
+    {
       "name": "a1-protect-release-tags",
       "target": "tag",
       "enforcement": "active",

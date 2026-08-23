@@ -31,8 +31,11 @@ bytes without rebuilding. That property survives here unchanged.
   the next `-dev.0`. The tag is what publishes.
 - The stable GitHub Release is staged as a draft before npm is contacted and
   published only after npm accepted the bytes; a failure removes the draft.
-- `master` is retired along with its ruleset. Release tags take its place and are
-  protected from deletion and movement.
+- `master` stops being a promotion target and becomes a record: a completed stable
+  publication fast-forwards it to the commit it published, so `master` always names
+  what npm `latest` serves. It carries no check and no pull-request requirement,
+  because only the release writes it. Release tags are likewise protected from
+  deletion and movement.
 - Physical certification stops gating publication. It never ran, and holding
   releases for evidence no machine produces protects nothing.
 
@@ -45,8 +48,8 @@ bytes without rebuilding. That property survives here unchanged.
 ### Modified Capabilities
 
 - `continuous-integration`: publication follows from what was pushed rather than
-  from a chain of dispatches, and the protected refs are one branch and the release
-  tags rather than two branches.
+  from a chain of dispatches, `master` records the published commit rather than
+  gating it, and release tags are protected from deletion and movement.
 - `isolated-regression-testing`: physical evidence governs what A1 may claim about
   terminal parity and platform support, and no longer governs whether a version may
   be published.
