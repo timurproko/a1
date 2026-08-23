@@ -69,6 +69,16 @@ describe("one release pipeline", () => {
     expect(workflow.slice(moveMaster)).toContain("needs.plan.outputs.channel == 'latest'");
   });
 
+  it("says what went wrong when recording a published release fails", async () => {
+    const workflow = await releaseWorkflow();
+    // These steps run after the registry already serves the package, so a silent
+    // failure leaves npm ahead of the repository with nothing to explain it.
+    expect(workflow).not.toContain("--silent");
+    expect(workflow).toContain("could not create ${tag}");
+    expect(workflow).toContain("could not fast-forward master");
+    expect(workflow).toContain("A release tag is never moved.");
+  });
+
   it("records the tag and the release only after the registry has the package", async () => {
     const workflow = await releaseWorkflow();
     const publishNpm = workflow.indexOf("Publish the exact package");
