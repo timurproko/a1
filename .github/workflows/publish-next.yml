@@ -27,10 +27,10 @@ jobs:
     if: github.ref == 'refs/heads/develop'
     runs-on: windows-2025
     timeout-minutes: 15
-    environment: npm-next
+    environment: npm-develop
     steps:
       - name: Set up trusted Node
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: 24
 
@@ -60,7 +60,7 @@ jobs:
           NODE
 
       - name: Download immutable candidate
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
         with:
           run-id: ${{ inputs.candidate_run_id }}
           pattern: npm-next-candidate-*
@@ -165,7 +165,7 @@ jobs:
 
       - name: Upload publication evidence
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: npm-next-publication-${{ inputs.candidate_run_id }}
           path: |

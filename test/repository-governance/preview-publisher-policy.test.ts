@@ -15,7 +15,7 @@ describe("exact next artifact publisher", () => {
 
   it("downloads and verifies exact evidence-bound bytes", async () => {
     const workflow = await readFile(".github/workflows/publish-next.yml", "utf8");
-    expect(workflow).toContain("uses: actions/download-artifact@v6");
+    expect(workflow).toContain("uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6");
     expect(workflow).toContain("run-id: ${{ inputs.candidate_run_id }}");
     expect(workflow).toContain("pattern: npm-next-candidate-*");
     expect(workflow).toContain("evidence.source?.commit !== process.env.candidate_source_commit");

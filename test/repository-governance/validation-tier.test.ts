@@ -23,6 +23,7 @@ describe("validation tier planning", () => {
       "typecheck",
       "architecture",
       "fast",
+      "dist-integration",
       "launch-integration",
       "pi-engine-conformance",
       "release-update",
@@ -36,8 +37,7 @@ describe("validation tier planning", () => {
       mode: "full-deduplicated",
       invocations: [
         { id: "vitest-full-without-isolated", arguments: expect.arrayContaining(["--exclude", "test/foundation/release/update-performance.integration.test.ts", "--exclude", "test/foundation/release/package-surface.test.ts", "test/foundation/release/package-install.integration.test.ts"]) },
-        { id: "vitest-update-performance", arguments: expect.arrayContaining(["test/foundation/release/update-performance.integration.test.ts", "--no-file-parallelism"]) },
-        { id: "vitest-package-smoke", arguments: expect.arrayContaining(["test/foundation/release/package-surface.test.ts", "--no-file-parallelism"]) },
+        { id: "vitest-isolated-timing", arguments: expect.arrayContaining(["test/foundation/release/update-performance.integration.test.ts", "test/foundation/release/package-surface.test.ts", "--no-file-parallelism"]) },
         { id: "vitest-package-install", arguments: expect.arrayContaining(["test/foundation/release/package-install.integration.test.ts", "--no-file-parallelism"]) },
       ],
     });
@@ -54,10 +54,10 @@ describe("validation tier planning", () => {
     expect(Object.keys(plan.releaseContracts ?? {})).toHaveLength(8);
   });
 
-  it("builds ordinary fast validation once without package installation", async () => {
+  it("runs ordinary fast validation without any build or package installation", async () => {
     const plan = await createTierPlan(["typecheck", "fast"]);
-    expect(plan.requiresBuild).toBe(true);
-    expect(plan.commands.map(command => command.id)).toEqual(["candidate-build", "typecheck"]);
+    expect(plan.requiresBuild).toBe(false);
+    expect(plan.commands.map(command => command.id)).toEqual(["typecheck"]);
     expect(plan.vitest?.mode).toBe("fast-and-explicit");
     expect(plan.vitest?.invocations[0]?.arguments).toContain("--exclude");
     expect(plan.vitest?.invocations[0]?.arguments).toContain("test/foundation/release/package-surface.test.ts");

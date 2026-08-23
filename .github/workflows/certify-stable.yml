@@ -61,13 +61,13 @@ jobs:
           NODE
 
       - name: Check out exact certification policy
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           ref: ${{ steps.runs.outputs.source_commit }}
           persist-credentials: false
 
       - name: Download automated candidate
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
         with:
           run-id: ${{ inputs.automated_candidate_run_id }}
           pattern: stable-automated-candidate-*
@@ -76,7 +76,7 @@ jobs:
           github-token: ${{ github.token }}
 
       - name: Download independent physical verdicts
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
         with:
           run-id: ${{ inputs.physical_evidence_run_id }}
           pattern: stable-physical-evidence-*
@@ -99,7 +99,7 @@ jobs:
           NODE
 
       - name: Upload certified stable candidate
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: stable-certified-candidate-${{ steps.evidence.outputs.version }}-${{ steps.runs.outputs.source_commit }}
           path: |

@@ -15,9 +15,13 @@ describe("stable candidate platform coordination", () => {
     expect(workflow).toContain('VALIDATION_CANDIDATE_TARBALL="$tarball" STABLE_PACK_RESULT="$pack_result" node');
   });
 
-  it("runs complete validation and clean installation on every platform", async () => {
+  it("runs static analysis once and every runtime suite with clean installation on every platform", async () => {
     const workflow = await readFile(".github/workflows/stable-candidate.yml", "utf8");
-    expect(workflow).toContain("VALIDATION_SELECTION_JSON: '[\"full-release\"]'");
+    expect(workflow).toContain("VALIDATION_SELECTION_JSON: '[\"typecheck\",\"architecture\",\"dependency-policy\"]'");
+    expect(workflow).toContain(
+      "VALIDATION_SELECTION_JSON: '[\"fast\",\"dist-integration\",\"launch-integration\",\"pi-engine-conformance\",\"release-update\",\"update-performance\",\"structured-runtime-integration\",\"package-smoke\",\"package-install\"]'",
+    );
+    expect(workflow).toContain("node scripts/run-validation-tier.mjs --result artifacts/validation/stable-static.json");
     expect(workflow).toContain("node scripts/run-validation-tier.mjs --result artifacts/validation/stable-${{ matrix.platform }}.json");
     expect(workflow).toContain("node scripts/create-platform-verdict.mjs");
     expect(workflow).toContain("fail-fast: false");
