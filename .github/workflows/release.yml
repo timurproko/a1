@@ -442,7 +442,15 @@ jobs:
         run: |
           set -euo pipefail
           tag="v${RELEASE_VERSION}"
-          existing="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/${tag}" --jq .object.sha 2>/dev/null || true)"
+          # A missing tag is the ordinary case, and gh reports it as a 404 whose
+          # body it prints to standard output — so the lookup is trusted only when
+          # it both succeeds and yields something shaped like a commit. Reading the
+          # output alone would take the error body for an existing tag.
+          existing=""
+          if probe="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/${tag}" --jq .object.sha 2>/dev/null)" \
+            && [[ "$probe" =~ ^[0-9a-f]{40}$ ]]; then
+            existing="$probe"
+          fi
           if [ -n "$existing" ]; then
             # Only the exact commit that was just published may already carry it,
             # which is what a re-run of this job looks like.
