@@ -20,6 +20,20 @@ interface Invocation {
   request: ProcessRequest;
 }
 
+const NEWLINE = String.fromCharCode(10);
+const RETURN = String.fromCharCode(13);
+
+/**
+ * What a terminal would be showing: a carriage return rewrites the row, so only
+ * what follows the last one survives on each line.
+ */
+function rendered(text: string): string[] {
+  return text
+    .split(NEWLINE)
+    .map(line => line.slice(line.lastIndexOf(RETURN) + 1).trim())
+    .filter(line => line.length > 0);
+}
+
 function createHarness(options: {
   current?: string;
   packageRoot?: string;
@@ -128,7 +142,7 @@ describe("A1 self-update orchestration", () => {
       { command: "npm", arguments: ["root", "--global"], request: { captureStdout: true } },
       { command: "npm", arguments: installArguments(latest), request: { captureStdout: true } },
     ]);
-    expect(harness.stdout.join("")).toContain(`a1 updated successfully: ${latest} (stable).`);
+    expect(harness.stdout.join("")).toContain(`a1 updated successfully: ${latest}.`);
   });
 
   it("installs an exact newer version for a canonical managed global package", async () => {
@@ -148,7 +162,7 @@ describe("A1 self-update orchestration", () => {
       { command: "npm", arguments: ["root", "--global"], request: { captureStdout: true } },
       { command: "npm", arguments: installArguments("1.3.0"), request: { captureStdout: true } },
     ]);
-    expect(harness.stdout.join("")).toBe("a1 update (stable): 1.2.3 → 1.3.0.\na1 updated successfully: 1.3.0 (stable).\n");
+    expect(harness.stdout.join("")).toBe("a1 update (release): 1.2.3 → 1.3.0.\na1 updated successfully: 1.3.0.\n");
     expect(harness.stderr).toEqual([]);
   });
 
@@ -169,7 +183,7 @@ describe("A1 self-update orchestration", () => {
       { command: "npm", arguments: ["root", "--global"], request: { captureStdout: true } },
       { command: "npm", arguments: installArguments("1.3.0-dev.1"), request: { captureStdout: true } },
     ]);
-    expect(harness.stdout.join("")).toBe("a1 update (next): 1.3.0-dev.0 → 1.3.0-dev.1.\na1 updated successfully: 1.3.0-dev.1 (next).\n");
+    expect(harness.stdout.join("")).toBe("a1 update (next): 1.3.0-dev.0 → 1.3.0-dev.1.\na1 updated successfully: 1.3.0-dev.1.\n");
   });
 
   it("prints the shortened no-change message when the target is already active", async () => {
@@ -178,19 +192,24 @@ describe("A1 self-update orchestration", () => {
 
     await expect(runSelfUpdate({ ...harness, progress: true })).resolves.toBe(0);
 
-    expect(harness.stdout.join("")).toBe("a1 update (stable): 1.2.3 → 1.2.3.\na1 is up to date — no update needed.\n");
+    expect(harness.stdout.join("")).toBe("a1 update (release): 1.2.3 → 1.2.3.\na1 is up to date — no update needed.\n");
     expect(harness.stderr).toEqual([]);
   });
 
-  it("renders a progress bar that completes at 100% when progress is enabled", async () => {
+  it("gives the progress row back to the line that says what was installed", async () => {
     const harness = createHarness({ responses: [success("1.3.0\n"), success(`${resolve("fixtures", "global")}\n`), success()] });
 
     await expect(runSelfUpdate({ ...harness, progress: true })).resolves.toBe(0);
 
     const text = harness.stdout.join("");
     expect(text).toContain("░");
-    expect(text).toContain(`\r${"█".repeat(39)} 100%\n`);
-    expect(text.endsWith("a1 updated successfully: 1.3.0 (stable).\n")).toBe(true);
+    // The bar is erased rather than left completed, so what remains is the two
+    // lines a reader keeps: what is being installed, and what now is.
+    expect(text).not.toContain("100%");
+    expect(rendered(text)).toEqual([
+      "a1 update (release): 1.2.3 → 1.3.0.",
+      "a1 updated successfully: 1.3.0.",
+    ]);
   });
 
   it("creeps the progress bar between milestones while npm install runs", async () => {
@@ -221,7 +240,7 @@ describe("A1 self-update orchestration", () => {
         .filter((value): value is string => value !== undefined)
         .map(Number);
       expect(percents.some(percent => percent > 15 && percent < 70)).toBe(true);
-      expect(percents.at(-1)).toBe(100);
+      expect(percents.at(-1)).toBeLessThan(100);
     } finally {
       vi.useRealTimers();
     }
@@ -244,7 +263,7 @@ describe("A1 self-update orchestration", () => {
     // Several distinct readings across the copy span, not one jump over it.
     expect(new Set(copying).size).toBeGreaterThan(4);
     expect(percents).toEqual([...percents].sort((left, right) => left - right));
-    expect(percents.at(-1)).toBe(100);
+    expect(percents.at(-1)).toBeLessThan(100);
   });
 
   it("never settles on a milestone it has not reached, so arriving at one is visible", async () => {
@@ -296,7 +315,7 @@ describe("A1 self-update orchestration", () => {
       "shutdown:1.3.0",
       `activate:${harness.packageRoot}:1.3.0`,
     ]);
-    expect(harness.stdout.join("")).toBe("a1 update (stable): 1.2.3 → 1.3.0.\na1 updated successfully: 1.3.0 (stable).\n");
+    expect(harness.stdout.join("")).toBe("a1 update (release): 1.2.3 → 1.3.0.\na1 updated successfully: 1.3.0.\n");
   });
 
   it("records deterministic timing for every completed update phase", async () => {
