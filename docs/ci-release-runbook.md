@@ -54,7 +54,7 @@ npm run release -- patch     # or minor, major, or an exact x.y.z
 ```
 
 It lands `x.y.z` on `develop` through a pull request that merges itself, waits for
-that publication to succeed, and then lands `x.y.(z+1)-dev.0` so previews resume
+that publication to succeed, and then lands `x.y.(z+1)-dev` so previews resume
 immediately. It publishes nothing itself and creates no tag.
 
 Landing the stable version is what publishes. The same pipeline sees a commit

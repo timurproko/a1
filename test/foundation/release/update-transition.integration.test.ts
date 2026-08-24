@@ -129,8 +129,10 @@ describe("release-gating N-1 update transitions", () => {
       "shutdown:1.1.0:owned-ui,supervisor,child-process",
       "activate:1.1.0:maintenance-mode",
     ]);
-    expect(stdout.join("")).toContain(`a1 update (${channel}): 1.0.0 → 1.1.0.`);
-    expect(stdout.join("")).toContain(`a1 updated successfully: 1.1.0 (${channel}).`);
+    // The release channel is announced as "release"; the success line names the
+    // version alone, the channel having already been said.
+    expect(stdout.join("")).toContain(`a1 update (${channel === "stable" ? "release" : channel}): 1.0.0 → 1.1.0.`);
+    expect(stdout.join("")).toContain("a1 updated successfully: 1.1.0.");
     expect(JSON.stringify(calls)).not.toMatch(/taskkill|Remove-Item|release-state deletion|database deletion/i);
   });
 });

@@ -15,7 +15,7 @@
  *   1. Refuse anything but a clean develop that matches its remote.
  *   2. Land `x.y.z` on develop, which is what publishes it.
  *   3. Wait for that publication to succeed.
- *   4. Land `x.y.(z+1)-dev.0` on develop, so previews resume immediately.
+ *   4. Land `x.y.(z+1)-dev` on develop, so previews resume immediately.
  *
  * Landing the stable version is the release. This command creates no tag: the
  * tag is written by the pipeline after the registry has the package, so a
@@ -171,6 +171,6 @@ if (current !== version) {
 
 await waitForRelease(git(["rev-parse", "origin/develop"]), version);
 
-const opening = `${nextVersion(version, "patch")}-dev.0`;
+const opening = `${nextVersion(version, "patch")}-dev`;
 await landVersion(opening, `chore(release): open ${opening}`);
 log(`${version} is published and develop is open at ${opening}; previews resume on the next push`);
