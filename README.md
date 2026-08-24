@@ -93,7 +93,7 @@ It lands the version on `develop` through a pull request that merges itself.
 **Landing it is what publishes** — the workflow builds, validates the packed release
 on Windows, Linux, and macOS, publishes to npm `latest` with provenance, and only
 then writes the `v<version>` tag and records the GitHub Release. The command waits
-for that to succeed, then lands the next `-dev.0` version so previews resume
+for that to succeed, then opens the next `-dev` line so previews resume
 immediately.
 
 ```sh
