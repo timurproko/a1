@@ -68,14 +68,15 @@ time and never committed, so previews cost no commits and need no command, and a
 installed preview says exactly which source produced it.
 
 ```sh
-a1 update:next          # install the newest preview
-a1 update:7eabe9e       # install the preview built from that commit
-a1 update:0.1.8-dev.7eabe9e   # or name the version outright
+a1 update:next      # install the newest preview
+a1 update:7eabe9e   # install the preview built from that commit
 ```
 
 Naming a commit is what the version suffix is for: read it off `a1 version`, a
-pull request, or a commit list, and install exactly that build. A commit that was
-never published is refused rather than guessed at.
+pull request, or a commit list, and install exactly that build — you never need to
+know which version it went out under. A commit that was never published is refused
+rather than guessed at. A full preview version works in the same place, so a string
+pasted back from `a1 version` is understood too.
 
 ### Stable — npm `latest`
 

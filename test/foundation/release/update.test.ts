@@ -218,6 +218,20 @@ describe("A1 self-update orchestration", () => {
     expect(harness.stdout.join("")).toContain("→ 1.3.0-dev.7eabe9e");
   });
 
+  it("refuses a release named after the colon, pointing at the release command", async () => {
+    const harness = createHarness({ current: "1.3.0-dev.0" });
+    harness.runner = async (command, arguments_, request) => {
+      harness.invocations.push({ command, arguments: arguments_, request });
+      if (arguments_.includes("versions")) return success(JSON.stringify(["1.3.0", "1.3.0-dev.7eabe9e"]));
+      return success();
+    };
+
+    await expect(runSelfUpdate({ ...harness, channel: "next", target: "1.3.0" })).resolves.toBe(1);
+
+    expect(harness.stderr.join("")).toContain("1.3.0 is a release, not a preview");
+    expect(harness.stderr.join("")).toContain("a1 update");
+    expect(harness.invocations.some(call => call.arguments[0] === "install")).toBe(false);
+  });
   it("refuses a commit that was never published, naming it", async () => {
     const harness = createHarness({ current: "1.3.0-dev.0" });
     harness.runner = async (command, arguments_, request) => {
