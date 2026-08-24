@@ -386,7 +386,9 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
     : await resolveRequestedPreview(runner, requested, output));
   if (resolved.version === null) return resolved.exitCode;
   const targetVersion = resolved.version;
-  output.stdout(`${PRODUCT_TEXT.commandName} update (${UPDATE_CHANNEL_LABELS[channel]}): ${runningVersion} → ${targetVersion}.\n`);
+  // No full stop after a version: it already ends in a dot-separated identifier,
+  // and a trailing one reads as part of the version rather than as punctuation.
+  output.stdout(`${PRODUCT_TEXT.commandName} update (${UPDATE_CHANNEL_LABELS[channel]}): ${runningVersion} → ${targetVersion}\n`);
   const progress = createUpdateProgress(output, options.progress ?? (options.output === undefined && process.stdout.isTTY === true));
 
   const rootLookup = await measure("global-root", async () => await runNpm(runner, ["root", "--global"], true, output, "resolve npm's global package root"));
@@ -482,7 +484,7 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
     await transactionStore.clearCompleted();
     options.onPhaseTiming?.({ phase: "transaction-complete", durationMs: Math.max(0, now() - transactionStartedAt) });
     progress.finish();
-    output.stdout(`${PRODUCT_TEXT.commandName} updated successfully: ${targetVersion}.\n`);
+    output.stdout(`${PRODUCT_TEXT.commandName} updated successfully: ${targetVersion}\n`);
     return 0;
   } catch (error) {
     progress.clear();

@@ -142,7 +142,7 @@ describe("A1 self-update orchestration", () => {
       { command: "npm", arguments: ["root", "--global"], request: { captureStdout: true } },
       { command: "npm", arguments: installArguments(latest), request: { captureStdout: true } },
     ]);
-    expect(harness.stdout.join("")).toContain(`a1 updated successfully: ${latest}.`);
+    expect(harness.stdout.join("")).toContain(`a1 updated successfully: ${latest}`);
   });
 
   it("installs an exact newer version for a canonical managed global package", async () => {
@@ -162,7 +162,7 @@ describe("A1 self-update orchestration", () => {
       { command: "npm", arguments: ["root", "--global"], request: { captureStdout: true } },
       { command: "npm", arguments: installArguments("1.3.0"), request: { captureStdout: true } },
     ]);
-    expect(harness.stdout.join("")).toBe("a1 update (release): 1.2.3 → 1.3.0.\na1 updated successfully: 1.3.0.\n");
+    expect(harness.stdout.join("")).toBe("a1 update (release): 1.2.3 → 1.3.0\na1 updated successfully: 1.3.0\n");
     expect(harness.stderr).toEqual([]);
   });
 
@@ -183,7 +183,7 @@ describe("A1 self-update orchestration", () => {
       { command: "npm", arguments: ["root", "--global"], request: { captureStdout: true } },
       { command: "npm", arguments: installArguments("1.3.0-dev.1"), request: { captureStdout: true } },
     ]);
-    expect(harness.stdout.join("")).toBe("a1 update (next): 1.3.0-dev.0 → 1.3.0-dev.1.\na1 updated successfully: 1.3.0-dev.1.\n");
+    expect(harness.stdout.join("")).toBe("a1 update (next): 1.3.0-dev.0 → 1.3.0-dev.1\na1 updated successfully: 1.3.0-dev.1\n");
   });
 
   it("installs the preview a commit names", async () => {
@@ -264,7 +264,7 @@ describe("A1 self-update orchestration", () => {
 
     await expect(runSelfUpdate({ ...harness, progress: true })).resolves.toBe(0);
 
-    expect(harness.stdout.join("")).toBe("a1 update (release): 1.2.3 → 1.2.3.\na1 is up to date — no update needed.\n");
+    expect(harness.stdout.join("")).toBe("a1 update (release): 1.2.3 → 1.2.3\na1 is up to date — no update needed.\n");
     expect(harness.stderr).toEqual([]);
   });
 
@@ -279,8 +279,8 @@ describe("A1 self-update orchestration", () => {
     // lines a reader keeps: what is being installed, and what now is.
     expect(text).not.toContain("100%");
     expect(rendered(text)).toEqual([
-      "a1 update (release): 1.2.3 → 1.3.0.",
-      "a1 updated successfully: 1.3.0.",
+      "a1 update (release): 1.2.3 → 1.3.0",
+      "a1 updated successfully: 1.3.0",
     ]);
   });
 
@@ -387,7 +387,7 @@ describe("A1 self-update orchestration", () => {
       "shutdown:1.3.0",
       `activate:${harness.packageRoot}:1.3.0`,
     ]);
-    expect(harness.stdout.join("")).toBe("a1 update (release): 1.2.3 → 1.3.0.\na1 updated successfully: 1.3.0.\n");
+    expect(harness.stdout.join("")).toBe("a1 update (release): 1.2.3 → 1.3.0\na1 updated successfully: 1.3.0\n");
   });
 
   it("records deterministic timing for every completed update phase", async () => {
