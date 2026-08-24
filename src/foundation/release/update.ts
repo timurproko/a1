@@ -24,6 +24,13 @@ import { UpdateTransactionStore, type UpdateTransaction, type UpdateTransactionP
 export const PRODUCT_PACKAGE = PRODUCT_TEXT.packageName;
 export type UpdateChannel = "stable" | "next";
 const UPDATE_DIST_TAGS: Readonly<Record<UpdateChannel, "latest" | "next">> = { stable: "latest", next: "next" };
+/**
+ * What each channel is called when A1 says it out loud. The internal name stays
+ * `stable` because that is what the channel is, but what a reader is moving to is
+ * a release, and that is the word the repository, its tags, and its GitHub
+ * releases all use.
+ */
+const UPDATE_CHANNEL_LABELS: Readonly<Record<UpdateChannel, string>> = { stable: "release", next: "next" };
 
 export interface ProcessRequest { captureStdout: boolean }
 export interface ProcessResult { code: number | null; stdout: string }
@@ -266,11 +273,16 @@ function createUpdateProgress(output: UpdateOutput, enabled: boolean): UpdatePro
       }, PROGRESS_TICK_MS);
       timer.unref?.();
     },
+    // The bar exists to say the update is still moving. Once it has finished
+    // there is a better line to occupy that row — the one naming what is now
+    // installed — so the bar gives the row back rather than leaving a full
+    // meter above a message that already implies it.
     finish() {
       stopCreep();
       if (!visible) return;
-      output.stdout(`\r${renderProgressBar(100)}\n`);
+      output.stdout(`\r${" ".repeat(PROGRESS_BAR_WIDTH + 6)}\r`);
       visible = false;
+      shown = -1;
     },
     clear() {
       stopCreep();
@@ -313,7 +325,7 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
     output.stderr(`${PRODUCT_TEXT.diagnostic(`received a malformed ${distTag} version from npm: ${JSON.stringify(targetLookup.result.stdout.trim())}.`)}\n`);
     return 1;
   }
-  output.stdout(`${PRODUCT_TEXT.commandName} update (${channel}): ${runningVersion} → ${targetVersion}.\n`);
+  output.stdout(`${PRODUCT_TEXT.commandName} update (${UPDATE_CHANNEL_LABELS[channel]}): ${runningVersion} → ${targetVersion}.\n`);
   const progress = createUpdateProgress(output, options.progress ?? (options.output === undefined && process.stdout.isTTY === true));
 
   const rootLookup = await measure("global-root", async () => await runNpm(runner, ["root", "--global"], true, output, "resolve npm's global package root"));
@@ -409,7 +421,7 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
     await transactionStore.clearCompleted();
     options.onPhaseTiming?.({ phase: "transaction-complete", durationMs: Math.max(0, now() - transactionStartedAt) });
     progress.finish();
-    output.stdout(`${PRODUCT_TEXT.commandName} updated successfully: ${targetVersion} (${channel}).\n`);
+    output.stdout(`${PRODUCT_TEXT.commandName} updated successfully: ${targetVersion}.\n`);
     return 0;
   } catch (error) {
     progress.clear();
