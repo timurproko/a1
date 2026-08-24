@@ -151,6 +151,15 @@ describe("the release command", () => {
     expect(script).toContain("Nothing was tagged or released");
   });
 
+  it("moves only this package's version, never a dependency that shares it", async () => {
+    const script = await readFile("scripts/release.mjs", "utf8");
+    // The lockfile records a version per dependency, so replacing the version text
+    // wherever it appears rewrites any dependency sitting at the same version.
+    expect(script).not.toContain("replaceAll");
+    expect(script).toContain('lock.packages[""].version = version');
+    expect(script).toContain("does not declare");
+  });
+
   it("never publishes from the workstation", async () => {
     const script = await readFile("scripts/release.mjs", "utf8");
     expect(script).not.toMatch(/npm publish|npm pack/);
