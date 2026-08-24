@@ -186,6 +186,64 @@ describe("A1 self-update orchestration", () => {
     expect(harness.stdout.join("")).toBe("a1 update (next): 1.3.0-dev.0 → 1.3.0-dev.1.\na1 updated successfully: 1.3.0-dev.1.\n");
   });
 
+  it("installs the preview a commit names", async () => {
+    const harness = createHarness({ current: "1.3.0-dev.0" });
+    harness.fileSystem.realpath = async path => path;
+    harness.runner = async (command, arguments_, request) => {
+      harness.invocations.push({ command, arguments: arguments_, request });
+      if (arguments_.includes("versions")) return success(JSON.stringify(["1.2.9-dev.aaaaaaa", "1.3.0-dev.7eabe9e", "1.3.0"]));
+      if (arguments_[0] === "root") return success(harness.globalRoot + NEWLINE);
+      return success();
+    };
+
+    await expect(runSelfUpdate({ ...harness, channel: "next", target: "7eabe9e" })).resolves.toBe(0);
+
+    // The published list is consulted rather than the channel head, and the
+    // version in front of the commit is worked out rather than asked for.
+    expect(harness.invocations[0]).toEqual({ command: "npm", arguments: ["view", PRODUCT_PACKAGE, "versions", "--json"], request: { captureStdout: true } });
+    expect(harness.stdout.join("")).toContain("1.3.0-dev.0 → 1.3.0-dev.7eabe9e");
+  });
+
+  it("accepts a full preview version as well as a commit", async () => {
+    const harness = createHarness({ current: "1.3.0-dev.0" });
+    harness.fileSystem.realpath = async path => path;
+    harness.runner = async (command, arguments_, request) => {
+      harness.invocations.push({ command, arguments: arguments_, request });
+      if (arguments_.includes("versions")) return success(JSON.stringify(["1.3.0-dev.7eabe9e"]));
+      if (arguments_[0] === "root") return success(harness.globalRoot + NEWLINE);
+      return success();
+    };
+
+    await expect(runSelfUpdate({ ...harness, channel: "next", target: "1.3.0-dev.7eabe9e" })).resolves.toBe(0);
+    expect(harness.stdout.join("")).toContain("→ 1.3.0-dev.7eabe9e");
+  });
+
+  it("refuses a commit that was never published, naming it", async () => {
+    const harness = createHarness({ current: "1.3.0-dev.0" });
+    harness.runner = async (command, arguments_, request) => {
+      harness.invocations.push({ command, arguments: arguments_, request });
+      if (arguments_.includes("versions")) return success(JSON.stringify(["1.3.0-dev.7eabe9e"]));
+      return success();
+    };
+
+    await expect(runSelfUpdate({ ...harness, channel: "next", target: "deadbee" })).resolves.toBe(1);
+
+    expect(harness.stderr.join("")).toContain("published no preview for deadbee");
+    // Nothing is installed when the target cannot be resolved.
+    expect(harness.invocations.some(call => call.arguments[0] === "install")).toBe(false);
+  });
+
+  it("refuses a commit that names more than one preview", async () => {
+    const harness = createHarness({ current: "1.3.0-dev.0" });
+    harness.runner = async (command, arguments_, request) => {
+      harness.invocations.push({ command, arguments: arguments_, request });
+      if (arguments_.includes("versions")) return success(JSON.stringify(["1.2.9-dev.7eabe9e", "1.3.0-dev.7eabe9e"]));
+      return success();
+    };
+
+    await expect(runSelfUpdate({ ...harness, channel: "next", target: "7eabe9e" })).resolves.toBe(1);
+    expect(harness.stderr.join("")).toContain("more than one preview");
+  });
   it("prints the shortened no-change message when the target is already active", async () => {
     const harness = createHarness({ responses: [success("1.2.3\n"), success(`${resolve("fixtures", "global")}\n`)] });
     harness.lifecycle.targetIsActive = async () => true;

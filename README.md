@@ -12,7 +12,7 @@ npm install --global @timurproko/a1@latest
 a1              # A1-owned UI and profile: ~/.a1/agent
 a1 version      # show Installed, Release (latest), and Next versions
 a1 update       # update to npm latest
-a1 update:next  # update to npm next
+a1 update:next  # update to npm next (or a1 update:<commit> for a specific preview)
 ```
 
 Prerelease builds — what `a1 update:next` installs — add two development profiles
@@ -68,8 +68,14 @@ time and never committed, so previews cost no commits and need no command, and a
 installed preview says exactly which source produced it.
 
 ```sh
-a1 update:next   # install the newest preview
+a1 update:next          # install the newest preview
+a1 update:7eabe9e       # install the preview built from that commit
+a1 update:0.1.8-dev.7eabe9e   # or name the version outright
 ```
+
+Naming a commit is what the version suffix is for: read it off `a1 version`, a
+pull request, or a commit list, and install exactly that build. A commit that was
+never published is refused rather than guessed at.
 
 ### Stable — npm `latest`
 

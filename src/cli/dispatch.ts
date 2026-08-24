@@ -8,7 +8,7 @@ export type UpdateChannel = "stable" | "next";
 export interface CliHandlers {
   readonly launch: (intent: InteractiveLaunchIntent) => Promise<number>;
   readonly version: () => Promise<number>;
-  readonly update: (channel: UpdateChannel) => Promise<number>;
+  readonly update: (channel: UpdateChannel, target?: string) => Promise<number>;
   readonly packages: (request: PackageCommandRequest) => Promise<number>;
 }
 
@@ -23,6 +23,7 @@ export function cliUsage(capabilities: CliCapabilities): string {
     "version",
     "update [self|<source>|--extensions|--models]",
     "update:next",
+    "update:<commit>",
     "install <source>",
     "remove <source>",
     "list",
@@ -45,13 +46,13 @@ export async function dispatchCli(
   if (command.kind === "launch") return await handlers.launch(interactiveLaunchIntent(command.profileId));
   if (command.kind === "version") return await handlers.version();
   if (command.kind === "packages") return await handlers.packages(command.request);
-  return await handlers.update(command.channel);
+  return await handlers.update(command.channel, command.target);
 }
 
 export type CliCommand =
   | { readonly kind: "launch"; readonly profileId: LaunchProfileId }
   | { readonly kind: "version" }
-  | { readonly kind: "update"; readonly channel: UpdateChannel }
+  | { readonly kind: "update"; readonly channel: UpdateChannel; readonly target?: string }
   | { readonly kind: "packages"; readonly request: PackageCommandRequest }
   | { readonly kind: "error"; readonly message: string };
 
@@ -63,7 +64,7 @@ export function parseCliCommand(arguments_: readonly string[], capabilities: Cli
     return withoutArguments(rest, { kind: "launch", profileId: command });
   }
   if (command === "version") return withoutArguments(rest, { kind: "version" });
-  if (command === "update:next") return withoutArguments(rest, { kind: "update", channel: "next" });
+  if (command !== undefined && command.startsWith("update:")) return parseColonUpdate(command.slice("update:".length), rest);
   if (command === "update") return parseUpdate(rest);
   if (command === "install" || command === "remove" || command === "uninstall") {
     return parseSourceCommand(command === "install" ? "install" : "remove", rest);
@@ -75,6 +76,21 @@ export function parseCliCommand(arguments_: readonly string[], capabilities: Cli
   return { kind: "error", message: PRODUCT_TEXT.diagnostic(`received an unknown command: ${command ?? ""}`) };
 }
 
+/**
+ * What follows the colon says which build to move to. `next` is the newest
+ * preview; anything else names one outright, by the commit it was built from or by
+ * its full version — a preview is published as `<version>-dev.<commit>`, so the
+ * commit alone is enough to find it.
+ */
+function parseColonUpdate(suffix: string, rest: readonly string[]): CliCommand {
+  if (rest.length > 0) return { kind: "error", message: PRODUCT_TEXT.diagnostic("update takes what to move to after the colon, and nothing else.") };
+  if (suffix === "next") return { kind: "update", channel: "next" };
+  if (suffix.length === 0) return { kind: "error", message: PRODUCT_TEXT.diagnostic(`update: needs a preview after the colon, as in ${PRODUCT_TEXT.commandName} update:next.`) };
+  if (!/^[0-9a-z][0-9a-z.+-]*$/i.test(suffix)) {
+    return { kind: "error", message: PRODUCT_TEXT.diagnostic(`received an unusable preview: ${suffix}`) };
+  }
+  return { kind: "update", channel: "next", target: suffix };
+}
 /**
  * `update` carries both meanings pinned Pi gives it: itself by default, and the
  * profile's packages when a target says so. Pi is refused as a target because A1
