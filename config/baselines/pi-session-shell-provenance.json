@@ -71,7 +71,7 @@
       "copiedFiles": [],
       "copiedLines": false,
       "modifications": "Controller behavior was reimplemented as an AddOne-owned exhaustive state machine over public AgentSession, AgentSessionRuntime, SettingsManager, ModelRuntime, SessionManager and clipboard APIs; external command and clipboard effects are host-injected for deterministic conformance.",
-      "independentEvidence": "evidence/owned-pi-ui-foundation/pinned-pi-command-workflow-outcomes.json",
+      "independentEvidence": "config/baselines/pinned-pi-command-workflow-outcomes.json",
       "coverage": [
         "test/foundation/pi-engine-adapter/workflows.test.ts",
         "test/features/owned-ui/pi-session-shell.test.ts",

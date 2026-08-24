@@ -6,7 +6,7 @@ import { inspectPiProductionBoundary } from "../../scripts/pi-api-boundary-polic
 
 const repository = resolve(".");
 const policy = resolve("scripts/pi-api-boundary-policy.mjs");
-const baselinePath = resolve("evidence/pi-api-boundary/baseline.json");
+const baselinePath = resolve("config/baselines/pi-api-boundary.json");
 
 describe("Pi production boundary freeze", () => {
   it.each([

@@ -8,7 +8,7 @@ import {
 } from "../../scripts/pi-api-boundary-baseline.mjs";
 
 const repository = resolve(".");
-const evidencePath = resolve("evidence/pi-api-boundary/baseline.json");
+const evidencePath = resolve("config/baselines/pi-api-boundary.json");
 const checker = resolve("scripts/pi-api-boundary-baseline.mjs");
 
 describe("Pi API boundary baseline evidence", () => {

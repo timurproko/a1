@@ -203,7 +203,7 @@ for (const nativeRoot of nativeRoots) {
 
 let piBoundaryBaseline = null;
 try {
-  piBoundaryBaseline = JSON.parse(await readFile(resolve(root, "evidence", "pi-api-boundary", "baseline.json"), "utf8"));
+  piBoundaryBaseline = JSON.parse(await readFile(resolve(root, "config", "baselines", "pi-api-boundary.json"), "utf8"));
 } catch (error) {
   if (rootArgument < 0) errors.push(`Pi API boundary baseline is missing or invalid: ${error instanceof Error ? error.message : String(error)}`);
 }

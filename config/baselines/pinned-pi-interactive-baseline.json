@@ -1035,7 +1035,7 @@
     "invalidatedEvidence": [
       "test/features/owned-ui/fixtures/pi-component-parity.json",
       "test/features/owned-ui/fixtures/pi-event-frame-parity.json",
-      "evidence/owned-pi-ui-foundation/pi-parity-acceptance.json"
+      "config/baselines/pi-parity-acceptance.json"
     ],
     "classification": "The fixtures remain AddOne regression fixtures only. They are not independent upstream parity evidence and cannot satisfy tasks 7.3-8.1."
   }
