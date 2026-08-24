@@ -4,7 +4,7 @@ import { inspectProductIdentifiers, inspectTypeScript } from "../../scripts/prod
 
 describe("repository-global semantic identifier inventory", () => {
   it("reproduces the checked inventory and preserves the cleanup baseline", async () => {
-    const evidence = JSON.parse(await readFile("evidence/pi-api-boundary/product-identifier-inventory.json", "utf8"));
+    const evidence = JSON.parse(await readFile("config/baselines/product-identifier-inventory.json", "utf8"));
     const current = await inspectProductIdentifiers(".");
     expect(current).toEqual({
       schema: evidence.schema,

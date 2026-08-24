@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-08-23T16:41:50.849Z",
+  "recordedAt": "2026-08-24T07:23:07.467Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "914cf1472e715297caa30db4b9535d534a9eb718",
@@ -31,7 +31,7 @@
       "Provider transports, model implementations, tool filesystem operations, storage internals, and non-interactive modes that remain behind already-conformed public engine APIs.",
       "Declaration maps and generated JavaScript because their authoritative TypeScript source content is already hashed from JavaScript source maps."
     ],
-    "behaviorAuthority": "evidence/owned-pi-ui-foundation/pinned-pi-interactive-baseline.json"
+    "behaviorAuthority": "config/baselines/pinned-pi-interactive-baseline.json"
   },
   "summary": {
     "modules": 109,

@@ -3,7 +3,7 @@ import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { dirname, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const DEFAULT_EVIDENCE_PATH = "evidence/pi-api-boundary/baseline.json";
+const DEFAULT_EVIDENCE_PATH = "config/baselines/pi-api-boundary.json";
 const PI_PACKAGE = /^@earendil-works\/pi-/;
 const IMPORT_PATTERN = /\b(?:import|export)\s+(?:type\s+)?(?:[^"'`;]*?\s+from\s+)?(["'])(@earendil-works\/pi-(?:coding-agent|tui))\1/g;
 const DYNAMIC_IMPORT_PATTERN = /\bimport\s*\(\s*(["'])(@earendil-works\/pi-(?:coding-agent|tui))\1\s*\)/g;
@@ -18,7 +18,12 @@ export function collectPiApiBoundaryBaseline(root, baselineCommit) {
   const sources = new Map(sourcePaths.map(path => [path, gitShow(repository, commit, path)]));
   const manifest = JSON.parse(gitShow(repository, commit, "package.json"));
   const lockfile = JSON.parse(gitShow(repository, commit, "package-lock.json"));
-  const ledger = JSON.parse(gitShow(repository, commit, "evidence/owned-pi-ui-foundation/pinned-pi-source-port-ledger.json"));
+  // The accepted commit keeps whatever tree it had: this baseline moved to config/
+  // after that commit was accepted, so both names are tried before giving up.
+  const ledger = JSON.parse(gitShowFirst(repository, commit, [
+    "config/baselines/pinned-pi-source-port-ledger.json",
+    "evidence/owned-pi-ui-foundation/pinned-pi-source-port-ledger.json",
+  ]));
 
   const productionPiImports = collectImports(sources);
   const featureToAdapterDependencies = productionPiImports
@@ -241,6 +246,16 @@ function git(repository, arguments_) {
 
 function gitShow(repository, commit, path) {
   return git(repository, ["show", `${commit}:${path}`]);
+}
+
+/** The first of these paths that the commit actually carries. */
+function gitShowFirst(repository, commit, paths) {
+  let lastError;
+  for (const path of paths) {
+    try { return gitShow(repository, commit, path); }
+    catch (error) { lastError = error; }
+  }
+  throw lastError;
 }
 
 function normalize(path) {

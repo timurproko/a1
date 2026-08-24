@@ -187,7 +187,7 @@ const selectionByCommand: Partial<Record<typeof PINNED_PI_WORKFLOW_COMMAND_NAMES
 
 describe("pinned Pi command and input workflows", () => {
   it("matches the independently recorded upstream command, hidden-route, and settings manifests", async () => {
-    const evidence = JSON.parse(await readFile("evidence/owned-pi-ui-foundation/pinned-pi-command-workflow-outcomes.json", "utf8"));
+    const evidence = JSON.parse(await readFile("config/baselines/pinned-pi-command-workflow-outcomes.json", "utf8"));
     const commandMap = JSON.parse(await readFile("node_modules/@earendil-works/pi-coding-agent/dist/core/slash-commands.js.map", "utf8"));
     const commandSource = String(commandMap.sourcesContent[0]);
     const manifestSource = commandSource.slice(commandSource.indexOf("BUILTIN_SLASH_COMMANDS"), commandSource.indexOf("];", commandSource.indexOf("BUILTIN_SLASH_COMMANDS")));
