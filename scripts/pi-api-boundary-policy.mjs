@@ -125,7 +125,7 @@ const isMain = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(imp
 if (isMain) {
   const rootIndex = process.argv.indexOf("--root");
   const root = resolve(rootIndex >= 0 ? process.argv[rootIndex + 1] : new URL("..", import.meta.url).pathname.replace(/^\/(.:)/, "$1"));
-  const baselinePath = resolve(root, "evidence", "pi-api-boundary", "baseline.json");
+  const baselinePath = resolve(root, "config", "baselines", "pi-api-boundary.json");
   const baseline = JSON.parse(await readFile(baselinePath, "utf8"));
   const files = await sourceFiles(root);
   const findings = collectPiProductionBoundaryFindings(files);

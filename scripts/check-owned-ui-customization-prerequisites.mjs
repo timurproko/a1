@@ -42,7 +42,7 @@ for (const file of await walk(resolve(root, "src"))) {
   for (const [pattern, label] of checks) if (pattern.test(source)) errors.push(`${path}: ${label}`);
 }
 
-const ledgerPath = resolve(root, "evidence", "owned-pi-ui-foundation", "pinned-pi-source-port-ledger.json");
+const ledgerPath = resolve(root, "config", "baselines", "pinned-pi-source-port-ledger.json");
 try {
   const ledger = JSON.parse(await readFile(ledgerPath, "utf8"));
   const records = Array.isArray(ledger.records) ? ledger.records : [];

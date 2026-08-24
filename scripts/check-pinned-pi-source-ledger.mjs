@@ -8,8 +8,8 @@ const repository = fileURLToPath(new URL("..", import.meta.url));
 const identity = JSON.parse(await readFile(join(repository, "src", "product-identity.json"), "utf8"));
 const ledgerPath = resolve(process.env[identity.environment.piSourceLedgerPath] ?? join(
   repository,
-  "evidence",
-  "owned-pi-ui-foundation",
+  "config",
+  "baselines",
   "pinned-pi-source-port-ledger.json",
 ));
 const sourceRoot = resolve(process.env[identity.environment.piSourceScanRoot] ?? join(repository, "src"));

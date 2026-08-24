@@ -8,7 +8,7 @@
   "invalidation": {
     "reason": "User-controlled smoke testing contradicted the synthetic parity claim: vanilla startup composition and command discovery were absent, ordinary prompt submission produced no visible turn, and most pinned workflows were not implemented. The fixtures were regenerated for Pi 0.84.2 but remain AddOne-authored regression evidence only.",
     "invalidatedByTask": "7.2",
-    "replacementInventory": "evidence/owned-pi-ui-foundation/pinned-pi-interactive-baseline.json",
+    "replacementInventory": "config/baselines/pinned-pi-interactive-baseline.json",
     "requiredReplacement": "Separate pinned-upstream and AddOne producers must replace every circular fixture before parity can pass."
   },
   "source": {
