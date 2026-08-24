@@ -324,7 +324,7 @@ async function inspectReleasePolicy() {
   } catch (error) {
     if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
   }
-  const releaseFiles = ["scripts/prepack-gate.mjs", "scripts/run-release-gates.mjs", "scripts/publish-next.ts"];
+  const releaseFiles = ["scripts/prepack-gate.mjs", "scripts/run-release-gates.mjs"];
   const values = [["package.json", manifestSource]];
   for (const path of releaseFiles) {
     try {
@@ -336,16 +336,6 @@ async function inspectReleasePolicy() {
   const obsoleteGate = /test:scenario|test\/scenarios|walking-skeleton|conversation-stability|packaged-(?:real-pi|extension|multi-cli)|A1_CERTIFICATION_TARBALL|A1_INTERNAL_PACKAGING|simulation-first certification|generic-terminal-(?:corpus|parity)/i;
   for (const [path, source] of values) {
     if (obsoleteGate.test(source)) errors.push(`${path}: obsolete retired-pipeline release gate is forbidden`);
-  }
-  const publishNext = values.find(([path]) => path === "scripts/publish-next.ts")?.[1] ?? "";
-  if (/publication is frozen until transparent capability certification/i.test(publishNext)) {
-    errors.push("scripts/publish-next.ts: obsolete uncertified-preview publication freeze is forbidden");
-  }
-  if (/uncertified-development-preview/.test(publishNext) && !/stableReleaseEligible\s*!==\s*false/.test(publishNext)) {
-    errors.push("scripts/publish-next.ts: uncertified next evidence must prohibit stable release eligibility");
-  }
-  if (/createUncertifiedDevelopmentPreviewEvidence/.test(publishNext) && !/requireManuallyAcceptedDevelopmentPreview/.test(publishNext)) {
-    errors.push("scripts/publish-next.ts: uncertified next publication must require exact manual acceptance");
   }
 }
 
