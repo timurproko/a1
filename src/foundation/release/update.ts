@@ -335,7 +335,16 @@ async function resolveRequestedPreview(runner: UpdateProcessRunner, requested: s
   const versions = (Array.isArray(published) ? published : [published]).filter((value): value is string => typeof value === "string");
 
   const exact = versions.find(version => version === requested);
-  if (exact !== undefined) return { version: exact, exitCode: 0 };
+  if (exact !== undefined) {
+    // Naming a release here would install it through the preview path, which is a
+    // different command with a different meaning. The commit form cannot express
+    // one, so only the fuller spelling of a preview reaches this.
+    if (!exact.includes("-dev.")) {
+      output.stderr(`${PRODUCT_TEXT.diagnostic(`${exact} is a release, not a preview; run ${PRODUCT_TEXT.commandName} update to move to the current release.`)}\n`);
+      return { version: null, exitCode: 1 };
+    }
+    return { version: exact, exitCode: 0 };
+  }
 
   const matches = versions.filter(version => version.endsWith(`-dev.${requested}`));
   if (matches.length === 1) return { version: matches[0]!, exitCode: 0 };
