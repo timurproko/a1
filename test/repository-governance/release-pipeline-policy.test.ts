@@ -79,6 +79,15 @@ describe("one release pipeline", () => {
     expect(workflow).toContain("A release tag is never moved.");
   });
 
+  it("treats a failed tag lookup as absent rather than as an existing tag", async () => {
+    const workflow = await releaseWorkflow();
+    // gh prints a 404 body to standard output, so reading the output alone takes
+    // the error text for a tag that exists — which is how three releases published
+    // and then failed to record themselves.
+    expect(workflow).toContain("[0-9a-f]{40}");
+    expect(workflow).not.toContain("--jq .object.sha 2>/dev/null || true");
+  });
+
   it("records the tag and the release only after the registry has the package", async () => {
     const workflow = await releaseWorkflow();
     const publishNpm = workflow.indexOf("Publish the exact package");
