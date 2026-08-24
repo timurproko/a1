@@ -22,7 +22,7 @@ try {
   failure = { gate: "validation-orchestration", command: "node scripts/run-validation-tier.mjs full-release", exitCode: 1, message: error instanceof Error ? error.message : String(error) };
 }
 
-const verdictDirectory = resolve("artifacts", "release-verdicts");
+const verdictDirectory = resolve(".artifacts", "release-verdicts");
 await mkdir(verdictDirectory, { recursive: true });
 const verdictPath = resolve(verdictDirectory, `${platform()}-${arch()}.json`);
 await writeFile(verdictPath, JSON.stringify({

@@ -4,7 +4,7 @@
 ### Node ###
 # Logs and generated release/test verdicts
 logs
-/artifacts/
+/.artifacts/
 
 # Agent worktrees and local build/package outputs
 /.worktrees/

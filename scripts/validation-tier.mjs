@@ -34,7 +34,7 @@ export async function createTierPlan(requested, repository = process.cwd()) {
   const full = requested.includes("full-release");
   const requiresBuild = definitions.some(({ definition }) => definition.requiresBuild === true);
   const consumesPackage = definitions.some(({ definition }) => definition.consumesPackage === true);
-  const candidateTarball = resolve(repository, "artifacts", "validation", "package", "candidate.tgz");
+  const candidateTarball = resolve(repository, ".artifacts", "validation", "package", "candidate.tgz");
   const commands = [];
   const commandIds = new Map();
 

@@ -125,7 +125,7 @@ function classify({ path, locationKind, value, context }) {
   const lowerContext = context.toLowerCase();
   const isCode = /\.(?:[cm]?[jt]sx?|rs)$/.test(lowerPath) || lowerPath.startsWith("bin/") || lowerPath.startsWith(".github/");
 
-  if (lowerPath.includes("/evidence/") || lowerPath.startsWith("artifacts/")) classes.add("historical-records");
+  if (lowerPath.includes("/evidence/") || lowerPath.startsWith(".artifacts/")) classes.add("historical-records");
   if ((lowerContext.includes(`@timurproko/${LEGACY_TOKEN}`) || lowerPath.includes("republish-as-a1"))
     && /obsolete|reject|deprecat|unpublish|historical|unsupported/.test(lowerContext)) classes.add("explicit-obsolete-package-fixtures");
   if (value === value.toUpperCase() && new RegExp(`${LEGACY_TOKEN}_[a-z0-9_]+`, "i").test(context)) classes.add("environment-keys");
