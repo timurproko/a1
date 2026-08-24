@@ -55,13 +55,27 @@ async function readVersion() {
   return JSON.parse(await readFile("package.json", "utf8")).version;
 }
 
+/**
+ * Set this package's version, and only this package's.
+ *
+ * The lockfile records a version for every installed dependency too, so replacing
+ * the version text wherever it appears rewrites any dependency that happens to sit
+ * at the same version — which is exactly what happened releasing 0.1.7, a version
+ * `partial-json` also had. The entries are addressed instead of matched.
+ */
 async function writeVersion(version) {
-  for (const path of ["package.json", "package-lock.json"]) {
-    const source = await readFile(path, "utf8");
-    const updated = source.replaceAll(`"version": "${current}"`, `"version": "${version}"`);
-    if (updated === source) throw new Error(`${path} does not declare version ${current}`);
-    await writeFile(path, updated, "utf8");
+  const manifest = JSON.parse(await readFile("package.json", "utf8"));
+  if (manifest.version !== current) throw new Error(`package.json declares ${manifest.version}, not ${current}`);
+  manifest.version = version;
+  await writeFile("package.json", `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+
+  const lock = JSON.parse(await readFile("package-lock.json", "utf8"));
+  if (lock.version !== current || lock.packages?.[""]?.version !== current) {
+    throw new Error(`package-lock.json does not declare ${current} for this package`);
   }
+  lock.version = version;
+  lock.packages[""].version = version;
+  await writeFile("package-lock.json", `${JSON.stringify(lock, null, 2)}\n`, "utf8");
 }
 
 function nextVersion(from, kind) {
