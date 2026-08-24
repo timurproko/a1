@@ -23,6 +23,8 @@ describe("A1 CLI dispatch", () => {
     [["update"], { kind: "update", channel: "stable" }],
     [["update", "self"], { kind: "update", channel: "stable" }],
     [["update:next"], { kind: "update", channel: "next" }],
+    [["update:7eabe9e"], { kind: "update", channel: "next", target: "7eabe9e" }],
+    [["update:0.1.8-dev.7eabe9e"], { kind: "update", channel: "next", target: "0.1.8-dev.7eabe9e" }],
     [["install", "npm:pi-mcp-adapter"], { kind: "packages", request: { verb: "install", source: "npm:pi-mcp-adapter" } }],
     [["remove", "npm:pi-mcp-adapter"], { kind: "packages", request: { verb: "remove", source: "npm:pi-mcp-adapter" } }],
     [["uninstall", "npm:pi-mcp-adapter"], { kind: "packages", request: { verb: "remove", source: "npm:pi-mcp-adapter" } }],
@@ -68,7 +70,7 @@ describe("A1 CLI dispatch", () => {
   it("keeps bare update on self-update rather than packages", async () => {
     const commands = handlers();
     expect(await dispatchCli(["update"], commands, { stderr: vi.fn() }, PRERELEASE)).toBe(0);
-    expect(commands.update).toHaveBeenCalledWith("stable");
+    expect(commands.update).toHaveBeenCalledWith("stable", undefined);
     expect(commands.packages).not.toHaveBeenCalled();
   });
 
@@ -136,6 +138,9 @@ describe("A1 CLI dispatch", () => {
     { arguments_: ["install", "npm:one", "npm:two"] },
     { arguments_: ["install", "--local", "npm:one"] },
     { arguments_: ["update", "--all"] },
+    { arguments_: ["update:next", "7eabe9e"] },
+    { arguments_: ["update:"] },
+    { arguments_: ["update:-force"] },
     { arguments_: ["update", "npm:one", "npm:two"] },
   ])("rejects invalid grammar $arguments_ without shell or child dispatch", async ({ arguments_ }) => {
     const commands = handlers();
@@ -146,7 +151,7 @@ describe("A1 CLI dispatch", () => {
   });
 
   it("names every supported form in usage", () => {
-    for (const form of ["install <source>", "remove <source>", "list", "update:next"]) {
+    for (const form of ["install <source>", "remove <source>", "list", "update:next", "update:<commit>"]) {
       expect(cliUsage(PRERELEASE)).toContain(form);
     }
   });

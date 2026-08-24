@@ -37,7 +37,9 @@ The version is stamped at publish time — `<major.minor.patch>-dev.<short commi
 the base taken from whatever `package.json` declares and the suffix from the commit
 being published — and is never written back to the repository. An installed preview
 therefore names the exact source it came from, and rebuilding a commit produces the
-same version rather than a new one. `develop` therefore carries one open prerelease version between
+same version rather than a new one. That suffix is also how a specific preview is
+installed: `a1 update:<commit>` resolves it against the published list and
+refuses a commit that was never published. `develop` therefore carries one open prerelease version between
 releases, and no commit is ever spent on a preview.
 
 One consequence worth knowing: a push that would republish an existing version
