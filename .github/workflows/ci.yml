@@ -146,16 +146,16 @@ jobs:
           A1_RUNTIME_DIR: ${{ runner.temp }}\a1-ci-runtime
           A1_PROCESS_GUARDIAN_PATH: ${{ github.workspace }}\native\process-guardian\target\debug\process-guardian.exe
           A1_RUN_PROCESS_CONTAINMENT_INTEGRATION: "1"
-        run: node scripts/run-validation-tier.mjs --result artifacts/validation/outcomes.json
+        run: node scripts/run-validation-tier.mjs --result .artifacts/validation/outcomes.json
 
       - name: Add timing summary
         if: always()
         shell: bash
         run: |
-          if [ -f artifacts/validation/outcomes.json ]; then
+          if [ -f .artifacts/validation/outcomes.json ]; then
             node --input-type=module <<'NODE' >> "$GITHUB_STEP_SUMMARY"
           import { readFile } from "node:fs/promises";
-          const result = JSON.parse(await readFile("artifacts/validation/outcomes.json", "utf8"));
+          const result = JSON.parse(await readFile(".artifacts/validation/outcomes.json", "utf8"));
           console.log("## Validation timing\n");
           console.log(`Total: **${((result.completedAt - result.startedAt) / 1000).toFixed(2)}s**\n`);
           console.log("| Gate | Seconds | Result |\n| --- | ---: | --- |");

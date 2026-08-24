@@ -17,7 +17,7 @@ describe("complete regression automation", () => {
     expect(workflow).toContain("VALIDATION_SELECTION_JSON: '[\"full-release\"]'");
     expect(workflow).toContain('VALIDATION_BUILD_READY: "1"');
     expect(workflow).toContain("VALIDATION_CANDIDATE_TARBALL:");
-    expect(workflow).toContain("node scripts/run-validation-tier.mjs --result artifacts/validation/full-regression.json");
+    expect(workflow).toContain("node scripts/run-validation-tier.mjs --result .artifacts/validation/full-regression.json");
   });
 
   it("reports owned failures and timings without publication authority", async () => {

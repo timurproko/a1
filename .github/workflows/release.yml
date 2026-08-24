@@ -194,7 +194,7 @@ jobs:
         env:
           VALIDATION_SELECTION_JSON: '["typecheck","architecture","dependency-policy"]'
           VALIDATION_BUILD_READY: "1"
-        run: node scripts/run-validation-tier.mjs --result artifacts/validation/static.json
+        run: node scripts/run-validation-tier.mjs --result .artifacts/validation/static.json
 
       - name: Bind the packed identity
         id: identity
@@ -206,8 +206,8 @@ jobs:
           node --input-type=module <<'NODE' >> "$GITHUB_OUTPUT"
           import { createHash } from "node:crypto";
           import { readFile } from "node:fs/promises";
-          const bytes = await readFile("artifacts/validation/package/candidate.tgz");
-          const [pack] = JSON.parse(await readFile("artifacts/validation/package/npm-pack-result.json", "utf8"));
+          const bytes = await readFile(".artifacts/validation/package/candidate.tgz");
+          const [pack] = JSON.parse(await readFile(".artifacts/validation/package/npm-pack-result.json", "utf8"));
           const integrity = `sha512-${createHash("sha512").update(bytes).digest("base64")}`;
           const shasum = createHash("sha1").update(bytes).digest("hex");
           if (pack.integrity !== integrity || pack.shasum !== shasum) throw new Error("packed digest disagrees with npm's own report");
@@ -220,9 +220,9 @@ jobs:
         with:
           name: release-package-${{ needs.plan.outputs.version }}
           path: |
-            artifacts/validation/package/candidate.tgz
-            artifacts/validation/package/npm-pack-result.json
-            artifacts/validation/static.json
+            .artifacts/validation/package/candidate.tgz
+            .artifacts/validation/package/npm-pack-result.json
+            .artifacts/validation/static.json
           if-no-files-found: error
           retention-days: 30
 
@@ -257,7 +257,7 @@ jobs:
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           name: release-package-${{ needs.plan.outputs.version }}
-          path: artifacts/release
+          path: .artifacts/release
 
       - name: Verify the package did not change across the fan-out
         shell: bash
@@ -266,7 +266,7 @@ jobs:
           EXPECTED_SHASUM: ${{ needs.package.outputs.shasum }}
         run: |
           set -euo pipefail
-          tarball="$(find artifacts/release -type f -name candidate.tgz)"
+          tarball="$(find .artifacts/release -type f -name candidate.tgz)"
           test -n "$tarball"
           echo "VALIDATION_CANDIDATE_TARBALL=$tarball" >> "$GITHUB_ENV"
           VALIDATION_CANDIDATE_TARBALL="$tarball" node --input-type=module <<'NODE'
@@ -310,14 +310,14 @@ jobs:
           A1_CONFIG_DIR: ${{ runner.temp }}/a1-release-config
           A1_DATA_DIR: ${{ runner.temp }}/a1-release-data
           A1_RUNTIME_DIR: ${{ runner.temp }}/a1-release-runtime
-        run: node scripts/run-validation-tier.mjs --result artifacts/validation/${{ matrix.platform }}.json
+        run: node scripts/run-validation-tier.mjs --result .artifacts/validation/${{ matrix.platform }}.json
 
       - name: Upload platform outcomes
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: release-validation-${{ needs.plan.outputs.version }}-${{ matrix.platform }}
-          path: artifacts/validation/${{ matrix.platform }}.json
+          path: .artifacts/validation/${{ matrix.platform }}.json
           if-no-files-found: warn
           retention-days: 30
 
@@ -346,7 +346,7 @@ jobs:
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           name: release-package-${{ needs.plan.outputs.version }}
-          path: artifacts/release
+          path: .artifacts/release
 
       - name: Verify the validated bytes are the bytes being uploaded
         shell: bash
@@ -355,7 +355,7 @@ jobs:
           EXPECTED_SHASUM: ${{ needs.package.outputs.shasum }}
         run: |
           set -euo pipefail
-          tarball="$(find artifacts/release -type f -name candidate.tgz)"
+          tarball="$(find .artifacts/release -type f -name candidate.tgz)"
           test -n "$tarball"
           echo "release_tarball=$tarball" >> "$GITHUB_ENV"
           RELEASE_TARBALL="$tarball" node --input-type=module <<'NODE'

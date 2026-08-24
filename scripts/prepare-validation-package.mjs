@@ -2,7 +2,7 @@ import crossSpawn from "cross-spawn";
 import { copyFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
-const outputDirectory = resolve("artifacts", "validation", "package");
+const outputDirectory = resolve(".artifacts", "validation", "package");
 await rm(outputDirectory, { recursive: true, force: true });
 await mkdir(outputDirectory, { recursive: true });
 const npm = process.platform === "win32" ? "npm.cmd" : "npm";
