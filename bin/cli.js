@@ -22,9 +22,9 @@ process.exitCode = await dispatchCli(process.argv.slice(2), {
     const { runVersionStats } = await import("../dist/src/cli/index.js");
     return await runVersionStats({ packageRoot: fileURLToPath(packageRoot) });
   },
-  update: async channel => {
+  update: async (channel, target) => {
     const { runSelfUpdate } = await import("../dist/src/foundation/release/index.js");
-    return await runSelfUpdate({ packageRoot: fileURLToPath(packageRoot), channel });
+    return await runSelfUpdate({ packageRoot: fileURLToPath(packageRoot), channel, ...(target === undefined ? {} : { target }) });
   },
   packages: async request => {
     const [{ runPackageCommand }, { createPiPackagesPort }] = await Promise.all([

@@ -63,6 +63,8 @@ export interface UpdatePerformanceEvidence {
 export interface SelfUpdateOptions {
   packageRoot: string;
   channel?: UpdateChannel;
+  /** A specific preview to install, named by its commit or its full version. */
+  target?: string;
   environment?: NodeJS.ProcessEnv;
   fileSystem?: UpdateFileSystem;
   output?: UpdateOutput;
@@ -294,6 +296,57 @@ function createUpdateProgress(output: UpdateOutput, enabled: boolean): UpdatePro
   };
 }
 
+interface ResolvedTarget { readonly version: string | null; readonly exitCode: number }
+
+/** The newest version the channel points at, which is what an unqualified update takes. */
+async function resolveChannelHead(runner: UpdateProcessRunner, distTag: string, output: UpdateOutput): Promise<ResolvedTarget> {
+  const lookup = await runNpm(runner, ["view", `${PRODUCT_PACKAGE}@${distTag}`, "version"], true, output, `query the npm ${distTag} channel`);
+  if (lookup.result === null) return { version: null, exitCode: lookup.exitCode };
+  const version = validSemver(lookup.result.stdout.trim());
+  if (version === null) {
+    output.stderr(`${PRODUCT_TEXT.diagnostic(`received a malformed ${distTag} version from npm: ${JSON.stringify(lookup.result.stdout.trim())}.`)}\n`);
+    return { version: null, exitCode: 1 };
+  }
+  return { version, exitCode: 0 };
+}
+
+/**
+ * Resolve a preview the caller named.
+ *
+ * A preview is published as `<version>-dev.<commit>`, so its commit is enough to
+ * say which one is wanted — the version in front of it is not something anyone
+ * should have to remember. A full version is accepted too, for anyone reading one
+ * back from `a1 version` or a changelog.
+ *
+ * The published list is the authority: naming a commit that was never published,
+ * or one published more than once under different versions, is an error rather
+ * than a guess.
+ */
+async function resolveRequestedPreview(runner: UpdateProcessRunner, requested: string, output: UpdateOutput): Promise<ResolvedTarget> {
+  const lookup = await runNpm(runner, ["view", PRODUCT_PACKAGE, "versions", "--json"], true, output, "list the published versions");
+  if (lookup.result === null) return { version: null, exitCode: lookup.exitCode };
+  let published: unknown;
+  try {
+    published = JSON.parse(lookup.result.stdout.trim() || "[]");
+  } catch {
+    output.stderr(`${PRODUCT_TEXT.diagnostic(`received a malformed version list from npm: ${JSON.stringify(lookup.result.stdout.trim())}.`)}\n`);
+    return { version: null, exitCode: 1 };
+  }
+  const versions = (Array.isArray(published) ? published : [published]).filter((value): value is string => typeof value === "string");
+
+  const exact = versions.find(version => version === requested);
+  if (exact !== undefined) return { version: exact, exitCode: 0 };
+
+  const matches = versions.filter(version => version.endsWith(`-dev.${requested}`));
+  if (matches.length === 1) return { version: matches[0]!, exitCode: 0 };
+  if (matches.length > 1) {
+    output.stderr(`${PRODUCT_TEXT.diagnostic(`found more than one preview for ${requested}: ${matches.join(", ")}. Name the version instead.`)}\n`);
+    return { version: null, exitCode: 1 };
+  }
+  output.stderr(`${PRODUCT_TEXT.diagnostic(`published no preview for ${requested}.`)}\n`);
+  return { version: null, exitCode: 1 };
+}
+
 export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number> {
   const fileSystem = options.fileSystem ?? defaultFileSystem;
   const output = options.output ?? defaultOutput;
@@ -318,13 +371,12 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
     return 1;
   }
 
-  const targetLookup = await measure("target-resolution", async () => await runNpm(runner, ["view", `${PRODUCT_PACKAGE}@${distTag}`, "version"], true, output, `query the npm ${distTag} channel`));
-  if (targetLookup.result === null) return targetLookup.exitCode;
-  const targetVersion = validSemver(targetLookup.result.stdout.trim());
-  if (targetVersion === null) {
-    output.stderr(`${PRODUCT_TEXT.diagnostic(`received a malformed ${distTag} version from npm: ${JSON.stringify(targetLookup.result.stdout.trim())}.`)}\n`);
-    return 1;
-  }
+  const requested = options.target?.trim();
+  const resolved = await measure("target-resolution", async () => requested === undefined || requested.length === 0
+    ? await resolveChannelHead(runner, distTag, output)
+    : await resolveRequestedPreview(runner, requested, output));
+  if (resolved.version === null) return resolved.exitCode;
+  const targetVersion = resolved.version;
   output.stdout(`${PRODUCT_TEXT.commandName} update (${UPDATE_CHANNEL_LABELS[channel]}): ${runningVersion} → ${targetVersion}.\n`);
   const progress = createUpdateProgress(output, options.progress ?? (options.output === undefined && process.stdout.isTTY === true));
 
