@@ -6,6 +6,20 @@
 npm install --global @timurproko/a1@latest
 ```
 
+Any channel can also be installed or updated directly with npm, without the
+`a1 update` commands:
+
+```sh
+# dev channel (next tag)
+npm install -g @timurproko/a1@next
+
+# stable release
+npm install -g @timurproko/a1@latest
+
+# exact version
+npm install -g @timurproko/a1@0.1.8-dev.107
+```
+
 ## Use
 
 ```sh
