@@ -14,7 +14,7 @@ import {
   type ScrollbarStyle,
 } from "./scrollbar.js";
 import { overlaySpan } from "./spans.js";
-import { displayColumnSlice, displayWidth, padToWidth } from "./text.js";
+import { displayColumnSlice, displayWidth, displayWordColumnRange, padToWidth, stripAnsi } from "./text.js";
 
 export interface TranscriptPromptAnchor {
   readonly id: string;
@@ -79,8 +79,18 @@ interface SelectionPoint {
   readonly column: number;
 }
 
+interface SelectionRange {
+  readonly start: SelectionPoint;
+  readonly end: SelectionPoint;
+}
+
+type SelectionGranularity = "character" | "word" | "line";
+
 const RAIL_KEY = "session-transcript";
 const BOTTOM_CONTROL = " ↓ latest ";
+const MULTI_CLICK_MS = 500;
+const SELECTION_ON = "\u001b[107;30m";
+const SELECTION_OFF = "\u001b[39;49m";
 
 /**
  * A vendor-neutral fixed transcript frame. It owns scroll and pointer state but
@@ -108,6 +118,9 @@ export class TranscriptViewport {
   #selectionAnchor: SelectionPoint | undefined;
   #selectionFocus: SelectionPoint | undefined;
   #selectionPressActive = false;
+  #selectionGranularity: SelectionGranularity = "character";
+  #selectionInitialRange: SelectionRange | undefined;
+  #lastClick: { readonly at: number; readonly row: number; readonly from: number; readonly to: number; readonly count: number } | undefined;
   #state: TranscriptViewportState = {
     scrollTop: 0,
     viewportHeight: 0,
@@ -260,7 +273,7 @@ export class TranscriptViewport {
         }
       }
       if (this.#selectionPressActive && allowSelection) {
-        this.#selectionFocus = this.#selectionPoint(event);
+        this.#updateSelectionFocus(event);
         return { consumed: true, render: true };
       }
       return {
@@ -277,7 +290,7 @@ export class TranscriptViewport {
       }
       if (!this.#selectionPressActive) return { consumed: false };
       this.#selectionPressActive = false;
-      if (allowSelection) this.#selectionFocus = this.#selectionPoint(event);
+      if (allowSelection) this.#updateSelectionFocus(event);
       const copyText = this.#selectionText();
       return copyText.length === 0
         ? { consumed: true, render: true }
@@ -308,10 +321,7 @@ export class TranscriptViewport {
       return { consumed: true, render: true };
     }
     if (allowSelection && insideTranscript && event.column <= frame.contentWidth) {
-      const point = this.#selectionPoint(event);
-      this.#selectionAnchor = point;
-      this.#selectionFocus = point;
-      this.#selectionPressActive = true;
+      this.#beginSelection(event, now);
       return { consumed: true, render: true };
     }
     return { consumed: false };
@@ -341,6 +351,9 @@ export class TranscriptViewport {
     this.#selectionAnchor = undefined;
     this.#selectionFocus = undefined;
     this.#selectionPressActive = false;
+    this.#selectionGranularity = "character";
+    this.#selectionInitialRange = undefined;
+    this.#lastClick = undefined;
   }
 
   clearTransient(): void {
@@ -359,6 +372,71 @@ export class TranscriptViewport {
     const lineWidth = displayWidth(frame.documentRows[row] ?? "");
     const column = Math.min(Math.max(event.column - 1, 0), Math.min(frame.contentWidth, lineWidth));
     return { row, column };
+  }
+
+  #wordSelection(point: SelectionPoint): SelectionRange | null {
+    const range = displayWordColumnRange(this.#frame.documentRows[point.row] ?? "", point.column);
+    if (range === null || range.to <= range.from) return null;
+    return {
+      start: { row: point.row, column: range.from },
+      end: { row: point.row, column: range.to - 1 },
+    };
+  }
+
+  #lineSelection(point: SelectionPoint): SelectionRange {
+    const plain = stripAnsi(this.#frame.documentRows[point.row] ?? "").trimEnd();
+    const width = displayWidth(plain);
+    return {
+      start: { row: point.row, column: 0 },
+      end: { row: point.row, column: Math.max(0, width - 1) },
+    };
+  }
+
+  #beginSelection(event: PaneMouseEvent, now: number): void {
+    const point = this.#selectionPoint(event);
+    const word = this.#wordSelection(point);
+    const previous = this.#lastClick;
+    const count = word !== null && previous !== undefined
+      && now - previous.at <= MULTI_CLICK_MS
+      && previous.row === point.row
+      && previous.from === word.start.column
+      && previous.to === word.end.column + 1
+      ? (previous.count % 3) + 1
+      : 1;
+    this.#lastClick = word === null
+      ? undefined
+      : { at: now, row: point.row, from: word.start.column, to: word.end.column + 1, count };
+    const range = count === 2 && word !== null
+      ? word
+      : count === 3
+        ? this.#lineSelection(point)
+        : { start: point, end: point };
+    this.#selectionGranularity = count === 2 ? "word" : count === 3 ? "line" : "character";
+    this.#selectionInitialRange = range;
+    this.#selectionAnchor = range.start;
+    this.#selectionFocus = range.end;
+    this.#selectionPressActive = true;
+  }
+
+  #updateSelectionFocus(event: PaneMouseEvent): void {
+    const point = this.#selectionPoint(event);
+    const initial = this.#selectionInitialRange;
+    if (this.#selectionGranularity === "character" || initial === undefined) {
+      this.#selectionFocus = point;
+      return;
+    }
+    const target = this.#selectionGranularity === "word"
+      ? this.#wordSelection(point) ?? { start: point, end: point }
+      : this.#lineSelection(point);
+    const targetBefore = target.start.row < initial.start.row
+      || (target.start.row === initial.start.row && target.start.column < initial.start.column);
+    if (targetBefore) {
+      this.#selectionAnchor = initial.end;
+      this.#selectionFocus = target.start;
+    } else {
+      this.#selectionAnchor = initial.start;
+      this.#selectionFocus = target.end;
+    }
   }
 
   #selectionBounds(): { readonly start: SelectionPoint; readonly end: SelectionPoint } | null {
@@ -384,7 +462,7 @@ export class TranscriptViewport {
     if (columns === null) return line;
     const selected = displayColumnSlice(line, columns.from, columns.to);
     if (selected.to <= selected.from) return line;
-    return overlaySpan(line, selected.from, selected.to, `\u001b[7m${selected.text}\u001b[27m`);
+    return overlaySpan(line, selected.from, selected.to, `${SELECTION_ON}${selected.text}${SELECTION_OFF}`);
   }
 
   #selectionText(): string {

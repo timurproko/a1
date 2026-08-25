@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { displayColumnSlice, displayWidth, padToWidth, stripAnsi, truncateToWidth } from "../../../src/ui/components/index.js";
+import { displayColumnSlice, displayWidth, displayWordColumnRange, padToWidth, stripAnsi, truncateToWidth } from "../../../src/ui/components/index.js";
 
 const RESET = "[0m";
 const RED = "[31m";
@@ -36,6 +36,11 @@ describe("display width", () => {
   it("slices ANSI text on grapheme-aligned display columns", () => {
     expect(displayColumnSlice(`${RED}a界b${RESET}`, 2, 3)).toEqual({ from: 1, to: 3, text: "界" });
     expect(displayColumnSlice("👩‍💻x", 0, 1)).toEqual({ from: 0, to: 2, text: "👩‍💻" });
+  });
+
+  it("finds the visible word segment under a pointer column", () => {
+    expect(displayWordColumnRange(`${RED}one two${RESET}`, 5)).toEqual({ from: 4, to: 7 });
+    expect(displayWordColumnRange("one two", 20)).toBeNull();
   });
 });
 

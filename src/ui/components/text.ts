@@ -7,6 +7,7 @@
 
 const ANSI_PATTERN = /\[[0-9;:?]*[ -/]*[@-~]|\][^]*(?:|\\)|[@-Z\\-_]/g;
 const SEGMENTER = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+const WORD_SEGMENTER = new Intl.Segmenter(undefined, { granularity: "word" });
 
 /** Removes styling sequences so only visible characters remain. */
 export function stripAnsi(text: string): string {
@@ -46,6 +47,26 @@ function graphemeWidth(grapheme: string): number {
     width = Math.max(width, codePointWidth(character.codePointAt(0) ?? 0));
   }
   return width;
+}
+
+export interface DisplayColumnRange {
+  readonly from: number;
+  readonly to: number;
+}
+
+/** Visible-column segment (word, whitespace, or punctuation) under a pointer column. */
+export function displayWordColumnRange(text: string, pointerColumn: number): DisplayColumnRange | null {
+  const plain = stripAnsi(text);
+  const pointer = Math.max(0, pointerColumn);
+  let column = 0;
+  for (const { segment } of WORD_SEGMENTER.segment(plain)) {
+    const width = displayWidth(segment);
+    const from = column;
+    const to = column + width;
+    if (pointer >= from && pointer < to) return { from, to };
+    column = to;
+  }
+  return null;
 }
 
 export interface DisplayColumnSlice {

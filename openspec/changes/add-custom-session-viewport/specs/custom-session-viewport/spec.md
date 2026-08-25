@@ -126,7 +126,7 @@ When the first row of the most recent submitted user prompt at or before the vie
 - **THEN** no duplicate sticky row SHALL be added
 
 ### Requirement: Viewport pointer handling preserves unrelated input
-The viewport SHALL claim wheel events used to scroll its transcript and pointer events addressed to its scrollbar, scroll-to-bottom control, pinned prompt, or transcript selection surface. An ordinary LMB drag starting on transcript content SHALL create a grapheme-aligned visual selection in both regular and fullscreen modes, SHALL exclude the scrollbar rail, and SHALL copy a completed non-empty selection through the terminal clipboard bridge. It SHALL leave keyboard input and pointer input outside those regions to the existing focused surface and terminal UI behavior. An active selector, dialog, overlay, or replacement input that owns an event SHALL retain that ownership.
+The viewport SHALL claim wheel events used to scroll its transcript and pointer events addressed to its scrollbar, scroll-to-bottom control, pinned prompt, or transcript selection surface. An ordinary LMB drag starting on transcript content SHALL create a grapheme-aligned visual selection in both regular and fullscreen modes, SHALL exclude the scrollbar rail, and SHALL copy a completed non-empty selection through the terminal clipboard bridge. Selection SHALL use one fixed white background with a contrasting dark foreground instead of deriving its background from each source span's text color. Double-click SHALL select the word segment under the pointer and triple-click SHALL select that complete transcript line. It SHALL leave keyboard input and pointer input outside those regions to the existing focused surface and terminal UI behavior. An active selector, dialog, overlay, or replacement input that owns an event SHALL retain that ownership.
 
 #### Scenario: Scroll the transcript with the wheel
 - **WHEN** a wheel event is addressed to the transcript viewport while the ordinary editor owns focus
@@ -136,6 +136,19 @@ The viewport SHALL claim wheel events used to scroll its transcript and pointer 
 - **WHEN** an LMB drag starts on transcript content outside every viewport control hit region
 - **THEN** the viewport SHALL highlight the grapheme-aligned text covered by the drag
 - **AND** it SHALL NOT treat the drag as a scrollbar or navigation action
+
+#### Scenario: Select text with a fixed color
+- **WHEN** a selection crosses source spans with different foreground colors
+- **THEN** every selected span SHALL use the same white selection background and contrasting dark text
+- **AND** source text color SHALL NOT become selection background color
+
+#### Scenario: Double-click a word
+- **WHEN** the reader double-clicks a transcript word within the multi-click interval
+- **THEN** that complete word segment SHALL be selected and copied on release
+
+#### Scenario: Triple-click a line
+- **WHEN** the reader triple-clicks a transcript line within the multi-click interval
+- **THEN** that complete line excluding trailing padding SHALL be selected and copied on release
 
 #### Scenario: Complete a transcript selection
 - **WHEN** LMB is released after a non-empty transcript drag

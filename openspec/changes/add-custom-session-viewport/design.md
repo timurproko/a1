@@ -78,6 +78,8 @@ A pre-listener returns consumed/transformed input through the existing neutral r
 - consume wheel reports addressed to its transcript and update activity state;
 - consume press/motion/release reports for its rail, sticky prompt, and bottom control;
 - consume ordinary LMB drags in transcript content, map visible coordinates to semantic document rows, and paint a grapheme-aligned selection without selecting the rail;
+- paint every selected span with a fixed bright-white background and contrasting dark foreground so source foreground colors never become selection backgrounds;
+- apply a bounded multi-click state: double-click expands to the word segment and triple-click to the complete non-padding line;
 - copy a completed non-empty transcript selection through OSC 52 and retain its highlight until the next ordinary input or selection;
 - forward non-LMB reports and reports outside viewport hit regions so focused surfaces keep their behavior;
 - bypass viewport selection when an overlay or dialog owns pointer input;

@@ -97,9 +97,26 @@ describe("TranscriptViewport", () => {
     expect(viewport.onMouse({ kind: "press", button: 0, column: 1, row: 1 }).consumed).toBe(true);
     expect(viewport.onMouse({ kind: "motion", button: 0, column: 4, row: 2 }).consumed).toBe(true);
     const selected = render(viewport, ["alpha", "bravo", "charlie", "delta"]);
-    expect(selected.join("\n")).toContain("\u001b[7m");
+    expect(selected.join("\n")).toContain("\u001b[107;30m");
     const released = viewport.onMouse({ kind: "release", button: 0, column: 4, row: 2 });
     expect(released).toMatchObject({ consumed: true, copyText: "alpha\nbrav" });
+  });
+
+  it("uses a fixed white selection background and supports double-word and triple-line selection", () => {
+    const viewport = new TranscriptViewport();
+    const rows = ["one two three", "next"];
+    render(viewport, rows);
+    const pointer = { button: 0, column: 5, row: 1 } as const;
+
+    viewport.onMouse({ kind: "press", ...pointer }, 100);
+    viewport.onMouse({ kind: "release", ...pointer }, 110);
+    viewport.onMouse({ kind: "press", ...pointer }, 200);
+    const wordFrame = render(viewport, rows);
+    expect(wordFrame.join("\n")).toContain("\u001b[107;30mtwo\u001b[39;49m");
+    expect(viewport.onMouse({ kind: "release", ...pointer }, 210).copyText).toBe("two");
+
+    viewport.onMouse({ kind: "press", ...pointer }, 300);
+    expect(viewport.onMouse({ kind: "release", ...pointer }, 310).copyText).toBe("one two three");
   });
 
   it("scrolls three lines at normal speed and six at high speed", () => {
