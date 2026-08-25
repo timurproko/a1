@@ -16,6 +16,6 @@
 ## 3. Validate and integrate
 
 - [x] 3.1 Run optional typecheck and strict OpenSpec validation
-- [ ] 3.2 Open the pull request and let CI validate
+- [x] 3.2 Open the pull request and let CI validate (PR #105)
 - [ ] 3.3 Record manual acceptance by comparing bare `a1` with vanilla `pi`, then
   archive the change
