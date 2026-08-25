@@ -58,6 +58,7 @@ class FakeSession {
     this.emit({ type: "agent_start" });
     this.isStreaming = false;
     this.emit({ type: "agent_end", willRetry: false });
+    this.emit({ type: "agent_settled" });
   }
 
   async steer(text: string): Promise<void> {
@@ -440,6 +441,83 @@ describe("Pi engine adapter", () => {
     expect(events.filter(event => event.type === "transcript-block").length).toBeGreaterThanOrEqual(5);
     session.emit({ type: "message_start" });
     expect(adapter.view().transcript).toHaveLength(transcript.length);
+  });
+
+  it("keeps the working state through a compaction, a retry, and a turn that continues the run", async () => {
+    const runtime = new FakeRuntime(new FakeSession("pi-session-1"));
+    const { adapter } = await adapterWithRuntime(runtime);
+    const session = runtime.session as FakeSession;
+
+    session.emit({ type: "agent_start" });
+    await adapter.flushEvents();
+    expect(adapter.view().status.workingMessage).toBe("Working...");
+
+    session.emit({ type: "compaction_start", reason: "threshold" });
+    await adapter.flushEvents();
+    expect(adapter.view().status.workingMessage).toBe("Compacting…");
+
+    session.emit({ type: "compaction_end", reason: "threshold", aborted: false, willRetry: true });
+    await adapter.flushEvents();
+    expect(adapter.view().lifecycle).toBe("busy");
+    expect(adapter.view().status.workingMessage).toBe("Working...");
+
+    session.emit({ type: "auto_retry_start", attempt: 1 });
+    session.emit({ type: "auto_retry_end", success: true, attempt: 1 });
+    await adapter.flushEvents();
+    expect(adapter.view().lifecycle).toBe("busy");
+    expect(adapter.view().status.workingMessage).toBe("Working...");
+
+    // Every continuation the engine makes ends a turn; the run is not over until it settles.
+    session.emit({ type: "agent_end", messages: [], willRetry: false });
+    await adapter.flushEvents();
+    expect(adapter.view().lifecycle).toBe("busy");
+    expect(adapter.view().status.workingMessage).toBe("Working...");
+
+    session.emit({ type: "agent_settled" });
+    await adapter.flushEvents();
+    expect(adapter.view().lifecycle).toBe("ready");
+    expect(adapter.view().status.workingMessage).toBeNull();
+  });
+
+  it("leaves a compaction outside a run idle rather than working", async () => {
+    const runtime = new FakeRuntime(new FakeSession("pi-session-1"));
+    const { adapter } = await adapterWithRuntime(runtime);
+    const session = runtime.session as FakeSession;
+
+    session.emit({ type: "compaction_start", reason: "manual" });
+    await adapter.flushEvents();
+    expect(adapter.view().status.workingMessage).toBe("Compacting…");
+
+    session.emit({ type: "compaction_end", reason: "manual", aborted: false, willRetry: false });
+    await adapter.flushEvents();
+    expect(adapter.view().lifecycle).toBe("ready");
+    expect(adapter.view().status.workingMessage).toBeNull();
+  });
+
+  it("hands the event loop a turn while a streaming burst is delivered", async () => {
+    const runtime = new FakeRuntime(new FakeSession("pi-session-1"));
+    const { adapter } = await adapterWithRuntime(runtime);
+    const session = runtime.session as FakeSession;
+
+    let servedDuringBurst = false;
+    const pending = new Promise<void>(resolve => {
+      setImmediate(() => {
+        servedDuringBurst = true;
+        resolve();
+      });
+    });
+
+    for (let index = 0; index < 200; index += 1) {
+      session.emit({
+        type: "message_update",
+        message: { role: "assistant", content: [{ type: "text", text: `chunk ${index}` }], timestamp: index },
+        assistantMessageEvent: { delta: `chunk ${index}` },
+      });
+    }
+
+    await pending;
+    expect(servedDuringBurst).toBe(true);
+    await adapter.flushEvents();
   });
 
   it("retains distinct turns with repeated timestamps across authoritative and missing-message settlement", async () => {
