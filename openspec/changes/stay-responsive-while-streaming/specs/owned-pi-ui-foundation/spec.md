@@ -30,20 +30,20 @@ locating the block an event refers to SHALL NOT scan the transcript.
 - **THEN** it SHALL be handled at the time it arrives rather than after the run ends
 
 ### Requirement: Working state is cleared only by the event that ends the work
-The owned shell SHALL treat entering a working, retrying, or compacting state and leaving
-it as separate transitions, each ended only by the event that ends that work. An event that
-reports the agent settling, a retry finishing, or a compaction finishing while the turn
-continues SHALL NOT clear a state it did not start, and SHALL NOT be reported as the session
-becoming idle. Where the engine states that work continues after the event, the shell SHALL
-honor that statement rather than discarding it.
+The owned shell SHALL treat entering a working, retrying, or compacting state and leaving it
+as separate transitions, each ended only by the event that ends that work. A retry finishing
+or a compaction finishing SHALL NOT clear a state it did not start, and neither SHALL be
+reported as the session becoming idle while the run continues.
 
 Clearing SHALL be scoped to the state being cleared, so ending one kind of work leaves any
-other kind still standing.
+other kind still standing. Ending a turn SHALL leave the working state, as the recorded
+pinned baseline does; the engine ends a turn for every continuation it makes — a retry, a
+compaction, a queued message — and reports the run settled once, when its loop is done, so
+settlement is what ends the run.
 
-#### Scenario: Agent settles inside a run
-- **WHEN** the engine reports the agent settling while the run continues
-- **THEN** the working indicator SHALL remain as it was and the session SHALL NOT be
-  reported as idle
+#### Scenario: A turn ends while a compaction is shown
+- **WHEN** a turn ends while the compaction state is the one being shown
+- **THEN** the compaction state SHALL remain shown rather than being cleared by the turn
 
 #### Scenario: Automatic compaction inside a turn
 - **WHEN** compaction starts and finishes while the turn continues
@@ -55,9 +55,14 @@ other kind still standing.
 - **WHEN** a retry starts and finishes while the turn continues
 - **THEN** the retry indicator SHALL be removed at its end and the working state SHALL stand
 
-#### Scenario: Turn ends
-- **WHEN** the engine reports the turn ending without a further attempt
+#### Scenario: Run settles
+- **WHEN** the engine reports the run settled
 - **THEN** the working state SHALL be cleared and the session SHALL be reported as ready
+
+#### Scenario: Compaction outside a run
+- **WHEN** a compaction starts and finishes while no run is active
+- **THEN** the compaction state SHALL be cleared and the session SHALL be reported as ready
+  rather than as working
 
 #### Scenario: Content continues after a cleared indicator
 - **WHEN** transcript content is still arriving

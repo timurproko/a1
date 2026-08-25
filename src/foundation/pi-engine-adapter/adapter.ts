@@ -62,6 +62,13 @@ import type { AgentJsonValue, AgentSettingsPort } from "../agent-engine-contract
 
 const execFileAsync = promisify(execFile);
 
+/**
+ * Engine events delivered before the queue hands the event loop a turn. Small enough
+ * that a streaming burst never holds input, large enough that an ordinary turn is one
+ * batch.
+ */
+const EVENT_DELIVERY_BATCH = 16;
+
 export interface PiEngineRuntimeFactoryInput {
   readonly cwd: string;
   readonly agentDir: string;
@@ -226,6 +233,8 @@ export class PiEngineAdapter {
   readonly #eventQueue: OwnedUiEvent[] = [];
   #eventQueueProcessing: Promise<void> | undefined;
   #droppedEventCount = 0;
+  #agentRunActive = false;
+  #statusKind: "working" | "retry" | "compaction" | null = null;
   #sessionCommands: PiSessionCommandIntegration | undefined;
   #gitBranch: string | null = null;
   #extensionUi: ExtensionUIContext | undefined;
@@ -1520,6 +1529,8 @@ export class PiEngineAdapter {
       submitEnabled: true,
     };
     this.#status = { ...this.#status, workingMessage: null, badges: [] };
+    this.#statusKind = null;
+    this.#agentRunActive = false;
     this.#activeModel = readModel(session.model);
     this.#reconcileActiveModelAvailability();
     this.#thinkingLevel = readThinkingLevel(session.thinkingLevel);
@@ -1573,14 +1584,45 @@ export class PiEngineAdapter {
     }
   }
 
+  /** Shows the state named by `kind`, which becomes the state a later end can clear. */
+  #enterWorkState(kind: "working" | "retry" | "compaction", message: string): void {
+    const wasBusy = this.#lifecycle === "busy";
+    this.#statusKind = kind;
+    this.#lifecycle = "busy";
+    this.#status = { ...this.#status, workingMessage: message };
+    if (!wasBusy) this.#emitEvent({ type: "session-lifecycle", lifecycle: "busy", reason: null });
+    this.#emitEvent({ type: "status", status: this.#status });
+  }
+
+  /**
+   * Ends one named state. A state the shell is not in is left alone, so a finished
+   * compaction or retry cannot clear the working state it never replaced. While the run
+   * continues, ending either of those returns to working rather than to idle.
+   */
+  #endWorkState(kind: "retry" | "compaction"): void {
+    if (this.#statusKind !== kind) return;
+    if (this.#agentRunActive) {
+      this.#enterWorkState("working", "Working...");
+      return;
+    }
+    this.#leaveWorkStates();
+  }
+
+  /** Leaves every work state and reports the session idle. */
+  #leaveWorkStates(): void {
+    this.#statusKind = null;
+    this.#lifecycle = "ready";
+    this.#status = { ...this.#status, workingMessage: null };
+    this.#emitEvent({ type: "session-lifecycle", lifecycle: "ready", reason: null });
+    this.#emitEvent({ type: "status", status: this.#status });
+  }
+
   #handlePiEvent(event: unknown): void {
     if (!isRecord(event) || typeof event.type !== "string") return;
     switch (event.type) {
       case "agent_start":
-        this.#lifecycle = "busy";
-        this.#status = { ...this.#status, workingMessage: "Working..." };
-        this.#emitEvent({ type: "session-lifecycle", lifecycle: "busy", reason: null });
-        this.#emitEvent({ type: "status", status: this.#status });
+        this.#agentRunActive = true;
+        this.#enterWorkState("working", "Working...");
         return;
       case "message_start":
         this.#upsertMessageBlock(event.message, "live");
@@ -1619,10 +1661,16 @@ export class PiEngineAdapter {
           : this.#session?.messages ?? [];
         if (finalMessages.length > 0) this.#rebuildTranscript(finalMessages, "finalized");
         else this.#transcript = this.#transcript.map(block => block.status === "live" ? { ...block, status: "finalized" } : block);
-        this.#lifecycle = "ready";
-        this.#status = { ...this.#status, workingMessage: null };
-        this.#emitEvent({ type: "session-lifecycle", lifecycle: "ready", reason: null });
-        this.#emitEvent({ type: "status", status: this.#status });
+        // Ending a turn leaves the working state, as the recorded pinned baseline does, but
+        // it leaves only that state: a compaction or retry being shown outlives the turn
+        // that ended under it. Settlement ends the run, and with it every state — the
+        // engine ends a turn for each continuation it makes and settles once.
+        if (event.type === "agent_settled") {
+          this.#agentRunActive = false;
+          this.#leaveWorkStates();
+        } else if (this.#statusKind === null || this.#statusKind === "working") {
+          this.#leaveWorkStates();
+        }
         this.#emitView();
         return;
       }
@@ -1638,20 +1686,16 @@ export class PiEngineAdapter {
         return;
       }
       case "auto_retry_start":
-        this.#lifecycle = "busy";
-        this.#status = { ...this.#status, workingMessage: "Retrying…" };
-        this.#emitEvent({ type: "status", status: this.#status });
+        this.#enterWorkState("retry", "Retrying…");
         return;
       case "auto_retry_end":
-      case "compaction_end":
-        this.#lifecycle = "ready";
-        this.#status = { ...this.#status, workingMessage: null };
-        this.#emitEvent({ type: "status", status: this.#status });
+        this.#endWorkState("retry");
         return;
       case "compaction_start":
-        this.#lifecycle = "busy";
-        this.#status = { ...this.#status, workingMessage: "Compacting…" };
-        this.#emitEvent({ type: "status", status: this.#status });
+        this.#enterWorkState("compaction", "Compacting…");
+        return;
+      case "compaction_end":
+        this.#endWorkState("compaction");
         return;
       case "thinking_level_changed":
         this.#thinkingLevel = readThinkingLevel(event.level);
@@ -2054,6 +2098,7 @@ export class PiEngineAdapter {
 
   async #processEventQueue(): Promise<void> {
     try {
+      let deliveredSinceYield = 0;
       while (this.#eventQueue.length > 0) {
         const event = this.#eventQueue.shift();
         if (!event) continue;
@@ -2068,6 +2113,14 @@ export class PiEngineAdapter {
               true,
             );
           }
+        }
+        deliveredSinceYield += 1;
+        // A microtask chain runs to exhaustion before the loop turns, so a streaming
+        // burst would hold typed input, pointer reports, and timed indicators until it
+        // drained. Yielding on a macrotask hands those their turn between batches.
+        if (deliveredSinceYield >= EVENT_DELIVERY_BATCH && this.#eventQueue.length > 0) {
+          deliveredSinceYield = 0;
+          await new Promise<void>(resolve => { setImmediate(resolve); });
         }
       }
     } finally {

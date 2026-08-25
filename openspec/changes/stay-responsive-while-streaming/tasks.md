@@ -1,10 +1,10 @@
 ## 1. Give the event loop its turns back
 
-- [ ] 1.1 Deliver queued engine events in bounded batches that yield to the event loop
+- [x] 1.1 Deliver queued engine events in bounded batches that yield to the event loop
   between them, instead of draining the queue inside one microtask
 - [ ] 1.2 Handle each event for what it is: a transcript update SHALL touch the block it
   names, and only a view event SHALL resynchronize the view
-- [ ] 1.3 Stop building the view model twice per event in the session shell
+- [x] 1.3 Stop building the view model twice per event in the session shell
 
 ## 2. Make per-event work independent of transcript length
 
@@ -23,12 +23,14 @@
 
 ## 4. Separate the working states
 
-- [ ] 4.1 Key the status indicator by kind and clear by kind, so ending one kind of work
+- [x] 4.1 Key the status indicator by kind and clear by kind, so ending one kind of work
   leaves another standing
-- [ ] 4.2 Leave status untouched when the engine reports the agent settling
-- [ ] 4.3 End retry and compaction states without ending the working state, honoring the
-  engine's statement that the turn continues
-- [ ] 4.4 Rebuild the transcript only where the pinned shell rebuilds it, not on settlement
+- [x] 4.2 Treat settlement, not the end of a turn, as what makes the session idle — the
+  engine ends a turn per continuation and settles once
+- [x] 4.3 End retry and compaction states by returning to working while the run is active,
+  and to idle only when it is not
+- [ ] 4.4 Rebuild the transcript only where the pinned shell rebuilds it, not on every turn
+  that ends
 
 ## 5. Pair pointer reporting against every teardown
 
