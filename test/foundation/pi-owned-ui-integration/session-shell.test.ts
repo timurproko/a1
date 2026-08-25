@@ -1030,7 +1030,7 @@ describe("OwnedUiSessionShell", () => {
   it("keeps startup neutral while composition selects the owned session shell", async () => {
     const [source, composition] = await Promise.all([
       readFile("src/features/owned-ui/run.ts", "utf8"),
-      readFile("src/composition/index.ts", "utf8"),
+      readFile("src/composition/owned-ui.ts", "utf8"),
     ]);
     expect(source).toContain("OwnedUiApplicationPort");
     expect(source).not.toMatch(/Pi|Adapter|OwnedUiSessionShell|OwnedTerminalRuntime|OwnedPromptEditor|OwnedSessionRootComponent|createProcessTerminalHost/);
