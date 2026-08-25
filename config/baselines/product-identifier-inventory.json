@@ -260,6 +260,26 @@
       "identifier": "A1_RUNTIME_DIR"
     },
     {
+      "path": "test/foundation/lifecycle/paths.test.ts",
+      "line": 82,
+      "identifier": "A1_RUNTIME_DIR"
+    },
+    {
+      "path": "test/foundation/lifecycle/paths.test.ts",
+      "line": 98,
+      "identifier": "A1_RUNTIME_DIR"
+    },
+    {
+      "path": "test/foundation/lifecycle/paths.test.ts",
+      "line": 108,
+      "identifier": "A1_ENDPOINT"
+    },
+    {
+      "path": "test/foundation/lifecycle/paths.test.ts",
+      "line": 108,
+      "identifier": "A1_RUNTIME_DIR"
+    },
+    {
       "path": "test/foundation/native-host-protocol/protocol.test.ts",
       "line": 33,
       "identifier": "A1_TERMINAL_SESSION_ID"
@@ -303,6 +323,26 @@
       "path": "test/foundation/process-containment/windows-job.integration.test.ts",
       "line": 38,
       "identifier": "A1_PROCESS_GUARDIAN_PATH"
+    },
+    {
+      "path": "test/foundation/release/update-live-cohort.test.ts",
+      "line": 51,
+      "identifier": "A1_CONFIG_DIR"
+    },
+    {
+      "path": "test/foundation/release/update-live-cohort.test.ts",
+      "line": 52,
+      "identifier": "A1_DATA_DIR"
+    },
+    {
+      "path": "test/foundation/release/update-live-cohort.test.ts",
+      "line": 53,
+      "identifier": "A1_RUNTIME_DIR"
+    },
+    {
+      "path": "test/foundation/release/update-live-cohort.test.ts",
+      "line": 54,
+      "identifier": "A1_DATABASE_PATH"
     },
     {
       "path": "test/foundation/release/update-transition.integration.test.ts",
