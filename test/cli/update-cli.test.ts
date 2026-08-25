@@ -30,7 +30,7 @@ beforeAll(async () => {
     "-p",
     resolve(isolatedBuildRoot, "tsconfig.build.json"),
     "--outDir",
-    resolve(isolatedBuildRoot, "dist", "src"),
+    resolve(isolatedBuildRoot, "dist"),
   ], { cwd: isolatedBuildRoot, timeout: 30_000 });
 }, 30_000);
 
@@ -50,7 +50,7 @@ describe("update CLI dispatch", () => {
     await writeFile(loader, `
 import { appendFileSync } from "node:fs";
 export async function resolve(specifier, context, nextResolve) {
-  if (specifier === "node-pty" || specifier.includes("/dist/src/foundation/supervision/") || specifier.includes("/dist/src/foundation/transparent-terminal/") || (process.argv.includes("version") && specifier.includes("/dist/src/foundation/release/"))) {
+  if (specifier === "node-pty" || specifier.includes("/dist/foundation/supervision/") || specifier.includes("/dist/foundation/transparent-terminal/") || (process.argv.includes("version") && specifier.includes("/dist/foundation/release/"))) {
     appendFileSync(${JSON.stringify(forbiddenImportLog)}, specifier + "\\n");
     throw new Error("Update imported forbidden interactive runtime module: " + specifier);
   }

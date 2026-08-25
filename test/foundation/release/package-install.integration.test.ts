@@ -37,8 +37,8 @@ describe("clean installation of the exact candidate", () => {
     expect(Object.keys(manifest.bin)).toEqual(["a1"]);
     expect(manifest.dependencies["@earendil-works/pi-coding-agent"]).toMatch(/^\d+\.\d+\.\d+$/);
 
-    const identityJson = JSON.parse(await readFile(resolve(packageRoot, "dist", "src", "product-identity.json"), "utf8")) as { packageName: string };
-    const identityModule = await import(pathToFileURL(resolve(packageRoot, "dist", "src", "product-identity.js")).href) as {
+    const identityJson = JSON.parse(await readFile(resolve(packageRoot, "dist", "product-identity.json"), "utf8")) as { packageName: string };
+    const identityModule = await import(pathToFileURL(resolve(packageRoot, "dist", "product-identity.js")).href) as {
       PRODUCT_IDENTITY: { packageName: string; commandName: string };
     };
     expect(identityJson.packageName).toBe("@timurproko/a1");

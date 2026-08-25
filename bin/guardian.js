@@ -2,7 +2,7 @@
 
 const { fileURLToPath } = await import("node:url");
 const { resolve } = await import("node:path");
-const { runLaunchGuardian } = await import("../dist/src/foundation/launch-guardian/index.js");
+const { runLaunchGuardian } = await import("../dist/foundation/launch-guardian/index.js");
 
 const releaseRoot = process.env.A1_RELEASE_ROOT ?? fileURLToPath(new URL("..", import.meta.url));
 const profileId = process.env.A1_LAUNCH_PROFILE ?? "a1";

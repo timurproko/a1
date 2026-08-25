@@ -18,7 +18,7 @@ describe("mutable bootstrap boundary", () => {
       readFile(resolve(repository, "bin/guardian.js"), "utf8"),
       readFile(resolve(repository, "bin/ui.js"), "utf8"),
     ]);
-    expect(bin).toContain('import("../dist/src/foundation/release/index.js")');
+    expect(bin).toContain('import("../dist/foundation/release/index.js")');
     expect(bin).not.toContain("runOwnedUi");
     expect(guardian).toContain("runLaunchGuardian");
     expect(ui).toContain("runSelectedInteractiveRuntime");

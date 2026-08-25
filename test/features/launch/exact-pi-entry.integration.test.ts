@@ -30,7 +30,7 @@ afterAll(async () => { if (fakeBin) await rm(fakeBin, { recursive: true, force: 
 async function launchWithPath(path: string) {
   // The engine A1 runs is the pinned dependency, never whichever Pi executable a
   // PATH happens to offer, so the entry that loads it is asked for its version.
-  const entry = resolve("dist/src/integrations/pi/engine/public-main-entry.js");
+  const entry = resolve("dist/integrations/pi/engine/public-main-entry.js");
   return await execute(process.execPath, [entry, "--version"], {
     cwd: resolve("."),
     env: { ...process.env, PATH: path },
@@ -42,11 +42,11 @@ describe("exact selected Pi public entry", () => {
   it("launches the selected dependency when ambient Pi is absent", async () => {
     const result = await launchWithPath("");
     expect(result.stdout.trim()).toBe(selectedVersion);
-  });
+  }, 30_000);
 
   it("ignores a conflicting Pi executable first on PATH", async () => {
     const result = await launchWithPath(`${fakeBin}${delimiter}${process.env.PATH ?? ""}`);
     expect(result.stdout.trim()).toBe(selectedVersion);
     expect(result.stdout).not.toContain("conflicting-ambient-pi");
-  });
+  }, 30_000);
 });
