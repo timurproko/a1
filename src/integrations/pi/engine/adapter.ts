@@ -68,6 +68,7 @@ const execFileAsync = promisify(execFile);
  * batch.
  */
 const EVENT_DELIVERY_BATCH = 16;
+const TOOL_UPDATE_COALESCE_MS = 50;
 
 export interface PiEngineRuntimeFactoryInput {
   readonly cwd: string;
@@ -238,6 +239,9 @@ export class PiEngineAdapter {
   readonly #messageBlockIds = new WeakMap<object, string>();
   readonly #messageFallbackIds = new Map<string, string[]>();
   readonly #toolBlockIds = new Map<string, string>();
+  readonly #pendingToolUpdates = new Map<string, Record<string, unknown>>();
+  #toolUpdateFlush: ReturnType<typeof setTimeout> | null = null;
+  #usageCache: OwnedUiUsageView | undefined;
   #nextBlockSequence = 0;
   #diagnostics: OwnedUiDiagnostics[] = [];
   readonly #eventQueue: OwnedUiEvent[] = [];
@@ -352,6 +356,7 @@ export class PiEngineAdapter {
   }
 
   async flushEvents(): Promise<void> {
+    this.#flushPendingToolUpdates();
     while (this.#eventQueueProcessing) await this.#eventQueueProcessing;
   }
 
@@ -945,7 +950,7 @@ export class PiEngineAdapter {
         ...this.#status,
         diagnostics: [...this.#status.diagnostics],
         badges: [...this.#status.badges],
-        usage: this.#readUsage(),
+        usage: this.#usageCache ??= this.#readUsage(),
         footer: {
           branch: this.#gitBranch,
           sessionName: this.#session?.sessionManager?.getSessionName() ?? null,
@@ -1012,6 +1017,11 @@ export class PiEngineAdapter {
   async dispose(): Promise<void> {
     if (this.#disposed) return;
     this.#disposed = true;
+    if (this.#toolUpdateFlush !== null) {
+      clearTimeout(this.#toolUpdateFlush);
+      this.#toolUpdateFlush = null;
+    }
+    this.#pendingToolUpdates.clear();
     this.#extensionBound = false;
     this.#extensionUi = undefined;
     this.#extensionShutdown = undefined;
@@ -1647,6 +1657,9 @@ export class PiEngineAdapter {
 
   #handlePiEvent(event: unknown): void {
     if (!isRecord(event) || typeof event.type !== "string") return;
+    // Usage moves at message and lifecycle boundaries, not with stream chunks, so the
+    // two streaming event kinds keep the memo and everything else drops it.
+    if (event.type !== "message_update" && event.type !== "tool_execution_update") this.#usageCache = undefined;
     switch (event.type) {
       case "agent_start":
         this.#agentRunActive = true;
@@ -1679,9 +1692,15 @@ export class PiEngineAdapter {
         }
         return;
       case "tool_execution_start":
-      case "tool_execution_update":
-      case "tool_execution_end":
+      case "tool_execution_end": {
+        // The end supersedes any update still waiting on the coalescing timer.
+        const toolCallId = stringValue(event.toolCallId);
+        if (toolCallId !== undefined) this.#pendingToolUpdates.delete(toolCallId);
         this.#upsertToolExecutionBlock(event);
+        return;
+      }
+      case "tool_execution_update":
+        this.#coalesceToolExecutionUpdate(event);
         return;
       case "agent_settled":
       case "agent_end": {
@@ -1976,6 +1995,33 @@ export class PiEngineAdapter {
     return blocks;
   }
 
+  /**
+   * A busy tool streams far more output chunks than a terminal frame can show, and every
+   * chunk restates the whole accumulated output. Keeping only the newest chunk per tool
+   * and applying it on a short timer bounds the per-command work by frames rather than
+   * by chunks, which is what keeps typed input and the spinner alive under the stream.
+   */
+  #coalesceToolExecutionUpdate(event: Record<string, unknown>): void {
+    const toolCallId = stringValue(event.toolCallId);
+    if (!toolCallId) return;
+    this.#pendingToolUpdates.set(toolCallId, event);
+    this.#toolUpdateFlush ??= setTimeout(() => {
+      this.#toolUpdateFlush = null;
+      if (!this.#disposed) this.#flushPendingToolUpdates();
+    }, TOOL_UPDATE_COALESCE_MS);
+  }
+
+  #flushPendingToolUpdates(): void {
+    if (this.#toolUpdateFlush !== null) {
+      clearTimeout(this.#toolUpdateFlush);
+      this.#toolUpdateFlush = null;
+    }
+    if (this.#pendingToolUpdates.size === 0) return;
+    const pending = [...this.#pendingToolUpdates.values()];
+    this.#pendingToolUpdates.clear();
+    for (const update of pending) this.#upsertToolExecutionBlock(update);
+  }
+
   #upsertToolExecutionBlock(event: Record<string, unknown>): void {
     const toolCallId = stringValue(event.toolCallId);
     if (!toolCallId) return;
@@ -1994,7 +2040,9 @@ export class PiEngineAdapter {
         toolCallId,
         toolName: stringValue(event.toolName) ?? "unknown",
         arguments: jsonSummary(event.args),
-        result: jsonSummary(source),
+        // A partial result repeats the whole accumulated output on every chunk;
+        // summarizing it each time would cost quadratic work over the stream.
+        result: ended ? jsonSummary(source) : { summary: "", json: null },
         partialResult: event.type === "tool_execution_update",
         argsComplete: ended,
         isError: event.isError === true,
@@ -2096,6 +2144,7 @@ export class PiEngineAdapter {
   }
 
   #emitView(): void {
+    this.#usageCache = undefined;
     this.#viewRevision += 1;
     this.#emitEvent({ type: "session-view", view: this.view() });
   }
