@@ -2,7 +2,7 @@
 /**
  * Cut a stable release.
  *
- *   node scripts/release.mjs <major|minor|patch|x.y.z>
+ *   node scripts/release/release.mjs <major|minor|patch|x.y.z>
  *
  * Both stable publication and development publication are deliberate requests.
  * develop takes pull requests rather than pushes, so the two version commits go
@@ -26,7 +26,7 @@ const MERGE_TIMEOUT_MS = 30 * 60_000;
 
 const target = process.argv[2];
 if (!target || (!BUMPS.has(target) && !EXACT.test(target))) {
-  process.stderr.write("Usage: node scripts/release.mjs <major|minor|patch|x.y.z>\n");
+  process.stderr.write("Usage: node scripts/release/release.mjs <major|minor|patch|x.y.z>\n");
   process.exit(2);
 }
 

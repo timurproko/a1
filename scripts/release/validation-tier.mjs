@@ -51,7 +51,7 @@ export async function createTierPlan(requested, repository = process.cwd()) {
   }
 
   if (requiresBuild) addCommand({ id: "candidate-build", executable: "npm", arguments: ["run", "build", "--silent"] }, "build-prerequisite");
-  if (consumesPackage) addCommand({ id: "candidate-pack", executable: "node", arguments: ["scripts/prepare-validation-package.mjs"] }, "package-prerequisite");
+  if (consumesPackage) addCommand({ id: "candidate-pack", executable: "node", arguments: ["scripts/release/prepare-validation-package.mjs"] }, "package-prerequisite");
   for (const { name, definition } of definitions) {
     for (const command of definition.commands ?? []) addCommand(command, name);
   }

@@ -67,7 +67,7 @@ npm run sync:pi-ui
 
 This optional, mutating presentation-maintenance workflow regenerates component and event-frame parity evidence when maintainers deliberately adopt upstream UI changes. Review generated diffs, attribution, and source-ledger records before committing them. It is never an engine candidate acceptance gate and is not run by `check`, `prepack`, or release publication.
 
-Presentation acceptance is the reader comparing `a1 pi` with pinned Pi. `node scripts/check-pinned-pi-source-ledger.mjs` validates accepted provenance; its `--engine-only` mode validates the ownership partition without comparing private upstream source.
+Presentation acceptance is the reader comparing `a1 pi` with pinned Pi. `node scripts/governance/check-pinned-pi-source-ledger.mjs` validates accepted provenance; its `--engine-only` mode validates the ownership partition without comparing private upstream source.
 
 ## Publication
 

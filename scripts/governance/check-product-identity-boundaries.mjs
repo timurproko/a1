@@ -2,7 +2,7 @@ import { access, readFile, readdir } from "node:fs/promises";
 import { relative, resolve, sep } from "node:path";
 
 const rootArgument = process.argv.indexOf("--root");
-const root = resolve(rootArgument >= 0 ? process.argv[rootArgument + 1] : new URL("..", import.meta.url).pathname.replace(/^\/(.:)/, "$1"));
+const root = resolve(rootArgument >= 0 ? process.argv[rootArgument + 1] : new URL("../..", import.meta.url).pathname.replace(/^\/(.:)/, "$1"));
 const errors = [];
 
 const identity = await json("src/product-identity.json", "product identity");

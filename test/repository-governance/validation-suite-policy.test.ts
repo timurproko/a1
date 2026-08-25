@@ -61,7 +61,7 @@ describe("validation suite ownership", () => {
 
   it("maps every mandatory release contract to one declared tier or scope", async () => {
     const suites = JSON.parse(await readFile("config/validation-suites.json", "utf8")) as SuiteManifest;
-    const releaseSource = await readFile("scripts/run-release-gates.mjs", "utf8");
+    const releaseSource = await readFile("scripts/release/run-release-gates.mjs", "utf8");
     const declaredOwners = new Set([...Object.keys(suites.tiers), ...Object.keys(suites.scopes)]);
 
     expect(Object.keys(suites.releaseContracts)).toHaveLength(8);

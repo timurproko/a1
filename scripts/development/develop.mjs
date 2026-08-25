@@ -6,7 +6,7 @@ import {
   dispatchPublication,
   registryVersion,
   resolveDevelopPreview,
-} from "./publication-client.mjs";
+} from "../release/publication-client.mjs";
 
 function log(message) { process.stdout.write(`[develop] ${message}\n`); }
 

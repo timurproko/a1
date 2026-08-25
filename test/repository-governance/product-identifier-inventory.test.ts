@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
-import { inspectProductIdentifiers, inspectTypeScript } from "../../scripts/product-identifier-policy.mjs";
+import { inspectProductIdentifiers, inspectTypeScript } from "../../scripts/governance/product-identifier-policy.mjs";
 
 describe("repository-global semantic identifier inventory", () => {
   it("reproduces the checked inventory and preserves the cleanup baseline", async () => {

@@ -2,7 +2,7 @@ import { readFile, readdir, stat } from "node:fs/promises";
 import { extname, relative, resolve, sep } from "node:path";
 
 const rootIndex = process.argv.indexOf("--root");
-const root = resolve(rootIndex >= 0 ? process.argv[rootIndex + 1] : new URL("..", import.meta.url).pathname.replace(/^\/(.:)/, "$1"));
+const root = resolve(rootIndex >= 0 ? process.argv[rootIndex + 1] : new URL("../..", import.meta.url).pathname.replace(/^\/(.:)/, "$1"));
 const errors = [];
 const production = {};
 

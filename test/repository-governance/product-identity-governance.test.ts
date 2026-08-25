@@ -5,11 +5,11 @@ import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
-import { writeLegacyIdentityInventory, type LegacyIdentityOccurrence } from "../../scripts/product-identity-inventory.mjs";
+import { writeLegacyIdentityInventory, type LegacyIdentityOccurrence } from "../../scripts/governance/product-identity-inventory.mjs";
 
 const roots: string[] = [];
 const repository = resolve(fileURLToPath(new URL("../..", import.meta.url)));
-const script = resolve(repository, "scripts/check-package-identity.mjs");
+const script = resolve(repository, "scripts/governance/check-package-identity.mjs");
 afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))));
 
 describe("inventory-driven product identity governance", () => {

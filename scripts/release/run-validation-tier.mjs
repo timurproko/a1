@@ -3,7 +3,7 @@ import { dirname, resolve } from "node:path";
 import { createTierPlan, runTierPlan } from "./validation-tier.mjs";
 
 const requested = selectionFromEnvironment() ?? positionalArguments();
-if (requested.length === 0) throw new Error("usage: node scripts/run-validation-tier.mjs <tier-or-scope> [...] or set VALIDATION_SELECTION_JSON");
+if (requested.length === 0) throw new Error("usage: node scripts/release/run-validation-tier.mjs <tier-or-scope> [...] or set VALIDATION_SELECTION_JSON");
 const plan = await createTierPlan(requested);
 
 if (process.argv.includes("--plan")) {

@@ -16,11 +16,11 @@ describe("complete regression automation", () => {
   it("builds and packs once before the complete deduplicated suite", async () => {
     const workflow = await readFile(".github/workflows/full-regression.yml", "utf8");
     expect(workflow.match(/run: npm ci/g)).toHaveLength(1);
-    expect(workflow.match(/run: node scripts\/prepare-validation-package\.mjs/g)).toHaveLength(1);
+    expect(workflow.match(/run: node scripts\/release\/prepare-validation-package\.mjs/g)).toHaveLength(1);
     expect(workflow).toContain("VALIDATION_SELECTION_JSON: '[\"full-release\"]'");
     expect(workflow).toContain('VALIDATION_BUILD_READY: "1"');
     expect(workflow).toContain("VALIDATION_CANDIDATE_TARBALL:");
-    expect(workflow).toContain("node scripts/run-validation-tier.mjs --result .artifacts/validation/full-regression.json");
+    expect(workflow).toContain("node scripts/release/run-validation-tier.mjs --result .artifacts/validation/full-regression.json");
   });
 
   it("reports owned failures and timings without publication authority", async () => {

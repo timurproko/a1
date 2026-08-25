@@ -19,7 +19,7 @@ try {
     failure = { gate: outcome?.id ?? "unknown", command: outcome?.command ?? "unknown", exitCode: outcome?.exitCode ?? 1 };
   }
 } catch (error) {
-  failure = { gate: "validation-orchestration", command: "node scripts/run-validation-tier.mjs full-release", exitCode: 1, message: error instanceof Error ? error.message : String(error) };
+  failure = { gate: "validation-orchestration", command: "node scripts/release/run-validation-tier.mjs full-release", exitCode: 1, message: error instanceof Error ? error.message : String(error) };
 }
 
 const verdictDirectory = resolve(".artifacts", "release-verdicts");

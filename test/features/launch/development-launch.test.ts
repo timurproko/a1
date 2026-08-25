@@ -84,9 +84,9 @@ describe("repository-local development launch", () => {
     const environment = { ...process.env, A1_PROFILE_HOME: profileHome, PI_CODING_AGENT_DIR: inheritedPiProfile };
     try {
       const [owned, pi, sandbox] = await Promise.all([
-        execute(process.execPath, ["scripts/start-local.mjs", "--print-environment"], { env: environment }),
-        execute(process.execPath, ["scripts/start-local.mjs", "--print-environment", "pi"], { env: environment }),
-        execute(process.execPath, ["scripts/start-local.mjs", "--print-environment", "sandbox"], { env: environment }),
+        execute(process.execPath, ["scripts/development/start-local.mjs", "--print-environment"], { env: environment }),
+        execute(process.execPath, ["scripts/development/start-local.mjs", "--print-environment", "pi"], { env: environment }),
+        execute(process.execPath, ["scripts/development/start-local.mjs", "--print-environment", "sandbox"], { env: environment }),
       ]);
       expect(JSON.parse(owned.stdout)).toMatchObject({
         launchArguments: [],
@@ -113,7 +113,7 @@ describe("repository-local development launch", () => {
   });
 
   it("preserves CLI validation for non-profile development commands", async () => {
-    await expect(execute(process.execPath, ["scripts/start-local.mjs", "not-an-a1-command"]))
+    await expect(execute(process.execPath, ["scripts/development/start-local.mjs", "not-an-a1-command"]))
       .rejects.toMatchObject({ code: 2, stderr: expect.stringContaining("A1 received an unknown command: not-an-a1-command") });
   });
 });
