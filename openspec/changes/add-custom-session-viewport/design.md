@@ -95,7 +95,7 @@ Alternative considered: take over all terminal input. Rejected because the viewp
 - speed: `normal | high`, mapped centrally to three or six lines per wheel event;
 - visible reasons: always, pointer proximity, recent activity, or drag latch;
 - stable rail-column reservation;
-- track/thumb cell selection through theme roles;
+- a connected dim `│` track with accent `│` thin thumbs, accent `┃` thick thumbs, and temporary `┃` hot-thumb emphasis through theme roles;
 - a bounded activity expiry supplied with `now` in tests rather than hidden global time.
 
 The custom viewport composes those cells over the final visible transcript column with the existing ANSI-safe overlay primitive. It only applies expensive span composition to visible rows. `hidden` renders and reserves nothing; fitting content always renders and reserves nothing. Wheel routing asks the same policy for the selected three-line or six-line delta; appearance and style never multiply it.

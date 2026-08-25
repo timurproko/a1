@@ -34,11 +34,12 @@ describe("scrollbar presentation", () => {
     expect(scrollbarWheelLines("high")).toBe(6);
   });
 
-  it("changes glyph weight without changing geometry", () => {
+  it("keeps a connected hairline track and thickens only the selected or hot thumb", () => {
     expect(scrollbarGlyph("thin", false)).toBe("│");
-    expect(scrollbarGlyph("thin", true)).toBe("┃");
-    expect(scrollbarGlyph("thick", false)).toBe("▐");
-    expect(scrollbarGlyph("thick", true)).toBe("█");
+    expect(scrollbarGlyph("thin", true)).toBe("│");
+    expect(scrollbarGlyph("thick", false)).toBe("│");
+    expect(scrollbarGlyph("thick", true)).toBe("┃");
+    expect(scrollbarGlyph("thin", true, true)).toBe("┃");
   });
 });
 

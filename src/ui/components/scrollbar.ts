@@ -46,9 +46,13 @@ export function scrollbarPresentation(input: ScrollbarPresentationInput): Scroll
   };
 }
 
-export function scrollbarGlyph(style: ScrollbarStyle, thumb: boolean): string {
-  if (style === "thick") return thumb ? "█" : "▐";
-  return thumb ? "┃" : "│";
+/**
+ * A connected one-cell rail matching the reference: the track is always a
+ * hairline, while a thick or hot thumb uses the centered heavy vertical line.
+ */
+export function scrollbarGlyph(style: ScrollbarStyle, thumb: boolean, hot = false): string {
+  if (!thumb) return "│";
+  return style === "thick" || hot ? "┃" : "│";
 }
 
 export interface ScrollbarGeometry {

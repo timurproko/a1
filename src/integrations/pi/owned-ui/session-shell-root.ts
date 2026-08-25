@@ -254,10 +254,9 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       style: this.#scrollbarStyle,
       speed: this.#scrollbarSpeed,
       theme: {
-        scrollbar: (glyph, part, state) => {
-          const painted = part === "thumb" ? theme.bg("scrollbarThumb", glyph) : theme.fg("dim", glyph);
-          return state === "idle" ? painted : theme.bold(painted);
-        },
+        scrollbar: (glyph, part) => part === "thumb"
+          ? theme.fg("accent", glyph)
+          : theme.fg("dim", glyph),
         bottomControl: (text, pointed) => theme.bg("selectedBg", pointed
           ? theme.bold(theme.fg("accent", text))
           : theme.fg("text", text)),

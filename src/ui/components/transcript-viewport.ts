@@ -170,7 +170,11 @@ export class TranscriptViewport {
       const state = this.#rails.isDragging(RAIL_KEY) ? "drag" : this.#rails.isHovered(RAIL_KEY) ? "hover" : "idle";
       for (let row = 0; row < transcriptHeight; row += 1) {
         const thumb = isThumbRow(geometry, row);
-        const glyph = input.theme.scrollbar(scrollbarGlyph(input.style, thumb), thumb ? "thumb" : "track", state);
+        const glyph = input.theme.scrollbar(
+          scrollbarGlyph(input.style, thumb, state !== "idle"),
+          thumb ? "thumb" : "track",
+          state,
+        );
         transcriptRows[row] = overlaySpan(transcriptRows[row] ?? "", width - 1, width, glyph);
       }
     }
