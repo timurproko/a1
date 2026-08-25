@@ -30,7 +30,7 @@ const UPDATE_DIST_TAGS: Readonly<Record<UpdateChannel, "latest" | "next">> = { s
  * a release, and that is the word the repository, its tags, and its GitHub
  * releases all use.
  */
-const UPDATE_CHANNEL_LABELS: Readonly<Record<UpdateChannel, string>> = { stable: "release", next: "next" };
+const UPDATE_CHANNEL_LABELS: Readonly<Record<UpdateChannel, string>> = { stable: "release", next: "develop" };
 
 export interface ProcessRequest { captureStdout: boolean }
 export interface ProcessResult { code: number | null; stdout: string }
@@ -63,7 +63,7 @@ export interface UpdatePerformanceEvidence {
 export interface SelfUpdateOptions {
   packageRoot: string;
   channel?: UpdateChannel;
-  /** A specific preview to install, named by its commit or its full version. */
+  /** A specific preview to install, named by its development number or full version. */
   target?: string;
   environment?: NodeJS.ProcessEnv;
   fileSystem?: UpdateFileSystem;
@@ -300,11 +300,12 @@ interface ResolvedTarget { readonly version: string | null; readonly exitCode: n
 
 /** The newest version the channel points at, which is what an unqualified update takes. */
 async function resolveChannelHead(runner: UpdateProcessRunner, distTag: string, output: UpdateOutput): Promise<ResolvedTarget> {
-  const lookup = await runNpm(runner, ["view", `${PRODUCT_PACKAGE}@${distTag}`, "version"], true, output, `query the npm ${distTag} channel`);
+  const publicChannel = distTag === "next" ? "development" : "release";
+  const lookup = await runNpm(runner, ["view", `${PRODUCT_PACKAGE}@${distTag}`, "version"], true, output, `query the npm ${publicChannel} channel`);
   if (lookup.result === null) return { version: null, exitCode: lookup.exitCode };
   const version = validSemver(lookup.result.stdout.trim());
   if (version === null) {
-    output.stderr(`${PRODUCT_TEXT.diagnostic(`received a malformed ${distTag} version from npm: ${JSON.stringify(lookup.result.stdout.trim())}.`)}\n`);
+    output.stderr(`${PRODUCT_TEXT.diagnostic(`received a malformed ${publicChannel} channel version from npm: ${JSON.stringify(lookup.result.stdout.trim())}.`)}\n`);
     return { version: null, exitCode: 1 };
   }
   return { version, exitCode: 0 };
@@ -313,14 +314,10 @@ async function resolveChannelHead(runner: UpdateProcessRunner, distTag: string, 
 /**
  * Resolve a preview the caller named.
  *
- * A preview is published as `<version>-dev.<commit>`, so its commit is enough to
- * say which one is wanted — the version in front of it is not something anyone
- * should have to remember. A full version is accepted too, for anyone reading one
- * back from `a1 version` or a changelog.
- *
- * The published list is the authority: naming a commit that was never published,
- * or one published more than once under different versions, is an error rather
- * than a guess.
+ * A preview is published as `<version>-dev.<pull-request-number>`, so its decimal
+ * development number is enough to identify it. A full version is accepted too.
+ * The published list remains authoritative: nothing is constructed from the
+ * installed package's base version.
  */
 async function resolveRequestedPreview(runner: UpdateProcessRunner, requested: string, output: UpdateOutput): Promise<ResolvedTarget> {
   const lookup = await runNpm(runner, ["view", PRODUCT_PACKAGE, "versions", "--json"], true, output, "list the published versions");
@@ -337,8 +334,7 @@ async function resolveRequestedPreview(runner: UpdateProcessRunner, requested: s
   const exact = versions.find(version => version === requested);
   if (exact !== undefined) {
     // Naming a release here would install it through the preview path, which is a
-    // different command with a different meaning. The commit form cannot express
-    // one, so only the fuller spelling of a preview reaches this.
+    // different command with a different meaning.
     if (!exact.includes("-dev.")) {
       output.stderr(`${PRODUCT_TEXT.diagnostic(`${exact} is a release, not a preview; run ${PRODUCT_TEXT.commandName} update to move to the current release.`)}\n`);
       return { version: null, exitCode: 1 };
