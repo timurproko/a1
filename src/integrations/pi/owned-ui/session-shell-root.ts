@@ -7,9 +7,11 @@ import type {
 import type { UiRouteHost } from "./route-host.js";
 import {
   TranscriptViewport,
+  composeTimestampedPromptRows,
   faint,
   type PaneMouseEvent,
   type ScrollbarAppearance,
+  type ScrollbarSpeed,
   type ScrollbarStyle,
   type TranscriptPromptAnchor,
   type TranscriptViewportDocument,
@@ -105,6 +107,7 @@ export interface OwnedUiSessionShellOptions {
   readonly customViewport?: {
     readonly appearance: ScrollbarAppearance;
     readonly style: ScrollbarStyle;
+    readonly speed?: ScrollbarSpeed;
   };
 }
 
@@ -144,6 +147,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   readonly #viewport: TranscriptViewport | null;
   #scrollbarAppearance: ScrollbarAppearance;
   #scrollbarStyle: ScrollbarStyle;
+  #scrollbarSpeed: ScrollbarSpeed;
 
   constructor(
     view: OwnedUiSessionViewModel,
@@ -170,12 +174,17 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       getMessageRenderer: () => undefined,
       getToolDefinition: () => undefined,
     },
-    viewport?: { readonly appearance: ScrollbarAppearance; readonly style: ScrollbarStyle },
+    viewport?: {
+      readonly appearance: ScrollbarAppearance;
+      readonly style: ScrollbarStyle;
+      readonly speed?: ScrollbarSpeed;
+    },
   ) {
     this.#view = view;
     this.#viewport = viewport === undefined ? null : new TranscriptViewport();
     this.#scrollbarAppearance = viewport?.appearance ?? "hover";
     this.#scrollbarStyle = viewport?.style ?? "thin";
+    this.#scrollbarSpeed = viewport?.speed ?? "normal";
     this.#cwd = cwd;
     this.#extensionRenderers = extensionRenderers;
     this.#componentRuntime = handlers;
@@ -221,9 +230,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.#blocksById.set(block.id, block);
     const component = this.#transcript.get(block.id);
     if (component === undefined) {
-      const created = createPiShellTranscriptComponent(block, this.#cwd, this.#extensionRenderers, {
-        timestampUserPrompts: this.#viewport !== null,
-      });
+      const created = createPiShellTranscriptComponent(block, this.#cwd, this.#extensionRenderers);
       created.setExpanded(this.#toolsExpanded);
       this.#transcript.set(block.id, created);
       this.#transcriptOrder.push(block.id);
@@ -245,6 +252,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       renderDocument: contentWidth => this.#renderViewportDocument(contentWidth),
       appearance: this.#scrollbarAppearance,
       style: this.#scrollbarStyle,
+      speed: this.#scrollbarSpeed,
       theme: {
         scrollbar: (glyph, part, state) => {
           const painted = part === "thumb" ? theme.bg("scrollbarThumb", glyph) : theme.fg("dim", glyph);
@@ -282,9 +290,10 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.#viewport?.clearTransient();
   }
 
-  setViewportScrollbar(appearance: ScrollbarAppearance, style: ScrollbarStyle): void {
+  setViewportScrollbar(appearance: ScrollbarAppearance, style: ScrollbarStyle, speed: ScrollbarSpeed): void {
     this.#scrollbarAppearance = appearance;
     this.#scrollbarStyle = style;
+    this.#scrollbarSpeed = speed;
     this.#componentRuntime.requestRender();
   }
 
@@ -400,13 +409,37 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   #blockRows(id: string, block: OwnedUiSessionViewModel["transcript"][number] | undefined, width: number): readonly string[] {
     const component = this.#transcript.get(id);
     if (component === undefined) return [];
-    if (block === undefined || block.status !== "finalized") return component.render(width);
+    if (block === undefined || block.status !== "finalized") return this.#renderBlock(component, block, width);
 
     const cached = this.#renderedRows.get(id);
     if (cached && cached.width === width && cached.revision === block.revision) return cached.rows;
-    const rows = component.render(width);
+    const rows = this.#renderBlock(component, block, width);
     this.#renderedRows.set(id, { width, revision: block.revision, rows });
     return rows;
+  }
+
+  #renderBlock(
+    component: PiShellTranscriptComponentPort,
+    block: OwnedUiSessionViewModel["transcript"][number] | undefined,
+    width: number,
+  ): readonly string[] {
+    if (this.#viewport === null || block?.kind !== "user") return component.render(width);
+    const payload = typeof block.payload === "object" && block.payload !== null
+      ? block.payload as Record<string, unknown>
+      : {};
+    const sourceTimestamp = payload.timestamp;
+    if (typeof sourceTimestamp !== "number" || !Number.isFinite(sourceTimestamp) || sourceTimestamp <= 0) {
+      return component.render(width);
+    }
+    const theme = piTheme();
+    return composeTimestampedPromptRows({
+      width,
+      sourceTimestamp,
+      render: contentWidth => component.render(contentWidth),
+      decorateSuffix: (text, firstRow) => theme.bg("userMessageBg", firstRow
+        ? `  ${theme.fg("dim", text.slice(2))}`
+        : text),
+    });
   }
 
   transcriptComponent(id: string): PiShellTranscriptComponentPort | undefined {
@@ -666,9 +699,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     for (const block of blocks) {
       const component = this.#transcript.get(block.id);
       if (component === undefined) {
-        const created = createPiShellTranscriptComponent(block, this.#cwd, this.#extensionRenderers, {
-          timestampUserPrompts: this.#viewport !== null,
-        });
+        const created = createPiShellTranscriptComponent(block, this.#cwd, this.#extensionRenderers);
         created.setExpanded(this.#toolsExpanded);
         this.#transcript.set(block.id, created);
       } else if (component.revision !== block.revision) {

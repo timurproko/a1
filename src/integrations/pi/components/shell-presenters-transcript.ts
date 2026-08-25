@@ -23,7 +23,6 @@ import type {
   OwnedUiTranscriptBlock,
 } from "../../../contracts/owned-ui/index.js";
 import { PRODUCT_TEXT } from "../../../product-identity.js";
-import { composeTimestampedPromptRows } from "../../../ui/components/index.js";
 import {
   KeybindingsManager,
 } from "./upstream/adjacent/core/keybindings.js";
@@ -175,13 +174,11 @@ export function createPiShellTranscriptComponent(
   initial: OwnedUiTranscriptBlock,
   cwd: string,
   extensions?: PiShellExtensionRendererResolver,
-  options: { readonly timestampUserPrompts?: boolean } = {},
 ): PiShellTranscriptComponentPort {
   ensureTheme();
   let block = initial;
   let expanded = false;
-  const timestampUserPrompts = options.timestampUserPrompts === true;
-  let component = transcriptComponent(block, cwd, expanded, extensions, timestampUserPrompts);
+  let component = transcriptComponent(block, cwd, expanded, extensions);
   return {
     get id() { return block.id; },
     get revision() { return block.revision; },
@@ -192,7 +189,7 @@ export function createPiShellTranscriptComponent(
       const previous = block;
       block = next;
       if (!updateTranscriptComponent(component, previous, next, expanded)) {
-        component = transcriptComponent(block, cwd, expanded, extensions, timestampUserPrompts);
+        component = transcriptComponent(block, cwd, expanded, extensions);
       }
     },
     setExpanded(next) {
@@ -201,7 +198,7 @@ export function createPiShellTranscriptComponent(
       if ("setExpanded" in component && typeof component.setExpanded === "function") {
         component.setExpanded(expanded);
       } else {
-        component = transcriptComponent(block, cwd, expanded, extensions, timestampUserPrompts);
+        component = transcriptComponent(block, cwd, expanded, extensions);
       }
     },
   };
@@ -262,26 +259,19 @@ function transcriptComponent(
   cwd: string,
   expanded: boolean,
   extensions?: PiShellExtensionRendererResolver,
-  timestampUserPrompts = false,
 ): Component {
   switch (block.kind) {
     case "user": {
       const skill = parseSkillBlock(block.text);
-      let user: Component;
-      if (!skill) user = new UserMessageComponent(block.text);
-      else {
-        const invocation = new SkillInvocationMessageComponent(skill, getMarkdownTheme());
-        invocation.setExpanded(expanded);
-        if (!skill.userMessage) user = invocation;
-        else {
-          const container = new Container();
-          container.addChild(invocation);
-          container.addChild(new Spacer(1));
-          container.addChild(new UserMessageComponent(skill.userMessage));
-          user = container;
-        }
-      }
-      return timestampUserPrompts ? timestampedUserComponent(user, numericPayload(block, "timestamp")) : user;
+      if (!skill) return new UserMessageComponent(block.text);
+      const invocation = new SkillInvocationMessageComponent(skill, getMarkdownTheme());
+      invocation.setExpanded(expanded);
+      if (!skill.userMessage) return invocation;
+      const container = new Container();
+      container.addChild(invocation);
+      container.addChild(new Spacer(1));
+      container.addChild(new UserMessageComponent(skill.userMessage));
+      return container;
     }
     case "assistant":
     case "thinking":
@@ -313,24 +303,6 @@ function transcriptComponent(
     case "bash":
       return bashExecutionComponent(block, cwd, expanded);
   }
-}
-
-function timestampedUserComponent(component: Component, sourceTimestamp: number): Component {
-  if (!Number.isFinite(sourceTimestamp) || sourceTimestamp <= 0) return component;
-  return {
-    render(width: number): string[] {
-      const theme = piTheme();
-      return [...composeTimestampedPromptRows({
-        width,
-        sourceTimestamp,
-        render: contentWidth => component.render(contentWidth),
-        decorateSuffix: (text, firstRow) => theme.bg("userMessageBg", firstRow
-          ? `  ${theme.fg("dim", text.slice(2))}`
-          : text),
-      })];
-    },
-    invalidate: () => component.invalidate(),
-  };
 }
 
 function updateTranscriptComponent(

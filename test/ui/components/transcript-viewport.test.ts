@@ -29,6 +29,7 @@ function render(
     renderDocument: document(rows, options.prompts),
     appearance: options.appearance ?? "hover",
     style: "thin",
+    speed: "normal",
     theme,
     now: options.now ?? 0,
   });
@@ -67,7 +68,7 @@ describe("TranscriptViewport", () => {
     render(viewport, ["0", "1", "2", "3", "4", "5"]);
     viewport.onMouse({ kind: "wheel-up", button: 0, column: 5, row: 2 }, 10);
     render(viewport, ["0", "1", "2", "3", "4", "5", "6"], { now: 11 });
-    expect(viewport.state.scrollTop).toBe(1);
+    expect(viewport.state.scrollTop).toBe(0);
     expect(viewport.state.followingEnd).toBe(false);
 
     const activated = viewport.onMouse({ kind: "press", button: 0, column: 15, row: 4 }, 12);
@@ -89,16 +90,42 @@ describe("TranscriptViewport", () => {
     expect(viewport.state.followingEnd).toBe(false);
   });
 
+  it("scrolls three lines at normal speed and six at high speed", () => {
+    const rows = Array.from({ length: 20 }, (_, index) => String(index));
+    const normal = new TranscriptViewport();
+    render(normal, rows);
+    const normalBefore = normal.state.scrollTop;
+    normal.onMouse({ kind: "wheel-up", button: 0, column: 3, row: 2 });
+    expect(normal.state.scrollTop).toBe(normalBefore - 3);
+
+    const high = new TranscriptViewport();
+    high.render({
+      width: 20,
+      height: 6,
+      dockRows: ["editor", "footer"],
+      renderDocument: document(rows),
+      appearance: "hover",
+      style: "thin",
+      speed: "high",
+      theme,
+      now: 0,
+    });
+    const highBefore = high.state.scrollTop;
+    high.onMouse({ kind: "wheel-up", button: 0, column: 3, row: 2 });
+    expect(high.state.scrollTop).toBe(highBefore - 6);
+  });
+
   it("reserves and reveals a hover rail without changing wheel distance", () => {
     const viewport = new TranscriptViewport();
-    render(viewport, ["0", "1", "2", "3", "4", "5"], { now: 2_000 });
+    const rows = Array.from({ length: 10 }, (_, index) => String(index));
+    render(viewport, rows, { now: 2_000 });
     expect(viewport.state.scrollbarVisible).toBe(false);
     const before = viewport.state.scrollTop;
     viewport.onMouse({ kind: "motion", button: 0, column: 20, row: 2 }, 2_001);
-    render(viewport, ["0", "1", "2", "3", "4", "5"], { now: 2_002 });
+    render(viewport, rows, { now: 2_002 });
     expect(viewport.state.scrollbarVisible).toBe(true);
     viewport.onMouse({ kind: "wheel-up", button: 0, column: 3, row: 2 }, 2_003);
-    expect(viewport.state.scrollTop).toBe(before - 1);
+    expect(viewport.state.scrollTop).toBe(before - 3);
   });
 
   it("draws and exposes no rail in hidden mode", () => {

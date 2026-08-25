@@ -21,7 +21,7 @@ describe("owned UI setting declarations", () => {
     }
   });
 
-  it("declares only appearance and style controls for the custom scrollbar", () => {
+  it("declares appearance, style, and two explicit wheel speeds for the custom scrollbar", () => {
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "scrollbarAppearance")).toMatchObject({
       application: "live",
       defaultValue: "hover",
@@ -32,7 +32,11 @@ describe("owned UI setting declarations", () => {
       defaultValue: "thin",
       allowedValues: ["thin", "thick"],
     });
-    expect(OWNED_UI_SETTING_DECLARATIONS.some(declaration => declaration.id.toLowerCase().includes("speed"))).toBe(false);
+    expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "scrollbarSpeed")).toMatchObject({
+      application: "live",
+      defaultValue: "normal",
+      allowedValues: ["normal", "high"],
+    });
   });
 
   it("rejects a default outside the allowed values", () => {

@@ -3,7 +3,7 @@ import { applyConfiguredPiTheme, getAvailablePiThemes } from "../integrations/pi
 import { createPiEngineAdapter, type PiEngineAdapter } from "../integrations/pi/engine/index.js";
 import { OwnedUiSessionShell } from "../integrations/pi/owned-ui/index.js";
 import { OwnedUiSettingsSession, OwnedUiSettingsStore } from "../ui/settings/index.js";
-import type { ScrollbarAppearance, ScrollbarStyle } from "../ui/components/index.js";
+import type { ScrollbarAppearance, ScrollbarSpeed, ScrollbarStyle } from "../ui/components/index.js";
 import { createPiTerminalBridge } from "../integrations/pi/tui-runtime/index.js";
 import type { OwnedUiApplicationPort, PresentationTerminalPort } from "../contracts/presentation/index.js";
 import { createOwnedRouteHost } from "./settings-route-host.js";
@@ -54,6 +54,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     ? {
         appearance: scrollbarAppearance(settings?.value("scrollbarAppearance")),
         style: scrollbarStyle(settings?.value("scrollbarStyle")),
+        speed: scrollbarSpeed(settings?.value("scrollbarSpeed")),
       }
     : undefined;
   const shell = new OwnedUiSessionShell({
@@ -68,6 +69,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     : settings.onChange(session => shell.root.setViewportScrollbar(
         scrollbarAppearance(session.value("scrollbarAppearance")),
         scrollbarStyle(session.value("scrollbarStyle")),
+        scrollbarSpeed(session.value("scrollbarSpeed")),
       ));
   const application: OwnedUiApplicationPort = {
     get disposed() { return adapter.disposed; },
@@ -88,4 +90,8 @@ function scrollbarAppearance(value: unknown): ScrollbarAppearance {
 
 function scrollbarStyle(value: unknown): ScrollbarStyle {
   return value === "thick" ? "thick" : "thin";
+}
+
+function scrollbarSpeed(value: unknown): ScrollbarSpeed {
+  return value === "high" ? "high" : "normal";
 }

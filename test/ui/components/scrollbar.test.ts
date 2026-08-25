@@ -8,6 +8,7 @@ import {
   scrollbarGlyph,
   scrollbarPresentation,
   scrollbarReservesSpace,
+  scrollbarWheelLines,
   type RailPosition,
 } from "../../../src/ui/components/index.js";
 
@@ -26,6 +27,11 @@ describe("scrollbar presentation", () => {
     expect(scrollbarPresentation({ ...input, appearance: "hover", lastActivityAt: 1_500 })).toMatchObject({ reservesColumn: true, visible: true });
     expect(scrollbarPresentation({ ...input, appearance: "hover", lastActivityAt: 0 })).toMatchObject({ reservesColumn: true, visible: false });
     expect(scrollbarPresentation({ ...input, appearance: "hidden" })).toMatchObject({ reservesColumn: false, visible: false });
+  });
+
+  it("maps normal and high speed to the declared wheel distances", () => {
+    expect(scrollbarWheelLines("normal")).toBe(3);
+    expect(scrollbarWheelLines("high")).toBe(6);
   });
 
   it("changes glyph weight without changing geometry", () => {

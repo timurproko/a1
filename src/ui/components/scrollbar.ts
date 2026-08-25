@@ -6,6 +6,11 @@
 
 export type ScrollbarAppearance = "always" | "hover" | "hidden";
 export type ScrollbarStyle = "thin" | "thick";
+export type ScrollbarSpeed = "normal" | "high";
+
+export function scrollbarWheelLines(speed: ScrollbarSpeed): number {
+  return speed === "high" ? 6 : 3;
+}
 
 export const SCROLLBAR_ACTIVITY_LINGER_MS = 900;
 

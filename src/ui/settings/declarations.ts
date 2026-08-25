@@ -37,6 +37,13 @@ export const OWNED_UI_SETTING_DECLARATIONS: readonly OwnedUiSettingDeclaration[]
     defaultValue: "thin",
     allowedValues: Object.freeze(["thin", "thick"]),
   }),
+  Object.freeze({
+    id: "scrollbarSpeed",
+    description: "Wheel distance in the custom transcript viewport: normal is 3 lines and high is 6 lines.",
+    application: "live",
+    defaultValue: "normal",
+    allowedValues: Object.freeze(["normal", "high"]),
+  }),
 ] satisfies readonly OwnedUiSettingDeclaration[]);
 
 export function assertOwnedUiSettingDeclarations(declarations: readonly OwnedUiSettingDeclaration[]): void {

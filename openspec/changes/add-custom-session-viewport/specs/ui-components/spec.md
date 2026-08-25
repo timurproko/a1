@@ -5,7 +5,7 @@ A1 SHALL provide one scrollbar with declared geometry derived from content lengt
 
 For overflowing content, the shared scrollbar SHALL accept an appearance of `always`, `hover`, or `hidden` and a style of `thin` or `thick`. `always` SHALL draw the rail whenever content overflows. `hover` SHALL draw it while its pointer zone is active, while its thumb is being dragged, and for a bounded linger after that rail scrolls; it SHALL keep the same rail column reserved while temporarily invisible so appearing does not reflow content. `hidden` SHALL draw no rail, reserve no rail column, and expose no interactive thumb or track. The selected style SHALL change the rail's declared glyph weight without changing its geometry or hit target. Track, thumb, hover, and drag emphasis SHALL use declared theme roles rather than literal terminal colors.
 
-Scrollbar appearance and style SHALL NOT change how far a wheel event scrolls. A scroll-speed policy is outside this component contract.
+The shared scrollbar SHALL accept a speed of `normal` or `high`. Normal SHALL map one wheel event to three lines and high SHALL map one wheel event to six lines. Appearance and style SHALL NOT change that selected wheel distance.
 
 #### Scenario: Content fits the viewport
 - **WHEN** content is no longer than the viewport
@@ -53,6 +53,14 @@ Scrollbar appearance and style SHALL NOT change how far a wheel event scrolls. A
 - **WHEN** two scrollable surfaces are visible and the pointer is over or scrolling one rail
 - **THEN** only that rail SHALL report activity or hover, and dragging it SHALL NOT scroll or reveal the other
 
-#### Scenario: Style does not set wheel speed
+#### Scenario: Use normal wheel speed
+- **WHEN** scrollbar speed is `normal`
+- **THEN** one wheel event SHALL request three lines in its direction
+
+#### Scenario: Use high wheel speed
+- **WHEN** scrollbar speed is `high`
+- **THEN** one wheel event SHALL request six lines in its direction
+
+#### Scenario: Appearance and style do not set wheel speed
 - **WHEN** appearance or style changes
-- **THEN** the distance of a wheel scroll SHALL remain unchanged
+- **THEN** the wheel distance selected by `scrollbarSpeed` SHALL remain unchanged

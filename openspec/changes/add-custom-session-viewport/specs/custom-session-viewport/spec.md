@@ -29,11 +29,19 @@ The complete frame SHALL remain within the current terminal width and height. A 
 - **AND** the dock SHALL remain pinned while transcript wrapping, viewport height, scrollbar geometry, and hit regions update to the new size
 
 ### Requirement: Transcript scrolling has explicit follow and detached states
-The viewport SHALL begin by following the end of the transcript. A scroll away from the end SHALL detach the viewport and preserve the visible transcript position while new content is appended. Reaching the end, submitting a prompt, or activating the scroll-to-bottom control SHALL restore end following. Scrolling SHALL clamp at the first and last transcript rows without wrapping.
+The viewport SHALL begin by following the end of the transcript. A scroll away from the end SHALL detach the viewport and preserve the visible transcript position while new content is appended. Reaching the end, submitting a prompt, or activating the scroll-to-bottom control SHALL restore end following. Scrolling SHALL clamp at the first and last transcript rows without wrapping. Each wheel event SHALL move three lines at the default normal speed or six lines at high speed.
 
 #### Scenario: Stream while following
 - **WHEN** transcript rows are appended while the viewport follows the end
 - **THEN** the viewport SHALL advance so the newest row remains visible above the dock
+
+#### Scenario: Scroll at the default speed
+- **WHEN** the reader sends one wheel event with `scrollbarSpeed` set to its default `normal`
+- **THEN** the viewport SHALL request three transcript lines in that direction and clamp at an edge
+
+#### Scenario: Scroll at high speed
+- **WHEN** the reader sends one wheel event with `scrollbarSpeed` set to `high`
+- **THEN** the viewport SHALL request six transcript lines in that direction and clamp at an edge
 
 #### Scenario: Scroll away from the end
 - **WHEN** the reader scrolls upward from the followed end

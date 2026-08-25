@@ -5,10 +5,12 @@ import {
   scrollbarGeometry,
   scrollbarGlyph,
   scrollbarPresentation,
+  scrollbarWheelLines,
   scrollForTrackPage,
   type RailPosition,
   type ScrollbarAppearance,
   type ScrollbarGeometry,
+  type ScrollbarSpeed,
   type ScrollbarStyle,
 } from "./scrollbar.js";
 import { overlaySpan } from "./spans.js";
@@ -40,6 +42,7 @@ export interface TranscriptViewportRenderInput {
   readonly renderDocument: (width: number) => TranscriptViewportDocument;
   readonly appearance: ScrollbarAppearance;
   readonly style: ScrollbarStyle;
+  readonly speed: ScrollbarSpeed;
   readonly theme: TranscriptViewportTheme;
   readonly now?: number;
 }
@@ -60,6 +63,7 @@ interface FrameState {
   readonly rail: RailPosition | null;
   readonly bottomControl: { readonly row: number; readonly from: number; readonly to: number } | null;
   readonly sticky: { readonly row: number; readonly anchor: TranscriptPromptAnchor } | null;
+  readonly wheelLines: number;
 }
 
 const RAIL_KEY = "session-transcript";
@@ -83,6 +87,7 @@ export class TranscriptViewport {
     rail: null,
     bottomControl: null,
     sticky: null,
+    wheelLines: 3,
   };
   #state: TranscriptViewportState = {
     scrollTop: 0,
@@ -170,7 +175,16 @@ export class TranscriptViewport {
       }
     }
 
-    this.#frame = { width, transcriptHeight, maxScroll, geometry, rail, bottomControl, sticky };
+    this.#frame = {
+      width,
+      transcriptHeight,
+      maxScroll,
+      geometry,
+      rail,
+      bottomControl,
+      sticky,
+      wheelLines: scrollbarWheelLines(input.speed),
+    };
     this.#state = {
       scrollTop: this.#scrollTop,
       viewportHeight: transcriptHeight,
@@ -190,7 +204,7 @@ export class TranscriptViewport {
       && event.column >= 1 && event.column <= frame.width;
 
     if ((event.kind === "wheel-up" || event.kind === "wheel-down") && insideTranscript && allowWheel) {
-      this.scrollBy(event.kind === "wheel-up" ? -1 : 1, now);
+      this.scrollBy(event.kind === "wheel-up" ? -frame.wheelLines : frame.wheelLines, now);
       return { consumed: true, render: true };
     }
 

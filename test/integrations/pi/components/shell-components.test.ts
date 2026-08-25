@@ -127,30 +127,6 @@ describe("Pi shell public component adapters", () => {
     }
   });
 
-  it("adds a source timestamp only to the owned submitted-prompt presentation", () => {
-    const source = new Date(2024, 0, 1, 9, 7).getTime();
-    const prompt = block("user", "a complete prompt that can wrap", { timestamp: source });
-    const pinned = stripTerminalSequences(createPiShellTranscriptComponent(prompt, process.cwd()).render(60).join("\n"));
-    const owned = stripTerminalSequences(createPiShellTranscriptComponent(
-      prompt,
-      process.cwd(),
-      undefined,
-      { timestampUserPrompts: true },
-    ).render(60).join("\n"));
-    const narrow = stripTerminalSequences(createPiShellTranscriptComponent(
-      prompt,
-      process.cwd(),
-      undefined,
-      { timestampUserPrompts: true },
-    ).render(15).join("\n"));
-
-    expect(pinned).not.toContain("09:07");
-    expect(owned).toContain("09:07");
-    expect(owned).toContain("complete prompt");
-    expect(narrow).not.toContain("09:07");
-    expect(narrow.replaceAll(/\s+/g, " ")).toContain("complete prompt");
-  });
-
   it("uses extension custom-message and tool renderers with fallback isolation", () => {
     const resolver = {
       getMessageRenderer: (customType: string) => customType === "extension-message"
