@@ -9,7 +9,7 @@ import {
 } from "../../../src/foundation/pi-engine-adapter/index.js";
 import { applyPiTheme } from "../../../src/foundation/pi-component-adapter/index.js";
 import { OwnedUiSessionShell } from "../../../src/foundation/pi-owned-ui-integration/index.js";
-import { TestPresentationTerminal } from "./neutral-port-doubles.js";
+import { TestPresentationTerminal } from "../../features/owned-ui/neutral-port-doubles.js";
 
 class Session {
   readonly sessionId = "pi-session";

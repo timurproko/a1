@@ -221,5 +221,5 @@ async function writeFixtureFile(root: string, path: string, source: string): Pro
 }
 
 function runPolicy(root: string) {
-  return spawnSync(process.execPath, [policyPath, "--root", root], { encoding: "utf8" });
+  return spawnSync(process.execPath, [policyPath, "--root", root, "--allow-partial-layout"], { encoding: "utf8" });
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   inspectPiFeatureBoundaryImports,
+  inspectProjectOwnerLayout,
   inspectProjectStructureImports,
   PROJECT_OWNERS,
   projectOwnerForPath,
@@ -10,7 +11,7 @@ import {
 describe("project structure ownership policy", () => {
   it("declares every production and test owner with one public entry", () => {
     expect(Object.keys(PROJECT_OWNERS)).toEqual([
-      "product-identity", "cli", "composition", "launch", "workspace", "owned-ui", "lifecycle", "process-containment", "launch-guardian", "protocol", "release", "storage", "structured-agent-runtime", "native-host-protocol", "owned-ui-contracts", "ui-components", "ui-apps", "owned-ui-settings", "agent-engine-contracts", "presentation-contracts", "pi-engine-adapter", "pi-component-adapter", "pi-tui-runtime-adapter", "pi-owned-ui-integration", "supervision", "workspace-contracts", "transparent-terminal",
+      "product-identity", "cli", "composition", "launch", "workspace", "owned-ui", "lifecycle", "process-containment", "launch-guardian", "protocol", "release", "storage", "structured-agent-runtime", "native-host-protocol", "owned-ui-contracts", "ui-components", "ui-apps", "owned-ui-settings", "agent-engine-contracts", "presentation-contracts", "pi-engine-adapter", "pi-component-adapter", "pi-tui-runtime-adapter", "pi-owned-ui-integration", "supervision", "workspace-contracts",
     ]);
     for (const owner of Object.values(PROJECT_OWNERS)) {
       if (owner.id === "product-identity") {
@@ -24,6 +25,22 @@ describe("project structure ownership policy", () => {
       expect(testOwnerForPath(`${owner.testRoot}/contract.test.ts`)).toBe(owner.id);
     }
     expect(testOwnerForPath("test/repository-governance/policy.test.ts")).toBe("repository-governance");
+  });
+
+  it("rejects declared owners whose source, public entry, or test root is absent", () => {
+    const paths = Object.values(PROJECT_OWNERS).flatMap(owner => [
+      owner.publicEntry,
+      `${owner.sourceRoot}/private.ts`,
+      `${owner.testRoot}/contract.test.ts`,
+    ]);
+    expect(inspectProjectOwnerLayout(paths)).toEqual([]);
+
+    const withoutProtocolSource = inspectProjectOwnerLayout(paths.filter(path => !path.startsWith("src/foundation/protocol/")));
+    expect(withoutProtocolSource).toContain("protocol: declared source root has no files (src/foundation/protocol)");
+    expect(withoutProtocolSource).toContain("protocol: declared public entry is missing (src/foundation/protocol/index.ts)");
+    expect(inspectProjectOwnerLayout(paths.filter(path => !path.startsWith("test/foundation/protocol/")))).toContain(
+      "protocol: declared test root has no files (test/foundation/protocol)",
+    );
   });
 
   it("accepts imports through declared public entries", () => {

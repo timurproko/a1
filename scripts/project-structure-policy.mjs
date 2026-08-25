@@ -3,8 +3,8 @@ import { dirname, posix } from "node:path";
 export const PROJECT_OWNERS = Object.freeze({
   "product-identity": Object.freeze({ id: "product-identity", layer: "foundation", sourceRoot: "src", testRoot: "test/product-identity", publicEntry: "src/product-identity.ts", mayImport: Object.freeze([]) }),
   cli: owner("cli", "entry", "src/cli", "test/cli", ["launch", "release", "agent-engine-contracts"]),
-  composition: owner("composition", "entry", "src/composition", "test/composition", ["agent-engine-contracts", "presentation-contracts", "owned-ui-contracts", "owned-ui-settings", "lifecycle", "transparent-terminal", "pi-engine-adapter", "pi-component-adapter", "pi-tui-runtime-adapter", "pi-owned-ui-integration", "ui-apps", "ui-components", "owned-ui"]),
-  launch: owner("launch", "feature", "src/features/launch", "test/features/launch", ["lifecycle", "transparent-terminal"]),
+  composition: owner("composition", "entry", "src/composition", "test/composition", ["agent-engine-contracts", "presentation-contracts", "owned-ui-contracts", "owned-ui-settings", "lifecycle", "pi-engine-adapter", "pi-component-adapter", "pi-tui-runtime-adapter", "pi-owned-ui-integration", "ui-apps", "ui-components", "owned-ui"]),
+  launch: owner("launch", "feature", "src/features/launch", "test/features/launch", ["lifecycle"]),
   workspace: owner("workspace", "feature", "src/features/workspace", "test/features/workspace", [
     "storage", "workspace-contracts", "structured-agent-runtime", "native-host-protocol", "agent-engine-contracts", "presentation-contracts",
   ]),
@@ -31,19 +31,29 @@ export const PROJECT_OWNERS = Object.freeze({
   "pi-owned-ui-integration": owner("pi-owned-ui-integration", "foundation", "src/foundation/pi-owned-ui-integration", "test/foundation/pi-owned-ui-integration", ["owned-ui-contracts", "ui-components", "pi-engine-adapter", "pi-component-adapter", "pi-tui-runtime-adapter"]),
   supervision: owner("supervision", "foundation", "src/foundation/supervision", "test/foundation/supervision", ["lifecycle", "protocol", "release", "storage"]),
   "workspace-contracts": owner("workspace-contracts", "foundation", "src/foundation/workspace-contracts", "test/foundation/workspace-contracts", []),
-  "transparent-terminal": owner(
-    "transparent-terminal",
-    "foundation",
-    "src/foundation/transparent-terminal",
-    "test/foundation/transparent-terminal",
-    ["lifecycle", "protocol", "supervision"],
-  ),
 });
 
 export const TEST_OWNERS = Object.freeze({
   ...Object.fromEntries(Object.values(PROJECT_OWNERS).map(value => [value.id, value.testRoot])),
   "repository-governance": "test/repository-governance",
 });
+
+export function inspectProjectOwnerLayout(paths) {
+  const files = new Set(paths.map(normalize));
+  const errors = [];
+  for (const owner of Object.values(PROJECT_OWNERS)) {
+    if (![...files].some(path => path.startsWith(`${owner.sourceRoot}/`))) {
+      errors.push(`${owner.id}: declared source root has no files (${owner.sourceRoot})`);
+    }
+    if (!files.has(owner.publicEntry)) {
+      errors.push(`${owner.id}: declared public entry is missing (${owner.publicEntry})`);
+    }
+    if (![...files].some(path => path.startsWith(`${owner.testRoot}/`))) {
+      errors.push(`${owner.id}: declared test root has no files (${owner.testRoot})`);
+    }
+  }
+  return errors;
+}
 
 export function inspectProjectStructureImports(files, approvedImports = []) {
   const approved = new Set(approvedImports.map(record => approvalKey(record.path, record.specifier, record.statement)));
