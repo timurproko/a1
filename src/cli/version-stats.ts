@@ -49,7 +49,9 @@ async function queryDistTags(runner: VersionProcessRunner): Promise<RemoteVersio
   if (result.code !== 0) return unavailable(`npm exited with status ${result.code ?? "unknown"}`);
 
   try {
-    const metadata: unknown = JSON.parse(result.stdout);
+    const parsed: unknown = JSON.parse(result.stdout);
+    // npm 12 wraps `npm view <pkg> dist-tags --json` output in a one-element array; older npm returns the bare object.
+    const metadata: unknown = Array.isArray(parsed) && parsed.length === 1 ? parsed[0] : parsed;
     if (typeof metadata !== "object" || metadata === null || Array.isArray(metadata)) throw new TypeError("npm returned a non-object dist-tags value");
     const tags = metadata as Record<string, unknown>;
     const release = parseVersion(tags.latest, "npm latest");
