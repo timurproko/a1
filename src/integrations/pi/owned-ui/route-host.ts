@@ -1,4 +1,4 @@
-import type { PaneMouseEvent } from "../ui-components/index.js";
+import type { PaneMouseEvent } from "../../../foundation/ui-components/index.js";
 
 /**
  * The seam between the pinned shell and A1-owned screens. The shell asks whether

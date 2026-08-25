@@ -14,6 +14,12 @@ src/
     launch/                        launch profiles, profile paths, and runtime selection
     owned-ui/                      owned screens, settings application, diagnostics, and runtime lifecycle
     workspace/                     multi-agent presentation, reducer state, routing, and persistence orchestration
+  integrations/
+    pi/
+      components/                  pinned Pi component and theme adaptation
+      engine/                      pinned Pi engine, settings, resource, package, and workflow integration
+      owned-ui/                    Pi-backed owned session shell and route host
+      tui-runtime/                 neutral presentation runtime over pinned Pi TUI
   foundation/
     agent-engine-contracts/        dependency-free agent engine, session, package, and capability ports
     launch-guardian/               authenticated launch-instance coordination
@@ -21,10 +27,6 @@ src/
     native-host-protocol/          bounded terminal-host identity, topology, lifecycle, and proof protocol
     owned-ui-contracts/            dependency-free owned-session and extension UI contracts
     owned-ui-settings/             owned settings declarations, resolution, migration, and persistence
-    pi-component-adapter/          pinned Pi component and theme adaptation
-    pi-engine-adapter/             pinned Pi engine, settings, resource, package, and workflow integration
-    pi-owned-ui-integration/       Pi-backed owned session shell and route host
-    pi-tui-runtime-adapter/        neutral presentation runtime over pinned Pi TUI
     presentation-contracts/        dependency-free component, terminal, and runtime ports
     process-containment/           verified native containment and process inspection
     protocol/                      authenticated control framing and client contracts

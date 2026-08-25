@@ -96,7 +96,7 @@ describe("pinned Pi source ledger governance", () => {
   it("rejects a completed owned port remapped away from its real destination", async () => {
     const result = await runFixture(ledger => {
       const owned = ledger.records.find((record: Record<string, unknown>) => record.classification === "owned-presentation");
-      owned.localDestination = "src/foundation/pi-component-adapter/upstream/components/missing-port.ts";
+      owned.localDestination = "src/integrations/pi/components/upstream/components/missing-port.ts";
     });
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("undocumented owned source file");

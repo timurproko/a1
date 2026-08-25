@@ -1,6 +1,6 @@
 import { ScrollView, StdinBuffer, TuiAltScreen, VStack, type Component } from "@earendil-works/pi-tui";
 import { describe, expect, it } from "vitest";
-import { PiTuiRuntimeAdapter, type PiTuiTerminalPort } from "../../../src/foundation/pi-tui-runtime-adapter/index.js";
+import { PiTuiRuntimeAdapter, type PiTuiTerminalPort } from "../../../src/integrations/pi/tui-runtime/index.js";
 
 class WheelTerminal implements PiTuiTerminalPort {
   columns = 32;

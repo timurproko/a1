@@ -29,7 +29,7 @@ process.exitCode = await dispatchCli(process.argv.slice(2), {
   packages: async request => {
     const [{ runPackageCommand }, { createPiPackagesPort }] = await Promise.all([
       import("../dist/src/cli/index.js"),
-      import("../dist/src/foundation/pi-engine-adapter/index.js"),
+      import("../dist/src/integrations/pi/engine/index.js"),
     ]);
     return await runPackageCommand(request, { createPort: createPiPackagesPort });
   },

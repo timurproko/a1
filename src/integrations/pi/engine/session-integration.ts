@@ -4,7 +4,7 @@ import {
   type AgentCommandOutcome,
   type AgentEvent,
   type AgentMessage,
-} from "../agent-engine-contracts/index.js";
+} from "../../../foundation/agent-engine-contracts/index.js";
 
 export interface PiDocumentedSessionCommands {
   readonly isStreaming: AgentSession["isStreaming"];

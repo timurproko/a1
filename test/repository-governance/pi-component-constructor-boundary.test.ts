@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 describe("Pi component constructor boundary", () => {
   it("uses compile-time constructors without concrete-object escapes", async () => {
-    const root = resolve("src/foundation/pi-component-adapter");
+    const root = resolve("src/integrations/pi/components");
     const files = (await readdir(root)).filter(name => name.endsWith(".ts"));
     const source = (await Promise.all(files.map(async name => ({ name, text: await readFile(resolve(root, name), "utf8") }))));
     for (const file of source) {
@@ -17,7 +17,7 @@ describe("Pi component constructor boundary", () => {
   });
 
   it("confines dynamic invocation to documented extension callback surfaces", async () => {
-    const root = resolve("src/foundation/pi-component-adapter");
+    const root = resolve("src/integrations/pi/components");
     const files = (await readdir(root)).filter(name => name.endsWith(".ts"));
     for (const name of files) {
       const text = await readFile(resolve(root, name), "utf8");

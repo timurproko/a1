@@ -1,6 +1,6 @@
 import type { OwnedUiSessionViewModel, OwnedUiTranscriptBlock } from "../../../src/foundation/owned-ui-contracts/index.js";
-import { applyPiTheme, createPiShellDialog, createPiShellSelector } from "../../../src/foundation/pi-component-adapter/index.js";
-import { OwnedUiSessionShellRoot } from "../../../src/foundation/pi-owned-ui-integration/index.js";
+import { applyPiTheme, createPiShellDialog, createPiShellSelector } from "../../../src/integrations/pi/components/index.js";
+import { OwnedUiSessionShellRoot } from "../../../src/integrations/pi/owned-ui/index.js";
 
 export const STATIC_PARITY_COVERAGE = [
   "transcript",

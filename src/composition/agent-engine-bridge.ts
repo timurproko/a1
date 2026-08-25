@@ -12,7 +12,7 @@ import {
   type AgentSnapshot,
 } from "../foundation/agent-engine-contracts/index.js";
 import type { OwnedUiCommand, OwnedUiEvent, OwnedUiTranscriptBlock } from "../foundation/owned-ui-contracts/index.js";
-import type { PiEngineAdapter } from "../foundation/pi-engine-adapter/index.js";
+import type { PiEngineAdapter } from "../integrations/pi/engine/index.js";
 
 const CAPABILITIES: AgentCapabilityContract = {
   contractVersion: AGENT_ENGINE_CONTRACT_VERSION,

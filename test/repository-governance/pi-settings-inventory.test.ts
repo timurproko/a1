@@ -4,8 +4,8 @@ import {
   EXPOSED_SETTING_KEYS,
   PiSettingsIntegration,
   settingsInventoryDrift,
-} from "../../src/foundation/pi-engine-adapter/index.js";
-import piSettingsMetadata from "../../src/foundation/pi-engine-adapter/pi-settings-metadata.json" with { type: "json" };
+} from "../../src/integrations/pi/engine/index.js";
+import piSettingsMetadata from "../../src/integrations/pi/engine/pi-settings-metadata.json" with { type: "json" };
 
 /**
  * The engine's own inventory of what it presents, against the settings A1 maps to

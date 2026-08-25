@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { SettingsManager } from "@earendil-works/pi-coding-agent";
-import { AUTOMATIC_THEME, PiSettingsIntegration, parseAutomaticTheme } from "../../../src/foundation/pi-engine-adapter/index.js";
+import { AUTOMATIC_THEME, PiSettingsIntegration, parseAutomaticTheme } from "../../../src/integrations/pi/engine/index.js";
 
 const THEMES = ["dark", "light", "ocean"] as const;
 

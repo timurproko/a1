@@ -3,7 +3,7 @@ import { mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
-import { PRODUCT_IDENTITY } from "../../product-identity.js";
+import { PRODUCT_IDENTITY } from "../../../product-identity.js";
 import {
   copyToClipboard,
   DefaultPackageManager,
@@ -38,7 +38,7 @@ import {
   type OwnedUiThinkingLevel,
   type OwnedUiTranscriptBlock,
   type OwnedUiUsageView,
-} from "../owned-ui-contracts/index.js";
+} from "../../../foundation/owned-ui-contracts/index.js";
 import {
   PINNED_PI_SETTINGS_CALLBACKS,
   PINNED_PI_WORKFLOW_COMMAND_NAMES,
@@ -58,7 +58,7 @@ import {
 import { createPiRuntimeIntegration } from "./runtime-integration.js";
 import { PiSessionCommandIntegration } from "./session-integration.js";
 import { PiSettingsIntegration } from "./settings-integration.js";
-import type { AgentJsonValue, AgentSettingsPort } from "../agent-engine-contracts/index.js";
+import type { AgentJsonValue, AgentSettingsPort } from "../../../foundation/agent-engine-contracts/index.js";
 
 const execFileAsync = promisify(execFile);
 

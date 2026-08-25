@@ -8,7 +8,7 @@ import { extractPiSettingsMetadata } from "./pi-settings-metadata.mjs";
  * wording, order, and dialog contents cannot silently drift from the engine.
  */
 
-export const METADATA_PATH = "src/foundation/pi-engine-adapter/pi-settings-metadata.json";
+export const METADATA_PATH = "src/integrations/pi/engine/pi-settings-metadata.json";
 
 export function renderMetadata() {
   return `${JSON.stringify(extractPiSettingsMetadata(), null, 2)}\n`;

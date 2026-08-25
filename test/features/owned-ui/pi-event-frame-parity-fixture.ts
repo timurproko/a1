@@ -1,8 +1,8 @@
 import type { AgentSessionRuntime } from "@earendil-works/pi-coding-agent";
-import { createPiEngineAdapter } from "../../../src/foundation/pi-engine-adapter/index.js";
-import { applyPiTheme } from "../../../src/foundation/pi-component-adapter/index.js";
-import type { PiTuiTerminalPort } from "../../../src/foundation/pi-tui-runtime-adapter/index.js";
-import { OwnedUiSessionShell } from "../../../src/foundation/pi-owned-ui-integration/index.js";
+import { createPiEngineAdapter } from "../../../src/integrations/pi/engine/index.js";
+import { applyPiTheme } from "../../../src/integrations/pi/components/index.js";
+import type { PiTuiTerminalPort } from "../../../src/integrations/pi/tui-runtime/index.js";
+import { OwnedUiSessionShell } from "../../../src/integrations/pi/owned-ui/index.js";
 
 export interface EventStateParityEntry {
   readonly stage: string;

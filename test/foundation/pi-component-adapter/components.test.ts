@@ -4,7 +4,7 @@ import {
   adaptPiAssistantMessage,
   adaptPiToolExecution,
   adaptPiUserMessage,
-} from "../../../src/foundation/pi-component-adapter/index.js";
+} from "../../../src/integrations/pi/components/index.js";
 
 function block(kind: OwnedUiTranscriptBlock["kind"], text: string, payload: unknown = {}): OwnedUiTranscriptBlock {
   return {

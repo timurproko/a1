@@ -1,9 +1,9 @@
 import { resolveProductPaths } from "../foundation/lifecycle/index.js";
-import { applyConfiguredPiTheme, getAvailablePiThemes } from "../foundation/pi-component-adapter/index.js";
-import { createPiEngineAdapter, type PiEngineAdapter } from "../foundation/pi-engine-adapter/index.js";
-import { OwnedUiSessionShell } from "../foundation/pi-owned-ui-integration/index.js";
+import { applyConfiguredPiTheme, getAvailablePiThemes } from "../integrations/pi/components/index.js";
+import { createPiEngineAdapter, type PiEngineAdapter } from "../integrations/pi/engine/index.js";
+import { OwnedUiSessionShell } from "../integrations/pi/owned-ui/index.js";
 import { OwnedUiSettingsSession, OwnedUiSettingsStore } from "../foundation/owned-ui-settings/index.js";
-import { createPiTerminalBridge } from "../foundation/pi-tui-runtime-adapter/index.js";
+import { createPiTerminalBridge } from "../integrations/pi/tui-runtime/index.js";
 import type { OwnedUiApplicationPort, PresentationTerminalPort } from "../foundation/presentation-contracts/index.js";
 import { createOwnedRouteHost } from "./settings-route-host.js";
 

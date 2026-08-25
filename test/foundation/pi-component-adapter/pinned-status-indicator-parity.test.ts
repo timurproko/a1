@@ -8,7 +8,7 @@ import {
   RetryStatusIndicator,
   WorkingStatusIndicator,
   applyPiTheme,
-} from "../../../src/foundation/pi-component-adapter/index.js";
+} from "../../../src/integrations/pi/components/index.js";
 
 function tuiFacade(): never {
   return { requestRender() {}, invalidate() {}, terminal: { kittyProtocolActive: false } } as never;
@@ -21,7 +21,7 @@ describe("pinned status indicator parity", () => {
     vi.useFakeTimers();
     applyPiTheme("dark");
     const path = resolve("node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/components/status-indicator.js");
-    const pinned = await import(pathToFileURL(path).href) as typeof import("../../../src/foundation/pi-component-adapter/upstream/components/status-indicator.js");
+    const pinned = await import(pathToFileURL(path).href) as typeof import("../../../src/integrations/pi/components/upstream/components/status-indicator.js");
     const leftUi = tuiFacade();
     const rightUi = tuiFacade();
     const actual = {

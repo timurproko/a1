@@ -5,7 +5,7 @@ import type {
   PresentationRuntimePort,
   PresentationRuntimeState,
   PresentationTerminalPort,
-} from "../presentation-contracts/index.js";
+} from "../../../foundation/presentation-contracts/index.js";
 import { PiTuiRuntimeAdapter } from "./adapter.js";
 import type { PiTuiTerminalPort } from "./contracts.js";
 

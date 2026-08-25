@@ -81,13 +81,13 @@ describe("project structure ownership policy", () => {
     ],
     [
       "concrete adapter",
-      "import { createPiEngineAdapter } from '../../foundation/pi-engine-adapter/index.js';",
-      "feature may not import concrete Pi adapter '../../foundation/pi-engine-adapter/index.js'",
+      "import { createPiEngineAdapter } from '../../integrations/pi/engine/index.js';",
+      "feature may not import concrete Pi adapter '../../integrations/pi/engine/index.js'",
     ],
     [
       "concrete Pi integration",
-      "import { OwnedUiSessionShell } from '../../foundation/pi-owned-ui-integration/index.js';",
-      "feature may not import concrete Pi adapter '../../foundation/pi-owned-ui-integration/index.js'",
+      "import { OwnedUiSessionShell } from '../../integrations/pi/owned-ui/index.js';",
+      "feature may not import concrete Pi adapter '../../integrations/pi/owned-ui/index.js'",
     ],
     [
       "Pi-named contract",
@@ -112,27 +112,27 @@ describe("project structure ownership policy", () => {
   it("allows features only neutral integration ports and Pi implementations inward", () => {
     expect(inspectProjectStructureImports({
       "src/features/owned-ui/new.ts": "import type { AgentEnginePort } from '../../foundation/agent-engine-contracts/index.js';",
-      "src/foundation/pi-engine-adapter/new.ts": "import type { AgentEnginePort } from '../agent-engine-contracts/index.js';",
-      "src/foundation/pi-component-adapter/new.ts": "import type { PresentationComponentPort } from '../presentation-contracts/index.js';",
+      "src/integrations/pi/engine/new.ts": "import type { AgentEnginePort } from '../../../foundation/agent-engine-contracts/index.js';",
+      "src/integrations/pi/components/new.ts": "import type { PresentationComponentPort } from '../../../foundation/presentation-contracts/index.js';",
     })).toEqual([]);
     expect(inspectProjectStructureImports({
-      "src/features/owned-ui/new.ts": "import { createPiEngineAdapter } from '../../foundation/pi-engine-adapter/index.js';",
+      "src/features/owned-ui/new.ts": "import { createPiEngineAdapter } from '../../integrations/pi/engine/index.js';",
     })).toEqual([
-      "src/features/owned-ui/new.ts: owned-ui may not import pi-engine-adapter (../../foundation/pi-engine-adapter/index.js)",
+      "src/features/owned-ui/new.ts: owned-ui may not import pi-engine-adapter (../../integrations/pi/engine/index.js)",
     ]);
   });
 
   it("grandfathers only an exact accepted baseline import statement", () => {
     const path = "src/features/owned-ui/run.ts";
-    const source = "import { createPiEngineAdapter } from '../../foundation/pi-engine-adapter/index.js';";
-    const approved = [{ path, specifier: "../../foundation/pi-engine-adapter/index.js", statement: source }];
+    const source = "import { createPiEngineAdapter } from '../../integrations/pi/engine/index.js';";
+    const approved = [{ path, specifier: "../../integrations/pi/engine/index.js", statement: source }];
 
     expect(inspectProjectStructureImports({ [path]: source }, approved)).toEqual([]);
     expect(inspectPiFeatureBoundaryImports({ [path]: source }, approved)).toEqual([]);
     expect(inspectPiFeatureBoundaryImports({
-      [path]: `${source}\nimport { createPiShellEditor } from '../../foundation/pi-component-adapter/index.js';`,
+      [path]: `${source}\nimport { createPiShellEditor } from '../../integrations/pi/components/index.js';`,
     }, approved)).toEqual([
-      `${path}: feature may not import concrete Pi adapter '../../foundation/pi-component-adapter/index.js'; inject a vendor-neutral A1 port`,
+      `${path}: feature may not import concrete Pi adapter '../../integrations/pi/components/index.js'; inject a vendor-neutral A1 port`,
     ]);
   });
 });

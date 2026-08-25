@@ -3,7 +3,7 @@ import {
   PI_BUILTIN_WORKFLOW_ROUTES,
   PI_WORKFLOW_CAPABILITIES,
   PiWorkflowControllerPort,
-} from "../../../src/foundation/pi-engine-adapter/index.js";
+} from "../../../src/integrations/pi/engine/index.js";
 
 describe("capability-specific workflow controllers", () => {
   it("declares and routes every visible and hidden built-in workflow", async () => {

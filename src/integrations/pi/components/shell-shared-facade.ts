@@ -9,7 +9,7 @@ import type {
   OwnedUiSessionViewModel,
   OwnedUiThinkingLevel,
   OwnedUiTranscriptBlock,
-} from "../owned-ui-contracts/index.js";
+} from "../../../foundation/owned-ui-contracts/index.js";
 import {
   KeybindingsManager,
 } from "./upstream/adjacent/core/keybindings.js";

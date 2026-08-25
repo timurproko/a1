@@ -3,9 +3,9 @@ import type {
   OwnedUiDialog,
   OwnedUiSessionViewModel,
   OwnedUiThinkingLevel,
-} from "../owned-ui-contracts/index.js";
+} from "../../../foundation/owned-ui-contracts/index.js";
 import type { UiRouteHost } from "./route-host.js";
-import { MOUSE_TRACKING_OFF, MOUSE_TRACKING_ON, parseMouseInput } from "../ui-components/index.js";
+import { MOUSE_TRACKING_OFF, MOUSE_TRACKING_ON, parseMouseInput } from "../../../foundation/ui-components/index.js";
 import {
   PINNED_PI_HIDDEN_COMMAND_NAMES,
   PINNED_PI_WORKFLOW_COMMAND_NAMES,
@@ -19,7 +19,7 @@ import {
   type PiWorkflowRequest,
   type PiWorkflowResult,
   type PiWorkflowRoute,
-} from "../pi-engine-adapter/index.js";
+} from "../engine/index.js";
 import {
   createPiExtensionUiBridge,
   createPiQueuedInputStatus,
@@ -70,14 +70,14 @@ import {
   type PiShellStatusPort,
   type PiShellTranscriptComponentPort,
   type PiShellViewComponentPort,
-} from "../pi-component-adapter/index.js";
+} from "../components/index.js";
 import {
   PiTuiRuntimeAdapter,
   type PiTuiComponentPort,
   type PiTuiLayoutNode,
   type PiTuiOverlayHandle,
   type PiTuiTerminalPort,
-} from "../pi-tui-runtime-adapter/index.js";
+} from "../tui-runtime/index.js";
 
 
 import {

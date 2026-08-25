@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   EXPOSED_SETTING_KEYS,
   PiSettingsIntegration,
-} from "../../../src/foundation/pi-engine-adapter/index.js";
+} from "../../../src/integrations/pi/engine/index.js";
 
 function integration(): PiSettingsIntegration {
   return new PiSettingsIntegration(SettingsManager.inMemory({

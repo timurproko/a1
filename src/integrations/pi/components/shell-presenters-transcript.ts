@@ -21,8 +21,8 @@ import {
 } from "#pi-tui";
 import type {
   OwnedUiTranscriptBlock,
-} from "../owned-ui-contracts/index.js";
-import { PRODUCT_TEXT } from "../../product-identity.js";
+} from "../../../foundation/owned-ui-contracts/index.js";
+import { PRODUCT_TEXT } from "../../../product-identity.js";
 import {
   KeybindingsManager,
 } from "./upstream/adjacent/core/keybindings.js";

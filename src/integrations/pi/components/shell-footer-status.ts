@@ -7,7 +7,7 @@ import {
 } from "#pi-tui";
 import type {
   OwnedUiSessionViewModel,
-} from "../owned-ui-contracts/index.js";
+} from "../../../foundation/owned-ui-contracts/index.js";
 import { SessionFooter } from "./upstream/components/session-footer.js";
 import { WorkingStatusIndicator } from "./upstream/components/status-indicator.js";
 import {
