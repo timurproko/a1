@@ -30,16 +30,20 @@ Pi extension packages install into A1's own profile, so bare `a1` loads them and
 `a1 pi` and `a1 sandbox` do not. Sources are Pi's: `npm:`, git, or a local path.
 
 ```sh
-a1 install npm:pi-mcp-adapter   # install a package into ~/.a1/agent
-a1 remove npm:pi-mcp-adapter    # remove it again (alias: a1 uninstall)
-a1 list                         # list packages installed for a1
-a1 update --extensions          # update every installed package
-a1 update npm:pi-mcp-adapter    # update one of them
-a1 update --models              # refresh model catalogs
+a1 pi install npm:pi-mcp-adapter   # install a package into ~/.a1/agent
+a1 pi remove npm:pi-mcp-adapter    # remove it again (alias: a1 pi uninstall)
+a1 pi list                         # list packages installed for a1
+a1 pi update --extensions          # update every installed package
+a1 pi update npm:pi-mcp-adapter    # update one of them
+a1 update --models                 # refresh A1's model catalogs
 ```
 
 A running session loads a newly installed package after a restart. Pi's own
-profile at `~/.pi/agent` is managed by Pi itself.
+profile at `~/.pi/agent` is managed by Pi itself. Extension configuration is
+isolated too: for example, MCP configuration for bare `a1` belongs under
+`~/.a1/agent` (or the project), so `~/.pi/agent/mcp.json` is not read. Run
+`/mcp setup` inside bare `a1` to configure it; the MCP footer status appears
+when that A1 configuration contains a server.
 
 ## Develop
 

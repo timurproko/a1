@@ -1,25 +1,25 @@
 ## ADDED Requirements
 
 ### Requirement: Package commands manage the A1 profile only
-`a1 install <source>`, `a1 remove <source>`, its alias `a1 uninstall <source>`, and
-`a1 list` SHALL resolve the normal A1 profile root at `<home>/.a1/agent` and operate
+`a1 pi install <source>`, `a1 pi remove <source>`, its alias `a1 pi uninstall <source>`, and
+`a1 pi list` SHALL resolve the normal A1 profile root at `<home>/.a1/agent` and operate
 on it alone. Installing SHALL place package content under that root and record the
 source in that root's `settings.json`, so the next bare `a1` loads it. No package
 command SHALL accept a profile prefix, profile flag, or project scope; the vanilla
 Pi profile is managed by Pi itself and the sandbox profile takes no installs.
 
 #### Scenario: Install an npm package
-- **WHEN** the user runs `a1 install npm:pi-mcp-adapter`
+- **WHEN** the user runs `a1 pi install npm:pi-mcp-adapter`
 - **THEN** A1 SHALL install the package beneath `<home>/.a1/agent` and add its source to that profile's settings
 - **AND** the next bare `a1` SHALL load the extension the package provides
 
 #### Scenario: Remove an installed package
-- **WHEN** the user runs `a1 remove npm:pi-mcp-adapter` or `a1 uninstall npm:pi-mcp-adapter`
+- **WHEN** the user runs `a1 pi remove npm:pi-mcp-adapter` or `a1 pi uninstall npm:pi-mcp-adapter`
 - **THEN** A1 SHALL remove the installed content and the settings entry from the A1 profile
 - **AND** both spellings SHALL behave identically
 
 #### Scenario: List installed packages
-- **WHEN** the user runs `a1 list`
+- **WHEN** the user runs `a1 pi list`
 - **THEN** A1 SHALL report the packages configured in the A1 profile with where each is installed
 - **AND** SHALL say plainly that none are installed rather than printing nothing
 
@@ -34,7 +34,7 @@ source syntax. A source pinned Pi rejects SHALL be rejected by A1 for the same
 reason.
 
 #### Scenario: Git source is installed
-- **WHEN** the user runs `a1 install git:github.com/user/repo`
+- **WHEN** the user runs `a1 pi install git:github.com/user/repo`
 - **THEN** A1 SHALL install it into the A1 profile the way pinned Pi would install it into its own
 
 #### Scenario: Source is unrecognized

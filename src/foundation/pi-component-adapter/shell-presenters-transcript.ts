@@ -22,6 +22,7 @@ import {
 import type {
   OwnedUiTranscriptBlock,
 } from "../owned-ui-contracts/index.js";
+import { PRODUCT_TEXT } from "../../product-identity.js";
 import {
   KeybindingsManager,
 } from "./upstream/adjacent/core/keybindings.js";
@@ -244,7 +245,7 @@ export function renderPiShellPackageUpdateNotice(packages: readonly string[], wi
   container.addChild(new DynamicBorder(text => theme.fg("warning", text)));
   container.addChild(new Text(
     `${theme.bold(theme.fg("warning", "Package Updates Available"))}\n`
-    + `${theme.fg("muted", "Package updates are available. Run ")}${theme.fg("accent", "pi update --extensions")}\n`
+    + `${theme.fg("muted", "Package updates are available. Run ")}${theme.fg("accent", `${PRODUCT_TEXT.commandName} pi update --extensions`)}\n`
     + `${theme.fg("muted", "Packages:")}\n`
     + packages.map(name => `- ${name}`).join("\n"),
     1, 0,

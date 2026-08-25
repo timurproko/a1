@@ -320,7 +320,7 @@ export class PiEngineAdapter {
     this.#addDiagnostic(
       "info",
       "package-updates",
-      `Package updates are available. Run pi update --extensions\nPackages:\n${packages}`,
+      `Package updates are available. Run ${PRODUCT_IDENTITY.commandName} pi update --extensions\nPackages:\n${packages}`,
       true,
     );
     this.#emitView();
@@ -553,9 +553,10 @@ export class PiEngineAdapter {
     }
     const extensionCommands = this.#session?.extensionRunner?.getRegisteredCommands?.();
     if (Array.isArray(extensionCommands)) {
-      for (const command of extensionCommands.filter(isRecord)) {
-        const name = stringProperty(command, "name");
-        if (!name || usedNames.has(name)) continue;
+      const registered = extensionCommands.filter(isRecord);
+      for (const command of registered) {
+        const name = stringProperty(command, "invocationName") ?? stringProperty(command, "name");
+        if (!name || usedNames.has(name) || isPiPrefixedCompatibilityAlias(command, registered)) continue;
         commands.push({ name, description: stringProperty(command, "description") ?? "Extension command", source: "extension" });
         usedNames.add(name);
       }
@@ -2524,6 +2525,31 @@ function stringProperty(value: unknown, key: string): string | undefined {
   if (!isRecord(value)) return undefined;
   const item = value[key];
   return typeof item === "string" && item.length > 0 ? item : undefined;
+}
+
+/**
+ * Some ecosystem extensions retain a `pi-<name>` slash-command alias beside
+ * their unprefixed command. A1 presents the product-neutral command once while
+ * leaving Pi's runner free to accept the compatibility alias when typed.
+ */
+function isPiPrefixedCompatibilityAlias(
+  command: unknown,
+  commands: readonly unknown[],
+): boolean {
+  const name = stringProperty(command, "name");
+  if (!name?.startsWith("pi-") || name.length === 3) return false;
+  const canonicalName = name.slice(3);
+  const description = stringProperty(command, "description");
+  const sourcePath = extensionCommandSourcePath(command);
+  return commands.some(candidate =>
+    candidate !== command
+      && stringProperty(candidate, "name") === canonicalName
+      && stringProperty(candidate, "description") === description
+      && extensionCommandSourcePath(candidate) === sourcePath);
+}
+
+function extensionCommandSourcePath(command: unknown): string | undefined {
+  return isRecord(command) ? stringProperty(command.sourceInfo, "path") : undefined;
 }
 
 function compactResourceLabel(path: string): string {
