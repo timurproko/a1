@@ -8,16 +8,16 @@
 
 ## 2. Make per-event work independent of transcript length
 
-- [ ] 2.1 Index transcript blocks by identifier in the engine adapter so an update stops
+- [x] 2.1 Index transcript blocks by identifier in the engine adapter so an update stops
   scanning for its block
-- [ ] 2.2 Hand out the transcript without copying every block on every read
-- [ ] 2.3 Index blocks and maintain component order incrementally in the shell root, so
-  neither the order scan nor the document render scans the transcript
+- [x] 2.2 Hand out the transcript without copying every block on every read
+- [x] 2.3 Index blocks by identifier in the shell root and place anchored components
+  through a set, so neither the order rebuild nor the document render scans the transcript
 
 ## 3. Render like the pinned shell
 
 - [ ] 3.1 Keep one live component for the streaming block and mutate it in place
-- [ ] 3.2 Cache a finalized block's rendered rows against its revision and width, so an
+- [x] 3.2 Cache a finalized block's rendered rows against its revision and width, so an
   unchanged block is not re-rendered to produce a frame
 - [ ] 3.3 Rebuild the document only where the pinned shell rebuilds it
 
@@ -25,8 +25,8 @@
 
 - [x] 4.1 Key the status indicator by kind and clear by kind, so ending one kind of work
   leaves another standing
-- [x] 4.2 Treat settlement, not the end of a turn, as what makes the session idle — the
-  engine ends a turn per continuation and settles once
+- [x] 4.2 Leave a turn's own state when the turn ends, as the recorded pinned baseline
+  does, without clearing a compaction or retry state the turn never started
 - [x] 4.3 End retry and compaction states by returning to working while the run is active,
   and to idle only when it is not
 - [ ] 4.4 Rebuild the transcript only where the pinned shell rebuilds it, not on every turn

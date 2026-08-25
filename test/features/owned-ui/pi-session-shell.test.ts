@@ -7,6 +7,7 @@ import {
   PINNED_PI_HIDDEN_COMMAND_NAMES,
   PINNED_PI_WORKFLOW_COMMAND_NAMES,
 } from "../../../src/foundation/pi-engine-adapter/index.js";
+import { applyPiTheme } from "../../../src/foundation/pi-component-adapter/index.js";
 import { OwnedUiSessionShell } from "../../../src/foundation/pi-owned-ui-integration/index.js";
 import { TestPresentationTerminal } from "./neutral-port-doubles.js";
 
@@ -132,6 +133,40 @@ async function fixture(messages: readonly unknown[] = []) {
 }
 
 describe("OwnedUiSessionShell", () => {
+  it("reuses a finalized block's rows until its revision, the width, the theme, or expansion changes", async () => {
+    const { engine, adapter, shell } = await fixture();
+
+    engine.session.emit({ type: "agent_start" });
+    engine.session.emit({
+      type: "message_start",
+      message: { role: "assistant", content: [{ type: "text", text: "Settled answer" }], timestamp: 1 },
+    });
+    engine.session.emit({ type: "agent_end", messages: [], willRetry: false });
+    engine.session.emit({ type: "agent_settled" });
+    await adapter.flushEvents();
+
+    const rowsOf = (width: number) => shell.root.render(width).map(row => stripTerminalSequences(row).trimEnd());
+    const first = rowsOf(80);
+    expect(first.some(row => row.includes("Settled answer"))).toBe(true);
+    // A repeat frame at the same width shows the same content from the cached rows.
+    expect(rowsOf(80)).toEqual(first);
+    // A different width is a different render rather than a stale hit.
+    expect(rowsOf(52).some(row => row.includes("Settled answer"))).toBe(true);
+    expect(rowsOf(80)).toEqual(first);
+
+    shell.root.setToolsExpanded(!shell.root.toolsExpanded);
+    expect(rowsOf(80).some(row => row.includes("Settled answer"))).toBe(true);
+
+    applyPiTheme("light", false, "truecolor");
+    try {
+      expect(rowsOf(80).some(row => row.includes("Settled answer"))).toBe(true);
+    } finally {
+      applyPiTheme("dark", false, "truecolor");
+    }
+    await shell.dispose();
+  });
+
+
   it("composes the public Pi editor, transcript, tool/status surfaces, and runtime", async () => {
     const { engine, adapter, terminal, shell } = await fixture();
     shell.root.editor.setText("Inspect with Pi editor");
