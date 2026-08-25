@@ -727,6 +727,7 @@ export class OwnedUiSessionShell {
   #sequence = 0;
   #started = false;
   #disposed = false;
+  #pointerReporting = false;
   #compactionQueue: Array<{ readonly text: string; readonly type: "steer" | "follow-up" }> = [];
   #lastClearTime = 0;
   #activeLoginDialog: PiShellLoginDialogPort | undefined;
@@ -1427,9 +1428,23 @@ export class OwnedUiSessionShell {
     }
   }
 
+  /**
+   * Turns terminal pointer reporting on for a screen that reads the pointer, and off for
+   * every path that ends it. While it is on the terminal hands A1 the wheel and the
+   * button instead of scrolling and selecting itself, so leaving it on outlives the
+   * screen that wanted it and takes the terminal's own scrolling and selection with it.
+   */
+  #setPointerReporting(enabled: boolean): void {
+    if (this.#pointerReporting === enabled) return;
+    this.#pointerReporting = enabled;
+    if (!this.runtime.active) return;
+    this.runtime.writeControl(enabled ? MOUSE_TRACKING_ON : MOUSE_TRACKING_OFF);
+  }
+
   async dispose(): Promise<void> {
     if (this.#disposed) return;
     this.#disposed = true;
+    this.#setPointerReporting(false);
     this.#unsubscribe();
     this.#dialogHandle?.hide();
     await this.backend.unbindExtensionUi();
@@ -1443,6 +1458,8 @@ export class OwnedUiSessionShell {
       this.#sessionGeneration = this.backend.sessionGeneration;
       this.#activeLoginDialog = undefined;
       this.#extensionBridge.reset();
+      // A replaced session takes its screens with it, pointer reporting included.
+      this.#setPointerReporting(false);
       this.root.setInputSurface(null);
       this.root.resetExtensionUi();
       this.root.resetWorkflowPresentation();
@@ -1462,7 +1479,7 @@ export class OwnedUiSessionShell {
     this.#dialogHandle?.hide();
     // Any-event reporting: hover and drag are what the screen is driven by, and
     // it also stops the terminal treating a drag as a text selection.
-    this.runtime.writeControl(MOUSE_TRACKING_ON);
+    this.#setPointerReporting(true);
     // The interrupt chord is global, so it is watched on raw input rather than
     // through the overlay: the pinned shell handles that key before an overlay
     // ever sees it, which is why an owned screen must not rely on being asked.
@@ -1484,7 +1501,7 @@ export class OwnedUiSessionShell {
     });
     const closeSurface = () => {
       removeInterruptWatch();
-      this.runtime.writeControl(MOUSE_TRACKING_OFF);
+      this.#setPointerReporting(false);
       this.#dialogHandle?.hide();
       this.#dialogHandle = undefined;
       this.#dialogId = undefined;

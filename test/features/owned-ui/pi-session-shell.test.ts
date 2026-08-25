@@ -133,6 +133,46 @@ async function fixture(messages: readonly unknown[] = []) {
 }
 
 describe("OwnedUiSessionShell", () => {
+  it("stops pointer reporting when the session ends while an owned screen is presented", async () => {
+    const engine = new Runtime([]);
+    const adapter = await createPiEngineAdapter({
+      cwd: "D:/work",
+      sessionId: "owned-shell",
+      createRuntime: async () => engine as unknown as AgentSessionRuntime,
+    });
+    const terminal = new TestPresentationTerminal();
+    const surface = {
+      id: "pointer-screen",
+      render: (width: number, height: number) => Array.from({ length: height }, () => " ".repeat(width)),
+      handleInput: () => true,
+      handleMouse: () => true,
+      isClosed: () => false,
+      close: () => {},
+      onRenderRequested: () => {},
+      onExitRequested: () => {},
+    };
+    const shell = new OwnedUiSessionShell({
+      backend: adapter,
+      cwd: "D:/work",
+      terminal,
+      routeHost: { claims: (route: string) => route === "pointer", open: () => surface },
+    });
+    shell.start();
+    shell.runtime.renderNow();
+
+    shell.root.editor.setText("/pointer");
+    terminal.input("\r");
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(terminal.writes.some(write => write.includes("[?1003h"))).toBe(true);
+    expect(terminal.writes.some(write => write.includes("[?1003l"))).toBe(false);
+
+    // The screen is still up: ending the session has to restore the terminal anyway.
+    await shell.dispose();
+    expect(terminal.writes.some(write => write.includes("[?1003l"))).toBe(true);
+    expect(terminal.writes.some(write => write.includes("[?1006l"))).toBe(true);
+  });
+
+
   it("reuses a finalized block's rows until its revision, the width, the theme, or expansion changes", async () => {
     const { engine, adapter, shell } = await fixture();
 

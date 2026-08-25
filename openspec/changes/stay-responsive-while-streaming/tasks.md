@@ -34,9 +34,9 @@
 
 ## 5. Pair pointer reporting against every teardown
 
-- [ ] 5.1 Disable reporting from session shutdown, session replacement, and surface disposal
-- [ ] 5.2 Cover the teardown paths in the conformance check that already asserts terminal
-  native selection
+- [x] 5.1 Disable reporting from session shutdown, session replacement, and surface disposal
+- [x] 5.2 Cover the teardown paths with a shell test that ends a session while a
+  pointer-driven screen is presented and asserts the terminal was restored
 
 ## 6. Validate and integrate
 
