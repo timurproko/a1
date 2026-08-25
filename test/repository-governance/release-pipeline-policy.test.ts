@@ -84,6 +84,7 @@ describe("maintainer publication commands", () => {
     expect(manifest.scripts.develop).toBe("node scripts/development/develop.mjs");
     expect(script.indexOf("const existing = await registryVersion")).toBeLessThan(script.indexOf('await dispatchPublication("develop"'));
     expect(script).toContain("already exists");
+    expect(script).not.toContain("process.exit");
     expect(script).not.toMatch(/npm publish|npm pack/);
   });
 
