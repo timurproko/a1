@@ -6,9 +6,9 @@ import {
   createPiEngineAdapter,
   PINNED_PI_HIDDEN_COMMAND_NAMES,
   PINNED_PI_WORKFLOW_COMMAND_NAMES,
-} from "../../../src/foundation/pi-engine-adapter/index.js";
-import { applyPiTheme } from "../../../src/foundation/pi-component-adapter/index.js";
-import { OwnedUiSessionShell } from "../../../src/foundation/pi-owned-ui-integration/index.js";
+} from "../../../src/integrations/pi/engine/index.js";
+import { applyPiTheme } from "../../../src/integrations/pi/components/index.js";
+import { OwnedUiSessionShell } from "../../../src/integrations/pi/owned-ui/index.js";
 import { TestPresentationTerminal } from "../../features/owned-ui/neutral-port-doubles.js";
 
 class Session {

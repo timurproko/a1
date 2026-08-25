@@ -30,7 +30,7 @@
       "scrollFollow": "inside primary transcript ScrollView with follow=end",
       "lifetime": "session root; survives chat clear until resource reload/disposal",
       "sourceAnchors": ["this.documentContainer.addChild(this.headerContainer)", "this.documentContainer.addChild(this.loadedResourcesContainer)", "this.documentContainer.addChild(this.chatContainer)"],
-      "destination": "src/foundation/pi-owned-ui-integration/session-shell.ts",
+      "destination": "src/integrations/pi/owned-ui/session-shell.ts",
       "implementationStatus": "requires-revalidation"
     },
     {
@@ -47,7 +47,7 @@
       "scrollFollow": "primary transcript follows end unless user scroll ownership prevents it",
       "lifetime": "retained until clear, rebuild, session switch, or disposal",
       "sourceAnchors": ["addMessageToChat(message, options)", "new UserMessageComponent", "new AssistantMessageComponent", "new ToolExecutionComponent"],
-      "destination": "src/foundation/pi-component-adapter/shell-components.ts",
+      "destination": "src/integrations/pi/components/shell-components.ts",
       "implementationStatus": "requires-revalidation"
     },
     {
@@ -64,7 +64,7 @@
       "scrollFollow": "primary transcript document",
       "lifetime": "session transcript lifetime",
       "sourceAnchors": ["addCustomEntryToChat(entry)", "new CustomMessageComponent", "new CompactionSummaryMessageComponent", "new BranchSummaryMessageComponent", "new SkillInvocationMessageComponent"],
-      "destination": "src/foundation/pi-component-adapter/shell-components.ts",
+      "destination": "src/integrations/pi/components/shell-components.ts",
       "implementationStatus": "requires-revalidation"
     },
     {
@@ -81,7 +81,7 @@
       "scrollFollow": "chat after migration; dock while pending",
       "lifetime": "live through execution then retained in transcript",
       "sourceAnchors": ["async handleBashCommand(command, excludeFromContext = false)", "this.pendingMessagesContainer.addChild(this.bashComponent)", "this.chatContainer.addChild(this.bashComponent)", "flushPendingBashComponents()"],
-      "destination": "src/foundation/pi-component-adapter/shell-components.ts",
+      "destination": "src/integrations/pi/components/shell-components.ts",
       "implementationStatus": "requires-revalidation"
     },
     {
@@ -98,7 +98,7 @@
       "scrollFollow": "primary transcript follows chronological insertion",
       "lifetime": "persistent until chat clear/rebuild/session switch",
       "sourceAnchors": ["showStatus(message)", "const spacer = new Spacer(1)", "const text = new Text(theme.fg(\"dim\", message), 1, 0)", "this.lastStatusText.setText"],
-      "destination": "src/foundation/pi-owned-ui-integration/session-shell.ts",
+      "destination": "src/integrations/pi/owned-ui/session-shell.ts",
       "implementationStatus": "known-divergence"
     },
     {
@@ -115,7 +115,7 @@
       "scrollFollow": "primary transcript follows end",
       "lifetime": "persistent until chat clear/rebuild/session switch",
       "sourceAnchors": ["showError(errorMessage)", "`Error: ${errorMessage}`", "showWarning(warningMessage)", "`Warning: ${warningMessage}`"],
-      "destination": "src/foundation/pi-owned-ui-integration/session-shell.ts",
+      "destination": "src/integrations/pi/owned-ui/session-shell.ts",
       "implementationStatus": "known-divergence"
     },
     {
@@ -132,7 +132,7 @@
       "scrollFollow": "primary transcript",
       "lifetime": "persistent transcript state",
       "sourceAnchors": ["showManagedToolStatus(status)", "this.managedToolStatusStarted = true", "this.lastStatusText = undefined"],
-      "destination": "src/foundation/pi-owned-ui-integration/session-shell.ts",
+      "destination": "src/integrations/pi/owned-ui/session-shell.ts",
       "implementationStatus": "requires-revalidation"
     },
     {
@@ -149,7 +149,7 @@
       "scrollFollow": "primary transcript",
       "lifetime": "persistent session document",
       "sourceAnchors": ["showNewVersionNotification(release)", "showPackageUpdateNotification(packages)", "Update Available", "Package Updates Available"],
-      "destination": "src/foundation/pi-owned-ui-integration/session-shell.ts",
+      "destination": "src/integrations/pi/owned-ui/session-shell.ts",
       "implementationStatus": "requires-revalidation"
     },
     {
@@ -166,7 +166,7 @@
       "scrollFollow": "primary transcript and normal wrapping/scrolling",
       "lifetime": "persistent until chat clear/session switch",
       "sourceAnchors": ["handleSessionCommand()", "theme.bold(\"Session Info\")", "theme.bold(\"Messages\")", "theme.bold(\"Tokens\")", "theme.bold(\"Cost\")"],
-      "destination": "src/foundation/pi-component-adapter/shell-components.ts",
+      "destination": "src/integrations/pi/components/shell-components.ts",
       "implementationStatus": "known-divergence"
     },
     {
@@ -183,7 +183,7 @@
       "scrollFollow": "primary transcript",
       "lifetime": "persistent command document",
       "sourceAnchors": ["handleChangelogCommand()", "handleHotkeysCommand()", "What's New", "Keyboard Shortcuts"],
-      "destination": "src/foundation/pi-owned-ui-integration/session-shell.ts",
+      "destination": "src/integrations/pi/owned-ui/session-shell.ts",
       "implementationStatus": "requires-revalidation"
     },
     {
@@ -200,7 +200,7 @@
       "scrollFollow": "primary transcript",
       "lifetime": "persistent except terminal flash and shutdown-only routes",
       "sourceAnchors": ["async handleExportCommand(text)", "async handleImportCommand(text)", "async handleShareCommand()", "async handleCopyCommand(options = {})", "handleNameCommand(text)", "async handleClearCommand()"],
-      "destination": "src/foundation/pi-owned-ui-integration/session-shell.ts",
+      "destination": "src/integrations/pi/owned-ui/session-shell.ts",
       "implementationStatus": "known-divergence"
     },
     {
@@ -217,7 +217,7 @@
       "scrollFollow": "primary transcript",
       "lifetime": "persistent session document",
       "sourceAnchors": ["handleDebugCommand()", "handleArminSaysHi()", "handleDementedDelves()", "handleDaxnuts()"],
-      "destination": "src/foundation/pi-owned-ui-integration/session-shell.ts",
+      "destination": "src/integrations/pi/owned-ui/session-shell.ts",
       "implementationStatus": "requires-revalidation"
     },
     {
@@ -234,7 +234,7 @@
       "scrollFollow": "dock shrinks independently; not transcript scroll content",
       "lifetime": "until dequeued, flushed, aborted, session switch, or disposal",
       "sourceAnchors": ["updatePendingMessagesDisplay()", "Steering: ${message}", "Follow-up: ${message}", "to edit all queued messages"],
-      "destination": "src/foundation/pi-owned-ui-integration/session-shell.ts",
+      "destination": "src/integrations/pi/owned-ui/session-shell.ts",
       "implementationStatus": "requires-revalidation"
     },
     {
@@ -251,7 +251,7 @@
       "scrollFollow": "fixed dock outside transcript ScrollView",
       "lifetime": "active streaming/retry/compaction/branch operation; disposed on terminal event",
       "sourceAnchors": ["showStatusIndicator(indicator)", "new WorkingStatusIndicator", "new RetryStatusIndicator", "new CompactionStatusIndicator", "new BranchSummaryStatusIndicator"],
-      "destination": "src/foundation/pi-component-adapter/shell-components.ts",
+      "destination": "src/integrations/pi/components/shell-components.ts",
       "implementationStatus": "known-divergence"
     },
     {
@@ -268,7 +268,7 @@
       "scrollFollow": "fixed dock with bounded maximum lines",
       "lifetime": "until key removal, extension reset/reload, session disposal",
       "sourceAnchors": ["setExtensionWidget(key, content, options)", "renderWidgetContainer(container, widgets, spacerWhenEmpty, leadingSpacer)", "widgetContainerAbove", "widgetContainerBelow"],
-      "destination": "src/foundation/pi-component-adapter/shell-components.ts",
+      "destination": "src/integrations/pi/components/shell-components.ts",
       "implementationStatus": "requires-revalidation"
     },
     {
@@ -285,7 +285,7 @@
       "scrollFollow": "fixed dock outside transcript",
       "lifetime": "session root with replacements restored into same container",
       "sourceAnchors": ["this.editorContainer.addChild(this.editor)", "this.footerContainer.addChild(this.footer)", "component: this.editorContainer, shrink: 1, minSize: 3", "component: this.footerContainer, shrink: 1, minSize: 1"],
-      "destination": "src/foundation/pi-owned-ui-integration/session-shell.ts",
+      "destination": "src/integrations/pi/owned-ui/session-shell.ts",
       "implementationStatus": "known-divergence"
     },
     {
@@ -302,7 +302,7 @@
       "scrollFollow": "replacement has its own viewport/scroll ownership where applicable",
       "lifetime": "until complete/cancel/back/failure/session switch/disposal, then exact parent or editor restoration",
       "sourceAnchors": ["showSelector(create)", "this.disposeActiveSelector()", "this.editorContainer.addChild(created.component)", "this.ui.setFocus(created.focus)", "showExtensionSelector"],
-      "destination": "src/foundation/pi-owned-ui-integration/session-shell.ts",
+      "destination": "src/integrations/pi/owned-ui/session-shell.ts",
       "implementationStatus": "known-divergence"
     },
     {
@@ -319,7 +319,7 @@
       "scrollFollow": "fixed editor replacement",
       "lifetime": "share/reload/auth operation until success, failure, or abort",
       "sourceAnchors": ["new BorderedLoader(this.ui, theme, \"Creating gist...\")", "this.editorContainer.addChild(loader)", "loader.onAbort"],
-      "destination": "src/foundation/pi-owned-ui-integration/session-shell.ts",
+      "destination": "src/integrations/pi/owned-ui/session-shell.ts",
       "implementationStatus": "known-divergence"
     }
   ],

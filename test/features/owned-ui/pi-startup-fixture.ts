@@ -1,6 +1,6 @@
 import type { OwnedUiSessionViewModel } from "../../../src/foundation/owned-ui-contracts/index.js";
-import { OwnedUiSessionShellRoot } from "../../../src/foundation/pi-owned-ui-integration/index.js";
-import { createPiShellFooter } from "../../../src/foundation/pi-component-adapter/index.js";
+import { OwnedUiSessionShellRoot } from "../../../src/integrations/pi/owned-ui/index.js";
+import { createPiShellFooter } from "../../../src/integrations/pi/components/index.js";
 import { normalizeRow, type StartupCapture, type StartupCaptureState } from "./pi-upstream-startup-fixture.js";
 
 /** A1 producer. It deliberately shares no composition implementation with the upstream producer. */

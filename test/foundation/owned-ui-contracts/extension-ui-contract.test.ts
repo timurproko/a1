@@ -88,7 +88,7 @@ describe("owned extension UI contracts", () => {
   it("keeps owned contracts dependency-free and confines the validated public UI type to the engine adapter", async () => {
     const [contract, adapter] = await Promise.all([
       readFile("src/foundation/owned-ui-contracts/extension-ui.ts", "utf8"),
-      readFile("src/foundation/pi-engine-adapter/adapter.ts", "utf8"),
+      readFile("src/integrations/pi/engine/adapter.ts", "utf8"),
     ]);
     expect(contract).not.toMatch(/@earendil-works|pi-coding-agent|pi-tui/);
     expect(adapter.match(/ExtensionUIContext/g)).toHaveLength(3);

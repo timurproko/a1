@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   PiUpgradeConformanceError,
   runPiUpgradeConformance,
-} from "../../../src/foundation/pi-engine-adapter/index.js";
+} from "../../../src/integrations/pi/engine/index.js";
 
 describe("Pi public upgrade conformance", () => {
   it("constructs isolated services and sessions against the public SDK", async () => {

@@ -8,7 +8,7 @@ import {
 import {
   createPiEngineAdapter,
   type PiEngineAdapter,
-} from "../../../src/foundation/pi-engine-adapter/index.js";
+} from "../../../src/integrations/pi/engine/index.js";
 
 class FakeSession {
   readonly listeners = new Set<(event: unknown) => void>();

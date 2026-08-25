@@ -407,27 +407,27 @@
       "identifier": "a1Commit"
     },
     {
-      "path": "src/foundation/pi-component-adapter/shell-editor-autocomplete.ts",
+      "path": "src/integrations/pi/components/shell-editor-autocomplete.ts",
       "line": 11,
       "identifier": "A1OwnedEditor"
     },
     {
-      "path": "src/foundation/pi-component-adapter/shell-editor-autocomplete.ts",
+      "path": "src/integrations/pi/components/shell-editor-autocomplete.ts",
       "line": 55,
       "identifier": "A1OwnedEditor"
     },
     {
-      "path": "src/foundation/pi-component-adapter/upstream/components/owned-editor.ts",
+      "path": "src/integrations/pi/components/upstream/components/owned-editor.ts",
       "line": 9,
       "identifier": "A1OwnedEditor"
     },
     {
-      "path": "src/foundation/pi-engine-adapter/settings-integration.ts",
+      "path": "src/integrations/pi/engine/settings-integration.ts",
       "line": 6,
       "identifier": "A1_EXPOSED_SETTING_KEYS"
     },
     {
-      "path": "src/foundation/pi-engine-adapter/settings-integration.ts",
+      "path": "src/integrations/pi/engine/settings-integration.ts",
       "line": 19,
       "identifier": "A1_EXPOSED_SETTING_KEYS"
     },

@@ -26,7 +26,7 @@ describe("owned UI customization prerequisite", () => {
   });
 
   it.each(mutations)("rejects %s", async (diagnostic, mutation) => {
-    const root = await fixture({ "src/foundation/pi-engine-adapter/mutation.ts": mutation });
+    const root = await fixture({ "src/integrations/pi/engine/mutation.ts": mutation });
     const result = runGate(root);
     expect(result.status).toBe(1);
     expect(result.stderr).toContain(diagnostic);
@@ -40,7 +40,7 @@ describe("owned UI customization prerequisite", () => {
   });
 
   it("rejects absent source-ledger destinations", async () => {
-    const root = await fixture({}, { localDestination: "src/foundation/pi-component-adapter/missing.ts" });
+    const root = await fixture({}, { localDestination: "src/integrations/pi/components/missing.ts" });
     const result = runGate(root);
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("absent local destination");
@@ -48,7 +48,7 @@ describe("owned UI customization prerequisite", () => {
 
   it("rejects monolithic shell recomposition", async () => {
     const root = await fixture({
-      "src/foundation/pi-component-adapter/shell-presenters-transcript.ts": "export {};\n".repeat(551),
+      "src/integrations/pi/components/shell-presenters-transcript.ts": "export {};\n".repeat(551),
     });
     const result = runGate(root);
     expect(result.status).toBe(1);
@@ -62,7 +62,7 @@ async function fixture(
 ): Promise<string> {
   const root = await mkdtemp(resolve(tmpdir(), "a1-customization-gate-"));
   roots.push(root);
-  const prefix = "src/foundation/pi-component-adapter/";
+  const prefix = "src/integrations/pi/components/";
   const modules = [
     "shell-shared-facade.ts",
     "shell-editor-autocomplete.ts",

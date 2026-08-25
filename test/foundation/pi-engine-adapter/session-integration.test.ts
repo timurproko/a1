@@ -4,7 +4,7 @@ import {
   PiSessionCommandIntegration,
   subscribeToPiSessionEvents,
   type PiDocumentedSessionCommands,
-} from "../../../src/foundation/pi-engine-adapter/index.js";
+} from "../../../src/integrations/pi/engine/index.js";
 
 class Commands implements PiDocumentedSessionCommands {
   isStreaming = false;

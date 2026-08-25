@@ -5,7 +5,7 @@ import {
   PiTuiRuntimeError,
   type PiTuiComponentPort,
   type PiTuiTerminalPort,
-} from "../../../src/foundation/pi-tui-runtime-adapter/index.js";
+} from "../../../src/integrations/pi/tui-runtime/index.js";
 
 class TestComponent implements PiTuiComponentPort {
   readonly inputs: string[] = [];

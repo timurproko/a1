@@ -1,12 +1,12 @@
 import { Text, type TUI } from "@earendil-works/pi-tui";
 import { beforeAll, describe, expect, it, vi } from "vitest";
-import { ensurePiTheme } from "../../../src/foundation/pi-component-adapter/theme.js";
-import { CustomEntryComponent } from "../../../src/foundation/pi-component-adapter/upstream/components/custom-entry.js";
-import { DaxnutsComponent } from "../../../src/foundation/pi-component-adapter/upstream/components/daxnuts.js";
-import { EarendilAnnouncementComponent } from "../../../src/foundation/pi-component-adapter/upstream/components/earendil-announcement.js";
-import { FirstTimeSetupComponent } from "../../../src/foundation/pi-component-adapter/upstream/components/first-time-setup.js";
-import { createMarkdownTransform } from "../../../src/foundation/pi-component-adapter/upstream/components/markdown-transform.js";
-import { createMermaidMarkdownTransformer } from "../../../src/foundation/pi-component-adapter/upstream/components/mermaid.js";
+import { ensurePiTheme } from "../../../src/integrations/pi/components/theme.js";
+import { CustomEntryComponent } from "../../../src/integrations/pi/components/upstream/components/custom-entry.js";
+import { DaxnutsComponent } from "../../../src/integrations/pi/components/upstream/components/daxnuts.js";
+import { EarendilAnnouncementComponent } from "../../../src/integrations/pi/components/upstream/components/earendil-announcement.js";
+import { FirstTimeSetupComponent } from "../../../src/integrations/pi/components/upstream/components/first-time-setup.js";
+import { createMarkdownTransform } from "../../../src/integrations/pi/components/upstream/components/markdown-transform.js";
+import { createMermaidMarkdownTransformer } from "../../../src/integrations/pi/components/upstream/components/mermaid.js";
 
 beforeAll(() => { ensurePiTheme(); });
 

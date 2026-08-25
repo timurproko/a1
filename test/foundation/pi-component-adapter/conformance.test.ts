@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   PiComponentConformanceError,
   runPiComponentConformance,
-} from "../../../src/foundation/pi-component-adapter/index.js";
+} from "../../../src/integrations/pi/components/index.js";
 
 describe("Pi public component upgrade conformance", () => {
   it("validates public component constructor and render contracts", async () => {

@@ -17,7 +17,7 @@ import {
   piTheme,
   stopPiThemeWatcher,
   type PiTerminalTheme,
-} from "../../../src/foundation/pi-component-adapter/index.js";
+} from "../../../src/integrations/pi/components/index.js";
 import { capturePinnedTheme } from "./pinned-theme-upstream-fixture.js";
 
 const FOREGROUNDS = [

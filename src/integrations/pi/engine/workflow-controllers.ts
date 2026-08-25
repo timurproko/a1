@@ -1,4 +1,4 @@
-import type { AgentJsonValue, AgentWorkflowDescriptor, AgentWorkflowPort } from "../agent-engine-contracts/index.js";
+import type { AgentJsonValue, AgentWorkflowDescriptor, AgentWorkflowPort } from "../../../foundation/agent-engine-contracts/index.js";
 import { PINNED_PI_HIDDEN_COMMAND_NAMES, PINNED_PI_WORKFLOW_COMMAND_NAMES, type PiWorkflowRoute } from "./workflows.js";
 
 export type WorkflowCapability =

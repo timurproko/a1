@@ -6,7 +6,7 @@ import {
   KeybindingsManager,
   applyPiTheme,
   createPiShellEditor,
-} from "../../../src/foundation/pi-component-adapter/index.js";
+} from "../../../src/integrations/pi/components/index.js";
 import { createPinnedEditorHarness } from "./pinned-editor-upstream-fixture.js";
 
 function tuiOptions() {

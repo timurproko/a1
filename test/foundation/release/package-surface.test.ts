@@ -34,7 +34,7 @@ describe("exact packed npm command surface", () => {
       "dist/src/product-identity.js",
       "dist/src/product-identity.json",
       "dist/src/product-identity.d.ts",
-      "dist/src/foundation/pi-engine-adapter/public-main-entry.js",
+      "dist/src/integrations/pi/engine/public-main-entry.js",
       `dist/native/${process.platform}-${process.arch}/manifest.json`,
       `dist/native/${process.platform}-${process.arch}/${process.platform === "win32" ? "process-guardian.exe" : "process-guardian"}`,
     ]));
@@ -43,7 +43,7 @@ describe("exact packed npm command surface", () => {
   });
 
   it("launches the exact packed public entry and a1 shim with repository dependencies", () => {
-    const publicEntry = resolve(extracted.packageRoot, "dist", "src", "foundation", "pi-engine-adapter", "public-main-entry.js");
+    const publicEntry = resolve(extracted.packageRoot, "dist", "src", "integrations", "pi", "engine", "public-main-entry.js");
     const oracle = crossSpawn.sync(process.execPath, [publicEntry, "--version"], { cwd: extracted.root, encoding: "utf8", env: process.env, windowsHide: true });
     expect(oracle.status, oracle.stderr).toBe(0);
     expect(oracle.stdout.trim()).toBe(candidate.manifest.dependencies?.["@earendil-works/pi-coding-agent"]);

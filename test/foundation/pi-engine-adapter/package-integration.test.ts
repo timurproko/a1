@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { assertAgentPackagesPort } from "../../../src/foundation/agent-engine-contracts/index.js";
-import { createPiPackagesPort } from "../../../src/foundation/pi-engine-adapter/index.js";
+import { createPiPackagesPort } from "../../../src/integrations/pi/engine/index.js";
 
 const roots: string[] = [];
 afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))));

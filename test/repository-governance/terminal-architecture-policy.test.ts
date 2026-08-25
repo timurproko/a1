@@ -87,9 +87,9 @@ describe("terminal-core architecture policy", () => {
   it.each([
     ["src/features/owned-ui/root.ts", "import { createAgentSessionRuntime } from '@earendil-works/pi-coding-agent'; export { createAgentSessionRuntime };", "outside the owned Pi adapter boundary"],
     ["src/features/owned-ui/root.ts", "InteractiveMode.prototype.render = patched;", "stock Pi interactive prototype mutation"],
-    ["src/foundation/pi-engine-adapter/private-state.ts", "const previousLines = readPrivateState();", "private Pi renderer-state inspection"],
-    ["src/foundation/pi-tui-runtime-adapter/private-state.ts", "const previousViewportTop = readPrivateState();", "private Pi renderer-state inspection"],
-    ["src/foundation/pi-engine-adapter/profile.ts", "const distributionHash = verifyDistribution();", "distribution-hash gating"],
+    ["src/integrations/pi/engine/private-state.ts", "const previousLines = readPrivateState();", "private Pi renderer-state inspection"],
+    ["src/integrations/pi/tui-runtime/private-state.ts", "const previousViewportTop = readPrivateState();", "private Pi renderer-state inspection"],
+    ["src/integrations/pi/engine/profile.ts", "const distributionHash = verifyDistribution();", "distribution-hash gating"],
     ["src/features/owned-ui/root.ts", "import { Editor } from '@oh-my-pi/pi-tui'; export { Editor };", "oh-my-pi fork package import"],
     ["src/features/owned-ui/root.ts", "import { sleep } from 'bun'; export { sleep };", "Bun-only dependency"],
     ["src/features/owned-ui/root.ts", "import { InteractiveMode } from '@earendil-works/pi-coding-agent/dist/modes/index.js'; export { InteractiveMode };", "private Pi distribution import"],
@@ -104,9 +104,9 @@ describe("terminal-core architecture policy", () => {
 
   it("allows public Pi SDK and UI imports only inside their adapters", async () => {
     const root = await fixture({
-      "src/foundation/pi-engine-adapter/sdk.ts": "import { createAgentSessionRuntime } from '@earendil-works/pi-coding-agent'; export { createAgentSessionRuntime };",
-      "src/foundation/pi-component-adapter/component.ts": "import { CustomEditor } from '@earendil-works/pi-coding-agent'; import { Component } from '@earendil-works/pi-tui'; export { CustomEditor, Component };",
-      "src/foundation/pi-tui-runtime-adapter/runtime.ts": "import { TuiAltScreen } from '@earendil-works/pi-tui'; export { TuiAltScreen };",
+      "src/integrations/pi/engine/sdk.ts": "import { createAgentSessionRuntime } from '@earendil-works/pi-coding-agent'; export { createAgentSessionRuntime };",
+      "src/integrations/pi/components/component.ts": "import { CustomEditor } from '@earendil-works/pi-coding-agent'; import { Component } from '@earendil-works/pi-tui'; export { CustomEditor, Component };",
+      "src/integrations/pi/tui-runtime/runtime.ts": "import { TuiAltScreen } from '@earendil-works/pi-tui'; export { TuiAltScreen };",
     });
     const result = runPolicy(root);
     expect(result.status).toBe(0);
@@ -190,7 +190,7 @@ describe("terminal-core architecture policy", () => {
 });
 
 function shellModuleFixture(overrides: Readonly<Record<string, string>> = {}): Record<string, string> {
-  const prefix = "src/foundation/pi-component-adapter/";
+  const prefix = "src/integrations/pi/components/";
   const modules = [
     "shell-shared-facade.ts",
     "shell-editor-autocomplete.ts",

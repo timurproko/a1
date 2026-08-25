@@ -5,7 +5,7 @@
  */
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import { truncateToWidth, visibleWidth, type Component } from "#pi-tui";
-import type { OwnedUiSessionViewModel } from "../../../owned-ui-contracts/index.js";
+import type { OwnedUiSessionViewModel } from "../../../../../foundation/owned-ui-contracts/index.js";
 import { piTheme } from "../../theme.js";
 
 export class SessionFooter implements Component {

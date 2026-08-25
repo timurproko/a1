@@ -45,7 +45,7 @@ for (const file of await walk(sourceRoot)) {
     // `#pi-tui` is A1's own alias for pinned Pi's terminal package, so it is a Pi
     // import wherever it appears and belongs to the same adapter boundary.
     const isPi = !specifier.startsWith(".") && /(?:^|[#/])(?:pi-agent|pi-ai|pi-coding-agent|pi-tui|@mariozechner\/pi-|@oh-my-pi\/pi-)/.test(specifier);
-    const piAdapterPath = /^src\/(?:foundation\/(?:pi-engine-adapter|pi-component-adapter|pi-tui-runtime-adapter)|drivers\/pi|profiles\/pi)\//.test(path);
+    const piAdapterPath = /^src\/(?:integrations\/pi\/(?:engine|components|tui-runtime)|drivers\/pi|profiles\/pi)\//.test(path);
     if (/@oh-my-pi\//.test(specifier)) {
       errors.push(`${path}: oh-my-pi fork package import '${specifier}' is forbidden`);
     }
@@ -61,7 +61,7 @@ for (const file of await walk(sourceRoot)) {
     if (["node-pty", "@xterm/headless"].includes(specifier)) {
       errors.push(`${path}: PTY/emulator import '${specifier}' is forbidden in the transparent baseline`);
     }
-    if (!specifier.startsWith(".") && /pi-tui/.test(specifier) && !/^src\/foundation\/(?:pi-component-adapter|pi-tui-runtime-adapter)\//.test(path)) {
+    if (!specifier.startsWith(".") && /pi-tui/.test(specifier) && !/^src\/integrations\/pi\/(?:components|tui-runtime)\//.test(path)) {
       errors.push(`${path}: Pi TUI import '${specifier}' is outside the runtime or component adapter boundary`);
     }
     if (path.startsWith("src/ui/") && ["node:child_process", "child_process", "node-pty"].includes(specifier)) {
@@ -79,7 +79,7 @@ for (const file of await walk(sourceRoot)) {
     errors.push(`${path}: UI may render virtual terminal state but may not relay opaque child bytes`);
   }
 
-    if (/^(?:src\/features\/owned-ui|src\/foundation\/(?:owned-ui-contracts|pi-engine-adapter|pi-component-adapter|pi-tui-runtime-adapter))\//.test(path)) {
+    if (/^(?:src\/features\/owned-ui|src\/foundation\/owned-ui-contracts|src\/integrations\/pi\/(?:engine|components|tui-runtime|owned-ui))\//.test(path)) {
     const ownedUiForbidden = [
       { pattern: /\b(?:InteractiveMode|TuiAltScreen|TuiMainScreen|ProcessTerminal)\b.*prototype|prototype\s*\.(?:render|start|stop|handle[A-Za-z]+)\s*=/, label: "stock Pi interactive prototype mutation" },
       { pattern: /\b(?:previousLines|previousWidth|previousHeight|cursorRow|hardwareCursorRow|maxLinesRendered|previousViewportTop)\b/, label: "private Pi renderer-state inspection" },
@@ -90,8 +90,8 @@ for (const file of await walk(sourceRoot)) {
     for (const { pattern, label } of ownedUiForbidden) {
       if (pattern.test(source)) errors.push(`${path}: owned UI contains forbidden ${label}`);
     }
-    if (!path.startsWith("src/foundation/pi-component-adapter/")
-      && !path.startsWith("src/foundation/pi-engine-adapter/")
+    if (!path.startsWith("src/integrations/pi/components/")
+      && !path.startsWith("src/integrations/pi/engine/")
       && path !== "src/foundation/owned-ui-contracts/extension-ui.ts"
       && /\b(?:ExtensionUIContext|setEditorComponent|setWidget|setFooter|onTerminalInput)\b/.test(source)) {
       errors.push(`${path}: owned UI depends on stock Pi extension UI context`);
@@ -228,7 +228,7 @@ if (errors.length > 0) {
 }
 
 function inspectOwnedShellModules() {
-  const prefix = "src/foundation/pi-component-adapter/";
+  const prefix = "src/integrations/pi/components/";
   const barrelPath = `${prefix}shell-components.ts`;
   const barrel = sourceFiles[barrelPath];
   if (barrel === undefined) return;
