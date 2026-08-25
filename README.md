@@ -9,10 +9,11 @@ npm install --global @timurproko/a1@latest
 ## Commands
 
 ```sh
-a1              # A1-owned UI and profile: ~/.a1/agent
-a1 version      # show Installed, Release (latest), and Next versions
-a1 update       # update to npm latest
-a1 update:next  # update to npm next (or a1 update:<commit> for a specific preview)
+a1                      # A1-owned UI and profile: ~/.a1/agent
+a1 version              # show Installed, Release (latest), and Next versions
+a1 update               # update to npm latest
+a1 update:next          # update to npm next (or a1 update:<commit> for a specific preview)
+a1 update --models      # refresh A1's model catalogs
 ```
 
 Prerelease builds — what `a1 update:next` installs — add two development profiles
@@ -35,7 +36,6 @@ a1 pi remove npm:pi-mcp-adapter    # remove it again (alias: a1 pi uninstall)
 a1 pi list                         # list packages installed for a1
 a1 pi update --extensions          # update every installed package
 a1 pi update npm:pi-mcp-adapter    # update one of them
-a1 update --models                 # refresh A1's model catalogs
 ```
 
 A running session loads a newly installed package after a restart. Pi's own
