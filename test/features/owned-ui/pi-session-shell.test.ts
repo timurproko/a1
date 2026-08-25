@@ -607,6 +607,20 @@ describe("OwnedUiSessionShell", () => {
     await shell.dispose();
   });
 
+  it("renders and removes extension status contributions in the footer", async () => {
+    const { engine, shell } = await fixture();
+    await vi.waitFor(() => expect(engine.session.calls).toContain("bindExtensions"));
+    const bindings = engine.session.extensionBindings as {
+      uiContext: { setStatus(key: string, text: string | undefined): void };
+    };
+
+    bindings.uiContext.setStatus("mcp", "🔌 MCP: 1 server enabled");
+    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("🔌 MCP: 1 server enabled");
+    bindings.uiContext.setStatus("mcp", undefined);
+    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).not.toContain("MCP: 1 server enabled");
+    await shell.dispose();
+  });
+
   it("rebinds extension UI and clears stale command presentation before reload status", async () => {
     const { engine, shell } = await fixture();
     expect(engine.session.calls.filter(call => call === "bindExtensions")).toHaveLength(1);
@@ -837,7 +851,7 @@ describe("OwnedUiSessionShell", () => {
     expect(firstWarningRow).toBeLessThan(bannerRow);
     expect(rawRows[firstWarningRow]).toContain(`${String.fromCharCode(27)}[33mWarning: `);
     expect(updateTitleRow).toBeGreaterThan(bannerRow);
-    expect(frame).toContain("Package updates are available. Run pi update --extensions");
+    expect(frame).toContain("Package updates are available. Run a1 pi update --extensions");
     expect(frame).toContain("Packages:");
     expect(frame).toContain("- pi-mcp-adapter");
     expect(rows[updateTitleRow - 1]).toMatch(/─/);
