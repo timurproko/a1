@@ -8,10 +8,7 @@
     "a1": "bin/cli.js"
   },
   "imports": {
-    "#pi-tui": [
-      "./node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-tui/dist/index.js",
-      "@earendil-works/pi-tui"
-    ]
+    "#pi-tui": "./bin/pi-tui.js"
   },
   "files": [
     "bin",
