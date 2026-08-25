@@ -27,6 +27,8 @@ class FakeSession {
   };
   readonly calls: string[] = [];
   extensionBindings: unknown;
+  extensionCommands: readonly Record<string, unknown>[] = [];
+  readonly extensionRunner = { getRegisteredCommands: () => this.extensionCommands };
   disposed = false;
 
   constructor(sessionId: string) {
@@ -107,6 +109,10 @@ class FakeSession {
 class FakeRuntime {
   session: FakeSession;
   readonly services = {
+    resourceLoader: {
+      getPrompts: () => ({ prompts: [], diagnostics: [] }),
+      getSkills: () => ({ skills: [], diagnostics: [] }),
+    },
     modelRuntime: {
       getModel(providerId: string, modelId: string): unknown {
         return providerId === "openai" && modelId === "gpt-5.1"
@@ -222,10 +228,27 @@ describe("Pi engine adapter", () => {
     const diagnostic = adapter.view().diagnostics.find(item => item.code === "package-updates")!;
     expect(diagnostic.severity).toBe("info");
     expect(diagnostic.recoverable).toBe(true);
-    expect(diagnostic.message).toContain("Package updates are available. Run pi update --extensions");
+    expect(diagnostic.message).toContain("Package updates are available. Run a1 pi update --extensions");
     expect(diagnostic.message).toContain("- pi-mcp-adapter");
     expect(probed).toBe(1);
     await adapter.execute(command("shutdown", "shutdown-updates"));
+  });
+
+  it("presents extension commands once without Pi-branded compatibility aliases", async () => {
+    const session = new FakeSession("pi-session-1");
+    const sourceInfo = { path: "D:/agent/npm/pi-mcp-adapter/index.ts" };
+    session.extensionCommands = [
+      { name: "mcp", invocationName: "mcp", description: "Show MCP server status", sourceInfo },
+      { name: "pi-mcp", invocationName: "pi-mcp", description: "Show MCP server status", sourceInfo },
+      { name: "mcp-auth", invocationName: "mcp-auth", description: "Authenticate with an MCP server", sourceInfo },
+    ];
+    const { adapter } = await adapterWithRuntime(new FakeRuntime(session));
+
+    expect(adapter.workflowAutocompleteCommands().filter(command => command.source === "extension")).toEqual([
+      { name: "mcp", description: "Show MCP server status", source: "extension" },
+      { name: "mcp-auth", description: "Authenticate with an MCP server", source: "extension" },
+    ]);
+    await adapter.dispose();
   });
 
   it("maps public session usage and footer state without placeholder statistics", async () => {

@@ -18,13 +18,13 @@ that root for every launch. This is a command surface, not an engine change.
 
 ## What Changes
 
-- `a1 install`, `a1 remove` (alias `a1 uninstall`), and `a1 list` manage Pi
-  extension packages in A1's own profile at `~/.a1/agent`. They accept Pi's source
-  grammar unchanged — npm, git, and local paths.
-- `a1 update` gains Pi's package targets: `--extensions` updates every installed
-  package, a positional source updates one, and `--models` refreshes model catalogs.
-  Bare `a1 update` keeps meaning A1 self-update, and `a1 update self` says the same
-  thing in Pi's spelling.
+- `a1 pi install`, `a1 pi remove` (alias `a1 pi uninstall`), and `a1 pi list`
+  manage Pi extension packages in A1's own profile at `~/.a1/agent`. They accept
+  Pi's source grammar unchanged — npm, git, and local paths.
+- `a1 pi update --extensions` updates every installed package and a positional
+  source updates one. `a1 update --models` remains top-level and refreshes A1's
+  model catalogs. Bare `a1 update` keeps meaning A1 self-update, and
+  `a1 update self` says the same thing in Pi's spelling.
 - `a1 update pi` is refused. A1 pins one Pi version and certifies releases against
   it, so a Pi self-update from inside A1 would invalidate the thing that was
   certified.

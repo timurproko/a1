@@ -383,7 +383,7 @@ acts on at startup SHALL NOT be silently ignored by the owned surface.
 - **WHEN** the startup probe finds extension packages with available updates
 - **THEN** the owned UI SHALL render pinned Pi's notification banner —
   warning-coloured dynamic borders around the bold `Package Updates Available`
-  title, the muted instruction with the accent `pi update --extensions`
+  title, the muted instruction with the accent `a1 pi update --extensions`
   command, and the package list — after the banner and loaded resources
 - **AND** with `PI_OFFLINE` set, or when the probe fails, no notice SHALL
   appear

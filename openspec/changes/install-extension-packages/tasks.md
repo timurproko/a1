@@ -20,10 +20,10 @@
 
 ## 3. Extend the command surface
 
-- [x] 3.1 Parse `install`, `remove`, `uninstall`, and `list` in `src/cli/dispatch.ts`,
-  and narrow the existing "commands take no further argument" rule to the launch forms
-- [x] 3.2 Parse `update` with `--extensions`, `--models`, a positional source, and the
-  `self` alias; refuse `pi` with the pinned-release explanation
+- [x] 3.1 Parse `pi install`, `pi remove`, `pi uninstall`, and `pi list` in
+  `src/cli/dispatch.ts`, while retaining bare `a1 pi` as the prerelease oracle launch
+- [x] 3.2 Parse extension package updates under `pi update`, retain top-level
+  `update --models` and the `self` alias, and refuse a pinned-Pi update
 - [x] 3.3 Resolve the A1 profile root through the launch feature's existing path
   resolution and initialize it before use
 - [x] 3.4 Wire a package handler in `bin/cli.js` beside launch, version, and update,

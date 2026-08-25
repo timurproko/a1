@@ -25,19 +25,19 @@ describe("A1 CLI dispatch", () => {
     [["update:next"], { kind: "update", channel: "next" }],
     [["update:7eabe9e"], { kind: "update", channel: "next", target: "7eabe9e" }],
     [["update:0.1.8-dev.7eabe9e"], { kind: "update", channel: "next", target: "0.1.8-dev.7eabe9e" }],
-    [["install", "npm:pi-mcp-adapter"], { kind: "packages", request: { verb: "install", source: "npm:pi-mcp-adapter" } }],
-    [["remove", "npm:pi-mcp-adapter"], { kind: "packages", request: { verb: "remove", source: "npm:pi-mcp-adapter" } }],
-    [["uninstall", "npm:pi-mcp-adapter"], { kind: "packages", request: { verb: "remove", source: "npm:pi-mcp-adapter" } }],
-    [["list"], { kind: "packages", request: { verb: "list", source: null } }],
-    [["update", "--extensions"], { kind: "packages", request: { verb: "update", source: null } }],
-    [["update", "npm:pi-mcp-adapter"], { kind: "packages", request: { verb: "update", source: "npm:pi-mcp-adapter" } }],
+    [["pi", "install", "npm:pi-mcp-adapter"], { kind: "packages", request: { verb: "install", source: "npm:pi-mcp-adapter" } }],
+    [["pi", "remove", "npm:pi-mcp-adapter"], { kind: "packages", request: { verb: "remove", source: "npm:pi-mcp-adapter" } }],
+    [["pi", "uninstall", "npm:pi-mcp-adapter"], { kind: "packages", request: { verb: "remove", source: "npm:pi-mcp-adapter" } }],
+    [["pi", "list"], { kind: "packages", request: { verb: "list", source: null } }],
+    [["pi", "update", "--extensions"], { kind: "packages", request: { verb: "update", source: null } }],
+    [["pi", "update", "npm:pi-mcp-adapter"], { kind: "packages", request: { verb: "update", source: "npm:pi-mcp-adapter" } }],
     [["update", "--models"], { kind: "packages", request: { verb: "refresh-models", source: null } }],
   ] as const)("parses %j", (arguments_, expected) => {
     expect(parseCliCommand(arguments_, PRERELEASE)).toEqual(expected);
   });
 
   it("gives remove and its uninstall alias the same request", () => {
-    expect(parseCliCommand(["uninstall", "npm:x"], PRERELEASE)).toEqual(parseCliCommand(["remove", "npm:x"], PRERELEASE));
+    expect(parseCliCommand(["pi", "uninstall", "npm:x"], PRERELEASE)).toEqual(parseCliCommand(["pi", "remove", "npm:x"], PRERELEASE));
   });
 
   it.each([
@@ -61,7 +61,7 @@ describe("A1 CLI dispatch", () => {
 
   it("dispatches a package command without launching a profile", async () => {
     const commands = { ...handlers(), packages: vi.fn(async () => 3) };
-    expect(await dispatchCli(["install", "npm:pi-mcp-adapter"], commands, { stderr: vi.fn() }, PRERELEASE)).toBe(3);
+    expect(await dispatchCli(["pi", "install", "npm:pi-mcp-adapter"], commands, { stderr: vi.fn() }, PRERELEASE)).toBe(3);
     expect(commands.packages).toHaveBeenCalledWith({ verb: "install", source: "npm:pi-mcp-adapter" });
     expect(commands.launch).not.toHaveBeenCalled();
     expect(commands.update).not.toHaveBeenCalled();
@@ -97,10 +97,10 @@ describe("A1 CLI dispatch", () => {
   });
 
   it.each([
-    { arguments_: ["install", "pi"] },
-    { arguments_: ["install", "sandbox"] },
-    { arguments_: ["install", "--profile", "pi"] },
-    { arguments_: ["list", "sandbox"] },
+    { arguments_: ["pi", "install", "pi"] },
+    { arguments_: ["pi", "install", "sandbox"] },
+    { arguments_: ["pi", "install", "--profile", "pi"] },
+    { arguments_: ["pi", "list", "sandbox"] },
   ])("refuses a profile on package command $arguments_", async ({ arguments_ }) => {
     const commands = handlers();
     const stderr = vi.fn();
@@ -133,10 +133,13 @@ describe("A1 CLI dispatch", () => {
     { arguments_: ["pi", "extra"] },
     { arguments_: ["sandbox", "extra"] },
     { arguments_: ["ui", "extra"] },
-    { arguments_: ["install"] },
-    { arguments_: ["remove"] },
-    { arguments_: ["install", "npm:one", "npm:two"] },
-    { arguments_: ["install", "--local", "npm:one"] },
+    { arguments_: ["pi", "install"] },
+    { arguments_: ["pi", "remove"] },
+    { arguments_: ["pi", "install", "npm:one", "npm:two"] },
+    { arguments_: ["pi", "install", "--local", "npm:one"] },
+    { arguments_: ["pi", "update"] },
+    { arguments_: ["pi", "update", "--models"] },
+    { arguments_: ["pi", "update", "--all"] },
     { arguments_: ["update", "--all"] },
     { arguments_: ["update:next", "7eabe9e"] },
     { arguments_: ["update:"] },
@@ -150,10 +153,24 @@ describe("A1 CLI dispatch", () => {
     expect(JSON.stringify(parseCliCommand(arguments_, PRERELEASE))).not.toMatch(/shell|cmd\.exe|sh -c/i);
   });
 
-  it("names every supported form in usage", () => {
-    for (const form of ["install <source>", "remove <source>", "list", "update:next", "update:<commit>"]) {
+  it("moves extension package commands under the pi namespace and keeps model refresh top-level", () => {
+    for (const form of ["pi install <source>", "pi remove <source>", "pi list", "pi update [--extensions|<source>]", "update [self|--models]"]) {
       expect(cliUsage(PRERELEASE)).toContain(form);
     }
+  });
+
+  it.each([
+    { arguments_: ["install", "npm:x"], guidance: "a1 pi install npm:x" },
+    { arguments_: ["remove", "npm:x"], guidance: "a1 pi remove npm:x" },
+    { arguments_: ["list"], guidance: "a1 pi list" },
+    { arguments_: ["update", "--extensions"], guidance: "a1 pi update --extensions" },
+    { arguments_: ["update", "npm:x"], guidance: "a1 pi update npm:x" },
+  ])("rejects legacy package form $arguments_ with namespace guidance", async ({ arguments_, guidance }) => {
+    const commands = handlers();
+    const stderr = vi.fn();
+    expect(await dispatchCli(arguments_, commands, { stderr }, PRERELEASE)).toBe(2);
+    expect(stderr).toHaveBeenCalledWith(expect.stringContaining(guidance));
+    expect(commands.packages).not.toHaveBeenCalled();
   });
 });
 
@@ -168,9 +185,10 @@ describe("A1 CLI dispatch in a release build", () => {
   });
 
   it("keeps the development profiles out of usage", () => {
-    expect(cliUsage(RELEASE)).not.toContain("a1 pi");
+    expect(cliUsage(RELEASE)).not.toContain("Usage: a1 | a1 pi |");
     expect(cliUsage(RELEASE)).not.toContain("a1 sandbox");
-    expect(cliUsage(PRERELEASE)).toContain("a1 pi");
+    expect(cliUsage(RELEASE)).toContain("a1 pi install <source>");
+    expect(cliUsage(PRERELEASE)).toContain("Usage: a1 | a1 pi |");
     expect(cliUsage(PRERELEASE)).toContain("a1 sandbox");
   });
 
@@ -179,9 +197,10 @@ describe("A1 CLI dispatch in a release build", () => {
     { arguments_: ["version"] as const, kind: "version" },
     { arguments_: ["update"] as const, kind: "update" },
     { arguments_: ["update:next"] as const, kind: "update" },
-    { arguments_: ["list"] as const, kind: "packages" },
-    { arguments_: ["install", "npm:x"] as const, kind: "packages" },
-    { arguments_: ["remove", "npm:x"] as const, kind: "packages" },
+    { arguments_: ["pi", "list"] as const, kind: "packages" },
+    { arguments_: ["pi", "install", "npm:x"] as const, kind: "packages" },
+    { arguments_: ["pi", "remove", "npm:x"] as const, kind: "packages" },
+    { arguments_: ["update", "--models"] as const, kind: "packages" },
   ])("still parses $arguments_ the same way", ({ arguments_, kind }) => {
     expect(parseCliCommand(arguments_, RELEASE)).toEqual(parseCliCommand(arguments_, PRERELEASE));
     expect(parseCliCommand(arguments_, RELEASE).kind).toBe(kind);
@@ -190,7 +209,7 @@ describe("A1 CLI dispatch in a release build", () => {
   it("still refuses a profile named to a package command", async () => {
     const commands = handlers();
     const stderr = vi.fn();
-    expect(await dispatchCli(["install", "pi"], commands, { stderr }, RELEASE)).toBe(2);
+    expect(await dispatchCli(["pi", "install", "pi"], commands, { stderr }, RELEASE)).toBe(2);
     expect(stderr).toHaveBeenCalledWith(expect.stringContaining("takes no profile"));
     expect(commands.packages).not.toHaveBeenCalled();
   });
