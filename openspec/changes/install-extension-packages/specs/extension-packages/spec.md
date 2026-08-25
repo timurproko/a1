@@ -69,20 +69,56 @@ success from failure.
 - **WHEN** the user installs a package from a second terminal while bare `a1` is running
 - **THEN** A1 SHALL complete the install without disturbing the running session's ownership
 
-### Requirement: A newly installed package is announced as pending
-A running A1 session SHALL NOT be required to notice a package installed beneath it.
-On success, the command SHALL state that the change takes effect the next time A1
-starts, so a user who sees no new commands in a running session knows why.
+### Requirement: Package command transcripts match pinned Pi
+For an equivalent accepted user-scope package operation, `a1 pi` SHALL produce the
+same package-command transcript as pinned Pi: the same line sequence, wording,
+punctuation, indentation, stdout or stderr destination, and terminal emphasis. Pi's
+progress lines and installed paths SHALL be dim, list headings SHALL be bold,
+success summaries SHALL be green, and operational failures SHALL be red. Output
+inherited from npm, git, or another package-manager child SHALL pass through without
+being rewritten or suppressed.
+
+The command namespace and profile are the only intentional contextual differences:
+the user invokes `a1 pi` rather than `pi`, and installed paths naturally resolve
+beneath `<home>/.a1/agent` rather than `<home>/.pi/agent`. Child-process facts such as
+package counts, audit totals, elapsed time, and funding notices SHALL describe the
+actual A1-profile operation. A1 SHALL NOT prepend a product-specific summary, append
+the profile root to Pi's summary, rename Pi's labels, or add a restart advisory.
 
 #### Scenario: Install succeeds
-- **WHEN** an install completes
-- **THEN** A1 SHALL confirm what was installed and SHALL say that a restart is needed for a running session to load it
+- **WHEN** `a1 pi install <source>` completes
+- **THEN** the progress line SHALL be dim `Installing <source>...`
+- **AND** any child package-manager output SHALL remain in place
+- **AND** the final line SHALL be green `Installed <source>` with no following A1-specific line
 
-### Requirement: Package failures are actionable
-When an operation cannot proceed, A1 SHALL report the cause in its own voice and
-SHALL NOT print a raw stack trace as the primary message. A missing package manager,
-an unreachable network, and a source with no matching installed package SHALL each
-be distinguishable from the message alone.
+#### Scenario: Remove succeeds
+- **WHEN** `a1 pi remove <source>` or its `uninstall` alias completes
+- **THEN** the progress line SHALL be dim `Removing <source>...`
+- **AND** the final line SHALL be green `Removed <source>` with no profile suffix
+
+#### Scenario: Packages are listed
+- **WHEN** the A1 profile has user packages and the user runs `a1 pi list`
+- **THEN** the transcript SHALL use Pi's bold `User packages:` heading
+- **AND** each source SHALL use Pi's indentation, append ` (filtered)` when filtered, and show its installed path dimmed on the next line
+- **AND** it SHALL NOT print an A1-specific heading or the profile root outside an installed path
+
+#### Scenario: No packages are listed
+- **WHEN** the A1 profile has no configured packages and the user runs `a1 pi list`
+- **THEN** the complete result SHALL be Pi's dim `No packages installed.` line
+
+#### Scenario: Every package is updated
+- **WHEN** `a1 pi update --extensions` completes
+- **THEN** the final line SHALL be green `Updated packages`
+
+#### Scenario: One package is updated
+- **WHEN** `a1 pi update <source>` completes
+- **THEN** the final line SHALL be green `Updated <source>`
+
+### Requirement: Package failures are actionable and preserve Pi parity
+When an accepted package operation cannot proceed, A1 SHALL preserve pinned Pi's
+operational failure format and SHALL NOT print a raw stack trace as the primary
+message. A missing package manager, an unreachable network, and a source with no
+matching installed package SHALL each be distinguishable from the message alone.
 
 #### Scenario: Package manager is unavailable
 - **WHEN** the underlying package manager cannot be run
@@ -90,8 +126,12 @@ be distinguishable from the message alone.
 
 #### Scenario: Removing something not installed
 - **WHEN** the user removes a source that is not configured in the A1 profile
-- **THEN** A1 SHALL say no matching package was found and SHALL exit with a failure status
+- **THEN** A1 SHALL print red `No matching package found for <source>` to stderr and SHALL exit with a failure status
 
-#### Scenario: Diagnostics are read
-- **WHEN** any package command reports success, refusal, or failure
-- **THEN** the message SHALL use A1's own command names and SHALL NOT instruct the user to run a Pi command instead
+#### Scenario: An operation throws
+- **WHEN** pinned Pi's package manager rejects an accepted operation with a detail
+- **THEN** A1 SHALL print red `Error: <detail>` to stderr and SHALL exit with a failure status
+
+#### Scenario: Command guidance is needed
+- **WHEN** A1 rejects package-command syntax before an operation begins
+- **THEN** any command guidance SHALL use the `a1 pi` namespace rather than instructing the user to invoke standalone Pi

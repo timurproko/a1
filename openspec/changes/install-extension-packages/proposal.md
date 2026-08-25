@@ -16,6 +16,13 @@ The install itself needs no new machinery. Pi's package manager is a documented
 public export that takes the profile root as an argument, and A1 already resolves
 that root for every launch. This is a command surface, not an engine change.
 
+The first package-command implementation routes the operations correctly, but its
+terminal transcript invents an A1 presentation around them. It adds product and
+profile prose, changes Pi's list heading and filtered marker, drops Pi's terminal
+emphasis, and appends a restart advisory after install. The package namespace is a
+compatibility surface, so a user moving between `pi` and `a1 pi` should see the same
+package-manager conversation rather than two presentations of the same operation.
+
 ## What Changes
 
 - `a1 pi install`, `a1 pi remove` (alias `a1 pi uninstall`), and `a1 pi list`
@@ -35,6 +42,13 @@ that root for every launch. This is a command surface, not an engine change.
 - Package commands run entirely in the installed package process, without
   materializing a release, starting the supervisor, or touching the foreground
   lease.
+- For install, remove, list, and extension update, `a1 pi` preserves pinned Pi's
+  terminal transcript one-for-one: the same lines, wording, punctuation,
+  indentation, stdout/stderr routing, and dim/bold/green/red emphasis. The only
+  intentional differences are the command namespace the user typed and package
+  paths rooted in `~/.a1/agent`; subprocess facts such as package counts and timing
+  remain whatever the A1-profile operation actually produced. A1 adds no wrapper
+  summary and no restart advisory.
 
 ## Capabilities
 
