@@ -49,6 +49,7 @@ import {
   createPiShellTreeSelector,
   createPiShellTrustSelector,
   createPiShellUserMessageSelector,
+  onPiThemeChange,
   piTheme,
   renderPiShellPackageUpdateNotice,
   renderPiShellStartupDiagnostic,
@@ -100,6 +101,9 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   readonly resources: PiShellLoadedResourcesPort;
   readonly #cwd: string;
   readonly #transcript = new Map<string, PiShellTranscriptComponentPort>();
+  readonly #blocksById = new Map<string, OwnedUiSessionViewModel["transcript"][number]>();
+  readonly #renderedRows = new Map<string, { readonly width: number; readonly revision: number; readonly rows: readonly string[] }>();
+  readonly #themeUnsubscribe: () => void;
   #transcriptOrder: string[] = [];
   #view: OwnedUiSessionViewModel;
   readonly #status: PiShellStatusPort;
@@ -172,6 +176,9 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       if (block.kind === "user") this.editor.addToHistory(block.text);
     }
     this.#syncTranscript(view.transcript);
+    // Colours come from the active theme, so rendered rows outlive their revision only
+    // until the theme under them changes.
+    this.#themeUnsubscribe = onPiThemeChange(() => this.#renderedRows.clear());
   }
 
   update(view: OwnedUiSessionViewModel): void {
@@ -250,9 +257,9 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
 
   #renderDocument(width: number): readonly string[] {
     const transcript = this.#transcriptOrder.flatMap((id, index) => {
-      const block = this.#view.transcript.find(item => item.id === id);
+      const block = this.#blocksById.get(id);
       if (!this.#thinkingVisible && block?.kind === "thinking") return [];
-      const rows = this.#transcript.get(id)?.render(width) ?? [];
+      const rows = this.#blockRows(id, block, width);
       if (index > 0 && block?.kind === "user") return ["", ...rows];
       return rows;
     });
@@ -289,6 +296,24 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       ...packageUpdateRows,
       ...diagnosticRows,
     ];
+  }
+
+  /**
+   * Rows for one transcript block. A finalized block renders once for a given revision
+   * and width and is reused after that, so a frame costs what changed rather than what
+   * the session has accumulated. A live block, and anything the shell drives itself, is
+   * rendered every time because its content is still moving.
+   */
+  #blockRows(id: string, block: OwnedUiSessionViewModel["transcript"][number] | undefined, width: number): readonly string[] {
+    const component = this.#transcript.get(id);
+    if (component === undefined) return [];
+    if (block === undefined || block.status !== "finalized") return component.render(width);
+
+    const cached = this.#renderedRows.get(id);
+    if (cached && cached.width === width && cached.revision === block.revision) return cached.rows;
+    const rows = component.render(width);
+    this.#renderedRows.set(id, { width, revision: block.revision, rows });
+    return rows;
   }
 
   transcriptComponent(id: string): PiShellTranscriptComponentPort | undefined {
@@ -462,6 +487,8 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.#extensionWorkingMessage = undefined;
     this.#status.setWorkingOverride(undefined);
     this.#footer.update(this.#viewWithExtensionStatuses(this.#view));
+    // An extension renderer may have drawn transcript blocks that are now unrendered by it.
+    this.#renderedRows.clear();
     this.invalidate();
   }
 
@@ -515,10 +542,12 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   }
 
   dispose(): void {
+    this.#themeUnsubscribe();
     this.header.dispose?.();
     this.resources.dispose?.();
     for (const component of this.#transcript.values()) component.dispose?.();
     this.#transcript.clear();
+    this.#renderedRows.clear();
     if (this.#inputSurface !== this.editor) this.#inputSurface.dispose?.();
     this.#extensionHeader?.dispose?.();
     this.#extensionFooter?.dispose?.();
@@ -531,11 +560,14 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   }
 
   #syncTranscript(blocks: OwnedUiSessionViewModel["transcript"]): void {
+    this.#blocksById.clear();
+    for (const block of blocks) this.#blocksById.set(block.id, block);
     const nextIds = new Set(blocks.map(block => block.id));
     for (const [id, component] of this.#transcript) {
       if (id.startsWith("workflow-status-") || nextIds.has(id)) continue;
       component.dispose?.();
       this.#transcript.delete(id);
+      this.#renderedRows.delete(id);
     }
     for (const block of blocks) {
       const component = this.#transcript.get(block.id);
@@ -556,8 +588,9 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       const block = blocks[index];
       if (block !== undefined) order.push(block.id);
     }
+    const placed = new Set(order);
     for (const statusId of statusIds) {
-      if (!order.includes(statusId)) order.push(statusId);
+      if (!placed.has(statusId)) order.push(statusId);
     }
     this.#transcriptOrder = order;
   }
@@ -626,6 +659,8 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.header.setExpanded(expanded);
     this.resources.setExpanded(expanded);
     for (const component of this.#transcript.values()) component.setExpanded(expanded);
+    // Expansion changes what a block draws without changing its revision.
+    this.#renderedRows.clear();
     this.invalidate();
   }
 }
@@ -806,6 +841,7 @@ export class OwnedUiSessionShell {
   #sequence = 0;
   #started = false;
   #disposed = false;
+  #pointerReporting = false;
   #compactionQueue: Array<{ readonly text: string; readonly type: "steer" | "follow-up" }> = [];
   #lastClearTime = 0;
   #activeLoginDialog: PiShellLoginDialogPort | undefined;
@@ -1506,9 +1542,23 @@ export class OwnedUiSessionShell {
     }
   }
 
+  /**
+   * Turns terminal pointer reporting on for a screen that reads the pointer, and off for
+   * every path that ends it. While it is on the terminal hands A1 the wheel and the
+   * button instead of scrolling and selecting itself, so leaving it on outlives the
+   * screen that wanted it and takes the terminal's own scrolling and selection with it.
+   */
+  #setPointerReporting(enabled: boolean): void {
+    if (this.#pointerReporting === enabled) return;
+    this.#pointerReporting = enabled;
+    if (!this.runtime.active) return;
+    this.runtime.writeControl(enabled ? MOUSE_TRACKING_ON : MOUSE_TRACKING_OFF);
+  }
+
   async dispose(): Promise<void> {
     if (this.#disposed) return;
     this.#disposed = true;
+    this.#setPointerReporting(false);
     this.#unsubscribe();
     this.#dialogHandle?.hide();
     await this.backend.unbindExtensionUi();
@@ -1522,6 +1572,8 @@ export class OwnedUiSessionShell {
       this.#sessionGeneration = this.backend.sessionGeneration;
       this.#activeLoginDialog = undefined;
       this.#extensionBridge.reset();
+      // A replaced session takes its screens with it, pointer reporting included.
+      this.#setPointerReporting(false);
       this.root.setInputSurface(null);
       this.root.resetExtensionUi();
       this.root.resetWorkflowPresentation();
@@ -1541,7 +1593,7 @@ export class OwnedUiSessionShell {
     this.#dialogHandle?.hide();
     // Any-event reporting: hover and drag are what the screen is driven by, and
     // it also stops the terminal treating a drag as a text selection.
-    this.runtime.writeControl(MOUSE_TRACKING_ON);
+    this.#setPointerReporting(true);
     // The interrupt chord is global, so it is watched on raw input rather than
     // through the overlay: the pinned shell handles that key before an overlay
     // ever sees it, which is why an owned screen must not rely on being asked.
@@ -1563,7 +1615,7 @@ export class OwnedUiSessionShell {
     });
     const closeSurface = () => {
       removeInterruptWatch();
-      this.runtime.writeControl(MOUSE_TRACKING_OFF);
+      this.#setPointerReporting(false);
       this.#dialogHandle?.hide();
       this.#dialogHandle = undefined;
       this.#dialogId = undefined;
