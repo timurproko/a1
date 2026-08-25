@@ -10,13 +10,13 @@ const { fileURLToPath } = await import("node:url");
 // when that stopped being true.
 assertSinglePiTuiModuleAtLaunch(fileURLToPath(new URL("..", import.meta.url)), message => process.stderr.write(message));
 
-const { runSelectedInteractiveRuntime } = await import("../dist/src/features/launch/index.js");
+const { runSelectedInteractiveRuntime } = await import("../dist/features/launch/index.js");
 
 runSelectedInteractiveRuntime(process.env.A1_LAUNCH_PROFILE ?? "a1", {
   ownedUi: async (profileId, ownedSurfaces) => {
     const [{ runOwnedUi }, { composeOwnedUi }] = await Promise.all([
-      import("../dist/src/features/owned-ui/index.js"),
-      import("../dist/src/composition/index.js"),
+      import("../dist/features/owned-ui/index.js"),
+      import("../dist/composition/index.js"),
     ]);
     const { application, settings } = await composeOwnedUi({ cwd: process.cwd(), profileId, ownedSurfaces });
     return await runOwnedUi({ application, ...(settings === null ? {} : { settings }) });

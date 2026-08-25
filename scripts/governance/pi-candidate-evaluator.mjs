@@ -55,7 +55,7 @@ function defaultOperations(repository) {
       return "TypeScript compatibility passed";
     },
     async runtime(root, _packages, signal) {
-      const expression = `import('./dist/src/integrations/pi/engine/conformance.js').then(async m=>console.log(JSON.stringify(await m.runPiUpgradeConformance())))`;
+      const expression = `import('./dist/integrations/pi/engine/conformance.js').then(async m=>console.log(JSON.stringify(await m.runPiUpgradeConformance())))`;
       const value = await command(process.execPath, ["--input-type=module", "-e", expression], root, signal);
       JSON.parse(value.stdout.trim());
       return "runtime capability conformance passed";
