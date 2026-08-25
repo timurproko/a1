@@ -24,6 +24,18 @@ describe("version stats", () => {
     ]);
   });
 
+  it("unwraps the one-element array npm 12 emits for dist-tags --json", async () => {
+    const harness = await createHarness();
+    const code = await runVersionStats({
+      ...harness.options,
+      runner: async () => ({ code: 0, stdout: JSON.stringify([{ latest: "1.1.4", next: "1.2.0-dev.3" }]) }),
+    });
+
+    expect(code).toBe(0);
+    expect(harness.stdout.join("")).toBe("Current: 1.1.0\nDevelop: 1.2.0-dev.3\nRelease: 1.1.4\n");
+    expect(harness.stderr).toEqual([]);
+  });
+
   it("treats an absent optional development tag as normally unavailable", async () => {
     const harness = await createHarness();
     const code = await runVersionStats({
@@ -53,6 +65,8 @@ describe("version stats", () => {
   it.each([
     ["invalid JSON", "not-json", "Unexpected token"],
     ["non-object JSON", "[]", "non-object dist-tags"],
+    ["multi-element array JSON", JSON.stringify([{ latest: "1.1.4" }, { latest: "1.1.5" }]), "non-object dist-tags"],
+    ["array wrapping a non-object", JSON.stringify(["1.1.4"]), "non-object dist-tags"],
     ["missing latest", JSON.stringify({ next: "1.2.0-dev.1" }), "npm latest"],
     ["invalid latest", JSON.stringify({ latest: "newest" }), "npm latest"],
     ["invalid development tag", JSON.stringify({ latest: "1.1.4", next: "preview" }), "npm development channel"],
