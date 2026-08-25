@@ -85,7 +85,7 @@ function diagnostic(finding) {
     case "dependency-node-modules-traversal":
       return "production traverses node_modules for a Pi dependency; bind only through package-root exports";
     case "private-package-path-construction":
-      return "production constructs a private dependency path; internal dist/src/build layout is not a public API";
+      return "production constructs a private dependency path; internal dist/build layout is not a public API";
     case "reflected-concrete-constructor":
       return `production reflects concrete Pi constructor '${finding.symbol}'; call a checked public constructor or use an A1-owned implementation`;
     case "structural-concrete-session-substitute":

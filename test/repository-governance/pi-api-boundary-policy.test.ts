@@ -51,7 +51,7 @@ describe("Pi production boundary freeze", () => {
     const accepted = baseline.packageLayoutReads[2];
     const errors = inspectPiProductionBoundary({ [accepted.path]: accepted.expression }, baseline);
     expect(errors).toContain(`${accepted.path}:1: production reads a dependency package directory; use a documented public API or an owned resource`);
-    expect(errors).toContain(`${accepted.path}:1: production constructs a private dependency path; internal dist/src/build layout is not a public API`);
+    expect(errors).toContain(`${accepted.path}:1: production constructs a private dependency path; internal dist/build layout is not a public API`);
   });
 
   it.each([

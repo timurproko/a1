@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 const packageRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
 const identity = JSON.parse(await readFile(resolve(packageRoot, "src", "product-identity.json"), "utf8"));
 const canonicalRoot = await realpath(packageRoot);
-const { resolveDevelopmentLaunchEnvironment } = await import("../../dist/src/features/launch/index.js");
+const { resolveDevelopmentLaunchEnvironment } = await import("../../dist/features/launch/index.js");
 const release = await deriveDevelopmentReleaseIdentity(packageRoot);
 const { checkoutId, instanceId, developmentRoot, environment } = resolveDevelopmentLaunchEnvironment(
   canonicalRoot,
@@ -54,7 +54,7 @@ function directLaunchProfile(arguments_) {
 }
 
 async function prepareDirectProfile(profileId, sourceEnvironment) {
-  const { interactiveLaunchIntent, prepareInteractiveLaunch } = await import("../../dist/src/features/launch/index.js");
+  const { interactiveLaunchIntent, prepareInteractiveLaunch } = await import("../../dist/features/launch/index.js");
   return await prepareInteractiveLaunch(interactiveLaunchIntent(profileId), sourceEnvironment);
 }
 
