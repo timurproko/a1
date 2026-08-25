@@ -2,12 +2,12 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { OwnedUiSettingsSession } from "../../../src/foundation/owned-ui-settings/index.js";
+import { OwnedUiSettingsSession } from "../../../src/ui/settings/index.js";
 import {
   OwnedUiSettingsStore,
   type OwnedUiSettingDeclaration,
-} from "../../../src/foundation/owned-ui-settings/index.js";
-import type { AgentJsonValue, AgentSettingDescriptor, AgentSettingsPort } from "../../../src/foundation/agent-engine-contracts/index.js";
+} from "../../../src/ui/settings/index.js";
+import type { AgentJsonValue, AgentSettingDescriptor, AgentSettingsPort } from "../../../src/contracts/agent-engine/index.js";
 
 const DECLARATIONS: readonly OwnedUiSettingDeclaration[] = [
   {

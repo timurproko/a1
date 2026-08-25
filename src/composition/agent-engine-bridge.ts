@@ -10,8 +10,8 @@ import {
   type AgentSessionLifecycle,
   type AgentSessionPort,
   type AgentSnapshot,
-} from "../foundation/agent-engine-contracts/index.js";
-import type { OwnedUiCommand, OwnedUiEvent, OwnedUiTranscriptBlock } from "../foundation/owned-ui-contracts/index.js";
+} from "../contracts/agent-engine/index.js";
+import type { OwnedUiCommand, OwnedUiEvent, OwnedUiTranscriptBlock } from "../contracts/owned-ui/index.js";
 import type { PiEngineAdapter } from "../integrations/pi/engine/index.js";
 
 const CAPABILITIES: AgentCapabilityContract = {

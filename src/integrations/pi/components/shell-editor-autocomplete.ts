@@ -6,7 +6,7 @@ import {
 } from "#pi-tui";
 import type {
   OwnedUiThinkingLevel,
-} from "../../../foundation/owned-ui-contracts/index.js";
+} from "../../../contracts/owned-ui/index.js";
 import { KeybindingsManager } from "./upstream/adjacent/core/keybindings.js";
 import { OwnedEditor } from "./upstream/components/owned-editor.js";
 import {

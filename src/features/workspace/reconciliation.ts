@@ -2,7 +2,7 @@ import {
   StructuredReconnectionManager,
   type StructuredResumeProof,
 } from "../../foundation/structured-agent-runtime/index.js";
-import type { AgentRecoveryAuthority } from "../../foundation/workspace-contracts/index.js";
+import type { AgentRecoveryAuthority } from "../../contracts/workspace/index.js";
 import { WorkspaceReducer } from "./reducer.js";
 import { WorkspaceStore } from "./store.js";
 

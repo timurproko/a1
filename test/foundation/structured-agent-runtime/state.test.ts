@@ -7,7 +7,7 @@ import {
   WORKSPACE_CONTRACT_VERSION,
   type StructuredAgentSnapshot,
   type StructuredCapabilityContract,
-} from "../../../src/foundation/workspace-contracts/index.js";
+} from "../../../src/contracts/workspace/index.js";
 
 const capability: StructuredCapabilityContract = {
   kind: "structured",

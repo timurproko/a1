@@ -2,9 +2,9 @@ import { resolveProductPaths } from "../foundation/lifecycle/index.js";
 import { applyConfiguredPiTheme, getAvailablePiThemes } from "../integrations/pi/components/index.js";
 import { createPiEngineAdapter, type PiEngineAdapter } from "../integrations/pi/engine/index.js";
 import { OwnedUiSessionShell } from "../integrations/pi/owned-ui/index.js";
-import { OwnedUiSettingsSession, OwnedUiSettingsStore } from "../foundation/owned-ui-settings/index.js";
+import { OwnedUiSettingsSession, OwnedUiSettingsStore } from "../ui/settings/index.js";
 import { createPiTerminalBridge } from "../integrations/pi/tui-runtime/index.js";
-import type { OwnedUiApplicationPort, PresentationTerminalPort } from "../foundation/presentation-contracts/index.js";
+import type { OwnedUiApplicationPort, PresentationTerminalPort } from "../contracts/presentation/index.js";
 import { createOwnedRouteHost } from "./settings-route-host.js";
 
 export interface OwnedUiCompositionOptions {

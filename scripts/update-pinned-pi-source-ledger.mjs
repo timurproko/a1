@@ -225,13 +225,13 @@ async function sourceMapRecord(pkg, sourceMapPath, scope) {
             id: "theme-public-api-boundary",
             reason: "Use public package-root Theme, initTheme, configuration-directory, TUI capability, markdown, selector, and syntax helpers instead of private module imports.",
             upstreamBehavior: "Pinned dark/light/custom color resolution, 256/truecolor selection, fallback, automatic terminal detection, and component styling remain acceptance-tested.",
-            acceptanceTest: "test/foundation/pi-component-adapter/pinned-theme-parity.test.ts",
+            acceptanceTest: "test/integrations/pi/components/pinned-theme-parity.test.ts",
           },
           {
             id: "theme-owned-watcher-boundary",
             reason: "Mirror custom-theme reload with an A1-owned file watcher because the public API exposes no theme-change callback and private watcher imports are forbidden.",
             upstreamBehavior: "Debounced valid changes replace the active custom theme and notify rendering; invalid or temporarily missing files retain the last valid theme.",
-            acceptanceTest: "test/foundation/pi-component-adapter/pinned-theme-parity.test.ts",
+            acceptanceTest: "test/integrations/pi/components/pinned-theme-parity.test.ts",
           },
         ],
       }
@@ -244,13 +244,13 @@ async function sourceMapRecord(pkg, sourceMapPath, scope) {
               id: "theme-controller-owned-boundaries",
               reason: "Replace private SettingsManager/theme-module coupling with public theme APIs and A1-owned runtime/settings ports.",
               upstreamBehavior: "Theme initialization, auto detection, preview, switching, render invalidation, and terminal color-scheme synchronization remain ordered as pinned.",
-              acceptanceTest: "test/foundation/pi-component-adapter/pinned-theme-parity.test.ts",
+              acceptanceTest: "test/integrations/pi/components/pinned-theme-parity.test.ts",
             },
             {
               id: "theme-controller-explicit-disposal",
               reason: "A1 lifecycle ownership requires explicit listener disposal instead of relying on stock InteractiveMode teardown.",
               upstreamBehavior: "The terminal color-scheme listener and automatic notifications are released when the owned shell stops.",
-              acceptanceTest: "test/foundation/pi-component-adapter/pinned-theme-parity.test.ts",
+              acceptanceTest: "test/integrations/pi/components/pinned-theme-parity.test.ts",
             },
           ],
         }
@@ -262,7 +262,7 @@ async function sourceMapRecord(pkg, sourceMapPath, scope) {
               id: "countdown-owned-private-fields",
               reason: "Use language-level private fields in the A1-owned class without changing timer ordering or lifecycle.",
               upstreamBehavior: "Initial tick, one-second decrements, render requests, expiration callback, and disposal order match pinned Pi.",
-              acceptanceTest: "test/foundation/pi-component-adapter/pinned-status-indicator-parity.test.ts",
+              acceptanceTest: "test/integrations/pi/components/pinned-status-indicator-parity.test.ts",
             }],
           }
         : upstreamPath === "packages/coding-agent/src/modes/interactive/components/status-indicator.ts"
@@ -273,7 +273,7 @@ async function sourceMapRecord(pkg, sourceMapPath, scope) {
                 id: "status-indicator-public-boundaries",
                 reason: "Remap private theme, countdown, extension option, and keybinding imports to A1-owned or public package-root equivalents.",
                 upstreamBehavior: "Working, retry, compaction, branch-summary, idle, countdown, style, and disposal behavior match pinned Pi.",
-                acceptanceTest: "test/foundation/pi-component-adapter/pinned-status-indicator-parity.test.ts",
+                acceptanceTest: "test/integrations/pi/components/pinned-status-indicator-parity.test.ts",
               }],
             }
           : upstreamPath === "packages/coding-agent/src/core/keybindings.ts"
@@ -284,7 +284,7 @@ async function sourceMapRecord(pkg, sourceMapPath, scope) {
                   id: "keybindings-public-config-boundary",
                   reason: "Resolve the agent configuration directory through the documented package-root API instead of a private config import.",
                   upstreamBehavior: "Complete pinned defaults, migrations, user overrides, conflict detection, matching, and effective-config behavior remain unchanged.",
-                  acceptanceTest: "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts",
+                  acceptanceTest: "test/integrations/pi/components/pinned-editor-input-parity.test.ts",
                 }],
               }
             : undefined;
@@ -564,17 +564,17 @@ function acceptanceTasks(path, categories) {
 
 function testTargets(path, categories) {
   const tests = new Set();
-  if (path.includes("/theme/")) tests.add("test/foundation/pi-component-adapter/pinned-theme-parity.test.ts");
-  if (path.includes("/components/")) tests.add("test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts");
-  if (path.endsWith("/components/status-indicator.ts") || path.endsWith("/components/countdown-timer.ts")) tests.add("test/foundation/pi-component-adapter/pinned-status-indicator-parity.test.ts");
-  if (path.includes("/theme/") || categories.includes("startup-composition")) tests.add("test/foundation/pi-component-adapter/pinned-theme-composition-parity.test.ts");
-  if (categories.includes("stateful-components")) tests.add("test/foundation/pi-component-adapter/pinned-component-lifecycle-parity.test.ts");
+  if (path.includes("/theme/")) tests.add("test/integrations/pi/components/pinned-theme-parity.test.ts");
+  if (path.includes("/components/")) tests.add("test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts");
+  if (path.endsWith("/components/status-indicator.ts") || path.endsWith("/components/countdown-timer.ts")) tests.add("test/integrations/pi/components/pinned-status-indicator-parity.test.ts");
+  if (path.includes("/theme/") || categories.includes("startup-composition")) tests.add("test/integrations/pi/components/pinned-theme-composition-parity.test.ts");
+  if (categories.includes("stateful-components")) tests.add("test/integrations/pi/components/pinned-component-lifecycle-parity.test.ts");
   if (categories.some(category => ["editor", "autocomplete", "keybindings", "clipboard"].includes(category))) tests.add("test/features/owned-ui/pinned-input-parity.test.ts");
   if (categories.some(category => ["selectors", "settings", "sessions", "models", "thinking"].includes(category))) tests.add("test/features/owned-ui/pinned-selector-parity.test.ts");
-  if (categories.includes("built-in-commands")) tests.add("test/foundation/pi-engine-adapter/workflows.test.ts");
+  if (categories.includes("built-in-commands")) tests.add("test/integrations/pi/engine/workflows.test.ts");
   if (categories.some(category => ["prompt-loop", "events", "tools", "errors"].includes(category))) tests.add("test/features/owned-ui/pinned-session-orchestration-parity.test.ts");
   if (/extension/.test(path)) tests.add("test/features/owned-ui/pinned-extension-ui-parity.test.ts");
-  if (categories.some(category => ["resize", "shutdown"].includes(category))) tests.add("test/foundation/pi-tui-runtime-adapter/pinned-lifecycle-parity.test.ts");
+  if (categories.some(category => ["resize", "shutdown"].includes(category))) tests.add("test/integrations/pi/tui-runtime/pinned-lifecycle-parity.test.ts");
   return [...tests];
 }
 

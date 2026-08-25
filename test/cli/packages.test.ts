@@ -14,7 +14,7 @@ import {
   type AgentPackageOutcome,
   type AgentPackagesPort,
   type AgentPackagesPortInput,
-} from "../../src/foundation/agent-engine-contracts/index.js";
+} from "../../src/contracts/agent-engine/index.js";
 
 const roots: string[] = [];
 const transcriptStyle: PackageCommandStyle = new Chalk({ level: 1 });

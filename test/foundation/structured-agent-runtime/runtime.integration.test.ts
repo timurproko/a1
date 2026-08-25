@@ -9,7 +9,7 @@ import {
   type StructuredCommandRecord,
   type StructuredResourceLease,
 } from "../../../src/foundation/structured-agent-runtime/index.js";
-import { WORKSPACE_CONTRACT_VERSION, type StructuredAgentSnapshot, type StructuredCapabilityContract } from "../../../src/foundation/workspace-contracts/index.js";
+import { WORKSPACE_CONTRACT_VERSION, type StructuredAgentSnapshot, type StructuredCapabilityContract } from "../../../src/contracts/workspace/index.js";
 import { SyntheticStructuredAdapter } from "./synthetic-adapter.js";
 
 class SyntheticAgentSession {

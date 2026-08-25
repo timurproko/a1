@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 import { availableWorkspaceActions, gateWorkspaceAction } from "../../../src/features/workspace/index.js";
-import { NATIVE_HOST_PROTOCOL_VERSION, WORKSPACE_CONTRACT_VERSION, type ManagedAgentDescriptor } from "../../../src/foundation/workspace-contracts/index.js";
+import { NATIVE_HOST_PROTOCOL_VERSION, WORKSPACE_CONTRACT_VERSION, type ManagedAgentDescriptor } from "../../../src/contracts/workspace/index.js";
 
 function structuredAgent(overrides: Partial<Extract<ManagedAgentDescriptor["capability"], { kind: "structured" }>> = {}): ManagedAgentDescriptor {
   return {

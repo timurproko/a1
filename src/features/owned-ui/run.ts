@@ -1,5 +1,5 @@
-import type { OwnedUiApplicationPort } from "../../foundation/presentation-contracts/index.js";
-import type { OwnedUiSettingsSession } from "../../foundation/owned-ui-settings/index.js";
+import type { OwnedUiApplicationPort } from "../../contracts/presentation/index.js";
+import type { OwnedUiSettingsSession } from "../../ui/settings/index.js";
 
 export interface OwnedUiRunOptions {
   readonly application: OwnedUiApplicationPort;
