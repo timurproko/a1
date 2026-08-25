@@ -771,8 +771,10 @@ export class OwnedUiSessionShell {
     });
     this.root.editor.setAutocompleteCommands(this.backend.workflowAutocompleteCommands());
     this.#unsubscribe = this.backend.onEvent(event => {
-      this.#syncView();
-      if (this.view().lifecycle === "ready" && this.#compactionQueue.length > 0) void this.#flushCompactionQueue();
+      // One view read per event: the model is built by the backend, and building it
+      // twice per streamed chunk is what made a long session cost more per chunk.
+      const view = this.#syncView();
+      if (view.lifecycle === "ready" && this.#compactionQueue.length > 0) void this.#flushCompactionQueue();
       if (event.type === "session-lifecycle" && event.lifecycle === "stopped") this.#resolveStopped?.();
     });
     if (this.backend.view().lifecycle === "stopped") this.#resolveStopped?.();
@@ -1400,7 +1402,7 @@ export class OwnedUiSessionShell {
     await this.runtime.dispose();
   }
 
-  #syncView(): void {
+  #syncView(): OwnedUiSessionViewModel {
     const view = this.view();
     if (this.backend.sessionGeneration !== this.#sessionGeneration) {
       this.#sessionGeneration = this.backend.sessionGeneration;
@@ -1414,6 +1416,7 @@ export class OwnedUiSessionShell {
     this.#syncDialog(view.dialog);
     this.runtime.requestRender();
     for (const listener of this.#listeners) listener(view);
+    return view;
   }
 
   #openOwnedRoute(route: string): AdapterCommandResult {

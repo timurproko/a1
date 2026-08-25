@@ -671,6 +671,7 @@ describe("OwnedUiSessionShell", () => {
     expect(rows.some(row => row.includes("Extension indexing source"))).toBe(false);
 
     engine.session.emit({ type: "agent_end", messages: [] });
+    engine.session.emit({ type: "agent_settled" });
     await adapter.flushEvents();
     shell.root.appendWorkflowStatus("first informational message");
     shell.root.appendWorkflowResult({ command: "import", outcome: "failed", message: "Usage: /import <path.jsonl>" });
