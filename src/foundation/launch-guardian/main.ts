@@ -14,7 +14,7 @@ import {
   type ProcessContainment,
 } from "../process-containment/index.js";
 import { SupervisorClient } from "../protocol/index.js";
-import { resolveProductPaths } from "../supervision/index.js";
+import { resolveCohortEndpoint, resolveProductPaths } from "../supervision/index.js";
 
 interface GuardianControl {
   connect(endpoint: string, timeoutMs?: number): Promise<unknown>;
@@ -51,7 +51,13 @@ export async function runLaunchGuardian(options: LaunchGuardianOptions): Promise
   if (!guardianIdentity) throw diagnosticError("launch guardian cannot verify its own native process identity", "PROCESS_IDENTITY_UNAVAILABLE");
 
   const client = options.control ?? new SupervisorClient(environment[PRODUCT_IDENTITY.environment.releaseId]);
-  await client.connect(paths.endpoint);
+  // An instance belongs to the cohort that launched it and talks to that cohort's endpoint
+  // for its whole life, whatever release becomes the active one meanwhile.
+  const releaseId = environment[PRODUCT_IDENTITY.environment.releaseId];
+  const endpoint = releaseId
+    ? resolveCohortEndpoint(paths, releaseId, environment).endpoint
+    : paths.endpoint;
+  await client.connect(endpoint);
   const containment = options.containment ?? new NativeGuardianContainment(
     instanceId,
     helperPath,

@@ -36,6 +36,8 @@ export class SupervisorServer {
   #results = new Map<string, CommandResult>();
   #metadataWrites: Promise<void> = Promise.resolve();
   #closing = false;
+  #superseded = false;
+  #supersededPoll: NodeJS.Timeout | null = null;
 
   constructor(
     readonly store: ControlStore,
@@ -45,6 +47,13 @@ export class SupervisorServer {
     readonly terminateProcess: (code: number) => void = code => process.exit(code),
     readonly reconciliationDeadlineMs = 3_000,
     readonly shutdownDeadlineMs = 1_500,
+    /**
+     * Which release new sessions start on. A cohort that is no longer that release keeps
+     * serving the instances it already has, takes no new ones, and exits when its last one
+     * leaves. Absent, this supervisor never considers itself superseded.
+     */
+    readonly readActiveReleaseId: (() => Promise<string | null>) | null = null,
+    readonly supersededPollMs = 1_000,
   ) {
     this.bootNonce = bootNonce;
     this.paths = paths;
@@ -64,6 +73,7 @@ export class SupervisorServer {
   async listen(): Promise<void> {
     if (this.#server) throw new Error("supervisor is already listening");
     await mkdir(this.paths.runtimeDir, { recursive: true, mode: 0o700 });
+    await mkdir(this.paths.endpointsDir, { recursive: true, mode: 0o700 });
     if (platform() !== "win32") {
       if (await endpointIsLive(this.paths.endpoint)) throw new Error(PRODUCT_TEXT.diagnostic(`supervisor already owns ${this.paths.endpoint}`));
       await rm(this.paths.endpoint, { force: true });
@@ -78,6 +88,34 @@ export class SupervisorServer {
       });
     });
     await this.#writeEndpointMetadata();
+    if (this.readActiveReleaseId) {
+      const poll = setInterval(() => void this.#refreshCohortRole(), this.supersededPollMs);
+      poll.unref();
+      this.#supersededPoll = poll;
+    }
+  }
+
+  /**
+   * Notices that another release has become the one new sessions start on. Nothing is
+   * interrupted by that: this cohort finishes what it is holding and then leaves.
+   */
+  async #refreshCohortRole(): Promise<void> {
+    if (this.#closing || !this.readActiveReleaseId) return;
+    const active = await this.readActiveReleaseId().catch(() => null);
+    if (active === null) return;
+    this.#superseded = active !== this.release.releaseId;
+    if (this.#superseded && this.#instances.size === 0) await this.retire();
+  }
+
+  /** Whether new sessions start on some other release. */
+  get superseded(): boolean {
+    return this.#superseded;
+  }
+
+  /** Leaves, taking this cohort's own endpoint artifacts with it. */
+  async retire(): Promise<void> {
+    if (this.#closing) return;
+    await this.close(false);
   }
 
   async close(stopAgents = false): Promise<void> {
@@ -85,6 +123,8 @@ export class SupervisorServer {
       throw new Error("active launch instances did not release ownership within the shutdown deadline");
     }
     this.#closing = true;
+    if (this.#supersededPoll) clearInterval(this.#supersededPoll);
+    this.#supersededPoll = null;
     for (const client of this.#clients) client.destroy();
     if (this.#server) await new Promise<void>(resolve => this.#server?.close(() => resolve()));
     this.#server = null;
@@ -197,6 +237,9 @@ export class SupervisorServer {
   #createLaunchInstance(command: Extract<SupervisorCommand, { type: "create-launch-instance" }>, socket: Socket, clientId: string): void {
     assertNativeProcessIdentity(command.guardianIdentity);
     const existing = this.store.loadLaunchInstance(command.instanceId);
+    if (this.#superseded && !existing) {
+      throw new Error(PRODUCT_TEXT.diagnostic(`release ${this.release.releaseId} is no longer the release new sessions start on`));
+    }
     if (existing) {
       if (existing.ownerClientId !== clientId
         || existing.profileId !== command.profileId
@@ -273,6 +316,8 @@ export class SupervisorServer {
     this.#uncertainInstances.delete(stored.id);
     this.#unbindOwner(stored.id, socket);
     this.#mutated();
+    // The last session on a superseded cohort has left; there is nothing here to keep.
+    if (this.#superseded && this.#instances.size === 0) void this.retire();
   }
 
   #ownedInstance(instanceId: string, socket: Socket, clientId: string): LaunchInstance {
