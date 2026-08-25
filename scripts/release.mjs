@@ -4,33 +4,25 @@
  *
  *   node scripts/release.mjs <major|minor|patch|x.y.z>
  *
- * Previews need nothing from anyone: every push to develop publishes one. A
- * stable release is the only thing that needs a decision, so it is the only
- * thing with a command.
- *
+ * Both stable publication and development publication are deliberate requests.
  * develop takes pull requests rather than pushes, so the two version commits go
- * through pull requests that merge themselves once validation passes. What the
- * command does, in order:
+ * through pull requests that merge themselves once validation passes. This
+ * command lands `x.y.z`, explicitly dispatches and waits for publication of that
+ * exact commit, then opens `x.y.(z+1)-dev` only after publication succeeds.
  *
- *   1. Refuse anything but a clean develop that matches its remote.
- *   2. Land `x.y.z` on develop, which is what publishes it.
- *   3. Wait for that publication to succeed.
- *   4. Land `x.y.(z+1)-dev` on develop, so previews resume immediately.
- *
- * Landing the stable version is the release. This command creates no tag: the
- * tag is written by the pipeline after the registry has the package, so a
- * release that fails leaves no version standing anywhere.
+ * This command creates no tag and uploads no package bytes. GitHub Actions writes
+ * the immutable tag after npm accepts the exact validated package.
  */
 
 import { execFileSync } from "node:child_process";
 import { readFile, writeFile } from "node:fs/promises";
 import { setTimeout as sleep } from "node:timers/promises";
+import { dispatchPublication } from "./publication-client.mjs";
 
 const BUMPS = new Set(["major", "minor", "patch"]);
 const EXACT = /^\d+\.\d+\.\d+$/;
 const POLL_INTERVAL_MS = 20_000;
 const MERGE_TIMEOUT_MS = 30 * 60_000;
-const RELEASE_TIMEOUT_MS = 60 * 60_000;
 
 const target = process.argv[2];
 if (!target || (!BUMPS.has(target) && !EXACT.test(target))) {
@@ -116,34 +108,6 @@ async function landVersion(version, subject) {
   throw new Error(`pull request ${number} did not merge within ${MERGE_TIMEOUT_MS / 60_000} minutes`);
 }
 
-/**
- * Follow the publication the stable version commit started. A release is not a
- * release until the registry serves it, so the next version is not opened —
- * and this command does not claim success — before that is true.
- */
-async function waitForRelease(commit, version) {
-  const deadline = Date.now() + RELEASE_TIMEOUT_MS;
-  let reported;
-  while (Date.now() < deadline) {
-    const runs = JSON.parse(gh(["run", "list", "--workflow", "release.yml", "--json", "databaseId,headSha,status,conclusion", "--limit", "20"]));
-    const run = runs.find(entry => entry.headSha === commit);
-    if (run === undefined) {
-      log("waiting for the release run to appear...");
-    } else if (run.status === "completed") {
-      if (run.conclusion !== "success") {
-        throw new Error(`release run ${run.databaseId} concluded: ${run.conclusion}. Nothing was tagged or released; fix the cause and release the next version.`);
-      }
-      log(`release run ${run.databaseId} published ${version}`);
-      return;
-    } else if (run.status !== reported) {
-      reported = run.status;
-      log(`release run ${run.databaseId} is ${run.status}...`);
-    }
-    await sleep(POLL_INTERVAL_MS);
-  }
-  throw new Error(`the release run for ${version} did not finish within ${RELEASE_TIMEOUT_MS / 60_000} minutes`);
-}
-
 if (git(["rev-parse", "--abbrev-ref", "HEAD"]) !== "develop") throw new Error("release runs from develop");
 if (git(["status", "--porcelain", "-uno"]) !== "") throw new Error("commit or stash tracked changes first");
 git(["fetch", "origin", "develop"], { stdio: ["ignore", "ignore", "inherit"] });
@@ -169,8 +133,11 @@ if (current !== version) {
   current = version;
 }
 
-await waitForRelease(git(["rev-parse", "origin/develop"]), version);
+const releaseCommit = git(["rev-parse", "origin/develop"]);
+log(`dispatching stable publication for ${releaseCommit}`);
+await dispatchPublication("stable", releaseCommit, version);
+log(`GitHub Actions published ${version}`);
 
 const opening = `${nextVersion(version, "patch")}-dev`;
 await landVersion(opening, `chore(release): open ${opening}`);
-log(`${version} is published and develop is open at ${opening}; previews resume on the next push`);
+log(`${version} is published and develop is open at ${opening}; the next preview waits for nightly or npm run develop`);

@@ -166,7 +166,7 @@ describe("A1 self-update orchestration", () => {
     expect(harness.stderr).toEqual([]);
   });
 
-  it("resolves and installs the exact npm next version for the preview channel", async () => {
+  it("resolves the internal npm tag and presents it as the develop channel", async () => {
     const harness = createHarness({ current: "1.3.0-dev.0" });
     harness.fileSystem.realpath = async path => path;
     harness.runner = async (command, arguments_, request) => {
@@ -183,39 +183,39 @@ describe("A1 self-update orchestration", () => {
       { command: "npm", arguments: ["root", "--global"], request: { captureStdout: true } },
       { command: "npm", arguments: installArguments("1.3.0-dev.1"), request: { captureStdout: true } },
     ]);
-    expect(harness.stdout.join("")).toBe("a1 update (next): 1.3.0-dev.0 → 1.3.0-dev.1\na1 updated successfully: 1.3.0-dev.1\n");
+    expect(harness.stdout.join("")).toBe("a1 update (develop): 1.3.0-dev.0 → 1.3.0-dev.1\na1 updated successfully: 1.3.0-dev.1\n");
   });
 
-  it("installs the preview a commit names", async () => {
-    const harness = createHarness({ current: "1.3.0-dev.0" });
+  it("installs the preview a development number names", async () => {
+    const harness = createHarness({ current: "1.3.0-dev.106" });
     harness.fileSystem.realpath = async path => path;
     harness.runner = async (command, arguments_, request) => {
       harness.invocations.push({ command, arguments: arguments_, request });
-      if (arguments_.includes("versions")) return success(JSON.stringify(["1.2.9-dev.aaaaaaa", "1.3.0-dev.7eabe9e", "1.3.0"]));
+      if (arguments_.includes("versions")) return success(JSON.stringify(["1.2.9-dev.106", "1.3.0-dev.107", "1.3.0"]));
       if (arguments_[0] === "root") return success(harness.globalRoot + NEWLINE);
       return success();
     };
 
-    await expect(runSelfUpdate({ ...harness, channel: "next", target: "7eabe9e" })).resolves.toBe(0);
+    await expect(runSelfUpdate({ ...harness, channel: "next", target: "107" })).resolves.toBe(0);
 
-    // The published list is consulted rather than the channel head, and the
-    // version in front of the commit is worked out rather than asked for.
+    // The published list is consulted rather than constructing a version from the
+    // currently installed base.
     expect(harness.invocations[0]).toEqual({ command: "npm", arguments: ["view", PRODUCT_PACKAGE, "versions", "--json"], request: { captureStdout: true } });
-    expect(harness.stdout.join("")).toContain("1.3.0-dev.0 → 1.3.0-dev.7eabe9e");
+    expect(harness.stdout.join("")).toContain("1.3.0-dev.106 → 1.3.0-dev.107");
   });
 
-  it("accepts a full preview version as well as a commit", async () => {
-    const harness = createHarness({ current: "1.3.0-dev.0" });
+  it("accepts a full preview version as well as a development number", async () => {
+    const harness = createHarness({ current: "1.3.0-dev.106" });
     harness.fileSystem.realpath = async path => path;
     harness.runner = async (command, arguments_, request) => {
       harness.invocations.push({ command, arguments: arguments_, request });
-      if (arguments_.includes("versions")) return success(JSON.stringify(["1.3.0-dev.7eabe9e"]));
+      if (arguments_.includes("versions")) return success(JSON.stringify(["1.3.0-dev.107"]));
       if (arguments_[0] === "root") return success(harness.globalRoot + NEWLINE);
       return success();
     };
 
-    await expect(runSelfUpdate({ ...harness, channel: "next", target: "1.3.0-dev.7eabe9e" })).resolves.toBe(0);
-    expect(harness.stdout.join("")).toContain("→ 1.3.0-dev.7eabe9e");
+    await expect(runSelfUpdate({ ...harness, channel: "next", target: "1.3.0-dev.107" })).resolves.toBe(0);
+    expect(harness.stdout.join("")).toContain("→ 1.3.0-dev.107");
   });
 
   it("refuses a release named after the colon, pointing at the release command", async () => {
@@ -232,30 +232,30 @@ describe("A1 self-update orchestration", () => {
     expect(harness.stderr.join("")).toContain("a1 update");
     expect(harness.invocations.some(call => call.arguments[0] === "install")).toBe(false);
   });
-  it("refuses a commit that was never published, naming it", async () => {
-    const harness = createHarness({ current: "1.3.0-dev.0" });
+  it("refuses a development number that was never published, naming it", async () => {
+    const harness = createHarness({ current: "1.3.0-dev.106" });
     harness.runner = async (command, arguments_, request) => {
       harness.invocations.push({ command, arguments: arguments_, request });
-      if (arguments_.includes("versions")) return success(JSON.stringify(["1.3.0-dev.7eabe9e"]));
+      if (arguments_.includes("versions")) return success(JSON.stringify(["1.3.0-dev.106"]));
       return success();
     };
 
-    await expect(runSelfUpdate({ ...harness, channel: "next", target: "deadbee" })).resolves.toBe(1);
+    await expect(runSelfUpdate({ ...harness, channel: "next", target: "107" })).resolves.toBe(1);
 
-    expect(harness.stderr.join("")).toContain("published no preview for deadbee");
+    expect(harness.stderr.join("")).toContain("published no preview for 107");
     // Nothing is installed when the target cannot be resolved.
     expect(harness.invocations.some(call => call.arguments[0] === "install")).toBe(false);
   });
 
-  it("refuses a commit that names more than one preview", async () => {
-    const harness = createHarness({ current: "1.3.0-dev.0" });
+  it("refuses a development number that names more than one preview", async () => {
+    const harness = createHarness({ current: "1.3.0-dev.106" });
     harness.runner = async (command, arguments_, request) => {
       harness.invocations.push({ command, arguments: arguments_, request });
-      if (arguments_.includes("versions")) return success(JSON.stringify(["1.2.9-dev.7eabe9e", "1.3.0-dev.7eabe9e"]));
+      if (arguments_.includes("versions")) return success(JSON.stringify(["1.2.9-dev.107", "1.3.0-dev.107"]));
       return success();
     };
 
-    await expect(runSelfUpdate({ ...harness, channel: "next", target: "7eabe9e" })).resolves.toBe(1);
+    await expect(runSelfUpdate({ ...harness, channel: "next", target: "107" })).resolves.toBe(1);
     expect(harness.stderr.join("")).toContain("more than one preview");
   });
   it("prints the shortened no-change message when the target is already active", async () => {
@@ -448,7 +448,7 @@ describe("A1 self-update orchestration", () => {
 
     await expect(runSelfUpdate(harness)).resolves.toBe(1);
 
-    expect(harness.stderr.join("")).toContain("malformed latest version");
+    expect(harness.stderr.join("")).toContain("malformed release channel version");
     expect(harness.invocations).toHaveLength(1);
   });
 
@@ -457,7 +457,7 @@ describe("A1 self-update orchestration", () => {
 
     await expect(runSelfUpdate(harness)).resolves.toBe(23);
 
-    expect(harness.stderr.join("")).toContain("query the npm latest channel");
+    expect(harness.stderr.join("")).toContain("query the npm release channel");
     expect(harness.stderr.join("")).toContain("status 23");
   });
 

@@ -105,7 +105,7 @@ else process.exitCode = 64;
         PATH: fakeBin,
       },
       timeout: 15_000,
-    })).rejects.toMatchObject({ code: 2, stderr: expect.stringContaining("selects a release channel with a colon; run a1 update:next") });
+    })).rejects.toMatchObject({ code: 2, stderr: expect.stringContaining("selects a release channel with a colon; run a1 update:develop") });
 
     await expect(access(npmLog)).rejects.toThrow();
 
@@ -123,7 +123,7 @@ else process.exitCode = 64;
       },
       timeout: 15_000,
     });
-    expect(result.stdout).toBe(`Installed: ${packageJson.version}\nRelease:   ${latestTarget}\nNext:      ${nextTarget}\n`);
+    expect(result.stdout).toBe(`Installed: ${packageJson.version}\nRelease:   ${latestTarget}\nDevelop:   ${nextTarget}\n`);
     const versionCalls = (await readFile(npmLog, "utf8")).trim().split("\n").map(line => JSON.parse(line) as string[]);
     expect(versionCalls).toEqual([["view", PRODUCT_PACKAGE, "dist-tags", "--json"]]);
     await expect(access(forbiddenImportLog)).rejects.toThrow();

@@ -10,13 +10,14 @@ npm install --global @timurproko/a1@latest
 
 ```sh
 a1                      # A1-owned UI and profile: ~/.a1/agent
-a1 version              # show Installed, Release (latest), and Next versions
-a1 update               # update to npm latest
-a1 update:next          # update to npm next (or a1 update:<commit> for a specific preview)
+a1 version              # show Installed, Release, and Develop versions
+a1 update               # update to the current release
+a1 update:develop       # update to the current development preview
+a1 update:107           # install numbered development preview 107
 a1 update --models      # refresh A1's model catalogs
 ```
 
-Prerelease builds — what `a1 update:next` installs — add two development profiles
+Prerelease builds — what `a1 update:develop` installs — add two development profiles
 for comparing against pinned Pi and for experimenting against an isolated profile.
 A release build does not carry them.
 
@@ -63,24 +64,30 @@ npm run test:full       # complete non-physical suite
 Two channels, both published by CI from the exact bytes it validated. Nothing is
 ever published from a workstation.
 
-### Previews — npm `next`
+### Development previews
 
-Automatic. Every push to `develop` publishes one, versioned
-`<major.minor.patch>-dev.<short commit>` — the base from whatever `package.json`
-declares, the suffix naming the commit it was built from. It is stamped at publish
-time and never committed, so previews cost no commits and need no command, and an
-installed preview says exactly which source produced it.
+Ordinary pushes to `develop` do not publish. The nightly run at `03:17 UTC` always
+performs complete verification of current `origin/develop`; it publishes only when
+that source's preview is absent. A maintainer can request the same authoritative
+GitHub Actions path and wait for its result:
 
 ```sh
-a1 update:next      # install the newest preview
-a1 update:7eabe9e   # install the preview built from that commit
+npm run develop
 ```
 
-Naming a commit is what the version suffix is for: read it off `a1 version`, a
-pull request, or a commit list, and install exactly that build — you never need to
-know which version it went out under. A commit that was never published is refused
-rather than guessed at. A full preview version works in the same place, so a string
-pasted back from `a1 version` is understood too.
+A preview is `<major.minor.patch>-dev.<pull-request number>`, stamped only into the
+package. For example, the source GitHub presents as `develop (#107)` produces
+`0.1.8-dev.107`. Repeating a request for immutable version 107 succeeds without
+building or publishing again.
+
+```sh
+a1 update:develop       # install the current development preview
+a1 update:107           # install preview 107
+a1 update:0.1.8-dev.107 # install that exact full preview version
+```
+
+The published version list is authoritative: an unpublished number is refused
+rather than guessed. npm's `next` dist-tag remains an internal registry detail.
 
 ### Stable — npm `latest`
 
@@ -93,12 +100,11 @@ npm run release -- major     # 0.1.1        -> 1.0.0
 npm run release -- 0.4.0     # an exact version
 ```
 
-It lands the version on `develop` through a pull request that merges itself.
-**Landing it is what publishes** — the workflow builds, validates the packed release
-on Windows, Linux, and macOS, publishes to npm `latest` with provenance, and only
-then writes the `v<version>` tag and records the GitHub Release. The command waits
-for that to succeed, then opens the next `-dev` line so previews resume
-immediately.
+It lands the version on `develop` through a pull request that merges itself, then
+explicitly dispatches publication for that exact commit. GitHub Actions builds,
+validates the packed release on Windows, Linux, and macOS, publishes to npm
+`latest` with provenance, and only then writes the `v<version>` tag and records the
+GitHub Release. The command waits for success before opening the next `-dev` line.
 
 ```sh
 a1 update        # install the newest stable release

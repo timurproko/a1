@@ -2,12 +2,15 @@ import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
 describe("complete regression automation", () => {
-  it("runs on a schedule and explicit demand without cancellation", async () => {
-    const workflow = await readFile(".github/workflows/full-regression.yml", "utf8");
-    expect(workflow).toContain("schedule:");
-    expect(workflow).toContain('cron: "17 3 * * *"');
-    expect(workflow).toContain("workflow_dispatch:");
-    expect(workflow).toContain("cancel-in-progress: false");
+  it("remains available on explicit demand while nightly ownership lives with publication", async () => {
+    const [regression, release] = await Promise.all([
+      readFile(".github/workflows/full-regression.yml", "utf8"),
+      readFile(".github/workflows/release.yml", "utf8"),
+    ]);
+    expect(regression).toContain("workflow_dispatch:");
+    expect(regression).not.toContain("schedule:");
+    expect(release).toContain('cron: "17 3 * * *"');
+    expect(release).toContain('selected=\'["full-release"]\'');
   });
 
   it("builds and packs once before the complete deduplicated suite", async () => {

@@ -5,107 +5,104 @@ GitHub Actions is the only automation platform. Three refs are protected:
 | Ref | Protection | Produced by |
 | --- | --- | --- |
 | `develop` | `Development validation required` on every pull request | `.github/workflows/ci.yml` |
-| `master` | cannot be deleted or force-updated | ruleset only |
-| `refs/tags/v*` | cannot be deleted or moved | ruleset only |
+| `master` | cannot be deleted or force-updated | stable publication |
+| `refs/tags/v*` | cannot be deleted or moved | stable publication |
 
-Publishing is one workflow, `.github/workflows/release.yml`, triggered by pushes
-rather than dispatched by hand.
+`.github/workflows/release.yml` is the only publisher. A push publishes neither
+channel. The workflow starts at `03:17 UTC` for nightly development verification,
+or by explicit dispatch from `npm run develop` or `npm run release`.
 
-`develop` is where work lands. `master` records what the npm `latest` tag serves:
-the release fast-forwards it to the commit it published, and nothing else ever
-writes it. There is no promotion to arrange and nothing to keep in sync — `master`
-is an effect of publishing, not a step before it.
+`develop` is where work lands. `master` records what npm `latest` serves and is an
+effect of stable publication, not a trigger.
 
-## How much validation runs when
+## Validation by trigger
 
-| Change | Validation |
+| Trigger | Validation and outcome |
 | --- | --- |
-| Docs or specs only | OpenSpec strict lint, nothing else |
-| Any code PR into `develop` | Fast tier: typecheck, architecture checks, unit/contract tests |
-| Preview publish (`next`) | Fast tier + package gates on Windows, Linux, and macOS |
-| Stable publish (`latest`) | Complete suite on Windows, Linux, and macOS |
+| Pull request into `develop` | Fast required validation; docs/spec-only changes use strict OpenSpec validation |
+| `npm run develop` | Preview package gates on Windows, Linux, and macOS; an existing numbered preview is an early successful no-op |
+| Nightly at `03:17 UTC` | Complete non-physical suite on Windows, Linux, and macOS, every night |
+| `npm run release -- ...` | Complete exact-byte stable gates, then npm `latest`, tag, GitHub Release, and `master` |
+| `.github/workflows/full-regression.yml` | Additional on-demand complete regression without publication authority |
 
-Need more coverage for something risky? Run the **Full regression** workflow on
-demand.
+## Numbered development previews
 
-## Previews publish themselves
+A merge or push to `develop` does not publish by itself. To request a deliberate
+preview from any authorized checkout:
 
-Every push to `develop` publishes a preview to the npm `next` tag. Nothing to
-dispatch and nothing to approve.
+```sh
+npm run develop
+```
 
-The version is stamped at publish time — `<major.minor.patch>-dev.<short commit>`,
-the base taken from whatever `package.json` declares and the suffix from the commit
-being published — and is never written back to the repository. An installed preview
-therefore names the exact source it came from, and rebuilding a commit produces the
-same version rather than a new one. That suffix is also how a specific preview is
-installed: `a1 update:<commit>` resolves it against the published list and
-refuses a commit that was never published. `develop` therefore carries one open prerelease version between
-releases, and no commit is ever spent on a preview.
+The command fetches authoritative `origin/develop`, resolves the unique merged pull
+request associated with that exact commit through GitHub, and derives
+`<major.minor.patch>-dev.<pull-request number>`. Thus GitHub's `develop (#107)`
+source produces `0.1.8-dev.107`. It first checks npm; if the immutable version
+already exists it reports that version without dispatching package work. Otherwise
+it dispatches GitHub Actions, waits, and reports the published version. It never
+builds or uploads npm bytes from the workstation.
 
-One consequence worth knowing: a push that would republish an existing version
-fails early, before anything is packed.
+Nightly resolves the same current `origin/develop` source. It always runs complete
+verification even if source has not changed. For a new number it packs once and
+runs the suite against that final-version tarball before publication. For an
+existing number it downloads the exact npm tarball and runs package/update gates
+against those registry bytes; publication is then a successful no-op.
+
+Manual and nightly runs share one non-cancelling concurrency group. Their final
+registry check is serialized, so overlapping requests can produce only one publish
+and one successful existing-version no-op. A development publication moves npm's
+internal `next` dist-tag and never moves `latest`.
+
+Users install previews with public `develop` terminology:
+
+```sh
+a1 update:develop       # current development channel
+a1 update:107           # numbered preview
+a1 update:0.1.8-dev.107 # exact full preview version
+```
+
+`a1 update:next` is removed and redirects to `a1 update:develop` without registry
+or runtime work.
 
 ## Cutting a stable release
 
-One command, from a clean `develop` that matches its remote:
+From a clean `develop` matching its remote:
 
 ```sh
 npm run release -- patch     # or minor, major, or an exact x.y.z
 ```
 
-It lands `x.y.z` on `develop` through a pull request that merges itself, waits for
-that publication to succeed, and then lands `x.y.(z+1)-dev` so previews resume
-immediately. It publishes nothing itself and creates no tag.
+The command lands `x.y.z` through its version pull request, explicitly dispatches
+stable publication for that exact current `origin/develop` commit, and waits. Only
+after success does it land `x.y.(z+1)-dev`.
 
-Landing the stable version is what publishes. The same pipeline sees a commit
-declaring a stable version and runs its stable form: build the process guardian on
-all three platforms, pack once, run the complete suite against those exact bytes on
-all three platforms, publish to npm `latest` with provenance from the
-`npm-publish` environment, and only then write the tag `vx.y.z`, record the GitHub
-Release, and fast-forward `master`.
-
-That order is the point. A release that fails leaves no tag, no release, and no
-moved branch — only a red run. Nothing ever advertises a version that does not
-exist on the registry.
+Stable publication builds the process guardian on all supported platforms, packs
+once, runs the complete suite against those exact bytes on Windows, Linux, and
+macOS, publishes to npm `latest` with provenance from the `npm-publish`
+environment, and then writes `vx.y.z`, records the GitHub Release, and fast-forwards
+`master`. A push of the stable version does not publish it.
 
 Rules that do not bend:
 
-- **Never upload locally rebuilt bytes.** The publisher uploads the artifact the
-  validation ran against, and re-checks its digest before and after.
-- **Never route around validation by rebuilding inside a publisher.** The publish
-  job has no checkout of dependencies, no build, and no pack step.
-- **Never move a release tag.** A wrong tag is superseded by the next version, not
-  repointed. The tag is written by the publication itself, so it exists only for
-  versions that shipped.
+- **Never upload locally rebuilt bytes.** The publisher uploads the artifact the validation ran against and checks its digest before and after.
+- **Never route around validation by rebuilding inside a publisher.** The publish job receives the packed artifact and does not install dependencies, build, or pack.
+- **Never move a release tag.** A wrong tag is superseded by the next version, not repointed.
 
 ## When something fails
 
-- **PR validation fails:** fix the code and push. Do not mark a failed tier optional.
-- **Preview publish fails:** fix and push again; the next push publishes the next
-  run number. Nothing needs cleaning up.
-- **Stable publish fails:** nothing was recorded — no tag, no release, no moved
-  branch. Fix the cause and release the next version. The failed version number is
-  spent, because `develop` has already moved past it.
-- **Stable publish is uncertain after npm accepted the bytes:** stop. Check the
-  registry for the version, tag, and digest. Repair a dist-tag only as a separate
-  reviewed operation — never republish.
+- **PR validation fails:** fix the code and push; do not mark a failed tier optional.
+- **Development publication fails:** fix the cause and rerun `npm run develop`; an npm version that already exists is never overwritten.
+- **Stable publication fails before npm accepts bytes:** no tag, release, or moved branch exists. Fix the cause and release the next version.
+- **Stable publication is uncertain after npm accepted bytes:** stop and inspect registry version, digest, tag, and release. Never republish immutable bytes.
 
-## Why the ruleset looks the way it does
+## Branch protection rationale
 
-One person maintains this repository, and GitHub does not let a PR author approve
-their own PR. Requiring even one approval would deadlock the authorized
-solo-maintainer path — no PR could ever merge. So the `develop` ruleset requires a
-pull request, a green required check, and resolved review threads, but sets required
-approving reviews to zero. It does not require the branch to be up to date: once a
-PR is green it merges even if unrelated work landed first, with no re-validation
-loop.
+One person maintains this repository, and a PR author cannot approve their own PR.
+The `develop` ruleset therefore requires a pull request, a green required check,
+and resolved review threads, but zero approving reviews. `master` and release tags
+are written only after publication and are protected from force-push, movement, and
+deletion.
 
-The `master` and tag rulesets carry no checks at all. Both only ever receive a commit
-that has already been validated and published, so what matters about them is that
-neither can be rewritten. Requiring a pull request on `master` would stop the release
-from recording itself there.
-
-Do not add a direct-push bypass as a shortcut, and never weaken the force-push or
-deletion protection. Ruleset mutation is a separate administrative operation: run
-`node scripts/check-github-rulesets.mjs` to see the diff, and apply only when a
-maintainer explicitly confirms with `--apply --confirm apply-a1-ci-rulesets`.
+Do not add direct-push bypasses. Ruleset mutation remains a separate administrative
+operation: inspect with `node scripts/check-github-rulesets.mjs`, and apply only
+with explicit maintainer confirmation.

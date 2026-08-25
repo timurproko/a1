@@ -50,4 +50,4 @@ Report failures with direct-versus-A1 behavior, platform/terminal versions, exac
 
 For recovery, use `a1 pi`; do not use the removed `a1 ui` command. `a1 sandbox` remains profile isolation rather than a security boundary.
 
-Manual acceptance can authorize an exact uncertified npm `next` preview after non-desktop gates pass. It does not certify stable terminal parity or platform support.
+Manual acceptance can authorize an exact uncertified development preview after non-desktop gates pass. It does not certify stable terminal parity or platform support.

@@ -8,7 +8,7 @@ const roots: string[] = [];
 afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))));
 
 describe("version stats", () => {
-  it("reports installed, stable release, and next preview versions from one query", async () => {
+  it("reports installed, stable release, and develop preview versions from one query", async () => {
     const harness = await createHarness();
     const calls: Array<{ command: string; arguments_: readonly string[] }> = [];
     const code = await runVersionStats({ ...harness.options, runner: async (command, arguments_) => {
@@ -17,14 +17,14 @@ describe("version stats", () => {
     } });
 
     expect(code).toBe(0);
-    expect(harness.stdout.join("")).toBe("Installed: 1.1.0\nRelease:   1.1.4\nNext:      1.2.0-dev.3\n");
+    expect(harness.stdout.join("")).toBe("Installed: 1.1.0\nRelease:   1.1.4\nDevelop:   1.2.0-dev.3\n");
     expect(harness.stderr).toEqual([]);
     expect(calls).toEqual([
       { command: "npm", arguments_: ["view", "@timurproko/a1", "dist-tags", "--json"] },
     ]);
   });
 
-  it("treats an absent optional next tag as normally unavailable", async () => {
+  it("treats an absent optional development tag as normally unavailable", async () => {
     const harness = await createHarness();
     const code = await runVersionStats({
       ...harness.options,
@@ -32,7 +32,7 @@ describe("version stats", () => {
     });
 
     expect(code).toBe(0);
-    expect(harness.stdout.join("")).toBe("Installed: 1.1.0\nRelease:   1.1.4\nNext:      unavailable\n");
+    expect(harness.stdout.join("")).toBe("Installed: 1.1.0\nRelease:   1.1.4\nDevelop:   unavailable\n");
     expect(harness.stderr).toEqual([]);
   });
 
@@ -44,7 +44,7 @@ describe("version stats", () => {
     const code = await runVersionStats({ ...harness.options, runner });
 
     expect(code).toBe(0);
-    expect(harness.stdout.join("")).toBe("Installed: 1.1.0\nRelease:   unavailable\nNext:      unavailable\n");
+    expect(harness.stdout.join("")).toBe("Installed: 1.1.0\nRelease:   unavailable\nDevelop:   unavailable\n");
     expect(harness.stderr).toHaveLength(1);
     expect(harness.stderr[0]).toContain("A1 could not resolve npm dist-tags");
     expect(harness.stderr[0]).toContain(expected);
@@ -55,13 +55,13 @@ describe("version stats", () => {
     ["non-object JSON", "[]", "non-object dist-tags"],
     ["missing latest", JSON.stringify({ next: "1.2.0-dev.1" }), "npm latest"],
     ["invalid latest", JSON.stringify({ latest: "newest" }), "npm latest"],
-    ["invalid next", JSON.stringify({ latest: "1.1.4", next: "preview" }), "npm next"],
+    ["invalid development tag", JSON.stringify({ latest: "1.1.4", next: "preview" }), "npm development channel"],
   ])("fails closed with one diagnostic for %s", async (_name, stdout, expected) => {
     const harness = await createHarness();
     const code = await runVersionStats({ ...harness.options, runner: async () => ({ code: 0, stdout }) });
 
     expect(code).toBe(0);
-    expect(harness.stdout.join("")).toContain("Release:   unavailable\nNext:      unavailable");
+    expect(harness.stdout.join("")).toContain("Release:   unavailable\nDevelop:   unavailable");
     expect(harness.stderr).toHaveLength(1);
     expect(harness.stderr[0]).toContain("A1 could not resolve npm dist-tags");
     expect(harness.stderr[0]).toContain(expected);

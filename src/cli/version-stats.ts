@@ -8,7 +8,7 @@ import { PRODUCT_TEXT } from "../product-identity.js";
 interface VersionProcessResult { readonly code: number | null; readonly stdout: string }
 type VersionProcessRunner = (command: string, arguments_: readonly string[]) => Promise<VersionProcessResult>;
 interface VersionOutput { stdout(message: string): void; stderr(message: string): void }
-interface RemoteVersions { readonly release: string | null; readonly next: string | null; readonly error: string | null }
+interface RemoteVersions { readonly release: string | null; readonly develop: string | null; readonly error: string | null }
 
 export interface VersionStatsOptions {
   readonly packageRoot: string;
@@ -34,7 +34,7 @@ export async function runVersionStats(options: VersionStatsOptions): Promise<num
   }
 
   const remote = await queryDistTags(runner);
-  output.stdout(`Installed: ${installed}\nRelease:   ${remote.release ?? "unavailable"}\nNext:      ${remote.next ?? "unavailable"}\n`);
+  output.stdout(`Installed: ${installed}\nRelease:   ${remote.release ?? "unavailable"}\nDevelop:   ${remote.develop ?? "unavailable"}\n`);
   if (remote.error) output.stderr(`${PRODUCT_TEXT.diagnostic(`could not resolve npm dist-tags: ${remote.error}`)}\n`);
   return 0;
 }
@@ -53,15 +53,15 @@ async function queryDistTags(runner: VersionProcessRunner): Promise<RemoteVersio
     if (typeof metadata !== "object" || metadata === null || Array.isArray(metadata)) throw new TypeError("npm returned a non-object dist-tags value");
     const tags = metadata as Record<string, unknown>;
     const release = parseVersion(tags.latest, "npm latest");
-    const next = tags.next === undefined ? null : parseVersion(tags.next, "npm next");
-    return { release, next, error: null };
+    const develop = tags.next === undefined ? null : parseVersion(tags.next, "npm development channel");
+    return { release, develop, error: null };
   } catch (error) {
     return unavailable(message(error));
   }
 }
 
 function unavailable(error: string): RemoteVersions {
-  return { release: null, next: null, error };
+  return { release: null, develop: null, error };
 }
 
 function createVersionProcessRunner(): VersionProcessRunner {

@@ -22,9 +22,9 @@ describe("A1 CLI dispatch", () => {
     [["version"], { kind: "version" }],
     [["update"], { kind: "update", channel: "stable" }],
     [["update", "self"], { kind: "update", channel: "stable" }],
-    [["update:next"], { kind: "update", channel: "next" }],
-    [["update:7eabe9e"], { kind: "update", channel: "next", target: "7eabe9e" }],
-    [["update:0.1.8-dev.7eabe9e"], { kind: "update", channel: "next", target: "0.1.8-dev.7eabe9e" }],
+    [["update:develop"], { kind: "update", channel: "next" }],
+    [["update:107"], { kind: "update", channel: "next", target: "107" }],
+    [["update:0.1.8-dev.107"], { kind: "update", channel: "next", target: "0.1.8-dev.107" }],
     [["pi", "install", "npm:pi-mcp-adapter"], { kind: "packages", request: { verb: "install", source: "npm:pi-mcp-adapter" } }],
     [["pi", "remove", "npm:pi-mcp-adapter"], { kind: "packages", request: { verb: "remove", source: "npm:pi-mcp-adapter" } }],
     [["pi", "uninstall", "npm:pi-mcp-adapter"], { kind: "packages", request: { verb: "remove", source: "npm:pi-mcp-adapter" } }],
@@ -75,7 +75,8 @@ describe("A1 CLI dispatch", () => {
   });
 
   it.each([
-    { arguments_: ["update", "next"], guidance: "a1 update:next" },
+    { arguments_: ["update", "next"], guidance: "a1 update:develop" },
+    { arguments_: ["update", "develop"], guidance: "a1 update:develop" },
     { arguments_: ["update", "stable"], guidance: "a1 update" },
   ])("keeps the channel word $arguments_ off the package path", async ({ arguments_, guidance }) => {
     const commands = handlers();
@@ -141,7 +142,10 @@ describe("A1 CLI dispatch", () => {
     { arguments_: ["pi", "update", "--models"] },
     { arguments_: ["pi", "update", "--all"] },
     { arguments_: ["update", "--all"] },
-    { arguments_: ["update:next", "7eabe9e"] },
+    { arguments_: ["update:develop", "107"] },
+    { arguments_: ["update:next"] },
+    { arguments_: ["update:7eabe9e"] },
+    { arguments_: ["update:0"] },
     { arguments_: ["update:"] },
     { arguments_: ["update:-force"] },
     { arguments_: ["update", "npm:one", "npm:two"] },
@@ -196,7 +200,7 @@ describe("A1 CLI dispatch in a release build", () => {
     { arguments_: [] as const, kind: "launch" },
     { arguments_: ["version"] as const, kind: "version" },
     { arguments_: ["update"] as const, kind: "update" },
-    { arguments_: ["update:next"] as const, kind: "update" },
+    { arguments_: ["update:develop"] as const, kind: "update" },
     { arguments_: ["pi", "list"] as const, kind: "packages" },
     { arguments_: ["pi", "install", "npm:x"] as const, kind: "packages" },
     { arguments_: ["pi", "remove", "npm:x"] as const, kind: "packages" },

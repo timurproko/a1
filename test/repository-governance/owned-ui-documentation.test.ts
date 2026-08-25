@@ -20,12 +20,12 @@ describe("owned UI launch documentation", () => {
     expect(checkpoint).toContain("For recovery, use `a1 pi`");
     expect(cliUsage(prerelease)).toBe(
       "Usage: a1 | a1 pi | a1 sandbox | a1 version | a1 update [self|--models]"
-      + " | a1 update:next | a1 update:<commit> | a1 pi install <source> | a1 pi remove <source>"
+      + " | a1 update:develop | a1 update:<number> | a1 pi install <source> | a1 pi remove <source>"
       + " | a1 pi list | a1 pi update [--extensions|<source>]",
     );
     expect(cliUsage(release)).toBe(
       "Usage: a1 | a1 version | a1 update [self|--models]"
-      + " | a1 update:next | a1 update:<commit> | a1 pi install <source> | a1 pi remove <source>"
+      + " | a1 update:develop | a1 update:<number> | a1 pi install <source> | a1 pi remove <source>"
       + " | a1 pi list | a1 pi update [--extensions|<source>]",
     );
     expect(parseCliCommand(["ui"], prerelease)).toEqual({

@@ -22,8 +22,8 @@ export function cliUsage(capabilities: CliCapabilities): string {
     ...(capabilities.developmentProfiles ? ["pi", "sandbox"] : []),
     "version",
     "update [self|--models]",
-    "update:next",
-    "update:<commit>",
+    "update:develop",
+    "update:<number>",
     "pi install <source>",
     "pi remove <source>",
     "pi list",
@@ -81,17 +81,19 @@ export function parseCliCommand(arguments_: readonly string[], capabilities: Cli
 }
 
 /**
- * What follows the colon says which build to move to. `next` is the newest
- * preview; anything else names one outright, by the commit it was built from or by
- * its full version — a preview is published as `<version>-dev.<commit>`, so the
- * commit alone is enough to find it.
+ * What follows the colon says which development build to move to. `develop`
+ * selects the channel head; a positive decimal or a full numbered preview names
+ * one immutable publication.
  */
 function parseColonUpdate(suffix: string, rest: readonly string[]): CliCommand {
   if (rest.length > 0) return { kind: "error", message: PRODUCT_TEXT.diagnostic("update takes what to move to after the colon, and nothing else.") };
-  if (suffix === "next") return { kind: "update", channel: "next" };
-  if (suffix.length === 0) return { kind: "error", message: PRODUCT_TEXT.diagnostic(`update: needs a preview after the colon, as in ${PRODUCT_TEXT.commandName} update:next.`) };
-  if (!/^[0-9a-z][0-9a-z.+-]*$/i.test(suffix)) {
-    return { kind: "error", message: PRODUCT_TEXT.diagnostic(`received an unusable preview: ${suffix}`) };
+  if (suffix === "next") {
+    return { kind: "error", message: PRODUCT_TEXT.diagnostic(`renamed its development channel; run ${PRODUCT_TEXT.commandName} update:develop.`) };
+  }
+  if (suffix === "develop") return { kind: "update", channel: "next" };
+  if (suffix.length === 0) return { kind: "error", message: PRODUCT_TEXT.diagnostic(`update: needs a preview after the colon, as in ${PRODUCT_TEXT.commandName} update:develop.`) };
+  if (!/^[1-9]\d*$/.test(suffix) && !/^\d+\.\d+\.\d+-dev\.[1-9]\d*$/.test(suffix)) {
+    return { kind: "error", message: PRODUCT_TEXT.diagnostic(`received an unusable numbered preview: ${suffix}`) };
   }
   return { kind: "update", channel: "next", target: suffix };
 }
@@ -111,8 +113,8 @@ function parseUpdate(rest: readonly string[]): CliCommand {
       message: PRODUCT_TEXT.diagnostic(`pins the Pi version it was certified against; run ${PRODUCT_TEXT.commandName} update to move ${PRODUCT_TEXT.displayName} itself.`),
     };
   }
-  if (target === "next" || target === "stable") {
-    const form = target === "next" ? `${PRODUCT_TEXT.commandName} update:next` : `${PRODUCT_TEXT.commandName} update`;
+  if (target === "next" || target === "develop" || target === "stable") {
+    const form = target === "stable" ? `${PRODUCT_TEXT.commandName} update` : `${PRODUCT_TEXT.commandName} update:develop`;
     return { kind: "error", message: PRODUCT_TEXT.diagnostic(`selects a release channel with a colon; run ${form}.`) };
   }
   if (target === "--models") return { kind: "packages", request: { verb: "refresh-models", source: null } };
