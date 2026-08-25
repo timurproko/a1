@@ -60,7 +60,17 @@ class Runtime {
     ["anthropic", { configured: true, source: "environment", label: "ANTHROPIC_API_KEY" }],
   ]);
   readonly credentialTypes = new Map<string, "oauth" | "api_key">([["openai", "oauth"]]);
+  extensionResources: readonly unknown[] = [];
   readonly services = {
+    resourceLoader: {
+      getSkills: () => ({ skills: [], diagnostics: [] }),
+      getPrompts: () => ({ prompts: [], diagnostics: [] }),
+      getThemes: () => ({ themes: [], diagnostics: [] }),
+      getAgentsFiles: () => ({ agentsFiles: [] }),
+      getSystemPromptSource: () => undefined,
+      getAppendSystemPromptSources: () => [],
+      getExtensions: () => ({ extensions: this.extensionResources, errors: [] }),
+    },
     modelRuntime: {
       getModel: (provider: string, id: string) => this.availableModels.find(model => model.provider === provider && model.id === id),
       getAvailableSnapshot: () => this.availableModels.filter(model => this.providerAuthStatus.get(model.provider)?.configured === true),
@@ -121,8 +131,9 @@ class Runtime {
   async dispose(): Promise<void> { this.calls.push("dispose"); }
 }
 
-async function fixture(messages: readonly unknown[] = []) {
+async function fixture(messages: readonly unknown[] = [], extensions: readonly unknown[] = []) {
   const engine = new Runtime(messages);
+  engine.extensionResources = extensions;
   const adapter = await createPiEngineAdapter({ cwd: "D:/work", sessionId: "owned-shell", createRuntime: async () => engine as unknown as AgentSessionRuntime });
   const terminal = new TestPresentationTerminal();
   const shell = new OwnedUiSessionShell({ backend: adapter, cwd: "D:/work", terminal });
@@ -172,6 +183,58 @@ describe("OwnedUiSessionShell", () => {
     await shell.clearOrExit(1_200);
     await shell.dispose();
     expect(engine.calls).toContain("dispose");
+  });
+
+  it("retains package identity in compact extension labels and uniquely identifies local entries", async () => {
+    const { shell } = await fixture([], [
+      {
+        path: "C:\\Users\\test\\.a1\\agent\\npm\\node_modules\\@narumitw\\pi-statusline\\dist\\index.ts",
+        resolvedPath: "C:\\Users\\test\\.a1\\agent\\npm\\node_modules\\@narumitw\\pi-statusline\\dist\\index.ts",
+        sourceInfo: {
+          path: "C:\\Users\\test\\.a1\\agent\\npm\\node_modules\\@narumitw\\pi-statusline\\dist\\index.ts",
+          source: "npm:@narumitw/pi-statusline",
+          scope: "user",
+          origin: "package",
+          baseDir: "C:\\Users\\test\\.a1\\agent\\npm\\node_modules\\@narumitw\\pi-statusline",
+        },
+      },
+      {
+        path: "/home/test/.a1/agent/npm/node_modules/pi-mcp-adapter/index.js",
+        resolvedPath: "/home/test/.a1/agent/npm/node_modules/pi-mcp-adapter/index.js",
+        sourceInfo: {
+          path: "/home/test/.a1/agent/npm/node_modules/pi-mcp-adapter/index.js",
+          source: "npm:pi-mcp-adapter",
+          scope: "user",
+          origin: "package",
+          baseDir: "/home/test/.a1/agent/npm/node_modules/pi-mcp-adapter",
+        },
+      },
+      {
+        path: "D:/work/one/shared/index.ts",
+        resolvedPath: "D:/work/one/shared/index.ts",
+        sourceInfo: { path: "D:/work/one/shared/index.ts", source: "local", scope: "project", origin: "top-level", baseDir: "D:/work" },
+      },
+      {
+        path: "D:/work/two/shared/index.ts",
+        resolvedPath: "D:/work/two/shared/index.ts",
+        sourceInfo: { path: "D:/work/two/shared/index.ts", source: "local", scope: "project", origin: "top-level", baseDir: "D:/work" },
+      },
+      {
+        path: "D:/work/hidden/shared/index.ts",
+        resolvedPath: "D:/work/hidden/shared/index.ts",
+        hidden: true,
+        sourceInfo: { path: "D:/work/hidden/shared/index.ts", source: "local", scope: "project", origin: "top-level", baseDir: "D:/work" },
+      },
+    ]);
+
+    const frame = stripTerminalSequences(shell.root.render(120).join("\n"));
+    expect(frame).toContain("@narumitw/pi-statusline:dist");
+    expect(frame).toContain("pi-mcp-adapter");
+    expect(frame).toContain("one/shared");
+    expect(frame).toContain("two/shared");
+    expect(frame).not.toContain("hidden/shared");
+    expect(frame).not.toContain("  dist,");
+    await shell.dispose();
   });
 
   it("populates and updates current-session prompt history with pinned Up/Down draft restoration", async () => {

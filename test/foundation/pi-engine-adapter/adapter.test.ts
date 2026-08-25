@@ -577,7 +577,18 @@ describe("Pi engine adapter", () => {
       getAppendSystemPromptSources: () => [{ path: "append.md" }],
       getExtensions: () => ({
         extensions: [
-          { path: "extensions/visible.ts", resolvedPath: "D:/agent/extensions/visible.ts", hidden: false },
+          {
+            path: "D:/agent/npm/node_modules/@example/statusline/dist/index.ts",
+            resolvedPath: "D:/agent/npm/node_modules/@example/statusline/dist/index.ts",
+            hidden: false,
+            sourceInfo: {
+              path: "D:/agent/npm/node_modules/@example/statusline/dist/index.ts",
+              source: "npm:@example/statusline",
+              scope: "user",
+              origin: "package",
+              baseDir: "D:/agent/npm/node_modules/@example/statusline",
+            },
+          },
           { path: "extensions/hidden.ts", resolvedPath: "D:/agent/extensions/hidden.ts", hidden: true },
           { path: "extensions/malformed.ts" },
         ],
@@ -597,8 +608,19 @@ describe("Pi engine adapter", () => {
       expect.objectContaining({ kind: "system-prompt", sourcePath: "system.md" }),
     ]));
     expect(adapter.extensionResources()).toEqual(expect.arrayContaining([
-      expect.objectContaining({ kind: "extension", sourcePath: "extensions/visible.ts", loaded: true, hidden: false }),
-      expect.objectContaining({ kind: "extension", sourcePath: "extensions/hidden.ts", loaded: true, hidden: true }),
+      expect.objectContaining({
+        kind: "extension",
+        sourcePath: "D:/agent/npm/node_modules/@example/statusline/dist/index.ts",
+        sourceInfo: {
+          source: "npm:@example/statusline",
+          scope: "user",
+          origin: "package",
+          baseDir: "D:/agent/npm/node_modules/@example/statusline",
+        },
+        loaded: true,
+        hidden: false,
+      }),
+      expect.objectContaining({ kind: "extension", sourcePath: "extensions/hidden.ts", sourceInfo: null, loaded: true, hidden: true }),
       expect.objectContaining({ loaded: false, diagnostic: "factory threw" }),
       expect.objectContaining({ loaded: false, diagnostic: expect.stringContaining("malformed extension metadata") }),
       expect.objectContaining({ loaded: false, diagnostic: expect.stringContaining("malformed error metadata") }),
