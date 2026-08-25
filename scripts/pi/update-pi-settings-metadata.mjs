@@ -14,6 +14,6 @@ export function renderMetadata() {
   return `${JSON.stringify(extractPiSettingsMetadata(), null, 2)}\n`;
 }
 
-const target = fileURLToPath(new URL(`../${METADATA_PATH}`, import.meta.url));
+const target = fileURLToPath(new URL(`../../${METADATA_PATH}`, import.meta.url));
 writeFileSync(target, renderMetadata(), "utf8");
 console.log(`Pi settings metadata written: ${METADATA_PATH}`);

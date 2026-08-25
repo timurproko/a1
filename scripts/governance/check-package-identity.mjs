@@ -4,7 +4,7 @@ import { relative, resolve, sep } from "node:path";
 import { listIdentitySurfaceFiles, scanLegacyIdentity } from "./product-identity-inventory.mjs";
 
 const rootArgument = process.argv.indexOf("--root");
-const root = resolve(rootArgument >= 0 ? process.argv[rootArgument + 1] : new URL("..", import.meta.url).pathname.replace(/^\/(.:)/, "$1"));
+const root = resolve(rootArgument >= 0 ? process.argv[rootArgument + 1] : new URL("../..", import.meta.url).pathname.replace(/^\/(.:)/, "$1"));
 const inventoryPath = resolve(root, "config/product-identity-legacy-inventory.json");
 const allowlistPath = resolve(root, "config/product-identity-legacy-allowlist.json");
 const errors = [];

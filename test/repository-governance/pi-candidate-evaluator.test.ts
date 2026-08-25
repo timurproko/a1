@@ -1,6 +1,6 @@
 import { access } from "node:fs/promises";
 import { describe, expect, it, vi } from "vitest";
-import { evaluatePiCandidate, type PiCandidateOperations } from "../../scripts/pi-candidate-evaluator.mjs";
+import { evaluatePiCandidate, type PiCandidateOperations } from "../../scripts/governance/pi-candidate-evaluator.mjs";
 
 const packages = { "@earendil-works/pi-coding-agent": "0.84.2", "@earendil-works/pi-tui": "0.84.2" } as const;
 function operations(overrides: Partial<PiCandidateOperations> = {}): PiCandidateOperations {

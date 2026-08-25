@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { extractPiSettingsMetadata } from "../../scripts/pi-settings-metadata.mjs";
-import { METADATA_PATH, renderMetadata } from "../../scripts/update-pi-settings-metadata.mjs";
+import { extractPiSettingsMetadata } from "../../scripts/pi/pi-settings-metadata.mjs";
+import { METADATA_PATH, renderMetadata } from "../../scripts/pi/update-pi-settings-metadata.mjs";
 
 describe("Pi settings presentation metadata", () => {
   it("matches what the pinned engine currently declares", () => {

@@ -4,7 +4,7 @@ import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { readPiCompatibilityAuthority } from "./pi-compatibility-authority.mjs";
 
-const repository = fileURLToPath(new URL("..", import.meta.url));
+const repository = fileURLToPath(new URL("../..", import.meta.url));
 const identity = JSON.parse(await readFile(join(repository, "src", "product-identity.json"), "utf8"));
 const ledgerPath = resolve(process.env[identity.environment.piSourceLedgerPath] ?? join(
   repository,

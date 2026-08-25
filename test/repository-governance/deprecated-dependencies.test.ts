@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 
 const roots: string[] = [];
-const script = resolve(fileURLToPath(new URL("../../scripts/check-deprecated-dependencies.mjs", import.meta.url)));
+const script = resolve(fileURLToPath(new URL("../../scripts/governance/check-deprecated-dependencies.mjs", import.meta.url)));
 afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))));
 
 describe("deprecated dependency release policy", () => {

@@ -50,7 +50,7 @@ jobs:
         run: npm ci
 
       - name: Pack exact regression candidate once
-        run: node scripts/prepare-validation-package.mjs
+        run: node scripts/release/prepare-validation-package.mjs
 
       - name: Run complete non-physical validation
         shell: bash
@@ -62,7 +62,7 @@ jobs:
           A1_CONFIG_DIR: ${{ runner.temp }}/a1-full-config
           A1_DATA_DIR: ${{ runner.temp }}/a1-full-data
           A1_RUNTIME_DIR: ${{ runner.temp }}/a1-full-runtime
-        run: node scripts/run-validation-tier.mjs --result .artifacts/validation/full-regression.json
+        run: node scripts/release/run-validation-tier.mjs --result .artifacts/validation/full-regression.json
 
       - name: Report gate ownership and timing
         if: always()

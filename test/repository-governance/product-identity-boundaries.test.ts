@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 const roots: string[] = [];
 const repository = resolve(fileURLToPath(new URL("../..", import.meta.url)));
-const script = resolve(repository, "scripts/check-product-identity-boundaries.mjs");
+const script = resolve(repository, "scripts/governance/check-product-identity-boundaries.mjs");
 afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))));
 
 describe("product identity declarative boundaries", () => {

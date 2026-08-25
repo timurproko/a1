@@ -5,11 +5,11 @@ import { describe, expect, it } from "vitest";
 import {
   collectPiApiBoundaryBaseline,
   type PiApiBoundaryBaseline,
-} from "../../scripts/pi-api-boundary-baseline.mjs";
+} from "../../scripts/governance/pi-api-boundary-baseline.mjs";
 
 const repository = resolve(".");
 const evidencePath = resolve("config/baselines/pi-api-boundary.json");
-const checker = resolve("scripts/pi-api-boundary-baseline.mjs");
+const checker = resolve("scripts/governance/pi-api-boundary-baseline.mjs");
 
 describe("Pi API boundary baseline evidence", () => {
   it("exactly reproduces the accepted source commit", async () => {

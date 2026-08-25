@@ -251,7 +251,7 @@ jobs:
 
       - name: Pack the candidate exactly once
         if: needs.plan.outputs.build == 'true'
-        run: node scripts/prepare-validation-package.mjs
+        run: node scripts/release/prepare-validation-package.mjs
 
       - name: Download the immutable registry package
         if: needs.plan.outputs.build != 'true'
@@ -283,7 +283,7 @@ jobs:
           import { createHash } from "node:crypto";
           import { readFile, writeFile } from "node:fs/promises";
           import { execFileSync } from "node:child_process";
-          import { readPackedManifest } from "./scripts/candidate-evidence.mjs";
+          import { readPackedManifest } from "./scripts/governance/candidate-evidence.mjs";
           const path = ".artifacts/validation/package/candidate.tgz";
           const bytes = await readFile(path);
           const manifest = readPackedManifest(bytes);
@@ -368,7 +368,7 @@ jobs:
           A1_CONFIG_DIR: ${{ runner.temp }}/a1-release-config
           A1_DATA_DIR: ${{ runner.temp }}/a1-release-data
           A1_RUNTIME_DIR: ${{ runner.temp }}/a1-release-runtime
-        run: node scripts/run-validation-tier.mjs --result .artifacts/validation/${{ matrix.platform }}.json
+        run: node scripts/release/run-validation-tier.mjs --result .artifacts/validation/${{ matrix.platform }}.json
       - name: Upload platform outcomes
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6

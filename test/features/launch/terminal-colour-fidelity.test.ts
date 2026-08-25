@@ -40,7 +40,7 @@ describe("terminal colour fidelity", () => {
 
   it("keeps every launched process attached to the inherited streams", async () => {
     const bootstrap = await source("src/foundation/release/bootstrap.ts");
-    const developmentLauncher = await source("scripts/dev-launch.mjs");
+    const developmentLauncher = await source("scripts/development/dev-launch.mjs");
 
     expect(bootstrap).toMatch(/stdio: "inherit"/u);
     expect(developmentLauncher).toMatch(/stdio: "inherit"/u);
@@ -57,14 +57,14 @@ describe("terminal colour fidelity", () => {
   // PATH, so the launcher locates it from what Git Bash exports rather than
   // assuming `sh` resolves, and launches Node directly everywhere else.
   it("locates the MSYS shell for npm-run development launches", async () => {
-    const launcher = await source("scripts/dev-launch.mjs");
+    const launcher = await source("scripts/development/dev-launch.mjs");
     const manifest = JSON.parse(await source("package.json")) as { scripts: Record<string, string> };
 
     expect(launcher).toMatch(/process\.env\.MSYSTEM/u);
     expect(launcher).toMatch(/usr\/bin\/sh\.exe/u);
     expect(launcher).toMatch(/'exec "\$0" "\$@"'/u);
     for (const script of ["start", "start:pi", "start:sandbox"]) {
-      expect(manifest.scripts[script]).toMatch(/node scripts\/dev-launch\.mjs/u);
+      expect(manifest.scripts[script]).toMatch(/node scripts\/development\/dev-launch\.mjs/u);
     }
   });
 });

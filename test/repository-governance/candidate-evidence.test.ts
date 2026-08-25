@@ -3,7 +3,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { createCandidateEvidence, verifyCandidateEvidence, type CandidateEvidence } from "../../scripts/candidate-evidence.mjs";
+import { createCandidateEvidence, verifyCandidateEvidence, type CandidateEvidence } from "../../scripts/governance/candidate-evidence.mjs";
 
 let root: string;
 let tarballPath: string;

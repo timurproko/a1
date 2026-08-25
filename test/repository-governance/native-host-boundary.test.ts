@@ -46,7 +46,7 @@ describe("native host and launch executable boundaries", () => {
 
   it("keeps pane hot-path instrumentation native and exports metadata only", async () => {
     const workspace = await readFile("native/terminal-host/src/workspace.rs", "utf8");
-    const runner = await readFile("scripts/run-terminal-host-probe.mjs", "utf8");
+    const runner = await readFile("scripts/development/run-terminal-host-probe.mjs", "utf8");
     expect(workspace).toContain("a1-terminal-host-hot-path-v1");
     expect(workspace).toContain('nodeRelay\\\":false');
     expect(workspace).toContain('rawPayloadExported\\\":false');

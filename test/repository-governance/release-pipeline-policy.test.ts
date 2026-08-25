@@ -54,7 +54,7 @@ describe("deliberate publication pipeline", () => {
 
   it("packs new candidates once and validates exact bytes on each platform", async () => {
     const source = await workflow();
-    expect(source.match(/node scripts\/prepare-validation-package\.mjs/g)).toHaveLength(1);
+    expect(source.match(/node scripts\/release\/prepare-validation-package\.mjs/g)).toHaveLength(1);
     for (const platform of ["win32", "linux", "darwin"]) expect(source).toContain(`platform: ${platform}`);
     expect(source).toContain("VALIDATION_CANDIDATE_TARBALL:");
     expect(source).toContain('npm publish "$release_tarball"');
@@ -78,17 +78,17 @@ describe("maintainer publication commands", () => {
   it("exposes develop and returns before dispatch when npm already has the version", async () => {
     const [manifestText, script] = await Promise.all([
       readFile("package.json", "utf8"),
-      readFile("scripts/develop.mjs", "utf8"),
+      readFile("scripts/development/develop.mjs", "utf8"),
     ]);
     const manifest = JSON.parse(manifestText) as { scripts: Record<string, string> };
-    expect(manifest.scripts.develop).toBe("node scripts/develop.mjs");
+    expect(manifest.scripts.develop).toBe("node scripts/development/develop.mjs");
     expect(script.indexOf("const existing = await registryVersion")).toBeLessThan(script.indexOf('await dispatchPublication("develop"'));
     expect(script).toContain("already exists");
     expect(script).not.toMatch(/npm publish|npm pack/);
   });
 
   it("makes stable publication an explicit waited dispatch before reopening develop", async () => {
-    const script = await readFile("scripts/release.mjs", "utf8");
+    const script = await readFile("scripts/release/release.mjs", "utf8");
     const landed = script.indexOf("await landVersion(version,");
     const dispatched = script.indexOf('await dispatchPublication("stable"');
     const reopened = script.indexOf("open ${opening}");
@@ -100,7 +100,7 @@ describe("maintainer publication commands", () => {
   });
 
   it("moves only this package's version", async () => {
-    const script = await readFile("scripts/release.mjs", "utf8");
+    const script = await readFile("scripts/release/release.mjs", "utf8");
     expect(script).not.toContain("replaceAll");
     expect(script).toContain('lock.packages[""].version = version');
   });

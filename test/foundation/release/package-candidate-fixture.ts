@@ -1,7 +1,7 @@
 import { access, mkdir, mkdtemp, readFile, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
-import { readPackedEntries, readPackedManifest } from "../../../scripts/candidate-evidence.mjs";
+import { readPackedEntries, readPackedManifest } from "../../../scripts/governance/candidate-evidence.mjs";
 
 export async function loadValidationCandidate() {
   const tarball = process.env.VALIDATION_CANDIDATE_TARBALL;

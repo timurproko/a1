@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
-import { planRulesetChanges, validateRulesetDefinition, type GithubRulesetDefinition } from "../../scripts/github-rulesets.mjs";
+import { planRulesetChanges, validateRulesetDefinition, type GithubRulesetDefinition } from "../../scripts/governance/github-rulesets.mjs";
 
 async function definition(): Promise<GithubRulesetDefinition> {
   return JSON.parse(await readFile("config/github-rulesets.json", "utf8"));
@@ -60,7 +60,7 @@ describe("reviewable GitHub rulesets", () => {
   });
 
   it("keeps API inspection read-only unless an exact apply confirmation is supplied", async () => {
-    const source = await readFile("scripts/check-github-rulesets.mjs", "utf8");
+    const source = await readFile("scripts/governance/check-github-rulesets.mjs", "utf8");
     expect(source).toContain('process.argv.includes("--apply")');
     expect(source).toContain('valueAfter("--confirm") !== "apply-a1-ci-rulesets"');
     expect(source).toContain('report = planRulesetChanges(definition, live)');

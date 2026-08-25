@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
-const policyPath = resolve("scripts/check-architecture.mjs");
+const policyPath = resolve("scripts/governance/check-architecture.mjs");
 const roots: string[] = [];
 afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))));
 
@@ -179,7 +179,7 @@ describe("terminal-core architecture policy", () => {
   });
 
   it("rejects obsolete retired-pipeline release gates", async () => {
-    const root = await fixture({ "scripts/run-release-gates.mjs": "const suite = 'test/scenarios/packaged-real-pi.test.ts';" });
+    const root = await fixture({ "scripts/release/run-release-gates.mjs": "const suite = 'test/scenarios/packaged-real-pi.test.ts';" });
     const result = runPolicy(root);
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("obsolete retired-pipeline release gate");

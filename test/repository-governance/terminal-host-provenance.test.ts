@@ -9,7 +9,7 @@ afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, { recursi
 
 describe("terminal-host provenance policy", () => {
   it("accepts the pinned console-component provenance evidence", () => {
-    const result = spawnSync(process.execPath, ["scripts/check-terminal-host-provenance.mjs"], { encoding: "utf8" });
+    const result = spawnSync(process.execPath, ["scripts/governance/check-terminal-host-provenance.mjs"], { encoding: "utf8" });
     expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
     expect(result.stdout).toContain("Terminal host provenance OK");
   });
@@ -67,7 +67,7 @@ describe("terminal-host provenance policy", () => {
     };
     const path = join(root, "invalid.json");
     await writeFile(path, JSON.stringify(evidence));
-    const result = spawnSync(process.execPath, [resolve("scripts/check-terminal-host-provenance.mjs"), "--evidence", path], { encoding: "utf8" });
+    const result = spawnSync(process.execPath, [resolve("scripts/governance/check-terminal-host-provenance.mjs"), "--evidence", path], { encoding: "utf8" });
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("host mode must remain console-inside-existing-terminal");
     expect(result.stderr).toContain("desktop application must not be required");

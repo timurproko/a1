@@ -29,7 +29,7 @@ leave the launch without a terminal on its input; the launcher says so and stops
 rather than opening a session that closes as it starts. Running `scripts/dev`
 from the shell is the direct path.
 
-A directly launched `node scripts/start-local.mjs` under Git Bash does not, and
+A directly launched `node scripts/development/start-local.mjs` under Git Bash does not, and
 neither does a directly launched `node …/pi/dist/cli.js`: the collapse belongs to
 the launch, not to either application.
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createTierPlan, runTierPlan } from "../../scripts/validation-tier.mjs";
+import { createTierPlan, runTierPlan } from "../../scripts/release/validation-tier.mjs";
 
 describe("validation tier planning", () => {
   it("keeps planning validation free of builds and runtime tests", async () => {
@@ -88,7 +88,7 @@ describe("validation tier planning", () => {
       candidateTarball: "accepted.tgz",
       commands: [
         { id: "candidate-build", executable: "npm", arguments: ["run", "build"], owners: ["fixture"] },
-        { id: "candidate-pack", executable: "node", arguments: ["scripts/prepare-validation-package.mjs"], owners: ["fixture"] },
+        { id: "candidate-pack", executable: "node", arguments: ["scripts/release/prepare-validation-package.mjs"], owners: ["fixture"] },
       ],
       vitest: null,
     }, { env: { VALIDATION_BUILD_READY: "1", VALIDATION_CANDIDATE_TARBALL: "accepted.tgz" }, stdio: "pipe" });

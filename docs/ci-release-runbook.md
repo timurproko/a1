@@ -104,5 +104,5 @@ are written only after publication and are protected from force-push, movement, 
 deletion.
 
 Do not add direct-push bypasses. Ruleset mutation remains a separate administrative
-operation: inspect with `node scripts/check-github-rulesets.mjs`, and apply only
+operation: inspect with `node scripts/governance/check-github-rulesets.mjs`, and apply only
 with explicit maintainer confirmation.

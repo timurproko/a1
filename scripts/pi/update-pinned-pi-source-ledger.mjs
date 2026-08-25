@@ -3,7 +3,7 @@ import { readFile, readdir, writeFile } from "node:fs/promises";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const repository = fileURLToPath(new URL("..", import.meta.url));
+const repository = fileURLToPath(new URL("../..", import.meta.url));
 const identity = JSON.parse(await readFile(join(repository, "src", "product-identity.json"), "utf8"));
 const baselineRoot = join(repository, "config", "baselines");
 const outputPath = join(baselineRoot, "pinned-pi-source-port-ledger.json");

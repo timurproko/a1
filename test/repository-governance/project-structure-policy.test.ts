@@ -6,7 +6,7 @@ import {
   PROJECT_OWNERS,
   projectOwnerForPath,
   testOwnerForPath,
-} from "../../scripts/project-structure-policy.mjs";
+} from "../../scripts/governance/project-structure-policy.mjs";
 
 describe("project structure ownership policy", () => {
   it("declares every production and test owner with one public entry", () => {

@@ -25,37 +25,37 @@
       "identifier": "A1_LAUNCH_PROFILE"
     },
     {
-      "path": "scripts/build-process-guardian.mjs",
+      "path": "scripts/development/build-process-guardian.mjs",
       "line": 13,
       "identifier": "A1_BUILD_VERBOSE"
     },
     {
-      "path": "scripts/dev-launch.mjs",
+      "path": "scripts/development/dev-launch.mjs",
       "line": 49,
       "identifier": "A1_DEV_SHELL"
     },
     {
-      "path": "scripts/start-local.mjs",
+      "path": "scripts/development/start-local.mjs",
       "line": 22,
       "identifier": "A1_LAUNCH_PROFILE"
     },
     {
-      "path": "scripts/start-local.mjs",
+      "path": "scripts/development/start-local.mjs",
       "line": 26,
       "identifier": "A1_CONFIG_DIR"
     },
     {
-      "path": "scripts/start-local.mjs",
+      "path": "scripts/development/start-local.mjs",
       "line": 27,
       "identifier": "A1_DATA_DIR"
     },
     {
-      "path": "scripts/start-local.mjs",
+      "path": "scripts/development/start-local.mjs",
       "line": 28,
       "identifier": "A1_RUNTIME_DIR"
     },
     {
-      "path": "scripts/start-local.mjs",
+      "path": "scripts/development/start-local.mjs",
       "line": 29,
       "identifier": "A1_DATABASE_PATH"
     },

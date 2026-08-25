@@ -6,7 +6,7 @@ import {
   LEGACY_IDENTITY_CLASSES,
   scanLegacyIdentity,
   type LegacyIdentityInventory,
-} from "../../scripts/product-identity-inventory.mjs";
+} from "../../scripts/governance/product-identity-inventory.mjs";
 
 const INVENTORY_PATH = resolve("config/product-identity-legacy-inventory.json");
 const roots: string[] = [];

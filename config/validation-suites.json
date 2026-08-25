@@ -81,7 +81,7 @@
         "test/integrations/pi/engine/session-integration.test.ts"
       ],
       "commands": [
-        { "id": "candidate-engine-conformance-report", "executable": "node", "arguments": ["scripts/run-pi-engine-conformance.mjs"] }
+        { "id": "candidate-engine-conformance-report", "executable": "node", "arguments": ["scripts/pi/run-pi-engine-conformance.mjs"] }
       ]
     },
     "release-update": {

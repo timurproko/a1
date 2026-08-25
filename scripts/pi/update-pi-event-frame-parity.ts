@@ -1,5 +1,5 @@
 import { writeFile } from "node:fs/promises";
-import identity from "../src/product-identity.json" with { type: "json" };
+import identity from "../../src/product-identity.json" with { type: "json" };
 import { buildEventFrameParityResult, SCRIPTED_PI_EVENTS } from "../test/features/owned-ui/pi-event-frame-parity-fixture.js";
 
 const result = await buildEventFrameParityResult();

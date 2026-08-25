@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
-const gatePath = resolve("scripts/check-owned-ui-customization-prerequisites.mjs");
+const gatePath = resolve("scripts/governance/check-owned-ui-customization-prerequisites.mjs");
 const roots: string[] = [];
 afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))));
 
