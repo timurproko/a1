@@ -16,7 +16,7 @@ import {
 import type {
   OwnedUiExtensionOverlayHandle,
   OwnedUiExtensionOverlayOptions,
-} from "../../../foundation/owned-ui-contracts/index.js";
+} from "../../../contracts/owned-ui/index.js";
 import {
   KeybindingsManager,
 } from "./upstream/adjacent/core/keybindings.js";

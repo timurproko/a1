@@ -1,4 +1,4 @@
-import type { ManagedAgentDescriptor } from "../../foundation/workspace-contracts/index.js";
+import type { ManagedAgentDescriptor } from "../../contracts/workspace/index.js";
 
 export type WorkspaceCapabilityAction =
   | { readonly type: "structured-command"; readonly command: string }

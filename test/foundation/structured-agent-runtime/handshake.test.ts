@@ -9,7 +9,7 @@ import {
   type StructuredAdapterHello,
   type StructuredHandshakeAccepted,
 } from "../../../src/foundation/structured-agent-runtime/index.js";
-import { WORKSPACE_CONTRACT_VERSION, type StructuredCapabilityContract } from "../../../src/foundation/workspace-contracts/index.js";
+import { WORKSPACE_CONTRACT_VERSION, type StructuredCapabilityContract } from "../../../src/contracts/workspace/index.js";
 
 function capability(overrides: Partial<StructuredCapabilityContract> = {}): StructuredCapabilityContract {
   return {

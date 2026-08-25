@@ -1,5 +1,5 @@
-import type { AppHostServices, UiApp } from "../../foundation/ui-apps/index.js";
-import type { ListViewRow, NumericRange } from "../../foundation/ui-components/index.js";
+import type { AppHostServices, UiApp } from "../../ui/apps/index.js";
+import type { ListViewRow, NumericRange } from "../../ui/components/index.js";
 import {
   GLOBAL_SCOPE,
   LineInput,
@@ -48,12 +48,12 @@ import {
   type PaneMouseEvent,
   type PaneRect,
   type UiTheme,
-} from "../../foundation/ui-components/index.js";
+} from "../../ui/components/index.js";
 import type {
   OwnedUiSettingValue,
   OwnedUiSettingsEntry,
   OwnedUiSettingsSession,
-} from "../../foundation/owned-ui-settings/index.js";
+} from "../../ui/settings/index.js";
 
 export const SETTINGS_APP_ID = "settings";
 export const SETTINGS_ROUTE = "settings";

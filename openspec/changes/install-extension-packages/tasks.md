@@ -3,7 +3,7 @@
 - [x] 1.1 Add an `AgentPackagesPort` to `agent-engine-contracts` covering install,
   remove, update, model-catalog refresh, and list against a resolved profile root,
   with results the CLI can render without knowing the vendor
-- [x] 1.2 Cover the contract's shapes in `test/foundation/agent-engine-contracts`
+- [x] 1.2 Cover the contract's shapes in `test/contracts/agent-engine`
 
 ## 2. Implement the port on the Pi boundary
 
@@ -16,7 +16,7 @@
   A1 command process retains output ownership without delegating to Pi's exiting
   command handler
 - [x] 2.4 Cover install, remove, update, and list against a temporary profile root in
-  `test/foundation/pi-engine-adapter`, asserting the settings entry and installed
+  `test/integrations/pi/engine`, asserting the settings entry and installed
   content land under that root and nowhere else
 
 ## 3. Extend the command surface

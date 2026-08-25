@@ -9,7 +9,7 @@ import {
   SessionManager,
   VERSION,
 } from "@earendil-works/pi-coding-agent";
-import { OWNED_UI_CONTRACT_VERSION } from "../../../foundation/owned-ui-contracts/index.js";
+import { OWNED_UI_CONTRACT_VERSION } from "../../../contracts/owned-ui/index.js";
 import { PRODUCT_IDENTITY } from "../../../product-identity.js";
 
 export interface PiCapabilityConformanceResult {

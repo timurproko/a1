@@ -1,4 +1,4 @@
-import type { OwnedUiDiagnostics } from "../../foundation/owned-ui-contracts/index.js";
+import type { OwnedUiDiagnostics } from "../../contracts/owned-ui/index.js";
 
 export interface OwnedUiFrameObservation {
   readonly requestedFrames: number;

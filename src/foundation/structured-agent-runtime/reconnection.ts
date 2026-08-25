@@ -7,7 +7,7 @@ import {
   type StructuredAgentSnapshot,
   type StructuredCapabilityContract,
   type StructuredRecoveryAuthority,
-} from "../workspace-contracts/index.js";
+} from "../../contracts/workspace/index.js";
 import { StructuredEventReducer, type StructuredRuntimeView } from "./state.js";
 
 export interface StructuredResumeProof {

@@ -2,10 +2,10 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { AgentJsonValue, AgentSettingDescriptor, AgentSettingsPort } from "../../../src/foundation/agent-engine-contracts/index.js";
-import { OwnedUiSettingsSession, OwnedUiSettingsStore } from "../../../src/foundation/owned-ui-settings/index.js";
+import type { AgentJsonValue, AgentSettingDescriptor, AgentSettingsPort } from "../../../src/contracts/agent-engine/index.js";
+import { OwnedUiSettingsSession, OwnedUiSettingsStore } from "../../../src/ui/settings/index.js";
 import { SettingsApp } from "../../../src/features/owned-ui/index.js";
-import type { AppHostServices } from "../../../src/foundation/ui-apps/index.js";
+import type { AppHostServices } from "../../../src/ui/apps/index.js";
 
 const ESC = String.fromCharCode(27);
 const DOWN = `${ESC}[B`;

@@ -3,7 +3,7 @@ import {
   DEFAULT_WORKSPACE_ID,
   type StoredWorkspaceAgent,
 } from "../../foundation/storage/index.js";
-import type { AgentRecoveryAuthority, RecoveryReferenceId } from "../../foundation/workspace-contracts/index.js";
+import type { AgentRecoveryAuthority, RecoveryReferenceId } from "../../contracts/workspace/index.js";
 import { WorkspaceReducer, type WorkspaceAgentState, type WorkspaceView } from "./reducer.js";
 
 export class WorkspaceStore {

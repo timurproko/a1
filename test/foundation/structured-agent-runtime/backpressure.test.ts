@@ -4,7 +4,7 @@ import {
   type StructuredBackpressureResource,
   type StructuredResourceLease,
 } from "../../../src/foundation/structured-agent-runtime/index.js";
-import { WORKSPACE_CONTRACT_VERSION, type StructuredCapabilityContract } from "../../../src/foundation/workspace-contracts/index.js";
+import { WORKSPACE_CONTRACT_VERSION, type StructuredCapabilityContract } from "../../../src/contracts/workspace/index.js";
 
 const capability: StructuredCapabilityContract = {
   kind: "structured",

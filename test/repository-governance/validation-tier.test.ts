@@ -72,7 +72,7 @@ describe("validation tier planning", () => {
       invocations: [{
         arguments: expect.arrayContaining([
           "test/features/launch/exact-pi-entry.integration.test.ts",
-          "test/foundation/pi-engine-adapter/conformance.test.ts",
+          "test/integrations/pi/engine/conformance.test.ts",
         ]),
       }],
     });

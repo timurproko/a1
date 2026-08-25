@@ -8,7 +8,7 @@ import {
   type AgentSessionLifecycle,
   type AgentSessionPort,
   type AgentSnapshot,
-} from "../../../src/foundation/agent-engine-contracts/index.js";
+} from "../../../src/contracts/agent-engine/index.js";
 import type {
   OwnedUiApplicationPort,
   PresentationComponentPort,
@@ -17,7 +17,7 @@ import type {
   PresentationRuntimePort,
   PresentationRuntimeState,
   PresentationTerminalPort,
-} from "../../../src/foundation/presentation-contracts/index.js";
+} from "../../../src/contracts/presentation/index.js";
 
 export const TEST_AGENT_CAPABILITIES: AgentCapabilityContract = {
   contractVersion: AGENT_ENGINE_CONTRACT_VERSION,

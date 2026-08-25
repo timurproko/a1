@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { OwnedUiCustomization, OwnedUiSlotId } from "../../../src/foundation/owned-ui-contracts/index.js";
+import type { OwnedUiCustomization, OwnedUiSlotId } from "../../../src/contracts/owned-ui/index.js";
 import {
   createVanillaUiCustomizationRegistry,
   OwnedCommandSurface,

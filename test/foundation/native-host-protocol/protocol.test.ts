@@ -11,7 +11,7 @@ import {
   negotiateNativeHostHello,
   type NativeHostProofMessage,
 } from "../../../src/foundation/native-host-protocol/index.js";
-import { NATIVE_HOST_PROTOCOL_VERSION, type NativeHostHello, type TerminalSessionLaunch } from "../../../src/foundation/workspace-contracts/index.js";
+import { NATIVE_HOST_PROTOCOL_VERSION, type NativeHostHello, type TerminalSessionLaunch } from "../../../src/contracts/workspace/index.js";
 
 function hello(overrides: Partial<NativeHostHello> = {}): NativeHostHello {
   return {

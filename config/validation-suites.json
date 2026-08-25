@@ -15,9 +15,9 @@
         "test/features/launch/development-launch.test.ts",
         "test/features/launch/exact-pi-entry.integration.test.ts",
         "test/features/launch/profile-isolation.integration.test.ts",
-        "test/foundation/pi-engine-adapter/conformance.test.ts",
-        "test/foundation/pi-engine-adapter/runtime-integration.test.ts",
-        "test/foundation/pi-engine-adapter/session-integration.test.ts",
+        "test/integrations/pi/engine/conformance.test.ts",
+        "test/integrations/pi/engine/runtime-integration.test.ts",
+        "test/integrations/pi/engine/session-integration.test.ts",
         "test/foundation/release/package-surface.test.ts",
         "test/foundation/release/package-install.integration.test.ts",
         "test/foundation/release/update-performance.integration.test.ts",
@@ -76,9 +76,9 @@
       "kind": "mixed",
       "requiresBuild": true,
       "tests": [
-        "test/foundation/pi-engine-adapter/conformance.test.ts",
-        "test/foundation/pi-engine-adapter/runtime-integration.test.ts",
-        "test/foundation/pi-engine-adapter/session-integration.test.ts"
+        "test/integrations/pi/engine/conformance.test.ts",
+        "test/integrations/pi/engine/runtime-integration.test.ts",
+        "test/integrations/pi/engine/session-integration.test.ts"
       ],
       "commands": [
         { "id": "candidate-engine-conformance-report", "executable": "node", "arguments": ["scripts/run-pi-engine-conformance.mjs"] }

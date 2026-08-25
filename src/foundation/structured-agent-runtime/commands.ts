@@ -3,7 +3,7 @@ import {
   assertWorkspaceCommand,
   type StructuredCapabilityContract,
   type WorkspaceCommand,
-} from "../workspace-contracts/index.js";
+} from "../../contracts/workspace/index.js";
 
 export type StructuredCommandRequest = Extract<WorkspaceCommand, { readonly type: "structured-command" }>;
 export type StructuredCancelRequest = Extract<WorkspaceCommand, { readonly type: "cancel-structured-command" }>;
