@@ -30,6 +30,41 @@ import type {
 
 export type PiTuiRuntimeErrorStage = "construction" | "start" | "input-drain" | "restoration";
 
+class PreInputTerminal implements PiTuiTerminalPort {
+  readonly listeners = new Set<PiTuiInputListener>();
+
+  constructor(readonly inner: PiTuiTerminalPort) {}
+
+  get columns(): number { return this.inner.columns; }
+  get rows(): number { return this.inner.rows; }
+  get kittyProtocolActive(): boolean { return this.inner.kittyProtocolActive; }
+
+  start(onInput: (data: string) => void, onResize: () => void): void {
+    this.inner.start(data => {
+      let routed = data;
+      for (const listener of this.listeners) {
+        const result = listener(routed);
+        if (result?.data !== undefined) routed = result.data;
+        if (result?.consume === true) return;
+        if (routed.length === 0) return;
+      }
+      if (routed.length > 0) onInput(routed);
+    }, onResize);
+  }
+
+  stop(): void { this.inner.stop(); }
+  drainInput(maxMs?: number, idleMs?: number): Promise<void> { return this.inner.drainInput(maxMs, idleMs); }
+  write(data: string): void { this.inner.write(data); }
+  moveBy(lines: number): void { this.inner.moveBy(lines); }
+  hideCursor(): void { this.inner.hideCursor(); }
+  showCursor(): void { this.inner.showCursor(); }
+  clearLine(): void { this.inner.clearLine(); }
+  clearFromCursor(): void { this.inner.clearFromCursor(); }
+  clearScreen(): void { this.inner.clearScreen(); }
+  setTitle(title: string): void { this.inner.setTitle(title); }
+  setProgress(active: boolean): void { this.inner.setProgress(active); }
+}
+
 export class PiTuiRuntimeError extends Error {
   constructor(readonly stage: PiTuiRuntimeErrorStage, cause: unknown) {
     super(`Pi TUI runtime failed during ${stage}: ${cause instanceof Error ? cause.message : String(cause)}`, { cause });
@@ -128,13 +163,15 @@ export class PiTuiRuntimeAdapter {
   readonly #scrollViews = new Map<string, ScrollView>();
   readonly #overlayDisposers = new Set<() => void>();
   readonly #inputListeners = new Map<PiTuiInputListener, () => void>();
+  readonly #preInputTerminal: PreInputTerminal;
   #state: PiTuiRuntimeState = "idle";
   #stopPromise: Promise<void> | undefined;
   #rootDisposed = false;
 
   constructor(options: PiTuiRuntimeAdapterOptions) {
     this.#root = options.root;
-    this.#terminal = options.terminal ?? new ProcessTerminal();
+    this.#preInputTerminal = new PreInputTerminal(options.terminal ?? new ProcessTerminal());
+    this.#terminal = this.#preInputTerminal;
     this.#layoutRoot = options.layoutRoot;
     this.#logDirectory = options.logDirectory;
     this.#rootBridge = new ComponentBridge(options.root);
@@ -277,6 +314,21 @@ export class PiTuiRuntimeAdapter {
   writeControl(data: string): void {
     this.#assertRunning("control sequence");
     this.#terminal.write(data);
+  }
+
+  /**
+   * Installs input routing before either Pi TUI implementation sees physical
+   * terminal data. Unlike ordinary listeners this may be registered before start.
+   */
+  addPreInputListener(listener: PiTuiInputListener): () => void {
+    if (this.#state === "stopped" || this.#state === "failed") {
+      throw new Error("Pi TUI pre-input listener requires a live runtime");
+    }
+    if (this.#preInputTerminal.listeners.has(listener)) {
+      throw new TypeError("Pi TUI pre-input listener is already registered");
+    }
+    this.#preInputTerminal.listeners.add(listener);
+    return () => this.#preInputTerminal.listeners.delete(listener);
   }
 
   addInputListener(listener: PiTuiInputListener): () => void {
@@ -494,6 +546,7 @@ export class PiTuiRuntimeAdapter {
   #disposeComponents(): void {
     for (const remove of this.#inputListeners.values()) remove();
     this.#inputListeners.clear();
+    this.#preInputTerminal.listeners.clear();
     for (const dispose of [...this.#overlayDisposers]) dispose();
     this.#disposeRoot();
   }

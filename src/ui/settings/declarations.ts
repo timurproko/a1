@@ -18,10 +18,24 @@ const ID_PATTERN = /^[a-z][a-z0-9]*(?:[A-Z][a-z0-9]*)*$/;
 export const OWNED_UI_SETTING_DECLARATIONS: readonly OwnedUiSettingDeclaration[] = Object.freeze([
   Object.freeze({
     id: "transcriptDensity",
-    description: "Vertical density of transcript content. Reserved for the custom-viewport milestone; no visible effect yet.",
+    description: "Vertical density of transcript content. Reserved for a later milestone; no visible effect yet.",
     application: "live",
     defaultValue: "comfortable",
     allowedValues: Object.freeze(["comfortable", "compact"]),
+  }),
+  Object.freeze({
+    id: "scrollbarAppearance",
+    description: "When the custom transcript scrollbar is visible.",
+    application: "live",
+    defaultValue: "hover",
+    allowedValues: Object.freeze(["always", "hover", "hidden"]),
+  }),
+  Object.freeze({
+    id: "scrollbarStyle",
+    description: "Visual weight of the custom transcript scrollbar.",
+    application: "live",
+    defaultValue: "thin",
+    allowedValues: Object.freeze(["thin", "thick"]),
   }),
 ] satisfies readonly OwnedUiSettingDeclaration[]);
 

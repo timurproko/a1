@@ -5,7 +5,13 @@ import type {
   OwnedUiThinkingLevel,
 } from "../../../contracts/owned-ui/index.js";
 import type { UiRouteHost } from "./route-host.js";
-import { MOUSE_TRACKING_OFF, MOUSE_TRACKING_ON, parseMouseInput } from "../../../ui/components/index.js";
+import {
+  MOUSE_TRACKING_OFF,
+  MOUSE_TRACKING_ON,
+  SCROLLBAR_ACTIVITY_LINGER_MS,
+  parseMouseInput,
+  routeMouseInput,
+} from "../../../ui/components/index.js";
 import {
   PINNED_PI_HIDDEN_COMMAND_NAMES,
   PINNED_PI_WORKFLOW_COMMAND_NAMES,
@@ -105,7 +111,10 @@ export class OwnedUiSessionShell {
   #sequence = 0;
   #started = false;
   #disposed = false;
+  readonly #pointerReportingReasons = new Set<"viewport" | "owned-route">();
   #pointerReporting = false;
+  readonly #removeViewportInput: () => void;
+  #scrollbarLingerTimer: NodeJS.Timeout | undefined;
   #compactionQueue: Array<{ readonly text: string; readonly type: "steer" | "follow-up" }> = [];
   #lastClearTime = 0;
   #activeLoginDialog: PiShellLoginDialogPort | undefined;
@@ -144,13 +153,29 @@ export class OwnedUiSessionShell {
     }, this.backend.agentDir, {
       getMessageRenderer: customType => this.backend.pinnedMessageRenderer(customType),
       getToolDefinition: toolName => this.backend.pinnedToolDefinition(toolName),
-    });
+    }, options.customViewport);
     const tuiMode = this.backend.disposed ? "regular" : this.backend.pinnedSettingsSnapshot().tuiMode;
-    const runtimeOptions = options.terminal === undefined
-      ? { root: this.root, mode: tuiMode, layoutRoot: this.root.layoutRoot(), hardwareCursor: this.backend.view().terminal.hardwareCursor }
-      : { root: this.root, mode: tuiMode, layoutRoot: this.root.layoutRoot(), terminal: options.terminal, hardwareCursor: this.backend.view().terminal.hardwareCursor };
+    const runtimeOptions = {
+      root: this.root,
+      mode: tuiMode,
+      ...(!this.root.customViewportEnabled ? { layoutRoot: this.root.layoutRoot() } : {}),
+      ...(options.terminal === undefined ? {} : { terminal: options.terminal }),
+      hardwareCursor: this.backend.view().terminal.hardwareCursor,
+    };
     runtime = new PiTuiRuntimeAdapter(runtimeOptions);
     this.runtime = runtime;
+    this.#removeViewportInput = this.root.customViewportEnabled
+      ? this.runtime.addPreInputListener(data => {
+          const routed = routeMouseInput(data, event => this.root.handleViewportMouse(
+            event,
+            !this.runtime.hasOverlay() && this.root.usingDefaultInputSurface,
+          ));
+          if (routed.render) this.runtime.requestRender();
+          if (routed.handled > 0) this.#scheduleViewportLingerRender();
+          if (routed.handled === 0) return routed.data === data ? undefined : { data: routed.data };
+          return routed.data.length === 0 ? { consume: true } : { data: routed.data };
+        })
+      : () => {};
     this.#extensionBridge = createPiExtensionUiBridge({
       runtime: {
         getColumns: () => this.runtime.viewport().columns,
@@ -205,6 +230,7 @@ export class OwnedUiSessionShell {
     if (this.#started) return;
     this.#started = true;
     this.runtime.start();
+    if (this.root.customViewportEnabled) this.#setPointerReportingReason("viewport", true);
     void this.backend.bindExtensionUi(this.#extensionBridge.context, () => { void this.shutdown(); });
     this.#syncView();
   }
@@ -247,6 +273,8 @@ export class OwnedUiSessionShell {
         }
       }
     }
+    this.root.returnViewportToEnd();
+    this.runtime.requestRender();
     if (this.view().status.workingMessage?.startsWith("Compacting") === true) {
       this.root.editor.addToHistory(input);
       this.#compactionQueue.push({ text: input, type: "steer" });
@@ -341,6 +369,7 @@ export class OwnedUiSessionShell {
   async queueFollowUp(): Promise<AdapterCommandResult> {
     const text = this.root.editor.getText().trim();
     if (!text) return rejected("nothing to queue");
+    this.root.returnViewportToEnd();
     this.root.editor.addToHistory(text);
     this.root.editor.setText("");
     if (this.view().status.workingMessage?.startsWith("Compacting") === true) {
@@ -602,6 +631,7 @@ export class OwnedUiSessionShell {
             this.runtime.requestRender();
             return;
           }
+          if (this.#pointerReporting) this.runtime.writeControl(MOUSE_TRACKING_ON);
         }
         const result = this.backend.applyPinnedSettingValue(callback, value);
         if (result.outcome === "failed") this.root.appendWorkflowResult(result);
@@ -809,23 +839,43 @@ export class OwnedUiSessionShell {
     }
   }
 
+  #scheduleViewportLingerRender(): void {
+    if (this.#scrollbarLingerTimer !== undefined) clearTimeout(this.#scrollbarLingerTimer);
+    this.#scrollbarLingerTimer = setTimeout(() => {
+      this.#scrollbarLingerTimer = undefined;
+      this.runtime.requestRender();
+    }, SCROLLBAR_ACTIVITY_LINGER_MS + 10);
+    this.#scrollbarLingerTimer.unref?.();
+  }
+
   /**
    * Turns terminal pointer reporting on for a screen that reads the pointer, and off for
    * every path that ends it. While it is on the terminal hands A1 the wheel and the
    * button instead of scrolling and selecting itself, so leaving it on outlives the
    * screen that wanted it and takes the terminal's own scrolling and selection with it.
    */
-  #setPointerReporting(enabled: boolean): void {
-    if (this.#pointerReporting === enabled) return;
-    this.#pointerReporting = enabled;
+  #setPointerReportingReason(reason: "viewport" | "owned-route", enabled: boolean): void {
+    if (enabled) this.#pointerReportingReasons.add(reason);
+    else this.#pointerReportingReasons.delete(reason);
+    const next = this.#pointerReportingReasons.size > 0;
+    if (this.#pointerReporting === next) return;
+    this.#pointerReporting = next;
     if (!this.runtime.active) return;
-    this.runtime.writeControl(enabled ? MOUSE_TRACKING_ON : MOUSE_TRACKING_OFF);
+    this.runtime.writeControl(next ? MOUSE_TRACKING_ON : MOUSE_TRACKING_OFF);
   }
 
   async dispose(): Promise<void> {
     if (this.#disposed) return;
     this.#disposed = true;
-    this.#setPointerReporting(false);
+    if (this.#scrollbarLingerTimer !== undefined) clearTimeout(this.#scrollbarLingerTimer);
+    this.#scrollbarLingerTimer = undefined;
+    this.#removeViewportInput();
+    this.root.clearViewportPointerState();
+    this.#pointerReportingReasons.clear();
+    if (this.#pointerReporting) {
+      this.#pointerReporting = false;
+      if (this.runtime.active) this.runtime.writeControl(MOUSE_TRACKING_OFF);
+    }
     this.#unsubscribe();
     this.#dialogHandle?.hide();
     await this.backend.unbindExtensionUi();
@@ -851,8 +901,9 @@ export class OwnedUiSessionShell {
       this.#sessionGeneration = this.backend.sessionGeneration;
       this.#activeLoginDialog = undefined;
       this.#extensionBridge.reset();
-      // A replaced session takes its screens with it, pointer reporting included.
-      this.#setPointerReporting(false);
+      // A replaced session takes transient screens and viewport interaction with it.
+      this.#setPointerReportingReason("owned-route", false);
+      this.root.resetViewport();
       this.root.setInputSurface(null);
       this.root.resetExtensionUi();
       this.root.resetWorkflowPresentation();
@@ -872,7 +923,7 @@ export class OwnedUiSessionShell {
     this.#dialogHandle?.hide();
     // Any-event reporting: hover and drag are what the screen is driven by, and
     // it also stops the terminal treating a drag as a text selection.
-    this.#setPointerReporting(true);
+    this.#setPointerReportingReason("owned-route", true);
     // The interrupt chord is global, so it is watched on raw input rather than
     // through the overlay: the pinned shell handles that key before an overlay
     // ever sees it, which is why an owned screen must not rely on being asked.
@@ -894,7 +945,7 @@ export class OwnedUiSessionShell {
     });
     const closeSurface = () => {
       removeInterruptWatch();
-      this.#setPointerReporting(false);
+      this.#setPointerReportingReason("owned-route", false);
       this.#dialogHandle?.hide();
       this.#dialogHandle = undefined;
       this.#dialogId = undefined;

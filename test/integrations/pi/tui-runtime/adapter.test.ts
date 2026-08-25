@@ -203,6 +203,28 @@ describe("PiTuiRuntimeAdapter", () => {
     expect(mountedOverlay.disposed).toBe(true);
   });
 
+  it("routes physical input through pre-listeners before either TUI sees it", async () => {
+    const terminal = new TestTerminal();
+    const root = new TestComponent(["root"]);
+    const runtime = new PiTuiRuntimeAdapter({ root, terminal });
+    const remove = runtime.addPreInputListener(data => data === "blocked"
+      ? { consume: true }
+      : { data: data.replace("raw", "routed") });
+
+    runtime.start();
+    runtime.renderNow();
+    terminal.input("raw+key");
+    terminal.input("blocked");
+    runtime.renderNow();
+    expect(root.inputs).toEqual(["routed+key"]);
+
+    remove();
+    terminal.input("raw");
+    runtime.renderNow();
+    expect(root.inputs).toEqual(["routed+key", "raw"]);
+    await runtime.stop();
+  });
+
   it("uses the public regular main-screen renderer by default and leaves selection to the terminal", async () => {
     const terminal = new TestTerminal();
     const root = new TestComponent(["[38;2;255;0;0mcolored text[0m", "plain text"]);

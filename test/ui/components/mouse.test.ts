@@ -3,6 +3,7 @@ import {
   MOUSE_TRACKING_OFF,
   MOUSE_TRACKING_ON,
   parseMouseInput,
+  routeMouseInput,
   toPaneLocalMouse,
 } from "../../../src/ui/components/index.js";
 
@@ -36,6 +37,16 @@ describe("decoding pointer input", () => {
     const parsed = parseMouseInput(`ab${ESC}[<0;1;1Mcd${ESC}[<0;2;2mef`);
     expect(parsed.events).toHaveLength(2);
     expect(parsed.rest).toBe("abcdef");
+  });
+
+  it("removes only handled reports while preserving keys and unrelated pointer input in order", () => {
+    const routed = routeMouseInput(`a${ESC}[<64;1;1Mb${ESC}[<0;2;2Mc`, event => ({
+      consumed: event.kind === "wheel-up",
+      render: event.kind === "wheel-up",
+    }));
+    expect(routed.data).toBe(`ab${ESC}[<0;2;2Mc`);
+    expect(routed.handled).toBe(1);
+    expect(routed.render).toBe(true);
   });
 
   it("passes a chunk with no reports through untouched", () => {

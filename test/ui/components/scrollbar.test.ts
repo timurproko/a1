@@ -5,6 +5,8 @@ import {
   scrollForThumbRow,
   scrollForTrackPage,
   scrollbarGeometry,
+  scrollbarGlyph,
+  scrollbarPresentation,
   scrollbarReservesSpace,
   type RailPosition,
 } from "../../../src/ui/components/index.js";
@@ -14,6 +16,25 @@ const TRACK = 10;
 function geometry(scroll: number, contentLength = 100, viewportHeight = 20) {
   return scrollbarGeometry({ contentLength, viewportHeight, scroll, trackHeight: TRACK });
 }
+
+describe("scrollbar presentation", () => {
+  const input = { geometry: geometry(0), style: "thin" as const, hovered: false, dragging: false, now: 2_000 };
+
+  it("implements always, hover linger, and hidden policies", () => {
+    expect(scrollbarPresentation({ ...input, appearance: "always" })).toMatchObject({ reservesColumn: true, visible: true });
+    expect(scrollbarPresentation({ ...input, appearance: "hover", hovered: true })).toMatchObject({ reservesColumn: true, visible: true });
+    expect(scrollbarPresentation({ ...input, appearance: "hover", lastActivityAt: 1_500 })).toMatchObject({ reservesColumn: true, visible: true });
+    expect(scrollbarPresentation({ ...input, appearance: "hover", lastActivityAt: 0 })).toMatchObject({ reservesColumn: true, visible: false });
+    expect(scrollbarPresentation({ ...input, appearance: "hidden" })).toMatchObject({ reservesColumn: false, visible: false });
+  });
+
+  it("changes glyph weight without changing geometry", () => {
+    expect(scrollbarGlyph("thin", false)).toBe("│");
+    expect(scrollbarGlyph("thin", true)).toBe("┃");
+    expect(scrollbarGlyph("thick", false)).toBe("▐");
+    expect(scrollbarGlyph("thick", true)).toBe("█");
+  });
+});
 
 describe("scrollbar geometry", () => {
   it("draws nothing and reserves nothing when the content fits", () => {

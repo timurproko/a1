@@ -5,7 +5,15 @@ import type {
   OwnedUiThinkingLevel,
 } from "../../../contracts/owned-ui/index.js";
 import type { UiRouteHost } from "./route-host.js";
-import { MOUSE_TRACKING_OFF, MOUSE_TRACKING_ON, parseMouseInput } from "../../../ui/components/index.js";
+import {
+  TranscriptViewport,
+  faint,
+  type PaneMouseEvent,
+  type ScrollbarAppearance,
+  type ScrollbarStyle,
+  type TranscriptPromptAnchor,
+  type TranscriptViewportDocument,
+} from "../../../ui/components/index.js";
 import {
   PINNED_PI_HIDDEN_COMMAND_NAMES,
   PINNED_PI_WORKFLOW_COMMAND_NAMES,
@@ -93,6 +101,11 @@ export interface OwnedUiSessionShellOptions {
    * every other route continues to the pinned workflow table unchanged.
    */
   readonly routeHost?: UiRouteHost;
+  /** Present only for bare A1; comparison profiles keep the pinned layout. */
+  readonly customViewport?: {
+    readonly appearance: ScrollbarAppearance;
+    readonly style: ScrollbarStyle;
+  };
 }
 
 export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
@@ -128,6 +141,9 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   readonly #extensionStatuses = new Map<string, string>();
   #extensionWorkingMessage: string | undefined;
   #extensionWorkingVisible = true;
+  readonly #viewport: TranscriptViewport | null;
+  #scrollbarAppearance: ScrollbarAppearance;
+  #scrollbarStyle: ScrollbarStyle;
 
   constructor(
     view: OwnedUiSessionViewModel,
@@ -154,8 +170,12 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       getMessageRenderer: () => undefined,
       getToolDefinition: () => undefined,
     },
+    viewport?: { readonly appearance: ScrollbarAppearance; readonly style: ScrollbarStyle },
   ) {
     this.#view = view;
+    this.#viewport = viewport === undefined ? null : new TranscriptViewport();
+    this.#scrollbarAppearance = viewport?.appearance ?? "hover";
+    this.#scrollbarStyle = viewport?.style ?? "thin";
     this.#cwd = cwd;
     this.#extensionRenderers = extensionRenderers;
     this.#componentRuntime = handlers;
@@ -201,7 +221,9 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.#blocksById.set(block.id, block);
     const component = this.#transcript.get(block.id);
     if (component === undefined) {
-      const created = createPiShellTranscriptComponent(block, this.#cwd, this.#extensionRenderers);
+      const created = createPiShellTranscriptComponent(block, this.#cwd, this.#extensionRenderers, {
+        timestampUserPrompts: this.#viewport !== null,
+      });
       created.setExpanded(this.#toolsExpanded);
       this.#transcript.set(block.id, created);
       this.#transcriptOrder.push(block.id);
@@ -214,16 +236,56 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   }
 
   render(width: number): readonly string[] {
-    const queued = this.#view.editor.queuedSubmissions.length === 0 ? [] : this.#queued.render(width);
-    return [
-      ...this.#renderDocument(width),
-      ...queued,
-      ...this.#renderStatus(width),
-      ...this.#renderWidgets("aboveEditor", width),
-      ...this.#inputSurface.render(width),
-      ...this.#renderWidgets("belowEditor", width),
-      ...this.#renderFooter(width),
-    ];
+    if (this.#viewport === null) return [...this.#renderDocument(width), ...this.#renderDock(width)];
+    const theme = piTheme();
+    return this.#viewport.render({
+      width,
+      height: this.#componentRuntime.getRows(),
+      dockRows: this.#renderDock(width),
+      renderDocument: contentWidth => this.#renderViewportDocument(contentWidth),
+      appearance: this.#scrollbarAppearance,
+      style: this.#scrollbarStyle,
+      theme: {
+        scrollbar: (glyph, part, state) => {
+          const painted = part === "thumb" ? theme.bg("scrollbarThumb", glyph) : theme.fg("dim", glyph);
+          return state === "idle" ? painted : theme.bold(painted);
+        },
+        bottomControl: (text, pointed) => theme.bg("selectedBg", pointed
+          ? theme.bold(theme.fg("accent", text))
+          : theme.fg("text", text)),
+        stickyPrompt: (row, quiet) => quiet ? faint(row) : row,
+      },
+    });
+  }
+
+  get customViewportEnabled(): boolean {
+    return this.#viewport !== null;
+  }
+
+  get usingDefaultInputSurface(): boolean {
+    return this.#inputSurface === this.editor;
+  }
+
+  handleViewportMouse(event: PaneMouseEvent, allowWheel = true): { readonly consumed: boolean; readonly render?: boolean } {
+    return this.#viewport?.onMouse(event, Date.now(), allowWheel) ?? { consumed: false };
+  }
+
+  returnViewportToEnd(): void {
+    this.#viewport?.returnToEnd();
+  }
+
+  resetViewport(): void {
+    this.#viewport?.reset();
+  }
+
+  clearViewportPointerState(): void {
+    this.#viewport?.clearTransient();
+  }
+
+  setViewportScrollbar(appearance: ScrollbarAppearance, style: ScrollbarStyle): void {
+    this.#scrollbarAppearance = appearance;
+    this.#scrollbarStyle = style;
+    this.#componentRuntime.requestRender();
   }
 
   layoutRoot(): PiTuiLayoutNode {
@@ -277,13 +339,10 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   }
 
   #renderDocument(width: number): readonly string[] {
-    const transcript = this.#transcriptOrder.flatMap((id, index) => {
-      const block = this.#blocksById.get(id);
-      if (!this.#thinkingVisible && block?.kind === "thinking") return [];
-      const rows = this.#blockRows(id, block, width);
-      if (index > 0 && block?.kind === "user") return ["", ...rows];
-      return rows;
-    });
+    return this.#renderViewportDocument(width).rows;
+  }
+
+  #renderViewportDocument(width: number): TranscriptViewportDocument {
     const diagnostics = this.#view.diagnostics;
     const startupRows = diagnostics
       .filter(diagnostic => diagnostic.code === "engine-startup")
@@ -309,14 +368,27 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
         }, width, this.#cwd));
     const resourceRows = [...this.resources.render(width)];
     if (resourceRows.at(-1) === "") resourceRows.pop();
-    return [
+    const rows: string[] = [
       ...startupRows,
       ...(this.#extensionHeader ?? this.header).render(width),
       ...resourceRows,
-      ...transcript,
-      ...packageUpdateRows,
-      ...diagnosticRows,
     ];
+    const prompts: TranscriptPromptAnchor[] = [];
+    for (let index = 0; index < this.#transcriptOrder.length; index += 1) {
+      const id = this.#transcriptOrder[index];
+      if (id === undefined) continue;
+      const block = this.#blocksById.get(id);
+      if (!this.#thinkingVisible && block?.kind === "thinking") continue;
+      const blockRows = this.#blockRows(id, block, width);
+      if (index > 0 && block?.kind === "user") rows.push("");
+      const start = rows.length;
+      rows.push(...blockRows);
+      if (block?.kind === "user" && blockRows.length > 0) {
+        prompts.push({ id, start, end: rows.length - 1, firstRow: blockRows[0] ?? "" });
+      }
+    }
+    rows.push(...packageUpdateRows, ...diagnosticRows);
+    return { rows, prompts };
   }
 
   /**
@@ -563,6 +635,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   }
 
   dispose(): void {
+    this.#viewport?.clearTransient();
     this.#themeUnsubscribe();
     this.header.dispose?.();
     this.resources.dispose?.();
@@ -593,7 +666,9 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     for (const block of blocks) {
       const component = this.#transcript.get(block.id);
       if (component === undefined) {
-        const created = createPiShellTranscriptComponent(block, this.#cwd, this.#extensionRenderers);
+        const created = createPiShellTranscriptComponent(block, this.#cwd, this.#extensionRenderers, {
+          timestampUserPrompts: this.#viewport !== null,
+        });
         created.setExpanded(this.#toolsExpanded);
         this.#transcript.set(block.id, created);
       } else if (component.revision !== block.revision) {
@@ -634,6 +709,18 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.#transcriptOrder.push(id);
     this.invalidate();
     return id;
+  }
+
+  #renderDock(width: number): readonly string[] {
+    const queued = this.#view.editor.queuedSubmissions.length === 0 ? [] : this.#queued.render(width);
+    return [
+      ...queued,
+      ...this.#renderStatus(width),
+      ...this.#renderWidgets("aboveEditor", width),
+      ...this.#inputSurface.render(width),
+      ...this.#renderWidgets("belowEditor", width),
+      ...this.#renderFooter(width),
+    ];
   }
 
   #renderWidgets(placement: "aboveEditor" | "belowEditor", width: number): readonly string[] {

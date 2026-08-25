@@ -1869,7 +1869,11 @@ export class PiEngineAdapter {
         revision: this.#nextBlockRevision(baseId),
         title: "User",
         text: textFromContent(message.content),
-        payload: { role: "user", imageCount: contentImageCount(message.content) },
+        payload: {
+          role: "user",
+          imageCount: contentImageCount(message.content),
+          timestamp: typeof message.timestamp === "number" ? message.timestamp : 0,
+        },
       }];
     }
     if (message.role === "bashExecution") {

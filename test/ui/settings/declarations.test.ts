@@ -21,6 +21,20 @@ describe("owned UI setting declarations", () => {
     }
   });
 
+  it("declares only appearance and style controls for the custom scrollbar", () => {
+    expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "scrollbarAppearance")).toMatchObject({
+      application: "live",
+      defaultValue: "hover",
+      allowedValues: ["always", "hover", "hidden"],
+    });
+    expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "scrollbarStyle")).toMatchObject({
+      application: "live",
+      defaultValue: "thin",
+      allowedValues: ["thin", "thick"],
+    });
+    expect(OWNED_UI_SETTING_DECLARATIONS.some(declaration => declaration.id.toLowerCase().includes("speed"))).toBe(false);
+  });
+
   it("rejects a default outside the allowed values", () => {
     const broken: OwnedUiSettingDeclaration = {
       id: "brokenSetting",

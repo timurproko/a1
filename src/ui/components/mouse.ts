@@ -16,6 +16,13 @@ export interface ParsedMouseInput {
   readonly rest: string;
 }
 
+export interface RoutedMouseInput {
+  /** Input with only mouse reports accepted by the handler removed. */
+  readonly data: string;
+  readonly handled: number;
+  readonly render: boolean;
+}
+
 /** Extracts SGR mouse reports, leaving any keyboard input untouched. */
 export function parseMouseInput(data: string): ParsedMouseInput {
   if (!data.includes("\u001b[<")) return { events: [], rest: data };
@@ -39,6 +46,39 @@ export function parseMouseInput(data: string): ParsedMouseInput {
   }
   rest += data.slice(index);
   return { events: Object.freeze(events), rest };
+}
+
+/** Routes each complete mouse report while preserving keys and unhandled reports in order. */
+export function routeMouseInput(
+  data: string,
+  handler: (event: PaneMouseEvent) => { readonly consumed: boolean; readonly render?: boolean },
+): RoutedMouseInput {
+  if (!data.includes("\u001b[<")) return { data, handled: 0, render: false };
+  let output = "";
+  let index = 0;
+  let handled = 0;
+  let render = false;
+  SGR_PATTERN.lastIndex = 0;
+  for (let match = SGR_PATTERN.exec(data); match !== null; match = SGR_PATTERN.exec(data)) {
+    output += data.slice(index, match.index);
+    index = match.index + match[0].length;
+    const code = Number.parseInt(match[1] ?? "", 10);
+    const column = Number.parseInt(match[2] ?? "", 10);
+    const row = Number.parseInt(match[3] ?? "", 10);
+    const event = Number.isInteger(code) && Number.isInteger(column) && Number.isInteger(row)
+      ? toEvent(code, column, row, match[4] === "m")
+      : null;
+    if (event === null) {
+      output += match[0];
+      continue;
+    }
+    const result = handler(event);
+    render ||= result.render === true;
+    if (result.consumed) handled += 1;
+    else output += match[0];
+  }
+  output += data.slice(index);
+  return { data: output, handled, render };
 }
 
 function toEvent(code: number, column: number, row: number, released: boolean): PaneMouseEvent | null {

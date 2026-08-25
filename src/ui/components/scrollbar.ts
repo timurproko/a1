@@ -4,6 +4,48 @@
  * at once and a shared flag lights up the wrong one.
  */
 
+export type ScrollbarAppearance = "always" | "hover" | "hidden";
+export type ScrollbarStyle = "thin" | "thick";
+
+export const SCROLLBAR_ACTIVITY_LINGER_MS = 900;
+
+export interface ScrollbarPresentation {
+  /** A reserved column prevents a hover rail from reflowing its content. */
+  readonly reservesColumn: boolean;
+  readonly visible: boolean;
+  readonly style: ScrollbarStyle;
+}
+
+export interface ScrollbarPresentationInput {
+  readonly geometry: ScrollbarGeometry | null;
+  readonly appearance: ScrollbarAppearance;
+  readonly style: ScrollbarStyle;
+  readonly hovered: boolean;
+  readonly dragging: boolean;
+  readonly lastActivityAt?: number;
+  readonly now: number;
+  readonly lingerMs?: number;
+}
+
+/** Pure appearance policy; callers own clocks and interaction state. */
+export function scrollbarPresentation(input: ScrollbarPresentationInput): ScrollbarPresentation {
+  if (input.geometry === null || input.appearance === "hidden") {
+    return { reservesColumn: false, visible: false, style: input.style };
+  }
+  const linger = input.lastActivityAt !== undefined
+    && input.now - input.lastActivityAt <= (input.lingerMs ?? SCROLLBAR_ACTIVITY_LINGER_MS);
+  return {
+    reservesColumn: true,
+    visible: input.appearance === "always" || input.hovered || input.dragging || linger,
+    style: input.style,
+  };
+}
+
+export function scrollbarGlyph(style: ScrollbarStyle, thumb: boolean): string {
+  if (style === "thick") return thumb ? "█" : "▐";
+  return thumb ? "┃" : "│";
+}
+
 export interface ScrollbarGeometry {
   /** Rows in the track. */
   readonly trackHeight: number;

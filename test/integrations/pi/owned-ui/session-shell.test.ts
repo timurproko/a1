@@ -132,12 +132,21 @@ class Runtime {
   async dispose(): Promise<void> { this.calls.push("dispose"); }
 }
 
-async function fixture(messages: readonly unknown[] = [], extensions: readonly unknown[] = []) {
+async function fixture(
+  messages: readonly unknown[] = [],
+  extensions: readonly unknown[] = [],
+  customViewport?: { readonly appearance: "always" | "hover" | "hidden"; readonly style: "thin" | "thick" },
+) {
   const engine = new Runtime(messages);
   engine.extensionResources = extensions;
   const adapter = await createPiEngineAdapter({ cwd: "D:/work", sessionId: "owned-shell", createRuntime: async () => engine as unknown as AgentSessionRuntime });
   const terminal = new TestPresentationTerminal();
-  const shell = new OwnedUiSessionShell({ backend: adapter, cwd: "D:/work", terminal });
+  const shell = new OwnedUiSessionShell({
+    backend: adapter,
+    cwd: "D:/work",
+    terminal,
+    ...(customViewport === undefined ? {} : { customViewport }),
+  });
   shell.start();
   shell.runtime.renderNow();
   return { engine, adapter, terminal, shell };
@@ -183,6 +192,41 @@ describe("OwnedUiSessionShell", () => {
     expect(terminal.writes.some(write => write.includes("[?1006l"))).toBe(true);
   });
 
+
+  it("renders the bare-A1 fixed viewport with timestamped prompts and paired pointer reporting", async () => {
+    const timestamp = new Date(2024, 0, 1, 9, 7).getTime();
+    const messages = [
+      { role: "user", content: [{ type: "text", text: "Timestamped prompt" }], timestamp },
+      ...Array.from({ length: 24 }, (_, index) => ({
+        role: "assistant",
+        content: [{ type: "text", text: `answer ${index}` }],
+        timestamp: timestamp + index + 1,
+      })),
+    ];
+    const { terminal, shell } = await fixture(messages, [], { appearance: "always", style: "thin" });
+    const frame = () => shell.root.render(terminal.columns).map(row => stripTerminalSequences(row));
+
+    expect(frame()).toHaveLength(terminal.rows);
+    expect(frame().join("\n")).toContain("09:07");
+    expect(terminal.writes.some(write => write.includes("[?1003h"))).toBe(true);
+
+    terminal.input("\u001b[<64;5;5M");
+    expect(frame().join("\n")).toContain("latest");
+
+    await shell.dispose();
+    expect(terminal.writes.some(write => write.includes("[?1003l"))).toBe(true);
+  });
+
+  it("keeps timestamp decoration out of the pinned comparison shell", async () => {
+    const timestamp = new Date(2024, 0, 1, 9, 7).getTime();
+    const { shell } = await fixture([
+      { role: "user", content: [{ type: "text", text: "Comparison prompt" }], timestamp },
+    ]);
+    const frame = stripTerminalSequences(shell.root.render(80).join("\n"));
+    expect(frame).toContain("Comparison prompt");
+    expect(frame).not.toContain("09:07");
+    await shell.dispose();
+  });
 
   it("applies a streamed chunk through the named block and keeps the document in order", async () => {
     const { engine, adapter, shell } = await fixture();
