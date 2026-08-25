@@ -130,11 +130,19 @@ export interface OwnedPiResourceSummary {
   readonly diagnostic: string | null;
 }
 
+export interface OwnedPiExtensionSourceSummary {
+  readonly source: string;
+  readonly scope: "user" | "project" | "temporary";
+  readonly origin: "package" | "top-level";
+  readonly baseDir: string | null;
+}
+
 export interface OwnedPiExtensionResourceSummary {
   readonly kind: "extension";
   readonly id: string;
   readonly sourcePath: string | null;
   readonly resolvedPath: string | null;
+  readonly sourceInfo: OwnedPiExtensionSourceSummary | null;
   readonly loaded: boolean;
   readonly hidden: boolean;
   readonly diagnostic: string | null;
@@ -457,6 +465,7 @@ export class PiEngineAdapter {
           id: `extension-${resources.length}`,
           sourcePath: extension.path,
           resolvedPath: extension.resolvedPath,
+          sourceInfo: extensionSourceSummary(extension.sourceInfo),
           loaded: true,
           hidden: extension.hidden === true,
           diagnostic: null,
@@ -2497,10 +2506,24 @@ function extensionResourceDiagnostic(index: number, sourcePath: string | null, d
     id: `extension-diagnostic-${index}`,
     sourcePath,
     resolvedPath: null,
+    sourceInfo: null,
     loaded: false,
     hidden: false,
     diagnostic,
   };
+}
+
+function extensionSourceSummary(value: unknown): OwnedPiExtensionSourceSummary | null {
+  if (!isRecord(value)) return null;
+  const source = stringProperty(value, "source");
+  const scope = value.scope;
+  const origin = value.origin;
+  const baseDir = value.baseDir;
+  if (!source
+    || (scope !== "user" && scope !== "project" && scope !== "temporary")
+    || (origin !== "package" && origin !== "top-level")
+    || (baseDir !== undefined && typeof baseDir !== "string")) return null;
+  return { source, scope, origin, baseDir: baseDir ?? null };
 }
 
 function collectionResult(value: unknown, key: string): { values: readonly unknown[]; diagnostics: readonly string[] } {
