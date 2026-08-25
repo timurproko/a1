@@ -98,6 +98,7 @@ npm run release -- patch     # 0.1.1        -> 0.1.2
 npm run release -- minor     # 0.1.1        -> 0.2.0
 npm run release -- major     # 0.1.1        -> 1.0.0
 npm run release -- 0.4.0     # an exact version
+npm run develop              # develop
 ```
 
 It lands the version on `develop` through a pull request that merges itself, then
