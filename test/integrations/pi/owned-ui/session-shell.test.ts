@@ -213,6 +213,11 @@ describe("OwnedUiSessionShell", () => {
     terminal.input("\u001b[<64;5;5M");
     expect(frame().join("\n")).toContain("latest");
 
+    terminal.input("\u001b[<0;2;5M");
+    terminal.input("\u001b[<32;8;5M");
+    terminal.input("\u001b[<0;8;5m");
+    expect(terminal.writes.some(write => write.includes("]52;c;"))).toBe(true);
+
     await shell.dispose();
     expect(terminal.writes.some(write => write.includes("[?1003l"))).toBe(true);
   });

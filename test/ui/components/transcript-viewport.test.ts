@@ -90,6 +90,18 @@ describe("TranscriptViewport", () => {
     expect(viewport.state.followingEnd).toBe(false);
   });
 
+  it("selects transcript text with an ordinary LMB drag and returns clipboard text", () => {
+    const viewport = new TranscriptViewport();
+    render(viewport, ["alpha", "bravo", "charlie", "delta"]);
+
+    expect(viewport.onMouse({ kind: "press", button: 0, column: 1, row: 1 }).consumed).toBe(true);
+    expect(viewport.onMouse({ kind: "motion", button: 0, column: 4, row: 2 }).consumed).toBe(true);
+    const selected = render(viewport, ["alpha", "bravo", "charlie", "delta"]);
+    expect(selected.join("\n")).toContain("\u001b[7m");
+    const released = viewport.onMouse({ kind: "release", button: 0, column: 4, row: 2 });
+    expect(released).toMatchObject({ consumed: true, copyText: "alpha\nbrav" });
+  });
+
   it("scrolls three lines at normal speed and six at high speed", () => {
     const rows = Array.from({ length: 20 }, (_, index) => String(index));
     const normal = new TranscriptViewport();
@@ -133,6 +145,8 @@ describe("TranscriptViewport", () => {
     const frame = render(viewport, ["0", "1", "2", "3", "4", "5"], { appearance: "hidden" });
     expect(viewport.state.scrollbarVisible).toBe(false);
     expect(frame.every(row => !stripAnsi(row).includes("│") && !stripAnsi(row).includes("┃"))).toBe(true);
-    expect(viewport.onMouse({ kind: "press", button: 0, column: 20, row: 1 }).consumed).toBe(false);
+    // The former rail cell is ordinary selectable transcript content, not a scrollbar hit.
+    expect(viewport.onMouse({ kind: "press", button: 0, column: 20, row: 1 }).consumed).toBe(true);
+    expect(viewport.onMouse({ kind: "release", button: 0, column: 20, row: 1 }).copyText).toBeUndefined();
   });
 });

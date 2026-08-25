@@ -126,16 +126,25 @@ When the first row of the most recent submitted user prompt at or before the vie
 - **THEN** no duplicate sticky row SHALL be added
 
 ### Requirement: Viewport pointer handling preserves unrelated input
-The viewport SHALL claim wheel events used to scroll its transcript and pointer events addressed to its scrollbar, scroll-to-bottom control, or pinned prompt. It SHALL leave keyboard input and pointer selection outside those regions to the existing focused surface and terminal UI behavior. An active selector, dialog, overlay, or replacement input that owns an event SHALL retain that ownership.
+The viewport SHALL claim wheel events used to scroll its transcript and pointer events addressed to its scrollbar, scroll-to-bottom control, pinned prompt, or transcript selection surface. An ordinary LMB drag starting on transcript content SHALL create a grapheme-aligned visual selection in both regular and fullscreen modes, SHALL exclude the scrollbar rail, and SHALL copy a completed non-empty selection through the terminal clipboard bridge. It SHALL leave keyboard input and pointer input outside those regions to the existing focused surface and terminal UI behavior. An active selector, dialog, overlay, or replacement input that owns an event SHALL retain that ownership.
 
 #### Scenario: Scroll the transcript with the wheel
 - **WHEN** a wheel event is addressed to the transcript viewport while the ordinary editor owns focus
 - **THEN** the transcript SHALL scroll and the wheel sequence SHALL NOT be inserted into the editor
 
 #### Scenario: Select ordinary transcript text
-- **WHEN** a pointer drag starts outside every viewport control hit region
-- **THEN** the viewport SHALL NOT treat it as a scrollbar or navigation action
-- **AND** the existing transcript selection behavior SHALL remain available
+- **WHEN** an LMB drag starts on transcript content outside every viewport control hit region
+- **THEN** the viewport SHALL highlight the grapheme-aligned text covered by the drag
+- **AND** it SHALL NOT treat the drag as a scrollbar or navigation action
+
+#### Scenario: Complete a transcript selection
+- **WHEN** LMB is released after a non-empty transcript drag
+- **THEN** the selected plain text SHALL be copied through the terminal clipboard bridge
+- **AND** the visual selection SHALL remain until subsequent ordinary input or a new selection replaces it
+
+#### Scenario: Select in either runtime mode
+- **WHEN** bare A1 uses either regular or fullscreen TUI mode
+- **THEN** ordinary LMB transcript selection SHALL provide the same viewport-owned highlight and copy behavior
 
 #### Scenario: A modal surface owns input
 - **WHEN** a selector, dialog, overlay, or replacement input owns an event that is not addressed to a visible viewport control

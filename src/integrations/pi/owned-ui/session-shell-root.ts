@@ -15,6 +15,7 @@ import {
   type ScrollbarStyle,
   type TranscriptPromptAnchor,
   type TranscriptViewportDocument,
+  type TranscriptViewportInputResult,
 } from "../../../ui/components/index.js";
 import {
   PINNED_PI_HIDDEN_COMMAND_NAMES,
@@ -273,8 +274,12 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     return this.#inputSurface === this.editor;
   }
 
-  handleViewportMouse(event: PaneMouseEvent, allowWheel = true): { readonly consumed: boolean; readonly render?: boolean } {
-    return this.#viewport?.onMouse(event, Date.now(), allowWheel) ?? { consumed: false };
+  handleViewportMouse(
+    event: PaneMouseEvent,
+    allowWheel = true,
+    allowSelection = true,
+  ): TranscriptViewportInputResult {
+    return this.#viewport?.onMouse(event, Date.now(), allowWheel, allowSelection) ?? { consumed: false };
   }
 
   returnViewportToEnd(): void {
@@ -287,6 +292,10 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
 
   clearViewportPointerState(): void {
     this.#viewport?.clearTransient();
+  }
+
+  clearViewportSelection(): void {
+    this.#viewport?.clearSelection();
   }
 
   setViewportScrollbar(appearance: ScrollbarAppearance, style: ScrollbarStyle, speed: ScrollbarSpeed): void {

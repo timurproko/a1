@@ -48,6 +48,37 @@ function graphemeWidth(grapheme: string): number {
   return width;
 }
 
+export interface DisplayColumnSlice {
+  /** Grapheme-aligned visible bounds in the source row. */
+  readonly from: number;
+  readonly to: number;
+  readonly text: string;
+}
+
+/** Plain graphemes intersecting a visible-column range, expanded at wide-character edges. */
+export function displayColumnSlice(text: string, requestedFrom: number, requestedTo: number): DisplayColumnSlice {
+  const plain = stripAnsi(text);
+  const from = Math.max(0, requestedFrom);
+  const to = Math.max(from, requestedTo);
+  let column = 0;
+  let actualFrom: number | undefined;
+  let actualTo = from;
+  let selected = "";
+  for (const { segment } of SEGMENTER.segment(plain)) {
+    const width = graphemeWidth(segment);
+    const start = column;
+    const end = column + width;
+    if (end > from && start < to) {
+      actualFrom ??= start;
+      actualTo = end;
+      selected += segment;
+    }
+    column = end;
+    if (start >= to) break;
+  }
+  return { from: actualFrom ?? from, to: actualFrom === undefined ? from : actualTo, text: selected };
+}
+
 /** Columns this text occupies once styling is removed. */
 export function displayWidth(text: string): number {
   let width = 0;

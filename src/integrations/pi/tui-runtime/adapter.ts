@@ -307,9 +307,8 @@ export class PiTuiRuntimeAdapter {
   }
 
   /**
-   * Writes a terminal control sequence. Used to enable and disable mouse
-   * reporting while an A1-owned application is presented, and for nothing else:
-   * the transparent and pinned paths never call it.
+   * Writes an A1-owned terminal control sequence for paired mouse reporting or
+   * OSC 52 selection copy. Transparent and pinned comparison paths never call it.
    */
   writeControl(data: string): void {
     this.#assertRunning("control sequence");

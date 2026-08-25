@@ -14,7 +14,7 @@ import {
   type ScrollbarStyle,
 } from "./scrollbar.js";
 import { overlaySpan } from "./spans.js";
-import { displayWidth, padToWidth } from "./text.js";
+import { displayColumnSlice, displayWidth, padToWidth } from "./text.js";
 
 export interface TranscriptPromptAnchor {
   readonly id: string;
@@ -47,6 +47,11 @@ export interface TranscriptViewportRenderInput {
   readonly now?: number;
 }
 
+export interface TranscriptViewportInputResult extends PaneInputResult {
+  /** Completed LMB selection, ready for the host clipboard bridge. */
+  readonly copyText?: string;
+}
+
 export interface TranscriptViewportState {
   readonly scrollTop: number;
   readonly viewportHeight: number;
@@ -64,6 +69,14 @@ interface FrameState {
   readonly bottomControl: { readonly row: number; readonly from: number; readonly to: number } | null;
   readonly sticky: { readonly row: number; readonly anchor: TranscriptPromptAnchor } | null;
   readonly wheelLines: number;
+  readonly contentWidth: number;
+  readonly scrollTop: number;
+  readonly documentRows: readonly string[];
+}
+
+interface SelectionPoint {
+  readonly row: number;
+  readonly column: number;
 }
 
 const RAIL_KEY = "session-transcript";
@@ -88,7 +101,13 @@ export class TranscriptViewport {
     bottomControl: null,
     sticky: null,
     wheelLines: 3,
+    contentWidth: 1,
+    scrollTop: 0,
+    documentRows: [],
   };
+  #selectionAnchor: SelectionPoint | undefined;
+  #selectionFocus: SelectionPoint | undefined;
+  #selectionPressActive = false;
   #state: TranscriptViewportState = {
     scrollTop: 0,
     viewportHeight: 0,
@@ -147,6 +166,12 @@ export class TranscriptViewport {
 
     const transcriptRows = document.rows.slice(this.#scrollTop, this.#scrollTop + transcriptHeight);
     while (transcriptRows.length < transcriptHeight) transcriptRows.push("");
+    for (let visibleRow = 0; visibleRow < transcriptRows.length; visibleRow += 1) {
+      transcriptRows[visibleRow] = this.#paintSelectionRow(
+        transcriptRows[visibleRow] ?? "",
+        this.#scrollTop + visibleRow,
+      );
+    }
 
     const governingPrompt = findGoverningPrompt(document.prompts, this.#scrollTop);
     let sticky: FrameState["sticky"] = null;
@@ -188,6 +213,9 @@ export class TranscriptViewport {
       bottomControl,
       sticky,
       wheelLines: scrollbarWheelLines(input.speed),
+      contentWidth,
+      scrollTop: this.#scrollTop,
+      documentRows: document.rows,
     };
     this.#state = {
       scrollTop: this.#scrollTop,
@@ -202,7 +230,12 @@ export class TranscriptViewport {
     return rows.map(row => displayWidth(row) > width ? padToWidth(row, width) : row);
   }
 
-  onMouse(event: PaneMouseEvent, now = Date.now(), allowWheel = true): PaneInputResult {
+  onMouse(
+    event: PaneMouseEvent,
+    now = Date.now(),
+    allowWheel = true,
+    allowSelection = true,
+  ): TranscriptViewportInputResult {
     const frame = this.#frame;
     const insideTranscript = event.row >= 1 && event.row <= frame.transcriptHeight
       && event.column >= 1 && event.column <= frame.width;
@@ -226,6 +259,10 @@ export class TranscriptViewport {
           return { consumed: true, render: true };
         }
       }
+      if (this.#selectionPressActive && allowSelection) {
+        this.#selectionFocus = this.#selectionPoint(event);
+        return { consumed: true, render: true };
+      }
       return {
         consumed: false,
         render: wasRailHovered !== this.#rails.isHovered(RAIL_KEY) || wasBottomPointed !== this.#bottomPointed,
@@ -233,10 +270,18 @@ export class TranscriptViewport {
     }
 
     if (event.kind === "release") {
-      if (!this.#rails.isDragging(RAIL_KEY)) return { consumed: false };
-      this.#rails.endDrag();
-      this.#lastActivityAt = now;
-      return { consumed: true, render: true };
+      if (this.#rails.isDragging(RAIL_KEY)) {
+        this.#rails.endDrag();
+        this.#lastActivityAt = now;
+        return { consumed: true, render: true };
+      }
+      if (!this.#selectionPressActive) return { consumed: false };
+      this.#selectionPressActive = false;
+      if (allowSelection) this.#selectionFocus = this.#selectionPoint(event);
+      const copyText = this.#selectionText();
+      return copyText.length === 0
+        ? { consumed: true, render: true }
+        : { consumed: true, render: true, copyText };
     }
 
     if (event.kind !== "press" || event.button !== 0) return { consumed: false };
@@ -262,6 +307,13 @@ export class TranscriptViewport {
       this.#lastActivityAt = now;
       return { consumed: true, render: true };
     }
+    if (allowSelection && insideTranscript && event.column <= frame.contentWidth) {
+      const point = this.#selectionPoint(event);
+      this.#selectionAnchor = point;
+      this.#selectionFocus = point;
+      this.#selectionPressActive = true;
+      return { consumed: true, render: true };
+    }
     return { consumed: false };
   }
 
@@ -281,12 +333,74 @@ export class TranscriptViewport {
     this.#scrollTop = 0;
     this.#followingEnd = true;
     this.#lastActivityAt = undefined;
+    this.clearSelection();
     this.clearTransient();
+  }
+
+  clearSelection(): void {
+    this.#selectionAnchor = undefined;
+    this.#selectionFocus = undefined;
+    this.#selectionPressActive = false;
   }
 
   clearTransient(): void {
     this.#rails.clear();
     this.#bottomPointed = false;
+    this.#selectionPressActive = false;
+  }
+
+  #selectionPoint(event: PaneMouseEvent): SelectionPoint {
+    const frame = this.#frame;
+    const visibleRow = Math.min(Math.max(event.row, 1), Math.max(1, frame.transcriptHeight)) - 1;
+    const row = Math.min(
+      Math.max(0, frame.scrollTop + visibleRow),
+      Math.max(0, frame.documentRows.length - 1),
+    );
+    const lineWidth = displayWidth(frame.documentRows[row] ?? "");
+    const column = Math.min(Math.max(event.column - 1, 0), Math.min(frame.contentWidth, lineWidth));
+    return { row, column };
+  }
+
+  #selectionBounds(): { readonly start: SelectionPoint; readonly end: SelectionPoint } | null {
+    const anchor = this.#selectionAnchor;
+    const focus = this.#selectionFocus;
+    if (anchor === undefined || focus === undefined) return null;
+    if (anchor.row === focus.row && anchor.column === focus.column) return null;
+    const anchorFirst = anchor.row < focus.row || (anchor.row === focus.row && anchor.column < focus.column);
+    return anchorFirst ? { start: anchor, end: focus } : { start: focus, end: anchor };
+  }
+
+  #selectionColumns(row: number, line: string): { readonly from: number; readonly to: number } | null {
+    const bounds = this.#selectionBounds();
+    if (bounds === null || row < bounds.start.row || row > bounds.end.row) return null;
+    const lineWidth = displayWidth(line);
+    const from = row === bounds.start.row ? Math.min(bounds.start.column, lineWidth) : 0;
+    const to = row === bounds.end.row ? Math.min(bounds.end.column + 1, lineWidth) : lineWidth;
+    return to > from ? { from, to } : null;
+  }
+
+  #paintSelectionRow(line: string, row: number): string {
+    const columns = this.#selectionColumns(row, line);
+    if (columns === null) return line;
+    const selected = displayColumnSlice(line, columns.from, columns.to);
+    if (selected.to <= selected.from) return line;
+    return overlaySpan(line, selected.from, selected.to, `\u001b[7m${selected.text}\u001b[27m`);
+  }
+
+  #selectionText(): string {
+    const bounds = this.#selectionBounds();
+    if (bounds === null) return "";
+    const lines: string[] = [];
+    for (let row = bounds.start.row; row <= bounds.end.row; row += 1) {
+      const line = this.#frame.documentRows[row] ?? "";
+      const columns = this.#selectionColumns(row, line);
+      if (columns === null) {
+        lines.push("");
+        continue;
+      }
+      lines.push(displayColumnSlice(line, columns.from, columns.to).text.trimEnd());
+    }
+    return lines.join("\n");
   }
 
   #setScroll(next: number): void {

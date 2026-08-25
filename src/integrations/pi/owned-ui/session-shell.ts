@@ -166,10 +166,19 @@ export class OwnedUiSessionShell {
     this.runtime = runtime;
     this.#removeViewportInput = this.root.customViewportEnabled
       ? this.runtime.addPreInputListener(data => {
-          const routed = routeMouseInput(data, event => this.root.handleViewportMouse(
-            event,
-            !this.runtime.hasOverlay() && this.root.usingDefaultInputSurface,
-          ));
+          if (!data.includes("\u001b[<")) this.root.clearViewportSelection();
+          const hasOverlay = this.runtime.hasOverlay();
+          const routed = routeMouseInput(data, event => {
+            const result = this.root.handleViewportMouse(
+              event,
+              !hasOverlay && this.root.usingDefaultInputSurface,
+              !hasOverlay,
+            );
+            if (result.copyText !== undefined) {
+              this.runtime.writeControl(`\u001b]52;c;${Buffer.from(result.copyText).toString("base64")}\u0007`);
+            }
+            return result;
+          });
           if (routed.render) this.runtime.requestRender();
           if (routed.handled > 0) this.#scheduleViewportLingerRender();
           if (routed.handled === 0) return routed.data === data ? undefined : { data: routed.data };

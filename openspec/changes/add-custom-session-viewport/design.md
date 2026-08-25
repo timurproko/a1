@@ -16,13 +16,14 @@ The shared component layer already owns display-width text utilities, ANSI-safe 
 - Preserve the current regular/fullscreen runtime choice rather than making viewport behavior depend on one Pi layout implementation.
 - Keep dock surfaces as their existing component instances so layout work cannot silently become a status, editor, footer, or extension-UI rewrite.
 - Route viewport pointer input before Pi's fullscreen viewport can consume it, while preserving unrelated input and mixed input chunks.
+- Preserve ordinary LMB transcript selection and clipboard copy in both regular and fullscreen runtime modes.
 - Keep per-frame work bounded to cached transcript rows plus the visible window's overlays.
 - Keep bare-A1 customization and pinned comparison presentation as explicit composition choices.
 
 **Non-Goals:**
 
 - No status/footer redesign, input-editor redesign, paste chips, prompt history changes, or new-message counter.
-- No general replacement for Pi TUI rendering, terminal parsing, selection, clipboard, or overlays.
+- No general replacement for Pi TUI rendering, terminal parsing, editor selection, clipboard configuration, or overlays; selection ownership is limited to rows inside the custom transcript viewport.
 - No private Pi imports, prototype mutation, child-tree inspection, distribution hashes, or source-text inference.
 - No multi-agent, terminal-host, PTY, or native-host work.
 
@@ -76,11 +77,13 @@ A pre-listener returns consumed/transformed input through the existing neutral r
 - parse all mouse reports in a chunk and preserve any non-mouse remainder;
 - consume wheel reports addressed to its transcript and update activity state;
 - consume press/motion/release reports for its rail, sticky prompt, and bottom control;
-- forward reports outside those hit regions so existing fullscreen selection and focused surfaces keep their behavior;
-- bypass non-control input when an overlay, dialog, selector, or replacement input owns it;
-- clear drag and hover state on session replacement and disposal.
+- consume ordinary LMB drags in transcript content, map visible coordinates to semantic document rows, and paint a grapheme-aligned selection without selecting the rail;
+- copy a completed non-empty transcript selection through OSC 52 and retain its highlight until the next ordinary input or selection;
+- forward non-LMB reports and reports outside viewport hit regions so focused surfaces keep their behavior;
+- bypass viewport selection when an overlay or dialog owns pointer input;
+- clear drag, active selection gesture, and hover state on session replacement and disposal.
 
-For regular mode, pointer reporting is paired to the lifetime of the bare-A1 custom viewport and disabled on every teardown path, as it already is for A1-owned pointer-driven applications. Native terminal selection remains available through the terminal's pointer-reporting bypass gesture; fullscreen selection remains owned by the public Pi TUI. This change does not add a second selection or clipboard implementation.
+Pointer reporting is paired to the lifetime of the bare-A1 custom viewport and disabled on every teardown path. The owned selection path is mode-neutral, so plain LMB selection behaves the same through `TuiMainScreen` and `TuiAltScreen`; terminal-native bypass selection remains available as a fallback. This does not replace editor selection or clipboard configuration.
 
 Alternative considered: register another ordinary TUI input listener. Rejected because listener ordering makes Pi consume fullscreen wheel input first.
 
@@ -139,7 +142,7 @@ The implementation will add focused render-count and long-transcript tests so a 
 ## Risks / Trade-offs
 
 - **[An exact-height root in regular mode changes how much transcript reaches native scrollback]** → The custom capability intentionally owns transcript scrollback in bare A1; comparison profiles retain the pinned flow. Validate parent-terminal restoration and preserve the public TUI renderer.
-- **[Pointer reporting in regular mode can surprise terminal-native selection users]** → Pair reporting exactly to viewport lifetime, leave non-control pointer input untouched, preserve the terminal bypass gesture, and include manual selection/copy/restoration acceptance.
+- **[Pointer reporting in regular mode prevents plain native LMB selection]** → Own transcript-only grapheme-aligned selection and OSC 52 copy in both modes, preserve the terminal bypass gesture as a fallback, and include manual selection/copy/restoration acceptance.
 - **[Dock growth can leave too few transcript rows]** → Derive allocation from current terminal height every frame, preserve existing component minimums, and test queued input, multiline editors, replacement selectors, and small resizes.
 - **[Timestamp reservation can cause excessive wrapping]** → Use a declared minimum useful content width and omit only the timestamp at narrower widths; never truncate the submitted prompt payload.
 - **[Sticky and rail overlays can leak ANSI styles or hyperlinks]** → Use the shared display-width and span-overlay primitives, isolate theme roles, and test background, hyperlink, wide-character, and narrow-width rows.

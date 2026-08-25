@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { displayWidth, padToWidth, stripAnsi, truncateToWidth } from "../../../src/ui/components/index.js";
+import { displayColumnSlice, displayWidth, padToWidth, stripAnsi, truncateToWidth } from "../../../src/ui/components/index.js";
 
 const RESET = "[0m";
 const RED = "[31m";
@@ -31,6 +31,11 @@ describe("display width", () => {
   it("ignores styling escapes", () => {
     expect(displayWidth(`${RED}red${RESET}`)).toBe(3);
     expect(stripAnsi(`${RED}red${RESET}`)).toBe("red");
+  });
+
+  it("slices ANSI text on grapheme-aligned display columns", () => {
+    expect(displayColumnSlice(`${RED}a界b${RESET}`, 2, 3)).toEqual({ from: 1, to: 3, text: "界" });
+    expect(displayColumnSlice("👩‍💻x", 0, 1)).toEqual({ from: 0, to: 2, text: "👩‍💻" });
   });
 });
 
