@@ -208,7 +208,9 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     } else if (component.revision !== block.revision) {
       component.update(block);
     }
-    this.invalidate();
+    // One chunk touches one block, and the updated component tracks its own dirtiness.
+    // Invalidating the whole shell here would re-wrap the entire transcript per chunk.
+    this.#renderedRows.delete(block.id);
   }
 
   render(width: number): readonly string[] {
