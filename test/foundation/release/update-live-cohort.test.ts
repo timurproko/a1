@@ -96,7 +96,7 @@ describe("update ownership with a live cohort", () => {
     expect(JSON.parse(await readFile(cohort.endpointMetadataPath, "utf8"))).toMatchObject({ releaseId: expect.any(String) });
   });
 
-  it("reports the sessions it is leaving alone", async () => {
+  it("stays silent about the sessions it is leaving alone", async () => {
     const { environment } = await liveCohort("retained");
     const stdout: string[] = [];
     const coordinator = createUpdateLifecycleCoordinator(environment, undefined, {
@@ -106,9 +106,9 @@ describe("update ownership with a live cohort", () => {
 
     await coordinator.shutdownVerifiedOwners("1.3.0");
 
-    // No instances in this fixture, so there is nothing to report; the message exists for
-    // the case where there is.
-    expect(stdout.join("")).not.toContain("ending");
+    // Leaving sessions running is the expected outcome; announcing it would tear the
+    // update progress bar, so nothing is written.
+    expect(stdout.join("")).toBe("");
   });
 
   it("plans by where the owner runs from", () => {

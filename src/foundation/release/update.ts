@@ -24,14 +24,6 @@ import { UpdateTransactionStore, type UpdateTransaction, type UpdateTransactionP
 export const PRODUCT_PACKAGE = PRODUCT_TEXT.packageName;
 export type UpdateChannel = "stable" | "next";
 const UPDATE_DIST_TAGS: Readonly<Record<UpdateChannel, "latest" | "next">> = { stable: "latest", next: "next" };
-/**
- * What each channel is called when A1 says it out loud. The internal name stays
- * `stable` because that is what the channel is, but what a reader is moving to is
- * a release, and that is the word the repository, its tags, and its GitHub
- * releases all use.
- */
-const UPDATE_CHANNEL_LABELS: Readonly<Record<UpdateChannel, string>> = { stable: "release", next: "develop" };
-
 export interface ProcessRequest { captureStdout: boolean }
 export interface ProcessResult { code: number | null; stdout: string }
 export type UpdateProcessRunner = (command: string, arguments_: readonly string[], request: ProcessRequest) => Promise<ProcessResult>;
@@ -196,13 +188,9 @@ export function createUpdateLifecycleCoordinator(
         await removeEndpointArtifacts(owner.paths.endpointMetadataPath, owner.paths.endpoint);
         return { priorActiveVersion };
       }
-      if (plan === "leave-running") {
-        const running = endpoint.ownership.liveInstanceIds.length;
-        if (running > 0) {
-          output.stdout(`${PRODUCT_TEXT.commandName} update: leaving ${running === 1 ? "one session" : `${running} sessions`} running on ${endpoint.releaseId}\n`);
-        }
-        return { priorActiveVersion };
-      }
+      // Leaving sessions alone is the expected outcome, and saying so mid-update tears
+      // the progress bar; only ending a session (below) is worth interrupting it for.
+      if (plan === "leave-running") return { priorActiveVersion };
 
       // Say whose work is ending before it ends.
       const live = endpoint.ownership.liveInstanceIds.length;
@@ -430,7 +418,7 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
   const targetVersion = resolved.version;
   // No full stop after a version: it already ends in a dot-separated identifier,
   // and a trailing one reads as part of the version rather than as punctuation.
-  output.stdout(`${PRODUCT_TEXT.commandName} update (${UPDATE_CHANNEL_LABELS[channel]}): ${runningVersion} → ${targetVersion}\n`);
+  output.stdout(`${PRODUCT_TEXT.commandName} update: ${runningVersion} → ${targetVersion}\n`);
   const progress = createUpdateProgress(output, options.progress ?? (options.output === undefined && process.stdout.isTTY === true));
 
   const rootLookup = await measure("global-root", async () => await runNpm(runner, ["root", "--global"], true, output, "resolve npm's global package root"));

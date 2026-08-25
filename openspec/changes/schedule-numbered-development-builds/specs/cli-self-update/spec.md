@@ -42,7 +42,7 @@ command or status wording.
 
 #### Scenario: Development update starts
 - **WHEN** the user runs `a1 update:develop`
-- **THEN** progress SHALL begin with `a1 update (develop): <running> → <target>`
+- **THEN** progress SHALL begin with `a1 update: <running> → <target>`, without a channel label
 
 #### Scenario: Versions are displayed
 - **WHEN** the user runs `a1 version`

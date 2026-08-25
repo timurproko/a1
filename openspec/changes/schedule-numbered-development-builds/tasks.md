@@ -38,7 +38,7 @@
   refuse the removed spelling with an actionable redirect before registry or
   runtime work
 - [x] 4.3 Replace user-visible `next` channel wording with `develop`, including
-  `a1 update (develop)` progress and the `Develop` field in `a1 version`, while
+  `a1 update` progress (no channel label) and the `Develop` field in `a1 version`, while
   retaining npm's internal development dist-tag convention
 - [x] 4.4 Update `README.md`, `docs/ci-release-runbook.md`, launch-profile docs, and
   architecture guidance to replace hash-based automatic-preview and `next`
