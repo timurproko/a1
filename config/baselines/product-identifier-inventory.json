@@ -66,12 +66,12 @@
     },
     {
       "path": "test/cli/packages.test.ts",
-      "line": 59,
+      "line": 67,
       "identifier": "A1_PROFILE_HOME"
     },
     {
       "path": "test/cli/packages.test.ts",
-      "line": 151,
+      "line": 197,
       "identifier": "A1_PROFILE_HOME"
     },
     {

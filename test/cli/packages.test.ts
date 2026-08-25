@@ -2,8 +2,13 @@ import { existsSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
+import { Chalk } from "chalk";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { runPackageCommand, type PackageCommandRequest } from "../../src/cli/index.js";
+import {
+  runPackageCommand,
+  type PackageCommandRequest,
+  type PackageCommandStyle,
+} from "../../src/cli/index.js";
 import {
   agentPackageOutcome,
   type AgentPackageOutcome,
@@ -12,6 +17,7 @@ import {
 } from "../../src/foundation/agent-engine-contracts/index.js";
 
 const roots: string[] = [];
+const transcriptStyle: PackageCommandStyle = new Chalk({ level: 1 });
 afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))));
 
 async function home(): Promise<string> {
@@ -32,17 +38,19 @@ async function run(
   request: PackageCommandRequest,
   outcome: AgentPackageOutcome,
   profileHome: string,
+  progress?: string,
 ): Promise<Harness> {
   const out: string[] = [];
   const error: string[] = [];
   const calls: string[] = [];
   let input: AgentPackagesPortInput | undefined;
-  const record = (name: string) => async (): Promise<AgentPackageOutcome> => {
-    calls.push(name);
-    return outcome;
-  };
   const createPort = (portInput: AgentPackagesPortInput): AgentPackagesPort => {
     input = portInput;
+    const record = (name: AgentPackageOutcome["operation"]) => async (): Promise<AgentPackageOutcome> => {
+      calls.push(name);
+      if (progress !== undefined) portInput.onProgress?.({ operation: name, message: progress });
+      return outcome;
+    };
     return {
       capabilities: { install: true, remove: true, update: true, refreshModels: true },
       profileRoot: portInput.profileRoot,
@@ -59,6 +67,7 @@ async function run(
     environment: { A1_PROFILE_HOME: profileHome },
     stdout: message => out.push(message),
     stderr: message => error.push(message),
+    style: transcriptStyle,
   });
   return { code, out: out.join(""), error: error.join(""), input, calls };
 }
@@ -76,12 +85,40 @@ describe("A1 package commands", () => {
     expect(existsSync(resolve(profileHome, ".a1", "sandbox"))).toBe(false);
   });
 
-  it("says a running session needs a restart after an install", async () => {
+  it.each([
+    {
+      name: "install",
+      request: { verb: "install", source: "npm:pi-mcp-adapter" },
+      outcome: agentPackageOutcome("install", "completed", null, "npm:pi-mcp-adapter"),
+      progress: "Installing npm:pi-mcp-adapter...",
+      expected: `${transcriptStyle.dim("Installing npm:pi-mcp-adapter...")}\n${transcriptStyle.green("Installed npm:pi-mcp-adapter")}\n`,
+    },
+    {
+      name: "remove and uninstall",
+      request: { verb: "remove", source: "npm:pi-mcp-adapter" },
+      outcome: agentPackageOutcome("remove", "completed", null, "npm:pi-mcp-adapter"),
+      progress: "Removing npm:pi-mcp-adapter...",
+      expected: `${transcriptStyle.dim("Removing npm:pi-mcp-adapter...")}\n${transcriptStyle.green("Removed npm:pi-mcp-adapter")}\n`,
+    },
+    {
+      name: "update every package",
+      request: { verb: "update", source: null },
+      outcome: agentPackageOutcome("update", "completed"),
+      progress: undefined,
+      expected: `${transcriptStyle.green("Updated packages")}\n`,
+    },
+    {
+      name: "update one package",
+      request: { verb: "update", source: "npm:pi-mcp-adapter" },
+      outcome: agentPackageOutcome("update", "completed", null, "npm:pi-mcp-adapter"),
+      progress: undefined,
+      expected: `${transcriptStyle.green("Updated npm:pi-mcp-adapter")}\n`,
+    },
+  ] as const)("matches pinned Pi's $name transcript", async ({ request, outcome, progress, expected }) => {
     const profileHome = await home();
-    const harness = await run({ verb: "install", source: "npm:pi-mcp-adapter" }, agentPackageOutcome("install", "completed", null, "npm:pi-mcp-adapter"), profileHome);
+    const harness = await run(request, outcome, profileHome, progress);
 
-    expect(harness.out).toContain("installed npm:pi-mcp-adapter");
-    expect(harness.out).toContain("Restart a1");
+    expect(harness.out).toBe(expected);
     expect(harness.error).toBe("");
   });
 
@@ -97,24 +134,34 @@ describe("A1 package commands", () => {
     expect(harness.code).toBe(0);
   });
 
-  it("reports an empty profile plainly rather than printing nothing", async () => {
+  it("matches pinned Pi's empty-list transcript", async () => {
     const profileHome = await home();
     const harness = await run({ verb: "list", source: null }, agentPackageOutcome("list", "completed"), profileHome);
-    expect(harness.out).toContain("no packages installed");
+
+    expect(harness.out).toBe(`${transcriptStyle.dim("No packages installed.")}\n`);
+    expect(harness.error).toBe("");
     expect(harness.code).toBe(0);
   });
 
-  it("lists each package with where it is installed", async () => {
+  it("matches pinned Pi's populated-list layout and styles", async () => {
     const profileHome = await home();
     const outcome = agentPackageOutcome("list", "completed", null, null, [
       { source: "npm:pi-mcp-adapter", installedPath: "/somewhere/pi-mcp-adapter", filtered: false },
+      { source: "npm:filtered", installedPath: "/somewhere/filtered", filtered: true },
     ]);
     const harness = await run({ verb: "list", source: null }, outcome, profileHome);
-    expect(harness.out).toContain("npm:pi-mcp-adapter");
-    expect(harness.out).toContain("/somewhere/pi-mcp-adapter");
+
+    expect(harness.out).toBe(
+      `${transcriptStyle.bold("User packages:")}\n`
+      + "  npm:pi-mcp-adapter\n"
+      + `${transcriptStyle.dim("    /somewhere/pi-mcp-adapter")}\n`
+      + "  npm:filtered (filtered)\n"
+      + `${transcriptStyle.dim("    /somewhere/filtered")}\n`,
+    );
+    expect(harness.error).toBe("");
   });
 
-  it("fails with the reported reason and A1's own voice", async () => {
+  it("matches pinned Pi's package-manager failure transcript", async () => {
     const profileHome = await home();
     const harness = await run(
       { verb: "install", source: "npm:pi-mcp-adapter" },
@@ -123,9 +170,7 @@ describe("A1 package commands", () => {
     );
 
     expect(harness.code).toBe(1);
-    expect(harness.error).toContain("npm could not be run");
-    expect(harness.error).toContain("A1");
-    expect(harness.error).not.toMatch(/\bpi (install|remove|update|list)\b/);
+    expect(harness.error).toBe(`${transcriptStyle.red("Error: npm could not be run")}\n`);
     expect(harness.out).toBe("");
   });
 
@@ -138,7 +183,8 @@ describe("A1 package commands", () => {
     );
 
     expect(harness.code).toBe(1);
-    expect(harness.error).toContain("no package matching npm:absent");
+    expect(harness.error).toBe(`${transcriptStyle.red("No matching package found for npm:absent")}\n`);
+    expect(harness.out).toBe("");
   });
 
   it("reports a profile that cannot be prepared without calling the port", async () => {
