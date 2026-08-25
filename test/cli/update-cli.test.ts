@@ -123,7 +123,7 @@ else process.exitCode = 64;
       },
       timeout: 15_000,
     });
-    expect(result.stdout).toBe(`Installed: ${packageJson.version}\nRelease:   ${latestTarget}\nDevelop:   ${nextTarget}\n`);
+    expect(result.stdout).toBe(`Current: ${packageJson.version}\nDevelop: ${nextTarget}\nRelease: ${latestTarget}\n`);
     const versionCalls = (await readFile(npmLog, "utf8")).trim().split("\n").map(line => JSON.parse(line) as string[]);
     expect(versionCalls).toEqual([["view", PRODUCT_PACKAGE, "dist-tags", "--json"]]);
     await expect(access(forbiddenImportLog)).rejects.toThrow();

@@ -34,7 +34,7 @@ export async function runVersionStats(options: VersionStatsOptions): Promise<num
   }
 
   const remote = await queryDistTags(runner);
-  output.stdout(`Installed: ${installed}\nRelease:   ${remote.release ?? "unavailable"}\nDevelop:   ${remote.develop ?? "unavailable"}\n`);
+  output.stdout(`Current: ${installed}\nDevelop: ${remote.develop ?? "unavailable"}\nRelease: ${remote.release ?? "unavailable"}\n`);
   if (remote.error) output.stderr(`${PRODUCT_TEXT.diagnostic(`could not resolve npm dist-tags: ${remote.error}`)}\n`);
   return 0;
 }
