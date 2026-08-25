@@ -4,7 +4,7 @@ import {
   type AdapterId,
   type StructuredCapabilityContract,
   type StructuredFlowLimits,
-} from "../workspace-contracts/index.js";
+} from "../../contracts/workspace/index.js";
 import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
 
 export const STRUCTURED_ADAPTER_ENVELOPE = PRODUCT_IDENTITY.protocol.structuredAgentSchema;

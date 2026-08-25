@@ -1,6 +1,6 @@
 import chalk from "chalk";
 import { configurationRootForProfile, initializeProductProfile, resolveLaunchProfilePaths } from "../features/launch/index.js";
-import type { AgentPackageOutcome, AgentPackagesPort, AgentPackagesPortInput } from "../foundation/agent-engine-contracts/index.js";
+import type { AgentPackageOutcome, AgentPackagesPort, AgentPackagesPortInput } from "../contracts/agent-engine/index.js";
 import { PRODUCT_TEXT } from "../product-identity.js";
 
 /**

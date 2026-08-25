@@ -21,7 +21,7 @@ import {
 } from "#pi-tui";
 import type {
   OwnedUiTranscriptBlock,
-} from "../../../foundation/owned-ui-contracts/index.js";
+} from "../../../contracts/owned-ui/index.js";
 import { PRODUCT_TEXT } from "../../../product-identity.js";
 import {
   KeybindingsManager,

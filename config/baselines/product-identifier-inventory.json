@@ -85,6 +85,11 @@
       "identifier": "A1_RUNTIME_DIR"
     },
     {
+      "path": "test/contracts/workspace/contracts.test.ts",
+      "line": 61,
+      "identifier": "A1_PANE_ID"
+    },
+    {
       "path": "test/features/launch/development-launch.test.ts",
       "line": 26,
       "identifier": "A1_RUNTIME_DIR"
@@ -317,11 +322,6 @@
     {
       "path": "test/foundation/storage/storage.test.ts",
       "line": 284,
-      "identifier": "A1_PANE_ID"
-    },
-    {
-      "path": "test/foundation/workspace-contracts/contracts.test.ts",
-      "line": 61,
       "identifier": "A1_PANE_ID"
     },
     {

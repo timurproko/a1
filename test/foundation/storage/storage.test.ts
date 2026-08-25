@@ -9,7 +9,7 @@ import {
   type ManagedAgentDescriptor,
   type TerminalSessionLaunch,
   type TerminalTopologySnapshot,
-} from "../../../src/foundation/workspace-contracts/index.js";
+} from "../../../src/contracts/workspace/index.js";
 
 const roots: string[] = [];
 afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))));

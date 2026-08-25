@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { WorkspaceReducer, WorkspaceRouter, type WorkspaceRouterResult } from "../../../src/features/workspace/index.js";
-import { WORKSPACE_CONTRACT_VERSION, type ManagedAgentDescriptor } from "../../../src/foundation/workspace-contracts/index.js";
+import { WORKSPACE_CONTRACT_VERSION, type ManagedAgentDescriptor } from "../../../src/contracts/workspace/index.js";
 
 function structuredAgent(id: string): ManagedAgentDescriptor {
   return {

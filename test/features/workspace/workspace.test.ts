@@ -7,7 +7,7 @@ import {
   WorkspaceStore,
   type WorkspaceAgentState,
 } from "../../../src/features/workspace/index.js";
-import { WORKSPACE_CONTRACT_VERSION, type ManagedAgentDescriptor } from "../../../src/foundation/workspace-contracts/index.js";
+import { WORKSPACE_CONTRACT_VERSION, type ManagedAgentDescriptor } from "../../../src/contracts/workspace/index.js";
 
 const roots: string[] = [];
 afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))));

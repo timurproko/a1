@@ -9,13 +9,13 @@ import type {
   RecoveryReferenceId,
   TerminalSessionLaunch,
   TerminalTopologySnapshot,
-} from "../workspace-contracts/index.js";
+} from "../../contracts/workspace/index.js";
 import {
   assertManagedAgentDescriptor,
   assertRecoveryAuthority,
   assertTerminalSessionLaunch,
   assertTerminalTopologySnapshot,
-} from "../workspace-contracts/index.js";
+} from "../../contracts/workspace/index.js";
 import type {
   LaunchInstance,
   LaunchInstanceId,

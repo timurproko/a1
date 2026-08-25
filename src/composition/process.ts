@@ -1,7 +1,7 @@
 import {
   assertAgentCapabilityContract,
   type AgentEnginePort,
-} from "../foundation/agent-engine-contracts/index.js";
+} from "../contracts/agent-engine/index.js";
 import { createPiEngineAdapter, type PiEngineAdapter } from "../integrations/pi/engine/index.js";
 import { createPiPresentationRuntime } from "../integrations/pi/tui-runtime/index.js";
 import {
@@ -10,7 +10,7 @@ import {
   type PresentationComponentPort,
   type PresentationRuntimePort,
   type PresentationTerminalPort,
-} from "../foundation/presentation-contracts/index.js";
+} from "../contracts/presentation/index.js";
 import { createPiAgentEngineBridge } from "./agent-engine-bridge.js";
 
 export interface ProcessCompositionOptions {

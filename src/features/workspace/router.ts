@@ -2,7 +2,7 @@ import {
   StructuredCommandTracker,
   type StructuredCommandRecord,
 } from "../../foundation/structured-agent-runtime/index.js";
-import type { ManagedAgentDescriptor } from "../../foundation/workspace-contracts/index.js";
+import type { ManagedAgentDescriptor } from "../../contracts/workspace/index.js";
 import { gateWorkspaceAction } from "./capabilities.js";
 import { WorkspaceReducer, type WorkspaceAgentState, type WorkspaceView } from "./reducer.js";
 

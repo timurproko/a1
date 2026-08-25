@@ -15,7 +15,7 @@ import {
   UserMessageSelectorComponent,
   VERSION,
 } from "@earendil-works/pi-coding-agent";
-import { OWNED_UI_CONTRACT_VERSION, type OwnedUiTranscriptBlock } from "../../../foundation/owned-ui-contracts/index.js";
+import { OWNED_UI_CONTRACT_VERSION, type OwnedUiTranscriptBlock } from "../../../contracts/owned-ui/index.js";
 import { createTuiFacade, validatedAssistantMessage } from "./shell-components.js";
 import { PRODUCT_IDENTITY } from "../../../product-identity.js";
 

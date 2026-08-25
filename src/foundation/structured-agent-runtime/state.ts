@@ -5,7 +5,7 @@ import {
   type StructuredAgentSnapshot,
   type StructuredCapabilityContract,
   type WorkspaceEvent,
-} from "../workspace-contracts/index.js";
+} from "../../contracts/workspace/index.js";
 
 export type StructuredAgentEvent = Extract<WorkspaceEvent, { readonly type: "structured-event" }>;
 

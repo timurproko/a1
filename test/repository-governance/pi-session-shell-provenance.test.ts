@@ -41,7 +41,7 @@ describe("Pi session shell provenance", () => {
       copiedFiles: [],
       copiedLines: false,
     });
-    expect(evidence.orchestrationPorts[2]?.coverage).toContain("test/foundation/pi-engine-adapter/workflows.test.ts");
+    expect(evidence.orchestrationPorts[2]?.coverage).toContain("test/integrations/pi/engine/workflows.test.ts");
     expect(evidence.rejected).toContain("private field inspection");
   });
 });

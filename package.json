@@ -41,7 +41,7 @@
     "test:full": "node scripts/run-validation-tier.mjs full-release",
     "test:release": "node scripts/run-release-gates.mjs",
     "test:terminal-host": "node scripts/run-terminal-host-probe.mjs",
-    "test:pi-engine-conformance": "vitest run test/foundation/pi-engine-adapter/conformance.test.ts test/foundation/pi-engine-adapter/runtime-integration.test.ts test/foundation/pi-engine-adapter/session-integration.test.ts",
+    "test:pi-engine-conformance": "vitest run test/integrations/pi/engine/conformance.test.ts test/integrations/pi/engine/runtime-integration.test.ts test/integrations/pi/engine/session-integration.test.ts",
     "report:pi-engine-conformance": "npm run build --silent && node scripts/run-pi-engine-conformance.mjs",
     "sync:pi-ui": "npm run update:pi-component-parity && npm run update:pi-event-frame-parity && npm run update:pi-settings-metadata",
     "update:pi-component-parity": "tsx scripts/update-pi-component-parity.ts",

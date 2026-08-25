@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-08-25T13:23:17.955Z",
+  "recordedAt": "2026-08-25T13:32:08.081Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "914cf1472e715297caa30db4b9535d534a9eb718",
@@ -81,8 +81,8 @@
       ],
       "tests": [
         "test/features/owned-ui/pi-startup-composition-parity.test.ts",
-        "test/foundation/pi-engine-adapter/workflows.test.ts",
-        "test/foundation/pi-owned-ui-integration/session-shell.test.ts"
+        "test/integrations/pi/engine/workflows.test.ts",
+        "test/integrations/pi/owned-ui/session-shell.test.ts"
       ]
     },
     {
@@ -133,9 +133,9 @@
         "7.21"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/shell-components.test.ts",
-        "test/foundation/pi-owned-ui-integration/session-shell.test.ts",
-        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+        "test/integrations/pi/components/shell-components.test.ts",
+        "test/integrations/pi/owned-ui/session-shell.test.ts",
+        "test/integrations/pi/tui-runtime/adapter.test.ts"
       ]
     },
     {
@@ -186,9 +186,9 @@
         "7.21"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/shell-components.test.ts",
-        "test/foundation/pi-owned-ui-integration/session-shell.test.ts",
-        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+        "test/integrations/pi/components/shell-components.test.ts",
+        "test/integrations/pi/owned-ui/session-shell.test.ts",
+        "test/integrations/pi/tui-runtime/adapter.test.ts"
       ]
     },
     {
@@ -239,9 +239,9 @@
         "7.21"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/shell-components.test.ts",
-        "test/foundation/pi-owned-ui-integration/session-shell.test.ts",
-        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+        "test/integrations/pi/components/shell-components.test.ts",
+        "test/integrations/pi/owned-ui/session-shell.test.ts",
+        "test/integrations/pi/tui-runtime/adapter.test.ts"
       ]
     },
     {
@@ -292,9 +292,9 @@
         "7.21"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/shell-components.test.ts",
-        "test/foundation/pi-owned-ui-integration/session-shell.test.ts",
-        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+        "test/integrations/pi/components/shell-components.test.ts",
+        "test/integrations/pi/owned-ui/session-shell.test.ts",
+        "test/integrations/pi/tui-runtime/adapter.test.ts"
       ]
     },
     {
@@ -341,11 +341,11 @@
         "7.21"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
-        "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts",
-        "test/foundation/pi-owned-ui-integration/session-shell.test.ts",
-        "test/foundation/pi-component-adapter/extension-ui-bridge.test.ts",
-        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
+        "test/integrations/pi/components/pinned-editor-input-parity.test.ts",
+        "test/integrations/pi/owned-ui/session-shell.test.ts",
+        "test/integrations/pi/components/extension-ui-bridge.test.ts",
+        "test/integrations/pi/tui-runtime/adapter.test.ts"
       ]
     },
     {
@@ -392,11 +392,11 @@
         "7.21"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
-        "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts",
-        "test/foundation/pi-owned-ui-integration/session-shell.test.ts",
-        "test/foundation/pi-component-adapter/extension-ui-bridge.test.ts",
-        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
+        "test/integrations/pi/components/pinned-editor-input-parity.test.ts",
+        "test/integrations/pi/owned-ui/session-shell.test.ts",
+        "test/integrations/pi/components/extension-ui-bridge.test.ts",
+        "test/integrations/pi/tui-runtime/adapter.test.ts"
       ]
     },
     {
@@ -430,7 +430,7 @@
         "7.11"
       ],
       "tests": [
-        "test/foundation/pi-owned-ui-integration/session-shell.test.ts"
+        "test/integrations/pi/owned-ui/session-shell.test.ts"
       ]
     },
     {
@@ -453,7 +453,7 @@
           "id": "keybindings-public-config-boundary",
           "reason": "Resolve the agent configuration directory through the documented package-root API instead of a private config import.",
           "upstreamBehavior": "Complete pinned defaults, migrations, user overrides, conflict detection, matching, and effective-config behavior remain unchanged.",
-          "acceptanceTest": "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts"
+          "acceptanceTest": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
         }
       ],
       "behaviorCategories": [
@@ -473,7 +473,7 @@
         "7.6"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts"
+        "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
       ]
     },
     {
@@ -524,9 +524,9 @@
         "7.21"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/shell-components.test.ts",
-        "test/foundation/pi-owned-ui-integration/session-shell.test.ts",
-        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+        "test/integrations/pi/components/shell-components.test.ts",
+        "test/integrations/pi/owned-ui/session-shell.test.ts",
+        "test/integrations/pi/tui-runtime/adapter.test.ts"
       ]
     },
     {
@@ -577,9 +577,9 @@
         "7.21"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/shell-components.test.ts",
-        "test/foundation/pi-owned-ui-integration/session-shell.test.ts",
-        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+        "test/integrations/pi/components/shell-components.test.ts",
+        "test/integrations/pi/owned-ui/session-shell.test.ts",
+        "test/integrations/pi/tui-runtime/adapter.test.ts"
       ]
     },
     {
@@ -613,7 +613,7 @@
         "7.11"
       ],
       "tests": [
-        "test/foundation/pi-owned-ui-integration/session-shell.test.ts"
+        "test/integrations/pi/owned-ui/session-shell.test.ts"
       ]
     },
     {
@@ -664,9 +664,9 @@
         "7.21"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/shell-components.test.ts",
-        "test/foundation/pi-owned-ui-integration/session-shell.test.ts",
-        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+        "test/integrations/pi/components/shell-components.test.ts",
+        "test/integrations/pi/owned-ui/session-shell.test.ts",
+        "test/integrations/pi/tui-runtime/adapter.test.ts"
       ]
     },
     {
@@ -717,9 +717,9 @@
         "7.21"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/shell-components.test.ts",
-        "test/foundation/pi-owned-ui-integration/session-shell.test.ts",
-        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+        "test/integrations/pi/components/shell-components.test.ts",
+        "test/integrations/pi/owned-ui/session-shell.test.ts",
+        "test/integrations/pi/tui-runtime/adapter.test.ts"
       ]
     },
     {
@@ -770,9 +770,9 @@
         "7.21"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/shell-components.test.ts",
-        "test/foundation/pi-owned-ui-integration/session-shell.test.ts",
-        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+        "test/integrations/pi/components/shell-components.test.ts",
+        "test/integrations/pi/owned-ui/session-shell.test.ts",
+        "test/integrations/pi/tui-runtime/adapter.test.ts"
       ]
     },
     {
@@ -823,9 +823,9 @@
         "7.21"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/shell-components.test.ts",
-        "test/foundation/pi-owned-ui-integration/session-shell.test.ts",
-        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+        "test/integrations/pi/components/shell-components.test.ts",
+        "test/integrations/pi/owned-ui/session-shell.test.ts",
+        "test/integrations/pi/tui-runtime/adapter.test.ts"
       ]
     },
     {
@@ -858,8 +858,8 @@
         "7.10"
       ],
       "tests": [
-        "test/foundation/pi-engine-adapter/workflows.test.ts",
-        "test/foundation/pi-owned-ui-integration/session-shell.test.ts"
+        "test/integrations/pi/engine/workflows.test.ts",
+        "test/integrations/pi/owned-ui/session-shell.test.ts"
       ]
     },
     {
@@ -887,7 +887,7 @@
         "7.5"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts"
+        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts"
       ]
     },
     {
@@ -923,10 +923,10 @@
         "7.11"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
         "test/features/owned-ui/pi-startup-composition-parity.test.ts",
-        "test/foundation/pi-engine-adapter/workflows.test.ts",
-        "test/foundation/pi-owned-ui-integration/session-shell.test.ts"
+        "test/integrations/pi/engine/workflows.test.ts",
+        "test/integrations/pi/owned-ui/session-shell.test.ts"
       ]
     },
     {
@@ -962,8 +962,8 @@
         "7.11"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
-        "test/foundation/pi-owned-ui-integration/session-shell.test.ts"
+        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
+        "test/integrations/pi/owned-ui/session-shell.test.ts"
       ]
     },
     {
@@ -999,8 +999,8 @@
         "7.11"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
-        "test/foundation/pi-owned-ui-integration/session-shell.test.ts"
+        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
+        "test/integrations/pi/owned-ui/session-shell.test.ts"
       ]
     },
     {
@@ -1034,8 +1034,8 @@
         "7.11"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
-        "test/foundation/pi-owned-ui-integration/session-shell.test.ts"
+        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
+        "test/integrations/pi/owned-ui/session-shell.test.ts"
       ]
     },
     {
@@ -1071,8 +1071,8 @@
         "7.11"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
-        "test/foundation/pi-owned-ui-integration/session-shell.test.ts"
+        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
+        "test/integrations/pi/owned-ui/session-shell.test.ts"
       ]
     },
     {
@@ -1108,8 +1108,8 @@
         "7.11"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
-        "test/foundation/pi-owned-ui-integration/session-shell.test.ts"
+        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
+        "test/integrations/pi/owned-ui/session-shell.test.ts"
       ]
     },
     {
@@ -1147,8 +1147,8 @@
         "7.8"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
-        "test/foundation/pi-component-adapter/shell-components.test.ts"
+        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
+        "test/integrations/pi/components/shell-components.test.ts"
       ]
     },
     {
@@ -1171,7 +1171,7 @@
           "id": "countdown-owned-private-fields",
           "reason": "Use language-level private fields in the A1-owned class without changing timer ordering or lifecycle.",
           "upstreamBehavior": "Initial tick, one-second decrements, render requests, expiration callback, and disposal order match pinned Pi.",
-          "acceptanceTest": "test/foundation/pi-component-adapter/pinned-status-indicator-parity.test.ts"
+          "acceptanceTest": "test/integrations/pi/components/pinned-status-indicator-parity.test.ts"
         }
       ],
       "behaviorCategories": [
@@ -1190,9 +1190,9 @@
         "7.11"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
-        "test/foundation/pi-component-adapter/pinned-status-indicator-parity.test.ts",
-        "test/foundation/pi-owned-ui-integration/session-shell.test.ts"
+        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
+        "test/integrations/pi/components/pinned-status-indicator-parity.test.ts",
+        "test/integrations/pi/owned-ui/session-shell.test.ts"
       ]
     },
     {
@@ -1227,8 +1227,8 @@
         "7.6"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
-        "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts"
+        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
+        "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
       ],
       "localSha256": "cf199fb195544d6a61aaf52b514cdc592d6634a40100bd35a616b30f6dd11e2a"
     },
@@ -1267,9 +1267,9 @@
         "7.29"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
-        "test/foundation/pi-owned-ui-integration/session-shell.test.ts",
-        "test/foundation/pi-component-adapter/pinned-reconciled-source-ports.test.ts"
+        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
+        "test/integrations/pi/owned-ui/session-shell.test.ts",
+        "test/integrations/pi/components/pinned-reconciled-source-ports.test.ts"
       ]
     },
     {
@@ -1305,8 +1305,8 @@
         "7.11"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
-        "test/foundation/pi-owned-ui-integration/session-shell.test.ts"
+        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
+        "test/integrations/pi/owned-ui/session-shell.test.ts"
       ]
     },
     {
@@ -1344,11 +1344,11 @@
         "7.29"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
         "test/features/owned-ui/pi-startup-composition-parity.test.ts",
-        "test/foundation/pi-engine-adapter/workflows.test.ts",
-        "test/foundation/pi-owned-ui-integration/session-shell.test.ts",
-        "test/foundation/pi-component-adapter/pinned-reconciled-source-ports.test.ts"
+        "test/integrations/pi/engine/workflows.test.ts",
+        "test/integrations/pi/owned-ui/session-shell.test.ts",
+        "test/integrations/pi/components/pinned-reconciled-source-ports.test.ts"
       ]
     },
     {
@@ -1384,9 +1384,9 @@
         "7.21"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
         "test/features/owned-ui/pi-startup-composition-parity.test.ts",
-        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+        "test/integrations/pi/tui-runtime/adapter.test.ts"
       ]
     },
     {
@@ -1414,7 +1414,7 @@
         "7.5"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts"
+        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts"
       ]
     },
     {
@@ -1452,11 +1452,11 @@
         "7.29"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
         "test/features/owned-ui/pi-startup-composition-parity.test.ts",
-        "test/foundation/pi-engine-adapter/workflows.test.ts",
-        "test/foundation/pi-owned-ui-integration/session-shell.test.ts",
-        "test/foundation/pi-component-adapter/pinned-reconciled-source-ports.test.ts"
+        "test/integrations/pi/engine/workflows.test.ts",
+        "test/integrations/pi/owned-ui/session-shell.test.ts",
+        "test/integrations/pi/components/pinned-reconciled-source-ports.test.ts"
       ]
     },
     {
@@ -1492,9 +1492,9 @@
         "7.12"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
-        "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts",
-        "test/foundation/pi-component-adapter/extension-ui-bridge.test.ts"
+        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
+        "test/integrations/pi/components/pinned-editor-input-parity.test.ts",
+        "test/integrations/pi/components/extension-ui-bridge.test.ts"
       ],
       "localSha256": "48c37081318dbfea6fd0ea159354f40a73c5919ae79ef858c43d4d48659889a8"
     },
@@ -1534,9 +1534,9 @@
         "7.12"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
-        "test/foundation/pi-component-adapter/shell-components.test.ts",
-        "test/foundation/pi-component-adapter/extension-ui-bridge.test.ts"
+        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
+        "test/integrations/pi/components/shell-components.test.ts",
+        "test/integrations/pi/components/extension-ui-bridge.test.ts"
       ]
     },
     {
@@ -1575,9 +1575,9 @@
         "7.12"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
-        "test/foundation/pi-component-adapter/shell-components.test.ts",
-        "test/foundation/pi-component-adapter/extension-ui-bridge.test.ts"
+        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
+        "test/integrations/pi/components/shell-components.test.ts",
+        "test/integrations/pi/components/extension-ui-bridge.test.ts"
       ]
     },
     {
@@ -1615,11 +1615,11 @@
         "7.29"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
         "test/features/owned-ui/pi-startup-composition-parity.test.ts",
-        "test/foundation/pi-engine-adapter/workflows.test.ts",
-        "test/foundation/pi-owned-ui-integration/session-shell.test.ts",
-        "test/foundation/pi-component-adapter/pinned-reconciled-source-ports.test.ts"
+        "test/integrations/pi/engine/workflows.test.ts",
+        "test/integrations/pi/owned-ui/session-shell.test.ts",
+        "test/integrations/pi/components/pinned-reconciled-source-ports.test.ts"
       ]
     },
     {
@@ -1653,10 +1653,10 @@
         "7.11"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
-        "test/foundation/pi-owned-ui-integration/session-shell.test.ts"
+        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
+        "test/integrations/pi/owned-ui/session-shell.test.ts"
       ],
-      "localSha256": "dd9ba713a9e2c7f50fa37269cb62fe848f06aed5e7929681925c08beb342192e"
+      "localSha256": "3172cc8c7025ad85eb334246a0f60ee8c3d15af4d4b4fe8e54f5b745b54f173b"
     },
     {
       "id": "pi-coding-agent:src/modes/interactive/components/index",
@@ -1683,7 +1683,7 @@
         "7.5"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts"
+        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts"
       ]
     },
     {
@@ -1718,8 +1718,8 @@
         "7.6"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
-        "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts"
+        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
+        "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
       ]
     },
     {
@@ -1747,7 +1747,7 @@
         "7.5"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts"
+        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts"
       ]
     },
     {
@@ -1785,10 +1785,10 @@
         "7.29"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
         "test/features/owned-ui/pi-startup-composition-parity.test.ts",
-        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts",
-        "test/foundation/pi-component-adapter/pinned-reconciled-source-ports.test.ts"
+        "test/integrations/pi/tui-runtime/adapter.test.ts",
+        "test/integrations/pi/components/pinned-reconciled-source-ports.test.ts"
       ]
     },
     {
@@ -1826,10 +1826,10 @@
         "7.29"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
         "test/features/owned-ui/pi-startup-composition-parity.test.ts",
-        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts",
-        "test/foundation/pi-component-adapter/pinned-reconciled-source-ports.test.ts"
+        "test/integrations/pi/tui-runtime/adapter.test.ts",
+        "test/integrations/pi/components/pinned-reconciled-source-ports.test.ts"
       ]
     },
     {
@@ -1867,8 +1867,8 @@
         "7.8"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
-        "test/foundation/pi-component-adapter/shell-components.test.ts"
+        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
+        "test/integrations/pi/components/shell-components.test.ts"
       ]
     },
     {
@@ -1906,8 +1906,8 @@
         "7.8"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
-        "test/foundation/pi-component-adapter/shell-components.test.ts"
+        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
+        "test/integrations/pi/components/shell-components.test.ts"
       ]
     },
     {
@@ -1945,8 +1945,8 @@
         "7.8"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/shell-components.test.ts",
-        "test/foundation/pi-owned-ui-integration/session-shell.test.ts"
+        "test/integrations/pi/components/shell-components.test.ts",
+        "test/integrations/pi/owned-ui/session-shell.test.ts"
       ],
       "localSha256": "17c5d5fc7a468ec83d927886771c82ed003b9f241c61354aad5c18a0d1c70a07"
     },
@@ -1986,7 +1986,7 @@
         "7.8"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/session-selector.test.ts"
+        "test/integrations/pi/components/session-selector.test.ts"
       ]
     },
     {
@@ -2024,8 +2024,8 @@
         "7.8"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/session-selector.test.ts",
-        "test/foundation/pi-owned-ui-integration/session-shell.test.ts"
+        "test/integrations/pi/components/session-selector.test.ts",
+        "test/integrations/pi/owned-ui/session-shell.test.ts"
       ],
       "localSha256": "0e8a0d018fe26454b0aaff5f6caceeb53e33ed8330f2c9e02631fe5d62efdc28"
     },
@@ -2064,8 +2064,8 @@
         "7.8"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
-        "test/foundation/pi-component-adapter/shell-components.test.ts"
+        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
+        "test/integrations/pi/components/shell-components.test.ts"
       ]
     },
     {
@@ -2101,9 +2101,9 @@
         "7.21"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
         "test/features/owned-ui/pi-startup-composition-parity.test.ts",
-        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+        "test/integrations/pi/tui-runtime/adapter.test.ts"
       ]
     },
     {
@@ -2139,8 +2139,8 @@
         "7.11"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
-        "test/foundation/pi-owned-ui-integration/session-shell.test.ts"
+        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
+        "test/integrations/pi/owned-ui/session-shell.test.ts"
       ],
       "localSha256": "de5f0f04f74471857fa98e256fe4d3bf1694e9bc9f9243f67bee38a0d53e71b3"
     },
@@ -2164,7 +2164,7 @@
           "id": "status-indicator-public-boundaries",
           "reason": "Remap private theme, countdown, extension option, and keybinding imports to A1-owned or public package-root equivalents.",
           "upstreamBehavior": "Working, retry, compaction, branch-summary, idle, countdown, style, and disposal behavior match pinned Pi.",
-          "acceptanceTest": "test/foundation/pi-component-adapter/pinned-status-indicator-parity.test.ts"
+          "acceptanceTest": "test/integrations/pi/components/pinned-status-indicator-parity.test.ts"
         }
       ],
       "behaviorCategories": [
@@ -2183,9 +2183,9 @@
         "7.11"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
-        "test/foundation/pi-component-adapter/pinned-status-indicator-parity.test.ts",
-        "test/foundation/pi-owned-ui-integration/session-shell.test.ts"
+        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
+        "test/integrations/pi/components/pinned-status-indicator-parity.test.ts",
+        "test/integrations/pi/owned-ui/session-shell.test.ts"
       ]
     },
     {
@@ -2221,9 +2221,9 @@
         "7.21"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
         "test/features/owned-ui/pi-startup-composition-parity.test.ts",
-        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+        "test/integrations/pi/tui-runtime/adapter.test.ts"
       ]
     },
     {
@@ -2261,8 +2261,8 @@
         "7.8"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
-        "test/foundation/pi-component-adapter/shell-components.test.ts"
+        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
+        "test/integrations/pi/components/shell-components.test.ts"
       ]
     },
     {
@@ -2298,8 +2298,8 @@
         "7.11"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
-        "test/foundation/pi-owned-ui-integration/session-shell.test.ts"
+        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
+        "test/integrations/pi/owned-ui/session-shell.test.ts"
       ]
     },
     {
@@ -2337,7 +2337,7 @@
         "7.8"
       ],
       "tests": [
-        "test/foundation/pi-owned-ui-integration/session-shell.test.ts"
+        "test/integrations/pi/owned-ui/session-shell.test.ts"
       ],
       "localSha256": "0f2f038eb1d45fdc4a4f69400410d876bcf87b60591534004ae2c57242aaac0c"
     },
@@ -2376,7 +2376,7 @@
         "7.8"
       ],
       "tests": [
-        "test/foundation/pi-owned-ui-integration/session-shell.test.ts"
+        "test/integrations/pi/owned-ui/session-shell.test.ts"
       ],
       "localSha256": "9b9321a9f4c8df96c29bc94cd336c096d531a34ada64c1fc98c7b97d74414b45"
     },
@@ -2415,8 +2415,8 @@
         "7.8"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
-        "test/foundation/pi-component-adapter/shell-components.test.ts"
+        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
+        "test/integrations/pi/components/shell-components.test.ts"
       ]
     },
     {
@@ -2452,8 +2452,8 @@
         "7.11"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
-        "test/foundation/pi-owned-ui-integration/session-shell.test.ts"
+        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
+        "test/integrations/pi/owned-ui/session-shell.test.ts"
       ]
     },
     {
@@ -2489,9 +2489,9 @@
         "7.21"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
         "test/features/owned-ui/pi-startup-composition-parity.test.ts",
-        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+        "test/integrations/pi/tui-runtime/adapter.test.ts"
       ]
     },
     {
@@ -2527,7 +2527,7 @@
         "7.6"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts"
+        "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
       ]
     },
     {
@@ -2609,12 +2609,12 @@
       ],
       "tests": [
         "test/features/owned-ui/pi-startup-composition-parity.test.ts",
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
-        "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts",
-        "test/foundation/pi-component-adapter/shell-components.test.ts",
-        "test/foundation/pi-engine-adapter/workflows.test.ts",
-        "test/foundation/pi-owned-ui-integration/session-shell.test.ts",
-        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
+        "test/integrations/pi/components/pinned-editor-input-parity.test.ts",
+        "test/integrations/pi/components/shell-components.test.ts",
+        "test/integrations/pi/engine/workflows.test.ts",
+        "test/integrations/pi/owned-ui/session-shell.test.ts",
+        "test/integrations/pi/tui-runtime/adapter.test.ts"
       ]
     },
     {
@@ -2642,8 +2642,8 @@
         "7.5"
       ],
       "tests": [
-        "test/foundation/pi-engine-adapter/adapter.test.ts",
-        "test/foundation/pi-owned-ui-integration/session-shell.test.ts"
+        "test/integrations/pi/engine/adapter.test.ts",
+        "test/integrations/pi/owned-ui/session-shell.test.ts"
       ]
     },
     {
@@ -2682,8 +2682,8 @@
         "7.8"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/shell-components.test.ts",
-        "test/foundation/pi-owned-ui-integration/session-shell.test.ts"
+        "test/integrations/pi/components/shell-components.test.ts",
+        "test/integrations/pi/owned-ui/session-shell.test.ts"
       ]
     },
     {
@@ -2720,10 +2720,10 @@
         "7.21"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-theme-parity.test.ts",
+        "test/integrations/pi/components/pinned-theme-parity.test.ts",
         "test/features/owned-ui/pi-startup-composition-parity.test.ts",
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
-        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
+        "test/integrations/pi/tui-runtime/adapter.test.ts"
       ]
     },
     {
@@ -2760,10 +2760,10 @@
         "7.21"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-theme-parity.test.ts",
+        "test/integrations/pi/components/pinned-theme-parity.test.ts",
         "test/features/owned-ui/pi-startup-composition-parity.test.ts",
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
-        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
+        "test/integrations/pi/tui-runtime/adapter.test.ts"
       ]
     },
     {
@@ -2786,13 +2786,13 @@
           "id": "theme-controller-owned-boundaries",
           "reason": "Replace private SettingsManager/theme-module coupling with public theme APIs and A1-owned runtime/settings ports.",
           "upstreamBehavior": "Theme initialization, auto detection, preview, switching, render invalidation, and terminal color-scheme synchronization remain ordered as pinned.",
-          "acceptanceTest": "test/foundation/pi-component-adapter/pinned-theme-parity.test.ts"
+          "acceptanceTest": "test/integrations/pi/components/pinned-theme-parity.test.ts"
         },
         {
           "id": "theme-controller-explicit-disposal",
           "reason": "A1 lifecycle ownership requires explicit listener disposal instead of relying on stock InteractiveMode teardown.",
           "upstreamBehavior": "The terminal color-scheme listener and automatic notifications are released when the owned shell stops.",
-          "acceptanceTest": "test/foundation/pi-component-adapter/pinned-theme-parity.test.ts"
+          "acceptanceTest": "test/integrations/pi/components/pinned-theme-parity.test.ts"
         }
       ],
       "behaviorCategories": [
@@ -2814,10 +2814,10 @@
         "7.21"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-theme-parity.test.ts",
+        "test/integrations/pi/components/pinned-theme-parity.test.ts",
         "test/features/owned-ui/pi-startup-composition-parity.test.ts",
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
-        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
+        "test/integrations/pi/tui-runtime/adapter.test.ts"
       ]
     },
     {
@@ -2854,10 +2854,10 @@
         "7.21"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-theme-parity.test.ts",
+        "test/integrations/pi/components/pinned-theme-parity.test.ts",
         "test/features/owned-ui/pi-startup-composition-parity.test.ts",
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
-        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
+        "test/integrations/pi/tui-runtime/adapter.test.ts"
       ]
     },
     {
@@ -2880,13 +2880,13 @@
           "id": "theme-public-api-boundary",
           "reason": "Use public package-root Theme, initTheme, configuration-directory, TUI capability, markdown, selector, and syntax helpers instead of private module imports.",
           "upstreamBehavior": "Pinned dark/light/custom color resolution, 256/truecolor selection, fallback, automatic terminal detection, and component styling remain acceptance-tested.",
-          "acceptanceTest": "test/foundation/pi-component-adapter/pinned-theme-parity.test.ts"
+          "acceptanceTest": "test/integrations/pi/components/pinned-theme-parity.test.ts"
         },
         {
           "id": "theme-owned-watcher-boundary",
           "reason": "Mirror custom-theme reload with an A1-owned file watcher because the public API exposes no theme-change callback and private watcher imports are forbidden.",
           "upstreamBehavior": "Debounced valid changes replace the active custom theme and notify rendering; invalid or temporarily missing files retain the last valid theme.",
-          "acceptanceTest": "test/foundation/pi-component-adapter/pinned-theme-parity.test.ts"
+          "acceptanceTest": "test/integrations/pi/components/pinned-theme-parity.test.ts"
         }
       ],
       "behaviorCategories": [
@@ -2908,10 +2908,10 @@
         "7.21"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-theme-parity.test.ts",
+        "test/integrations/pi/components/pinned-theme-parity.test.ts",
         "test/features/owned-ui/pi-startup-composition-parity.test.ts",
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
-        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
+        "test/integrations/pi/tui-runtime/adapter.test.ts"
       ]
     },
     {
@@ -2945,8 +2945,8 @@
         "7.11"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts",
-        "test/foundation/pi-owned-ui-integration/session-shell.test.ts"
+        "test/integrations/pi/components/pinned-editor-input-parity.test.ts",
+        "test/integrations/pi/owned-ui/session-shell.test.ts"
       ]
     },
     {
@@ -2980,8 +2980,8 @@
         "7.21"
       ],
       "tests": [
-        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts",
-        "test/foundation/pi-tui-runtime-adapter/conformance.test.ts"
+        "test/integrations/pi/tui-runtime/adapter.test.ts",
+        "test/integrations/pi/tui-runtime/conformance.test.ts"
       ]
     },
     {
@@ -3016,7 +3016,7 @@
         "7.6"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts"
+        "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
       ]
     },
     {
@@ -3050,9 +3050,9 @@
         "7.21"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
-        "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts",
-        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
+        "test/integrations/pi/components/pinned-editor-input-parity.test.ts",
+        "test/integrations/pi/tui-runtime/adapter.test.ts"
       ]
     },
     {
@@ -3088,9 +3088,9 @@
         "7.21"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
         "test/features/owned-ui/pi-startup-composition-parity.test.ts",
-        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+        "test/integrations/pi/tui-runtime/adapter.test.ts"
       ]
     },
     {
@@ -3124,8 +3124,8 @@
         "7.11"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
-        "test/foundation/pi-owned-ui-integration/session-shell.test.ts"
+        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
+        "test/integrations/pi/owned-ui/session-shell.test.ts"
       ]
     },
     {
@@ -3160,8 +3160,8 @@
         "7.6"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
-        "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts"
+        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
+        "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
       ]
     },
     {
@@ -3197,9 +3197,9 @@
         "7.21"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
         "test/features/owned-ui/pi-startup-composition-parity.test.ts",
-        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+        "test/integrations/pi/tui-runtime/adapter.test.ts"
       ]
     },
     {
@@ -3235,9 +3235,9 @@
         "7.21"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
         "test/features/owned-ui/pi-startup-composition-parity.test.ts",
-        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+        "test/integrations/pi/tui-runtime/adapter.test.ts"
       ]
     },
     {
@@ -3275,8 +3275,8 @@
         "7.8"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
-        "test/foundation/pi-component-adapter/shell-components.test.ts"
+        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
+        "test/integrations/pi/components/shell-components.test.ts"
       ]
     },
     {
@@ -3310,8 +3310,8 @@
         "7.11"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
-        "test/foundation/pi-owned-ui-integration/session-shell.test.ts"
+        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
+        "test/integrations/pi/owned-ui/session-shell.test.ts"
       ]
     },
     {
@@ -3347,9 +3347,9 @@
         "7.21"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
         "test/features/owned-ui/pi-startup-composition-parity.test.ts",
-        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+        "test/integrations/pi/tui-runtime/adapter.test.ts"
       ]
     },
     {
@@ -3383,9 +3383,9 @@
         "7.21"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
-        "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts",
-        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
+        "test/integrations/pi/components/pinned-editor-input-parity.test.ts",
+        "test/integrations/pi/tui-runtime/adapter.test.ts"
       ]
     },
     {
@@ -3419,9 +3419,9 @@
         "7.21"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
-        "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts",
-        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
+        "test/integrations/pi/components/pinned-editor-input-parity.test.ts",
+        "test/integrations/pi/tui-runtime/adapter.test.ts"
       ]
     },
     {
@@ -3455,9 +3455,9 @@
         "7.21"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
-        "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts",
-        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
+        "test/integrations/pi/components/pinned-editor-input-parity.test.ts",
+        "test/integrations/pi/tui-runtime/adapter.test.ts"
       ]
     },
     {
@@ -3493,9 +3493,9 @@
         "7.21"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
         "test/features/owned-ui/pi-startup-composition-parity.test.ts",
-        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+        "test/integrations/pi/tui-runtime/adapter.test.ts"
       ]
     },
     {
@@ -3531,9 +3531,9 @@
         "7.21"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
         "test/features/owned-ui/pi-startup-composition-parity.test.ts",
-        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+        "test/integrations/pi/tui-runtime/adapter.test.ts"
       ]
     },
     {
@@ -3569,9 +3569,9 @@
         "7.21"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
         "test/features/owned-ui/pi-startup-composition-parity.test.ts",
-        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+        "test/integrations/pi/tui-runtime/adapter.test.ts"
       ]
     },
     {
@@ -3607,9 +3607,9 @@
         "7.21"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
         "test/features/owned-ui/pi-startup-composition-parity.test.ts",
-        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+        "test/integrations/pi/tui-runtime/adapter.test.ts"
       ]
     },
     {
@@ -3645,9 +3645,9 @@
         "7.21"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
+        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
         "test/features/owned-ui/pi-startup-composition-parity.test.ts",
-        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+        "test/integrations/pi/tui-runtime/adapter.test.ts"
       ]
     },
     {
@@ -3682,7 +3682,7 @@
         "7.6"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts"
+        "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
       ]
     },
     {
@@ -3716,8 +3716,8 @@
         "7.21"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts",
-        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+        "test/integrations/pi/components/pinned-editor-input-parity.test.ts",
+        "test/integrations/pi/tui-runtime/adapter.test.ts"
       ]
     },
     {
@@ -3751,8 +3751,8 @@
         "7.21"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts",
-        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+        "test/integrations/pi/components/pinned-editor-input-parity.test.ts",
+        "test/integrations/pi/tui-runtime/adapter.test.ts"
       ]
     },
     {
@@ -3787,7 +3787,7 @@
         "7.6"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts"
+        "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
       ]
     },
     {
@@ -3822,7 +3822,7 @@
         "7.6"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts"
+        "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
       ]
     },
     {
@@ -3857,7 +3857,7 @@
         "7.6"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts"
+        "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
       ]
     },
     {
@@ -3891,8 +3891,8 @@
         "7.21"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts",
-        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+        "test/integrations/pi/components/pinned-editor-input-parity.test.ts",
+        "test/integrations/pi/tui-runtime/adapter.test.ts"
       ]
     },
     {
@@ -3929,8 +3929,8 @@
       ],
       "tests": [
         "test/features/owned-ui/pi-startup-composition-parity.test.ts",
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
-        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
+        "test/integrations/pi/tui-runtime/adapter.test.ts"
       ]
     },
     {
@@ -3967,8 +3967,8 @@
       ],
       "tests": [
         "test/features/owned-ui/pi-startup-composition-parity.test.ts",
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
-        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
+        "test/integrations/pi/tui-runtime/adapter.test.ts"
       ]
     },
     {
@@ -4002,8 +4002,8 @@
         "7.21"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts",
-        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+        "test/integrations/pi/components/pinned-editor-input-parity.test.ts",
+        "test/integrations/pi/tui-runtime/adapter.test.ts"
       ]
     },
     {
@@ -4037,8 +4037,8 @@
         "7.21"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts",
-        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+        "test/integrations/pi/components/pinned-editor-input-parity.test.ts",
+        "test/integrations/pi/tui-runtime/adapter.test.ts"
       ]
     },
     {
@@ -4072,8 +4072,8 @@
         "7.21"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts",
-        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+        "test/integrations/pi/components/pinned-editor-input-parity.test.ts",
+        "test/integrations/pi/tui-runtime/adapter.test.ts"
       ]
     },
     {
@@ -4110,8 +4110,8 @@
       ],
       "tests": [
         "test/features/owned-ui/pi-startup-composition-parity.test.ts",
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
-        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
+        "test/integrations/pi/tui-runtime/adapter.test.ts"
       ]
     },
     {
@@ -4145,8 +4145,8 @@
         "7.21"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts",
-        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+        "test/integrations/pi/components/pinned-editor-input-parity.test.ts",
+        "test/integrations/pi/tui-runtime/adapter.test.ts"
       ]
     },
     {
@@ -4183,9 +4183,9 @@
         "7.21"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts",
-        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts",
-        "test/foundation/pi-tui-runtime-adapter/pinned-wheel-parity.test.ts"
+        "test/integrations/pi/components/pinned-editor-input-parity.test.ts",
+        "test/integrations/pi/tui-runtime/adapter.test.ts",
+        "test/integrations/pi/tui-runtime/pinned-wheel-parity.test.ts"
       ]
     },
     {
@@ -4223,9 +4223,9 @@
         "7.21"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts",
-        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts",
-        "test/foundation/pi-tui-runtime-adapter/conformance.test.ts"
+        "test/integrations/pi/components/pinned-editor-input-parity.test.ts",
+        "test/integrations/pi/tui-runtime/adapter.test.ts",
+        "test/integrations/pi/tui-runtime/conformance.test.ts"
       ]
     },
     {
@@ -4259,8 +4259,8 @@
         "7.21"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts",
-        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+        "test/integrations/pi/components/pinned-editor-input-parity.test.ts",
+        "test/integrations/pi/tui-runtime/adapter.test.ts"
       ]
     },
     {
@@ -4297,8 +4297,8 @@
       ],
       "tests": [
         "test/features/owned-ui/pi-startup-composition-parity.test.ts",
-        "test/foundation/pi-component-adapter/pinned-transcript-lifecycle-parity.test.ts",
-        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+        "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
+        "test/integrations/pi/tui-runtime/adapter.test.ts"
       ]
     },
     {
@@ -4332,8 +4332,8 @@
         "7.21"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts",
-        "test/foundation/pi-tui-runtime-adapter/adapter.test.ts"
+        "test/integrations/pi/components/pinned-editor-input-parity.test.ts",
+        "test/integrations/pi/tui-runtime/adapter.test.ts"
       ]
     },
     {
@@ -4368,7 +4368,7 @@
         "7.6"
       ],
       "tests": [
-        "test/foundation/pi-component-adapter/pinned-editor-input-parity.test.ts"
+        "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
       ]
     }
   ]

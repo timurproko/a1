@@ -92,7 +92,7 @@ for (const file of await walk(sourceRoot)) {
     }
     if (!path.startsWith("src/integrations/pi/components/")
       && !path.startsWith("src/integrations/pi/engine/")
-      && path !== "src/foundation/owned-ui-contracts/extension-ui.ts"
+      && path !== "src/contracts/owned-ui/extension-ui.ts"
       && /\b(?:ExtensionUIContext|setEditorComponent|setWidget|setFooter|onTerminalInput)\b/.test(source)) {
       errors.push(`${path}: owned UI depends on stock Pi extension UI context`);
     }

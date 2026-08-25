@@ -14,6 +14,11 @@ src/
     launch/                        launch profiles, profile paths, and runtime selection
     owned-ui/                      owned screens, settings application, diagnostics, and runtime lifecycle
     workspace/                     multi-agent presentation, reducer state, routing, and persistence orchestration
+  contracts/
+    agent-engine/                  dependency-free agent engine, session, package, and capability ports
+    owned-ui/                      dependency-free owned-session and extension UI contracts
+    presentation/                  dependency-free component, terminal, and runtime ports
+    workspace/                     dependency-free workspace, topology, host, and recovery contracts
   integrations/
     pi/
       components/                  pinned Pi component and theme adaptation
@@ -21,22 +26,19 @@ src/
       owned-ui/                    Pi-backed owned session shell and route host
       tui-runtime/                 neutral presentation runtime over pinned Pi TUI
   foundation/
-    agent-engine-contracts/        dependency-free agent engine, session, package, and capability ports
     launch-guardian/               authenticated launch-instance coordination
     lifecycle/                     dependency-free launch, process identity, and path contracts
     native-host-protocol/          bounded terminal-host identity, topology, lifecycle, and proof protocol
-    owned-ui-contracts/            dependency-free owned-session and extension UI contracts
-    owned-ui-settings/             owned settings declarations, resolution, migration, and persistence
-    presentation-contracts/        dependency-free component, terminal, and runtime ports
     process-containment/           verified native containment and process inspection
     protocol/                      authenticated control framing and client contracts
     release/                       immutable releases, update, rollback, cohorts, and cleanup
     storage/                       control-store persistence
     structured-agent-runtime/      structured handshake, event, command, backpressure, and recovery semantics
     supervision/                   endpoint, launch-instance, and release-cohort ownership
-    ui-apps/                       application registry and host lifecycle
-    ui-components/                 vendor-neutral terminal UI primitives
-    workspace-contracts/           dependency-free workspace, topology, host, and recovery contracts
+  ui/
+    apps/                          application registry and host lifecycle
+    components/                    vendor-neutral terminal UI primitives
+    settings/                      owned settings declarations, resolution, migration, and persistence
 ```
 
 Each directory owner exposes `index.ts`. Imports within one owner may use private files. Imports crossing owners must use the provider's public entry and follow the dependency DAG declared by `PROJECT_OWNERS`. `product-identity` is the sole current exception to the directory-entry convention because its public entry is `src/product-identity.ts`.
@@ -66,9 +68,12 @@ test/
   cli/
   composition/
   features/<name>/
+  contracts/<name>/
   foundation/<name>/
+  integrations/pi/<name>/
   product-identity/
   repository-governance/
+  ui/<name>/
 ```
 
 Use `.test.ts` for deterministic owner-level contracts. Use `.integration.test.ts` when the contract crosses real process, filesystem, registry, package, or release boundaries. A test of a foundation implementation belongs to that foundation owner's test root; a feature test may exercise the same public entry only when it proves feature-level composition.

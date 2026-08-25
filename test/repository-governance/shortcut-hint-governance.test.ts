@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { SETTINGS_APP_ID, SETTINGS_SHORTCUTS } from "../../src/features/owned-ui/index.js";
-import { assembleShortcuts } from "../../src/foundation/ui-components/index.js";
+import { assembleShortcuts } from "../../src/ui/components/index.js";
 
 /**
  * A screen says what its keys do in one place. What it tells the reader and what

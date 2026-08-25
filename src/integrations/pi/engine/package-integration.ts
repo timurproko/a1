@@ -7,7 +7,7 @@ import {
   type AgentPackageOutcome,
   type AgentPackagesPort,
   type AgentPackagesPortInput,
-} from "../../../foundation/agent-engine-contracts/index.js";
+} from "../../../contracts/agent-engine/index.js";
 
 const MODEL_REFRESH_TIMEOUT_MS = 15_000;
 

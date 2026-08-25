@@ -1,7 +1,7 @@
 import {
   assertStructuredCapability,
   type StructuredCapabilityContract,
-} from "../workspace-contracts/index.js";
+} from "../../contracts/workspace/index.js";
 
 export type StructuredBackpressureResource = "events" | "commands" | "snapshots" | "attachments" | "reconnect-replay";
 export type StructuredBackpressureAction = "none" | "reject-payload" | "pause-adapter" | "reject-request" | "disconnect-adapter";

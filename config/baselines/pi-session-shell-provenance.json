@@ -41,12 +41,12 @@
       "copiedLines": false,
       "modifications": "Reimplemented against AddOne-owned view models and PiEngineAdapter commands; stock InteractiveMode is never instantiated, inspected, or patched.",
       "coverage": [
-        "test/foundation/pi-owned-ui-integration/session-shell.test.ts",
+        "test/integrations/pi/owned-ui/session-shell.test.ts",
         "test/features/owned-ui/pi-startup-composition-parity.test.ts",
         "test/features/owned-ui/pi-upstream-startup-fixture.ts",
         "test/features/owned-ui/pi-a1-startup-fixture.ts",
         "test/features/owned-ui/run.test.ts",
-        "test/foundation/pi-component-adapter/shell-components.test.ts"
+        "test/integrations/pi/components/shell-components.test.ts"
       ]
     },
     {
@@ -58,7 +58,7 @@
       "copiedFiles": [],
       "copiedLines": false,
       "modifications": "Manifest data was transcribed into an AddOne adapter constant and passed to the public CombinedAutocompleteProvider; routing remains AddOne-owned.",
-      "coverage": ["test/foundation/pi-component-adapter/shell-components.test.ts"]
+      "coverage": ["test/integrations/pi/components/shell-components.test.ts"]
     },
     {
       "upstreamSource": "packages/coding-agent/src/modes/interactive/interactive-mode.ts",
@@ -73,9 +73,9 @@
       "modifications": "Controller behavior was reimplemented as an AddOne-owned exhaustive state machine over public AgentSession, AgentSessionRuntime, SettingsManager, ModelRuntime, SessionManager and clipboard APIs; external command and clipboard effects are host-injected for deterministic conformance.",
       "independentEvidence": "config/baselines/pinned-pi-command-workflow-outcomes.json",
       "coverage": [
-        "test/foundation/pi-engine-adapter/workflows.test.ts",
-        "test/foundation/pi-owned-ui-integration/session-shell.test.ts",
-        "test/foundation/pi-component-adapter/shell-components.test.ts"
+        "test/integrations/pi/engine/workflows.test.ts",
+        "test/integrations/pi/owned-ui/session-shell.test.ts",
+        "test/integrations/pi/components/shell-components.test.ts"
       ]
     },
     {
@@ -89,7 +89,7 @@
       "modifications": "Narrow controller reimplementation uses only fields present in OwnedUiSessionViewModel; unavailable usage values retain upstream zero-context startup semantics.",
       "coverage": [
         "test/features/owned-ui/pi-startup-composition-parity.test.ts",
-        "test/foundation/pi-component-adapter/shell-components.test.ts"
+        "test/integrations/pi/components/shell-components.test.ts"
       ]
     }
   ],

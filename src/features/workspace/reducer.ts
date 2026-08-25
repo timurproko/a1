@@ -2,7 +2,7 @@ import {
   assertManagedAgentDescriptor,
   type AgentLifecycleState,
   type ManagedAgentDescriptor,
-} from "../../foundation/workspace-contracts/index.js";
+} from "../../contracts/workspace/index.js";
 
 export interface WorkspaceAgentFailure {
   readonly code: string;

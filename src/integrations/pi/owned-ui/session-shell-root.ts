@@ -3,9 +3,9 @@ import type {
   OwnedUiDialog,
   OwnedUiSessionViewModel,
   OwnedUiThinkingLevel,
-} from "../../../foundation/owned-ui-contracts/index.js";
+} from "../../../contracts/owned-ui/index.js";
 import type { UiRouteHost } from "./route-host.js";
-import { MOUSE_TRACKING_OFF, MOUSE_TRACKING_ON, parseMouseInput } from "../../../foundation/ui-components/index.js";
+import { MOUSE_TRACKING_OFF, MOUSE_TRACKING_ON, parseMouseInput } from "../../../ui/components/index.js";
 import {
   PINNED_PI_HIDDEN_COMMAND_NAMES,
   PINNED_PI_WORKFLOW_COMMAND_NAMES,

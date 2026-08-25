@@ -5,7 +5,7 @@ import {
   presentWorkspace,
   workspaceSelectionForKey,
 } from "../../../src/features/workspace/index.js";
-import { WORKSPACE_CONTRACT_VERSION, type ManagedAgentDescriptor } from "../../../src/foundation/workspace-contracts/index.js";
+import { WORKSPACE_CONTRACT_VERSION, type ManagedAgentDescriptor } from "../../../src/contracts/workspace/index.js";
 
 function agent(id: string, displayName = id): ManagedAgentDescriptor {
   return {

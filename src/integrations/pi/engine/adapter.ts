@@ -38,7 +38,7 @@ import {
   type OwnedUiThinkingLevel,
   type OwnedUiTranscriptBlock,
   type OwnedUiUsageView,
-} from "../../../foundation/owned-ui-contracts/index.js";
+} from "../../../contracts/owned-ui/index.js";
 import {
   PINNED_PI_SETTINGS_CALLBACKS,
   PINNED_PI_WORKFLOW_COMMAND_NAMES,
@@ -58,7 +58,7 @@ import {
 import { createPiRuntimeIntegration } from "./runtime-integration.js";
 import { PiSessionCommandIntegration } from "./session-integration.js";
 import { PiSettingsIntegration } from "./settings-integration.js";
-import type { AgentJsonValue, AgentSettingsPort } from "../../../foundation/agent-engine-contracts/index.js";
+import type { AgentJsonValue, AgentSettingsPort } from "../../../contracts/agent-engine/index.js";
 
 const execFileAsync = promisify(execFile);
 

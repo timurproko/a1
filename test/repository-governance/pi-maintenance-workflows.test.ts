@@ -6,7 +6,7 @@ describe("Pi maintenance workflow separation", () => {
     const manifest = JSON.parse(await readFile("package.json", "utf8")) as { scripts: Record<string, string> };
     const engine = manifest.scripts["test:pi-engine-conformance"];
     const synchronization = manifest.scripts["sync:pi-ui"];
-    expect(engine).toContain("pi-engine-adapter");
+    expect(engine).toContain("test/integrations/pi/engine");
     expect(engine).not.toMatch(/update:pi|parity|source-ledger/);
     expect(synchronization).toContain("update:pi-component-parity");
     expect(synchronization).toContain("update:pi-event-frame-parity");

@@ -4,7 +4,7 @@ import {
   type OwnedUiCustomization,
   type OwnedUiSlotId,
   type OwnedUiTranscriptBlock,
-} from "../../foundation/owned-ui-contracts/index.js";
+} from "../../contracts/owned-ui/index.js";
 
 export interface OwnedUiSlotImplementation {
   readonly payload: unknown;

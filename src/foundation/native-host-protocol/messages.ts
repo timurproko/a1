@@ -9,7 +9,7 @@ import {
   type PaneId,
   type TerminalSessionLaunch,
   type TerminalTopologySnapshot,
-} from "../workspace-contracts/index.js";
+} from "../../contracts/workspace/index.js";
 import { PRODUCT_IDENTITY } from "../../product-identity.js";
 
 export const NATIVE_HOST_PROTOCOL_NAME = PRODUCT_IDENTITY.protocol.nativeHostSchema;

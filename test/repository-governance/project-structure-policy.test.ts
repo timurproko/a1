@@ -91,12 +91,12 @@ describe("project structure ownership policy", () => {
     ],
     [
       "Pi-named contract",
-      "import type { PiSessionContract } from '../../foundation/owned-ui-contracts/index.js';",
+      "import type { PiSessionContract } from '../../contracts/owned-ui/index.js';",
       "feature may not import Pi-named contract 'PiSessionContract'",
     ],
     [
       "Pi component factory",
-      "import { createPiShellEditor } from '../../foundation/owned-ui-contracts/index.js';",
+      "import { createPiShellEditor } from '../../contracts/owned-ui/index.js';",
       "feature may not import Pi component factory 'createPiShellEditor'",
     ],
   ])("rejects a feature %s with an actionable path", (_kind, source, diagnostic) => {
@@ -111,9 +111,9 @@ describe("project structure ownership policy", () => {
 
   it("allows features only neutral integration ports and Pi implementations inward", () => {
     expect(inspectProjectStructureImports({
-      "src/features/owned-ui/new.ts": "import type { AgentEnginePort } from '../../foundation/agent-engine-contracts/index.js';",
-      "src/integrations/pi/engine/new.ts": "import type { AgentEnginePort } from '../../../foundation/agent-engine-contracts/index.js';",
-      "src/integrations/pi/components/new.ts": "import type { PresentationComponentPort } from '../../../foundation/presentation-contracts/index.js';",
+      "src/features/owned-ui/new.ts": "import type { AgentEnginePort } from '../../contracts/agent-engine/index.js';",
+      "src/integrations/pi/engine/new.ts": "import type { AgentEnginePort } from '../../../contracts/agent-engine/index.js';",
+      "src/integrations/pi/components/new.ts": "import type { PresentationComponentPort } from '../../../contracts/presentation/index.js';",
     })).toEqual([]);
     expect(inspectProjectStructureImports({
       "src/features/owned-ui/new.ts": "import { createPiEngineAdapter } from '../../integrations/pi/engine/index.js';",
