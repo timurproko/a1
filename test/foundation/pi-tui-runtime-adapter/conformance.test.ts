@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   PiTuiRuntimeError,
   runPiTuiRuntimeConformance,
-} from "../../../src/foundation/pi-tui-runtime-adapter/index.js";
+} from "../../../src/integrations/pi/tui-runtime/index.js";
 import { readPiCompatibilityAuthority } from "../../../scripts/pi-compatibility-authority.mjs";
 
 describe("public Pi TUI runtime conformance", () => {

@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { ModelRuntime } from "@earendil-works/pi-coding-agent";
 import { afterEach, describe, expect, it } from "vitest";
-import { PiModelAuthenticationIntegration } from "../../../src/foundation/pi-engine-adapter/index.js";
+import { PiModelAuthenticationIntegration } from "../../../src/integrations/pi/engine/index.js";
 
 const roots: string[] = [];
 afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))));

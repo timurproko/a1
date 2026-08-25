@@ -1,7 +1,7 @@
 import { AssistantMessageComponent, getMarkdownTheme, initTheme } from "@earendil-works/pi-coding-agent";
 import { describe, expect, it } from "vitest";
 import type { OwnedUiTranscriptBlock } from "../../../src/foundation/owned-ui-contracts/index.js";
-import { applyPiTheme, createPiShellTranscriptComponent } from "../../../src/foundation/pi-component-adapter/index.js";
+import { applyPiTheme, createPiShellTranscriptComponent } from "../../../src/integrations/pi/components/index.js";
 
 const usage = { input: 7, output: 11, cacheRead: 2, cacheWrite: 1, totalTokens: 21, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } };
 

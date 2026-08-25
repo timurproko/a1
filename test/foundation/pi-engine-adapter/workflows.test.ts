@@ -10,7 +10,7 @@ import {
   PINNED_PI_WORKFLOW_COMMAND_NAMES,
   type PiWorkflowHost,
   type PiWorkflowRequest,
-} from "../../../src/foundation/pi-engine-adapter/index.js";
+} from "../../../src/integrations/pi/engine/index.js";
 
 class WorkflowSession {
   readonly sessionId = "workflow-session";

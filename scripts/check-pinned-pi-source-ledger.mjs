@@ -13,7 +13,7 @@ const ledgerPath = resolve(process.env[identity.environment.piSourceLedgerPath] 
   "pinned-pi-source-port-ledger.json",
 ));
 const sourceRoot = resolve(process.env[identity.environment.piSourceScanRoot] ?? join(repository, "src"));
-const portRoot = resolve(process.env[identity.environment.piPortRoot] ?? join(repository, "src", "foundation", "pi-component-adapter", "upstream"));
+const portRoot = resolve(process.env[identity.environment.piPortRoot] ?? join(repository, "src", "integrations", "pi", "components", "upstream"));
 const expectedCommit = "914cf1472e715297caa30db4b9535d534a9eb718";
 const allowedClassifications = new Set(["public-api-reuse", "owned-presentation", "host-adaptation"]);
 const completedStatusesByClassification = new Map([
@@ -145,11 +145,11 @@ function validateRecord(record, index) {
   if (!completedStatusesByClassification.get(record.classification)?.has(record.implementationStatus)) {
     fail(`${label}.implementationStatus is unresolved or incompatible with ${record.classification}`);
   }
-  if (!/^src\/foundation\/(?:pi-component-adapter|pi-engine-adapter|pi-tui-runtime-adapter)\//.test(record.localDestination)
+  if (!/^src\/integrations\/pi\/(?:components|engine|tui-runtime)\//.test(record.localDestination)
     || record.localDestination.includes("..") || isAbsolute(record.localDestination)) {
     fail(`${label}.localDestination escapes the approved adapter roots`);
   }
-  if (record.classification === "owned-presentation" && !record.localDestination.startsWith("src/foundation/pi-component-adapter/upstream/")) {
+  if (record.classification === "owned-presentation" && !record.localDestination.startsWith("src/integrations/pi/components/upstream/")) {
     fail(`${label}.owned source port has no mirrored local destination`);
   }
   if (!/MIT/.test(record.attribution) || !/repository/.test(record.attribution) || !/commit/.test(record.attribution)) {

@@ -12,25 +12,25 @@ describe("Pi production boundary freeze", () => {
   it.each([
     [
       "dependency package-file read",
-      "src/foundation/pi-engine-adapter/fixture.ts",
+      "src/integrations/pi/engine/fixture.ts",
       "const text = await readFile(join(getPackageDir(), 'CHANGELOG.md'), 'utf8');",
       "production reads a dependency package directory",
     ],
     [
       "private package path construction",
-      "src/foundation/pi-component-adapter/fixture.ts",
+      "src/integrations/pi/components/fixture.ts",
       "const path = join(getPackageDir(), 'dist', 'private.js');",
       "production constructs a private dependency path",
     ],
     [
       "reflected concrete Pi constructor",
-      "src/foundation/pi-component-adapter/fixture.ts",
+      "src/integrations/pi/components/fixture.ts",
       "const editor = Reflect.construct(CustomEditor, [tui, options]);",
       "production reflects concrete Pi constructor 'CustomEditor'",
     ],
     [
       "structural concrete-session substitute",
-      "src/foundation/pi-component-adapter/fixture.ts",
+      "src/integrations/pi/components/fixture.ts",
       "const session = {};\nconst footer = Reflect.construct(FooterComponent, [session, footerData]);",
       "production fabricates concrete Pi session input 'session->FooterComponent'",
     ],
@@ -59,7 +59,7 @@ describe("Pi production boundary freeze", () => {
     ["node_modules traversal", "const file = 'node_modules/@earendil-works/pi-coding-agent/dist/private.js';", "traverses node_modules"],
     ["split private suffix", "const packageRoot = getPackageDir();\nconst file = join(packageRoot, 'dist', 'modes', 'private.js');", "private dependency path"],
   ])("rejects %s mutation", (_name, source, diagnostic) => {
-    expect(inspectPiProductionBoundary({ "src/foundation/pi-engine-adapter/mutation.ts": source }).join("\n")).toContain(diagnostic);
+    expect(inspectPiProductionBoundary({ "src/integrations/pi/engine/mutation.ts": source }).join("\n")).toContain(diagnostic);
   });
 
   it("allows classified test-only provenance inspection", () => {

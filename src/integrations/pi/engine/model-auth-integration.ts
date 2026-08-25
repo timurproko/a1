@@ -3,7 +3,7 @@ import type {
   AgentAuthenticationPort,
   AgentModelDescriptor,
   AgentModelPort,
-} from "../agent-engine-contracts/index.js";
+} from "../../../foundation/agent-engine-contracts/index.js";
 
 export type PiDocumentedModelRuntime = Pick<ModelRuntime,
   "getAvailableSnapshot" | "getModel" | "getProvider" | "hasConfiguredAuth" | "refresh" | "logout"

@@ -2,8 +2,8 @@ import {
   assertAgentCapabilityContract,
   type AgentEnginePort,
 } from "../foundation/agent-engine-contracts/index.js";
-import { createPiEngineAdapter, type PiEngineAdapter } from "../foundation/pi-engine-adapter/index.js";
-import { createPiPresentationRuntime } from "../foundation/pi-tui-runtime-adapter/index.js";
+import { createPiEngineAdapter, type PiEngineAdapter } from "../integrations/pi/engine/index.js";
+import { createPiPresentationRuntime } from "../integrations/pi/tui-runtime/index.js";
 import {
   assertPresentationComponent,
   assertPresentationRuntime,

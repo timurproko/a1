@@ -4,7 +4,7 @@ import {
   createPiExtensionUiBridge,
   type PiExtensionUiBridgeHost,
   type PiShellComponentPort,
-} from "../../../src/foundation/pi-component-adapter/index.js";
+} from "../../../src/integrations/pi/components/index.js";
 
 function fixture() {
   let inputSurface: PiShellComponentPort | null = null;

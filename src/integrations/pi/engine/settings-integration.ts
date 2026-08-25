@@ -1,5 +1,5 @@
 import type { SettingsManager } from "@earendil-works/pi-coding-agent";
-import type { AgentJsonValue, AgentSettingDescriptor, AgentSettingFlag, AgentSettingsPort } from "../agent-engine-contracts/index.js";
+import type { AgentJsonValue, AgentSettingDescriptor, AgentSettingFlag, AgentSettingsPort } from "../../../foundation/agent-engine-contracts/index.js";
 import piSettingsMetadata from "./pi-settings-metadata.json" with { type: "json" };
 
 /**

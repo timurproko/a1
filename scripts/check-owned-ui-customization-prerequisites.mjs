@@ -27,7 +27,7 @@ for (const file of await walk(resolve(root, "src"))) {
   const path = relative(root, file).split(sep).join("/");
   const source = await readFile(file, "utf8");
   production[path] = source;
-  const debtScope = /^(?:src\/features\/owned-ui|src\/foundation\/(?:pi-engine-adapter|pi-component-adapter|pi-tui-runtime-adapter|pi-owned-ui-integration))\//.test(path);
+  const debtScope = /^(?:src\/features\/owned-ui|src\/integrations\/pi\/(?:engine|components|tui-runtime|owned-ui))\//.test(path);
   if (!debtScope) continue;
   const checks = [
     [/(?:InteractiveMode|TuiAltScreen|TuiMainScreen).*\.prototype|prototype\s*\.(?:render|start|stop|handle\w+)\s*=|node_modules\/.+\.(?:js|ts).*writeFile/i, "prohibited runtime or package patch"],
@@ -62,7 +62,7 @@ try {
   errors.push(`source ledger: unavailable or malformed (${error instanceof Error ? error.message : String(error)})`);
 }
 
-const prefix = "src/foundation/pi-component-adapter/";
+const prefix = "src/integrations/pi/components/";
 const barrelPath = `${prefix}shell-components.ts`;
 const modules = [
   "shell-shared-facade.ts",

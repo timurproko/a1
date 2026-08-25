@@ -1,6 +1,6 @@
 const output = process.stdout;
 try {
-  const { runPiUpgradeConformance } = await import("../dist/src/foundation/pi-engine-adapter/conformance.js");
+  const { runPiUpgradeConformance } = await import("../dist/src/integrations/pi/engine/conformance.js");
   const report = await runPiUpgradeConformance();
   output.write(`${JSON.stringify(report)}\n`);
 } catch (error) {

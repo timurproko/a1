@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { loadPiTheme } from "../../../src/foundation/pi-component-adapter/index.js";
+import { loadPiTheme } from "../../../src/integrations/pi/components/index.js";
 
 const ESCAPE = String.fromCharCode(27);
 const repositoryRoot = resolve(import.meta.dirname, "../../..");

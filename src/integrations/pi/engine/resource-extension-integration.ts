@@ -6,7 +6,7 @@ import type {
   AgentResourceDescriptor,
   AgentResourcesPort,
   AgentSessionMetadata,
-} from "../agent-engine-contracts/index.js";
+} from "../../../foundation/agent-engine-contracts/index.js";
 
 export interface PiResourceExtensionOptions {
   readonly session: AgentSession;

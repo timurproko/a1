@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   createPiShellAuthProviderSelector,
   type PiShellAuthProviderOption,
-} from "../../../src/foundation/pi-component-adapter/index.js";
+} from "../../../src/integrations/pi/components/index.js";
 
 interface ParityState {
   readonly name: string;

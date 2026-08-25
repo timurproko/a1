@@ -6,7 +6,7 @@ import type { OwnedUiTranscriptBlock, OwnedUiTranscriptBlockKind } from "../../.
 import {
   applyPiTheme,
   createPiShellTranscriptComponent,
-} from "../../../src/foundation/pi-component-adapter/index.js";
+} from "../../../src/integrations/pi/components/index.js";
 import { capturePinnedTranscriptFrames } from "./pinned-transcript-upstream-fixture.js";
 
 function block(

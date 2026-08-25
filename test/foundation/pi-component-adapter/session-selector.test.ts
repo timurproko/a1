@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { SessionInfo } from "@earendil-works/pi-coding-agent";
 import { describe, expect, it, vi } from "vitest";
-import { applyPiTheme, createPiShellSessionSelector } from "../../../src/foundation/pi-component-adapter/index.js";
+import { applyPiTheme, createPiShellSessionSelector } from "../../../src/integrations/pi/components/index.js";
 
 function stripPortableTerminalSequences(value: string): string {
   return value

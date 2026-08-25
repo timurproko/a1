@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { SettingsManager } from "@earendil-works/pi-coding-agent";
-import { PiSettingsIntegration } from "../../src/foundation/pi-engine-adapter/index.js";
+import { PiSettingsIntegration } from "../../src/integrations/pi/engine/index.js";
 import { OwnedUiSettingsSession, OwnedUiSettingsStore } from "../../src/foundation/owned-ui-settings/index.js";
 import { SETTINGS_ROUTE, SettingsApp } from "../../src/features/owned-ui/index.js";
 import type { AppHostServices } from "../../src/foundation/ui-apps/index.js";

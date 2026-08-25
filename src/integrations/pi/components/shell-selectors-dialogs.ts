@@ -39,7 +39,7 @@ import {
 } from "#pi-tui";
 import type {
   OwnedUiDialog,
-} from "../owned-ui-contracts/index.js";
+} from "../../../foundation/owned-ui-contracts/index.js";
 import {
   ScopedModelsSelectorComponent,
 } from "./upstream/components/scoped-models-selector.js";
