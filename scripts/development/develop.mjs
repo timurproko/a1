@@ -10,17 +10,21 @@ import {
 
 function log(message) { process.stdout.write(`[develop] ${message}\n`); }
 
-const source = await authoritativeDevelopHead();
-const preview = await resolveDevelopPreview(source);
-const existing = await registryVersion(preview.packageName, preview.version);
+async function main() {
+  const source = await authoritativeDevelopHead();
+  const preview = await resolveDevelopPreview(source);
+  const existing = await registryVersion(preview.packageName, preview.version);
 
-if (existing !== null) {
-  log(`${preview.version} already exists for develop pull request ${preview.pullRequest}; nothing to build or publish`);
-  process.exit(0);
+  if (existing !== null) {
+    log(`${preview.version} already exists for develop pull request ${preview.pullRequest}; nothing to build or publish`);
+    return;
+  }
+
+  log(`requesting ${preview.version} for ${source}`);
+  await dispatchPublication("develop", source, preview.version);
+  const published = await registryVersion(preview.packageName, preview.version);
+  if (published === null) throw new Error(`publication succeeded but npm does not serve ${preview.packageName}@${preview.version}`);
+  log(`published ${preview.version}`);
 }
 
-log(`requesting ${preview.version} for ${source}`);
-await dispatchPublication("develop", source, preview.version);
-const published = await registryVersion(preview.packageName, preview.version);
-if (published === null) throw new Error(`publication succeeded but npm does not serve ${preview.packageName}@${preview.version}`);
-log(`published ${preview.version}`);
+await main();
