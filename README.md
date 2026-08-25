@@ -81,9 +81,10 @@ package. For example, the source GitHub presents as `develop (#107)` produces
 building or publishing again.
 
 ```sh
-a1 update:develop       # install the current development preview
-a1 update:107           # install preview 107
-a1 update:0.1.8-dev.107 # install that exact full preview version
+a1 update                   # install the newest stable release
+a1 update:develop           # install the current development preview
+a1 update:107               # install preview 107
+a1 update:0.1.8-dev.107     # install that exact full preview version
 ```
 
 The published version list is authoritative: an unpublished number is refused
@@ -108,7 +109,6 @@ validates the packed release on Windows, Linux, and macOS, publishes to npm
 GitHub Release. The command waits for success before opening the next `-dev` line.
 
 ```sh
-a1 update        # install the newest stable release
 ```
 
 After a stable publish, `master` fast-forwards to the released commit, so `master`
