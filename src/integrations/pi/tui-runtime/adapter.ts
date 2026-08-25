@@ -308,7 +308,7 @@ export class PiTuiRuntimeAdapter {
 
   /**
    * Writes an A1-owned terminal control sequence for paired mouse reporting or
-   * OSC 52 selection copy. Transparent and pinned comparison paths never call it.
+   * a completed viewport clipboard transfer. Comparison paths never call it.
    */
   writeControl(data: string): void {
     this.#assertRunning("control sequence");
