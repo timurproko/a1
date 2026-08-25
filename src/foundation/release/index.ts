@@ -1,6 +1,7 @@
 export * from "./bootstrap.js";
 export * from "./cohort-selection.js";
 export * from "./cohort-state.js";
+export * from "./endpoints.js";
 export * from "./process-cleanup.js";
 export * from "./release.js";
 export * from "./release-gc.js";

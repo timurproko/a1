@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveProductPaths } from "../../../src/foundation/lifecycle/index.js";
+import { resolveCohortEndpoint, resolveProductPaths } from "../../../src/foundation/lifecycle/index.js";
 
 describe("product control paths", () => {
   it("uses A1 defaults on Windows", () => {
@@ -76,5 +76,39 @@ describe("product control paths", () => {
     const upper = resolveProductPaths({ A1_RUNTIME_DIR: "C:\\A1\\Runtime" }, "win32", "C:\\home");
     const lower = resolveProductPaths({ A1_RUNTIME_DIR: "c:\\a1\\runtime" }, "win32", "C:\\home");
     expect(upper.endpoint).toBe(lower.endpoint);
+  });
+
+  it("gives each cohort its own endpoint so two can be live at once", () => {
+    const environment = { A1_RUNTIME_DIR: "/run/a1" };
+    const paths = resolveProductPaths(environment, "linux", "/fallback");
+    const first = resolveCohortEndpoint(paths, "0.1.8-aaaaaaaaaaaaaaaaaaaa", environment, "linux");
+    const second = resolveCohortEndpoint(paths, "0.1.9-bbbbbbbbbbbbbbbbbbbb", environment, "linux");
+
+    expect(first.endpoint).not.toBe(second.endpoint);
+    expect(first.endpointMetadataPath).not.toBe(second.endpointMetadataPath);
+    expect(first.endpoint.startsWith(paths.runtimeDir)).toBe(true);
+    expect(first.endpointMetadataPath.startsWith(paths.endpointsDir)).toBe(true);
+    // Neither is the endpoint a release without cohort identity published.
+    expect(first.endpoint).not.toBe(paths.endpoint);
+    expect(first.endpointMetadataPath).not.toBe(paths.endpointMetadataPath);
+    expect(resolveCohortEndpoint(paths, "0.1.8-aaaaaaaaaaaaaaaaaaaa", environment, "linux")).toEqual(first);
+  });
+
+  it("names a Windows cohort endpoint under the runtime namespace", () => {
+    const environment = { A1_RUNTIME_DIR: "C:\\A1\\Runtime" };
+    const paths = resolveProductPaths(environment, "win32", "C:\\home");
+    const cohort = resolveCohortEndpoint(paths, "0.1.8-aaaaaaaaaaaaaaaaaaaa", environment, "win32");
+
+    expect(cohort.endpoint.startsWith(`${paths.endpoint}-`)).toBe(true);
+    expect(cohort.endpoint).toMatch(/^\\\\\.\\pipe\\a1-[a-f0-9]{20}-[a-f0-9]{16}$/);
+    expect(cohort.endpointMetadataPath.startsWith(paths.endpointsDir)).toBe(true);
+  });
+
+  it("keeps one endpoint when the address is pinned by an override", () => {
+    const environment = { A1_RUNTIME_DIR: "/run/a1", A1_ENDPOINT: "/tmp/pinned.sock" };
+    const paths = resolveProductPaths(environment, "linux", "/fallback");
+    const cohort = resolveCohortEndpoint(paths, "0.1.8-aaaaaaaaaaaaaaaaaaaa", environment, "linux");
+
+    expect(cohort).toEqual({ endpoint: "/tmp/pinned.sock", endpointMetadataPath: paths.endpointMetadataPath });
   });
 });

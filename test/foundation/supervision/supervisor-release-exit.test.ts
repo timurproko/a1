@@ -50,6 +50,7 @@ describe("supervisor release replacement exit", () => {
         databasePath: resolve(root, "control.sqlite3"),
         endpoint,
         endpointMetadataPath: resolve(runtimeDir, "supervisor.json"),
+        endpointsDir: resolve(runtimeDir, "endpoints"),
         supervisorLogPath: resolve(runtimeDir, "supervisor.log"),
       },
       release(),
@@ -64,6 +65,87 @@ describe("supervisor release replacement exit", () => {
 
     expect(terminate).toHaveBeenCalledOnce();
     expect(terminate).toHaveBeenCalledWith(0);
+  });
+});
+
+describe("superseded cohort retirement", () => {
+  it("retires once it is no longer the release new sessions start on", async () => {
+    const root = await mkdtemp(resolve(tmpdir(), "a1-supervisor-superseded-"));
+    cleanupRoots.push(root);
+    const runtimeDir = resolve(root, "runtime");
+    const endpoint = process.platform === "win32"
+      ? `\\\\.\\pipe\\a1-superseded-${process.pid}-${Date.now()}`
+      : resolve(tmpdir(), `a1-sup-${randomUUID().slice(0, 8)}.sock`);
+    if (process.platform !== "win32") cleanupRoots.push(endpoint);
+    const metadataPath = resolve(runtimeDir, "endpoints", "cohort.json");
+    const store = new ControlStore(resolve(root, "control.sqlite3"), "boot");
+    const server = new SupervisorServer(
+      store,
+      {
+        configDir: resolve(root, "config"),
+        dataDir: root,
+        runtimeDir,
+        databasePath: resolve(root, "control.sqlite3"),
+        endpoint,
+        endpointMetadataPath: metadataPath,
+        endpointsDir: resolve(runtimeDir, "endpoints"),
+        supervisorLogPath: resolve(runtimeDir, "supervisor.log"),
+      },
+      release(),
+      "00000000-0000-4000-8000-000000000000",
+      vi.fn(),
+      undefined,
+      undefined,
+      // Another release is what new sessions start on now.
+      async () => "9.9.9-cccccccccccccccccccc",
+      10,
+    );
+
+    await server.listen();
+    expect(JSON.parse(await readFile(metadataPath, "utf8"))).toMatchObject({ releaseId: release().releaseId });
+
+    await vi.waitFor(async () => {
+      expect(server.superseded).toBe(true);
+      await expect(readFile(metadataPath, "utf8")).rejects.toThrow();
+    }, { timeout: 2_000 });
+  });
+
+  it("keeps serving while it is the active release", async () => {
+    const root = await mkdtemp(resolve(tmpdir(), "a1-supervisor-active-"));
+    cleanupRoots.push(root);
+    const runtimeDir = resolve(root, "runtime");
+    const endpoint = process.platform === "win32"
+      ? `\\\\.\\pipe\\a1-active-${process.pid}-${Date.now()}`
+      : resolve(tmpdir(), `a1-act-${randomUUID().slice(0, 8)}.sock`);
+    if (process.platform !== "win32") cleanupRoots.push(endpoint);
+    const metadataPath = resolve(runtimeDir, "endpoints", "cohort.json");
+    const store = new ControlStore(resolve(root, "control.sqlite3"), "boot");
+    const server = new SupervisorServer(
+      store,
+      {
+        configDir: resolve(root, "config"),
+        dataDir: root,
+        runtimeDir,
+        databasePath: resolve(root, "control.sqlite3"),
+        endpoint,
+        endpointMetadataPath: metadataPath,
+        endpointsDir: resolve(runtimeDir, "endpoints"),
+        supervisorLogPath: resolve(runtimeDir, "supervisor.log"),
+      },
+      release(),
+      "00000000-0000-4000-8000-000000000000",
+      vi.fn(),
+      undefined,
+      undefined,
+      async () => release().releaseId,
+      10,
+    );
+
+    await server.listen();
+    await new Promise(resolvePromise => setTimeout(resolvePromise, 60));
+    expect(server.superseded).toBe(false);
+    expect(JSON.parse(await readFile(metadataPath, "utf8"))).toMatchObject({ releaseId: release().releaseId });
+    await server.close();
   });
 });
 
