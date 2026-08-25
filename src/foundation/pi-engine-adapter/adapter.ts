@@ -1656,14 +1656,16 @@ export class PiEngineAdapter {
         this.#upsertMessageBlock(event.message, "live");
         return;
       case "message_update": {
-        const block = this.#upsertMessageBlock(event.message, "live");
-        if (block && isRecord(event.assistantMessageEvent) && typeof event.assistantMessageEvent.delta === "string") {
-          this.#upsertTranscriptBlock({
-            ...block,
-            text: block.text.endsWith(event.assistantMessageEvent.delta)
-              ? block.text
-              : `${block.text}${event.assistantMessageEvent.delta}`,
-          });
+        const delta = isRecord(event.assistantMessageEvent) && typeof event.assistantMessageEvent.delta === "string"
+          ? event.assistantMessageEvent.delta
+          : undefined;
+        // The delta is folded in before the block is stored, so a chunk is one update to
+        // one block rather than a store without the delta followed by a store with it.
+        const blocks = this.#messageBlocks(event.message, "live", this.#transcript.length);
+        for (const [index, block] of blocks.entries()) {
+          this.#upsertTranscriptBlock(index === 0 && delta !== undefined && !block.text.endsWith(delta)
+            ? { ...block, text: `${block.text}${delta}` }
+            : block);
         }
         return;
       }
@@ -1813,7 +1815,13 @@ export class PiEngineAdapter {
         }
       }
     }
-    this.#setTranscript(blocks);
+    // An authoritative rebuild restates most of what is already there. Reusing the block
+    // that already says it keeps its revision, and with it the rows the shell rendered for
+    // it — otherwise every turn that ends re-renders the whole session.
+    this.#setTranscript(blocks.map(block => {
+      const existing = this.#transcriptBlock(block.id);
+      return existing !== undefined && sameBlockContent(existing, block) ? existing : block;
+    }));
   }
 
   #upsertMessageBlock(
@@ -1996,8 +2004,13 @@ export class PiEngineAdapter {
 
   #upsertTranscriptBlock(block: OwnedUiTranscriptBlock): void {
     const index = this.#transcriptIndex.get(block.id);
-    if (index !== undefined) this.#transcript[index] = block;
-    else {
+    if (index !== undefined) {
+      const existing = this.#transcript[index];
+      // Nothing to tell the shell about a block that repeats itself, and keeping the
+      // revision keeps the rows it already rendered.
+      if (existing !== undefined && sameBlockContent(existing, block)) return;
+      this.#transcript[index] = block;
+    } else {
       this.#transcriptIndex.set(block.id, this.#transcript.length);
       this.#transcript.push(block);
     }
@@ -2654,6 +2667,34 @@ function extensionCommandSourcePath(command: unknown): string | undefined {
 function compactResourceLabel(path: string): string {
   const segments = path.replaceAll("\\", "/").split("/").filter(Boolean);
   return segments.at(-1) ?? path;
+}
+
+/**
+ * Whether two blocks say the same thing. A block that says what it already said is not a
+ * new revision: the shell renders a block once per revision, so bumping one it did not
+ * need re-renders it for nothing.
+ */
+function sameBlockContent(left: OwnedUiTranscriptBlock, right: OwnedUiTranscriptBlock): boolean {
+  return left.kind === right.kind
+    && left.status === right.status
+    && left.title === right.title
+    && left.text === right.text
+    && sameValue(left.payload, right.payload);
+}
+
+function sameValue(left: unknown, right: unknown): boolean {
+  if (left === right) return true;
+  if (typeof left !== typeof right || left === null || right === null) return false;
+  if (Array.isArray(left) || Array.isArray(right)) {
+    if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) return false;
+    return left.every((value, index) => sameValue(value, right[index]));
+  }
+  if (typeof left !== "object") return false;
+  const leftKeys = Object.keys(left as Record<string, unknown>);
+  const rightRecord = right as Record<string, unknown>;
+  if (leftKeys.length !== Object.keys(rightRecord).length) return false;
+  return leftKeys.every(key =>
+    Object.hasOwn(rightRecord, key) && sameValue((left as Record<string, unknown>)[key], rightRecord[key]));
 }
 
 function textFromContent(content: unknown): string {

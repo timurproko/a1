@@ -443,6 +443,56 @@ describe("Pi engine adapter", () => {
     expect(adapter.view().transcript).toHaveLength(transcript.length);
   });
 
+  it("leaves unchanged blocks at their revision when a turn ends", async () => {
+    const runtime = new FakeRuntime(new FakeSession("pi-session-1"));
+    const { adapter, events } = await adapterWithRuntime(runtime);
+    const session = runtime.session as FakeSession;
+    const messages = [
+      { role: "user", content: [{ type: "text", text: "Ask" }], timestamp: 1 },
+      { role: "assistant", content: [{ type: "text", text: "Answer" }], stopReason: "stop", timestamp: 2 },
+    ];
+
+    session.setMessages(messages);
+    session.emit({ type: "agent_start" });
+    for (const message of messages) session.emit({ type: "message_start", message });
+    session.emit({ type: "agent_end", messages, willRetry: false });
+    await adapter.flushEvents();
+    const settled = adapter.view().transcript.map(block => `${block.id}@${block.revision}`);
+    expect(settled.length).toBeGreaterThan(0);
+
+    const blockEventsBefore = events.filter(event => event.type === "transcript-block").length;
+    // A second turn ending on the same messages restates them; nothing changed, so nothing
+    // is a new revision and the shell is told nothing.
+    session.emit({ type: "agent_end", messages, willRetry: false });
+    await adapter.flushEvents();
+    expect(adapter.view().transcript.map(block => `${block.id}@${block.revision}`)).toEqual(settled);
+    expect(events.filter(event => event.type === "transcript-block").length).toBe(blockEventsBefore);
+  });
+
+  it("reports one block update per streamed chunk", async () => {
+    const runtime = new FakeRuntime(new FakeSession("pi-session-1"));
+    const { adapter, events } = await adapterWithRuntime(runtime);
+    const session = runtime.session as FakeSession;
+    const message = (text: string) => ({
+      role: "assistant",
+      content: [{ type: "text", text }],
+      stopReason: "pending",
+      timestamp: 7,
+    });
+
+    session.emit({ type: "agent_start" });
+    session.emit({ type: "message_start", message: message("") });
+    await adapter.flushEvents();
+    const before = events.filter(event => event.type === "transcript-block").length;
+
+    session.emit({ type: "message_update", message: message("one"), assistantMessageEvent: { delta: "one" } });
+    session.emit({ type: "message_update", message: message("one two"), assistantMessageEvent: { delta: " two" } });
+    await adapter.flushEvents();
+
+    expect(events.filter(event => event.type === "transcript-block").length - before).toBe(2);
+    expect(adapter.view().transcript.at(-1)?.text).toBe("one two");
+  });
+
   it("keeps the working state through a compaction, a retry, and a turn that continues the run", async () => {
     const runtime = new FakeRuntime(new FakeSession("pi-session-1"));
     const { adapter } = await adapterWithRuntime(runtime);
