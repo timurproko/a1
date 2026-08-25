@@ -10,7 +10,7 @@ npm install --global @timurproko/a1@latest
 
 ```sh
 a1                      # launch A1 (profile: ~/.a1/agent)
-a1 version              # show Installed, Release, and Develop versions
+a1 version              # show Current, Develop, and Release versions
 a1 update               # install the newest stable release
 a1 update:develop       # install the current development preview
 a1 update:107           # install numbered preview 107
