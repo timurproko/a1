@@ -21,6 +21,7 @@
     "node": ">=22.19.0 <25"
   },
   "scripts": {
+    "postinstall": "node bin/sync-pi-tui-proxy.js",
     "clean": "node scripts/clean.mjs",
     "build": "npm run clean && tsc -p tsconfig.build.json && node scripts/development/build-process-guardian.mjs",
     "build:process-guardian": "node scripts/development/build-process-guardian.mjs",

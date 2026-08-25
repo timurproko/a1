@@ -87,7 +87,7 @@ function followProxyReExport(resolvedPath) {
  * no CommonJS condition, so an ordinary require cannot name it. From there a
  * require resolves pi-tui, which publishes no `exports` map at all.
  */
-function resolvePinnedPiTui(packageRoot) {
+export function resolvePinnedPiTui(packageRoot) {
   let directory = packageRoot;
   while (true) {
     const candidate = join(directory, "node_modules", "@earendil-works", "pi-coding-agent");

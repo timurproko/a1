@@ -12,10 +12,14 @@
  * plain import specifier in a module carries no such restriction, so the hop
  * through this file is what makes the nested copy nameable from the manifest.
  *
- * When the nested copy is missing (a layout pinned Pi's shrinkwrap does not
- * produce), this import fails loudly at launch instead of silently rendering
- * without extension chrome. bin/module-identity.js reports the same condition
- * before the composition loads.
+ * npm does not materialize one layout: `npm ci` keeps pinned Pi's shrinkwrapped
+ * nested copy, while a global install hoists pi-tui to the root and produces no
+ * nested copy. bin/sync-pi-tui-proxy.js therefore rewrites this file's one
+ * re-export on postinstall to whatever pinned Pi resolves in the tree npm
+ * actually built; the path below is the dev-checkout (`npm ci`) shape. When the
+ * target is missing anyway, this import fails loudly at launch instead of
+ * silently rendering without extension chrome, and bin/module-identity.js
+ * reports the same condition before the composition loads.
  *
  * This lives in bin/ (shipped, plain JS) because it names a path inside
  * node_modules, which the Pi API boundary policy rightly forbids ordinary
