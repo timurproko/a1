@@ -12,10 +12,12 @@ import {
   createUpdateLifecycleCoordinator,
   materializeRelease,
   readEndpointMetadata,
+  releaseVerifiedIdleOwner,
   startSupervisor,
   waitForVerifiedEndpoint,
   type ReleaseContentOperationEvent,
 } from "../../../src/foundation/release/index.js";
+import { resolveCohortEndpoint, resolveProductPaths } from "../../../src/foundation/lifecycle/index.js";
 
 const repository = resolve(fileURLToPath(new URL("../../..", import.meta.url)));
 const roots: string[] = [];
@@ -47,7 +49,8 @@ describe("packaged update activation performance", () => {
       await state.approve(release.releaseId, diagnostics);
       await state.activate(release.releaseId);
       await startSupervisor(release, environment);
-      await waitForVerifiedEndpoint(resolve(runtimeDir, "supervisor.json"), release, 8_000);
+      const cohort = resolveCohortEndpoint(resolveProductPaths(environment), release.releaseId, environment);
+      await waitForVerifiedEndpoint(cohort.endpointMetadataPath, release, 8_000);
 
       const durationMs = performance.now() - startedAt;
       const counts = operationCounts(operations);
@@ -61,10 +64,17 @@ describe("packaged update activation performance", () => {
         ...counts,
         postNpmDurationMs: durationMs,
       }, process.platform === "win32" ? 30_000 : Number.POSITIVE_INFINITY);
-      expect(await readEndpointMetadata(resolve(runtimeDir, "supervisor.json"))).toMatchObject({ releaseId: release.releaseId });
+      expect(await readEndpointMetadata(cohort.endpointMetadataPath)).toMatchObject({ releaseId: release.releaseId });
       expect((await state.read()).references).toMatchObject({ active: release.releaseId, pending: null });
     } finally {
-      if (release) await createUpdateLifecycleCoordinator(environment).shutdownVerifiedOwners(release.packageVersion).catch(() => {});
+      if (release) {
+        // An update leaves a live cohort alone now, so the supervisor this test started is
+        // this test's to stop.
+        const cohort = resolveCohortEndpoint(resolveProductPaths(environment), release.releaseId, environment);
+        const owner = await readEndpointMetadata(cohort.endpointMetadataPath);
+        if (owner) await releaseVerifiedIdleOwner(owner, dataDir).catch(() => {});
+        await createUpdateLifecycleCoordinator(environment).shutdownVerifiedOwners(release.packageVersion).catch(() => {});
+      }
     }
   }, 60_000);
 

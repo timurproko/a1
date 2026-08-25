@@ -97,7 +97,7 @@ async function createHarness(existingRoot?: string, existingDatabasePath?: strin
   const endpoint = process.platform === "win32" ? `\\\\.\\pipe\\a1-concurrent-${process.pid}-${randomUUID()}` : resolve(runtimeDir, "supervisor.sock");
   const paths = {
     configDir: resolve(root, "config"), dataDir: root, runtimeDir, databasePath: existingDatabasePath ?? resolve(root, "control.sqlite3"),
-    endpoint, endpointMetadataPath: resolve(runtimeDir, "supervisor.json"), supervisorLogPath: resolve(runtimeDir, "supervisor.log"),
+    endpoint, endpointMetadataPath: resolve(runtimeDir, "supervisor.json"), endpointsDir: resolve(runtimeDir, "endpoints"), supervisorLogPath: resolve(runtimeDir, "supervisor.log"),
   };
   const store = new ControlStore(paths.databasePath, "boot-current");
   const server = new SupervisorServer(store, paths, release(), "boot-current", vi.fn(), 25, 2_000);

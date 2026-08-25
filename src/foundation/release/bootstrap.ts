@@ -5,9 +5,10 @@ import { platform } from "node:os";
 import { resolve } from "node:path";
 import { selectCohortLaunch, type OwnershipProbe } from "./cohort-selection.js";
 import { CohortStateStore, type SupervisorEndpointMetadata } from "./cohort-state.js";
-import { assertLaunchProfileId, resolveProductPaths, type LaunchProfileId } from "../lifecycle/index.js";
+import { assertLaunchProfileId, resolveCohortEndpoint, resolveProductPaths, type LaunchProfileId } from "../lifecycle/index.js";
 import { encodeFrame, LineFrameDecoder } from "../protocol/index.js";
 import { cleanupProvenIdleOwner, processIsAlive } from "./process-cleanup.js";
+import { sweepDeadEndpoints } from "./endpoints.js";
 import { consumeMaterializationProof, materializeRelease, readCertifiedReleaseManifest, readMaterializedRelease, resolveReleaseEntryPoint, verifyMaterializedRelease, type MaterializedRelease, type VerifyMaterializedReleaseOptions } from "./release-store.js";
 import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
 
@@ -29,7 +30,27 @@ export async function runBootstrap(options: BootstrapOptions): Promise<number> {
 
   const stateStore = new CohortStateStore(paths.dataDir);
   let state = await stateStore.read();
-  let endpoint = await readEndpointMetadata(paths.endpointMetadataPath);
+  // Records left by cohorts whose processes are gone say nothing about ownership, and there
+  // can now be several of them. Clearing them first keeps the decision below about what is
+  // actually running.
+  await sweepDeadEndpoints(paths).catch(() => []);
+  // Each cohort keeps its own endpoint, so a launch looks for the endpoint of the release it
+  // is about to run rather than for the one endpoint the runtime directory used to have.
+  const activeReleaseId = state.references.active;
+  let endpointPaths = activeReleaseId === null
+    ? { endpoint: paths.endpoint, endpointMetadataPath: paths.endpointMetadataPath }
+    : resolveCohortEndpoint(paths, activeReleaseId, environment);
+  let endpoint = await readEndpointMetadata(endpointPaths.endpointMetadataPath);
+  if (endpoint === null) {
+    // A release that predates cohort-scoped endpoints published one endpoint for the whole
+    // runtime directory. Recognizing it is what lets a session started by that release keep
+    // working through the first launch that knows about cohorts.
+    const legacy = await readEndpointMetadata(paths.endpointMetadataPath);
+    if (legacy !== null) {
+      endpoint = legacy;
+      endpointPaths = { endpoint: paths.endpoint, endpointMetadataPath: paths.endpointMetadataPath };
+    }
+  }
   let probe = endpoint ? await probeOwnership(endpoint) : "dead";
   const installedVersion = await readInstalledVersion(options.packageRoot);
   const activeId = state.references.active;
@@ -43,10 +64,11 @@ export async function runBootstrap(options: BootstrapOptions): Promise<number> {
       return await launchUi(retained, environment);
     }
     if (endpoint === null || probe === "dead") {
-      if (endpoint) await removeEndpointArtifacts(paths.endpointMetadataPath, paths.endpoint);
+      if (endpoint) await removeEndpointArtifacts(endpointPaths.endpointMetadataPath, endpointPaths.endpoint);
       const retained = await readMaterializedRelease(active.releaseRoot);
+      const retainedPaths = resolveCohortEndpoint(paths, retained.releaseId, environment);
       await startSupervisor(retained, environment);
-      await waitForVerifiedEndpoint(paths.endpointMetadataPath, retained, 8_000);
+      await waitForVerifiedEndpoint(retainedPaths.endpointMetadataPath, retained, 8_000);
       return await launchUi(retained, environment);
     }
   }
@@ -61,7 +83,17 @@ export async function runBootstrap(options: BootstrapOptions): Promise<number> {
     state = await stateStore.read();
   }
 
-  endpoint = await readEndpointMetadata(paths.endpointMetadataPath);
+  // The candidate's own endpoint decides whether this launch attaches or starts a supervisor.
+  // A cohort other than this one is not in the way: it listens somewhere else.
+  endpointPaths = resolveCohortEndpoint(paths, candidate.releaseId, environment);
+  endpoint = await readEndpointMetadata(endpointPaths.endpointMetadataPath);
+  if (endpoint === null) {
+    const legacy = await readEndpointMetadata(paths.endpointMetadataPath);
+    if (legacy !== null) {
+      endpoint = legacy;
+      endpointPaths = { endpoint: paths.endpoint, endpointMetadataPath: paths.endpointMetadataPath };
+    }
+  }
   probe = endpoint ? await probeOwnership(endpoint) : "dead";
   let decision = selectCohortLaunch(candidate, state, endpoint, probe);
 
@@ -75,10 +107,10 @@ export async function runBootstrap(options: BootstrapOptions): Promise<number> {
     const diagnostics = await cleanupProvenIdleOwner(endpoint);
     await writeFile(resolve(paths.dataDir, `cleanup-${Date.now()}.json`), JSON.stringify(diagnostics, null, 2));
     if (!diagnostics.terminated) throw new Error(`could not safely clean stale ${PRODUCT_TEXT.displayName} supervisor ${endpoint.pid}`);
-    await removeEndpointArtifacts(paths.endpointMetadataPath, paths.endpoint);
+    await removeEndpointArtifacts(endpointPaths.endpointMetadataPath, endpointPaths.endpoint);
     decision = selectCohortLaunch(candidate, await stateStore.read(), null, "dead");
   } else if (endpoint && probe === "dead") {
-    await removeEndpointArtifacts(paths.endpointMetadataPath, paths.endpoint);
+    await removeEndpointArtifacts(endpointPaths.endpointMetadataPath, endpointPaths.endpoint);
   }
 
   if (decision.action === "launch-retained-ui") {
@@ -105,7 +137,7 @@ export async function runBootstrap(options: BootstrapOptions): Promise<number> {
       output.write(`${PRODUCT_TEXT.diagnostic("could not complete bounded idle cohort shutdown; the candidate remains pending.")}\n`);
       return 1;
     }
-    await removeEndpointArtifacts(paths.endpointMetadataPath, paths.endpoint);
+    await removeEndpointArtifacts(endpointPaths.endpointMetadataPath, endpointPaths.endpoint);
     await stateStore.activate(candidate.releaseId);
     decision = { action: "activate-candidate", releaseId: candidate.releaseId, releaseRoot: candidate.releaseRoot, reason: "idle cohort released ownership" };
   }
@@ -124,7 +156,7 @@ export async function runBootstrap(options: BootstrapOptions): Promise<number> {
   }
 
   await startSupervisor(selected, environment);
-  await waitForVerifiedEndpoint(paths.endpointMetadataPath, selected, 8_000);
+  await waitForVerifiedEndpoint(resolveCohortEndpoint(paths, selected.releaseId, environment).endpointMetadataPath, selected, 8_000);
   return await launchUi(selected, environment);
 }
 
@@ -292,7 +324,7 @@ async function activatePendingAfterBlockerExit(
   await removeEndpointArtifacts(paths.endpointMetadataPath, paths.endpoint);
   await stateStore.activate(candidate.releaseId);
   await startSupervisor(candidate, environment);
-  await waitForVerifiedEndpoint(paths.endpointMetadataPath, candidate, 8_000);
+  await waitForVerifiedEndpoint(resolveCohortEndpoint(paths, candidate.releaseId, environment).endpointMetadataPath, candidate, 8_000);
 }
 
 export async function releaseVerifiedIdleOwner(

@@ -8,9 +8,44 @@ export interface ProductPaths {
   readonly dataDir: string;
   readonly runtimeDir: string;
   readonly databasePath: string;
+  /** The endpoint written by releases that predate cohort-scoped identity. */
+  readonly endpoint: string;
+  /** The metadata written by releases that predate cohort-scoped identity. */
+  readonly endpointMetadataPath: string;
+  readonly endpointsDir: string;
+  readonly supervisorLogPath: string;
+}
+
+/** Where one cohort listens, and where it records that it is listening. */
+export interface CohortEndpointPaths {
   readonly endpoint: string;
   readonly endpointMetadataPath: string;
-  readonly supervisorLogPath: string;
+}
+
+/**
+ * Endpoint identity for one release cohort. Two cohorts can be live at once — an update
+ * leaves a working session on the release it started on — so the name a supervisor listens
+ * on has to name the release as well as the runtime directory, or the two contend for one
+ * endpoint and replacing one means ending the other.
+ *
+ * An explicit endpoint override keeps its single endpoint: it is how an isolated run pins
+ * the address it is going to talk to.
+ */
+export function resolveCohortEndpoint(
+  paths: ProductPaths,
+  releaseId: string,
+  environment: NodeJS.ProcessEnv = process.env,
+  hostPlatform: NodeJS.Platform = platform(),
+): CohortEndpointPaths {
+  if (environment[PRODUCT_IDENTITY.environment.endpoint]) {
+    return { endpoint: paths.endpoint, endpointMetadataPath: paths.endpointMetadataPath };
+  }
+  const path = hostPlatform === "win32" ? win32 : posix;
+  const token = createHash("sha256").update(releaseId).digest("hex").slice(0, 16);
+  const endpoint = hostPlatform === "win32"
+    ? `${paths.endpoint}-${token}`
+    : path.join(paths.runtimeDir, `${token}-${PRODUCT_IDENTITY.endpoint.unixSocketFilename}`);
+  return { endpoint, endpointMetadataPath: path.join(paths.endpointsDir, `${token}.json`) };
 }
 
 export function resolveProductPaths(
@@ -52,6 +87,7 @@ export function resolveProductPaths(
     databasePath: path.resolve(databaseOverride ?? path.join(dataDir, PRODUCT_IDENTITY.endpoint.databaseFilename)),
     endpoint,
     endpointMetadataPath: path.join(runtimeDir, PRODUCT_IDENTITY.endpoint.metadataFilename),
+    endpointsDir: path.join(runtimeDir, "endpoints"),
     supervisorLogPath: path.join(runtimeDir, PRODUCT_IDENTITY.endpoint.supervisorLogFilename),
   };
 }

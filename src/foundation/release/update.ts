@@ -14,7 +14,7 @@ import {
   waitForProcessExit,
   waitForVerifiedEndpoint,
 } from "./bootstrap.js";
-import { resolveProductPaths } from "../lifecycle/index.js";
+import { resolveCohortEndpoint, resolveProductPaths, type CohortEndpointPaths, type ProductPaths } from "../lifecycle/index.js";
 import { encodeFrame, LineFrameDecoder } from "../protocol/index.js";
 import { CohortStateStore, type SupervisorEndpointMetadata } from "./cohort-state.js";
 import { cleanupVerifiedOwner, processIsAlive } from "./process-cleanup.js";
@@ -129,6 +129,42 @@ export function createNpmProcessRunner(platform: NodeJS.Platform = process.platf
   });
 }
 
+export type UpdateOwnershipAction = "clean-dead-record" | "leave-running" | "end-session";
+
+/**
+ * What an update does about the owner it found. A cohort running from retained immutable
+ * content keeps its work: the installation replaces files it does not read, and it listens on
+ * its own endpoint. A cohort running from the mutable installation is the one exception,
+ * because that installation is exactly what is about to be replaced under it.
+ */
+export function planUpdateOwnership(
+  ownership: "live-verified" | "dead",
+  runsFromRetainedRelease: boolean,
+): UpdateOwnershipAction {
+  if (ownership === "dead") return "clean-dead-record";
+  return runsFromRetainedRelease ? "leave-running" : "end-session";
+}
+
+/**
+ * The endpoint of the active cohort, together with where it is recorded, so a caller that
+ * finds it can also clean it up. A release that predates cohort-scoped endpoints published
+ * one endpoint for the runtime directory, and that one is recognized too.
+ */
+async function readActiveEndpoint(
+  paths: ProductPaths,
+  activeReleaseId: string | null,
+  environment: NodeJS.ProcessEnv,
+): Promise<{ readonly metadata: SupervisorEndpointMetadata; readonly paths: CohortEndpointPaths } | null> {
+  if (activeReleaseId !== null) {
+    const cohort = resolveCohortEndpoint(paths, activeReleaseId, environment);
+    const metadata = await readEndpointMetadata(cohort.endpointMetadataPath);
+    if (metadata) return { metadata, paths: cohort };
+  }
+  const legacyPaths = { endpoint: paths.endpoint, endpointMetadataPath: paths.endpointMetadataPath };
+  const legacy = await readEndpointMetadata(legacyPaths.endpointMetadataPath);
+  return legacy ? { metadata: legacy, paths: legacyPaths } : null;
+}
+
 export function createUpdateLifecycleCoordinator(
   environment: NodeJS.ProcessEnv = process.env,
   fileSystem: UpdateFileSystem = defaultFileSystem,
@@ -141,41 +177,51 @@ export function createUpdateLifecycleCoordinator(
       const state = await stateStore.read();
       const activeId = state.references.active;
       if (!activeId || state.releases[activeId]?.packageVersion !== targetVersion) return false;
-      const endpoint = await readEndpointMetadata(paths.endpointMetadataPath);
-      return endpoint?.releaseId === activeId && await probeOwnership(endpoint) === "live-verified";
+      const endpoint = await readActiveEndpoint(paths, activeId, environment);
+      return endpoint?.metadata.releaseId === activeId && await probeOwnership(endpoint.metadata) === "live-verified";
     },
     async shutdownVerifiedOwners(targetVersion) {
       const state = await stateStore.read();
-      const priorActiveVersion = state.references.active ? state.releases[state.references.active]?.packageVersion ?? null : null;
-      const endpoint = await readEndpointMetadata(paths.endpointMetadataPath);
-      if (!endpoint) return { priorActiveVersion };
+      const activeId = state.references.active;
+      const priorActiveVersion = activeId ? state.releases[activeId]?.packageVersion ?? null : null;
+      const owner = await readActiveEndpoint(paths, activeId, environment);
+      if (!owner) return { priorActiveVersion };
+      const endpoint = owner.metadata;
       const ownership = await probeOwnership(endpoint);
       if (ownership !== "live-verified" && ownership !== "dead") {
         throw new Error(PRODUCT_TEXT.diagnostic(`refused update shutdown because supervisor ownership is ${ownership}`));
       }
-      const immutableRoot = await canonicalImmutableRoot(paths.dataDir, endpoint.releaseRoot);
-      const legacyMutableInstall = ownership === "live-verified" && !immutableRoot;
-      const identity = ownership === "dead"
-        ? { accepted: false, reason: "recorded owner is dead" }
-        : await requestUpdateShutdown(endpoint, targetVersion, 2_000);
+      const plan = planUpdateOwnership(ownership, await canonicalImmutableRoot(paths.dataDir, endpoint.releaseRoot));
+      if (plan === "clean-dead-record") {
+        await removeEndpointArtifacts(owner.paths.endpointMetadataPath, owner.paths.endpoint);
+        return { priorActiveVersion };
+      }
+      if (plan === "leave-running") {
+        const running = endpoint.ownership.liveInstanceIds.length;
+        if (running > 0) {
+          output.stdout(`${PRODUCT_TEXT.commandName} update: leaving ${running === 1 ? "one session" : `${running} sessions`} running on ${endpoint.releaseId}\n`);
+        }
+        return { priorActiveVersion };
+      }
+
+      // Say whose work is ending before it ends.
+      const live = endpoint.ownership.liveInstanceIds.length;
+      if (live > 0) {
+        output.stderr(`${PRODUCT_TEXT.diagnostic(`ending ${live === 1 ? "one session" : `${live} sessions`} that run from the installation being replaced; a session started by an installed release would have been left alone.`)}\n`);
+      }
+      const identity = await requestUpdateShutdown(endpoint, targetVersion, 2_000);
       if (!identity.accepted && processIsAlive(endpoint.pid)) {
         // Explicit update consent permits bounded cleanup of an authenticated
         // older owner that predates the update-shutdown message.
-        const cleanup = await cleanupVerifiedOwner(endpoint, {
-          allowLiveInstances: true,
-          reason: legacyMutableInstall ? "legacy-mutable-install" : "explicit-update",
-        });
+        const cleanup = await cleanupVerifiedOwner(endpoint, { allowLiveInstances: true, reason: "legacy-mutable-install" });
         if (!cleanup.terminated) throw new Error(`verified ${PRODUCT_TEXT.displayName} owner ${endpoint.pid} rejected shutdown and could not be terminated: ${identity.reason}`);
       } else if (identity.accepted) {
         await waitForProcessExit(endpoint.pid, 3_000).catch(async () => {
-          const cleanup = await cleanupVerifiedOwner(endpoint, {
-            allowLiveInstances: true,
-            reason: legacyMutableInstall ? "legacy-mutable-install" : "explicit-update",
-          });
+          const cleanup = await cleanupVerifiedOwner(endpoint, { allowLiveInstances: true, reason: "legacy-mutable-install" });
           if (!cleanup.terminated) throw new Error(`verified ${PRODUCT_TEXT.displayName} owner ${endpoint.pid} did not terminate`);
         });
       }
-      await removeEndpointArtifacts(paths.endpointMetadataPath, paths.endpoint);
+      await removeEndpointArtifacts(owner.paths.endpointMetadataPath, owner.paths.endpoint);
       return { priorActiveVersion };
     },
     async verifyPackageUnlocked(packageRoot) {
@@ -214,7 +260,7 @@ export function createUpdateLifecycleCoordinator(
       await stateStore.activate(candidate.releaseId);
       await phase("active-reference-committed");
       await startSupervisor(candidate, environment);
-      await waitForVerifiedEndpoint(paths.endpointMetadataPath, candidate, 8_000);
+      await waitForVerifiedEndpoint(resolveCohortEndpoint(paths, candidate.releaseId, environment).endpointMetadataPath, candidate, 8_000);
     },
   };
 }
@@ -553,8 +599,10 @@ async function rollbackPriorCohort(dataDir: string, environment: NodeJS.ProcessE
   }
   const release = await readMaterializedRelease(prior.releaseRoot);
   const paths = resolveProductPaths(environment);
+  // Rollback re-points the active reference and starts the prior cohort on its own endpoint;
+  // a cohort that survived the update keeps serving the work it already had.
   await startSupervisor(release, environment);
-  await waitForVerifiedEndpoint(paths.endpointMetadataPath, release, 8_000);
+  await waitForVerifiedEndpoint(resolveCohortEndpoint(paths, release.releaseId, environment).endpointMetadataPath, release, 8_000);
   return "rolled back";
 }
 
