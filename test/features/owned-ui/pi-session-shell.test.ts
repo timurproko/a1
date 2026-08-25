@@ -7,6 +7,7 @@ import {
   PINNED_PI_HIDDEN_COMMAND_NAMES,
   PINNED_PI_WORKFLOW_COMMAND_NAMES,
 } from "../../../src/foundation/pi-engine-adapter/index.js";
+import { applyPiTheme } from "../../../src/foundation/pi-component-adapter/index.js";
 import { OwnedUiSessionShell } from "../../../src/foundation/pi-owned-ui-integration/index.js";
 import { TestPresentationTerminal } from "./neutral-port-doubles.js";
 
@@ -143,6 +144,80 @@ async function fixture(messages: readonly unknown[] = [], extensions: readonly u
 }
 
 describe("OwnedUiSessionShell", () => {
+  it("stops pointer reporting when the session ends while an owned screen is presented", async () => {
+    const engine = new Runtime([]);
+    const adapter = await createPiEngineAdapter({
+      cwd: "D:/work",
+      sessionId: "owned-shell",
+      createRuntime: async () => engine as unknown as AgentSessionRuntime,
+    });
+    const terminal = new TestPresentationTerminal();
+    const surface = {
+      id: "pointer-screen",
+      render: (width: number, height: number) => Array.from({ length: height }, () => " ".repeat(width)),
+      handleInput: () => true,
+      handleMouse: () => true,
+      isClosed: () => false,
+      close: () => {},
+      onRenderRequested: () => {},
+      onExitRequested: () => {},
+    };
+    const shell = new OwnedUiSessionShell({
+      backend: adapter,
+      cwd: "D:/work",
+      terminal,
+      routeHost: { claims: (route: string) => route === "pointer", open: () => surface },
+    });
+    shell.start();
+    shell.runtime.renderNow();
+
+    shell.root.editor.setText("/pointer");
+    terminal.input("\r");
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(terminal.writes.some(write => write.includes("[?1003h"))).toBe(true);
+    expect(terminal.writes.some(write => write.includes("[?1003l"))).toBe(false);
+
+    // The screen is still up: ending the session has to restore the terminal anyway.
+    await shell.dispose();
+    expect(terminal.writes.some(write => write.includes("[?1003l"))).toBe(true);
+    expect(terminal.writes.some(write => write.includes("[?1006l"))).toBe(true);
+  });
+
+
+  it("reuses a finalized block's rows until its revision, the width, the theme, or expansion changes", async () => {
+    const { engine, adapter, shell } = await fixture();
+
+    engine.session.emit({ type: "agent_start" });
+    engine.session.emit({
+      type: "message_start",
+      message: { role: "assistant", content: [{ type: "text", text: "Settled answer" }], timestamp: 1 },
+    });
+    engine.session.emit({ type: "agent_end", messages: [], willRetry: false });
+    engine.session.emit({ type: "agent_settled" });
+    await adapter.flushEvents();
+
+    const rowsOf = (width: number) => shell.root.render(width).map(row => stripTerminalSequences(row).trimEnd());
+    const first = rowsOf(80);
+    expect(first.some(row => row.includes("Settled answer"))).toBe(true);
+    // A repeat frame at the same width shows the same content from the cached rows.
+    expect(rowsOf(80)).toEqual(first);
+    // A different width is a different render rather than a stale hit.
+    expect(rowsOf(52).some(row => row.includes("Settled answer"))).toBe(true);
+    expect(rowsOf(80)).toEqual(first);
+
+    shell.root.setToolsExpanded(!shell.root.toolsExpanded);
+    expect(rowsOf(80).some(row => row.includes("Settled answer"))).toBe(true);
+
+    applyPiTheme("light", false, "truecolor");
+    try {
+      expect(rowsOf(80).some(row => row.includes("Settled answer"))).toBe(true);
+    } finally {
+      applyPiTheme("dark", false, "truecolor");
+    }
+    await shell.dispose();
+  });
+
+
   it("composes the public Pi editor, transcript, tool/status surfaces, and runtime", async () => {
     const { engine, adapter, terminal, shell } = await fixture();
     shell.root.editor.setText("Inspect with Pi editor");

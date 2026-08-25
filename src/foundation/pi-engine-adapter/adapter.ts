@@ -233,6 +233,8 @@ export class PiEngineAdapter {
   #activeCommandIds: string[] = [];
   readonly #completedCommands = new Map<string, AdapterCommandResult>();
   #transcript: OwnedUiTranscriptBlock[] = [];
+  readonly #transcriptIndex = new Map<string, number>();
+  #transcriptSnapshot: readonly OwnedUiTranscriptBlock[] | undefined;
   readonly #messageBlockIds = new WeakMap<object, string>();
   readonly #messageFallbackIds = new Map<string, string[]>();
   readonly #toolBlockIds = new Map<string, string>();
@@ -937,7 +939,7 @@ export class PiEngineAdapter {
       sessionId: this.#sessionId,
       revision: this.#viewRevision,
       lifecycle: this.#lifecycle,
-      transcript: this.#transcript.map(block => ({ ...block })),
+      transcript: this.#transcriptSnapshot ??= Object.freeze([...this.#transcript]),
       editor: { ...this.#editor, queuedSubmissions: [...this.#editor.queuedSubmissions] },
       status: {
         ...this.#status,
@@ -1593,6 +1595,23 @@ export class PiEngineAdapter {
     }
   }
 
+  /**
+   * Replaces the transcript and the index that finds a block by its identifier. Every
+   * lookup goes through the index, so streaming a chunk costs the same in a long session
+   * as in a new one.
+   */
+  #setTranscript(blocks: OwnedUiTranscriptBlock[]): void {
+    this.#transcript = blocks;
+    this.#transcriptIndex.clear();
+    for (const [index, block] of blocks.entries()) this.#transcriptIndex.set(block.id, index);
+    this.#transcriptSnapshot = undefined;
+  }
+
+  #transcriptBlock(id: string): OwnedUiTranscriptBlock | undefined {
+    const index = this.#transcriptIndex.get(id);
+    return index === undefined ? undefined : this.#transcript[index];
+  }
+
   /** Shows the state named by `kind`, which becomes the state a later end can clear. */
   #enterWorkState(kind: "working" | "retry" | "compaction", message: string): void {
     const wasBusy = this.#lifecycle === "busy";
@@ -1669,7 +1688,7 @@ export class PiEngineAdapter {
           ? event.messages
           : this.#session?.messages ?? [];
         if (finalMessages.length > 0) this.#rebuildTranscript(finalMessages, "finalized");
-        else this.#transcript = this.#transcript.map(block => block.status === "live" ? { ...block, status: "finalized" } : block);
+        else this.#setTranscript(this.#transcript.map(block => block.status === "live" ? { ...block, status: "finalized" } : block));
         // Ending a turn leaves the working state, as the recorded pinned baseline does, but
         // it leaves only that state: a compaction or retry being shown outlives the turn
         // that ended under it. Settlement ends the run, and with it every state — the
@@ -1794,7 +1813,7 @@ export class PiEngineAdapter {
         }
       }
     }
-    this.#transcript = blocks;
+    this.#setTranscript(blocks);
   }
 
   #upsertMessageBlock(
@@ -1885,7 +1904,7 @@ export class PiEngineAdapter {
         ? baseId
         : this.#toolBlockIds.get(toolCallId) ?? `tool-${toolCallId}`;
       if (toolCallId !== undefined) this.#toolBlockIds.set(toolCallId, blockId);
-      const existing = this.#transcript.find(block => block.id === blockId);
+      const existing = this.#transcriptBlock(blockId);
       const existingPayload = isRecord(existing?.payload) ? existing.payload : undefined;
       return [{
         id: blockId,
@@ -1976,9 +1995,13 @@ export class PiEngineAdapter {
   }
 
   #upsertTranscriptBlock(block: OwnedUiTranscriptBlock): void {
-    const index = this.#transcript.findIndex(existing => existing.id === block.id);
-    if (index >= 0) this.#transcript[index] = block;
-    else this.#transcript.push(block);
+    const index = this.#transcriptIndex.get(block.id);
+    if (index !== undefined) this.#transcript[index] = block;
+    else {
+      this.#transcriptIndex.set(block.id, this.#transcript.length);
+      this.#transcript.push(block);
+    }
+    this.#transcriptSnapshot = undefined;
     this.#emitEvent({ type: "transcript-block", block });
   }
 
@@ -2001,7 +2024,7 @@ export class PiEngineAdapter {
       }
     } else {
       id = [...cached].reverse().find(candidate =>
-        this.#transcript.some(block => block.id === candidate && block.status === "live"));
+        this.#transcriptBlock(candidate)?.status === "live");
       if (id === undefined && status === "finalized") id = cached.at(-1);
       if (id === undefined) {
         id = `${fallback}-${cached.length}`;
@@ -2014,7 +2037,7 @@ export class PiEngineAdapter {
   }
 
   #nextBlockRevision(id: string): number {
-    const existing = this.#transcript.find(block => block.id === id);
+    const existing = this.#transcriptBlock(id);
     if (existing) return existing.revision + 1;
     this.#nextBlockSequence += 1;
     return this.#nextBlockSequence;
