@@ -184,6 +184,36 @@ describe("OwnedUiSessionShell", () => {
   });
 
 
+  it("applies a streamed chunk through the named block and keeps the document in order", async () => {
+    const { engine, adapter, shell } = await fixture();
+    const rowsOf = () => shell.root.render(80).map(row => stripTerminalSequences(row).trimEnd());
+    const assistant = (text: string) => ({
+      role: "assistant",
+      content: [{ type: "text", text }],
+      stopReason: "pending",
+      timestamp: 5,
+    });
+
+    engine.session.emit({ type: "agent_start" });
+    engine.session.emit({ type: "message_start", message: { role: "user", content: [{ type: "text", text: "Question" }], timestamp: 1 } });
+    engine.session.emit({ type: "message_start", message: assistant("") });
+    await adapter.flushEvents();
+
+    engine.session.emit({ type: "message_update", message: assistant("partial"), assistantMessageEvent: { delta: "partial" } });
+    await adapter.flushEvents();
+    expect(rowsOf().some(row => row.includes("partial"))).toBe(true);
+
+    engine.session.emit({ type: "message_update", message: assistant("partial answer"), assistantMessageEvent: { delta: " answer" } });
+    await adapter.flushEvents();
+    const streamed = rowsOf();
+    const question = streamed.findIndex(row => row.includes("Question"));
+    const answer = streamed.findIndex(row => row.includes("partial answer"));
+    expect(question).toBeGreaterThan(-1);
+    // The chunk went through the block it named without disturbing the order around it.
+    expect(answer).toBeGreaterThan(question);
+    await shell.dispose();
+  });
+
   it("reuses a finalized block's rows until its revision, the width, the theme, or expansion changes", async () => {
     const { engine, adapter, shell } = await fixture();
 

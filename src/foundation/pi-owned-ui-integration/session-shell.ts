@@ -192,6 +192,25 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.invalidate();
   }
 
+  /**
+   * Applies one block: its component is created or updated in place and the order grows
+   * only when the block is new. A streamed chunk costs one component update rather than a
+   * walk of the whole transcript.
+   */
+  applyTranscriptBlock(block: OwnedUiSessionViewModel["transcript"][number]): void {
+    this.#blocksById.set(block.id, block);
+    const component = this.#transcript.get(block.id);
+    if (component === undefined) {
+      const created = createPiShellTranscriptComponent(block, this.#cwd, this.#extensionRenderers);
+      created.setExpanded(this.#toolsExpanded);
+      this.#transcript.set(block.id, created);
+      this.#transcriptOrder.push(block.id);
+    } else if (component.revision !== block.revision) {
+      component.update(block);
+    }
+    this.invalidate();
+  }
+
   render(width: number): readonly string[] {
     const queued = this.#view.editor.queuedSubmissions.length === 0 ? [] : this.#queued.render(width);
     return [
@@ -921,9 +940,12 @@ export class OwnedUiSessionShell {
     });
     this.root.editor.setAutocompleteCommands(this.backend.workflowAutocompleteCommands());
     this.#unsubscribe = this.backend.onEvent(event => {
-      // One view read per event: the model is built by the backend, and building it
-      // twice per streamed chunk is what made a long session cost more per chunk.
-      const view = this.#syncView();
+      // A streamed chunk names one block, and touching only that block is what keeps the
+      // cost of a chunk the same in a long session as in a new one. Everything else
+      // resynchronizes the view, which is cheap next to re-reading the transcript.
+      const view = event.type === "transcript-block" && this.#sessionGeneration === this.backend.sessionGeneration
+        ? this.#syncBlock(event.block)
+        : this.#syncView();
       if (view.lifecycle === "ready" && this.#compactionQueue.length > 0) void this.#flushCompactionQueue();
       if (event.type === "session-lifecycle" && event.lifecycle === "stopped") this.#resolveStopped?.();
     });
@@ -1564,6 +1586,18 @@ export class OwnedUiSessionShell {
     await this.backend.unbindExtensionUi();
     this.#extensionBridge.dispose();
     await this.runtime.dispose();
+  }
+
+  /**
+   * Applies one transcript block without re-reading the session. The listeners still hear
+   * the view they would have heard, so nothing downstream can tell the difference.
+   */
+  #syncBlock(block: OwnedUiSessionViewModel["transcript"][number]): OwnedUiSessionViewModel {
+    this.root.applyTranscriptBlock(block);
+    this.runtime.requestRender();
+    const view = this.view();
+    for (const listener of this.#listeners) listener(view);
+    return view;
   }
 
   #syncView(): OwnedUiSessionViewModel {
