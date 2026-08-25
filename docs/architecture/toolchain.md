@@ -71,7 +71,7 @@ Presentation acceptance is the reader comparing `a1 pi` with pinned Pi. `node sc
 
 ## Publication
 
-One workflow publishes both channels: `.github/workflows/release.yml`, triggered by every push to `develop`. What the pushed commit declares decides the channel: a prerelease version publishes a preview under npm `next` at a `-dev.<short commit>` version stamped at publish time, and a stable version publishes under npm `latest`. Both pack once, validate those exact bytes on Windows, Linux, and macOS, and publish with provenance from the `npm-publish` environment. The publisher never rebuilds, a preview never changes `latest`, and the release tag, GitHub Release, and `master` are written only after the registry has the package.
+One workflow publishes both channels: `.github/workflows/release.yml`. Pushes do not publish. Nightly development verification runs at `03:17 UTC`; `npm run develop` explicitly requests a numbered preview and `npm run release` explicitly requests stable publication after its version pull request merges. A preview is stamped as `-dev.<merged pull-request number>` and uses npm `next` only as an internal dist-tag. New candidates pack once and are validated on Windows, Linux, and macOS; a repeated nightly verifies the exact immutable registry tarball. All publication uses provenance from the `npm-publish` environment, a preview never changes `latest`, and the stable tag, GitHub Release, and `master` are written only after npm has the package. One global non-cancelling concurrency group serializes the final registry check.
 
 `docs/ci-release-runbook.md` is the operational reference.
 

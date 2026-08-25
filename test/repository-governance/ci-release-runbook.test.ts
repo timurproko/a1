@@ -19,9 +19,10 @@ describe("CI and release operations runbook", () => {
 
   it("says how each channel is published", async () => {
     const runbook = await readFile("docs/ci-release-runbook.md", "utf8");
-    expect(runbook).toContain("Every push to `develop` publishes a preview");
+    expect(runbook).toContain("npm run develop");
+    expect(runbook).toContain("03:17 UTC");
     expect(runbook).toContain("npm run release --");
-    expect(runbook).toContain("Landing the stable version is what publishes");
-    expect(runbook).toContain("A release that fails leaves no tag");
+    expect(runbook).toContain("explicitly dispatches");
+    expect(runbook).toContain("A push of the stable version does not publish");
   });
 });
