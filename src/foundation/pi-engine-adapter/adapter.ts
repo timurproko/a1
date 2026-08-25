@@ -1661,11 +1661,16 @@ export class PiEngineAdapter {
           : this.#session?.messages ?? [];
         if (finalMessages.length > 0) this.#rebuildTranscript(finalMessages, "finalized");
         else this.#transcript = this.#transcript.map(block => block.status === "live" ? { ...block, status: "finalized" } : block);
-        // The engine ends an assistant turn for every continuation it makes — a retry, a
-        // compaction, a queued message — and reports the run settled once, when the loop
-        // is done. Only settlement is idle; ending a turn inside a live run is not.
-        if (event.type === "agent_settled") this.#agentRunActive = false;
-        if (!this.#agentRunActive) this.#leaveWorkStates();
+        // Ending a turn leaves the working state, as the recorded pinned baseline does, but
+        // it leaves only that state: a compaction or retry being shown outlives the turn
+        // that ended under it. Settlement ends the run, and with it every state — the
+        // engine ends a turn for each continuation it makes and settles once.
+        if (event.type === "agent_settled") {
+          this.#agentRunActive = false;
+          this.#leaveWorkStates();
+        } else if (this.#statusKind === null || this.#statusKind === "working") {
+          this.#leaveWorkStates();
+        }
         this.#emitView();
         return;
       }

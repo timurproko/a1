@@ -467,11 +467,10 @@ describe("Pi engine adapter", () => {
     expect(adapter.view().lifecycle).toBe("busy");
     expect(adapter.view().status.workingMessage).toBe("Working...");
 
-    // Every continuation the engine makes ends a turn; the run is not over until it settles.
     session.emit({ type: "agent_end", messages: [], willRetry: false });
     await adapter.flushEvents();
-    expect(adapter.view().lifecycle).toBe("busy");
-    expect(adapter.view().status.workingMessage).toBe("Working...");
+    expect(adapter.view().lifecycle).toBe("ready");
+    expect(adapter.view().status.workingMessage).toBeNull();
 
     session.emit({ type: "agent_settled" });
     await adapter.flushEvents();

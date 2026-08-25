@@ -35,17 +35,15 @@ as separate transitions, each ended only by the event that ends that work. A ret
 or a compaction finishing SHALL NOT clear a state it did not start, and neither SHALL be
 reported as the session becoming idle while the run continues.
 
-The engine ends an assistant turn for every continuation it makes — a retry, a compaction, a
-queued message — and reports the run settled once, when its loop is done. Settlement is what
-ends the run: a turn ending inside a live run SHALL NOT be presented as the session becoming
-idle.
-
 Clearing SHALL be scoped to the state being cleared, so ending one kind of work leaves any
-other kind still standing.
+other kind still standing. Ending a turn SHALL leave the working state, as the recorded
+pinned baseline does; the engine ends a turn for every continuation it makes — a retry, a
+compaction, a queued message — and reports the run settled once, when its loop is done, so
+settlement is what ends the run.
 
-#### Scenario: A turn ends while the run continues
-- **WHEN** the engine ends an assistant turn and continues the run
-- **THEN** the working state SHALL stand and the session SHALL NOT be reported as idle
+#### Scenario: A turn ends while a compaction is shown
+- **WHEN** a turn ends while the compaction state is the one being shown
+- **THEN** the compaction state SHALL remain shown rather than being cleared by the turn
 
 #### Scenario: Automatic compaction inside a turn
 - **WHEN** compaction starts and finishes while the turn continues
