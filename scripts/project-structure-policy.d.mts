@@ -15,6 +15,7 @@ export interface ApprovedPiFeatureImport {
   readonly statement: string;
 }
 
+export function inspectProjectOwnerLayout(paths: readonly string[]): string[];
 export function inspectProjectStructureImports(
   files: Readonly<Record<string, string>>,
   approvedImports?: readonly ApprovedPiFeatureImport[],

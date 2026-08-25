@@ -5,8 +5,8 @@
 | Command | Purpose | Pi user profile |
 |---|---|---|
 | `a1` | A1-owned Pi-compatible UI | `~/.a1/agent` |
-| `a1 pi` | Untouched vanilla Pi fallback and comparison oracle | ordinary `~/.pi/agent` |
-| `a1 sandbox` | Unchanged isolated vanilla Pi profile for experiments | `~/.a1/sandbox` |
+| `a1 pi` | Pi-compatible comparison surface using the ordinary Pi profile | ordinary `~/.pi/agent` |
+| `a1 sandbox` | Pi-compatible surface using an isolated profile for experiments | `~/.a1/sandbox` |
 
 `a1 pi` and `a1 sandbox` are development instruments: one compares A1 against pinned Pi, the other tries resources against an isolated profile. Prerelease builds — what `a1 update:develop` or `a1 update:<number>` installs — expose them. A release build does not, and does not recognize the words: what it exposes is bare `a1` plus the maintenance and package commands. Working in this repository is unaffected, because `npm start:pi` and `npm run start:sandbox` prepare the profile and launch directly rather than through the command line.
 
@@ -31,21 +31,19 @@ npm/
 
 Run Pi’s normal `/login` independently in each profile that needs stored authentication. Provider credentials supplied through supported environment variables remain available to Pi, but profile authentication files never fall back to another root automatically.
 
-## Vanilla Pi
+## Pi comparison profile
 
-`a1 pi` bypasses the A1-owned UI and launches the untouched pinned Pi CLI. It also removes A1’s Pi configuration-root override, so Pi uses its normal `~/.pi/agent` settings, authentication, sessions, resources, packages, and trust decisions. This is both the comparison oracle and the recovery fallback when diagnosing the owned UI.
+`a1 pi` uses the same A1-owned rendering and input pipeline as bare `a1`, but withholds A1-specific screens and removes A1’s Pi configuration-root override. The pinned Pi engine therefore uses its normal `~/.pi/agent` settings, authentication, sessions, resources, packages, and trust decisions. This is the comparison and recovery profile when diagnosing the product surface; running the standalone `pi` command remains the independent upstream reference.
 
 ## Sandbox profile
 
-`a1 sandbox` remains a direct vanilla Pi launch. It uses `~/.a1/sandbox` and starts Pi with its supported one-run `--no-approve` trust override. Project-local executable settings and resources are ignored for that run; sandbox-owned resources still load from the selected user profile.
+`a1 sandbox` uses the shared owned rendering pipeline with A1-specific screens withheld. It reads `~/.a1/sandbox` and applies Pi's supported one-run no-approval trust policy. Project-local executable settings and resources are ignored for that run; sandbox-owned resources still load from the selected user profile.
 
 “Sandbox” means Pi profile and executable-resource isolation. It is **not** an operating-system security boundary. It does not restrict filesystem access, processes, network access, environment credentials, shell tools, or commands executed by Pi.
 
 ## Terminal behavior
 
-Bare `a1` runs the A1-owned full-viewport TUI over public Pi engine, component, and terminal APIs. A1 owns composition, input routing, modal focus, selection behavior, scrolling, and restoration without inserting a PTY or terminal-byte relay. Its default presentation is pinned to vanilla Pi parity; structured tabs and A1-specific visual customization are not enabled.
-
-`a1 pi` and `a1 sandbox` retain transparent direct attachment. In those profiles, untouched Pi and the physical terminal own rendering, input, selection, clipboard, scrollback, and terminal modes; A1 owns only per-invocation process containment and lifecycle evidence.
+Every profile runs the A1-owned full-viewport TUI over pinned Pi engine, component, and terminal APIs. A1 owns composition, input routing, modal focus, selection behavior, scrolling, and restoration without inserting a PTY or terminal-byte relay. Bare `a1` enables A1-owned screens; `a1 pi` and `a1 sandbox` use the same pipeline with those screens withheld. Structured tabs and A1-specific visual customization are not enabled.
 
 ## Concurrent instance lifecycle
 
