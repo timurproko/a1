@@ -1,9 +1,10 @@
 import { readFile, readdir } from "node:fs/promises";
 import { extname, relative, resolve, sep } from "node:path";
-import { inspectPiFeatureBoundaryImports, inspectProjectStructureImports, projectOwnerForPath, testOwnerForPath } from "./project-structure-policy.mjs";
+import { inspectPiFeatureBoundaryImports, inspectProjectOwnerLayout, inspectProjectStructureImports, projectOwnerForPath, testOwnerForPath } from "./project-structure-policy.mjs";
 import { inspectPiProductionBoundary } from "./pi-api-boundary-policy.mjs";
 
 const rootArgument = process.argv.indexOf("--root");
+const allowPartialLayout = process.argv.includes("--allow-partial-layout");
 const root = resolve(rootArgument >= 0 ? process.argv[rootArgument + 1] : new URL("..", import.meta.url).pathname.replace(/^\/(.:)/, "$1"));
 const sourceRoot = resolve(root, "src");
 const nativeRoots = [resolve(root, "native"), resolve(root, "scripts", "native")];
@@ -263,6 +264,7 @@ function isTerminalBoundary(path) {
 
 async function inspectRepositoryStructure() {
   const paths = await walkRepository(root);
+  if (!allowPartialLayout) errors.push(...inspectProjectOwnerLayout(paths));
   const genericSourceSegments = /(?:^|\/)src\/(?:core|common|utils|misc)(?:\/|$)/;
   const generatedSegments = /(?:^|\/)(?:node_modules|logs?|sessions?|cache|caches|browser-profile|browser-profiles|dist|coverage)(?:\/|$)/i;
   const nestedAuthority = /(?:^|\/)(?:package(?:-lock)?\.json)$/;

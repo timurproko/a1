@@ -1,30 +1,47 @@
 # Project structure
 
-Every production module has one named owner. The executable owner map and allowed dependencies live in `scripts/project-structure-policy.mjs`; this document explains the conventions behind it.
+Every production module has one named owner. The executable owner map and allowed dependencies live in `scripts/project-structure-policy.mjs`; this document explains the conventions behind it. `npm run check:architecture` rejects production files without an owner, cross-owner private imports, and declared owners whose source root, public entry, or test root is missing.
 
 ## Production owners
 
 ```text
 src/
-  cli/                         public command helpers and dispatch
+  product-identity.ts              centralized externally visible product identity
+  product-identity.json
+  cli/                             public command parsing, capabilities, packages, and version reporting
+  composition/                     process-level wiring of neutral contracts to concrete adapters
   features/
-    launch/                    product launch profiles and profile settings
-    workspace/                 multi-agent workspace presentation, reducer state, and persistence orchestration
+    launch/                        launch profiles, profile paths, and runtime selection
+    owned-ui/                      owned screens, settings application, diagnostics, and runtime lifecycle
+    workspace/                     multi-agent presentation, reducer state, routing, and persistence orchestration
   foundation/
-    lifecycle/                 dependency-free launch/lifecycle contracts and paths
-    protocol/                  control framing and client contracts
-    release/                   immutable releases, cohorts, update, rollback, cleanup
-    storage/                   control-store persistence
-    structured-agent-runtime/  structured/RPC handshake, event, command, and recovery semantics
-    native-host-protocol/      bounded terminal-host identity, topology, lifecycle, and proof protocol
-    supervision/               endpoint and foreground-lease ownership
-    workspace-contracts/       dependency-free workspace, adapter, topology, host, and recovery contracts
-    transparent-terminal/      exact command resolution and native attachment
+    agent-engine-contracts/        dependency-free agent engine, session, package, and capability ports
+    launch-guardian/               authenticated launch-instance coordination
+    lifecycle/                     dependency-free launch, process identity, and path contracts
+    native-host-protocol/          bounded terminal-host identity, topology, lifecycle, and proof protocol
+    owned-ui-contracts/            dependency-free owned-session and extension UI contracts
+    owned-ui-settings/             owned settings declarations, resolution, migration, and persistence
+    pi-component-adapter/          pinned Pi component and theme adaptation
+    pi-engine-adapter/             pinned Pi engine, settings, resource, package, and workflow integration
+    pi-owned-ui-integration/       Pi-backed owned session shell and route host
+    pi-tui-runtime-adapter/        neutral presentation runtime over pinned Pi TUI
+    presentation-contracts/        dependency-free component, terminal, and runtime ports
+    process-containment/           verified native containment and process inspection
+    protocol/                      authenticated control framing and client contracts
+    release/                       immutable releases, update, rollback, cohorts, and cleanup
+    storage/                       control-store persistence
+    structured-agent-runtime/      structured handshake, event, command, backpressure, and recovery semantics
+    supervision/                   endpoint, launch-instance, and release-cohort ownership
+    ui-apps/                       application registry and host lifecycle
+    ui-components/                 vendor-neutral terminal UI primitives
+    workspace-contracts/           dependency-free workspace, topology, host, and recovery contracts
 ```
 
-Each owner exposes `index.ts`. Imports within one owner may use private files. Imports crossing owners must use the provider's `index.ts` and follow the declared dependency DAG. Foundation modules never import product features.
+Each directory owner exposes `index.ts`. Imports within one owner may use private files. Imports crossing owners must use the provider's public entry and follow the dependency DAG declared by `PROJECT_OWNERS`. `product-identity` is the sole current exception to the directory-entry convention because its public entry is `src/product-identity.ts`.
 
-`src/cli` is a thin public entry layer. Product policy belongs in a named feature. Shared code moves to foundation only when it is product-agnostic, has a precise contract, and has more than one real consumer. Do not create `core`, `common`, `utils`, or `misc` dumping grounds.
+`src/cli` contains command policy but delegates runtime work. `src/composition` is the concrete dependency-injection boundary: it may know both neutral contracts and Pi implementations, while product features receive vendor-neutral ports. Foundation modules never import product features. Pi package knowledge remains inside the Pi adapter owners.
+
+Shared code moves to foundation only when it is product-agnostic, has a precise contract, and has more than one real consumer. Do not create `core`, `common`, `utils`, or `misc` dumping grounds.
 
 ## Feature ownership
 
@@ -32,11 +49,11 @@ A feature owns:
 
 - its production behavior under `src/features/<name>`;
 - its public contract in `index.ts`;
-- its settings schema/defaults and path policy;
+- its settings schema, defaults, and path policy when applicable;
 - its tests under `test/features/<name>`;
-- user-facing feature documentation under `docs/features/<name>.md` when the behavior needs more than README coverage.
+- user-facing documentation under `docs/features/<name>.md` when README coverage is insufficient.
 
-Settings files are not mandatory for every feature. Add one only when the feature owns mutable policy. User settings, credentials, sessions, caches, downloaded packages, logs, and generated files never live in source folders.
+Settings files are not mandatory for every feature. User settings, credentials, sessions, caches, downloaded packages, logs, and generated files never live in source folders.
 
 ## Test ownership
 
@@ -45,37 +62,36 @@ Tests mirror their production owner:
 ```text
 test/
   cli/
+  composition/
   features/<name>/
   foundation/<name>/
+  product-identity/
   repository-governance/
 ```
 
-Use `.test.ts` for deterministic owner-level contracts. Use `.integration.test.ts` when the contract crosses real process, filesystem, registry, or release boundaries. Prefer the smallest independent boundary that proves the observable result; do not duplicate a stronger test or preserve historical bug-story names after the cause has a current invariant.
+Use `.test.ts` for deterministic owner-level contracts. Use `.integration.test.ts` when the contract crosses real process, filesystem, registry, package, or release boundaries. A test of a foundation implementation belongs to that foundation owner's test root; a feature test may exercise the same public entry only when it proves feature-level composition.
 
-Physical desktop automation is not an ordinary integration test. It requires a separately authorized certification change and isolated disposable infrastructure.
+Prefer the smallest independent boundary that proves the observable result. Do not duplicate a stronger test or preserve historical bug-story names after the cause has a current invariant. Physical desktop automation is not an ordinary integration test; it requires separately authorized certification and isolated disposable infrastructure.
 
 ## Repository authority
 
 The repository has one root `package.json`, `package-lock.json`, TypeScript configuration, Vitest configuration, and dependency installation. Nested manifests, lockfiles, `node_modules`, vendored package caches, logs, sessions, browser profiles, generated output, and runtime state are forbidden under production and feature trees.
 
-Build output belongs in ignored `dist/`; release/test evidence belongs in ignored `artifacts/`. Package contents are selected by the root manifest. Native proof code lives under `native/terminal-host/`; its Cargo build output and vendored Zig build output are ignored, and it remains a console terminal host rather than a desktop application.
+Build output belongs in ignored `dist/`; release and test evidence belongs in ignored `.artifacts/`; temporary agent work belongs in ignored `.worktrees/` and `.builds/`. Package contents are selected by the root manifest. The Rust process guardian and console terminal-host proof live under `native/`; Cargo output is ignored. Third-party terminal parser sources are isolated under `native/terminal-host/vendor/` and are not owned application modules.
 
 ## Documentation and comments
 
 - README explains installation, commands, and current limitations.
 - `docs/architecture` explains cross-cutting ownership and irreversible constraints.
-- `docs/architecture/resource-and-data-policy.md` defines bounded queues, data classes, redaction, terminal-content non-persistence, and proof acceptance rules.
-- `docs/architecture/terminal-host-provenance.md` records pinned terminal-component revisions, retained components, patch policy, and artifact provenance requirements.
-- `docs/architecture/terminal-host-spike-evidence.md` defines the mandatory in-terminal 2×2 proof workloads, measurements, and acceptance invariants.
-- `docs/architecture/terminal-host-proof-gate.md` defines the non-waivable stop/go acceptance policy and current pending record.
-- `docs/features` explains maintained user-facing feature behavior.
+- `docs/features` explains maintained user-facing behavior.
+- Operational and manual procedures live in focused runbooks under `docs`.
 - OpenSpec and Git carry planning and implementation history.
 - Source comments explain only non-obvious rationale, safety/security invariants, platform constraints, or public semantic contracts. Names, types, and decomposition explain normal control flow.
 
 ## Terminal capability boundary
 
-Transparent terminal attachment owns one foreground child and no A1 surface. It cannot retain inactive terminal state or switch among arbitrary interactive CLIs inside A1. Bare-`a1` multi-agent UX may use structured/RPC surfaces without terminal emulation, but arbitrary-CLI tabs require a separate composed-terminal capability with PTY, authoritative terminal state, rendering, input routing, inactive-surface lifecycle, reconnection, and cross-platform certification. That future capability must not silently intercept or replace the transparent path. Explicit launch profiles and transparent fallback must not import, initialize, launch, or connect to composed terminal-host infrastructure.
+All interactive profiles use the owned rendering pipeline. Bare `a1` exposes A1-owned surfaces; `a1 pi` and `a1 sandbox` withhold those surfaces while using their respective Pi profile roots. The retired transparent attachment owner is not part of the production tree or dependency map.
 
-Composed terminals use a console terminal host that runs inside the user's existing terminal. The host owns pseudoterminal bytes, retained terminal state, keyboard/text/mouse/IME encoding, frame scheduling, and presentation to the containing terminal. A1's JavaScript control plane may exchange typed identity, topology revision, capability, lifecycle, status, and recovery messages only; it must not relay terminal output, per-event child input, or rendered cells. A desktop-native window, GPU renderer, Ghostty GUI runtime, Winghostty Win32 runtime, Metal, GTK, and AppKit are postponed and are not required for the in-terminal product.
+The current JavaScript control plane does not provide arbitrary-CLI tabs. Such tabs require the separately bounded console terminal host to own PTYs, authoritative terminal state, rendering, input routing, inactive-surface lifecycle, and reconnection. JavaScript may exchange typed identity, topology revision, capability, lifecycle, status, and recovery messages only; it must not relay terminal output, per-event child input, or rendered cells.
 
-A tab owns a revisioned split tree. Each leaf pane references one PTY-backed terminal session. Structured/RPC agents remain semantically separate and may not derive state from ANSI text, terminal timing, or screen content. Native source ownership lives outside `src/` when introduced; packaged host selection is governed by release/package owners. Existing architecture tests reject terminal-host hot-path bytes in JavaScript protocol code, terminal inference in structured runtime code, composed imports from explicit launch modes, and replacement lightweight terminal parsers/renderers.
+Structured agents remain semantically separate and use typed events, commands, snapshots, cancellation, and recovery evidence. They must not derive state from ANSI text, terminal timing, or screen content. Native source ownership remains outside `src/`; packaged host selection is governed by release/package owners. Architecture tests reject terminal-host hot-path bytes in JavaScript protocols, terminal inference in structured runtimes, and replacement lightweight terminal parsers or renderers.

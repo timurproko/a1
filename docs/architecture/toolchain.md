@@ -17,7 +17,7 @@ The repository has one root package manifest, lockfile, dependency tree, TypeScr
 
 ## Platform policy
 
-Transparent launch uses inherited native terminal/process facilities on Windows, Linux, and macOS. The architecture is platform-neutral, but stable parity/support claims are platform-specific and require deferred physical certification against exact package bytes. An uncertified `next` preview is not evidence of stable cross-platform support.
+The owned rendering pipeline uses the containing terminal on Windows, Linux, and macOS. The architecture is platform-neutral, but stable presentation/support claims are platform-specific and require deferred physical certification against exact package bytes. An uncertified development preview is not evidence of stable cross-platform support.
 
 Physical desktop automation is absent from the active repository baseline. Any future implementation must run only on dedicated disposable workers or VMs with exclusive interactive desktops and exact process ownership.
 
@@ -27,7 +27,7 @@ The published package contains:
 
 - the sole public `a1` command;
 - the internal supervisor entry;
-- immutable release/bootstrap, lifecycle, protocol, storage, update, and transparent-launch modules;
+- immutable release/bootstrap, lifecycle, protocol, storage, update, owned-UI, and Pi-adapter modules;
 - current user and architecture documentation.
 
 It contains no PTY, terminal emulator, browser/desktop GUI, custom renderer, input translator, physical automation driver, or generated runtime data.
@@ -49,7 +49,7 @@ npm test
 npm run test:release
 ```
 
-`check:deprecated` verifies the complete lockfile graph against registry metadata. The release gate exercises durable stable/preview update transitions and writes an ignored machine-readable verdict under `artifacts/release-verdicts/`.
+`check:deprecated` verifies the complete lockfile graph against registry metadata. The release gate exercises durable stable/development update transitions and writes an ignored machine-readable verdict under `.artifacts/release-verdicts/`.
 
 ## Pi maintenance workflows
 

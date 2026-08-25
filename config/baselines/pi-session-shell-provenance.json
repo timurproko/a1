@@ -41,7 +41,7 @@
       "copiedLines": false,
       "modifications": "Reimplemented against AddOne-owned view models and PiEngineAdapter commands; stock InteractiveMode is never instantiated, inspected, or patched.",
       "coverage": [
-        "test/features/owned-ui/pi-session-shell.test.ts",
+        "test/foundation/pi-owned-ui-integration/session-shell.test.ts",
         "test/features/owned-ui/pi-startup-composition-parity.test.ts",
         "test/features/owned-ui/pi-upstream-startup-fixture.ts",
         "test/features/owned-ui/pi-a1-startup-fixture.ts",
@@ -74,7 +74,7 @@
       "independentEvidence": "config/baselines/pinned-pi-command-workflow-outcomes.json",
       "coverage": [
         "test/foundation/pi-engine-adapter/workflows.test.ts",
-        "test/features/owned-ui/pi-session-shell.test.ts",
+        "test/foundation/pi-owned-ui-integration/session-shell.test.ts",
         "test/foundation/pi-component-adapter/shell-components.test.ts"
       ]
     },
