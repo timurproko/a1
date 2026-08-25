@@ -67,8 +67,15 @@ when that source's preview is absent. `npm run develop` requests the same GitHub
 Actions run and waits for it. The published version list is authoritative: an
 unpublished number is refused.
 
+Publish:
+
 ```sh
 npm run develop             # request the preview publish run and wait for it
+```
+
+Install:
+
+```sh
 a1 update:107               # install preview 107
 a1 update:0.1.8-dev.107     # install that exact full preview version
 ```
