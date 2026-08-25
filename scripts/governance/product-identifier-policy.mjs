@@ -82,7 +82,7 @@ function sortUnique(findings) {
 
 if (process.argv[1] && resolve(process.argv[1]) === resolve(new URL(import.meta.url).pathname.replace(/^\/(.:)/, "$1"))) {
   const rootIndex = process.argv.indexOf("--root");
-  const root = resolve(rootIndex >= 0 ? process.argv[rootIndex + 1] : new URL("..", import.meta.url).pathname.replace(/^\/(.:)/, "$1"));
+  const root = resolve(rootIndex >= 0 ? process.argv[rootIndex + 1] : new URL("../..", import.meta.url).pathname.replace(/^\/(.:)/, "$1"));
   const inventory = await inspectProductIdentifiers(root);
   const writeIndex = process.argv.indexOf("--write");
   if (writeIndex >= 0) {

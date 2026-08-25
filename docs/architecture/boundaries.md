@@ -39,7 +39,7 @@ Terminal boundaries are application-agnostic. They may not select behavior from 
 
 The JavaScript product path has no PTY or terminal-emulator dependency. Reintroducing `node-pty`, xterm state, custom input encoders, mode/query trackers, cadence-derived frame inference, or renderer/projection code requires an approved capability change and cannot become a second terminal authority. The Rust process guardian is a lifecycle-only native boundary and is independent from the held composed terminal host.
 
-`scripts/check-architecture.mjs` enforces the structural parts of these boundaries. Cross-cutting rationale belongs here; implementation history belongs in Git and archived OpenSpec changes.
+`scripts/governance/check-architecture.mjs` enforces the structural parts of these boundaries. Cross-cutting rationale belongs here; implementation history belongs in Git and archived OpenSpec changes.
 
 ## Planned multi-agent boundaries
 

@@ -2,10 +2,10 @@ import { spawnSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { inspectPiProductionBoundary } from "../../scripts/pi-api-boundary-policy.mjs";
+import { inspectPiProductionBoundary } from "../../scripts/governance/pi-api-boundary-policy.mjs";
 
 const repository = resolve(".");
-const policy = resolve("scripts/pi-api-boundary-policy.mjs");
+const policy = resolve("scripts/governance/pi-api-boundary-policy.mjs");
 const baselinePath = resolve("config/baselines/pi-api-boundary.json");
 
 describe("Pi production boundary freeze", () => {
@@ -65,7 +65,7 @@ describe("Pi production boundary freeze", () => {
   it("allows classified test-only provenance inspection", () => {
     const source = "const file = 'node_modules/@earendil-works/pi-coding-agent/dist/private.js';";
     expect(inspectPiProductionBoundary({ "test/repository-governance/provenance.test.ts": source })).toEqual([]);
-    expect(inspectPiProductionBoundary({ "scripts/update-pinned-pi-source-ledger.mjs": source })).toEqual([]);
+    expect(inspectPiProductionBoundary({ "scripts/pi/update-pinned-pi-source-ledger.mjs": source })).toEqual([]);
   });
 
   it("passes the focused production-boundary command", () => {

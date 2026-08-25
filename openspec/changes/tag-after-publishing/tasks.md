@@ -7,7 +7,7 @@
 
 ## 2. Take the tag out of the command
 
-- [x] 2.1 Stop creating and pushing a tag in `scripts/release.mjs`
+- [x] 2.1 Stop creating and pushing a tag in `scripts/release/release.mjs`
 - [x] 2.2 Wait for the publication to succeed before opening the next prerelease, so
   the command fails when the release fails
 

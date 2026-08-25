@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 describe("mandatory release compatibility policy", () => {
   it("owns architecture, authority, candidate conformance, oracle, package, UI, and extension contracts once", async () => {
-    const source = await readFile("scripts/run-release-gates.mjs", "utf8");
+    const source = await readFile("scripts/release/run-release-gates.mjs", "utf8");
     const suites = JSON.parse(await readFile("config/validation-suites.json", "utf8")) as { releaseContracts: Record<string, string> };
     expect(Object.keys(suites.releaseContracts)).toEqual([
       "architecture", "compatibility-authority", "candidate-engine-conformance", "exact-vanilla-oracle",
@@ -16,7 +16,7 @@ describe("mandatory release compatibility policy", () => {
   });
 
   it("never runs optional UI synchronization in mandatory release gates", async () => {
-    const source = await readFile("scripts/run-release-gates.mjs", "utf8");
+    const source = await readFile("scripts/release/run-release-gates.mjs", "utf8");
     expect(source).not.toMatch(/sync:pi-ui|update:pi-component-parity|update:pi-event-frame-parity|update-pinned-pi-source/);
   });
 });

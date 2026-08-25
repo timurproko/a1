@@ -2,7 +2,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { readPiCompatibilityAuthority } from "../../scripts/pi-compatibility-authority.mjs";
+import { readPiCompatibilityAuthority } from "../../scripts/governance/pi-compatibility-authority.mjs";
 
 const roots: string[] = [];
 afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))));

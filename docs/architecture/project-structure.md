@@ -1,6 +1,6 @@
 # Project structure
 
-Every production module has one named owner. The executable owner map and allowed dependencies live in `scripts/project-structure-policy.mjs`; this document explains the conventions behind it. `npm run check:architecture` rejects production files without an owner, cross-owner private imports, and declared owners whose source root, public entry, or test root is missing.
+Every production module has one named owner. The executable owner map and allowed dependencies live in `scripts/governance/project-structure-policy.mjs`; this document explains the conventions behind it. `npm run check:architecture` rejects production files without an owner, cross-owner private imports, and declared owners whose source root, public entry, or test root is missing.
 
 ## Production owners
 
@@ -84,7 +84,7 @@ Prefer the smallest independent boundary that proves the observable result. Do n
 
 The repository has one root `package.json`, `package-lock.json`, TypeScript configuration, Vitest configuration, and dependency installation. Nested manifests, lockfiles, `node_modules`, vendored package caches, logs, sessions, browser profiles, generated output, and runtime state are forbidden under production and feature trees.
 
-Build output belongs in ignored `dist/`; release and test evidence belongs in ignored `.artifacts/`; temporary agent work belongs in ignored `.worktrees/` and `.builds/`. Package contents are selected by the root manifest. The Rust process guardian and console terminal-host proof live under `native/`; Cargo output is ignored. Third-party terminal parser sources are isolated under `native/terminal-host/vendor/` and are not owned application modules.
+Build output belongs in ignored `dist/`; release and test evidence belongs in ignored `.artifacts/`; temporary agent work belongs in ignored `.worktrees/` and `.builds/`. Repository tooling is grouped under `scripts/governance`, `scripts/release`, `scripts/pi`, and `scripts/development`; the few root scripts are standalone maintenance or build commands. Package contents are selected by the root manifest. The Rust process guardian and console terminal-host proof live under `native/`; Cargo output is ignored. Third-party terminal parser sources are isolated under `native/terminal-host/vendor/` and are not owned application modules.
 
 ## Documentation and comments
 

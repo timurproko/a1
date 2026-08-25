@@ -1,5 +1,5 @@
 import { writeFile } from "node:fs/promises";
-import identity from "../src/product-identity.json" with { type: "json" };
+import identity from "../../src/product-identity.json" with { type: "json" };
 import { buildStaticParityCases, STATIC_PARITY_COVERAGE } from "../test/features/owned-ui/pi-static-parity-fixture.js";
 
 const output = {

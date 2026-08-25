@@ -114,7 +114,7 @@ async function sourceFiles(root) {
 
 function isClassifiedProvenancePath(path) {
   return path.startsWith("test/")
-    || /^scripts\/(?:update-pinned-pi-source|update-pinned-pi-source-ledger|update-pi-component-parity|update-pi-event-frame-parity|pi-api-boundary-baseline)\./.test(path);
+    || /^scripts\/(?:pi\/(?:update-pinned-pi-source|update-pinned-pi-source-ledger|update-pi-component-parity|update-pi-event-frame-parity)|governance\/pi-api-boundary-baseline)\./.test(path);
 }
 
 function normalize(path) {
@@ -124,7 +124,7 @@ function normalize(path) {
 const isMain = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMain) {
   const rootIndex = process.argv.indexOf("--root");
-  const root = resolve(rootIndex >= 0 ? process.argv[rootIndex + 1] : new URL("..", import.meta.url).pathname.replace(/^\/(.:)/, "$1"));
+  const root = resolve(rootIndex >= 0 ? process.argv[rootIndex + 1] : new URL("../..", import.meta.url).pathname.replace(/^\/(.:)/, "$1"));
   const baselinePath = resolve(root, "config", "baselines", "pi-api-boundary.json");
   const baseline = JSON.parse(await readFile(baselinePath, "utf8"));
   const files = await sourceFiles(root);

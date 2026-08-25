@@ -5,7 +5,7 @@ import { inspectPiProductionBoundary } from "./pi-api-boundary-policy.mjs";
 
 const rootArgument = process.argv.indexOf("--root");
 const allowPartialLayout = process.argv.includes("--allow-partial-layout");
-const root = resolve(rootArgument >= 0 ? process.argv[rootArgument + 1] : new URL("..", import.meta.url).pathname.replace(/^\/(.:)/, "$1"));
+const root = resolve(rootArgument >= 0 ? process.argv[rootArgument + 1] : new URL("../..", import.meta.url).pathname.replace(/^\/(.:)/, "$1"));
 const sourceRoot = resolve(root, "src");
 const nativeRoots = [resolve(root, "native"), resolve(root, "scripts", "native")];
 const errors = [];
@@ -326,7 +326,7 @@ async function inspectReleasePolicy() {
   } catch (error) {
     if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
   }
-  const releaseFiles = ["scripts/prepack-gate.mjs", "scripts/run-release-gates.mjs"];
+  const releaseFiles = ["scripts/release/prepack-gate.mjs", "scripts/release/run-release-gates.mjs"];
   const values = [["package.json", manifestSource]];
   for (const path of releaseFiles) {
     try {

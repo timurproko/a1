@@ -10,7 +10,7 @@
 
 ## 2. One command for a stable release
 
-- [x] 2.1 Add `scripts/release.mjs`: land the version, tag it, push the tag, reopen
+- [x] 2.1 Add `scripts/release/release.mjs`: land the version, tag it, push the tag, reopen
   develop at the next prerelease
 - [x] 2.2 Expose it as `npm run release` and drop the preview publishing commands
 

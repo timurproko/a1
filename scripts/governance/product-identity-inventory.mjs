@@ -220,7 +220,7 @@ async function walk(directory, root, files) {
 const isMain = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMain) {
   const rootArgument = process.argv.indexOf("--root");
-  const root = resolve(rootArgument >= 0 ? process.argv[rootArgument + 1] : new URL("..", import.meta.url).pathname.replace(/^\/(.:)/, "$1"));
+  const root = resolve(rootArgument >= 0 ? process.argv[rootArgument + 1] : new URL("../..", import.meta.url).pathname.replace(/^\/(.:)/, "$1"));
   if (process.argv.includes("--write")) {
     const inventory = await writeLegacyIdentityInventory(root);
     process.stdout.write(`Wrote ${inventory.summary.total} legacy identity occurrences across ${inventory.summary.files} files.\n`);

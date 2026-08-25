@@ -51,7 +51,7 @@ const ID_TO_KEY = Object.freeze({
 });
 
 export function settingsSelectorSource() {
-  return readFileSync(fileURLToPath(new URL(`../${SETTINGS_SELECTOR_PATH}`, import.meta.url)), "utf8");
+  return readFileSync(fileURLToPath(new URL(`../../${SETTINGS_SELECTOR_PATH}`, import.meta.url)), "utf8");
 }
 
 const ITEM_START = /\bid:\s*"([a-z0-9-]+)",\s*\n?\s*label:\s*"([^"]+)"/g;
@@ -169,7 +169,7 @@ function dialogFlags(source, className) {
 export const SETTINGS_MANAGER_PATH = "node_modules/@earendil-works/pi-coding-agent/dist/core/settings-manager.js";
 
 export function settingsManagerSource() {
-  return readFileSync(fileURLToPath(new URL(`../${SETTINGS_MANAGER_PATH}`, import.meta.url)), "utf8");
+  return readFileSync(fileURLToPath(new URL(`../../${SETTINGS_MANAGER_PATH}`, import.meta.url)), "utf8");
 }
 
 /**

@@ -265,7 +265,7 @@ function normalize(path) {
 const isMain = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMain) {
   const rootIndex = process.argv.indexOf("--root");
-  const root = resolve(rootIndex >= 0 ? process.argv[rootIndex + 1] : new URL("..", import.meta.url).pathname.replace(/^\/(.:)/, "$1"));
+  const root = resolve(rootIndex >= 0 ? process.argv[rootIndex + 1] : new URL("../..", import.meta.url).pathname.replace(/^\/(.:)/, "$1"));
   const evidenceIndex = process.argv.indexOf("--evidence");
   const evidencePath = resolve(root, evidenceIndex >= 0 ? process.argv[evidenceIndex + 1] : DEFAULT_EVIDENCE_PATH);
   if (process.argv.includes("--check")) {
