@@ -1,3 +1,4 @@
+import chalk from "chalk";
 import { configurationRootForProfile, initializeProductProfile, resolveLaunchProfilePaths } from "../features/launch/index.js";
 import type { AgentPackageOutcome, AgentPackagesPort, AgentPackagesPortInput } from "../foundation/agent-engine-contracts/index.js";
 import { PRODUCT_TEXT } from "../product-identity.js";
@@ -15,6 +16,13 @@ export interface PackageCommandRequest {
   readonly source: string | null;
 }
 
+export interface PackageCommandStyle {
+  readonly dim: (message: string) => string;
+  readonly bold: (message: string) => string;
+  readonly green: (message: string) => string;
+  readonly red: (message: string) => string;
+}
+
 export interface PackageCommandEnvironment {
   readonly createPort: (input: AgentPackagesPortInput) => AgentPackagesPort;
   readonly cwd?: string;
@@ -22,6 +30,8 @@ export interface PackageCommandEnvironment {
   readonly stdout?: (message: string) => void;
   readonly stderr?: (message: string) => void;
   readonly initializeProfile?: typeof initializeProductProfile;
+  /** Defaults to Chalk's terminal-aware styles; injectable for transcript tests. */
+  readonly style?: PackageCommandStyle;
 }
 
 export async function runPackageCommand(
@@ -32,6 +42,7 @@ export async function runPackageCommand(
   const stderr = environment.stderr ?? (message => process.stderr.write(message));
   const cwd = environment.cwd ?? process.cwd();
   const processEnvironment = environment.environment ?? process.env;
+  const style = environment.style ?? chalk;
 
   const paths = resolveLaunchProfilePaths({ environment: processEnvironment });
   const profileRoot = configurationRootForProfile("a1", paths);
@@ -47,11 +58,11 @@ export async function runPackageCommand(
   const port = environment.createPort({
     profileRoot,
     cwd,
-    onProgress: progress => stdout(`${progress.message}\n`),
+    onProgress: progress => stdout(`${style.dim(progress.message)}\n`),
   });
 
   const outcome = await runVerb(port, request);
-  const rendered = renderPackageOutcome(outcome, profileRoot);
+  const rendered = renderPackageOutcome(outcome, profileRoot, style);
   (outcome.status === "completed" ? stdout : stderr)(rendered);
   return outcome.status === "completed" ? 0 : 1;
 }
@@ -64,37 +75,43 @@ async function runVerb(port: AgentPackagesPort, request: PackageCommandRequest):
   return request.verb === "install" ? await port.install(request.source) : await port.remove(request.source);
 }
 
-export function renderPackageOutcome(outcome: AgentPackageOutcome, profileRoot: string): string {
-  const name = PRODUCT_TEXT.displayName;
+export function renderPackageOutcome(
+  outcome: AgentPackageOutcome,
+  profileRoot: string,
+  style: PackageCommandStyle = chalk,
+): string {
+  // Model refresh remains an A1 top-level command. The `a1 pi` compatibility
+  // transcript applies to package operations only.
+  if (outcome.operation === "refresh-models") {
+    if (outcome.status === "failed") {
+      return `${PRODUCT_TEXT.diagnostic(`could not ${describeOperation(outcome.operation)}: ${outcome.detail ?? "unknown failure"}`)}\n`;
+    }
+    return `${PRODUCT_TEXT.displayName} refreshed the model catalogs in ${profileRoot}.\n`;
+  }
   if (outcome.status === "failed") {
-    return `${PRODUCT_TEXT.diagnostic(`could not ${describeOperation(outcome.operation)}: ${outcome.detail ?? "unknown failure"}`)}\n`;
+    return `${style.red(`Error: ${outcome.detail ?? "Unknown package command error"}`)}\n`;
   }
   if (outcome.status === "not-found") {
-    return `${PRODUCT_TEXT.diagnostic(`found no package matching ${outcome.source ?? "that source"} in ${profileRoot}.`)}\n`;
+    return `${style.red(`No matching package found for ${outcome.source ?? "that source"}`)}\n`;
   }
   switch (outcome.operation) {
     case "install":
-      return `${name} installed ${outcome.source} into ${profileRoot}.\n`
-        + `Restart ${PRODUCT_TEXT.commandName} for a running session to load it.\n`;
+      return `${style.green(`Installed ${outcome.source}`)}\n`;
     case "remove":
-      return `${name} removed ${outcome.source} from ${profileRoot}.\n`;
+      return `${style.green(`Removed ${outcome.source}`)}\n`;
     case "update":
-      return outcome.source === null
-        ? `${name} updated the packages in ${profileRoot}.\n`
-        : `${name} updated ${outcome.source}.\n`;
-    case "refresh-models":
-      return `${name} refreshed the model catalogs in ${profileRoot}.\n`;
+      return `${style.green(outcome.source === null ? "Updated packages" : `Updated ${outcome.source}`)}\n`;
     case "list":
-      return renderPackageList(outcome, profileRoot);
+      return renderPackageList(outcome, style);
   }
 }
 
-function renderPackageList(outcome: AgentPackageOutcome, profileRoot: string): string {
-  if (outcome.packages.length === 0) return `${PRODUCT_TEXT.displayName} has no packages installed in ${profileRoot}.\n`;
-  const lines = [`Packages installed for ${PRODUCT_TEXT.commandName} in ${profileRoot}:`];
+function renderPackageList(outcome: AgentPackageOutcome, style: PackageCommandStyle): string {
+  if (outcome.packages.length === 0) return `${style.dim("No packages installed.")}\n`;
+  const lines = [style.bold("User packages:")];
   for (const entry of outcome.packages) {
-    lines.push(`  ${entry.source}${entry.filtered ? " (partly enabled)" : ""}`);
-    if (entry.installedPath !== null) lines.push(`    ${entry.installedPath}`);
+    lines.push(`  ${entry.source}${entry.filtered ? " (filtered)" : ""}`);
+    if (entry.installedPath !== null) lines.push(style.dim(`    ${entry.installedPath}`));
   }
   return `${lines.join("\n")}\n`;
 }

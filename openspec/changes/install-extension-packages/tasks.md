@@ -41,17 +41,17 @@
 
 ## 5. Restore pinned Pi transcript parity
 
-- [ ] 5.1 Add transcript fixtures for install, remove/uninstall, populated and empty
+- [x] 5.1 Add transcript fixtures for install, remove/uninstall, populated and empty
   list, update-all, update-one, not-found, and package-manager failure, including
   stdout/stderr routing and ANSI emphasis
-- [ ] 5.2 Render package progress dim and render outcomes with pinned Pi's exact
+- [x] 5.2 Render package progress dim and render outcomes with pinned Pi's exact
   wording, punctuation, indentation, filtered marker, and bold/green/red/dim roles
-- [ ] 5.3 Remove A1's package-result wrapper text, profile suffixes, renamed list
+- [x] 5.3 Remove A1's package-result wrapper text, profile suffixes, renamed list
   labels, and post-install restart advisory
-- [ ] 5.4 Preserve npm/git child output in its original position and verify that
+- [x] 5.4 Preserve npm/git child output in its original position and verify that
   operation-specific values such as package counts and timing are not normalized
   or rewritten
-- [ ] 5.5 Keep syntax errors in the `a1 pi` command namespace while matching pinned
+- [x] 5.5 Keep syntax errors in the `a1 pi` command namespace while matching pinned
   Pi's operational error lines after dispatch accepts a command
 
 ## 6. Validate and integrate
