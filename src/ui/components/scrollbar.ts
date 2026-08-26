@@ -24,6 +24,17 @@ export interface ScrollbarInput {
 
 export type ScrollbarAppearance = "always" | "hover" | "hidden";
 export type ScrollbarStyle = "thin" | "thick";
+export type ScrollbarSpeed = "normal" | "fast" | "high";
+
+/** Wheel distance: normal (3), fast (6), high as normal + fast (9). */
+export function scrollbarWheelRows(speed: ScrollbarSpeed): number {
+  return speed === "high" ? 9 : speed === "fast" ? 6 : 3;
+}
+
+/** Selection edge distance at each fixed 30ms tick. */
+export function scrollbarSelectionRows(speed: ScrollbarSpeed): number {
+  return speed === "high" ? 3 : speed === "fast" ? 2 : 1;
+}
 
 export interface ScrollbarPresentationInput {
   readonly geometry: ScrollbarGeometry | null;

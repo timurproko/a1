@@ -18,6 +18,8 @@ import {
   routeMouseInput,
   scrollForTrackPage,
   scrollForThumbRow,
+  scrollbarSelectionRows,
+  scrollbarWheelRows,
   type TranscriptPromptAnchor,
 } from "../../../ui/components/index.js";
 import {
@@ -424,9 +426,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       }
       if (event.kind === "wheel-up" || event.kind === "wheel-down") {
         if (!allowWheel || event.row < 1 || event.row > hits.viewportHeight) return false;
-        const distance = this.#viewportConfig.scrollbarSpeed === "high"
-          ? 12
-          : this.#viewportConfig.scrollbarSpeed === "fast" ? 6 : 3;
+        const distance = scrollbarWheelRows(this.#viewportConfig.scrollbarSpeed);
         this.#viewport.scrollBy(event.kind === "wheel-up" ? -distance : distance, now);
         activity = true;
         repaint = true;
@@ -522,9 +522,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       return;
     }
     const before = this.#viewport.scrollTop;
-    const rowsPerTick = this.#viewportConfig.scrollbarSpeed === "high"
-      ? 4
-      : this.#viewportConfig.scrollbarSpeed === "fast" ? 2 : 1;
+    const rowsPerTick = scrollbarSelectionRows(this.#viewportConfig.scrollbarSpeed);
     for (let row = 0; row < rowsPerTick; row += 1) {
       const previous = this.#viewport.scrollTop;
       this.#viewport.extendSelection(pointer.column, pointer.row);

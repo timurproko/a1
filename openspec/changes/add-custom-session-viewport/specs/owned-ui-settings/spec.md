@@ -26,8 +26,8 @@ A1 SHALL declare `scrollbarAppearance`, `scrollbarStyle`, and `scrollbarSpeed` a
 - **THEN** each transcript wheel event SHALL move six document rows without restart
 - **AND** selection edge auto-scroll SHALL run twice as fast as `normal`
 - **WHEN** the reader changes it to `high`
-- **THEN** each transcript wheel event SHALL move twelve document rows without restart
-- **AND** selection edge auto-scroll SHALL run twice as fast as `fast`
+- **THEN** each transcript wheel event SHALL move nine document rows without restart
+- **AND** selection edge auto-scroll SHALL run at the combined `normal` plus `fast` rate
 
 #### Scenario: Persist viewport settings
 - **WHEN** any scrollbar setting is accepted and A1 is restarted with the same profile

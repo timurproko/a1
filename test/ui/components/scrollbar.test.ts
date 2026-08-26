@@ -7,6 +7,8 @@ import {
   scrollbarGeometry,
   scrollbarPresentation,
   scrollbarReservesSpace,
+  scrollbarSelectionRows,
+  scrollbarWheelRows,
   type RailPosition,
 } from "../../../src/ui/components/index.js";
 
@@ -17,6 +19,13 @@ function geometry(scroll: number, contentLength = 100, viewportHeight = 20) {
 }
 
 describe("scrollbar geometry", () => {
+  it("maps normal, fast, and high to baseline, double, and combined rates", () => {
+    expect(["normal", "fast", "high"].map(speed => scrollbarWheelRows(speed as "normal" | "fast" | "high")))
+      .toEqual([3, 6, 9]);
+    expect(["normal", "fast", "high"].map(speed => scrollbarSelectionRows(speed as "normal" | "fast" | "high")))
+      .toEqual([1, 2, 3]);
+  });
+
   it("draws nothing and reserves nothing when the content fits", () => {
     expect(scrollbarGeometry({ contentLength: 5, viewportHeight: 20, scroll: 0, trackHeight: TRACK })).toBeNull();
     expect(scrollbarGeometry({ contentLength: 20, viewportHeight: 20, scroll: 0, trackHeight: TRACK })).toBeNull();

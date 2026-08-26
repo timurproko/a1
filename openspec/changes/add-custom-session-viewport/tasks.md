@@ -20,7 +20,7 @@
 ## 4. Declare settings and profile scope
 
 - [ ] 4.1 Declare live A1 settings `scrollbarAppearance` (`always`, `hover`, `hidden`; default `hover`), `scrollbarStyle` (`thin`, `thick`; default `thin`), and `scrollbarSpeed` (`normal`, `fast`, `high`; default `normal`) grouped under `Scroll` with `Scrollbar mode`, `Scrollbar style`, and `Speed` labels; verify declaration, resolution, section, persistence, and invalid-value tests
-- [ ] 4.2 Pass the loaded settings session into the bare-A1 shell and subscribe the viewport to live appearance/style/speed changes; verify normal moves three wheel rows and edge-selects one row every 30ms, fast doubles both rates, high doubles fast, changes require no restart, scroll/follow state is preserved, and only the active profile's A1 settings document is written
+- [ ] 4.2 Pass the loaded settings session into the bare-A1 shell and subscribe the viewport to live appearance/style/speed changes; verify normal moves three wheel rows and edge-selects one row every 30ms, fast doubles both rates, high combines normal plus fast, changes require no restart, scroll/follow state is preserved, and only the active profile's A1 settings document is written
 - [ ] 4.3 Select the custom viewport only when A1-owned surfaces are enabled, leaving `a1 pi` on the pinned comparison presentation; verify composition and launch-profile tests prove bare A1 has the viewport controls while the comparison profile has none, regardless of stored A1 scrollbar values
 
 ## 5. Preserve performance, provenance, and acceptance
