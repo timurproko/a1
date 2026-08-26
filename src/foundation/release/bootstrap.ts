@@ -17,6 +17,16 @@ export interface BootstrapOptions {
   readonly launchIntent?: { readonly kind: "interactive"; readonly profile: { readonly id: LaunchProfileId } };
   readonly environment?: NodeJS.ProcessEnv;
   readonly output?: Pick<NodeJS.WriteStream, "write">;
+  /**
+   * Whether a materialized release copy is fit to launch. The active release
+   * is normally reused while its version matches the installation, but a copy
+   * can be broken in ways a version cannot see — materialized from a tree a
+   * blocked postinstall never finished repairing. The probe is injected from
+   * the bin entry because deciding it requires inspecting dependency
+   * resolution, which stays out of production code. Absent means every
+   * release is fit.
+   */
+  readonly releaseIsLaunchable?: (releaseRoot: string) => boolean;
 }
 
 export async function runBootstrap(options: BootstrapOptions): Promise<number> {
@@ -55,7 +65,11 @@ export async function runBootstrap(options: BootstrapOptions): Promise<number> {
   const installedVersion = await readInstalledVersion(options.packageRoot);
   const activeId = state.references.active;
   const active = activeId === null ? undefined : state.releases[activeId];
-  if (active?.approval === "approved" && active.packageVersion === installedVersion) {
+  const activeIsLaunchable = active === undefined || (options.releaseIsLaunchable?.(active.releaseRoot) ?? true);
+  if (active !== undefined && !activeIsLaunchable) {
+    output.write(`${PRODUCT_TEXT.diagnostic(`retired release ${active.releaseId} because its copy is not launchable; rebuilding from the installed package.`)}\n`);
+  }
+  if (activeIsLaunchable && active?.approval === "approved" && active.packageVersion === installedVersion) {
     const endpointMatches = endpoint?.releaseId === active.releaseId
       && endpoint.releaseRoot === active.releaseRoot
       && endpoint.contentDigest === active.contentDigest;

@@ -11,12 +11,23 @@ const capabilities = cliCapabilities(JSON.parse(await readFile(new URL("package.
 
 process.exitCode = await dispatchCli(process.argv.slice(2), {
   launch: async intent => {
-    const [{ prepareInteractiveLaunch }, { runBootstrap }] = await Promise.all([
+    const [{ prepareInteractiveLaunch }, { runBootstrap }, { healModuleIdentityAtLaunch, releaseCopyIsLaunchable }] = await Promise.all([
       import("../dist/features/launch/index.js"),
       import("../dist/foundation/release/index.js"),
+      import("./module-identity.js"),
     ]);
+    // Self-heal the installed tree before the release store copies it: npm 12
+    // blocks install scripts by default, so the postinstall that normally
+    // repairs module identity may never have run (see bin/module-identity.js).
+    const packageRootPath = fileURLToPath(packageRoot);
+    await healModuleIdentityAtLaunch(packageRootPath, message => process.stderr.write(message));
     const prepared = await prepareInteractiveLaunch(intent);
-    return await runBootstrap({ packageRoot: fileURLToPath(packageRoot), launchIntent: intent, environment: prepared.environment });
+    return await runBootstrap({
+      packageRoot: packageRootPath,
+      launchIntent: intent,
+      environment: prepared.environment,
+      releaseIsLaunchable: releaseCopyIsLaunchable,
+    });
   },
   version: async () => {
     const { runVersionStats } = await import("../dist/cli/index.js");

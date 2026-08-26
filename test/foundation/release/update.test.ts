@@ -119,6 +119,11 @@ function createHarness(options: {
 }
 
 const success = (stdout = ""): ProcessResult => ({ code: 0, stdout });
+const syncProxyInvocation = (packageRoot: string): Invocation => ({
+  command: process.execPath,
+  arguments: [resolve(packageRoot, "bin", "sync-pi-tui-proxy.js")],
+  request: { captureStdout: true },
+});
 const installArguments = (version: string) => [
   "install",
   "--global",
@@ -133,7 +138,7 @@ describe("A1 self-update orchestration", () => {
     ["the current version", "1.2.3"],
     ["a newer running version", "1.2.2"],
   ])("skips installation for %s", async (_label, latest) => {
-    const harness = createHarness({ responses: [success(`${latest}\n`), success(`${resolve("fixtures", "global")}\n`), success()] });
+    const harness = createHarness({ responses: [success(`${latest}\n`), success(`${resolve("fixtures", "global")}\n`), success(), success()] });
 
     await expect(runSelfUpdate(harness)).resolves.toBe(0);
 
@@ -141,6 +146,7 @@ describe("A1 self-update orchestration", () => {
       { command: "npm", arguments: ["view", `${PRODUCT_PACKAGE}@latest`, "version"], request: { captureStdout: true } },
       { command: "npm", arguments: ["root", "--global"], request: { captureStdout: true } },
       { command: "npm", arguments: installArguments(latest), request: { captureStdout: true } },
+      syncProxyInvocation(harness.packageRoot),
     ]);
     expect(harness.stdout.join("")).toContain(`a1 updated successfully: ${latest}`);
   });
@@ -161,6 +167,7 @@ describe("A1 self-update orchestration", () => {
       { command: "npm", arguments: ["view", `${PRODUCT_PACKAGE}@latest`, "version"], request: { captureStdout: true } },
       { command: "npm", arguments: ["root", "--global"], request: { captureStdout: true } },
       { command: "npm", arguments: installArguments("1.3.0"), request: { captureStdout: true } },
+      syncProxyInvocation(harness.packageRoot),
     ]);
     expect(harness.stdout.join("")).toBe("a1 update: 1.2.3 → 1.3.0\na1 updated successfully: 1.3.0\n");
     expect(harness.stderr).toEqual([]);
@@ -182,6 +189,7 @@ describe("A1 self-update orchestration", () => {
       { command: "npm", arguments: ["view", `${PRODUCT_PACKAGE}@next`, "version"], request: { captureStdout: true } },
       { command: "npm", arguments: ["root", "--global"], request: { captureStdout: true } },
       { command: "npm", arguments: installArguments("1.3.0-dev.1"), request: { captureStdout: true } },
+      syncProxyInvocation(harness.packageRoot),
     ]);
     expect(harness.stdout.join("")).toBe("a1 update: 1.3.0-dev.0 → 1.3.0-dev.1\na1 updated successfully: 1.3.0-dev.1\n");
   });
@@ -269,7 +277,7 @@ describe("A1 self-update orchestration", () => {
   });
 
   it("gives the progress row back to the line that says what was installed", async () => {
-    const harness = createHarness({ responses: [success("1.3.0\n"), success(`${resolve("fixtures", "global")}\n`), success()] });
+    const harness = createHarness({ responses: [success("1.3.0\n"), success(`${resolve("fixtures", "global")}\n`), success(), success()] });
 
     await expect(runSelfUpdate({ ...harness, progress: true })).resolves.toBe(0);
 
@@ -319,7 +327,7 @@ describe("A1 self-update orchestration", () => {
   });
 
   it("moves the bar with the files being copied rather than parking until they are done", async () => {
-    const harness = createHarness({ responses: [success("1.3.0\n"), success(`${resolve("fixtures", "global")}\n`), success()] });
+    const harness = createHarness({ responses: [success("1.3.0\n"), success(`${resolve("fixtures", "global")}\n`), success(), success()] });
     harness.lifecycle.activateInstalled = async (_path, _targetVersion, phase, onMaterializing) => {
       for (let file = 1; file <= 20; file += 1) onMaterializing?.({ completed: file, total: 20 });
       for (const value of ["materialized", "certified", "active-reference-committed"] as const) await phase(value);
@@ -373,7 +381,7 @@ describe("A1 self-update orchestration", () => {
 
   it("rechecks ownership before activating an installation resumed after interruption", async () => {
     const harness = createHarness({
-      responses: [success("1.3.0\n"), success(`${resolve("fixtures", "global")}\n`)],
+      responses: [success("1.3.0\n"), success(`${resolve("fixtures", "global")}\n`), success()],
       transactionPhase: "package-installed",
     });
 
@@ -382,6 +390,7 @@ describe("A1 self-update orchestration", () => {
     expect(harness.invocations).toEqual([
       { command: "npm", arguments: ["view", `${PRODUCT_PACKAGE}@latest`, "version"], request: { captureStdout: true } },
       { command: "npm", arguments: ["root", "--global"], request: { captureStdout: true } },
+      syncProxyInvocation(harness.packageRoot),
     ]);
     expect(harness.lifecycleCalls).toEqual([
       "shutdown:1.3.0",
@@ -391,7 +400,7 @@ describe("A1 self-update orchestration", () => {
   });
 
   it("records deterministic timing for every completed update phase", async () => {
-    const harness = createHarness({ responses: [success("1.3.0\n"), success(`${resolve("fixtures", "global")}\n`), success()] });
+    const harness = createHarness({ responses: [success("1.3.0\n"), success(`${resolve("fixtures", "global")}\n`), success(), success()] });
     let tick = 0;
     const timings: Array<{ phase: string; durationMs: number }> = [];
 

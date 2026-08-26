@@ -489,6 +489,18 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
       }
       transaction = await transactionStore.advance("package-installed");
     }
+
+    // npm 12 blocks install scripts unless allowScripts covers the package, so
+    // the postinstall that points the #pi-tui proxy at the tree npm just built
+    // may never have run. Run the shipped script directly: the proxy must be
+    // correct before the release store copies this tree. A failure is reported
+    // and left to the launch-time self-heal rather than failing the update.
+    try {
+      const proxySync = await runner(process.execPath, [resolve(packageRoot, "bin", "sync-pi-tui-proxy.js")], { captureStdout: true });
+      if (proxySync.code !== 0) output.stderr(`${PRODUCT_TEXT.diagnostic(`could not point the #pi-tui proxy at the installed tree (exited ${formatExitCode(proxySync.code)}).`)}\n`);
+    } catch (error) {
+      output.stderr(`${PRODUCT_TEXT.diagnostic(`could not point the #pi-tui proxy at the installed tree: ${errorMessage(error)}`)}\n`);
+    }
     progress.set(70, 75);
 
     // Ownership can be reacquired after an interrupted installation (for
