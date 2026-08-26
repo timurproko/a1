@@ -32,6 +32,8 @@ A1 SHALL declare `scrollbarAppearance`, `scrollbarStyle`, and `scrollbarSpeed` a
 #### Scenario: Persist viewport settings
 - **WHEN** any scrollbar setting is accepted and A1 is restarted with the same profile
 - **THEN** the accepted value SHALL be restored from that profile's A1 settings document
+- **AND** the same value SHALL survive a fresh repository-local launch instance and rebuilt development candidate
+- **AND** future A1-owned settings sections SHALL use the same declaration, resolution, migration, and atomic-store system
 - **AND** no Pi or agent settings document SHALL be changed by that write
 
 #### Scenario: Inspect the Scrollbar settings section

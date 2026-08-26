@@ -14,6 +14,7 @@ describe("repository-local development launch", () => {
     const temporaryDirectory = resolve("C:/isolated-temp");
     const first = resolveDevelopmentLaunchEnvironment("D:/Git/a1", "0.1.4-build", {}, temporaryDirectory);
     const second = resolveDevelopmentLaunchEnvironment("D:/Git/a1", "0.1.4-build", {}, temporaryDirectory);
+    const rebuilt = resolveDevelopmentLaunchEnvironment("D:/Git/a1", "0.1.5-build", {}, temporaryDirectory);
 
     expect(first.checkoutId).toBe(second.checkoutId);
     expect(first.instanceId).not.toBe(second.instanceId);
@@ -26,6 +27,10 @@ describe("repository-local development launch", () => {
     expect(first.environment.A1_RUNTIME_DIR).toBe(resolve(first.developmentRoot, "runtime"));
     expect(first.environment.A1_DATABASE_PATH).toBe(resolve(first.developmentRoot, "data/control.sqlite3"));
     expect(resolveProductPaths(first.environment).endpoint).not.toBe(resolveProductPaths(second.environment).endpoint);
+    expect(first.environment.A1_CONFIG_DIR).toBe(second.environment.A1_CONFIG_DIR);
+    expect(first.environment.A1_CONFIG_DIR).toBe(rebuilt.environment.A1_CONFIG_DIR);
+    expect(first.environment.A1_CONFIG_DIR).toBe(resolve(temporaryDirectory, "a1-development", first.checkoutId, "config"));
+    expect(first.environment.A1_CONFIG_DIR).not.toContain(first.instanceId);
   });
 
   it("allows an explicit instance selector when intentional reconnection is needed", () => {
