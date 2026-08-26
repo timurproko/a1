@@ -21,7 +21,7 @@ describe("plural launch-instance supervision", () => {
     await second.connect(harness.paths.endpoint);
 
     await expect(first.command(createCommand("create-1", "instance-1", "a1"))).resolves.toMatchObject({ ok: true });
-    await expect(second.command(createCommand("create-2", "instance-2", "sandbox"))).resolves.toMatchObject({ ok: true });
+    await expect(second.command(createCommand("create-2", "instance-2", "pi"))).resolves.toMatchObject({ ok: true });
     await expect(first.command(createCommand("create-1-repeat", "instance-1", "a1"))).resolves.toMatchObject({ ok: true });
     await expect(second.command({
       type: "activate-launch-instance", requestId: "wrong-owner", instanceId: "instance-1",
@@ -64,7 +64,7 @@ describe("plural launch-instance supervision", () => {
     await owner.connect(harness.paths.endpoint);
     await other.connect(harness.paths.endpoint);
     await owner.command(createCommand("create-owner", "instance-owner", "pi"));
-    await other.command(createCommand("create-other", "instance-other", "sandbox"));
+    await other.command(createCommand("create-other", "instance-other", "pi"));
 
     owner.close();
     await vi.waitFor(() => expect(harness.store.loadLaunchInstance("instance-owner")?.state).toBe("interrupted"));
@@ -84,7 +84,7 @@ describe("plural launch-instance supervision", () => {
       rootIdentity: { pid: process.pid, startIdentity: `${process.pid}:test-live-race` },
       containmentIdentity: { provider: "test", token: "scope-live-race" },
     });
-    await owner.command(createCommand("create-fast-race", "instance-fast-race", "sandbox"));
+    await owner.command(createCommand("create-fast-race", "instance-fast-race", "pi"));
     owner.close();
 
     await vi.waitFor(() => expect(harness.store.loadLaunchInstance("instance-fast-race")?.state).toBe("interrupted"));
@@ -129,7 +129,7 @@ describe("plural launch-instance supervision", () => {
     await first.connect(harness.paths.endpoint);
     await second.connect(harness.paths.endpoint);
     await first.command(createCommand("create-update-1", "instance-update-1", "a1"));
-    await second.command(createCommand("create-update-2", "instance-update-2", "sandbox"));
+    await second.command(createCommand("create-update-2", "instance-update-2", "pi"));
     await first.command({
       type: "activate-launch-instance", requestId: "activate-update-1", instanceId: "instance-update-1",
       rootIdentity: { pid: 5001, startIdentity: "5001:start" }, containmentIdentity: { provider: "test", token: "scope-update-1" },

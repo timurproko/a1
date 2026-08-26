@@ -1,6 +1,6 @@
 ## Context
 
-See `proposal.md` for motivation. Interactive startup currently has two lifecycle shapes: bare `a1` runs the owned UI in `a1-ui`, while `a1 pi` and `a1 sandbox` use a transparent broker that acquires one supervisor-wide SQLite lease before spawning Pi. The supervisor stores one in-memory lease, the database enforces one live row with a partial unique index, and socket closure only removes the client from a set. The transparent child identity is currently a PID plus a broker-local random token, so another process cannot re-verify it. Descendants are stopped through the direct `ChildProcess` handle only; a daemonized grandchild can survive root exit.
+See `proposal.md` for motivation. Interactive startup currently has two lifecycle shapes: bare `a1` runs the owned UI in `a1-ui`, while `a1 pi` use a transparent broker that acquires one supervisor-wide SQLite lease before spawning Pi. The supervisor stores one in-memory lease, the database enforces one live row with a partial unique index, and socket closure only removes the client from a set. The transparent child identity is currently a PID plus a broker-local random token, so another process cannot re-verify it. Descendants are stopped through the direct `ChildProcess` handle only; a daemonized grandchild can survive root exit.
 
 The immutable bootstrap already starts `a1-ui` as a foreground child with inherited stdio and waits for its result. The detached supervisor remains necessary for immutable-release and update coordination, but it must no longer act as a global interactive-terminal mutex. Transparent profiles must preserve direct physical-terminal attachment, and the lifecycle layer must not become a PTY, terminal relay, parser, renderer, or signal translation path.
 
@@ -22,7 +22,6 @@ The immutable bootstrap already starts `a1-ui` as a foreground child with inheri
 - Adding an implicit detach, resident workspace, reconnection, or background-agent mode.
 - Routing explicit Pi profiles through the owned UI or a composed terminal host.
 - Interpreting terminal traffic in the guardian or supervisor.
-- Making the sandbox profile an operating-system security sandbox.
 - Resuming the held multi-agent/composed-terminal implementation.
 - Forcing the idle control supervisor to exit when the last interactive instance closes.
 
@@ -54,7 +53,7 @@ mutable a1 command
     -> Node launch guardian (authenticated instance coordinator)
       -> native process guardian (containment owner; lifecycle-only side channel)
         -> a1-ui (runtime selector; inherited terminal handles)
-          -> owned UI, vanilla Pi, or sandbox Pi
+          -> owned UI, vanilla Pi
             -> extensions, tools, agents, daemons, descendants
 ```
 

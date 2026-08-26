@@ -11,7 +11,7 @@ spelling, SHALL fail before supervisor or foreground-child startup.
 - **THEN** A1 SHALL execute the dependency-light version query without launching any interactive profile
 
 #### Scenario: Unknown subcommand
-- **WHEN** the user provides a subcommand other than `pi`, `sandbox`, `version`, `update`, `update:develop`, or a valid numbered/full-version preview update
+- **WHEN** the user provides a subcommand other than `pi`, `version`, `update`, `update:develop`, or a valid numbered/full-version preview update
 - **THEN** A1 SHALL exit with a usage error without invoking a shell or child Pi process
 
 #### Scenario: Removed development spelling

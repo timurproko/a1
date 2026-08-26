@@ -1,11 +1,8 @@
 import { assertLaunchProfileId, type LaunchProfileId } from "../../foundation/lifecycle/index.js";
 
 /**
- * Every interactive command is the same composition. What differs is the
- * configuration root each one reads and whether A1's own screens are reachable:
- * bare `a1` is the product, while `a1 pi` and `a1 sandbox` present pinned Pi's
- * interface and nothing of A1's own, against Pi's own profile and against an
- * isolated one.
+ * Both interactive commands use the owned composition. Bare A1 enables product
+ * surfaces; the Pi comparison command withholds them and reads Pi's own profile.
  */
 export type OwnedUiProfileId = LaunchProfileId;
 

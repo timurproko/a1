@@ -63,7 +63,7 @@ describe("terminal colour fidelity", () => {
     expect(launcher).toMatch(/process\.env\.MSYSTEM/u);
     expect(launcher).toMatch(/usr\/bin\/sh\.exe/u);
     expect(launcher).toMatch(/'exec "\$0" "\$@"'/u);
-    for (const script of ["start", "start:pi", "start:sandbox"]) {
+    for (const script of ["start", "start:pi"]) {
       expect(manifest.scripts[script]).toMatch(/node scripts\/development\/dev-launch\.mjs/u);
     }
   });

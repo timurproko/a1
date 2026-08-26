@@ -39,7 +39,7 @@ describe("launch guardian", () => {
       "create-launch-instance", "activate-launch-instance", "complete-launch-instance",
     ]);
     expect(control.commands[0]).toMatchObject({
-      profileId: "sandbox",
+      profileId: "pi",
       guardianIdentity: { pid: process.pid, startIdentity: guardianIdentity.startIdentity },
     });
     expect(control.commands[1]).toMatchObject({ rootIdentity, containmentIdentity: fixture.containment.identity });
@@ -110,7 +110,7 @@ describe("launch guardian", () => {
 
 function options(control: FakeControl, containment: ProcessContainment, inspector: NativeProcessInspector) {
   return {
-    profileId: "sandbox" as const,
+    profileId: "pi" as const,
     releaseRoot: "D:/release",
     uiEntry: "D:/release/bin/ui.js",
     environment: { A1_ENDPOINT: "test-endpoint", A1_RELEASE_ID: "release-1" },

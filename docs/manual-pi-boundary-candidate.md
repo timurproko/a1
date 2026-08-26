@@ -21,12 +21,11 @@ Use the exact generated filename if wildcard expansion is unavailable.
 1. **Bare owned UI:** run `& $Candidate`. Confirm startup, typing, submission, transcript streaming, selector focus, mouse/keyboard scrolling, and ordinary shutdown.
 2. **Extension surfaces:** in bare UI use `/reload`, then exercise configured extension notification, select, confirm, input, editor, replacement custom surface, and overlay custom surface. Confirm cancellation restores editor focus.
 3. **Vanilla oracle:** run `& $Candidate pi`. Confirm untouched Pi uses the ordinary `~/.pi/agent` profile and does not show owned-UI or workspace surfaces.
-4. **Isolated profile:** run `& $Candidate sandbox`. Confirm Pi uses `~/.a1/sandbox` and starts with project approval disabled for that run.
-5. **Resize and input:** while each mode is active, narrow and widen the terminal, enter Unicode and multiline text, use history/navigation keys, and scroll in both directions.
-6. **Shutdown:** exit normally, then repeat and use Ctrl+C during work. Confirm the parent prompt remains usable and no child remains attached.
-7. **Recovery:** after any owned-UI failure, run `& $Candidate pi`; confirm the vanilla oracle remains available. Restart bare UI and confirm its normal profile remains intact.
+4. **Resize and input:** while each mode is active, narrow and widen the terminal, enter Unicode and multiline text, use history/navigation keys, and scroll in both directions.
+5. **Shutdown:** exit normally, then repeat and use Ctrl+C during work. Confirm the parent prompt remains usable and no child remains attached.
+6. **Recovery:** after any owned-UI failure, run `& $Candidate pi`; confirm the vanilla oracle remains available. Restart bare UI and confirm its normal profile remains intact.
 
-Do not remove `~/.a1/agent`, `~/.pi/agent`, or `~/.a1/sandbox` during this checkpoint.
+Do not remove `~/.a1/agent` or `~/.pi/agent` during this checkpoint.
 
 ## Verdict recording
 

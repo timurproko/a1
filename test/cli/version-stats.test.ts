@@ -8,7 +8,7 @@ const roots: string[] = [];
 afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))));
 
 describe("version stats", () => {
-  it("reports installed, stable release, and develop preview versions from one query", async () => {
+  it("reports current, develop preview, and stable release versions from one query", async () => {
     const harness = await createHarness();
     const calls: Array<{ command: string; arguments_: readonly string[] }> = [];
     const code = await runVersionStats({ ...harness.options, runner: async (command, arguments_) => {
@@ -17,11 +17,23 @@ describe("version stats", () => {
     } });
 
     expect(code).toBe(0);
-    expect(harness.stdout.join("")).toBe("Installed: 1.1.0\nRelease:   1.1.4\nDevelop:   1.2.0-dev.3\n");
+    expect(harness.stdout.join("")).toBe("Current: 1.1.0\nDevelop: 1.2.0-dev.3\nRelease: 1.1.4\n");
     expect(harness.stderr).toEqual([]);
     expect(calls).toEqual([
       { command: "npm", arguments_: ["view", "@timurproko/a1", "dist-tags", "--json"] },
     ]);
+  });
+
+  it("unwraps the one-element array npm 12 emits for dist-tags --json", async () => {
+    const harness = await createHarness();
+    const code = await runVersionStats({
+      ...harness.options,
+      runner: async () => ({ code: 0, stdout: JSON.stringify([{ latest: "1.1.4", next: "1.2.0-dev.3" }]) }),
+    });
+
+    expect(code).toBe(0);
+    expect(harness.stdout.join("")).toBe("Current: 1.1.0\nDevelop: 1.2.0-dev.3\nRelease: 1.1.4\n");
+    expect(harness.stderr).toEqual([]);
   });
 
   it("treats an absent optional development tag as normally unavailable", async () => {
@@ -32,7 +44,7 @@ describe("version stats", () => {
     });
 
     expect(code).toBe(0);
-    expect(harness.stdout.join("")).toBe("Installed: 1.1.0\nRelease:   1.1.4\nDevelop:   unavailable\n");
+    expect(harness.stdout.join("")).toBe("Current: 1.1.0\nDevelop: unavailable\nRelease: 1.1.4\n");
     expect(harness.stderr).toEqual([]);
   });
 
@@ -44,7 +56,7 @@ describe("version stats", () => {
     const code = await runVersionStats({ ...harness.options, runner });
 
     expect(code).toBe(0);
-    expect(harness.stdout.join("")).toBe("Installed: 1.1.0\nRelease:   unavailable\nDevelop:   unavailable\n");
+    expect(harness.stdout.join("")).toBe("Current: 1.1.0\nDevelop: unavailable\nRelease: unavailable\n");
     expect(harness.stderr).toHaveLength(1);
     expect(harness.stderr[0]).toContain("A1 could not resolve npm dist-tags");
     expect(harness.stderr[0]).toContain(expected);
@@ -53,6 +65,8 @@ describe("version stats", () => {
   it.each([
     ["invalid JSON", "not-json", "Unexpected token"],
     ["non-object JSON", "[]", "non-object dist-tags"],
+    ["multi-element array JSON", JSON.stringify([{ latest: "1.1.4" }, { latest: "1.1.5" }]), "non-object dist-tags"],
+    ["array wrapping a non-object", JSON.stringify(["1.1.4"]), "non-object dist-tags"],
     ["missing latest", JSON.stringify({ next: "1.2.0-dev.1" }), "npm latest"],
     ["invalid latest", JSON.stringify({ latest: "newest" }), "npm latest"],
     ["invalid development tag", JSON.stringify({ latest: "1.1.4", next: "preview" }), "npm development channel"],
@@ -61,10 +75,43 @@ describe("version stats", () => {
     const code = await runVersionStats({ ...harness.options, runner: async () => ({ code: 0, stdout }) });
 
     expect(code).toBe(0);
-    expect(harness.stdout.join("")).toContain("Release:   unavailable\nDevelop:   unavailable");
+    expect(harness.stdout.join("")).toContain("Develop: unavailable\nRelease: unavailable");
     expect(harness.stderr).toHaveLength(1);
     expect(harness.stderr[0]).toContain("A1 could not resolve npm dist-tags");
     expect(harness.stderr[0]).toContain(expected);
+  });
+
+  it("falls back to the public registry when npm output is unparseable", async () => {
+    const harness = await createHarness();
+    const urls: string[] = [];
+    const code = await runVersionStats({
+      ...harness.options,
+      runner: async () => ({ code: 0, stdout: "future npm format" }),
+      fetcher: async url => {
+        urls.push(url);
+        return { ok: true, status: 200, text: async () => JSON.stringify({ latest: "1.1.4", next: "1.2.0-dev.3" }) };
+      },
+    });
+
+    expect(code).toBe(0);
+    expect(harness.stdout.join("")).toBe("Current: 1.1.0\nDevelop: 1.2.0-dev.3\nRelease: 1.1.4\n");
+    expect(harness.stderr).toEqual([]);
+    expect(urls).toEqual(["https://registry.npmjs.org/-/package/%40timurproko%2Fa1/dist-tags"]);
+  });
+
+  it("reports both failures when npm and the registry fallback are unusable", async () => {
+    const harness = await createHarness();
+    const code = await runVersionStats({
+      ...harness.options,
+      runner: async () => ({ code: 17, stdout: "" }),
+      fetcher: async () => ({ ok: false, status: 503, text: async () => "" }),
+    });
+
+    expect(code).toBe(0);
+    expect(harness.stdout.join("")).toBe("Current: 1.1.0\nDevelop: unavailable\nRelease: unavailable\n");
+    expect(harness.stderr).toHaveLength(1);
+    expect(harness.stderr[0]).toContain("npm exited with status 17");
+    expect(harness.stderr[0]).toContain("registry fallback failed: registry responded with status 503");
   });
 
   it("keeps version execution dependency-light and outside interactive runtime owners", async () => {
@@ -81,6 +128,10 @@ async function createHarness() {
   await writeFile(resolve(root, "package.json"), JSON.stringify({ version: "1.1.0" }));
   const stdout: string[] = [];
   const stderr: string[] = [];
-  const options: VersionStatsOptions = { packageRoot: root, output: { stdout: value => stdout.push(value), stderr: value => stderr.push(value) } };
+  const options: VersionStatsOptions = {
+    packageRoot: root,
+    output: { stdout: value => stdout.push(value), stderr: value => stderr.push(value) },
+    fetcher: async () => { throw new Error("registry unreachable"); },
+  };
   return { options, stdout, stderr };
 }

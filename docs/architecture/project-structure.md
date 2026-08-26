@@ -97,7 +97,7 @@ Build output mirrors the production namespaces directly under ignored `dist/`, w
 
 ## Terminal capability boundary
 
-All interactive profiles use the owned rendering pipeline. Bare `a1` exposes A1-owned surfaces; `a1 pi` and `a1 sandbox` withhold those surfaces while using their respective Pi profile roots. The retired transparent attachment owner is not part of the production tree or dependency map.
+Both interactive profiles use the owned rendering pipeline. Bare `a1` exposes A1-owned surfaces; `a1 pi` withholds those surfaces while using Pi's ordinary profile root. The retired transparent attachment owner is not part of the production tree or dependency map.
 
 The current JavaScript control plane does not provide arbitrary-CLI tabs. Such tabs require the separately bounded console terminal host to own PTYs, authoritative terminal state, rendering, input routing, inactive-surface lifecycle, and reconnection. JavaScript may exchange typed identity, topology revision, capability, lifecycle, status, and recovery messages only; it must not relay terminal output, per-event child input, or rendered cells.
 

@@ -14,14 +14,24 @@ import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
 
 export interface BootstrapOptions {
   readonly packageRoot: string;
-  readonly launchIntent?: { readonly kind: "interactive"; readonly profile: { readonly id: LaunchProfileId } };
+  readonly launchIntent?: { readonly kind: "interactive"; readonly profileId: LaunchProfileId };
   readonly environment?: NodeJS.ProcessEnv;
   readonly output?: Pick<NodeJS.WriteStream, "write">;
+  /**
+   * Whether a materialized release copy is fit to launch. The active release
+   * is normally reused while its version matches the installation, but a copy
+   * can be broken in ways a version cannot see — materialized from a tree a
+   * blocked postinstall never finished repairing. The probe is injected from
+   * the bin entry because deciding it requires inspecting dependency
+   * resolution, which stays out of production code. Absent means every
+   * release is fit.
+   */
+  readonly releaseIsLaunchable?: (releaseRoot: string) => boolean;
 }
 
 export async function runBootstrap(options: BootstrapOptions): Promise<number> {
   const environment = { ...(options.environment ?? process.env) };
-  const launchProfileId = options.launchIntent?.profile.id ?? "a1";
+  const launchProfileId = options.launchIntent?.profileId ?? "a1";
   assertLaunchProfileId(launchProfileId);
   environment[PRODUCT_IDENTITY.environment.launchProfile] = launchProfileId;
   const output = options.output ?? process.stderr;
@@ -55,7 +65,8 @@ export async function runBootstrap(options: BootstrapOptions): Promise<number> {
   const installedVersion = await readInstalledVersion(options.packageRoot);
   const activeId = state.references.active;
   const active = activeId === null ? undefined : state.releases[activeId];
-  if (active?.approval === "approved" && active.packageVersion === installedVersion) {
+  const activeIsLaunchable = active === undefined || (options.releaseIsLaunchable?.(active.releaseRoot) ?? true);
+  if (activeIsLaunchable && active?.approval === "approved" && active.packageVersion === installedVersion) {
     const endpointMatches = endpoint?.releaseId === active.releaseId
       && endpoint.releaseRoot === active.releaseRoot
       && endpoint.contentDigest === active.contentDigest;
@@ -80,6 +91,16 @@ export async function runBootstrap(options: BootstrapOptions): Promise<number> {
     const diagnosticsPath = await certifyMaterializedRelease(candidate, paths.dataDir);
     await stateStore.approve(candidate.releaseId, diagnosticsPath);
     await stateStore.activate(candidate.releaseId);
+    state = await stateStore.read();
+  } else if (!activeIsLaunchable && candidate.releaseId !== activeId
+    && state.releases[candidate.releaseId]?.approval !== "approved") {
+    // The active reference points at a copy that cannot launch, so reusing it
+    // is off the table — but an unapproved candidate would lose the selection
+    // below to that same broken active (`start-active`). Approving the healed
+    // candidate here lets ordinary cohort selection activate it, while a live
+    // busy cohort still wins the endpoint checks and keeps its sessions.
+    const diagnosticsPath = await certifyMaterializedRelease(candidate, paths.dataDir);
+    await stateStore.approve(candidate.releaseId, diagnosticsPath);
     state = await stateStore.read();
   }
 

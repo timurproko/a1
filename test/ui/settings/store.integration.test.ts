@@ -67,10 +67,10 @@ describe("owned UI settings store", () => {
 
   it("keeps profiles isolated", () => {
     const agent = store("a1");
-    const sandbox = store("sandbox");
+    const comparison = store("pi");
     expect(agent.write(agent.read(), "density", "compact").stored).toBe(true);
-    expect(settingValue(sandbox.read(), "density")).toBe("comfortable");
-    expect(agent.file).not.toBe(sandbox.file);
+    expect(settingValue(comparison.read(), "density")).toBe("comfortable");
+    expect(agent.file).not.toBe(comparison.file);
   });
 
   it("writes only under the configured root and leaves Pi profile trees untouched", () => {

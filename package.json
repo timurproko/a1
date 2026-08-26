@@ -8,10 +8,7 @@
     "a1": "bin/cli.js"
   },
   "imports": {
-    "#pi-tui": [
-      "./node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-tui/dist/index.js",
-      "@earendil-works/pi-tui"
-    ]
+    "#pi-tui": "./bin/pi-tui.js"
   },
   "files": [
     "bin",
@@ -24,6 +21,7 @@
     "node": ">=22.19.0 <25"
   },
   "scripts": {
+    "postinstall": "node bin/sync-pi-tui-proxy.js",
     "clean": "node scripts/clean.mjs",
     "build": "npm run clean && tsc -p tsconfig.build.json && node scripts/development/build-process-guardian.mjs",
     "build:process-guardian": "node scripts/development/build-process-guardian.mjs",
@@ -49,7 +47,6 @@
     "proof:terminal-host": "node scripts/development/run-terminal-host.mjs",
     "start": "npm run build && node scripts/development/dev-launch.mjs",
     "start:pi": "npm run build && node scripts/development/dev-launch.mjs pi",
-    "start:sandbox": "npm run build && node scripts/development/dev-launch.mjs sandbox",
     "prepack": "node scripts/release/prepack-gate.mjs",
     "prepublishOnly": "npm run test:release",
     "prepare": "npm run build",

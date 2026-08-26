@@ -7,6 +7,7 @@ import { PRODUCT_TEXT } from "../product-identity.js";
 
 interface VersionProcessResult { readonly code: number | null; readonly stdout: string }
 type VersionProcessRunner = (command: string, arguments_: readonly string[]) => Promise<VersionProcessResult>;
+type RegistryFetcher = (url: string) => Promise<{ readonly ok: boolean; readonly status: number; text(): Promise<string> }>;
 interface VersionOutput { stdout(message: string): void; stderr(message: string): void }
 interface RemoteVersions { readonly release: string | null; readonly develop: string | null; readonly error: string | null }
 
@@ -14,6 +15,7 @@ export interface VersionStatsOptions {
   readonly packageRoot: string;
   readonly output?: VersionOutput;
   readonly runner?: VersionProcessRunner;
+  readonly fetcher?: RegistryFetcher;
 }
 
 const defaultOutput: VersionOutput = {
@@ -33,13 +35,23 @@ export async function runVersionStats(options: VersionStatsOptions): Promise<num
     return 1;
   }
 
-  const remote = await queryDistTags(runner);
-  output.stdout(`Installed: ${installed}\nRelease:   ${remote.release ?? "unavailable"}\nDevelop:   ${remote.develop ?? "unavailable"}\n`);
+  const remote = await queryDistTags(runner, options.fetcher ?? defaultRegistryFetcher);
+  output.stdout(`Current: ${installed}\nDevelop: ${remote.develop ?? "unavailable"}\nRelease: ${remote.release ?? "unavailable"}\n`);
   if (remote.error) output.stderr(`${PRODUCT_TEXT.diagnostic(`could not resolve npm dist-tags: ${remote.error}`)}\n`);
   return 0;
 }
 
-async function queryDistTags(runner: VersionProcessRunner): Promise<RemoteVersions> {
+// npm view respects the user's .npmrc registry and proxy, so it stays primary; the direct
+// registry fetch below covers npm CLI versions whose --json output shape we cannot parse.
+async function queryDistTags(runner: VersionProcessRunner, fetcher: RegistryFetcher): Promise<RemoteVersions> {
+  const fromNpm = await queryDistTagsViaNpm(runner);
+  if (fromNpm.error === null) return fromNpm;
+  const fromRegistry = await queryDistTagsViaRegistry(fetcher);
+  if (fromRegistry.error === null) return fromRegistry;
+  return unavailable(`${fromNpm.error}; registry fallback failed: ${fromRegistry.error}`);
+}
+
+async function queryDistTagsViaNpm(runner: VersionProcessRunner): Promise<RemoteVersions> {
   let result: VersionProcessResult;
   try {
     result = await runner("npm", ["view", PRODUCT_TEXT.packageName, "dist-tags", "--json"]);
@@ -49,11 +61,33 @@ async function queryDistTags(runner: VersionProcessRunner): Promise<RemoteVersio
   if (result.code !== 0) return unavailable(`npm exited with status ${result.code ?? "unknown"}`);
 
   try {
-    const metadata: unknown = JSON.parse(result.stdout);
-    if (typeof metadata !== "object" || metadata === null || Array.isArray(metadata)) throw new TypeError("npm returned a non-object dist-tags value");
+    const parsed: unknown = JSON.parse(result.stdout);
+    // npm 12 wraps `npm view <pkg> dist-tags --json` output in a one-element array; older npm returns the bare object.
+    const metadata: unknown = Array.isArray(parsed) && parsed.length === 1 ? parsed[0] : parsed;
+    return parseDistTags(metadata, "npm");
+  } catch (error) {
+    return unavailable(message(error));
+  }
+}
+
+async function queryDistTagsViaRegistry(fetcher: RegistryFetcher): Promise<RemoteVersions> {
+  try {
+    const response = await fetcher(`https://registry.npmjs.org/-/package/${encodeURIComponent(PRODUCT_TEXT.packageName)}/dist-tags`);
+    if (!response.ok) return unavailable(`registry responded with status ${response.status}`);
+    return parseDistTags(JSON.parse(await response.text()), "registry");
+  } catch (error) {
+    return unavailable(message(error));
+  }
+}
+
+function parseDistTags(metadata: unknown, source: "npm" | "registry"): RemoteVersions {
+  if (typeof metadata !== "object" || metadata === null || Array.isArray(metadata)) {
+    return unavailable(`${source} returned a non-object dist-tags value`);
+  }
+  try {
     const tags = metadata as Record<string, unknown>;
-    const release = parseVersion(tags.latest, "npm latest");
-    const develop = tags.next === undefined ? null : parseVersion(tags.next, "npm development channel");
+    const release = parseVersion(tags.latest, `${source} latest`);
+    const develop = tags.next === undefined ? null : parseVersion(tags.next, `${source} development channel`);
     return { release, develop, error: null };
   } catch (error) {
     return unavailable(message(error));
@@ -63,6 +97,9 @@ async function queryDistTags(runner: VersionProcessRunner): Promise<RemoteVersio
 function unavailable(error: string): RemoteVersions {
   return { release: null, develop: null, error };
 }
+
+const defaultRegistryFetcher: RegistryFetcher = async url =>
+  await fetch(url, { headers: { accept: "application/json" }, signal: AbortSignal.timeout(10_000) });
 
 function createVersionProcessRunner(): VersionProcessRunner {
   return async (command, arguments_) => await new Promise((resolvePromise, rejectPromise) => {

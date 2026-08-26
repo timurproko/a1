@@ -8,7 +8,7 @@
 
 - [x] 2.1 Take capabilities in `parseCliCommand` and `dispatchCli`, and turn the
   fixed usage constant into usage for the build in hand
-- [x] 2.2 Let `pi` and `sandbox` fall through to the unknown-subcommand path when a
+- [x] 2.2 Let `pi` fall through to the unknown-subcommand path when a
   build does not expose them
 - [x] 2.3 Read the version once in `bin/cli.js` and pass the capabilities in
 - [x] 2.4 Keep every other command identical between the two builds, and cover that

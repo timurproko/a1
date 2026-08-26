@@ -2,7 +2,7 @@
 
 > **Status: ON HOLD by user direction — scheduled after the A1 custom-experience milestones.** This design is retained as future architecture only. Its unapplied scope is deliberately deferred, not stale or blocked. No remaining task may be applied until the user explicitly resumes this change; completion of prerequisite changes does not imply authorization.
 
-See `proposal.md` for motivation. Bare `a1` currently launches one A1-owned Pi experience, while `a1 pi` and `a1 sandbox` remain stable explicit transparent modes. The reopened 1:1 acceptance was repaired and accepted through the archived `repair-owned-pi-parity` change; the contradictory authentication and model state it recorded is closed.
+See `proposal.md` for motivation. Bare `a1` currently launches one A1-owned Pi experience, while `a1 pi` remain stable explicit transparent modes. The reopened 1:1 acceptance was repaired and accepted through the archived `repair-owned-pi-parity` change; the contradictory authentication and model state it recorded is closed.
 
 The product requirement is a multi-agent workspace inside terminals the user already owns, such as Windows Terminal, macOS terminals, WezTerm, and similar emulators. A separate native desktop application is not required and is postponed. The first presentation proof must therefore run as a console/fullscreen terminal program inside an existing terminal, not as a Win32/OpenGL window.
 
@@ -31,10 +31,9 @@ Ghostty's application runtimes are not the right first stack for that requiremen
 - Screen-scraping Pi or another CLI to manufacture structured semantics.
 - Building a new lightweight ANSI parser, terminal-state tracker, or native-input translator.
 - Routing pseudoterminal bytes, individual child input events, or rendered cells through Node or A1's control protocol.
-- Treating profile isolation, terminal-host process separation, or panes as an OS security sandbox.
 - Running desktop automation on a developer's active workstation.
 - Claiming composed support on any platform before its exact packaged artifact passes required certification.
-- Replacing `a1 pi` or `a1 sandbox` with workspace aliases or composed-host paths.
+- Replacing `a1 pi` with workspace aliases or composed-host paths.
 - Treating Pi's stock `InteractiveMode`, extension surfaces, prototypes, private renderer state, deep imports, or distribution hashes as the customizable A1 root UI.
 - Requiring automatic source-level synchronization with every upstream Pi UI change; exact current upstream behavior remains available through `a1 pi`.
 
@@ -176,7 +175,7 @@ A separate desktop-native host can be reconsidered only after the in-terminal ar
 
 Structured contracts, adapters, and workspace behavior may proceed independently. Composed work remains a development-only capability through the in-terminal proof and subsequent per-platform integration. Bare `a1` changes only after workspace recovery and explicit-mode regression gates pass. Composed failure cannot remove transparent fallback.
 
-Rollback disables workspace cutover or composed capability as applicable, restores the accepted bare transparent profile when necessary, and preserves backward-readable versioned records. `a1 pi` and `a1 sandbox` remain unchanged throughout.
+Rollback disables workspace cutover or composed capability as applicable, restores the accepted bare transparent profile when necessary, and preserves backward-readable versioned records. `a1 pi` remain unchanged throughout.
 
 ### 15. The fixed 2×2 presentation is preserved only as a postponed proof artifact
 
@@ -209,7 +208,7 @@ Exact current upstream Pi remains `a1 pi`. The A1 UI may provide a vanilla-style
 
 The first recorded finding covers four authoritative states: no credentials yields no selectable models and an unconfigured login surface; stored credentials mark only those providers configured and expose only their available models; logout removes unavailable models and stale selections immediately; restart restores one internally consistent state. Cached catalogs, settings, prior session records, or refresh failures cannot make an unauthenticated provider appear configured or selectable.
 
-With that acceptance recorded, the first A1-specific single-agent experience is delivered by a sequence of custom-experience milestones — settings foundation, custom viewport, paste chips, and input behavior — which together replace the previously planned single `customize-owned-pi-experience` change. Bare `a1` runs that custom experience by default; `a1 pi` and `a1 sandbox` remain untouched vanilla Pi, altered only by Pi extensions, so the vanilla oracle survives without a vanilla mode inside the owned UI. Customization uses stable A1 component, theme, command, and layout slots rather than host mutation. Non-visual Pi extensions and resources may be adapted where the public SDK supports them. Visual extension compatibility requires an explicit A1 bridge and SHALL NOT receive implicit access to Pi's absent stock UI context.
+With that acceptance recorded, the first A1-specific single-agent experience is delivered by a sequence of custom-experience milestones — settings foundation, custom viewport, paste chips, and input behavior — which together replace the previously planned single `customize-owned-pi-experience` change. Bare `a1` runs that custom experience by default; `a1 pi` remain untouched vanilla Pi, altered only by Pi extensions, so the vanilla oracle survives without a vanilla mode inside the owned UI. Customization uses stable A1 component, theme, command, and layout slots rather than host mutation. Non-visual Pi extensions and resources may be adapted where the public SDK supports them. Visual extension compatibility requires an explicit A1 bridge and SHALL NOT receive implicit access to Pi's absent stock UI context.
 
 Structured SDK-backed tabs remain unavailable until every custom-experience milestone is accepted and the user explicitly resumes this held change. Acceptance of any prerequisite SHALL NOT trigger implementation automatically. After explicit resumption, the tabs switch semantic agent views without creating PTYs, invoking the terminal host, displaying arbitrary CLI surfaces, or satisfying the composed-terminal proof. Arbitrary terminal panes, split layouts, and multiplexer integration additionally remain blocked until the postponed isolated-worker 2×2 gate passes.
 
@@ -237,7 +236,6 @@ Structured SDK-backed tabs remain unavailable until every custom-experience mile
 
 1. Preserve the completed workspace contracts, structured runtime, synthetic multi-agent domain, terminal-host protocol, native hot-path isolation, and fixed 2×2 development proof as dormant foundations; future edits occur only in detached task worktrees.
 2. `repair-owned-pi-parity` is complete: every user finding was reproduced with equivalent profile state, authentication/model-state consistency was fixed without customization, and fresh independent and user-controlled acceptance was recorded before archiving.
-3. Complete the A1 custom-experience milestones: settings foundation, custom viewport, paste chips, and input behavior — defining and accepting the first A1-specific single-agent Pi experience through owned slots while preserving the accepted workflows and keeping `a1 pi`/`a1 sandbox` as the explicit untouched-Pi oracle.
 4. Stop at the hold boundary. Only after the user explicitly resumes this change, integrate the existing structured workspace into A1-owned tabs for multiple SDK-backed Pi agents. Prove switching, background activity, lifecycle, failure isolation, recovery, and resource bounds without initializing the terminal host.
 5. Cut bare `a1` over to the accepted structured workspace, integrate validated detached-worktree commits into `develop`, and publish a clean development checkpoint under npm `next` with composed multipane behavior disabled and no composed support claim.
 6. Resume the fixed 2×2 proof on an isolated Windows worker. Record every technical measurement and obtain an accepted user-controlled manual or isolated-worker physical verdict against exact bytes. Do not integrate composed work or begin production multiplexer integration if this gate fails.

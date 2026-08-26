@@ -43,6 +43,6 @@ A1 SHALL declare `scrollbarAppearance`, `scrollbarStyle`, and `scrollbarSpeed` a
 - **AND** clicking a numeric minus or plus control SHALL apply that step
 - **AND** all other settings-screen pointer reports SHALL be consumed without starting terminal text selection
 
-#### Scenario: Use a pinned comparison profile
-- **WHEN** `a1 pi` or `a1 sandbox` presents its pinned interface
+#### Scenario: Use the pinned comparison profile
+- **WHEN** `a1 pi` presents its pinned interface
 - **THEN** A1's stored scrollbar appearance, style, and speed SHALL NOT modify that interface's scrollbar or wheel behavior

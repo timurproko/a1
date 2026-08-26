@@ -18,10 +18,10 @@ describe("concurrent launch guardians", () => {
   it("runs same-profile and mixed-profile instances and completes them independently", async () => {
     const harness = await createHarness();
     const first = launch(harness, "a1", 9101);
-    const second = launch(harness, "sandbox", 9102);
-    const third = launch(harness, "sandbox", 9103);
+    const second = launch(harness, "pi", 9102);
+    const third = launch(harness, "pi", 9103);
     await vi.waitFor(() => expect(harness.store.loadActiveLaunchInstances()).toHaveLength(3));
-    expect(harness.store.loadActiveLaunchInstances().map(instance => instance.profileId).sort()).toEqual(["a1", "sandbox", "sandbox"]);
+    expect(harness.store.loadActiveLaunchInstances().map(instance => instance.profileId).sort()).toEqual(["a1", "pi", "pi"]);
 
     second.finish({ kind: "exited", exitCode: 2 });
     await expect(second.result).resolves.toBe(2);
@@ -37,8 +37,8 @@ describe("concurrent launch guardians", () => {
     await harness.server.close();
   });
 
-  it("launches sandbox normally after migrating a stale exclusive lease", async () => {
-    const root = await mkdtemp(resolve(tmpdir(), "a1-stale-sandbox-launch-"));
+  it("launches pi normally after migrating a stale exclusive lease", async () => {
+    const root = await mkdtemp(resolve(tmpdir(), "a1-stale-pi-launch-"));
     roots.push(root);
     const databasePath = resolve(root, "control.sqlite3");
     const initial = new ControlStore(databasePath);
@@ -52,11 +52,11 @@ describe("concurrent launch guardians", () => {
     legacy.close();
 
     const harness = await createHarness(root, databasePath);
-    const sandbox = launch(harness, "sandbox", 9201);
+    const pi = launch(harness, "pi", 9201);
     await vi.waitFor(() => expect(harness.store.loadActiveLaunchInstances()).toHaveLength(1));
     expect(harness.store.database.prepare("SELECT state FROM foreground_terminal_leases WHERE id = 'stale-lease'").get()).toEqual({ state: "interrupted" });
-    sandbox.finish({ kind: "exited", exitCode: 0 });
-    await expect(sandbox.result).resolves.toBe(0);
+    pi.finish({ kind: "exited", exitCode: 0 });
+    await expect(pi.result).resolves.toBe(0);
     await harness.server.close();
   });
 });

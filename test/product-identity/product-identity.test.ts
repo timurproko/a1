@@ -19,7 +19,6 @@ describe("product identity authority", () => {
       state: {
         piAgentProfile: ".a1/agent",
         piVanillaProfile: ".pi/agent",
-        piSandboxProfile: ".a1/sandbox",
       },
       artifacts: { cliEntry: "bin/cli.js", nativeExecutable: "terminal-host" },
     });

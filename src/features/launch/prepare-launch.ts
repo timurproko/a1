@@ -3,9 +3,7 @@ import { initializeProductProfile } from "./initialize-profile.js";
 import type { InteractiveLaunchIntent } from "./intent.js";
 
 export interface PreparedInteractiveLaunch {
-  readonly intent: InteractiveLaunchIntent;
   readonly environment: NodeJS.ProcessEnv;
-  readonly piArguments: readonly string[];
   readonly configurationRoot: string | null;
 }
 
@@ -19,19 +17,12 @@ export async function prepareInteractiveLaunch(
   options: PrepareInteractiveLaunchOptions = {},
 ): Promise<PreparedInteractiveLaunch> {
   const paths = resolveLaunchProfilePaths({ ...options, environment });
-  const configurationRoot = configurationRootForProfile(intent.profile.id, paths);
+  const configurationRoot = configurationRootForProfile(intent.profileId, paths);
   if (configurationRoot !== null) await (options.initializeProfile ?? initializeProductProfile)(configurationRoot);
 
   const childEnvironment = { ...environment };
   if (configurationRoot === null) delete childEnvironment.PI_CODING_AGENT_DIR;
   else childEnvironment.PI_CODING_AGENT_DIR = configurationRoot;
 
-  const piArguments = intent.profile.projectTrust === "ignore" ? ["--no-approve"] : [];
-  childEnvironment.A1_LAUNCH_ARGUMENTS_JSON = JSON.stringify(piArguments);
-  return Object.freeze({
-    intent,
-    environment: childEnvironment,
-    piArguments: Object.freeze(piArguments),
-    configurationRoot,
-  });
+  return Object.freeze({ environment: childEnvironment, configurationRoot });
 }

@@ -14,18 +14,20 @@
  * chrome silently disappears and routed input dead-ends, with no error.
  *
  * A1 therefore does not import the specifier at all. Its package declares the
- * subpath import `#pi-tui`, resolving to pinned Pi's copy first and to the
- * hoisted one only when that is absent — which is exactly the case where there
- * is one copy and both sides agree anyway. Every A1 module imports `#pi-tui`,
- * so which copy A1 uses is stated in package.json and enforced by Node at
- * resolution, rather than arranged by rewriting an installed tree.
+ * subpath import `#pi-tui`, resolving to bin/pi-tui.js — a proxy that
+ * re-exports pinned Pi's nested copy. The hop through the proxy is load-bearing:
+ * Node rejects package-imports targets containing a `node_modules` path segment
+ * (Invalid Package Target) and silently falls through to any fallback, which is
+ * exactly how an earlier alias that named the nested path directly reintroduced
+ * the split while appearing to declare the opposite. A plain import specifier
+ * inside a module carries no such restriction.
  *
- * What remains here is the check that it worked. The alias names one path
- * inside pinned Pi; if a future layout moved that copy, resolution would fall
- * back to A1's own and the split would return — silently, which is what made
- * this expensive the first time. So launch compares the two resolutions and
- * says so when they differ, loudly and once, instead of leaving a user to
- * discover it as missing extension UI.
+ * What remains here is the check that it worked. The alias is resolved by
+ * asking Node itself — never by reimplementing resolution, which is how the
+ * earlier check reported "unified" for a target Node had rejected — and the
+ * proxy hop is followed to the module it re-exports. When that disagrees with
+ * what pinned Pi resolves, launch says so, loudly and once, instead of leaving
+ * a user to discover it as missing extension UI.
  *
  * This lives in bin/ (shipped, plain JS) because it inspects dependency
  * resolution, which the Pi API boundary policy rightly forbids ordinary
@@ -39,32 +41,41 @@ import { pathToFileURL } from "node:url";
 /**
  * What A1's own modules resolve `#pi-tui` to, as a real path.
  *
- * The alias is read from the manifest and its entries tried in order, which is
- * what Node does for a subpath import: a relative target is a file within the
- * package, and a bare one goes through ordinary resolution. Asking Node
- * directly is not an option here — `import.meta.resolve` ignores the parent it
- * is given unless an experimental flag is set, so it would always answer for
- * the running process rather than for the installation being inspected.
+ * Node answers for the alias itself (require.resolve honors package imports for
+ * the package the parent belongs to). When the answer is A1's proxy file, the
+ * module it re-exports is what A1 actually renders with, so the proxy's one
+ * static `export * from` specifier is followed to its target.
  */
 function resolveOwnPiTui(packageRoot) {
-  const manifest = JSON.parse(readFileSync(join(packageRoot, "package.json"), "utf8"));
-  const alias = manifest.imports?.["#pi-tui"];
-  const targets = Array.isArray(alias) ? alias : alias === undefined ? [] : [alias];
-  if (targets.length === 0) throw new Error("package.json declares no #pi-tui alias");
-  for (const target of targets) {
-    if (typeof target !== "string") continue;
-    if (target.startsWith("./") || target.startsWith("../")) {
-      const candidate = join(packageRoot, target);
-      if (existsSync(candidate)) return canonical(candidate);
-      continue;
-    }
-    try {
-      return canonical(createRequire(pathToFileURL(join(packageRoot, "package.json")).href).resolve(target));
-    } catch {
-      continue;
-    }
+  const requireFromRoot = createRequire(pathToFileURL(join(packageRoot, "package.json")).href);
+  let resolved;
+  try {
+    resolved = requireFromRoot.resolve("#pi-tui");
+  } catch (error) {
+    throw new Error(`#pi-tui does not resolve: ${message(error)}`);
   }
-  throw new Error(`no #pi-tui target resolves: ${targets.join(", ")}`);
+  return canonical(followProxyReExport(resolved));
+}
+
+/**
+ * Follow A1's proxy hop: one relative `export * from "..."` per file, at most
+ * one hop. A resolution that is not the proxy (or any file without such a
+ * re-export) is returned as-is.
+ */
+function followProxyReExport(resolvedPath) {
+  let source;
+  try {
+    source = readFileSync(resolvedPath, "utf8");
+  } catch {
+    return resolvedPath;
+  }
+  const reExport = source.match(/^export \* from "(\.\.?\/[^"]+)";?$/m);
+  if (!reExport) return resolvedPath;
+  const target = join(dirname(resolvedPath), reExport[1]);
+  if (!existsSync(target)) {
+    throw new Error(`#pi-tui proxy ${resolvedPath} re-exports a missing file: ${target}`);
+  }
+  return target;
 }
 
 /**
@@ -76,7 +87,7 @@ function resolveOwnPiTui(packageRoot) {
  * no CommonJS condition, so an ordinary require cannot name it. From there a
  * require resolves pi-tui, which publishes no `exports` map at all.
  */
-function resolvePinnedPiTui(packageRoot) {
+export function resolvePinnedPiTui(packageRoot) {
   let directory = packageRoot;
   while (true) {
     const candidate = join(directory, "node_modules", "@earendil-works", "pi-coding-agent");
@@ -119,6 +130,29 @@ export function inspectPiTuiModuleIdentity(packageRoot) {
 
 function message(error) {
   return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * Launch-entry self-heal: when A1 and pinned Pi disagree on the terminal
+ * module, rewrite the proxy to the copy Pi resolves before anything copies
+ * this tree. npm 12 blocks install scripts unless allowScripts covers the
+ * package, so the postinstall that normally rewrites the proxy may never
+ * have run and the installed tree may still carry the published placeholder
+ * path. Named neutrally so the launch entries that call it stay free of
+ * terminal implementation identifiers, as the bootstrap boundary requires.
+ */
+export async function healModuleIdentityAtLaunch(packageRoot, warn) {
+  if (inspectPiTuiModuleIdentity(packageRoot).kind === "unified") return;
+  const { syncPiTuiProxy } = await import("./sync-pi-tui-proxy.js");
+  const outcome = syncPiTuiProxy(packageRoot);
+  if (outcome.kind === "unresolved") {
+    warn(`a1: could not point the terminal module proxy at pinned Pi's copy (${outcome.message}); extension UI may not render.\n`);
+  }
+}
+
+/** Whether a materialized release copy resolves one terminal module for both A1 and Pi. */
+export function releaseCopyIsLaunchable(releaseRoot) {
+  return inspectPiTuiModuleIdentity(releaseRoot).kind === "unified";
 }
 
 /** Launch-entry wrapper: warn on stderr when the two sides disagree. */

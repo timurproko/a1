@@ -82,7 +82,6 @@ describe("A1 package commands", () => {
     expect(harness.input?.profileRoot).toBe(profileRoot);
     expect(existsSync(resolve(profileRoot, "extensions"))).toBe(true);
     expect(existsSync(resolve(profileHome, ".pi"))).toBe(false);
-    expect(existsSync(resolve(profileHome, ".a1", "sandbox"))).toBe(false);
   });
 
   it.each([
