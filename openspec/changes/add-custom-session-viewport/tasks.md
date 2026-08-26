@@ -7,7 +7,7 @@
 ## 2. Route viewport input before the TUI consumes it
 
 - [ ] 2.1 Add a neutral pre-TUI input stage to the Pi runtime adapter's terminal bridge and verify adapter tests prove listener ordering, consume/transform behavior, mixed mouse-plus-keyboard preservation, removal, mode switching, and disposal without exposing Pi listener types
-- [ ] 2.2 Bind the viewport's wheel, hover, thumb-drag, track-page, sticky-prompt, and scroll-to-bottom actions through the pre-input stage while leaving unrelated input to the focused surface; verify shell/runtime tests cover fullscreen wheel precedence, ordinary selection routing, modal ownership, pointer regions, and a drag ending on release
+- [ ] 2.2 Bind the viewport's wheel, hover, thumb-drag, track-page, sticky-prompt, `Alt+Home` previous-prompt, and scroll-to-bottom actions through the pre-input stage while leaving unrelated input to the focused surface; verify shell/runtime tests cover fullscreen wheel precedence, ordinary selection routing, modal ownership, pointer regions, and a drag ending on release
 - [ ] 2.3 Pair pointer reporting with the bare-A1 viewport lifecycle in regular mode and clear transient viewport state on session replacement, failure, shutdown, and disposal; verify terminal-write tests prove every enable has a disable and comparison profiles never enable reporting for this customization
 
 ## 3. Compose the owned shell into document and dock regions

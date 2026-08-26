@@ -374,6 +374,13 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       this.#componentRuntime.requestRender();
       return { data: "", consumed: true };
     }
+    if (allowWheel && ALT_HOME_INPUTS.has(data)) {
+      if (this.#viewport.scrollToPreviousPrompt(now)) {
+        this.#scheduleViewportActivityExpiry();
+        this.#componentRuntime.requestRender();
+      }
+      return { data: "", consumed: true };
+    }
     const frame = this.#viewport.frame;
     let repaint = false;
     let activity = false;
@@ -1091,7 +1098,8 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
 }
 
 const SELECTION_AUTO_SCROLL_INTERVAL_MS = 30;
-const ALT_END_INPUTS = new Set(["\u001b[1;3F", "\u001b[4;3~", "\u001b[1;3~"]);
+const ALT_END_INPUTS = new Set(["\u001b[1;3F", "\u001b[4;3~", "\u001b[8;3~"]);
+const ALT_HOME_INPUTS = new Set(["\u001b[1;3H", "\u001b[1;3~", "\u001b[7;3~"]);
 const SCROLLBAR_CELL_RESET = "\u001b[22;23;24;25;27;28;29;39;54;55m";
 const TERMINAL_BACKGROUND = /\u001b\[(?:4[0-9]|10[0-7]|48(?:[;:][0-9;:]*)?)m/g;
 

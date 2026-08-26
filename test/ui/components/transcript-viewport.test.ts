@@ -60,6 +60,27 @@ describe("transcript viewport", () => {
     expect(stripAnsi(notified.rows[6] ?? "")).toContain("Jump to bottom (Alt+End)");
   });
 
+  it("jumps from the governing pinned prompt to each previous prompt", () => {
+    const viewport = new TranscriptViewport();
+    viewport.setConfig(ALWAYS);
+    const anchors = [
+      { id: "one", firstRow: 1, lastRow: 1, sourceRow: "❯ one" },
+      { id: "two", firstRow: 10, lastRow: 10, sourceRow: "❯ two" },
+      { id: "three", firstRow: 20, lastRow: 20, sourceRow: "❯ three" },
+    ];
+    viewport.compose({ documentRows: rows(30), dockRows: ["dock"], promptAnchors: anchors, width: 36, height: 6, now: 100 });
+
+    expect(viewport.scrollTop).toBe(25);
+    expect(viewport.scrollToPreviousPrompt(101)).toBe(true);
+    expect(viewport.scrollTop).toBe(20);
+    expect(viewport.scrollToPreviousPrompt(102)).toBe(true);
+    expect(viewport.scrollTop).toBe(10);
+    expect(viewport.scrollToPreviousPrompt(103)).toBe(true);
+    expect(viewport.scrollTop).toBe(1);
+    expect(viewport.scrollToPreviousPrompt(104)).toBe(false);
+    expect(viewport.scrollTop).toBe(1);
+  });
+
   it("pins the semantic source prompt prominently, then quiets it after all continuations leave", () => {
     const viewport = new TranscriptViewport();
     viewport.setConfig(ALWAYS);

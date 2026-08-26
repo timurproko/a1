@@ -131,6 +131,12 @@ When the first row of the most recent submitted user prompt at or before the vie
 - **THEN** the viewport SHALL scroll so the source prompt begins at the top
 - **AND** follow-end SHALL remain disabled unless that target is also the transcript end
 
+#### Scenario: Jump through previous prompts by keyboard
+- **WHEN** the reader presses `Alt+Home` while the custom transcript owns input
+- **THEN** the viewport SHALL jump to the source of its governing pinned prompt
+- **AND** each repeated press SHALL jump to the preceding semantic submitted prompt
+- **AND** pressing it at the earliest prompt SHALL keep that prompt at the top
+
 #### Scenario: Prompt first row is naturally visible
 - **WHEN** the governing prompt's source first row is already the viewport's first row
 - **THEN** no duplicate sticky row SHALL be added

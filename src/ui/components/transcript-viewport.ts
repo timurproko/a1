@@ -236,6 +236,15 @@ export class TranscriptViewport {
     return changed;
   }
 
+  /** Jumps to the pinned prompt governing this position, then earlier prompts. */
+  scrollToPreviousPrompt(now = Date.now()): boolean {
+    let target = -1;
+    for (const anchor of this.#promptAnchors) {
+      if (anchor.firstRow < this.#scrollTop && anchor.firstRow > target) target = anchor.firstRow;
+    }
+    return target >= 0 && this.scrollTo(target, now);
+  }
+
   reset(): void {
     this.#scrollTop = 0;
     this.#maxScroll = 0;
