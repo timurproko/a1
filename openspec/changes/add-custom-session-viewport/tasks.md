@@ -1,6 +1,6 @@
 ## 1. Build the shared viewport primitives
 
-- [ ] 1.1 Extend the shared scrollbar with `always | hover | hidden` appearance, `thin | thick` style, per-rail recent-activity/hover/drag visibility, stable hover gutter reservation, themed track/thumb painting, and shell-configured wheel distance; verify focused component tests cover the complete appearance/style/state matrix, linger expiry, hidden interaction, track paging, drag clamping, and two independent rails
+- [ ] 1.1 Extend the shared scrollbar with `always | hover | hidden` appearance, `thin | thick` style, per-rail recent-activity/hover/drag visibility, stable hover rail overlay, themed track/thumb painting, and shell-configured wheel distance; verify focused component tests cover the complete appearance/style/state matrix, linger expiry, hidden interaction, track paging, drag clamping, and two independent rails
 - [ ] 1.2 Add the neutral submitted-prompt row composer for prefix width, continuation indentation, local `HH:mm` source timestamps, right alignment, narrow-width omission, and ANSI-safe width; verify focused tests cover one-line, multiline, resumed-timestamp, wide-character, styled, and insufficient-width prompts
 - [ ] 1.3 Add the neutral transcript viewport state and frame compositor for exact-height clipping, follow/detach transitions, semantic prompt anchors, sticky-row prominence, scroll-to-bottom overlay/hit regions, scrollbar composition, and resize clamping; verify pure tests cover every custom-session-viewport scenario without constructing Pi components
 

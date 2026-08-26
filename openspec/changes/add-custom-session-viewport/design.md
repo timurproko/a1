@@ -93,7 +93,7 @@ Alternative considered: take over all terminal input. Rejected because the viewp
 - appearance: `always | hover | hidden`;
 - style: `thin | thick`;
 - visible reasons: always, pointer proximity, recent activity, or drag latch;
-- stable rail-column reservation;
+- a stable rail overlay column that does not remove an ordinary content cell;
 - track/thumb cell selection through theme roles;
 - a bounded activity expiry supplied with `now` in tests rather than hidden global time.
 
@@ -143,7 +143,7 @@ The implementation will add focused render-count and long-transcript tests so a 
 - **[Timestamp reservation can cause excessive wrapping]** → Use a declared minimum useful content width and omit only the timestamp at narrower widths; never truncate the submitted prompt payload.
 - **[Sticky and rail overlays can leak ANSI styles or hyperlinks]** → Use the shared display-width and span-overlay primitives, isolate theme roles, and test background, hyperlink, wide-character, and narrow-width rows.
 - **[Early input interception can steal modal input]** → Gate by current active input/overlay ownership, consume only named viewport regions and wheel routing, preserve mixed-chunk remainder, and add ordering tests against the public TUI.
-- **[A live style change can move content]** → `always` and `hover` share a stable reserved column while content overflows; style changes preserve geometry. `hidden` deliberately returns the column and rewraps once.
+- **[A live style change can move content]** → `always` and `hover` share a stable overlay column while content overflows; ordinary transcript content keeps the full wrapping width and style changes preserve geometry. Submitted prompts alone reserve the intentional timestamp gutter; `hidden` returns that prompt cell and rewraps it once.
 - **[A long transcript can make every frame linear]** → Reuse block row caches, keep ordered anchor indexes, decorate only visible rows, and assert stable render counts while scrolling and streaming.
 
 ## Migration Plan

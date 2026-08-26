@@ -172,6 +172,12 @@ The viewport SHALL claim wheel events used to scroll its transcript and pointer 
 - **AND** every source foreground color, link, bold, italic, and underline attribute SHALL remain unchanged
 - **AND** whole and interior selected rows SHALL paint through the final terminal column while any visible scrollbar glyph remains above the selection background
 
+#### Scenario: Render ordinary content through the rail overlay column
+- **WHEN** an ordinary transcript row reaches the right edge in `always` or `hover` scrollbar mode
+- **THEN** its wrapping width SHALL include the final terminal column
+- **AND** a visible scrollbar SHALL overlay that column rather than permanently removing one content cell
+- **AND** submitted prompt rows SHALL retain their intentional blank rail cell after a fitting timestamp
+
 #### Scenario: Double-click through the final reserved cell
 - **WHEN** a double-click selects trailing whitespace or a token whose run reaches the transcript content edge
 - **THEN** the selection background SHALL continue through the final terminal column, including the reserved scrollbar cell

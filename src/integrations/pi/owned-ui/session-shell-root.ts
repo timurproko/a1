@@ -269,12 +269,12 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     const height = Math.max(0, this.#componentRuntime.getRows());
     const dock = this.#renderDockLayout(width);
     const availableWithoutStatus = Math.max(0, height - Math.min(height, dock.rowsWithoutStatus.length));
-    // Always/hover own one stable final gutter cell, even before overflow. This
-    // is the v2 policy and leaves the intentional blank after a right-aligned
-    // prompt timestamp instead of letting it touch the terminal edge.
-    const documentWidth = this.#viewportConfig.scrollbarAppearance === "hidden" || width <= 1 ? width : width - 1;
+    // Ordinary transcript content uses the full terminal width. The rail is an
+    // overlay, not a lost wrapping cell. Submitted prompts alone retain the
+    // intentional final gutter after their right-aligned timestamp.
+    const documentWidth = width;
     let document = this.#renderDocumentLayout(documentWidth);
-    const statusRows = documentWidth === width ? dock.statusRows : this.#renderStatus(documentWidth);
+    const statusRows = dock.statusRows;
     // v2 pins Working only while the complete transcript still fits. Once the
     // transcript overflows, status joins the scrollable document tail so it
     // naturally leaves the screen when the user scrolls up.
@@ -324,6 +324,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   }
 
   setViewportConfig(config: OwnedUiViewportSettings): void {
+    if (config.scrollbarAppearance !== this.#viewportConfig.scrollbarAppearance) this.#documentLayouts.clear();
     this.#viewportConfig = config;
     this.#viewport.setConfig(config);
     this.#componentRuntime.requestRender();
@@ -658,7 +659,13 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       const id = this.#transcriptOrder[index]!;
       const block = this.#blocksById.get(id);
       if (!this.#thinkingVisible && block?.kind === "thinking") continue;
-      const blockRows = this.#blockRows(id, block, width);
+      const blockWidth = this.#customViewport
+        && block?.kind === "user"
+        && this.#viewportConfig.scrollbarAppearance !== "hidden"
+        && width > 1
+        ? width - 1
+        : width;
+      const blockRows = this.#blockRows(id, block, blockWidth);
       if (block?.kind === "user") {
         // The first natural prompt gets one breathing row at the document top.
         // Once scrolling advances, the prompt itself reaches row zero and then
@@ -673,7 +680,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
           id: block.id,
           firstRow,
           lastRow: Math.max(firstRow, rows.length - 1),
-          sourceRow: pinnedPromptSourceRow(block, blockRows[0], width),
+          sourceRow: pinnedPromptSourceRow(block, blockRows[0], blockWidth),
         });
       }
     }

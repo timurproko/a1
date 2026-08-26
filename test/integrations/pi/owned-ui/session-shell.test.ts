@@ -249,6 +249,18 @@ describe("OwnedUiSessionShell", () => {
     expect(frame[promptIndex]).toMatch(/14:48 $/);
   });
 
+  it("wraps ordinary transcript content through the rail overlay column", async () => {
+    const word = "x".repeat(60);
+    const { terminal, shell } = await fixture([
+      { role: "assistant", content: [{ type: "text", text: word }], timestamp: Date.now() },
+    ], [], true);
+    terminal.resize(60, 12);
+    const frame = shell.root.render(60).map(row => stripTerminalSequences(row));
+    expect(frame.some(row => row.trim() === "x".repeat(58))).toBe(true);
+    expect(frame.every(row => row.trim() !== "x".repeat(57))).toBe(true);
+    await shell.dispose();
+  });
+
   it("scrolls an overflowing Working status with the transcript like v2", async () => {
     const messages = Array.from({ length: 18 }, (_, index) => ({
       role: index % 2 === 0 ? "user" : "assistant",
