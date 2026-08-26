@@ -200,7 +200,7 @@ describe("OwnedUiSessionShell", () => {
     const detached = detachedRaw.map(row => stripTerminalSequences(row));
     expect(detached).toHaveLength(12);
     expect(detachedRaw[0]).toContain(piTheme().fg("userMessageText", "11:57"));
-    expect(detached.some(row => row.includes("Jump to bottom (alt+end)"))).toBe(true);
+    expect(detached.some(row => row.includes("Jump to bottom (Alt+End)"))).toBe(true);
     expect(detached[0]).not.toContain("│");
     expect(detached.slice(1, -4).some(row => row.includes("│"))).toBe(true);
 
@@ -212,17 +212,17 @@ describe("OwnedUiSessionShell", () => {
     engine.session.emit({ type: "message_start", message: completedReply });
     engine.session.emit({ type: "message_end", message: completedReply });
     await shell.backend.flushEvents();
-    expect(shell.root.render(60).some(row => stripTerminalSequences(row).includes("1 new message (alt+end)"))).toBe(true);
+    expect(shell.root.render(60).some(row => stripTerminalSequences(row).includes("1 new message (Alt+End)"))).toBe(true);
 
     engine.session.emit({ type: "message_end", message: { role: "tool", content: [{ type: "text", text: "tool result" }] } });
     await shell.backend.flushEvents();
-    expect(shell.root.render(60).some(row => stripTerminalSequences(row).includes("1 new message (alt+end)"))).toBe(true);
+    expect(shell.root.render(60).some(row => stripTerminalSequences(row).includes("1 new message (Alt+End)"))).toBe(true);
 
     // v2 resumes follow at the exact agent_start boundary, which also clears
     // the completed-message count on the next frame.
     engine.session.emit({ type: "agent_start" });
     await shell.backend.flushEvents();
-    expect(shell.root.render(60).every(row => !stripTerminalSequences(row).includes("alt+end"))).toBe(true);
+    expect(shell.root.render(60).every(row => !stripTerminalSequences(row).includes("Alt+End"))).toBe(true);
     engine.session.emit({ type: "agent_settled" });
     await shell.backend.flushEvents();
 
