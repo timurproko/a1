@@ -66,9 +66,6 @@ export async function runBootstrap(options: BootstrapOptions): Promise<number> {
   const activeId = state.references.active;
   const active = activeId === null ? undefined : state.releases[activeId];
   const activeIsLaunchable = active === undefined || (options.releaseIsLaunchable?.(active.releaseRoot) ?? true);
-  if (active !== undefined && !activeIsLaunchable) {
-    output.write(`${PRODUCT_TEXT.diagnostic(`retired release ${active.releaseId} because its copy is not launchable; rebuilding from the installed package.`)}\n`);
-  }
   if (activeIsLaunchable && active?.approval === "approved" && active.packageVersion === installedVersion) {
     const endpointMatches = endpoint?.releaseId === active.releaseId
       && endpoint.releaseRoot === active.releaseRoot
@@ -94,6 +91,16 @@ export async function runBootstrap(options: BootstrapOptions): Promise<number> {
     const diagnosticsPath = await certifyMaterializedRelease(candidate, paths.dataDir);
     await stateStore.approve(candidate.releaseId, diagnosticsPath);
     await stateStore.activate(candidate.releaseId);
+    state = await stateStore.read();
+  } else if (!activeIsLaunchable && candidate.releaseId !== activeId
+    && state.releases[candidate.releaseId]?.approval !== "approved") {
+    // The active reference points at a copy that cannot launch, so reusing it
+    // is off the table — but an unapproved candidate would lose the selection
+    // below to that same broken active (`start-active`). Approving the healed
+    // candidate here lets ordinary cohort selection activate it, while a live
+    // busy cohort still wins the endpoint checks and keeps its sessions.
+    const diagnosticsPath = await certifyMaterializedRelease(candidate, paths.dataDir);
+    await stateStore.approve(candidate.releaseId, diagnosticsPath);
     state = await stateStore.read();
   }
 
