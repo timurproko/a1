@@ -9,7 +9,7 @@ Bare A1 still presents the transcript as Pi's flowing document, so long sessions
 - Add one A1 scrollbar rail with configurable appearance (`always`, `hover`, or `hidden`) and style (`thin` or `thick`). Hover appearance responds to pointer proximity, recent scrolling, and dragging. No scroll-speed setting is introduced.
 - Render submitted user prompts with a right-aligned timestamp when width permits. When a prompt governs the top of a scrolled view, its first row remains pinned with the same timestamp; it stays prominent while its continuation rows remain visible, becomes quiet after the complete prompt leaves view, and returns to the prompt when activated.
 - Preserve ordinary transcript selection and every existing command, selector, dialog, editor replacement, extension widget, working indicator, and footer contribution. This milestone changes placement and transcript navigation, not status-bar content or input-prompt styling.
-- Enable the custom viewport only for bare A1. `a1 pi` and `a1 sandbox` continue to present the pinned comparison interface without A1's viewport customization.
+- Enable the custom viewport only for bare A1. `a1 pi` continue to present the pinned comparison interface without A1's viewport customization.
 
 **BREAKING**: none. Bare A1 deliberately gains an accepted A1-specific layout while the explicit comparison profiles retain the pinned presentation.
 

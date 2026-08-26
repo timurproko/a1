@@ -60,18 +60,13 @@
       "identifier": "A1_DATABASE_PATH"
     },
     {
-      "path": "src/features/launch/prepare-launch.ts",
-      "line": 30,
-      "identifier": "A1_LAUNCH_ARGUMENTS_JSON"
-    },
-    {
       "path": "test/cli/packages.test.ts",
       "line": 67,
       "identifier": "A1_PROFILE_HOME"
     },
     {
       "path": "test/cli/packages.test.ts",
-      "line": 197,
+      "line": 196,
       "identifier": "A1_PROFILE_HOME"
     },
     {
@@ -168,36 +163,6 @@
       "path": "test/features/launch/development-launch.test.ts",
       "line": 84,
       "identifier": "A1_PROFILE_HOME"
-    },
-    {
-      "path": "test/features/launch/prepare-launch.test.ts",
-      "line": 20,
-      "identifier": "A1_LAUNCH_ARGUMENTS_JSON"
-    },
-    {
-      "path": "test/features/launch/prepare-launch.test.ts",
-      "line": 49,
-      "identifier": "A1_LAUNCH_ARGUMENTS_JSON"
-    },
-    {
-      "path": "test/features/launch/profile-paths.test.ts",
-      "line": 42,
-      "identifier": "A1_PROFILE_HOME"
-    },
-    {
-      "path": "test/features/launch/profile-paths.test.ts",
-      "line": 43,
-      "identifier": "A1_CONFIG_DIR"
-    },
-    {
-      "path": "test/features/launch/profile-paths.test.ts",
-      "line": 44,
-      "identifier": "A1_DATA_DIR"
-    },
-    {
-      "path": "test/features/launch/profile-paths.test.ts",
-      "line": 45,
-      "identifier": "A1_RUNTIME_DIR"
     },
     {
       "path": "test/foundation/launch-guardian/concurrency.integration.test.ts",

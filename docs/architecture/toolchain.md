@@ -91,8 +91,8 @@ These paths are A1 control and release state, not Pi profile roots. All are over
 
 A1 does not read or migrate legacy `ADDONE_*` variables, `AddOne`/`addone` control-state directories, release manifests, database schemas, endpoint records, or protocol frames. Remove obsolete control state only after stopping old processes: `%APPDATA%\\AddOne` and `%LOCALAPPDATA%\\AddOne` on Windows, or the former `addone` directories under XDG config, data, and runtime roots on Unix. This cleanup is manual and never imports data into A1.
 
-Do **not** remove `~/.a1/agent` or `~/.a1/sandbox`; those are current Pi profile roots and are intentionally preserved. `~/.pi/agent` remains the vanilla Pi profile.
+Do **not** remove `~/.a1/agent`; it is A1's current Pi profile root. `~/.pi/agent` remains the vanilla Pi profile.
 
 The obsolete npm package `@timurproko/addone` is deprecated with the registry message `This package is obsolete. Use @timurproko/a1 instead.` It is not a current identity, compatibility channel, or rollback source. Whole-package unpublication was rejected by npm policy; any later removal is owner-controlled registry administration and does not change the A1 runtime contract.
 
-The launch-profile feature separately owns Pi roots: `~/.a1/agent`, ordinary `~/.pi/agent`, and `~/.a1/sandbox`.
+The launch-profile feature separately owns A1's `~/.a1/agent` root and preserves ordinary Pi resolution through `~/.pi/agent`.

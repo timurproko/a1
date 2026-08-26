@@ -95,9 +95,9 @@ written durably enough that an interrupted write cannot leave the file unreadabl
 - **THEN** each profile SHALL resolve only its own stored value, and neither SHALL inherit from the
   other, from a prior process, or from Pi profile state
 
-#### Scenario: Vanilla and sandbox profiles are untouched
+#### Scenario: Vanilla Pi profile is untouched
 - **WHEN** A1 writes its settings
-- **THEN** the contents and layout of `~/.pi/agent` and `~/.a1/sandbox` SHALL be unchanged
+- **THEN** the contents and layout of `~/.pi/agent` SHALL be unchanged
 
 #### Scenario: Interrupt a settings write
 - **WHEN** a settings write is interrupted before completion

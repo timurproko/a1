@@ -31,17 +31,16 @@ a1 update:107           # install numbered preview 107
 a1 update --models      # refresh A1's model catalogs
 ```
 
-Development previews add two extra profiles; release builds do not carry them.
+Development previews add the Pi comparison profile; release builds do not carry it.
 
 ```sh
 a1 pi           # vanilla Pi oracle: ~/.pi/agent
-a1 sandbox      # isolated vanilla Pi profile: ~/.a1/sandbox
 ```
 
 ## Extensions
 
 Pi extension packages install into A1's own profile (`~/.a1/agent`), so bare `a1`
-loads them and `a1 pi` / `a1 sandbox` do not. Sources are Pi's: `npm:`, git, or a
+loads them and `a1 pi` does not. Sources are Pi's: `npm:`, git, or a
 local path.
 
 ```sh
@@ -63,7 +62,6 @@ npm ci                  # install exact locked dependencies
 npm run build           # compile TypeScript and the process guardian into dist
 npm start               # build and launch a development `a1`
 npm run start:pi        # build and launch a development `a1 pi`
-npm run start:sandbox   # build and launch a development `a1 sandbox`
 npm run test:fast       # typecheck + fast suite (alias: npm test)
 npm run test:full       # complete non-physical suite
 ```

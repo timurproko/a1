@@ -19,7 +19,7 @@ export interface CliOutput {
 export function cliUsage(capabilities: CliCapabilities): string {
   return PRODUCT_TEXT.usage([
     "",
-    ...(capabilities.developmentProfiles ? ["pi", "sandbox"] : []),
+    ...(capabilities.developmentComparison ? ["pi"] : []),
     "version",
     "update [self|--models]",
     "update:develop",
@@ -31,7 +31,7 @@ export function cliUsage(capabilities: CliCapabilities): string {
   ]);
 }
 
-const PROFILE_WORDS = new Set(["pi", "sandbox"]);
+const PROFILE_WORDS = new Set(["pi"]);
 
 export async function dispatchCli(
   arguments_: readonly string[],
@@ -63,10 +63,7 @@ export function parseCliCommand(arguments_: readonly string[], capabilities: Cli
 
   if (command === "pi") {
     if (rest.length > 0) return parsePiPackageCommand(rest);
-    if (capabilities.developmentProfiles) return { kind: "launch", profileId: "pi" };
-  }
-  if (capabilities.developmentProfiles && command === "sandbox") {
-    return withoutArguments(rest, { kind: "launch", profileId: command });
+    if (capabilities.developmentComparison) return { kind: "launch", profileId: "pi" };
   }
   if (command === "version") return withoutArguments(rest, { kind: "version" });
   if (command !== undefined && command.startsWith("update:")) return parseColonUpdate(command.slice("update:".length), rest);

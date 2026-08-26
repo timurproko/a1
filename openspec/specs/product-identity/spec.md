@@ -18,7 +18,7 @@ The product SHALL identify itself with display name `A1`, command `a1`, npm pack
 - **THEN** all identity-derived diagnostics and generated names under test SHALL use the substituted value without editing feature modules
 
 ### Requirement: Current environment and state names use the A1 namespace
-A1 SHALL recognize only `A1_CONFIG_DIR`, `A1_DATA_DIR`, `A1_RUNTIME_DIR`, `A1_DATABASE_PATH`, `A1_ENDPOINT`, and other explicitly declared `A1_*` runtime variables. Default Windows control-state directories SHALL use `A1`; default Unix control-state directories SHALL use `a1`. A1 SHALL NOT read variables or control-state directories using the former identity. Pi profile roots SHALL remain `~/.a1/agent`, `~/.pi/agent`, and `~/.a1/sandbox`.
+A1 SHALL recognize only `A1_CONFIG_DIR`, `A1_DATA_DIR`, `A1_RUNTIME_DIR`, `A1_DATABASE_PATH`, `A1_ENDPOINT`, and other explicitly declared `A1_*` runtime variables. Default Windows control-state directories SHALL use `A1`; default Unix control-state directories SHALL use `a1`. A1 SHALL NOT read variables or control-state directories using the former identity. A1 SHALL use `~/.a1/agent` for its Pi profile and preserve Pi's ordinary `~/.pi/agent` resolution for the comparison launch.
 
 #### Scenario: Override A1 state roots
 - **WHEN** the user supplies valid `A1_CONFIG_DIR`, `A1_DATA_DIR`, and `A1_RUNTIME_DIR` values

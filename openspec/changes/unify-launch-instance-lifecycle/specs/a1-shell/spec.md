@@ -14,14 +14,14 @@ During transparent handoff, the child and physical terminal SHALL own rendering,
 ## ADDED Requirements
 
 ### Requirement: Every interactive shell path uses one launch-instance boundary
-The immutable interactive launcher SHALL establish the same non-detachable launch-instance ownership boundary before selecting the bare owned UI, vanilla Pi, or sandbox Pi runtime. Runtime selection SHALL occur inside that boundary so normal exit and abnormal owner loss have one close contract across all profiles.
+The immutable interactive launcher SHALL establish the same non-detachable launch-instance ownership boundary before selecting the bare owned UI, vanilla Pi runtime. Runtime selection SHALL occur inside that boundary so normal exit and abnormal owner loss have one close contract across all profiles.
 
 #### Scenario: Launch bare A1
 - **WHEN** the shell selects the owned UI runtime
 - **THEN** the owned UI and every process it creates SHALL belong to that command's launch instance
 
 #### Scenario: Launch an explicit Pi profile
-- **WHEN** the shell selects `a1 pi` or `a1 sandbox`
+- **WHEN** the shell selects `a1 pi`
 - **THEN** the transparent Pi child and every process it creates SHALL belong to that command's launch instance without changing direct terminal attachment
 
 #### Scenario: Another interactive instance is active

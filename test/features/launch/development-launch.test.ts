@@ -83,10 +83,9 @@ describe("repository-local development launch", () => {
     const inheritedPiProfile = resolve(profileHome, "inherited-shared-profile");
     const environment = { ...process.env, A1_PROFILE_HOME: profileHome, PI_CODING_AGENT_DIR: inheritedPiProfile };
     try {
-      const [owned, pi, sandbox] = await Promise.all([
+      const [owned, pi] = await Promise.all([
         execute(process.execPath, ["scripts/development/start-local.mjs", "--print-environment"], { env: environment }),
         execute(process.execPath, ["scripts/development/start-local.mjs", "--print-environment", "pi"], { env: environment }),
-        execute(process.execPath, ["scripts/development/start-local.mjs", "--print-environment", "sandbox"], { env: environment }),
       ]);
       expect(JSON.parse(owned.stdout)).toMatchObject({
         launchArguments: [],
@@ -99,12 +98,6 @@ describe("repository-local development launch", () => {
         directProfile: "pi",
         profileConfigurationRoot: null,
         environment: { PI_CODING_AGENT_DIR: null },
-      });
-      expect(JSON.parse(sandbox.stdout)).toMatchObject({
-        launchArguments: ["sandbox"],
-        directProfile: "sandbox",
-        profileConfigurationRoot: resolve(profileHome, ".a1/sandbox"),
-        environment: { PI_CODING_AGENT_DIR: resolve(profileHome, ".a1/sandbox") },
       });
       expect(JSON.parse(owned.stdout).environment.PI_CODING_AGENT_DIR).not.toBe(inheritedPiProfile);
     } finally {

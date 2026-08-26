@@ -55,14 +55,6 @@
       "environmentRule": "PI_CODING_AGENT_DIR removed",
       "projectTrust": "pi-default"
     },
-    "sandbox": {
-      "invocation": "a1 sandbox",
-      "configurationRoot": "~/.a1/sandbox",
-      "projectTrust": "ignore",
-      "arguments": [
-        "--no-approve"
-      ]
-    },
     "evidenceHashes": {
       "documentationSha256": "0fcc0a7823dcdad2f00d6e2c82ba117d14b7cb2a2fcebfbb2615eafd94413003",
       "contractsSha256": "bc63eeacdc65b89b0b4d84c2e25a4fb8f937d1864ab4275119a4a0aec707a38c",

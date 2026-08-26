@@ -47,7 +47,6 @@
     "proof:terminal-host": "node scripts/development/run-terminal-host.mjs",
     "start": "npm run build && node scripts/development/dev-launch.mjs",
     "start:pi": "npm run build && node scripts/development/dev-launch.mjs pi",
-    "start:sandbox": "npm run build && node scripts/development/dev-launch.mjs sandbox",
     "prepack": "node scripts/release/prepack-gate.mjs",
     "prepublishOnly": "npm run test:release",
     "prepare": "npm run build",

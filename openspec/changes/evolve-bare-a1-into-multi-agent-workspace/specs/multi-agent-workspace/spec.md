@@ -5,14 +5,14 @@ Defines the user-visible workspace that bare `a1` provides for managing multiple
 ## ADDED Requirements
 
 ### Requirement: Bare A1 opens the multi-agent workspace
-Bare `a1` SHALL open the A1-owned multi-agent workspace. `a1 pi` SHALL continue to launch vanilla Pi using `~/.pi/agent`, and `a1 sandbox` SHALL continue to launch the isolated `~/.a1/sandbox` profile without entering the workspace.
+Bare `a1` SHALL open the A1-owned multi-agent workspace. `a1 pi` SHALL continue to launch vanilla Pi using `~/.pi/agent` without entering the workspace.
 
 #### Scenario: Launch bare A1
 - **WHEN** the user runs bare `a1`
-- **THEN** A1 SHALL present the workspace and SHALL NOT reinterpret the invocation as `a1 pi` or `a1 sandbox`
+- **THEN** A1 SHALL present the workspace and SHALL NOT reinterpret the invocation as `a1 pi`
 
 #### Scenario: Launch an explicit stable mode
-- **WHEN** the user runs `a1 pi` or `a1 sandbox`
+- **WHEN** the user runs `a1 pi`
 - **THEN** A1 SHALL launch the selected explicit mode without creating or attaching to a workspace surface
 
 ### Requirement: Workspace presentation is A1-owned and SDK-backed

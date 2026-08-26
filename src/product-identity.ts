@@ -13,7 +13,6 @@ const ENVIRONMENT_KEYS = [
   "fixtureToken",
   "inputAcknowledgement",
   "internalPackaging",
-  "launchArgumentsJson",
   "launchProfile",
   "nativePi",
   "paneId",
@@ -36,7 +35,7 @@ const ENVIRONMENT_KEYS = [
   "terminalSessionId",
 ] as const;
 const FILESYSTEM_KEYS = ["slug", "windowsDirectory", "unixDirectory", "temporaryPrefix"] as const;
-const STATE_KEYS = ["windowsControlDirectory", "unixControlDirectory", "developmentDirectory", "piAgentProfile", "piVanillaProfile", "piSandboxProfile"] as const;
+const STATE_KEYS = ["windowsControlDirectory", "unixControlDirectory", "developmentDirectory", "piAgentProfile", "piVanillaProfile"] as const;
 const ENDPOINT_KEYS = ["windowsPipeStem", "unixSocketFilename", "metadataFilename", "supervisorLogFilename", "databaseFilename"] as const;
 const MANIFEST_KEYS = ["releaseFilename", "packageFilename"] as const;
 const PROTOCOL_KEYS = ["namespace", "controlEnvelope", "supervisorSchema", "nativeHostSchema", "structuredAgentSchema", "controlStoreSchema", "releaseCohortSchema", "updateJournalSchema"] as const;

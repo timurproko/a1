@@ -5,10 +5,10 @@ Defines independent ownership, containment, termination, and lifecycle evidence 
 ## ADDED Requirements
 
 ### Requirement: Every interactive command owns an independent launch instance
-Each invocation of `a1`, `a1 pi`, or `a1 sandbox` SHALL create a unique launch instance whose ownership and outcome are independent from every other invocation. A1 SHALL permit any supported number and combination of those launch forms concurrently and SHALL NOT use product-wide foreground exclusivity to authorize a launch.
+Each invocation of `a1` or `a1 pi` SHALL create a unique launch instance whose ownership and outcome are independent from every other invocation. A1 SHALL permit any supported number and combination of those launch forms concurrently and SHALL NOT use product-wide foreground exclusivity to authorize a launch.
 
 #### Scenario: Launch several profiles concurrently
-- **WHEN** the user starts multiple `a1`, `a1 pi`, and `a1 sandbox` commands from separate terminals
+- **WHEN** the user starts multiple `a1` and `a1 pi` commands from separate terminals
 - **THEN** A1 SHALL start one independent launch instance for every command without rejecting any command because another interactive instance is active
 
 #### Scenario: One instance exits
@@ -56,7 +56,7 @@ A1 SHALL bind lifecycle operations to authenticated instance ownership, native p
 Launch-instance ownership SHALL carry lifecycle and containment only. It SHALL NOT read ordinary terminal input, parse or relay runtime output, reconstruct display state, synthesize terminal responses, or change whether the selected profile uses the owned UI or transparent direct attachment.
 
 #### Scenario: Transparent profile runs inside an instance
-- **WHEN** `a1 pi` or `a1 sandbox` runs under launch-instance ownership
+- **WHEN** `a1 pi` runs under launch-instance ownership
 - **THEN** Pi and the physical terminal SHALL retain direct native rendering and input ownership
 
 #### Scenario: Owned UI runs inside an instance

@@ -43,7 +43,7 @@ The installed application SHALL expose `a1 version`. It SHALL report `Installed`
 - **THEN** A1 SHALL preserve `Installed`, mark both remote fields unavailable, emit one concise `A1` diagnostic describing the registry failure, and exit successfully
 
 ### Requirement: Bare A1 launches the owned Pi UI
-Bare `a1` SHALL launch the A1-owned Pi UI directly. The owned UI SHALL be the ordinary development and product path rather than an opt-in profile. Explicit `a1 pi` SHALL continue to launch untouched upstream Pi through transparent direct attachment, and `a1 sandbox` SHALL retain its existing behavior. The redundant `a1 ui` route SHALL NOT be exposed.
+Bare `a1` SHALL launch the A1-owned Pi UI directly. The owned UI SHALL be the ordinary development and product path rather than an opt-in profile. Explicit `a1 pi` SHALL remain the prerelease Pi comparison launch. The redundant `a1 ui` route SHALL NOT be exposed.
 
 #### Scenario: Launch bare A1
 - **WHEN** the user runs `a1`

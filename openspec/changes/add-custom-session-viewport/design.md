@@ -121,7 +121,7 @@ Alternative considered: read settings files from the viewport. Rejected because 
 
 ### 8. Profile scope is decided once in composition
 
-The same composition decision that withholds A1-owned routes from `a1 pi` and `a1 sandbox` will select the pinned shell layout for those profiles and the custom viewport layout for bare A1. Rendering code will not inspect executable arguments, environment variables, or profile paths. A typed option crosses composition into the shell.
+The same composition decision that withholds A1-owned routes from `a1 pi` will select the pinned shell layout for those profiles and the custom viewport layout for bare A1. Rendering code will not inspect executable arguments, environment variables, or profile paths. A typed option crosses composition into the shell.
 
 Alternative considered: make the viewport a Pi/agent setting. Rejected because it is A1 product presentation, and comparison profiles must remain an oracle rather than inherit product layout settings.
 
@@ -151,7 +151,7 @@ The implementation will add focused render-count and long-transcript tests so a 
 1. Add the neutral viewport and extended scrollbar behavior behind an explicit shell option; leave all launch profiles on the existing path.
 2. Add pre-input routing and prompt presentation with focused conformance tests while the option remains disabled.
 3. Add the two settings declarations and pass a settings-backed viewport configuration through composition.
-4. Enable the option for bare A1 only; keep `a1 pi` and `a1 sandbox` on the pinned comparison path.
+4. Enable the option for bare A1 only; keep `a1 pi` on the pinned comparison path.
 5. Run CI, then perform user-controlled manual acceptance for long-session scrolling, streaming while detached, prompt submission, scrollbar states, sticky prompts, selectors, resize, selection/copy, and terminal restoration.
 6. Record acceptance before merging the behavior change and later archive the OpenSpec change.
 

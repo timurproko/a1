@@ -29,7 +29,7 @@ describe("mutable bootstrap boundary", () => {
 
   it("carries selected launch identity without importing terminal implementation", async () => {
     const bootstrap = await readFile(resolve(repository, "src/foundation/release/bootstrap.ts"), "utf8");
-    expect(bootstrap).toContain("options.launchIntent?.profile.id");
+    expect(bootstrap).toContain("options.launchIntent?.profileId");
     expect(bootstrap).toContain("environment[PRODUCT_IDENTITY.environment.launchProfile] = launchProfileId");
     expect(bootstrap).not.toMatch(/foundation\/transparent-terminal/);
   });

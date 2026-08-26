@@ -107,7 +107,7 @@ The accepted transparent baseline SHALL support one direct full-viewport foregro
 
 #### Scenario: Multi-agent planning begins
 - **WHEN** the accepted baseline and three launch profiles are complete
-- **THEN** the next change SHALL plan bare `a1` as the multi-agent UX entry point while preserving `a1 pi` as vanilla Pi and `a1 sandbox` as isolated profile experimentation
+- **THEN** the next change SHALL plan bare `a1` as the multi-agent UX entry point while preserving `a1 pi` as the prerelease Pi comparison
 
 ### Requirement: Live repository surfaces use centralized A1 identity
 Production source, scripts, workflows, current tests and fixtures, current documentation, main specifications, and non-archived changes SHALL use the A1 product-identity authority for executable identity values and SHALL NOT define former product identity literals independently. Repository validation SHALL fail on an unapproved legacy occurrence or an identity-bearing literal outside the declared authority and its explicit boundary tests.

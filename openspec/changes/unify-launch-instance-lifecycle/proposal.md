@@ -1,10 +1,10 @@
 ## Why
 
-A1 currently models transparent execution as one product-wide exclusive foreground lease, so a stale row or another terminal blocks `a1 pi` and `a1 sandbox`, while bare `a1` follows a different lifecycle and descendant processes can outlive the command that created them. All three interactive forms need one consistent per-invocation ownership model: users can launch any number concurrently, and closing one invocation closes only its complete owned process tree without manual PID or state cleanup.
+A1 currently models transparent execution as one product-wide exclusive foreground lease, so a stale row or another terminal blocks `a1 pi`, while bare `a1` follows a different lifecycle and descendant processes can outlive the command that created them. All three interactive forms need one consistent per-invocation ownership model: users can launch any number concurrently, and closing one invocation closes only its complete owned process tree without manual PID or state cleanup.
 
 ## What Changes
 
-- Introduce an independent launch-instance lifecycle shared by `a1`, `a1 pi`, and `a1 sandbox`.
+- Introduce an independent launch-instance lifecycle shared by `a1` and `a1 pi`.
 - Permit any number and combination of interactive launch instances; remove the product-wide foreground exclusivity constraint and global `busy` launch state.
 - Place each invocation and all of its runtime descendants inside one verified, platform-native containment boundary with terminate-tree-on-close behavior.
 - Use one terminal-transparent launch guardian for every interactive profile; it inherits terminal handles directly and never reads, parses, relays, or renders terminal traffic.
@@ -24,7 +24,7 @@ A1 currently models transparent execution as one product-wide exclusive foregrou
 ### Modified Capabilities
 
 - `agent-supervision`: Replaces one exclusive transparent foreground lease with plural boot-authenticated launch-instance supervision and plural update/reconciliation behavior.
-- `launch-profiles`: Makes `a1`, `a1 pi`, and `a1 sandbox` use the same non-detachable instance lifecycle and permits concurrent launches without changing profile roots or terminal semantics.
+- `launch-profiles`: Makes `a1` and `a1 pi` use the same non-detachable instance lifecycle and permits concurrent launches without changing profile roots or terminal semantics.
 - `a1-shell`: Places the owned UI and transparent fallback paths under the same launch guardian and close contract while preserving direct terminal ownership.
 - `terminal-agent-runtime`: Replaces global lease semantics with per-instance transparent lifecycle registration and cleanup that carries no terminal bytes.
 

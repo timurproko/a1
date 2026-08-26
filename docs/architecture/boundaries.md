@@ -13,9 +13,9 @@ mutable a1 entry
   -> owned Pi-backed composition, with A1 surfaces enabled only for bare a1
 ```
 
-Launch-instance ownership is plural. The supervisor tracks any number of independently authenticated `a1`, `a1 pi`, and `a1 sandbox` instances and never uses one product-wide foreground mutex. Closing one instance closes only its verified process tree. Persisted rows alone do not prove liveness, and uncertainty never authorizes terminating an unrelated process.
+Launch-instance ownership is plural. The supervisor tracks any number of independently authenticated `a1` and `a1 pi` instances and never uses one product-wide foreground mutex. Closing one instance closes only its verified process tree. Persisted rows alone do not prove liveness, and uncertainty never authorizes terminating an unrelated process.
 
-Neither guardian reads ordinary terminal input, parses or relays runtime output, renders cells, infers frames, synthesizes terminal responses, or emits display control. All profiles use the same owned rendering and input pipeline. Bare `a1` exposes A1-owned surfaces; `a1 pi` and `a1 sandbox` withhold those surfaces and select their own profile roots. The private guardian boundary carries only bounded identity, readiness, stop, and outcome data.
+Neither guardian reads ordinary terminal input, parses or relays runtime output, renders cells, infers frames, synthesizes terminal responses, or emits display control. Both profiles use the same owned rendering and input pipeline. Bare `a1` exposes A1-owned surfaces; `a1 pi` withholds those surfaces and uses Pi's ordinary profile root. The private guardian boundary carries only bounded identity, readiness, stop, and outcome data.
 
 The owned Pi-backed surface is not an arbitrary-CLI terminal multiplexer. A feature that requires resident arbitrary CLI sessions, internal tabs, terminal-state reconnection, or A1-authoritative scrollback must introduce and certify the separate composed-terminal authority rather than reactivating the retired transparent attachment path.
 

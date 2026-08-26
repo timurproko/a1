@@ -18,7 +18,6 @@ describe("A1 CLI dispatch", () => {
   it.each([
     [[], { kind: "launch", profileId: "a1" }],
     [["pi"], { kind: "launch", profileId: "pi" }],
-    [["sandbox"], { kind: "launch", profileId: "sandbox" }],
     [["version"], { kind: "version" }],
     [["update"], { kind: "update", channel: "stable" }],
     [["update", "self"], { kind: "update", channel: "stable" }],
@@ -41,10 +40,9 @@ describe("A1 CLI dispatch", () => {
   });
 
   it.each([
-    { arguments_: [] as const, profileId: "a1", terminalCapability: "owned-ui" },
-    { arguments_: ["pi"] as const, profileId: "pi", terminalCapability: "owned-ui" },
-    { arguments_: ["sandbox"] as const, profileId: "sandbox", terminalCapability: "owned-ui" },
-  ] as const)("dispatches interactive form $arguments_ as a typed intent", async ({ arguments_, profileId, terminalCapability }) => {
+    { arguments_: [] as const, profileId: "a1" },
+    { arguments_: ["pi"] as const, profileId: "pi" },
+  ] as const)("dispatches interactive form $arguments_ as a typed intent", async ({ arguments_, profileId }) => {
     const launch = vi.fn(async (_intent: InteractiveLaunchIntent) => 17);
     const result = await dispatchCli(arguments_, {
       ...handlers(),
@@ -55,7 +53,7 @@ describe("A1 CLI dispatch", () => {
     expect(launch).toHaveBeenCalledOnce();
     expect(launch.mock.calls[0]?.[0]).toMatchObject({
       kind: "interactive",
-      profile: { id: profileId, terminalCapability },
+      profileId,
     });
   });
 
@@ -99,9 +97,7 @@ describe("A1 CLI dispatch", () => {
 
   it.each([
     { arguments_: ["pi", "install", "pi"] },
-    { arguments_: ["pi", "install", "sandbox"] },
     { arguments_: ["pi", "install", "--profile", "pi"] },
-    { arguments_: ["pi", "list", "sandbox"] },
   ])("refuses a profile on package command $arguments_", async ({ arguments_ }) => {
     const commands = handlers();
     const stderr = vi.fn();
@@ -132,7 +128,6 @@ describe("A1 CLI dispatch", () => {
   it.each([
     { arguments_: ["unknown"] },
     { arguments_: ["pi", "extra"] },
-    { arguments_: ["sandbox", "extra"] },
     { arguments_: ["ui", "extra"] },
     { arguments_: ["pi", "install"] },
     { arguments_: ["pi", "remove"] },
@@ -179,7 +174,8 @@ describe("A1 CLI dispatch", () => {
 });
 
 describe("A1 CLI dispatch in a release build", () => {
-  it.each([["pi"], ["sandbox"]])("does not recognize the %s profile", async profile => {
+  it("does not recognize the Pi comparison profile", async () => {
+    const profile = "pi";
     const commands = handlers();
     const stderr = vi.fn();
 
@@ -190,10 +186,8 @@ describe("A1 CLI dispatch in a release build", () => {
 
   it("keeps the development profiles out of usage", () => {
     expect(cliUsage(RELEASE)).not.toContain("Usage: a1 | a1 pi |");
-    expect(cliUsage(RELEASE)).not.toContain("a1 sandbox");
     expect(cliUsage(RELEASE)).toContain("a1 pi install <source>");
     expect(cliUsage(PRERELEASE)).toContain("Usage: a1 | a1 pi |");
-    expect(cliUsage(PRERELEASE)).toContain("a1 sandbox");
   });
 
   it.each([

@@ -64,4 +64,4 @@
   wording, line order, indentation, and colors match while paths remain isolated to
   their respective profile roots
 - [ ] 6.4 Restart and confirm the installed extension loads for bare `a1` and not for
-  `a1 pi` or `a1 sandbox`, then archive the change
+  `a1 pi`, then archive the change

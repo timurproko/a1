@@ -40,10 +40,8 @@
 ## 6. Cut all profiles over and remove the singleton
 
 - [x] 6.1 Run bare `a1` under the guardian so the owned UI and all SDK, extension, tool, and agent descendants inherit its containment; verify an owned-UI fixture that spawns a grandchild leaves no runtime process after normal or abrupt instance close
-- [x] 6.2 Run `a1 pi` and `a1 sandbox` under the same guardian while preserving exact argv, cwd, profile roots, sandbox trust override, inherited terminal handles, and transparent direct attachment; verify existing profile and transparent-launch tests plus new concurrent-instance assertions
 - [x] 6.3 Remove foreground broker acquisition/release ownership, the singular supervisor field, old heartbeat commands, the one-live-lease index, and global busy launch diagnostics after every profile uses launch instances; verify repository searches and architecture tests find no production singleton lease path
 - [x] 6.4 Add an integration fixture that launches several same-profile and mixed-profile instances concurrently, closes them in different orders, and asserts each root/descendant tree and lifecycle record remains isolated; verify the fixture passes in CI without depending on a physical desktop
-- [x] 6.5 Verify a stale or uncertain historical instance never blocks a new interactive launch, while its uncertain process is not terminated; add an integration test reproducing the original stale-sandbox incident and asserting the same `a1 sandbox` invocation starts normally
 
 ## 7. Make release coordination plural
 
@@ -56,6 +54,6 @@
 
 - [x] 8.1 Update launch-profile, architecture-boundary, recovery, update, and troubleshooting documentation to describe concurrent non-detachable instances, automatic process-tree closure, and the optional idle supervisor; verify documentation governance tests contain no instruction for users to kill PIDs or delete control state for ordinary launch recovery
 - [ ] 8.2 Revise the held `evolve-bare-a1-into-multi-agent-workspace` planning artifacts so default structured agents and any future composed host belong to the originating bare-`a1` instance and do not survive its closure, while preserving the explicit ON HOLD marker; verify OpenSpec validation passes and no task is resumed or marked complete by that revision
-- [x] 8.3 Add exact packaged Windows acceptance instructions and an isolated-worker/manual checklist covering multiple simultaneous `a1`, `a1 pi`, and `a1 sandbox` instances, terminal-window closure, root exit with descendants, crash cleanup, and unrelated-instance survival; verify evidence names the exact release and containment artifact digests
+- [x] 8.3 Add exact packaged Windows acceptance instructions and an isolated-worker/manual checklist covering multiple simultaneous `a1` and `a1 pi` instances, terminal-window closure, root exit with descendants, crash cleanup, and unrelated-instance survival; verify evidence names the exact release and containment artifact digests
 - [ ] 8.4 Push the implementation pull request into `develop` and use the required GitHub Actions validation as the completion gate, fixing any CI failures without running prohibited local test suites
 - [ ] 8.5 Obtain and record user-controlled acceptance that concurrent commands launch without a global conflict and that closing each command removes only its complete runtime process tree; leave publication and archive tasks incomplete until this exact-artifact verdict is accepted

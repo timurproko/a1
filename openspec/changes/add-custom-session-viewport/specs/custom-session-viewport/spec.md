@@ -138,14 +138,14 @@ The viewport SHALL claim wheel events used to scroll its transcript and pointer 
 - **THEN** its transient pointer state SHALL be cleared and the terminal SHALL be restored
 
 ### Requirement: The custom viewport is scoped to bare A1
-The custom session viewport SHALL be a declared A1 layout customization enabled for bare `a1`. The `a1 pi` and `a1 sandbox` profiles SHALL continue to present the pinned comparison layout without the A1 scrollbar settings, scroll-to-bottom control, timestamped A1 prompt bar, or sticky A1 prompt row.
+The custom session viewport SHALL be a declared A1 layout customization enabled for bare `a1`. The `a1 pi` profiles SHALL continue to present the pinned comparison layout without the A1 scrollbar settings, scroll-to-bottom control, timestamped A1 prompt bar, or sticky A1 prompt row.
 
 #### Scenario: Launch bare A1
 - **WHEN** the user starts bare `a1`
 - **THEN** the session SHALL use the custom bounded viewport and bottom dock
 
 #### Scenario: Launch a comparison profile
-- **WHEN** the user starts `a1 pi` or `a1 sandbox`
+- **WHEN** the user starts `a1 pi`
 - **THEN** the session SHALL use the pinned comparison presentation
 - **AND** no A1 viewport control or prompt decoration SHALL be inserted
 

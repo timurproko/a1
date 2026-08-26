@@ -1,7 +1,6 @@
 ## 1. Make the command mean it
 
 - [x] 1.1 Route the `pi` profile to the owned runtime with A1's own surfaces withheld,
-  leaving `sandbox` transparent
 - [x] 1.2 Update the runtime selection tests to the new contract
 
 ## 2. Point the measurement at it

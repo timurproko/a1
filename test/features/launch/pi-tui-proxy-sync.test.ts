@@ -64,7 +64,7 @@ afterEach(() => {
 
 describe("pi-tui proxy sync", () => {
   it("repoints the proxy at the hoisted copy when npm materialized no nested one", () => {
-    // The global-install layout that broke `a1 sandbox`: pi-tui hoisted to the
+    // The global-install layout under test: pi-tui hoisted to the
     // root, pinned Pi's nested copy absent, the shipped proxy naming a file
     // that does not exist.
     const packageRoot = packageRootWith({ root: "0.84.2" });

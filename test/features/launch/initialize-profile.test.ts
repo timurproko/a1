@@ -10,13 +10,12 @@ afterEach(async () => await Promise.all(roots.splice(0).map(root => rm(root, { r
 describe("A1 profile initialization", () => {
   it("creates only the selected root and conventional resource directories", async () => {
     const home = await temporaryHome();
-    const sandbox = resolve(home, ".a1", "sandbox");
-    const result = await initializeProductProfile(sandbox);
+    const profile = resolve(home, ".a1", "agent");
+    const result = await initializeProductProfile(profile);
 
-    expect(result.root).toBe(sandbox);
-    expect(result.directories).toEqual(PI_PROFILE_RESOURCE_DIRECTORIES.map(name => resolve(sandbox, name)));
-    for (const path of [sandbox, ...result.directories]) expect((await stat(path)).isDirectory()).toBe(true);
-    await expect(stat(resolve(home, ".a1", "agent"))).rejects.toMatchObject({ code: "ENOENT" });
+    expect(result.root).toBe(profile);
+    expect(result.directories).toEqual(PI_PROFILE_RESOURCE_DIRECTORIES.map(name => resolve(profile, name)));
+    for (const path of [profile, ...result.directories]) expect((await stat(path)).isDirectory()).toBe(true);
     await expect(stat(resolve(home, ".pi", "agent"))).rejects.toMatchObject({ code: "ENOENT" });
   });
 
@@ -39,7 +38,7 @@ describe("A1 profile initialization", () => {
     await writeFile(rootFile, "not a directory");
     await expect(initializeProductProfile(rootFile)).rejects.toThrow(/not an owned directory/);
 
-    const profile = resolve(home, ".a1", "sandbox");
+    const profile = resolve(home, ".a1", "agent");
     await mkdir(profile, { recursive: true });
     await writeFile(resolve(profile, "skills"), "not a directory");
     await expect(initializeProductProfile(profile)).rejects.toThrow(/resource path is not an owned directory/);

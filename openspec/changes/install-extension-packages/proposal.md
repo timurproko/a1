@@ -35,8 +35,7 @@ package-manager conversation rather than two presentations of the same operation
 - `a1 update pi` is refused. A1 pins one Pi version and certifies releases against
   it, so a Pi self-update from inside A1 would invalidate the thing that was
   certified.
-- The vanilla and sandbox profiles get no package commands. Pi itself manages
-  `~/.pi/agent`, and the sandbox exists to try things against Pi rather than to
+- The vanilla Pi profile get no package commands. Pi itself manages
   accumulate installs. Since no other profile is reachable, no profile prefix or
   flag exists to reach one — every package command means the A1 profile.
 - Package commands run entirely in the installed package process, without

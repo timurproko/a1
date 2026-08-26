@@ -43,22 +43,22 @@
     "explicit-obsolete-package-fixtures"
   ],
   "summary": {
-    "total": 82,
-    "files": 27,
+    "total": 76,
+    "files": 25,
     "byLocationKind": {
-      "content": 82,
+      "content": 76,
       "path": 0
     },
     "byClass": {
-      "runtime-symbols": 50,
+      "runtime-symbols": 49,
       "diagnostics": 3,
-      "environment-keys": 15,
+      "environment-keys": 14,
       "paths": 49,
       "schemas": 13,
-      "artifacts": 23,
+      "artifacts": 18,
       "native-names": 3,
-      "tests": 50,
-      "current-docs-specs": 32,
+      "tests": 49,
+      "current-docs-specs": 27,
       "historical-records": 12,
       "explicit-obsolete-package-fixtures": 5
     }
@@ -184,36 +184,6 @@
       ]
     },
     {
-      "id": "openspec/changes/development-profiles-are-prerelease-only/specs/launch-profiles/spec.md:9:2",
-      "path": "openspec/changes/development-profiles-are-prerelease-only/specs/launch-profiles/spec.md",
-      "locationKind": "content",
-      "line": 9,
-      "column": 2,
-      "value": "addone",
-      "context": "`addone` executable or expose an `agent` subcommand alias; future multi-agent UX",
-      "matchedCase": "lower",
-      "primaryClass": "artifacts",
-      "classes": [
-        "artifacts",
-        "current-docs-specs"
-      ]
-    },
-    {
-      "id": "openspec/changes/development-profiles-are-prerelease-only/specs/launch-profiles/spec.md:54:50",
-      "path": "openspec/changes/development-profiles-are-prerelease-only/specs/launch-profiles/spec.md",
-      "locationKind": "content",
-      "line": 54,
-      "column": 50,
-      "value": "addone",
-      "context": "- **THEN** the installation SHALL NOT create an `addone` executable",
-      "matchedCase": "lower",
-      "primaryClass": "artifacts",
-      "classes": [
-        "artifacts",
-        "current-docs-specs"
-      ]
-    },
-    {
       "id": "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/manual-one-pane-terminal-host.md:5:48",
       "path": "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/manual-one-pane-terminal-host.md",
       "locationKind": "content",
@@ -329,10 +299,10 @@
       ]
     },
     {
-      "id": "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/milestone-baseline.json:110:16",
+      "id": "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/milestone-baseline.json:102:16",
       "path": "openspec/changes/evolve-bare-a1-into-multi-agent-workspace/evidence/milestone-baseline.json",
       "locationKind": "content",
-      "line": 110,
+      "line": 102,
       "column": 16,
       "value": "addone",
       "context": "\"schema\": \"addone-development-preview-platform-verdict-v2\",",
@@ -408,25 +378,10 @@
       ]
     },
     {
-      "id": "openspec/changes/render-pi-through-a1/specs/launch-profiles/spec.md:4:413",
+      "id": "openspec/changes/render-pi-through-a1/specs/launch-profiles/spec.md:19:50",
       "path": "openspec/changes/render-pi-through-a1/specs/launch-profiles/spec.md",
       "locationKind": "content",
-      "line": 4,
-      "column": 413,
-      "value": "addone",
-      "context": "The `a1` binary SHALL be the sole installed public command. Bare invocation SHALL be the A1 agent product surface and initially launch the normal single-foreground A1 profile, the `pi` subcommand SHALL present pinned Pi's interface throu...",
-      "matchedCase": "lower",
-      "primaryClass": "artifacts",
-      "classes": [
-        "artifacts",
-        "current-docs-specs"
-      ]
-    },
-    {
-      "id": "openspec/changes/render-pi-through-a1/specs/launch-profiles/spec.md:23:50",
-      "path": "openspec/changes/render-pi-through-a1/specs/launch-profiles/spec.md",
-      "locationKind": "content",
-      "line": 23,
+      "line": 19,
       "column": 50,
       "value": "addone",
       "context": "- **THEN** the installation SHALL NOT create an `addone` executable",
@@ -438,25 +393,10 @@
       ]
     },
     {
-      "id": "openspec/changes/unify-launch-instance-lifecycle/specs/launch-profiles/spec.md:4:339",
+      "id": "openspec/changes/unify-launch-instance-lifecycle/specs/launch-profiles/spec.md:17:50",
       "path": "openspec/changes/unify-launch-instance-lifecycle/specs/launch-profiles/spec.md",
       "locationKind": "content",
-      "line": 4,
-      "column": 339,
-      "value": "addone",
-      "context": "The `a1` binary SHALL be the sole installed public command. Bare invocation SHALL be the A1-owned agent product surface, the `pi` subcommand SHALL launch the vanilla Pi baseline, and the `sandbox` subcommand SHALL launch the isolated san...",
-      "matchedCase": "lower",
-      "primaryClass": "artifacts",
-      "classes": [
-        "artifacts",
-        "current-docs-specs"
-      ]
-    },
-    {
-      "id": "openspec/changes/unify-launch-instance-lifecycle/specs/launch-profiles/spec.md:20:50",
-      "path": "openspec/changes/unify-launch-instance-lifecycle/specs/launch-profiles/spec.md",
-      "locationKind": "content",
-      "line": 20,
+      "line": 17,
       "column": 50,
       "value": "addone",
       "context": "- **THEN** the installation SHALL NOT create an `addone` executable",
@@ -530,28 +470,13 @@
       ]
     },
     {
-      "id": "openspec/specs/launch-profiles/spec.md:8:332",
+      "id": "openspec/specs/launch-profiles/spec.md:10:315",
       "path": "openspec/specs/launch-profiles/spec.md",
       "locationKind": "content",
-      "line": 8,
-      "column": 332,
+      "line": 10,
+      "column": 315,
       "value": "addone",
-      "context": "The `a1` binary SHALL be the sole installed public command. Bare invocation SHALL be the A1 agent product surface and initially launch the normal single-foreground A1 profile, the `pi` subcommand SHALL launch the vanilla Pi baseline, and...",
-      "matchedCase": "lower",
-      "primaryClass": "artifacts",
-      "classes": [
-        "artifacts",
-        "current-docs-specs"
-      ]
-    },
-    {
-      "id": "openspec/specs/launch-profiles/spec.md:24:50",
-      "path": "openspec/specs/launch-profiles/spec.md",
-      "locationKind": "content",
-      "line": 24,
-      "column": 50,
-      "value": "addone",
-      "context": "- **THEN** the installation SHALL NOT create an `addone` executable",
+      "context": "The `a1` binary SHALL be the sole installed public command. Bare invocation SHALL launch the A1 agent product surface. A prerelease build SHALL additionally expose `a1 pi` as a development comparison against the pinned Pi interface. A re...",
       "matchedCase": "lower",
       "primaryClass": "artifacts",
       "classes": [
@@ -705,22 +630,6 @@
         "runtime-symbols",
         "environment-keys",
         "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/features/launch/profile-paths.test.ts:29:22",
-      "path": "test/features/launch/profile-paths.test.ts",
-      "locationKind": "content",
-      "line": 29,
-      "column": 22,
-      "value": "ADDONE",
-      "context": "environment: { ADDONE_PROFILE_HOME: legacy },",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
         "tests"
       ]
     },
@@ -1100,10 +1009,10 @@
       ]
     },
     {
-      "id": "test/product-identity/product-identity.test.ts:68:65",
+      "id": "test/product-identity/product-identity.test.ts:67:65",
       "path": "test/product-identity/product-identity.test.ts",
       "locationKind": "content",
-      "line": 68,
+      "line": 67,
       "column": 65,
       "value": "ADDONE",
       "context": "[\"legacy environment prefix\", withEnvironment(\"configDir\", \"ADDONE_CONFIG_DIR\"), /must use A1_/],",
@@ -1386,5 +1295,5 @@
       ]
     }
   ],
-  "generatedAt": "2026-08-23T17:46:30.004Z"
+  "generatedAt": "2026-08-26T08:54:14.676Z"
 }

@@ -1,13 +1,12 @@
 import { homedir } from "node:os";
 import { posix, win32, type PlatformPath } from "node:path";
-import type { LaunchProfileId } from "./profiles.js";
+import type { LaunchProfileId } from "./intent.js";
 import { PRODUCT_IDENTITY } from "../../product-identity.js";
 
 export interface LaunchProfilePaths {
   readonly home: string;
   readonly managedStateRoot: string;
   readonly agentProfile: string;
-  readonly sandbox: string;
 }
 
 export interface LaunchProfilePathOptions {
@@ -23,12 +22,10 @@ export function resolveLaunchProfilePaths(options: LaunchProfilePathOptions = {}
   const selectedHome = options.home ?? environment[PRODUCT_IDENTITY.environment.profileHome] ?? options.readHome?.() ?? homedir();
   const home = validateAbsolutePath(selectedHome, "effective user home", path);
   const agentProfile = path.resolve(home, PRODUCT_IDENTITY.state.piAgentProfile);
-  const managedStateRoot = path.dirname(agentProfile);
   return Object.freeze({
     home,
-    managedStateRoot,
+    managedStateRoot: path.dirname(agentProfile),
     agentProfile,
-    sandbox: path.resolve(home, PRODUCT_IDENTITY.state.piSandboxProfile),
   });
 }
 
@@ -36,9 +33,7 @@ export function configurationRootForProfile(
   profileId: LaunchProfileId,
   paths: LaunchProfilePaths,
 ): string | null {
-  if (profileId === "a1") return paths.agentProfile;
-  if (profileId === "sandbox") return paths.sandbox;
-  return null;
+  return profileId === "a1" ? paths.agentProfile : null;
 }
 
 function validateAbsolutePath(value: string, name: string, path: PlatformPath): string {

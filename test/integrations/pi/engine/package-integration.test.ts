@@ -64,7 +64,6 @@ describe("official Pi package integration", () => {
     expect((await port.install(extension)).status).toBe("completed");
 
     expect(existsSync(resolve(root, ".pi"))).toBe(false);
-    expect(existsSync(resolve(root, ".a1", "sandbox"))).toBe(false);
     expect(existsSync(resolve(cwd, ".pi"))).toBe(false);
   });
 

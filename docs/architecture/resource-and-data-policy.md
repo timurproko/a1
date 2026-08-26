@@ -46,7 +46,7 @@ Sanitization must classify before logging or storing. Unknown or untyped values 
 
 - Structured/RPC semantics must not be inferred from ANSI text, terminal timing, or visual content.
 - Native-host protocol code must not carry PTY bytes, per-event child input, rendered cells, cell grids, framebuffers, or screen buffers.
-- `a1 pi` and `a1 sandbox` must not import, initialize, launch, or connect to composed terminal-host infrastructure.
+- `a1 pi` must not import, initialize, launch, or connect to composed terminal-host infrastructure.
 - Transparent direct attachment must remain independent of composed infrastructure and must not relay terminal data.
 - Recovery records store identity and bounded references, not terminal streams, authentication material, or arbitrary environment values.
 - A failed in-terminal 2×2 proof cannot be waived to merge composed infrastructure.

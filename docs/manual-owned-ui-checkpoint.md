@@ -28,10 +28,9 @@ Run each installed launch form yourself:
 ```powershell
 & ".artifacts/manual-owned-ui/install/node_modules/.bin/a1.cmd"
 & ".artifacts/manual-owned-ui/install/node_modules/.bin/a1.cmd" pi
-& ".artifacts/manual-owned-ui/install/node_modules/.bin/a1.cmd" sandbox
 ```
 
-All three commands use the same A1-owned rendering and input pipeline. Bare `a1` enables A1-owned screens. `a1 pi` withholds those screens and reads the ordinary Pi profile. `a1 sandbox` also withholds them and reads the isolated sandbox profile. Confirm that files created through `/settings`, `/login`, sessions, and resource directories remain under the selected profile root.
+Both commands use the same A1-owned rendering and input pipeline. Bare `a1` enables A1-owned screens. `a1 pi` withholds those screens and reads the ordinary Pi profile. Confirm that files created through `/settings`, `/login`, sessions, and resource directories remain under the selected profile root.
 
 Physical automation is not part of this repository baseline. Future certification tooling may run only on dedicated disposable workers or VMs with exclusive test desktops, never on this workstation.
 
@@ -49,4 +48,4 @@ Use the same terminal, working directory, dimensions, environment, and equivalen
 
 Report failures with bare-versus-comparison behavior, platform and terminal versions, exact command, reproducibility, and optional manually captured evidence.
 
-For recovery, use `a1 pi`; do not use the removed `a1 ui` command. `a1 sandbox` remains profile isolation rather than a security boundary. Manual acceptance can authorize an exact uncertified development preview after non-desktop gates pass. It does not certify stable presentation parity or platform support.
+For recovery, use `a1 pi`; do not use the removed `a1 ui` command. Manual acceptance can authorize an exact uncertified development preview after non-desktop gates pass. It does not certify stable presentation parity or platform support.

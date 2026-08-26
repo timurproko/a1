@@ -8,7 +8,7 @@
 
 ## 2. Give every launch form one pipeline
 
-- [x] 2.1 Select the owned runtime for all three profiles, withholding A1's surfaces for `pi` and `sandbox`
+- [x] 2.1 Select the owned runtime for both profiles, withholding A1's surfaces for `pi`
 - [x] 2.2 Delete the transparent attachment path and its composition entry
 - [x] 2.3 Update the launch, dispatch, boundary, and colour-fidelity tests to the single pipeline
 - [ ] 2.4 Update the specification: one rendering pipeline, differing by configuration root and surfaces
@@ -22,4 +22,4 @@
 
 - [ ] 4.1 `npm run typecheck`, `npm run check:architecture`, and `openspec validate --strict` pass
 - [ ] 4.2 Open the pull request and let CI validate
-- [ ] 4.3 Record manual acceptance — `a1`, `a1 pi`, and `a1 sandbox` each open and read their own profile — then archive
+- [ ] 4.3 Record manual acceptance — `a1` and `a1 pi` each open and read their own profile — then archive
