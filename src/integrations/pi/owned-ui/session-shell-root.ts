@@ -276,7 +276,11 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     // v2 pins Working only while the complete transcript still fits. Once the
     // transcript overflows, status joins the scrollable document tail so it
     // naturally leaves the screen when the user scrolls up.
-    const pinStatus = document.rows.length + statusRows.length <= availableWithoutStatus;
+    // Pi presents pending messages before Working. Keep status in the dock while
+    // a queue exists so moving overflowing status into the document cannot
+    // reverse that semantic order; it returns to v2 scrolling once the queue clears.
+    const pinStatus = this.#view.editor.queuedSubmissions.length > 0
+      || document.rows.length + statusRows.length <= availableWithoutStatus;
     const dockRows = pinStatus ? dock.rows : dock.rowsWithoutStatus;
     if (!pinStatus) document = { ...document, rows: [...document.rows, ...statusRows] };
     this.#viewport.setConfig(this.#viewportConfig);

@@ -36,6 +36,7 @@ its own `core` facade layer; A1 is a product, so the port adapts imports and kee
 | A1 module | Pinned Pi source | Adaptation |
 | --- | --- | --- |
 | `pi-engine-adapter/settings-integration.ts` — `SETTING_LABELS` | pinned Pi settings selector | Labels and descriptions transcribed so an owned screen reads as the vanilla route words it. Ids are mapped from the selector kebab-case to the exposed camelCase keys. |
+| `pi-engine/session-integration.ts` and `pi-components/shell-footer-status.ts` — steering queue | pinned Pi interactive mode `onSubmit` and `updatePendingMessagesDisplay` | Steering/follow-up uses `prompt(..., { streamingBehavior })`, allowing Pi to emit the accepted user row, while remaining steering rows preserve Pi's opening spacer, dim `Steering:` labels, dequeue hint, and order before `Working`. |
 
 ## Deliberate differences
 

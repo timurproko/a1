@@ -32,6 +32,12 @@ The complete frame SHALL remain within the current terminal width and height. A 
 - **THEN** the transcript viewport SHALL give or reclaim rows for the dock
 - **AND** no dock row SHALL be appended to transcript history
 
+#### Scenario: Queue steering while the agent works
+- **WHEN** the reader submits steering messages during an active run
+- **THEN** Pi's accepted current steering message SHALL appear through its normal user-message event
+- **AND** later pending messages SHALL render as `Steering:` rows followed by `↳ Alt+Up to edit all queued messages`
+- **AND** the pending rows SHALL remain immediately before `Working` in Pi's existing order while the queue is nonempty
+
 #### Scenario: Status rendering is unchanged
 - **WHEN** the working status or footer is rendered inside the dock
 - **THEN** its text, color, spacing, animation, extension statuses, and lifecycle SHALL be the same as before this customization

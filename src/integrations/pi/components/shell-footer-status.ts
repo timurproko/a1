@@ -166,8 +166,12 @@ function statusSignature(view: OwnedUiSessionViewModel, workingOverride?: string
 }
 
 function queuedInputText(submissions: readonly string[]): string {
+  if (submissions.length === 0) return "";
   const theme = piTheme();
-  return submissions.map(submission => theme.fg("muted", `Steering: ${submission.replaceAll("\n", " ⏎ ")}`)).join("\n");
+  const messages = submissions.map(submission => theme.fg("dim", `Steering: ${submission.replaceAll("\n", " ⏎ ")}`));
+  const dequeueHint = theme.fg("dim", "↳ Alt+Up to edit all queued messages");
+  // Pi separates pending input from the transcript with one breathing row.
+  return ["", ...messages, dequeueHint].join("\n");
 }
 
 function compactHeaderText(): string {

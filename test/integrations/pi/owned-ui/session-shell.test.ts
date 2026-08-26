@@ -265,6 +265,35 @@ describe("OwnedUiSessionShell", () => {
     expect(shell.root.render(60).every(row => !stripTerminalSequences(row).includes("Working"))).toBe(true);
   });
 
+  it("matches Pi's queued steering order and dequeue hint while working", async () => {
+    const messages = Array.from({ length: 18 }, (_, index) => ({
+      role: "assistant",
+      content: [{ type: "text", text: `queue-transcript-${index}` }],
+      timestamp: Date.now() + index,
+    }));
+    const { engine, terminal, shell } = await fixture(messages, [], true);
+    terminal.resize(60, 12);
+    engine.session.emit({ type: "agent_start" });
+    engine.session.emit({ type: "queue_update", steering: ["first", "second"], followUp: [] });
+    await shell.backend.flushEvents();
+
+    const rows = shell.root.render(60).map(row => stripTerminalSequences(row));
+    const first = rows.findIndex(row => row.includes("Steering: first"));
+    const second = rows.findIndex(row => row.includes("Steering: second"));
+    const hint = rows.findIndex(row => row.includes("Alt+Up to edit all queued messages"));
+    const working = rows.findIndex(row => row.includes("Working"));
+    expect(first).toBeGreaterThan(-1);
+    expect(second).toBeGreaterThan(first);
+    expect(hint).toBeGreaterThan(second);
+    expect(working).toBeGreaterThan(hint);
+
+    terminal.input("\u001b[<64;30;3M");
+    const detached = shell.root.render(60).map(row => stripTerminalSequences(row));
+    expect(detached.some(row => row.includes("Steering: first"))).toBe(true);
+    expect(detached.some(row => row.includes("Working"))).toBe(true);
+    await shell.dispose();
+  });
+
   it("supports LMB drag, double-click word, triple-click line, and Ctrl+C transcript selection", async () => {
     const messages = [
       { role: "user", content: [{ type: "text", text: "Select this reply" }], timestamp: Date.now() - 1_000 },
@@ -1127,8 +1156,8 @@ describe("OwnedUiSessionShell", () => {
     await shell.submit("steer now");
     shell.root.editor.setText("follow later");
     await shell.queueFollowUp();
-    expect(engine.session.calls).toContain("steer:steer now");
-    expect(engine.session.calls).toContain("followUp:follow later");
+    expect(engine.session.calls).toContain("prompt:steer now");
+    expect(engine.session.calls).toContain("prompt:follow later");
     await shell.dispose();
   });
 
@@ -1141,7 +1170,7 @@ describe("OwnedUiSessionShell", () => {
     engine.session.emit({ type: "compaction_end", reason: "manual", result: {}, aborted: false, willRetry: false });
     await adapter.flushEvents();
     await new Promise(resolve => setTimeout(resolve, 0));
-    expect(engine.session.calls).toContain("steer:after compaction");
+    expect(engine.session.calls).toContain("prompt:after compaction");
 
     shell.restoreQueuedInput();
     expect(shell.root.editor.getText()).toBe("queued steer\nqueued follow");
