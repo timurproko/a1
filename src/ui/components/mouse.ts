@@ -16,13 +16,6 @@ export interface ParsedMouseInput {
   readonly rest: string;
 }
 
-export interface RoutedMouseInput {
-  /** Input with only mouse reports accepted by the handler removed. */
-  readonly data: string;
-  readonly handled: number;
-  readonly render: boolean;
-}
-
 /** Extracts SGR mouse reports, leaving any keyboard input untouched. */
 export function parseMouseInput(data: string): ParsedMouseInput {
   if (!data.includes("\u001b[<")) return { events: [], rest: data };
@@ -48,37 +41,39 @@ export function parseMouseInput(data: string): ParsedMouseInput {
   return { events: Object.freeze(events), rest };
 }
 
-/** Routes each complete mouse report while preserving keys and unhandled reports in order. */
+export interface RoutedMouseInput {
+  /** Input left for the TUI after only claimed reports were removed. */
+  readonly data: string;
+  readonly consumed: boolean;
+}
+
+/**
+ * Routes every SGR report independently, preserving keyboard bytes and mouse
+ * reports the caller does not claim even when they share one physical chunk.
+ */
 export function routeMouseInput(
   data: string,
-  handler: (event: PaneMouseEvent) => { readonly consumed: boolean; readonly render?: boolean },
+  claim: (event: PaneMouseEvent) => boolean,
 ): RoutedMouseInput {
-  if (!data.includes("\u001b[<")) return { data, handled: 0, render: false };
+  if (!data.includes("\u001b[<")) return { data, consumed: false };
   let output = "";
   let index = 0;
-  let handled = 0;
-  let render = false;
+  let consumed = false;
   SGR_PATTERN.lastIndex = 0;
   for (let match = SGR_PATTERN.exec(data); match !== null; match = SGR_PATTERN.exec(data)) {
     output += data.slice(index, match.index);
     index = match.index + match[0].length;
-    const code = Number.parseInt(match[1] ?? "", 10);
-    const column = Number.parseInt(match[2] ?? "", 10);
-    const row = Number.parseInt(match[3] ?? "", 10);
-    const event = Number.isInteger(code) && Number.isInteger(column) && Number.isInteger(row)
-      ? toEvent(code, column, row, match[4] === "m")
-      : null;
-    if (event === null) {
-      output += match[0];
-      continue;
-    }
-    const result = handler(event);
-    render ||= result.render === true;
-    if (result.consumed) handled += 1;
+    const event = toEvent(
+      Number.parseInt(match[1] ?? "", 10),
+      Number.parseInt(match[2] ?? "", 10),
+      Number.parseInt(match[3] ?? "", 10),
+      match[4] === "m",
+    );
+    if (event !== null && claim(event)) consumed = true;
     else output += match[0];
   }
   output += data.slice(index);
-  return { data: output, handled, render };
+  return { data: output, consumed };
 }
 
 function toEvent(code: number, column: number, row: number, released: boolean): PaneMouseEvent | null {

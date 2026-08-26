@@ -1,508 +1,425 @@
-import type { PaneInputResult, PaneMouseEvent } from "./pane.js";
 import {
-  ScrollbarRails,
   isThumbRow,
   scrollbarGeometry,
-  scrollbarGlyph,
   scrollbarPresentation,
-  scrollbarWheelLines,
-  scrollForTrackPage,
-  type RailPosition,
   type ScrollbarAppearance,
   type ScrollbarGeometry,
-  type ScrollbarSpeed,
   type ScrollbarStyle,
 } from "./scrollbar.js";
-import { overlaySpan } from "./spans.js";
-import { displayColumnSlice, displayWidth, displayWordColumnRange, padToWidth, stripAnsi } from "./text.js";
+import { backgroundSgrSpan, overlaySpan } from "./spans.js";
+import { faint, truncateToWidth, displayWidth, stripAnsi } from "./text.js";
+import {
+  extendTextSelection,
+  orderedTextSelection,
+  pressTextSelection,
+  releaseTextSelection,
+  textSelectionLineExtendColumn,
+  textSelectionText,
+  usefulTextLineContent,
+  type TextSelection,
+  type TextSelectionClick,
+  type TextSelectionLineContent,
+} from "./text-selection.js";
 
 export interface TranscriptPromptAnchor {
   readonly id: string;
-  readonly start: number;
-  readonly end: number;
-  /** The already-rendered first row, including the source timestamp. */
-  readonly firstRow: string;
+  readonly firstRow: number;
+  readonly lastRow: number;
+  /** The source first row, including its submitted-prompt styling and timestamp. */
+  readonly sourceRow: string;
 }
 
-export interface TranscriptViewportDocument {
-  readonly rows: readonly string[];
-  readonly prompts: readonly TranscriptPromptAnchor[];
+export interface TranscriptViewportConfig {
+  readonly scrollbarAppearance: ScrollbarAppearance;
+  readonly scrollbarStyle: ScrollbarStyle;
 }
 
 export interface TranscriptViewportTheme {
-  scrollbar(glyph: string, part: "track" | "thumb", state: "idle" | "hover" | "drag"): string;
-  bottomControl(text: string, pointed: boolean): string;
-  stickyPrompt(row: string, quiet: boolean): string;
+  readonly track: (text: string) => string;
+  readonly thumb: (text: string, active: boolean) => string;
+  readonly sticky: (text: string, hovered: boolean) => string;
+  readonly quietSticky: (text: string) => string;
+  readonly bottomControl: (text: string, hovered: boolean) => string;
+  readonly selection: (line: string, from: number, to: number) => string;
 }
 
-export interface TranscriptViewportRenderInput {
+export interface TranscriptViewportFrameInput {
+  readonly documentRows: readonly string[];
+  readonly dockRows: readonly string[];
+  readonly promptAnchors: readonly TranscriptPromptAnchor[];
   readonly width: number;
   readonly height: number;
-  readonly dockRows: readonly string[];
-  readonly renderDocument: (width: number) => TranscriptViewportDocument;
-  readonly appearance: ScrollbarAppearance;
-  readonly style: ScrollbarStyle;
-  readonly speed: ScrollbarSpeed;
-  readonly theme: TranscriptViewportTheme;
+  /**
+   * Optional zero-based terminal row for the floating bottom control. The shell
+   * supplies a stable anchor above its editor group so transient status and
+   * notification rows cannot make the control jump vertically.
+   */
+  readonly bottomControlRow?: number;
   readonly now?: number;
+  readonly theme?: TranscriptViewportTheme;
 }
 
-export interface TranscriptViewportInputResult extends PaneInputResult {
-  /** Completed LMB selection, ready for the host clipboard bridge. */
-  readonly copyText?: string;
-}
-
-export interface TranscriptViewportState {
-  readonly scrollTop: number;
+export interface TranscriptViewportHitRegions {
   readonly viewportHeight: number;
-  readonly followingEnd: boolean;
-  readonly overflowing: boolean;
-  readonly scrollbarVisible: boolean;
+  readonly rail: {
+    readonly column: number;
+    /** One-based terminal row. The one-row top inset is intentionally excluded. */
+    readonly rowStart: number;
+    readonly trackHeight: number;
+    readonly geometry: ScrollbarGeometry;
+  } | null;
+  readonly sticky: { readonly row: number; readonly target: number; readonly width: number } | null;
+  readonly bottom: { readonly row: number; readonly columnStart: number; readonly columnEnd: number } | null;
 }
 
-interface FrameState {
-  readonly width: number;
-  readonly transcriptHeight: number;
-  readonly maxScroll: number;
-  readonly geometry: ScrollbarGeometry | null;
-  readonly rail: RailPosition | null;
-  readonly bottomControl: { readonly row: number; readonly from: number; readonly to: number } | null;
-  readonly sticky: { readonly row: number; readonly anchor: TranscriptPromptAnchor } | null;
-  readonly wheelLines: number;
+export interface TranscriptViewportFrame {
+  readonly rows: readonly string[];
   readonly contentWidth: number;
   readonly scrollTop: number;
-  readonly documentRows: readonly string[];
+  readonly maxScroll: number;
+  readonly followingEnd: boolean;
+  readonly hits: TranscriptViewportHitRegions;
 }
 
-interface SelectionPoint {
-  readonly row: number;
-  readonly column: number;
-}
+const CONTROL_STYLE_RESET = "\u001b]8;;\u001b\\\u001b[0m";
 
-interface SelectionRange {
-  readonly start: SelectionPoint;
-  readonly end: SelectionPoint;
-}
-
-type SelectionGranularity = "character" | "word" | "line";
-
-const RAIL_KEY = "session-transcript";
-const BOTTOM_CONTROL = " ↓ latest ";
-const MULTI_CLICK_MS = 500;
-const SELECTION_ON = "\u001b[107;30m";
-const SELECTION_OFF = "\u001b[39;49m";
+const DEFAULT_CONFIG: TranscriptViewportConfig = {
+  scrollbarAppearance: "hover",
+  scrollbarStyle: "thin",
+};
+const PLAIN_THEME: TranscriptViewportTheme = {
+  track: text => text,
+  thumb: text => text,
+  sticky: (text, hovered) => hovered ? `\u001b[7m${text}\u001b[27m` : text,
+  quietSticky: faint,
+  bottomControl: (text, hovered) => hovered ? `\u001b[7m${text}\u001b[27m` : `\u001b[7m${text}\u001b[27m`,
+  selection: (line, from, to) => backgroundSgrSpan(line, from, to),
+};
 
 /**
- * A vendor-neutral fixed transcript frame. It owns scroll and pointer state but
- * receives already-rendered document and dock rows from the integration.
+ * A1-owned viewport state. It knows only rows and semantic prompt anchors; Pi
+ * components and transcript payloads remain outside this neutral boundary.
  */
 export class TranscriptViewport {
-  readonly #rails = new ScrollbarRails();
+  #config: TranscriptViewportConfig = DEFAULT_CONFIG;
   #scrollTop = 0;
+  #maxScroll = 0;
   #followingEnd = true;
-  #lastActivityAt: number | undefined;
-  #bottomPointed = false;
-  #frame: FrameState = {
-    width: 1,
-    transcriptHeight: 0,
-    maxScroll: 0,
-    geometry: null,
-    rail: null,
-    bottomControl: null,
-    sticky: null,
-    wheelLines: 3,
-    contentWidth: 1,
-    scrollTop: 0,
-    documentRows: [],
-  };
-  #selectionAnchor: SelectionPoint | undefined;
-  #selectionFocus: SelectionPoint | undefined;
-  #selectionPressActive = false;
-  #selectionGranularity: SelectionGranularity = "character";
-  #selectionInitialRange: SelectionRange | undefined;
-  #lastClick: { readonly at: number; readonly row: number; readonly from: number; readonly to: number; readonly count: number } | undefined;
-  #state: TranscriptViewportState = {
-    scrollTop: 0,
-    viewportHeight: 0,
-    followingEnd: true,
-    overflowing: false,
-    scrollbarVisible: false,
-  };
+  #newMessages = 0;
+  #activeUntil = 0;
+  #railHovered = false;
+  #railDragging = false;
+  #stickyHovered = false;
+  #bottomHovered = false;
+  #selection: TextSelection | undefined;
+  #selectionClick: TextSelectionClick | undefined;
+  #documentRows: readonly string[] = [];
+  #promptAnchors: readonly TranscriptPromptAnchor[] = [];
+  #contentWidth = 0;
+  #frame: TranscriptViewportFrame | null = null;
 
-  get state(): TranscriptViewportState {
-    return this.#state;
+  get scrollTop(): number { return this.#scrollTop; }
+  get maxScroll(): number { return this.#maxScroll; }
+  get followingEnd(): boolean { return this.#followingEnd; }
+  get newMessages(): number { return this.#newMessages; }
+  get frame(): TranscriptViewportFrame | null { return this.#frame; }
+
+  /** Counts one completed assistant reply while detached; tool rows never call this. */
+  noteNewMessage(): boolean {
+    if (this.#followingEnd) return false;
+    this.#newMessages += 1;
+    return true;
   }
 
-  render(input: TranscriptViewportRenderInput): readonly string[] {
-    const width = Math.max(1, Math.floor(input.width));
-    const height = Math.max(1, Math.floor(input.height));
-    const visibleDock = input.dockRows.length > height
-      ? input.dockRows.slice(input.dockRows.length - height)
-      : input.dockRows;
-    const transcriptHeight = Math.max(0, height - visibleDock.length);
-    const now = input.now ?? Date.now();
-
-    let contentWidth = width;
-    let document = input.renderDocument(contentWidth);
-    let overflowing = transcriptHeight > 0 && document.rows.length > transcriptHeight;
-    if (overflowing && input.appearance !== "hidden" && width > 1) {
-      contentWidth = width - 1;
-      document = input.renderDocument(contentWidth);
-      overflowing = document.rows.length > transcriptHeight;
+  setConfig(config: TranscriptViewportConfig): void {
+    this.#config = config;
+    if (config.scrollbarAppearance === "hidden") {
+      this.#railHovered = false;
+      this.#railDragging = false;
     }
+  }
 
-    const maxScroll = Math.max(0, document.rows.length - transcriptHeight);
-    if (this.#followingEnd) this.#scrollTop = maxScroll;
-    else this.#scrollTop = Math.min(Math.max(this.#scrollTop, 0), maxScroll);
-    if (maxScroll === 0 || this.#scrollTop >= maxScroll) this.#followingEnd = true;
+  noteScrollActivity(now = Date.now(), lingerMs = 900): void {
+    this.#activeUntil = Math.max(this.#activeUntil, now + lingerMs);
+  }
 
-    const geometry = overflowing
-      ? scrollbarGeometry({
-          contentLength: document.rows.length,
-          viewportHeight: transcriptHeight,
-          scroll: this.#scrollTop,
-          trackHeight: transcriptHeight,
-        })
-      : null;
-    const rail: RailPosition | null = geometry === null || input.appearance === "hidden"
-      ? null
-      : { key: RAIL_KEY, column: width, rowStart: 1, trackHeight: transcriptHeight };
-    const presentation = scrollbarPresentation({
-      geometry,
-      appearance: input.appearance,
-      style: input.style,
-      hovered: this.#rails.isHovered(RAIL_KEY),
-      dragging: this.#rails.isDragging(RAIL_KEY),
-      ...(this.#lastActivityAt === undefined ? {} : { lastActivityAt: this.#lastActivityAt }),
+  setRailHovered(hovered: boolean): void { this.#railHovered = hovered; }
+  setRailDragging(dragging: boolean): void { this.#railDragging = dragging; }
+  setStickyHovered(hovered: boolean): void { this.#stickyHovered = hovered; }
+  setBottomHovered(hovered: boolean): void { this.#bottomHovered = hovered; }
+
+  get selectionActive(): boolean { return this.#selection?.selecting === true; }
+  get hasSelection(): boolean { return orderedTextSelection(this.#selection) !== undefined; }
+
+  pressSelection(column: number, viewportRow: number, now = Date.now()): boolean {
+    const viewportHeight = this.#frame?.hits.viewportHeight ?? 0;
+    if (viewportRow < 1 || viewportRow > viewportHeight || column < 1 || column > this.#contentWidth) return false;
+    const line = clamp(this.#scrollTop + viewportRow - 1, 0, Math.max(0, this.#documentRows.length - 1));
+    const pressed = pressTextSelection({
+      line,
+      column,
+      contentWidth: this.#contentWidth,
+      lineText: this.#documentRows[line] ?? "",
+      lineContent: this.#lineContentAt(line),
+      ...(this.#selectionClick === undefined ? {} : { previousClick: this.#selectionClick }),
       now,
     });
-
-    const transcriptRows = document.rows.slice(this.#scrollTop, this.#scrollTop + transcriptHeight);
-    while (transcriptRows.length < transcriptHeight) transcriptRows.push("");
-    for (let visibleRow = 0; visibleRow < transcriptRows.length; visibleRow += 1) {
-      transcriptRows[visibleRow] = this.#paintSelectionRow(
-        transcriptRows[visibleRow] ?? "",
-        this.#scrollTop + visibleRow,
-      );
-    }
-
-    const governingPrompt = findGoverningPrompt(document.prompts, this.#scrollTop);
-    let sticky: FrameState["sticky"] = null;
-    if (transcriptHeight > 0 && governingPrompt !== null && this.#scrollTop > governingPrompt.start) {
-      const quiet = this.#scrollTop > governingPrompt.end;
-      transcriptRows[0] = input.theme.stickyPrompt(governingPrompt.firstRow, quiet);
-      sticky = { row: 1, anchor: governingPrompt };
-    }
-
-    let bottomControl: FrameState["bottomControl"] = null;
-    if (transcriptHeight > 0 && overflowing && !this.#followingEnd) {
-      const labelWidth = Math.min(displayWidth(BOTTOM_CONTROL), Math.max(1, contentWidth));
-      const from = Math.max(0, contentWidth - labelWidth);
-      const label = input.theme.bottomControl(BOTTOM_CONTROL.slice(BOTTOM_CONTROL.length - labelWidth), this.#bottomPointed);
-      const row = transcriptHeight;
-      transcriptRows[row - 1] = overlaySpan(transcriptRows[row - 1] ?? "", from, contentWidth, label);
-      bottomControl = { row, from: from + 1, to: contentWidth };
-    }
-
-    if (presentation.visible && rail !== null && geometry !== null) {
-      const state = this.#rails.isDragging(RAIL_KEY) ? "drag" : this.#rails.isHovered(RAIL_KEY) ? "hover" : "idle";
-      for (let row = 0; row < transcriptHeight; row += 1) {
-        const thumb = isThumbRow(geometry, row);
-        const glyph = input.theme.scrollbar(
-          scrollbarGlyph(input.style, thumb, state !== "idle"),
-          thumb ? "thumb" : "track",
-          state,
-        );
-        transcriptRows[row] = overlaySpan(transcriptRows[row] ?? "", width - 1, width, glyph);
-      }
-    }
-
-    this.#frame = {
-      width,
-      transcriptHeight,
-      maxScroll,
-      geometry,
-      rail,
-      bottomControl,
-      sticky,
-      wheelLines: scrollbarWheelLines(input.speed),
-      contentWidth,
-      scrollTop: this.#scrollTop,
-      documentRows: document.rows,
-    };
-    this.#state = {
-      scrollTop: this.#scrollTop,
-      viewportHeight: transcriptHeight,
-      followingEnd: this.#followingEnd,
-      overflowing,
-      scrollbarVisible: presentation.visible,
-    };
-
-    const rows = [...transcriptRows, ...visibleDock];
-    while (rows.length < height) rows.unshift("");
-    return rows.map(row => displayWidth(row) > width ? padToWidth(row, width) : row);
+    this.#selection = pressed.selection;
+    this.#selectionClick = pressed.click;
+    return true;
   }
 
-  onMouse(
-    event: PaneMouseEvent,
-    now = Date.now(),
-    allowWheel = true,
-    allowSelection = true,
-  ): TranscriptViewportInputResult {
-    const frame = this.#frame;
-    const insideTranscript = event.row >= 1 && event.row <= frame.transcriptHeight
-      && event.column >= 1 && event.column <= frame.width;
-
-    if ((event.kind === "wheel-up" || event.kind === "wheel-down") && insideTranscript && allowWheel) {
-      this.scrollBy(event.kind === "wheel-up" ? -frame.wheelLines : frame.wheelLines, now);
-      return { consumed: true, render: true };
-    }
-
-    if (event.kind === "motion") {
-      const wasRailHovered = this.#rails.isHovered(RAIL_KEY);
-      const wasBottomPointed = this.#bottomPointed;
-      const rail = frame.rail;
-      this.#rails.notePointer(rail === null ? [] : [rail], event);
-      this.#bottomPointed = hit(frame.bottomControl, event);
-      if (rail !== null) {
-        const dragged = this.#rails.dragTo(rail, frame.geometry, event);
-        if (dragged !== null) {
-          this.#setScroll(dragged);
-          this.#lastActivityAt = now;
-          return { consumed: true, render: true };
-        }
-      }
-      if (this.#selectionPressActive && allowSelection) {
-        this.#updateSelectionFocus(event);
-        return { consumed: true, render: true };
-      }
-      return {
-        consumed: false,
-        render: wasRailHovered !== this.#rails.isHovered(RAIL_KEY) || wasBottomPointed !== this.#bottomPointed,
-      };
-    }
-
-    if (event.kind === "release") {
-      if (this.#rails.isDragging(RAIL_KEY)) {
-        this.#rails.endDrag();
-        this.#lastActivityAt = now;
-        return { consumed: true, render: true };
-      }
-      if (!this.#selectionPressActive) return { consumed: false };
-      this.#selectionPressActive = false;
-      if (allowSelection) this.#updateSelectionFocus(event);
-      const copyText = this.#selectionText();
-      return copyText.length === 0
-        ? { consumed: true, render: true }
-        : { consumed: true, render: true, copyText };
-    }
-
-    if (event.kind !== "press" || event.button !== 0) return { consumed: false };
-    const rail = frame.rail;
-    if (rail !== null && event.column === rail.column
-      && event.row >= rail.rowStart && event.row < rail.rowStart + rail.trackHeight) {
-      if (this.#rails.beginDrag(rail, frame.geometry, event)) {
-        this.#lastActivityAt = now;
-        return { consumed: true, render: true };
-      }
-      const trackRow = event.row - rail.rowStart;
-      this.#setScroll(scrollForTrackPage(frame.geometry, trackRow, this.#scrollTop, frame.transcriptHeight));
-      this.#lastActivityAt = now;
-      return { consumed: true, render: true };
-    }
-    if (hit(frame.bottomControl, event)) {
-      this.returnToEnd(now);
-      return { consumed: true, render: true };
-    }
-    if (frame.sticky !== null && event.row === frame.sticky.row && insideTranscript) {
-      this.#setScroll(frame.sticky.anchor.start);
-      this.#followingEnd = this.#scrollTop >= frame.maxScroll;
-      this.#lastActivityAt = now;
-      return { consumed: true, render: true };
-    }
-    if (allowSelection && insideTranscript && event.column <= frame.contentWidth) {
-      this.#beginSelection(event, now);
-      return { consumed: true, render: true };
-    }
-    return { consumed: false };
+  extendSelection(column: number, viewportRow: number, now = Date.now(), autoScroll = true): boolean {
+    const selection = this.#selection;
+    const viewportHeight = this.#frame?.hits.viewportHeight ?? 0;
+    if (selection?.selecting !== true || viewportHeight <= 0 || this.#documentRows.length === 0) return false;
+    // Pointer motion updates only the endpoint; the shell's fixed-cadence timer
+    // owns edge scrolling. This option prevents high-rate motion reports from
+    // adding irregular extra rows between timer ticks.
+    if (autoScroll && viewportRow > viewportHeight) this.scrollBy(1, now);
+    else if (autoScroll && viewportRow <= 1 && this.#scrollTop > 0) this.scrollBy(-1, now);
+    const visibleRow = clamp(viewportRow, 1, viewportHeight);
+    const line = clamp(this.#scrollTop + visibleRow - 1, 0, this.#documentRows.length - 1);
+    const targetColumn = selection.fullRow
+      ? textSelectionLineExtendColumn(selection, line, this.#contentWidth)
+      : clamp(column, 1, this.#contentWidth);
+    this.#selection = extendTextSelection(selection, { line, column: targetColumn });
+    return true;
   }
 
-  scrollBy(lines: number, now = Date.now()): void {
-    this.#setScroll(this.#scrollTop + Math.trunc(lines));
-    this.#lastActivityAt = now;
+  releaseSelection(): boolean {
+    if (this.#selection?.selecting !== true) return false;
+    this.#selection = releaseTextSelection(this.#selection);
+    return true;
   }
 
-  returnToEnd(now = Date.now()): void {
-    this.#scrollTop = this.#frame.maxScroll;
+  clearSelection(): boolean {
+    if (this.#selection === undefined) return false;
+    this.#selection = undefined;
+    return true;
+  }
+
+  selectedText(): string | null {
+    const selection = orderedTextSelection(this.#selection);
+    if (selection === undefined) return null;
+    return textSelectionText(selection, this.#documentRows, line => this.#lineContentAt(line));
+  }
+
+  scrollBy(lines: number, now = Date.now()): boolean {
+    if (this.#maxScroll <= 0 || lines === 0) return false;
+    const base = this.#followingEnd ? this.#maxScroll : this.#scrollTop;
+    const next = clamp(base + lines, 0, this.#maxScroll);
+    this.#scrollTop = next;
+    this.#followingEnd = next >= this.#maxScroll;
+    if (this.#followingEnd) this.#newMessages = 0;
+    this.noteScrollActivity(now);
+    return true;
+  }
+
+  scrollTo(position: number, now = Date.now()): boolean {
+    const next = clamp(position, 0, this.#maxScroll);
+    const changed = next !== this.#scrollTop || this.#followingEnd;
+    this.#scrollTop = next;
+    // Every scrolling path that reaches the final legal top row resumes follow.
+    this.#followingEnd = next >= this.#maxScroll;
+    if (this.#followingEnd) this.#newMessages = 0;
+    this.noteScrollActivity(now);
+    return changed;
+  }
+
+  scrollToEnd(now = Date.now()): boolean {
+    const changed = !this.#followingEnd || this.#scrollTop !== this.#maxScroll;
     this.#followingEnd = true;
-    this.#lastActivityAt = now;
-    this.#state = { ...this.#state, scrollTop: this.#scrollTop, followingEnd: true };
+    this.#scrollTop = this.#maxScroll;
+    this.#newMessages = 0;
+    this.noteScrollActivity(now);
+    return changed;
   }
 
   reset(): void {
     this.#scrollTop = 0;
+    this.#maxScroll = 0;
     this.#followingEnd = true;
-    this.#lastActivityAt = undefined;
-    this.clearSelection();
+    this.#newMessages = 0;
+    this.#selection = undefined;
+    this.#selectionClick = undefined;
+    this.#documentRows = [];
+    this.#promptAnchors = [];
+    this.#contentWidth = 0;
     this.clearTransient();
-  }
-
-  clearSelection(): void {
-    this.#selectionAnchor = undefined;
-    this.#selectionFocus = undefined;
-    this.#selectionPressActive = false;
-    this.#selectionGranularity = "character";
-    this.#selectionInitialRange = undefined;
-    this.#lastClick = undefined;
+    this.#frame = null;
   }
 
   clearTransient(): void {
-    this.#rails.clear();
-    this.#bottomPointed = false;
-    this.#selectionPressActive = false;
+    this.#activeUntil = 0;
+    this.#railHovered = false;
+    this.#railDragging = false;
+    this.#stickyHovered = false;
+    this.#bottomHovered = false;
   }
 
-  #selectionPoint(event: PaneMouseEvent): SelectionPoint {
-    const frame = this.#frame;
-    const visibleRow = Math.min(Math.max(event.row, 1), Math.max(1, frame.transcriptHeight)) - 1;
-    const row = Math.min(
-      Math.max(0, frame.scrollTop + visibleRow),
-      Math.max(0, frame.documentRows.length - 1),
-    );
-    const lineWidth = displayWidth(frame.documentRows[row] ?? "");
-    const column = Math.min(Math.max(event.column - 1, 0), Math.min(frame.contentWidth, lineWidth));
-    return { row, column };
-  }
+  compose(input: TranscriptViewportFrameInput): TranscriptViewportFrame {
+    const width = Math.max(1, input.width);
+    const height = Math.max(0, input.height);
+    const theme = input.theme ?? PLAIN_THEME;
+    const dock = input.dockRows.length > height ? input.dockRows.slice(-height) : [...input.dockRows];
+    const viewportHeight = Math.max(0, height - dock.length);
+    this.#maxScroll = Math.max(0, input.documentRows.length - viewportHeight);
+    if (this.#followingEnd) this.#scrollTop = this.#maxScroll;
+    else this.#scrollTop = clamp(this.#scrollTop, 0, this.#maxScroll);
+    if (this.#scrollTop >= this.#maxScroll) this.#followingEnd = true;
+    if (this.#followingEnd) this.#newMessages = 0;
 
-  #wordSelection(point: SelectionPoint): SelectionRange | null {
-    const range = displayWordColumnRange(this.#frame.documentRows[point.row] ?? "", point.column);
-    if (range === null || range.to <= range.from) return null;
-    return {
-      start: { row: point.row, column: range.from },
-      end: { row: point.row, column: range.to - 1 },
-    };
-  }
+    const geometry = scrollbarGeometry({
+      contentLength: input.documentRows.length,
+      viewportHeight,
+      scroll: this.#scrollTop,
+      // The session rail deliberately starts one line below the viewport top.
+      trackHeight: Math.max(0, viewportHeight - 1),
+    });
+    const presentation = scrollbarPresentation({
+      geometry,
+      appearance: this.#config.scrollbarAppearance,
+      style: this.#config.scrollbarStyle,
+      hovered: this.#railHovered,
+      dragging: this.#railDragging,
+      activeUntil: this.#activeUntil,
+      now: input.now ?? Date.now(),
+    });
+    const contentWidth = presentation.reservesSpace ? Math.max(1, width - 1) : width;
+    this.#documentRows = input.documentRows;
+    this.#promptAnchors = input.promptAnchors;
+    this.#contentWidth = contentWidth;
+    const visible = input.documentRows.slice(this.#scrollTop, this.#scrollTop + viewportHeight);
+    while (visible.length < viewportHeight) visible.push("");
 
-  #lineSelection(point: SelectionPoint): SelectionRange {
-    const plain = stripAnsi(this.#frame.documentRows[point.row] ?? "").trimEnd();
-    const width = displayWidth(plain);
-    return {
-      start: { row: point.row, column: 0 },
-      end: { row: point.row, column: Math.max(0, width - 1) },
-    };
-  }
-
-  #beginSelection(event: PaneMouseEvent, now: number): void {
-    const point = this.#selectionPoint(event);
-    const word = this.#wordSelection(point);
-    const previous = this.#lastClick;
-    const count = word !== null && previous !== undefined
-      && now - previous.at <= MULTI_CLICK_MS
-      && previous.row === point.row
-      && previous.from === word.start.column
-      && previous.to === word.end.column + 1
-      ? (previous.count % 3) + 1
-      : 1;
-    this.#lastClick = word === null
-      ? undefined
-      : { at: now, row: point.row, from: word.start.column, to: word.end.column + 1, count };
-    const range = count === 2 && word !== null
-      ? word
-      : count === 3
-        ? this.#lineSelection(point)
-        : { start: point, end: point };
-    this.#selectionGranularity = count === 2 ? "word" : count === 3 ? "line" : "character";
-    this.#selectionInitialRange = range;
-    this.#selectionAnchor = range.start;
-    this.#selectionFocus = range.end;
-    this.#selectionPressActive = true;
-  }
-
-  #updateSelectionFocus(event: PaneMouseEvent): void {
-    const point = this.#selectionPoint(event);
-    const initial = this.#selectionInitialRange;
-    if (this.#selectionGranularity === "character" || initial === undefined) {
-      this.#selectionFocus = point;
-      return;
+    const governing = governingPrompt(input.promptAnchors, this.#scrollTop);
+    const stickyActive = governing !== null && governing.firstRow < this.#scrollTop;
+    if (stickyActive && visible.length > 0) {
+      const quiet = this.#scrollTop > governing.lastRow;
+      // Sticky prompts use the same normal/hover surface roles as the bottom
+      // control. Hover always starts from the full source row, so a quiet prompt
+      // becomes prominent again with its timestamp intact.
+      const sticky = theme.sticky(governing.sourceRow, this.#stickyHovered);
+      visible[0] = quiet && !this.#stickyHovered ? theme.quietSticky(sticky) : sticky;
     }
-    const target = this.#selectionGranularity === "word"
-      ? this.#wordSelection(point) ?? { start: point, end: point }
-      : this.#lineSelection(point);
-    const targetBefore = target.start.row < initial.start.row
-      || (target.start.row === initial.start.row && target.start.column < initial.start.column);
-    if (targetBefore) {
-      this.#selectionAnchor = initial.end;
-      this.#selectionFocus = target.start;
-    } else {
-      this.#selectionAnchor = initial.start;
-      this.#selectionFocus = target.end;
-    }
-  }
 
-  #selectionBounds(): { readonly start: SelectionPoint; readonly end: SelectionPoint } | null {
-    const anchor = this.#selectionAnchor;
-    const focus = this.#selectionFocus;
-    if (anchor === undefined || focus === undefined) return null;
-    if (anchor.row === focus.row && anchor.column === focus.column) return null;
-    const anchorFirst = anchor.row < focus.row || (anchor.row === focus.row && anchor.column < focus.column);
-    return anchorFirst ? { start: anchor, end: focus } : { start: focus, end: anchor };
-  }
-
-  #selectionColumns(row: number, line: string): { readonly from: number; readonly to: number } | null {
-    const bounds = this.#selectionBounds();
-    if (bounds === null || row < bounds.start.row || row > bounds.end.row) return null;
-    const lineWidth = displayWidth(line);
-    const from = row === bounds.start.row ? Math.min(bounds.start.column, lineWidth) : 0;
-    const to = row === bounds.end.row ? Math.min(bounds.end.column + 1, lineWidth) : lineWidth;
-    return to > from ? { from, to } : null;
-  }
-
-  #paintSelectionRow(line: string, row: number): string {
-    const columns = this.#selectionColumns(row, line);
-    if (columns === null) return line;
-    const selected = displayColumnSlice(line, columns.from, columns.to);
-    if (selected.to <= selected.from) return line;
-    return overlaySpan(line, selected.from, selected.to, `${SELECTION_ON}${selected.text}${SELECTION_OFF}`);
-  }
-
-  #selectionText(): string {
-    const bounds = this.#selectionBounds();
-    if (bounds === null) return "";
-    const lines: string[] = [];
-    for (let row = bounds.start.row; row <= bounds.end.row; row += 1) {
-      const line = this.#frame.documentRows[row] ?? "";
-      const columns = this.#selectionColumns(row, line);
-      if (columns === null) {
-        lines.push("");
-        continue;
+    const orderedSelection = orderedTextSelection(this.#selection);
+    for (let row = 0; row < visible.length; row += 1) {
+      let line = padRowPreservingBackground(visible[row] ?? "", width);
+      if (orderedSelection !== undefined && !(stickyActive && row === 0)) {
+        const documentLine = this.#scrollTop + row;
+        if (documentLine >= orderedSelection.start.line && documentLine <= orderedSelection.end.line) {
+          const fullVisualRow = orderedSelection.fullRow === true
+            || (orderedSelection.start.line !== orderedSelection.end.line
+              && documentLine !== orderedSelection.start.line
+              && documentLine !== orderedSelection.end.line);
+          const from = fullVisualRow || documentLine !== orderedSelection.start.line
+            ? 0
+            : orderedSelection.start.column - 1;
+          const to = fullVisualRow || documentLine !== orderedSelection.end.line
+            ? width
+            : orderedSelection.end.column;
+          if (to > from) line = theme.selection(line, from, Math.min(width, to));
+        }
       }
-      lines.push(displayColumnSlice(line, columns.from, columns.to).text.trimEnd());
+      // Paint the rail after selection. Full-row selection reaches the terminal
+      // edge, while the foreground thumb/track remains visible above that
+      // background instead of disappearing into it.
+      // Row zero is the intentional one-line breathing room above the rail.
+      if (presentation.visible && geometry !== null && row > 0) {
+        const trackRow = row - 1;
+        const thumb = isThumbRow(geometry, trackRow);
+        const glyph = thumb ? presentation.thumbGlyph : presentation.trackGlyph;
+        const cell = thumb ? theme.thumb(glyph, this.#railHovered || this.#railDragging) : theme.track(glyph);
+        line = overlaySpan(line, width - 1, width, cell);
+      }
+      visible[row] = line;
     }
-    return lines.join("\n");
+
+    const frameRows = [...visible, ...dock].slice(0, height);
+    let bottomHit: TranscriptViewportHitRegions["bottom"] = null;
+    if (geometry !== null && !this.#followingEnd && frameRows.length > 0) {
+      const genericLabel = " Jump to bottom (alt+end) ";
+      const countedLabel = this.#newMessages > 0
+        ? ` ${this.#newMessages} new message${this.#newMessages === 1 ? "" : "s"} (alt+end) `
+        : genericLabel;
+      const label = displayWidth(countedLabel) <= contentWidth ? countedLabel : genericLabel;
+      const labelWidth = displayWidth(label);
+      if (labelWidth <= contentWidth) {
+        const fallbackRow = Math.max(0, viewportHeight - 1);
+        const row = clamp(input.bottomControlRow ?? fallbackRow, 0, frameRows.length - 1);
+        const left = Math.floor((contentWidth - labelWidth) / 2);
+        frameRows[row] = overlaySpan(
+          padRowPreservingBackground(frameRows[row] ?? "", width),
+          left,
+          left + labelWidth,
+          `${CONTROL_STYLE_RESET}${theme.bottomControl(label, this.#bottomHovered)}`,
+        );
+        bottomHit = { row: row + 1, columnStart: left + 1, columnEnd: left + labelWidth };
+      }
+    }
+
+    const hits: TranscriptViewportHitRegions = {
+      viewportHeight,
+      rail: geometry === null || this.#config.scrollbarAppearance === "hidden" ? null : {
+        column: width,
+        rowStart: 2,
+        trackHeight: Math.max(0, viewportHeight - 1),
+        geometry,
+      },
+      sticky: stickyActive ? { row: 1, target: governing.firstRow, width: contentWidth } : null,
+      bottom: bottomHit,
+    };
+    const frame: TranscriptViewportFrame = {
+      rows: frameRows,
+      contentWidth,
+      scrollTop: this.#scrollTop,
+      maxScroll: this.#maxScroll,
+      followingEnd: this.#followingEnd,
+      hits,
+    };
+    this.#frame = frame;
+    return frame;
   }
 
-  #setScroll(next: number): void {
-    this.#scrollTop = Math.min(Math.max(next, 0), this.#frame.maxScroll);
-    this.#followingEnd = this.#scrollTop >= this.#frame.maxScroll;
-    this.#state = { ...this.#state, scrollTop: this.#scrollTop, followingEnd: this.#followingEnd };
+  #lineContentAt(line: number): TextSelectionLineContent {
+    const plain = stripAnsi(this.#documentRows[line] ?? "");
+    const prompt = this.#promptAnchors.find(anchor => line >= anchor.firstRow && line <= anchor.lastRow);
+    if (prompt !== undefined) {
+      if (line === prompt.firstRow) {
+        const timestamp = /\s+\d{2}:\d{2}\s*$/.exec(plain);
+        if (timestamp !== null) return usefulTextLineContent(plain.slice(0, timestamp.index), 3);
+      }
+      return usefulTextLineContent(plain, 3);
+    }
+    const from = plain.trim().length === 0 || (plain.startsWith(" ") && !plain.startsWith("  ")) ? 2 : 1;
+    const content = usefulTextLineContent(plain, from);
+    if (plain.trim().length === 0) return { from, to: from + 1 };
+    return content;
   }
 }
 
-function findGoverningPrompt(
-  prompts: readonly TranscriptPromptAnchor[],
-  scrollTop: number,
-): TranscriptPromptAnchor | null {
-  let match: TranscriptPromptAnchor | null = null;
-  for (const prompt of prompts) {
-    if (prompt.start > scrollTop) break;
-    match = prompt;
+function governingPrompt(anchors: readonly TranscriptPromptAnchor[], scrollTop: number): TranscriptPromptAnchor | null {
+  let result: TranscriptPromptAnchor | null = null;
+  for (const anchor of anchors) {
+    if (anchor.firstRow > scrollTop) break;
+    result = anchor;
   }
-  return match;
+  return result;
 }
 
-function hit(
-  region: { readonly row: number; readonly from: number; readonly to: number } | null,
-  event: PaneMouseEvent,
-): boolean {
-  return region !== null && event.row === region.row && event.column >= region.from && event.column <= region.to;
+function padRowPreservingBackground(line: string, width: number): string {
+  const shown = displayWidth(line) > width ? truncateToWidth(line, width) : line;
+  const padding = Math.max(0, width - displayWidth(shown));
+  if (padding === 0) return shown;
+  const background = /\u001b\[(?:4[0-8]|10[0-7]|48;(?:2;\d+;\d+;\d+|5;\d+))m/.exec(line)?.[0];
+  const reverse = /\u001b\[(?:7(?:;[0-9]+)*|[0-9;]*;7(?:;[0-9]+)*)m/.exec(line)?.[0];
+  if (background) return `${shown}${background}${" ".repeat(padding)}\u001b[49m`;
+  if (reverse) return `${shown}${reverse}${" ".repeat(padding)}\u001b[27m`;
+  return shown + " ".repeat(padding);
+}
+
+function clamp(value: number, minimum: number, maximum: number): number {
+  return Math.min(Math.max(value, minimum), maximum);
 }

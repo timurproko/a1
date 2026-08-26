@@ -11,6 +11,7 @@ const ANSI_SEQUENCE = "\\u001b(?:\\[[0-?]*[ -/]*[@-~]|[\\]_][^\\u0007\\u001b]*(?
 const ANSI_SPLIT = new RegExp(`(${ANSI_SEQUENCE})`);
 const HYPERLINK = /^\]8;;([^]*)(?:|\\)?$/;
 const HYPERLINK_OFF = "]8;;\\";
+const SGR = /^\[[0-9;]*m$/;
 const GRAPHEMES = new Intl.Segmenter(undefined, { granularity: "grapheme" });
 
 /**
@@ -53,4 +54,42 @@ export function overlaySpan(line: string, from: number, to: number, span: string
   }
   if (column < from) head += " ".repeat(from - column);
   return head + (hyperlinkOpen ? HYPERLINK_OFF : "") + span + replay + tail;
+}
+
+/**
+ * Paints only a background over [from,to), preserving every glyph and its
+ * foreground, bold, underline, and hyperlink styling. Embedded resets reapply
+ * the selection background, while leaving the span restores the row's styles.
+ */
+export function backgroundSgrSpan(
+  line: string,
+  from: number,
+  to: number,
+  on = "\u001b[47m",
+  off = "\u001b[49m",
+): string {
+  let output = "";
+  let seen = "";
+  let column = 0;
+  let inside = false;
+  for (const token of line.split(ANSI_SPLIT)) {
+    if (!token) continue;
+    if (token.startsWith("\u001b")) {
+      output += token;
+      if (SGR.test(token)) seen += token;
+      if (inside) output += on;
+      continue;
+    }
+    for (const { segment } of GRAPHEMES.segment(token)) {
+      const shouldBeInside = column >= from && column < to;
+      if (shouldBeInside !== inside) {
+        output += shouldBeInside ? on : off + seen;
+        inside = shouldBeInside;
+      }
+      output += segment;
+      column += displayWidth(segment);
+    }
+  }
+  if (inside) output += off;
+  return output;
 }

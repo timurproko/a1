@@ -1,169 +1,178 @@
 import { describe, expect, it } from "vitest";
-import {
-  TranscriptViewport,
-  composeTimestampedPromptRows,
-  stripAnsi,
-  type TranscriptViewportDocument,
-  type TranscriptViewportTheme,
-} from "../../../src/ui/components/index.js";
+import { backgroundSgrSpan, stripAnsi, TranscriptViewport } from "../../../src/ui/components/index.js";
 
-const theme: TranscriptViewportTheme = {
-  scrollbar: glyph => glyph,
-  bottomControl: text => text,
-  stickyPrompt: (row, quiet) => quiet ? `quiet:${row}` : `sticky:${row}`,
-};
+const ALWAYS = { scrollbarAppearance: "always" as const, scrollbarStyle: "thin" as const };
+const rows = (count: number) => Array.from({ length: count }, (_, index) => `row ${index}`);
 
-function document(rows: readonly string[], prompts: TranscriptViewportDocument["prompts"] = []) {
-  return (_width: number): TranscriptViewportDocument => ({ rows, prompts });
-}
+describe("transcript viewport", () => {
+  it("returns an exact-height transcript-above-dock frame and leaves one line above the rail", () => {
+    const viewport = new TranscriptViewport();
+    viewport.setConfig(ALWAYS);
+    const frame = viewport.compose({ documentRows: rows(10), dockRows: ["editor", "footer"], promptAnchors: [], width: 30, height: 6, now: 100 });
 
-function render(
-  viewport: TranscriptViewport,
-  rows: readonly string[],
-  options: { readonly prompts?: TranscriptViewportDocument["prompts"]; readonly appearance?: "always" | "hover" | "hidden"; readonly now?: number } = {},
-) {
-  return viewport.render({
-    width: 20,
-    height: 6,
-    dockRows: ["editor", "footer"],
-    renderDocument: document(rows, options.prompts),
-    appearance: options.appearance ?? "hover",
-    style: "thin",
-    speed: "normal",
-    theme,
-    now: options.now ?? 0,
+    expect(frame.rows).toHaveLength(6);
+    expect(stripAnsi(frame.rows[0] ?? "")).not.toContain("│");
+    expect(stripAnsi(frame.rows[1] ?? "")).toContain("│");
+    expect(frame.hits.rail).toMatchObject({ rowStart: 2, trackHeight: 3 });
+    expect(frame.rows.slice(-2).map(row => row.trimEnd())).toEqual(["editor", "footer"]);
   });
-}
 
-describe("timestamped prompt rows", () => {
-  it("reserves before wrapping and omits only the timestamp at narrow widths", () => {
-    const source = new Date(2024, 0, 1, 9, 7);
-    const wide = composeTimestampedPromptRows({
-      width: 30,
-      sourceTimestamp: source,
-      render: width => [`prompt@${width}`],
+  it("keeps a detached row fixed while output grows and resumes at the end", () => {
+    const viewport = new TranscriptViewport();
+    viewport.setConfig(ALWAYS);
+    viewport.compose({ documentRows: rows(10), dockRows: ["dock"], promptAnchors: [], width: 40, height: 6, now: 100 });
+    viewport.scrollBy(-2, 101);
+    const detachedTop = viewport.scrollTop;
+    viewport.noteNewMessage();
+    viewport.noteNewMessage();
+    const detached = viewport.compose({ documentRows: rows(13), dockRows: ["dock"], promptAnchors: [], width: 40, height: 6, now: 102 });
+    expect(detached.followingEnd).toBe(false);
+    expect(detached.scrollTop).toBe(detachedTop);
+    expect(viewport.newMessages).toBe(2);
+    expect(stripAnsi(detached.rows[4] ?? "")).toContain("2 new messages (alt+end)");
+
+    viewport.scrollToEnd(103);
+    const followed = viewport.compose({ documentRows: rows(14), dockRows: ["dock"], promptAnchors: [], width: 40, height: 6, now: 104 });
+    expect(followed.followingEnd).toBe(true);
+    expect(followed.scrollTop).toBe(followed.maxScroll);
+    expect(viewport.newMessages).toBe(0);
+    expect(followed.rows.some(row => stripAnsi(row).includes("Jump to bottom"))).toBe(false);
+  });
+
+  it("keeps the bottom control on its fixed terminal row when transient dock rows appear", () => {
+    const viewport = new TranscriptViewport();
+    viewport.setConfig(ALWAYS);
+    viewport.compose({ documentRows: rows(20), dockRows: ["editor", "footer"], promptAnchors: [], width: 40, height: 10, bottomControlRow: 6, now: 100 });
+    viewport.scrollBy(-2, 101);
+    const before = viewport.compose({ documentRows: rows(20), dockRows: ["editor", "footer"], promptAnchors: [], width: 40, height: 10, bottomControlRow: 6, now: 102 });
+    expect(before.hits.bottom?.row).toBe(7);
+
+    const notified = viewport.compose({
+      documentRows: rows(20),
+      dockRows: ["notification one", "notification two", "editor", "footer"],
+      promptAnchors: [],
+      width: 40,
+      height: 10,
+      bottomControlRow: 6,
+      now: 103,
     });
-    expect(wide[0]).toContain("prompt@23");
-    expect(wide[0]).toMatch(/09:07$/);
-    expect(composeTimestampedPromptRows({
-      width: 15,
-      sourceTimestamp: source,
-      render: width => [`prompt@${width}`],
-    })).toEqual(["prompt@15"]);
+    expect(notified.hits.bottom?.row).toBe(7);
+    expect(stripAnsi(notified.rows[6] ?? "")).toContain("Jump to bottom (alt+end)");
   });
-});
 
-describe("TranscriptViewport", () => {
-  it("returns one exact-height frame and keeps the dock pinned while following", () => {
+  it("pins the semantic source prompt prominently, then quiets it after all continuations leave", () => {
     const viewport = new TranscriptViewport();
-    const frame = render(viewport, ["0", "1", "2", "3", "4", "5"]);
-    expect(frame).toHaveLength(6);
-    expect(frame.slice(-2)).toEqual(["editor", "footer"]);
-    expect(stripAnsi(frame[0] ?? "")).toContain("2");
-    expect(viewport.state).toMatchObject({ scrollTop: 2, viewportHeight: 4, followingEnd: true, overflowing: true });
+    viewport.setConfig(ALWAYS);
+    const anchors = [{ id: "prompt", firstRow: 1, lastRow: 2, sourceRow: "❯ prompt                 11:45" }];
+    viewport.compose({ documentRows: rows(9), dockRows: ["dock"], promptAnchors: anchors, width: 36, height: 6, now: 100 });
+
+    viewport.scrollTo(2, 101);
+    const prominent = viewport.compose({ documentRows: rows(9), dockRows: ["dock"], promptAnchors: anchors, width: 36, height: 6, now: 102 });
+    expect(stripAnsi(prominent.rows[0] ?? "").trimEnd()).toBe("❯ prompt                 11:45");
+    expect(prominent.hits.sticky?.target).toBe(1);
+
+    viewport.scrollTo(4, 103);
+    const quiet = viewport.compose({ documentRows: rows(9), dockRows: ["dock"], promptAnchors: anchors, width: 36, height: 6, now: 104 });
+    expect(quiet.rows[0]).toContain("\u001b[2m");
+    expect(stripAnsi(quiet.rows[0] ?? "").trimEnd()).toBe("❯ prompt                 11:45");
+
+    viewport.setStickyHovered(true);
+    const hovered = viewport.compose({ documentRows: rows(9), dockRows: ["dock"], promptAnchors: anchors, width: 36, height: 6, now: 105 });
+    expect(hovered.rows[0]).toContain("\u001b[7m");
+    expect(hovered.rows[0]).not.toContain("\u001b[2m");
+    expect(stripAnsi(hovered.rows[0] ?? "").trimEnd()).toBe("❯ prompt                 11:45");
   });
 
-  it("stays detached while rows stream and resumes at the bottom control", () => {
+  it("uses matching normal and hover surface roles for sticky and bottom controls", () => {
     const viewport = new TranscriptViewport();
-    render(viewport, ["0", "1", "2", "3", "4", "5"]);
-    viewport.onMouse({ kind: "wheel-up", button: 0, column: 5, row: 2 }, 10);
-    render(viewport, ["0", "1", "2", "3", "4", "5", "6"], { now: 11 });
-    expect(viewport.state.scrollTop).toBe(0);
-    expect(viewport.state.followingEnd).toBe(false);
+    viewport.setConfig(ALWAYS);
+    const anchors = [{ id: "prompt", firstRow: 1, lastRow: 1, sourceRow: "❯ prompt                 11:45" }];
+    const theme = {
+      track: (text: string) => text,
+      thumb: (text: string) => text,
+      sticky: (text: string, hovered: boolean) => `\u001b[${hovered ? 46 : 45}m${text}\u001b[49m`,
+      quietSticky: (text: string) => text,
+      bottomControl: (text: string, hovered: boolean) => `\u001b[${hovered ? 46 : 45}m${text}\u001b[49m`,
+      selection: (text: string) => text,
+    };
+    viewport.compose({ documentRows: rows(12), dockRows: ["dock"], promptAnchors: anchors, width: 40, height: 6, now: 100, theme });
+    viewport.scrollTo(4, 101);
+    const normal = viewport.compose({ documentRows: rows(12), dockRows: ["dock"], promptAnchors: anchors, width: 40, height: 6, now: 102, theme });
+    expect(normal.rows[0]).toContain("\u001b[45m");
+    expect(normal.rows[(normal.hits.bottom?.row ?? 1) - 1]).toContain("\u001b]8;;\u001b\\\u001b[0m\u001b[45m");
 
-    const activated = viewport.onMouse({ kind: "press", button: 0, column: 15, row: 4 }, 12);
-    expect(activated.consumed).toBe(true);
-    render(viewport, ["0", "1", "2", "3", "4", "5", "6"], { now: 13 });
-    expect(viewport.state).toMatchObject({ scrollTop: 3, followingEnd: true });
+    viewport.setStickyHovered(true);
+    viewport.setBottomHovered(true);
+    const hovered = viewport.compose({ documentRows: rows(12), dockRows: ["dock"], promptAnchors: anchors, width: 40, height: 6, now: 103, theme });
+    expect(hovered.rows[0]).toContain("\u001b[46m");
+    expect(hovered.rows[(hovered.hits.bottom?.row ?? 1) - 1]).toContain("\u001b[46m");
   });
 
-  it("pins the governing prompt and returns to its semantic source", () => {
+  it("keeps edge motion from adding scroll rows outside the cadence timer", () => {
     const viewport = new TranscriptViewport();
-    const rows = ["before", "prompt", "continued", "answer", "later", "tail"];
-    const prompts = [{ id: "p", start: 1, end: 2, firstRow: "prompt 12:34" }];
-    const frame = render(viewport, rows, { prompts });
-    expect(stripAnsi(frame[0] ?? "")).toContain("sticky:prompt 12:34");
+    viewport.setConfig(ALWAYS);
+    viewport.compose({ documentRows: rows(20), dockRows: [], promptAnchors: [], width: 20, height: 5, now: 100 });
+    viewport.pressSelection(2, 3, 101);
+    const before = viewport.scrollTop;
 
-    expect(viewport.onMouse({ kind: "press", button: 0, column: 3, row: 1 }).consumed).toBe(true);
-    render(viewport, rows, { prompts });
-    expect(viewport.state.scrollTop).toBe(1);
-    expect(viewport.state.followingEnd).toBe(false);
+    viewport.extendSelection(2, 1, 102, false);
+    viewport.extendSelection(2, 1, 103, false);
+    viewport.extendSelection(2, 1, 104, false);
+    expect(viewport.scrollTop).toBe(before);
+
+    viewport.extendSelection(2, 1, 105, true);
+    expect(viewport.scrollTop).toBe(before - 1);
   });
 
-  it("selects transcript text with an ordinary LMB drag and returns clipboard text", () => {
+  it("keeps the scrollbar thumb visible through a multi-row text selection", () => {
     const viewport = new TranscriptViewport();
-    render(viewport, ["alpha", "bravo", "charlie", "delta"]);
+    viewport.setConfig(ALWAYS);
+    const selectionEnds: number[] = [];
+    const theme = {
+      track: (text: string) => `\u001b[31m${text}\u001b[39m`,
+      thumb: (text: string) => `\u001b[32m${text}\u001b[39m`,
+      sticky: (text: string) => text,
+      quietSticky: (text: string) => text,
+      bottomControl: (text: string) => text,
+      selection: (line: string, from: number, to: number) => {
+        selectionEnds.push(to);
+        return backgroundSgrSpan(line, from, to, "\u001b[45m");
+      },
+    };
+    viewport.compose({ documentRows: rows(10), dockRows: [], promptAnchors: [], width: 10, height: 5, now: 100, theme });
+    viewport.pressSelection(1, 3, 101);
+    viewport.extendSelection(9, 5, 102);
+    viewport.releaseSelection();
 
-    expect(viewport.onMouse({ kind: "press", button: 0, column: 1, row: 1 }).consumed).toBe(true);
-    expect(viewport.onMouse({ kind: "motion", button: 0, column: 4, row: 2 }).consumed).toBe(true);
-    const selected = render(viewport, ["alpha", "bravo", "charlie", "delta"]);
-    expect(selected.join("\n")).toContain("\u001b[107;30m");
-    const released = viewport.onMouse({ kind: "release", button: 0, column: 4, row: 2 });
-    expect(released).toMatchObject({ consumed: true, copyText: "alpha\nbrav" });
+    const selected = viewport.compose({ documentRows: rows(10), dockRows: [], promptAnchors: [], width: 10, height: 5, now: 103, theme });
+    const thumbRow = selected.rows[3] ?? "";
+    expect(selectionEnds).toContain(10);
+    expect(stripAnsi(thumbRow).at(-1)).toBe("│");
+    expect(thumbRow).toContain("\u001b[32m│");
   });
 
-  it("uses a fixed white selection background and supports double-word and triple-line selection", () => {
+  it("reserves hover geometry while idle, reveals after activity, and gives hidden mode its column back", () => {
     const viewport = new TranscriptViewport();
-    const rows = ["one two three", "next"];
-    render(viewport, rows);
-    const pointer = { button: 0, column: 5, row: 1 } as const;
+    viewport.setConfig({ scrollbarAppearance: "hover", scrollbarStyle: "thick" });
+    const fitting = viewport.compose({ documentRows: ["timestamp 14:48"], dockRows: ["dock"], promptAnchors: [], width: 20, height: 5, now: 99 });
+    expect(fitting.contentWidth).toBe(19);
+    expect(stripAnsi(fitting.rows[0] ?? "")).toHaveLength(20);
+    expect(stripAnsi(fitting.rows[0] ?? "").endsWith(" ")).toBe(true);
 
-    viewport.onMouse({ kind: "press", ...pointer }, 100);
-    viewport.onMouse({ kind: "release", ...pointer }, 110);
-    viewport.onMouse({ kind: "press", ...pointer }, 200);
-    const wordFrame = render(viewport, rows);
-    expect(wordFrame.join("\n")).toContain("\u001b[107;30mtwo\u001b[39;49m");
-    expect(viewport.onMouse({ kind: "release", ...pointer }, 210).copyText).toBe("two");
+    const idle = viewport.compose({ documentRows: rows(10), dockRows: ["dock"], promptAnchors: [], width: 20, height: 5, now: 100 });
+    expect(idle.contentWidth).toBe(19);
+    expect(idle.rows.every(row => !stripAnsi(row).includes("┃"))).toBe(true);
 
-    viewport.onMouse({ kind: "press", ...pointer }, 300);
-    expect(viewport.onMouse({ kind: "release", ...pointer }, 310).copyText).toBe("one two three");
-  });
+    viewport.noteScrollActivity(100, 50);
+    const active = viewport.compose({ documentRows: rows(10), dockRows: ["dock"], promptAnchors: [], width: 20, height: 5, now: 120 });
+    expect(active.rows.some(row => stripAnsi(row).includes("┃"))).toBe(true);
+    const expired = viewport.compose({ documentRows: rows(10), dockRows: ["dock"], promptAnchors: [], width: 20, height: 5, now: 151 });
+    expect(expired.contentWidth).toBe(19);
+    expect(expired.rows.every(row => !stripAnsi(row).includes("┃"))).toBe(true);
 
-  it("scrolls three lines at normal speed and six at high speed", () => {
-    const rows = Array.from({ length: 20 }, (_, index) => String(index));
-    const normal = new TranscriptViewport();
-    render(normal, rows);
-    const normalBefore = normal.state.scrollTop;
-    normal.onMouse({ kind: "wheel-up", button: 0, column: 3, row: 2 });
-    expect(normal.state.scrollTop).toBe(normalBefore - 3);
-
-    const high = new TranscriptViewport();
-    high.render({
-      width: 20,
-      height: 6,
-      dockRows: ["editor", "footer"],
-      renderDocument: document(rows),
-      appearance: "hover",
-      style: "thin",
-      speed: "high",
-      theme,
-      now: 0,
-    });
-    const highBefore = high.state.scrollTop;
-    high.onMouse({ kind: "wheel-up", button: 0, column: 3, row: 2 });
-    expect(high.state.scrollTop).toBe(highBefore - 6);
-  });
-
-  it("reserves and reveals a hover rail without changing wheel distance", () => {
-    const viewport = new TranscriptViewport();
-    const rows = Array.from({ length: 10 }, (_, index) => String(index));
-    render(viewport, rows, { now: 2_000 });
-    expect(viewport.state.scrollbarVisible).toBe(false);
-    const before = viewport.state.scrollTop;
-    viewport.onMouse({ kind: "motion", button: 0, column: 20, row: 2 }, 2_001);
-    render(viewport, rows, { now: 2_002 });
-    expect(viewport.state.scrollbarVisible).toBe(true);
-    viewport.onMouse({ kind: "wheel-up", button: 0, column: 3, row: 2 }, 2_003);
-    expect(viewport.state.scrollTop).toBe(before - 3);
-  });
-
-  it("draws and exposes no rail in hidden mode", () => {
-    const viewport = new TranscriptViewport();
-    const frame = render(viewport, ["0", "1", "2", "3", "4", "5"], { appearance: "hidden" });
-    expect(viewport.state.scrollbarVisible).toBe(false);
-    expect(frame.every(row => !stripAnsi(row).includes("│") && !stripAnsi(row).includes("┃"))).toBe(true);
-    // The former rail cell is ordinary selectable transcript content, not a scrollbar hit.
-    expect(viewport.onMouse({ kind: "press", button: 0, column: 20, row: 1 }).consumed).toBe(true);
-    expect(viewport.onMouse({ kind: "release", button: 0, column: 20, row: 1 }).copyText).toBeUndefined();
+    viewport.setConfig({ scrollbarAppearance: "hidden", scrollbarStyle: "thin" });
+    const hidden = viewport.compose({ documentRows: rows(10), dockRows: ["dock"], promptAnchors: [], width: 20, height: 5, now: 152 });
+    expect(hidden.contentWidth).toBe(20);
+    expect(hidden.hits.rail).toBeNull();
   });
 });

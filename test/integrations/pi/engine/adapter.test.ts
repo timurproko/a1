@@ -327,6 +327,7 @@ describe("Pi engine adapter", () => {
     session.emit({ type: "agent_settled" });
     await adapter.flushEvents();
 
+    expect(events.filter(event => event.type === "agent-run-started")).toHaveLength(1);
     expect(events.some(event => event.type === "session-lifecycle" && event.lifecycle === "busy")).toBe(true);
     expect(events.some(event => event.type === "session-lifecycle" && event.lifecycle === "ready")).toBe(true);
     expect(adapter.view().editor.queuedSubmissions).toEqual(["steer", "later"]);
@@ -439,6 +440,7 @@ describe("Pi engine adapter", () => {
     expect(transcript.find(block => block.kind === "assistant")).toMatchObject({ text: "Hello world", status: "finalized" });
     expect(transcript.find(block => block.kind === "tool-result")).toMatchObject({ status: "finalized", text: "passed" });
     expect(events.filter(event => event.type === "transcript-block").length).toBeGreaterThanOrEqual(5);
+    expect(events.filter(event => event.type === "assistant-message-completed")).toHaveLength(1);
     session.emit({ type: "message_start" });
     expect(adapter.view().transcript).toHaveLength(transcript.length);
   });
@@ -737,6 +739,19 @@ describe("Pi engine adapter", () => {
       expect.objectContaining({ diagnostic: expect.stringContaining("malformed extensions collection") }),
       expect.objectContaining({ diagnostic: expect.stringContaining("malformed errors collection") }),
     ]);
+  });
+
+  it("yields terminal-input turns between agent events", async () => {
+    const runtime = new FakeRuntime(new FakeSession("pi-session-1"));
+    const { adapter, events } = await adapterWithRuntime(runtime);
+    const session = runtime.session as FakeSession;
+    const before = events.length;
+
+    for (let index = 0; index < 20; index += 1) session.emit({ type: "agent_start" });
+    await new Promise<void>(resolve => { setImmediate(resolve); });
+
+    expect(events.length - before).toBe(1);
+    await adapter.flushEvents();
   });
 
   it("coalesces high-rate engine events under a bounded queue without terminal failures", async () => {

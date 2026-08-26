@@ -6,9 +6,9 @@ Bare A1 still presents the transcript as Pi's flowing document, so long sessions
 
 - Give bare `a1` an A1-owned session viewport whose transcript occupies the rows above a bottom dock; the existing working status, input surface, widgets, and footer remain in that dock and keep their current rendering.
 - Keep transcript output followed at the end until the reader scrolls away; while detached, new streamed output does not move the view, and submitting a prompt or using the visible scroll-to-bottom control restores end following.
-- Add one A1 scrollbar rail with configurable appearance (`always`, `hover`, or `hidden`), style (`thin` or `thick`), and wheel speed (`normal` or `high`). Hover appearance responds to pointer proximity, recent scrolling, and dragging; normal speed moves three lines per wheel event and high speed moves six.
+- Add one A1 scrollbar rail with configurable appearance (`always`, `hover`, or `hidden`), style (`thin` or `thick`), and speed (`normal` at three rows or `fast` at six rows per wheel event, with selection edge-scroll also doubled). Hover appearance responds to pointer proximity, recent scrolling, and dragging.
 - Render submitted user prompts with a right-aligned timestamp when width permits. When a prompt governs the top of a scrolled view, its first row remains pinned with the same timestamp; it stays prominent while its continuation rows remain visible, becomes quiet after the complete prompt leaves view, and returns to the prompt when activated.
-- Preserve ordinary LMB transcript selection in regular and fullscreen modes, copying completed selections through the terminal clipboard bridge, alongside every existing command, selector, dialog, editor replacement, extension widget, working indicator, and footer contribution. This milestone changes placement and transcript navigation, not status-bar content or input-prompt styling.
+- Preserve ordinary transcript selection and every existing command, selector, dialog, editor replacement, extension widget, working indicator, and footer contribution. This milestone changes placement and transcript navigation, not status-bar content or input-prompt styling.
 - Enable the custom viewport only for bare A1. `a1 pi` and `a1 sandbox` continue to present the pinned comparison interface without A1's viewport customization.
 
 **BREAKING**: none. Bare A1 deliberately gains an accepted A1-specific layout while the explicit comparison profiles retain the pinned presentation.
@@ -22,9 +22,9 @@ Bare A1 still presents the transcript as Pi's flowing document, so long sessions
 ### Modified Capabilities
 
 - `ui-components`: the shared scrollbar gains declared appearance and style policies plus activity, hover, and drag presentation states used by the viewport without duplicating rail geometry.
-- `owned-ui-settings`: the three live A1 scrollbar settings are declared, resolved, persisted, and applied consistently to the running viewport.
+- `owned-ui-settings`: the three live A1 scrollbar settings are grouped in a dedicated Scrollbar section, resolved, persisted, and applied consistently to the running viewport.
 - `owned-pi-ui-foundation`: the accepted pinned shell becomes the behavioral foundation under a declared bare-A1 layout customization, while comparison profiles and all non-layout workflows remain unchanged.
 
 ## Impact
 
-The change affects the owned session-shell composition, the neutral UI component layer, A1 settings declarations and live propagation, the Pi TUI runtime adapter's pre-routing of viewport input, user-message presentation, profile-aware composition, provenance documentation, and focused component/runtime/shell tests. It adds no dependency, PTY, terminal parser, status-bar redesign, multi-agent behavior, or native-host work.
+The change affects the owned session-shell composition, the neutral UI component layer, A1 settings declarations and live propagation, the Pi TUI runtime adapter's pre-routing of viewport input, user-message presentation, profile-aware composition, provenance documentation, and focused component/runtime/shell tests. It adds no dependency, PTY, terminal parser, status-bar redesign, scroll-speed policy, multi-agent behavior, or native-host work.

@@ -39,16 +39,6 @@ describe("decoding pointer input", () => {
     expect(parsed.rest).toBe("abcdef");
   });
 
-  it("removes only handled reports while preserving keys and unrelated pointer input in order", () => {
-    const routed = routeMouseInput(`a${ESC}[<64;1;1Mb${ESC}[<0;2;2Mc`, event => ({
-      consumed: event.kind === "wheel-up",
-      render: event.kind === "wheel-up",
-    }));
-    expect(routed.data).toBe(`ab${ESC}[<0;2;2Mc`);
-    expect(routed.handled).toBe(1);
-    expect(routed.render).toBe(true);
-  });
-
   it("passes a chunk with no reports through untouched", () => {
     const parsed = parseMouseInput(`${ESC}[A`);
     expect(parsed.events).toHaveLength(0);
@@ -67,6 +57,13 @@ describe("decoding pointer input", () => {
     for (let attempt = 0; attempt < 3; attempt++) {
       expect(parseMouseInput(`${ESC}[<0;5;5M`).events).toHaveLength(1);
     }
+  });
+
+  it("removes only claimed reports from a mixed mouse and keyboard chunk", () => {
+    const claimed = `${ESC}[<64;4;3M`;
+    const forwarded = `${ESC}[<0;20;10M`;
+    const routed = routeMouseInput(`a${claimed}b${forwarded}c`, event => event.kind === "wheel-up");
+    expect(routed).toEqual({ data: `ab${forwarded}c`, consumed: true });
   });
 });
 

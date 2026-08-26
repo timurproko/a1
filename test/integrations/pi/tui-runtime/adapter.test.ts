@@ -169,6 +169,33 @@ describe("PiTuiRuntimeAdapter", () => {
     expect(terminal.writes.join("")).toContain("\x1b[?1049l");
   });
 
+  it("routes and transforms physical input before the TUI in registration order", async () => {
+    const terminal = new TestTerminal();
+    const root = new TestComponent(["root"]);
+    const runtime = new PiTuiRuntimeAdapter({ root, terminal });
+    const order: string[] = [];
+    const removeFirst = runtime.addPreInputListener(data => {
+      order.push(`first:${data}`);
+      return { data: data.replace("mouse", "") };
+    });
+    runtime.addPreInputListener(data => {
+      order.push(`second:${data}`);
+      return data === "drop" ? { consume: true } : undefined;
+    });
+    runtime.start();
+
+    terminal.input("mousekey");
+    expect(order).toEqual(["first:mousekey", "second:key"]);
+    expect(root.inputs).toEqual(["key"]);
+    terminal.input("mousedrop");
+    expect(root.inputs).toEqual(["key"]);
+
+    removeFirst();
+    terminal.input("plain");
+    expect(root.inputs).toEqual(["key", "plain"]);
+    await runtime.stop();
+  });
+
   it("rejects over-width component rows instead of silently rewriting source layout", async () => {
     const terminal = new TestTerminal();
     terminal.columns = 5;
@@ -201,28 +228,6 @@ describe("PiTuiRuntimeAdapter", () => {
     runtime.showOverlay(mountedOverlay);
     await runtime.stop({ drainInput: false, preserveScreen: true });
     expect(mountedOverlay.disposed).toBe(true);
-  });
-
-  it("routes physical input through pre-listeners before either TUI sees it", async () => {
-    const terminal = new TestTerminal();
-    const root = new TestComponent(["root"]);
-    const runtime = new PiTuiRuntimeAdapter({ root, terminal });
-    const remove = runtime.addPreInputListener(data => data === "blocked"
-      ? { consume: true }
-      : { data: data.replace("raw", "routed") });
-
-    runtime.start();
-    runtime.renderNow();
-    terminal.input("raw+key");
-    terminal.input("blocked");
-    runtime.renderNow();
-    expect(root.inputs).toEqual(["routed+key"]);
-
-    remove();
-    terminal.input("raw");
-    runtime.renderNow();
-    expect(root.inputs).toEqual(["routed+key", "raw"]);
-    await runtime.stop();
   });
 
   it("uses the public regular main-screen renderer by default and leaves selection to the terminal", async () => {

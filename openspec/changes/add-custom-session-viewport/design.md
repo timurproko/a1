@@ -13,17 +13,16 @@ The shared component layer already owns display-width text utilities, ANSI-safe 
 **Goals:**
 
 - Make viewport layout and scroll state an A1-owned, vendor-neutral component that can be tested without a terminal.
-- Preserve the current regular/fullscreen runtime choice rather than making viewport behavior depend on one Pi layout implementation.
+- Run the custom bare-A1 viewport on the fullscreen alternate surface unconditionally; pinned comparison profiles continue to honor Pi's regular/fullscreen choice.
 - Keep dock surfaces as their existing component instances so layout work cannot silently become a status, editor, footer, or extension-UI rewrite.
 - Route viewport pointer input before Pi's fullscreen viewport can consume it, while preserving unrelated input and mixed input chunks.
-- Preserve ordinary LMB transcript selection and clipboard copy in both regular and fullscreen runtime modes.
 - Keep per-frame work bounded to cached transcript rows plus the visible window's overlays.
 - Keep bare-A1 customization and pinned comparison presentation as explicit composition choices.
 
 **Non-Goals:**
 
-- No status/footer redesign, input-editor redesign, paste chips, prompt history changes, or new-message counter.
-- No general replacement for Pi TUI rendering, terminal parsing, editor selection, clipboard configuration, or overlays; selection ownership is limited to rows inside the custom transcript viewport.
+- No status/footer redesign, input-editor redesign, paste chips, prompt history changes, new-message counter, or scroll-speed policy.
+- No general replacement for Pi TUI rendering, terminal parsing, selection, clipboard, or overlays.
 - No private Pi imports, prototype mutation, child-tree inspection, distribution hashes, or source-text inference.
 - No multi-agent, terminal-host, PTY, or native-host work.
 
@@ -77,15 +76,11 @@ A pre-listener returns consumed/transformed input through the existing neutral r
 - parse all mouse reports in a chunk and preserve any non-mouse remainder;
 - consume wheel reports addressed to its transcript and update activity state;
 - consume press/motion/release reports for its rail, sticky prompt, and bottom control;
-- consume ordinary LMB drags in transcript content, map visible coordinates to semantic document rows, and paint a grapheme-aligned selection without selecting the rail;
-- paint every selected span with a fixed bright-white background and contrasting dark foreground so source foreground colors never become selection backgrounds;
-- apply a bounded multi-click state: double-click expands to the word segment and triple-click to the complete non-padding line;
-- copy a completed non-empty transcript selection through OSC 52 and retain its highlight until the next ordinary input or selection;
-- forward non-LMB reports and reports outside viewport hit regions so focused surfaces keep their behavior;
-- bypass viewport selection when an overlay or dialog owns pointer input;
-- clear drag, active selection gesture, and hover state on session replacement and disposal.
+- forward reports outside those hit regions so existing fullscreen selection and focused surfaces keep their behavior;
+- bypass non-control input when an overlay, dialog, selector, or replacement input owns it;
+- clear drag and hover state on session replacement and disposal.
 
-Pointer reporting is paired to the lifetime of the bare-A1 custom viewport and disabled on every teardown path. The owned selection path is mode-neutral, so plain LMB selection behaves the same through `TuiMainScreen` and `TuiAltScreen`; terminal-native bypass selection remains available as a fallback. This does not replace editor selection or clipboard configuration.
+Pointer reporting is paired to the lifetime of the bare-A1 fullscreen custom viewport and disabled on every teardown path, as it already is for A1-owned pointer-driven applications. Transcript selection is handled by the custom viewport while unrelated focused surfaces retain their existing input ownership.
 
 Alternative considered: register another ordinary TUI input listener. Rejected because listener ordering makes Pi consume fullscreen wheel input first.
 
@@ -97,19 +92,18 @@ Alternative considered: take over all terminal input. Rejected because the viewp
 
 - appearance: `always | hover | hidden`;
 - style: `thin | thick`;
-- speed: `normal | high`, mapped centrally to three or six lines per wheel event;
 - visible reasons: always, pointer proximity, recent activity, or drag latch;
 - stable rail-column reservation;
-- a connected dim `│` track with accent `│` thin thumbs, accent `┃` thick thumbs, and temporary `┃` hot-thumb emphasis through theme roles;
+- track/thumb cell selection through theme roles;
 - a bounded activity expiry supplied with `now` in tests rather than hidden global time.
 
-The custom viewport composes those cells over the final visible transcript column with the existing ANSI-safe overlay primitive. It only applies expensive span composition to visible rows. `hidden` renders and reserves nothing; fitting content always renders and reserves nothing. Wheel routing asks the same policy for the selected three-line or six-line delta; appearance and style never multiply it.
+The custom viewport composes those cells over the final visible transcript column with the existing ANSI-safe overlay primitive. It only applies expensive span composition to visible rows. `hidden` renders and reserves nothing; fitting content always renders and reserves nothing. No value in this policy multiplies wheel delta.
 
 Alternative considered: reuse Pi `ScrollView.scrollbarStyle`. Rejected because it cannot paint a track or distinguish the declared presentation states through its public contract.
 
 ### 6. Submitted prompt presentation is an owned adapter over semantic timestamp data
 
-The engine supplies user-block timestamps in the block payload. The owned shell validates that value and decorates rows produced by the unchanged Pi user-message adapter through an A1 prompt-row composer. The shared composer owns timestamp reservation, right alignment, narrow-width omission, and width validation; the Pi adapter continues to own Markdown rendering and theme adaptation without importing the shared component layer.
+The engine already supplies user-block timestamps in the block payload. The Pi component adapter will validate that value and hand ordinary text plus a `Date` to an A1 prompt-row composer. The shared composer owns prefix width, continuation indentation, timestamp reservation, right alignment, narrow-width omission, and width validation. The Pi adapter owns Markdown rendering and theme adaptation.
 
 The formatted value is local 24-hour `HH:mm`, making the source timestamp deterministic in tests through an injected date/time input rather than `new Date()` at first render. The sticky row reuses the rendered source first row; it never reformats a second timestamp.
 
@@ -119,7 +113,7 @@ Alternative considered: stamp prompts when first rendered. Rejected because resu
 
 ### 7. Settings reach the shell through a narrow live viewport configuration
 
-Composition will pass the loaded `OwnedUiSettingsSession` to the bare-A1 shell, not to Pi component classes. The shell reads and subscribes to `scrollbarAppearance`, `scrollbarStyle`, and `scrollbarSpeed`, translates them into the neutral viewport configuration, and requests a render on a live change. The comparison composition does not install the custom viewport even if its profile store contains those keys.
+Composition will pass the loaded `OwnedUiSettingsSession` to the bare-A1 shell, not to Pi component classes. The shell reads and subscribes to `scrollbarAppearance` and `scrollbarStyle`, translates them into the neutral viewport configuration, and requests a render on a live change. The comparison composition does not install the custom viewport even if its profile store contains those keys.
 
 Adding declarations is backward compatible with the current versioned document: an older document omits the keys and resolution supplies the new defaults, so no migration is needed. A future rename or shape change would require the normal version/migration path.
 
@@ -144,7 +138,7 @@ The implementation will add focused render-count and long-transcript tests so a 
 ## Risks / Trade-offs
 
 - **[An exact-height root in regular mode changes how much transcript reaches native scrollback]** → The custom capability intentionally owns transcript scrollback in bare A1; comparison profiles retain the pinned flow. Validate parent-terminal restoration and preserve the public TUI renderer.
-- **[Pointer reporting in regular mode prevents plain native LMB selection]** → Own transcript-only grapheme-aligned selection and OSC 52 copy in both modes, preserve the terminal bypass gesture as a fallback, and include manual selection/copy/restoration acceptance.
+- **[Pointer reporting in regular mode can surprise terminal-native selection users]** → Pair reporting exactly to viewport lifetime, leave non-control pointer input untouched, preserve the terminal bypass gesture, and include manual selection/copy/restoration acceptance.
 - **[Dock growth can leave too few transcript rows]** → Derive allocation from current terminal height every frame, preserve existing component minimums, and test queued input, multiline editors, replacement selectors, and small resizes.
 - **[Timestamp reservation can cause excessive wrapping]** → Use a declared minimum useful content width and omit only the timestamp at narrower widths; never truncate the submitted prompt payload.
 - **[Sticky and rail overlays can leak ANSI styles or hyperlinks]** → Use the shared display-width and span-overlay primitives, isolate theme roles, and test background, hyperlink, wide-character, and narrow-width rows.
@@ -156,7 +150,7 @@ The implementation will add focused render-count and long-transcript tests so a 
 
 1. Add the neutral viewport and extended scrollbar behavior behind an explicit shell option; leave all launch profiles on the existing path.
 2. Add pre-input routing and prompt presentation with focused conformance tests while the option remains disabled.
-3. Add the three settings declarations and pass a settings-backed viewport configuration through composition.
+3. Add the two settings declarations and pass a settings-backed viewport configuration through composition.
 4. Enable the option for bare A1 only; keep `a1 pi` and `a1 sandbox` on the pinned comparison path.
 5. Run CI, then perform user-controlled manual acceptance for long-session scrolling, streaming while detached, prompt submission, scrollbar states, sticky prompts, selectors, resize, selection/copy, and terminal restoration.
 6. Record acceptance before merging the behavior change and later archive the OpenSpec change.

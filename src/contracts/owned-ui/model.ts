@@ -38,6 +38,19 @@ export interface OwnedUiModelInfo {
 
 export type OwnedUiThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh";
 
+export interface OwnedUiViewportSettings {
+  readonly scrollbarAppearance: "always" | "hover" | "hidden";
+  readonly scrollbarStyle: "thin" | "thick";
+  /** normal uses baseline wheel/selection speed; fast uses twice that speed. */
+  readonly scrollbarSpeed: "normal" | "fast";
+}
+
+/** Narrow live settings boundary consumed by the bare-A1 shell composition. */
+export interface OwnedUiViewportSettingsPort {
+  snapshot(): OwnedUiViewportSettings;
+  onChange(listener: (settings: OwnedUiViewportSettings) => void): () => void;
+}
+
 export interface OwnedUiTerminalSurface {
   readonly columns: number;
   readonly rows: number;
@@ -244,6 +257,18 @@ export type OwnedUiEvent =
     readonly sessionId: OwnedUiSessionId;
     readonly sequence: number;
     readonly block: OwnedUiTranscriptBlock;
+  }
+  | {
+    /** One completed assistant reply; never a tool row or transcript rebuild. */
+    readonly type: "assistant-message-completed";
+    readonly sessionId: OwnedUiSessionId;
+    readonly sequence: number;
+  }
+  | {
+    /** A fresh agent run has started, used by follow-mode surfaces. */
+    readonly type: "agent-run-started";
+    readonly sessionId: OwnedUiSessionId;
+    readonly sequence: number;
   }
   | {
     readonly type: "editor-state";

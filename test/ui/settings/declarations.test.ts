@@ -21,7 +21,12 @@ describe("owned UI setting declarations", () => {
     }
   });
 
-  it("declares appearance, style, and two explicit wheel speeds for the custom scrollbar", () => {
+  it("declares the grouped live viewport appearance, style, and speed controls", () => {
+    expect(OWNED_UI_SETTING_DECLARATIONS.map(setting => setting.id)).toEqual([
+      "scrollbarAppearance",
+      "scrollbarStyle",
+      "scrollbarSpeed",
+    ]);
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "scrollbarAppearance")).toMatchObject({
       application: "live",
       defaultValue: "hover",
@@ -33,9 +38,11 @@ describe("owned UI setting declarations", () => {
       allowedValues: ["thin", "thick"],
     });
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "scrollbarSpeed")).toMatchObject({
+      label: "Speed",
+      section: { id: "scrollbar", title: "Scrollbar" },
       application: "live",
       defaultValue: "normal",
-      allowedValues: ["normal", "high"],
+      allowedValues: ["normal", "fast"],
     });
   });
 
@@ -91,6 +98,12 @@ describe("owned UI settings migrations", () => {
   it("declares an ordered, contiguous list ending at the current version", () => {
     expect(() => assertOwnedUiSettingsMigrations(OWNED_UI_SETTINGS_MIGRATIONS)).not.toThrow();
     expect(OWNED_UI_SETTINGS_MIGRATIONS).toHaveLength(OWNED_UI_SETTINGS_VERSION - 1);
+  });
+
+  it("migrates the former high speed name to fast", () => {
+    expect(OWNED_UI_SETTINGS_MIGRATIONS).toHaveLength(1);
+    expect(OWNED_UI_SETTINGS_MIGRATIONS[0]?.migrate({ scrollbarSpeed: "high", future: true }))
+      .toEqual({ scrollbarSpeed: "fast", future: true });
   });
 
   it("rejects a list with a gap or a wrong end version", () => {

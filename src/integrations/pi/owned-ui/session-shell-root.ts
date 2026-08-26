@@ -3,19 +3,22 @@ import type {
   OwnedUiDialog,
   OwnedUiSessionViewModel,
   OwnedUiThinkingLevel,
+  OwnedUiViewportSettings,
+  OwnedUiViewportSettingsPort,
 } from "../../../contracts/owned-ui/index.js";
 import type { UiRouteHost } from "./route-host.js";
 import {
   TranscriptViewport,
-  composeTimestampedPromptRows,
-  faint,
-  type PaneMouseEvent,
-  type ScrollbarAppearance,
-  type ScrollbarSpeed,
-  type ScrollbarStyle,
+  backgroundSgrSpan,
+  composeSubmittedPromptRows,
+  displayWidth,
+  formatSubmittedPromptTime,
+  overlaySpan,
+  submittedPromptLayout,
+  routeMouseInput,
+  scrollForTrackPage,
+  scrollForThumbRow,
   type TranscriptPromptAnchor,
-  type TranscriptViewportDocument,
-  type TranscriptViewportInputResult,
 } from "../../../ui/components/index.js";
 import {
   PINNED_PI_HIDDEN_COMMAND_NAMES,
@@ -79,6 +82,7 @@ import {
   type PiShellScopedModelsSelectorPort,
   type PiShellSelectorOption,
   type PiShellStatusPort,
+  type PiShellSubmittedPromptComposer,
   type PiShellTranscriptComponentPort,
   type PiShellViewComponentPort,
 } from "../components/index.js";
@@ -104,12 +108,10 @@ export interface OwnedUiSessionShellOptions {
    * every other route continues to the pinned workflow table unchanged.
    */
   readonly routeHost?: UiRouteHost;
-  /** Present only for bare A1; comparison profiles keep the pinned layout. */
-  readonly customViewport?: {
-    readonly appearance: ScrollbarAppearance;
-    readonly style: ScrollbarStyle;
-    readonly speed?: ScrollbarSpeed;
-  };
+  /** Bare A1 selects the owned bounded viewport; comparison profiles stay pinned. */
+  readonly sessionLayout?: "pinned" | "custom-viewport";
+  /** Live profile-local settings, supplied only to the bare-A1 composition. */
+  readonly viewportSettings?: OwnedUiViewportSettingsPort;
 }
 
 export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
@@ -119,7 +121,9 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   readonly #cwd: string;
   readonly #transcript = new Map<string, PiShellTranscriptComponentPort>();
   readonly #blocksById = new Map<string, OwnedUiSessionViewModel["transcript"][number]>();
-  readonly #renderedRows = new Map<string, { readonly width: number; readonly revision: number; readonly rows: readonly string[] }>();
+  readonly #renderedRows = new Map<string, Map<number, { readonly revision: number; readonly rows: readonly string[] }>>();
+  /** Flattened transcript rows reused by wheel, rail, jump, and selection frames. */
+  readonly #documentLayouts = new Map<number, { readonly rows: readonly string[]; readonly promptAnchors: readonly TranscriptPromptAnchor[] }>();
   readonly #themeUnsubscribe: () => void;
   #transcriptOrder: string[] = [];
   #view: OwnedUiSessionViewModel;
@@ -127,6 +131,20 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   readonly #footer: PiShellViewComponentPort;
   readonly #queued: PiShellQueuedInputPort;
   readonly #extensionRenderers: PiShellExtensionRendererResolver;
+  readonly #customViewport: boolean;
+  readonly #submittedPromptComposer: PiShellSubmittedPromptComposer | undefined;
+  readonly #viewport = new TranscriptViewport();
+  #viewportConfig: OwnedUiViewportSettings = {
+    scrollbarAppearance: "hover",
+    scrollbarStyle: "thin",
+    scrollbarSpeed: "normal",
+  };
+  #dragGrabOffset: number | null = null;
+  /** A left-button sequence begun in status/editor/footer chrome is swallowed. */
+  #dockPointerSuppressed = false;
+  #selectionAutoScrollTimer: ReturnType<typeof setTimeout> | undefined;
+  #selectionAutoScrollPointer: { readonly column: number; readonly row: number } | undefined;
+  #viewportActivityTimer: ReturnType<typeof setTimeout> | undefined;
   readonly #componentRuntime: {
     readonly getColumns: () => number;
     readonly getRows: () => number;
@@ -145,10 +163,6 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   readonly #extensionStatuses = new Map<string, string>();
   #extensionWorkingMessage: string | undefined;
   #extensionWorkingVisible = true;
-  readonly #viewport: TranscriptViewport | null;
-  #scrollbarAppearance: ScrollbarAppearance;
-  #scrollbarStyle: ScrollbarStyle;
-  #scrollbarSpeed: ScrollbarSpeed;
 
   constructor(
     view: OwnedUiSessionViewModel,
@@ -175,17 +189,13 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       getMessageRenderer: () => undefined,
       getToolDefinition: () => undefined,
     },
-    viewport?: {
-      readonly appearance: ScrollbarAppearance;
-      readonly style: ScrollbarStyle;
-      readonly speed?: ScrollbarSpeed;
-    },
+    sessionLayout: "pinned" | "custom-viewport" = "pinned",
   ) {
     this.#view = view;
-    this.#viewport = viewport === undefined ? null : new TranscriptViewport();
-    this.#scrollbarAppearance = viewport?.appearance ?? "hover";
-    this.#scrollbarStyle = viewport?.style ?? "thin";
-    this.#scrollbarSpeed = viewport?.speed ?? "normal";
+    this.#customViewport = sessionLayout === "custom-viewport";
+    this.#submittedPromptComposer = this.#customViewport
+      ? { layout: submittedPromptLayout, compose: composeSubmittedPromptRows }
+      : undefined;
     this.#cwd = cwd;
     this.#extensionRenderers = extensionRenderers;
     this.#componentRuntime = handlers;
@@ -208,10 +218,17 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.#syncTranscript(view.transcript);
     // Colours come from the active theme, so rendered rows outlive their revision only
     // until the theme under them changes.
-    this.#themeUnsubscribe = onPiThemeChange(() => this.#renderedRows.clear());
+    this.#themeUnsubscribe = onPiThemeChange(() => {
+      this.#renderedRows.clear();
+      this.#documentLayouts.clear();
+    });
   }
 
   update(view: OwnedUiSessionViewModel): void {
+    if (view.diagnostics.length !== this.#view.diagnostics.length
+      || view.diagnostics.some((diagnostic, index) => diagnostic.sequence !== this.#view.diagnostics[index]?.sequence)) {
+      this.#documentLayouts.clear();
+    }
     this.#view = view;
     this.#status.update(view);
     this.#footer.update(this.#viewWithExtensionStatuses(view));
@@ -231,7 +248,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.#blocksById.set(block.id, block);
     const component = this.#transcript.get(block.id);
     if (component === undefined) {
-      const created = createPiShellTranscriptComponent(block, this.#cwd, this.#extensionRenderers);
+      const created = createPiShellTranscriptComponent(block, this.#cwd, this.#extensionRenderers, this.#submittedPromptComposer);
       created.setExpanded(this.#toolsExpanded);
       this.#transcript.set(block.id, created);
       this.#transcriptOrder.push(block.id);
@@ -241,68 +258,313 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     // One chunk touches one block, and the updated component tracks its own dirtiness.
     // Invalidating the whole shell here would re-wrap the entire transcript per chunk.
     this.#renderedRows.delete(block.id);
+    this.#documentLayouts.clear();
   }
 
   render(width: number): readonly string[] {
-    if (this.#viewport === null) return [...this.#renderDocument(width), ...this.#renderDock(width)];
-    const theme = piTheme();
-    return this.#viewport.render({
+    if (!this.#customViewport) return [...this.#renderDocument(width), ...this.#renderDock(width)];
+
+    const height = Math.max(0, this.#componentRuntime.getRows());
+    const dock = this.#renderDockLayout(width);
+    const availableWithoutStatus = Math.max(0, height - Math.min(height, dock.rowsWithoutStatus.length));
+    // Always/hover own one stable final gutter cell, even before overflow. This
+    // is the v2 policy and leaves the intentional blank after a right-aligned
+    // prompt timestamp instead of letting it touch the terminal edge.
+    const documentWidth = this.#viewportConfig.scrollbarAppearance === "hidden" || width <= 1 ? width : width - 1;
+    let document = this.#renderDocumentLayout(documentWidth);
+    const statusRows = documentWidth === width ? dock.statusRows : this.#renderStatus(documentWidth);
+    // v2 pins Working only while the complete transcript still fits. Once the
+    // transcript overflows, status joins the scrollable document tail so it
+    // naturally leaves the screen when the user scrolls up.
+    const pinStatus = document.rows.length + statusRows.length <= availableWithoutStatus;
+    const dockRows = pinStatus ? dock.rows : dock.rowsWithoutStatus;
+    if (!pinStatus) document = { ...document, rows: [...document.rows, ...statusRows] };
+    this.#viewport.setConfig(this.#viewportConfig);
+    return this.#viewport.compose({
+      documentRows: document.rows,
+      dockRows,
+      promptAnchors: document.promptAnchors,
       width,
-      height: this.#componentRuntime.getRows(),
-      dockRows: this.#renderDock(width),
-      renderDocument: contentWidth => this.#renderViewportDocument(contentWidth),
-      appearance: this.#scrollbarAppearance,
-      style: this.#scrollbarStyle,
-      speed: this.#scrollbarSpeed,
+      height,
+      // Anchor above the stable editor/widget/footer group. Queued input,
+      // working states, and transient notifications may grow above it without
+      // moving the floating control up and down the terminal.
+      bottomControlRow: Math.max(0, height - Math.min(height, dock.stableBottomRows) - 1),
       theme: {
-        scrollbar: (glyph, part) => part === "thumb"
-          ? theme.fg("accent", glyph)
-          : theme.fg("dim", glyph),
-        bottomControl: (text, pointed) => theme.bg("selectedBg", pointed
-          ? theme.bold(theme.fg("accent", text))
-          : theme.fg("text", text)),
-        stickyPrompt: (row, quiet) => quiet ? faint(row) : row,
+        // Match the v2 rail: a continuously dim track and an accent thumb at
+        // rest, thickening on hover/drag through the presentation glyph. Reset
+        // inherited text decorations so dim transcript rows cannot dull the
+        // thumb; the row background deliberately remains intact.
+        track: text => `${SCROLLBAR_CELL_RESET}${piTheme().fg("dim", text)}`,
+        thumb: text => `${SCROLLBAR_CELL_RESET}${piTheme().fg("accent", text)}`,
+        sticky: (text, hovered) => piTheme().bg(
+          hovered ? "selectedBg" : "toolPendingBg",
+          piTheme().fg("text", withoutTerminalBackground(text)),
+        ),
+        quietSticky: text => `\u001b[2m${text.replace(/\u001b\[(?:0|22)m/g, "$&\u001b[2m")}\u001b[22m`,
+        bottomControl: (text, hovered) => piTheme().bg(hovered ? "selectedBg" : "toolPendingBg", piTheme().fg("text", text)),
+        // Selection paints only the familiar dark-blue background. Source
+        // foreground roles (including links, warnings, muted text, and bold
+        // intensity) remain exactly as rendered instead of being inverted.
+        selection: (line, from, to) => backgroundSgrSpan(
+          line,
+          from,
+          to,
+          "\u001b[48;2;38;79;120m",
+          "\u001b[49m",
+        ),
       },
-    });
+    }).rows;
   }
 
-  get customViewportEnabled(): boolean {
-    return this.#viewport !== null;
+  setViewportConfig(config: OwnedUiViewportSettings): void {
+    this.#viewportConfig = config;
+    this.#viewport.setConfig(config);
+    this.#componentRuntime.requestRender();
   }
 
-  get usingDefaultInputSurface(): boolean {
-    return this.#inputSurface === this.editor;
+  resumeViewportFollowing(): void {
+    if (!this.#customViewport) return;
+    this.#stopSelectionAutoScroll();
+    const selectionChanged = this.#viewport.clearSelection();
+    const scrolled = this.#viewport.scrollToEnd();
+    if (scrolled) this.#scheduleViewportActivityExpiry();
+    if (scrolled || selectionChanged) this.#componentRuntime.requestRender();
   }
 
-  handleViewportMouse(
-    event: PaneMouseEvent,
-    allowWheel = true,
-    allowSelection = true,
-  ): TranscriptViewportInputResult {
-    return this.#viewport?.onMouse(event, Date.now(), allowWheel, allowSelection) ?? { consumed: false };
-  }
-
-  returnViewportToEnd(): void {
-    this.#viewport?.returnToEnd();
+  noteCompletedAssistantMessage(): void {
+    if (!this.#customViewport || !this.#viewport.noteNewMessage()) return;
+    this.#componentRuntime.requestRender();
   }
 
   resetViewport(): void {
-    this.#viewport?.reset();
+    if (this.#viewportActivityTimer !== undefined) clearTimeout(this.#viewportActivityTimer);
+    this.#viewportActivityTimer = undefined;
+    this.#stopSelectionAutoScroll();
+    this.#viewport.reset();
   }
 
   clearViewportPointerState(): void {
-    this.#viewport?.clearTransient();
+    if (this.#viewportActivityTimer !== undefined) clearTimeout(this.#viewportActivityTimer);
+    this.#viewportActivityTimer = undefined;
+    this.#dragGrabOffset = null;
+    this.#dockPointerSuppressed = false;
+    this.#stopSelectionAutoScroll();
+    this.#viewport.clearSelection();
+    this.#viewport.clearTransient();
   }
 
-  clearViewportSelection(): void {
-    this.#viewport?.clearSelection();
+  handleViewportPreInput(data: string, allowWheel = true, now = Date.now()): {
+    readonly data: string;
+    readonly consumed: boolean;
+    readonly copyText?: string;
+  } {
+    if (!this.#customViewport || this.#viewport.frame === null) return { data, consumed: false };
+    if (data === "\u0003") {
+      const copyText = this.#viewport.selectedText();
+      if (copyText !== null && copyText.length > 0) {
+        this.#viewport.clearSelection();
+        this.#componentRuntime.requestRender();
+        return { data: "", consumed: true, copyText };
+      }
+    }
+    if (allowWheel && ALT_END_INPUTS.has(data) && !this.#viewport.followingEnd) {
+      this.#viewport.scrollToEnd(now);
+      this.#scheduleViewportActivityExpiry();
+      this.#componentRuntime.requestRender();
+      return { data: "", consumed: true };
+    }
+    const frame = this.#viewport.frame;
+    let repaint = false;
+    let activity = false;
+    const routed = routeMouseInput(data, event => {
+      const hits = frame.hits;
+      const overRail = hits.rail !== null
+        && event.column === hits.rail.column
+        && event.row >= hits.rail.rowStart
+        && event.row < hits.rail.rowStart + hits.rail.trackHeight;
+      const overSticky = hits.sticky !== null && event.row === hits.sticky.row && event.column <= hits.sticky.width;
+      const overBottom = hits.bottom !== null && event.row === hits.bottom.row
+        && event.column >= hits.bottom.columnStart && event.column <= hits.bottom.columnEnd;
+
+      if (event.kind === "motion") {
+        this.#viewport.setRailHovered(overRail);
+        this.#viewport.setStickyHovered(overSticky);
+        this.#viewport.setBottomHovered(overBottom);
+        repaint = true;
+        if (this.#dockPointerSuppressed) return true;
+        // Once a left-button selection starts, its release—not the button bits
+        // on an intermediate motion report—ends ownership. Some terminals emit
+        // no-button motion while busy frames are being coalesced; accepting it
+        // keeps the drag continuous instead of apparently freezing.
+        if (this.#viewport.selectionActive) {
+          this.#viewport.extendSelection(event.column, event.row, now, false);
+          this.#updateSelectionAutoScroll(event.column, event.row, hits.viewportHeight);
+          activity = true;
+          return true;
+        }
+        if (this.#dragGrabOffset !== null && hits.rail !== null) {
+          const target = scrollForThumbRow(hits.rail.geometry, event.row - hits.rail.rowStart - this.#dragGrabOffset);
+          this.#viewport.scrollTo(target, now);
+          activity = true;
+          return true;
+        }
+        return overRail || overSticky || overBottom;
+      }
+      if (event.kind === "wheel-up" || event.kind === "wheel-down") {
+        if (!allowWheel || event.row < 1 || event.row > hits.viewportHeight) return false;
+        const distance = this.#viewportConfig.scrollbarSpeed === "fast" ? 6 : 3;
+        this.#viewport.scrollBy(event.kind === "wheel-up" ? -distance : distance, now);
+        activity = true;
+        repaint = true;
+        return true;
+      }
+      if (event.kind === "press") {
+        if (event.button !== 0) return false;
+        this.#stopSelectionAutoScroll();
+        if (this.#viewport.clearSelection()) repaint = true;
+        if (overBottom) {
+          this.#viewport.scrollToEnd(now);
+          activity = true;
+          repaint = true;
+          return true;
+        }
+        if (overSticky && hits.sticky !== null) {
+          this.#viewport.scrollTo(hits.sticky.target, now);
+          activity = true;
+          repaint = true;
+          return true;
+        }
+        if (overRail && hits.rail !== null) {
+          const trackRow = event.row - hits.rail.rowStart;
+          const geometry = hits.rail.geometry;
+          if (trackRow >= geometry.thumbTop && trackRow < geometry.thumbTop + geometry.thumbHeight) {
+            this.#dragGrabOffset = trackRow - geometry.thumbTop;
+            this.#viewport.setRailDragging(true);
+          } else {
+            this.#viewport.scrollTo(scrollForTrackPage(geometry, trackRow, frame.scrollTop, hits.viewportHeight), now);
+          }
+          activity = true;
+          repaint = true;
+          return true;
+        }
+        if (event.row > hits.viewportHeight) {
+          // Status, editor, widgets, and footer are controls rather than
+          // transcript. Consume the complete drag so Pi's fullscreen fallback
+          // selection cannot paint those rows.
+          this.#dockPointerSuppressed = true;
+          return true;
+        }
+        if (event.row >= 1 && event.row <= hits.viewportHeight && event.column <= frame.contentWidth) {
+          this.#viewport.pressSelection(event.column, event.row, now);
+          repaint = true;
+          return true;
+        }
+        return false;
+      }
+      if (event.kind === "release") {
+        if (this.#viewport.releaseSelection()) {
+          this.#stopSelectionAutoScroll();
+          repaint = true;
+          return true;
+        }
+        if (this.#dragGrabOffset !== null) {
+          this.#dragGrabOffset = null;
+          this.#viewport.setRailDragging(false);
+          repaint = true;
+          return true;
+        }
+        if (this.#dockPointerSuppressed) {
+          this.#dockPointerSuppressed = false;
+          return true;
+        }
+      }
+      return false;
+    });
+    if (activity) this.#scheduleViewportActivityExpiry();
+    if (repaint) this.#componentRuntime.requestRender();
+    return routed;
   }
 
-  setViewportScrollbar(appearance: ScrollbarAppearance, style: ScrollbarStyle, speed: ScrollbarSpeed): void {
-    this.#scrollbarAppearance = appearance;
-    this.#scrollbarStyle = style;
-    this.#scrollbarSpeed = speed;
+  #updateSelectionAutoScroll(column: number, row: number, viewportHeight: number): void {
+    const beyondEdge = row <= 1 || row > viewportHeight;
+    if (!beyondEdge) {
+      this.#stopSelectionAutoScroll();
+      return;
+    }
+    this.#selectionAutoScrollPointer = { column, row };
+    if (this.#selectionAutoScrollTimer !== undefined) return;
+    this.#selectionAutoScrollTimer = setTimeout(
+      () => this.#selectionAutoScrollTick(),
+      SELECTION_AUTO_SCROLL_INTERVAL_MS,
+    );
+    this.#selectionAutoScrollTimer.unref?.();
+  }
+
+  #selectionAutoScrollTick(): void {
+    this.#selectionAutoScrollTimer = undefined;
+    const pointer = this.#selectionAutoScrollPointer;
+    if (pointer === undefined || !this.#viewport.selectionActive) {
+      this.#stopSelectionAutoScroll();
+      return;
+    }
+    const before = this.#viewport.scrollTop;
+    const rowsPerTick = this.#viewportConfig.scrollbarSpeed === "fast" ? 2 : 1;
+    for (let row = 0; row < rowsPerTick; row += 1) {
+      const previous = this.#viewport.scrollTop;
+      this.#viewport.extendSelection(pointer.column, pointer.row);
+      if (this.#viewport.scrollTop === previous) break;
+    }
+    if (this.#viewport.scrollTop === before) {
+      this.#stopSelectionAutoScroll();
+      return;
+    }
     this.#componentRuntime.requestRender();
+    this.#scheduleViewportActivityExpiry();
+    this.#selectionAutoScrollTimer = setTimeout(
+      () => this.#selectionAutoScrollTick(),
+      SELECTION_AUTO_SCROLL_INTERVAL_MS,
+    );
+    this.#selectionAutoScrollTimer.unref?.();
+  }
+
+  #stopSelectionAutoScroll(): void {
+    if (this.#selectionAutoScrollTimer !== undefined) clearTimeout(this.#selectionAutoScrollTimer);
+    this.#selectionAutoScrollTimer = undefined;
+    this.#selectionAutoScrollPointer = undefined;
+  }
+
+  #scheduleViewportActivityExpiry(): void {
+    if (this.#viewportActivityTimer !== undefined) clearTimeout(this.#viewportActivityTimer);
+    this.#viewportActivityTimer = setTimeout(() => {
+      this.#viewportActivityTimer = undefined;
+      this.#componentRuntime.requestRender();
+    }, 925);
+    this.#viewportActivityTimer.unref?.();
+  }
+
+  #renderDock(width: number): readonly string[] {
+    return this.#renderDockLayout(width).rows;
+  }
+
+  #renderDockLayout(width: number): {
+    readonly rows: readonly string[];
+    readonly rowsWithoutStatus: readonly string[];
+    readonly statusRows: readonly string[];
+    readonly stableBottomRows: number;
+  } {
+    const queued = this.#view.editor.queuedSubmissions.length === 0 ? [] : this.#queued.render(width);
+    const statusRows = this.#renderStatus(width);
+    const aboveWidgets = this.#renderWidgets("aboveEditor", width);
+    const input = this.#inputSurface.render(width);
+    const belowWidgets = this.#renderWidgets("belowEditor", width);
+    const footer = this.#renderFooter(width);
+    return {
+      rows: [...queued, ...statusRows, ...aboveWidgets, ...input, ...belowWidgets, ...footer],
+      rowsWithoutStatus: [...queued, ...aboveWidgets, ...input, ...belowWidgets, ...footer],
+      statusRows,
+      stableBottomRows: aboveWidgets.length + input.length + belowWidgets.length + footer.length,
+    };
   }
 
   layoutRoot(): PiTuiLayoutNode {
@@ -356,21 +618,59 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   }
 
   #renderDocument(width: number): readonly string[] {
-    return this.#renderViewportDocument(width).rows;
+    return this.#renderDocumentLayout(width).rows;
   }
 
-  #renderViewportDocument(width: number): TranscriptViewportDocument {
+  #renderDocumentLayout(width: number): { readonly rows: readonly string[]; readonly promptAnchors: readonly TranscriptPromptAnchor[] } {
+    // Extension headers may animate independently of transcript revisions, so
+    // only the stable built-in document participates in this frame cache.
+    const cached = this.#extensionHeader === null ? this.#documentLayouts.get(width) : undefined;
+    if (cached !== undefined) return cached;
     const diagnostics = this.#view.diagnostics;
     const startupRows = diagnostics
       .filter(diagnostic => diagnostic.code === "engine-startup")
       .flatMap(diagnostic => renderPiShellStartupDiagnostic(diagnostic, width));
-    const packageUpdateRows = diagnostics
+    const resourceRows = this.#customViewport ? [] : [...this.resources.render(width)];
+    if (resourceRows.at(-1) === "") resourceRows.pop();
+    const headerRows = this.#extensionHeader !== null
+      ? this.#extensionHeader.render(width)
+      : this.#customViewport ? [] : this.header.render(width);
+    const rows: string[] = [
+      ...startupRows,
+      ...headerRows,
+      ...resourceRows,
+    ];
+    const promptAnchors: TranscriptPromptAnchor[] = [];
+    for (let index = 0; index < this.#transcriptOrder.length; index += 1) {
+      const id = this.#transcriptOrder[index]!;
+      const block = this.#blocksById.get(id);
+      if (!this.#thinkingVisible && block?.kind === "thinking") continue;
+      const blockRows = this.#blockRows(id, block, width);
+      if (block?.kind === "user") {
+        // The first natural prompt gets one breathing row at the document top.
+        // Once scrolling advances, the prompt itself reaches row zero and then
+        // becomes sticky there, so the spacer is never pinned with it.
+        if (this.#customViewport && index === 0) rows.push("");
+        else if (index > 0) rows.push("");
+      }
+      const firstRow = rows.length;
+      rows.push(...blockRows);
+      if (block?.kind === "user" && blockRows[0] !== undefined) {
+        promptAnchors.push({
+          id: block.id,
+          firstRow,
+          lastRow: Math.max(firstRow, rows.length - 1),
+          sourceRow: pinnedPromptSourceRow(block, blockRows[0], width),
+        });
+      }
+    }
+    rows.push(...diagnostics
       .filter(diagnostic => diagnostic.code === "package-updates")
       .flatMap(diagnostic => renderPiShellPackageUpdateNotice(
         diagnostic.message.split("\n").filter(line => line.startsWith("- ")).map(line => line.slice(2)),
         width,
-      ));
-    const diagnosticRows = diagnostics
+      )));
+    rows.push(...diagnostics
       .filter(diagnostic => diagnostic.code !== "engine-startup" && diagnostic.code !== "package-updates")
       .slice(-3)
       .flatMap(diagnostic =>
@@ -382,30 +682,14 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
           title: diagnostic.code,
           text: diagnostic.message,
           payload: {},
-        }, width, this.#cwd));
-    const resourceRows = [...this.resources.render(width)];
-    if (resourceRows.at(-1) === "") resourceRows.pop();
-    const rows: string[] = [
-      ...startupRows,
-      ...(this.#extensionHeader ?? this.header).render(width),
-      ...resourceRows,
-    ];
-    const prompts: TranscriptPromptAnchor[] = [];
-    for (let index = 0; index < this.#transcriptOrder.length; index += 1) {
-      const id = this.#transcriptOrder[index];
-      if (id === undefined) continue;
-      const block = this.#blocksById.get(id);
-      if (!this.#thinkingVisible && block?.kind === "thinking") continue;
-      const blockRows = this.#blockRows(id, block, width);
-      if (index > 0 && block?.kind === "user") rows.push("");
-      const start = rows.length;
-      rows.push(...blockRows);
-      if (block?.kind === "user" && blockRows.length > 0) {
-        prompts.push({ id, start, end: rows.length - 1, firstRow: blockRows[0] ?? "" });
-      }
+        }, width, this.#cwd)));
+    const layout = { rows: Object.freeze(rows), promptAnchors: Object.freeze(promptAnchors) };
+    if (this.#extensionHeader === null) {
+      this.#documentLayouts.set(width, layout);
+      // The custom viewport commonly probes full width and reserved-rail width.
+      while (this.#documentLayouts.size > 2) this.#documentLayouts.delete(this.#documentLayouts.keys().next().value!);
     }
-    rows.push(...packageUpdateRows, ...diagnosticRows);
-    return { rows, prompts };
+    return layout;
   }
 
   /**
@@ -417,37 +701,21 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   #blockRows(id: string, block: OwnedUiSessionViewModel["transcript"][number] | undefined, width: number): readonly string[] {
     const component = this.#transcript.get(id);
     if (component === undefined) return [];
-    if (block === undefined || block.status !== "finalized") return this.#renderBlock(component, block, width);
+    if (block === undefined || block.status !== "finalized") return component.render(width);
 
-    const cached = this.#renderedRows.get(id);
-    if (cached && cached.width === width && cached.revision === block.revision) return cached.rows;
-    const rows = this.#renderBlock(component, block, width);
-    this.#renderedRows.set(id, { width, revision: block.revision, rows });
-    return rows;
-  }
-
-  #renderBlock(
-    component: PiShellTranscriptComponentPort,
-    block: OwnedUiSessionViewModel["transcript"][number] | undefined,
-    width: number,
-  ): readonly string[] {
-    if (this.#viewport === null || block?.kind !== "user") return component.render(width);
-    const payload = typeof block.payload === "object" && block.payload !== null
-      ? block.payload as Record<string, unknown>
-      : {};
-    const sourceTimestamp = payload.timestamp;
-    if (typeof sourceTimestamp !== "number" || !Number.isFinite(sourceTimestamp) || sourceTimestamp <= 0) {
-      return component.render(width);
+    let byWidth = this.#renderedRows.get(id);
+    const cached = byWidth?.get(width);
+    if (cached?.revision === block.revision) return cached.rows;
+    const rows = component.render(width);
+    if (byWidth === undefined) {
+      byWidth = new Map();
+      this.#renderedRows.set(id, byWidth);
     }
-    const theme = piTheme();
-    return composeTimestampedPromptRows({
-      width,
-      sourceTimestamp,
-      render: contentWidth => component.render(contentWidth),
-      decorateSuffix: (text, firstRow) => theme.bg("userMessageBg", firstRow
-        ? `  ${theme.fg("dim", text.slice(2))}`
-        : text),
-    });
+    byWidth.set(width, { revision: block.revision, rows });
+    // Bare A1 probes full width before reserving the overflowing rail column;
+    // retain both widths without turning resize history into an unbounded cache.
+    while (byWidth.size > 2) byWidth.delete(byWidth.keys().next().value!);
+    return rows;
   }
 
   transcriptComponent(id: string): PiShellTranscriptComponentPort | undefined {
@@ -460,6 +728,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       && this.#transcriptOrder.at(-1) === previousId
       && this.#workflowStatusAnchors.get(previousId) === this.#view.transcript.length) {
       this.#workflowStatusMessages.set(previousId, message);
+      this.#documentLayouts.clear();
       this.invalidate();
       return;
     }
@@ -553,6 +822,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
 
   toggleThinkingVisibility(): void {
     this.#thinkingVisible = !this.#thinkingVisible;
+    this.#documentLayouts.clear();
     this.invalidate();
   }
 
@@ -575,6 +845,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   setExtensionHeader(component: PiShellComponentPort | null): void {
     if (this.#extensionHeader !== component) this.#extensionHeader?.dispose?.();
     this.#extensionHeader = component;
+    this.#documentLayouts.clear();
     this.invalidate();
   }
 
@@ -607,6 +878,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.#workflowStatusMessages.clear();
     this.#transcriptOrder = this.#transcriptOrder.filter(id => !id.startsWith("workflow-status-"));
     this.#lastWorkflowStatusId = undefined;
+    this.#documentLayouts.clear();
     this.invalidate();
   }
 
@@ -623,6 +895,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.#footer.update(this.#viewWithExtensionStatuses(this.#view));
     // An extension renderer may have drawn transcript blocks that are now unrendered by it.
     this.#renderedRows.clear();
+    this.#documentLayouts.clear();
     this.invalidate();
   }
 
@@ -643,6 +916,10 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       getAvailableProviderCount: () => this.#view.status.footer?.availableProviderCount ?? 1,
       onBranchChange: () => () => {},
     };
+  }
+
+  usesDefaultInputSurface(): boolean {
+    return this.#inputSurface === this.editor;
   }
 
   setInputSurface(component: PiShellComponentPort | null, disposePrevious = true): void {
@@ -676,13 +953,14 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   }
 
   dispose(): void {
-    this.#viewport?.clearTransient();
+    this.clearViewportPointerState();
     this.#themeUnsubscribe();
     this.header.dispose?.();
     this.resources.dispose?.();
     for (const component of this.#transcript.values()) component.dispose?.();
     this.#transcript.clear();
     this.#renderedRows.clear();
+    this.#documentLayouts.clear();
     if (this.#inputSurface !== this.editor) this.#inputSurface.dispose?.();
     this.#extensionHeader?.dispose?.();
     this.#extensionFooter?.dispose?.();
@@ -695,6 +973,12 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   }
 
   #syncTranscript(blocks: OwnedUiSessionViewModel["transcript"]): void {
+    const previousIds = this.#transcriptOrder.filter(id => !id.startsWith("workflow-status-"));
+    const transcriptChanged = previousIds.length !== blocks.length || blocks.some((block, index) => {
+      const previous = this.#blocksById.get(block.id);
+      return previousIds[index] !== block.id || previous?.revision !== block.revision;
+    });
+    if (transcriptChanged) this.#documentLayouts.clear();
     this.#blocksById.clear();
     for (const block of blocks) this.#blocksById.set(block.id, block);
     const nextIds = new Set(blocks.map(block => block.id));
@@ -707,7 +991,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     for (const block of blocks) {
       const component = this.#transcript.get(block.id);
       if (component === undefined) {
-        const created = createPiShellTranscriptComponent(block, this.#cwd, this.#extensionRenderers);
+        const created = createPiShellTranscriptComponent(block, this.#cwd, this.#extensionRenderers, this.#submittedPromptComposer);
         created.setExpanded(this.#toolsExpanded);
         this.#transcript.set(block.id, created);
       } else if (component.revision !== block.revision) {
@@ -746,20 +1030,9 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.#transcript.set(id, component);
     this.#workflowStatusAnchors.set(id, this.#view.transcript.length);
     this.#transcriptOrder.push(id);
+    this.#documentLayouts.clear();
     this.invalidate();
     return id;
-  }
-
-  #renderDock(width: number): readonly string[] {
-    const queued = this.#view.editor.queuedSubmissions.length === 0 ? [] : this.#queued.render(width);
-    return [
-      ...queued,
-      ...this.#renderStatus(width),
-      ...this.#renderWidgets("aboveEditor", width),
-      ...this.#inputSurface.render(width),
-      ...this.#renderWidgets("belowEditor", width),
-      ...this.#renderFooter(width),
-    ];
   }
 
   #renderWidgets(placement: "aboveEditor" | "belowEditor", width: number): readonly string[] {
@@ -808,8 +1081,41 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     for (const component of this.#transcript.values()) component.setExpanded(expanded);
     // Expansion changes what a block draws without changing its revision.
     this.#renderedRows.clear();
+    this.#documentLayouts.clear();
     this.invalidate();
   }
+}
+
+const SELECTION_AUTO_SCROLL_INTERVAL_MS = 30;
+const ALT_END_INPUTS = new Set(["\u001b[1;3F", "\u001b[4;3~", "\u001b[1;3~"]);
+const SCROLLBAR_CELL_RESET = "\u001b[22;23;24;25;27;28;29;39;54;55m";
+const TERMINAL_BACKGROUND = /\u001b\[(?:4[0-9]|10[0-7]|48(?:[;:][0-9;:]*)?)m/g;
+
+/** Repaint a source prompt with viewport chrome while preserving text, links, and foreground roles. */
+function withoutTerminalBackground(text: string): string {
+  return text.replace(TERMINAL_BACKGROUND, "");
+}
+
+/** A pinned timestamp is content now, not secondary transcript metadata. */
+function pinnedPromptSourceRow(
+  block: OwnedUiSessionViewModel["transcript"][number],
+  sourceRow: string,
+  width: number,
+): string {
+  if (typeof block.payload !== "object" || block.payload === null) return sourceRow;
+  const value = (block.payload as Record<string, unknown>).timestamp;
+  if (typeof value !== "number" || !Number.isFinite(value)) return sourceRow;
+  const timestamp = formatSubmittedPromptTime(value);
+  if (timestamp === null || submittedPromptLayout(width, value).timestamp === null) return sourceRow;
+  const rowWidth = displayWidth(sourceRow);
+  const timestampWidth = displayWidth(timestamp);
+  if (rowWidth < timestampWidth) return sourceRow;
+  return overlaySpan(
+    sourceRow,
+    rowWidth - timestampWidth,
+    rowWidth,
+    piTheme().fg("userMessageText", timestamp),
+  );
 }
 
 function layoutPort(

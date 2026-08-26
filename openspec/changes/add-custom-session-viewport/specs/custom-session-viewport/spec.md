@@ -4,10 +4,23 @@ Defines bare A1's bounded single-agent transcript viewport, stable bottom dock, 
 
 ## ADDED Requirements
 
+### Requirement: Bare A1 uses a fixed fullscreen terminal surface
+Bare A1 SHALL run the custom session viewport in fullscreen mode regardless of Pi's stored `tuiMode`. The owned settings screen SHALL omit `tuiMode` because it is not variable on this surface. Pinned `a1 pi` and `a1 sandbox` profiles SHALL continue to honor their existing mode policy.
+
+#### Scenario: Start bare A1 with regular mode stored
+- **WHEN** Pi's stored TUI mode is `regular` and bare A1 starts
+- **THEN** the custom session viewport SHALL still use fullscreen mode
+- **AND** the settings screen SHALL not offer a TUI mode row
+
 ### Requirement: The transcript occupies a bounded viewport above a pinned dock
 Bare A1 SHALL render the session transcript inside the terminal rows above a bottom dock. The dock SHALL contain the existing queued-input surface, working status, above-editor widgets, active input surface, below-editor widgets, and footer in their existing relative order. Docking SHALL change placement only: this milestone SHALL NOT change the content, style, lifecycle, or extension contribution rules of those surfaces.
 
 The complete frame SHALL remain within the current terminal width and height. A changing editor, widget, status, footer, or terminal size SHALL cause the transcript viewport to be reallocated rather than allowing the dock to scroll away.
+
+#### Scenario: Launch with built-in startup help and resources
+- **WHEN** bare A1 first renders the custom viewport
+- **THEN** it SHALL omit Pi's version/help introduction, documentation suggestion, and loaded-resource inventory
+- **AND** pinned comparison profiles SHALL retain their existing startup presentation
 
 #### Scenario: Transcript exceeds the terminal
 - **WHEN** transcript content is taller than the rows available above the dock
@@ -29,19 +42,11 @@ The complete frame SHALL remain within the current terminal width and height. A 
 - **AND** the dock SHALL remain pinned while transcript wrapping, viewport height, scrollbar geometry, and hit regions update to the new size
 
 ### Requirement: Transcript scrolling has explicit follow and detached states
-The viewport SHALL begin by following the end of the transcript. A scroll away from the end SHALL detach the viewport and preserve the visible transcript position while new content is appended. Reaching the end, submitting a prompt, or activating the scroll-to-bottom control SHALL restore end following. Scrolling SHALL clamp at the first and last transcript rows without wrapping. Each wheel event SHALL move three lines at the default normal speed or six lines at high speed.
+The viewport SHALL begin by following the end of the transcript. A scroll away from the end SHALL detach the viewport and preserve the visible transcript position while new content is appended. Reaching the end, submitting a prompt, or activating the scroll-to-bottom control SHALL restore end following. Scrolling SHALL clamp at the first and last transcript rows without wrapping.
 
 #### Scenario: Stream while following
 - **WHEN** transcript rows are appended while the viewport follows the end
 - **THEN** the viewport SHALL advance so the newest row remains visible above the dock
-
-#### Scenario: Scroll at the default speed
-- **WHEN** the reader sends one wheel event with `scrollbarSpeed` set to its default `normal`
-- **THEN** the viewport SHALL request three transcript lines in that direction and clamp at an edge
-
-#### Scenario: Scroll at high speed
-- **WHEN** the reader sends one wheel event with `scrollbarSpeed` set to `high`
-- **THEN** the viewport SHALL request six transcript lines in that direction and clamp at an edge
 
 #### Scenario: Scroll away from the end
 - **WHEN** the reader scrolls upward from the followed end
@@ -90,6 +95,11 @@ A submitted user prompt SHALL render its source timestamp as local 24-hour `HH:m
 - **THEN** its first row SHALL show that timestamp right-aligned as `HH:mm`
 - **AND** the prompt text SHALL remain complete across its wrapped rows
 
+#### Scenario: Render the first prompt at the document beginning
+- **WHEN** the first submitted prompt is naturally visible at the transcript beginning
+- **THEN** one blank breathing row SHALL appear immediately above it
+- **AND** that breathing row SHALL scroll away rather than becoming part of the sticky prompt
+
 #### Scenario: Render a multiline prompt
 - **WHEN** a submitted prompt wraps or contains multiple lines
 - **THEN** every continuation row SHALL align under the first row's prompt text
@@ -126,38 +136,41 @@ When the first row of the most recent submitted user prompt at or before the vie
 - **THEN** no duplicate sticky row SHALL be added
 
 ### Requirement: Viewport pointer handling preserves unrelated input
-The viewport SHALL claim wheel events used to scroll its transcript and pointer events addressed to its scrollbar, scroll-to-bottom control, pinned prompt, or transcript selection surface. An ordinary LMB drag starting on transcript content SHALL create a grapheme-aligned visual selection in both regular and fullscreen modes, SHALL exclude the scrollbar rail, and SHALL copy a completed non-empty selection through the terminal clipboard bridge. Selection SHALL use one fixed white background with a contrasting dark foreground instead of deriving its background from each source span's text color. Double-click SHALL select the word segment under the pointer and triple-click SHALL select that complete transcript line. It SHALL leave keyboard input and pointer input outside those regions to the existing focused surface and terminal UI behavior. An active selector, dialog, overlay, or replacement input that owns an event SHALL retain that ownership.
+The viewport SHALL claim wheel events used to scroll its transcript and pointer events addressed to its scrollbar, scroll-to-bottom control, pinned prompt, or active transcript selection. It SHALL leave unrelated keyboard and pointer input to the focused surface. An active selector, dialog, overlay, or replacement input that owns an event SHALL retain that ownership. Engine events SHALL be delivered cooperatively so terminal input receives an event-loop turn between transcript updates.
 
 #### Scenario: Scroll the transcript with the wheel
 - **WHEN** a wheel event is addressed to the transcript viewport while the ordinary editor owns focus
 - **THEN** the transcript SHALL scroll and the wheel sequence SHALL NOT be inserted into the editor
 
 #### Scenario: Select ordinary transcript text
-- **WHEN** an LMB drag starts on transcript content outside every viewport control hit region
-- **THEN** the viewport SHALL highlight the grapheme-aligned text covered by the drag
-- **AND** it SHALL NOT treat the drag as a scrollbar or navigation action
+- **WHEN** a pointer drag starts outside every viewport control hit region
+- **THEN** the viewport SHALL NOT treat it as a scrollbar or navigation action
+- **AND** the existing transcript selection behavior SHALL remain available
 
-#### Scenario: Select text with a fixed color
-- **WHEN** a selection crosses source spans with different foreground colors
-- **THEN** every selected span SHALL use the same white selection background and contrasting dark text
-- **AND** source text color SHALL NOT become selection background color
+#### Scenario: Select while the agent is active
+- **WHEN** agent operations produce a sustained burst of transcript or lifecycle events during a pointer selection
+- **THEN** event delivery SHALL yield between updates so pointer reports, editor input, and animation timers continue to run
+- **AND** selection drags, content-area wheel scrolling, scrollbar interaction, and the jump-to-bottom control SHALL remain responsive
+- **AND** an active selection SHALL continue through intermediate no-button motion reports until release
 
-#### Scenario: Double-click a word
-- **WHEN** the reader double-clicks a transcript word within the multi-click interval
-- **THEN** that complete word segment SHALL be selected and copied on release
+#### Scenario: Paint selected transcript text
+- **WHEN** transcript text is selected
+- **THEN** selection SHALL add the declared dark-blue background only
+- **AND** every source foreground color, link, bold, italic, and underline attribute SHALL remain unchanged
+- **AND** whole and interior selected rows SHALL paint through the final terminal column while any visible scrollbar glyph remains above the selection background
 
-#### Scenario: Triple-click a line
-- **WHEN** the reader triple-clicks a transcript line within the multi-click interval
-- **THEN** that complete line excluding trailing padding SHALL be selected and copied on release
+#### Scenario: Hold an active selection beyond a viewport edge
+- **WHEN** the pointer remains above or below the transcript viewport during an active selection
+- **THEN** at `normal` scrollbar speed the transcript SHALL auto-scroll exactly one row every 30 milliseconds without requiring new motion reports
+- **AND** at `fast` scrollbar speed it SHALL auto-scroll exactly two rows every 30 milliseconds
+- **AND** additional edge-motion reports SHALL update the pointer endpoint without adding unscheduled scroll rows
+- **AND** the selection endpoint SHALL extend with each scrolled row
+- **AND** auto-scroll SHALL stop on release, re-entry, reset, or the document boundary
 
-#### Scenario: Complete a transcript selection
-- **WHEN** LMB is released after a non-empty transcript drag
-- **THEN** the selected plain text SHALL be copied through the terminal clipboard bridge
-- **AND** the visual selection SHALL remain until subsequent ordinary input or a new selection replaces it
-
-#### Scenario: Select in either runtime mode
-- **WHEN** bare A1 uses either regular or fullscreen TUI mode
-- **THEN** ordinary LMB transcript selection SHALL provide the same viewport-owned highlight and copy behavior
+#### Scenario: Begin a drag on dock chrome
+- **WHEN** a left-button sequence begins on working status, an input prompt row, a widget, or the footer
+- **THEN** the complete sequence SHALL be consumed without creating transcript or fullscreen selection
+- **AND** none of those dock rows SHALL receive selection painting
 
 #### Scenario: A modal surface owns input
 - **WHEN** a selector, dialog, overlay, or replacement input owns an event that is not addressed to a visible viewport control
