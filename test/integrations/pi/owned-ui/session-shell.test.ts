@@ -302,7 +302,8 @@ describe("OwnedUiSessionShell", () => {
     ]);
     const { terminal, shell } = await fixture(messages, [], true);
     terminal.resize(60, 12);
-    const top = () => stripTerminalSequences(shell.root.render(60)[0] ?? "");
+    const rows = () => shell.root.render(60).map(row => stripTerminalSequences(row));
+    const top = () => rows()[0] ?? "";
 
     shell.root.render(60);
     terminal.input("\u001b[1;3H");
@@ -310,9 +311,11 @@ describe("OwnedUiSessionShell", () => {
     terminal.input("\u001b[1;3H");
     expect(top()).toContain("❯ two");
     terminal.input("\u001b[1;3H");
-    expect(top()).toContain("❯ one");
+    expect(top().trim()).toBe("");
+    expect(rows()[1]).toContain("❯ one");
     terminal.input("\u001b[1;3H");
-    expect(top()).toContain("❯ one");
+    expect(top().trim()).toBe("");
+    expect(rows()[1]).toContain("❯ one");
 
     await shell.dispose();
   });

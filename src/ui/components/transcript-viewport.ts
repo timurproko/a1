@@ -239,10 +239,16 @@ export class TranscriptViewport {
   /** Jumps to the pinned prompt governing this position, then earlier prompts. */
   scrollToPreviousPrompt(now = Date.now()): boolean {
     let target = -1;
+    let earliest = Number.POSITIVE_INFINITY;
     for (const anchor of this.#promptAnchors) {
+      earliest = Math.min(earliest, anchor.firstRow);
       if (anchor.firstRow < this.#scrollTop && anchor.firstRow > target) target = anchor.firstRow;
     }
-    return target >= 0 && this.scrollTo(target, now);
+    // The first prompt owns the document's opening breathing row. At that final
+    // navigation stop, reveal the spacer too rather than pinning the prompt to
+    // terminal row one as later prompt jumps do.
+    const destination = target === earliest ? 0 : target;
+    return target >= 0 && this.scrollTo(destination, now);
   }
 
   reset(): void {

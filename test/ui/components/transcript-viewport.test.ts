@@ -76,9 +76,9 @@ describe("transcript viewport", () => {
     expect(viewport.scrollToPreviousPrompt(102)).toBe(true);
     expect(viewport.scrollTop).toBe(10);
     expect(viewport.scrollToPreviousPrompt(103)).toBe(true);
-    expect(viewport.scrollTop).toBe(1);
+    expect(viewport.scrollTop).toBe(0);
     expect(viewport.scrollToPreviousPrompt(104)).toBe(false);
-    expect(viewport.scrollTop).toBe(1);
+    expect(viewport.scrollTop).toBe(0);
   });
 
   it("pins the semantic source prompt prominently, then quiets it after all continuations leave", () => {

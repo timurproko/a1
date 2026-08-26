@@ -135,7 +135,8 @@ When the first row of the most recent submitted user prompt at or before the vie
 - **WHEN** the reader presses `Alt+Home` while the custom transcript owns input
 - **THEN** the viewport SHALL jump to the source of its governing pinned prompt
 - **AND** each repeated press SHALL jump to the preceding semantic submitted prompt
-- **AND** pressing it at the earliest prompt SHALL keep that prompt at the top
+- **AND** reaching the earliest prompt SHALL scroll to the document beginning so its one opening breathing row is visible above it
+- **AND** further presses SHALL keep that document-opening position
 
 #### Scenario: Prompt first row is naturally visible
 - **WHEN** the governing prompt's source first row is already the viewport's first row
