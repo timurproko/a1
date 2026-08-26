@@ -163,6 +163,7 @@ The viewport SHALL claim wheel events used to scroll its transcript and pointer 
 - **WHEN** the pointer remains above or below the transcript viewport during an active selection
 - **THEN** at `normal` scrollbar speed the transcript SHALL auto-scroll exactly one row every 30 milliseconds without requiring new motion reports
 - **AND** at `fast` scrollbar speed it SHALL auto-scroll exactly two rows every 30 milliseconds
+- **AND** at `high` scrollbar speed it SHALL auto-scroll exactly four rows every 30 milliseconds
 - **AND** additional edge-motion reports SHALL update the pointer endpoint without adding unscheduled scroll rows
 - **AND** the selection endpoint SHALL extend with each scrolled row
 - **AND** auto-scroll SHALL stop on release, re-entry, reset, or the document boundary

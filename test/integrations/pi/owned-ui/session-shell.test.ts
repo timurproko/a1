@@ -337,6 +337,15 @@ describe("OwnedUiSessionShell", () => {
     const fastDistance = firstVisible() - afterDownMotion;
     expect(fastDistance).toBeGreaterThan(normalDistance);
     terminal.input("\u001b[<0;5;12m");
+
+    shell.root.setViewportConfig({ scrollbarAppearance: "always", scrollbarStyle: "thin", scrollbarSpeed: "high" });
+    terminal.input("\u001b[<0;5;3M");
+    terminal.input("\u001b[<32;5;1M");
+    const beforeHigh = firstVisible();
+    await new Promise(resolve => setTimeout(resolve, 150));
+    const highDistance = beforeHigh - firstVisible();
+    expect(highDistance).toBeGreaterThan(fastDistance);
+    terminal.input("\u001b[<0;5;1m");
     await shell.dispose();
   });
 
@@ -451,7 +460,7 @@ describe("OwnedUiSessionShell", () => {
     await shell.dispose();
   });
 
-  it("moves six transcript rows at fast scrollbar speed instead of the normal three", async () => {
+  it("moves three, six, and twelve transcript rows at normal, fast, and high speed", async () => {
     const messages = Array.from({ length: 24 }, (_, index) => ({
       role: index % 2 === 0 ? "user" : "assistant",
       content: [{ type: "text", text: `speed-row-${index}` }],
@@ -478,7 +487,14 @@ describe("OwnedUiSessionShell", () => {
     terminal.input("\u001b[<64;30;3M");
     const fastTop = firstVisibleIndex();
 
+    terminal.input("\u001b[1;3F");
+    shell.root.setViewportConfig({ scrollbarAppearance: "always", scrollbarStyle: "thin", scrollbarSpeed: "high" });
+    shell.root.render(60);
+    terminal.input("\u001b[<64;30;3M");
+    const highTop = firstVisibleIndex();
+
     expect(fastTop).toBeLessThan(normalTop);
+    expect(highTop).toBeLessThan(fastTop);
     await shell.dispose();
   });
 

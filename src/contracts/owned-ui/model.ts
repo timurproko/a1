@@ -41,8 +41,8 @@ export type OwnedUiThinkingLevel = "off" | "minimal" | "low" | "medium" | "high"
 export interface OwnedUiViewportSettings {
   readonly scrollbarAppearance: "always" | "hover" | "hidden";
   readonly scrollbarStyle: "thin" | "thick";
-  /** normal uses baseline wheel/selection speed; fast uses twice that speed. */
-  readonly scrollbarSpeed: "normal" | "fast";
+  /** normal is baseline; fast is 2x normal; high is 2x fast. */
+  readonly scrollbarSpeed: "normal" | "fast" | "high";
 }
 
 /** Narrow live settings boundary consumed by the bare-A1 shell composition. */

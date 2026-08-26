@@ -42,7 +42,7 @@ describe("owned UI setting declarations", () => {
       section: { id: "scrollbar", title: "Scrollbar" },
       application: "live",
       defaultValue: "normal",
-      allowedValues: ["normal", "fast"],
+      allowedValues: ["normal", "fast", "high"],
     });
   });
 

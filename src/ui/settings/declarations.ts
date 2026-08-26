@@ -47,7 +47,7 @@ export const OWNED_UI_SETTING_DECLARATIONS: readonly OwnedUiSettingDeclaration[]
     description: "Distance moved by each session transcript wheel event.",
     application: "live",
     defaultValue: "normal",
-    allowedValues: Object.freeze(["normal", "fast"]),
+    allowedValues: Object.freeze(["normal", "fast", "high"]),
   }),
 ] satisfies readonly OwnedUiSettingDeclaration[]);
 

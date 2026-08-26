@@ -81,6 +81,6 @@ function viewportSettingsSnapshot(settings: OwnedUiSettingsSession): OwnedUiView
   return {
     scrollbarAppearance: appearance === "always" || appearance === "hidden" ? appearance : "hover",
     scrollbarStyle: style === "thick" ? "thick" : "thin",
-    scrollbarSpeed: speed === "fast" ? "fast" : "normal",
+    scrollbarSpeed: speed === "high" ? "high" : speed === "fast" ? "fast" : "normal",
   };
 }

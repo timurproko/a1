@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: The custom viewport exposes grouped appearance, style, and speed settings
-A1 SHALL declare `scrollbarAppearance`, `scrollbarStyle`, and `scrollbarSpeed` as live-applicable A1 settings grouped under a `Scrollbar` settings section. The visible row labels SHALL be `Appearance`, `Style`, and `Speed`, without a redundant `A1` section or `(default)` suffix. `scrollbarAppearance` SHALL allow exactly `always`, `hover`, and `hidden`, with `hover` as its default. `scrollbarStyle` SHALL allow exactly `thin` and `thick`, with `thin` as its default. `scrollbarSpeed` SHALL allow exactly `normal` and `fast`, with `normal` as its default. The settings SHALL be stored and resolved through the existing profile-local A1 settings document and SHALL NOT be read from or written to agent settings.
+A1 SHALL declare `scrollbarAppearance`, `scrollbarStyle`, and `scrollbarSpeed` as live-applicable A1 settings grouped under a `Scrollbar` settings section. The visible row labels SHALL be `Appearance`, `Style`, and `Speed`, without a redundant `A1` section or `(default)` suffix. `scrollbarAppearance` SHALL allow exactly `always`, `hover`, and `hidden`, with `hover` as its default. `scrollbarStyle` SHALL allow exactly `thin` and `thick`, with `thin` as its default. `scrollbarSpeed` SHALL allow exactly `normal`, `fast`, and `high`, in that order, with `normal` as its default. The settings SHALL be stored and resolved through the existing profile-local A1 settings document and SHALL NOT be read from or written to agent settings.
 
 #### Scenario: Resolve defaults
 - **WHEN** the active A1 profile has no stored scrollbar values
@@ -25,6 +25,9 @@ A1 SHALL declare `scrollbarAppearance`, `scrollbarStyle`, and `scrollbarSpeed` a
 - **WHEN** the reader changes it to `fast`
 - **THEN** each transcript wheel event SHALL move six document rows without restart
 - **AND** selection edge auto-scroll SHALL run twice as fast as `normal`
+- **WHEN** the reader changes it to `high`
+- **THEN** each transcript wheel event SHALL move twelve document rows without restart
+- **AND** selection edge auto-scroll SHALL run twice as fast as `fast`
 
 #### Scenario: Persist viewport settings
 - **WHEN** any scrollbar setting is accepted and A1 is restarted with the same profile
