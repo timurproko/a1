@@ -126,6 +126,7 @@ describe("release-gating N-1 update transitions", () => {
       "shutdown:1.1.0:owned-ui,supervisor,child-process",
       "unlock:package-root",
       "npm:install --global --loglevel=error --no-fund --no-audit @timurproko/a1@1.1.0",
+      `npm:${resolve(packageRoot, "bin", "sync-pi-tui-proxy.js")}`,
       "shutdown:1.1.0:owned-ui,supervisor,child-process",
       "activate:1.1.0:maintenance-mode",
     ]);
