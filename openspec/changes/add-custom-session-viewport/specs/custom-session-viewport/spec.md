@@ -172,6 +172,12 @@ The viewport SHALL claim wheel events used to scroll its transcript and pointer 
 - **AND** every source foreground color, link, bold, italic, and underline attribute SHALL remain unchanged
 - **AND** whole and interior selected rows SHALL paint through the final terminal column while any visible scrollbar glyph remains above the selection background
 
+#### Scenario: Double-click through the final reserved cell
+- **WHEN** a double-click selects trailing whitespace or a token whose run reaches the transcript content edge
+- **THEN** the selection background SHALL continue through the final terminal column, including the reserved scrollbar cell
+- **AND** copied text SHALL remain the semantic selected content without appended padding
+- **AND** any visible scrollbar glyph SHALL remain painted above that background
+
 #### Scenario: Hold an active selection beyond a viewport edge
 - **WHEN** the pointer remains above or below the transcript viewport during an active selection
 - **THEN** at `normal` scrollbar speed the transcript SHALL auto-scroll exactly one row every 30 milliseconds without requiring new motion reports
