@@ -316,7 +316,7 @@ jobs:
   validate:
     name: Validate ${{ matrix.platform }}
     needs: [plan, package]
-    if: needs.package.result == 'success'
+    if: always() && needs.plan.result == 'success' && needs.package.result == 'success'
     strategy:
       fail-fast: false
       matrix:
