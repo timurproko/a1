@@ -24,5 +24,4 @@ operation acts on SHALL be given as a flag or a positional source, as in
 - **THEN** A1 SHALL exit with a usage error without invoking a shell or child Pi process
 
 #### Scenario: Launch form is given an argument
-- **WHEN** the user runs `a1 sandbox` with any further argument, or `a1 pi` with an argument that is not a package operation
 - **THEN** A1 SHALL exit with a usage error without launching a profile

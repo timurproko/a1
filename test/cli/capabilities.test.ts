@@ -11,14 +11,14 @@ describe("A1 CLI capabilities", () => {
     ["10.2.3", false],
   ])("reads %s as prerelease=%s", (version, expected) => {
     expect(isPrereleaseVersion(version)).toBe(expected);
-    expect(cliCapabilities(version).developmentProfiles).toBe(expected);
+    expect(cliCapabilities(version).developmentComparison).toBe(expected);
   });
 
-  it("is frozen, so nothing can grant itself the development profiles later", () => {
+  it("is frozen, so nothing can grant itself the development comparison later", () => {
     const capabilities = cliCapabilities("0.1.1");
     expect(Object.isFrozen(capabilities)).toBe(true);
     expect(() => {
-      (capabilities as { developmentProfiles: boolean }).developmentProfiles = true;
+      (capabilities as { developmentComparison: boolean }).developmentComparison = true;
     }).toThrow();
   });
 });

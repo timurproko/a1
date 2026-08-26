@@ -22,7 +22,6 @@
     "fixtureToken": "A1_FIXTURE_TOKEN",
     "inputAcknowledgement": "A1_INPUT_ACK",
     "internalPackaging": "A1_INTERNAL_PACKAGING",
-    "launchArgumentsJson": "A1_LAUNCH_ARGUMENTS_JSON",
     "launchProfile": "A1_LAUNCH_PROFILE",
     "nativePi": "A1_NATIVE_PI",
     "paneId": "A1_PANE_ID",
@@ -49,8 +48,7 @@
     "unixControlDirectory": "a1",
     "developmentDirectory": "a1-development",
     "piAgentProfile": ".a1/agent",
-    "piVanillaProfile": ".pi/agent",
-    "piSandboxProfile": ".a1/sandbox"
+    "piVanillaProfile": ".pi/agent"
   },
   "endpoint": {
     "windowsPipeStem": "a1",

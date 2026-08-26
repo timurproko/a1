@@ -17,7 +17,6 @@ describe("prepared Pi launch environment", () => {
       PI_CODING_AGENT_DIR: result.configurationRoot,
       ANTHROPIC_API_KEY: "provider-secret",
       PATH: "fixture-path",
-      A1_LAUNCH_ARGUMENTS_JSON: "[]",
     });
     expect(initializeProfile).toHaveBeenCalledExactlyOnceWith(result.configurationRoot);
   });
@@ -32,22 +31,7 @@ describe("prepared Pi launch environment", () => {
     expect(result.configurationRoot).toBeNull();
     expect(result.environment.PI_CODING_AGENT_DIR).toBeUndefined();
     expect(result.environment.OPENAI_API_KEY).toBe("provider-secret");
-    expect(result.piArguments).toEqual([]);
     expect(initializeProfile).not.toHaveBeenCalled();
-  });
-
-  it("sets the sandbox profile and one-run project trust denial", async () => {
-    const initializeProfile = vi.fn(async (root: string) => ({ root, directories: [] }));
-    const result = await prepareInteractiveLaunch(interactiveLaunchIntent("sandbox"), {
-      GEMINI_API_KEY: "provider-secret",
-    }, { home, platform: process.platform, initializeProfile });
-
-    expect(result.configurationRoot).toBe(resolveExpected(".a1", "sandbox"));
-    expect(result.environment.PI_CODING_AGENT_DIR).toBe(result.configurationRoot);
-    expect(result.environment.GEMINI_API_KEY).toBe("provider-secret");
-    expect(result.piArguments).toEqual(["--no-approve"]);
-    expect(result.environment.A1_LAUNCH_ARGUMENTS_JSON).toBe('["--no-approve"]');
-    expect(initializeProfile).toHaveBeenCalledExactlyOnceWith(result.configurationRoot);
   });
 });
 

@@ -25,7 +25,7 @@ describe("A1 additive protocol framing", () => {
           type: "create-launch-instance",
           requestId: "create-1",
           instanceId: "instance-1",
-          profileId: "sandbox",
+          profileId: "pi",
           shutdownPolicy: "terminate-tree-on-close",
           guardianIdentity: { pid: 101, startIdentity: "101:start" },
         },

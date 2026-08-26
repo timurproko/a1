@@ -1,6 +1,6 @@
 ## Why
 
-`a1 pi` and `a1 sandbox` are instruments, not product. One exists so A1's rendering
+`a1 pi` are instruments, not product. One exists so A1's rendering
 can be compared against pinned Pi; the other exists so a resource can be tried
 against an isolated profile before it touches a real one. Both answer questions a
 person developing A1 has, and neither answers a question a person using A1 has.
@@ -17,18 +17,17 @@ them on their own channel. So the instruments can live there and nowhere else.
 ## What Changes
 
 - A release build exposes bare `a1`, `version`, `update`, `update:next`, and the
-  package commands. It does not expose `pi` or `sandbox`, does not name them in
+  package commands. It does not expose `pi`, does not name them in
   usage, and does not recognize the words — they are unknown subcommands, the same
   as any other word A1 does not know.
 - A prerelease build exposes them exactly as it does today.
 - Which build this is comes from the build's own version: a prerelease version is a
   `next`-channel build. Nothing configures it, and no environment variable grants
   it, so a released build cannot be argued into offering them.
-- Repository development is unaffected. `npm start:pi` and `npm run start:sandbox`
   prepare the profile and launch directly rather than through the command line, so
   they do not pass through this at all — and neither does the parity comparison.
 
-**BREAKING**: a released `a1 pi` and `a1 sandbox` stop working. Anyone who wants
+**BREAKING**: a released `a1 pi` stop working. Anyone who wants
 them installs a prerelease with `a1 update:next`, or runs Pi directly.
 
 ## Capabilities

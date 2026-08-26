@@ -14,7 +14,7 @@ import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
 
 export interface BootstrapOptions {
   readonly packageRoot: string;
-  readonly launchIntent?: { readonly kind: "interactive"; readonly profile: { readonly id: LaunchProfileId } };
+  readonly launchIntent?: { readonly kind: "interactive"; readonly profileId: LaunchProfileId };
   readonly environment?: NodeJS.ProcessEnv;
   readonly output?: Pick<NodeJS.WriteStream, "write">;
   /**
@@ -31,7 +31,7 @@ export interface BootstrapOptions {
 
 export async function runBootstrap(options: BootstrapOptions): Promise<number> {
   const environment = { ...(options.environment ?? process.env) };
-  const launchProfileId = options.launchIntent?.profile.id ?? "a1";
+  const launchProfileId = options.launchIntent?.profileId ?? "a1";
   assertLaunchProfileId(launchProfileId);
   environment[PRODUCT_IDENTITY.environment.launchProfile] = launchProfileId;
   const output = options.output ?? process.stderr;

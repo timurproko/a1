@@ -38,7 +38,7 @@
 
 - [x] 4.1 Record the exact `libghostty-vt` source revision, PTY and host-input component versions, licenses/notices, retained versus adapted components, patch policy, build prerequisites, and reproducible artifact manifest for a console terminal host; explicitly exclude Ghostty GUI and Winghostty Win32/OpenGL components and pass license, provenance, and clean-build checks.
 - [x] 4.2 Define a minimal versioned local proof protocol for host handshake/build identity, durable IDs, fixed 2×2 creation, exact argv/cwd/environment launch, focus, topology snapshot, process exit, shutdown, diagnostics, and bounded failure outcomes; pass codec, version, size, timeout, stale-revision, and malformed-message tests.
-- [x] 4.3 Add executable architecture checks proving pseudoterminal bytes, per-event child input, and rendered cells cannot enter A1's Node protocol and proving `a1 pi` and `a1 sandbox` cannot import, initialize, launch, or connect to the terminal host.
+- [x] 4.3 Add executable architecture checks proving pseudoterminal bytes, per-event child input, and rendered cells cannot enter A1's Node protocol and proving `a1 pi` cannot import, initialize, launch, or connect to the terminal host.
 - [x] 4.4 Define objective in-terminal spike workloads and evidence schema for four concurrent sessions, input routing, Unicode/cursor/modes, alternate screen, paste, mouse, IME, resize, terminal-size changes, high-rate output, abnormal exits, host cleanup, latency observations, paint diagnostics, and CPU/memory observations; validate the evidence schema with incomplete and contradictory fixtures.
 - [x] 4.5 Define the proof's stop/go policy and acceptance record: technical gates plus exact-artifact user-controlled manual or isolated-worker physical verdict are mandatory, failed criteria cannot be waived for merge, and structured work remains independently usable; pass repository policy tests.
 
@@ -75,11 +75,9 @@
 
 ## 8. Preserve Explicit Transparent Modes and Cut Over Bare A1
 
-- [ ] 8.1 Add regression gates proving `a1 pi` remains vanilla `~/.pi/agent`, `a1 sandbox` remains `~/.a1/sandbox` with project resources untrusted, and both retain transparent direct attachment without starting, connecting to, importing, or initializing composed terminal-host code.
 - [ ] 8.2 Keep transparent direct attachment available as an explicit fallback/comparison capability and prove its control protocol carries no terminal bytes, retained display state, host topology, or terminal-host dependency.
 - [ ] 8.3 Enable accepted composed-pane capabilities inside the already shipped bare A1 workspace only after composed-host recovery gates pass; keep structured-only startup, maintenance commands, unknown-command behavior, both aliases, and explicit modes unchanged and pass bootstrap, cohort, update, capability-disable, and rollback gates.
 - [ ] 8.4 Add bounded migration/rollback behavior that disables composed capability independently and restores the accepted bare transparent profile if workspace cutover fails while preserving versioned records for retry; pass interrupted activation and N-1 package transitions.
-- [ ] 8.5 Rewrite user and architecture documentation for workspace operations, structured versus terminal-backed agents, terminal-host authority, tabs versus panes, explicit modes, resource limits, reconnection discontinuity, sandbox terminology, proof evidence, and support/certification status.
 
 ## 9. Add Cross-Platform Terminal Hosts
 
@@ -93,7 +91,6 @@
 - [ ] 10.1 Run complete clean automated gates: build, typecheck, ownership/hygiene, dependencies, structured protocol/state properties, terminal-host protocol/topology/isolation, workspace integration, updates, package contents, audit, and strict OpenSpec validation; preserve machine-readable evidence.
 - [ ] 10.2 Define final generic physical workloads and signed evidence schemas for rendering, Unicode, cursor/modes, rapid input, paste, mouse, selection/clipboard, IME, resize/DPI, concurrent visible output, hidden-tab output, switching, exit, reconnection, and parent recovery without naming a target CLI.
 - [ ] 10.3 Run physical automation only on attested isolated disposable Windows, Linux, and macOS workers with exact packaged bytes; record per-platform verdicts and never launch, focus, drive, resize, or close terminals on an active workstation.
-- [ ] 10.4 Provide user-controlled manual commands for bare workspace, concurrent structured agents, an in-terminal 2×2 tab, arbitrary CLI panes, `a1 pi`, and `a1 sandbox`; correct every finding with focused and containing regression gates and bind acceptance to exact candidate bytes.
 - [ ] 10.5 Merge the production composed-integration candidate into `develop` only after the mandatory in-terminal proof, accepted owned-UI foundation, automated production gates, explicit-mode regressions, and accepted exact-candidate verdict pass; retain unmerged composed work if later production gates fail while previously accepted foundation work remains available.
 - [ ] 10.6 Publish an accepted unique composed development candidate to npm `next` only under uncertified-preview policy, keep `latest` unchanged, distinguish it from the earlier fullscreen foundation checkpoint, and state per-platform composed certification precisely.
 - [ ] 10.7 Promote stable composed support only after all mandatory exact-package platform certifications pass, sync specs, archive the change, merge through `develop` to `master`, tag the matching version, publish `latest`, and verify registry integrity.
