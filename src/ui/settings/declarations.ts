@@ -19,13 +19,13 @@ export interface OwnedUiSettingDeclaration {
 const MAX_ID_LENGTH = 64;
 const ID_PATTERN = /^[a-z][a-z0-9]*(?:[A-Z][a-z0-9]*)*$/;
 
-const SCROLLBAR_SECTION = Object.freeze({ id: "scrollbar", title: "Scrollbar" });
+const SCROLL_SECTION = Object.freeze({ id: "scroll", title: "Scroll" });
 
 export const OWNED_UI_SETTING_DECLARATIONS: readonly OwnedUiSettingDeclaration[] = Object.freeze([
   Object.freeze({
     id: "scrollbarAppearance",
-    label: "Appearance",
-    section: SCROLLBAR_SECTION,
+    label: "Scrollbar mode",
+    section: SCROLL_SECTION,
     description: "When the session transcript scrollbar is visible.",
     application: "live",
     defaultValue: "hover",
@@ -33,8 +33,8 @@ export const OWNED_UI_SETTING_DECLARATIONS: readonly OwnedUiSettingDeclaration[]
   }),
   Object.freeze({
     id: "scrollbarStyle",
-    label: "Style",
-    section: SCROLLBAR_SECTION,
+    label: "Scrollbar style",
+    section: SCROLL_SECTION,
     description: "Visual weight of the session transcript scrollbar.",
     application: "live",
     defaultValue: "thin",
@@ -43,7 +43,7 @@ export const OWNED_UI_SETTING_DECLARATIONS: readonly OwnedUiSettingDeclaration[]
   Object.freeze({
     id: "scrollbarSpeed",
     label: "Speed",
-    section: SCROLLBAR_SECTION,
+    section: SCROLL_SECTION,
     description: "Distance moved by each session transcript wheel event.",
     application: "live",
     defaultValue: "normal",

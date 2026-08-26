@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: The custom viewport exposes grouped appearance, style, and speed settings
-A1 SHALL declare `scrollbarAppearance`, `scrollbarStyle`, and `scrollbarSpeed` as live-applicable A1 settings grouped under a `Scrollbar` settings section. The visible row labels SHALL be `Appearance`, `Style`, and `Speed`, without a redundant `A1` section or `(default)` suffix. `scrollbarAppearance` SHALL allow exactly `always`, `hover`, and `hidden`, with `hover` as its default. `scrollbarStyle` SHALL allow exactly `thin` and `thick`, with `thin` as its default. `scrollbarSpeed` SHALL allow exactly `normal`, `fast`, and `high`, in that order, with `normal` as its default. The settings SHALL be stored and resolved through the existing profile-local A1 settings document and SHALL NOT be read from or written to agent settings.
+A1 SHALL declare `scrollbarAppearance`, `scrollbarStyle`, and `scrollbarSpeed` as live-applicable A1 settings grouped under a `Scroll` settings section. The visible row labels SHALL be `Scrollbar mode`, `Scrollbar style`, and `Speed`, without a redundant `A1` section or `(default)` suffix. `scrollbarAppearance` SHALL allow exactly `always`, `hover`, and `hidden`, with `hover` as its default. `scrollbarStyle` SHALL allow exactly `thin` and `thick`, with `thin` as its default. `scrollbarSpeed` SHALL allow exactly `normal`, `fast`, and `high`, in that order, with `normal` as its default. The settings SHALL be stored and resolved through the existing profile-local A1 settings document and SHALL NOT be read from or written to agent settings.
 
 #### Scenario: Resolve defaults
 - **WHEN** the active A1 profile has no stored scrollbar values
@@ -36,10 +36,10 @@ A1 SHALL declare `scrollbarAppearance`, `scrollbarStyle`, and `scrollbarSpeed` a
 - **AND** future A1-owned settings sections SHALL use the same declaration, resolution, migration, and atomic-store system
 - **AND** no Pi or agent settings document SHALL be changed by that write
 
-#### Scenario: Inspect the Scrollbar settings section
+#### Scenario: Inspect the Scroll settings section
 - **WHEN** the owned settings screen is presented
-- **THEN** it SHALL offer the declared appearance, style, and speed values under `Scrollbar`
-- **AND** those controls SHALL be labeled `Appearance`, `Style`, and `Speed`
+- **THEN** it SHALL offer the declared mode, style, and speed values under `Scroll`
+- **AND** those controls SHALL be labeled `Scrollbar mode`, `Scrollbar style`, and `Speed`
 
 #### Scenario: Point at and change settings
 - **WHEN** the owned settings screen is open in fullscreen mode

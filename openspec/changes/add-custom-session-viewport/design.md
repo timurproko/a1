@@ -113,7 +113,7 @@ Alternative considered: stamp prompts when first rendered. Rejected because resu
 
 ### 7. Settings reach the shell through a narrow live viewport configuration
 
-Composition will pass the loaded `OwnedUiSettingsSession` to the bare-A1 shell, not to Pi component classes. The shell reads and subscribes to `scrollbarAppearance` and `scrollbarStyle`, translates them into the neutral viewport configuration, and requests a render on a live change. The comparison composition does not install the custom viewport even if its profile store contains those keys.
+Composition will pass the loaded `OwnedUiSettingsSession` to the bare-A1 shell, not to Pi component classes. The shell reads and subscribes to `scrollbarAppearance`, `scrollbarStyle`, and `scrollbarSpeed`, translates them into the neutral viewport configuration, and requests a render on a live change. The comparison composition does not install the custom viewport even if its profile store contains those keys.
 
 Adding declarations is backward compatible with the current versioned document: an older document omits the keys and resolution supplies the new defaults, so no migration is needed. A future rename or shape change would require the normal version/migration path.
 

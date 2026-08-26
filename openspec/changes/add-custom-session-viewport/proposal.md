@@ -22,7 +22,7 @@ Bare A1 still presents the transcript as Pi's flowing document, so long sessions
 ### Modified Capabilities
 
 - `ui-components`: the shared scrollbar gains declared appearance and style policies plus activity, hover, and drag presentation states used by the viewport without duplicating rail geometry.
-- `owned-ui-settings`: the three live A1 scrollbar settings are grouped in a dedicated Scrollbar section, resolved, persisted, and applied consistently to the running viewport.
+- `owned-ui-settings`: the three live A1 scrollbar settings are grouped in a dedicated Scroll section, resolved, persisted, and applied consistently to the running viewport.
 - `owned-pi-ui-foundation`: the accepted pinned shell becomes the behavioral foundation under a declared bare-A1 layout customization, while comparison profiles and all non-layout workflows remain unchanged.
 
 ## Impact

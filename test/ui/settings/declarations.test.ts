@@ -28,18 +28,22 @@ describe("owned UI setting declarations", () => {
       "scrollbarSpeed",
     ]);
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "scrollbarAppearance")).toMatchObject({
+      label: "Scrollbar mode",
+      section: { id: "scroll", title: "Scroll" },
       application: "live",
       defaultValue: "hover",
       allowedValues: ["always", "hover", "hidden"],
     });
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "scrollbarStyle")).toMatchObject({
+      label: "Scrollbar style",
+      section: { id: "scroll", title: "Scroll" },
       application: "live",
       defaultValue: "thin",
       allowedValues: ["thin", "thick"],
     });
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "scrollbarSpeed")).toMatchObject({
       label: "Speed",
-      section: { id: "scrollbar", title: "Scrollbar" },
+      section: { id: "scroll", title: "Scroll" },
       application: "live",
       defaultValue: "normal",
       allowedValues: ["normal", "fast", "high"],

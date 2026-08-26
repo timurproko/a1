@@ -102,9 +102,9 @@ describe("the settings screen", () => {
   it("groups concise scrollbar controls with defaults but no default wording", async () => {
     const { app: target } = await app();
     const lines = screen(target);
-    expect(lines.some(line => line.trim() === "Scrollbar")).toBe(true);
-    expect(lines.some(line => line.includes("Appearance") && line.includes("hover"))).toBe(true);
-    expect(lines.some(line => line.includes("Style") && line.includes("thin"))).toBe(true);
+    expect(lines.some(line => line.trim() === "Scroll")).toBe(true);
+    expect(lines.some(line => line.includes("Scrollbar mode") && line.includes("hover"))).toBe(true);
+    expect(lines.some(line => line.includes("Scrollbar style") && line.includes("thin"))).toBe(true);
     expect(lines.some(line => line.includes("Speed") && line.includes("normal"))).toBe(true);
     expect(lines.some(line => line.trim() === "A1")).toBe(false);
     expect(lines.join("\n")).not.toContain("(default)");
@@ -230,8 +230,8 @@ describe("the settings screen", () => {
     target.onInput?.(HOME, HOST);
     const lines = target.render({ width: 80, height: 13 }, HOST).map(line => line.replace(STYLE, "").trimEnd());
     expect(lines[0]).toBe("");
-    expect(lines[1]).toContain("Scrollbar");
-    expect(lines[2]?.trimStart()).toMatch(/^→\s+Appearance/);
+    expect(lines[1]).toContain("Scroll");
+    expect(lines[2]?.trimStart()).toMatch(/^→\s+Scrollbar mode/);
   });
 
   it("moves the last result onto the final body row when End is used during search", async () => {
