@@ -104,7 +104,7 @@ describe("transcript viewport", () => {
     expect(stripAnsi(hovered.rows[0] ?? "").trimEnd()).toBe("❯ prompt                 11:45");
   });
 
-  it("paints the final reserved cell when a double-click selection reaches the content edge", () => {
+  it("paints the final cell for edge whitespace but not for a full-width word", () => {
     const selectedRange = (text: string, column: number): { readonly range: readonly [number, number]; readonly copied: string | null } => {
       const viewport = new TranscriptViewport();
       viewport.setConfig(ALWAYS);
@@ -133,7 +133,30 @@ describe("transcript viewport", () => {
     };
 
     expect(selectedRange("abc      ", 5)).toEqual({ range: [3, 10], copied: "" });
-    expect(selectedRange("abcdefghi", 5)).toEqual({ range: [0, 10], copied: "abcdefghi" });
+    expect(selectedRange("abcdefghi", 5)).toEqual({ range: [0, 9], copied: "abcdefghi" });
+
+    const viewport = new TranscriptViewport();
+    viewport.setConfig(ALWAYS);
+    const input = { documentRows: ["abcdefghi", "next", "row 2", "row 3"], dockRows: [] as string[], promptAnchors: [], width: 10, height: 3, now: 300 };
+    viewport.compose(input);
+    viewport.scrollTo(0, 301);
+    viewport.compose({ ...input, now: 302 });
+    viewport.pressSelection(2, 1, 303);
+    viewport.extendSelection(2, 2, 304);
+    const ranges: Array<readonly [number, number]> = [];
+    viewport.compose({
+      ...input,
+      now: 305,
+      theme: {
+        track: value => value,
+        thumb: value => value,
+        sticky: value => value,
+        quietSticky: value => value,
+        bottomControl: value => value,
+        selection: (line, from, to) => { ranges.push([from, to]); return line; },
+      },
+    });
+    expect(ranges).toContainEqual([1, 10]);
   });
 
   it("uses matching normal and hover surface roles for sticky and bottom controls", () => {

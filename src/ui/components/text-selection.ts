@@ -11,6 +11,8 @@ export interface TextSelection {
   readonly selecting: boolean;
   readonly cell?: boolean;
   readonly fullRow?: boolean;
+  /** Paint an edge whitespace run through the viewport's overlaid rail cell. */
+  readonly throughFinalColumn?: boolean;
 }
 
 export interface TextSelectionClick {
@@ -30,6 +32,7 @@ export interface OrderedTextSelection {
   readonly start: TextSelectionPoint;
   readonly end: TextSelectionPoint;
   readonly fullRow?: boolean;
+  readonly throughFinalColumn?: boolean;
 }
 
 export interface TextSelectionPressInput {
@@ -53,7 +56,11 @@ export function orderedTextSelection(selection: TextSelection | undefined): Orde
   const ordered: OrderedTextSelection = anchorFirst
     ? { start: anchor, end: head }
     : { start: head, end: anchor };
-  return selection.fullRow ? { ...ordered, fullRow: true } : ordered;
+  return {
+    ...ordered,
+    ...(selection.fullRow ? { fullRow: true } : {}),
+    ...(selection.throughFinalColumn ? { throughFinalColumn: true } : {}),
+  };
 }
 
 export function pressTextSelection(input: TextSelectionPressInput): {
@@ -177,11 +184,13 @@ function selectWord(line: number, column: number, contentWidth: number, lineText
   let high = index;
   while (low > 0 && segments[low - 1]?.cls === segments[index]?.cls) low -= 1;
   while (high + 1 < segments.length && segments[high + 1]?.cls === segments[index]?.cls) high += 1;
+  const end = segments[high]?.to ?? 1;
   return {
     anchor: { line, column: (segments[low]?.from ?? 0) + 1 },
-    head: { line, column: segments[high]?.to ?? 1 },
+    head: { line, column: end },
     selecting: true,
     cell: true,
+    throughFinalColumn: segments[index]?.cls === 0 && end >= contentWidth,
   };
 }
 

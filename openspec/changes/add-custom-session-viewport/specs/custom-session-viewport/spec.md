@@ -178,11 +178,16 @@ The viewport SHALL claim wheel events used to scroll its transcript and pointer 
 - **AND** a visible scrollbar SHALL overlay that column rather than permanently removing one content cell
 - **AND** submitted prompt rows SHALL retain their intentional blank rail cell after a fitting timestamp
 
-#### Scenario: Double-click through the final reserved cell
-- **WHEN** a double-click selects trailing whitespace or a token whose run reaches the transcript content edge
+#### Scenario: Double-click at the final reserved cell
+- **WHEN** a double-click selects trailing whitespace that reaches the transcript content edge
 - **THEN** the selection background SHALL continue through the final terminal column, including the reserved scrollbar cell
 - **AND** copied text SHALL remain the semantic selected content without appended padding
 - **AND** any visible scrollbar glyph SHALL remain painted above that background
+
+#### Scenario: Double-click a full-width content run
+- **WHEN** a double-click selects a word or other non-whitespace run that ends beside the final empty cell
+- **THEN** the selection background SHALL end with the content and SHALL NOT include that empty cell
+- **AND** if the selection subsequently continues onto another row, every completed interior row SHALL paint through the final terminal column
 
 #### Scenario: Hold an active selection beyond a viewport edge
 - **WHEN** the pointer remains above or below the transcript viewport during an active selection

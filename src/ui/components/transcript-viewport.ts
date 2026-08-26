@@ -332,9 +332,9 @@ export class TranscriptViewport {
           const from = fullVisualRow || documentLine !== orderedSelection.start.line
             ? 0
             : orderedSelection.start.column - 1;
-          const reachesContentEdge = documentLine === orderedSelection.end.line
-            && orderedSelection.end.column >= contentWidth;
-          const to = fullVisualRow || documentLine !== orderedSelection.end.line || reachesContentEdge
+          const throughFinalColumn = documentLine === orderedSelection.end.line
+            && orderedSelection.throughFinalColumn === true;
+          const to = fullVisualRow || documentLine !== orderedSelection.end.line || throughFinalColumn
             ? width
             : orderedSelection.end.column;
           if (to > from) line = theme.selection(line, from, Math.min(width, to));
