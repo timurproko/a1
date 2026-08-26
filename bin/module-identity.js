@@ -132,6 +132,29 @@ function message(error) {
   return error instanceof Error ? error.message : String(error);
 }
 
+/**
+ * Launch-entry self-heal: when A1 and pinned Pi disagree on the terminal
+ * module, rewrite the proxy to the copy Pi resolves before anything copies
+ * this tree. npm 12 blocks install scripts unless allowScripts covers the
+ * package, so the postinstall that normally rewrites the proxy may never
+ * have run and the installed tree may still carry the published placeholder
+ * path. Named neutrally so the launch entries that call it stay free of
+ * terminal implementation identifiers, as the bootstrap boundary requires.
+ */
+export async function healModuleIdentityAtLaunch(packageRoot, warn) {
+  if (inspectPiTuiModuleIdentity(packageRoot).kind === "unified") return;
+  const { syncPiTuiProxy } = await import("./sync-pi-tui-proxy.js");
+  const outcome = syncPiTuiProxy(packageRoot);
+  if (outcome.kind === "unresolved") {
+    warn(`a1: could not point the terminal module proxy at pinned Pi's copy (${outcome.message}); extension UI may not render.\n`);
+  }
+}
+
+/** Whether a materialized release copy resolves one terminal module for both A1 and Pi. */
+export function releaseCopyIsLaunchable(releaseRoot) {
+  return inspectPiTuiModuleIdentity(releaseRoot).kind === "unified";
+}
+
 /** Launch-entry wrapper: warn on stderr when the two sides disagree. */
 export function assertSinglePiTuiModuleAtLaunch(packageRoot, warn) {
   const outcome = inspectPiTuiModuleIdentity(packageRoot);
