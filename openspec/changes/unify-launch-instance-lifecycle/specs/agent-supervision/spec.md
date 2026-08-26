@@ -37,7 +37,7 @@ The supervisor SHALL detect loss of an instance's authenticated owner and coordi
 An ownership-safe update SHALL enumerate all verified active launch instances in the affected cohort, request bounded shutdown for each, and verify that every instance released runtime ownership before replacing or retiring the cohort. A singular instance outcome SHALL NOT be treated as release of the whole cohort.
 
 #### Scenario: Update encounters several active instances
-- **WHEN** an update is authorized while multiple `a1`, `a1 pi`, or `a1 sandbox` instances are active
+- **WHEN** an update is authorized while multiple `a1` or `a1 pi` instances are active
 - **THEN** A1 SHALL coordinate and verify each instance outcome before completing cohort replacement
 
 #### Scenario: One instance cannot release ownership

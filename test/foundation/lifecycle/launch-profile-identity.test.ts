@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { assertLaunchProfileId, type LaunchProfileId } from "../../../src/foundation/lifecycle/index.js";
 
 describe("launch profile identity", () => {
-  it.each(["a1", "pi", "sandbox"] as const)("accepts %s", value => {
+  it.each(["a1", "pi"] as const)("accepts %s", value => {
     expect(() => assertLaunchProfileId(value)).not.toThrow();
     const profile: LaunchProfileId = value;
     expect(profile).toBe(value);

@@ -73,7 +73,7 @@ export class ControlStore {
   migrate(): void {
     const versionRow = this.database.prepare("PRAGMA user_version").get() as { user_version: number };
     const version = versionRow.user_version;
-    if (version > 5) throw new Error(`control database version ${version} is newer than supported version 5`);
+    if (version > 6) throw new Error(`control database version ${version} is newer than supported version 6`);
     if (version !== 0) this.#assertCurrentControlSchema();
     if (version === 0) {
       this.database.exec(`
@@ -228,7 +228,7 @@ export class ControlStore {
         CREATE TABLE launch_instances (
           id TEXT PRIMARY KEY,
           owner_client_id TEXT NOT NULL,
-          profile_id TEXT NOT NULL CHECK (profile_id IN ('a1', 'pi', 'sandbox')),
+          profile_id TEXT NOT NULL CHECK (profile_id IN ('a1', 'pi')),
           state TEXT NOT NULL CHECK (state IN ('requested', 'active', 'stopping', 'completed', 'interrupted')),
           shutdown_policy TEXT NOT NULL CHECK (shutdown_policy = 'terminate-tree-on-close'),
           guardian_identity_json TEXT NOT NULL CHECK (json_valid(guardian_identity_json)),
@@ -248,6 +248,40 @@ export class ControlStore {
         CREATE INDEX idx_launch_instances_owner ON launch_instances(owner_client_id, state);
         CREATE INDEX idx_launch_instances_boot ON launch_instances(owner_boot_nonce, state);
         PRAGMA user_version = 5;
+        COMMIT;
+      `);
+    }
+    if (version <= 5) {
+      this.database.exec(`
+        BEGIN IMMEDIATE;
+        ALTER TABLE launch_instances RENAME TO launch_instances_v5;
+        DROP INDEX idx_launch_instances_owner;
+        DROP INDEX idx_launch_instances_boot;
+        CREATE TABLE launch_instances (
+          id TEXT PRIMARY KEY,
+          owner_client_id TEXT NOT NULL,
+          profile_id TEXT NOT NULL CHECK (profile_id IN ('a1', 'pi')),
+          state TEXT NOT NULL CHECK (state IN ('requested', 'active', 'stopping', 'completed', 'interrupted')),
+          shutdown_policy TEXT NOT NULL CHECK (shutdown_policy = 'terminate-tree-on-close'),
+          guardian_identity_json TEXT NOT NULL CHECK (json_valid(guardian_identity_json)),
+          root_identity_json TEXT CHECK (root_identity_json IS NULL OR json_valid(root_identity_json)),
+          containment_identity_json TEXT CHECK (containment_identity_json IS NULL OR json_valid(containment_identity_json)),
+          created_at TEXT NOT NULL,
+          activated_at TEXT,
+          stopping_at TEXT,
+          completed_at TEXT,
+          outcome_json TEXT CHECK (outcome_json IS NULL OR json_valid(outcome_json)),
+          owner_boot_nonce TEXT NOT NULL,
+          CHECK ((state = 'requested' AND root_identity_json IS NULL AND containment_identity_json IS NULL AND activated_at IS NULL AND stopping_at IS NULL AND completed_at IS NULL AND outcome_json IS NULL)
+            OR (state = 'active' AND root_identity_json IS NOT NULL AND containment_identity_json IS NOT NULL AND activated_at IS NOT NULL AND stopping_at IS NULL AND completed_at IS NULL AND outcome_json IS NULL)
+            OR (state = 'stopping' AND root_identity_json IS NOT NULL AND containment_identity_json IS NOT NULL AND activated_at IS NOT NULL AND stopping_at IS NOT NULL AND completed_at IS NULL AND outcome_json IS NULL)
+            OR (state IN ('completed', 'interrupted') AND completed_at IS NOT NULL AND outcome_json IS NOT NULL))
+        );
+        INSERT INTO launch_instances SELECT * FROM launch_instances_v5 WHERE profile_id IN ('a1', 'pi');
+        DROP TABLE launch_instances_v5;
+        CREATE INDEX idx_launch_instances_owner ON launch_instances(owner_client_id, state);
+        CREATE INDEX idx_launch_instances_boot ON launch_instances(owner_boot_nonce, state);
+        PRAGMA user_version = 6;
         COMMIT;
       `);
     }

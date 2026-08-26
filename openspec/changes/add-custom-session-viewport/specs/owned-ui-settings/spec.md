@@ -31,5 +31,5 @@ This milestone SHALL NOT declare, display, persist, or infer an A1 scrollbar-spe
 - **AND** it SHALL NOT contain a scrollbar-speed entry
 
 #### Scenario: Use a pinned comparison profile
-- **WHEN** `a1 pi` or `a1 sandbox` presents its pinned interface
+- **WHEN** `a1 pi` presents its pinned interface
 - **THEN** A1's stored scrollbar appearance and style SHALL NOT modify that interface's scrollbar or wheel behavior

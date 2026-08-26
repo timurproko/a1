@@ -15,7 +15,7 @@ function requested(overrides: Partial<LaunchInstance> = {}): LaunchInstance {
   return {
     id: "instance-1",
     ownerClientId: "client-1",
-    profileId: "sandbox",
+    profileId: "pi",
     state: "requested",
     shutdownPolicy: "terminate-tree-on-close",
     guardianIdentity,

@@ -6,7 +6,6 @@
 on it alone. Installing SHALL place package content under that root and record the
 source in that root's `settings.json`, so the next bare `a1` loads it. No package
 command SHALL accept a profile prefix, profile flag, or project scope; the vanilla
-Pi profile is managed by Pi itself and the sandbox profile takes no installs.
 
 #### Scenario: Install an npm package
 - **WHEN** the user runs `a1 pi install npm:pi-mcp-adapter`
@@ -24,7 +23,7 @@ Pi profile is managed by Pi itself and the sandbox profile takes no installs.
 - **AND** SHALL say plainly that none are installed rather than printing nothing
 
 #### Scenario: A profile is named
-- **WHEN** the user runs a package command with `pi`, `sandbox`, or a profile flag
+- **WHEN** the user runs a package command with `pi`, or a profile flag
 - **THEN** A1 SHALL exit with a usage error explaining that package commands manage the A1 profile and that Pi manages its own
 
 ### Requirement: Package sources follow Pi's grammar
@@ -43,13 +42,11 @@ reason.
 
 ### Requirement: Package operations never reach another profile
 A package command SHALL NOT read, create, or modify `<home>/.pi/agent`,
-`<home>/.a1/sandbox`, or any project-local Pi configuration. Creating the A1 profile
 root and its empty resource directories when absent is permitted; nothing else
 outside that root is.
 
 #### Scenario: Other profiles are inspected after an install
 - **WHEN** any package command completes against the A1 profile
-- **THEN** `<home>/.pi/agent` and `<home>/.a1/sandbox` SHALL be byte-for-byte unchanged
 
 #### Scenario: First install with no profile yet
 - **WHEN** `<home>/.a1/agent` does not exist and the user installs a package

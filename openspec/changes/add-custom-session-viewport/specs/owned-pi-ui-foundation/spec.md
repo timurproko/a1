@@ -15,7 +15,7 @@ The viewport's intentional differences SHALL be limited to its declared capabili
 - **THEN** its controller, result, cancellation, focus restoration, and lifecycle SHALL remain the accepted pinned-shell behavior
 
 #### Scenario: Compare an explicit profile
-- **WHEN** `a1 pi` or `a1 sandbox` is started
+- **WHEN** `a1 pi` is started
 - **THEN** the declared viewport layout customization SHALL be absent
 - **AND** those profiles SHALL remain suitable for observing the pinned presentation without A1 viewport rows, controls, prompt timestamps, or scrollbar settings
 

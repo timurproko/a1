@@ -11,7 +11,7 @@ describe("A1 identity hard-cut documentation", () => {
     expect(toolchain).toContain("does not read or migrate legacy `ADDONE_*`");
     expect(toolchain).toContain("%APPDATA%\\\\AddOne");
     expect(toolchain).toContain("former `addone` directories");
-    expect(toolchain).toContain("Do **not** remove `~/.a1/agent` or `~/.a1/sandbox`");
+    expect(toolchain).toContain("Do **not** remove `~/.a1/agent`");
     expect(toolchain).toContain("`~/.pi/agent` remains");
     expect(toolchain).toContain("`@timurproko/addone` is deprecated");
     expect(toolchain).toContain("This package is obsolete. Use @timurproko/a1 instead.");

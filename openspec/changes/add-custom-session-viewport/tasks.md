@@ -21,7 +21,7 @@
 
 - [ ] 4.1 Declare live A1 settings `scrollbarAppearance` (`always`, `hover`, `hidden`; default `hover`) and `scrollbarStyle` (`thin`, `thick`; default `thin`) with no speed declaration; verify settings declaration, resolution, section, persistence, invalid-value, and no-speed inventory tests
 - [ ] 4.2 Pass the loaded settings session into the bare-A1 shell through composition and subscribe the viewport to live appearance/style changes; verify integration tests prove a change repaints without restart while preserving scroll/follow state and writes only the active profile's A1 settings document
-- [ ] 4.3 Select the custom viewport only when A1-owned surfaces are enabled, leaving `a1 pi` and `a1 sandbox` on the pinned comparison presentation; verify composition and launch-profile tests prove bare A1 has the viewport controls while both explicit profiles have none, regardless of stored A1 scrollbar values
+- [ ] 4.3 Select the custom viewport only when A1-owned surfaces are enabled, leaving `a1 pi` on the pinned comparison presentation; verify composition and launch-profile tests prove bare A1 has the viewport controls while the comparison profile have none, regardless of stored A1 scrollbar values
 
 ## 5. Preserve performance, provenance, and acceptance
 
