@@ -267,6 +267,7 @@ describe("OwnedUiSessionShell", () => {
     const row = shell.root.render(100).find(line => stripTerminalSequences(line).includes(url)) ?? "";
 
     expect(row).toContain(`\u001b]8;;${url}\u001b\\`);
+    expect(row).toContain(piTheme().fg("mdLink", url));
     expect(row).not.toContain("\u001b[4m");
     await shell.dispose();
   });
@@ -398,7 +399,9 @@ describe("OwnedUiSessionShell", () => {
     expect(shell.root.render(60).join("\n")).toContain("\u001b[48;2;38;79;120m");
     terminal.input("\u0003"); // Ctrl+C
     expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from("alpha beta").toString("base64")}\u0007`);
+    expect(shell.root.render(60).join("\n")).not.toContain("\u001b[48;2;38;79;120m");
 
+    terminal.input("\u0001"); // Select again because copying collapses the selection.
     terminal.input("\u0018"); // Ctrl+X
     expect(shell.root.editor.getText()).toBe("");
     terminal.input("\u001a"); // Ctrl+Z
@@ -436,7 +439,7 @@ describe("OwnedUiSessionShell", () => {
     expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from("d").toString("base64")}\u0007`);
 
     terminal.input("X");
-    expect(shell.root.editor.getText()).toBe("abcX");
+    expect(shell.root.editor.getText()).toBe("abcdX");
     terminal.input("\u001a");
     expect(shell.root.editor.getText()).toBe("abcd");
 
@@ -602,11 +605,7 @@ describe("OwnedUiSessionShell", () => {
     clipboardText = "";
     terminal.input("\u0003");
     await vi.waitFor(() => expect(clipboardText).toBe(firstUrl));
-    terminal.input("\u001b[C"); // Adjacent second chip is one atomic item right.
-    clipboardText = "";
-    terminal.input("\u0003");
-    await vi.waitFor(() => expect(clipboardText).toBe(secondUrl));
-    terminal.input("\u001b[C"); // Clear focus after the adjacent-chip check.
+    expect(shell.root.editor.hasSelection()).toBe(false);
 
     shell.root.editor.setText(adjacent);
     terminal.input("\u001b[1;5H"); // Native editor cursor at the first atomic segment start.
@@ -615,7 +614,7 @@ describe("OwnedUiSessionShell", () => {
     clipboardText = "";
     terminal.input("\u0003");
     await vi.waitFor(() => expect(clipboardText).toBe(secondUrl));
-    terminal.input("\u001b[C");
+    expect(shell.root.editor.hasSelection()).toBe(false);
 
     shell.root.editor.setText(spaced);
     terminal.input("\u001b[D"); // Focus second chip.

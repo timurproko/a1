@@ -98,7 +98,10 @@ export function hyperlinkSgrSpan(
  * Lets the terminal render OSC 8 links with its native inactive/hover affordance
  * instead of forcing Markdown's permanent solid underline.
  */
-export function nativeHyperlinkStyle(line: string): string {
+export function nativeHyperlinkStyle(
+  line: string,
+  color: (text: string) => string = text => text,
+): string {
   let hyperlinkOpen = false;
   let output = "";
   for (const token of line.split(ANSI_SPLIT)) {
@@ -109,11 +112,15 @@ export function nativeHyperlinkStyle(line: string): string {
       output += token;
       continue;
     }
-    if (!hyperlinkOpen || !SGR.test(token)) {
+    if (!hyperlinkOpen) {
       output += token;
       continue;
     }
-    if (token !== "\u001b[4m" && token !== "\u001b[24m") output += token;
+    if (!token.startsWith("\u001b")) {
+      output += color(token);
+      continue;
+    }
+    if (!SGR.test(token) || (token !== "\u001b[4m" && token !== "\u001b[24m")) output += token;
   }
   return output;
 }

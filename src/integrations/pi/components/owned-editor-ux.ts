@@ -180,6 +180,7 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
     }
     if (this.keybindings.matches(data, "tui.input.copy") && this.hasSelection()) {
       this.options.copyText(this.options.expandCopiedText(this.#selectedText()));
+      this.#collapseCopiedSelection();
       return;
     }
     if (this.keybindings.matches(data, "owned.editor.cut") && this.hasSelection()) {
@@ -548,6 +549,21 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
     if (snapshot === undefined) return;
     this.editor.setText(snapshot.text);
     this.#setCursor(snapshot.cursor);
+    this.#clearSelection(false);
+    this.#requestRender();
+  }
+
+  #collapseCopiedSelection(): void {
+    const selection = this.#activeRange();
+    if (selection === undefined) return;
+    const line = editorState(this.editor).lines[selection.end.line] ?? "";
+    let column = selection.end.col;
+    while (true) {
+      const adjacent = this.options.atomicRanges(line).find(range => range.start === column);
+      if (adjacent === undefined) break;
+      column = adjacent.end;
+    }
+    this.#setCursor({ line: selection.end.line, col: column });
     this.#clearSelection(false);
     this.#requestRender();
   }

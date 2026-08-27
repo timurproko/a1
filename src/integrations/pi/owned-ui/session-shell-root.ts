@@ -218,7 +218,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       ? {
           layout: submittedPromptLayout,
           compose: (rows, width, source, style) => composeSubmittedPromptRows(rows, width, source, style)
-            .map(row => nativeHyperlinkStyle(row)),
+            .map(row => nativeHyperlinkStyle(row, text => piTheme().fg("mdLink", text))),
         }
       : undefined;
     this.#cwd = cwd;

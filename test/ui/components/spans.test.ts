@@ -81,6 +81,8 @@ describe("overlaying a span on a rendered row", () => {
 
     expect(nativeHyperlinkStyle(`${open}${ESC}[4mexample${ESC}[24m${close}`))
       .toBe(`${open}example${close}`);
+    expect(nativeHyperlinkStyle(`${open}${ESC}[4mexample${ESC}[24m${close}`, text => `${BLUE}${text}${RESET}`))
+      .toBe(`${open}${BLUE}example${RESET}${close}`);
   });
 
   it("paints only the selection background while preserving foreground, bold, italic, and underline", () => {
