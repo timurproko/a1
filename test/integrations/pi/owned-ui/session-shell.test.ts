@@ -1,6 +1,10 @@
 import type { AgentSessionRuntime } from "@earendil-works/pi-coding-agent";
 import { readFile } from "node:fs/promises";
 import { CURSOR_MARKER, stripTerminalSequences, visibleWidth } from "@earendil-works/pi-tui";
+import {
+  getCapabilities as getPinnedPiTuiCapabilities,
+  setCapabilities as setPinnedPiTuiCapabilities,
+} from "#pi-tui";
 import { describe, expect, it, vi } from "vitest";
 import {
   createPiEngineAdapter,
@@ -134,6 +138,16 @@ class Runtime {
   async dispose(): Promise<void> { this.calls.push("dispose"); }
 }
 
+async function withPinnedHyperlinks<T>(run: () => Promise<T>): Promise<T> {
+  const capabilities = getPinnedPiTuiCapabilities();
+  setPinnedPiTuiCapabilities({ ...capabilities, hyperlinks: true });
+  try {
+    return await run();
+  } finally {
+    setPinnedPiTuiCapabilities(capabilities);
+  }
+}
+
 async function fixture(
   messages: readonly unknown[] = [],
   extensions: readonly unknown[] = [],
@@ -259,31 +273,35 @@ describe("OwnedUiSessionShell", () => {
   });
 
   it("uses terminal-native inactive and hover styling for submitted URL links", async () => {
-    const url = "https://example.com/a/complete/source?with=details";
-    const { terminal, shell } = await fixture([
-      { role: "user", content: [{ type: "text", text: url }], timestamp: Date.now() },
-    ], [], true);
-    terminal.resize(100, 12);
-    const row = shell.root.render(100).find(line => stripTerminalSequences(line).includes(url)) ?? "";
+    await withPinnedHyperlinks(async () => {
+      const url = "https://example.com/a/complete/source?with=details";
+      const { terminal, shell } = await fixture([
+        { role: "user", content: [{ type: "text", text: url }], timestamp: Date.now() },
+      ], [], true);
+      terminal.resize(100, 12);
+      const row = shell.root.render(100).find(line => stripTerminalSequences(line).includes(url)) ?? "";
 
-    expect(row).toContain(`\u001b]8;;${url}\u001b\\`);
-    expect(row).toContain(piTheme().fg("mdLink", url));
-    expect(row).not.toContain("\u001b[4m");
-    await shell.dispose();
+      expect(row).toContain(`\u001b]8;;${url}\u001b\\`);
+      expect(row).toContain(piTheme().fg("mdLink", url));
+      expect(row).not.toContain("\u001b[4m");
+      await shell.dispose();
+    });
   });
 
   it("uses the same terminal-native cyan styling for assistant-content URL links", async () => {
-    const url = "https://www.theverge.com/reviews";
-    const { terminal, shell } = await fixture([
-      { role: "assistant", content: [{ type: "text", text: `The corrected link is:\n\n${url}` }], timestamp: Date.now() },
-    ], [], true);
-    terminal.resize(100, 12);
-    const row = shell.root.render(100).find(line => stripTerminalSequences(line).includes(url)) ?? "";
+    await withPinnedHyperlinks(async () => {
+      const url = "https://www.theverge.com/reviews";
+      const { terminal, shell } = await fixture([
+        { role: "assistant", content: [{ type: "text", text: `The corrected link is:\n\n${url}` }], timestamp: Date.now() },
+      ], [], true);
+      terminal.resize(100, 12);
+      const row = shell.root.render(100).find(line => stripTerminalSequences(line).includes(url)) ?? "";
 
-    expect(row).toContain(`\u001b]8;;${url}\u001b\\`);
-    expect(row).toContain(piTheme().fg("mdLink", url));
-    expect(row).not.toContain("\u001b[4m");
-    await shell.dispose();
+      expect(row).toContain(`\u001b]8;;${url}\u001b\\`);
+      expect(row).toContain(piTheme().fg("mdLink", url));
+      expect(row).not.toContain("\u001b[4m");
+      await shell.dispose();
+    });
   });
 
   it("wraps ordinary transcript content through the rail overlay column", async () => {
