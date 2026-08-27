@@ -31,9 +31,9 @@ export function scrollbarWheelRows(speed: ScrollbarSpeed): number {
   return speed === "high" ? 9 : speed === "fast" ? 6 : 3;
 }
 
-/** Selection edge distance at each fixed 30ms tick. */
+/** Selection edge distance uses the same configured rate as a wheel event. */
 export function scrollbarSelectionRows(speed: ScrollbarSpeed): number {
-  return speed === "high" ? 3 : speed === "fast" ? 2 : 1;
+  return scrollbarWheelRows(speed);
 }
 
 export interface ScrollbarPresentationInput {
