@@ -115,7 +115,7 @@ export interface PromptSelectionUxOptions {
   readonly transformPastedContent: (content: PiShellClipboardContent) => string;
   readonly atomicRanges: (line: string) => readonly PiShellEditorTextRange[];
   readonly expandCopiedText: (text: string) => string;
-  readonly paintSelection: (line: string, from: number, to: number) => string;
+  readonly paintSelection: (line: string, from: number, to: number, atomic: boolean) => string;
   readonly requestRender: () => void;
   readonly getRows: () => number;
 }
@@ -132,6 +132,7 @@ export function createPromptSelectionInterceptor(
 
 class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
   #selection: Selection | undefined;
+  #atomicSelection = false;
   #pointerSelecting = false;
   #lastClick: { time: number; line: number; col: number; count: number } | undefined;
   #redoStack: EditorSnapshot[] = [];
@@ -299,7 +300,7 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
       const toColumn = fromColumn + visibleWidth(line.slice(from, to));
       const rendered = rows[row + 1];
       if (rendered !== undefined && toColumn > fromColumn) {
-        rows[row + 1] = this.options.paintSelection(rendered, fromColumn, toColumn);
+        rows[row + 1] = this.options.paintSelection(rendered, fromColumn, toColumn, this.#atomicSelection);
       }
     }
     return rows;
@@ -307,6 +308,7 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
 
   reset(): void {
     this.#selection = undefined;
+    this.#atomicSelection = false;
     this.#pointerSelecting = false;
     this.#lastClick = undefined;
     this.#redoStack = [];
@@ -340,6 +342,7 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
           position = { line: position.line, col: beforeAnchor ? atomic.start : atomic.end };
         }
         this.#selection = { ...this.#selection, head: position };
+        this.#atomicSelection = false;
         this.#selectionRevision += 1;
         this.#requestRender();
       }
@@ -363,6 +366,7 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
         anchor: { line: position.line, col: atomic.start },
         head: { line: position.line, col: atomic.end },
       };
+      this.#atomicSelection = true;
       this.#pointerSelecting = true;
       this.#lastClick = undefined;
       this.#selectionRevision += 1;
@@ -382,6 +386,7 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
     if (kind === 2) this.#selectWord(position);
     else if (kind === 3) this.#selectLine(position.line);
     else this.#selection = { anchor: position, head: position };
+    this.#atomicSelection = false;
     this.#pointerSelecting = true;
     this.#selectionRevision += 1;
     this.#requestRender();
@@ -438,6 +443,7 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
 
   #selectAll(): void {
     const lines = editorState(this.editor).lines;
+    this.#atomicSelection = false;
     const finalLine = Math.max(0, lines.length - 1);
     this.#selection = {
       anchor: { line: 0, col: 0 },
@@ -450,6 +456,7 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
 
   #extend(delta: -1 | 1): void {
     const cursor = this.#cursor();
+    this.#atomicSelection = false;
     if (this.#selection === undefined) this.#selection = { anchor: cursor, head: cursor };
     else if (!samePosition(cursor, this.#selection.head)) this.#setCursor(this.#selection.head);
     this.#moveCursor(delta);
@@ -540,6 +547,7 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
   #clearSelection(render = true): void {
     if (this.#selection === undefined && !this.#pointerSelecting) return;
     this.#selection = undefined;
+    this.#atomicSelection = false;
     this.#pointerSelecting = false;
     this.#selectionRevision += 1;
     if (render) this.#requestRender();
@@ -613,6 +621,7 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
     this.#selection = delta < 0
       ? { anchor: end, head: start }
       : { anchor: start, head: end };
+    this.#atomicSelection = true;
     this.#setCursor(this.#selection.head);
     this.#selectionRevision += 1;
     this.#requestRender();

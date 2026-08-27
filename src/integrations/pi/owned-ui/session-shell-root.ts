@@ -227,12 +227,12 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.editor = createPiShellEditor({
       ...handlers,
       keybindingProfile: this.#customViewport ? "a1" : "pi",
-      paintEditorSelection: (line, from, to) => backgroundSgrSpan(
+      paintEditorSelection: (line, from, to, atomic) => backgroundSgrSpan(
         line,
         from,
         to,
-        "\u001b[48;2;38;79;120m",
-        "\u001b[49m",
+        atomic ? "\u001b[7m" : "\u001b[27m\u001b[48;2;38;79;120m",
+        atomic ? "\u001b[27m" : "\u001b[49m",
       ),
       transformPastedContent: content => this.#promptChips.transformPastedContent(content),
       editorAtomicRanges: line => this.#promptChips.atomicRanges(line),
