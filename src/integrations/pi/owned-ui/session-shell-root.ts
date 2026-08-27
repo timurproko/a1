@@ -714,7 +714,6 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     readonly editorOffsetWithoutStatus: number;
     readonly inputRows: number;
   } {
-    const notices = this.#renderDockNotices(width);
     const queued = this.#view.editor.queuedSubmissions.length === 0 ? [] : this.#queued.render(width);
     const statusRows = this.#renderStatus(width);
     const aboveWidgets = this.#renderWidgets("aboveEditor", width);
@@ -722,19 +721,18 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     const belowWidgets = this.#renderWidgets("belowEditor", width);
     const footer = this.#renderFooter(width);
     return {
-      rows: [...notices, ...queued, ...statusRows, ...aboveWidgets, ...input, ...belowWidgets, ...footer],
-      rowsWithoutStatus: [...notices, ...queued, ...aboveWidgets, ...input, ...belowWidgets, ...footer],
+      rows: [...queued, ...statusRows, ...aboveWidgets, ...input, ...belowWidgets, ...footer],
+      rowsWithoutStatus: [...queued, ...aboveWidgets, ...input, ...belowWidgets, ...footer],
       statusRows,
       stableBottomRows: aboveWidgets.length + input.length + belowWidgets.length + footer.length,
-      editorOffsetWithStatus: notices.length + queued.length + statusRows.length + aboveWidgets.length,
-      editorOffsetWithoutStatus: notices.length + queued.length + aboveWidgets.length,
+      editorOffsetWithStatus: queued.length + statusRows.length + aboveWidgets.length,
+      editorOffsetWithoutStatus: queued.length + aboveWidgets.length,
       inputRows: input.length,
     };
   }
 
   layoutRoot(): PiTuiLayoutNode {
     const document = layoutPort(width => this.#renderDocument(width), () => this.invalidate());
-    const notices = layoutPort(width => this.#renderDockNotices(width), () => this.invalidate());
     const queued = layoutPort(width => this.#view.editor.queuedSubmissions.length === 0 ? [] : this.#queued.render(width), () => this.#queued.invalidate());
     const aboveWidgets = layoutPort(width => this.#renderWidgets("aboveEditor", width), () => this.#invalidateExtensions());
     const status = layoutPort(width => this.#renderStatus(width), () => this.#status.invalidate());
@@ -770,7 +768,6 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
             type: "stack",
             direction: "vertical",
             children: [
-              { shrink: 1, minSize: 0, node: { type: "component", component: notices } },
               { shrink: 1, minSize: 0, node: { type: "component", component: queued } },
               { shrink: 1, minSize: 0, node: { type: "component", component: status } },
               { shrink: 1, minSize: 0, node: { type: "component", component: aboveWidgets } },
@@ -808,10 +805,8 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       ...resourceRows,
     ];
     const promptAnchors: TranscriptPromptAnchor[] = [];
-    const dockNoticeIds = this.#dockNoticeIds();
     for (let index = 0; index < this.#transcriptOrder.length; index += 1) {
       const id = this.#transcriptOrder[index]!;
-      if (dockNoticeIds.has(id)) continue;
       const block = this.#blocksById.get(id);
       if (!this.#thinkingVisible && block?.kind === "thinking") continue;
       const blockWidth = this.#customViewport
@@ -1215,32 +1210,6 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     return id;
   }
 
-  #dockNoticeIds(): ReadonlySet<string> {
-    const ids = new Set<string>();
-    if (!this.#customViewport) return ids;
-    for (let index = this.#transcriptOrder.length - 1; index >= 0; index -= 1) {
-      const id = this.#transcriptOrder[index]!;
-      if (id.startsWith("workflow-status-")) {
-        ids.add(id);
-        continue;
-      }
-      const block = this.#blocksById.get(id);
-      if (block?.kind === "assistant" && assistantFailureStopReason(block.payload) !== null) ids.add(id);
-      break;
-    }
-    return ids;
-  }
-
-  #renderDockNotices(width: number): readonly string[] {
-    const ids = this.#dockNoticeIds();
-    if (ids.size === 0) return [];
-    const rows = this.#transcriptOrder
-      .filter(id => ids.has(id))
-      .flatMap(id => this.#blockRows(id, this.#blocksById.get(id), width));
-    while (rows.length > 0 && stripAnsi(rows.at(-1) ?? "").trim().length === 0) rows.pop();
-    return rows;
-  }
-
   #renderWidgets(placement: "aboveEditor" | "belowEditor", width: number): readonly string[] {
     const rows = [...this.#extensionWidgets.values()]
       .filter(widget => widget.placement === placement)
@@ -1301,12 +1270,6 @@ const TERMINAL_BACKGROUND = /\u001b\[(?:4[0-9]|10[0-7]|48(?:[;:][0-9;:]*)?)m/g;
 /** Repaint a source prompt with viewport chrome while preserving text, links, and foreground roles. */
 function withoutTerminalBackground(text: string): string {
   return text.replace(TERMINAL_BACKGROUND, "");
-}
-
-function assistantFailureStopReason(payload: unknown): "aborted" | "error" | null {
-  if (typeof payload !== "object" || payload === null) return null;
-  const stopReason = (payload as Record<string, unknown>).stopReason;
-  return stopReason === "aborted" || stopReason === "error" ? stopReason : null;
 }
 
 /** A pinned timestamp is content now, not secondary transcript metadata. */

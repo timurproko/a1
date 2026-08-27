@@ -258,40 +258,6 @@ describe("OwnedUiSessionShell", () => {
     expect(frame[promptIndex]).toMatch(/14:48 $/);
   });
 
-  it("keeps trailing errors and status notices beside the editor like vanilla Pi", async () => {
-    const { engine, terminal, shell } = await fixture([
-      { role: "user", content: [{ type: "text", text: "start operation" }], timestamp: Date.now() - 1 },
-      {
-        role: "assistant",
-        content: [],
-        stopReason: "aborted",
-        errorMessage: "Operation aborted",
-        timestamp: Date.now(),
-      },
-    ], [], true);
-    terminal.resize(80, 18);
-    let rows = shell.root.render(80).map(row => stripTerminalSequences(row).trimEnd());
-    const prompt = rows.findIndex(row => row.includes("start operation"));
-    const aborted = rows.findIndex(row => row.includes("Operation aborted"));
-    const editorBorder = rows.findIndex((row, index) => index > aborted && /^─+$/.test(row));
-    expect(prompt).toBe(1);
-    expect(aborted).toBeGreaterThan(prompt + 5);
-    expect(editorBorder).toBe(aborted + 2);
-
-    await vi.waitFor(() => expect(engine.session.calls).toContain("bindExtensions"));
-    const bindings = engine.session.extensionBindings as {
-      uiContext: { notify(message: string, type?: "info" | "warning" | "error"): void };
-    };
-    bindings.uiContext.notify("Extension warning", "warning");
-    rows = shell.root.render(80).map(row => stripTerminalSequences(row).trimEnd());
-    const movedAborted = rows.findIndex(row => row.includes("Operation aborted"));
-    const warning = rows.findIndex(row => row.includes("Warning: Extension warning"));
-    const nextBorder = rows.findIndex((row, index) => index > warning && /^─+$/.test(row));
-    expect(warning).toBeGreaterThan(movedAborted);
-    expect(nextBorder).toBe(warning + 2);
-    await shell.dispose();
-  });
-
   it("uses terminal-native inactive and hover styling for submitted URL links", async () => {
     const url = "https://example.com/a/complete/source?with=details";
     const { terminal, shell } = await fixture([
