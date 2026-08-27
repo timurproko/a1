@@ -281,7 +281,6 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
         const wasAtomic = this.#atomicSelection;
         this.#clearSelection(false);
         if (wasAtomic) {
-          this.#skipAdjacentWhitespace(-1);
           if (!this.#selectAdjacentAtomic(-1)) {
             next();
             this.#selectAtomicAtCursor(-1);

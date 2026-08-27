@@ -527,8 +527,10 @@ describe("OwnedUiSessionShell", () => {
     await shell.dispose();
   });
 
-  it("moves between adjacent focused chips with one Left or Right press", async () => {
-    let clipboardText = "https://example.com/first-chip";
+  it("moves exactly one item left and exits a focused chip right in one press", async () => {
+    const firstUrl = "https://example.com/first-chip";
+    const secondUrl = "https://example.com/second-chip";
+    let clipboardText = firstUrl;
     const { terminal, shell } = await fixture([], [], true, undefined, {
       readText: async () => clipboardText,
       readImage: async () => null,
@@ -539,19 +541,35 @@ describe("OwnedUiSessionShell", () => {
 
     terminal.input("\u0016");
     await vi.waitFor(() => expect(shell.root.editor.getText()).toContain("first-chip"));
-    clipboardText = "https://example.com/second-chip";
+    clipboardText = secondUrl;
     terminal.input("\u0016");
     await vi.waitFor(() => expect(shell.root.editor.getText()).toContain("second-chip"));
-    shell.root.editor.setText(shell.root.editor.getText().replace("][", "] ["));
+    const adjacent = shell.root.editor.getText();
 
     terminal.input("\u001b[D"); // Focus second chip.
-    terminal.input("\u001b[D"); // One press skips the separator and focuses the first chip.
+    terminal.input("\u001b[D"); // Adjacent first chip is one atomic item left.
     terminal.input("\u0003");
-    await vi.waitFor(() => expect(clipboardText).toBe("https://example.com/first-chip"));
+    await vi.waitFor(() => expect(clipboardText).toBe(firstUrl));
+    terminal.input("\u001b[C"); // Adjacent second chip is one atomic item right.
+    terminal.input("\u0003");
+    await vi.waitFor(() => expect(clipboardText).toBe(secondUrl));
+    terminal.input("\u001b[C"); // Clear focus after the adjacent-chip check.
 
-    terminal.input("\u001b[C"); // One press skips the separator and focuses the second chip.
+    const spaced = adjacent.replace("][", "] [");
+    shell.root.editor.setText(spaced);
+    terminal.input("\u001b[D"); // Focus second chip.
+    terminal.input("\u001b[D"); // Move only one character left, onto the separator.
+    terminal.input("X");
+    expect(shell.root.editor.getText()).toBe(spaced.replace("] [", "]X ["));
+
+    shell.root.editor.setText(spaced);
+    terminal.input("\u001b[D"); // Focus second chip.
+    terminal.input("\u001b[D"); // Separator.
+    terminal.input("\u001b[D"); // First chip.
+    terminal.input("\u001b[C"); // Right exits it and skips its separator in one press.
+    clipboardText = "";
     terminal.input("\u0003");
-    await vi.waitFor(() => expect(clipboardText).toBe("https://example.com/second-chip"));
+    await vi.waitFor(() => expect(clipboardText).toBe(secondUrl));
 
     await shell.dispose();
   });
