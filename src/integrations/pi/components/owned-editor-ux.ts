@@ -264,8 +264,18 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
 
     if (this.keybindings.matches(data, "tui.editor.cursorWordLeft")) {
       const before = this.#cursor();
+      const startedWithAtomicFocus = this.#atomicFocus() !== undefined;
       next();
-      const after = this.#cursor();
+      let after = this.#cursor();
+      const landedAtomic = this.#atomicRangeAt(after);
+      if (!startedWithAtomicFocus && landedAtomic?.start === after.col && after.col > 0) {
+        const line = editorState(this.editor).lines[after.line] ?? "";
+        const previous = [...GRAPHEMES.segment(line.slice(0, after.col))].at(-1);
+        if (previous !== undefined && !/^\s+$/u.test(previous.segment)) {
+          next();
+          after = this.#cursor();
+        }
+      }
       if (!samePosition(before, after)) this.#moveOntoPreviousSeparator();
       this.#requestRender();
       return;

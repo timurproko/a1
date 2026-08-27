@@ -638,6 +638,11 @@ describe("OwnedUiSessionShell", () => {
     terminal.input("X");
     expect(shell.root.editor.getText()).toBe(`wordsX ${imageRun}`);
 
+    shell.root.editor.setText(`words tail${imageRun}`);
+    terminal.input("\u001b[1;5D"); // An attached chip run also crosses its attached word to the separator.
+    terminal.input("X");
+    expect(shell.root.editor.getText()).toBe(`wordsX tail${imageRun}`);
+
     shell.root.editor.setText("doio ddh did d diud");
     terminal.input("\u001b[1;5D"); // Ctrl+Left stops on the separator before an ordinary word too.
     terminal.input("X");
