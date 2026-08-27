@@ -13,6 +13,8 @@ import {
   composeSubmittedPromptRows,
   displayWidth,
   formatSubmittedPromptTime,
+  hyperlinkSgrSpan,
+  nativeHyperlinkStyle,
   overlaySpan,
   submittedPromptLayout,
   routeMouseInput,
@@ -20,6 +22,7 @@ import {
   scrollForThumbRow,
   scrollbarSelectionRows,
   scrollbarWheelRows,
+  stripAnsi,
   type TranscriptPromptAnchor,
 } from "../../../ui/components/index.js";
 import {
@@ -66,12 +69,14 @@ import {
   createPiShellTrustSelector,
   createPiShellUserMessageSelector,
   onPiThemeChange,
+  piShellVisibleWidth,
   piTheme,
   renderPiShellPackageUpdateNotice,
   renderPiShellStartupDiagnostic,
   renderPiShellStatusText,
   renderPiShellTranscriptBlock,
   type PiExtensionUiBridge,
+  type PiShellClipboardContent,
   type PiShellComponentPort,
   type PiShellEditorPort,
   type PiShellExtensionRendererResolver,
@@ -95,10 +100,17 @@ import {
   type PiTuiOverlayHandle,
   type PiTuiTerminalPort,
 } from "../tui-runtime/index.js";
+import { PromptChipStore, type PreparedPrompt } from "./prompt-chips.js";
 
 export type OwnedUiBackendPort = PiEngineAdapter;
 export type OwnedUiTerminalPort = PiTuiTerminalPort;
 type OwnedUiStartupOptions = PiShellHeaderOptions;
+
+export interface OwnedUiClipboardPort {
+  readText(): Promise<string | null>;
+  readImage?(): Promise<{ readonly data: string; readonly mimeType: string } | null>;
+  writeText?(text: string): Promise<void>;
+}
 
 export interface OwnedUiSessionShellOptions {
   readonly backend: OwnedUiBackendPort;
@@ -114,6 +126,8 @@ export interface OwnedUiSessionShellOptions {
   readonly sessionLayout?: "pinned" | "custom-viewport";
   /** Live profile-local settings, supplied only to the bare-A1 composition. */
   readonly viewportSettings?: OwnedUiViewportSettingsPort;
+  /** Optional platform seam; production uses A1's system clipboard adapter. */
+  readonly clipboard?: OwnedUiClipboardPort;
 }
 
 export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
@@ -133,6 +147,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   readonly #footer: PiShellViewComponentPort;
   readonly #queued: PiShellQueuedInputPort;
   readonly #extensionRenderers: PiShellExtensionRendererResolver;
+  readonly #promptChips = new PromptChipStore();
   readonly #customViewport: boolean;
   readonly #submittedPromptComposer: PiShellSubmittedPromptComposer | undefined;
   readonly #viewport = new TranscriptViewport();
@@ -144,13 +159,15 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   #dragGrabOffset: number | null = null;
   /** A left-button sequence begun in status/editor/footer chrome is swallowed. */
   #dockPointerSuppressed = false;
+  /** Last composed terminal rows occupied by the default prompt editor. */
+  #editorPointerFrame: { readonly rowStart: number; readonly rowEnd: number } | undefined;
   #selectionAutoScrollTimer: ReturnType<typeof setTimeout> | undefined;
   #selectionAutoScrollPointer: { readonly column: number; readonly row: number } | undefined;
   #viewportActivityTimer: ReturnType<typeof setTimeout> | undefined;
   readonly #componentRuntime: {
     readonly getColumns: () => number;
     readonly getRows: () => number;
-    readonly requestRender: () => void;
+    readonly requestRender: (force?: boolean) => void;
   };
   #toolsExpanded = false;
   #thinkingVisible = true;
@@ -172,7 +189,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     handlers: {
       readonly getColumns: () => number;
       readonly getRows: () => number;
-      readonly requestRender: () => void;
+      readonly requestRender: (force?: boolean) => void;
       readonly onSubmit: (text: string) => void;
       readonly onInterrupt: () => void;
       readonly onClear?: () => void;
@@ -184,6 +201,8 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       readonly onMessageCopy?: () => void;
       readonly onFollowUp?: () => void;
       readonly onDequeue?: () => void;
+      readonly onCopyText?: (text: string) => void;
+      readonly readClipboardContent?: () => Promise<PiShellClipboardContent | null>;
     },
     startup: PiShellHeaderOptions = {},
     agentDir?: string,
@@ -196,7 +215,11 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.#view = view;
     this.#customViewport = sessionLayout === "custom-viewport";
     this.#submittedPromptComposer = this.#customViewport
-      ? { layout: submittedPromptLayout, compose: composeSubmittedPromptRows }
+      ? {
+          layout: submittedPromptLayout,
+          compose: (rows, width, source, style) => composeSubmittedPromptRows(rows, width, source, style)
+            .map(row => nativeHyperlinkStyle(row, nativeTranscriptLinkColor)),
+        }
       : undefined;
     this.#cwd = cwd;
     this.#extensionRenderers = extensionRenderers;
@@ -211,6 +234,34 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     );
     this.editor = createPiShellEditor({
       ...handlers,
+      keybindingProfile: this.#customViewport ? "a1" : "pi",
+      paintEditorSelection: (line, from, to, atomic) => backgroundSgrSpan(
+        line,
+        from,
+        to,
+        atomic ? "\u001b[7m" : "\u001b[27m\u001b[48;2;38;79;120m",
+        atomic ? "\u001b[27m" : "\u001b[49m",
+        piShellVisibleWidth,
+      ),
+      transformPastedContent: content => this.#promptChips.transformPastedContent(content),
+      editorAtomicRanges: line => this.#promptChips.atomicRanges(line),
+      decorateEditorRow: (row, width) => {
+        const plain = stripAnsi(row);
+        const ranges = this.#promptChips.hyperlinkRanges(plain);
+        if (ranges.length === 0) return row;
+        const decorated = ranges.reduce((result, range) => hyperlinkSgrSpan(
+          result,
+          piShellVisibleWidth(plain.slice(0, range.start)),
+          piShellVisibleWidth(plain.slice(0, range.end)),
+          range.target,
+          piShellVisibleWidth,
+        ), row);
+        // Windows Terminal can retain stale native dotted-link cells when a mutable
+        // prompt replaces a longer URL. Explicit non-link spaces overwrite that tail.
+        return `${decorated}\u001b]8;;\u001b\\\u001b[24m${" ".repeat(Math.max(0, width - piShellVisibleWidth(decorated)))}`;
+      },
+
+      expandCopiedEditorText: text => this.#promptChips.expandCopiedText(text),
       cwd,
       ...(agentDir === undefined ? {} : { agentDir }),
       onToolsExpand: () => this.#setToolsExpanded(!this.#toolsExpanded),
@@ -227,6 +278,10 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       this.#renderedRows.clear();
       this.#documentLayouts.clear();
     });
+  }
+
+  preparePromptSubmission(text: string): PreparedPrompt {
+    return this.#promptChips.prepareSubmission(text);
   }
 
   update(view: OwnedUiSessionViewModel): void {
@@ -267,7 +322,10 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   }
 
   render(width: number): readonly string[] {
-    if (!this.#customViewport) return [...this.#renderDocument(width), ...this.#renderDock(width)];
+    if (!this.#customViewport) {
+      this.#editorPointerFrame = undefined;
+      return [...this.#renderDocument(width), ...this.#renderDock(width)];
+    }
 
     const height = Math.max(0, this.#componentRuntime.getRows());
     const dock = this.#renderDockLayout(width);
@@ -287,10 +345,22 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     const pinStatus = this.#view.editor.queuedSubmissions.length > 0
       || document.rows.length + statusRows.length <= availableWithoutStatus;
     const dockRows = pinStatus ? dock.rows : dock.rowsWithoutStatus;
+    const selectableDocumentRowCount = document.rows.length;
     if (!pinStatus) document = { ...document, rows: [...document.rows, ...statusRows] };
+    const dockStartRow = height - dockRows.length + 1;
+    const editorOffset = pinStatus ? dock.editorOffsetWithStatus : dock.editorOffsetWithoutStatus;
+    this.#editorPointerFrame = this.usesDefaultInputSurface()
+      ? {
+          rowStart: dockStartRow + editorOffset,
+          rowEnd: dockStartRow + editorOffset + dock.inputRows - 1,
+        }
+      : undefined;
     this.#viewport.setConfig(this.#viewportConfig);
     return this.#viewport.compose({
       documentRows: document.rows,
+      // Overflowing Working rows scroll with the transcript but remain status
+      // chrome: pointer selection and Ctrl+C stop at the real document tail.
+      selectableDocumentRowCount,
       dockRows,
       promptAnchors: document.promptAnchors,
       width,
@@ -305,7 +375,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
         // inherited text decorations so dim transcript rows cannot dull the
         // thumb; the row background deliberately remains intact.
         track: text => `${SCROLLBAR_CELL_RESET}${piTheme().fg("dim", text)}`,
-        thumb: text => `${SCROLLBAR_CELL_RESET}${piTheme().fg("text", text)}`,
+        thumb: text => `${SCROLLBAR_CELL_RESET}${piTheme().fg("accent", text)}`,
         sticky: (text, hovered) => piTheme().bg(
           hovered ? "selectedBg" : "toolPendingBg",
           piTheme().fg("text", withoutTerminalBackground(text)),
@@ -369,23 +439,43 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     readonly consumed: boolean;
     readonly copyText?: string;
   } {
-    if (!this.#customViewport || this.#viewport.frame === null) return { data, consumed: false };
-    if (data === "\u0003") {
-      const copyText = this.#viewport.selectedText();
-      if (copyText !== null && copyText.length > 0) {
-        this.#viewport.clearSelection();
-        this.#componentRuntime.requestRender();
-        return { data: "", consumed: true, copyText };
-      }
-    }
-    if (allowWheel && ALT_END_INPUTS.has(data) && !this.#viewport.followingEnd) {
-      this.#viewport.scrollToEnd(now);
-      this.#scheduleViewportActivityExpiry();
-      this.#componentRuntime.requestRender();
+    if (!this.#customViewport) return { data, consumed: false };
+    // Pi components share one keybinding manager. Restore bare A1's aliases
+    // before the focused vanilla editor handles this input.
+    this.editor.activateKeybindings();
+    // Handle the physical paste chord at the pre-input boundary. Windows
+    // terminals vary between forwarding Ctrl+V and performing terminal-owned
+    // bracketed paste; the latter continues unchanged to Pi below.
+    if (this.editor.matchesTerminalKey(data, "ctrl+v") && this.editor.pasteClipboard()) {
       return { data: "", consumed: true };
     }
-    if (allowWheel && ALT_HOME_INPUTS.has(data)) {
+    if (this.#viewport.frame === null) return { data, consumed: false };
+    if (data === "\u0003") {
+      // Prompt selection has priority while the editor owns one; without it,
+      // Ctrl+C retains transcript-copy and then Pi's ordinary clear behavior.
+      if (this.editor.hasSelection()) {
+        if (this.#viewport.clearSelection()) this.#componentRuntime.requestRender();
+      } else {
+        const copyText = this.#viewport.selectedText();
+        if (copyText !== null && copyText.length > 0) {
+          this.#viewport.clearSelection();
+          this.#componentRuntime.requestRender();
+          return { data: "", consumed: true, copyText };
+        }
+      }
+    }
+    // Plain Home/End own transcript boundaries. Their Ctrl-modified forms are
+    // not matched here and continue to Pi's vanilla prompt editor.
+    if (allowWheel && this.editor.matchesTerminalKey(data, "home")) {
       if (this.#viewport.scrollTo(0, now)) {
+        this.#scheduleViewportActivityExpiry();
+        this.#componentRuntime.requestRender();
+      }
+      return { data: "", consumed: true };
+    }
+    if (allowWheel && this.editor.matchesTerminalKey(data, "end")) {
+      if (!this.#viewport.followingEnd) {
+        this.#viewport.scrollToEnd(now);
         this.#scheduleViewportActivityExpiry();
         this.#componentRuntime.requestRender();
       }
@@ -401,8 +491,14 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       }
       return { data: "", consumed: true };
     }
+    // Keyboard interaction returns ownership to the prompt and dismisses a
+    // stale transcript selection. Mouse reports are resolved by surface below.
+    if (!data.includes("\u001b[<") && data !== "\u0003" && this.#viewport.clearSelection()) {
+      this.#componentRuntime.requestRender();
+    }
     const frame = this.#viewport.frame;
     let repaint = false;
+    let forceRepaint = false;
     let activity = false;
     const routed = routeMouseInput(data, event => {
       const hits = frame.hits;
@@ -419,6 +515,15 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
         this.#viewport.setStickyHovered(overSticky);
         this.#viewport.setBottomHovered(overBottom);
         repaint = true;
+        if (this.editor.ownsPointer() && this.#editorPointerFrame !== undefined) {
+          this.editor.handlePointer({
+            kind: "motion",
+            button: event.button,
+            column: event.column,
+            row: event.row - this.#editorPointerFrame.rowStart + 1,
+          });
+          return true;
+        }
         if (this.#dockPointerSuppressed) return true;
         // Once a left-button selection starts, its release—not the button bits
         // on an intermediate motion report—ends ownership. Some terminals emit
@@ -444,9 +549,24 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
         this.#viewport.scrollBy(event.kind === "wheel-up" ? -distance : distance, now);
         activity = true;
         repaint = true;
+        // Windows Terminal caches its own URL-hover overlay at the physical
+        // pointer row. A full synchronized repaint invalidates that overlay when
+        // wheel scrolling moves different content under a stationary pointer.
+        forceRepaint = true;
         return true;
       }
       if (event.kind === "press") {
+        const editorFrame = this.#editorPointerFrame;
+        if (event.button === 2 && editorFrame !== undefined
+          && event.row >= editorFrame.rowStart && event.row <= editorFrame.rowEnd) {
+          this.#stopSelectionAutoScroll();
+          if (this.#viewport.clearSelection()) repaint = true;
+          this.editor.pasteClipboard();
+          // Own the matching release as editor chrome input as well.
+          this.#dockPointerSuppressed = true;
+          repaint = true;
+          return true;
+        }
         if (event.button !== 0) return false;
         this.#stopSelectionAutoScroll();
         if (this.#viewport.clearSelection()) repaint = true;
@@ -475,10 +595,20 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
           repaint = true;
           return true;
         }
+        if (editorFrame !== undefined && event.row >= editorFrame.rowStart && event.row <= editorFrame.rowEnd) {
+          const handled = this.editor.handlePointer({
+            kind: "press",
+            button: event.button,
+            column: event.column,
+            row: event.row - editorFrame.rowStart + 1,
+          });
+          if (!handled) this.#dockPointerSuppressed = true;
+          repaint = true;
+          return true;
+        }
         if (event.row > hits.viewportHeight) {
-          // Status, editor, widgets, and footer are controls rather than
-          // transcript. Consume the complete drag so Pi's fullscreen fallback
-          // selection cannot paint those rows.
+          // Status, non-text editor chrome, widgets, and footer are controls.
+          // Consume the complete drag so terminal selection cannot paint them.
           this.#dockPointerSuppressed = true;
           return true;
         }
@@ -490,6 +620,16 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
         return false;
       }
       if (event.kind === "release") {
+        if (this.editor.ownsPointer() && this.#editorPointerFrame !== undefined) {
+          this.editor.handlePointer({
+            kind: "release",
+            button: event.button,
+            column: event.column,
+            row: event.row - this.#editorPointerFrame.rowStart + 1,
+          });
+          repaint = true;
+          return true;
+        }
         if (this.#viewport.releaseSelection()) {
           this.#stopSelectionAutoScroll();
           repaint = true;
@@ -509,7 +649,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       return false;
     });
     if (activity) this.#scheduleViewportActivityExpiry();
-    if (repaint) this.#componentRuntime.requestRender();
+    if (repaint) this.#componentRuntime.requestRender(forceRepaint);
     return routed;
   }
 
@@ -579,6 +719,9 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     readonly rowsWithoutStatus: readonly string[];
     readonly statusRows: readonly string[];
     readonly stableBottomRows: number;
+    readonly editorOffsetWithStatus: number;
+    readonly editorOffsetWithoutStatus: number;
+    readonly inputRows: number;
   } {
     const queued = this.#view.editor.queuedSubmissions.length === 0 ? [] : this.#queued.render(width);
     const statusRows = this.#renderStatus(width);
@@ -591,6 +734,9 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       rowsWithoutStatus: [...queued, ...aboveWidgets, ...input, ...belowWidgets, ...footer],
       statusRows,
       stableBottomRows: aboveWidgets.length + input.length + belowWidgets.length + footer.length,
+      editorOffsetWithStatus: queued.length + statusRows.length + aboveWidgets.length,
+      editorOffsetWithoutStatus: queued.length + aboveWidgets.length,
+      inputRows: input.length,
     };
   }
 
@@ -734,12 +880,17 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   #blockRows(id: string, block: OwnedUiSessionViewModel["transcript"][number] | undefined, width: number): readonly string[] {
     const component = this.#transcript.get(id);
     if (component === undefined) return [];
-    if (block === undefined || block.status !== "finalized") return component.render(width);
+    const render = (): readonly string[] => {
+      const rows = component.render(width);
+      if (!this.#customViewport || block?.kind === "user") return rows;
+      return rows.map(row => nativeHyperlinkStyle(row, nativeTranscriptLinkColor));
+    };
+    if (block === undefined || block.status !== "finalized") return render();
 
     let byWidth = this.#renderedRows.get(id);
     const cached = byWidth?.get(width);
     if (cached?.revision === block.revision) return cached.rows;
-    const rows = component.render(width);
+    const rows = render();
     if (byWidth === undefined) {
       byWidth = new Map();
       this.#renderedRows.set(id, byWidth);
@@ -1120,12 +1271,15 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
 }
 
 const SELECTION_AUTO_SCROLL_INTERVAL_MS = 30;
-const ALT_END_INPUTS = new Set(["\u001b[1;3F", "\u001b[4;3~", "\u001b[8;3~"]);
-const ALT_HOME_INPUTS = new Set(["\u001b[1;3H", "\u001b[1;3~", "\u001b[7;3~"]);
 const SHIFT_UP_INPUTS = new Set(["\u001b[1;2A"]);
 const SHIFT_DOWN_INPUTS = new Set(["\u001b[1;2B"]);
 const SCROLLBAR_CELL_RESET = "\u001b[22;23;24;25;27;28;29;39;54;55m";
 const TERMINAL_BACKGROUND = /\u001b\[(?:4[0-9]|10[0-7]|48(?:[;:][0-9;:]*)?)m/g;
+
+/** Web URLs use link blue; file targets retain A1's cyan interactive accent. */
+function nativeTranscriptLinkColor(text: string, target: string): string {
+  return piTheme().fg(/^file:/iu.test(target) ? "accent" : "mdLink", text);
+}
 
 /** Repaint a source prompt with viewport chrome while preserving text, links, and foreground roles. */
 function withoutTerminalBackground(text: string): string {

@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { backgroundSgrSpan, displayWidth, overlaySpan, stripAnsi } from "../../../src/ui/components/index.js";
+import {
+  backgroundSgrSpan,
+  displayWidth,
+  hyperlinkSgrSpan,
+  nativeHyperlinkStyle,
+  overlaySpan,
+  stripAnsi,
+} from "../../../src/ui/components/index.js";
 
 const ESC = String.fromCharCode(27);
 const RED = `${ESC}[31m`;
@@ -43,6 +50,53 @@ describe("overlaying a span on a rendered row", () => {
 
   it("writes past the end of a short row", () => {
     expect(stripAnsi(overlaySpan("", 0, 3, "XYZ"))).toBe("XYZ");
+  });
+
+  it("uses an injected terminal-width authority for renderer-specific emoji widths", () => {
+    const first = "[🖼 first.png]";
+    const second = "[🖼 second.png]";
+    const selected = `${ESC}[7m`;
+    const piWidth = (text: string) => text === "🖼" ? 1 : displayWidth(text);
+    const firstWidth = displayWidth(first) - 1;
+    const secondWidth = displayWidth(second) - 1;
+
+    const result = backgroundSgrSpan(first + second, firstWidth, firstWidth + secondWidth, selected, `${ESC}[27m`, piWidth);
+
+    expect(stripAnsi(result)).toBe(first + second);
+    expect(result).toContain(`${first}${selected}${second}`);
+  });
+
+  it("gives truncated display text an explicit full hyperlink target", () => {
+    const target = "https://example.com/a/very/useful/resource";
+    const result = hyperlinkSgrSpan(`${RED}prefix preview... suffix${RESET}`, 7, 17, target);
+
+    expect(stripAnsi(result)).toBe("prefix preview... suffix");
+    expect(result).toContain(`\u001b]8;;${target}\u001b\\preview...\u001b]8;;\u001b\\`);
+  });
+
+  it("leaves OSC 8 links to the terminal's native inactive and hover styling", () => {
+    const target = "https://example.com/full";
+    const open = `\u001b]8;;${target}\u001b\\`;
+    const close = "\u001b]8;;\u001b\\";
+
+    expect(nativeHyperlinkStyle(`${open}${ESC}[4mexample${ESC}[24m${close}`))
+      .toBe(`${open}example${close}`);
+    expect(nativeHyperlinkStyle(`${open}${ESC}[4mexample${ESC}[24m${close}`, text => `${BLUE}${text}${RESET}`))
+      .toBe(`${open}${BLUE}example${RESET}${close}`);
+  });
+
+  it("gives bare URLs explicit, independently bounded native hover regions", () => {
+    const first = "https://github.com/example/actions/1";
+    const second = "https://example.com/docs";
+    const close = "\u001b]8;;\u001b\\";
+    const source = `${RED}check ${first} then ${second}). tail${RESET}`;
+
+    const result = nativeHyperlinkStyle(source, text => `${BLUE}${text}${RESET}`);
+
+    expect(stripAnsi(result)).toBe(stripAnsi(source));
+    expect(result).toContain(`\u001b]8;;${first}\u001b\\${ESC}[24m${BLUE}${first}${RESET}${close}${RED}`);
+    expect(result).toContain(`\u001b]8;;${second}\u001b\\${ESC}[24m${BLUE}${second}${RESET}${close}${RED})`);
+    expect(result).not.toContain(`\u001b]8;;${second})`);
   });
 
   it("paints only the selection background while preserving foreground, bold, italic, and underline", () => {

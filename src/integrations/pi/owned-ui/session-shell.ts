@@ -81,6 +81,11 @@ import {
 
 
 import {
+  preloadSystemClipboard,
+  readSystemClipboardContent,
+  writeSystemClipboardText,
+} from "./system-clipboard.js";
+import {
   OwnedUiSessionShellRoot,
   shellResourceEntries,
   type OwnedUiBackendPort,
@@ -121,14 +126,16 @@ export class OwnedUiSessionShell {
     this.#cwd = options.cwd;
     this.#routeHost = options.routeHost ?? null;
     this.#customViewport = options.sessionLayout === "custom-viewport";
+    if (this.#customViewport && options.clipboard === undefined) preloadSystemClipboard();
     this.#stopped = new Promise(resolve => {
       this.#resolveStopped = resolve;
     });
     let runtime: PiTuiRuntimeAdapter | undefined;
+    let pendingClipboardWrite: Promise<void> = Promise.resolve();
     this.root = new OwnedUiSessionShellRoot(this.backend.view(), options.cwd, {
       getColumns: () => runtime?.viewport().columns ?? options.terminal?.columns ?? 80,
       getRows: () => runtime?.viewport().rows ?? options.terminal?.rows ?? 24,
-      requestRender: () => runtime?.requestRender(),
+      requestRender: force => runtime?.requestRender(force),
       onSubmit: text => { void this.submit(text); },
       onInterrupt: () => { void this.interrupt(); },
       onClear: () => { void this.clearOrExit(); },
@@ -143,6 +150,21 @@ export class OwnedUiSessionShell {
       onMessageCopy: () => { void this.runWorkflow({ command: "copy", argument: "" }); },
       onFollowUp: () => { void this.queueFollowUp(); },
       onDequeue: () => this.restoreQueuedInput(),
+      onCopyText: text => {
+        runtime?.writeControl(`\u001b]52;c;${Buffer.from(text, "utf8").toString("base64")}\u0007`);
+        const write = options.clipboard === undefined
+          ? writeSystemClipboardText(text)
+          : options.clipboard.writeText?.(text) ?? Promise.resolve();
+        pendingClipboardWrite = write.catch(() => {});
+      },
+      readClipboardContent: async () => {
+        await pendingClipboardWrite;
+        if (options.clipboard === undefined) return readSystemClipboardContent();
+        const image = await options.clipboard.readImage?.();
+        if (image !== null && image !== undefined) return { kind: "image" as const, ...image };
+        const text = await options.clipboard.readText();
+        return text === null ? null : { kind: "text" as const, text };
+      },
     }, {
       ...options.startup,
       resources: options.startup?.resources ?? shellResourceEntries(this.backend),
@@ -264,14 +286,16 @@ export class OwnedUiSessionShell {
   }
 
   async submit(text: string): Promise<AdapterCommandResult> {
-    const input = text.trim();
-    if (!input) return { outcome: "completed", diagnostic: null };
-    if (input.startsWith("/")) return this.#slashCommand(input);
+    const displayInput = text.trim();
+    if (!displayInput) return { outcome: "completed", diagnostic: null };
+    if (displayInput.startsWith("/")) return this.#slashCommand(displayInput);
+    const prepared = this.root.preparePromptSubmission(displayInput);
+    const input = prepared.text.trim();
     if (input.startsWith("!")) {
       const excludeFromContext = input.startsWith("!!");
       const command = input.slice(excludeFromContext ? 2 : 1).trim();
       if (command) {
-        this.root.editor.addToHistory(input);
+        this.root.editor.addToHistory(displayInput);
         try {
           const result = await this.backend.executeBashWorkflow(command, excludeFromContext);
           const workflow: PiWorkflowResult = {
@@ -292,20 +316,21 @@ export class OwnedUiSessionShell {
       }
     }
     if (this.view().status.workingMessage?.startsWith("Compacting") === true) {
-      this.root.editor.addToHistory(input);
+      this.root.editor.addToHistory(displayInput);
       this.#compactionQueue.push({ text: input, type: "steer" });
       this.root.appendWorkflowResult({ command: "compact", outcome: "completed", message: `Queued during compaction: ${input}` });
       this.runtime.requestRender();
       return { outcome: "completed", diagnostic: null };
     }
     const type = this.view().lifecycle === "busy" ? "steer" as const : "prompt" as const;
-    this.root.editor.addToHistory(input);
+    this.root.editor.addToHistory(displayInput);
     this.root.resumeViewportFollowing();
     return this.#execute({
       type,
       correlationId: this.#correlation(type),
       sessionId: this.backend.sessionId,
       text: input,
+      ...(prepared.images.length === 0 ? {} : { images: prepared.images }),
     });
   }
 

@@ -1,6 +1,7 @@
 import { getSelectListTheme } from "@earendil-works/pi-coding-agent";
 import {
   CombinedAutocompleteProvider,
+  matchesKey,
   setKeybindings,
   type AutocompleteProvider,
 } from "#pi-tui";
@@ -9,6 +10,10 @@ import type {
 } from "../../../contracts/owned-ui/index.js";
 import { KeybindingsManager } from "./upstream/adjacent/core/keybindings.js";
 import { OwnedEditor } from "./upstream/components/owned-editor.js";
+import {
+  OwnedEditorUxInterception,
+  createPromptSelectionInterceptor,
+} from "./owned-editor-ux.js";
 import {
   PINNED_PI_LAYOUT,
   piTheme,
@@ -50,7 +55,9 @@ export const PINNED_PI_BUILTIN_SLASH_COMMANDS = [
 export function createPiShellEditor(options: PiShellEditorOptions): PiShellEditorPort {
   ensureTheme();
   const tui = createTuiFacade(options);
-  const keybindings = KeybindingsManager.create(options.agentDir);
+  const keybindings = options.keybindingProfile === "a1"
+    ? KeybindingsManager.createForOwnedInput(options.agentDir)
+    : KeybindingsManager.create(options.agentDir);
   setKeybindings(keybindings);
   const editor = new OwnedEditor(tui, {
     borderColor: (value: string) => piTheme().fg("borderMuted", value),
@@ -59,6 +66,24 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
     paddingX: PINNED_PI_LAYOUT.editorPaddingX,
     autocompleteMaxVisible: PINNED_PI_LAYOUT.autocompleteMaxVisible,
   });
+  const editorUx = options.keybindingProfile === "a1"
+    ? new OwnedEditorUxInterception([
+        createPromptSelectionInterceptor(editor, keybindings, {
+          copyText: options.onCopyText ?? (() => {}),
+          readClipboardContent: options.readClipboardContent ?? (async () => null),
+          transformPastedContent: options.transformPastedContent ?? (content => content.kind === "text" ? content.text : ""),
+          atomicRanges: options.editorAtomicRanges ?? (() => []),
+          expandCopiedText: options.expandCopiedEditorText ?? (text => text),
+          paintSelection: options.paintEditorSelection ?? (line => line),
+          decorateRow: options.decorateEditorRow ?? (row => row),
+          requestRender: options.requestRender,
+          getRows: options.getRows,
+        }),
+      ], {
+        render: width => editor.render(width),
+        handleInput: data => editor.handleInput(data),
+      })
+    : undefined;
   let thinkingLevel: OwnedUiThinkingLevel = "off";
   let isBashMode = false;
   const updateBorderColor = () => {
@@ -119,15 +144,26 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
   if (options.onFollowUp !== undefined) editor.onAction("app.message.followUp", options.onFollowUp);
   if (options.onDequeue !== undefined) editor.onAction("app.message.dequeue", options.onDequeue);
   return {
-    render: width => editor.render(width),
-    handleInput: data => editor.handleInput(data),
+    render: width => editorUx?.render(width) ?? editor.render(width),
+    activateKeybindings: () => setKeybindings(keybindings),
+    matchesTerminalKey: (data, key) => matchesKey(data, key),
+    handleInput: data => {
+      if (editorUx === undefined) editor.handleInput(data);
+      else editorUx.handleInput(data);
+    },
     invalidate: () => editor.invalidate(),
     setFocused: focused => {
       editor.focused = focused;
     },
     getText: () => editor.getExpandedText(),
-    setText: text => editor.setText(text),
-    insertText: text => editor.insertTextAtCursor(text),
+    setText: text => {
+      editorUx?.reset();
+      editor.setText(text);
+    },
+    insertText: text => {
+      editorUx?.reset();
+      editor.insertTextAtCursor(text);
+    },
     addToHistory: text => editor.addToHistory(text),
     setSubmitEnabled: enabled => {
       editor.disableSubmit = !enabled;
@@ -147,6 +183,10 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
       thinkingLevel = level;
       updateBorderColor();
     },
+    hasSelection: () => editorUx?.hasSelection() ?? false,
+    ownsPointer: () => editorUx?.ownsPointer() ?? false,
+    handlePointer: event => editorUx?.handlePointer(event) ?? false,
+    pasteClipboard: () => editorUx?.pasteClipboard() ?? false,
   };
 }
 

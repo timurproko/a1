@@ -54,6 +54,12 @@ export interface AppKeybindings {
 	"app.tree.filter.all": true;
 	"app.tree.filter.cycleForward": true;
 	"app.tree.filter.cycleBackward": true;
+	"owned.editor.selectAll": true;
+	"owned.editor.cut": true;
+	"owned.editor.paste": true;
+	"owned.editor.redo": true;
+	"owned.editor.extendLeft": true;
+	"owned.editor.extendRight": true;
 }
 
 export type AppKeybinding = keyof AppKeybindings;
@@ -207,6 +213,34 @@ export const KEYBINDINGS = {
 	},
 } as const satisfies KeybindingDefinitions;
 
+/** Pi actions with bare-A1 aliases; the comparison profile keeps KEYBINDINGS unchanged. */
+const OWNED_INPUT_KEYBINDINGS = {
+	...KEYBINDINGS,
+	"tui.editor.deleteWordBackward": {
+		...KEYBINDINGS["tui.editor.deleteWordBackward"],
+		defaultKeys: [...KEYBINDINGS["tui.editor.deleteWordBackward"].defaultKeys, "ctrl+backspace"],
+	},
+	"tui.editor.deleteWordForward": {
+		...KEYBINDINGS["tui.editor.deleteWordForward"],
+		defaultKeys: [...KEYBINDINGS["tui.editor.deleteWordForward"].defaultKeys, "ctrl+delete"],
+	},
+	"tui.editor.undo": {
+		...KEYBINDINGS["tui.editor.undo"],
+		defaultKeys: [KEYBINDINGS["tui.editor.undo"].defaultKeys, "ctrl+z"],
+	},
+	// Ctrl+Z edits the prompt in bare A1 instead of suspending the process.
+	"app.suspend": { ...KEYBINDINGS["app.suspend"], defaultKeys: [] },
+	// Owned prompt-selection actions are intercepted before vanilla Pi editor
+	// actions. Keeping them in the keybinding manager makes the UX declarative,
+	// configurable, and independent of terminal escape-sequence spellings.
+	"owned.editor.selectAll": { defaultKeys: "ctrl+a", description: "Select all prompt text" },
+	"owned.editor.cut": { defaultKeys: "ctrl+x", description: "Cut selected prompt text" },
+	"owned.editor.paste": { defaultKeys: "ctrl+v", description: "Paste clipboard text" },
+	"owned.editor.redo": { defaultKeys: "ctrl+y", description: "Redo prompt edit" },
+	"owned.editor.extendLeft": { defaultKeys: "shift+left", description: "Extend prompt selection left" },
+	"owned.editor.extendRight": { defaultKeys: "shift+right", description: "Extend prompt selection right" },
+} as const satisfies KeybindingDefinitions;
+
 const KEYBINDING_NAME_MIGRATIONS = {
 	cursorUp: "tui.editor.cursorUp",
 	cursorDown: "tui.editor.cursorDown",
@@ -341,15 +375,27 @@ function loadRawConfig(path: string): Record<string, unknown> | undefined {
 export class KeybindingsManager extends TuiKeybindingsManager {
 	private configPath: string | undefined;
 
-	constructor(userBindings: KeybindingsConfig = {}, configPath?: string) {
-		super(KEYBINDINGS, userBindings);
+	constructor(
+		userBindings: KeybindingsConfig = {},
+		configPath?: string,
+		definitions: KeybindingDefinitions = KEYBINDINGS,
+	) {
+		super(definitions, userBindings);
 		this.configPath = configPath;
 	}
 
 	static create(agentDir: string = getAgentDir()): KeybindingsManager {
+		return KeybindingsManager.createWithDefinitions(agentDir, KEYBINDINGS);
+	}
+
+	static createForOwnedInput(agentDir: string = getAgentDir()): KeybindingsManager {
+		return KeybindingsManager.createWithDefinitions(agentDir, OWNED_INPUT_KEYBINDINGS);
+	}
+
+	private static createWithDefinitions(agentDir: string, definitions: KeybindingDefinitions): KeybindingsManager {
 		const configPath = join(agentDir, "keybindings.json");
 		const userBindings = KeybindingsManager.loadFromFile(configPath);
-		return new KeybindingsManager(userBindings, configPath);
+		return new KeybindingsManager(userBindings, configPath, definitions);
 	}
 
 	reload(): void {

@@ -1,5 +1,6 @@
 import {
   setKeybindings,
+  visibleWidth,
   type AutocompleteProvider,
   type Component,
   type Focusable,
@@ -17,6 +18,9 @@ import {
   ensurePiTheme,
 } from "./theme.js";
 
+/** Terminal-cell width authority used by Pi-rendered component rows. */
+export const piShellVisibleWidth = visibleWidth;
+
 export interface PiShellComponentPort {
   render(width: number): readonly string[];
   handleInput?(data: string): void;
@@ -25,7 +29,28 @@ export interface PiShellComponentPort {
   dispose?(): void;
 }
 
+export type PiShellClipboardContent =
+  | { readonly kind: "text"; readonly text: string }
+  | { readonly kind: "image"; readonly data: string; readonly mimeType: string };
+
+export interface PiShellEditorTextRange {
+  readonly start: number;
+  readonly end: number;
+}
+
+export interface PiShellEditorPointerEvent {
+  readonly kind: "press" | "motion" | "release";
+  readonly button: number;
+  readonly column: number;
+  /** One-based row relative to the top of the editor component. */
+  readonly row: number;
+}
+
 export interface PiShellEditorPort extends PiShellComponentPort {
+  /** Restores this editor's profile after another Pi component changed the global manager. */
+  activateKeybindings(): void;
+  /** Uses Pi's terminal decoder rather than assuming one terminal escape spelling. */
+  matchesTerminalKey(data: string, key: "home" | "end" | "ctrl+v"): boolean;
   getText(): string;
   setText(text: string): void;
   insertText(text: string): void;
@@ -36,6 +61,10 @@ export interface PiShellEditorPort extends PiShellComponentPort {
   setAutocompleteCommands(commands: readonly PiShellAutocompleteCommand[]): void;
   addAutocompleteProvider(factory: unknown): void;
   setThinkingLevel(level: OwnedUiThinkingLevel): void;
+  hasSelection(): boolean;
+  ownsPointer(): boolean;
+  handlePointer(event: PiShellEditorPointerEvent): boolean;
+  pasteClipboard(): boolean;
 }
 
 export interface PiShellAutocompleteCommand {
@@ -100,6 +129,8 @@ export interface PiShellHeaderOptions {
 }
 
 export interface PiShellEditorOptions {
+  /** Bare A1 adds ergonomic aliases while comparison profiles retain Pi defaults. */
+  readonly keybindingProfile?: "pi" | "a1";
   readonly getColumns: () => number;
   readonly getRows: () => number;
   readonly requestRender: () => void;
@@ -120,6 +151,13 @@ export interface PiShellEditorOptions {
   readonly onMessageCopy?: (() => void) | undefined;
   readonly onFollowUp?: (() => void) | undefined;
   readonly onDequeue?: (() => void) | undefined;
+  readonly onCopyText?: (text: string) => void;
+  readonly readClipboardContent?: () => Promise<PiShellClipboardContent | null>;
+  readonly transformPastedContent?: (content: PiShellClipboardContent) => string;
+  readonly editorAtomicRanges?: (line: string) => readonly PiShellEditorTextRange[];
+  readonly expandCopiedEditorText?: (text: string) => string;
+  readonly paintEditorSelection?: (line: string, from: number, to: number, atomic: boolean) => string;
+  readonly decorateEditorRow?: (row: string, width: number) => string;
   readonly cwd?: string;
   readonly agentDir?: string;
   readonly autocompleteCommands?: readonly PiShellAutocompleteCommand[];

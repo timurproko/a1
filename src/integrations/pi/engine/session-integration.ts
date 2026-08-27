@@ -1,4 +1,4 @@
-import type { AgentSession, AgentSessionEvent } from "@earendil-works/pi-coding-agent";
+import type { AgentSession, AgentSessionEvent, PromptOptions } from "@earendil-works/pi-coding-agent";
 import {
   AGENT_ENGINE_CONTRACT_VERSION,
   type AgentCommandOutcome,
@@ -21,7 +21,11 @@ export interface PiDocumentedSessionCommands {
 }
 
 export type PiSessionCommand =
-  | { readonly type: "prompt" | "steer" | "follow-up"; readonly text: string }
+  | {
+    readonly type: "prompt" | "steer" | "follow-up";
+    readonly text: string;
+    readonly images?: NonNullable<PromptOptions["images"]>;
+  }
   | { readonly type: "abort" | "retry" | "compact" }
   | { readonly type: "bash"; readonly command: string; readonly excludeFromContext: boolean; readonly onChunk?: (chunk: string) => void };
 
@@ -38,18 +42,29 @@ export class PiSessionCommandIntegration {
     switch (command.type) {
       case "prompt":
         this.#lastPrompt = command.text;
-        await this.session.prompt(command.text, this.session.isStreaming ? { streamingBehavior: "followUp" } : undefined);
+        await this.session.prompt(command.text, command.images === undefined
+          ? this.session.isStreaming ? { streamingBehavior: "followUp" } : undefined
+          : {
+              ...(this.session.isStreaming ? { streamingBehavior: "followUp" as const } : {}),
+              images: [...command.images],
+            });
         return { outcome: "completed" };
       case "steer":
         this.#lastPrompt = command.text;
         // Match interactive Pi: prompt() owns template/extension expansion and
         // turns the accepted steering message into the visible user row while
         // later messages remain in the pending queue.
-        await this.session.prompt(command.text, { streamingBehavior: "steer" });
+        await this.session.prompt(command.text, {
+          streamingBehavior: "steer",
+          ...(command.images === undefined ? {} : { images: [...command.images] }),
+        });
         return { outcome: "completed" };
       case "follow-up":
         this.#lastPrompt = command.text;
-        await this.session.prompt(command.text, { streamingBehavior: "followUp" });
+        await this.session.prompt(command.text, {
+          streamingBehavior: "followUp",
+          ...(command.images === undefined ? {} : { images: [...command.images] }),
+        });
         return { outcome: "completed" };
       case "abort":
         if (this.session.isRetrying) this.session.abortRetry();
