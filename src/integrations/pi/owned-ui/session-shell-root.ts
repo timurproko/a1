@@ -305,7 +305,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
         // inherited text decorations so dim transcript rows cannot dull the
         // thumb; the row background deliberately remains intact.
         track: text => `${SCROLLBAR_CELL_RESET}${piTheme().fg("dim", text)}`,
-        thumb: text => `${SCROLLBAR_CELL_RESET}${piTheme().fg("accent", text)}`,
+        thumb: text => `${SCROLLBAR_CELL_RESET}${piTheme().fg("text", text)}`,
         sticky: (text, hovered) => piTheme().bg(
           hovered ? "selectedBg" : "toolPendingBg",
           piTheme().fg("text", withoutTerminalBackground(text)),

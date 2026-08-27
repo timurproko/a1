@@ -203,6 +203,8 @@ describe("OwnedUiSessionShell", () => {
     expect(detached.some(row => row.includes("Jump to bottom (Alt+End)"))).toBe(true);
     expect(detached[0]).not.toContain("│");
     expect(detached.slice(1, -4).some(row => row.includes("│"))).toBe(true);
+    expect(detachedRaw.some(row => row.includes(piTheme().fg("text", "│")))).toBe(true);
+    expect(detachedRaw.every(row => !row.includes(piTheme().fg("accent", "│")))).toBe(true);
 
     const completedReply = {
       role: "assistant",
