@@ -105,15 +105,19 @@ describe("owned UI settings session", () => {
         return [
           ...await base.listSettings(),
           { key: "tuiMode", valueType: "enum", writable: true, choices: ["regular", "fullscreen"] },
+          { key: "theme", valueType: "enum", writable: true, choices: ["dark", "light", "automatic"] },
         ];
       },
     };
     const store = new OwnedUiSettingsStore({ configDir: root, profileId: "a1", declarations: DECLARATIONS, migrations: [] });
-    const target = new OwnedUiSettingsSession({ store, agent, hiddenAgentSettingIds: ["tuiMode"] });
+    const target = new OwnedUiSettingsSession({ store, agent, hiddenAgentSettingIds: ["tuiMode", "theme"] });
     await target.load();
 
-    expect(target.sections().flatMap(section => section.entries).some(entry => entry.id === "tuiMode")).toBe(false);
+    const entries = target.sections().flatMap(section => section.entries);
+    expect(entries.some(entry => entry.id === "tuiMode")).toBe(false);
+    expect(entries.some(entry => entry.id === "theme")).toBe(false);
     expect((await target.change("agent", "tuiMode", "regular")).failure).toMatch(/unknown agent setting/);
+    expect((await target.change("agent", "theme", "light")).failure).toMatch(/unknown agent setting/);
   });
 
   it("writes a live A1 setting to the document, applies it, and notifies", async () => {
