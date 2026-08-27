@@ -527,6 +527,34 @@ describe("OwnedUiSessionShell", () => {
     await shell.dispose();
   });
 
+  it("moves between adjacent focused chips with one Left or Right press", async () => {
+    let clipboardText = "https://example.com/first-chip";
+    const { terminal, shell } = await fixture([], [], true, undefined, {
+      readText: async () => clipboardText,
+      readImage: async () => null,
+      writeText: async text => { clipboardText = text; },
+    });
+    terminal.resize(80, 12);
+    shell.root.render(80);
+
+    terminal.input("\u0016");
+    await vi.waitFor(() => expect(shell.root.editor.getText()).toContain("first-chip"));
+    clipboardText = "https://example.com/second-chip";
+    terminal.input("\u0016");
+    await vi.waitFor(() => expect(shell.root.editor.getText()).toContain("second-chip"));
+
+    terminal.input("\u001b[D"); // Focus second chip.
+    terminal.input("\u001b[D"); // One press moves focus directly to first chip.
+    terminal.input("\u0003");
+    await vi.waitFor(() => expect(clipboardText).toBe("https://example.com/first-chip"));
+
+    terminal.input("\u001b[C"); // One press moves focus directly to second chip.
+    terminal.input("\u0003");
+    await vi.waitFor(() => expect(clipboardText).toBe("https://example.com/second-chip"));
+
+    await shell.dispose();
+  });
+
   it("selects prompt words on double-click and logical lines on triple-click", async () => {
     const { terminal, shell } = await fixture([], [], true);
     terminal.resize(60, 12);

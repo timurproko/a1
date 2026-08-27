@@ -278,13 +278,29 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
       if (this.keybindings.matches(data, "tui.editor.cursorLeft")
         || this.keybindings.matches(data, "tui.editor.cursorWordLeft")) {
         this.#setCursor(selection.start);
-        this.#clearSelection();
+        const wasAtomic = this.#atomicSelection;
+        this.#clearSelection(false);
+        if (wasAtomic) {
+          if (!this.#selectAdjacentAtomic(-1)) {
+            next();
+            this.#selectAtomicAtCursor(-1);
+          }
+          this.#requestRender();
+        } else this.#requestRender();
         return;
       }
       if (this.keybindings.matches(data, "tui.editor.cursorRight")
         || this.keybindings.matches(data, "tui.editor.cursorWordRight")) {
         this.#setCursor(selection.end);
-        this.#clearSelection();
+        const wasAtomic = this.#atomicSelection;
+        const wordMove = this.keybindings.matches(data, "tui.editor.cursorWordRight");
+        this.#clearSelection(false);
+        if (wasAtomic && this.#selectAdjacentAtomic(1)) return;
+        if (wasAtomic && wordMove) {
+          next();
+          this.#selectAtomicAtCursor(1);
+        }
+        this.#requestRender();
         return;
       }
       this.#clearSelection(false);
