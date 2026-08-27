@@ -542,13 +542,14 @@ describe("OwnedUiSessionShell", () => {
     clipboardText = "https://example.com/second-chip";
     terminal.input("\u0016");
     await vi.waitFor(() => expect(shell.root.editor.getText()).toContain("second-chip"));
+    shell.root.editor.setText(shell.root.editor.getText().replace("][", "] ["));
 
     terminal.input("\u001b[D"); // Focus second chip.
-    terminal.input("\u001b[D"); // One press moves focus directly to first chip.
+    terminal.input("\u001b[D"); // One press skips the separator and focuses the first chip.
     terminal.input("\u0003");
     await vi.waitFor(() => expect(clipboardText).toBe("https://example.com/first-chip"));
 
-    terminal.input("\u001b[C"); // One press moves focus directly to second chip.
+    terminal.input("\u001b[C"); // One press skips the separator and focuses the second chip.
     terminal.input("\u0003");
     await vi.waitFor(() => expect(clipboardText).toBe("https://example.com/second-chip"));
 

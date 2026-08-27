@@ -281,6 +281,7 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
         const wasAtomic = this.#atomicSelection;
         this.#clearSelection(false);
         if (wasAtomic) {
+          this.#skipAdjacentWhitespace(-1);
           if (!this.#selectAdjacentAtomic(-1)) {
             next();
             this.#selectAtomicAtCursor(-1);
@@ -293,12 +294,10 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
         || this.keybindings.matches(data, "tui.editor.cursorWordRight")) {
         this.#setCursor(selection.end);
         const wasAtomic = this.#atomicSelection;
-        const wordMove = this.keybindings.matches(data, "tui.editor.cursorWordRight");
         this.#clearSelection(false);
-        if (wasAtomic && this.#selectAdjacentAtomic(1)) return;
-        if (wasAtomic && wordMove) {
-          next();
-          this.#selectAtomicAtCursor(1);
+        if (wasAtomic) {
+          this.#skipAdjacentWhitespace(1);
+          if (this.#selectAdjacentAtomic(1)) return;
         }
         this.#requestRender();
         return;
@@ -663,6 +662,36 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
   #atomicRangeAt(position: Position): PiShellEditorTextRange | undefined {
     const line = editorState(this.editor).lines[position.line] ?? "";
     return this.options.atomicRanges(line).find(range => position.col >= range.start && position.col < range.end);
+  }
+
+  #skipAdjacentWhitespace(delta: -1 | 1): void {
+    const state = editorState(this.editor);
+    if (delta > 0) {
+      while (true) {
+        const line = state.lines[state.cursorLine] ?? "";
+        if (state.cursorCol >= line.length) {
+          if (state.cursorLine >= state.lines.length - 1) return;
+          state.cursorLine += 1;
+          state.cursorCol = 0;
+          continue;
+        }
+        const next = [...GRAPHEMES.segment(line.slice(state.cursorCol))][0];
+        if (next === undefined || !/^\s+$/u.test(next.segment)) return;
+        state.cursorCol += next.segment.length;
+      }
+    }
+    while (true) {
+      const line = state.lines[state.cursorLine] ?? "";
+      if (state.cursorCol <= 0) {
+        if (state.cursorLine <= 0) return;
+        state.cursorLine -= 1;
+        state.cursorCol = (state.lines[state.cursorLine] ?? "").length;
+        continue;
+      }
+      const previous = [...GRAPHEMES.segment(line.slice(0, state.cursorCol))].at(-1);
+      if (previous === undefined || !/^\s+$/u.test(previous.segment)) return;
+      state.cursorCol -= previous.segment.length;
+    }
   }
 
   #selectAdjacentAtomic(delta: -1 | 1): boolean {
