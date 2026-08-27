@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { backgroundSgrSpan, displayWidth, hyperlinkSgrSpan, overlaySpan, stripAnsi } from "../../../src/ui/components/index.js";
+import {
+  backgroundSgrSpan,
+  displayWidth,
+  hyperlinkSgrSpan,
+  nativeHyperlinkStyle,
+  overlaySpan,
+  stripAnsi,
+} from "../../../src/ui/components/index.js";
 
 const ESC = String.fromCharCode(27);
 const RED = `${ESC}[31m`;
@@ -65,6 +72,15 @@ describe("overlaying a span on a rendered row", () => {
 
     expect(stripAnsi(result)).toBe("prefix preview... suffix");
     expect(result).toContain(`\u001b]8;;${target}\u001b\\preview...\u001b]8;;\u001b\\`);
+  });
+
+  it("leaves OSC 8 links to the terminal's native inactive and hover styling", () => {
+    const target = "https://example.com/full";
+    const open = `\u001b]8;;${target}\u001b\\`;
+    const close = "\u001b]8;;\u001b\\";
+
+    expect(nativeHyperlinkStyle(`${open}${ESC}[4mexample${ESC}[24m${close}`))
+      .toBe(`${open}example${close}`);
   });
 
   it("paints only the selection background while preserving foreground, bold, italic, and underline", () => {

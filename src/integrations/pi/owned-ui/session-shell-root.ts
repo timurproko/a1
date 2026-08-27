@@ -14,6 +14,7 @@ import {
   displayWidth,
   formatSubmittedPromptTime,
   hyperlinkSgrSpan,
+  nativeHyperlinkStyle,
   overlaySpan,
   submittedPromptLayout,
   routeMouseInput,
@@ -214,7 +215,11 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.#view = view;
     this.#customViewport = sessionLayout === "custom-viewport";
     this.#submittedPromptComposer = this.#customViewport
-      ? { layout: submittedPromptLayout, compose: composeSubmittedPromptRows }
+      ? {
+          layout: submittedPromptLayout,
+          compose: (rows, width, source, style) => composeSubmittedPromptRows(rows, width, source, style)
+            .map(row => nativeHyperlinkStyle(row)),
+        }
       : undefined;
     this.#cwd = cwd;
     this.#extensionRenderers = extensionRenderers;

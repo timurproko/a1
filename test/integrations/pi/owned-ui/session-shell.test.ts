@@ -258,6 +258,19 @@ describe("OwnedUiSessionShell", () => {
     expect(frame[promptIndex]).toMatch(/14:48 $/);
   });
 
+  it("uses terminal-native inactive and hover styling for submitted URL links", async () => {
+    const url = "https://example.com/a/complete/source?with=details";
+    const { terminal, shell } = await fixture([
+      { role: "user", content: [{ type: "text", text: url }], timestamp: Date.now() },
+    ], [], true);
+    terminal.resize(100, 12);
+    const row = shell.root.render(100).find(line => stripTerminalSequences(line).includes(url)) ?? "";
+
+    expect(row).toContain(`\u001b]8;;${url}\u001b\\`);
+    expect(row).not.toContain("\u001b[4m");
+    await shell.dispose();
+  });
+
   it("wraps ordinary transcript content through the rail overlay column", async () => {
     const word = "x".repeat(60);
     const { terminal, shell } = await fixture([
@@ -625,6 +638,11 @@ describe("OwnedUiSessionShell", () => {
     terminal.input("\u001b[1;5D"); // Ctrl+Left crosses the adjacent run and stops on its separator.
     terminal.input("X");
     expect(shell.root.editor.getText()).toBe(`wordsX ${imageRun}`);
+
+    shell.root.editor.setText("doio ddh did d diud");
+    terminal.input("\u001b[1;5D"); // Ctrl+Left stops on the separator before an ordinary word too.
+    terminal.input("X");
+    expect(shell.root.editor.getText()).toBe("doio ddh did dX diud");
 
     await shell.dispose();
   });

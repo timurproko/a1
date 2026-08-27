@@ -265,7 +265,7 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
       const before = this.#cursor();
       next();
       const after = this.#cursor();
-      if (!samePosition(before, after)) this.#moveBeforeAtomicRunSeparator();
+      if (!samePosition(before, after)) this.#moveOntoPreviousSeparator();
       this.#requestRender();
       return;
     }
@@ -635,10 +635,9 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
     return this.options.atomicRanges(line).find(range => position.col >= range.start && position.col < range.end);
   }
 
-  #moveBeforeAtomicRunSeparator(): void {
+  #moveOntoPreviousSeparator(): void {
     const cursor = this.#cursor();
-    const range = this.#atomicRangeAt(cursor);
-    if (range === undefined || cursor.col !== range.start || cursor.col === 0) return;
+    if (cursor.col === 0) return;
     const line = editorState(this.editor).lines[cursor.line] ?? "";
     const previous = [...GRAPHEMES.segment(line.slice(0, cursor.col))].at(-1);
     if (previous !== undefined && /^\s+$/u.test(previous.segment)) this.#moveCursor(-1);
