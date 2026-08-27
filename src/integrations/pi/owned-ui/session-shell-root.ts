@@ -100,6 +100,10 @@ export type OwnedUiBackendPort = PiEngineAdapter;
 export type OwnedUiTerminalPort = PiTuiTerminalPort;
 type OwnedUiStartupOptions = PiShellHeaderOptions;
 
+export interface OwnedUiClipboardPort {
+  readText(): Promise<string | null>;
+}
+
 export interface OwnedUiSessionShellOptions {
   readonly backend: OwnedUiBackendPort;
   readonly cwd: string;
@@ -114,6 +118,8 @@ export interface OwnedUiSessionShellOptions {
   readonly sessionLayout?: "pinned" | "custom-viewport";
   /** Live profile-local settings, supplied only to the bare-A1 composition. */
   readonly viewportSettings?: OwnedUiViewportSettingsPort;
+  /** Optional platform seam; production uses A1's system clipboard adapter. */
+  readonly clipboard?: OwnedUiClipboardPort;
 }
 
 export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
@@ -144,6 +150,8 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   #dragGrabOffset: number | null = null;
   /** A left-button sequence begun in status/editor/footer chrome is swallowed. */
   #dockPointerSuppressed = false;
+  /** Last composed terminal rows occupied by the default prompt editor. */
+  #editorPointerFrame: { readonly rowStart: number; readonly rowEnd: number } | undefined;
   #selectionAutoScrollTimer: ReturnType<typeof setTimeout> | undefined;
   #selectionAutoScrollPointer: { readonly column: number; readonly row: number } | undefined;
   #viewportActivityTimer: ReturnType<typeof setTimeout> | undefined;
@@ -184,6 +192,8 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       readonly onMessageCopy?: () => void;
       readonly onFollowUp?: () => void;
       readonly onDequeue?: () => void;
+      readonly onCopyText?: (text: string) => void;
+      readonly readClipboardText?: () => Promise<string | null>;
     },
     startup: PiShellHeaderOptions = {},
     agentDir?: string,
@@ -212,6 +222,13 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.editor = createPiShellEditor({
       ...handlers,
       keybindingProfile: this.#customViewport ? "a1" : "pi",
+      paintEditorSelection: (line, from, to) => backgroundSgrSpan(
+        line,
+        from,
+        to,
+        "\u001b[48;2;38;79;120m",
+        "\u001b[49m",
+      ),
       cwd,
       ...(agentDir === undefined ? {} : { agentDir }),
       onToolsExpand: () => this.#setToolsExpanded(!this.#toolsExpanded),
@@ -268,7 +285,10 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   }
 
   render(width: number): readonly string[] {
-    if (!this.#customViewport) return [...this.#renderDocument(width), ...this.#renderDock(width)];
+    if (!this.#customViewport) {
+      this.#editorPointerFrame = undefined;
+      return [...this.#renderDocument(width), ...this.#renderDock(width)];
+    }
 
     const height = Math.max(0, this.#componentRuntime.getRows());
     const dock = this.#renderDockLayout(width);
@@ -289,6 +309,14 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       || document.rows.length + statusRows.length <= availableWithoutStatus;
     const dockRows = pinStatus ? dock.rows : dock.rowsWithoutStatus;
     if (!pinStatus) document = { ...document, rows: [...document.rows, ...statusRows] };
+    const dockStartRow = height - dockRows.length + 1;
+    const editorOffset = pinStatus ? dock.editorOffsetWithStatus : dock.editorOffsetWithoutStatus;
+    this.#editorPointerFrame = this.usesDefaultInputSurface()
+      ? {
+          rowStart: dockStartRow + editorOffset,
+          rowEnd: dockStartRow + editorOffset + dock.inputRows - 1,
+        }
+      : undefined;
     this.#viewport.setConfig(this.#viewportConfig);
     return this.#viewport.compose({
       documentRows: document.rows,
@@ -376,11 +404,17 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.editor.activateKeybindings();
     if (this.#viewport.frame === null) return { data, consumed: false };
     if (data === "\u0003") {
-      const copyText = this.#viewport.selectedText();
-      if (copyText !== null && copyText.length > 0) {
-        this.#viewport.clearSelection();
-        this.#componentRuntime.requestRender();
-        return { data: "", consumed: true, copyText };
+      // Prompt selection has priority while the editor owns one; without it,
+      // Ctrl+C retains transcript-copy and then Pi's ordinary clear behavior.
+      if (this.editor.hasSelection()) {
+        if (this.#viewport.clearSelection()) this.#componentRuntime.requestRender();
+      } else {
+        const copyText = this.#viewport.selectedText();
+        if (copyText !== null && copyText.length > 0) {
+          this.#viewport.clearSelection();
+          this.#componentRuntime.requestRender();
+          return { data: "", consumed: true, copyText };
+        }
       }
     }
     // Plain Home/End own transcript boundaries. Their Ctrl-modified forms are
@@ -410,6 +444,11 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       }
       return { data: "", consumed: true };
     }
+    // Keyboard interaction returns ownership to the prompt and dismisses a
+    // stale transcript selection. Mouse reports are resolved by surface below.
+    if (!data.includes("\u001b[<") && data !== "\u0003" && this.#viewport.clearSelection()) {
+      this.#componentRuntime.requestRender();
+    }
     const frame = this.#viewport.frame;
     let repaint = false;
     let activity = false;
@@ -428,6 +467,15 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
         this.#viewport.setStickyHovered(overSticky);
         this.#viewport.setBottomHovered(overBottom);
         repaint = true;
+        if (this.editor.ownsPointer() && this.#editorPointerFrame !== undefined) {
+          this.editor.handlePointer({
+            kind: "motion",
+            button: event.button,
+            column: event.column,
+            row: event.row - this.#editorPointerFrame.rowStart + 1,
+          });
+          return true;
+        }
         if (this.#dockPointerSuppressed) return true;
         // Once a left-button selection starts, its release—not the button bits
         // on an intermediate motion report—ends ownership. Some terminals emit
@@ -484,10 +532,21 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
           repaint = true;
           return true;
         }
+        const editorFrame = this.#editorPointerFrame;
+        if (editorFrame !== undefined && event.row >= editorFrame.rowStart && event.row <= editorFrame.rowEnd) {
+          const handled = this.editor.handlePointer({
+            kind: "press",
+            button: event.button,
+            column: event.column,
+            row: event.row - editorFrame.rowStart + 1,
+          });
+          if (!handled) this.#dockPointerSuppressed = true;
+          repaint = true;
+          return true;
+        }
         if (event.row > hits.viewportHeight) {
-          // Status, editor, widgets, and footer are controls rather than
-          // transcript. Consume the complete drag so Pi's fullscreen fallback
-          // selection cannot paint those rows.
+          // Status, non-text editor chrome, widgets, and footer are controls.
+          // Consume the complete drag so terminal selection cannot paint them.
           this.#dockPointerSuppressed = true;
           return true;
         }
@@ -499,6 +558,16 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
         return false;
       }
       if (event.kind === "release") {
+        if (this.editor.ownsPointer() && this.#editorPointerFrame !== undefined) {
+          this.editor.handlePointer({
+            kind: "release",
+            button: event.button,
+            column: event.column,
+            row: event.row - this.#editorPointerFrame.rowStart + 1,
+          });
+          repaint = true;
+          return true;
+        }
         if (this.#viewport.releaseSelection()) {
           this.#stopSelectionAutoScroll();
           repaint = true;
@@ -588,6 +657,9 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     readonly rowsWithoutStatus: readonly string[];
     readonly statusRows: readonly string[];
     readonly stableBottomRows: number;
+    readonly editorOffsetWithStatus: number;
+    readonly editorOffsetWithoutStatus: number;
+    readonly inputRows: number;
   } {
     const queued = this.#view.editor.queuedSubmissions.length === 0 ? [] : this.#queued.render(width);
     const statusRows = this.#renderStatus(width);
@@ -600,6 +672,9 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       rowsWithoutStatus: [...queued, ...aboveWidgets, ...input, ...belowWidgets, ...footer],
       statusRows,
       stableBottomRows: aboveWidgets.length + input.length + belowWidgets.length + footer.length,
+      editorOffsetWithStatus: queued.length + statusRows.length + aboveWidgets.length,
+      editorOffsetWithoutStatus: queued.length + aboveWidgets.length,
+      inputRows: input.length,
     };
   }
 

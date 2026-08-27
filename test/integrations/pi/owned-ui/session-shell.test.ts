@@ -138,6 +138,7 @@ async function fixture(
   extensions: readonly unknown[] = [],
   customViewport = false,
   viewportSettings?: OwnedUiViewportSettingsPort,
+  clipboard?: { readText(): Promise<string | null> },
 ) {
   const engine = new Runtime(messages);
   engine.extensionResources = extensions;
@@ -149,6 +150,7 @@ async function fixture(
     terminal,
     ...(customViewport ? { sessionLayout: "custom-viewport" as const } : {}),
     ...(viewportSettings === undefined ? {} : { viewportSettings }),
+    ...(clipboard === undefined ? {} : { clipboard }),
   });
   shell.start();
   shell.runtime.renderNow();
@@ -357,6 +359,81 @@ describe("OwnedUiSessionShell", () => {
     expect(shell.root.editor.getText()).toBe(" alpha beta ");
     terminal.input("\u001a");
     expect(shell.root.editor.getText()).toBe("start alpha beta ");
+
+    await shell.dispose();
+  });
+
+  it("intercepts owned prompt selection, clipboard, undo, redo, and shift selection actions", async () => {
+    const { terminal, shell } = await fixture([], [], true, undefined, {
+      readText: async () => "pasted text",
+    });
+    terminal.resize(60, 12);
+    shell.root.editor.setText("alpha beta");
+    shell.root.render(60);
+
+    terminal.input("\u0001"); // Ctrl+A
+    expect(shell.root.render(60).join("\n")).toContain("\u001b[48;2;38;79;120m");
+    terminal.input("\u0003"); // Ctrl+C
+    expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from("alpha beta").toString("base64")}\u0007`);
+
+    terminal.input("\u0018"); // Ctrl+X
+    expect(shell.root.editor.getText()).toBe("");
+    terminal.input("\u001a"); // Ctrl+Z
+    expect(shell.root.editor.getText()).toBe("alpha beta");
+    terminal.input("\u0019"); // Ctrl+Y
+    expect(shell.root.editor.getText()).toBe("");
+
+    terminal.input("\u0016"); // Ctrl+V
+    await vi.waitFor(() => expect(shell.root.editor.getText()).toBe("pasted text"));
+    terminal.input("\u001a");
+    expect(shell.root.editor.getText()).toBe("");
+    terminal.input("\u0019");
+    expect(shell.root.editor.getText()).toBe("pasted text");
+
+    shell.root.editor.setText("replace me");
+    terminal.input("\u0001");
+    terminal.input("\u0016");
+    await vi.waitFor(() => expect(shell.root.editor.getText()).toBe("pasted text"));
+    terminal.input("\u001a");
+    expect(shell.root.editor.getText()).toBe("replace me");
+
+    shell.root.editor.setText("abcd");
+    terminal.input("\u001b[1;2D"); // Shift+Left: d
+    terminal.input("\u001b[1;2D"); // Shift+Left: cd
+    terminal.input("\u001b[1;2C"); // Shift+Right shrinks to d
+    terminal.input("\u0003");
+    expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from("d").toString("base64")}\u0007`);
+
+    terminal.input("X");
+    expect(shell.root.editor.getText()).toBe("abcX");
+    terminal.input("\u001a");
+    expect(shell.root.editor.getText()).toBe("abcd");
+
+    await shell.dispose();
+  });
+
+  it("selects prompt words on double-click and logical lines on triple-click", async () => {
+    const { terminal, shell } = await fixture([], [], true);
+    terminal.resize(60, 12);
+    shell.root.editor.setText("mouse alpha beta");
+    const frame = shell.root.render(60).map(row => stripTerminalSequences(row));
+    const row = frame.findIndex(line => line.includes("mouse alpha beta")) + 1;
+    const column = (frame[row - 1]?.indexOf("alpha") ?? -1) + 2;
+    expect(row).toBeGreaterThan(0);
+    expect(column).toBeGreaterThan(1);
+    const click = () => {
+      terminal.input(`\u001b[<0;${column};${row}M`);
+      terminal.input(`\u001b[<0;${column};${row}m`);
+    };
+
+    click();
+    click();
+    terminal.input("\u0003");
+    expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from("alpha").toString("base64")}\u0007`);
+
+    click();
+    terminal.input("\u0003");
+    expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from("mouse alpha beta").toString("base64")}\u0007`);
 
     await shell.dispose();
   });

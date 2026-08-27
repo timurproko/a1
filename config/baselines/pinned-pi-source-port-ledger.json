@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-08-27T10:51:07.823Z",
+  "recordedAt": "2026-08-27T12:27:15.569Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "914cf1472e715297caa30db4b9535d534a9eb718",
@@ -447,7 +447,7 @@
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical source port with Node import prefixes, public package-root agent-directory resolution, and an opt-in bare-A1 input alias profile.",
-      "localSha256": "964c219f87b8e3624ea135ae41f840eb9ccc2b07cba73afbee9af91e2203836d",
+      "localSha256": "b3c76e7a117885a0adac52889392cba062089321791c0d785edd3d16ba25719a",
       "approvedDeviations": [
         {
           "id": "keybindings-public-config-boundary",
@@ -457,7 +457,7 @@
         },
         {
           "id": "owned-input-keybinding-aliases",
-          "reason": "Bare A1 opts into Ctrl+Backspace, Ctrl+Delete, and Ctrl+Z aliases for existing vanilla editor actions while the comparison profile retains pinned defaults.",
+          "reason": "Bare A1 opts into ergonomic vanilla editing aliases plus declarative prompt-selection, cut, paste, redo, and extension actions while the comparison profile retains pinned defaults.",
           "upstreamBehavior": "The pinned comparison profile continues to use the exact upstream keybinding definitions and effective configuration.",
           "acceptanceTest": "test/integrations/pi/owned-ui/session-shell.test.ts"
         }

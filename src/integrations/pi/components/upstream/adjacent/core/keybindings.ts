@@ -54,6 +54,12 @@ export interface AppKeybindings {
 	"app.tree.filter.all": true;
 	"app.tree.filter.cycleForward": true;
 	"app.tree.filter.cycleBackward": true;
+	"owned.editor.selectAll": true;
+	"owned.editor.cut": true;
+	"owned.editor.paste": true;
+	"owned.editor.redo": true;
+	"owned.editor.extendLeft": true;
+	"owned.editor.extendRight": true;
 }
 
 export type AppKeybinding = keyof AppKeybindings;
@@ -224,6 +230,15 @@ const OWNED_INPUT_KEYBINDINGS = {
 	},
 	// Ctrl+Z edits the prompt in bare A1 instead of suspending the process.
 	"app.suspend": { ...KEYBINDINGS["app.suspend"], defaultKeys: [] },
+	// Owned prompt-selection actions are intercepted before vanilla Pi editor
+	// actions. Keeping them in the keybinding manager makes the UX declarative,
+	// configurable, and independent of terminal escape-sequence spellings.
+	"owned.editor.selectAll": { defaultKeys: "ctrl+a", description: "Select all prompt text" },
+	"owned.editor.cut": { defaultKeys: "ctrl+x", description: "Cut selected prompt text" },
+	"owned.editor.paste": { defaultKeys: "ctrl+v", description: "Paste clipboard text" },
+	"owned.editor.redo": { defaultKeys: "ctrl+y", description: "Redo prompt edit" },
+	"owned.editor.extendLeft": { defaultKeys: "shift+left", description: "Extend prompt selection left" },
+	"owned.editor.extendRight": { defaultKeys: "shift+right", description: "Extend prompt selection right" },
 } as const satisfies KeybindingDefinitions;
 
 const KEYBINDING_NAME_MIGRATIONS = {

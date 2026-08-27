@@ -80,6 +80,7 @@ import {
 } from "../tui-runtime/index.js";
 
 
+import { readSystemClipboardText } from "./system-clipboard.js";
 import {
   OwnedUiSessionShellRoot,
   shellResourceEntries,
@@ -143,6 +144,10 @@ export class OwnedUiSessionShell {
       onMessageCopy: () => { void this.runWorkflow({ command: "copy", argument: "" }); },
       onFollowUp: () => { void this.queueFollowUp(); },
       onDequeue: () => this.restoreQueuedInput(),
+      onCopyText: text => runtime?.writeControl(`\u001b]52;c;${Buffer.from(text, "utf8").toString("base64")}\u0007`),
+      readClipboardText: options.clipboard === undefined
+        ? readSystemClipboardText
+        : () => options.clipboard?.readText() ?? Promise.resolve(null),
     }, {
       ...options.startup,
       resources: options.startup?.resources ?? shellResourceEntries(this.backend),

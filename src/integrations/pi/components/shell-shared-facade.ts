@@ -25,6 +25,14 @@ export interface PiShellComponentPort {
   dispose?(): void;
 }
 
+export interface PiShellEditorPointerEvent {
+  readonly kind: "press" | "motion" | "release";
+  readonly button: number;
+  readonly column: number;
+  /** One-based row relative to the top of the editor component. */
+  readonly row: number;
+}
+
 export interface PiShellEditorPort extends PiShellComponentPort {
   /** Restores this editor's profile after another Pi component changed the global manager. */
   activateKeybindings(): void;
@@ -40,6 +48,9 @@ export interface PiShellEditorPort extends PiShellComponentPort {
   setAutocompleteCommands(commands: readonly PiShellAutocompleteCommand[]): void;
   addAutocompleteProvider(factory: unknown): void;
   setThinkingLevel(level: OwnedUiThinkingLevel): void;
+  hasSelection(): boolean;
+  ownsPointer(): boolean;
+  handlePointer(event: PiShellEditorPointerEvent): boolean;
 }
 
 export interface PiShellAutocompleteCommand {
@@ -126,6 +137,9 @@ export interface PiShellEditorOptions {
   readonly onMessageCopy?: (() => void) | undefined;
   readonly onFollowUp?: (() => void) | undefined;
   readonly onDequeue?: (() => void) | undefined;
+  readonly onCopyText?: (text: string) => void;
+  readonly readClipboardText?: () => Promise<string | null>;
+  readonly paintEditorSelection?: (line: string, from: number, to: number) => string;
   readonly cwd?: string;
   readonly agentDir?: string;
   readonly autocompleteCommands?: readonly PiShellAutocompleteCommand[];

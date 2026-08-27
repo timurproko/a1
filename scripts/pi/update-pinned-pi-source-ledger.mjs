@@ -287,7 +287,7 @@ async function sourceMapRecord(pkg, sourceMapPath, scope) {
                   acceptanceTest: "test/integrations/pi/components/pinned-editor-input-parity.test.ts",
                 }, {
                   id: "owned-input-keybinding-aliases",
-                  reason: "Bare A1 opts into Ctrl+Backspace, Ctrl+Delete, and Ctrl+Z aliases for existing vanilla editor actions while the comparison profile retains pinned defaults.",
+                  reason: "Bare A1 opts into ergonomic vanilla editing aliases plus declarative prompt-selection, cut, paste, redo, and extension actions while the comparison profile retains pinned defaults.",
                   upstreamBehavior: "The pinned comparison profile continues to use the exact upstream keybinding definitions and effective configuration.",
                   acceptanceTest: "test/integrations/pi/owned-ui/session-shell.test.ts",
                 }],
