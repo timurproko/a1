@@ -2,12 +2,31 @@ import { execFile } from "node:child_process";
 
 const MAX_CLIPBOARD_BYTES = 16 * 1024 * 1024;
 
+type NativeClipboard = typeof import("@mariozechner/clipboard");
+let nativeClipboardPromise: Promise<NativeClipboard | null> | undefined;
+
+/** Load the native adapter during shell startup so the first paste is warm. */
+export function preloadSystemClipboard(): void {
+  if (process.platform === "win32" || process.platform === "darwin") void nativeClipboard();
+}
+
 /**
  * Reads plain text through platform clipboard commands without importing Pi's
  * private clipboard module. Failures are deliberately non-fatal: a denied or
  * unavailable clipboard simply makes the paste action a no-op.
  */
 export async function readSystemClipboardText(): Promise<string | null> {
+  if (process.platform === "win32" || process.platform === "darwin") {
+    const native = await nativeClipboard();
+    if (native !== null) {
+      try {
+        const text = await native.getText();
+        return text.length === 0 ? null : text;
+      } catch {
+        // Fall through to the platform command.
+      }
+    }
+  }
   if (process.platform === "win32") {
     const script = [
       "[Console]::OutputEncoding=[System.Text.Encoding]::UTF8",
@@ -19,6 +38,11 @@ export async function readSystemClipboardText(): Promise<string | null> {
   if (process.platform === "darwin") return execClipboard("pbpaste", []);
   return (await execClipboard("wl-paste", ["--no-newline", "--type", "text"]))
     ?? execClipboard("xclip", ["-selection", "clipboard", "-o"]);
+}
+
+function nativeClipboard(): Promise<NativeClipboard | null> {
+  nativeClipboardPromise ??= import("@mariozechner/clipboard").catch(() => null);
+  return nativeClipboardPromise;
 }
 
 function execClipboard(command: string, args: readonly string[]): Promise<string | null> {

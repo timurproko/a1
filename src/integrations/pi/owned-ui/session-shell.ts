@@ -80,7 +80,7 @@ import {
 } from "../tui-runtime/index.js";
 
 
-import { readSystemClipboardText } from "./system-clipboard.js";
+import { preloadSystemClipboard, readSystemClipboardText } from "./system-clipboard.js";
 import {
   OwnedUiSessionShellRoot,
   shellResourceEntries,
@@ -122,6 +122,7 @@ export class OwnedUiSessionShell {
     this.#cwd = options.cwd;
     this.#routeHost = options.routeHost ?? null;
     this.#customViewport = options.sessionLayout === "custom-viewport";
+    if (this.#customViewport && options.clipboard === undefined) preloadSystemClipboard();
     this.#stopped = new Promise(resolve => {
       this.#resolveStopped = resolve;
     });
