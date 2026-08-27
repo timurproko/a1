@@ -37,7 +37,7 @@ export interface PiShellEditorPort extends PiShellComponentPort {
   /** Restores this editor's profile after another Pi component changed the global manager. */
   activateKeybindings(): void;
   /** Uses Pi's terminal decoder rather than assuming one terminal escape spelling. */
-  matchesTerminalKey(data: string, key: "home" | "end"): boolean;
+  matchesTerminalKey(data: string, key: "home" | "end" | "ctrl+v"): boolean;
   getText(): string;
   setText(text: string): void;
   insertText(text: string): void;
@@ -51,6 +51,7 @@ export interface PiShellEditorPort extends PiShellComponentPort {
   hasSelection(): boolean;
   ownsPointer(): boolean;
   handlePointer(event: PiShellEditorPointerEvent): boolean;
+  pasteClipboard(): boolean;
 }
 
 export interface PiShellAutocompleteCommand {

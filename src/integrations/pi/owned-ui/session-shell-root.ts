@@ -402,6 +402,12 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     // Pi components share one keybinding manager. Restore bare A1's aliases
     // before the focused vanilla editor handles this input.
     this.editor.activateKeybindings();
+    // Handle the physical paste chord at the pre-input boundary. Windows
+    // terminals vary between forwarding Ctrl+V and performing terminal-owned
+    // bracketed paste; the latter continues unchanged to Pi below.
+    if (this.editor.matchesTerminalKey(data, "ctrl+v") && this.editor.pasteClipboard()) {
+      return { data: "", consumed: true };
+    }
     if (this.#viewport.frame === null) return { data, consumed: false };
     if (data === "\u0003") {
       // Prompt selection has priority while the editor owns one; without it,
@@ -504,6 +510,17 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
         return true;
       }
       if (event.kind === "press") {
+        const editorFrame = this.#editorPointerFrame;
+        if (event.button === 2 && editorFrame !== undefined
+          && event.row >= editorFrame.rowStart && event.row <= editorFrame.rowEnd) {
+          this.#stopSelectionAutoScroll();
+          if (this.#viewport.clearSelection()) repaint = true;
+          this.editor.pasteClipboard();
+          // Own the matching release as editor chrome input as well.
+          this.#dockPointerSuppressed = true;
+          repaint = true;
+          return true;
+        }
         if (event.button !== 0) return false;
         this.#stopSelectionAutoScroll();
         if (this.#viewport.clearSelection()) repaint = true;
@@ -532,7 +549,6 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
           repaint = true;
           return true;
         }
-        const editorFrame = this.#editorPointerFrame;
         if (editorFrame !== undefined && event.row >= editorFrame.rowStart && event.row <= editorFrame.rowEnd) {
           const handled = this.editor.handlePointer({
             kind: "press",

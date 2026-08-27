@@ -397,6 +397,13 @@ describe("OwnedUiSessionShell", () => {
     terminal.input("\u001a");
     expect(shell.root.editor.getText()).toBe("replace me");
 
+    shell.root.editor.setText("right ");
+    const rightClickFrame = shell.root.render(60).map(row => stripTerminalSequences(row));
+    const rightClickRow = rightClickFrame.findIndex(row => row.includes("right ")) + 1;
+    terminal.input(`\u001b[<2;8;${rightClickRow}M`);
+    terminal.input(`\u001b[<2;8;${rightClickRow}m`);
+    await vi.waitFor(() => expect(shell.root.editor.getText()).toBe("right pasted text"));
+
     shell.root.editor.setText("abcd");
     terminal.input("\u001b[1;2D"); // Shift+Left: d
     terminal.input("\u001b[1;2D"); // Shift+Left: cd

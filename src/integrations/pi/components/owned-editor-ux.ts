@@ -18,6 +18,7 @@ export interface OwnedEditorUxInterceptor {
   handlePointer?(event: OwnedEditorPointerEvent): boolean;
   hasSelection?(): boolean;
   ownsPointer?(): boolean;
+  pasteClipboard?(): boolean;
 }
 
 export interface OwnedEditorPointerEvent {
@@ -70,6 +71,10 @@ export class OwnedEditorUxInterception {
 
   ownsPointer(): boolean {
     return this.interceptors.some(interceptor => interceptor.ownsPointer?.() === true);
+  }
+
+  pasteClipboard(): boolean {
+    return this.interceptors.some(interceptor => interceptor.pasteClipboard?.() === true);
   }
 }
 
@@ -162,7 +167,7 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
       return;
     }
     if (this.keybindings.matches(data, "owned.editor.paste")) {
-      this.#pasteFromClipboard();
+      this.pasteClipboard();
       return;
     }
     if (this.keybindings.matches(data, "owned.editor.redo")) {
@@ -259,6 +264,11 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
 
   hasSelection(): boolean {
     return this.#orderedSelection() !== undefined;
+  }
+
+  pasteClipboard(): boolean {
+    this.#pasteFromClipboard();
+    return true;
   }
 
   ownsPointer(): boolean {

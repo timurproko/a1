@@ -182,6 +182,7 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
     hasSelection: () => editorUx?.hasSelection() ?? false,
     ownsPointer: () => editorUx?.ownsPointer() ?? false,
     handlePointer: event => editorUx?.handlePointer(event) ?? false,
+    pasteClipboard: () => editorUx?.pasteClipboard() ?? false,
   };
 }
 
