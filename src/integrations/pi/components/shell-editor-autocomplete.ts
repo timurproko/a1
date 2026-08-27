@@ -1,6 +1,7 @@
 import { getSelectListTheme } from "@earendil-works/pi-coding-agent";
 import {
   CombinedAutocompleteProvider,
+  matchesKey,
   setKeybindings,
   type AutocompleteProvider,
 } from "#pi-tui";
@@ -123,6 +124,7 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
   return {
     render: width => editor.render(width),
     activateKeybindings: () => setKeybindings(keybindings),
+    matchesEditingKey: (data, key) => matchesKey(data, key),
     handleInput: data => editor.handleInput(data),
     invalidate: () => editor.invalidate(),
     setFocused: focused => {

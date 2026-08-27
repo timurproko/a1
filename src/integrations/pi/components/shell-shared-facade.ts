@@ -28,6 +28,8 @@ export interface PiShellComponentPort {
 export interface PiShellEditorPort extends PiShellComponentPort {
   /** Restores this editor's profile after another Pi component changed the global manager. */
   activateKeybindings(): void;
+  /** Uses Pi's terminal decoder rather than assuming one terminal escape spelling. */
+  matchesEditingKey(data: string, key: "home" | "end"): boolean;
   getText(): string;
   setText(text: string): void;
   insertText(text: string): void;

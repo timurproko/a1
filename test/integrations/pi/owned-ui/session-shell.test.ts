@@ -344,15 +344,17 @@ describe("OwnedUiSessionShell", () => {
     shell.root.render(60);
 
     shell.root.editor.setText("alpha beta");
-    terminal.input("\u001b[H");
+    // Windows Terminal can include the explicit unmodified parameter; Pi's
+    // decoder accepts both this and the shorter CSI H/F spellings.
+    terminal.input("\u001b[1;1H");
     terminal.input("start ");
-    terminal.input("\u001b[F");
+    terminal.input("\u001b[1;1F");
     terminal.input(" end");
     expect(shell.root.editor.getText()).toBe("start alpha beta end");
 
     terminal.input("\u001b[127;5u");
     expect(shell.root.editor.getText()).toBe("start alpha beta ");
-    terminal.input("\u001b[H");
+    terminal.input("\u001b[1;1H");
     terminal.input("\u001b[3;5~");
     expect(shell.root.editor.getText()).toBe(" alpha beta ");
     terminal.input("\u001a");
