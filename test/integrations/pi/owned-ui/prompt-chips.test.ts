@@ -22,8 +22,10 @@ describe("PromptChipStore", () => {
 
     const folderChip = store.transformPastedContent({ kind: "text", text: folder });
     const fileChip = store.transformPastedContent({ kind: "text", text: file });
+    const combinedChips = store.transformPastedContent({ kind: "text", text: `"${folder}" "${file}"` });
     expect(folderChip).toBe("[📁 source folder]");
     expect(fileChip).toBe("[🖼  Clipboard (2).png]");
+    expect(combinedChips).toBe(`${folderChip}${fileChip}`);
     expect(store.atomicRanges(`${folderChip} ${fileChip}`)).toHaveLength(2);
     expect(store.expandCopiedText(folderChip)).toBe(folder);
     expect(store.prepareSubmission(`inspect ${fileChip}`).text).toBe(`inspect ${file}`);

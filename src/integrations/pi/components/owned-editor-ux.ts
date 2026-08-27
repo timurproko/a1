@@ -1,4 +1,5 @@
 import {
+  CURSOR_MARKER,
   decodeKittyPrintable,
   visibleWidth,
   type Editor,
@@ -109,6 +110,16 @@ interface VisualLine {
   length: number;
 }
 
+interface EditorSegment {
+  readonly segment: string;
+  readonly index: number;
+  readonly input: string;
+  readonly isWordLike?: boolean;
+}
+
+const ATOMIC_SEGMENTATION = Symbol("a1.editor.atomicSegmentation");
+const ATOMIC_SPACE_SENTINEL = "\uE000";
+
 export interface PromptSelectionUxOptions {
   readonly copyText: (text: string) => void;
   readonly readClipboardContent: () => Promise<PiShellClipboardContent | null>;
@@ -150,7 +161,9 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
     readonly editor: Editor,
     readonly keybindings: KeybindingsManager,
     readonly options: PromptSelectionUxOptions,
-  ) {}
+  ) {
+    installAtomicSegmentation(editor, options.atomicRanges);
+  }
 
   handleInput(data: string, next: () => void): void {
     if (this.keybindings.matches(data, "owned.editor.selectAll")) {
@@ -191,7 +204,10 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
       }
       const transformed = this.options.transformPastedContent({ kind: "text", text: terminalPaste });
       if (transformed !== terminalPaste) {
-        if (this.hasSelection()) this.#replaceSelection(transformed);
+        const activeSelection = this.#orderedSelection();
+        if (activeSelection !== undefined && this.#atomicSelection) {
+          this.#insertBeforeAtomicSelection(transformed, activeSelection);
+        } else if (activeSelection !== undefined) this.#replaceSelection(transformed);
         else this.editor.insertTextAtCursor(transformed);
         this.#redoStack = [];
         this.#requestRender();
@@ -224,6 +240,12 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
           next();
           this.#selectAtomicAtCursor(1);
         }
+        return;
+      }
+      if (this.keybindings.matches(data, "tui.editor.cursorUp")
+        || this.keybindings.matches(data, "tui.editor.cursorDown")) {
+        next();
+        this.#selectAtomicContainingCursor();
         return;
       }
       if ((this.keybindings.matches(data, "tui.editor.deleteCharBackward")
@@ -274,12 +296,13 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
   }
 
   render(width: number, next: () => string[]): string[] {
-    const rows = next();
+    const rows = next().map(row => row.replaceAll(ATOMIC_SPACE_SENTINEL, " "));
     const maxPadding = Math.max(0, Math.floor((width - 1) / 2));
     const padding = Math.min(this.editor.getPaddingX(), maxPadding);
     const contentWidth = Math.max(1, width - padding * 2);
     const layoutWidth = Math.max(1, contentWidth - (padding ? 0 : 1));
-    const visualLines = buildVisualLineMap(editorState(this.editor).lines, layoutWidth);
+    const visualLines = editorVisualLineMap(this.editor, layoutWidth)
+      ?? buildVisualLineMap(editorState(this.editor).lines, layoutWidth);
     const scrollOffset = numericProperty(this.editor, "scrollOffset");
     const maxVisibleLines = Math.max(5, Math.floor(this.options.getRows() * 0.3));
     const textRows = Math.max(0, Math.min(visualLines.length - scrollOffset, maxVisibleLines, rows.length - 2));
@@ -287,6 +310,11 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
 
     const selection = this.#orderedSelection();
     if (selection === undefined) return rows;
+    if (this.#atomicSelection) {
+      for (let row = 0; row < rows.length; row += 1) {
+        rows[row] = (rows[row] ?? "").replaceAll(CURSOR_MARKER, "");
+      }
+    }
     for (let row = 0; row < textRows; row += 1) {
       const visual = visualLines[scrollOffset + row];
       if (visual === undefined || visual.logicalLine < selection.start.line || visual.logicalLine > selection.end.line) continue;
@@ -367,6 +395,7 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
         head: { line: position.line, col: atomic.end },
       };
       this.#atomicSelection = true;
+      this.#setCursor({ line: position.line, col: atomic.start });
       this.#pointerSelecting = true;
       this.#lastClick = undefined;
       this.#selectionRevision += 1;
@@ -470,12 +499,14 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
   #pasteFromClipboard(): void {
     const revision = this.#selectionRevision;
     const selection = this.#orderedSelection();
+    const atomicSelection = this.#atomicSelection;
     void this.options.readClipboardContent().then(content => {
       if (content === null) return;
       const text = this.options.transformPastedContent(content);
       if (text.length === 0) return;
       if (selection !== undefined && revision === this.#selectionRevision && this.#orderedSelection() !== undefined) {
-        this.#replaceSelection(text);
+        if (atomicSelection) this.#insertBeforeAtomicSelection(text, selection);
+        else this.#replaceSelection(text);
         return;
       }
       this.#clearSelection(false);
@@ -483,6 +514,27 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
       this.#redoStack = [];
       this.#requestRender();
     }).catch(() => {});
+  }
+
+  #insertBeforeAtomicSelection(
+    text: string,
+    selection: { readonly start: Position; readonly end: Position },
+  ): void {
+    const normalized = normalizeInsertedText(text);
+    const current = this.editor.getText();
+    const lines = editorState(this.editor).lines;
+    const from = positionOffset(lines, selection.start);
+    const selected = current.slice(from, positionOffset(lines, selection.end));
+    const next = current.slice(0, from) + normalized + current.slice(from);
+    this.editor.setText(next);
+    const selectedStart = positionAtOffset(next, from + normalized.length);
+    const selectedEnd = positionAtOffset(next, from + normalized.length + selected.length);
+    this.#selection = { anchor: selectedStart, head: selectedEnd };
+    this.#atomicSelection = true;
+    this.#setCursor(selectedStart);
+    this.#redoStack = [];
+    this.#selectionRevision += 1;
+    this.#requestRender();
   }
 
   #replaceSelection(text: string): void {
@@ -615,6 +667,14 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
     return range === undefined ? false : this.#selectAtomicRange(range, state.cursorLine, delta);
   }
 
+  #selectAtomicContainingCursor(): boolean {
+    const state = editorState(this.editor);
+    const line = state.lines[state.cursorLine] ?? "";
+    const range = this.options.atomicRanges(line).find(candidate =>
+      state.cursorCol >= candidate.start && state.cursorCol < candidate.end);
+    return range === undefined ? false : this.#selectAtomicRange(range, state.cursorLine, 1);
+  }
+
   #selectAtomicRange(range: PiShellEditorTextRange, line: number, delta: -1 | 1): boolean {
     const start = { line, col: range.start };
     const end = { line, col: range.end };
@@ -622,7 +682,7 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
       ? { anchor: end, head: start }
       : { anchor: start, head: end };
     this.#atomicSelection = true;
-    this.#setCursor(this.#selection.head);
+    this.#setCursor(start);
     this.#selectionRevision += 1;
     this.#requestRender();
     return true;
@@ -649,6 +709,48 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
   #requestRender(): void {
     this.options.requestRender();
   }
+}
+
+function installAtomicSegmentation(
+  editor: Editor,
+  rangesForText: (text: string) => readonly PiShellEditorTextRange[],
+): void {
+  if (Reflect.get(editor, ATOMIC_SEGMENTATION) === true) return;
+  const originalValue: unknown = Reflect.get(editor, "segment");
+  if (typeof originalValue !== "function") return;
+  const original = originalValue.bind(editor) as (text: string, mode?: unknown) => Iterable<unknown>;
+  Reflect.set(editor, "segment", (text: string, mode?: unknown): Iterable<EditorSegment> => {
+    const segments = [...original(text, mode)].filter(isEditorSegment);
+    const ranges = rangesForText(text);
+    if (ranges.length === 0) return segments;
+    const merged: EditorSegment[] = [];
+    let rangeIndex = 0;
+    for (const segment of segments) {
+      while ((ranges[rangeIndex]?.end ?? Number.POSITIVE_INFINITY) <= segment.index) rangeIndex += 1;
+      const range = ranges[rangeIndex];
+      if (range !== undefined && segment.index >= range.start && segment.index < range.end) {
+        if (segment.index === range.start) {
+          merged.push({
+            segment: text.slice(range.start, range.end).replaceAll(" ", ATOMIC_SPACE_SENTINEL),
+            index: range.start,
+            input: text,
+          });
+        }
+        continue;
+      }
+      merged.push(segment);
+    }
+    return merged;
+  });
+  Reflect.set(editor, ATOMIC_SEGMENTATION, true);
+}
+
+function isEditorSegment(value: unknown): value is EditorSegment {
+  if (typeof value !== "object" || value === null) return false;
+  const segment = Reflect.get(value, "segment");
+  const index = Reflect.get(value, "index");
+  const input = Reflect.get(value, "input");
+  return typeof segment === "string" && typeof index === "number" && typeof input === "string";
 }
 
 function bracketedPasteContent(data: string): string | undefined {
@@ -713,6 +815,21 @@ function isEditorState(value: unknown): value is EditorState {
 function numericProperty(target: object, key: string): number {
   const value: unknown = Object.getOwnPropertyDescriptor(target, key)?.value;
   return typeof value === "number" ? value : 0;
+}
+
+function editorVisualLineMap(editor: Editor, width: number): VisualLine[] | undefined {
+  const builder: unknown = Reflect.get(editor, "buildVisualLineMap");
+  if (typeof builder !== "function") return undefined;
+  const value: unknown = builder.call(editor, width);
+  if (!Array.isArray(value) || !value.every(isVisualLine)) return undefined;
+  return value;
+}
+
+function isVisualLine(value: unknown): value is VisualLine {
+  if (typeof value !== "object" || value === null) return false;
+  return typeof Reflect.get(value, "logicalLine") === "number"
+    && typeof Reflect.get(value, "startCol") === "number"
+    && typeof Reflect.get(value, "length") === "number";
 }
 
 function buildVisualLineMap(lines: readonly string[], width: number): VisualLine[] {

@@ -1,6 +1,6 @@
 import type { AgentSessionRuntime } from "@earendil-works/pi-coding-agent";
 import { readFile } from "node:fs/promises";
-import { stripTerminalSequences } from "@earendil-works/pi-tui";
+import { CURSOR_MARKER, stripTerminalSequences } from "@earendil-works/pi-tui";
 import { describe, expect, it, vi } from "vitest";
 import {
   createPiEngineAdapter,
@@ -443,9 +443,18 @@ describe("OwnedUiSessionShell", () => {
 
     terminal.input("\u0016");
     await vi.waitFor(() => expect(shell.root.editor.getText()).toContain("[🔗 https://example.com/"));
+    const urlChip = shell.root.editor.getText();
+    shell.root.editor.setText(`This prefix takes enough room ${urlChip}`);
+    const wrappedChipRows = shell.root.editor.render(70).map(row => stripTerminalSequences(row));
+    expect(wrappedChipRows.filter(row => row.includes("[🔗")).length).toBe(1);
+    expect(wrappedChipRows.find(row => row.includes("[🔗"))).toContain(urlChip);
+    shell.root.editor.setText(urlChip);
 
     terminal.input("\u001b[D"); // Left focuses the adjacent chip as one inverted item.
-    expect(shell.root.render(60).join("\n")).toContain("\u001b[7m");
+    const focusedChip = shell.root.render(60).find(row => stripTerminalSequences(row).includes("https://example.com")) ?? "";
+    expect(focusedChip).toContain("\u001b[7m");
+    expect(focusedChip).not.toContain(CURSOR_MARKER);
+    expect(stripTerminalSequences(focusedChip)).toContain(urlChip);
     terminal.input("\u0003");
     await vi.waitFor(() => expect(clipboardText).toBe("https://example.com/a/very/useful/resource"));
     terminal.input("\u007f");
@@ -485,6 +494,35 @@ describe("OwnedUiSessionShell", () => {
     expect(engine.session.promptOptions.at(-1)).toMatchObject({
       images: [{ type: "image", data: Buffer.from("fake-png").toString("base64"), mimeType: "image/png" }],
     });
+
+    await shell.dispose();
+  });
+
+  it("keeps a focused atomic chip selected while repeated pastes insert before it", async () => {
+    let clipboardText = "https://example.com/focused-chip";
+    const { terminal, shell } = await fixture([], [], true, undefined, {
+      readText: async () => clipboardText,
+      readImage: async () => null,
+      writeText: async text => { clipboardText = text; },
+    });
+    terminal.resize(60, 12);
+    shell.root.render(60);
+
+    terminal.input("\u0016");
+    await vi.waitFor(() => expect(shell.root.editor.getText()).toContain("[🔗 https://example.com/focused-chip]"));
+    const chip = shell.root.editor.getText();
+    terminal.input("\u001b[D");
+
+    clipboardText = "first";
+    terminal.input("\u0016");
+    await vi.waitFor(() => expect(shell.root.editor.getText()).toBe(`first${chip}`));
+    expect(shell.root.render(60).join("\n")).toContain("\u001b[7m");
+
+    clipboardText = "second";
+    terminal.input("\u0016");
+    await vi.waitFor(() => expect(shell.root.editor.getText()).toBe(`firstsecond${chip}`));
+    terminal.input("\u007f");
+    expect(shell.root.editor.getText()).toBe("firstsecond");
 
     await shell.dispose();
   });

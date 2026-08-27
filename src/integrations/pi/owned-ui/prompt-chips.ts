@@ -60,7 +60,7 @@ export class PromptChipStore {
       }
       const icon = IMAGE_EXTENSION.test(item.fullPath) ? "🖼 " : "📄";
       return this.#recordUnique({ kind: "file", tag: `[${icon} ${label}]`, path: item.fullPath });
-    }).join(" ");
+    }).join("");
   }
 
   atomicRanges(line: string): readonly PiShellEditorTextRange[] {
@@ -120,21 +120,85 @@ interface ClipboardPath {
 function pathsFromClipboard(text: string): ClipboardPath[] {
   const normalized = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim();
   if (normalized.length === 0) return [];
-  const lines = normalized.split("\n").map(line => unquote(line.trim())).filter(Boolean);
   const paths: ClipboardPath[] = [];
-  for (const line of lines) {
-    const fullPath = normalizePath(line);
-    if (fullPath === null || !existsSync(fullPath)) return [];
-    try {
-      const stat = statSync(fullPath);
-      if (stat.isDirectory()) paths.push({ fullPath, kind: "folder" });
-      else if (stat.isFile()) paths.push({ fullPath, kind: "file" });
-      else return [];
-    } catch {
-      return [];
+  for (const line of normalized.split("\n").filter(value => value.trim().length > 0)) {
+    const wholeLine = existingClipboardPath(line);
+    if (wholeLine !== null) {
+      paths.push(wholeLine);
+      continue;
+    }
+    const tokens = tokenizePathLine(line)?.filter(token => token.quoted || token.text !== "&");
+    if (tokens === undefined || tokens.length === 0) return [];
+    for (let index = 0; index < tokens.length;) {
+      const token = tokens[index];
+      if (token === undefined) return [];
+      if (token.quoted) {
+        const quoted = existingClipboardPath(token.text);
+        if (quoted === null) return [];
+        paths.push(quoted);
+        index += 1;
+        continue;
+      }
+      if (normalizePath(token.text) === null) return [];
+      let runEnd = index;
+      while (runEnd < tokens.length && tokens[runEnd]?.quoted !== true) runEnd += 1;
+      let matched: ClipboardPath | null = null;
+      let matchedEnd = index;
+      for (let end = runEnd; end > index; end -= 1) {
+        matched = existingClipboardPath(tokens.slice(index, end).map(candidate => candidate.text).join(" "));
+        if (matched !== null) {
+          matchedEnd = end;
+          break;
+        }
+      }
+      if (matched === null) return [];
+      paths.push(matched);
+      index = matchedEnd;
     }
   }
   return paths;
+}
+
+function existingClipboardPath(value: string): ClipboardPath | null {
+  const fullPath = normalizePath(unquote(value.trim()));
+  if (fullPath === null || !existsSync(fullPath)) return null;
+  try {
+    const stat = statSync(fullPath);
+    if (stat.isDirectory()) return { fullPath, kind: "folder" };
+    if (stat.isFile()) return { fullPath, kind: "file" };
+  } catch {
+    // Clipboard path probing is best-effort.
+  }
+  return null;
+}
+
+interface PathToken {
+  readonly text: string;
+  readonly quoted: boolean;
+}
+
+function tokenizePathLine(line: string): PathToken[] | undefined {
+  const tokens: PathToken[] = [];
+  let index = 0;
+  while (index < line.length) {
+    while (index < line.length && /\s/u.test(line[index] ?? "")) index += 1;
+    if (index >= line.length) break;
+    const quote = line[index] === '"' || line[index] === "'" ? line[index] : undefined;
+    if (quote !== undefined) {
+      index += 1;
+      const start = index;
+      while (index < line.length && line[index] !== quote) index += 1;
+      if (index >= line.length) return undefined;
+      tokens.push({ text: line.slice(start, index), quoted: true });
+      index += 1;
+      if (index < line.length && !/\s/u.test(line[index] ?? "")) return undefined;
+      continue;
+    }
+    const start = index;
+    while (index < line.length && !/\s/u.test(line[index] ?? "")) index += 1;
+    tokens.push({ text: line.slice(start, index), quoted: false });
+  }
+  return tokens;
 }
 
 function normalizePath(value: string): string | null {
