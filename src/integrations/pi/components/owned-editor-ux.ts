@@ -166,6 +166,7 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
   }
 
   handleInput(data: string, next: () => void): void {
+    this.#adoptAtomicCursorFocus();
     if (this.keybindings.matches(data, "owned.editor.selectAll")) {
       this.#selectAll();
       return;
@@ -691,6 +692,21 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
       if (previous === undefined || !/^\s+$/u.test(previous.segment)) return;
       state.cursorCol -= previous.segment.length;
     }
+  }
+
+  #adoptAtomicCursorFocus(): void {
+    if (this.#orderedSelection() !== undefined) return;
+    const state = editorState(this.editor);
+    const line = state.lines[state.cursorLine] ?? "";
+    const range = this.options.atomicRanges(line).find(candidate => candidate.start === state.cursorCol);
+    if (range === undefined) return;
+    this.#selection = {
+      anchor: { line: state.cursorLine, col: range.start },
+      head: { line: state.cursorLine, col: range.end },
+    };
+    this.#atomicSelection = true;
+    this.#pointerSelecting = false;
+    this.#selectionRevision += 1;
   }
 
   #selectAdjacentAtomic(delta: -1 | 1): boolean {

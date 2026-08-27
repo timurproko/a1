@@ -548,12 +548,22 @@ describe("OwnedUiSessionShell", () => {
 
     terminal.input("\u001b[D"); // Focus second chip.
     terminal.input("\u001b[D"); // Adjacent first chip is one atomic item left.
+    clipboardText = "";
     terminal.input("\u0003");
     await vi.waitFor(() => expect(clipboardText).toBe(firstUrl));
     terminal.input("\u001b[C"); // Adjacent second chip is one atomic item right.
+    clipboardText = "";
     terminal.input("\u0003");
     await vi.waitFor(() => expect(clipboardText).toBe(secondUrl));
     terminal.input("\u001b[C"); // Clear focus after the adjacent-chip check.
+
+    shell.root.editor.setText(adjacent);
+    terminal.input("\u001b[1;5H"); // Native editor cursor at the first atomic segment start.
+    terminal.input("\u001b[C"); // Must move to the second chip, not re-select the first.
+    clipboardText = "";
+    terminal.input("\u0003");
+    await vi.waitFor(() => expect(clipboardText).toBe(secondUrl));
+    terminal.input("\u001b[C");
 
     const spaced = adjacent.replace("][", "] [");
     shell.root.editor.setText(spaced);
