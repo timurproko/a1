@@ -207,6 +207,44 @@ describe("transcript viewport", () => {
     expect(viewport.scrollTop).toBe(before - 1);
   });
 
+  it("keeps trailing status rows outside transcript selection and copying", () => {
+    const viewport = new TranscriptViewport();
+    viewport.setConfig(ALWAYS);
+    const input = {
+      documentRows: ["Selectable transcript", "⠋ Working..."],
+      selectableDocumentRowCount: 1,
+      dockRows: [] as string[],
+      promptAnchors: [],
+      width: 30,
+      height: 2,
+      now: 100,
+    };
+    viewport.compose(input);
+
+    expect(viewport.pressSelection(3, 2, 101)).toBe(false);
+    expect(viewport.hasSelection).toBe(false);
+
+    expect(viewport.pressSelection(1, 1, 102)).toBe(true);
+    expect(viewport.extendSelection(20, 2, 103)).toBe(true);
+    viewport.releaseSelection();
+    expect(viewport.selectedText()).not.toContain("Working");
+
+    const selected = viewport.compose({
+      ...input,
+      now: 104,
+      theme: {
+        track: value => value,
+        thumb: value => value,
+        sticky: value => value,
+        quietSticky: value => value,
+        bottomControl: value => value,
+        selection: line => `\u001b[45m${line}\u001b[49m`,
+      },
+    });
+    expect(selected.rows[0]).toContain("\u001b[45m");
+    expect(selected.rows[1]).not.toContain("\u001b[45m");
+  });
+
   it("keeps the scrollbar thumb visible through a multi-row text selection", () => {
     const viewport = new TranscriptViewport();
     viewport.setConfig(ALWAYS);

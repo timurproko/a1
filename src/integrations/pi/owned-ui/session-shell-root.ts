@@ -345,6 +345,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     const pinStatus = this.#view.editor.queuedSubmissions.length > 0
       || document.rows.length + statusRows.length <= availableWithoutStatus;
     const dockRows = pinStatus ? dock.rows : dock.rowsWithoutStatus;
+    const selectableDocumentRowCount = document.rows.length;
     if (!pinStatus) document = { ...document, rows: [...document.rows, ...statusRows] };
     const dockStartRow = height - dockRows.length + 1;
     const editorOffset = pinStatus ? dock.editorOffsetWithStatus : dock.editorOffsetWithoutStatus;
@@ -357,6 +358,9 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.#viewport.setConfig(this.#viewportConfig);
     return this.#viewport.compose({
       documentRows: document.rows,
+      // Overflowing Working rows scroll with the transcript but remain status
+      // chrome: pointer selection and Ctrl+C stop at the real document tail.
+      selectableDocumentRowCount,
       dockRows,
       promptAnchors: document.promptAnchors,
       width,
@@ -371,7 +375,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
         // inherited text decorations so dim transcript rows cannot dull the
         // thumb; the row background deliberately remains intact.
         track: text => `${SCROLLBAR_CELL_RESET}${piTheme().fg("dim", text)}`,
-        thumb: text => `${SCROLLBAR_CELL_RESET}${piTheme().fg("text", text)}`,
+        thumb: text => `${SCROLLBAR_CELL_RESET}${piTheme().fg("accent", text)}`,
         sticky: (text, hovered) => piTheme().bg(
           hovered ? "selectedBg" : "toolPendingBg",
           piTheme().fg("text", withoutTerminalBackground(text)),

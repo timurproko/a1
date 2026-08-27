@@ -224,8 +224,8 @@ describe("OwnedUiSessionShell", () => {
     expect(detached.some(row => row.includes("Jump to bottom (End)"))).toBe(true);
     expect(detached[0]).not.toContain("│");
     expect(detached.slice(1, -4).some(row => row.includes("│"))).toBe(true);
-    expect(detachedRaw.some(row => row.includes(piTheme().fg("text", "│")))).toBe(true);
-    expect(detachedRaw.every(row => !row.includes(piTheme().fg("accent", "│")))).toBe(true);
+    expect(detachedRaw.some(row => row.includes(piTheme().fg("accent", "│")))).toBe(true);
+    expect(detachedRaw.every(row => !row.includes(piTheme().fg("text", "│")))).toBe(true);
 
     const completedReply = {
       role: "assistant",
@@ -326,10 +326,22 @@ describe("OwnedUiSessionShell", () => {
     terminal.resize(60, 12);
     engine.session.emit({ type: "agent_start" });
     await shell.backend.flushEvents();
-    expect(shell.root.render(60).some(row => stripTerminalSequences(row).includes("Working"))).toBe(true);
+    const workingFrame = shell.root.render(60);
+    const workingRowIndex = workingFrame.findIndex(row => stripTerminalSequences(row).includes("Working"));
+    const workingColumn = stripTerminalSequences(workingFrame[workingRowIndex] ?? "").indexOf("Working") + 1;
+    expect(workingRowIndex).toBeGreaterThanOrEqual(0);
+    const clickWorking = () => {
+      shell.root.handleViewportPreInput(`\u001b[<0;${workingColumn};${workingRowIndex + 1}M`);
+      shell.root.handleViewportPreInput(`\u001b[<0;${workingColumn};${workingRowIndex + 1}m`);
+    };
+    clickWorking();
+    clickWorking();
+    expect(shell.root.render(60)[workingRowIndex]).not.toContain("\u001b[48;2;38;79;120m");
+    expect(shell.root.handleViewportPreInput("\u0003")).toMatchObject({ data: "\u0003", consumed: false });
 
     terminal.input("\u001b[<64;30;3M");
     expect(shell.root.render(60).every(row => !stripTerminalSequences(row).includes("Working"))).toBe(true);
+    await shell.dispose();
   });
 
   it("matches Pi's queued steering order and dequeue hint while working", async () => {
@@ -869,9 +881,11 @@ describe("OwnedUiSessionShell", () => {
 
     current = { scrollbarAppearance: "always", scrollbarStyle: "thick", scrollbarSpeed: "fast" };
     notify?.(current);
-    const shown = shell.root.render(60).map(row => stripTerminalSequences(row));
+    const shownRaw = shell.root.render(60);
+    const shown = shownRaw.map(row => stripTerminalSequences(row));
     expect(shown.some(row => row.includes("Jump to bottom"))).toBe(true);
     expect(shown.slice(1, -4).some(row => row.includes("┃"))).toBe(true);
+    expect(shownRaw.some(row => row.includes(piTheme().fg("accent", "┃")))).toBe(true);
     await shell.dispose();
   });
 
