@@ -21,13 +21,14 @@ class Session {
   isRetrying = false;
   isCompacting = false;
   readonly calls: string[] = [];
+  readonly promptOptions: unknown[] = [];
   scopedModels: readonly unknown[] = [];
   constructor(readonly messages: readonly unknown[] = []) {}
   extensionBindings: unknown;
   #listeners = new Set<(event: unknown) => void>();
   subscribe(listener: (event: unknown) => void): () => void { this.#listeners.add(listener); return () => this.#listeners.delete(listener); }
   emit(event: unknown): void { for (const listener of this.#listeners) listener(event); }
-  async prompt(text: string): Promise<void> { this.calls.push(`prompt:${text}`); }
+  async prompt(text: string, options?: unknown): Promise<void> { this.calls.push(`prompt:${text}`); this.promptOptions.push(options); }
   async steer(text: string): Promise<void> { this.calls.push(`steer:${text}`); }
   async followUp(text: string): Promise<void> { this.calls.push(`followUp:${text}`); }
   async abort(): Promise<void> { this.calls.push("abort"); }
@@ -138,7 +139,11 @@ async function fixture(
   extensions: readonly unknown[] = [],
   customViewport = false,
   viewportSettings?: OwnedUiViewportSettingsPort,
-  clipboard?: { readText(): Promise<string | null>; writeText?(text: string): Promise<void> },
+  clipboard?: {
+    readText(): Promise<string | null>;
+    readImage?(): Promise<{ readonly data: string; readonly mimeType: string } | null>;
+    writeText?(text: string): Promise<void>;
+  },
 ) {
   const engine = new Runtime(messages);
   engine.extensionResources = extensions;
@@ -421,6 +426,41 @@ describe("OwnedUiSessionShell", () => {
     expect(shell.root.editor.getText()).toBe("abcX");
     terminal.input("\u001a");
     expect(shell.root.editor.getText()).toBe("abcd");
+
+    await shell.dispose();
+  });
+
+  it("pastes URLs and clipboard images as atomic chips and expands them for copy and submission", async () => {
+    let clipboardText = "https://example.com/a/very/useful/resource";
+    let clipboardImage: { readonly data: string; readonly mimeType: string } | null = null;
+    const { engine, terminal, shell } = await fixture([], [], true, undefined, {
+      readText: async () => clipboardText,
+      readImage: async () => clipboardImage,
+      writeText: async text => { clipboardText = text; },
+    });
+    terminal.resize(60, 12);
+    shell.root.render(60);
+
+    terminal.input("\u0016");
+    await vi.waitFor(() => expect(shell.root.editor.getText()).toContain("[🔗 https://example.com/"));
+    terminal.input("\u007f");
+    expect(shell.root.editor.getText()).toBe("");
+    terminal.input("\u001a");
+    expect(shell.root.editor.getText()).toContain("[🔗 https://example.com/");
+    terminal.input("\u0001");
+    terminal.input("\u0003");
+    await vi.waitFor(() => expect(clipboardText).toBe("https://example.com/a/very/useful/resource"));
+
+    clipboardImage = { data: Buffer.from("fake-png").toString("base64"), mimeType: "image/png" };
+    shell.root.editor.setText("");
+    terminal.input("\u0016");
+    await vi.waitFor(() => expect(shell.root.editor.getText()).toMatch(/^\[📷 screenshot-[a-f0-9]+\.png\]$/u));
+    const imageTag = shell.root.editor.getText();
+    await shell.submit(imageTag);
+    expect(engine.session.calls).toContain(`prompt:${imageTag}`);
+    expect(engine.session.promptOptions.at(-1)).toMatchObject({
+      images: [{ type: "image", data: Buffer.from("fake-png").toString("base64"), mimeType: "image/png" }],
+    });
 
     await shell.dispose();
   });

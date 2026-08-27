@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import type { PiShellClipboardContent } from "../components/index.js";
 
 const MAX_CLIPBOARD_BYTES = 16 * 1024 * 1024;
 
@@ -16,6 +17,23 @@ export function preloadSystemClipboard(): void {
  * private clipboard module. Failures are deliberately non-fatal: a denied or
  * unavailable clipboard simply makes the paste action a no-op.
  */
+export async function readSystemClipboardContent(): Promise<PiShellClipboardContent | null> {
+  await pendingClipboardWrite;
+  const native = await nativeClipboard();
+  if (native !== null) {
+    try {
+      if (native.hasImage()) {
+        const data = await native.getImageBase64();
+        if (data.length > 0) return { kind: "image", data, mimeType: "image/png" };
+      }
+    } catch {
+      // Fall through to text and platform readers.
+    }
+  }
+  const text = await readSystemClipboardText();
+  return text === null ? null : { kind: "text", text };
+}
+
 export async function readSystemClipboardText(): Promise<string | null> {
   // Ctrl+C/Ctrl+X and Ctrl+V can arrive in adjacent input turns. Serialize the
   // read behind our native write so paste never observes the previous value.
@@ -25,7 +43,7 @@ export async function readSystemClipboardText(): Promise<string | null> {
     if (native !== null) {
       try {
         const text = await native.getText();
-        return text.length === 0 ? null : text;
+        if (text.length > 0) return text;
       } catch {
         // Fall through to the platform command.
       }
@@ -35,7 +53,7 @@ export async function readSystemClipboardText(): Promise<string | null> {
     const script = [
       "[Console]::OutputEncoding=[System.Text.Encoding]::UTF8",
       "$t=Get-Clipboard -Raw -ErrorAction SilentlyContinue",
-      "if ($null -ne $t) {[Console]::Out.Write($t)}",
+      "if ($null -ne $t -and $t.Length -gt 0) {[Console]::Out.Write($t)} else {$f=Get-Clipboard -Format FileDropList -ErrorAction SilentlyContinue; if ($f) {[Console]::Out.Write(($f | ForEach-Object {$_.FullName}) -join [Environment]::NewLine)}}",
     ].join("; ");
     return execClipboard("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script]);
   }
@@ -52,7 +70,7 @@ export function writeSystemClipboardText(text: string): Promise<void> {
         await native.setText(text);
         return;
       } catch {
-        // OSC 52 is still emitted by the caller when native access fails.
+        // The caller still emits its terminal clipboard fallback.
       }
     }
   };

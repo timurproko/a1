@@ -1493,7 +1493,11 @@ export class PiEngineAdapter {
       case "compact": {
         const result = await this.#sessionCommands?.execute(
           command.type === "prompt" || command.type === "steer" || command.type === "follow-up"
-            ? { type: command.type, text: command.text }
+            ? {
+                type: command.type,
+                text: command.text,
+                ...(command.images === undefined ? {} : { images: [...command.images] }),
+              }
             : { type: command.type },
         );
         if (!result || result.outcome === "rejected" || result.outcome === "failed") {

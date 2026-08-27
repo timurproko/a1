@@ -20,6 +20,8 @@ const MAX_MESSAGE_LENGTH = 4_096;
 const MAX_TEXT_BYTES = 256 * 1024;
 const MAX_PAYLOAD_BYTES = 64 * 1024;
 const MAX_SESSION_VIEW_BYTES = 1024 * 1024;
+const MAX_IMAGE_DATA_BYTES = 8 * 1024 * 1024;
+const MAX_PROMPT_IMAGES = 8;
 const MAX_BLOCKS = 10_000;
 const MAX_CUSTOMIZATIONS = 1_000;
 const MAX_DIAGNOSTICS = 1_000;
@@ -70,6 +72,14 @@ export function assertOwnedUiCommand(command: OwnedUiCommand): void {
     case "steer":
     case "follow-up":
       assertBoundedText(command.text, "owned-UI prompt text", MAX_TEXT_BYTES);
+      if (command.images !== undefined) {
+        assertCollection(command.images, "owned-UI prompt images", MAX_PROMPT_IMAGES);
+        for (const image of command.images) {
+          if (image.type !== "image") throw new TypeError("owned-UI prompt image type is invalid");
+          assertBoundedText(image.data, "owned-UI prompt image data", MAX_IMAGE_DATA_BYTES);
+          assertBoundedText(image.mimeType, "owned-UI prompt image MIME type", MAX_LABEL_LENGTH);
+        }
+      }
       return;
     case "abort":
     case "retry":

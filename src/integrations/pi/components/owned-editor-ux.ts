@@ -4,6 +4,10 @@ import {
   type Editor,
 } from "#pi-tui";
 import type { KeybindingsManager } from "./upstream/adjacent/core/keybindings.js";
+import type {
+  PiShellClipboardContent,
+  PiShellEditorTextRange,
+} from "./shell-shared-facade.js";
 
 /**
  * Middleware boundary around Pi's editor. Interceptors may claim an input or
@@ -107,7 +111,10 @@ interface VisualLine {
 
 export interface PromptSelectionUxOptions {
   readonly copyText: (text: string) => void;
-  readonly readClipboardText: () => Promise<string | null>;
+  readonly readClipboardContent: () => Promise<PiShellClipboardContent | null>;
+  readonly transformPastedContent: (content: PiShellClipboardContent) => string;
+  readonly atomicRanges: (line: string) => readonly PiShellEditorTextRange[];
+  readonly expandCopiedText: (text: string) => string;
   readonly paintSelection: (line: string, from: number, to: number) => string;
   readonly requestRender: () => void;
   readonly getRows: () => number;
@@ -158,11 +165,11 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
       return;
     }
     if (this.keybindings.matches(data, "tui.input.copy") && this.hasSelection()) {
-      this.options.copyText(this.#selectedText());
+      this.options.copyText(this.options.expandCopiedText(this.#selectedText()));
       return;
     }
     if (this.keybindings.matches(data, "owned.editor.cut") && this.hasSelection()) {
-      this.options.copyText(this.#selectedText());
+      this.options.copyText(this.options.expandCopiedText(this.#selectedText()));
       this.#deleteSelection();
       return;
     }
@@ -175,6 +182,22 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
       return;
     }
 
+    const terminalPaste = bracketedPasteContent(data);
+    if (terminalPaste !== undefined) {
+      if (terminalPaste.length === 0) {
+        this.pasteClipboard();
+        return;
+      }
+      const transformed = this.options.transformPastedContent({ kind: "text", text: terminalPaste });
+      if (transformed !== terminalPaste) {
+        if (this.hasSelection()) this.#replaceSelection(transformed);
+        else this.editor.insertTextAtCursor(transformed);
+        this.#redoStack = [];
+        this.#requestRender();
+        return;
+      }
+    }
+
     if (this.keybindings.matches(data, "tui.editor.undo")) {
       const before = this.#snapshot();
       this.#clearSelection(false);
@@ -185,6 +208,12 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
     }
 
     const selection = this.#orderedSelection();
+    if (selection === undefined) {
+      if (this.keybindings.matches(data, "tui.editor.cursorLeft") && this.#moveAcrossAtomic(-1)) return;
+      if (this.keybindings.matches(data, "tui.editor.cursorRight") && this.#moveAcrossAtomic(1)) return;
+      if (this.keybindings.matches(data, "tui.editor.deleteCharBackward") && this.#deleteAdjacentAtomic(-1)) return;
+      if (this.keybindings.matches(data, "tui.editor.deleteCharForward") && this.#deleteAdjacentAtomic(1)) return;
+    }
     if (selection !== undefined) {
       const inserted = insertedText(data);
       if (inserted !== undefined) {
@@ -280,8 +309,14 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
     if (event.kind === "press") return this.#pointerPress(event.column, event.row);
     if (event.kind === "motion") {
       if (!this.#pointerSelecting) return false;
-      const position = this.#positionAt(event.column, event.row, true);
+      let position = this.#positionAt(event.column, event.row, true);
       if (position !== undefined && this.#selection !== undefined) {
+        const atomic = this.#atomicRangeAt(position);
+        if (atomic !== undefined) {
+          const beforeAnchor = position.line < this.#selection.anchor.line
+            || (position.line === this.#selection.anchor.line && atomic.start < this.#selection.anchor.col);
+          position = { line: position.line, col: beforeAnchor ? atomic.start : atomic.end };
+        }
         this.#selection = { ...this.#selection, head: position };
         this.#selectionRevision += 1;
         this.#requestRender();
@@ -300,6 +335,18 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
   #pointerPress(column: number, row: number): boolean {
     const position = this.#positionAt(column, row, false);
     if (position === undefined) return false;
+    const atomic = this.#atomicRangeAt(position);
+    if (atomic !== undefined) {
+      this.#selection = {
+        anchor: { line: position.line, col: atomic.start },
+        head: { line: position.line, col: atomic.end },
+      };
+      this.#pointerSelecting = true;
+      this.#lastClick = undefined;
+      this.#selectionRevision += 1;
+      this.#requestRender();
+      return true;
+    }
     const now = Date.now();
     const previous = this.#lastClick;
     const count = previous !== undefined
@@ -337,6 +384,14 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
   }
 
   #selectWord(position: Position): void {
+    const atomic = this.#atomicRangeAt(position);
+    if (atomic !== undefined) {
+      this.#selection = {
+        anchor: { line: position.line, col: atomic.start },
+        head: { line: position.line, col: atomic.end },
+      };
+      return;
+    }
     const line = editorState(this.editor).lines[position.line] ?? "";
     const segments = [...GRAPHEMES.segment(line)].map(({ segment, index }) => ({
       class: charClass(segment), start: index, end: index + segment.length,
@@ -386,8 +441,10 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
   #pasteFromClipboard(): void {
     const revision = this.#selectionRevision;
     const selection = this.#orderedSelection();
-    void this.options.readClipboardText().then(text => {
-      if (text === null || text.length === 0) return;
+    void this.options.readClipboardContent().then(content => {
+      if (content === null) return;
+      const text = this.options.transformPastedContent(content);
+      if (text.length === 0) return;
       if (selection !== undefined && revision === this.#selectionRevision && this.#orderedSelection() !== undefined) {
         this.#replaceSelection(text);
         return;
@@ -480,6 +537,13 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
   #moveCursor(delta: -1 | 1): void {
     const state = editorState(this.editor);
     const line = state.lines[state.cursorLine] ?? "";
+    const atomic = this.options.atomicRanges(line).find(range => delta < 0
+      ? state.cursorCol > range.start && state.cursorCol <= range.end
+      : state.cursorCol >= range.start && state.cursorCol < range.end);
+    if (atomic !== undefined) {
+      state.cursorCol = delta < 0 ? atomic.start : atomic.end;
+      return;
+    }
     if (delta < 0) {
       if (state.cursorCol > 0) {
         const segments = [...GRAPHEMES.segment(line.slice(0, state.cursorCol))];
@@ -498,6 +562,37 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
     }
   }
 
+  #atomicRangeAt(position: Position): PiShellEditorTextRange | undefined {
+    const line = editorState(this.editor).lines[position.line] ?? "";
+    return this.options.atomicRanges(line).find(range => position.col >= range.start && position.col < range.end);
+  }
+
+  #moveAcrossAtomic(delta: -1 | 1): boolean {
+    const state = editorState(this.editor);
+    const line = state.lines[state.cursorLine] ?? "";
+    const range = this.options.atomicRanges(line).find(candidate => delta < 0
+      ? state.cursorCol > candidate.start && state.cursorCol <= candidate.end
+      : state.cursorCol >= candidate.start && state.cursorCol < candidate.end);
+    if (range === undefined) return false;
+    state.cursorCol = delta < 0 ? range.start : range.end;
+    this.#requestRender();
+    return true;
+  }
+
+  #deleteAdjacentAtomic(delta: -1 | 1): boolean {
+    const state = editorState(this.editor);
+    const line = state.lines[state.cursorLine] ?? "";
+    const range = this.options.atomicRanges(line).find(candidate => delta < 0
+      ? state.cursorCol > candidate.start && state.cursorCol <= candidate.end
+      : state.cursorCol >= candidate.start && state.cursorCol < candidate.end);
+    if (range === undefined) return false;
+    this.#selection = {
+      anchor: { line: state.cursorLine, col: range.start },
+      head: { line: state.cursorLine, col: range.end },
+    };
+    return this.#deleteSelection();
+  }
+
   #snapshot(): EditorSnapshot {
     return { text: this.editor.getText(), cursor: this.#cursor() };
   }
@@ -505,6 +600,12 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
   #requestRender(): void {
     this.options.requestRender();
   }
+}
+
+function bracketedPasteContent(data: string): string | undefined {
+  const start = data.indexOf("\u001b[200~");
+  const end = data.indexOf("\u001b[201~", start + 6);
+  return start < 0 || end < 0 ? undefined : data.slice(start + 6, end);
 }
 
 function insertedText(data: string): string | undefined {

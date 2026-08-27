@@ -72,6 +72,7 @@ import {
   renderPiShellStatusText,
   renderPiShellTranscriptBlock,
   type PiExtensionUiBridge,
+  type PiShellClipboardContent,
   type PiShellComponentPort,
   type PiShellEditorPort,
   type PiShellExtensionRendererResolver,
@@ -95,6 +96,7 @@ import {
   type PiTuiOverlayHandle,
   type PiTuiTerminalPort,
 } from "../tui-runtime/index.js";
+import { PromptChipStore, type PreparedPrompt } from "./prompt-chips.js";
 
 export type OwnedUiBackendPort = PiEngineAdapter;
 export type OwnedUiTerminalPort = PiTuiTerminalPort;
@@ -102,6 +104,7 @@ type OwnedUiStartupOptions = PiShellHeaderOptions;
 
 export interface OwnedUiClipboardPort {
   readText(): Promise<string | null>;
+  readImage?(): Promise<{ readonly data: string; readonly mimeType: string } | null>;
   writeText?(text: string): Promise<void>;
 }
 
@@ -140,6 +143,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   readonly #footer: PiShellViewComponentPort;
   readonly #queued: PiShellQueuedInputPort;
   readonly #extensionRenderers: PiShellExtensionRendererResolver;
+  readonly #promptChips = new PromptChipStore();
   readonly #customViewport: boolean;
   readonly #submittedPromptComposer: PiShellSubmittedPromptComposer | undefined;
   readonly #viewport = new TranscriptViewport();
@@ -194,7 +198,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       readonly onFollowUp?: () => void;
       readonly onDequeue?: () => void;
       readonly onCopyText?: (text: string) => void;
-      readonly readClipboardText?: () => Promise<string | null>;
+      readonly readClipboardContent?: () => Promise<PiShellClipboardContent | null>;
     },
     startup: PiShellHeaderOptions = {},
     agentDir?: string,
@@ -230,6 +234,9 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
         "\u001b[48;2;38;79;120m",
         "\u001b[49m",
       ),
+      transformPastedContent: content => this.#promptChips.transformPastedContent(content),
+      editorAtomicRanges: line => this.#promptChips.atomicRanges(line),
+      expandCopiedEditorText: text => this.#promptChips.expandCopiedText(text),
       cwd,
       ...(agentDir === undefined ? {} : { agentDir }),
       onToolsExpand: () => this.#setToolsExpanded(!this.#toolsExpanded),
@@ -246,6 +253,10 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       this.#renderedRows.clear();
       this.#documentLayouts.clear();
     });
+  }
+
+  preparePromptSubmission(text: string): PreparedPrompt {
+    return this.#promptChips.prepareSubmission(text);
   }
 
   update(view: OwnedUiSessionViewModel): void {

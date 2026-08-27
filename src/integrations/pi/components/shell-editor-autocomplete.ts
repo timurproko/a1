@@ -70,7 +70,10 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
     ? new OwnedEditorUxInterception([
         createPromptSelectionInterceptor(editor, keybindings, {
           copyText: options.onCopyText ?? (() => {}),
-          readClipboardText: options.readClipboardText ?? (async () => null),
+          readClipboardContent: options.readClipboardContent ?? (async () => null),
+          transformPastedContent: options.transformPastedContent ?? (content => content.kind === "text" ? content.text : ""),
+          atomicRanges: options.editorAtomicRanges ?? (() => []),
+          expandCopiedText: options.expandCopiedEditorText ?? (text => text),
           paintSelection: options.paintEditorSelection ?? (line => line),
           requestRender: options.requestRender,
           getRows: options.getRows,

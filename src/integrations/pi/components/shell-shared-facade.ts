@@ -25,6 +25,15 @@ export interface PiShellComponentPort {
   dispose?(): void;
 }
 
+export type PiShellClipboardContent =
+  | { readonly kind: "text"; readonly text: string }
+  | { readonly kind: "image"; readonly data: string; readonly mimeType: string };
+
+export interface PiShellEditorTextRange {
+  readonly start: number;
+  readonly end: number;
+}
+
 export interface PiShellEditorPointerEvent {
   readonly kind: "press" | "motion" | "release";
   readonly button: number;
@@ -139,7 +148,10 @@ export interface PiShellEditorOptions {
   readonly onFollowUp?: (() => void) | undefined;
   readonly onDequeue?: (() => void) | undefined;
   readonly onCopyText?: (text: string) => void;
-  readonly readClipboardText?: () => Promise<string | null>;
+  readonly readClipboardContent?: () => Promise<PiShellClipboardContent | null>;
+  readonly transformPastedContent?: (content: PiShellClipboardContent) => string;
+  readonly editorAtomicRanges?: (line: string) => readonly PiShellEditorTextRange[];
+  readonly expandCopiedEditorText?: (text: string) => string;
   readonly paintEditorSelection?: (line: string, from: number, to: number) => string;
   readonly cwd?: string;
   readonly agentDir?: string;

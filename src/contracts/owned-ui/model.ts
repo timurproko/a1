@@ -58,6 +58,12 @@ export interface OwnedUiTerminalSurface {
   readonly hardwareCursor: boolean;
 }
 
+export interface OwnedUiImageAttachment {
+  readonly type: "image";
+  readonly data: string;
+  readonly mimeType: string;
+}
+
 export interface OwnedUiEditorState {
   readonly text: string;
   readonly queuedSubmissions: readonly string[];
@@ -177,12 +183,14 @@ export type OwnedUiCommand =
     readonly correlationId: OwnedUiCorrelationId;
     readonly sessionId: OwnedUiSessionId;
     readonly text: string;
+    readonly images?: readonly OwnedUiImageAttachment[];
   }
   | {
     readonly type: "steer" | "follow-up";
     readonly correlationId: OwnedUiCorrelationId;
     readonly sessionId: OwnedUiSessionId;
     readonly text: string;
+    readonly images?: readonly OwnedUiImageAttachment[];
   }
   | { readonly type: "abort" | "retry" | "compact" | "shutdown"; readonly correlationId: OwnedUiCorrelationId; readonly sessionId: OwnedUiSessionId }
   | {
