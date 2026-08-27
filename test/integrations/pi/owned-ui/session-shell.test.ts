@@ -489,6 +489,9 @@ describe("OwnedUiSessionShell", () => {
     terminal.input("\u0016");
     await vi.waitFor(() => expect(shell.root.editor.getText()).toMatch(/^\[📷 screenshot-[a-f0-9]+\.png\]$/u));
     const imageTag = shell.root.editor.getText();
+    terminal.input("\u001b[D");
+    terminal.input("\u0003");
+    await vi.waitFor(() => expect(clipboardText).toBe(imageTag));
     await shell.submit(imageTag);
     expect(engine.session.calls).toContain(`prompt:${imageTag}`);
     expect(engine.session.promptOptions.at(-1)).toMatchObject({
@@ -576,6 +579,7 @@ describe("OwnedUiSessionShell", () => {
 
     shell.root.editor.setText(adjacent);
     terminal.input("\u001b[1;5H"); // Native editor cursor at the first atomic segment start.
+    expect(shell.root.editor.hasSelection()).toBe(true);
     terminal.input("\u001b[C"); // Must move to the second chip, not re-select the first.
     clipboardText = "";
     terminal.input("\u0003");

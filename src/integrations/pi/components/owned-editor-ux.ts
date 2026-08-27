@@ -362,6 +362,7 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
   }
 
   hasSelection(): boolean {
+    this.#adoptAtomicCursorFocus();
     return this.#orderedSelection() !== undefined;
   }
 
