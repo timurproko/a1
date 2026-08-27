@@ -338,7 +338,7 @@ describe("OwnedUiSessionShell", () => {
     expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from("Selectable assistant words").toString("base64")}\u0007`);
   });
 
-  it("uses Alt+Home to jump from the pinned prompt to previous prompts", async () => {
+  it("uses Alt+Home for the first prompt and Shift+Up/Down between prompts", async () => {
     const messages = ["one", "two", "three"].flatMap((prompt, index) => [
       { role: "user", content: [{ type: "text", text: prompt }], timestamp: Date.now() + index * 2 },
       { role: "assistant", content: [{ type: "text", text: `reply-${prompt}-1\nreply-${prompt}-2\nreply-${prompt}-3\nreply-${prompt}-4\nreply-${prompt}-5` }], timestamp: Date.now() + index * 2 + 1 },
@@ -350,13 +350,22 @@ describe("OwnedUiSessionShell", () => {
 
     shell.root.render(60);
     terminal.input("\u001b[1;3H");
-    expect(top()).toContain("❯ three");
-    terminal.input("\u001b[1;3H");
-    expect(top()).toContain("❯ two");
-    terminal.input("\u001b[1;3H");
     expect(top().trim()).toBe("");
     expect(rows()[1]).toContain("❯ one");
-    terminal.input("\u001b[1;3H");
+
+    terminal.input("\u001b[1;2B");
+    expect(top()).toContain("❯ two");
+    terminal.input("\u001b[1;2B");
+    expect(top()).toContain("❯ three");
+    terminal.input("\u001b[1;2B");
+    expect(top()).toContain("❯ three");
+
+    terminal.input("\u001b[1;2A");
+    expect(top()).toContain("❯ two");
+    terminal.input("\u001b[1;2A");
+    expect(top().trim()).toBe("");
+    expect(rows()[1]).toContain("❯ one");
+    terminal.input("\u001b[1;2A");
     expect(top().trim()).toBe("");
     expect(rows()[1]).toContain("❯ one");
 

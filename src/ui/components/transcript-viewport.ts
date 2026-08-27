@@ -251,6 +251,20 @@ export class TranscriptViewport {
     return target >= 0 && this.scrollTo(destination, now);
   }
 
+  /** Jumps to the next submitted prompt after the prompt at the current stop. */
+  scrollToNextPrompt(now = Date.now()): boolean {
+    if (this.#promptAnchors.length === 0) return false;
+    const earliest = Math.min(...this.#promptAnchors.map(anchor => anchor.firstRow));
+    // Scroll position zero is the first-prompt stop because it includes that
+    // prompt's opening spacer. Do not spend an extra keypress moving one row.
+    const after = this.#scrollTop === 0 ? earliest : this.#scrollTop;
+    let target = Number.POSITIVE_INFINITY;
+    for (const anchor of this.#promptAnchors) {
+      if (anchor.firstRow > after && anchor.firstRow < target) target = anchor.firstRow;
+    }
+    return Number.isFinite(target) && this.scrollTo(target, now);
+  }
+
   reset(): void {
     this.#scrollTop = 0;
     this.#maxScroll = 0;
