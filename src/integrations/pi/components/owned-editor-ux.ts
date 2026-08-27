@@ -204,11 +204,13 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
         return;
       }
       const transformed = this.options.transformPastedContent({ kind: "text", text: terminalPaste });
+      const activeSelection = this.#orderedSelection();
+      if (activeSelection !== undefined && this.#atomicSelection) {
+        this.#insertBeforeAtomicSelection(transformed, activeSelection);
+        return;
+      }
       if (transformed !== terminalPaste) {
-        const activeSelection = this.#orderedSelection();
-        if (activeSelection !== undefined && this.#atomicSelection) {
-          this.#insertBeforeAtomicSelection(transformed, activeSelection);
-        } else if (activeSelection !== undefined) this.#replaceSelection(transformed);
+        if (activeSelection !== undefined) this.#replaceSelection(transformed);
         else this.editor.insertTextAtCursor(transformed);
         this.#redoStack = [];
         this.#requestRender();
@@ -266,7 +268,8 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
       }
       const inserted = insertedText(data);
       if (inserted !== undefined) {
-        this.#replaceSelection(inserted);
+        if (this.#atomicSelection) this.#insertBeforeAtomicSelection(inserted, selection);
+        else this.#replaceSelection(inserted);
         return;
       }
       if (data.includes("\u001b[200~")) {

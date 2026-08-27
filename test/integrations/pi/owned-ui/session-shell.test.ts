@@ -545,6 +545,23 @@ describe("OwnedUiSessionShell", () => {
     terminal.input("\u0016");
     await vi.waitFor(() => expect(shell.root.editor.getText()).toContain("second-chip"));
     const adjacent = shell.root.editor.getText();
+    const spaced = adjacent.replace("][", "] [");
+
+    terminal.input("\u001b[D"); // Focus second chip.
+    terminal.input(" "); // Insert before atomic focus; neither chip is replaced.
+    expect(shell.root.editor.getText()).toBe(spaced);
+    clipboardText = "";
+    terminal.input("\u0003");
+    await vi.waitFor(() => expect(clipboardText).toBe(secondUrl));
+    terminal.input("\u001b[C");
+
+    shell.root.editor.setText(adjacent);
+    terminal.input("\u001b[1;5H"); // Focus the first chip through the native cursor.
+    terminal.input(" ");
+    expect(shell.root.editor.getText()).toBe(` ${adjacent}`);
+    terminal.input("\u001b[C");
+    terminal.input("\u001b[C");
+    shell.root.editor.setText(adjacent);
 
     terminal.input("\u001b[D"); // Focus second chip.
     terminal.input("\u001b[D"); // Adjacent first chip is one atomic item left.
@@ -565,7 +582,6 @@ describe("OwnedUiSessionShell", () => {
     await vi.waitFor(() => expect(clipboardText).toBe(secondUrl));
     terminal.input("\u001b[C");
 
-    const spaced = adjacent.replace("][", "] [");
     shell.root.editor.setText(spaced);
     terminal.input("\u001b[D"); // Focus second chip.
     terminal.input("\u001b[D"); // Move only one character left, onto the separator.
