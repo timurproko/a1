@@ -48,7 +48,7 @@ export class PromptChipStore {
     if (this.#chips.has(text.trim())) return text.trim();
     const url = text.trim();
     if (URL_PATTERN.test(url)) {
-      const label = url.length <= URL_DISPLAY_LENGTH ? url : `${url.slice(0, URL_DISPLAY_LENGTH)}...`;
+      const label = url.length <= URL_DISPLAY_LENGTH ? url : `${url.slice(0, URL_DISPLAY_LENGTH)}…`;
       return this.#recordUnique({ kind: "url", tag: `[🔗 ${label}]`, label, url });
     }
     const paths = pathsFromClipboard(text);

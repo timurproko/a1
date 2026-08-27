@@ -38,10 +38,10 @@ describe("PromptChipStore", () => {
     const row = `  ${chip}  `;
     const range = store.hyperlinkRanges(row)[0];
 
-    expect(chip).toBe("[🔗 https://example.com/a/very/useful/resour...]");
+    expect(chip).toBe("[🔗 https://example.com/a/very/useful/resour…]");
     expect(range).toEqual({
       start: row.indexOf("https://"),
-      end: row.indexOf("https://") + "https://example.com/a/very/useful/resour...".length,
+      end: row.indexOf("https://") + "https://example.com/a/very/useful/resour…".length,
       target: url,
     });
   });
