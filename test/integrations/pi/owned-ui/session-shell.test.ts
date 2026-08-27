@@ -1,6 +1,11 @@
 import type { AgentSessionRuntime } from "@earendil-works/pi-coding-agent";
 import { readFile } from "node:fs/promises";
-import { stripTerminalSequences } from "@earendil-works/pi-tui";
+import { CURSOR_MARKER, stripTerminalSequences, visibleWidth } from "@earendil-works/pi-tui";
+import {
+  getCapabilities as getPinnedPiTuiCapabilities,
+  getOsc8LinkAtColumn as getPinnedPiTuiLinkAtColumn,
+  setCapabilities as setPinnedPiTuiCapabilities,
+} from "#pi-tui";
 import { describe, expect, it, vi } from "vitest";
 import {
   createPiEngineAdapter,
@@ -21,13 +26,14 @@ class Session {
   isRetrying = false;
   isCompacting = false;
   readonly calls: string[] = [];
+  readonly promptOptions: unknown[] = [];
   scopedModels: readonly unknown[] = [];
   constructor(readonly messages: readonly unknown[] = []) {}
   extensionBindings: unknown;
   #listeners = new Set<(event: unknown) => void>();
   subscribe(listener: (event: unknown) => void): () => void { this.#listeners.add(listener); return () => this.#listeners.delete(listener); }
   emit(event: unknown): void { for (const listener of this.#listeners) listener(event); }
-  async prompt(text: string): Promise<void> { this.calls.push(`prompt:${text}`); }
+  async prompt(text: string, options?: unknown): Promise<void> { this.calls.push(`prompt:${text}`); this.promptOptions.push(options); }
   async steer(text: string): Promise<void> { this.calls.push(`steer:${text}`); }
   async followUp(text: string): Promise<void> { this.calls.push(`followUp:${text}`); }
   async abort(): Promise<void> { this.calls.push("abort"); }
@@ -133,11 +139,26 @@ class Runtime {
   async dispose(): Promise<void> { this.calls.push("dispose"); }
 }
 
+async function withPinnedHyperlinks<T>(run: () => Promise<T>): Promise<T> {
+  const capabilities = getPinnedPiTuiCapabilities();
+  setPinnedPiTuiCapabilities({ ...capabilities, hyperlinks: true });
+  try {
+    return await run();
+  } finally {
+    setPinnedPiTuiCapabilities(capabilities);
+  }
+}
+
 async function fixture(
   messages: readonly unknown[] = [],
   extensions: readonly unknown[] = [],
   customViewport = false,
   viewportSettings?: OwnedUiViewportSettingsPort,
+  clipboard?: {
+    readText(): Promise<string | null>;
+    readImage?(): Promise<{ readonly data: string; readonly mimeType: string } | null>;
+    writeText?(text: string): Promise<void>;
+  },
 ) {
   const engine = new Runtime(messages);
   engine.extensionResources = extensions;
@@ -149,6 +170,7 @@ async function fixture(
     terminal,
     ...(customViewport ? { sessionLayout: "custom-viewport" as const } : {}),
     ...(viewportSettings === undefined ? {} : { viewportSettings }),
+    ...(clipboard === undefined ? {} : { clipboard }),
   });
   shell.start();
   shell.runtime.renderNow();
@@ -200,11 +222,11 @@ describe("OwnedUiSessionShell", () => {
     const detached = detachedRaw.map(row => stripTerminalSequences(row));
     expect(detached).toHaveLength(12);
     expect(detachedRaw[0]).toContain(piTheme().fg("userMessageText", "11:57"));
-    expect(detached.some(row => row.includes("Jump to bottom (Alt+End)"))).toBe(true);
+    expect(detached.some(row => row.includes("Jump to bottom (End)"))).toBe(true);
     expect(detached[0]).not.toContain("│");
     expect(detached.slice(1, -4).some(row => row.includes("│"))).toBe(true);
-    expect(detachedRaw.some(row => row.includes(piTheme().fg("text", "│")))).toBe(true);
-    expect(detachedRaw.every(row => !row.includes(piTheme().fg("accent", "│")))).toBe(true);
+    expect(detachedRaw.some(row => row.includes(piTheme().fg("accent", "│")))).toBe(true);
+    expect(detachedRaw.every(row => !row.includes(piTheme().fg("text", "│")))).toBe(true);
 
     const completedReply = {
       role: "assistant",
@@ -214,17 +236,17 @@ describe("OwnedUiSessionShell", () => {
     engine.session.emit({ type: "message_start", message: completedReply });
     engine.session.emit({ type: "message_end", message: completedReply });
     await shell.backend.flushEvents();
-    expect(shell.root.render(60).some(row => stripTerminalSequences(row).includes("1 new message (Alt+End)"))).toBe(true);
+    expect(shell.root.render(60).some(row => stripTerminalSequences(row).includes("1 new message (End)"))).toBe(true);
 
     engine.session.emit({ type: "message_end", message: { role: "tool", content: [{ type: "text", text: "tool result" }] } });
     await shell.backend.flushEvents();
-    expect(shell.root.render(60).some(row => stripTerminalSequences(row).includes("1 new message (Alt+End)"))).toBe(true);
+    expect(shell.root.render(60).some(row => stripTerminalSequences(row).includes("1 new message (End)"))).toBe(true);
 
     // v2 resumes follow at the exact agent_start boundary, which also clears
     // the completed-message count on the next frame.
     engine.session.emit({ type: "agent_start" });
     await shell.backend.flushEvents();
-    expect(shell.root.render(60).every(row => !stripTerminalSequences(row).includes("Alt+End"))).toBe(true);
+    expect(shell.root.render(60).every(row => !stripTerminalSequences(row).includes("new message (End)"))).toBe(true);
     engine.session.emit({ type: "agent_settled" });
     await shell.backend.flushEvents();
 
@@ -251,6 +273,86 @@ describe("OwnedUiSessionShell", () => {
     expect(frame[promptIndex]).toMatch(/14:48 $/);
   });
 
+  it("uses terminal-native inactive and hover styling for submitted URL links", async () => {
+    await withPinnedHyperlinks(async () => {
+      const url = "https://example.com/a/complete/source?with=details";
+      const { terminal, shell } = await fixture([
+        { role: "user", content: [{ type: "text", text: url }], timestamp: Date.now() },
+      ], [], true);
+      terminal.resize(100, 12);
+      const row = shell.root.render(100).find(line => stripTerminalSequences(line).includes(url)) ?? "";
+
+      expect(row).toContain(`\u001b]8;;${url}\u001b\\`);
+      expect(row).toContain(piTheme().fg("mdLink", url));
+      expect(row).not.toContain("\u001b[4m");
+      await shell.dispose();
+    });
+  });
+
+  it("uses the same terminal-native cyan styling for assistant-content URL links", async () => {
+    await withPinnedHyperlinks(async () => {
+      const url = "https://www.theverge.com/reviews";
+      const { terminal, shell } = await fixture([
+        { role: "assistant", content: [{ type: "text", text: `The corrected link is:\n\n${url}` }], timestamp: Date.now() },
+      ], [], true);
+      terminal.resize(100, 12);
+      const row = shell.root.render(100).find(line => stripTerminalSequences(line).includes(url)) ?? "";
+
+      expect(row).toContain(`\u001b]8;;${url}\u001b\\`);
+      expect(row).toContain(piTheme().fg("mdLink", url));
+      expect(row).not.toContain("\u001b[4m");
+      await shell.dispose();
+    });
+  });
+
+  it("keeps file hyperlinks cyan while web URLs use link blue", async () => {
+    await withPinnedHyperlinks(async () => {
+      const label = "src/integrations/pi/owned-ui/session-shell-root.ts";
+      const target = "file:///D:/Git/a1/src/integrations/pi/owned-ui/session-shell-root.ts";
+      const { terminal, shell } = await fixture([{
+        role: "assistant",
+        content: [{ type: "text", text: `[${label}](${target})` }],
+        timestamp: Date.now(),
+      }], [], true);
+      terminal.resize(120, 12);
+      const row = shell.root.render(120).find(line => stripTerminalSequences(line).includes(label)) ?? "";
+      const start = stripTerminalSequences(row).indexOf(label);
+
+      expect(row).toContain(`\u001b]8;;${target}\u001b\\`);
+      expect(row).toContain(piTheme().fg("accent", label));
+      expect(row).not.toContain(piTheme().fg("mdLink", label));
+      expect(getPinnedPiTuiLinkAtColumn(row, start)).toBe(target);
+      await shell.dispose();
+    });
+  });
+
+  it("bounds bare bash-output URLs to stable terminal-native hover cells", async () => {
+    const first = "https://github.com/timurproko/a1/actions/runs/33100113637/job/98615286055";
+    const second = "https://github.com/timurproko/a1/actions/runs/33100113637/job/98615285949";
+    const { terminal, shell } = await fixture([{
+      role: "bashExecution",
+      command: "gh pr checks 144",
+      output: `Fast validation pass ${first}\nProcess containment pass ${second}`,
+      exitCode: 0,
+      cancelled: false,
+      timestamp: Date.now(),
+    }], [], true);
+    terminal.resize(180, 12);
+    const rows = shell.root.render(180);
+
+    for (const url of [first, second]) {
+      const row = rows.find(line => stripTerminalSequences(line).includes(url)) ?? "";
+      const plain = stripTerminalSequences(row);
+      const start = plain.indexOf(url);
+      expect(start).toBeGreaterThanOrEqual(0);
+      expect(row).toContain(`\u001b]8;;${url}\u001b\\`);
+      expect(row).toContain(piTheme().fg("mdLink", url));
+      expect(getPinnedPiTuiLinkAtColumn(row, start)).toBe(url);
+      expect(getPinnedPiTuiLinkAtColumn(row, start + url.length)).toBeUndefined();
+    }
+    await shell.dispose();
+  });
+
   it("wraps ordinary transcript content through the rail overlay column", async () => {
     const word = "x".repeat(60);
     const { terminal, shell } = await fixture([
@@ -273,10 +375,25 @@ describe("OwnedUiSessionShell", () => {
     terminal.resize(60, 12);
     engine.session.emit({ type: "agent_start" });
     await shell.backend.flushEvents();
-    expect(shell.root.render(60).some(row => stripTerminalSequences(row).includes("Working"))).toBe(true);
+    const workingFrame = shell.root.render(60);
+    const workingRowIndex = workingFrame.findIndex(row => stripTerminalSequences(row).includes("Working"));
+    const workingColumn = stripTerminalSequences(workingFrame[workingRowIndex] ?? "").indexOf("Working") + 1;
+    expect(workingRowIndex).toBeGreaterThanOrEqual(0);
+    const clickWorking = () => {
+      shell.root.handleViewportPreInput(`\u001b[<0;${workingColumn};${workingRowIndex + 1}M`);
+      shell.root.handleViewportPreInput(`\u001b[<0;${workingColumn};${workingRowIndex + 1}m`);
+    };
+    clickWorking();
+    clickWorking();
+    expect(shell.root.render(60)[workingRowIndex]).not.toContain("\u001b[48;2;38;79;120m");
+    expect(shell.root.handleViewportPreInput("\u0003")).toMatchObject({ data: "\u0003", consumed: false });
 
+    const writesBeforeWheel = terminal.writes.length;
     terminal.input("\u001b[<64;30;3M");
+    shell.runtime.renderNow();
+    expect(terminal.writes.slice(writesBeforeWheel).some(write => write.includes("\u001b[2J"))).toBe(true);
     expect(shell.root.render(60).every(row => !stripTerminalSequences(row).includes("Working"))).toBe(true);
+    await shell.dispose();
   });
 
   it("matches Pi's queued steering order and dequeue hint while working", async () => {
@@ -338,7 +455,329 @@ describe("OwnedUiSessionShell", () => {
     expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from("Selectable assistant words").toString("base64")}\u0007`);
   });
 
-  it("uses Alt+Home for the first prompt and Shift+Up/Down between prompts", async () => {
+  it("keeps Ctrl+Home/End and A1 editing aliases in Pi's editor", async () => {
+    const { terminal, shell } = await fixture([], [], true);
+    terminal.resize(60, 12);
+    shell.root.render(60);
+
+    shell.root.editor.setText("alpha beta");
+    terminal.input("\u001b[1;5H");
+    terminal.input("start ");
+    terminal.input("\u001b[1;5F");
+    terminal.input(" end");
+    expect(shell.root.editor.getText()).toBe("start alpha beta end");
+
+    terminal.input("\u001b[127;5u");
+    expect(shell.root.editor.getText()).toBe("start alpha beta ");
+    terminal.input("\u001b[1;5H");
+    terminal.input("\u001b[3;5~");
+    expect(shell.root.editor.getText()).toBe(" alpha beta ");
+    terminal.input("\u001a");
+    expect(shell.root.editor.getText()).toBe("start alpha beta ");
+
+    await shell.dispose();
+  });
+
+  it("intercepts owned prompt selection, clipboard, undo, redo, and shift selection actions", async () => {
+    let clipboardText = "pasted text";
+    const { terminal, shell } = await fixture([], [], true, undefined, {
+      readText: async () => clipboardText,
+      writeText: async text => {
+        await Promise.resolve();
+        clipboardText = text;
+      },
+    });
+    terminal.resize(60, 12);
+    shell.root.editor.setText("alpha beta");
+    shell.root.render(60);
+
+    terminal.input("\u0001"); // Ctrl+A
+    expect(shell.root.render(60).join("\n")).toContain("\u001b[48;2;38;79;120m");
+    terminal.input("\u0003"); // Ctrl+C
+    expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from("alpha beta").toString("base64")}\u0007`);
+    expect(shell.root.render(60).join("\n")).not.toContain("\u001b[48;2;38;79;120m");
+
+    terminal.input("\u0001"); // Select again because copying collapses the selection.
+    terminal.input("\u0018"); // Ctrl+X
+    expect(shell.root.editor.getText()).toBe("");
+    terminal.input("\u001a"); // Ctrl+Z
+    expect(shell.root.editor.getText()).toBe("alpha beta");
+    terminal.input("\u0019"); // Ctrl+Y
+    expect(shell.root.editor.getText()).toBe("");
+
+    terminal.input("\u0016"); // Ctrl+V immediately after copying/cutting
+    await vi.waitFor(() => expect(shell.root.editor.getText()).toBe("alpha beta"));
+    terminal.input("\u001a");
+    expect(shell.root.editor.getText()).toBe("");
+    terminal.input("\u0019");
+    expect(shell.root.editor.getText()).toBe("alpha beta");
+
+    clipboardText = "pasted text";
+    shell.root.editor.setText("replace me");
+    terminal.input("\u0001");
+    terminal.input("\u0016");
+    await vi.waitFor(() => expect(shell.root.editor.getText()).toBe("pasted text"));
+    terminal.input("\u001a");
+    expect(shell.root.editor.getText()).toBe("replace me");
+
+    shell.root.editor.setText("right ");
+    const rightClickFrame = shell.root.render(60).map(row => stripTerminalSequences(row));
+    const rightClickRow = rightClickFrame.findIndex(row => row.includes("right ")) + 1;
+    terminal.input(`\u001b[<2;8;${rightClickRow}M`);
+    terminal.input(`\u001b[<2;8;${rightClickRow}m`);
+    await vi.waitFor(() => expect(shell.root.editor.getText()).toBe("right pasted text"));
+
+    shell.root.editor.setText("abcd");
+    terminal.input("\u001b[1;2D"); // Shift+Left: d
+    terminal.input("\u001b[1;2D"); // Shift+Left: cd
+    terminal.input("\u001b[1;2C"); // Shift+Right shrinks to d
+    terminal.input("\u0003");
+    expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from("d").toString("base64")}\u0007`);
+
+    terminal.input("X");
+    expect(shell.root.editor.getText()).toBe("abcdX");
+    terminal.input("\u001a");
+    expect(shell.root.editor.getText()).toBe("abcd");
+
+    await shell.dispose();
+  });
+
+  it("pastes URLs and clipboard images as atomic chips and expands them for copy and submission", async () => {
+    let clipboardText = "https://example.com/a/very/useful/resource";
+    let clipboardImage: { readonly data: string; readonly mimeType: string } | null = null;
+    const { engine, terminal, shell } = await fixture([], [], true, undefined, {
+      readText: async () => clipboardText,
+      readImage: async () => clipboardImage,
+      writeText: async text => { clipboardText = text; },
+    });
+    terminal.resize(60, 12);
+    shell.root.render(60);
+
+    terminal.input("\u0016");
+    await vi.waitFor(() => expect(shell.root.editor.getText()).toContain("[🔗 https://example.com/"));
+    const urlChip = shell.root.editor.getText();
+    shell.root.editor.setText(`This prefix takes enough room ${urlChip}`);
+    const wrappedChipRows = shell.root.editor.render(70).map(row => stripTerminalSequences(row));
+    expect(wrappedChipRows.filter(row => row.includes("[🔗")).length).toBe(1);
+    expect(wrappedChipRows.find(row => row.includes("[🔗"))).toContain(urlChip);
+    shell.root.editor.setText(urlChip);
+    const linkedChipRows = shell.root.editor.render(60);
+    const linkedChip = linkedChipRows.join("\n");
+    const linkedChipRow = linkedChipRows.find(row => stripTerminalSequences(row).includes("https://example.com")) ?? "";
+    expect(linkedChip).toContain("\u001b]8;;https://example.com/a/very/useful/resource\u001b\\");
+    expect(linkedChip).toContain("\u001b]8;;\u001b\\");
+    expect(visibleWidth(linkedChipRow)).toBe(60);
+    expect(stripTerminalSequences(linkedChipRow)).toMatch(/\] +$/u);
+
+    terminal.input("\u001b[D"); // Left focuses the adjacent chip as one inverted item.
+    const focusedChip = shell.root.render(60).find(row => stripTerminalSequences(row).includes("https://example.com")) ?? "";
+    expect(focusedChip).toContain("\u001b[7m");
+    expect(focusedChip).not.toContain(CURSOR_MARKER);
+    expect(stripTerminalSequences(focusedChip)).toContain(urlChip);
+    terminal.input("\u0003");
+    await vi.waitFor(() => expect(clipboardText).toBe("https://example.com/a/very/useful/resource"));
+    terminal.input("\u007f");
+    expect(shell.root.editor.getText()).toBe("");
+    terminal.input("\u001a");
+    expect(shell.root.editor.getText()).toContain("[🔗 https://example.com/");
+
+    terminal.input("\u001b[1;5C"); // Ctrl+Right also treats the chip as one item.
+    expect(shell.root.render(60).join("\n")).toContain("\u001b[7m");
+    terminal.input("\u001b[1;5C"); // Collapse at its far edge.
+    terminal.input("\u001b[1;5D"); // Ctrl+Left selects the whole chip, never its interior.
+    expect(shell.root.render(60).join("\n")).toContain("\u001b[7m");
+    terminal.input("\u001b[1;5D"); // Collapse at its near edge before the mouse check.
+
+    const chipFrame = shell.root.render(60).map(row => stripTerminalSequences(row));
+    const chipRow = chipFrame.findIndex(row => row.includes("https://example.com")) + 1;
+    const chipColumn = (chipFrame[chipRow - 1]?.indexOf("https://example.com") ?? -1) + 4;
+    terminal.input(`\u001b[<0;${chipColumn};${chipRow}M`);
+    terminal.input(`\u001b[<0;${chipColumn};${chipRow}m`);
+    expect(shell.root.render(60).join("\n")).toContain("\u001b[7m");
+
+    terminal.input(`\u001b[<0;${chipColumn};${chipRow}M`);
+    terminal.input(`\u001b[<32;${chipColumn + 1};${chipRow}M`);
+    terminal.input(`\u001b[<0;${chipColumn + 1};${chipRow}m`);
+    const draggedChip = shell.root.render(60).join("\n");
+    expect(draggedChip).toContain("\u001b[27m\u001b[48;2;38;79;120m");
+    terminal.input("\u007f");
+    expect(shell.root.editor.getText()).toBe("");
+
+    clipboardImage = { data: Buffer.from("fake-png").toString("base64"), mimeType: "image/png" };
+    shell.root.editor.setText("");
+    terminal.input("\u0016");
+    await vi.waitFor(() => expect(shell.root.editor.getText()).toMatch(/^\[📷 screenshot-[a-f0-9]+\.png\]$/u));
+    const imageTag = shell.root.editor.getText();
+    terminal.input("\u001b[D");
+    terminal.input("\u0003");
+    await vi.waitFor(() => expect(clipboardText).toBe(imageTag));
+    await shell.submit(imageTag);
+    expect(engine.session.calls).toContain(`prompt:${imageTag}`);
+    expect(engine.session.promptOptions.at(-1)).toMatchObject({
+      images: [{ type: "image", data: Buffer.from("fake-png").toString("base64"), mimeType: "image/png" }],
+    });
+
+    await shell.dispose();
+  });
+
+  it("keeps atomic focus within the exact brackets after preceding image icons", async () => {
+    const { terminal, shell } = await fixture([], [], true);
+    terminal.resize(180, 12);
+    const chips = Array.from({ length: 6 }, (_, index) => `[🖼  Clipboard (${index + 1}).png]`);
+    shell.root.editor.setText(chips.join(""));
+    terminal.input("\u001b[D");
+
+    const row = shell.root.editor.render(180).find(line => stripTerminalSequences(line).includes("Clipboard (6).png")) ?? "";
+    const reversed = [...row.matchAll(/\u001b\[7m([^\u001b]*)\u001b\[0m/gu)].map(match => match[1] ?? "");
+    expect(reversed).toContain(chips.at(-1));
+    expect(reversed.some(text => text.includes("Clipboard (5).png"))).toBe(false);
+
+    await shell.dispose();
+  });
+
+  it("keeps a focused atomic chip selected while repeated pastes insert before it", async () => {
+    let clipboardText = "https://example.com/focused-chip";
+    const { terminal, shell } = await fixture([], [], true, undefined, {
+      readText: async () => clipboardText,
+      readImage: async () => null,
+      writeText: async text => { clipboardText = text; },
+    });
+    terminal.resize(60, 12);
+    shell.root.render(60);
+
+    terminal.input("\u0016");
+    await vi.waitFor(() => expect(shell.root.editor.getText()).toContain("[🔗 https://example.com/focused-chip]"));
+    const chip = shell.root.editor.getText();
+    terminal.input("\u001b[D");
+
+    clipboardText = "first";
+    terminal.input("\u0016");
+    await vi.waitFor(() => expect(shell.root.editor.getText()).toBe(`first${chip}`));
+    expect(shell.root.render(60).join("\n")).toContain("\u001b[7m");
+
+    clipboardText = "second";
+    terminal.input("\u0016");
+    await vi.waitFor(() => expect(shell.root.editor.getText()).toBe(`firstsecond${chip}`));
+    terminal.input("\u007f");
+    expect(shell.root.editor.getText()).toBe("firstsecond");
+
+    await shell.dispose();
+  });
+
+  it("moves exactly one item left and exits a focused chip right in one press", async () => {
+    const firstUrl = "https://example.com/first-chip";
+    const secondUrl = "https://example.com/second-chip";
+    let clipboardText = firstUrl;
+    const { terminal, shell } = await fixture([], [], true, undefined, {
+      readText: async () => clipboardText,
+      readImage: async () => null,
+      writeText: async text => { clipboardText = text; },
+    });
+    terminal.resize(80, 12);
+    shell.root.render(80);
+
+    terminal.input("\u0016");
+    await vi.waitFor(() => expect(shell.root.editor.getText()).toContain("first-chip"));
+    clipboardText = secondUrl;
+    terminal.input("\u0016");
+    await vi.waitFor(() => expect(shell.root.editor.getText()).toContain("second-chip"));
+    const adjacent = shell.root.editor.getText();
+    const spaced = adjacent.replace("][", "] [");
+
+    terminal.input("\u001b[D"); // Focus second chip.
+    terminal.input(" "); // Insert before atomic focus; neither chip is replaced.
+    expect(shell.root.editor.getText()).toBe(spaced);
+    clipboardText = "";
+    terminal.input("\u0003");
+    await vi.waitFor(() => expect(clipboardText).toBe(secondUrl));
+    terminal.input("\u001b[C");
+
+    shell.root.editor.setText(adjacent);
+    terminal.input("\u001b[1;5H"); // Focus the first chip through the native cursor.
+    terminal.input(" ");
+    expect(shell.root.editor.getText()).toBe(` ${adjacent}`);
+    terminal.input("\u001b[C");
+    terminal.input("\u001b[C");
+    shell.root.editor.setText(adjacent);
+
+    terminal.input("\u001b[D"); // Focus second chip.
+    terminal.input("\u001b[D"); // Adjacent first chip is one atomic item left.
+    clipboardText = "";
+    terminal.input("\u0003");
+    await vi.waitFor(() => expect(clipboardText).toBe(firstUrl));
+    expect(shell.root.editor.hasSelection()).toBe(false);
+
+    shell.root.editor.setText(adjacent);
+    terminal.input("\u001b[1;5H"); // Native editor cursor at the first atomic segment start.
+    expect(shell.root.editor.hasSelection()).toBe(true);
+    terminal.input("\u001b[C"); // Must move to the second chip, not re-select the first.
+    clipboardText = "";
+    terminal.input("\u0003");
+    await vi.waitFor(() => expect(clipboardText).toBe(secondUrl));
+    expect(shell.root.editor.hasSelection()).toBe(false);
+
+    shell.root.editor.setText(spaced);
+    terminal.input("\u001b[D"); // Focus second chip.
+    terminal.input("\u001b[D"); // Move only one character left, onto the separator.
+    terminal.input("X");
+    expect(shell.root.editor.getText()).toBe(spaced.replace("] [", "]X ["));
+
+    shell.root.editor.setText(spaced);
+    terminal.input("\u001b[D"); // Focus second chip.
+    terminal.input("\u001b[D"); // Separator.
+    terminal.input("\u001b[D"); // First chip.
+    terminal.input("\u001b[C"); // Separator.
+    terminal.input("\u001b[C"); // Second chip.
+    clipboardText = "";
+    terminal.input("\u0003");
+    await vi.waitFor(() => expect(clipboardText).toBe(secondUrl));
+
+    const imageRun = "[📷 first.png][📷 second.png][📷 third.png]";
+    shell.root.editor.setText(`words ${imageRun}`);
+    terminal.input("\u001b[1;5D"); // Ctrl+Left crosses the adjacent run and stops on its separator.
+    terminal.input("X");
+    expect(shell.root.editor.getText()).toBe(`wordsX ${imageRun}`);
+
+    shell.root.editor.setText(`words tail${imageRun}`);
+    terminal.input("\u001b[1;5D"); // An attached chip run also crosses its attached word to the separator.
+    terminal.input("X");
+    expect(shell.root.editor.getText()).toBe(`wordsX tail${imageRun}`);
+
+    shell.root.editor.setText("doio ddh did d diud");
+    terminal.input("\u001b[1;5D"); // Ctrl+Left stops on the separator before an ordinary word too.
+    terminal.input("X");
+    expect(shell.root.editor.getText()).toBe("doio ddh did dX diud");
+
+    await shell.dispose();
+  });
+
+  it("selects prompt words on double-click and logical lines on triple-click", async () => {
+    const { terminal, shell } = await fixture([], [], true);
+    terminal.resize(60, 12);
+    shell.root.editor.setText("mouse alpha beta");
+    const frame = shell.root.render(60).map(row => stripTerminalSequences(row));
+    const row = frame.findIndex(line => line.includes("mouse alpha beta")) + 1;
+    const column = (frame[row - 1]?.indexOf("alpha") ?? -1) + 2;
+    expect(row).toBeGreaterThan(0);
+    expect(column).toBeGreaterThan(1);
+    const click = () => {
+      terminal.input(`\u001b[<0;${column};${row}M`);
+      terminal.input(`\u001b[<0;${column};${row}m`);
+    };
+
+    click();
+    click();
+    terminal.input("\u0003");
+    expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from("alpha").toString("base64")}\u0007`);
+
+    click();
+    terminal.input("\u0003");
+    expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from("mouse alpha beta").toString("base64")}\u0007`);
+
+    await shell.dispose();
+  });
+
+  it("uses Home/End for transcript boundaries and Shift+Up/Down between prompts", async () => {
     const messages = ["one", "two", "three"].flatMap((prompt, index) => [
       { role: "user", content: [{ type: "text", text: prompt }], timestamp: Date.now() + index * 2 },
       { role: "assistant", content: [{ type: "text", text: `reply-${prompt}-1\nreply-${prompt}-2\nreply-${prompt}-3\nreply-${prompt}-4\nreply-${prompt}-5` }], timestamp: Date.now() + index * 2 + 1 },
@@ -349,7 +788,7 @@ describe("OwnedUiSessionShell", () => {
     const top = () => rows()[0] ?? "";
 
     shell.root.render(60);
-    terminal.input("\u001b[1;3H");
+    terminal.input("\u001b[1;1H");
     expect(top().trim()).toBe("");
     expect(rows()[1]).toContain("❯ one");
 
@@ -368,6 +807,9 @@ describe("OwnedUiSessionShell", () => {
     terminal.input("\u001b[1;2A");
     expect(top().trim()).toBe("");
     expect(rows()[1]).toContain("❯ one");
+
+    terminal.input("\u001b[1;1F");
+    expect(top()).toContain("❯ three");
 
     await shell.dispose();
   });
@@ -491,9 +933,11 @@ describe("OwnedUiSessionShell", () => {
 
     current = { scrollbarAppearance: "always", scrollbarStyle: "thick", scrollbarSpeed: "fast" };
     notify?.(current);
-    const shown = shell.root.render(60).map(row => stripTerminalSequences(row));
+    const shownRaw = shell.root.render(60);
+    const shown = shownRaw.map(row => stripTerminalSequences(row));
     expect(shown.some(row => row.includes("Jump to bottom"))).toBe(true);
     expect(shown.slice(1, -4).some(row => row.includes("┃"))).toBe(true);
+    expect(shownRaw.some(row => row.includes(piTheme().fg("accent", "┃")))).toBe(true);
     await shell.dispose();
   });
 

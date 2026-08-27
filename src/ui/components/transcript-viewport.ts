@@ -45,6 +45,8 @@ export interface TranscriptViewportTheme {
 
 export interface TranscriptViewportFrameInput {
   readonly documentRows: readonly string[];
+  /** Leading document rows that participate in pointer selection and copying. */
+  readonly selectableDocumentRowCount?: number;
   readonly dockRows: readonly string[];
   readonly promptAnchors: readonly TranscriptPromptAnchor[];
   readonly width: number;
@@ -114,6 +116,7 @@ export class TranscriptViewport {
   #selection: TextSelection | undefined;
   #selectionClick: TextSelectionClick | undefined;
   #documentRows: readonly string[] = [];
+  #selectableDocumentRowCount = 0;
   #promptAnchors: readonly TranscriptPromptAnchor[] = [];
   #contentWidth = 0;
   #frame: TranscriptViewportFrame | null = null;
@@ -155,6 +158,7 @@ export class TranscriptViewport {
     const viewportHeight = this.#frame?.hits.viewportHeight ?? 0;
     if (viewportRow < 1 || viewportRow > viewportHeight || column < 1 || column > this.#contentWidth) return false;
     const line = clamp(this.#scrollTop + viewportRow - 1, 0, Math.max(0, this.#documentRows.length - 1));
+    if (line >= this.#selectableDocumentRowCount) return false;
     const pressed = pressTextSelection({
       line,
       column,
@@ -178,8 +182,10 @@ export class TranscriptViewport {
     // adding irregular extra rows between timer ticks.
     if (autoScroll && viewportRow > viewportHeight) this.scrollBy(1, now);
     else if (autoScroll && viewportRow <= 1 && this.#scrollTop > 0) this.scrollBy(-1, now);
+    const lastSelectableLine = Math.min(this.#documentRows.length, this.#selectableDocumentRowCount) - 1;
+    if (lastSelectableLine < 0) return false;
     const visibleRow = clamp(viewportRow, 1, viewportHeight);
-    const line = clamp(this.#scrollTop + visibleRow - 1, 0, this.#documentRows.length - 1);
+    const line = clamp(this.#scrollTop + visibleRow - 1, 0, lastSelectableLine);
     const targetColumn = selection.fullRow
       ? textSelectionLineExtendColumn(selection, line, this.#contentWidth)
       : clamp(column, 1, this.#contentWidth);
@@ -202,7 +208,11 @@ export class TranscriptViewport {
   selectedText(): string | null {
     const selection = orderedTextSelection(this.#selection);
     if (selection === undefined) return null;
-    return textSelectionText(selection, this.#documentRows, line => this.#lineContentAt(line));
+    return textSelectionText(
+      selection,
+      this.#documentRows.slice(0, this.#selectableDocumentRowCount),
+      line => this.#lineContentAt(line),
+    );
   }
 
   scrollBy(lines: number, now = Date.now()): boolean {
@@ -273,6 +283,7 @@ export class TranscriptViewport {
     this.#selection = undefined;
     this.#selectionClick = undefined;
     this.#documentRows = [];
+    this.#selectableDocumentRowCount = 0;
     this.#promptAnchors = [];
     this.#contentWidth = 0;
     this.clearTransient();
@@ -317,6 +328,11 @@ export class TranscriptViewport {
     });
     const contentWidth = presentation.reservesSpace ? Math.max(1, width - 1) : width;
     this.#documentRows = input.documentRows;
+    this.#selectableDocumentRowCount = clamp(
+      input.selectableDocumentRowCount ?? input.documentRows.length,
+      0,
+      input.documentRows.length,
+    );
     this.#promptAnchors = input.promptAnchors;
     this.#contentWidth = contentWidth;
     const visible = input.documentRows.slice(this.#scrollTop, this.#scrollTop + viewportHeight);
@@ -338,7 +354,9 @@ export class TranscriptViewport {
       let line = padRowPreservingBackground(visible[row] ?? "", width);
       if (orderedSelection !== undefined && !(stickyActive && row === 0)) {
         const documentLine = this.#scrollTop + row;
-        if (documentLine >= orderedSelection.start.line && documentLine <= orderedSelection.end.line) {
+        if (documentLine < this.#selectableDocumentRowCount
+          && documentLine >= orderedSelection.start.line
+          && documentLine <= orderedSelection.end.line) {
           const fullVisualRow = orderedSelection.fullRow === true
             || (orderedSelection.start.line !== orderedSelection.end.line
               && documentLine !== orderedSelection.start.line
@@ -371,9 +389,9 @@ export class TranscriptViewport {
     const frameRows = [...visible, ...dock].slice(0, height);
     let bottomHit: TranscriptViewportHitRegions["bottom"] = null;
     if (geometry !== null && !this.#followingEnd && frameRows.length > 0) {
-      const genericLabel = " Jump to bottom (Alt+End) ";
+      const genericLabel = " Jump to bottom (End) ";
       const countedLabel = this.#newMessages > 0
-        ? ` ${this.#newMessages} new message${this.#newMessages === 1 ? "" : "s"} (Alt+End) `
+        ? ` ${this.#newMessages} new message${this.#newMessages === 1 ? "" : "s"} (End) `
         : genericLabel;
       const label = displayWidth(countedLabel) <= contentWidth ? countedLabel : genericLabel;
       const labelWidth = displayWidth(label);

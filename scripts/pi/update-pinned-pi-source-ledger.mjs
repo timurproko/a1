@@ -279,12 +279,17 @@ async function sourceMapRecord(pkg, sourceMapPath, scope) {
           : upstreamPath === "packages/coding-agent/src/core/keybindings.ts"
             ? {
                 localDestination: "src/integrations/pi/components/upstream/adjacent/core/keybindings.ts",
-                modifications: "Mechanical source port with Node import prefixes and public package-root A1 agent-directory resolution.",
+                modifications: "Mechanical source port with Node import prefixes, public package-root agent-directory resolution, and an opt-in bare-A1 input alias profile.",
                 approvedDeviations: [{
                   id: "keybindings-public-config-boundary",
                   reason: "Resolve the agent configuration directory through the documented package-root API instead of a private config import.",
                   upstreamBehavior: "Complete pinned defaults, migrations, user overrides, conflict detection, matching, and effective-config behavior remain unchanged.",
                   acceptanceTest: "test/integrations/pi/components/pinned-editor-input-parity.test.ts",
+                }, {
+                  id: "owned-input-keybinding-aliases",
+                  reason: "Bare A1 opts into ergonomic vanilla editing aliases plus declarative prompt-selection, cut, paste, redo, and extension actions while the comparison profile retains pinned defaults.",
+                  upstreamBehavior: "The pinned comparison profile continues to use the exact upstream keybinding definitions and effective configuration.",
+                  acceptanceTest: "test/integrations/pi/owned-ui/session-shell.test.ts",
                 }],
               }
             : undefined;
