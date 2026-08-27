@@ -169,6 +169,33 @@ describe("PiTuiRuntimeAdapter", () => {
     expect(terminal.writes.join("")).toContain("\x1b[?1049l");
   });
 
+  it("routes and transforms physical input before the TUI in registration order", async () => {
+    const terminal = new TestTerminal();
+    const root = new TestComponent(["root"]);
+    const runtime = new PiTuiRuntimeAdapter({ root, terminal });
+    const order: string[] = [];
+    const removeFirst = runtime.addPreInputListener(data => {
+      order.push(`first:${data}`);
+      return { data: data.replace("mouse", "") };
+    });
+    runtime.addPreInputListener(data => {
+      order.push(`second:${data}`);
+      return data === "drop" ? { consume: true } : undefined;
+    });
+    runtime.start();
+
+    terminal.input("mousekey");
+    expect(order).toEqual(["first:mousekey", "second:key"]);
+    expect(root.inputs).toEqual(["key"]);
+    terminal.input("mousedrop");
+    expect(root.inputs).toEqual(["key"]);
+
+    removeFirst();
+    terminal.input("plain");
+    expect(root.inputs).toEqual(["key", "plain"]);
+    await runtime.stop();
+  });
+
   it("rejects over-width component rows instead of silently rewriting source layout", async () => {
     const terminal = new TestTerminal();
     terminal.columns = 5;

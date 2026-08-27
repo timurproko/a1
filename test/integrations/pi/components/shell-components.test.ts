@@ -9,6 +9,7 @@ import {
   createPiShellHeader,
   createPiShellHotkeys,
   createPiShellLoadedResources,
+  createPiQueuedInputStatus,
   createPiShellSettingsSelector,
   createPiShellSelector,
   createPiShellUserMessageSelector,
@@ -43,6 +44,17 @@ function view(): OwnedUiSessionViewModel {
 }
 
 describe("Pi shell public component adapters", () => {
+  it("matches Pi's queued steering rows, spacing, and dequeue hint", () => {
+    const queued = createPiQueuedInputStatus(["first", "second\nline"], "custom-viewport");
+    const rows = queued.render(80).map(row => stripTerminalSequences(row).trimEnd());
+    expect(rows).toEqual([
+      "",
+      " Steering: first",
+      " Steering: second ⏎ line",
+      " ↳ Alt+Up to edit all queued messages",
+    ]);
+  });
+
   it("adapts editor input and focus through owned contracts", () => {
     const submit = vi.fn();
     const editor = createPiShellEditor({

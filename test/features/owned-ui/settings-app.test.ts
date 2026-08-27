@@ -3,12 +3,14 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { AgentJsonValue, AgentSettingDescriptor, AgentSettingsPort } from "../../../src/contracts/agent-engine/index.js";
-import { OwnedUiSettingsSession, OwnedUiSettingsStore } from "../../../src/ui/settings/index.js";
+import { OWNED_UI_SETTING_DECLARATIONS, OwnedUiSettingsSession, OwnedUiSettingsStore } from "../../../src/ui/settings/index.js";
 import { SettingsApp } from "../../../src/features/owned-ui/index.js";
 import type { AppHostServices } from "../../../src/ui/apps/index.js";
 
 const ESC = String.fromCharCode(27);
 const DOWN = `${ESC}[B`;
+const HOME = `${ESC}[H`;
+const END = `${ESC}[F`;
 const ENTER = "\r";
 const SPACE = " ";
 const STYLE = new RegExp(`${ESC}\\[[0-9;]*m`, "g");
@@ -59,7 +61,12 @@ let root: string;
 
 async function app(failWrites = false): Promise<{ app: SettingsApp; writes: { key: string; value: AgentJsonValue }[] }> {
   const backing = port(failWrites);
-  const store = new OwnedUiSettingsStore({ configDir: root, profileId: "profile", declarations: [], migrations: [] });
+  const store = new OwnedUiSettingsStore({
+    configDir: root,
+    profileId: "profile",
+    declarations: OWNED_UI_SETTING_DECLARATIONS,
+    migrations: [],
+  });
   const session = new OwnedUiSettingsSession({ store, agent: backing.port });
   await session.load();
   return { app: new SettingsApp(session), writes: backing.writes };
@@ -92,6 +99,17 @@ afterEach(() => {
 });
 
 describe("the settings screen", () => {
+  it("groups concise scrollbar controls with defaults but no default wording", async () => {
+    const { app: target } = await app();
+    const lines = screen(target);
+    expect(lines.some(line => line.trim() === "Scroll")).toBe(true);
+    expect(lines.some(line => line.includes("Scrollbar mode") && line.includes("hover"))).toBe(true);
+    expect(lines.some(line => line.includes("Scrollbar style") && line.includes("thin"))).toBe(true);
+    expect(lines.some(line => line.includes("Speed") && line.includes("normal"))).toBe(true);
+    expect(lines.some(line => line.trim() === "A1")).toBe(false);
+    expect(lines.join("\n")).not.toContain("(default)");
+  });
+
   it("steps to the next value on enter", async () => {
     const { app: target, writes } = await app();
     selectRow(target, "Thinking level");
@@ -190,6 +208,45 @@ describe("the settings screen", () => {
     expect(after.some(line => line.trimStart().startsWith("→"))).toBe(true);
   });
 
+  it("allows the mouse wheel to reveal the final row after search reduces the list height", async () => {
+    const { app: target } = await app();
+    target.onInput?.("/", HOST);
+    target.render({ width: 80, height: 13 }, HOST);
+
+    // Wheel over otherwise blank list space, not over a setting row.
+    target.onMouse?.({ kind: "wheel-down", button: 0, row: 1, column: 70 }, HOST);
+    const lines = target.render({ width: 80, height: 13 }, HOST).map(line => line.replace(STYLE, "").trimEnd());
+    const searchRow = lines.findIndex(line => line.toLowerCase().includes("search settings"));
+    expect(lines[searchRow - 2]).toContain("Output padding");
+  });
+
+  it("restores the opening blank row when Home returns to the beginning during search", async () => {
+    const { app: target } = await app();
+    target.onInput?.("/", HOST);
+    target.render({ width: 80, height: 13 }, HOST);
+    target.onMouse?.({ kind: "wheel-down", button: 0, row: 1, column: 70 }, HOST);
+    target.render({ width: 80, height: 13 }, HOST);
+
+    target.onInput?.(HOME, HOST);
+    const lines = target.render({ width: 80, height: 13 }, HOST).map(line => line.replace(STYLE, "").trimEnd());
+    expect(lines[0]).toBe("");
+    expect(lines[1]).toContain("Scroll");
+    expect(lines[2]?.trimStart()).toMatch(/^→\s+Scrollbar mode/);
+  });
+
+  it("moves the last result onto the final body row when End is used during search", async () => {
+    const { app: target } = await app();
+    target.onInput?.("/", HOST);
+    target.onInput?.(END, HOST);
+
+    const lines = target.render({ width: 80, height: 8 }, HOST).map(line => line.replace(STYLE, "").trimEnd());
+    const searchRow = lines.findIndex(line => line.toLowerCase().includes("search settings"));
+    expect(lines.find(line => line.includes("Output padding"))?.trimStart()).toMatch(/^→/);
+    // The rule immediately above the input belongs to the search footer; the
+    // last result occupies the final list row above that rule.
+    expect(lines[searchRow - 2]).toContain("Output padding");
+  });
+
   it("jumps a section from the search, as the arrows move through it", async () => {
     const { app: target } = await app();
     target.onInput?.("/", HOST);
@@ -245,18 +302,22 @@ describe("the list view behind the screen", () => {
     const lines = screen(target);
     const row = lines.findIndex(line => line.includes("Thinking level"));
     const valueColumn = (lines[row] ?? "").indexOf("low") + 1;
+    const selectedBefore = lines.find(line => line.trimStart().startsWith("→"));
 
-    // The label selects and changes nothing.
+    // Pointer presses do not move the keyboard selection arrow.
     target.onMouse?.({ kind: "press", button: 0, row: row + 1, column: 8 }, HOST);
     expect(writes).toHaveLength(0);
+    expect(screen(target).find(line => line.trimStart().startsWith("→"))).toBe(selectedBefore);
 
-    // The value acts.
+    // The value opens its dropdown without moving that arrow or changing yet.
     target.onMouse?.({ kind: "press", button: 0, row: row + 1, column: valueColumn }, HOST);
-    expect(screen(target).some(line => line.includes("✓"))).toBe(true);
+    expect(writes).toHaveLength(0);
+    expect(screen(target).some(line => line.includes("✓ low"))).toBe(true);
+    expect(screen(target).find(line => line.trimStart().startsWith("→"))).toBe(selectedBefore);
   });
 
-  it("raises the stepper over a number, and only over its value", async () => {
-    const { app: target } = await app();
+  it("raises working minus/plus controls over a number, and only over its value", async () => {
+    const { app: target, writes } = await app();
     const lines = screen(target);
     const row = lines.findIndex(line => line.includes("Editor padding"));
     const valueColumn = (lines[row] ?? "").indexOf("3") + 1;
@@ -265,56 +326,32 @@ describe("the list view behind the screen", () => {
     expect(find(target, "Editor padding")).not.toContain("+");
 
     target.onMouse?.({ kind: "motion", button: 0, row: row + 1, column: valueColumn }, HOST);
-    expect(find(target, "Editor padding")).toContain("+");
+    const stepped = find(target, "Editor padding");
+    expect(stepped).toContain("+");
+    const minusColumn = stepped.indexOf("-") + 1;
+    target.onMouse?.({ kind: "press", button: 0, row: row + 1, column: minusColumn }, HOST);
+    expect(writes.at(-1)).toEqual({ key: "editorPaddingX", value: 2 });
+
+    const next = find(target, "Editor padding");
+    const plusColumn = next.lastIndexOf("+") + 1;
+    target.onMouse?.({ kind: "press", button: 0, row: row + 1, column: plusColumn }, HOST);
+    expect(writes.at(-1)).toEqual({ key: "editorPaddingX", value: 3 });
   });
 });
 
-describe("the value menu behind the screen", () => {
-  async function openMenu(height = 24): Promise<{ target: SettingsApp; row: number; lines: string[] }> {
-    const { app: target } = await app();
-    const drawn = (): string[] => target.render({ width: 80, height }, HOST).map(line => line.replace(STYLE, "").trimEnd());
-    const lines = drawn();
-    const row = lines.findIndex(line => line.includes("Thinking level"));
-    const valueColumn = (lines[row] ?? "").indexOf("low") + 1;
-    target.onMouse?.({ kind: "press", button: 0, row: row + 1, column: valueColumn }, HOST);
-    return { target, row, lines: drawn() };
-  }
-
-  it("opens under the row it was opened from and marks the value in effect", async () => {
-    const { row, lines } = await openMenu();
-    expect(lines[row + 1]).toContain("✓ low");
-    expect(lines[row + 2]).toContain("high");
-  });
-
-  it("highlights nothing until a key or the pointer picks an entry", async () => {
-    const { target, row } = await openMenu();
-    const painted = target.render({ width: 80, height: 24 }, HOST)[row + 1] ?? "";
-    expect(painted).not.toContain(String.fromCharCode(27) + "[48");
-  });
-
-  it("closes on a press outside it, without acting on what is behind", async () => {
+describe("the value dropdown behind the screen", () => {
+  it("opens from the value and applies the chosen row", async () => {
     const { app: target, writes } = await app();
     const lines = screen(target);
     const row = lines.findIndex(line => line.includes("Thinking level"));
     const valueColumn = (lines[row] ?? "").indexOf("low") + 1;
     target.onMouse?.({ kind: "press", button: 0, row: row + 1, column: valueColumn }, HOST);
-    expect(screen(target).some(line => line.includes("✓"))).toBe(true);
+    expect(screen(target).some(line => line.includes("✓ low"))).toBe(true);
 
-    target.onMouse?.({ kind: "press", button: 0, row: 2, column: 2 }, HOST);
-    expect(screen(target).some(line => line.includes("✓"))).toBe(false);
-    expect(writes).toHaveLength(0);
-  });
-
-  // The row the menu came from is still the thing being changed, so it keeps
-  // reading as the one under the pointer while the reader moves over the menu.
-  it("keeps the row it came from looking pointed at while the pointer is in the menu", async () => {
-    const { target, row } = await openMenu();
-    const painted = (): string => target.render({ width: 80, height: 24 }, HOST)[row] ?? "";
-    const pointedAtValue = painted();
-
-    target.onMouse?.({ kind: "motion", button: 0, row: row + 2, column: 6 }, HOST);
-
-    expect(painted()).toBe(pointedAtValue);
+    target.onInput?.(DOWN, HOST);
+    target.onInput?.(DOWN, HOST);
+    target.onInput?.(ENTER, HOST);
+    expect(writes.at(-1)).toEqual({ key: "thinkingLevel", value: "high" });
   });
 });
 

@@ -19,9 +19,12 @@ its own `core` facade layer; A1 is a product, so the port adapts imports and kee
 | A1 module | Reference unit | Adaptation |
 | --- | --- | --- |
 | `ui-components/line-input.ts` — word motion and word delete | `core/panes/line-input.ts` | `wordLeft`/`wordRight` and their key bindings ported verbatim, including deciding a word delete before a plain one because a raw backspace byte is ctrl+backspace on Windows Terminal. |
-| `ui-components/spans.ts` — `overlaySpan` | `core/presentation/spans.ts` | Uses A1 `displayWidth`; hyperlink and style replay kept verbatim. |
+| `ui-components/spans.ts` — span painting | `core/presentation/spans.ts` | Uses A1 `displayWidth`; hyperlink/style replay and background-only selection painting preserve each source foreground plus bold, underline, links, and other attributes. |
+| `ui-components/text-selection.ts` | `core/panes/text-selection.ts` and `ui/agent-view/content-selection.ts` | Keeps LMB drag, double-click word, triple-click line, grapheme-aware extraction, and prompt decoration exclusion. Multiline selection uses native terminal geometry (first-row tail, complete middle rows, last-row head); triple-click paints the full row while copied text remains semantic content. |
 | `ui-components/scrollbar.ts` — geometry | `core/presentation/scrollbar.ts` — `scrollbarGeom` | Same formula; A1 names the fields and returns null rather than undefined. |
-| `ui-components/scrollbar.ts` — rails | `core/presentation/scrollbar.ts` — zone and hover state | Rail identity kept; A1 holds state in an instance rather than a module global. |
+| `ui-components/scrollbar.ts` — rails | `core/presentation/scrollbar.ts` — zone, policy, and hover/drag state | Rail identity, hover reservation, activity linger, visual weights, drag, and track paging kept; A1 holds state in an instance rather than a module global, while the session shell applies profile-local normal/fast/high wheel and selection-edge speed. |
+| `ui-components/submitted-prompt.ts` | `core/presentation/user-bar.ts` | Keeps the compact `❯ ` prefix, continuation indentation, timestamp reservation, and right alignment. A1 fixes the declared format to local 24-hour `HH:mm` and uses the engine's source timestamp. |
+| `ui-components/transcript-viewport.ts` | `ui/agent-view/render.ts`, `scroll.ts`, `state.ts`, and `feature.ts` | Keeps follow/detach transitions, the floating bottom control, semantic sticky prompt behavior, and the session rail's intentional one-row top inset. New-message counts follow the reference's exact completed-assistant-message boundary, exclude tool results, and reset when input or a fresh agent run resumes follow mode. `Working` stays pinned only while all content fits; on overflow it joins the scrollable document tail exactly like the reference. A1 receives owned rows, prompt anchors, and semantic lifecycle events instead of inspecting Pi children. |
 | `ui-components/list-block.ts` — block navigation | `settings/impl.ts` — `blockJumpTarget`, `blockRowSpan`, `bottomBlockTarget` | Row type generalized from settings rows to a grouped list; targets and edge behavior identical. |
 | `ui-components/list-block.ts` — sticky scroll | `settings/impl.ts` — `stickyHeaderGroup`, `topPaddingRows`, `visibleRowCountAt`, `clampScrollForView` | Same reservation arithmetic and two-pass reveal. |
 | `ui-components/mouse.ts` | `core/panes/sgr-mouse.ts` | Same SGR decoding and per-call regex reset; A1 emits its own event shape. |
@@ -33,6 +36,7 @@ its own `core` facade layer; A1 is a product, so the port adapts imports and kee
 | A1 module | Pinned Pi source | Adaptation |
 | --- | --- | --- |
 | `pi-engine-adapter/settings-integration.ts` — `SETTING_LABELS` | pinned Pi settings selector | Labels and descriptions transcribed so an owned screen reads as the vanilla route words it. Ids are mapped from the selector kebab-case to the exposed camelCase keys. |
+| `pi-engine/session-integration.ts` and `pi-components/shell-footer-status.ts` — steering queue | pinned Pi interactive mode `onSubmit` and `updatePendingMessagesDisplay` | Steering/follow-up uses `prompt(..., { streamingBehavior })`, allowing Pi to emit the accepted user row, while remaining steering rows preserve Pi's opening spacer, dim `Steering:` labels, dequeue hint, and order before `Working`. |
 
 ## Deliberate differences
 
@@ -43,6 +47,11 @@ its own `core` facade layer; A1 is a product, so the port adapts imports and kee
   tests.
 - **Settings content.** The reference aggregates per-extension settings files; A1 has one
   section for its own settings and one for the agent's, read through the engine settings port.
+- **No viewport prototype or child-tree patches.** `ui/agent-view/user-prompt.ts` and the
+  private-child traversal in `ui/agent-view/render.ts` were analyzed only for behavior. The
+  destination renders source timestamps through an owned transcript adapter and derives sticky
+  anchors while assembling semantic transcript blocks; it never replaces a Pi prototype or
+  reads a Pi component's private children.
 
 ## Keeping this honest
 

@@ -41,6 +41,41 @@ export function parseMouseInput(data: string): ParsedMouseInput {
   return { events: Object.freeze(events), rest };
 }
 
+export interface RoutedMouseInput {
+  /** Input left for the TUI after only claimed reports were removed. */
+  readonly data: string;
+  readonly consumed: boolean;
+}
+
+/**
+ * Routes every SGR report independently, preserving keyboard bytes and mouse
+ * reports the caller does not claim even when they share one physical chunk.
+ */
+export function routeMouseInput(
+  data: string,
+  claim: (event: PaneMouseEvent) => boolean,
+): RoutedMouseInput {
+  if (!data.includes("\u001b[<")) return { data, consumed: false };
+  let output = "";
+  let index = 0;
+  let consumed = false;
+  SGR_PATTERN.lastIndex = 0;
+  for (let match = SGR_PATTERN.exec(data); match !== null; match = SGR_PATTERN.exec(data)) {
+    output += data.slice(index, match.index);
+    index = match.index + match[0].length;
+    const event = toEvent(
+      Number.parseInt(match[1] ?? "", 10),
+      Number.parseInt(match[2] ?? "", 10),
+      Number.parseInt(match[3] ?? "", 10),
+      match[4] === "m",
+    );
+    if (event !== null && claim(event)) consumed = true;
+    else output += match[0];
+  }
+  output += data.slice(index);
+  return { data: output, consumed };
+}
+
 function toEvent(code: number, column: number, row: number, released: boolean): PaneMouseEvent | null {
   if ((code & 64) !== 0) {
     const kind = (code & 1) === 0 ? "wheel-up" : "wheel-down";

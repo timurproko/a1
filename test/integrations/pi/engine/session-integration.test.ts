@@ -11,7 +11,9 @@ class Commands implements PiDocumentedSessionCommands {
   isRetrying = false;
   isCompacting = false;
   readonly calls: string[] = [];
-  async prompt(text: string): Promise<void> { this.calls.push(`prompt:${text}`); }
+  async prompt(text: string, options?: { streamingBehavior?: "steer" | "followUp" }): Promise<void> {
+    this.calls.push(`prompt:${text}${options?.streamingBehavior ? `:${options.streamingBehavior}` : ""}`);
+  }
   async steer(text: string): Promise<void> { this.calls.push(`steer:${text}`); }
   async followUp(text: string): Promise<void> { this.calls.push(`follow:${text}`); }
   async abort(): Promise<void> { this.calls.push("abort"); }
@@ -32,7 +34,14 @@ describe("documented Pi session integration", () => {
     await integration.execute({ type: "retry" });
     await integration.execute({ type: "compact" });
     await expect(integration.execute({ type: "bash", command: "echo ok", excludeFromContext: false })).resolves.toMatchObject({ outcome: "completed" });
-    expect(session.calls).toEqual(["prompt:first", "steer:now", "follow:later", "prompt:later", "compact", "bash:echo ok"]);
+    expect(session.calls).toEqual([
+      "prompt:first",
+      "prompt:now:steer",
+      "prompt:later:followUp",
+      "prompt:later",
+      "compact",
+      "bash:echo ok",
+    ]);
   });
 
   it("cancels retry, compaction, and active work in documented order", async () => {

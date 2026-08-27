@@ -9,9 +9,7 @@ import {
   ToolExecutionComponent,
   UserMessageComponent,
 } from "@earendil-works/pi-coding-agent";
-import {
-  SkillInvocationMessageComponent,
-} from "./upstream/components/skill-invocation-message.js";
+import { SkillInvocationMessageComponent } from "./upstream/components/skill-invocation-message.js";
 import {
   Container,
   Markdown,
@@ -19,13 +17,14 @@ import {
   Text,
   type Component,
 } from "#pi-tui";
-import type {
-  OwnedUiTranscriptBlock,
-} from "../../../contracts/owned-ui/index.js";
+import type { OwnedUiTranscriptBlock } from "../../../contracts/owned-ui/index.js";
 import { PRODUCT_TEXT } from "../../../product-identity.js";
 import {
-  KeybindingsManager,
-} from "./upstream/adjacent/core/keybindings.js";
+  createPiSubmittedPromptComponent,
+  type PiShellSubmittedPromptComposer,
+} from "./submitted-prompt-adapter.js";
+export type { PiShellSubmittedPromptComposer } from "./submitted-prompt-adapter.js";
+import { KeybindingsManager } from "./upstream/adjacent/core/keybindings.js";
 import {
   PINNED_PI_LAYOUT,
   piTheme,
@@ -174,11 +173,12 @@ export function createPiShellTranscriptComponent(
   initial: OwnedUiTranscriptBlock,
   cwd: string,
   extensions?: PiShellExtensionRendererResolver,
+  submittedPrompt?: PiShellSubmittedPromptComposer,
 ): PiShellTranscriptComponentPort {
   ensureTheme();
   let block = initial;
   let expanded = false;
-  let component = transcriptComponent(block, cwd, expanded, extensions);
+  let component = transcriptComponent(block, cwd, expanded, extensions, submittedPrompt);
   return {
     get id() { return block.id; },
     get revision() { return block.revision; },
@@ -189,7 +189,7 @@ export function createPiShellTranscriptComponent(
       const previous = block;
       block = next;
       if (!updateTranscriptComponent(component, previous, next, expanded)) {
-        component = transcriptComponent(block, cwd, expanded, extensions);
+        component = transcriptComponent(block, cwd, expanded, extensions, submittedPrompt);
       }
     },
     setExpanded(next) {
@@ -198,7 +198,7 @@ export function createPiShellTranscriptComponent(
       if ("setExpanded" in component && typeof component.setExpanded === "function") {
         component.setExpanded(expanded);
       } else {
-        component = transcriptComponent(block, cwd, expanded, extensions);
+        component = transcriptComponent(block, cwd, expanded, extensions, submittedPrompt);
       }
     },
   };
@@ -259,11 +259,12 @@ function transcriptComponent(
   cwd: string,
   expanded: boolean,
   extensions?: PiShellExtensionRendererResolver,
+  submittedPrompt?: PiShellSubmittedPromptComposer,
 ): Component {
   switch (block.kind) {
     case "user": {
       const skill = parseSkillBlock(block.text);
-      if (!skill) return new UserMessageComponent(block.text);
+      if (!skill) return submittedPrompt ? createPiSubmittedPromptComponent(block, submittedPrompt) : new UserMessageComponent(block.text);
       const invocation = new SkillInvocationMessageComponent(skill, getMarkdownTheme());
       invocation.setExpanded(expanded);
       if (!skill.userMessage) return invocation;

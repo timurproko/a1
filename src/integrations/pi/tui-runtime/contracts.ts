@@ -91,6 +91,8 @@ export interface PiTuiInputListenerResult {
 }
 
 export type PiTuiInputListener = (data: string) => PiTuiInputListenerResult | undefined;
+/** Runs at the terminal bridge before Pi TUI receives physical input. */
+export type PiTuiPreInputListener = PiTuiInputListener;
 
 export interface PiTuiLayoutEntry {
   readonly node: PiTuiLayoutNode;

@@ -13,7 +13,7 @@ The shared component layer already owns display-width text utilities, ANSI-safe 
 **Goals:**
 
 - Make viewport layout and scroll state an A1-owned, vendor-neutral component that can be tested without a terminal.
-- Preserve the current regular/fullscreen runtime choice rather than making viewport behavior depend on one Pi layout implementation.
+- Run the custom bare-A1 viewport on the fullscreen alternate surface unconditionally; pinned comparison profiles continue to honor Pi's regular/fullscreen choice.
 - Keep dock surfaces as their existing component instances so layout work cannot silently become a status, editor, footer, or extension-UI rewrite.
 - Route viewport pointer input before Pi's fullscreen viewport can consume it, while preserving unrelated input and mixed input chunks.
 - Keep per-frame work bounded to cached transcript rows plus the visible window's overlays.
@@ -80,7 +80,7 @@ A pre-listener returns consumed/transformed input through the existing neutral r
 - bypass non-control input when an overlay, dialog, selector, or replacement input owns it;
 - clear drag and hover state on session replacement and disposal.
 
-For regular mode, pointer reporting is paired to the lifetime of the bare-A1 custom viewport and disabled on every teardown path, as it already is for A1-owned pointer-driven applications. Native terminal selection remains available through the terminal's pointer-reporting bypass gesture; fullscreen selection remains owned by the public Pi TUI. This change does not add a second selection or clipboard implementation.
+Pointer reporting is paired to the lifetime of the bare-A1 fullscreen custom viewport and disabled on every teardown path, as it already is for A1-owned pointer-driven applications. Transcript selection is handled by the custom viewport while unrelated focused surfaces retain their existing input ownership.
 
 Alternative considered: register another ordinary TUI input listener. Rejected because listener ordering makes Pi consume fullscreen wheel input first.
 
@@ -93,7 +93,7 @@ Alternative considered: take over all terminal input. Rejected because the viewp
 - appearance: `always | hover | hidden`;
 - style: `thin | thick`;
 - visible reasons: always, pointer proximity, recent activity, or drag latch;
-- stable rail-column reservation;
+- a stable rail overlay column that does not remove an ordinary content cell;
 - track/thumb cell selection through theme roles;
 - a bounded activity expiry supplied with `now` in tests rather than hidden global time.
 
@@ -113,7 +113,7 @@ Alternative considered: stamp prompts when first rendered. Rejected because resu
 
 ### 7. Settings reach the shell through a narrow live viewport configuration
 
-Composition will pass the loaded `OwnedUiSettingsSession` to the bare-A1 shell, not to Pi component classes. The shell reads and subscribes to `scrollbarAppearance` and `scrollbarStyle`, translates them into the neutral viewport configuration, and requests a render on a live change. The comparison composition does not install the custom viewport even if its profile store contains those keys.
+Composition will pass the loaded `OwnedUiSettingsSession` to the bare-A1 shell, not to Pi component classes. The shell reads and subscribes to `scrollbarAppearance`, `scrollbarStyle`, and `scrollbarSpeed`, translates them into the neutral viewport configuration, and requests a render on a live change. The comparison composition does not install the custom viewport even if its profile store contains those keys.
 
 Adding declarations is backward compatible with the current versioned document: an older document omits the keys and resolution supplies the new defaults, so no migration is needed. A future rename or shape change would require the normal version/migration path.
 
@@ -143,7 +143,7 @@ The implementation will add focused render-count and long-transcript tests so a 
 - **[Timestamp reservation can cause excessive wrapping]** → Use a declared minimum useful content width and omit only the timestamp at narrower widths; never truncate the submitted prompt payload.
 - **[Sticky and rail overlays can leak ANSI styles or hyperlinks]** → Use the shared display-width and span-overlay primitives, isolate theme roles, and test background, hyperlink, wide-character, and narrow-width rows.
 - **[Early input interception can steal modal input]** → Gate by current active input/overlay ownership, consume only named viewport regions and wheel routing, preserve mixed-chunk remainder, and add ordering tests against the public TUI.
-- **[A live style change can move content]** → `always` and `hover` share a stable reserved column while content overflows; style changes preserve geometry. `hidden` deliberately returns the column and rewraps once.
+- **[A live style change can move content]** → `always` and `hover` share a stable overlay column while content overflows; ordinary transcript content keeps the full wrapping width and style changes preserve geometry. Submitted prompts alone reserve the intentional timestamp gutter; `hidden` returns that prompt cell and rewraps it once.
 - **[A long transcript can make every frame linear]** → Reuse block row caches, keep ordered anchor indexes, decorate only visible rows, and assert stable render counts while scrolling and streaming.
 
 ## Migration Plan

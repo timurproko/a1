@@ -3,9 +3,9 @@
 ### Requirement: One scrollbar serves every scrollable surface
 A1 SHALL provide one scrollbar with declared geometry derived from content length, viewport height, scroll position, and track height. Each scrollable surface SHALL identify its own rail so two surfaces cannot share activity, hover, or drag state. The scrollbar SHALL support pointer hover, thumb drag, and track paging, and SHALL reserve no space when the content fits.
 
-For overflowing content, the shared scrollbar SHALL accept an appearance of `always`, `hover`, or `hidden` and a style of `thin` or `thick`. `always` SHALL draw the rail whenever content overflows. `hover` SHALL draw it while its pointer zone is active, while its thumb is being dragged, and for a bounded linger after that rail scrolls; it SHALL keep the same rail column reserved while temporarily invisible so appearing does not reflow content. `hidden` SHALL draw no rail, reserve no rail column, and expose no interactive thumb or track. The selected style SHALL change the rail's declared glyph weight without changing its geometry or hit target. Track, thumb, hover, and drag emphasis SHALL use declared theme roles rather than literal terminal colors.
+For overflowing content, the shared scrollbar SHALL accept an appearance of `always`, `hover`, or `hidden` and a style of `thin` or `thick`. `always` SHALL draw the rail whenever content overflows. `hover` SHALL draw it while its pointer zone is active, while its thumb is being dragged, and for a bounded linger after that rail scrolls; it SHALL keep the same rail column reserved while temporarily invisible so appearing does not reflow content. `hidden` SHALL draw no rail, reserve no rail column, and expose no interactive thumb or track. The track SHALL remain a connected dim `│` hairline. The selected style SHALL change the thumb from the accent `│` used by `thin` to the centered accent `┃` used by `thick`, without changing geometry or hit targets. A pointed-at or dragged thin thumb MAY temporarily use `┃` as its interaction emphasis. Track, thumb, hover, and drag emphasis SHALL use declared theme roles rather than literal terminal colors.
 
-Scrollbar appearance and style SHALL NOT change how far a wheel event scrolls. A scroll-speed policy is outside this component contract.
+The shared scrollbar SHALL accept a speed of `normal`, `fast`, or `high`. Normal SHALL map one wheel event to three lines, fast to six lines, and high to nine lines. Appearance and style SHALL NOT change that selected wheel distance.
 
 #### Scenario: Content fits the viewport
 - **WHEN** content is no longer than the viewport
@@ -39,7 +39,8 @@ Scrollbar appearance and style SHALL NOT change how far a wheel event scrolls. A
 
 #### Scenario: Select thin or thick style
 - **WHEN** the scrollbar style changes between `thin` and `thick`
-- **THEN** the rail SHALL adopt the declared visual weight without changing thumb geometry, scroll position, track paging, or pointer hit regions
+- **THEN** the thumb SHALL use `│` for thin or `┃` for thick while the track remains `│`
+- **AND** thumb geometry, scroll position, track paging, and pointer hit regions SHALL remain unchanged
 
 #### Scenario: Drag the thumb
 - **WHEN** the pointer presses the thumb and moves
@@ -53,6 +54,14 @@ Scrollbar appearance and style SHALL NOT change how far a wheel event scrolls. A
 - **WHEN** two scrollable surfaces are visible and the pointer is over or scrolling one rail
 - **THEN** only that rail SHALL report activity or hover, and dragging it SHALL NOT scroll or reveal the other
 
-#### Scenario: Style does not set wheel speed
+#### Scenario: Use normal wheel speed
+- **WHEN** scrollbar speed is `normal`
+- **THEN** one wheel event SHALL request three lines in its direction
+
+#### Scenario: Use high wheel speed
+- **WHEN** scrollbar speed is `high`
+- **THEN** one wheel event SHALL request six lines in its direction
+
+#### Scenario: Appearance and style do not set wheel speed
 - **WHEN** appearance or style changes
-- **THEN** the distance of a wheel scroll SHALL remain unchanged
+- **THEN** the wheel distance selected by `scrollbarSpeed` SHALL remain unchanged

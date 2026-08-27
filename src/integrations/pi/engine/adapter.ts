@@ -67,7 +67,10 @@ const execFileAsync = promisify(execFile);
  * that a streaming burst never holds input, large enough that an ordinary turn is one
  * batch.
  */
-const EVENT_DELIVERY_BATCH = 16;
+// Deliver at most one engine event per event-loop turn. Transcript updates can
+// be expensive in long sessions; a larger synchronous batch starves terminal
+// input and makes an in-progress mouse selection appear frozen.
+const EVENT_DELIVERY_BATCH = 1;
 const TOOL_UPDATE_COALESCE_MS = 50;
 
 export interface PiEngineRuntimeFactoryInput {
@@ -1663,6 +1666,7 @@ export class PiEngineAdapter {
     switch (event.type) {
       case "agent_start":
         this.#agentRunActive = true;
+        this.#emitEvent({ type: "agent-run-started" });
         this.#enterWorkState("working", "Working...");
         return;
       case "message_start":
@@ -1684,6 +1688,12 @@ export class PiEngineAdapter {
       }
       case "message_end":
         this.#upsertMessageBlock(event.message, "finalized");
+        // Preserve the same semantic boundary v2 counted. Transcript block
+        // finalization is intentionally not a substitute: rebuilds, retries,
+        // thinking parts, and tool rows can all finalize independently.
+        if (isRecord(event.message) && event.message.role === "assistant") {
+          this.#emitEvent({ type: "assistant-message-completed" });
+        }
         return;
       case "turn_end":
         this.#upsertMessageBlock(event.message, "finalized");
@@ -1869,7 +1879,11 @@ export class PiEngineAdapter {
         revision: this.#nextBlockRevision(baseId),
         title: "User",
         text: textFromContent(message.content),
-        payload: { role: "user", imageCount: contentImageCount(message.content) },
+        payload: {
+          role: "user",
+          imageCount: contentImageCount(message.content),
+          timestamp: typeof message.timestamp === "number" && Number.isFinite(message.timestamp) ? message.timestamp : null,
+        },
       }];
     }
     if (message.role === "bashExecution") {
@@ -2154,6 +2168,8 @@ export class PiEngineAdapter {
       | Omit<Extract<OwnedUiEvent, { type: "session-lifecycle" }>, "sessionId" | "sequence">
       | Omit<Extract<OwnedUiEvent, { type: "session-view" }>, "sessionId" | "sequence">
       | Omit<Extract<OwnedUiEvent, { type: "transcript-block" }>, "sessionId" | "sequence">
+      | Omit<Extract<OwnedUiEvent, { type: "assistant-message-completed" }>, "sessionId" | "sequence">
+      | Omit<Extract<OwnedUiEvent, { type: "agent-run-started" }>, "sessionId" | "sequence">
       | Omit<Extract<OwnedUiEvent, { type: "editor-state" }>, "sessionId" | "sequence">
       | Omit<Extract<OwnedUiEvent, { type: "status" }>, "sessionId" | "sequence">
       | Omit<Extract<OwnedUiEvent, { type: "command-outcome" }>, "sessionId" | "sequence">
@@ -2252,6 +2268,8 @@ export class PiEngineAdapter {
       | Omit<Extract<OwnedUiEvent, { type: "session-lifecycle" }>, "sessionId" | "sequence">
       | Omit<Extract<OwnedUiEvent, { type: "session-view" }>, "sessionId" | "sequence">
       | Omit<Extract<OwnedUiEvent, { type: "transcript-block" }>, "sessionId" | "sequence">
+      | Omit<Extract<OwnedUiEvent, { type: "assistant-message-completed" }>, "sessionId" | "sequence">
+      | Omit<Extract<OwnedUiEvent, { type: "agent-run-started" }>, "sessionId" | "sequence">
       | Omit<Extract<OwnedUiEvent, { type: "editor-state" }>, "sessionId" | "sequence">
       | Omit<Extract<OwnedUiEvent, { type: "status" }>, "sessionId" | "sequence">
       | Omit<Extract<OwnedUiEvent, { type: "command-outcome" }>, "sessionId" | "sequence">

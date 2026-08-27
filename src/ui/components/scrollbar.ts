@@ -22,6 +22,57 @@ export interface ScrollbarInput {
   readonly trackHeight: number;
 }
 
+export type ScrollbarAppearance = "always" | "hover" | "hidden";
+export type ScrollbarStyle = "thin" | "thick";
+export type ScrollbarSpeed = "normal" | "fast" | "high";
+
+/** Wheel distance: normal (3), fast (6), high as normal + fast (9). */
+export function scrollbarWheelRows(speed: ScrollbarSpeed): number {
+  return speed === "high" ? 9 : speed === "fast" ? 6 : 3;
+}
+
+/** Selection edge distance at each fixed 30ms tick. */
+export function scrollbarSelectionRows(speed: ScrollbarSpeed): number {
+  return speed === "high" ? 3 : speed === "fast" ? 2 : 1;
+}
+
+export interface ScrollbarPresentationInput {
+  readonly geometry: ScrollbarGeometry | null;
+  readonly appearance: ScrollbarAppearance;
+  readonly style: ScrollbarStyle;
+  readonly hovered: boolean;
+  readonly dragging: boolean;
+  readonly activeUntil: number;
+  readonly now: number;
+}
+
+export interface ScrollbarPresentation {
+  readonly visible: boolean;
+  readonly reservesSpace: boolean;
+  readonly trackGlyph: "│" | "┃";
+  readonly thumbGlyph: "│" | "┃";
+}
+
+/** Pure appearance decision; activity time is supplied so tests own the clock. */
+export function scrollbarPresentation(input: ScrollbarPresentationInput): ScrollbarPresentation {
+  const overflowing = input.geometry !== null;
+  // As in v2, always/hover reserve the final rail cell even while content fits.
+  // The blank gutter prevents prompt timestamps from touching the terminal edge
+  // and keeps later scrollbar appearance from reflowing the transcript.
+  const reservesSpace = input.appearance !== "hidden";
+  const visible = overflowing && reservesSpace && (input.appearance === "always"
+    || input.hovered
+    || input.dragging
+    || (input.activeUntil > 0 && input.now <= input.activeUntil));
+  const thick = input.style === "thick";
+  return {
+    visible,
+    reservesSpace,
+    trackGlyph: thick ? "┃" : "│",
+    thumbGlyph: thick || input.hovered || input.dragging ? "┃" : "│",
+  };
+}
+
 /** Null when the content fits: no scrollbar is drawn and no width is reserved. */
 export function scrollbarGeometry(input: ScrollbarInput): ScrollbarGeometry | null {
   const { contentLength, viewportHeight, trackHeight } = input;
@@ -90,7 +141,16 @@ export interface RailPointer {
  */
 export class ScrollbarRails {
   readonly #hovered = new Set<string>();
+  readonly #activeUntil = new Map<string, number>();
   #dragging: { readonly key: string; readonly grabOffset: number } | undefined;
+
+  noteActivity(key: string, now: number, lingerMs = 900): void {
+    this.#activeUntil.set(key, Math.max(this.#activeUntil.get(key) ?? 0, now + Math.max(0, lingerMs)));
+  }
+
+  isRecentlyActive(key: string, now: number): boolean {
+    return now <= (this.#activeUntil.get(key) ?? 0);
+  }
 
   isHovered(key: string): boolean {
     return this.#hovered.has(key);
@@ -139,6 +199,7 @@ export class ScrollbarRails {
 
   clear(): void {
     this.#hovered.clear();
+    this.#activeUntil.clear();
     this.#dragging = undefined;
   }
 }

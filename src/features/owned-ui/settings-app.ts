@@ -140,6 +140,8 @@ export class SettingsApp implements UiApp {
   readonly #session: OwnedUiSettingsSession;
   #selectedKey: string | undefined;
   #scroll = 0;
+  /** Keyboard navigation requests visibility once; pointer scrolling then stays free. */
+  #selectionNeedsReveal = true;
   #reveal: ListRowSpan | undefined;
   #notice: string | null = null;
   #filter: LineInput | null = null;
@@ -183,10 +185,14 @@ export class SettingsApp implements UiApp {
     this.#panelTop = this.#panelTopForFrame;
     const bodyHeight = Math.max(0, rect.height - footer.length);
     const selected = indexOfKey(rows, this.#selectedKey);
-    this.#scroll = scrollForSelection(rows, bodyHeight, this.#scroll, selected, this.#reveal);
+    if (this.#selectionNeedsReveal) {
+      this.#scroll = scrollForSelection(rows, bodyHeight, this.#scroll, selected, this.#reveal);
+      this.#selectionNeedsReveal = false;
+    }
     this.#reveal = undefined;
 
     const layout = layoutList(rows, bodyHeight, this.#scroll);
+    this.#scroll = layout.scroll;
     const contentWidth = Math.max(0, rect.width - RAIL_COLUMNS);
     const valueColumn = this.#valueColumn(rows);
     const geometry = scrollbarGeometry({
@@ -207,14 +213,13 @@ export class SettingsApp implements UiApp {
       for (const index of layout.rowIndexes) {
         const row = rows[index];
         if (row !== undefined && row.kind === "element") {
+          const view = this.#viewRow(row.value);
           this.#frameRows.push({
-            key: `${row.value.backend}:${row.value.id}`,
+            key: view.key,
             screenRow: body.length,
             valueColumn,
-            valueWidth: row.value.structured
-              ? CONFIGURE.length
-              : row.value.value === null ? 0 : displayWidth(displayValue(row.value.value)),
-            stepper: isStepper(row.value),
+            valueWidth: displayWidth(view.value),
+            stepper: view.stepper !== undefined,
           });
         }
         body.push(this.#renderRow(row, index === selected, contentWidth, valueColumn, theme));
@@ -271,7 +276,10 @@ export class SettingsApp implements UiApp {
         // End lands on the very last setting, not on the head of its section.
         const selectable = selectableIndexes(rows);
         const target = action === "last" ? selectable.at(-1) : selectable[0];
-        if (target !== undefined) this.#jump(rows, target);
+        if (target !== undefined) {
+          this.#select(rows, target);
+          if (action === "first") this.#scroll = 0;
+        }
         return { consumed: true };
       }
       case "previous-value":
@@ -341,6 +349,14 @@ export class SettingsApp implements UiApp {
       return { consumed: true, render: false };
     }
 
+    if (event.kind === "wheel-up" || event.kind === "wheel-down") {
+      // The whole list pane owns wheel scrolling, including blank space beside
+      // short labels. It must not depend on finding an item under the pointer.
+      if (event.row < 1 || event.row > this.#panelTopForFrame) return { consumed: false };
+      this.#scroll = Math.max(0, this.#scroll + (event.kind === "wheel-down" ? 3 : -3));
+      return { consumed: true };
+    }
+
     const row = this.#frameRows.find(candidate => candidate.screenRow === event.row - 1);
     const previousKey = this.#hoverKey;
     const previousRegion = this.#hoverRegion;
@@ -364,10 +380,6 @@ export class SettingsApp implements UiApp {
         else if (this.#hoverRegion === "plus") this.#cycle(rows, index, 1);
         else if (this.#hoverRegion === "value") this.#openMenu(rows, index);
       }
-      return { consumed: true };
-    }
-    if (event.kind === "wheel-up" || event.kind === "wheel-down") {
-      this.#scroll = Math.max(0, this.#scroll + (event.kind === "wheel-down" ? 3 : -3));
       return { consumed: true };
     }
     const changed = previousKey !== this.#hoverKey || previousRegion !== this.#hoverRegion;
@@ -481,6 +493,16 @@ export class SettingsApp implements UiApp {
     if (input === null) return { consumed: false };
 
     const key = KEYS[data];
+    if (key === "home" || key === "end") {
+      const rows = this.#rows();
+      const selectable = selectableIndexes(rows);
+      const target = key === "end" ? selectable.at(-1) : selectable[0];
+      if (target !== undefined) {
+        this.#select(rows, target);
+        if (key === "home") this.#scroll = 0;
+      }
+      return { consumed: true };
+    }
     if (key === "up" || key === "down" || key === "shift+up" || key === "shift+down") {
       const rows = this.#rows();
       // Nothing found means nothing to move through; the key is still swallowed
@@ -561,6 +583,7 @@ export class SettingsApp implements UiApp {
   #select(rows: readonly Row[], index: number): void {
     if (index < 0) return;
     this.#selectedKey = rowKey(rows[index]);
+    this.#selectionNeedsReveal = true;
     this.#notice = null;
   }
 
@@ -633,7 +656,6 @@ export class SettingsApp implements UiApp {
       key: `${entry.backend}:${entry.id}`,
       label: labelOf(entry),
       value,
-      ...(entry.origin === "default" ? { suffix: "(default)" } : {}),
       ...(typeof shown === "number" && entry.editable ? { stepper: stepperEnds(range, shown) } : {}),
     };
   }

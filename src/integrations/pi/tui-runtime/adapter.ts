@@ -20,6 +20,7 @@ import type {
   PiTuiOverlayHandle,
   PiTuiOverlayOptions,
   PiTuiOverlayUnfocusOptions,
+  PiTuiPreInputListener,
   PiTuiRuntimeAdapterOptions,
   PiTuiRuntimeState,
   PiTuiScrollState,
@@ -117,6 +118,7 @@ class OverlayHandleBridge implements PiTuiOverlayHandle {
 
 export class PiTuiRuntimeAdapter {
   readonly #terminal: PiTuiTerminalPort;
+  readonly #tuiTerminal: PiTuiTerminalPort;
   #tui: TUI;
   readonly #root: PiTuiComponentPort;
   readonly #layoutRoot: PiTuiLayoutNode | undefined;
@@ -128,6 +130,7 @@ export class PiTuiRuntimeAdapter {
   readonly #scrollViews = new Map<string, ScrollView>();
   readonly #overlayDisposers = new Set<() => void>();
   readonly #inputListeners = new Map<PiTuiInputListener, () => void>();
+  readonly #preInputListeners = new Set<PiTuiPreInputListener>();
   #state: PiTuiRuntimeState = "idle";
   #stopPromise: Promise<void> | undefined;
   #rootDisposed = false;
@@ -135,6 +138,7 @@ export class PiTuiRuntimeAdapter {
   constructor(options: PiTuiRuntimeAdapterOptions) {
     this.#root = options.root;
     this.#terminal = options.terminal ?? new ProcessTerminal();
+    this.#tuiTerminal = preInputTerminal(this.#terminal, data => this.#routePreInput(data));
     this.#layoutRoot = options.layoutRoot;
     this.#logDirectory = options.logDirectory;
     this.#rootBridge = new ComponentBridge(options.root);
@@ -279,6 +283,12 @@ export class PiTuiRuntimeAdapter {
     this.#terminal.write(data);
   }
 
+  addPreInputListener(listener: PiTuiPreInputListener): () => void {
+    if (this.#preInputListeners.has(listener)) throw new TypeError("Pi TUI pre-input listener is already registered");
+    this.#preInputListeners.add(listener);
+    return () => this.#preInputListeners.delete(listener);
+  }
+
   addInputListener(listener: PiTuiInputListener): () => void {
     this.#assertRunning("input listener");
     if (this.#inputListeners.has(listener)) throw new TypeError("Pi TUI input listener is already registered");
@@ -351,6 +361,7 @@ export class PiTuiRuntimeAdapter {
     if (this.#stopPromise) return this.#stopPromise;
     if (this.#state === "idle") {
       this.#state = "stopped";
+      this.#preInputListeners.clear();
       this.#disposeRoot();
       return Promise.resolve();
     }
@@ -390,8 +401,19 @@ export class PiTuiRuntimeAdapter {
 
   #createTui(mode: "regular" | "fullscreen", hardwareCursor: boolean): TUI {
     return mode === "fullscreen"
-      ? new TuiAltScreen(this.#terminal, hardwareCursor, this.#logDirectory, this.#tuiOptions)
-      : new TuiMainScreen(this.#terminal, hardwareCursor, this.#logDirectory);
+      ? new TuiAltScreen(this.#tuiTerminal, hardwareCursor, this.#logDirectory, this.#tuiOptions)
+      : new TuiMainScreen(this.#tuiTerminal, hardwareCursor, this.#logDirectory);
+  }
+
+  #routePreInput(data: string): string {
+    let current = data;
+    for (const listener of this.#preInputListeners) {
+      if (current.length === 0) break;
+      const result = listener(current);
+      if (result?.data !== undefined) current = result.data;
+      else if (result?.consume === true) current = "";
+    }
+    return current;
   }
 
   #mountTui(tui: TUI): void {
@@ -494,9 +516,35 @@ export class PiTuiRuntimeAdapter {
   #disposeComponents(): void {
     for (const remove of this.#inputListeners.values()) remove();
     this.#inputListeners.clear();
+    this.#preInputListeners.clear();
     for (const dispose of [...this.#overlayDisposers]) dispose();
     this.#disposeRoot();
   }
+}
+
+function preInputTerminal(terminal: PiTuiTerminalPort, route: (data: string) => string): PiTuiTerminalPort {
+  return {
+    get columns() { return terminal.columns; },
+    get rows() { return terminal.rows; },
+    get kittyProtocolActive() { return terminal.kittyProtocolActive; },
+    start(onInput, onResize) {
+      terminal.start(data => {
+        const routed = route(data);
+        if (routed.length > 0) onInput(routed);
+      }, onResize);
+    },
+    stop: () => terminal.stop(),
+    drainInput: (maxMs, idleMs) => terminal.drainInput(maxMs, idleMs),
+    write: data => terminal.write(data),
+    moveBy: lines => terminal.moveBy(lines),
+    hideCursor: () => terminal.hideCursor(),
+    showCursor: () => terminal.showCursor(),
+    clearLine: () => terminal.clearLine(),
+    clearFromCursor: () => terminal.clearFromCursor(),
+    clearScreen: () => terminal.clearScreen(),
+    setTitle: title => terminal.setTitle(title),
+    setProgress: active => terminal.setProgress(active),
+  };
 }
 
 function toOverlayOptions(options: PiTuiOverlayOptions | undefined): OverlayOptions | undefined {
