@@ -92,10 +92,12 @@ describe("overlaying a span on a rendered row", () => {
     const source = `${RED}check ${first} then ${second}). tail${RESET}`;
 
     const result = nativeHyperlinkStyle(source, text => `${BLUE}${text}${RESET}`);
+    const shownFirst = first.replace("https", "https\u2063");
+    const shownSecond = second.replace("https", "https\u2063");
 
     expect(stripAnsi(result)).toBe(stripAnsi(source));
-    expect(result).toContain(`\u001b]8;;${first}\u001b\\${ESC}[24m${BLUE}${first}${RESET}${close}${RED}`);
-    expect(result).toContain(`\u001b]8;;${second}\u001b\\${ESC}[24m${BLUE}${second}${RESET}${close}${RED})`);
+    expect(result).toContain(`\u001b]8;;${first}\u001b\\${ESC}[24m${BLUE}${shownFirst}${RESET}${close}${RED}`);
+    expect(result).toContain(`\u001b]8;;${second}\u001b\\${ESC}[24m${BLUE}${shownSecond}${RESET}${close}${RED})`);
     expect(result).not.toContain(`\u001b]8;;${second})`);
   });
 

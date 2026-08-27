@@ -14,6 +14,7 @@ const HYPERLINK_OFF = "]8;;\\";
 const SGR = /^\[[0-9;]*m$/;
 const BARE_URL = /https?:\/\/[^\s\u0000-\u001f\u007f<>"']+/giu;
 const TRAILING_URL_PUNCTUATION = /[.,;:!?]/u;
+const TERMINAL_WEB_AUTOLINK_BREAK = "\u2063";
 const GRAPHEMES = new Intl.Segmenter(undefined, { granularity: "grapheme" });
 
 /**
@@ -119,7 +120,7 @@ export function nativeHyperlinkStyle(
     if (!token.startsWith("\u001b")) {
       output += hyperlinkTarget === undefined
         ? decorateBareUrls(token, color, sgrReplay)
-        : color(token, hyperlinkTarget);
+        : color(breakTerminalWebAutolink(token, hyperlinkTarget), hyperlinkTarget);
       continue;
     }
     if (SGR.test(token)) {
@@ -139,8 +140,15 @@ function decorateBareUrls(
   return text.replace(BARE_URL, candidate => {
     const { target, trailing } = splitUrlTrailingPunctuation(candidate);
     if (target.length === 0) return candidate;
-    return `\u001b]8;;${target}\u001b\\\u001b[24m${color(target, target)}${HYPERLINK_OFF}${sgrReplay}${trailing}`;
+    return `\u001b]8;;${target}\u001b\\\u001b[24m${color(breakTerminalWebAutolink(target, target), target)}${HYPERLINK_OFF}${sgrReplay}${trailing}`;
   });
+}
+
+function breakTerminalWebAutolink(text: string, target: string): string {
+  if (!/^https?:\/\//iu.test(target)) return text;
+  // Explicit OSC 8 remains clickable. The invisible separator only prevents
+  // Windows Terminal from layering its own cached URL hover over the same cells.
+  return text.replace(/https?(?=:\/\/)/giu, scheme => `${scheme}${TERMINAL_WEB_AUTOLINK_BREAK}`);
 }
 
 function splitUrlTrailingPunctuation(candidate: string): { readonly target: string; readonly trailing: string } {

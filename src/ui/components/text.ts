@@ -6,19 +6,22 @@
  */
 
 const ANSI_PATTERN = /\[[0-9;:?]*[ -/]*[@-~]|\][^]*(?:|\\)|[@-Z\\-_]/g;
+// Breaks Windows Terminal's duplicate plain-text URL detector while OSC 8 owns
+// the real link. It is removed from semantic text and occupies no terminal cell.
+const TERMINAL_WEB_AUTOLINK_BREAK = "\u2063";
 const SEGMENTER = new Intl.Segmenter(undefined, { granularity: "grapheme" });
 const WORD_SEGMENTER = new Intl.Segmenter(undefined, { granularity: "word" });
 
 /** Removes styling sequences so only visible characters remain. */
 export function stripAnsi(text: string): string {
-  return text.replace(ANSI_PATTERN, "");
+  return text.replace(ANSI_PATTERN, "").replaceAll(TERMINAL_WEB_AUTOLINK_BREAK, "");
 }
 
 function codePointWidth(codePoint: number): number {
   // Zero-width: combining marks, joiners, variation selectors, and format characters.
   if (codePoint === 0x200d || codePoint === 0xfeff) return 0;
   if (codePoint >= 0x0300 && codePoint <= 0x036f) return 0;
-  if (codePoint >= 0x200b && codePoint <= 0x200f) return 0;
+  if ((codePoint >= 0x200b && codePoint <= 0x200f) || (codePoint >= 0x2060 && codePoint <= 0x2064)) return 0;
   if (codePoint >= 0xfe00 && codePoint <= 0xfe0f) return 0;
   if (codePoint >= 0x20d0 && codePoint <= 0x20f0) return 0;
   if (codePoint >= 0x1ab0 && codePoint <= 0x1aff) return 0;
