@@ -249,6 +249,10 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
         const plain = stripAnsi(row);
         const ranges = this.#promptChips.hyperlinkRanges(plain);
         if (ranges.length === 0) return row;
+        const linkResetAndTail = `\u001b]8;;\u001b\\\u001b[24m${" ".repeat(Math.max(0, width - piShellVisibleWidth(row)))}`;
+        // Selection owns pointer interaction until it is collapsed. Omitting OSC 8
+        // keeps terminal-native hover decoration out of selected prompt content.
+        if (this.editor.hasSelection()) return `${row}${linkResetAndTail}`;
         const decorated = ranges.reduce((result, range) => hyperlinkSgrSpan(
           result,
           piShellVisibleWidth(plain.slice(0, range.start)),
@@ -258,7 +262,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
         ), row);
         // Windows Terminal can retain stale native dotted-link cells when a mutable
         // prompt replaces a longer URL. Explicit non-link spaces overwrite that tail.
-        return `${decorated}\u001b]8;;\u001b\\\u001b[24m${" ".repeat(Math.max(0, width - piShellVisibleWidth(decorated)))}`;
+        return `${decorated}${linkResetAndTail}`;
       },
 
       expandCopiedEditorText: text => this.#promptChips.expandCopiedText(text),
@@ -522,6 +526,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
             column: event.column,
             row: event.row - this.#editorPointerFrame.rowStart + 1,
           });
+          forceRepaint ||= this.editor.hasSelection();
           return true;
         }
         if (this.#dockPointerSuppressed) return true;
@@ -603,6 +608,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
             row: event.row - editorFrame.rowStart + 1,
           });
           if (!handled) this.#dockPointerSuppressed = true;
+          forceRepaint ||= this.editor.hasSelection();
           repaint = true;
           return true;
         }
@@ -627,6 +633,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
             column: event.column,
             row: event.row - this.#editorPointerFrame.rowStart + 1,
           });
+          forceRepaint ||= this.editor.hasSelection();
           repaint = true;
           return true;
         }

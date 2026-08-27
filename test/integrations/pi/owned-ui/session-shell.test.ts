@@ -572,6 +572,7 @@ describe("OwnedUiSessionShell", () => {
     terminal.input("\u001b[D"); // Left focuses the adjacent chip as one inverted item.
     const focusedChip = shell.root.render(60).find(row => stripTerminalSequences(row).includes("https://example.com")) ?? "";
     expect(focusedChip).toContain("\u001b[7m");
+    expect(focusedChip).not.toContain("\u001b]8;;https://example.com/a/very/useful/resource\u001b\\");
     expect(focusedChip).not.toContain(CURSOR_MARKER);
     expect(stripTerminalSequences(focusedChip)).toContain(urlChip);
     terminal.input("\u0003");
@@ -595,11 +596,15 @@ describe("OwnedUiSessionShell", () => {
     terminal.input(`\u001b[<0;${chipColumn};${chipRow}m`);
     expect(shell.root.render(60).join("\n")).toContain("\u001b[7m");
 
+    const writesBeforeDrag = terminal.writes.length;
     terminal.input(`\u001b[<0;${chipColumn};${chipRow}M`);
     terminal.input(`\u001b[<32;${chipColumn + 1};${chipRow}M`);
     terminal.input(`\u001b[<0;${chipColumn + 1};${chipRow}m`);
+    shell.runtime.renderNow();
     const draggedChip = shell.root.render(60).join("\n");
+    expect(terminal.writes.slice(writesBeforeDrag).some(write => write.includes("\u001b[2J"))).toBe(true);
     expect(draggedChip).toContain("\u001b[27m\u001b[48;2;38;79;120m");
+    expect(draggedChip).not.toContain("\u001b]8;;https://example.com/a/very/useful/resource\u001b\\");
     terminal.input("\u007f");
     expect(shell.root.editor.getText()).toBe("");
 
