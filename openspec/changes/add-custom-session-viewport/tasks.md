@@ -1,13 +1,13 @@
 ## 1. Build the shared viewport primitives
 
-- [ ] 1.1 Extend the shared scrollbar with `always | hover | hidden` appearance, `thin | thick` style, per-rail recent-activity/hover/drag visibility, stable hover gutter reservation, themed track/thumb painting, and unchanged wheel distance; verify focused component tests cover the complete appearance/style/state matrix, linger expiry, hidden interaction, track paging, drag clamping, and two independent rails
+- [ ] 1.1 Extend the shared scrollbar with `always | hover | hidden` appearance, `thin | thick` style, per-rail recent-activity/hover/drag visibility, stable hover rail overlay, themed track/thumb painting, and shell-configured wheel distance; verify focused component tests cover the complete appearance/style/state matrix, linger expiry, hidden interaction, track paging, drag clamping, and two independent rails
 - [ ] 1.2 Add the neutral submitted-prompt row composer for prefix width, continuation indentation, local `HH:mm` source timestamps, right alignment, narrow-width omission, and ANSI-safe width; verify focused tests cover one-line, multiline, resumed-timestamp, wide-character, styled, and insufficient-width prompts
 - [ ] 1.3 Add the neutral transcript viewport state and frame compositor for exact-height clipping, follow/detach transitions, semantic prompt anchors, sticky-row prominence, scroll-to-bottom overlay/hit regions, scrollbar composition, and resize clamping; verify pure tests cover every custom-session-viewport scenario without constructing Pi components
 
 ## 2. Route viewport input before the TUI consumes it
 
 - [ ] 2.1 Add a neutral pre-TUI input stage to the Pi runtime adapter's terminal bridge and verify adapter tests prove listener ordering, consume/transform behavior, mixed mouse-plus-keyboard preservation, removal, mode switching, and disposal without exposing Pi listener types
-- [ ] 2.2 Bind the viewport's wheel, hover, thumb-drag, track-page, sticky-prompt, and scroll-to-bottom actions through the pre-input stage while leaving unrelated input to the focused surface; verify shell/runtime tests cover fullscreen wheel precedence, ordinary selection routing, modal ownership, pointer regions, and a drag ending on release
+- [ ] 2.2 Bind the viewport's wheel, hover, thumb-drag, track-page, sticky-prompt, `Alt+Home` previous-prompt, and scroll-to-bottom actions through the pre-input stage while leaving unrelated input to the focused surface; verify shell/runtime tests cover fullscreen wheel precedence, ordinary selection routing, modal ownership, pointer regions, and a drag ending on release
 - [ ] 2.3 Pair pointer reporting with the bare-A1 viewport lifecycle in regular mode and clear transient viewport state on session replacement, failure, shutdown, and disposal; verify terminal-write tests prove every enable has a disable and comparison profiles never enable reporting for this customization
 
 ## 3. Compose the owned shell into document and dock regions
@@ -19,9 +19,9 @@
 
 ## 4. Declare settings and profile scope
 
-- [ ] 4.1 Declare live A1 settings `scrollbarAppearance` (`always`, `hover`, `hidden`; default `hover`) and `scrollbarStyle` (`thin`, `thick`; default `thin`) with no speed declaration; verify settings declaration, resolution, section, persistence, invalid-value, and no-speed inventory tests
-- [ ] 4.2 Pass the loaded settings session into the bare-A1 shell through composition and subscribe the viewport to live appearance/style changes; verify integration tests prove a change repaints without restart while preserving scroll/follow state and writes only the active profile's A1 settings document
-- [ ] 4.3 Select the custom viewport only when A1-owned surfaces are enabled, leaving `a1 pi` on the pinned comparison presentation; verify composition and launch-profile tests prove bare A1 has the viewport controls while the comparison profile have none, regardless of stored A1 scrollbar values
+- [ ] 4.1 Declare live A1 settings `scrollbarAppearance` (`always`, `hover`, `hidden`; default `hover`), `scrollbarStyle` (`thin`, `thick`; default `thin`), and `scrollbarSpeed` (`normal`, `fast`, `high`; default `normal`) grouped under `Scroll` with `Scrollbar mode`, `Scrollbar style`, and `Speed` labels; verify declaration, resolution, section, persistence, and invalid-value tests
+- [ ] 4.2 Pass the loaded settings session into the bare-A1 shell and subscribe the viewport to live appearance/style/speed changes; verify normal moves three wheel rows and edge-selects one row every 30ms, fast doubles both rates, high combines normal plus fast, changes require no restart, scroll/follow state is preserved, and only the active profile's A1 settings document is written
+- [ ] 4.3 Select the custom viewport only when A1-owned surfaces are enabled, leaving `a1 pi` on the pinned comparison presentation; verify composition and launch-profile tests prove bare A1 has the viewport controls while the comparison profile has none, regardless of stored A1 scrollbar values
 
 ## 5. Preserve performance, provenance, and acceptance
 
@@ -29,5 +29,5 @@
 - [ ] 5.2 Add long-transcript render-count and streaming fixtures proving scroll, hover, linger, style changes, and one streamed block reuse finalized block caches and decorate only the visible window; verify per-update work does not grow through re-rendering unchanged components
 - [ ] 5.3 Update `docs/architecture/ui-reference-provenance.md` with the exact prototype units analyzed, behaviors adapted, semantic A1 destinations, and rejection of prototype patches/private child-tree reads; verify architecture and provenance governance name every adapted unit
 - [ ] 5.4 Commit the implementation from its detached worktree, open the behavior pull request, and verify the required GitHub development validation and strict OpenSpec validation pass before requesting acceptance
-- [ ] 5.5 Perform user-controlled manual acceptance in a real terminal for long-session scrolling, detached streaming, submission, all scrollbar appearance/style states, drag and track paging, the bottom control, timestamped sticky prompts, selectors, resize, selection/copy, comparison profiles, and parent-terminal restoration; record the exact accepted candidate before merge
+- [ ] 5.5 Perform user-controlled manual acceptance in a real terminal for long-session scrolling, detached streaming, submission, all scrollbar appearance/style/speed states, drag and track paging, the bottom control, timestamped sticky prompts, selectors, resize, selection/copy, comparison profiles, and parent-terminal restoration; record the exact accepted candidate before merge
 - [ ] 5.6 After the accepted implementation is integrated, archive this OpenSpec change, integrate the archive update, and remove/prune only the worktrees and remote branches whose pull requests are confirmed merged

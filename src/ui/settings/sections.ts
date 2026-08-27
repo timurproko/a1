@@ -67,13 +67,14 @@ const BOOLEAN_CHOICES: readonly OwnedUiSettingValue[] = Object.freeze([true, fal
 export function buildOwnedUiSettingsSections(
   input: BuildOwnedUiSettingsSectionsInput,
 ): readonly OwnedUiSettingsSection[] {
-  const ownedSection: OwnedUiSettingsSection = {
-    id: "a1",
-    title: "A1",
-    entries: Object.freeze(input.resolution.settings.map(setting => ({
+  const grouped = new Map<string, { title: string; entries: OwnedUiSettingsEntry[] }>();
+  for (const setting of input.resolution.settings) {
+    const section = setting.declaration.section ?? { id: "a1", title: "A1" };
+    const group = grouped.get(section.id) ?? { title: section.title, entries: [] };
+    group.entries.push({
       id: setting.declaration.id,
-      label: null,
-      backend: "a1" as const,
+      label: setting.declaration.label ?? null,
+      backend: "a1",
       description: setting.declaration.description,
       value: setting.value,
       rawValue: setting.value,
@@ -85,12 +86,18 @@ export function buildOwnedUiSettingsSections(
       choices: setting.declaration.allowedValues,
       origin: setting.source,
       application: setting.declaration.application,
-    }))),
+    });
+    grouped.set(section.id, group);
+  }
+  const ownedSections: OwnedUiSettingsSection[] = [...grouped].map(([id, group]) => ({
+    id,
+    title: group.title,
+    entries: Object.freeze(group.entries),
     unavailableReason: null,
     readOnlyReason: null,
-  };
+  }));
 
-  return Object.freeze([ownedSection, agentSection(input.agent)]);
+  return Object.freeze([...ownedSections, agentSection(input.agent)]);
 }
 
 export function findOwnedUiSettingsEntry(

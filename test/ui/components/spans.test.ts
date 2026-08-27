@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { displayWidth, overlaySpan, stripAnsi } from "../../../src/ui/components/index.js";
+import { backgroundSgrSpan, displayWidth, overlaySpan, stripAnsi } from "../../../src/ui/components/index.js";
 
 const ESC = String.fromCharCode(27);
 const RED = `${ESC}[31m`;
@@ -43,5 +43,17 @@ describe("overlaying a span on a rendered row", () => {
 
   it("writes past the end of a short row", () => {
     expect(stripAnsi(overlaySpan("", 0, 3, "XYZ"))).toBe("XYZ");
+  });
+
+  it("paints only the selection background while preserving foreground, bold, italic, and underline", () => {
+    const bold = `${ESC}[1m`;
+    const italic = `${ESC}[3m`;
+    const underline = `${ESC}[4m`;
+    const selected = `${ESC}[48;2;38;79;120m`;
+    const result = backgroundSgrSpan(`${RED}${bold}a${BLUE}${italic}b${underline}c`, 0, 3, selected, `${ESC}[49m`);
+    expect(stripAnsi(result)).toBe("abc");
+    expect(result).toContain(`${RED}${bold}${selected}a`);
+    expect(result).toContain(`${BLUE}${selected}${italic}${selected}b`);
+    expect(result).toContain(`${underline}${selected}c`);
   });
 });

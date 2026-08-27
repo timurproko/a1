@@ -5,6 +5,7 @@ import { OwnedUiSessionShell } from "../integrations/pi/owned-ui/index.js";
 import { OwnedUiSettingsSession, OwnedUiSettingsStore } from "../ui/settings/index.js";
 import { createPiTerminalBridge } from "../integrations/pi/tui-runtime/index.js";
 import type { OwnedUiApplicationPort, PresentationTerminalPort } from "../contracts/presentation/index.js";
+import type { OwnedUiViewportSettings, OwnedUiViewportSettingsPort } from "../contracts/owned-ui/index.js";
 import { createOwnedRouteHost } from "./settings-route-host.js";
 
 export interface OwnedUiCompositionOptions {
@@ -43,17 +44,25 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     : new OwnedUiSettingsSession({
       store: new OwnedUiSettingsStore({ configDir: resolveProductPaths().configDir, profileId: options.profileId }),
       agentProvider: () => adapter.settingsPort(),
+      ...(options.ownedSurfaces === "off" ? {} : { hiddenAgentSettingIds: ["tuiMode"] }),
     });
   // Before anything is drawn, so every surface uses the configured theme rather
   // than the one guessed from the terminal's background.
   applyConfiguredPiTheme(adapter.configuredTheme());
 
-  const routeHost = settings === null || options.ownedSurfaces === "off" ? null : createOwnedRouteHost(settings);
+  const ownedSurfaces = options.ownedSurfaces !== "off";
+  const routeHost = settings === null || !ownedSurfaces ? null : createOwnedRouteHost(settings);
+  const viewportSettings: OwnedUiViewportSettingsPort | null = settings === null || !ownedSurfaces ? null : {
+    snapshot: () => viewportSettingsSnapshot(settings),
+    onChange: listener => settings.onChange(() => listener(viewportSettingsSnapshot(settings))),
+  };
   const shell = new OwnedUiSessionShell({
     backend: adapter,
     cwd,
     ...(options.terminal === undefined ? {} : { terminal: createPiTerminalBridge(options.terminal) }),
     ...(routeHost === null ? {} : { routeHost }),
+    ...(ownedSurfaces ? { sessionLayout: "custom-viewport" as const } : {}),
+    ...(viewportSettings === null ? {} : { viewportSettings }),
   });
   const application: OwnedUiApplicationPort = {
     get disposed() { return adapter.disposed; },
@@ -63,4 +72,15 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     dispose: () => shell.dispose(),
   };
   return { application, settings };
+}
+
+function viewportSettingsSnapshot(settings: OwnedUiSettingsSession): OwnedUiViewportSettings {
+  const appearance = settings.value("scrollbarAppearance");
+  const style = settings.value("scrollbarStyle");
+  const speed = settings.value("scrollbarSpeed");
+  return {
+    scrollbarAppearance: appearance === "always" || appearance === "hidden" ? appearance : "hover",
+    scrollbarStyle: style === "thick" ? "thick" : "thin",
+    scrollbarSpeed: speed === "high" ? "high" : speed === "fast" ? "fast" : "normal",
+  };
 }

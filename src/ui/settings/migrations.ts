@@ -9,11 +9,19 @@ export interface OwnedUiSettingsMigration {
 
 /**
  * Ordered, contiguous migrations ending at OWNED_UI_SETTINGS_VERSION. Version 1
- * is the first stored shape, so nothing precedes it and the list is empty.
+ * is the first stored shape.
  */
-export const OWNED_UI_SETTINGS_MIGRATIONS: readonly OwnedUiSettingsMigration[] = Object.freeze(
-  [] as readonly OwnedUiSettingsMigration[],
-);
+export const OWNED_UI_SETTINGS_MIGRATIONS: readonly OwnedUiSettingsMigration[] = Object.freeze([
+  Object.freeze({
+    to: 2,
+    description: "Rename scrollbar speed high to fast.",
+    migrate(values: Readonly<Record<string, unknown>>): Record<string, unknown> {
+      return values.scrollbarSpeed === "high"
+        ? { ...values, scrollbarSpeed: "fast" }
+        : { ...values };
+    },
+  }),
+]);
 
 export function assertOwnedUiSettingsMigrations(
   migrations: readonly OwnedUiSettingsMigration[],

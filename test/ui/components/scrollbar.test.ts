@@ -5,7 +5,10 @@ import {
   scrollForThumbRow,
   scrollForTrackPage,
   scrollbarGeometry,
+  scrollbarPresentation,
   scrollbarReservesSpace,
+  scrollbarSelectionRows,
+  scrollbarWheelRows,
   type RailPosition,
 } from "../../../src/ui/components/index.js";
 
@@ -16,6 +19,13 @@ function geometry(scroll: number, contentLength = 100, viewportHeight = 20) {
 }
 
 describe("scrollbar geometry", () => {
+  it("maps normal, fast, and high to baseline, double, and combined rates", () => {
+    expect(["normal", "fast", "high"].map(speed => scrollbarWheelRows(speed as "normal" | "fast" | "high")))
+      .toEqual([3, 6, 9]);
+    expect(["normal", "fast", "high"].map(speed => scrollbarSelectionRows(speed as "normal" | "fast" | "high")))
+      .toEqual([1, 2, 3]);
+  });
+
   it("draws nothing and reserves nothing when the content fits", () => {
     expect(scrollbarGeometry({ contentLength: 5, viewportHeight: 20, scroll: 0, trackHeight: TRACK })).toBeNull();
     expect(scrollbarGeometry({ contentLength: 20, viewportHeight: 20, scroll: 0, trackHeight: TRACK })).toBeNull();
@@ -74,6 +84,32 @@ describe("scrollbar geometry", () => {
 const LEFT: RailPosition = { key: "left", column: 30, rowStart: 2, trackHeight: TRACK };
 const RIGHT: RailPosition = { key: "right", column: 60, rowStart: 2, trackHeight: TRACK };
 
+describe("scrollbar presentation policy", () => {
+  it("covers appearance, style, hover, activity, and drag without changing geometry", () => {
+    const at = geometry(20)!;
+    const presentation = (overrides: Partial<Parameters<typeof scrollbarPresentation>[0]> = {}) => scrollbarPresentation({
+      geometry: at,
+      appearance: "hover",
+      style: "thin",
+      hovered: false,
+      dragging: false,
+      activeUntil: 0,
+      now: 100,
+      ...overrides,
+    });
+    expect(presentation()).toMatchObject({ visible: false, reservesSpace: true, trackGlyph: "│", thumbGlyph: "│" });
+    expect(presentation({ hovered: true })).toMatchObject({ visible: true, thumbGlyph: "┃" });
+    expect(presentation({ activeUntil: 110 })).toMatchObject({ visible: true, reservesSpace: true });
+    expect(presentation({ activeUntil: 99 }).visible).toBe(false);
+    expect(presentation({ dragging: true }).visible).toBe(true);
+    expect(presentation({ appearance: "always" }).visible).toBe(true);
+    expect(presentation({ appearance: "hidden" })).toMatchObject({ visible: false, reservesSpace: false });
+    expect(presentation({ style: "thick" })).toMatchObject({ trackGlyph: "┃", thumbGlyph: "┃" });
+    expect(presentation({ geometry: null })).toMatchObject({ visible: false, reservesSpace: true });
+    expect(presentation({ geometry: null, appearance: "hidden" })).toMatchObject({ visible: false, reservesSpace: false });
+  });
+});
+
 describe("two rails on one screen", () => {
   it("hovers only the rail the pointer is on", () => {
     const rails = new ScrollbarRails();
@@ -123,13 +159,18 @@ describe("two rails on one screen", () => {
     expect(rails.dragTo(LEFT, at, { column: 30, row: 3 })).toBe(0);
   });
 
-  it("forgets its drag and its hover when told to", () => {
+  it("keeps recent activity independent and forgets transient state when told to", () => {
     const rails = new ScrollbarRails();
+    rails.noteActivity("left", 100, 50);
+    expect(rails.isRecentlyActive("left", 149)).toBe(true);
+    expect(rails.isRecentlyActive("right", 149)).toBe(false);
+    expect(rails.isRecentlyActive("left", 151)).toBe(false);
     rails.notePointer([LEFT], { column: 30, row: 4 });
     rails.beginDrag(LEFT, geometry(0), { column: 30, row: 2 });
     rails.endDrag();
     expect(rails.isDragging("left")).toBe(false);
     rails.clear();
     expect(rails.isHovered("left")).toBe(false);
+    expect(rails.isRecentlyActive("left", 100)).toBe(false);
   });
 });

@@ -7,9 +7,10 @@ import {
   PINNED_PI_HIDDEN_COMMAND_NAMES,
   PINNED_PI_WORKFLOW_COMMAND_NAMES,
 } from "../../../../src/integrations/pi/engine/index.js";
-import { applyPiTheme } from "../../../../src/integrations/pi/components/index.js";
+import { applyPiTheme, piTheme } from "../../../../src/integrations/pi/components/index.js";
 import { OwnedUiSessionShell } from "../../../../src/integrations/pi/owned-ui/index.js";
 import { TestPresentationTerminal } from "../../../features/owned-ui/neutral-port-doubles.js";
+import type { OwnedUiViewportSettings, OwnedUiViewportSettingsPort } from "../../../../src/contracts/owned-ui/index.js";
 
 class Session {
   readonly sessionId = "pi-session";
@@ -132,18 +133,437 @@ class Runtime {
   async dispose(): Promise<void> { this.calls.push("dispose"); }
 }
 
-async function fixture(messages: readonly unknown[] = [], extensions: readonly unknown[] = []) {
+async function fixture(
+  messages: readonly unknown[] = [],
+  extensions: readonly unknown[] = [],
+  customViewport = false,
+  viewportSettings?: OwnedUiViewportSettingsPort,
+) {
   const engine = new Runtime(messages);
   engine.extensionResources = extensions;
   const adapter = await createPiEngineAdapter({ cwd: "D:/work", sessionId: "owned-shell", createRuntime: async () => engine as unknown as AgentSessionRuntime });
   const terminal = new TestPresentationTerminal();
-  const shell = new OwnedUiSessionShell({ backend: adapter, cwd: "D:/work", terminal });
+  const shell = new OwnedUiSessionShell({
+    backend: adapter,
+    cwd: "D:/work",
+    terminal,
+    ...(customViewport ? { sessionLayout: "custom-viewport" as const } : {}),
+    ...(viewportSettings === undefined ? {} : { viewportSettings }),
+  });
   shell.start();
   shell.runtime.renderNow();
   return { engine, adapter, terminal, shell };
 }
 
 describe("OwnedUiSessionShell", () => {
+  it("forces the custom bare-A1 surface to fullscreen without changing pinned mode policy", async () => {
+    const custom = await fixture([], [], true);
+    expect(custom.shell.runtime.mode).toBe("fullscreen");
+    await custom.shell.dispose();
+
+    const pinned = await fixture();
+    expect(pinned.shell.runtime.mode).toBe("regular");
+    await pinned.shell.dispose();
+  });
+
+  it("omits Pi startup help and loaded-resource inventory from bare A1 only", async () => {
+    const custom = await fixture([], [], true);
+    const customFrame = stripTerminalSequences(custom.shell.root.render(80).join("\n"));
+    expect(customFrame).not.toMatch(/pi v\d/i);
+    expect(customFrame).not.toContain("escape interrupt");
+    expect(customFrame).not.toContain("Pi can explain its own features");
+    await custom.shell.dispose();
+
+    const pinned = await fixture();
+    const pinnedFrame = stripTerminalSequences(pinned.shell.root.render(80).join("\n"));
+    expect(pinnedFrame).toMatch(/pi v\d/i);
+    expect(pinnedFrame).toContain("escape interrupt");
+    await pinned.shell.dispose();
+  });
+
+  it("renders the bare-A1 prompt bar and one-row-inset rail above an unchanged pinned dock", async () => {
+    const messages = Array.from({ length: 18 }, (_, index) => ({
+      role: index % 2 === 0 ? "user" : "assistant",
+      content: [{ type: "text", text: `${index % 2 === 0 ? "Question" : "Answer"} ${index}` }],
+      timestamp: new Date(2026, 3, 2, 11, 45 + index).getTime(),
+    }));
+    const { engine, terminal, shell } = await fixture(messages, [], true);
+    terminal.resize(60, 12);
+    const initial = shell.root.render(60);
+    expect(initial).toHaveLength(12);
+    const plainInitial = initial.map(row => stripTerminalSequences(row));
+    expect(plainInitial.some(row => /^❯ Question \d+\s+\d{2}:\d{2}\s*$/.test(row))).toBe(true);
+    expect(terminal.writes.some(write => write.includes("[?1003h"))).toBe(true);
+
+    terminal.input("\u001b[<64;30;3M");
+    const detachedRaw = shell.root.render(60);
+    const detached = detachedRaw.map(row => stripTerminalSequences(row));
+    expect(detached).toHaveLength(12);
+    expect(detachedRaw[0]).toContain(piTheme().fg("userMessageText", "11:57"));
+    expect(detached.some(row => row.includes("Jump to bottom (Alt+End)"))).toBe(true);
+    expect(detached[0]).not.toContain("│");
+    expect(detached.slice(1, -4).some(row => row.includes("│"))).toBe(true);
+
+    const completedReply = {
+      role: "assistant",
+      content: [{ type: "text", text: "New reply while detached" }],
+      timestamp: Date.now(),
+    };
+    engine.session.emit({ type: "message_start", message: completedReply });
+    engine.session.emit({ type: "message_end", message: completedReply });
+    await shell.backend.flushEvents();
+    expect(shell.root.render(60).some(row => stripTerminalSequences(row).includes("1 new message (Alt+End)"))).toBe(true);
+
+    engine.session.emit({ type: "message_end", message: { role: "tool", content: [{ type: "text", text: "tool result" }] } });
+    await shell.backend.flushEvents();
+    expect(shell.root.render(60).some(row => stripTerminalSequences(row).includes("1 new message (Alt+End)"))).toBe(true);
+
+    // v2 resumes follow at the exact agent_start boundary, which also clears
+    // the completed-message count on the next frame.
+    engine.session.emit({ type: "agent_start" });
+    await shell.backend.flushEvents();
+    expect(shell.root.render(60).every(row => !stripTerminalSequences(row).includes("Alt+End"))).toBe(true);
+    engine.session.emit({ type: "agent_settled" });
+    await shell.backend.flushEvents();
+
+    shell.root.editor.setText("submitted while detached");
+    terminal.input("\r");
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(engine.session.calls).toContain("prompt:submitted while detached");
+    expect(shell.root.render(60).some(row => stripTerminalSequences(row).includes("Jump to bottom"))).toBe(false);
+
+    await shell.dispose();
+    expect(terminal.writes.some(write => write.includes("[?1003l"))).toBe(true);
+  });
+
+  it("keeps the reserved rail cell as one blank after a fitting prompt timestamp", async () => {
+    const timestamp = new Date(2026, 3, 2, 14, 48).getTime();
+    const { terminal, shell } = await fixture([
+      { role: "user", content: [{ type: "text", text: "analyze code base" }], timestamp },
+    ], [], true);
+    terminal.resize(60, 12);
+    const frame = shell.root.render(60).map(row => stripTerminalSequences(row));
+    const promptIndex = frame.findIndex(row => row.includes("analyze code base"));
+    expect(promptIndex).toBe(1);
+    expect(frame[0]?.trim()).toBe("");
+    expect(frame[promptIndex]).toMatch(/14:48 $/);
+  });
+
+  it("wraps ordinary transcript content through the rail overlay column", async () => {
+    const word = "x".repeat(60);
+    const { terminal, shell } = await fixture([
+      { role: "assistant", content: [{ type: "text", text: word }], timestamp: Date.now() },
+    ], [], true);
+    terminal.resize(60, 12);
+    const frame = shell.root.render(60).map(row => stripTerminalSequences(row));
+    expect(frame.some(row => row.trim() === "x".repeat(58))).toBe(true);
+    expect(frame.every(row => row.trim() !== "x".repeat(57))).toBe(true);
+    await shell.dispose();
+  });
+
+  it("scrolls an overflowing Working status with the transcript like v2", async () => {
+    const messages = Array.from({ length: 18 }, (_, index) => ({
+      role: index % 2 === 0 ? "user" : "assistant",
+      content: [{ type: "text", text: `Status transcript ${index}` }],
+      timestamp: Date.now() + index,
+    }));
+    const { engine, terminal, shell } = await fixture(messages, [], true);
+    terminal.resize(60, 12);
+    engine.session.emit({ type: "agent_start" });
+    await shell.backend.flushEvents();
+    expect(shell.root.render(60).some(row => stripTerminalSequences(row).includes("Working"))).toBe(true);
+
+    terminal.input("\u001b[<64;30;3M");
+    expect(shell.root.render(60).every(row => !stripTerminalSequences(row).includes("Working"))).toBe(true);
+  });
+
+  it("matches Pi's queued steering order and dequeue hint while working", async () => {
+    const messages = Array.from({ length: 18 }, (_, index) => ({
+      role: "assistant",
+      content: [{ type: "text", text: `queue-transcript-${index}` }],
+      timestamp: Date.now() + index,
+    }));
+    const { engine, terminal, shell } = await fixture(messages, [], true);
+    terminal.resize(60, 12);
+    engine.session.emit({ type: "agent_start" });
+    engine.session.emit({ type: "queue_update", steering: ["first", "second"], followUp: [] });
+    await shell.backend.flushEvents();
+
+    const rows = shell.root.render(60).map(row => stripTerminalSequences(row));
+    const first = rows.findIndex(row => row.includes("Steering: first"));
+    const second = rows.findIndex(row => row.includes("Steering: second"));
+    const hint = rows.findIndex(row => row.includes("Alt+Up to edit all queued messages"));
+    const working = rows.findIndex(row => row.includes("Working"));
+    expect(first).toBeGreaterThan(-1);
+    expect(second).toBeGreaterThan(first);
+    expect(hint).toBeGreaterThan(second);
+    expect(working).toBeGreaterThan(hint);
+
+    terminal.input("\u001b[<64;30;3M");
+    const detached = shell.root.render(60).map(row => stripTerminalSequences(row));
+    expect(detached.some(row => row.includes("Steering: first"))).toBe(true);
+    expect(detached.some(row => row.includes("Working"))).toBe(true);
+    await shell.dispose();
+  });
+
+  it("supports LMB drag, double-click word, triple-click line, and Ctrl+C transcript selection", async () => {
+    const messages = [
+      { role: "user", content: [{ type: "text", text: "Select this reply" }], timestamp: Date.now() - 1_000 },
+      { role: "assistant", content: [{ type: "text", text: "Selectable assistant words" }], timestamp: Date.now() },
+    ];
+    const { terminal, shell } = await fixture(messages, [], true);
+    terminal.resize(60, 12);
+    const frame = shell.root.render(60).map(row => stripTerminalSequences(row));
+    const rowIndex = frame.findIndex(row => row.includes("Selectable assistant words"));
+    expect(rowIndex).toBeGreaterThanOrEqual(0);
+    const column = (frame[rowIndex] ?? "").indexOf("assistant") + 1;
+    const row = rowIndex + 1;
+    const click = () => {
+      terminal.input(`\u001b[<0;${column};${row}M`);
+      terminal.input(`\u001b[<0;${column};${row}m`);
+    };
+
+    click();
+    click();
+    terminal.input("\u0003");
+    expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from("assistant").toString("base64")}\u0007`);
+
+    click();
+    const tripleSelected = shell.root.render(60)[rowIndex] ?? "";
+    expect(tripleSelected).toContain("\u001b[48;2;38;79;120m");
+    expect(tripleSelected).not.toContain("38;2;0;0;0");
+    terminal.input("\u0003");
+    expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from("Selectable assistant words").toString("base64")}\u0007`);
+  });
+
+  it("uses Alt+Home to jump from the pinned prompt to previous prompts", async () => {
+    const messages = ["one", "two", "three"].flatMap((prompt, index) => [
+      { role: "user", content: [{ type: "text", text: prompt }], timestamp: Date.now() + index * 2 },
+      { role: "assistant", content: [{ type: "text", text: `reply-${prompt}-1\nreply-${prompt}-2\nreply-${prompt}-3\nreply-${prompt}-4\nreply-${prompt}-5` }], timestamp: Date.now() + index * 2 + 1 },
+    ]);
+    const { terminal, shell } = await fixture(messages, [], true);
+    terminal.resize(60, 12);
+    const rows = () => shell.root.render(60).map(row => stripTerminalSequences(row));
+    const top = () => rows()[0] ?? "";
+
+    shell.root.render(60);
+    terminal.input("\u001b[1;3H");
+    expect(top()).toContain("❯ three");
+    terminal.input("\u001b[1;3H");
+    expect(top()).toContain("❯ two");
+    terminal.input("\u001b[1;3H");
+    expect(top().trim()).toBe("");
+    expect(rows()[1]).toContain("❯ one");
+    terminal.input("\u001b[1;3H");
+    expect(top().trim()).toBe("");
+    expect(rows()[1]).toContain("❯ one");
+
+    await shell.dispose();
+  });
+
+  it("continuously auto-scrolls an active selection held at a viewport edge", async () => {
+    const messages = Array.from({ length: 40 }, (_, index) => ({
+      role: "assistant",
+      content: [{ type: "text", text: `selection-scroll-${index}` }],
+      timestamp: Date.now() + index,
+    }));
+    const { terminal, shell } = await fixture(messages, [], true);
+    terminal.resize(60, 12);
+    const firstVisible = (): number => {
+      const indexes = shell.root.render(60)
+        .map(row => /selection-scroll-(\d+)/.exec(stripTerminalSequences(row))?.[1])
+        .filter((value): value is string => value !== undefined)
+        .map(Number);
+      return Math.min(...indexes);
+    };
+    shell.root.render(60);
+    terminal.input("\u001b[<0;5;3M");
+    terminal.input("\u001b[<32;5;1M");
+    const afterMotion = firstVisible();
+
+    await new Promise(resolve => setTimeout(resolve, 150));
+    const whileHeld = firstVisible();
+    expect(whileHeld).toBeLessThan(afterMotion);
+    const normalDistance = afterMotion - whileHeld;
+
+    terminal.input("\u001b[<0;5;1m");
+    await new Promise(resolve => setTimeout(resolve, 130));
+    expect(firstVisible()).toBe(whileHeld);
+
+    // Leave enough room below for the faster direction to demonstrate its
+    // greater distance rather than immediately hitting the document end.
+    terminal.input("\u001b[<64;30;3M");
+    terminal.input("\u001b[<64;30;3M");
+    terminal.input("\u001b[<64;30;3M");
+    shell.root.setViewportConfig({ scrollbarAppearance: "always", scrollbarStyle: "thin", scrollbarSpeed: "fast" });
+    terminal.input("\u001b[<0;5;3M");
+    terminal.input("\u001b[<32;5;12M");
+    const afterDownMotion = firstVisible();
+    await new Promise(resolve => setTimeout(resolve, 150));
+    const fastDistance = firstVisible() - afterDownMotion;
+    expect(fastDistance).toBeGreaterThan(normalDistance);
+    terminal.input("\u001b[<0;5;12m");
+
+    shell.root.setViewportConfig({ scrollbarAppearance: "always", scrollbarStyle: "thin", scrollbarSpeed: "high" });
+    terminal.input("\u001b[<0;5;3M");
+    terminal.input("\u001b[<32;5;1M");
+    const beforeHigh = firstVisible();
+    await new Promise(resolve => setTimeout(resolve, 150));
+    const highDistance = beforeHigh - firstVisible();
+    expect(highDistance).toBeGreaterThanOrEqual(fastDistance);
+    terminal.input("\u001b[<0;5;1m");
+    await shell.dispose();
+  });
+
+  it("suppresses selection sequences begun on status, input, or footer rows", async () => {
+    const { terminal, shell } = await fixture([], [], true);
+    terminal.resize(60, 12);
+    shell.root.render(60);
+
+    const press = shell.root.handleViewportPreInput("\u001b[<0;20;12M");
+    const motion = shell.root.handleViewportPreInput("\u001b[<35;20;2M");
+    const release = shell.root.handleViewportPreInput("\u001b[<0;20;2m");
+    const copy = shell.root.handleViewportPreInput("\u0003");
+
+    expect(press).toMatchObject({ data: "", consumed: true });
+    expect(motion).toMatchObject({ data: "", consumed: true });
+    expect(release).toMatchObject({ data: "", consumed: true });
+    expect(copy).toMatchObject({ data: "\u0003", consumed: false });
+    await shell.dispose();
+  });
+
+  it("continues an active drag through no-button motion reports", async () => {
+    const messages = [
+      { role: "assistant", content: [{ type: "text", text: "Selectable assistant words" }], timestamp: Date.now() },
+    ];
+    const { terminal, shell } = await fixture(messages, [], true);
+    terminal.resize(60, 12);
+    const frame = shell.root.render(60).map(row => stripTerminalSequences(row));
+    const rowIndex = frame.findIndex(row => row.includes("Selectable assistant words"));
+    const start = (frame[rowIndex] ?? "").indexOf("Selectable") + 1;
+    const end = start + "Selectable".length - 1;
+    const row = rowIndex + 1;
+
+    terminal.input(`\u001b[<0;${start};${row}M`);
+    // Code 35 is motion with no button bits set.
+    terminal.input(`\u001b[<35;${end};${row}M`);
+    terminal.input(`\u001b[<0;${end};${row}m`);
+    terminal.input("\u0003");
+
+    expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from("Selectable").toString("base64")}\u0007`);
+    await shell.dispose();
+  });
+
+  it("applies live scrollbar appearance and style without losing detached position", async () => {
+    const messages = Array.from({ length: 18 }, (_, index) => ({
+      role: index % 2 === 0 ? "user" : "assistant",
+      content: [{ type: "text", text: `row ${index}` }],
+      timestamp: Date.now() + index,
+    }));
+    let current: OwnedUiViewportSettings = {
+      scrollbarAppearance: "hidden",
+      scrollbarStyle: "thin",
+      scrollbarSpeed: "normal",
+    };
+    let notify: ((settings: OwnedUiViewportSettings) => void) | undefined;
+    const settings: OwnedUiViewportSettingsPort = {
+      snapshot: () => current,
+      onChange: listener => { notify = listener; return () => { notify = undefined; }; },
+    };
+    const { terminal, shell } = await fixture(messages, [], true, settings);
+    terminal.resize(60, 12);
+    shell.root.render(60);
+    terminal.input("\u001b[<64;30;3M");
+    const hidden = shell.root.render(60).map(row => stripTerminalSequences(row));
+    expect(hidden.some(row => row.includes("Jump to bottom"))).toBe(true);
+    expect(hidden.every(row => !row.includes("│") && !row.includes("┃"))).toBe(true);
+
+    current = { scrollbarAppearance: "always", scrollbarStyle: "thick", scrollbarSpeed: "fast" };
+    notify?.(current);
+    const shown = shell.root.render(60).map(row => stripTerminalSequences(row));
+    expect(shown.some(row => row.includes("Jump to bottom"))).toBe(true);
+    expect(shown.slice(1, -4).some(row => row.includes("┃"))).toBe(true);
+    await shell.dispose();
+  });
+
+  it("keeps wheel and jump-to-bottom controls responsive during streamed event bursts", async () => {
+    const messages = Array.from({ length: 20 }, (_, index) => ({
+      role: index % 2 === 0 ? "user" : "assistant",
+      content: [{ type: "text", text: `responsive-row-${index}` }],
+      timestamp: Date.now() + index,
+    }));
+    const { engine, terminal, shell } = await fixture(messages, [], true);
+    terminal.resize(60, 12);
+    shell.root.render(60);
+
+    for (let index = 0; index < 20; index += 1) {
+      engine.session.emit({
+        type: "message_update",
+        message: {
+          id: "responsive-stream",
+          role: "assistant",
+          content: [{ type: "text", text: `stream ${index}` }],
+          timestamp: Date.now(),
+        },
+        assistantMessageEvent: { type: "text_delta", delta: String(index) },
+      });
+    }
+    await new Promise<void>(resolve => {
+      setImmediate(() => {
+        terminal.input("\u001b[<64;30;3M");
+        resolve();
+      });
+    });
+
+    const detached = shell.root.render(60).map(row => stripTerminalSequences(row));
+    const jumpRow = detached.findIndex(row => row.includes("Jump to bottom"));
+    const jumpColumn = (detached[jumpRow] ?? "").indexOf("Jump to bottom") + 1;
+    expect(jumpRow).toBeGreaterThanOrEqual(0);
+    terminal.input(`\u001b[<0;${jumpColumn};${jumpRow + 1}M`);
+    expect(shell.root.render(60).some(row => stripTerminalSequences(row).includes("Jump to bottom"))).toBe(false);
+
+    await shell.backend.flushEvents();
+    await shell.dispose();
+  });
+
+  it("moves three, six, and nine transcript rows at normal, fast, and high speed", async () => {
+    const messages = Array.from({ length: 24 }, (_, index) => ({
+      role: index % 2 === 0 ? "user" : "assistant",
+      content: [{ type: "text", text: `speed-row-${index}` }],
+      timestamp: Date.now() + index,
+    }));
+    const { terminal, shell } = await fixture(messages, [], true);
+    terminal.resize(60, 12);
+    const firstVisibleIndex = (): number => {
+      const indexes = shell.root.render(60)
+        .map(row => /speed-row-(\d+)/.exec(stripTerminalSequences(row))?.[1])
+        .filter((value): value is string => value !== undefined)
+        .map(Number);
+      return Math.min(...indexes);
+    };
+
+    shell.root.setViewportConfig({ scrollbarAppearance: "always", scrollbarStyle: "thin", scrollbarSpeed: "normal" });
+    shell.root.render(60);
+    terminal.input("\u001b[<64;30;3M");
+    const normalTop = firstVisibleIndex();
+
+    terminal.input("\u001b[1;3F");
+    shell.root.setViewportConfig({ scrollbarAppearance: "always", scrollbarStyle: "thin", scrollbarSpeed: "fast" });
+    shell.root.render(60);
+    terminal.input("\u001b[<64;30;3M");
+    const fastTop = firstVisibleIndex();
+
+    terminal.input("\u001b[1;3F");
+    shell.root.setViewportConfig({ scrollbarAppearance: "always", scrollbarStyle: "thin", scrollbarSpeed: "high" });
+    shell.root.render(60);
+    terminal.input("\u001b[<64;30;3M");
+    const highTop = firstVisibleIndex();
+
+    expect(fastTop).toBeLessThan(normalTop);
+    expect(highTop).toBeLessThanOrEqual(fastTop);
+    await shell.dispose();
+  });
+
   it("stops pointer reporting when the session ends while an owned screen is presented", async () => {
     const engine = new Runtime([]);
     const adapter = await createPiEngineAdapter({
@@ -152,11 +572,12 @@ describe("OwnedUiSessionShell", () => {
       createRuntime: async () => engine as unknown as AgentSessionRuntime,
     });
     const terminal = new TestPresentationTerminal();
+    let mouseEvents = 0;
     const surface = {
       id: "pointer-screen",
       render: (width: number, height: number) => Array.from({ length: height }, () => " ".repeat(width)),
       handleInput: () => true,
-      handleMouse: () => true,
+      handleMouse: () => { mouseEvents += 1; return true; },
       isClosed: () => false,
       close: () => {},
       onRenderRequested: () => {},
@@ -176,6 +597,10 @@ describe("OwnedUiSessionShell", () => {
     await new Promise(resolve => setTimeout(resolve, 0));
     expect(terminal.writes.some(write => write.includes("[?1003h"))).toBe(true);
     expect(terminal.writes.some(write => write.includes("[?1003l"))).toBe(false);
+    terminal.input("\u001b[<0;20;4M");
+    terminal.input("\u001b[<35;21;4M");
+    terminal.input("\u001b[<0;21;4m");
+    expect(mouseEvents).toBe(3);
 
     // The screen is still up: ending the session has to restore the terminal anyway.
     await shell.dispose();
@@ -410,6 +835,21 @@ describe("OwnedUiSessionShell", () => {
     await shell.dispose();
   });
 
+  it("keeps /settings open while agent lifecycle and status events arrive", async () => {
+    const { engine, shell } = await fixture();
+    await shell.submit("/settings");
+    expect(shell.root.usesDefaultInputSurface()).toBe(false);
+
+    engine.session.emit({ type: "agent_start" });
+    await shell.backend.flushEvents();
+    expect(shell.root.usesDefaultInputSurface()).toBe(false);
+
+    engine.session.emit({ type: "agent_settled" });
+    await shell.backend.flushEvents();
+    expect(shell.root.usesDefaultInputSurface()).toBe(false);
+    await shell.dispose();
+  });
+
   it("keeps scoped-model changes session-only until Ctrl+S and leaves the modal open", async () => {
     const { engine, terminal, shell } = await fixture();
     await shell.submit("/scoped-models");
@@ -572,6 +1012,7 @@ describe("OwnedUiSessionShell", () => {
     terminal.input("\x1b");
     terminal.input("\x1b");
     await shell.runWorkflow({ command: "logout", argument: "", selection: "oauth:openai" });
+    await shell.backend.flushEvents();
     expect(shell.view().activeModel).toBeNull();
     expect(shell.view().status.footer?.availableProviderCount).toBe(1);
     expect(stripTerminalSequences(shell.root.render(100).join("\n"))).not.toContain("gpt-5 • medium");
@@ -727,8 +1168,8 @@ describe("OwnedUiSessionShell", () => {
     await shell.submit("steer now");
     shell.root.editor.setText("follow later");
     await shell.queueFollowUp();
-    expect(engine.session.calls).toContain("steer:steer now");
-    expect(engine.session.calls).toContain("followUp:follow later");
+    expect(engine.session.calls).toContain("prompt:steer now");
+    expect(engine.session.calls).toContain("prompt:follow later");
     await shell.dispose();
   });
 
@@ -741,7 +1182,7 @@ describe("OwnedUiSessionShell", () => {
     engine.session.emit({ type: "compaction_end", reason: "manual", result: {}, aborted: false, willRetry: false });
     await adapter.flushEvents();
     await new Promise(resolve => setTimeout(resolve, 0));
-    expect(engine.session.calls).toContain("steer:after compaction");
+    expect(engine.session.calls).toContain("prompt:after compaction");
 
     shell.restoreQueuedInput();
     expect(shell.root.editor.getText()).toBe("queued steer\nqueued follow");

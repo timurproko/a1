@@ -42,11 +42,14 @@ export class PiSessionCommandIntegration {
         return { outcome: "completed" };
       case "steer":
         this.#lastPrompt = command.text;
-        await this.session.steer(command.text);
+        // Match interactive Pi: prompt() owns template/extension expansion and
+        // turns the accepted steering message into the visible user row while
+        // later messages remain in the pending queue.
+        await this.session.prompt(command.text, { streamingBehavior: "steer" });
         return { outcome: "completed" };
       case "follow-up":
         this.#lastPrompt = command.text;
-        await this.session.followUp(command.text);
+        await this.session.prompt(command.text, { streamingBehavior: "followUp" });
         return { outcome: "completed" };
       case "abort":
         if (this.session.isRetrying) this.session.abortRetry();

@@ -1,4 +1,4 @@
-export const OWNED_UI_SETTINGS_VERSION = 1;
+export const OWNED_UI_SETTINGS_VERSION = 2;
 
 export type OwnedUiSettingValue = string | number | boolean;
 
@@ -6,6 +6,10 @@ export type OwnedUiSettingApplication = "live" | "restart";
 
 export interface OwnedUiSettingDeclaration {
   readonly id: string;
+  /** Optional presentation label; the id remains the persistence key. */
+  readonly label?: string;
+  /** Optional settings-screen group for related owned controls. */
+  readonly section?: { readonly id: string; readonly title: string };
   readonly description: string;
   readonly application: OwnedUiSettingApplication;
   readonly defaultValue: OwnedUiSettingValue;
@@ -15,13 +19,35 @@ export interface OwnedUiSettingDeclaration {
 const MAX_ID_LENGTH = 64;
 const ID_PATTERN = /^[a-z][a-z0-9]*(?:[A-Z][a-z0-9]*)*$/;
 
+const SCROLL_SECTION = Object.freeze({ id: "scroll", title: "Scroll" });
+
 export const OWNED_UI_SETTING_DECLARATIONS: readonly OwnedUiSettingDeclaration[] = Object.freeze([
   Object.freeze({
-    id: "transcriptDensity",
-    description: "Vertical density of transcript content. Reserved for the custom-viewport milestone; no visible effect yet.",
+    id: "scrollbarAppearance",
+    label: "Scrollbar mode",
+    section: SCROLL_SECTION,
+    description: "When the session transcript scrollbar is visible.",
     application: "live",
-    defaultValue: "comfortable",
-    allowedValues: Object.freeze(["comfortable", "compact"]),
+    defaultValue: "hover",
+    allowedValues: Object.freeze(["always", "hover", "hidden"]),
+  }),
+  Object.freeze({
+    id: "scrollbarStyle",
+    label: "Scrollbar style",
+    section: SCROLL_SECTION,
+    description: "Visual weight of the session transcript scrollbar.",
+    application: "live",
+    defaultValue: "thin",
+    allowedValues: Object.freeze(["thin", "thick"]),
+  }),
+  Object.freeze({
+    id: "scrollbarSpeed",
+    label: "Speed",
+    section: SCROLL_SECTION,
+    description: "Distance moved by each session transcript wheel event.",
+    application: "live",
+    defaultValue: "normal",
+    allowedValues: Object.freeze(["normal", "fast", "high"]),
   }),
 ] satisfies readonly OwnedUiSettingDeclaration[]);
 
@@ -33,6 +59,13 @@ export function assertOwnedUiSettingDeclarations(declarations: readonly OwnedUiS
     }
     if (seen.has(declaration.id)) throw new Error(`duplicate owned UI setting id: ${declaration.id}`);
     seen.add(declaration.id);
+    if (declaration.label !== undefined && declaration.label.trim().length === 0) {
+      throw new Error(`owned UI setting has an empty label: ${declaration.id}`);
+    }
+    if (declaration.section !== undefined
+      && (declaration.section.id.trim().length === 0 || declaration.section.title.trim().length === 0)) {
+      throw new Error(`owned UI setting has an invalid section: ${declaration.id}`);
+    }
     if (declaration.description.trim().length === 0) {
       throw new Error(`owned UI setting has no description: ${declaration.id}`);
     }

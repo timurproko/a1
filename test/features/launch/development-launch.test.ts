@@ -109,4 +109,16 @@ describe("repository-local development launch", () => {
     await expect(execute(process.execPath, ["scripts/development/start-local.mjs", "not-an-a1-command"]))
       .rejects.toMatchObject({ code: 2, stderr: expect.stringContaining("A1 received an unknown command: not-an-a1-command") });
   });
+
+  it("shares durable preferences across fresh instances and rebuilt local candidates", () => {
+    const temporaryDirectory = resolve("C:/isolated-temp");
+    const first = resolveDevelopmentLaunchEnvironment("D:/Git/a1", "0.1.4-build", {}, temporaryDirectory);
+    const second = resolveDevelopmentLaunchEnvironment("D:/Git/a1", "0.1.4-build", {}, temporaryDirectory);
+    const rebuilt = resolveDevelopmentLaunchEnvironment("D:/Git/a1", "0.1.5-build", {}, temporaryDirectory);
+
+    expect(first.environment.A1_CONFIG_DIR).toBe(second.environment.A1_CONFIG_DIR);
+    expect(first.environment.A1_CONFIG_DIR).toBe(rebuilt.environment.A1_CONFIG_DIR);
+    expect(first.environment.A1_CONFIG_DIR).toBe(resolve(temporaryDirectory, "a1-development", first.checkoutId, "config"));
+    expect(first.environment.A1_CONFIG_DIR).not.toContain(first.instanceId);
+  });
 });

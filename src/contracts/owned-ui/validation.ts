@@ -121,6 +121,9 @@ export function assertOwnedUiEvent(event: OwnedUiEvent): void {
     case "transcript-block":
       assertOwnedUiTranscriptBlock(event.block);
       return;
+    case "assistant-message-completed":
+    case "agent-run-started":
+      return;
     case "editor-state":
       assertOwnedUiEditorState(event.editor);
       return;

@@ -6,7 +6,7 @@ Bare A1 still presents the transcript as Pi's flowing document, so long sessions
 
 - Give bare `a1` an A1-owned session viewport whose transcript occupies the rows above a bottom dock; the existing working status, input surface, widgets, and footer remain in that dock and keep their current rendering.
 - Keep transcript output followed at the end until the reader scrolls away; while detached, new streamed output does not move the view, and submitting a prompt or using the visible scroll-to-bottom control restores end following.
-- Add one A1 scrollbar rail with configurable appearance (`always`, `hover`, or `hidden`) and style (`thin` or `thick`). Hover appearance responds to pointer proximity, recent scrolling, and dragging. No scroll-speed setting is introduced.
+- Add one A1 scrollbar rail with configurable appearance (`always`, `hover`, or `hidden`), style (`thin` or `thick`), and speed (`normal` at three rows, `fast` at six, or `high` at nine rows per wheel event; high combines the normal and fast rates, including for selection edge-scroll). Hover appearance responds to pointer proximity, recent scrolling, and dragging.
 - Render submitted user prompts with a right-aligned timestamp when width permits. When a prompt governs the top of a scrolled view, its first row remains pinned with the same timestamp; it stays prominent while its continuation rows remain visible, becomes quiet after the complete prompt leaves view, and returns to the prompt when activated.
 - Preserve ordinary transcript selection and every existing command, selector, dialog, editor replacement, extension widget, working indicator, and footer contribution. This milestone changes placement and transcript navigation, not status-bar content or input-prompt styling.
 - Enable the custom viewport only for bare A1. `a1 pi` continue to present the pinned comparison interface without A1's viewport customization.
@@ -22,7 +22,7 @@ Bare A1 still presents the transcript as Pi's flowing document, so long sessions
 ### Modified Capabilities
 
 - `ui-components`: the shared scrollbar gains declared appearance and style policies plus activity, hover, and drag presentation states used by the viewport without duplicating rail geometry.
-- `owned-ui-settings`: the two live A1 scrollbar settings are declared, resolved, persisted, and applied consistently to the running viewport; scroll speed remains outside this milestone.
+- `owned-ui-settings`: the three live A1 scrollbar settings are grouped in a dedicated Scroll section, resolved, persisted, and applied consistently to the running viewport.
 - `owned-pi-ui-foundation`: the accepted pinned shell becomes the behavioral foundation under a declared bare-A1 layout customization, while comparison profiles and all non-layout workflows remain unchanged.
 
 ## Impact

@@ -7,6 +7,7 @@
 
 const ANSI_PATTERN = /\[[0-9;:?]*[ -/]*[@-~]|\][^]*(?:|\\)|[@-Z\\-_]/g;
 const SEGMENTER = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+const WORD_SEGMENTER = new Intl.Segmenter(undefined, { granularity: "word" });
 
 /** Removes styling sequences so only visible characters remain. */
 export function stripAnsi(text: string): string {
@@ -46,6 +47,57 @@ function graphemeWidth(grapheme: string): number {
     width = Math.max(width, codePointWidth(character.codePointAt(0) ?? 0));
   }
   return width;
+}
+
+export interface DisplayColumnRange {
+  readonly from: number;
+  readonly to: number;
+}
+
+/** Visible-column segment (word, whitespace, or punctuation) under a pointer column. */
+export function displayWordColumnRange(text: string, pointerColumn: number): DisplayColumnRange | null {
+  const plain = stripAnsi(text);
+  const pointer = Math.max(0, pointerColumn);
+  let column = 0;
+  for (const { segment } of WORD_SEGMENTER.segment(plain)) {
+    const width = displayWidth(segment);
+    const from = column;
+    const to = column + width;
+    if (pointer >= from && pointer < to) return { from, to };
+    column = to;
+  }
+  return null;
+}
+
+export interface DisplayColumnSlice {
+  /** Grapheme-aligned visible bounds in the source row. */
+  readonly from: number;
+  readonly to: number;
+  readonly text: string;
+}
+
+/** Plain graphemes intersecting a visible-column range, expanded at wide-character edges. */
+export function displayColumnSlice(text: string, requestedFrom: number, requestedTo: number): DisplayColumnSlice {
+  const plain = stripAnsi(text);
+  const from = Math.max(0, requestedFrom);
+  const to = Math.max(from, requestedTo);
+  let column = 0;
+  let actualFrom: number | undefined;
+  let actualTo = from;
+  let selected = "";
+  for (const { segment } of SEGMENTER.segment(plain)) {
+    const width = graphemeWidth(segment);
+    const start = column;
+    const end = column + width;
+    if (end > from && start < to) {
+      actualFrom ??= start;
+      actualTo = end;
+      selected += segment;
+    }
+    column = end;
+    if (start >= to) break;
+  }
+  return { from: actualFrom ?? from, to: actualFrom === undefined ? from : actualTo, text: selected };
 }
 
 /** Columns this text occupies once styling is removed. */

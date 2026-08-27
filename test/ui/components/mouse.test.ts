@@ -3,6 +3,7 @@ import {
   MOUSE_TRACKING_OFF,
   MOUSE_TRACKING_ON,
   parseMouseInput,
+  routeMouseInput,
   toPaneLocalMouse,
 } from "../../../src/ui/components/index.js";
 
@@ -56,6 +57,13 @@ describe("decoding pointer input", () => {
     for (let attempt = 0; attempt < 3; attempt++) {
       expect(parseMouseInput(`${ESC}[<0;5;5M`).events).toHaveLength(1);
     }
+  });
+
+  it("removes only claimed reports from a mixed mouse and keyboard chunk", () => {
+    const claimed = `${ESC}[<64;4;3M`;
+    const forwarded = `${ESC}[<0;20;10M`;
+    const routed = routeMouseInput(`a${claimed}b${forwarded}c`, event => event.kind === "wheel-up");
+    expect(routed).toEqual({ data: `ab${forwarded}c`, consumed: true });
   });
 });
 

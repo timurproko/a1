@@ -27,6 +27,8 @@ export interface OwnedUiSettingsSessionOptions {
    * whose runtime is not up yet. Takes precedence over `agent`.
    */
   readonly agentProvider?: () => AgentSettingsPort | null;
+  /** Agent-owned controls fixed by this product surface and therefore omitted. */
+  readonly hiddenAgentSettingIds?: readonly string[];
 }
 
 export type OwnedUiSettingsListener = (session: OwnedUiSettingsSession) => void;
@@ -41,6 +43,7 @@ export class OwnedUiSettingsSession {
   readonly #agent: AgentSettingsPort | null;
   readonly #agentProvider: (() => AgentSettingsPort | null) | null;
   readonly #listeners = new Set<OwnedUiSettingsListener>();
+  readonly #hiddenAgentSettingIds: ReadonlySet<string>;
   #resolution: OwnedUiSettingsResolution;
   #agentSnapshot: AgentSettingsSnapshot | null = null;
   #pending = new Map<string, OwnedUiSettingValue>();
@@ -49,6 +52,7 @@ export class OwnedUiSettingsSession {
     this.#store = options.store;
     this.#agent = options.agent ?? null;
     this.#agentProvider = options.agentProvider ?? null;
+    this.#hiddenAgentSettingIds = new Set(options.hiddenAgentSettingIds ?? []);
     this.#resolution = options.store.read();
   }
 
@@ -60,7 +64,7 @@ export class OwnedUiSettingsSession {
   async load(): Promise<void> {
     this.#resolution = this.#store.read();
     const agent = this.#agentProvider === null ? this.#agent : this.#agentProvider();
-    this.#agentSnapshot = agent === null ? null : await snapshotOf(agent);
+    this.#agentSnapshot = agent === null ? null : await snapshotOf(agent, this.#hiddenAgentSettingIds);
     this.#notify();
   }
 
@@ -101,7 +105,7 @@ export class OwnedUiSettingsSession {
     } catch (error) {
       return failed(`${id} could not be written to the agent engine: ${describe(error)}`);
     }
-    this.#agentSnapshot = await snapshotOf(agent);
+    this.#agentSnapshot = await snapshotOf(agent, this.#hiddenAgentSettingIds);
     this.#notify();
     return { applied: true, pendingRestart: false, failure: null };
   }
@@ -148,7 +152,7 @@ export class OwnedUiSettingsSession {
     } catch (error) {
       return failed(`${id} could not be written to the agent engine: ${describe(error)}`);
     }
-    this.#agentSnapshot = await snapshotOf(agent);
+    this.#agentSnapshot = await snapshotOf(agent, this.#hiddenAgentSettingIds);
     this.#notify();
     return { applied: true, pendingRestart: false, failure: null };
   }
@@ -158,9 +162,9 @@ export class OwnedUiSettingsSession {
   }
 }
 
-async function snapshotOf(agent: AgentSettingsPort): Promise<AgentSettingsSnapshot> {
+async function snapshotOf(agent: AgentSettingsPort, hidden: ReadonlySet<string>): Promise<AgentSettingsSnapshot> {
   try {
-    const descriptors = await agent.listSettings();
+    const descriptors = (await agent.listSettings()).filter(descriptor => !hidden.has(descriptor.key));
     const values: Record<string, unknown> = {};
     for (const descriptor of descriptors) {
       try {

@@ -165,6 +165,26 @@
       "identifier": "A1_PROFILE_HOME"
     },
     {
+      "path": "test/features/launch/development-launch.test.ts",
+      "line": 119,
+      "identifier": "A1_CONFIG_DIR"
+    },
+    {
+      "path": "test/features/launch/development-launch.test.ts",
+      "line": 120,
+      "identifier": "A1_CONFIG_DIR"
+    },
+    {
+      "path": "test/features/launch/development-launch.test.ts",
+      "line": 121,
+      "identifier": "A1_CONFIG_DIR"
+    },
+    {
+      "path": "test/features/launch/development-launch.test.ts",
+      "line": 122,
+      "identifier": "A1_CONFIG_DIR"
+    },
+    {
       "path": "test/foundation/launch-guardian/concurrency.integration.test.ts",
       "line": 84,
       "identifier": "A1_ENDPOINT"

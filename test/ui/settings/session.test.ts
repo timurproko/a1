@@ -97,6 +97,25 @@ describe("owned UI settings session", () => {
     expect(sections[1]?.entries.map(entry => entry.id)).toEqual(["autoCompact", "thinkingLevel"]);
   });
 
+  it("omits agent controls fixed by the owning product surface", async () => {
+    const base = syntheticPort();
+    const agent: AgentSettingsPort = {
+      ...base,
+      async listSettings(): Promise<readonly AgentSettingDescriptor[]> {
+        return [
+          ...await base.listSettings(),
+          { key: "tuiMode", valueType: "enum", writable: true, choices: ["regular", "fullscreen"] },
+        ];
+      },
+    };
+    const store = new OwnedUiSettingsStore({ configDir: root, profileId: "a1", declarations: DECLARATIONS, migrations: [] });
+    const target = new OwnedUiSettingsSession({ store, agent, hiddenAgentSettingIds: ["tuiMode"] });
+    await target.load();
+
+    expect(target.sections().flatMap(section => section.entries).some(entry => entry.id === "tuiMode")).toBe(false);
+    expect((await target.change("agent", "tuiMode", "regular")).failure).toMatch(/unknown agent setting/);
+  });
+
   it("writes a live A1 setting to the document, applies it, and notifies", async () => {
     const port: SyntheticPort = syntheticPort();
     const target = session(port);
