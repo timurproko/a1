@@ -167,7 +167,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   readonly #componentRuntime: {
     readonly getColumns: () => number;
     readonly getRows: () => number;
-    readonly requestRender: () => void;
+    readonly requestRender: (force?: boolean) => void;
   };
   #toolsExpanded = false;
   #thinkingVisible = true;
@@ -189,7 +189,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     handlers: {
       readonly getColumns: () => number;
       readonly getRows: () => number;
-      readonly requestRender: () => void;
+      readonly requestRender: (force?: boolean) => void;
       readonly onSubmit: (text: string) => void;
       readonly onInterrupt: () => void;
       readonly onClear?: () => void;
@@ -498,6 +498,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     }
     const frame = this.#viewport.frame;
     let repaint = false;
+    let forceRepaint = false;
     let activity = false;
     const routed = routeMouseInput(data, event => {
       const hits = frame.hits;
@@ -548,6 +549,10 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
         this.#viewport.scrollBy(event.kind === "wheel-up" ? -distance : distance, now);
         activity = true;
         repaint = true;
+        // Windows Terminal caches its own URL-hover overlay at the physical
+        // pointer row. A full synchronized repaint invalidates that overlay when
+        // wheel scrolling moves different content under a stationary pointer.
+        forceRepaint = true;
         return true;
       }
       if (event.kind === "press") {
@@ -644,7 +649,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       return false;
     });
     if (activity) this.#scheduleViewportActivityExpiry();
-    if (repaint) this.#componentRuntime.requestRender();
+    if (repaint) this.#componentRuntime.requestRender(forceRepaint);
     return routed;
   }
 

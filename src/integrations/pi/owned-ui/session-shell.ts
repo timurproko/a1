@@ -135,7 +135,7 @@ export class OwnedUiSessionShell {
     this.root = new OwnedUiSessionShellRoot(this.backend.view(), options.cwd, {
       getColumns: () => runtime?.viewport().columns ?? options.terminal?.columns ?? 80,
       getRows: () => runtime?.viewport().rows ?? options.terminal?.rows ?? 24,
-      requestRender: () => runtime?.requestRender(),
+      requestRender: force => runtime?.requestRender(force),
       onSubmit: text => { void this.submit(text); },
       onInterrupt: () => { void this.interrupt(); },
       onClear: () => { void this.clearOrExit(); },

@@ -139,10 +139,6 @@ class Runtime {
   async dispose(): Promise<void> { this.calls.push("dispose"); }
 }
 
-function visibleTerminalText(text: string): string {
-  return stripTerminalSequences(text).replaceAll("\u2063", "");
-}
-
 async function withPinnedHyperlinks<T>(run: () => Promise<T>): Promise<T> {
   const capabilities = getPinnedPiTuiCapabilities();
   setPinnedPiTuiCapabilities({ ...capabilities, hyperlinks: true });
@@ -284,27 +280,26 @@ describe("OwnedUiSessionShell", () => {
         { role: "user", content: [{ type: "text", text: url }], timestamp: Date.now() },
       ], [], true);
       terminal.resize(100, 12);
-      const row = shell.root.render(100).find(line => visibleTerminalText(line).includes(url)) ?? "";
+      const row = shell.root.render(100).find(line => stripTerminalSequences(line).includes(url)) ?? "";
 
       expect(row).toContain(`\u001b]8;;${url}\u001b\\`);
-      expect(row).toContain("https\u2063://");
-      expect(row.replaceAll("\u2063", "")).toContain(piTheme().fg("mdLink", url));
+      expect(row).toContain(piTheme().fg("mdLink", url));
       expect(row).not.toContain("\u001b[4m");
       await shell.dispose();
     });
   });
 
-  it("uses the same terminal-native link-blue styling for assistant-content URLs", async () => {
+  it("uses the same terminal-native cyan styling for assistant-content URL links", async () => {
     await withPinnedHyperlinks(async () => {
       const url = "https://www.theverge.com/reviews";
       const { terminal, shell } = await fixture([
         { role: "assistant", content: [{ type: "text", text: `The corrected link is:\n\n${url}` }], timestamp: Date.now() },
       ], [], true);
       terminal.resize(100, 12);
-      const row = shell.root.render(100).find(line => visibleTerminalText(line).includes(url)) ?? "";
+      const row = shell.root.render(100).find(line => stripTerminalSequences(line).includes(url)) ?? "";
 
       expect(row).toContain(`\u001b]8;;${url}\u001b\\`);
-      expect(row.replaceAll("\u2063", "")).toContain(piTheme().fg("mdLink", url));
+      expect(row).toContain(piTheme().fg("mdLink", url));
       expect(row).not.toContain("\u001b[4m");
       await shell.dispose();
     });
@@ -324,7 +319,6 @@ describe("OwnedUiSessionShell", () => {
       const start = stripTerminalSequences(row).indexOf(label);
 
       expect(row).toContain(`\u001b]8;;${target}\u001b\\`);
-      expect(row).not.toContain("\u2063");
       expect(row).toContain(piTheme().fg("accent", label));
       expect(row).not.toContain(piTheme().fg("mdLink", label));
       expect(getPinnedPiTuiLinkAtColumn(row, start)).toBe(target);
@@ -347,13 +341,12 @@ describe("OwnedUiSessionShell", () => {
     const rows = shell.root.render(180);
 
     for (const url of [first, second]) {
-      const row = rows.find(line => visibleTerminalText(line).includes(url)) ?? "";
-      const plain = visibleTerminalText(row);
+      const row = rows.find(line => stripTerminalSequences(line).includes(url)) ?? "";
+      const plain = stripTerminalSequences(row);
       const start = plain.indexOf(url);
       expect(start).toBeGreaterThanOrEqual(0);
       expect(row).toContain(`\u001b]8;;${url}\u001b\\`);
-      expect(row).toContain("https\u2063://");
-      expect(row.replaceAll("\u2063", "")).toContain(piTheme().fg("mdLink", url));
+      expect(row).toContain(piTheme().fg("mdLink", url));
       expect(getPinnedPiTuiLinkAtColumn(row, start)).toBe(url);
       expect(getPinnedPiTuiLinkAtColumn(row, start + url.length)).toBeUndefined();
     }
@@ -395,7 +388,10 @@ describe("OwnedUiSessionShell", () => {
     expect(shell.root.render(60)[workingRowIndex]).not.toContain("\u001b[48;2;38;79;120m");
     expect(shell.root.handleViewportPreInput("\u0003")).toMatchObject({ data: "\u0003", consumed: false });
 
+    const writesBeforeWheel = terminal.writes.length;
     terminal.input("\u001b[<64;30;3M");
+    shell.runtime.renderNow();
+    expect(terminal.writes.slice(writesBeforeWheel).some(write => write.includes("\u001b[2J"))).toBe(true);
     expect(shell.root.render(60).every(row => !stripTerminalSequences(row).includes("Working"))).toBe(true);
     await shell.dispose();
   });
