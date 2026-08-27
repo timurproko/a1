@@ -157,6 +157,7 @@ export interface PiShellEditorOptions {
   readonly editorAtomicRanges?: (line: string) => readonly PiShellEditorTextRange[];
   readonly expandCopiedEditorText?: (text: string) => string;
   readonly paintEditorSelection?: (line: string, from: number, to: number, atomic: boolean) => string;
+  readonly decorateEditorRow?: (row: string) => string;
   readonly cwd?: string;
   readonly agentDir?: string;
   readonly autocompleteCommands?: readonly PiShellAutocompleteCommand[];

@@ -127,6 +127,7 @@ export interface PromptSelectionUxOptions {
   readonly atomicRanges: (line: string) => readonly PiShellEditorTextRange[];
   readonly expandCopiedText: (text: string) => string;
   readonly paintSelection: (line: string, from: number, to: number, atomic: boolean) => string;
+  readonly decorateRow: (row: string) => string;
   readonly requestRender: () => void;
   readonly getRows: () => number;
 }
@@ -260,6 +261,15 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
       return;
     }
 
+    if (this.keybindings.matches(data, "tui.editor.cursorWordLeft")) {
+      const before = this.#cursor();
+      next();
+      const after = this.#cursor();
+      if (!samePosition(before, after)) this.#moveBeforeAtomicRunSeparator();
+      this.#requestRender();
+      return;
+    }
+
     const beforeText = this.editor.getText();
     next();
     if (this.editor.getText() !== beforeText) this.#redoStack = [];
@@ -284,24 +294,25 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
       }
     }
     const selection = this.#orderedSelection();
-    if (selection === undefined) return rows;
-    for (let row = 0; row < textRows; row += 1) {
-      const visual = visualLines[scrollOffset + row];
-      if (visual === undefined || visual.logicalLine < selection.start.line || visual.logicalLine > selection.end.line) continue;
-      const segmentStart = visual.startCol;
-      const segmentEnd = visual.startCol + visual.length;
-      const from = visual.logicalLine === selection.start.line ? Math.max(selection.start.col, segmentStart) : segmentStart;
-      const to = visual.logicalLine === selection.end.line ? Math.min(selection.end.col, segmentEnd) : segmentEnd;
-      if (to <= from) continue;
-      const line = editorState(this.editor).lines[visual.logicalLine] ?? "";
-      const fromColumn = padding + visibleWidth(line.slice(segmentStart, from));
-      const toColumn = fromColumn + visibleWidth(line.slice(from, to));
-      const rendered = rows[row + 1];
-      if (rendered !== undefined && toColumn > fromColumn) {
-        rows[row + 1] = this.options.paintSelection(rendered, fromColumn, toColumn, false);
+    if (selection !== undefined) {
+      for (let row = 0; row < textRows; row += 1) {
+        const visual = visualLines[scrollOffset + row];
+        if (visual === undefined || visual.logicalLine < selection.start.line || visual.logicalLine > selection.end.line) continue;
+        const segmentStart = visual.startCol;
+        const segmentEnd = visual.startCol + visual.length;
+        const from = visual.logicalLine === selection.start.line ? Math.max(selection.start.col, segmentStart) : segmentStart;
+        const to = visual.logicalLine === selection.end.line ? Math.min(selection.end.col, segmentEnd) : segmentEnd;
+        if (to <= from) continue;
+        const line = editorState(this.editor).lines[visual.logicalLine] ?? "";
+        const fromColumn = padding + visibleWidth(line.slice(segmentStart, from));
+        const toColumn = fromColumn + visibleWidth(line.slice(from, to));
+        const rendered = rows[row + 1];
+        if (rendered !== undefined && toColumn > fromColumn) {
+          rows[row + 1] = this.options.paintSelection(rendered, fromColumn, toColumn, false);
+        }
       }
     }
-    return rows;
+    return rows.map(row => this.options.decorateRow(row));
   }
 
   reset(): void {
@@ -622,6 +633,15 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
   #atomicRangeAt(position: Position): PiShellEditorTextRange | undefined {
     const line = editorState(this.editor).lines[position.line] ?? "";
     return this.options.atomicRanges(line).find(range => position.col >= range.start && position.col < range.end);
+  }
+
+  #moveBeforeAtomicRunSeparator(): void {
+    const cursor = this.#cursor();
+    const range = this.#atomicRangeAt(cursor);
+    if (range === undefined || cursor.col !== range.start || cursor.col === 0) return;
+    const line = editorState(this.editor).lines[cursor.line] ?? "";
+    const previous = [...GRAPHEMES.segment(line.slice(0, cursor.col))].at(-1);
+    if (previous !== undefined && /^\s+$/u.test(previous.segment)) this.#moveCursor(-1);
   }
 
   #snapshot(): EditorSnapshot {

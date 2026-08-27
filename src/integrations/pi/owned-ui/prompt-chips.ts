@@ -20,12 +20,12 @@ export interface PreparedPrompt {
 
 type PromptChip =
   | { readonly kind: "folder" | "file"; readonly tag: string; readonly path: string }
-  | { readonly kind: "url"; readonly tag: string; readonly url: string }
+  | { readonly kind: "url"; readonly tag: string; readonly label: string; readonly url: string }
   | { readonly kind: "image"; readonly tag: string; readonly image: PromptImageAttachment };
 
 const CHIP_PATTERN = /\[(?:📷 [^\]]+|📁 [^\]]+|📄 [^\]]+|🖼 {1,2}[^\]]+|🔗 [^\]]+)\]/gu;
 const IMAGE_EXTENSION = /\.(?:jpe?g|png|webp|gif|bmp|tiff?)$/iu;
-const URL_PATTERN = /^https?:\/\/[^\s]+$/iu;
+const URL_PATTERN = /^https?:\/\/[^\s\u0000-\u001f\u007f]+$/iu;
 const URL_DISPLAY_LENGTH = 40;
 
 /** Owns semantic clipboard records while the prompt displays compact chips. */
@@ -49,7 +49,7 @@ export class PromptChipStore {
     const url = text.trim();
     if (URL_PATTERN.test(url)) {
       const label = url.length <= URL_DISPLAY_LENGTH ? url : `${url.slice(0, URL_DISPLAY_LENGTH)}...`;
-      return this.#recordUnique({ kind: "url", tag: `[🔗 ${label}]`, url });
+      return this.#recordUnique({ kind: "url", tag: `[🔗 ${label}]`, label, url });
     }
     const paths = pathsFromClipboard(text);
     if (paths.length === 0) return text;
@@ -68,6 +68,24 @@ export class PromptChipStore {
       start: match.index,
       end: match.index + match[0].length,
     }));
+  }
+
+  hyperlinkRanges(text: string): readonly { start: number; end: number; target: string }[] {
+    const ranges: { start: number; end: number; target: string }[] = [];
+    for (const chip of this.#chips.values()) {
+      if (chip.kind !== "url") continue;
+      const labelOffset = chip.tag.indexOf(chip.label);
+      if (labelOffset < 0) continue;
+      let searchFrom = 0;
+      while (searchFrom <= text.length - chip.tag.length) {
+        const tagStart = text.indexOf(chip.tag, searchFrom);
+        if (tagStart < 0) break;
+        const start = tagStart + labelOffset;
+        ranges.push({ start, end: start + chip.label.length, target: chip.url });
+        searchFrom = tagStart + chip.tag.length;
+      }
+    }
+    return ranges.sort((left, right) => right.start - left.start);
   }
 
   expandCopiedText(text: string): string {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { backgroundSgrSpan, displayWidth, overlaySpan, stripAnsi } from "../../../src/ui/components/index.js";
+import { backgroundSgrSpan, displayWidth, hyperlinkSgrSpan, overlaySpan, stripAnsi } from "../../../src/ui/components/index.js";
 
 const ESC = String.fromCharCode(27);
 const RED = `${ESC}[31m`;
@@ -57,6 +57,14 @@ describe("overlaying a span on a rendered row", () => {
 
     expect(stripAnsi(result)).toBe(first + second);
     expect(result).toContain(`${first}${selected}${second}`);
+  });
+
+  it("gives truncated display text an explicit full hyperlink target", () => {
+    const target = "https://example.com/a/very/useful/resource";
+    const result = hyperlinkSgrSpan(`${RED}prefix preview... suffix${RESET}`, 7, 17, target);
+
+    expect(stripAnsi(result)).toBe("prefix preview... suffix");
+    expect(result).toContain(`\u001b]8;;${target}\u001b\\preview...\u001b]8;;\u001b\\`);
   });
 
   it("paints only the selection background while preserving foreground, bold, italic, and underline", () => {

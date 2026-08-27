@@ -31,6 +31,21 @@ describe("PromptChipStore", () => {
     expect(store.prepareSubmission(`inspect ${fileChip}`).text).toBe(`inspect ${file}`);
   });
 
+  it("keeps a full URL target behind its truncated chip label", () => {
+    const store = new PromptChipStore();
+    const url = "https://example.com/a/very/useful/resource?with=details";
+    const chip = store.transformPastedContent({ kind: "text", text: url });
+    const row = `  ${chip}  `;
+    const range = store.hyperlinkRanges(row)[0];
+
+    expect(chip).toBe("[🔗 https://example.com/a/very/useful/resour...]");
+    expect(range).toEqual({
+      start: row.indexOf("https://"),
+      end: row.indexOf("https://") + "https://example.com/a/very/useful/resour...".length,
+      target: url,
+    });
+  });
+
   it("keeps image chips in prompt text and emits their attachment once", () => {
     const store = new PromptChipStore();
     const chip = store.transformPastedContent({ kind: "image", data: "aW1hZ2U=", mimeType: "image/png" });

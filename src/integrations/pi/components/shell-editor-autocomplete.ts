@@ -75,6 +75,7 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
           atomicRanges: options.editorAtomicRanges ?? (() => []),
           expandCopiedText: options.expandCopiedEditorText ?? (text => text),
           paintSelection: options.paintEditorSelection ?? (line => line),
+          decorateRow: options.decorateEditorRow ?? (row => row),
           requestRender: options.requestRender,
           getRows: options.getRows,
         }),

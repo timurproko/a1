@@ -61,6 +61,39 @@ export function overlaySpan(line: string, from: number, to: number, span: string
  * foreground, bold, underline, and hyperlink styling. Embedded resets reapply
  * the selection background, while leaving the span restores the row's styles.
  */
+/** Wraps visible columns `[from,to)` in an explicit OSC 8 hyperlink. */
+export function hyperlinkSgrSpan(
+  line: string,
+  from: number,
+  to: number,
+  target: string,
+  widthOf: (text: string) => number = displayWidth,
+): string {
+  const on = `\u001b]8;;${target}\u001b\\`;
+  const off = "\u001b]8;;\u001b\\";
+  let output = "";
+  let column = 0;
+  let inside = false;
+  for (const token of line.split(ANSI_SPLIT)) {
+    if (!token) continue;
+    if (token.startsWith("\u001b")) {
+      output += token;
+      continue;
+    }
+    for (const { segment } of GRAPHEMES.segment(token)) {
+      const shouldBeInside = column >= from && column < to;
+      if (shouldBeInside !== inside) {
+        output += shouldBeInside ? on : off;
+        inside = shouldBeInside;
+      }
+      output += segment;
+      column += widthOf(segment);
+    }
+  }
+  if (inside) output += off;
+  return output;
+}
+
 export function backgroundSgrSpan(
   line: string,
   from: number,

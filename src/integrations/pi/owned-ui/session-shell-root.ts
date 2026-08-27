@@ -13,6 +13,7 @@ import {
   composeSubmittedPromptRows,
   displayWidth,
   formatSubmittedPromptTime,
+  hyperlinkSgrSpan,
   overlaySpan,
   submittedPromptLayout,
   routeMouseInput,
@@ -20,6 +21,7 @@ import {
   scrollForThumbRow,
   scrollbarSelectionRows,
   scrollbarWheelRows,
+  stripAnsi,
   type TranscriptPromptAnchor,
 } from "../../../ui/components/index.js";
 import {
@@ -238,6 +240,17 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       ),
       transformPastedContent: content => this.#promptChips.transformPastedContent(content),
       editorAtomicRanges: line => this.#promptChips.atomicRanges(line),
+      decorateEditorRow: row => {
+        const plain = stripAnsi(row);
+        return this.#promptChips.hyperlinkRanges(plain).reduce((decorated, range) => hyperlinkSgrSpan(
+          decorated,
+          piShellVisibleWidth(plain.slice(0, range.start)),
+          piShellVisibleWidth(plain.slice(0, range.end)),
+          range.target,
+          piShellVisibleWidth,
+        ), row);
+      },
+
       expandCopiedEditorText: text => this.#promptChips.expandCopiedText(text),
       cwd,
       ...(agentDir === undefined ? {} : { agentDir }),

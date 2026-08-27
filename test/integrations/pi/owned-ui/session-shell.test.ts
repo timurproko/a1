@@ -449,6 +449,9 @@ describe("OwnedUiSessionShell", () => {
     expect(wrappedChipRows.filter(row => row.includes("[🔗")).length).toBe(1);
     expect(wrappedChipRows.find(row => row.includes("[🔗"))).toContain(urlChip);
     shell.root.editor.setText(urlChip);
+    const linkedChip = shell.root.editor.render(60).join("\n");
+    expect(linkedChip).toContain("\u001b]8;;https://example.com/a/very/useful/resource\u001b\\");
+    expect(linkedChip).toContain("\u001b]8;;\u001b\\");
 
     terminal.input("\u001b[D"); // Left focuses the adjacent chip as one inverted item.
     const focusedChip = shell.root.render(60).find(row => stripTerminalSequences(row).includes("https://example.com")) ?? "";
@@ -616,6 +619,12 @@ describe("OwnedUiSessionShell", () => {
     clipboardText = "";
     terminal.input("\u0003");
     await vi.waitFor(() => expect(clipboardText).toBe(secondUrl));
+
+    const imageRun = "[📷 first.png][📷 second.png][📷 third.png]";
+    shell.root.editor.setText(`words ${imageRun}`);
+    terminal.input("\u001b[1;5D"); // Ctrl+Left crosses the adjacent run and stops on its separator.
+    terminal.input("X");
+    expect(shell.root.editor.getText()).toBe(`wordsX ${imageRun}`);
 
     await shell.dispose();
   });
