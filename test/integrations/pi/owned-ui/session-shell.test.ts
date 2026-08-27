@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { CURSOR_MARKER, stripTerminalSequences, visibleWidth } from "@earendil-works/pi-tui";
 import {
   getCapabilities as getPinnedPiTuiCapabilities,
+  getOsc8LinkAtColumn as getPinnedPiTuiLinkAtColumn,
   setCapabilities as setPinnedPiTuiCapabilities,
 } from "#pi-tui";
 import { describe, expect, it, vi } from "vitest";
@@ -302,6 +303,54 @@ describe("OwnedUiSessionShell", () => {
       expect(row).not.toContain("\u001b[4m");
       await shell.dispose();
     });
+  });
+
+  it("keeps file hyperlinks cyan while web URLs use link blue", async () => {
+    await withPinnedHyperlinks(async () => {
+      const label = "src/integrations/pi/owned-ui/session-shell-root.ts";
+      const target = "file:///D:/Git/a1/src/integrations/pi/owned-ui/session-shell-root.ts";
+      const { terminal, shell } = await fixture([{
+        role: "assistant",
+        content: [{ type: "text", text: `[${label}](${target})` }],
+        timestamp: Date.now(),
+      }], [], true);
+      terminal.resize(120, 12);
+      const row = shell.root.render(120).find(line => stripTerminalSequences(line).includes(label)) ?? "";
+      const start = stripTerminalSequences(row).indexOf(label);
+
+      expect(row).toContain(`\u001b]8;;${target}\u001b\\`);
+      expect(row).toContain(piTheme().fg("accent", label));
+      expect(row).not.toContain(piTheme().fg("mdLink", label));
+      expect(getPinnedPiTuiLinkAtColumn(row, start)).toBe(target);
+      await shell.dispose();
+    });
+  });
+
+  it("bounds bare bash-output URLs to stable terminal-native hover cells", async () => {
+    const first = "https://github.com/timurproko/a1/actions/runs/33100113637/job/98615286055";
+    const second = "https://github.com/timurproko/a1/actions/runs/33100113637/job/98615285949";
+    const { terminal, shell } = await fixture([{
+      role: "bashExecution",
+      command: "gh pr checks 144",
+      output: `Fast validation pass ${first}\nProcess containment pass ${second}`,
+      exitCode: 0,
+      cancelled: false,
+      timestamp: Date.now(),
+    }], [], true);
+    terminal.resize(180, 12);
+    const rows = shell.root.render(180);
+
+    for (const url of [first, second]) {
+      const row = rows.find(line => stripTerminalSequences(line).includes(url)) ?? "";
+      const plain = stripTerminalSequences(row);
+      const start = plain.indexOf(url);
+      expect(start).toBeGreaterThanOrEqual(0);
+      expect(row).toContain(`\u001b]8;;${url}\u001b\\`);
+      expect(row).toContain(piTheme().fg("mdLink", url));
+      expect(getPinnedPiTuiLinkAtColumn(row, start)).toBe(url);
+      expect(getPinnedPiTuiLinkAtColumn(row, start + url.length)).toBeUndefined();
+    }
+    await shell.dispose();
   });
 
   it("wraps ordinary transcript content through the rail overlay column", async () => {

@@ -12,6 +12,8 @@ const ANSI_SPLIT = new RegExp(`(${ANSI_SEQUENCE})`);
 const HYPERLINK = /^\]8;;([^]*)(?:|\\)?$/;
 const HYPERLINK_OFF = "]8;;\\";
 const SGR = /^\[[0-9;]*m$/;
+const BARE_URL = /https?:\/\/[^\s\u0000-\u001f\u007f<>"']+/giu;
+const TRAILING_URL_PUNCTUATION = /[.,;:!?]/u;
 const GRAPHEMES = new Intl.Segmenter(undefined, { granularity: "grapheme" });
 
 /**
@@ -95,34 +97,66 @@ export function hyperlinkSgrSpan(
 }
 
 /**
- * Lets the terminal render OSC 8 links with its native inactive/hover affordance
- * instead of forcing Markdown's permanent solid underline.
+ * Gives existing and bare web links explicit, tightly bounded OSC 8 regions so
+ * the terminal owns dotted-idle/solid-hover decoration without leaking hover
+ * state into cells repainted during scrolling.
  */
 export function nativeHyperlinkStyle(
   line: string,
-  color: (text: string) => string = text => text,
+  color: (text: string, target: string) => string = text => text,
 ): string {
-  let hyperlinkOpen = false;
+  let hyperlinkTarget: string | undefined;
+  let sgrReplay = "";
   let output = "";
   for (const token of line.split(ANSI_SPLIT)) {
     if (!token) continue;
     const link = HYPERLINK.exec(token);
     if (link) {
-      hyperlinkOpen = (link[1] ?? "").length > 0;
-      output += token;
-      continue;
-    }
-    if (!hyperlinkOpen) {
+      hyperlinkTarget = (link[1] ?? "") || undefined;
       output += token;
       continue;
     }
     if (!token.startsWith("\u001b")) {
-      output += color(token);
+      output += hyperlinkTarget === undefined
+        ? decorateBareUrls(token, color, sgrReplay)
+        : color(token, hyperlinkTarget);
       continue;
     }
-    if (!SGR.test(token) || (token !== "\u001b[4m" && token !== "\u001b[24m")) output += token;
+    if (SGR.test(token)) {
+      if (token === "\u001b[0m") sgrReplay = token;
+      else sgrReplay += token;
+    }
+    if (hyperlinkTarget === undefined || (token !== "\u001b[4m" && token !== "\u001b[24m")) output += token;
   }
-  return output;
+  return hyperlinkTarget === undefined ? output : output + HYPERLINK_OFF;
+}
+
+function decorateBareUrls(
+  text: string,
+  color: (text: string, target: string) => string,
+  sgrReplay: string,
+): string {
+  return text.replace(BARE_URL, candidate => {
+    const { target, trailing } = splitUrlTrailingPunctuation(candidate);
+    if (target.length === 0) return candidate;
+    return `\u001b]8;;${target}\u001b\\\u001b[24m${color(target, target)}${HYPERLINK_OFF}${sgrReplay}${trailing}`;
+  });
+}
+
+function splitUrlTrailingPunctuation(candidate: string): { readonly target: string; readonly trailing: string } {
+  let end = candidate.length;
+  while (end > 0 && TRAILING_URL_PUNCTUATION.test(candidate[end - 1] ?? "")) end -= 1;
+  for (const [opening, closing] of [["(", ")"], ["[", "]"], ["{", "}"]] as const) {
+    while (candidate.slice(0, end).endsWith(closing)
+      && occurrences(candidate.slice(0, end), closing) > occurrences(candidate.slice(0, end), opening)) {
+      end -= 1;
+    }
+  }
+  return { target: candidate.slice(0, end), trailing: candidate.slice(end) };
+}
+
+function occurrences(text: string, value: string): number {
+  return text.split(value).length - 1;
 }
 
 export function backgroundSgrSpan(

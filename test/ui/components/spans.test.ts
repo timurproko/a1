@@ -85,6 +85,20 @@ describe("overlaying a span on a rendered row", () => {
       .toBe(`${open}${BLUE}example${RESET}${close}`);
   });
 
+  it("gives bare URLs explicit, independently bounded native hover regions", () => {
+    const first = "https://github.com/example/actions/1";
+    const second = "https://example.com/docs";
+    const close = "\u001b]8;;\u001b\\";
+    const source = `${RED}check ${first} then ${second}). tail${RESET}`;
+
+    const result = nativeHyperlinkStyle(source, text => `${BLUE}${text}${RESET}`);
+
+    expect(stripAnsi(result)).toBe(stripAnsi(source));
+    expect(result).toContain(`\u001b]8;;${first}\u001b\\${ESC}[24m${BLUE}${first}${RESET}${close}${RED}`);
+    expect(result).toContain(`\u001b]8;;${second}\u001b\\${ESC}[24m${BLUE}${second}${RESET}${close}${RED})`);
+    expect(result).not.toContain(`\u001b]8;;${second})`);
+  });
+
   it("paints only the selection background while preserving foreground, bold, italic, and underline", () => {
     const bold = `${ESC}[1m`;
     const italic = `${ESC}[3m`;

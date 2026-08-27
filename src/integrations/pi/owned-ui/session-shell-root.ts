@@ -218,7 +218,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       ? {
           layout: submittedPromptLayout,
           compose: (rows, width, source, style) => composeSubmittedPromptRows(rows, width, source, style)
-            .map(row => nativeHyperlinkStyle(row, text => piTheme().fg("mdLink", text))),
+            .map(row => nativeHyperlinkStyle(row, nativeTranscriptLinkColor)),
         }
       : undefined;
     this.#cwd = cwd;
@@ -878,7 +878,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     const render = (): readonly string[] => {
       const rows = component.render(width);
       if (!this.#customViewport || block?.kind === "user") return rows;
-      return rows.map(row => nativeHyperlinkStyle(row, text => piTheme().fg("mdLink", text)));
+      return rows.map(row => nativeHyperlinkStyle(row, nativeTranscriptLinkColor));
     };
     if (block === undefined || block.status !== "finalized") return render();
 
@@ -1270,6 +1270,11 @@ const SHIFT_UP_INPUTS = new Set(["\u001b[1;2A"]);
 const SHIFT_DOWN_INPUTS = new Set(["\u001b[1;2B"]);
 const SCROLLBAR_CELL_RESET = "\u001b[22;23;24;25;27;28;29;39;54;55m";
 const TERMINAL_BACKGROUND = /\u001b\[(?:4[0-9]|10[0-7]|48(?:[;:][0-9;:]*)?)m/g;
+
+/** Web URLs use link blue; file targets retain A1's cyan interactive accent. */
+function nativeTranscriptLinkColor(text: string, target: string): string {
+  return piTheme().fg(/^file:/iu.test(target) ? "accent" : "mdLink", text);
+}
 
 /** Repaint a source prompt with viewport chrome while preserving text, links, and foreground roles. */
 function withoutTerminalBackground(text: string): string {
