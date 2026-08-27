@@ -501,6 +501,21 @@ describe("OwnedUiSessionShell", () => {
     await shell.dispose();
   });
 
+  it("keeps atomic focus within the exact brackets after preceding image icons", async () => {
+    const { terminal, shell } = await fixture([], [], true);
+    terminal.resize(180, 12);
+    const chips = Array.from({ length: 6 }, (_, index) => `[🖼  Clipboard (${index + 1}).png]`);
+    shell.root.editor.setText(chips.join(""));
+    terminal.input("\u001b[D");
+
+    const row = shell.root.editor.render(180).find(line => stripTerminalSequences(line).includes("Clipboard (6).png")) ?? "";
+    const reversed = [...row.matchAll(/\u001b\[7m([^\u001b]*)\u001b\[0m/gu)].map(match => match[1] ?? "");
+    expect(reversed).toContain(chips.at(-1));
+    expect(reversed.some(text => text.includes("Clipboard (5).png"))).toBe(false);
+
+    await shell.dispose();
+  });
+
   it("keeps a focused atomic chip selected while repeated pastes insert before it", async () => {
     let clipboardText = "https://example.com/focused-chip";
     const { terminal, shell } = await fixture([], [], true, undefined, {
@@ -596,7 +611,8 @@ describe("OwnedUiSessionShell", () => {
     terminal.input("\u001b[D"); // Focus second chip.
     terminal.input("\u001b[D"); // Separator.
     terminal.input("\u001b[D"); // First chip.
-    terminal.input("\u001b[C"); // Right exits it and skips its separator in one press.
+    terminal.input("\u001b[C"); // Separator.
+    terminal.input("\u001b[C"); // Second chip.
     clipboardText = "";
     terminal.input("\u0003");
     await vi.waitFor(() => expect(clipboardText).toBe(secondUrl));

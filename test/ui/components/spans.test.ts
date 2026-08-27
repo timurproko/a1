@@ -45,6 +45,20 @@ describe("overlaying a span on a rendered row", () => {
     expect(stripAnsi(overlaySpan("", 0, 3, "XYZ"))).toBe("XYZ");
   });
 
+  it("uses an injected terminal-width authority for renderer-specific emoji widths", () => {
+    const first = "[🖼 first.png]";
+    const second = "[🖼 second.png]";
+    const selected = `${ESC}[7m`;
+    const piWidth = (text: string) => text === "🖼" ? 1 : displayWidth(text);
+    const firstWidth = displayWidth(first) - 1;
+    const secondWidth = displayWidth(second) - 1;
+
+    const result = backgroundSgrSpan(first + second, firstWidth, firstWidth + secondWidth, selected, `${ESC}[27m`, piWidth);
+
+    expect(stripAnsi(result)).toBe(first + second);
+    expect(result).toContain(`${first}${selected}${second}`);
+  });
+
   it("paints only the selection background while preserving foreground, bold, italic, and underline", () => {
     const bold = `${ESC}[1m`;
     const italic = `${ESC}[3m`;

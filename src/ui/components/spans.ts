@@ -67,6 +67,7 @@ export function backgroundSgrSpan(
   to: number,
   on = "\u001b[47m",
   off = "\u001b[49m",
+  widthOf: (text: string) => number = displayWidth,
 ): string {
   let output = "";
   let seen = "";
@@ -87,7 +88,7 @@ export function backgroundSgrSpan(
         inside = shouldBeInside;
       }
       output += segment;
-      column += displayWidth(segment);
+      column += widthOf(segment);
     }
   }
   if (inside) output += off;

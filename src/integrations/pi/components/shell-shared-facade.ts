@@ -1,5 +1,6 @@
 import {
   setKeybindings,
+  visibleWidth,
   type AutocompleteProvider,
   type Component,
   type Focusable,
@@ -16,6 +17,9 @@ import {
 import {
   ensurePiTheme,
 } from "./theme.js";
+
+/** Terminal-cell width authority used by Pi-rendered component rows. */
+export const piShellVisibleWidth = visibleWidth;
 
 export interface PiShellComponentPort {
   render(width: number): readonly string[];

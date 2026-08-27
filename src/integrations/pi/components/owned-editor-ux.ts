@@ -143,7 +143,6 @@ export function createPromptSelectionInterceptor(
 
 class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
   #selection: Selection | undefined;
-  #atomicSelection = false;
   #pointerSelecting = false;
   #lastClick: { time: number; line: number; col: number; count: number } | undefined;
   #redoStack: EditorSnapshot[] = [];
@@ -166,7 +165,6 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
   }
 
   handleInput(data: string, next: () => void): void {
-    this.#adoptAtomicCursorFocus();
     if (this.keybindings.matches(data, "owned.editor.selectAll")) {
       this.#selectAll();
       return;
@@ -185,7 +183,7 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
     }
     if (this.keybindings.matches(data, "owned.editor.cut") && this.hasSelection()) {
       this.options.copyText(this.options.expandCopiedText(this.#selectedText()));
-      this.#deleteSelection();
+      if (!this.#deleteSelection()) this.#deleteAtomicFocus();
       return;
     }
     if (this.keybindings.matches(data, "owned.editor.paste")) {
@@ -204,13 +202,8 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
         return;
       }
       const transformed = this.options.transformPastedContent({ kind: "text", text: terminalPaste });
-      const activeSelection = this.#orderedSelection();
-      if (activeSelection !== undefined && this.#atomicSelection) {
-        this.#insertBeforeAtomicSelection(transformed, activeSelection);
-        return;
-      }
       if (transformed !== terminalPaste) {
-        if (activeSelection !== undefined) this.#replaceSelection(transformed);
+        if (this.#orderedSelection() !== undefined) this.#replaceSelection(transformed);
         else this.editor.insertTextAtCursor(transformed);
         this.#redoStack = [];
         this.#requestRender();
@@ -228,36 +221,6 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
     }
 
     const selection = this.#orderedSelection();
-    if (selection === undefined) {
-      if (this.keybindings.matches(data, "tui.editor.cursorLeft") && this.#selectAdjacentAtomic(-1)) return;
-      if (this.keybindings.matches(data, "tui.editor.cursorRight") && this.#selectAdjacentAtomic(1)) return;
-      if (this.keybindings.matches(data, "tui.editor.cursorWordLeft")) {
-        if (!this.#selectAdjacentAtomic(-1)) {
-          next();
-          this.#selectAtomicAtCursor(-1);
-        }
-        return;
-      }
-      if (this.keybindings.matches(data, "tui.editor.cursorWordRight")) {
-        if (!this.#selectAdjacentAtomic(1)) {
-          next();
-          this.#selectAtomicAtCursor(1);
-        }
-        return;
-      }
-      if (this.keybindings.matches(data, "tui.editor.cursorUp")
-        || this.keybindings.matches(data, "tui.editor.cursorDown")) {
-        next();
-        this.#selectAtomicContainingCursor();
-        return;
-      }
-      if ((this.keybindings.matches(data, "tui.editor.deleteCharBackward")
-        || this.keybindings.matches(data, "tui.editor.deleteWordBackward"))
-        && this.#deleteAdjacentAtomic(-1)) return;
-      if ((this.keybindings.matches(data, "tui.editor.deleteCharForward")
-        || this.keybindings.matches(data, "tui.editor.deleteWordForward"))
-        && this.#deleteAdjacentAtomic(1)) return;
-    }
     if (selection !== undefined) {
       if (this.keybindings.matches(data, "tui.editor.deleteCharBackward")
         || this.keybindings.matches(data, "tui.editor.deleteCharForward")
@@ -268,13 +231,10 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
       }
       const inserted = insertedText(data);
       if (inserted !== undefined) {
-        if (this.#atomicSelection) this.#insertBeforeAtomicSelection(inserted, selection);
-        else this.#replaceSelection(inserted);
+        this.#replaceSelection(inserted);
         return;
       }
       if (data.includes("\u001b[200~")) {
-        // Let Pi retain its streaming bracketed-paste parser. Removing the
-        // selection first still gives paste the expected replacement point.
         this.#deleteSelection();
         next();
         return;
@@ -282,30 +242,22 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
       if (this.keybindings.matches(data, "tui.editor.cursorLeft")
         || this.keybindings.matches(data, "tui.editor.cursorWordLeft")) {
         this.#setCursor(selection.start);
-        const wasAtomic = this.#atomicSelection;
-        this.#clearSelection(false);
-        if (wasAtomic) {
-          if (!this.#selectAdjacentAtomic(-1)) {
-            next();
-            this.#selectAtomicAtCursor(-1);
-          }
-          this.#requestRender();
-        } else this.#requestRender();
+        this.#clearSelection();
         return;
       }
       if (this.keybindings.matches(data, "tui.editor.cursorRight")
         || this.keybindings.matches(data, "tui.editor.cursorWordRight")) {
         this.#setCursor(selection.end);
-        const wasAtomic = this.#atomicSelection;
-        this.#clearSelection(false);
-        if (wasAtomic) {
-          this.#skipAdjacentWhitespace(1);
-          if (this.#selectAdjacentAtomic(1)) return;
-        }
-        this.#requestRender();
+        this.#clearSelection();
         return;
       }
       this.#clearSelection(false);
+    } else if ((this.keybindings.matches(data, "tui.editor.deleteCharBackward")
+      || this.keybindings.matches(data, "tui.editor.deleteCharForward")
+      || this.keybindings.matches(data, "tui.editor.deleteWordBackward")
+      || this.keybindings.matches(data, "tui.editor.deleteWordForward"))
+      && this.#deleteAtomicFocus()) {
+      return;
     }
 
     const beforeText = this.editor.getText();
@@ -326,13 +278,13 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
     const textRows = Math.max(0, Math.min(visualLines.length - scrollOffset, maxVisibleLines, rows.length - 2));
     this.#geometry = { width, padding, layoutWidth, visualLines, scrollOffset, textRows };
 
-    const selection = this.#orderedSelection();
-    if (selection === undefined) return rows;
-    if (this.#atomicSelection) {
+    if (this.#atomicFocus() !== undefined) {
       for (let row = 0; row < rows.length; row += 1) {
         rows[row] = (rows[row] ?? "").replaceAll(CURSOR_MARKER, "");
       }
     }
+    const selection = this.#orderedSelection();
+    if (selection === undefined) return rows;
     for (let row = 0; row < textRows; row += 1) {
       const visual = visualLines[scrollOffset + row];
       if (visual === undefined || visual.logicalLine < selection.start.line || visual.logicalLine > selection.end.line) continue;
@@ -346,7 +298,7 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
       const toColumn = fromColumn + visibleWidth(line.slice(from, to));
       const rendered = rows[row + 1];
       if (rendered !== undefined && toColumn > fromColumn) {
-        rows[row + 1] = this.options.paintSelection(rendered, fromColumn, toColumn, this.#atomicSelection);
+        rows[row + 1] = this.options.paintSelection(rendered, fromColumn, toColumn, false);
       }
     }
     return rows;
@@ -354,7 +306,6 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
 
   reset(): void {
     this.#selection = undefined;
-    this.#atomicSelection = false;
     this.#pointerSelecting = false;
     this.#lastClick = undefined;
     this.#redoStack = [];
@@ -362,8 +313,7 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
   }
 
   hasSelection(): boolean {
-    this.#adoptAtomicCursorFocus();
-    return this.#orderedSelection() !== undefined;
+    return this.#activeRange() !== undefined;
   }
 
   pasteClipboard(): boolean {
@@ -389,7 +339,6 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
           position = { line: position.line, col: beforeAnchor ? atomic.start : atomic.end };
         }
         this.#selection = { ...this.#selection, head: position };
-        this.#atomicSelection = false;
         this.#selectionRevision += 1;
         this.#requestRender();
       }
@@ -411,9 +360,8 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
     if (atomic !== undefined) {
       this.#selection = {
         anchor: { line: position.line, col: atomic.start },
-        head: { line: position.line, col: atomic.end },
+        head: { line: position.line, col: atomic.start },
       };
-      this.#atomicSelection = true;
       this.#setCursor({ line: position.line, col: atomic.start });
       this.#pointerSelecting = true;
       this.#lastClick = undefined;
@@ -434,7 +382,6 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
     if (kind === 2) this.#selectWord(position);
     else if (kind === 3) this.#selectLine(position.line);
     else this.#selection = { anchor: position, head: position };
-    this.#atomicSelection = false;
     this.#pointerSelecting = true;
     this.#selectionRevision += 1;
     this.#requestRender();
@@ -491,7 +438,6 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
 
   #selectAll(): void {
     const lines = editorState(this.editor).lines;
-    this.#atomicSelection = false;
     const finalLine = Math.max(0, lines.length - 1);
     this.#selection = {
       anchor: { line: 0, col: 0 },
@@ -504,7 +450,6 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
 
   #extend(delta: -1 | 1): void {
     const cursor = this.#cursor();
-    this.#atomicSelection = false;
     if (this.#selection === undefined) this.#selection = { anchor: cursor, head: cursor };
     else if (!samePosition(cursor, this.#selection.head)) this.#setCursor(this.#selection.head);
     this.#moveCursor(delta);
@@ -518,42 +463,24 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
   #pasteFromClipboard(): void {
     const revision = this.#selectionRevision;
     const selection = this.#orderedSelection();
-    const atomicSelection = this.#atomicSelection;
+    const atomicFocus = this.#atomicFocus();
     void this.options.readClipboardContent().then(content => {
       if (content === null) return;
       const text = this.options.transformPastedContent(content);
       if (text.length === 0) return;
       if (selection !== undefined && revision === this.#selectionRevision && this.#orderedSelection() !== undefined) {
-        if (atomicSelection) this.#insertBeforeAtomicSelection(text, selection);
-        else this.#replaceSelection(text);
+        this.#replaceSelection(text);
         return;
       }
-      this.#clearSelection(false);
-      this.editor.insertTextAtCursor(text);
+      if (atomicFocus !== undefined && samePosition(this.#cursor(), atomicFocus.start)) {
+        this.editor.insertTextAtCursor(text);
+      } else {
+        this.#clearSelection(false);
+        this.editor.insertTextAtCursor(text);
+      }
       this.#redoStack = [];
       this.#requestRender();
     }).catch(() => {});
-  }
-
-  #insertBeforeAtomicSelection(
-    text: string,
-    selection: { readonly start: Position; readonly end: Position },
-  ): void {
-    const normalized = normalizeInsertedText(text);
-    const current = this.editor.getText();
-    const lines = editorState(this.editor).lines;
-    const from = positionOffset(lines, selection.start);
-    const selected = current.slice(from, positionOffset(lines, selection.end));
-    const next = current.slice(0, from) + normalized + current.slice(from);
-    this.editor.setText(next);
-    const selectedStart = positionAtOffset(next, from + normalized.length);
-    const selectedEnd = positionAtOffset(next, from + normalized.length + selected.length);
-    this.#selection = { anchor: selectedStart, head: selectedEnd };
-    this.#atomicSelection = true;
-    this.#setCursor(selectedStart);
-    this.#redoStack = [];
-    this.#selectionRevision += 1;
-    this.#requestRender();
   }
 
   #replaceSelection(text: string): void {
@@ -590,6 +517,21 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
     return true;
   }
 
+  #deleteAtomicFocus(): boolean {
+    const focus = this.#atomicFocus();
+    if (focus === undefined) return false;
+    const current = this.editor.getText();
+    const lines = editorState(this.editor).lines;
+    const from = positionOffset(lines, focus.start);
+    const to = positionOffset(lines, focus.end);
+    this.editor.setText(current.slice(0, from) + current.slice(to));
+    this.#setCursor(positionAtOffset(this.editor.getText(), from));
+    this.#redoStack = [];
+    this.#clearSelection(false);
+    this.#requestRender();
+    return true;
+  }
+
   #redo(): void {
     const snapshot = this.#redoStack.pop();
     if (snapshot === undefined) return;
@@ -600,11 +542,26 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
   }
 
   #selectedText(): string {
-    const selection = this.#orderedSelection();
+    const selection = this.#activeRange();
     if (selection === undefined) return "";
     const current = this.editor.getText();
     const lines = editorState(this.editor).lines;
     return current.slice(positionOffset(lines, selection.start), positionOffset(lines, selection.end));
+  }
+
+  #activeRange(): { start: Position; end: Position } | undefined {
+    return this.#orderedSelection() ?? this.#atomicFocus();
+  }
+
+  #atomicFocus(): { start: Position; end: Position } | undefined {
+    if (this.#orderedSelection() !== undefined) return undefined;
+    const state = editorState(this.editor);
+    const line = state.lines[state.cursorLine] ?? "";
+    const range = this.options.atomicRanges(line).find(candidate => candidate.start === state.cursorCol);
+    return range === undefined ? undefined : {
+      start: { line: state.cursorLine, col: range.start },
+      end: { line: state.cursorLine, col: range.end },
+    };
   }
 
   #orderedSelection(): { start: Position; end: Position } | undefined {
@@ -618,7 +575,6 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
   #clearSelection(render = true): void {
     if (this.#selection === undefined && !this.#pointerSelecting) return;
     this.#selection = undefined;
-    this.#atomicSelection = false;
     this.#pointerSelecting = false;
     this.#selectionRevision += 1;
     if (render) this.#requestRender();
@@ -666,104 +622,6 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
   #atomicRangeAt(position: Position): PiShellEditorTextRange | undefined {
     const line = editorState(this.editor).lines[position.line] ?? "";
     return this.options.atomicRanges(line).find(range => position.col >= range.start && position.col < range.end);
-  }
-
-  #skipAdjacentWhitespace(delta: -1 | 1): void {
-    const state = editorState(this.editor);
-    if (delta > 0) {
-      while (true) {
-        const line = state.lines[state.cursorLine] ?? "";
-        if (state.cursorCol >= line.length) {
-          if (state.cursorLine >= state.lines.length - 1) return;
-          state.cursorLine += 1;
-          state.cursorCol = 0;
-          continue;
-        }
-        const next = [...GRAPHEMES.segment(line.slice(state.cursorCol))][0];
-        if (next === undefined || !/^\s+$/u.test(next.segment)) return;
-        state.cursorCol += next.segment.length;
-      }
-    }
-    while (true) {
-      const line = state.lines[state.cursorLine] ?? "";
-      if (state.cursorCol <= 0) {
-        if (state.cursorLine <= 0) return;
-        state.cursorLine -= 1;
-        state.cursorCol = (state.lines[state.cursorLine] ?? "").length;
-        continue;
-      }
-      const previous = [...GRAPHEMES.segment(line.slice(0, state.cursorCol))].at(-1);
-      if (previous === undefined || !/^\s+$/u.test(previous.segment)) return;
-      state.cursorCol -= previous.segment.length;
-    }
-  }
-
-  #adoptAtomicCursorFocus(): void {
-    if (this.#orderedSelection() !== undefined) return;
-    const state = editorState(this.editor);
-    const line = state.lines[state.cursorLine] ?? "";
-    const range = this.options.atomicRanges(line).find(candidate => candidate.start === state.cursorCol);
-    if (range === undefined) return;
-    this.#selection = {
-      anchor: { line: state.cursorLine, col: range.start },
-      head: { line: state.cursorLine, col: range.end },
-    };
-    this.#atomicSelection = true;
-    this.#pointerSelecting = false;
-    this.#selectionRevision += 1;
-  }
-
-  #selectAdjacentAtomic(delta: -1 | 1): boolean {
-    const state = editorState(this.editor);
-    const line = state.lines[state.cursorLine] ?? "";
-    const range = this.options.atomicRanges(line).find(candidate => delta < 0
-      ? state.cursorCol > candidate.start && state.cursorCol <= candidate.end
-      : state.cursorCol >= candidate.start && state.cursorCol < candidate.end);
-    return range === undefined ? false : this.#selectAtomicRange(range, state.cursorLine, delta);
-  }
-
-  #selectAtomicAtCursor(delta: -1 | 1): boolean {
-    const state = editorState(this.editor);
-    const line = state.lines[state.cursorLine] ?? "";
-    const range = this.options.atomicRanges(line).find(candidate => delta < 0
-      ? state.cursorCol >= candidate.start && state.cursorCol < candidate.end
-      : state.cursorCol > candidate.start && state.cursorCol <= candidate.end);
-    return range === undefined ? false : this.#selectAtomicRange(range, state.cursorLine, delta);
-  }
-
-  #selectAtomicContainingCursor(): boolean {
-    const state = editorState(this.editor);
-    const line = state.lines[state.cursorLine] ?? "";
-    const range = this.options.atomicRanges(line).find(candidate =>
-      state.cursorCol >= candidate.start && state.cursorCol < candidate.end);
-    return range === undefined ? false : this.#selectAtomicRange(range, state.cursorLine, 1);
-  }
-
-  #selectAtomicRange(range: PiShellEditorTextRange, line: number, delta: -1 | 1): boolean {
-    const start = { line, col: range.start };
-    const end = { line, col: range.end };
-    this.#selection = delta < 0
-      ? { anchor: end, head: start }
-      : { anchor: start, head: end };
-    this.#atomicSelection = true;
-    this.#setCursor(start);
-    this.#selectionRevision += 1;
-    this.#requestRender();
-    return true;
-  }
-
-  #deleteAdjacentAtomic(delta: -1 | 1): boolean {
-    const state = editorState(this.editor);
-    const line = state.lines[state.cursorLine] ?? "";
-    const range = this.options.atomicRanges(line).find(candidate => delta < 0
-      ? state.cursorCol > candidate.start && state.cursorCol <= candidate.end
-      : state.cursorCol >= candidate.start && state.cursorCol < candidate.end);
-    if (range === undefined) return false;
-    this.#selection = {
-      anchor: { line: state.cursorLine, col: range.start },
-      head: { line: state.cursorLine, col: range.end },
-    };
-    return this.#deleteSelection();
   }
 
   #snapshot(): EditorSnapshot {
