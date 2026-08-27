@@ -8,7 +8,7 @@ describe("product identity authority", () => {
       displayName: "A1",
       commandName: "a1",
       packageName: "@timurproko/a1",
-      filesystem: { slug: "a1", windowsDirectory: "A1", unixDirectory: "a1" },
+      filesystem: { slug: "a1", windowsDirectory: "a1", unixDirectory: "a1" },
       environment: {
         configDir: "A1_CONFIG_DIR",
         dataDir: "A1_DATA_DIR",
@@ -42,10 +42,10 @@ describe("product identity authority", () => {
     candidate.commandName = "z1";
     candidate.packageName = "@example/z1";
     candidate.filesystem.slug = "z1";
-    candidate.filesystem.windowsDirectory = "Z1";
+    candidate.filesystem.windowsDirectory = "z1";
     candidate.filesystem.unixDirectory = "z1";
     candidate.filesystem.temporaryPrefix = "z1-";
-    candidate.state.windowsControlDirectory = "Z1";
+    candidate.state.windowsControlDirectory = "z1";
     candidate.state.unixControlDirectory = "z1";
     candidate.endpoint.windowsPipeStem = "z1";
     candidate.protocol = replaceValues(candidate.protocol, /^a1(?=-|$)/, "z1");

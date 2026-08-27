@@ -5,7 +5,7 @@ describe("A1 identity hard-cut documentation", () => {
   it("documents current paths, no migration, safe cleanup, and obsolete package status", async () => {
     const toolchain = await readFile("docs/architecture/toolchain.md", "utf8");
 
-    for (const current of ["A1_CONFIG_DIR", "A1_DATA_DIR", "A1_RUNTIME_DIR", "A1_DATABASE_PATH", "A1_ENDPOINT", "%APPDATA%\\\\A1", "/a1"]) {
+    for (const current of ["A1_CONFIG_DIR", "A1_DATA_DIR", "A1_RUNTIME_DIR", "A1_DATABASE_PATH", "A1_ENDPOINT", "%APPDATA%\\\\a1", "/a1"]) {
       expect(toolchain).toContain(current);
     }
     expect(toolchain).toContain("does not read or migrate legacy `ADDONE_*`");
