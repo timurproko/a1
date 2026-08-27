@@ -22,6 +22,10 @@ export async function readSystemClipboardContent(): Promise<PiShellClipboardCont
   const native = await nativeClipboard();
   if (native !== null) {
     try {
+      if (process.platform === "win32" && native.availableFormats().some(isFileDropFormat)) {
+        const files = await readSystemClipboardText();
+        if (files !== null) return { kind: "text", text: files };
+      }
       if (native.hasImage()) {
         const data = await native.getImageBase64();
         if (data.length > 0) return { kind: "image", data, mimeType: "image/png" };
@@ -82,6 +86,10 @@ export function writeSystemClipboardText(text: string): Promise<void> {
 function nativeClipboard(): Promise<NativeClipboard | null> {
   nativeClipboardPromise ??= import("@mariozechner/clipboard").catch(() => null);
   return nativeClipboardPromise;
+}
+
+function isFileDropFormat(format: string): boolean {
+  return /(?:filedrop|hdrop|shell idlist)/iu.test(format);
 }
 
 function execClipboard(command: string, args: readonly string[]): Promise<string | null> {

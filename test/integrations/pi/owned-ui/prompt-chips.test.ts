@@ -15,15 +15,15 @@ describe("PromptChipStore", () => {
     const root = await mkdtemp(path.join(tmpdir(), "a1-prompt-chips-"));
     cleanup.push(root);
     const folder = path.join(root, "source folder");
-    const file = path.join(root, "reference.txt");
+    const file = path.join(root, "Clipboard (2).png");
     await mkdir(folder);
-    await writeFile(file, "reference", "utf8");
+    await writeFile(file, "image", "utf8");
     const store = new PromptChipStore();
 
     const folderChip = store.transformPastedContent({ kind: "text", text: folder });
     const fileChip = store.transformPastedContent({ kind: "text", text: file });
     expect(folderChip).toBe("[📁 source folder]");
-    expect(fileChip).toBe("[📄 reference.txt]");
+    expect(fileChip).toBe("[🖼  Clipboard (2).png]");
     expect(store.atomicRanges(`${folderChip} ${fileChip}`)).toHaveLength(2);
     expect(store.expandCopiedText(folderChip)).toBe(folder);
     expect(store.prepareSubmission(`inspect ${fileChip}`).text).toBe(`inspect ${file}`);

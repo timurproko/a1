@@ -443,13 +443,31 @@ describe("OwnedUiSessionShell", () => {
 
     terminal.input("\u0016");
     await vi.waitFor(() => expect(shell.root.editor.getText()).toContain("[🔗 https://example.com/"));
+
+    terminal.input("\u001b[D"); // Left selects the adjacent chip as one item.
+    expect(shell.root.render(60).join("\n")).toContain("\u001b[48;2;38;79;120m");
+    terminal.input("\u0003");
+    await vi.waitFor(() => expect(clipboardText).toBe("https://example.com/a/very/useful/resource"));
     terminal.input("\u007f");
     expect(shell.root.editor.getText()).toBe("");
     terminal.input("\u001a");
     expect(shell.root.editor.getText()).toContain("[🔗 https://example.com/");
-    terminal.input("\u0001");
-    terminal.input("\u0003");
-    await vi.waitFor(() => expect(clipboardText).toBe("https://example.com/a/very/useful/resource"));
+
+    terminal.input("\u001b[1;5C"); // Ctrl+Right also treats the chip as one item.
+    expect(shell.root.render(60).join("\n")).toContain("\u001b[48;2;38;79;120m");
+    terminal.input("\u001b[1;5C"); // Collapse at its far edge.
+    terminal.input("\u001b[1;5D"); // Ctrl+Left selects the whole chip, never its interior.
+    expect(shell.root.render(60).join("\n")).toContain("\u001b[48;2;38;79;120m");
+    terminal.input("\u001b[1;5D"); // Collapse at its near edge before the mouse check.
+
+    const chipFrame = shell.root.render(60).map(row => stripTerminalSequences(row));
+    const chipRow = chipFrame.findIndex(row => row.includes("https://example.com")) + 1;
+    const chipColumn = (chipFrame[chipRow - 1]?.indexOf("https://example.com") ?? -1) + 4;
+    terminal.input(`\u001b[<0;${chipColumn};${chipRow}M`);
+    terminal.input(`\u001b[<0;${chipColumn};${chipRow}m`);
+    expect(shell.root.render(60).join("\n")).toContain("\u001b[48;2;38;79;120m");
+    terminal.input("\u007f");
+    expect(shell.root.editor.getText()).toBe("");
 
     clipboardImage = { data: Buffer.from("fake-png").toString("base64"), mimeType: "image/png" };
     shell.root.editor.setText("");

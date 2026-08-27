@@ -209,12 +209,37 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
 
     const selection = this.#orderedSelection();
     if (selection === undefined) {
-      if (this.keybindings.matches(data, "tui.editor.cursorLeft") && this.#moveAcrossAtomic(-1)) return;
-      if (this.keybindings.matches(data, "tui.editor.cursorRight") && this.#moveAcrossAtomic(1)) return;
-      if (this.keybindings.matches(data, "tui.editor.deleteCharBackward") && this.#deleteAdjacentAtomic(-1)) return;
-      if (this.keybindings.matches(data, "tui.editor.deleteCharForward") && this.#deleteAdjacentAtomic(1)) return;
+      if (this.keybindings.matches(data, "tui.editor.cursorLeft") && this.#selectAdjacentAtomic(-1)) return;
+      if (this.keybindings.matches(data, "tui.editor.cursorRight") && this.#selectAdjacentAtomic(1)) return;
+      if (this.keybindings.matches(data, "tui.editor.cursorWordLeft")) {
+        if (!this.#selectAdjacentAtomic(-1)) {
+          next();
+          this.#selectAtomicAtCursor(-1);
+        }
+        return;
+      }
+      if (this.keybindings.matches(data, "tui.editor.cursorWordRight")) {
+        if (!this.#selectAdjacentAtomic(1)) {
+          next();
+          this.#selectAtomicAtCursor(1);
+        }
+        return;
+      }
+      if ((this.keybindings.matches(data, "tui.editor.deleteCharBackward")
+        || this.keybindings.matches(data, "tui.editor.deleteWordBackward"))
+        && this.#deleteAdjacentAtomic(-1)) return;
+      if ((this.keybindings.matches(data, "tui.editor.deleteCharForward")
+        || this.keybindings.matches(data, "tui.editor.deleteWordForward"))
+        && this.#deleteAdjacentAtomic(1)) return;
     }
     if (selection !== undefined) {
+      if (this.keybindings.matches(data, "tui.editor.deleteCharBackward")
+        || this.keybindings.matches(data, "tui.editor.deleteCharForward")
+        || this.keybindings.matches(data, "tui.editor.deleteWordBackward")
+        || this.keybindings.matches(data, "tui.editor.deleteWordForward")) {
+        this.#deleteSelection();
+        return;
+      }
       const inserted = insertedText(data);
       if (inserted !== undefined) {
         this.#replaceSelection(inserted);
@@ -227,17 +252,14 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
         next();
         return;
       }
-      if (this.keybindings.matches(data, "tui.editor.deleteCharBackward")
-        || this.keybindings.matches(data, "tui.editor.deleteCharForward")) {
-        this.#deleteSelection();
-        return;
-      }
-      if (this.keybindings.matches(data, "tui.editor.cursorLeft")) {
+      if (this.keybindings.matches(data, "tui.editor.cursorLeft")
+        || this.keybindings.matches(data, "tui.editor.cursorWordLeft")) {
         this.#setCursor(selection.start);
         this.#clearSelection();
         return;
       }
-      if (this.keybindings.matches(data, "tui.editor.cursorRight")) {
+      if (this.keybindings.matches(data, "tui.editor.cursorRight")
+        || this.keybindings.matches(data, "tui.editor.cursorWordRight")) {
         this.#setCursor(selection.end);
         this.#clearSelection();
         return;
@@ -567,14 +589,32 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
     return this.options.atomicRanges(line).find(range => position.col >= range.start && position.col < range.end);
   }
 
-  #moveAcrossAtomic(delta: -1 | 1): boolean {
+  #selectAdjacentAtomic(delta: -1 | 1): boolean {
     const state = editorState(this.editor);
     const line = state.lines[state.cursorLine] ?? "";
     const range = this.options.atomicRanges(line).find(candidate => delta < 0
       ? state.cursorCol > candidate.start && state.cursorCol <= candidate.end
       : state.cursorCol >= candidate.start && state.cursorCol < candidate.end);
-    if (range === undefined) return false;
-    state.cursorCol = delta < 0 ? range.start : range.end;
+    return range === undefined ? false : this.#selectAtomicRange(range, state.cursorLine, delta);
+  }
+
+  #selectAtomicAtCursor(delta: -1 | 1): boolean {
+    const state = editorState(this.editor);
+    const line = state.lines[state.cursorLine] ?? "";
+    const range = this.options.atomicRanges(line).find(candidate => delta < 0
+      ? state.cursorCol >= candidate.start && state.cursorCol < candidate.end
+      : state.cursorCol > candidate.start && state.cursorCol <= candidate.end);
+    return range === undefined ? false : this.#selectAtomicRange(range, state.cursorLine, delta);
+  }
+
+  #selectAtomicRange(range: PiShellEditorTextRange, line: number, delta: -1 | 1): boolean {
+    const start = { line, col: range.start };
+    const end = { line, col: range.end };
+    this.#selection = delta < 0
+      ? { anchor: end, head: start }
+      : { anchor: start, head: end };
+    this.#setCursor(this.#selection.head);
+    this.#selectionRevision += 1;
     this.#requestRender();
     return true;
   }
