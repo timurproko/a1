@@ -211,6 +211,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     );
     this.editor = createPiShellEditor({
       ...handlers,
+      keybindingProfile: this.#customViewport ? "a1" : "pi",
       cwd,
       ...(agentDir === undefined ? {} : { agentDir }),
       onToolsExpand: () => this.#setToolsExpanded(!this.#toolsExpanded),
@@ -369,7 +370,11 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     readonly consumed: boolean;
     readonly copyText?: string;
   } {
-    if (!this.#customViewport || this.#viewport.frame === null) return { data, consumed: false };
+    if (!this.#customViewport) return { data, consumed: false };
+    // Pi components share one keybinding manager. Restore bare A1's aliases
+    // before the focused vanilla editor handles this input.
+    this.editor.activateKeybindings();
+    if (this.#viewport.frame === null) return { data, consumed: false };
     if (data === "\u0003") {
       const copyText = this.#viewport.selectedText();
       if (copyText !== null && copyText.length > 0) {
@@ -377,6 +382,13 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
         this.#componentRuntime.requestRender();
         return { data: "", consumed: true, copyText };
       }
+    }
+    // Pi's fullscreen viewport also claims plain Home/End. Bare A1 reserves
+    // Alt+Home/End for transcript navigation, so send the unmodified keys to
+    // Pi's editor first and consume them before the fullscreen router sees them.
+    if (allowWheel && (HOME_INPUTS.has(data) || END_INPUTS.has(data))) {
+      this.editor.handleInput?.(data);
+      return { data: "", consumed: true };
     }
     if (allowWheel && ALT_END_INPUTS.has(data) && !this.#viewport.followingEnd) {
       this.#viewport.scrollToEnd(now);
@@ -1120,6 +1132,8 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
 }
 
 const SELECTION_AUTO_SCROLL_INTERVAL_MS = 30;
+const HOME_INPUTS = new Set(["\u001b[H", "\u001bOH", "\u001b[1~", "\u001b[7~"]);
+const END_INPUTS = new Set(["\u001b[F", "\u001bOF", "\u001b[4~", "\u001b[8~"]);
 const ALT_END_INPUTS = new Set(["\u001b[1;3F", "\u001b[4;3~", "\u001b[8;3~"]);
 const ALT_HOME_INPUTS = new Set(["\u001b[1;3H", "\u001b[1;3~", "\u001b[7;3~"]);
 const SHIFT_UP_INPUTS = new Set(["\u001b[1;2A"]);

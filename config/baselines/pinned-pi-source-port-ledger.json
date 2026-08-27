@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-08-25T13:32:08.081Z",
+  "recordedAt": "2026-08-27T10:51:07.823Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "914cf1472e715297caa30db4b9535d534a9eb718",
@@ -446,14 +446,20 @@
       "localDestination": "src/integrations/pi/components/upstream/adjacent/core/keybindings.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Mechanical source port with Node import prefixes and public package-root A1 agent-directory resolution.",
-      "localSha256": "7f89beaedd1afb88ebd4175567d9ced8d5160dc2c02704d7baa73c7838b87303",
+      "modifications": "Mechanical source port with Node import prefixes, public package-root agent-directory resolution, and an opt-in bare-A1 input alias profile.",
+      "localSha256": "964c219f87b8e3624ea135ae41f840eb9ccc2b07cba73afbee9af91e2203836d",
       "approvedDeviations": [
         {
           "id": "keybindings-public-config-boundary",
           "reason": "Resolve the agent configuration directory through the documented package-root API instead of a private config import.",
           "upstreamBehavior": "Complete pinned defaults, migrations, user overrides, conflict detection, matching, and effective-config behavior remain unchanged.",
           "acceptanceTest": "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+        },
+        {
+          "id": "owned-input-keybinding-aliases",
+          "reason": "Bare A1 opts into Ctrl+Backspace, Ctrl+Delete, and Ctrl+Z aliases for existing vanilla editor actions while the comparison profile retains pinned defaults.",
+          "upstreamBehavior": "The pinned comparison profile continues to use the exact upstream keybinding definitions and effective configuration.",
+          "acceptanceTest": "test/integrations/pi/owned-ui/session-shell.test.ts"
         }
       ],
       "behaviorCategories": [

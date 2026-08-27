@@ -338,6 +338,29 @@ describe("OwnedUiSessionShell", () => {
     expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from("Selectable assistant words").toString("base64")}\u0007`);
   });
 
+  it("routes plain Home/End and A1 editing aliases to Pi's editor", async () => {
+    const { terminal, shell } = await fixture([], [], true);
+    terminal.resize(60, 12);
+    shell.root.render(60);
+
+    shell.root.editor.setText("alpha beta");
+    terminal.input("\u001b[H");
+    terminal.input("start ");
+    terminal.input("\u001b[F");
+    terminal.input(" end");
+    expect(shell.root.editor.getText()).toBe("start alpha beta end");
+
+    terminal.input("\u001b[127;5u");
+    expect(shell.root.editor.getText()).toBe("start alpha beta ");
+    terminal.input("\u001b[H");
+    terminal.input("\u001b[3;5~");
+    expect(shell.root.editor.getText()).toBe(" alpha beta ");
+    terminal.input("\u001a");
+    expect(shell.root.editor.getText()).toBe("start alpha beta ");
+
+    await shell.dispose();
+  });
+
   it("uses Alt+Home for the first prompt and Shift+Up/Down between prompts", async () => {
     const messages = ["one", "two", "three"].flatMap((prompt, index) => [
       { role: "user", content: [{ type: "text", text: prompt }], timestamp: Date.now() + index * 2 },

@@ -207,6 +207,25 @@ export const KEYBINDINGS = {
 	},
 } as const satisfies KeybindingDefinitions;
 
+/** Pi actions with bare-A1 aliases; the comparison profile keeps KEYBINDINGS unchanged. */
+const OWNED_INPUT_KEYBINDINGS = {
+	...KEYBINDINGS,
+	"tui.editor.deleteWordBackward": {
+		...KEYBINDINGS["tui.editor.deleteWordBackward"],
+		defaultKeys: [...KEYBINDINGS["tui.editor.deleteWordBackward"].defaultKeys, "ctrl+backspace"],
+	},
+	"tui.editor.deleteWordForward": {
+		...KEYBINDINGS["tui.editor.deleteWordForward"],
+		defaultKeys: [...KEYBINDINGS["tui.editor.deleteWordForward"].defaultKeys, "ctrl+delete"],
+	},
+	"tui.editor.undo": {
+		...KEYBINDINGS["tui.editor.undo"],
+		defaultKeys: [KEYBINDINGS["tui.editor.undo"].defaultKeys, "ctrl+z"],
+	},
+	// Ctrl+Z edits the prompt in bare A1 instead of suspending the process.
+	"app.suspend": { ...KEYBINDINGS["app.suspend"], defaultKeys: [] },
+} as const satisfies KeybindingDefinitions;
+
 const KEYBINDING_NAME_MIGRATIONS = {
 	cursorUp: "tui.editor.cursorUp",
 	cursorDown: "tui.editor.cursorDown",
@@ -341,15 +360,27 @@ function loadRawConfig(path: string): Record<string, unknown> | undefined {
 export class KeybindingsManager extends TuiKeybindingsManager {
 	private configPath: string | undefined;
 
-	constructor(userBindings: KeybindingsConfig = {}, configPath?: string) {
-		super(KEYBINDINGS, userBindings);
+	constructor(
+		userBindings: KeybindingsConfig = {},
+		configPath?: string,
+		definitions: KeybindingDefinitions = KEYBINDINGS,
+	) {
+		super(definitions, userBindings);
 		this.configPath = configPath;
 	}
 
 	static create(agentDir: string = getAgentDir()): KeybindingsManager {
+		return KeybindingsManager.createWithDefinitions(agentDir, KEYBINDINGS);
+	}
+
+	static createForOwnedInput(agentDir: string = getAgentDir()): KeybindingsManager {
+		return KeybindingsManager.createWithDefinitions(agentDir, OWNED_INPUT_KEYBINDINGS);
+	}
+
+	private static createWithDefinitions(agentDir: string, definitions: KeybindingDefinitions): KeybindingsManager {
 		const configPath = join(agentDir, "keybindings.json");
 		const userBindings = KeybindingsManager.loadFromFile(configPath);
-		return new KeybindingsManager(userBindings, configPath);
+		return new KeybindingsManager(userBindings, configPath, definitions);
 	}
 
 	reload(): void {

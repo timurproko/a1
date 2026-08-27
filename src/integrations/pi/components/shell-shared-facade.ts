@@ -26,6 +26,8 @@ export interface PiShellComponentPort {
 }
 
 export interface PiShellEditorPort extends PiShellComponentPort {
+  /** Restores this editor's profile after another Pi component changed the global manager. */
+  activateKeybindings(): void;
   getText(): string;
   setText(text: string): void;
   insertText(text: string): void;
@@ -100,6 +102,8 @@ export interface PiShellHeaderOptions {
 }
 
 export interface PiShellEditorOptions {
+  /** Bare A1 adds ergonomic aliases while comparison profiles retain Pi defaults. */
+  readonly keybindingProfile?: "pi" | "a1";
   readonly getColumns: () => number;
   readonly getRows: () => number;
   readonly requestRender: () => void;

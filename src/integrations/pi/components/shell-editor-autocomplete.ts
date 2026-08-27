@@ -50,7 +50,9 @@ export const PINNED_PI_BUILTIN_SLASH_COMMANDS = [
 export function createPiShellEditor(options: PiShellEditorOptions): PiShellEditorPort {
   ensureTheme();
   const tui = createTuiFacade(options);
-  const keybindings = KeybindingsManager.create(options.agentDir);
+  const keybindings = options.keybindingProfile === "a1"
+    ? KeybindingsManager.createForOwnedInput(options.agentDir)
+    : KeybindingsManager.create(options.agentDir);
   setKeybindings(keybindings);
   const editor = new OwnedEditor(tui, {
     borderColor: (value: string) => piTheme().fg("borderMuted", value),
@@ -120,6 +122,7 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
   if (options.onDequeue !== undefined) editor.onAction("app.message.dequeue", options.onDequeue);
   return {
     render: width => editor.render(width),
+    activateKeybindings: () => setKeybindings(keybindings),
     handleInput: data => editor.handleInput(data),
     invalidate: () => editor.invalidate(),
     setFocused: focused => {
