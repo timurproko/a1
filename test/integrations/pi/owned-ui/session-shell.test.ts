@@ -272,6 +272,20 @@ describe("OwnedUiSessionShell", () => {
     await shell.dispose();
   });
 
+  it("uses the same terminal-native cyan styling for assistant-content URL links", async () => {
+    const url = "https://www.theverge.com/reviews";
+    const { terminal, shell } = await fixture([
+      { role: "assistant", content: [{ type: "text", text: `The corrected link is:\n\n${url}` }], timestamp: Date.now() },
+    ], [], true);
+    terminal.resize(100, 12);
+    const row = shell.root.render(100).find(line => stripTerminalSequences(line).includes(url)) ?? "";
+
+    expect(row).toContain(`\u001b]8;;${url}\u001b\\`);
+    expect(row).toContain(piTheme().fg("mdLink", url));
+    expect(row).not.toContain("\u001b[4m");
+    await shell.dispose();
+  });
+
   it("wraps ordinary transcript content through the rail overlay column", async () => {
     const word = "x".repeat(60);
     const { terminal, shell } = await fixture([

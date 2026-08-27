@@ -866,12 +866,17 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   #blockRows(id: string, block: OwnedUiSessionViewModel["transcript"][number] | undefined, width: number): readonly string[] {
     const component = this.#transcript.get(id);
     if (component === undefined) return [];
-    if (block === undefined || block.status !== "finalized") return component.render(width);
+    const render = (): readonly string[] => {
+      const rows = component.render(width);
+      if (!this.#customViewport || block?.kind === "user") return rows;
+      return rows.map(row => nativeHyperlinkStyle(row, text => piTheme().fg("mdLink", text)));
+    };
+    if (block === undefined || block.status !== "finalized") return render();
 
     let byWidth = this.#renderedRows.get(id);
     const cached = byWidth?.get(width);
     if (cached?.revision === block.revision) return cached.rows;
-    const rows = component.render(width);
+    const rows = render();
     if (byWidth === undefined) {
       byWidth = new Map();
       this.#renderedRows.set(id, byWidth);
