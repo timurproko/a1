@@ -79,8 +79,8 @@ export function validateProductIdentity(value: unknown): ProductIdentity {
   if (!/^@[a-z0-9-]+\/[a-z0-9-]+$/.test(packageName)) throw new TypeError("product package name must be a lowercase scoped npm package");
   if (displayName.trim() !== displayName || displayName.length === 0) throw new TypeError("product display name must be non-empty without surrounding whitespace");
   if (schema !== `${commandName}-product-identity-v1`) throw new TypeError("product identity schema must derive from the command name");
-  if (filesystem.slug !== commandName || filesystem.unixDirectory !== filesystem.slug || filesystem.windowsDirectory !== displayName) {
-    throw new TypeError("product filesystem identity must derive from display and command names");
+  if (filesystem.slug !== commandName || filesystem.unixDirectory !== filesystem.slug || filesystem.windowsDirectory !== filesystem.slug) {
+    throw new TypeError("product filesystem identity must derive from the command name");
   }
   if (filesystem.temporaryPrefix !== `${filesystem.slug}-`) throw new TypeError("product temporary prefix must derive from the filesystem slug");
   if (state.windowsControlDirectory !== filesystem.windowsDirectory || state.unixControlDirectory !== filesystem.unixDirectory) {

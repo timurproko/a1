@@ -2,17 +2,17 @@ import { describe, expect, it } from "vitest";
 import { resolveCohortEndpoint, resolveProductPaths } from "../../../src/foundation/lifecycle/index.js";
 
 describe("product control paths", () => {
-  it("uses A1 defaults on Windows", () => {
+  it("uses lowercase a1 defaults on Windows", () => {
     const paths = resolveProductPaths({
       USERPROFILE: "C:\\Users\\Alice",
       APPDATA: "C:\\Users\\Alice\\AppData\\Roaming",
       LOCALAPPDATA: "C:\\Users\\Alice\\AppData\\Local",
     }, "win32", "C:\\fallback");
 
-    expect(paths.configDir).toBe("C:\\Users\\Alice\\AppData\\Roaming\\A1");
-    expect(paths.dataDir).toBe("C:\\Users\\Alice\\AppData\\Local\\A1");
-    expect(paths.runtimeDir).toBe("C:\\Users\\Alice\\AppData\\Local\\A1\\runtime");
-    expect(paths.databasePath).toBe("C:\\Users\\Alice\\AppData\\Local\\A1\\control.sqlite3");
+    expect(paths.configDir).toBe("C:\\Users\\Alice\\AppData\\Roaming\\a1");
+    expect(paths.dataDir).toBe("C:\\Users\\Alice\\AppData\\Local\\a1");
+    expect(paths.runtimeDir).toBe("C:\\Users\\Alice\\AppData\\Local\\a1\\runtime");
+    expect(paths.databasePath).toBe("C:\\Users\\Alice\\AppData\\Local\\a1\\control.sqlite3");
     expect(paths.endpoint).toMatch(/^\\\\\.\\pipe\\a1-[a-f0-9]{20}$/);
     expect(JSON.stringify(paths)).not.toMatch(/AddOne|addone/);
   });

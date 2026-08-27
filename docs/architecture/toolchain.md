@@ -81,9 +81,9 @@ These paths are A1 control and release state, not Pi profile roots. All are over
 
 | Purpose | Override | Windows default | Unix default |
 |---|---|---|---|
-| Config | `A1_CONFIG_DIR` | `%APPDATA%\\A1` | `$XDG_CONFIG_HOME/a1` or `~/.config/a1` |
-| Durable data | `A1_DATA_DIR` | `%LOCALAPPDATA%\\A1` | `$XDG_DATA_HOME/a1` or `~/.local/share/a1` |
-| Runtime | `A1_RUNTIME_DIR` | `%LOCALAPPDATA%\\A1\\runtime` | `$XDG_RUNTIME_DIR/a1` or `<data>/runtime` |
+| Config | `A1_CONFIG_DIR` | `%APPDATA%\\a1` | `$XDG_CONFIG_HOME/a1` or `~/.config/a1` |
+| Durable data | `A1_DATA_DIR` | `%LOCALAPPDATA%\\a1` | `$XDG_DATA_HOME/a1` or `~/.local/share/a1` |
+| Runtime | `A1_RUNTIME_DIR` | `%LOCALAPPDATA%\\a1\\runtime` | `$XDG_RUNTIME_DIR/a1` or `<data>/runtime` |
 | Database | `A1_DATABASE_PATH` | `<data>/control.sqlite3` | `<data>/control.sqlite3` |
 | Endpoint | `A1_ENDPOINT` | runtime-scoped `a1-*` named pipe | `<runtime>/supervisor.sock` |
 

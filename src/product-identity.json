@@ -5,7 +5,7 @@
   "packageName": "@timurproko/a1",
   "filesystem": {
     "slug": "a1",
-    "windowsDirectory": "A1",
+    "windowsDirectory": "a1",
     "unixDirectory": "a1",
     "temporaryPrefix": "a1-"
   },
@@ -44,7 +44,7 @@
     "terminalSessionId": "A1_TERMINAL_SESSION_ID"
   },
   "state": {
-    "windowsControlDirectory": "A1",
+    "windowsControlDirectory": "a1",
     "unixControlDirectory": "a1",
     "developmentDirectory": "a1-development",
     "piAgentProfile": ".a1/agent",
