@@ -52,8 +52,8 @@ class FakeSession {
     for (const listener of this.listeners) listener(event);
   }
 
-  async prompt(text: string): Promise<void> {
-    this.calls.push(`prompt:${text}`);
+  async prompt(text: string, options?: { streamingBehavior?: "steer" | "followUp" }): Promise<void> {
+    this.calls.push(`prompt:${text}${options?.streamingBehavior ? `:${options.streamingBehavior}` : ""}`);
     this.isStreaming = true;
     this.emit({ type: "agent_start" });
     this.isStreaming = false;
@@ -303,8 +303,8 @@ describe("Pi engine adapter", () => {
 
     expect(session.calls).toEqual([
       "prompt:Inspect",
-      "steer:Adjust",
-      "followUp:Continue",
+      "prompt:Adjust:steer",
+      "prompt:Continue:followUp",
       "abortRetry",
       "abortCompaction",
       "abort",

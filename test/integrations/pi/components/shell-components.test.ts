@@ -45,7 +45,7 @@ function view(): OwnedUiSessionViewModel {
 
 describe("Pi shell public component adapters", () => {
   it("matches Pi's queued steering rows, spacing, and dequeue hint", () => {
-    const queued = createPiQueuedInputStatus(["first", "second\nline"]);
+    const queued = createPiQueuedInputStatus(["first", "second\nline"], "custom-viewport");
     const rows = queued.render(80).map(row => stripTerminalSequences(row).trimEnd());
     expect(rows).toEqual([
       "",

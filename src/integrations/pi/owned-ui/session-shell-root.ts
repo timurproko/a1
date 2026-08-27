@@ -205,7 +205,10 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.resources = createPiShellLoadedResources(startup.resources ?? [], startup.expanded ?? false);
     this.#status = createPiShellStatus(view, handlers);
     this.#footer = createPiShellFooter(this.#viewWithExtensionStatuses(view), cwd);
-    this.#queued = createPiQueuedInputStatus(view.editor.queuedSubmissions);
+    this.#queued = createPiQueuedInputStatus(
+      view.editor.queuedSubmissions,
+      this.#customViewport ? "custom-viewport" : "pinned",
+    );
     this.editor = createPiShellEditor({
       ...handlers,
       cwd,

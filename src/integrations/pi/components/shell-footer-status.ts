@@ -137,14 +137,17 @@ export function createPiShellFooter(view: OwnedUiSessionViewModel, cwd: string):
   };
 }
 
-export function createPiQueuedInputStatus(submissions: readonly string[]): PiShellQueuedInputPort {
-  const text = new Text(queuedInputText(submissions), 1, 0);
+export function createPiQueuedInputStatus(
+  submissions: readonly string[],
+  presentation: "pinned" | "custom-viewport" = "pinned",
+): PiShellQueuedInputPort {
+  const text = new Text(queuedInputText(submissions, presentation), 1, 0);
   return {
     render: width => submissions.length === 0 ? [] : text.render(width),
     invalidate: () => text.invalidate(),
     update(next) {
       submissions = next;
-      text.setText(queuedInputText(next));
+      text.setText(queuedInputText(next, presentation));
     },
   };
 }
@@ -165,12 +168,19 @@ function statusSignature(view: OwnedUiSessionViewModel, workingOverride?: string
   return `${view.lifecycle}\u0000${workingOverride ?? ""}\u0000${view.status.workingMessage ?? ""}\u0000${view.status.diagnostics.at(-1) ?? ""}`;
 }
 
-function queuedInputText(submissions: readonly string[]): string {
+function queuedInputText(
+  submissions: readonly string[],
+  presentation: "pinned" | "custom-viewport",
+): string {
   if (submissions.length === 0) return "";
   const theme = piTheme();
+  if (presentation === "pinned") {
+    return submissions.map(submission => theme.fg("muted", `Steering: ${submission.replaceAll("\n", " ⏎ ")}`)).join("\n");
+  }
   const messages = submissions.map(submission => theme.fg("dim", `Steering: ${submission.replaceAll("\n", " ⏎ ")}`));
   const dequeueHint = theme.fg("dim", "↳ Alt+Up to edit all queued messages");
-  // Pi separates pending input from the transcript with one breathing row.
+  // The custom viewport matches Pi's interactive queue presentation while the
+  // comparison shell remains byte-for-byte compatible with its pinned fixture.
   return ["", ...messages, dequeueHint].join("\n");
 }
 
