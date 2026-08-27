@@ -39,18 +39,19 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
   const adapter = options.createPiAdapter
     ? await options.createPiAdapter()
     : await createPiEngineAdapter({ cwd, availableThemes: () => getAvailablePiThemes().map(theme => theme.name) });
+  const ownedSurfaces = options.ownedSurfaces !== "off";
   const settings = options.profileId === undefined
     ? null
     : new OwnedUiSettingsSession({
       store: new OwnedUiSettingsStore({ configDir: resolveProductPaths().configDir, profileId: options.profileId }),
       agentProvider: () => adapter.settingsPort(),
-      ...(options.ownedSurfaces === "off" ? {} : { hiddenAgentSettingIds: ["tuiMode"] }),
+      ...(ownedSurfaces ? { hiddenAgentSettingIds: ["tuiMode", "theme"] } : {}),
     });
-  // Before anything is drawn, so every surface uses the configured theme rather
-  // than the one guessed from the terminal's background.
-  applyConfiguredPiTheme(adapter.configuredTheme());
+  // Bare A1 intentionally ships one visual target while its UI is being completed:
+  // dark, regardless of terminal detection or a previously stored Pi theme. The
+  // comparison profile keeps Pi's configured theme behavior and settings surface.
+  applyConfiguredPiTheme(ownedSurfaces ? "dark" : adapter.configuredTheme());
 
-  const ownedSurfaces = options.ownedSurfaces !== "off";
   const routeHost = settings === null || !ownedSurfaces ? null : createOwnedRouteHost(settings);
   const viewportSettings: OwnedUiViewportSettingsPort | null = settings === null || !ownedSurfaces ? null : {
     snapshot: () => viewportSettingsSnapshot(settings),
