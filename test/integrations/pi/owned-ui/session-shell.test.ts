@@ -200,7 +200,7 @@ describe("OwnedUiSessionShell", () => {
     const detached = detachedRaw.map(row => stripTerminalSequences(row));
     expect(detached).toHaveLength(12);
     expect(detachedRaw[0]).toContain(piTheme().fg("userMessageText", "11:57"));
-    expect(detached.some(row => row.includes("Jump to bottom (Alt+End)"))).toBe(true);
+    expect(detached.some(row => row.includes("Jump to bottom (End)"))).toBe(true);
     expect(detached[0]).not.toContain("│");
     expect(detached.slice(1, -4).some(row => row.includes("│"))).toBe(true);
     expect(detachedRaw.some(row => row.includes(piTheme().fg("text", "│")))).toBe(true);
@@ -214,17 +214,17 @@ describe("OwnedUiSessionShell", () => {
     engine.session.emit({ type: "message_start", message: completedReply });
     engine.session.emit({ type: "message_end", message: completedReply });
     await shell.backend.flushEvents();
-    expect(shell.root.render(60).some(row => stripTerminalSequences(row).includes("1 new message (Alt+End)"))).toBe(true);
+    expect(shell.root.render(60).some(row => stripTerminalSequences(row).includes("1 new message (End)"))).toBe(true);
 
     engine.session.emit({ type: "message_end", message: { role: "tool", content: [{ type: "text", text: "tool result" }] } });
     await shell.backend.flushEvents();
-    expect(shell.root.render(60).some(row => stripTerminalSequences(row).includes("1 new message (Alt+End)"))).toBe(true);
+    expect(shell.root.render(60).some(row => stripTerminalSequences(row).includes("1 new message (End)"))).toBe(true);
 
     // v2 resumes follow at the exact agent_start boundary, which also clears
     // the completed-message count on the next frame.
     engine.session.emit({ type: "agent_start" });
     await shell.backend.flushEvents();
-    expect(shell.root.render(60).every(row => !stripTerminalSequences(row).includes("Alt+End"))).toBe(true);
+    expect(shell.root.render(60).every(row => !stripTerminalSequences(row).includes("new message (End)"))).toBe(true);
     engine.session.emit({ type: "agent_settled" });
     await shell.backend.flushEvents();
 
@@ -338,23 +338,21 @@ describe("OwnedUiSessionShell", () => {
     expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from("Selectable assistant words").toString("base64")}\u0007`);
   });
 
-  it("routes plain Home/End and A1 editing aliases to Pi's editor", async () => {
+  it("keeps Ctrl+Home/End and A1 editing aliases in Pi's editor", async () => {
     const { terminal, shell } = await fixture([], [], true);
     terminal.resize(60, 12);
     shell.root.render(60);
 
     shell.root.editor.setText("alpha beta");
-    // Windows Terminal can include the explicit unmodified parameter; Pi's
-    // decoder accepts both this and the shorter CSI H/F spellings.
-    terminal.input("\u001b[1;1H");
+    terminal.input("\u001b[1;5H");
     terminal.input("start ");
-    terminal.input("\u001b[1;1F");
+    terminal.input("\u001b[1;5F");
     terminal.input(" end");
     expect(shell.root.editor.getText()).toBe("start alpha beta end");
 
     terminal.input("\u001b[127;5u");
     expect(shell.root.editor.getText()).toBe("start alpha beta ");
-    terminal.input("\u001b[1;1H");
+    terminal.input("\u001b[1;5H");
     terminal.input("\u001b[3;5~");
     expect(shell.root.editor.getText()).toBe(" alpha beta ");
     terminal.input("\u001a");
@@ -363,7 +361,7 @@ describe("OwnedUiSessionShell", () => {
     await shell.dispose();
   });
 
-  it("uses Alt+Home for the first prompt and Shift+Up/Down between prompts", async () => {
+  it("uses Home/End for transcript boundaries and Shift+Up/Down between prompts", async () => {
     const messages = ["one", "two", "three"].flatMap((prompt, index) => [
       { role: "user", content: [{ type: "text", text: prompt }], timestamp: Date.now() + index * 2 },
       { role: "assistant", content: [{ type: "text", text: `reply-${prompt}-1\nreply-${prompt}-2\nreply-${prompt}-3\nreply-${prompt}-4\nreply-${prompt}-5` }], timestamp: Date.now() + index * 2 + 1 },
@@ -374,7 +372,7 @@ describe("OwnedUiSessionShell", () => {
     const top = () => rows()[0] ?? "";
 
     shell.root.render(60);
-    terminal.input("\u001b[1;3H");
+    terminal.input("\u001b[1;1H");
     expect(top().trim()).toBe("");
     expect(rows()[1]).toContain("❯ one");
 
@@ -393,6 +391,9 @@ describe("OwnedUiSessionShell", () => {
     terminal.input("\u001b[1;2A");
     expect(top().trim()).toBe("");
     expect(rows()[1]).toContain("❯ one");
+
+    terminal.input("\u001b[1;1F");
+    expect(top()).toContain("❯ three");
 
     await shell.dispose();
   });

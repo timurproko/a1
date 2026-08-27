@@ -383,21 +383,18 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
         return { data: "", consumed: true, copyText };
       }
     }
-    // Pi's fullscreen viewport also claims plain Home/End. Bare A1 reserves
-    // Alt+Home/End for transcript navigation, so send the unmodified keys to
-    // Pi's editor first and consume them before the fullscreen router sees them.
-    if (allowWheel && (this.editor.matchesEditingKey(data, "home") || this.editor.matchesEditingKey(data, "end"))) {
-      this.editor.handleInput?.(data);
-      return { data: "", consumed: true };
-    }
-    if (allowWheel && ALT_END_INPUTS.has(data) && !this.#viewport.followingEnd) {
-      this.#viewport.scrollToEnd(now);
-      this.#scheduleViewportActivityExpiry();
-      this.#componentRuntime.requestRender();
-      return { data: "", consumed: true };
-    }
-    if (allowWheel && ALT_HOME_INPUTS.has(data)) {
+    // Plain Home/End own transcript boundaries. Their Ctrl-modified forms are
+    // not matched here and continue to Pi's vanilla prompt editor.
+    if (allowWheel && this.editor.matchesTerminalKey(data, "home")) {
       if (this.#viewport.scrollTo(0, now)) {
+        this.#scheduleViewportActivityExpiry();
+        this.#componentRuntime.requestRender();
+      }
+      return { data: "", consumed: true };
+    }
+    if (allowWheel && this.editor.matchesTerminalKey(data, "end")) {
+      if (!this.#viewport.followingEnd) {
+        this.#viewport.scrollToEnd(now);
         this.#scheduleViewportActivityExpiry();
         this.#componentRuntime.requestRender();
       }
@@ -1132,8 +1129,6 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
 }
 
 const SELECTION_AUTO_SCROLL_INTERVAL_MS = 30;
-const ALT_END_INPUTS = new Set(["\u001b[1;3F", "\u001b[4;3~", "\u001b[8;3~"]);
-const ALT_HOME_INPUTS = new Set(["\u001b[1;3H", "\u001b[1;3~", "\u001b[7;3~"]);
 const SHIFT_UP_INPUTS = new Set(["\u001b[1;2A"]);
 const SHIFT_DOWN_INPUTS = new Set(["\u001b[1;2B"]);
 const SCROLLBAR_CELL_RESET = "\u001b[22;23;24;25;27;28;29;39;54;55m";

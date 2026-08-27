@@ -29,7 +29,7 @@ describe("transcript viewport", () => {
     expect(detached.followingEnd).toBe(false);
     expect(detached.scrollTop).toBe(detachedTop);
     expect(viewport.newMessages).toBe(2);
-    expect(stripAnsi(detached.rows[4] ?? "")).toContain("2 new messages (Alt+End)");
+    expect(stripAnsi(detached.rows[4] ?? "")).toContain("2 new messages (End)");
 
     viewport.scrollToEnd(103);
     const followed = viewport.compose({ documentRows: rows(14), dockRows: ["dock"], promptAnchors: [], width: 40, height: 6, now: 104 });
@@ -57,7 +57,7 @@ describe("transcript viewport", () => {
       now: 103,
     });
     expect(notified.hits.bottom?.row).toBe(7);
-    expect(stripAnsi(notified.rows[6] ?? "")).toContain("Jump to bottom (Alt+End)");
+    expect(stripAnsi(notified.rows[6] ?? "")).toContain("Jump to bottom (End)");
   });
 
   it("jumps between submitted prompts in both directions", () => {

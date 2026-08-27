@@ -371,9 +371,9 @@ export class TranscriptViewport {
     const frameRows = [...visible, ...dock].slice(0, height);
     let bottomHit: TranscriptViewportHitRegions["bottom"] = null;
     if (geometry !== null && !this.#followingEnd && frameRows.length > 0) {
-      const genericLabel = " Jump to bottom (Alt+End) ";
+      const genericLabel = " Jump to bottom (End) ";
       const countedLabel = this.#newMessages > 0
-        ? ` ${this.#newMessages} new message${this.#newMessages === 1 ? "" : "s"} (Alt+End) `
+        ? ` ${this.#newMessages} new message${this.#newMessages === 1 ? "" : "s"} (End) `
         : genericLabel;
       const label = displayWidth(countedLabel) <= contentWidth ? countedLabel : genericLabel;
       const labelWidth = displayWidth(label);
