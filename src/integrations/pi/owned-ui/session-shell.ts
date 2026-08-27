@@ -80,7 +80,11 @@ import {
 } from "../tui-runtime/index.js";
 
 
-import { preloadSystemClipboard, readSystemClipboardText } from "./system-clipboard.js";
+import {
+  preloadSystemClipboard,
+  readSystemClipboardText,
+  writeSystemClipboardText,
+} from "./system-clipboard.js";
 import {
   OwnedUiSessionShellRoot,
   shellResourceEntries,
@@ -127,6 +131,7 @@ export class OwnedUiSessionShell {
       this.#resolveStopped = resolve;
     });
     let runtime: PiTuiRuntimeAdapter | undefined;
+    let pendingClipboardWrite: Promise<void> = Promise.resolve();
     this.root = new OwnedUiSessionShellRoot(this.backend.view(), options.cwd, {
       getColumns: () => runtime?.viewport().columns ?? options.terminal?.columns ?? 80,
       getRows: () => runtime?.viewport().rows ?? options.terminal?.rows ?? 24,
@@ -145,10 +150,19 @@ export class OwnedUiSessionShell {
       onMessageCopy: () => { void this.runWorkflow({ command: "copy", argument: "" }); },
       onFollowUp: () => { void this.queueFollowUp(); },
       onDequeue: () => this.restoreQueuedInput(),
-      onCopyText: text => runtime?.writeControl(`\u001b]52;c;${Buffer.from(text, "utf8").toString("base64")}\u0007`),
-      readClipboardText: options.clipboard === undefined
-        ? readSystemClipboardText
-        : () => options.clipboard?.readText() ?? Promise.resolve(null),
+      onCopyText: text => {
+        runtime?.writeControl(`\u001b]52;c;${Buffer.from(text, "utf8").toString("base64")}\u0007`);
+        const write = options.clipboard === undefined
+          ? writeSystemClipboardText(text)
+          : options.clipboard.writeText?.(text) ?? Promise.resolve();
+        pendingClipboardWrite = write.catch(() => {});
+      },
+      readClipboardText: async () => {
+        await pendingClipboardWrite;
+        return options.clipboard === undefined
+          ? readSystemClipboardText()
+          : options.clipboard.readText();
+      },
     }, {
       ...options.startup,
       resources: options.startup?.resources ?? shellResourceEntries(this.backend),

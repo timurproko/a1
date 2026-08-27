@@ -102,6 +102,7 @@ type OwnedUiStartupOptions = PiShellHeaderOptions;
 
 export interface OwnedUiClipboardPort {
   readText(): Promise<string | null>;
+  writeText?(text: string): Promise<void>;
 }
 
 export interface OwnedUiSessionShellOptions {

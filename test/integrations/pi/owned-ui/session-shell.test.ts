@@ -138,7 +138,7 @@ async function fixture(
   extensions: readonly unknown[] = [],
   customViewport = false,
   viewportSettings?: OwnedUiViewportSettingsPort,
-  clipboard?: { readText(): Promise<string | null> },
+  clipboard?: { readText(): Promise<string | null>; writeText?(text: string): Promise<void> },
 ) {
   const engine = new Runtime(messages);
   engine.extensionResources = extensions;
@@ -364,8 +364,13 @@ describe("OwnedUiSessionShell", () => {
   });
 
   it("intercepts owned prompt selection, clipboard, undo, redo, and shift selection actions", async () => {
+    let clipboardText = "pasted text";
     const { terminal, shell } = await fixture([], [], true, undefined, {
-      readText: async () => "pasted text",
+      readText: async () => clipboardText,
+      writeText: async text => {
+        await Promise.resolve();
+        clipboardText = text;
+      },
     });
     terminal.resize(60, 12);
     shell.root.editor.setText("alpha beta");
@@ -383,13 +388,14 @@ describe("OwnedUiSessionShell", () => {
     terminal.input("\u0019"); // Ctrl+Y
     expect(shell.root.editor.getText()).toBe("");
 
-    terminal.input("\u0016"); // Ctrl+V
-    await vi.waitFor(() => expect(shell.root.editor.getText()).toBe("pasted text"));
+    terminal.input("\u0016"); // Ctrl+V immediately after copying/cutting
+    await vi.waitFor(() => expect(shell.root.editor.getText()).toBe("alpha beta"));
     terminal.input("\u001a");
     expect(shell.root.editor.getText()).toBe("");
     terminal.input("\u0019");
-    expect(shell.root.editor.getText()).toBe("pasted text");
+    expect(shell.root.editor.getText()).toBe("alpha beta");
 
+    clipboardText = "pasted text";
     shell.root.editor.setText("replace me");
     terminal.input("\u0001");
     terminal.input("\u0016");

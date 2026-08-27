@@ -4,6 +4,7 @@ const MAX_CLIPBOARD_BYTES = 16 * 1024 * 1024;
 
 type NativeClipboard = typeof import("@mariozechner/clipboard");
 let nativeClipboardPromise: Promise<NativeClipboard | null> | undefined;
+let pendingClipboardWrite: Promise<void> = Promise.resolve();
 
 /** Load the native adapter during shell startup so the first paste is warm. */
 export function preloadSystemClipboard(): void {
@@ -16,6 +17,9 @@ export function preloadSystemClipboard(): void {
  * unavailable clipboard simply makes the paste action a no-op.
  */
 export async function readSystemClipboardText(): Promise<string | null> {
+  // Ctrl+C/Ctrl+X and Ctrl+V can arrive in adjacent input turns. Serialize the
+  // read behind our native write so paste never observes the previous value.
+  await pendingClipboardWrite;
   if (process.platform === "win32" || process.platform === "darwin") {
     const native = await nativeClipboard();
     if (native !== null) {
@@ -38,6 +42,23 @@ export async function readSystemClipboardText(): Promise<string | null> {
   if (process.platform === "darwin") return execClipboard("pbpaste", []);
   return (await execClipboard("wl-paste", ["--no-newline", "--type", "text"]))
     ?? execClipboard("xclip", ["-selection", "clipboard", "-o"]);
+}
+
+export function writeSystemClipboardText(text: string): Promise<void> {
+  const write = async (): Promise<void> => {
+    const native = await nativeClipboard();
+    if (native !== null) {
+      try {
+        await native.setText(text);
+        return;
+      } catch {
+        // OSC 52 is still emitted by the caller when native access fails.
+      }
+    }
+  };
+  const operation = pendingClipboardWrite.then(write, write);
+  pendingClipboardWrite = operation.catch(() => {});
+  return operation;
 }
 
 function nativeClipboard(): Promise<NativeClipboard | null> {
