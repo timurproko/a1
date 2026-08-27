@@ -1,6 +1,6 @@
 import type { AgentSessionRuntime } from "@earendil-works/pi-coding-agent";
 import { readFile } from "node:fs/promises";
-import { CURSOR_MARKER, stripTerminalSequences } from "@earendil-works/pi-tui";
+import { CURSOR_MARKER, stripTerminalSequences, visibleWidth } from "@earendil-works/pi-tui";
 import { describe, expect, it, vi } from "vitest";
 import {
   createPiEngineAdapter,
@@ -479,9 +479,13 @@ describe("OwnedUiSessionShell", () => {
     expect(wrappedChipRows.filter(row => row.includes("[🔗")).length).toBe(1);
     expect(wrappedChipRows.find(row => row.includes("[🔗"))).toContain(urlChip);
     shell.root.editor.setText(urlChip);
-    const linkedChip = shell.root.editor.render(60).join("\n");
+    const linkedChipRows = shell.root.editor.render(60);
+    const linkedChip = linkedChipRows.join("\n");
+    const linkedChipRow = linkedChipRows.find(row => stripTerminalSequences(row).includes("https://example.com")) ?? "";
     expect(linkedChip).toContain("\u001b]8;;https://example.com/a/very/useful/resource\u001b\\");
     expect(linkedChip).toContain("\u001b]8;;\u001b\\");
+    expect(visibleWidth(linkedChipRow)).toBe(60);
+    expect(stripTerminalSequences(linkedChipRow)).toMatch(/\] +$/u);
 
     terminal.input("\u001b[D"); // Left focuses the adjacent chip as one inverted item.
     const focusedChip = shell.root.render(60).find(row => stripTerminalSequences(row).includes("https://example.com")) ?? "";

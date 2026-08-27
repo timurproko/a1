@@ -245,15 +245,20 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       ),
       transformPastedContent: content => this.#promptChips.transformPastedContent(content),
       editorAtomicRanges: line => this.#promptChips.atomicRanges(line),
-      decorateEditorRow: row => {
+      decorateEditorRow: (row, width) => {
         const plain = stripAnsi(row);
-        return this.#promptChips.hyperlinkRanges(plain).reduce((decorated, range) => hyperlinkSgrSpan(
-          decorated,
+        const ranges = this.#promptChips.hyperlinkRanges(plain);
+        if (ranges.length === 0) return row;
+        const decorated = ranges.reduce((result, range) => hyperlinkSgrSpan(
+          result,
           piShellVisibleWidth(plain.slice(0, range.start)),
           piShellVisibleWidth(plain.slice(0, range.end)),
           range.target,
           piShellVisibleWidth,
         ), row);
+        // Windows Terminal can retain stale native dotted-link cells when a mutable
+        // prompt replaces a longer URL. Explicit non-link spaces overwrite that tail.
+        return `${decorated}\u001b]8;;\u001b\\\u001b[24m${" ".repeat(Math.max(0, width - piShellVisibleWidth(decorated)))}`;
       },
 
       expandCopiedEditorText: text => this.#promptChips.expandCopiedText(text),

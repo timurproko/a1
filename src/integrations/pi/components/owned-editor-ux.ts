@@ -127,7 +127,7 @@ export interface PromptSelectionUxOptions {
   readonly atomicRanges: (line: string) => readonly PiShellEditorTextRange[];
   readonly expandCopiedText: (text: string) => string;
   readonly paintSelection: (line: string, from: number, to: number, atomic: boolean) => string;
-  readonly decorateRow: (row: string) => string;
+  readonly decorateRow: (row: string, width: number) => string;
   readonly requestRender: () => void;
   readonly getRows: () => number;
 }
@@ -323,7 +323,7 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
         }
       }
     }
-    return rows.map(row => this.options.decorateRow(row));
+    return rows.map(row => this.options.decorateRow(row, width));
   }
 
   reset(): void {
