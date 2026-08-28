@@ -105,9 +105,9 @@ describe("repository-local development launch", () => {
     }
   });
 
-  it("preserves CLI validation for non-profile development commands", async () => {
-    await expect(execute(process.execPath, ["scripts/development/start-local.mjs", "not-an-a1-command"]))
-      .rejects.toMatchObject({ code: 2, stderr: expect.stringContaining("A1 received an unknown command: not-an-a1-command") });
+  it("returns silently for an unsupported non-profile development command", async () => {
+    const result = await execute(process.execPath, ["scripts/development/start-local.mjs", "not-an-a1-command"]);
+    expect(result).toMatchObject({ stdout: "", stderr: "" });
   });
 
   it("shares durable preferences across fresh instances and rebuilt local candidates", () => {

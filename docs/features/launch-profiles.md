@@ -7,9 +7,9 @@
 | `a1` | A1-owned Pi-compatible UI | `~/.a1/agent` |
 | `a1 pi` | Pi-compatible comparison surface using the ordinary Pi profile | ordinary `~/.pi/agent` |
 
-`a1 pi` is a development instrument for comparing A1 against pinned Pi. Prerelease builds — what `a1 update:develop` or `a1 update:<number>` installs — expose it. A release build does not recognize the launch form. Repository development can run the comparison directly with `npm start:pi`.
+`a1 pi` is a development instrument for comparing A1 against pinned Pi. Prerelease builds — what `a1 update --develop` or `a1 update --develop <number>` installs — expose it. A release build does not recognize the launch form. Repository development can run the comparison directly with `npm start:pi`.
 
-There is no `a1 agent` command. The former `a1 ui` subcommand is removed. Bare `a1` is the owned agent product surface and remains the entry point when multi-agent UX is introduced.
+There is no `a1 agent` command. The former `a1 ui` subcommand is removed. Unsupported commands return quietly without selecting another runtime. Bare `a1` is the owned agent product surface and remains the entry point when multi-agent UX is introduced.
 
 ## First launch
 

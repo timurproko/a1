@@ -56,13 +56,14 @@ internal `next` dist-tag and never moves `latest`.
 Users install previews with public `develop` terminology:
 
 ```sh
-a1 update:develop       # current development channel
-a1 update:107           # numbered preview
-a1 update:0.1.8-dev.107 # exact full preview version
+a1 update --develop                     # current development channel
+a1 update --develop 107                 # numbered preview
+a1 update --develop 0.1.8-dev.107       # exact full preview version
 ```
 
-`a1 update:next` is removed and redirects to `a1 update:develop` without registry
-or runtime work.
+The former `a1 update:<selector>` commands are removed without compatibility
+aliases or redirects. Unsupported forms exit quietly without registry or runtime
+work.
 
 ## Cutting a stable release
 
