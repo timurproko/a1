@@ -17,7 +17,8 @@ context: |
 
   Manual handoff:
   - When a change becomes runnable, provide the exact applicable worktree, branch/commit, build/run commands, what to try, expected behavior, and known gaps. Repeat the commands after a push that changes what the user runs.
-  - End such a reply with one copy-pasteable block headed `🔬 Manual test:` and use forward-slash paths. Do not hardcode a generic command when the change needs another command.
+  - End such a reply with exactly two lines: the heading `🧪 Manual test:` followed by one copy-pasteable shell command. Use forward-slash paths and combine worktree selection with applicable build/run steps using `&&`.
+  - The one command must exercise the changed behavior directly. Do not hardcode a generic launcher such as `npm start` when a focused CLI or script command applies.
   - When nothing is runnable, say so briefly and do not include a manual-test block.
 
   Completion:
