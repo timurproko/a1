@@ -307,6 +307,37 @@ describe("OwnedUiSessionShell", () => {
     });
   });
 
+  it("keeps transcript links dotted and non-interactive while LMB selection is held", async () => {
+    await withPinnedHyperlinks(async () => {
+      const url = "https://example.com/selection-stays-exact";
+      const { terminal, shell } = await fixture([
+        { role: "assistant", content: [{ type: "text", text: url }], timestamp: Date.now() },
+      ], [], true);
+      terminal.resize(100, 12);
+      const initial = shell.root.render(100);
+      const rowIndex = initial.findIndex(line => stripTerminalSequences(line).includes(url));
+      const plain = stripTerminalSequences(initial[rowIndex] ?? "");
+      const start = plain.indexOf(url) + 1;
+      const end = start + url.length - 1;
+      const row = rowIndex + 1;
+
+      terminal.input(`\u001b[<0;${start};${row}M`);
+      const held = shell.root.render(100)[rowIndex] ?? "";
+      expect(held).not.toContain(`\u001b]8;;${url}\u001b\\`);
+      expect(held).toContain("\u001b[4:4m");
+      expect(held).toContain("https:\uFE0E//example.com/selection-stays-exact");
+      expect(getPinnedPiTuiLinkAtColumn(held, start - 1)).toBeUndefined();
+
+      terminal.input(`\u001b[<32;${end};${row}M`);
+      terminal.input(`\u001b[<0;${end};${row}m`);
+      const released = shell.root.render(100)[rowIndex] ?? "";
+      expect(released).toContain(`\u001b]8;;${url}\u001b\\`);
+      terminal.input("\u0003");
+      expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from(url).toString("base64")}\u0007`);
+      await shell.dispose();
+    });
+  });
+
   it("keeps file hyperlinks cyan while web URLs use link blue", async () => {
     await withPinnedHyperlinks(async () => {
       const label = "src/integrations/pi/session-ui/session-shell-root.ts";

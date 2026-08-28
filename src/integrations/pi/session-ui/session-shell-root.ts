@@ -12,6 +12,7 @@ import {
   composeSubmittedPromptRows,
   displayWidth,
   formatSubmittedPromptTime,
+  heldNativeHyperlinkStyle,
   hyperlinkSgrSpan,
   nativeHyperlinkStyle,
   overlaySpan,
@@ -357,6 +358,9 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       : undefined);
     return this.#viewportController.compose({
       documentRows: document.rows,
+      ...(this.#viewportController.transcriptPointerSelecting
+        ? { paintDocumentRow: heldNativeHyperlinkStyle }
+        : {}),
       // Overflowing queued and Working rows scroll with the transcript but
       // remain status chrome: selection and copying stop at the real document tail.
       selectableDocumentRowCount,
