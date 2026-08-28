@@ -9,10 +9,10 @@
 
 ## 2. Resolve project trust before engine activation
 
-- [ ] 2.1 Split launch into global-settings/trust preflight and project-backed engine activation so no project settings or resource loader is constructed before an effective decision; verify order-sensitive tests fail if any project source is read before trust resolution
-- [ ] 2.2 Resolve saved path decisions and `defaultProjectTrust` with pinned precedence for trusted, untrusted, and ask defaults; verify focused fixtures cover parent/child path decisions, an undecided path, and a changed default applying on the next start
-- [ ] 2.3 Add the bounded pre-session trust surface for undecided interactive launches and a fail-closed non-interactive path; verify accept, reject, cancel, error, and unavailable-interaction cases load no project resource before completion
-- [ ] 2.4 Bind the existing `/trust` workflow to the same persisted decision authority for future launches; verify changing trust in-session cannot retroactively claim that already-loaded resources were protected and the next launch honors the saved decision
+- [x] 2.1 Split launch into global-settings/trust preflight and project-backed engine activation so no project settings or resource loader is constructed before an effective decision; verify order-sensitive tests fail if any project source is read before trust resolution
+- [x] 2.2 Resolve saved path decisions and `defaultProjectTrust` with pinned precedence for trusted, untrusted, and ask defaults; verify focused fixtures cover parent/child path decisions, an undecided path, and a changed default applying on the next start
+- [x] 2.3 Add the bounded pre-session trust surface for undecided interactive launches and a fail-closed non-interactive path; verify accept, reject, cancel, error, and unavailable-interaction cases load no project resource before completion
+- [x] 2.4 Bind the existing `/trust` workflow to the same persisted decision authority for future launches; verify changing trust in-session cannot retroactively claim that already-loaded resources were protected and the next launch honors the saved decision
 
 ## 3. Apply active agent and provider settings
 

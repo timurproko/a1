@@ -14,11 +14,16 @@ const { runSelectedInteractiveRuntime } = await import("../dist/features/launch/
 
 runSelectedInteractiveRuntime(process.env.A1_LAUNCH_PROFILE ?? "a1", {
   ownedUi: async (profileId, ownedSurfaces) => {
-    const [{ runOwnedUi }, { composeOwnedUi }] = await Promise.all([
+    const [{ createConsoleProjectTrustPrompt, runOwnedUi }, { composeOwnedUi }] = await Promise.all([
       import("../dist/features/owned-ui/index.js"),
       import("../dist/composition/index.js"),
     ]);
-    const { application, settings } = await composeOwnedUi({ cwd: process.cwd(), profileId, ownedSurfaces });
+    const { application, settings } = await composeOwnedUi({
+      cwd: process.cwd(),
+      profileId,
+      ownedSurfaces,
+      projectTrustPrompt: createConsoleProjectTrustPrompt(),
+    });
     return await runOwnedUi({ application, ...(settings === null ? {} : { settings }) });
   },
 }).then(

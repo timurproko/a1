@@ -1,6 +1,10 @@
 import { resolveProductPaths } from "../foundation/lifecycle/index.js";
 import { applyConfiguredPiTheme, getAvailablePiThemes } from "../integrations/pi/components/index.js";
-import { createPiEngineAdapter, type PiEngineAdapter } from "../integrations/pi/engine/index.js";
+import {
+  createPiEngineAdapter,
+  type PiEngineAdapter,
+  type PiProjectTrustPreflightPrompt,
+} from "../integrations/pi/engine/index.js";
 import { OwnedUiSessionShell } from "../integrations/pi/session-ui/index.js";
 import { OwnedUiSettingsSession, OwnedUiSettingsStore } from "../ui/settings/index.js";
 import { createPiTerminalBridge } from "../integrations/pi/tui-runtime/index.js";
@@ -22,6 +26,7 @@ export interface OwnedUiCompositionOptions {
    * use the same composition with those surfaces withheld.
    */
   readonly ownedSurfaces?: "on" | "off";
+  readonly projectTrustPrompt?: PiProjectTrustPreflightPrompt;
 }
 
 export interface OwnedUiComposition {
@@ -42,6 +47,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
       cwd,
       availableThemes: () => getAvailablePiThemes().map(theme => theme.name),
       settingsProductMode: options.ownedSurfaces === "off" ? "comparison" : "bare",
+      ...(options.projectTrustPrompt === undefined ? {} : { projectTrustPrompt: options.projectTrustPrompt }),
     });
   const ownedSurfaces = options.ownedSurfaces !== "off";
   const settings = options.profileId === undefined

@@ -4,17 +4,30 @@ import {
   createAgentSessionServices,
   resolveModelScopeWithDiagnostics,
   SessionManager,
+  SettingsManager,
   type AgentSession,
   type AgentSessionRuntime,
   type AgentSessionServices,
   type CreateAgentSessionRuntimeFactory,
   type ScopedModel,
 } from "@earendil-works/pi-coding-agent";
+import {
+  resolvePiProjectTrustPreflight,
+  type PiProjectTrustPreflightPrompt,
+} from "./project-trust-preflight.js";
 
 export interface PiRuntimeIntegrationOptions {
   readonly cwd: string;
   readonly agentDir: string;
   readonly sessionDir?: string;
+  readonly projectTrustPrompt?: PiProjectTrustPreflightPrompt;
+  readonly preflightDependencies?: PiRuntimePreflightDependencies;
+}
+
+export interface PiRuntimePreflightDependencies {
+  readonly resolveTrust?: typeof resolvePiProjectTrustPreflight;
+  readonly createSettingsManager?: (cwd: string, agentDir: string, projectTrusted: boolean) => SettingsManager;
+  readonly createServices?: typeof createAgentSessionServices;
 }
 
 export type PiSessionReplacement =
@@ -65,6 +78,26 @@ export async function resolveConfiguredModelScope(
   };
 }
 
+export async function createPiRuntimeServicesAfterTrust(
+  options: Pick<PiRuntimeIntegrationOptions, "agentDir" | "projectTrustPrompt" | "preflightDependencies"> & { readonly cwd: string },
+): Promise<{
+  readonly services: AgentSessionServices;
+  readonly trust: Awaited<ReturnType<typeof resolvePiProjectTrustPreflight>>;
+}> {
+  const resolveTrust = options.preflightDependencies?.resolveTrust ?? resolvePiProjectTrustPreflight;
+  const createSettingsManager = options.preflightDependencies?.createSettingsManager
+    ?? ((targetCwd: string, agentDir: string, projectTrusted: boolean) => SettingsManager.create(targetCwd, agentDir, { projectTrusted }));
+  const createServices = options.preflightDependencies?.createServices ?? createAgentSessionServices;
+  const trust = await resolveTrust({
+    cwd: options.cwd,
+    agentDir: options.agentDir,
+    ...(options.projectTrustPrompt === undefined ? {} : { prompt: options.projectTrustPrompt }),
+  });
+  const settingsManager = createSettingsManager(options.cwd, options.agentDir, trust.trusted);
+  const services = await createServices({ cwd: options.cwd, agentDir: options.agentDir, settingsManager });
+  return { services, trust };
+}
+
 export async function createPiRuntimeIntegration(options: PiRuntimeIntegrationOptions): Promise<AgentSessionRuntime> {
   const sessionManager = SessionManager.create(options.cwd, options.sessionDir ?? process.env.PI_CODING_AGENT_SESSION_DIR);
   const createRuntime: CreateAgentSessionRuntimeFactory = async ({
@@ -72,7 +105,12 @@ export async function createPiRuntimeIntegration(options: PiRuntimeIntegrationOp
     sessionManager: targetSessionManager,
     sessionStartEvent,
   }) => {
-    const services = await createAgentSessionServices({ cwd, agentDir: options.agentDir });
+    const { services, trust } = await createPiRuntimeServicesAfterTrust({
+      cwd,
+      agentDir: options.agentDir,
+      ...(options.projectTrustPrompt === undefined ? {} : { projectTrustPrompt: options.projectTrustPrompt }),
+      ...(options.preflightDependencies === undefined ? {} : { preflightDependencies: options.preflightDependencies }),
+    });
     const modelScope = await resolveConfiguredModelScope(services);
     const hasExistingSession = targetSessionManager.buildSessionContext().messages.length > 0;
     const created = await createAgentSessionFromServices({
@@ -83,7 +121,14 @@ export async function createPiRuntimeIntegration(options: PiRuntimeIntegrationOp
       ...(modelScope.thinkingLevel && !hasExistingSession ? { thinkingLevel: modelScope.thinkingLevel } : {}),
       ...(modelScope.scopedModels.length > 0 ? { scopedModels: [...modelScope.scopedModels] } : {}),
     });
-    return { ...created, services, diagnostics: [...modelScope.diagnostics] };
+    return {
+      ...created,
+      services,
+      diagnostics: [
+        ...(trust.diagnostic === null ? [] : [{ type: "warning" as const, message: trust.diagnostic }]),
+        ...modelScope.diagnostics,
+      ],
+    };
   };
   return createAgentSessionRuntime(createRuntime, {
     cwd: options.cwd,

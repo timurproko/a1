@@ -59,6 +59,7 @@ import { createPiRuntimeIntegration } from "./runtime-integration.js";
 import { PiSessionCommandIntegration } from "./session-integration.js";
 import { PiSettingsIntegration } from "./settings-integration.js";
 import type { PiSettingOwnerHandlers } from "./settings-effects.js";
+import type { PiProjectTrustPreflightPrompt } from "./project-trust-preflight.js";
 import type { AgentJsonValue, AgentSettingOwner } from "../../../contracts/agent-engine/index.js";
 
 const execFileAsync = promisify(execFile);
@@ -78,6 +79,7 @@ export interface PiEngineRuntimeFactoryInput {
   readonly cwd: string;
   readonly agentDir: string;
   readonly sessionId: string;
+  readonly projectTrustPrompt?: PiProjectTrustPreflightPrompt;
 }
 
 export interface PiScopedModelDescriptor {
@@ -184,6 +186,7 @@ export interface PiEngineAdapterOptions {
    */
   readonly availableThemes?: () => readonly string[];
   readonly settingsProductMode?: "bare" | "comparison";
+  readonly projectTrustPrompt?: PiProjectTrustPreflightPrompt;
   /**
    * Startup extension-package update probe, mirroring pinned Pi's interactive
    * mode. Returns display names of packages with updates available.
@@ -261,6 +264,7 @@ export class PiEngineAdapter {
   #extensionBound = false;
   #disposed = false;
   readonly #settingsProductMode: "bare" | "comparison";
+  readonly #projectTrustPrompt: PiProjectTrustPreflightPrompt | undefined;
   #settingsIntegration: PiSettingsIntegration | undefined;
   #settingsIntegrationManager: unknown;
 
@@ -278,6 +282,7 @@ export class PiEngineAdapter {
     this.#workflowHost = options.workflowHost ?? defaultWorkflowHost();
     this.#availableThemes = options.availableThemes ?? null;
     this.#settingsProductMode = options.settingsProductMode ?? "bare";
+    this.#projectTrustPrompt = options.projectTrustPrompt;
     this.#workflowInteraction = { prompt: async () => null, notify() {} };
   }
 
@@ -307,6 +312,7 @@ export class PiEngineAdapter {
       cwd: this.#cwd,
       agentDir: this.#agentDir,
       sessionId: this.#sessionId,
+      ...(this.#projectTrustPrompt === undefined ? {} : { projectTrustPrompt: this.#projectTrustPrompt }),
     }).catch(error => {
       this.#lifecycle = "failed";
       this.#addDiagnostic("error", "engine-startup", error instanceof Error ? error.message : String(error), false);
@@ -636,6 +642,11 @@ export class PiEngineAdapter {
           return Array.isArray(levels) ? levels.map(level => String(level)) : [];
         },
         productMode: this.#settingsProductMode,
+      });
+      this.#settingsIntegration.bindOwner("startup", {
+        // Deferred application is the owner operation: the next preflight reads
+        // the persisted default before constructing project-backed services.
+        defaultProjectTrust: { apply() {} },
       });
       this.#settingsIntegration.bindOwner("agent", {
         autoCompact: { apply: value => {
@@ -2322,7 +2333,11 @@ export async function createPiEngineAdapter(
 }
 
 async function createDefaultPiRuntime(input: PiEngineRuntimeFactoryInput): Promise<AgentSessionRuntime> {
-  return createPiRuntimeIntegration({ cwd: input.cwd, agentDir: input.agentDir });
+  return createPiRuntimeIntegration({
+    cwd: input.cwd,
+    agentDir: input.agentDir,
+    ...(input.projectTrustPrompt === undefined ? {} : { projectTrustPrompt: input.projectTrustPrompt }),
+  });
 }
 
 async function checkDefaultPiPackageUpdates(
