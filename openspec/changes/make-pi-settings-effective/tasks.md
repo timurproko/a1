@@ -4,7 +4,7 @@
 - [x] 1.2 Add an exhaustive reviewed effect registry for every key in generated Pi settings metadata, including owner, timing, and capability predicate; verify an added, removed, duplicated, or unmapped generated key fails the inventory test by name
 - [x] 1.3 Implement the settings coordinator's validate, apply, persist, flush, rollback, bind-owner, and unbind-owner behavior; verify focused tests cover live success, deferred success, unavailable settings, effect failure, flush failure, rollback, rollback failure diagnostics, and disposal
 - [x] 1.4 Route `PiSettingsIntegration` reads and writes through the coordinator and expose truthful effective state; verify storage-only setters can no longer make a descriptor writable without an effect or lifecycle handler
-- [ ] 1.5 Update the owned settings session and app to display applied, deferred, and unavailable outcomes with exact reasons and effective values; verify changing a live, next-start, current-exit, and unavailable fixture produces the specified screen state
+- [x] 1.5 Update the owned settings session and app to display applied, deferred, and unavailable outcomes with exact reasons and effective values; verify changing a live, next-start, current-exit, and unavailable fixture produces the specified screen state
 - [x] 1.6 Delegate the pinned settings selector callbacks to the same coordinator rather than a second key-to-callback path; verify owned and pinned routes produce the same setting mutation and owner effect for a representative key in every owner category
 
 ## 2. Resolve project trust before engine activation
@@ -16,12 +16,12 @@
 
 ## 3. Apply active agent and provider settings
 
-- [ ] 3.1 Bind `autoCompact`, `autoResizeImages`, and `blockImages` to the active session and verify subsequent compaction checks, prompt images, tool images, and provider context observe live changes
-- [ ] 3.2 Bind `steeringMode`, `followUpMode`, and `transport` to the active agent and verify subsequent queued prompts and provider requests use new values without session recreation
-- [ ] 3.3 Bind `thinkingLevel` to the active session and persisted fresh-session default; verify capability clamping, footer/editor indicators, current-session requests, and a later fresh session agree
+- [x] 3.1 Bind `autoCompact`, `autoResizeImages`, and `blockImages` to the active session and verify subsequent compaction checks, prompt images, tool images, and provider context observe live changes
+- [x] 3.2 Bind `steeringMode`, `followUpMode`, and `transport` to the active agent and verify subsequent queued prompts and provider requests use new values without session recreation
+- [x] 3.3 Bind `thinkingLevel` to the active session and persisted fresh-session default; verify capability clamping, footer/editor indicators, current-session requests, and a later fresh session agree
 - [x] 3.4 Rebuild skill command registration and autocomplete when `enableSkillCommands` changes; verify commands appear or disappear live while unrelated extension and prompt commands retain identity and order
 - [ ] 3.5 Apply `httpIdleTimeoutMs` to both provider streaming and Pi HTTP dispatcher configuration, including zero's disabled semantics; verify focused timeout-option and sequential-launch tests detect an immediate-timeout regression or leaked prior-profile value
-- [ ] 3.6 Bind structured `warnings` and `showCacheMissNotices` at their decision points; verify each warning flag changes only its declared warning and cache-miss notices toggle without rendered-string filtering
+- [x] 3.6 Bind structured `warnings` and `showCacheMissNotices` at their decision points; verify each warning flag changes only its declared warning and cache-miss notices toggle without rendered-string filtering
 
 ## 4. Apply owned-shell and terminal settings
 

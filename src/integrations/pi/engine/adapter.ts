@@ -656,6 +656,10 @@ export class PiEngineAdapter {
           if (value !== "default" && value !== "no-tools" && value !== "user-only" && value !== "labeled-only" && value !== "all") throw new TypeError("Tree filter mode is invalid");
           settings.setTreeFilterMode(value);
         } },
+        showCacheMissNotices: { apply: value => {
+          if (typeof value !== "boolean") throw new TypeError("Cache-miss notice setting is invalid");
+          settings.setShowCacheMissNotices(value);
+        } },
       });
       this.#settingsIntegration.bindOwner("startup", {
         // Deferred application is the owner operation: the next preflight reads
@@ -698,6 +702,11 @@ export class PiEngineAdapter {
           if (!isThinkingLevel(value)) throw new TypeError("Thinking level is invalid");
           this.#requireWorkflowSession().setThinkingLevel(value);
           this.#thinkingLevel = readThinkingLevel(this.#requireWorkflowSession().thinkingLevel);
+          this.#emitView();
+        } },
+        warnings: { apply: value => {
+          if (!isRecord(value) || Object.values(value).some(flag => typeof flag !== "boolean")) throw new TypeError("Warnings setting is invalid");
+          settings.setWarnings(value);
         } },
       });
     }

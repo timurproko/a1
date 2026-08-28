@@ -155,6 +155,8 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   #toolsExpanded = false;
   #thinkingVisible = true;
   #mermaidRenderingMode: "off" | "final" | "streaming" = "off";
+  #showImages = true;
+  #imageWidthCells = 80;
   #outputPad: 0 | 1 = 1;
   #workflowTranscriptSequence = 0;
   readonly #workflowStatusAnchors = new Map<string, number>();
@@ -317,6 +319,14 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.#invalidateTranscriptPresentation();
   }
 
+  setImagePresentation(showImages: boolean, imageWidthCells: number): void {
+    if (this.#showImages === showImages && this.#imageWidthCells === imageWidthCells) return;
+    this.#showImages = showImages;
+    this.#imageWidthCells = imageWidthCells;
+    for (const component of this.#transcript.values()) component.setImagePresentation(showImages, imageWidthCells);
+    this.#invalidateTranscriptPresentation();
+  }
+
   preparePromptSubmission(text: string): PreparedPrompt {
     return this.#promptChips.prepareSubmission(text);
   }
@@ -348,6 +358,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       const created = createPiShellTranscriptComponent(
         block, this.#cwd, this.#extensionRenderers, this.#submittedPromptComposer,
         this.#outputPad, !this.#thinkingVisible, this.#mermaidRenderingMode,
+        this.#showImages, this.#imageWidthCells,
       );
       created.setExpanded(this.#toolsExpanded);
       this.#transcript.set(block.id, created);
@@ -937,6 +948,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
         const created = createPiShellTranscriptComponent(
           block, this.#cwd, this.#extensionRenderers, this.#submittedPromptComposer,
           this.#outputPad, !this.#thinkingVisible, this.#mermaidRenderingMode,
+          this.#showImages, this.#imageWidthCells,
         );
         created.setExpanded(this.#toolsExpanded);
         this.#transcript.set(block.id, created);
@@ -974,6 +986,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       setOutputPad() {},
       setHideThinkingBlock() {},
       setMermaidRenderingMode() {},
+      setImagePresentation() {},
       ...(dispose === undefined ? {} : { dispose }),
     };
     this.#transcript.set(id, component);

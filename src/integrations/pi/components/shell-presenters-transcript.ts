@@ -178,6 +178,8 @@ export function createPiShellTranscriptComponent(
   initialOutputPad: 0 | 1 = PINNED_PI_LAYOUT.outputPad,
   initialHideThinkingBlock = false,
   initialMermaidRenderingMode: MermaidRenderingMode = "off",
+  initialShowImages = true,
+  initialImageWidthCells = 80,
 ): PiShellTranscriptComponentPort {
   ensureTheme();
   let block = initial;
@@ -185,8 +187,11 @@ export function createPiShellTranscriptComponent(
   let outputPad = initialOutputPad;
   let hideThinkingBlock = initialHideThinkingBlock;
   let mermaidRenderingMode = initialMermaidRenderingMode;
+  let showImages = initialShowImages;
+  let imageWidthCells = initialImageWidthCells;
   const rebuild = () => transcriptComponent(
     block, cwd, expanded, extensions, submittedPrompt, outputPad, hideThinkingBlock, mermaidRenderingMode,
+    showImages, imageWidthCells,
   );
   let component = rebuild();
   return {
@@ -221,6 +226,14 @@ export function createPiShellTranscriptComponent(
       mermaidRenderingMode = mode;
       component = rebuild();
     },
+    setImagePresentation(show, width) {
+      showImages = show;
+      imageWidthCells = width;
+      if (component instanceof ToolExecutionComponent) {
+        component.setShowImages(show);
+        component.setImageWidthCells(width);
+      } else component = rebuild();
+    },
   };
 }
 
@@ -241,7 +254,7 @@ export function renderPiShellTranscriptBlock(
   cwd: string,
 ): readonly string[] {
   ensureTheme();
-  return transcriptComponent(block, cwd, true, undefined, undefined, PINNED_PI_LAYOUT.outputPad, false, "off").render(width);
+  return transcriptComponent(block, cwd, true, undefined, undefined, PINNED_PI_LAYOUT.outputPad, false, "off", true, 80).render(width);
 }
 
 /**
@@ -294,6 +307,8 @@ function transcriptComponent(
   outputPad: 0 | 1,
   hideThinkingBlock: boolean,
   mermaidRenderingMode: MermaidRenderingMode,
+  showImages: boolean,
+  imageWidthCells: number,
 ): Component {
   switch (block.kind) {
     case "user": {
@@ -313,7 +328,7 @@ function transcriptComponent(
       return assistantComponent(block, outputPad, hideThinkingBlock, mermaidRenderingMode);
     case "tool-call":
     case "tool-result": {
-      const component = toolComponent(block, cwd, extensions);
+      const component = toolComponent(block, cwd, extensions, showImages, imageWidthCells);
       component.setExpanded(expanded);
       return component;
     }
@@ -468,7 +483,9 @@ function isPiMessageRenderer(value: unknown): value is NonNullable<PiMessageRend
 function toolComponent(
   block: OwnedUiTranscriptBlock,
   cwd: string,
-  extensions?: PiShellExtensionRendererResolver,
+  extensions: PiShellExtensionRendererResolver | undefined,
+  showImages: boolean,
+  imageWidthCells: number,
 ): ToolExecutionComponent {
   const payload = blockPayload(block);
   const toolCallId = stringPayload(payload, "toolCallId") ?? block.id;
@@ -478,7 +495,7 @@ function toolComponent(
     toolName,
     toolCallId,
     argumentsPayload,
-    undefined,
+    { showImages, imageWidthCells },
     validatedToolDefinition(extensions?.getToolDefinition(toolName)),
     createTuiFacade({ getColumns: () => 80, getRows: () => 24, requestRender() {}, onSubmit() {} }),
     cwd,

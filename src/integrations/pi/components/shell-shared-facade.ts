@@ -115,6 +115,7 @@ export interface PiShellTranscriptComponentPort extends PiShellComponentPort {
   setOutputPad(padding: 0 | 1): void;
   setHideThinkingBlock(hidden: boolean): void;
   setMermaidRenderingMode(mode: "off" | "final" | "streaming"): void;
+  setImagePresentation(showImages: boolean, imageWidthCells: number): void;
 }
 
 export interface PiShellStartupNotice {

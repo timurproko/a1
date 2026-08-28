@@ -120,6 +120,8 @@ export class OwnedUiSessionShell {
   readonly #unbindPiSettings: () => void;
   readonly #unbindTerminalSettings: () => void;
   #terminalProgressEnabled = false;
+  #showImages = true;
+  #imageWidthCells = 80;
   #compactionQueue: Array<{
     readonly text: string;
     readonly type: "steer" | "follow-up";
@@ -254,6 +256,9 @@ export class OwnedUiSessionShell {
     this.root.setOutputPad(initialPiSettings.outputPad);
     this.root.setHideThinkingBlock(initialPiSettings.hideThinkingBlock);
     this.root.setMermaidRenderingMode(initialPiSettings.mermaidRenderingMode);
+    this.#showImages = initialPiSettings.showImages;
+    this.#imageWidthCells = initialPiSettings.imageWidthCells;
+    this.root.setImagePresentation(this.#showImages, this.#imageWidthCells);
     this.#unbindPiSettings = this.backend.bindSettingsOwner("shell", {
       editorPaddingX: { apply: value => {
         if (typeof value !== "number") throw new TypeError("Editor padding is invalid");
@@ -274,6 +279,16 @@ export class OwnedUiSessionShell {
       mermaidRenderingMode: { apply: value => {
         if (value !== "off" && value !== "final" && value !== "streaming") throw new TypeError("Mermaid mode is invalid");
         this.root.setMermaidRenderingMode(value);
+      } },
+      showImages: { apply: value => {
+        if (typeof value !== "boolean") throw new TypeError("Image visibility is invalid");
+        this.#showImages = value;
+        this.root.setImagePresentation(this.#showImages, this.#imageWidthCells);
+      } },
+      imageWidthCells: { apply: value => {
+        if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 1) throw new TypeError("Image width is invalid");
+        this.#imageWidthCells = value;
+        this.root.setImagePresentation(this.#showImages, this.#imageWidthCells);
       } },
     });
     this.#extensionBridge = createPiExtensionUiBridge({

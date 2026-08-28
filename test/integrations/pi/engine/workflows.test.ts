@@ -18,6 +18,8 @@ class WorkflowSession {
   readonly sessionId = "workflow-session";
   model: unknown = { provider: "openai", id: "gpt-5", name: "GPT-5" };
   thinkingLevel: unknown = "medium";
+  steeringMode: unknown = "all";
+  followUpMode: unknown = "all";
   readonly agent = { transport: "sse" };
   isStreaming = false;
   readonly isIdle = true;
@@ -45,6 +47,8 @@ class WorkflowSession {
   async compact(instructions?: string): Promise<void> { this.calls.push(`compact:${instructions ?? ""}`); }
   async setModel(model: unknown): Promise<void> { this.model = model; this.calls.push("setModel"); }
   setThinkingLevel(level: unknown): void { this.thinkingLevel = level; }
+  setSteeringMode(mode: unknown): void { this.steeringMode = mode; }
+  setFollowUpMode(mode: unknown): void { this.followUpMode = mode; }
   dispose(): void {}
   setScopedModels(models: readonly unknown[]): void { this.calls.push(`scoped:${models.length}`); }
   async cycleModel(): Promise<unknown> { return { model: { provider: "anthropic", id: "claude", name: "Claude" }, thinkingLevel: "high" }; }
@@ -318,12 +322,22 @@ describe("pinned Pi command and input workflows", () => {
     expect(port).not.toBeNull();
     await expect(port!.writeSetting("autoResizeImages", false)).resolves.toMatchObject({ status: "applied", effectiveValue: false });
     await expect(port!.writeSetting("blockImages", true)).resolves.toMatchObject({ status: "applied", effectiveValue: true });
+    await expect(port!.writeSetting("steeringMode", "one-at-a-time")).resolves.toMatchObject({ status: "applied", effectiveValue: "one-at-a-time" });
+    await expect(port!.writeSetting("followUpMode", "one-at-a-time")).resolves.toMatchObject({ status: "applied", effectiveValue: "one-at-a-time" });
     await expect(port!.writeSetting("transport", "websocket")).resolves.toMatchObject({ status: "applied", effectiveValue: "websocket" });
+    await expect(port!.writeSetting("thinkingLevel", "high")).resolves.toMatchObject({ status: "applied", effectiveValue: "high" });
     await expect(port!.writeSetting("httpIdleTimeoutMs", 0)).resolves.toMatchObject({ status: "applied", effectiveValue: 0 });
+    await expect(port!.writeSetting("showCacheMissNotices", true)).resolves.toMatchObject({ status: "applied", effectiveValue: true });
+    await expect(port!.writeSetting("warnings", { anthropicExtraUsage: false })).resolves.toMatchObject({ status: "applied" });
     expect(runtime.settingsValues.get("ImageAutoResize")).toBe(false);
     expect(runtime.settingsValues.get("BlockImages")).toBe(true);
+    expect(runtime.session.steeringMode).toBe("one-at-a-time");
+    expect(runtime.session.followUpMode).toBe("one-at-a-time");
     expect(runtime.session.agent.transport).toBe("websocket");
+    expect(runtime.session.thinkingLevel).toBe("high");
     expect(runtime.settingsValues.get("HttpIdleTimeoutMs")).toBe(0);
+    expect(runtime.settingsValues.get("ShowCacheMissNotices")).toBe(true);
+    expect(runtime.settingsValues.get("Warnings")).toEqual({ anthropicExtraUsage: false });
 
     expect(adapter.workflowAutocompleteCommands().some(command => command.name === "skill:review")).toBe(true);
     await expect(port!.writeSetting("enableSkillCommands", false)).resolves.toMatchObject({ status: "applied" });
