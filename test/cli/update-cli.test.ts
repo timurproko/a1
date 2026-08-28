@@ -113,7 +113,6 @@ else process.exitCode = 64;
       cwd: temporaryRoot,
       env: {
         ...process.env,
-        A1_RUNTIME_DIR: runtimeDirectory,
         NODE_OPTIONS: `--no-warnings --experimental-loader=${pathToFileURL(loader).href}`,
       },
       timeout: 15_000,
