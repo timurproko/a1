@@ -6,11 +6,14 @@ TBD - created by archiving change install-extension-packages. Update Purpose aft
 ## Requirements
 
 ### Requirement: Package commands manage the A1 profile only
-`a1 pi install <source>`, `a1 pi remove <source>`, its alias `a1 pi uninstall <source>`, and
-`a1 pi list` SHALL resolve the normal A1 profile root at `<home>/.a1/agent` and operate
-on it alone. Installing SHALL place package content under that root and record the
-source in that root's `settings.json`, so the next bare `a1` loads it. No package
-command SHALL accept a profile prefix, profile flag, or project scope; the vanilla
+`a1 pi install <source>`, `a1 pi remove <source>`, its alias
+`a1 pi uninstall <source>`, `a1 pi list`, and accepted `a1 pi update` package forms
+SHALL operate on A1's own profile. `a1 pi update --models` SHALL refresh model
+catalogs in that same profile. It SHALL be an alias for `a1 update --models`, not a
+Pi self-update or package update.
+
+Project-local package mutation and `a1 pi config` are reserved for a separate trust
+and configuration design and SHALL NOT be advertised as supported by this change.
 
 #### Scenario: Install an npm package
 - **WHEN** the user runs `a1 pi install npm:pi-mcp-adapter`
@@ -28,8 +31,12 @@ command SHALL accept a profile prefix, profile flag, or project scope; the vanil
 - **AND** SHALL say plainly that none are installed rather than printing nothing
 
 #### Scenario: A profile is named
-- **WHEN** the user runs a package command with `pi`, or a profile flag
-- **THEN** A1 SHALL exit with a usage error explaining that package commands manage the A1 profile and that Pi manages its own
+- **WHEN** the user supplies a profile flag or project-local scope to a package command
+- **THEN** A1 SHALL fail before package work and explain that package commands manage the A1 profile only
+
+#### Scenario: Refresh model catalogs through the Pi namespace
+- **WHEN** the user runs `a1 pi update --models`
+- **THEN** A1 SHALL refresh the model catalogs under the A1 profile without updating packages, A1, or Pi
 
 ### Requirement: Package sources follow Pi's grammar
 Package commands SHALL accept the source forms pinned Pi accepts — `npm:<package>`,
@@ -137,3 +144,16 @@ matching installed package SHALL each be distinguishable from the message alone.
 #### Scenario: Command guidance is needed
 - **WHEN** A1 rejects package-command syntax before an operation begins
 - **THEN** any command guidance SHALL use the `a1 pi` namespace rather than instructing the user to invoke standalone Pi
+
+### Requirement: Pinned Pi cannot be updated independently
+A1 SHALL reject recognized Pi self-update forms because the Pi runtime is pinned to
+the certified A1 release. The focused failure SHALL name the supported A1,
+extension, and model update commands and SHALL NOT append the complete help.
+
+#### Scenario: Bare Pi update is requested
+- **WHEN** the user runs `a1 pi update`
+- **THEN** A1 SHALL fail before update work and explain that Pi is pinned
+
+#### Scenario: Explicit Pi self-update is requested
+- **WHEN** the user runs `a1 pi update --self`, `a1 pi update pi`, or `a1 pi update --all`
+- **THEN** A1 SHALL fail before update work and name `a1 update`, `a1 pi update --extensions`, and `a1 pi update --models` as supported alternatives
