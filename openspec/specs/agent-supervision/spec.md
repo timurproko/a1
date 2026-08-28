@@ -7,15 +7,28 @@ Defines immutable release cohorts, negotiated control contracts, durable process
 ## Requirements
 
 ### Requirement: Live A1 processes use one immutable release cohort
-Every live A1 bootstrap, supervisor, and A1-owned runtime process SHALL execute from retained immutable release content with package-derived identity. Installing a candidate SHALL NOT overwrite files used by a live cohort or connect incompatible releases.
+Every live A1 bootstrap, supervisor, and A1-owned runtime process SHALL execute from retained
+immutable release content with package-derived identity. Installing a candidate SHALL NOT
+overwrite files used by a live cohort or connect incompatible releases.
+
+Each process SHALL stay on the cohort it started on for its whole life. More than one cohort MAY
+be live at once, and each live cohort SHALL be addressable on its own endpoint identity so two
+cohorts never contend for one. A new launch SHALL follow the active reference.
 
 #### Scenario: Launch encounters an older live supervisor
 - **WHEN** the mutable command entry encounters a verified older live A1 cohort
-- **THEN** A1 SHALL use that cohort's retained release or complete a verified replacement before connecting
+- **THEN** A1 SHALL use that cohort's retained release or complete a verified replacement before
+  connecting
 
 #### Scenario: Safe cohort activation
 - **WHEN** active foreground ownership is released
-- **THEN** A1 SHALL verify release identity, atomically activate the candidate, and avoid duplicate supervisor ownership
+- **THEN** A1 SHALL verify release identity, atomically activate the candidate, and avoid
+  duplicate supervisor ownership of one endpoint identity
+
+#### Scenario: A launch arrives while a superseded cohort is still working
+- **WHEN** a new launch starts while an older cohort still has live instances
+- **THEN** the launch SHALL start on the active cohort
+- **AND** the older cohort SHALL keep serving the instances it already has
 
 ### Requirement: Control compatibility is negotiated by required features
 Control peers SHALL negotiate stable envelope identity and required features before accepting commands. Release and contract identities SHALL derive from installed metadata and generated protocol artifacts rather than a manually maintained global protocol number.
@@ -29,15 +42,38 @@ Control peers SHALL negotiate stable envelope identity and required features bef
 - **THEN** no application command SHALL be accepted and release coordination SHALL select a matching cohort or fail safely
 
 ### Requirement: Immediate package replacement is ownership-safe and atomic
-Stable and preview updates SHALL coordinate verified owned-process shutdown, npm installation, immutable materialization, certification, stale-generation reconciliation, active-reference commit, and rollback through one durable transaction. The npm tag SHALL select only the exact target and SHALL NOT weaken ownership or rollback semantics.
+Stable and preview updates SHALL coordinate npm installation, immutable materialization,
+certification, stale-generation reconciliation, active-reference commit, and rollback through
+one durable transaction. The npm tag SHALL select only the exact target and SHALL NOT weaken
+ownership or rollback semantics.
+
+Ownership SHALL be coordinated by moving the active reference rather than by ending a live
+cohort. An update SHALL NOT stop, drain, or terminate a cohort that is running from retained
+immutable release content, and SHALL NOT require that nothing is running before it replaces
+the mutable package. A cohort running from the mutable installation is the exception: its files
+are what the installation replaces, so the update SHALL request its bounded shutdown, and the
+session SHALL be told that an update ended it rather than being left to discover it.
 
 #### Scenario: Verified foreground generations exist
-- **WHEN** update starts while a verified cohort owns foreground generations
-- **THEN** A1 SHALL request bounded shutdown, verify ownership release, and only then replace the mutable package
+- **WHEN** update starts while a verified cohort with live instances owns foreground generations
+  from retained immutable release content
+- **THEN** A1 SHALL install, materialize, certify, and commit the new active reference while that
+  cohort keeps running
+- **AND** the live instances SHALL continue on the release they started on
+
+#### Scenario: A live cohort runs from the mutable installation
+- **WHEN** update starts while a live cohort runs from the mutable package rather than from
+  retained immutable content
+- **THEN** A1 SHALL request bounded shutdown and verify ownership release before replacing the
+  package
+- **AND** the ended session SHALL report that an update ended it
 
 #### Scenario: Installation or activation fails
 - **WHEN** installation, materialization, certification, or activation fails
-- **THEN** A1 SHALL retain diagnostics, avoid mixed ownership, and retain or restore one verified runnable cohort when possible
+- **THEN** A1 SHALL retain diagnostics, avoid mixed ownership, and retain or restore one verified
+  runnable cohort when possible
+- **AND** rollback SHALL re-point the active reference without stopping a cohort that survived
+  the update
 
 ### Requirement: Generation liveness is boot-scoped and observed
 A process generation SHALL be live only when owned by a currently verified supervisor boot and backed by authenticated runtime ownership. Persisted state alone SHALL NOT prove liveness. Startup SHALL reconcile nonterminal generations from prior boots before publishing ownership.
@@ -61,17 +97,61 @@ A1 SHALL validate ownership using handshake, process, release, endpoint, and boo
 - **WHEN** A1 cannot prove whether an unresponsive process owns a live generation
 - **THEN** A1 SHALL preserve it and report a diagnosable blocked state rather than blindly terminating it
 
-### Requirement: Transparent generations use one exclusive foreground lease
-The supervisor SHALL record logical identity, process generation, native process identity, lifecycle outcome, and one exclusive transparent foreground-terminal lease. It SHALL NOT claim a resident framebuffer, terminal byte stream, or visual reconnection.
+### Requirement: A superseded cohort retires when its work finishes
+A cohort that is no longer the active one SHALL keep serving the instances it already has, and
+SHALL accept no new ones. When its last instance exits it SHALL exit and remove its own endpoint
+artifacts, leaving nothing for a later launch to reconcile.
 
-#### Scenario: Start a transparent generation
-- **WHEN** the supervisor authorizes transparent launch
-- **THEN** it SHALL grant one foreground broker an exclusive lease and record that no A1-authoritative terminal surface exists
+Retained release content SHALL NOT be pruned while a live cohort runs from it. Reconciliation
+SHALL validate each cohort's endpoint on its own identity, and SHALL NOT treat a second live
+cohort as stale ownership.
 
-#### Scenario: Lease owner disappears
-- **WHEN** the foreground broker disappears while a child may remain active
-- **THEN** the supervisor SHALL apply the declared bounded stop policy and report the outcome without reconstructing terminal continuity
+#### Scenario: The last instance of a superseded cohort exits
+- **WHEN** the final live instance of a cohort that is not the active one exits
+- **THEN** that cohort SHALL exit and remove its endpoint artifacts
 
-#### Scenario: Stale lease is reconciled
-- **WHEN** lease identity is stale and exact owner death is proven
-- **THEN** the supervisor SHALL release stale ownership without affecting unrelated processes
+#### Scenario: Pruning considers what is running
+- **WHEN** retained releases are pruned while a superseded cohort is still working
+- **THEN** the release that cohort runs from SHALL be retained until it exits
+
+#### Scenario: Reconciliation sees two live cohorts
+- **WHEN** reconciliation runs while the active cohort and a superseded cohort are both live
+- **THEN** each SHALL be validated on its own endpoint identity and neither SHALL be removed as
+  stale
+
+### Requirement: Supervisor tracks plural authenticated launch instances
+The supervisor SHALL track zero or more concurrently active launch instances for its verified release cohort. Each instance SHALL be bound to its authenticated owner, profile, root process identity, containment identity, lifecycle state, and terminal outcome; persisted state alone SHALL NOT prove that an instance is live.
+
+#### Scenario: Several owners register instances
+- **WHEN** authenticated clients start multiple interactive commands concurrently
+- **THEN** the supervisor SHALL register every instance independently and publish all verified live instance identities
+
+#### Scenario: Unrelated client disconnects
+- **WHEN** a control client that does not own a given instance disconnects
+- **THEN** the supervisor SHALL leave that instance unchanged
+
+### Requirement: Owner loss is reconciled per instance
+The supervisor SHALL detect loss of an instance's authenticated owner and coordinate bounded cleanup or terminal reconciliation for that instance without waiting for another command. Reconciliation SHALL be idempotent and SHALL NOT clear another instance's ownership.
+
+#### Scenario: Owner disappears before activation
+- **WHEN** an owner disconnects after creating an instance but before its root runtime activates
+- **THEN** the supervisor SHALL finalize that instance without leaving a launch blocker
+
+#### Scenario: Owner disappears while the runtime is active
+- **WHEN** an active instance owner disconnects
+- **THEN** the supervisor SHALL apply the instance's non-detachable stop policy, record the outcome, and preserve unrelated instances
+
+#### Scenario: Ownership is uncertain
+- **WHEN** exact process or containment ownership cannot be verified during reconciliation
+- **THEN** the supervisor SHALL preserve the uncertain process, retain diagnosable evidence, and SHALL NOT convert uncertainty into authority to terminate it
+
+### Requirement: Cohort updates coordinate every active launch instance
+An ownership-safe update SHALL enumerate all verified active launch instances in the affected cohort, request bounded shutdown for each, and verify that every instance released runtime ownership before replacing or retiring the cohort. A singular instance outcome SHALL NOT be treated as release of the whole cohort.
+
+#### Scenario: Update encounters several active instances
+- **WHEN** an update is authorized while multiple `a1` or `a1 pi` instances are active
+- **THEN** A1 SHALL coordinate and verify each instance outcome before completing cohort replacement
+
+#### Scenario: One instance cannot release ownership
+- **WHEN** one affected instance cannot be stopped or verified within the update deadline
+- **THEN** A1 SHALL fail or defer replacement safely without falsely marking the cohort idle

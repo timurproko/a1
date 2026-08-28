@@ -44,15 +44,23 @@ After non-desktop structural, lifecycle, and integration gates pass, A1 SHALL pr
 - **THEN** A1 SHALL preserve the finding, correct it, and repeat affected non-desktop and manual checks
 
 ### Requirement: Uncertified development previews are explicit
-A manually accepted `-dev.N` candidate MAY publish under npm tag `next` after the fast tier, architecture checks, and exact packed-candidate gates (package content, clean install, dependency policy) pass. The complete suite is not required for a preview. The preview SHALL identify physical, complete-regression, and cross-platform certification status explicitly, SHALL NOT move `latest`, and SHALL NOT claim certified terminal parity or platform support.
+A preview published under npm tag `next` SHALL pass the fast tier, architecture
+checks, and exact packed-candidate gates (package content, clean install, dependency
+policy) on every supported platform. The complete suite is not required for a
+preview. A preview SHALL NOT move `latest`, and SHALL NOT claim certified terminal
+parity or platform support.
+
+Preview publication SHALL follow from a push rather than from manual acceptance:
+what makes a commit publishable is that it passed the required development check
+before it landed.
 
 #### Scenario: Physical workers are unavailable
-- **WHEN** a candidate passes its preview gates and manual acceptance but physical certification is deferred
-- **THEN** publication MAY proceed only as an explicitly uncertified development preview
+- **WHEN** a commit passes the required development check, merges, and no physical certification exists for it
+- **THEN** its preview MAY publish without further acceptance, as an explicitly uncertified development preview
 
 #### Scenario: Stable publication is requested
-- **WHEN** a candidate would move `latest` or claim terminal support on a platform
-- **THEN** complete automated, clean-package, deferred physical, and cross-platform certification SHALL complete against the exact candidate first
+- **WHEN** a version would move `latest`
+- **THEN** the complete automated suite SHALL pass against the exact final-version bytes on every supported platform first
 
 ### Requirement: Architecture-independent tests survive terminal changes
 Domain, storage, release-cohort, update-transaction, protocol, package identity, dependency-policy, and non-terminal lifecycle tests SHALL remain mandatory when they express current contracts rather than retired implementation assumptions.
@@ -62,7 +70,17 @@ Domain, storage, release-cohort, update-transaction, protocol, package identity,
 - **THEN** architecture-independent tests SHALL continue validating their owned contracts without importing retired modules
 
 ### Requirement: Stable transparent acceptance uses independent physical evidence
-Before stable terminal publication or parity/support claims, transparent rendering, character presentation, input identity, selection, clipboard, scrollback, mouse, resize, modes, latency, exit, and restoration SHALL be compared against direct execution through actual supported host-terminal behavior. A test encoder, emulator, or A1 terminal model SHALL NOT be the sole oracle.
+Claims of certified terminal parity or platform support SHALL rest on comparing
+transparent rendering, character presentation, input identity, selection, clipboard,
+scrollback, mouse, resize, modes, latency, exit, and restoration against direct
+execution through actual supported host-terminal behavior. A test encoder, emulator,
+or A1 terminal model SHALL NOT be the sole oracle.
+
+Physical evidence governs what A1 may claim, not whether a version may be published.
+Where no physical evidence exists for a platform, that platform SHALL remain
+uncertified and A1 SHALL NOT represent it as supported — and a release MAY still
+publish, because withholding releases for evidence no machine produces protects
+nobody.
 
 #### Scenario: Physical certification is attempted
 - **WHEN** direct and transparent workloads are compared on a supported platform
@@ -72,6 +90,10 @@ Before stable terminal publication or parity/support claims, transparent renderi
 - **WHEN** Native Pi passes but another application-independent workload exposes a terminal difference
 - **THEN** the capability and platform SHALL remain uncertified
 
+#### Scenario: No physical worker exists
+- **WHEN** a platform has no physical evidence at all
+- **THEN** that platform SHALL remain uncertified and unclaimed, and publication SHALL NOT be blocked on it
+
 ### Requirement: Raw relay is not an implicit transparent fallback
 A raw PTY relay SHALL NOT replace selected direct attachment unless a future change establishes a mandatory PTY-ownership constraint and independently proves complete physical parity.
 
@@ -80,15 +102,23 @@ A raw PTY relay SHALL NOT replace selected direct attachment unless a future cha
 - **THEN** A1 SHALL not add a raw relay, parser, input translation, or shadow terminal authority
 
 ### Requirement: Packaged candidates validate exact publication artifacts
-Every publication SHALL pack once and bind evidence to source commit, version, integrity, declared certification status, and applicable gate results before uploading those exact bytes.
+Every publication SHALL pack once, SHALL bind the packed bytes to the source commit
+and the version they carry by digest, and SHALL upload exactly those bytes. The
+digest SHALL be re-checked after validation and before upload, so what was tested
+and what is published are known to be the same bytes.
+
+What separates a preview from a release SHALL remain observable where it is
+consulted: the npm tag the version is published under. A preview SHALL NOT move
+`latest`. A declared certification status SHALL NOT be required of a publication,
+because nothing consumes one.
 
 #### Scenario: Candidate bytes change
-- **WHEN** package integrity differs from accepted or certified evidence
-- **THEN** publication SHALL fail and require validation of the new bytes
+- **WHEN** the package digest differs between validation and publication
+- **THEN** publication SHALL fail before contacting the registry
 
 #### Scenario: Uncertified preview is packed
-- **WHEN** a manually accepted candidate is prepared while physical certification is deferred
-- **THEN** evidence SHALL identify it as stable-ineligible and preserve `latest`
+- **WHEN** a preview is packed and published
+- **THEN** it SHALL be published under the `next` tag and SHALL leave `latest` where it was
 
 ### Requirement: Update transitions remain release-gating scenarios
 Stable release gates SHALL exercise exact target resolution, verified owned-process shutdown, mutable-package unlock, single-pass immutable materialization, certification, activation, endpoint verification, transaction recovery, rollback, and clean process exit without manual PID or state deletion. Release evidence SHALL record phase durations and payload read/write counts for the exact packaged updater. On the accepted Windows release runner, the representative unchanged-dependency preview fixture of at least 10,000 payload files SHALL complete post-npm materialization through verified activation within 30 seconds and SHALL perform no more than one complete source-payload read and one candidate-payload write for a new release.
