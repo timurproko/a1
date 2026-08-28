@@ -25,4 +25,4 @@
 
 - [x] 4.1 Merge this specification/README change before implementation starts
 - [x] 4.2 Create a fresh detached implementation worktree from updated `origin/develop`
-- [ ] 4.3 Open a separate implementation pull request and leave it for manual acceptance
+- [x] 4.3 Open a separate implementation pull request and leave it for manual acceptance
