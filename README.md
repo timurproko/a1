@@ -149,5 +149,3 @@ serves. A failed release leaves nothing behind: no tag, no GitHub Release, no
 moved branch.
 
 `docs/ci-release-runbook.md` has the full picture.
-
-<!-- repository-governance README automatic-integration acceptance probe -->
