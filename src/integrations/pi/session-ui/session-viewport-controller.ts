@@ -1,6 +1,7 @@
 import type { OwnedUiViewportSettings } from "../../../contracts/owned-ui/index.js";
 import {
   TranscriptViewport,
+  hyperlinkTargetAtColumn,
   routeMouseInput,
   scrollForTrackPage,
   scrollForThumbRow,
@@ -50,6 +51,8 @@ export class SessionViewportController {
   #editorPointerFrame: { readonly rowStart: number; readonly rowEnd: number } | undefined;
   #selectionAutoScrollTimer: ReturnType<typeof setTimeout> | undefined;
   #selectionAutoScrollPointer: { readonly column: number; readonly row: number } | undefined;
+  #pointerPosition: { readonly column: number; readonly row: number } | undefined;
+  #hoveredHyperlinkKey: string | undefined;
   #activityTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(options: SessionViewportControllerOptions) {
@@ -77,7 +80,17 @@ export class SessionViewportController {
 
   compose(input: TranscriptViewportFrameInput): TranscriptViewportFrame {
     this.#viewport.setConfig(this.#config);
-    return this.#viewport.compose(input);
+    const frame = this.#viewport.compose(input);
+    if (this.#pointerPosition !== undefined && !this.#viewport.selectionActive && !this.#editorPointerSelecting) {
+      const next = this.#hyperlinkKeyAt(frame, this.#pointerPosition.column, this.#pointerPosition.row);
+      if (this.#hoveredHyperlinkKey !== undefined && next !== this.#hoveredHyperlinkKey) {
+        // Windows Terminal can leave its solid native-hover underline behind
+        // when a following viewport moves the link away from a stationary pointer.
+        this.#requestRender(true);
+      }
+      this.#hoveredHyperlinkKey = next;
+    }
+    return frame;
   }
 
   /** Returns true when document wrapping may have changed. */
@@ -108,6 +121,8 @@ export class SessionViewportController {
     this.#stopSelectionAutoScroll();
     this.#editorPointerSelecting = false;
     this.#editorPointerFrame = undefined;
+    this.#pointerPosition = undefined;
+    this.#hoveredHyperlinkKey = undefined;
     this.#viewport.reset();
   }
 
@@ -117,6 +132,8 @@ export class SessionViewportController {
     this.#dockPointerSuppressed = false;
     this.#editorPointerSelecting = false;
     this.#editorPointerFrame = undefined;
+    this.#pointerPosition = undefined;
+    this.#hoveredHyperlinkKey = undefined;
     this.#stopSelectionAutoScroll();
     this.#viewport.clearSelection();
     this.#viewport.clearTransient();
@@ -191,6 +208,16 @@ export class SessionViewportController {
         && event.column >= hits.bottom.columnStart && event.column <= hits.bottom.columnEnd;
 
       if (event.kind === "motion") {
+        this.#pointerPosition = { column: event.column, row: event.row };
+        if (!this.#viewport.selectionActive && !this.#editorPointerSelecting) {
+          const nextHyperlink = this.#hyperlinkKeyAt(frame, event.column, event.row);
+          if (this.#hoveredHyperlinkKey !== undefined && nextHyperlink !== this.#hoveredHyperlinkKey) {
+            // A forced redraw overwrites Windows Terminal's cached solid hover
+            // underline exactly once when the pointer leaves or changes links.
+            forceRepaint = true;
+          }
+          this.#hoveredHyperlinkKey = nextHyperlink;
+        }
         this.#viewport.setRailHovered(overRail);
         this.#viewport.setStickyHovered(overSticky);
         this.#viewport.setBottomHovered(overBottom);
@@ -328,6 +355,12 @@ export class SessionViewportController {
     if (activity) this.#scheduleActivityExpiry();
     if (repaint) this.#requestRender(forceRepaint);
     return routed;
+  }
+
+  #hyperlinkKeyAt(frame: TranscriptViewportFrame, column: number, row: number): string | undefined {
+    if (row < 1 || row > frame.rows.length || column < 1) return undefined;
+    const target = hyperlinkTargetAtColumn(frame.rows[row - 1] ?? "", column - 1);
+    return target === undefined ? undefined : `${row}\u0000${target}`;
   }
 
   #updateSelectionAutoScroll(column: number, row: number, viewportHeight: number): void {

@@ -96,6 +96,32 @@ export function hyperlinkSgrSpan(
   return output;
 }
 
+/** Returns the OSC 8 target painted at a zero-based visible terminal column. */
+export function hyperlinkTargetAtColumn(
+  line: string,
+  targetColumn: number,
+  widthOf: (text: string) => number = displayWidth,
+): string | undefined {
+  if (targetColumn < 0) return undefined;
+  let hyperlinkTarget: string | undefined;
+  let column = 0;
+  for (const token of line.split(ANSI_SPLIT)) {
+    if (!token) continue;
+    const link = HYPERLINK.exec(token);
+    if (link) {
+      hyperlinkTarget = (link[1] ?? "") || undefined;
+      continue;
+    }
+    if (token.startsWith("\u001b")) continue;
+    for (const { segment } of GRAPHEMES.segment(token)) {
+      const width = widthOf(segment);
+      if (targetColumn >= column && targetColumn < column + width) return hyperlinkTarget;
+      column += width;
+    }
+  }
+  return undefined;
+}
+
 /**
  * Gives existing and bare web links explicit, tightly bounded OSC 8 regions so
  * the terminal owns dotted-idle/solid-hover decoration without leaking hover

@@ -63,6 +63,35 @@ describe("session viewport interaction controller", () => {
     expect(frame(target)[0]).toBe("row-15");
   });
 
+  it("forces one repaint when native hyperlink hover leaves or moves under a stationary pointer", () => {
+    const renders: (boolean | undefined)[] = [];
+    const target = new SessionViewportController({
+      enabled: true,
+      editor: editor(),
+      requestRender: force => renders.push(force),
+    });
+    const url = "https://example.com/full";
+    const linked = `\u001b]8;;${url}\u001b\\link\u001b]8;;\u001b\\`;
+    const compose = (rows: readonly string[]) => target.compose({
+      documentRows: rows,
+      dockRows: [],
+      promptAnchors: [],
+      width: 20,
+      height: 2,
+    });
+
+    compose([linked, "plain"]);
+    target.handlePreInput("\u001b[<35;2;1M");
+    renders.length = 0;
+    target.handlePreInput("\u001b[<35;2;2M");
+    expect(renders).toContain(true);
+
+    target.handlePreInput("\u001b[<35;2;1M");
+    renders.length = 0;
+    compose(["plain", linked]);
+    expect(renders).toContain(true);
+  });
+
   it("routes editor pointer input only through the declared editor frame", () => {
     const events: PiShellEditorPointerEvent[] = [];
     let ownsPointer = false;
