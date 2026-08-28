@@ -45,5 +45,6 @@ process.exitCode = await dispatchCli(process.argv.slice(2), {
     return await runPackageCommand(request, { createPort: createPiPackagesPort });
   },
 }, {
+  stdout: message => process.stdout.write(message),
   stderr: message => process.stderr.write(message),
 }, capabilities);

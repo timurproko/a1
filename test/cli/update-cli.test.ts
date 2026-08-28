@@ -92,7 +92,7 @@ else process.exitCode = 64;
     expect(packageJson.bin).toEqual({ "a1": "bin/cli.js" });
 
     const cli = resolve(isolatedBuildRoot, packageJson.bin["a1"] ?? "missing");
-    await expect(execFileAsync(process.execPath, [cli, "update", "next"], {
+    const removed = await execFileAsync(process.execPath, [cli, "update:develop"], {
       cwd: temporaryRoot,
       env: {
         ...process.env,
@@ -105,8 +105,22 @@ else process.exitCode = 64;
         PATH: fakeBin,
       },
       timeout: 15_000,
-    })).rejects.toMatchObject({ code: 2, stderr: expect.stringContaining("selects a release channel with a colon; run a1 update:develop") });
+    });
+    expect(removed).toMatchObject({ stdout: "", stderr: "" });
+    await expect(access(npmLog)).rejects.toThrow();
 
+    const help = await execFileAsync(process.execPath, [cli, "--help"], {
+      cwd: temporaryRoot,
+      env: {
+        ...process.env,
+        A1_RUNTIME_DIR: runtimeDirectory,
+        NODE_OPTIONS: `--no-warnings --experimental-loader=${pathToFileURL(loader).href}`,
+      },
+      timeout: 15_000,
+    });
+    expect(help.stderr).toBe("");
+    expect(help.stdout).toContain("a1 update --develop [preview-or-version]");
+    expect(help.stdout).toContain("a1 pi update --models");
     await expect(access(npmLog)).rejects.toThrow();
 
     const result = await execFileAsync(process.execPath, [cli, "--version"], {

@@ -13,6 +13,7 @@ export interface CliHandlers {
 }
 
 export interface CliOutput {
+  readonly stdout: (message: string) => void;
   readonly stderr: (message: string) => void;
 }
 
@@ -20,16 +21,49 @@ export function cliUsage(capabilities: CliCapabilities): string {
   return PRODUCT_TEXT.usage([
     "",
     ...(capabilities.developmentComparison ? ["pi"] : []),
+    "--help",
+    "-h",
     "--version",
     "-v",
-    "update [self|--models]",
-    "update:develop",
-    "update:<number>",
+    "update",
+    "update --develop [preview-or-version]",
+    "update --models",
     "pi install <source>",
     "pi remove <source>",
+    "pi uninstall <source>",
     "pi list",
-    "pi update [--extensions|<source>]",
+    "pi update --extensions",
+    "pi update --models",
+    "pi update <source>",
   ]);
+}
+
+export function cliHelp(capabilities: CliCapabilities): string {
+  const command = PRODUCT_TEXT.commandName;
+  return [
+    "Usage:",
+    `  ${command}`,
+    ...(capabilities.developmentComparison ? [`  ${command} pi`] : []),
+    `  ${command} --help`,
+    `  ${command} -h`,
+    `  ${command} --version`,
+    `  ${command} -v`,
+    "",
+    `Update ${PRODUCT_TEXT.displayName}:`,
+    `  ${command} update`,
+    `  ${command} update --develop [preview-or-version]`,
+    `  ${command} update --models`,
+    "",
+    "Pi-compatible packages for A1:",
+    `  ${command} pi install <source>`,
+    `  ${command} pi remove <source>`,
+    `  ${command} pi uninstall <source>`,
+    `  ${command} pi list`,
+    `  ${command} pi update --extensions`,
+    `  ${command} pi update --models`,
+    `  ${command} pi update <source>`,
+    "",
+  ].join("\n");
 }
 
 const PROFILE_WORDS = new Set(["pi"]);
@@ -41,8 +75,13 @@ export async function dispatchCli(
   capabilities: CliCapabilities,
 ): Promise<number> {
   const command = parseCliCommand(arguments_, capabilities);
+  if (command.kind === "noop") return 0;
+  if (command.kind === "help") {
+    output.stdout(cliHelp(capabilities));
+    return 0;
+  }
   if (command.kind === "error") {
-    output.stderr(`${command.message}\n${cliUsage(capabilities)}\n`);
+    output.stderr(`${command.message}\n`);
     return 2;
   }
   if (command.kind === "launch") return await handlers.launch(interactiveLaunchIntent(command.profileId));
@@ -52,6 +91,8 @@ export async function dispatchCli(
 }
 
 export type CliCommand =
+  | { readonly kind: "noop" }
+  | { readonly kind: "help" }
   | { readonly kind: "launch"; readonly profileId: LaunchProfileId }
   | { readonly kind: "version" }
   | { readonly kind: "update"; readonly channel: UpdateChannel; readonly target?: string }
@@ -62,64 +103,60 @@ export function parseCliCommand(arguments_: readonly string[], capabilities: Cli
   if (arguments_.length === 0) return { kind: "launch", profileId: "a1" };
   const [command, ...rest] = arguments_;
 
+  if (command === "--help" || command === "-h") return withoutArguments(rest, { kind: "help" });
+  if (command === "--version" || command === "-v") return withoutArguments(rest, { kind: "version" });
   if (command === "pi") {
     if (rest.length > 0) return parsePiPackageCommand(rest);
-    if (capabilities.developmentComparison) return { kind: "launch", profileId: "pi" };
+    return capabilities.developmentComparison ? { kind: "launch", profileId: "pi" } : { kind: "noop" };
   }
-  if (command === "--version" || command === "-v") return withoutArguments(rest, { kind: "version" });
-  if (command !== undefined && command.startsWith("update:")) return parseColonUpdate(command.slice("update:".length), rest);
   if (command === "update") return parseUpdate(rest);
-  if (command === "install" || command === "remove" || command === "uninstall" || command === "list") {
-    return packageNamespaceRejection(command, rest.join(" ") || undefined);
-  }
+  if (command?.startsWith("update:")) return { kind: "noop" };
 
-  if (command === "ui") return { kind: "error", message: `The ui subcommand was removed; run bare ${PRODUCT_TEXT.commandName} for the owned UI.` };
-  if (command === "agent") return { kind: "error", message: `Bare ${PRODUCT_TEXT.commandName} is the ${PRODUCT_TEXT.displayName} agent experience; there is no agent subcommand.` };
-  return { kind: "error", message: PRODUCT_TEXT.diagnostic(`received an unknown command: ${command ?? ""}`) };
+  // Unsupported and reserved command spaces are deliberately quiet. Help is
+  // explicit, and a typo must never start an interactive or maintenance path.
+  return { kind: "noop" };
 }
 
 /**
- * What follows the colon says which development build to move to. `develop`
- * selects the channel head; a positive decimal or a full numbered preview names
- * one immutable publication.
- */
-function parseColonUpdate(suffix: string, rest: readonly string[]): CliCommand {
-  if (rest.length > 0) return { kind: "error", message: PRODUCT_TEXT.diagnostic("update takes what to move to after the colon, and nothing else.") };
-  if (suffix === "next") {
-    return { kind: "error", message: PRODUCT_TEXT.diagnostic(`renamed its development channel; run ${PRODUCT_TEXT.commandName} update:develop.`) };
-  }
-  if (suffix === "develop") return { kind: "update", channel: "next" };
-  if (suffix.length === 0) return { kind: "error", message: PRODUCT_TEXT.diagnostic(`update: needs a preview after the colon, as in ${PRODUCT_TEXT.commandName} update:develop.`) };
-  if (!/^[1-9]\d*$/.test(suffix) && !/^\d+\.\d+\.\d+-dev\.[1-9]\d*$/.test(suffix)) {
-    return { kind: "error", message: PRODUCT_TEXT.diagnostic(`received an unusable numbered preview: ${suffix}`) };
-  }
-  return { kind: "update", channel: "next", target: suffix };
-}
-/**
- * Top-level `update` owns A1 itself and A1's model catalogs. Extension package
- * maintenance lives under the `pi` compatibility namespace, while updating the
- * pinned Pi runtime remains impossible.
+ * Stable update is the empty form. `--develop` selects the moving development
+ * head or one immutable numbered preview, while model refresh remains a separate
+ * operation that cannot be combined with either update channel.
  */
 function parseUpdate(rest: readonly string[]): CliCommand {
   if (rest.length === 0) return { kind: "update", channel: "stable" };
-  if (rest.length > 1) return { kind: "error", message: PRODUCT_TEXT.diagnostic("update accepts one target.") };
-  const [target] = rest;
-  if (target === "self") return { kind: "update", channel: "stable" };
-  if (target === "pi") {
-    return {
-      kind: "error",
-      message: PRODUCT_TEXT.diagnostic(`pins the Pi version it was certified against; run ${PRODUCT_TEXT.commandName} update to move ${PRODUCT_TEXT.displayName} itself.`),
-    };
+  const [selector, ...values] = rest;
+
+  // Removed compatibility notation is unsupported rather than deprecated.
+  if (selector === "self") return { kind: "noop" };
+
+  if (selector === "--develop") {
+    if (values.length === 0) return { kind: "update", channel: "next" };
+    if (values.length > 1) return updateGrammarError("--develop accepts at most one preview number or version.");
+    const [target] = values;
+    if (target === undefined || !isDevelopmentTarget(target)) {
+      return updateGrammarError(`--develop received an unusable preview: ${target ?? ""}`);
+    }
+    return { kind: "update", channel: "next", target };
   }
-  if (target === "next" || target === "develop" || target === "stable") {
-    const form = target === "stable" ? `${PRODUCT_TEXT.commandName} update` : `${PRODUCT_TEXT.commandName} update:develop`;
-    return { kind: "error", message: PRODUCT_TEXT.diagnostic(`selects a release channel with a colon; run ${form}.`) };
+
+  if (selector === "--models") {
+    if (values.length > 0) return updateGrammarError("--models cannot be combined with another update selector.");
+    return { kind: "packages", request: { verb: "refresh-models", source: null } };
   }
-  if (target === "--models") return { kind: "packages", request: { verb: "refresh-models", source: null } };
-  if (target === "--extensions" || (target !== undefined && !target.startsWith("-"))) {
-    return packageNamespaceRejection("update", target === "--extensions" ? "--extensions" : target);
-  }
-  return unknownOption(target ?? "", "update");
+
+  if (selector === "pi") return pinnedPiUpdateError();
+  if (selector !== undefined && selector.startsWith("-")) return unknownOption(selector, "update");
+
+  // Positional update targets are reserved for a future A1-native plugin model.
+  return { kind: "noop" };
+}
+
+function isDevelopmentTarget(target: string): boolean {
+  return /^[1-9]\d*$/.test(target) || /^\d+\.\d+\.\d+-dev\.[1-9]\d*$/.test(target);
+}
+
+function updateGrammarError(detail: string): CliCommand {
+  return { kind: "error", message: PRODUCT_TEXT.diagnostic(`could not parse update: ${detail}`) };
 }
 
 function parsePiPackageCommand(arguments_: readonly string[]): CliCommand {
@@ -129,27 +166,36 @@ function parsePiPackageCommand(arguments_: readonly string[]): CliCommand {
   }
   if (verb === "list") return withoutArguments(rest, { kind: "packages", request: { verb: "list", source: null } });
   if (verb === "update") return parsePiPackageUpdate(rest);
-  return { kind: "error", message: PRODUCT_TEXT.diagnostic(`received an unknown pi package command: ${verb ?? ""}`) };
+  return { kind: "noop" };
 }
 
 function parsePiPackageUpdate(rest: readonly string[]): CliCommand {
-  if (rest.length === 0) {
-    return { kind: "error", message: PRODUCT_TEXT.diagnostic(`pi update needs --extensions or a package source.`) };
-  }
+  if (rest.length === 0) return pinnedPiUpdateError();
   if (rest.length > 1) return { kind: "error", message: PRODUCT_TEXT.diagnostic("pi update accepts one target.") };
   const [target] = rest;
   if (target === "--extensions") return { kind: "packages", request: { verb: "update", source: null } };
-  if (target === "--models") {
-    return { kind: "error", message: PRODUCT_TEXT.diagnostic(`refreshes its model catalogs at the top level; run ${PRODUCT_TEXT.commandName} update --models.`) };
-  }
+  if (target === "--models") return { kind: "packages", request: { verb: "refresh-models", source: null } };
+  if (target === "--self" || target === "--all" || target === "self" || target === "pi") return pinnedPiUpdateError();
   if (target === undefined || target.startsWith("-")) return unknownOption(target ?? "", "pi update");
-  if (PROFILE_WORDS.has(target)) return profileRejection("update");
   return { kind: "packages", request: { verb: "update", source: target } };
+}
+
+function pinnedPiUpdateError(): CliCommand {
+  return {
+    kind: "error",
+    message: [
+      PRODUCT_TEXT.diagnostic("pins its certified Pi runtime and cannot update it independently."),
+      "Use:",
+      `  ${PRODUCT_TEXT.commandName} update                    Update A1`,
+      `  ${PRODUCT_TEXT.commandName} pi update --extensions    Update Pi-compatible packages`,
+      `  ${PRODUCT_TEXT.commandName} pi update --models        Refresh model catalogs`,
+    ].join("\n"),
+  };
 }
 
 function parseSourceCommand(verb: "install" | "remove", rest: readonly string[]): CliCommand {
   const flag = rest.find(argument => argument.startsWith("-"));
-  if (flag !== undefined) return unknownOption(flag, verb);
+  if (flag !== undefined) return unknownOption(flag, `pi ${verb}`);
   if (rest.length === 0) return { kind: "error", message: PRODUCT_TEXT.diagnostic(`${verb} requires a package source.`) };
   if (rest.length > 1) return { kind: "error", message: PRODUCT_TEXT.diagnostic(`${verb} accepts one package source.`) };
   const [source] = rest;
@@ -160,17 +206,7 @@ function parseSourceCommand(verb: "install" | "remove", rest: readonly string[])
 
 function withoutArguments(rest: readonly string[], command: CliCommand): CliCommand {
   if (rest.length === 0) return command;
-  const [argument] = rest;
-  if (argument !== undefined && (PROFILE_WORDS.has(argument) || argument.startsWith("--profile"))) return profileRejection("list");
   return { kind: "error", message: PRODUCT_TEXT.diagnostic("commands do not accept additional arguments.") };
-}
-
-function packageNamespaceRejection(verb: string, target?: string): CliCommand {
-  const suffix = target === undefined ? "" : ` ${target}`;
-  return {
-    kind: "error",
-    message: PRODUCT_TEXT.diagnostic(`manages extension packages under its pi namespace; run ${PRODUCT_TEXT.commandName} pi ${verb}${suffix}.`),
-  };
 }
 
 function profileRejection(verb: string): CliCommand {
