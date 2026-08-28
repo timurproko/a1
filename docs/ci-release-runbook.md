@@ -32,10 +32,14 @@ effect of stable publication, not a trigger.
 ## Pull request integration
 
 `Development validation required` remains the merge gate for every pull request.
-After it succeeds, documentation auto-merge reads the complete GitHub changed-file
-response and arms squash auto-merge only when every current and renamed-from path is
-under `openspec/**` or is exactly the root `README.md`. Eligible pull requests must
-use a non-draft branch in this repository and target `develop`.
+Documentation auto-merge reads the complete GitHub changed-file response and arms
+squash auto-merge for an eligible pull request while required validation is pending;
+branch protection prevents integration until `Development validation required`
+succeeds. If validation finishes before auto-merge can be armed and GitHub already
+reports the pull request clean, the reconciler squash-merges only the validated head
+SHA. Every current and renamed-from path must be under `openspec/**` or exactly the
+root `README.md`. Eligible pull requests must use a non-draft branch in this
+repository and target `develop`.
 
 The exact allowlist is intentionally narrower than CI's docs-only classification.
 Ordinary `docs/**` files, other Markdown files, `LICENSE`, `.gitignore`, source,
