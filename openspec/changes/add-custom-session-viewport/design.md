@@ -90,7 +90,7 @@ Alternative considered: take over all terminal input. Rejected because the viewp
 
 `src/ui/components/scrollbar.ts` remains the single geometry and interaction source. It will gain neutral types and pure decisions for:
 
-- appearance: `always | hover | hidden`;
+- appearance: `auto | always | hidden`;
 - style: `thin | thick`;
 - visible reasons: always, pointer proximity, recent activity, or drag latch;
 - a stable rail overlay column that does not remove an ordinary content cell;
@@ -115,7 +115,7 @@ Alternative considered: stamp prompts when first rendered. Rejected because resu
 
 Composition will pass the loaded `OwnedUiSettingsSession` to the bare-A1 shell, not to Pi component classes. The shell reads and subscribes to `scrollbarAppearance`, `scrollbarStyle`, and `scrollbarSpeed`, translates them into the neutral viewport configuration, and requests a render on a live change. The comparison composition does not install the custom viewport even if its profile store contains those keys.
 
-Adding declarations is backward compatible with the current versioned document: an older document omits the keys and resolution supplies the new defaults, so no migration is needed. A future rename or shape change would require the normal version/migration path.
+The current versioned settings document resolves omitted scrollbar keys to the implemented defaults. Its migration maps the former `hover` appearance to `auto`; unknown appearance values also resolve to `auto`.
 
 Alternative considered: read settings files from the viewport. Rejected because it would duplicate storage ownership and break session-consistent live values.
 
@@ -143,7 +143,7 @@ The implementation will add focused render-count and long-transcript tests so a 
 - **[Timestamp reservation can cause excessive wrapping]** → Use a declared minimum useful content width and omit only the timestamp at narrower widths; never truncate the submitted prompt payload.
 - **[Sticky and rail overlays can leak ANSI styles or hyperlinks]** → Use the shared display-width and span-overlay primitives, isolate theme roles, and test background, hyperlink, wide-character, and narrow-width rows.
 - **[Early input interception can steal modal input]** → Gate by current active input/overlay ownership, consume only named viewport regions and wheel routing, preserve mixed-chunk remainder, and add ordering tests against the public TUI.
-- **[A live style change can move content]** → `always` and `hover` share a stable overlay column while content overflows; ordinary transcript content keeps the full wrapping width and style changes preserve geometry. Submitted prompts alone reserve the intentional timestamp gutter; `hidden` returns that prompt cell and rewraps it once.
+- **[A live style change can move content]** → `always` and `auto` share a stable final rail cell, including while content fits, so later scrollbar visibility does not reflow transcript content. `hidden` returns that cell and rewraps content once.
 - **[A long transcript can make every frame linear]** → Reuse block row caches, keep ordered anchor indexes, decorate only visible rows, and assert stable render counts while scrolling and streaming.
 
 ## Migration Plan

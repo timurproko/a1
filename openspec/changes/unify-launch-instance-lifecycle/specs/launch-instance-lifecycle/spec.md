@@ -52,16 +52,16 @@ A1 SHALL bind lifecycle operations to authenticated instance ownership, native p
 - **WHEN** A1 cannot prove that a live process or containment boundary belongs to the affected instance
 - **THEN** A1 SHALL preserve that process and report a concise ownership diagnostic without printing an internal stack trace as the primary user message
 
-### Requirement: Terminal behavior remains owned by the selected runtime path
-Launch-instance ownership SHALL carry lifecycle and containment only. It SHALL NOT read ordinary terminal input, parse or relay runtime output, reconstruct display state, synthesize terminal responses, or change whether the selected profile uses the owned UI or transparent direct attachment.
+### Requirement: Terminal behavior remains owned by the shared UI runtime
+Launch-instance ownership SHALL carry lifecycle and containment only. It SHALL NOT read ordinary terminal input, parse or relay runtime output, reconstruct display state, synthesize terminal responses, or alter the shared owned rendering and input pipeline selected by either interactive profile.
 
-#### Scenario: Transparent profile runs inside an instance
-- **WHEN** `a1 pi` runs under launch-instance ownership
-- **THEN** Pi and the physical terminal SHALL retain direct native rendering and input ownership
+#### Scenario: Pi comparison runs inside an instance
+- **WHEN** prerelease `a1 pi` runs under launch-instance ownership
+- **THEN** the owned comparison UI SHALL retain its declared rendering and input authority without a lifecycle guardian interpreting terminal traffic
 
-#### Scenario: Owned UI runs inside an instance
+#### Scenario: Product UI runs inside an instance
 - **WHEN** bare `a1` runs under launch-instance ownership
-- **THEN** the owned UI SHALL retain its declared rendering and input authority without a lifecycle guardian interpreting its terminal traffic
+- **THEN** the owned product UI SHALL retain the same rendering and input authority without a lifecycle guardian interpreting terminal traffic
 
 ### Requirement: Runtime ownership ends even when control infrastructure remains idle
 After the final interactive instance closes, A1 MAY retain an idle verified supervisor for control and release coordination, but it SHALL retain no UI, Pi, agent, extension, tool, daemon, helper, or other runtime process owned by a closed launch instance.

@@ -2,7 +2,7 @@
 
 > **Status: ON HOLD by user direction — scheduled after the A1 custom-experience milestones.** This design is retained as future architecture only. Its unapplied scope is deliberately deferred, not stale or blocked. No remaining task may be applied until the user explicitly resumes this change; completion of prerequisite changes does not imply authorization.
 
-See `proposal.md` for motivation. Bare `a1` currently launches one A1-owned Pi experience, while `a1 pi` remain stable explicit transparent modes. The reopened 1:1 acceptance was repaired and accepted through the archived `repair-owned-pi-parity` change; the contradictory authentication and model state it recorded is closed.
+See `proposal.md` for motivation. Bare `a1` and prerelease `a1 pi` now use the shared A1-owned rendering pipeline; the comparison profile withholds product surfaces and uses Pi's ordinary profile. The reopened 1:1 acceptance was repaired and accepted through the archived `repair-owned-pi-parity` change; the contradictory authentication and model state it recorded is closed.
 
 The product requirement is a multi-agent workspace inside terminals the user already owns, such as Windows Terminal, macOS terminals, WezTerm, and similar emulators. A separate native desktop application is not required and is postponed. The first presentation proof must therefore run as a console/fullscreen terminal program inside an existing terminal, not as a Win32/OpenGL window.
 
@@ -175,7 +175,7 @@ A separate desktop-native host can be reconsidered only after the in-terminal ar
 
 Structured contracts, adapters, and workspace behavior may proceed independently. Composed work remains a development-only capability through the in-terminal proof and subsequent per-platform integration. Bare `a1` changes only after workspace recovery and explicit-mode regression gates pass. Composed failure cannot remove transparent fallback.
 
-Rollback disables workspace cutover or composed capability as applicable, restores the accepted bare transparent profile when necessary, and preserves backward-readable versioned records. `a1 pi` remain unchanged throughout.
+Rollback disables workspace cutover or composed capability as applicable, restores the accepted single-session owned product profile when necessary, and preserves backward-readable versioned records. `a1 pi` retains the shared owned comparison path throughout.
 
 ### 15. The fixed 2×2 presentation is preserved only as a postponed proof artifact
 

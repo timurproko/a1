@@ -122,17 +122,6 @@ The repository package manifest and lockfile SHALL remain the dependency authori
 - **WHEN** every mandatory compatibility, product regression, package, and oracle gate passes against one exact candidate dependency set
 - **THEN** A1 MAY update the exact pin without requiring workspace-domain or feature-contract changes
 
-### Requirement: Workspace Pi-tab integration is blocked until boundary hardening is accepted
-Multi-agent workspace integration of SDK-backed Pi tabs SHALL NOT begin until this capability's architecture, compatibility, explicit-oracle, and regression acceptance gates pass.
-
-#### Scenario: Workspace task 5.5 is requested early
-- **WHEN** `evolve-bare-a1-into-multi-agent-workspace` task 5.5 is selected before this change is complete
-- **THEN** implementation SHALL stop and report `harden-pi-api-boundary` as an unmet prerequisite
-
-#### Scenario: Boundary hardening is accepted
-- **WHEN** this change is complete and all mandatory gates pass
-- **THEN** workspace task 5.5 MAY consume the vendor-neutral A1 contracts without introducing new Pi-specific feature dependencies
-
 ### Requirement: Everything A1 shows about a Pi setting is derived from Pi
 A1 SHALL derive the wording, presentation order, offered values, numeric limits, and dialog contents
 of every Pi setting it presents from the pinned Pi source, through the generated settings metadata,

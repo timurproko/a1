@@ -1,7 +1,7 @@
 ## Context
 
 This fix was first implemented against the pre-restructure tree
-(`src/foundation/pi-engine-adapter/adapter.ts`,
+(`src/integrations/pi/engine/adapter.ts`,
 `src/integrations/pi/session-ui/session-shell-root.ts`) and re-applied after the
 structure change moved the files to `src/integrations/pi/engine/adapter.ts` and
 `src/integrations/pi/session-ui/session-shell-root.ts`. The document names symbols rather

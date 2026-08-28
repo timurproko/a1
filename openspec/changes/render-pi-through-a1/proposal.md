@@ -1,38 +1,18 @@
 ## Why
 
-A1 does not forward Pi's screen to the terminal; it draws Pi's interface itself,
-through its own runtime, layout, text measurement, and input handling. Whether that
-drawing is faithful is the one thing about A1 that can be measured against an
-authority, and it is measured by comparing A1 with pinned Pi at fifty-five
-checkpoints.
-
-Until now the comparison had nothing honest to run against. Bare `a1` is the
-product, and the product is deliberately diverging — `/settings` is A1's own screen,
-so eight checkpoints could never match. The answer being built was a hidden
-environment variable that withheld A1's surfaces for the duration of the test: a
-mode that exists only while a robot is watching, which is how a compatibility mode
-rots into something that passes forever while the product breaks.
-
-`a1 pi` is the honest place for it. It currently launches vanilla Pi transparently,
-which proves the launcher and nothing about the rendering. Making it Pi's interface
-through A1's own stack turns the parity comparison into a comparison of two things a
-person can open side by side, and makes what is measured a command someone actually
-uses.
+A1 draws Pi's interface through its own runtime, layout, text measurement, and input handling. Bare `a1` deliberately adds product surfaces, so it is not an honest comparison target for pinned Pi. Before this change, `a1 pi` launched vanilla Pi through transparent attachment and therefore proved only the launcher rather than A1's rendering fidelity.
 
 ## What Changes
 
-- `a1 pi` presents pinned Pi's interface through A1's rendering and input, with none
-  of A1's own surfaces. It is what the parity comparison runs, and what a reader can
-  open next to vanilla `pi` to see the same thing.
-  extension against Pi itself requires.
-- The parity run launches that command rather than setting an environment variable,
-  so nothing about the measurement is private to the measurement.
+- Prerelease `a1 pi` presents pinned Pi's interface through A1's owned rendering and input pipeline.
+- The comparison uses Pi's ordinary user profile and withholds every A1-specific surface.
+- Bare `a1` and prerelease `a1 pi` share one rendering pipeline and differ only in profile root and product-surface availability.
+- A reader can open `a1 pi` beside pinned `pi` to assess rendering fidelity without a hidden test-only mode.
 
-**BREAKING**: `a1 pi` no longer launches vanilla Pi transparently. Anyone wanting
+**BREAKING**: `a1 pi` no longer uses transparent direct attachment.
 
 ## Capabilities
 
 ### Modified Capabilities
 
-- `launch-profiles`: the `pi` subcommand renders pinned Pi's interface through A1's
-  transparent vanilla profile.
+- `launch-profiles`: the prerelease `pi` subcommand presents pinned Pi through A1's shared owned rendering pipeline.
