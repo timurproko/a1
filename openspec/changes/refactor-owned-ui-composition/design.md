@@ -76,6 +76,6 @@ A repository test asserts that viewport state/timer/input symbols live in the vi
 2. Extract the viewport controller with unchanged shell-facing forwarding methods.
 3. Move the route seam and canonicalize component lifecycle declarations.
 4. Wire app-host caching and shortcut assembly validation.
-5. Add focused tests and governance checks, then open the separate refactor PR with auto-merge because behavior is unchanged.
+5. Add focused tests and governance checks, then open the separate refactor PR. Historical note: this PR used auto-merge under the former behavior-based policy; `separate-specification-and-implementation` supersedes that policy and requires all future refactor/code PRs to wait for local acceptance and manual merge.
 
 Rollback is a single pull-request revert; no stored or protocol data changes.

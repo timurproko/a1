@@ -3,7 +3,7 @@
 - [x] 1.1 Rewrite the validation policy in `openspec/config.yaml`: read the result before
   starting anything else, treat a red pull request as the next task, report what CI said,
   and deal with a failure that is not this change's doing rather than routing around it
-- [x] 1.2 State when auto-merge is armed and when a pull request waits for manual acceptance
+- [x] 1.2 Limit auto-merge to OpenSpec/root-README paths and require every code/operational pull request to wait for local acceptance and manual merge
 
 ## 2. Make the check gate the merge
 

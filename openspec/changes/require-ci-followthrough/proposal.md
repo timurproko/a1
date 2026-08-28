@@ -7,9 +7,10 @@ branch has drifted from `develop` and the fix costs a merge and a second full ru
 It has happened repeatedly. The rule that produced it reads as permission to move
 on, and says nothing about what to do when the answer arrives red.
 
-The same waiting costs something at the other end. A specification change, a
-documentation change, or a refactor whose tests prove nothing visible moved has
-nothing to accept by hand, yet it sits green and unmerged until someone notices.
+The same waiting costs something at the other end. An OpenSpec-only or root
+README-only change has nothing to accept by hand, yet it sits green and unmerged
+until someone notices. Code is different even when it is behavior-preserving:
+the maintainer still needs an opportunity to validate it locally.
 
 ## What Changes
 
@@ -20,9 +21,11 @@ nothing to accept by hand, yet it sits green and unmerged until someone notices.
 - A failure that is not this change's doing is still dealt with, because it fails
   every pull request behind it too.
 - What CI said is reported rather than assumed. A result nobody read is not a result.
-- A pull request that changes nothing a reader would see arms auto-merge and lands
-  when validation passes. One that changes what a reader sees waits for the manual
-  acceptance it needs — a feature is accepted before it lands, not explained after.
+- Auto-merge is limited to pull requests whose complete diff is under `openspec/**`
+  and/or the root `README.md`.
+- Any other path makes the pull request a code/operational change that waits for
+  local maintainer acceptance and a manual merge, including behavior-preserving
+  refactors and mixed specification-plus-code changes.
 - `develop` requires the validation check, which is what auto-merge arms against.
 
 **BREAKING**: none for the product. `develop` gains a required check, so a merge
@@ -33,5 +36,5 @@ waits for validation rather than racing it.
 ### Modified Capabilities
 
 - `continuous-integration`: the required check gates the merge rather than merely
-  reporting, a failing pull request is addressed before further work, and a change
-  with nothing to accept by hand merges on its own once validation passes.
+  reporting, a failing pull request is addressed before further work, and only an
+  OpenSpec/README-only pull request merges on its own once validation passes.
