@@ -51,7 +51,8 @@ describe("exact packed npm command surface", () => {
     const command = crossSpawn.sync(process.execPath, [resolve(extracted.packageRoot, "bin", "cli.js"), "agent"], {
       cwd: extracted.root, encoding: "utf8", env: process.env, windowsHide: true,
     });
-    expect(command.status).toBe(2);
-    expect(command.stderr).toContain("Bare a1 is the A1 agent experience");
+    expect(command.status).toBe(0);
+    expect(command.stdout).toBe("");
+    expect(command.stderr).toBe("");
   });
 });
