@@ -3,20 +3,20 @@
 ## Purpose
 
 Defines proportionate automated validation: fast checks during development, package gates for previews, and the complete suite only for stable releases.
-
 ## Requirements
-
 ### Requirement: Validation effort matches the change and the channel
 Automated validation SHALL scale with what is being shipped. Documentation and
-specification changes SHALL require no test execution. Pull requests into `develop`
-SHALL require the fast tier (typecheck, architecture checks, unit and contract
-tests). Preview publication SHALL additionally require exact-package gates on every
-supported platform. Stable publication SHALL require the complete automated suite on
-every supported platform.
+specification changes SHALL require no product build or product test execution, but
+SHALL run every lightweight governance consistency check whose scanned inputs they
+change; OpenSpec changes SHALL also pass strict OpenSpec validation. Pull requests
+into `develop` SHALL require the fast tier for code (typecheck, architecture checks,
+unit and contract tests). Preview publication SHALL additionally require exact-
+package gates on every supported platform. Stable publication SHALL require the
+complete automated suite on every supported platform.
 
 #### Scenario: Docs-only pull request
 - **WHEN** every changed path is documentation, an OpenSpec artifact, a Markdown file, `LICENSE`, or `.gitignore`
-- **THEN** the required development check SHALL pass without executing build, test, or architecture gates
+- **THEN** the required development check SHALL avoid product builds and tests, run strict OpenSpec validation when applicable, and run docs-sensitive governance consistency checks
 
 #### Scenario: Code pull request targets develop
 - **WHEN** a pull request changes any non-documentation path
@@ -77,30 +77,28 @@ The complete non-physical automated suite SHALL remain runnable locally (`npm ru
 - **THEN** every non-physical scope SHALL execute and report per-scope timing and outcomes
 
 ### Requirement: Publication follows from what was pushed
-Publication SHALL be triggered by pushes to `develop` rather than by manual
-dispatch or by a tag, and one workflow SHALL serve both channels. What the pushed
-commit declares SHALL decide the channel: a prerelease version SHALL publish a
-preview to the npm `next` tag, and a stable version SHALL publish that version to
-the npm `latest` tag. No other workflow SHALL publish.
+Publication SHALL use one workflow whose source is the exact current `origin/develop`
+commit. It SHALL start nightly or by explicit dispatch; a push or tag alone SHALL NOT
+publish. A manual request SHALL provide the intended channel and exact source SHA and
+SHALL fail if that SHA is no longer authoritative `develop`.
 
-Every record of a stable release — its tag, its GitHub Release, and the branch that
-names the current release — SHALL be written only after the registry serves the
-published package. A release that does not complete SHALL therefore leave no tag, no
-GitHub Release, and no moved branch. A release tag SHALL NOT be deleted or moved
-once written, which is possible precisely because it is written last.
+Nightly and explicit development publication SHALL derive one immutable preview
+version from the unique merged pull request associated with the selected source and
+publish or verify npm `next`. Stable publication SHALL require a final version and
+explicit stable dispatch. No other workflow SHALL publish.
 
-Publication SHALL refuse a version the registry already serves, and SHALL verify
-afterwards that the registry serves the exact bytes that were uploaded under the
-intended channel.
+Every record of a stable release — its tag, GitHub Release, and `master` — SHALL be
+written only after the registry serves the verified package. A release tag SHALL NOT
+be deleted or moved. An existing development version MAY be a manual no-op or a
+nightly exact-registry verification; an existing stable version SHALL be refused.
 
 #### Scenario: Work lands on develop
 - **WHEN** a commit declaring a prerelease version is pushed to `develop`
-- **THEN** a preview SHALL be published to the npm `next` tag without any further instruction
+- **THEN** no publication SHALL start solely from that push, and the next nightly or explicit development request MAY select it only while it remains authoritative
 
 #### Scenario: A release tag is pushed
 - **WHEN** a commit declaring a stable version is pushed to `develop`
-- **THEN** that version SHALL be published to the npm `latest` tag
-- **AND** its tag and GitHub Release SHALL be written afterwards, naming that commit
+- **THEN** no publication SHALL start solely from the push or a tag, and explicit stable publication SHALL write its tag and GitHub Release only after npm verification
 
 #### Scenario: A tag disagrees with its commit
 - **WHEN** a release fails at any point before the registry serves the package
@@ -108,24 +106,25 @@ intended channel.
 
 #### Scenario: A version is already published
 - **WHEN** the resolved version already exists on the registry
-- **THEN** publication SHALL fail before packing anything
+- **THEN** manual development MAY finish before package work, nightly SHALL verify the immutable registry bytes, and stable publication SHALL fail without republishing
 
 ### Requirement: Preview versions cost no commits
-A preview version SHALL be derived at publish time from the version the repository
-declares, and SHALL NOT be committed. Between releases the repository SHALL declare
-one open prerelease version, and each preview SHALL be distinguished from the last
-without a commit.
+A preview version SHALL be derived at publish time from the open base version and the
+unique merged pull-request number associated with the exact selected `develop`
+commit. It SHALL NOT be committed. Between releases the repository SHALL declare one
+open prerelease version. Merging commits SHALL NOT itself promise or trigger one
+preview per commit.
 
-A commit declaring a stable version SHALL publish that release rather than a
-preview, so the repository never declares a version that nothing publishes.
+A commit declaring a stable version SHALL be eligible only for explicit stable
+publication, so preview automation never interprets it as a development candidate.
 
 #### Scenario: Several commits land in a row
 - **WHEN** three commits are pushed to `develop`
-- **THEN** three distinct previews SHALL be published and no version commit SHALL be created
+- **THEN** no publication SHALL start from the pushes alone, and a later development request SHALL derive one preview from the then-authoritative source's merged pull request without a version commit
 
 #### Scenario: A release is prepared but not yet tagged
 - **WHEN** `develop` declares a stable version
-- **THEN** that version SHALL be published to `latest` rather than published as a preview
+- **THEN** development publication SHALL refuse it and only explicit stable publication MAY publish it to `latest`
 
 ### Requirement: A stable release is not visible until npm has it
 No tag, GitHub Release, or release-naming branch update SHALL exist for a version

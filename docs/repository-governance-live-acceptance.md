@@ -45,8 +45,22 @@
 
 ## Mixed-path manual acceptance
 
-This evidence file is outside the exact automatic allowlist while the same pull
-request updates OpenSpec acceptance state. The pull request must remain open after
-green CI, retain auto-merge disabled, and be merged only after explicit maintainer
-acceptance. Its unchanged branch must then be reconciled by the trusted close-event
-workflow. Final PR, run, merge, and ref evidence is recorded before archival.
+PR #170 combined this evidence file outside the exact automatic allowlist with an
+OpenSpec task update. Development validation run `33188542485` passed for exact head
+`b95bdbf08ad6db76c5fab2bfca254026a3c4bcc1` without product tests. Auto-merge
+remained disabled and the pull request remained open and mergeable until `timurproko`
+manually squash-merged it to `6ab1e4d29b9edec8501bac774bc755e66240ea40`.
+Close-event cleanup run `33188616709` reported `already-absent`, and the remote branch
+was verified absent after the explicit merge.
+
+## Advanced-ref refusal and final policy state
+
+The isolated mocked-GitHub fixture executed the production shared reconciler with
+expected SHA `1111111111111111111111111111111111111111` and advanced live SHA
+`2222222222222222222222222222222222222222`. It returned `refused` with reason
+`live branch advanced after merge` and issued zero DELETE requests. The bounded
+record is archived as `evidence/advanced-ref-refusal.json`.
+
+The final read-only live report matched all declared repository settings, Actions
+policy, security capabilities, environments, protected refs, complete rulesets, and
+workflow inventory with zero differences. No policy apply was run.

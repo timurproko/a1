@@ -1,0 +1,12 @@
+{
+  "schema": "a1-github-repository-governance-report-v1",
+  "repository": "timurproko/a1",
+  "mode": "read-only",
+  "mutationPerformed": false,
+  "matches": true,
+  "differences": [],
+  "api": {
+    "repository": "timurproko/a1",
+    "fetchedAt": "2026-08-28T16:10:34.003Z"
+  }
+}
