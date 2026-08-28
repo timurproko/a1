@@ -86,6 +86,20 @@ The repository has one root `package.json`, `package-lock.json`, TypeScript conf
 
 Build output mirrors the production namespaces directly under ignored `dist/`, without an intermediate `src/` directory; release and test evidence belongs in ignored `.artifacts/`; temporary agent work belongs in ignored `.worktrees/` and `.builds/`. Repository tooling is grouped under `scripts/governance`, `scripts/release`, `scripts/pi`, and `scripts/development`; the few root scripts are standalone maintenance or build commands. Package contents are selected by the root manifest. The Rust process guardian and console terminal-host proof live under `native/`; Cargo output is ignored. Third-party terminal parser sources are isolated under `native/terminal-host/vendor/` and are not owned application modules.
 
+## Development worktrees
+
+Every task worktree must be created at `{working-dir}/.worktrees/<task-id>`, where `{working-dir}` is the agent session's initial working directory. The `.worktrees` directory is inside that working directory, not beside it. For working directory `D:/Git/a1`, `D:/Git/a1/.worktrees/<task-id>` is correct and `D:/Git/a1-<task-id>` is forbidden.
+
+From the initial working directory, create and address a task worktree explicitly:
+
+```sh
+git fetch origin develop
+git worktree add --detach .worktrees/<task-id> origin/develop
+git -C .worktrees/<task-id> status
+```
+
+The primary worktree stays on `develop` for integration and must not be used for task edits. Do not edit, move, or remove another session's worktree.
+
 ## Documentation and comments
 
 - README explains installation, commands, and current limitations.
