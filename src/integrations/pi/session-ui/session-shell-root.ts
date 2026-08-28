@@ -6,9 +6,8 @@ import type {
   OwnedUiViewportSettings,
   OwnedUiViewportSettingsPort,
 } from "../../../contracts/owned-ui/index.js";
-import type { UiRouteHost } from "./route-host.js";
+import type { UiRouteHost } from "../../../ui/apps/index.js";
 import {
-  TranscriptViewport,
   backgroundSgrSpan,
   composeSubmittedPromptRows,
   displayWidth,
@@ -17,11 +16,6 @@ import {
   nativeHyperlinkStyle,
   overlaySpan,
   submittedPromptLayout,
-  routeMouseInput,
-  scrollForTrackPage,
-  scrollForThumbRow,
-  scrollbarSelectionRows,
-  scrollbarWheelRows,
   stripAnsi,
   type TranscriptPromptAnchor,
 } from "../../../ui/components/index.js";
@@ -101,6 +95,7 @@ import {
   type PiTuiTerminalPort,
 } from "../tui-runtime/index.js";
 import { PromptChipStore, type PreparedPrompt } from "./prompt-chips.js";
+import { SessionViewportController } from "./session-viewport-controller.js";
 
 export type OwnedUiBackendPort = PiEngineAdapter;
 export type OwnedUiTerminalPort = PiTuiTerminalPort;
@@ -150,22 +145,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   readonly #promptChips = new PromptChipStore();
   readonly #customViewport: boolean;
   readonly #submittedPromptComposer: PiShellSubmittedPromptComposer | undefined;
-  readonly #viewport = new TranscriptViewport();
-  #viewportConfig: OwnedUiViewportSettings = {
-    scrollbarAppearance: "auto",
-    scrollbarStyle: "thin",
-    scrollbarSpeed: "normal",
-  };
-  #dragGrabOffset: number | null = null;
-  /** A left-button sequence begun in status/editor/footer chrome is swallowed. */
-  #dockPointerSuppressed = false;
-  /** True only while the editor owns a held left mouse button. */
-  #editorPointerSelecting = false;
-  /** Last composed terminal rows occupied by the default prompt editor. */
-  #editorPointerFrame: { readonly rowStart: number; readonly rowEnd: number } | undefined;
-  #selectionAutoScrollTimer: ReturnType<typeof setTimeout> | undefined;
-  #selectionAutoScrollPointer: { readonly column: number; readonly row: number } | undefined;
-  #viewportActivityTimer: ReturnType<typeof setTimeout> | undefined;
+  readonly #viewportController: SessionViewportController;
   readonly #componentRuntime: {
     readonly getColumns: () => number;
     readonly getRows: () => number;
@@ -254,10 +234,10 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
         const linkResetAndTail = `\u001b]8;;\u001b\\\u001b[24m${" ".repeat(Math.max(0, width - piShellVisibleWidth(row)))}`;
         // VS15 is zero-column and default-ignorable. It breaks Windows Terminal's
         // plain-text URL detector only in the held-button paint; semantic text stays exact.
-        const paintRow = this.#editorPointerSelecting
+        const paintRow = this.#viewportController.editorPointerSelecting
           ? row.replaceAll("https://", "https:\uFE0E//").replaceAll("http://", "http:\uFE0E//")
           : row;
-        const decorated = this.#editorPointerSelecting
+        const decorated = this.#viewportController.editorPointerSelecting
           ? ranges.reduce((result, range) => backgroundSgrSpan(
               result,
               piShellVisibleWidth(plain.slice(0, range.start)),
@@ -282,6 +262,12 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       cwd,
       ...(agentDir === undefined ? {} : { agentDir }),
       onToolsExpand: () => this.#setToolsExpanded(!this.#toolsExpanded),
+    });
+    this.#viewportController = new SessionViewportController({
+      enabled: this.#customViewport,
+      editor: this.editor,
+      requestRender: force => this.#componentRuntime.requestRender(force),
+      hasEditorLinks: () => this.#promptChips.hyperlinkRanges(this.editor.getText()).length > 0,
     });
     this.editor.setThinkingLevel(view.thinkingLevel);
     this.#inputSurface = this.editor;
@@ -340,7 +326,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
 
   render(width: number): readonly string[] {
     if (!this.#customViewport) {
-      this.#editorPointerFrame = undefined;
+      this.#viewportController.setEditorPointerFrame(undefined);
       return [...this.#renderDocument(width), ...this.#renderDock(width)];
     }
 
@@ -366,14 +352,13 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     if (!pinStatus) document = { ...document, rows: [...document.rows, ...statusRows] };
     const dockStartRow = height - dockRows.length + 1;
     const editorOffset = pinStatus ? dock.editorOffsetWithStatus : dock.editorOffsetWithoutStatus;
-    this.#editorPointerFrame = this.usesDefaultInputSurface()
+    this.#viewportController.setEditorPointerFrame(this.usesDefaultInputSurface()
       ? {
           rowStart: dockStartRow + editorOffset,
           rowEnd: dockStartRow + editorOffset + dock.inputRows - 1,
         }
-      : undefined;
-    this.#viewport.setConfig(this.#viewportConfig);
-    return this.#viewport.compose({
+      : undefined);
+    return this.#viewportController.compose({
       documentRows: document.rows,
       // Overflowing Working rows scroll with the transcript but remain status
       // chrome: pointer selection and Ctrl+C stop at the real document tail.
@@ -414,43 +399,23 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   }
 
   setViewportConfig(config: OwnedUiViewportSettings): void {
-    if (config.scrollbarAppearance !== this.#viewportConfig.scrollbarAppearance) this.#documentLayouts.clear();
-    this.#viewportConfig = config;
-    this.#viewport.setConfig(config);
-    this.#componentRuntime.requestRender();
+    if (this.#viewportController.setConfig(config)) this.#documentLayouts.clear();
   }
 
   resumeViewportFollowing(): void {
-    if (!this.#customViewport) return;
-    this.#stopSelectionAutoScroll();
-    const selectionChanged = this.#viewport.clearSelection();
-    const scrolled = this.#viewport.scrollToEnd();
-    if (scrolled) this.#scheduleViewportActivityExpiry();
-    if (scrolled || selectionChanged) this.#componentRuntime.requestRender();
+    this.#viewportController.resumeFollowing();
   }
 
   noteCompletedAssistantMessage(): void {
-    if (!this.#customViewport || !this.#viewport.noteNewMessage()) return;
-    this.#componentRuntime.requestRender();
+    this.#viewportController.noteCompletedAssistantMessage();
   }
 
   resetViewport(): void {
-    if (this.#viewportActivityTimer !== undefined) clearTimeout(this.#viewportActivityTimer);
-    this.#viewportActivityTimer = undefined;
-    this.#editorPointerSelecting = false;
-    this.#stopSelectionAutoScroll();
-    this.#viewport.reset();
+    this.#viewportController.reset();
   }
 
   clearViewportPointerState(): void {
-    if (this.#viewportActivityTimer !== undefined) clearTimeout(this.#viewportActivityTimer);
-    this.#viewportActivityTimer = undefined;
-    this.#dragGrabOffset = null;
-    this.#dockPointerSuppressed = false;
-    this.#editorPointerSelecting = false;
-    this.#stopSelectionAutoScroll();
-    this.#viewport.clearSelection();
-    this.#viewport.clearTransient();
+    this.#viewportController.clearPointerState();
   }
 
   handleViewportPreInput(data: string, allowWheel = true, now = Date.now()): {
@@ -458,287 +423,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     readonly consumed: boolean;
     readonly copyText?: string;
   } {
-    if (!this.#customViewport) return { data, consumed: false };
-    // Pi components share one keybinding manager. Restore bare A1's aliases
-    // before the focused vanilla editor handles this input.
-    this.editor.activateKeybindings();
-    // Handle the physical paste chord at the pre-input boundary. Windows
-    // terminals vary between forwarding Ctrl+V and performing terminal-owned
-    // bracketed paste; the latter continues unchanged to Pi below.
-    if (this.editor.matchesTerminalKey(data, "ctrl+v") && this.editor.pasteClipboard()) {
-      return { data: "", consumed: true };
-    }
-    // Deleting a hovered URL chip must overwrite the terminal's cached link
-    // cells in the same input frame rather than waiting for hover expiry.
-    if (EDITOR_LINK_DELETION_INPUTS.has(data)
-      && this.#promptChips.hyperlinkRanges(this.editor.getText()).length > 0) {
-      this.#componentRuntime.requestRender(true);
-    }
-    if (this.#viewport.frame === null) return { data, consumed: false };
-    if (data === "\u0003") {
-      // Prompt selection has priority while the editor owns one; without it,
-      // Ctrl+C retains transcript-copy and then Pi's ordinary clear behavior.
-      if (this.editor.hasSelection()) {
-        if (this.#viewport.clearSelection()) this.#componentRuntime.requestRender();
-      } else {
-        const copyText = this.#viewport.selectedText();
-        if (copyText !== null && copyText.length > 0) {
-          this.#viewport.clearSelection();
-          this.#componentRuntime.requestRender();
-          return { data: "", consumed: true, copyText };
-        }
-      }
-    }
-    // Plain Home/End own transcript boundaries. Their Ctrl-modified forms are
-    // not matched here and continue to Pi's vanilla prompt editor.
-    if (allowWheel && this.editor.matchesTerminalKey(data, "home")) {
-      if (this.#viewport.scrollTo(0, now)) {
-        this.#scheduleViewportActivityExpiry();
-        this.#componentRuntime.requestRender();
-      }
-      return { data: "", consumed: true };
-    }
-    if (allowWheel && this.editor.matchesTerminalKey(data, "end")) {
-      if (!this.#viewport.followingEnd) {
-        this.#viewport.scrollToEnd(now);
-        this.#scheduleViewportActivityExpiry();
-        this.#componentRuntime.requestRender();
-      }
-      return { data: "", consumed: true };
-    }
-    if (allowWheel && (SHIFT_UP_INPUTS.has(data) || SHIFT_DOWN_INPUTS.has(data))) {
-      const scrolled = SHIFT_UP_INPUTS.has(data)
-        ? this.#viewport.scrollToPreviousPrompt(now)
-        : this.#viewport.scrollToNextPrompt(now);
-      if (scrolled) {
-        this.#scheduleViewportActivityExpiry();
-        this.#componentRuntime.requestRender();
-      }
-      return { data: "", consumed: true };
-    }
-    // Keyboard interaction returns ownership to the prompt and dismisses a
-    // stale transcript selection. Mouse reports are resolved by surface below.
-    if (!data.includes("\u001b[<") && data !== "\u0003" && this.#viewport.clearSelection()) {
-      this.#componentRuntime.requestRender();
-    }
-    const frame = this.#viewport.frame;
-    let repaint = false;
-    let forceRepaint = false;
-    let activity = false;
-    const routed = routeMouseInput(data, event => {
-      const hits = frame.hits;
-      const overRail = hits.rail !== null
-        && event.column === hits.rail.column
-        && event.row >= hits.rail.rowStart
-        && event.row < hits.rail.rowStart + hits.rail.trackHeight;
-      const overSticky = hits.sticky !== null && event.row === hits.sticky.row && event.column <= hits.sticky.width;
-      const overBottom = hits.bottom !== null && event.row === hits.bottom.row
-        && event.column >= hits.bottom.columnStart && event.column <= hits.bottom.columnEnd;
-
-      if (event.kind === "motion") {
-        this.#viewport.setRailHovered(overRail);
-        this.#viewport.setStickyHovered(overSticky);
-        this.#viewport.setBottomHovered(overBottom);
-        repaint = true;
-        if (this.editor.ownsPointer() && this.#editorPointerFrame !== undefined) {
-          this.editor.handlePointer({
-            kind: "motion",
-            button: event.button,
-            column: event.column,
-            row: event.row - this.#editorPointerFrame.rowStart + 1,
-          });
-          // Keep held-button frames differential: clearing the screen mid-drag
-          // makes Windows Terminal terminate the remaining motion reports.
-          return true;
-        }
-        if (this.#dockPointerSuppressed) return true;
-        // Once a left-button selection starts, its release—not the button bits
-        // on an intermediate motion report—ends ownership. Some terminals emit
-        // no-button motion while busy frames are being coalesced; accepting it
-        // keeps the drag continuous instead of apparently freezing.
-        if (this.#viewport.selectionActive) {
-          this.#viewport.extendSelection(event.column, event.row, now, false);
-          this.#updateSelectionAutoScroll(event.column, event.row, hits.viewportHeight);
-          activity = true;
-          return true;
-        }
-        if (this.#dragGrabOffset !== null && hits.rail !== null) {
-          const target = scrollForThumbRow(hits.rail.geometry, event.row - hits.rail.rowStart - this.#dragGrabOffset);
-          this.#viewport.scrollTo(target, now);
-          activity = true;
-          return true;
-        }
-        return overRail || overSticky || overBottom;
-      }
-      if (event.kind === "wheel-up" || event.kind === "wheel-down") {
-        if (!allowWheel || event.row < 1 || event.row > hits.viewportHeight) return false;
-        const distance = scrollbarWheelRows(this.#viewportConfig.scrollbarSpeed);
-        this.#viewport.scrollBy(event.kind === "wheel-up" ? -distance : distance, now);
-        activity = true;
-        repaint = true;
-        // Windows Terminal caches its own URL-hover overlay at the physical
-        // pointer row. A full synchronized repaint invalidates that overlay when
-        // wheel scrolling moves different content under a stationary pointer.
-        forceRepaint = true;
-        return true;
-      }
-      if (event.kind === "press") {
-        const editorFrame = this.#editorPointerFrame;
-        if (event.button === 2 && editorFrame !== undefined
-          && event.row >= editorFrame.rowStart && event.row <= editorFrame.rowEnd) {
-          this.#stopSelectionAutoScroll();
-          if (this.#viewport.clearSelection()) repaint = true;
-          this.editor.pasteClipboard();
-          // Own the matching release as editor chrome input as well.
-          this.#dockPointerSuppressed = true;
-          repaint = true;
-          return true;
-        }
-        if (event.button !== 0) return false;
-        this.#stopSelectionAutoScroll();
-        if (this.#viewport.clearSelection()) repaint = true;
-        if (overBottom) {
-          this.#viewport.scrollToEnd(now);
-          activity = true;
-          repaint = true;
-          return true;
-        }
-        if (overSticky && hits.sticky !== null) {
-          this.#viewport.scrollTo(hits.sticky.target, now);
-          activity = true;
-          repaint = true;
-          return true;
-        }
-        if (overRail && hits.rail !== null) {
-          const trackRow = event.row - hits.rail.rowStart;
-          const geometry = hits.rail.geometry;
-          if (trackRow >= geometry.thumbTop && trackRow < geometry.thumbTop + geometry.thumbHeight) {
-            this.#dragGrabOffset = trackRow - geometry.thumbTop;
-            this.#viewport.setRailDragging(true);
-          } else {
-            this.#viewport.scrollTo(scrollForTrackPage(geometry, trackRow, frame.scrollTop, hits.viewportHeight), now);
-          }
-          activity = true;
-          repaint = true;
-          return true;
-        }
-        if (editorFrame !== undefined && event.row >= editorFrame.rowStart && event.row <= editorFrame.rowEnd) {
-          const handled = this.editor.handlePointer({
-            kind: "press",
-            button: event.button,
-            column: event.column,
-            row: event.row - editorFrame.rowStart + 1,
-          });
-          if (!handled) this.#dockPointerSuppressed = true;
-          this.#editorPointerSelecting = handled;
-          repaint = true;
-          return true;
-        }
-        if (event.row > hits.viewportHeight) {
-          // Status, non-text editor chrome, widgets, and footer are controls.
-          // Consume the complete drag so terminal selection cannot paint them.
-          this.#dockPointerSuppressed = true;
-          return true;
-        }
-        if (event.row >= 1 && event.row <= hits.viewportHeight && event.column <= frame.contentWidth) {
-          this.#viewport.pressSelection(event.column, event.row, now);
-          repaint = true;
-          return true;
-        }
-        return false;
-      }
-      if (event.kind === "release") {
-        if (this.editor.ownsPointer() && this.#editorPointerFrame !== undefined) {
-          const wasEditorSelecting = this.#editorPointerSelecting;
-          this.editor.handlePointer({
-            kind: "release",
-            button: event.button,
-            column: event.column,
-            row: event.row - this.#editorPointerFrame.rowStart + 1,
-          });
-          this.#editorPointerSelecting = false;
-          forceRepaint ||= wasEditorSelecting;
-          repaint = true;
-          return true;
-        }
-        if (this.#viewport.releaseSelection()) {
-          this.#stopSelectionAutoScroll();
-          repaint = true;
-          return true;
-        }
-        if (this.#dragGrabOffset !== null) {
-          this.#dragGrabOffset = null;
-          this.#viewport.setRailDragging(false);
-          repaint = true;
-          return true;
-        }
-        if (this.#dockPointerSuppressed) {
-          this.#dockPointerSuppressed = false;
-          return true;
-        }
-      }
-      return false;
-    });
-    if (activity) this.#scheduleViewportActivityExpiry();
-    if (repaint) this.#componentRuntime.requestRender(forceRepaint);
-    return routed;
-  }
-
-  #updateSelectionAutoScroll(column: number, row: number, viewportHeight: number): void {
-    const beyondEdge = row <= 1 || row > viewportHeight;
-    if (!beyondEdge) {
-      this.#stopSelectionAutoScroll();
-      return;
-    }
-    this.#selectionAutoScrollPointer = { column, row };
-    if (this.#selectionAutoScrollTimer !== undefined) return;
-    this.#selectionAutoScrollTimer = setTimeout(
-      () => this.#selectionAutoScrollTick(),
-      SELECTION_AUTO_SCROLL_INTERVAL_MS,
-    );
-    this.#selectionAutoScrollTimer.unref?.();
-  }
-
-  #selectionAutoScrollTick(): void {
-    this.#selectionAutoScrollTimer = undefined;
-    const pointer = this.#selectionAutoScrollPointer;
-    if (pointer === undefined || !this.#viewport.selectionActive) {
-      this.#stopSelectionAutoScroll();
-      return;
-    }
-    const before = this.#viewport.scrollTop;
-    const rowsPerTick = scrollbarSelectionRows(this.#viewportConfig.scrollbarSpeed);
-    for (let row = 0; row < rowsPerTick; row += 1) {
-      const previous = this.#viewport.scrollTop;
-      this.#viewport.extendSelection(pointer.column, pointer.row);
-      if (this.#viewport.scrollTop === previous) break;
-    }
-    if (this.#viewport.scrollTop === before) {
-      this.#stopSelectionAutoScroll();
-      return;
-    }
-    this.#componentRuntime.requestRender();
-    this.#scheduleViewportActivityExpiry();
-    this.#selectionAutoScrollTimer = setTimeout(
-      () => this.#selectionAutoScrollTick(),
-      SELECTION_AUTO_SCROLL_INTERVAL_MS,
-    );
-    this.#selectionAutoScrollTimer.unref?.();
-  }
-
-  #stopSelectionAutoScroll(): void {
-    if (this.#selectionAutoScrollTimer !== undefined) clearTimeout(this.#selectionAutoScrollTimer);
-    this.#selectionAutoScrollTimer = undefined;
-    this.#selectionAutoScrollPointer = undefined;
-  }
-
-  #scheduleViewportActivityExpiry(): void {
-    if (this.#viewportActivityTimer !== undefined) clearTimeout(this.#viewportActivityTimer);
-    this.#viewportActivityTimer = setTimeout(() => {
-      this.#viewportActivityTimer = undefined;
-      this.#componentRuntime.requestRender();
-    }, 925);
-    this.#viewportActivityTimer.unref?.();
+    return this.#viewportController.handlePreInput(data, allowWheel, now);
   }
 
   #renderDock(width: number): readonly string[] {
@@ -851,7 +536,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       if (!this.#thinkingVisible && block?.kind === "thinking") continue;
       const blockWidth = this.#customViewport
         && block?.kind === "user"
-        && this.#viewportConfig.scrollbarAppearance !== "hidden"
+        && this.#viewportController.config.scrollbarAppearance !== "hidden"
         && width > 1
         ? width - 1
         : width;
@@ -1301,10 +986,6 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   }
 }
 
-const SELECTION_AUTO_SCROLL_INTERVAL_MS = 30;
-const EDITOR_LINK_DELETION_INPUTS = new Set(["\b", "\u007f", "\u001b[3~"]);
-const SHIFT_UP_INPUTS = new Set(["\u001b[1;2A"]);
-const SHIFT_DOWN_INPUTS = new Set(["\u001b[1;2B"]);
 const SCROLLBAR_CELL_RESET = "\u001b[22;23;24;25;27;28;29;39;54;55m";
 const TERMINAL_BACKGROUND = /\u001b\[(?:4[0-9]|10[0-7]|48(?:[;:][0-9;:]*)?)m/g;
 

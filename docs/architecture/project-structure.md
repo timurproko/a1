@@ -23,7 +23,7 @@ src/
     pi/
       components/                  pinned Pi component and theme adaptation
       engine/                      pinned Pi engine, settings, resource, package, and workflow integration
-      owned-ui/                    Pi-backed owned session shell and route host
+      session-ui/                  Pi-backed session shell and A1 viewport integration
       tui-runtime/                 neutral presentation runtime over pinned Pi TUI
   foundation/
     launch-guardian/               authenticated launch-instance coordination

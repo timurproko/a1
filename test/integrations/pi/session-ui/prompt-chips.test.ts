@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { rm } from "node:fs/promises";
-import { PromptChipStore } from "../../../../src/integrations/pi/owned-ui/prompt-chips.js";
+import { PromptChipStore } from "../../../../src/integrations/pi/session-ui/prompt-chips.js";
 
 const cleanup: string[] = [];
 afterEach(async () => {

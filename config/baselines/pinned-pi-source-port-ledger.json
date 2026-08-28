@@ -82,7 +82,7 @@
       "tests": [
         "test/features/owned-ui/pi-startup-composition-parity.test.ts",
         "test/integrations/pi/engine/workflows.test.ts",
-        "test/integrations/pi/owned-ui/session-shell.test.ts"
+        "test/integrations/pi/session-ui/session-shell.test.ts"
       ]
     },
     {
@@ -134,7 +134,7 @@
       ],
       "tests": [
         "test/integrations/pi/components/shell-components.test.ts",
-        "test/integrations/pi/owned-ui/session-shell.test.ts",
+        "test/integrations/pi/session-ui/session-shell.test.ts",
         "test/integrations/pi/tui-runtime/adapter.test.ts"
       ]
     },
@@ -187,7 +187,7 @@
       ],
       "tests": [
         "test/integrations/pi/components/shell-components.test.ts",
-        "test/integrations/pi/owned-ui/session-shell.test.ts",
+        "test/integrations/pi/session-ui/session-shell.test.ts",
         "test/integrations/pi/tui-runtime/adapter.test.ts"
       ]
     },
@@ -240,7 +240,7 @@
       ],
       "tests": [
         "test/integrations/pi/components/shell-components.test.ts",
-        "test/integrations/pi/owned-ui/session-shell.test.ts",
+        "test/integrations/pi/session-ui/session-shell.test.ts",
         "test/integrations/pi/tui-runtime/adapter.test.ts"
       ]
     },
@@ -293,7 +293,7 @@
       ],
       "tests": [
         "test/integrations/pi/components/shell-components.test.ts",
-        "test/integrations/pi/owned-ui/session-shell.test.ts",
+        "test/integrations/pi/session-ui/session-shell.test.ts",
         "test/integrations/pi/tui-runtime/adapter.test.ts"
       ]
     },
@@ -343,7 +343,7 @@
       "tests": [
         "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
         "test/integrations/pi/components/pinned-editor-input-parity.test.ts",
-        "test/integrations/pi/owned-ui/session-shell.test.ts",
+        "test/integrations/pi/session-ui/session-shell.test.ts",
         "test/integrations/pi/components/extension-ui-bridge.test.ts",
         "test/integrations/pi/tui-runtime/adapter.test.ts"
       ]
@@ -394,7 +394,7 @@
       "tests": [
         "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
         "test/integrations/pi/components/pinned-editor-input-parity.test.ts",
-        "test/integrations/pi/owned-ui/session-shell.test.ts",
+        "test/integrations/pi/session-ui/session-shell.test.ts",
         "test/integrations/pi/components/extension-ui-bridge.test.ts",
         "test/integrations/pi/tui-runtime/adapter.test.ts"
       ]
@@ -430,7 +430,7 @@
         "7.11"
       ],
       "tests": [
-        "test/integrations/pi/owned-ui/session-shell.test.ts"
+        "test/integrations/pi/session-ui/session-shell.test.ts"
       ]
     },
     {
@@ -459,7 +459,7 @@
           "id": "owned-input-keybinding-aliases",
           "reason": "Bare A1 opts into ergonomic vanilla editing aliases plus declarative prompt-selection, cut, paste, redo, and extension actions while the comparison profile retains pinned defaults.",
           "upstreamBehavior": "The pinned comparison profile continues to use the exact upstream keybinding definitions and effective configuration.",
-          "acceptanceTest": "test/integrations/pi/owned-ui/session-shell.test.ts"
+          "acceptanceTest": "test/integrations/pi/session-ui/session-shell.test.ts"
         }
       ],
       "behaviorCategories": [
@@ -531,7 +531,7 @@
       ],
       "tests": [
         "test/integrations/pi/components/shell-components.test.ts",
-        "test/integrations/pi/owned-ui/session-shell.test.ts",
+        "test/integrations/pi/session-ui/session-shell.test.ts",
         "test/integrations/pi/tui-runtime/adapter.test.ts"
       ]
     },
@@ -584,7 +584,7 @@
       ],
       "tests": [
         "test/integrations/pi/components/shell-components.test.ts",
-        "test/integrations/pi/owned-ui/session-shell.test.ts",
+        "test/integrations/pi/session-ui/session-shell.test.ts",
         "test/integrations/pi/tui-runtime/adapter.test.ts"
       ]
     },
@@ -619,7 +619,7 @@
         "7.11"
       ],
       "tests": [
-        "test/integrations/pi/owned-ui/session-shell.test.ts"
+        "test/integrations/pi/session-ui/session-shell.test.ts"
       ]
     },
     {
@@ -671,7 +671,7 @@
       ],
       "tests": [
         "test/integrations/pi/components/shell-components.test.ts",
-        "test/integrations/pi/owned-ui/session-shell.test.ts",
+        "test/integrations/pi/session-ui/session-shell.test.ts",
         "test/integrations/pi/tui-runtime/adapter.test.ts"
       ]
     },
@@ -724,7 +724,7 @@
       ],
       "tests": [
         "test/integrations/pi/components/shell-components.test.ts",
-        "test/integrations/pi/owned-ui/session-shell.test.ts",
+        "test/integrations/pi/session-ui/session-shell.test.ts",
         "test/integrations/pi/tui-runtime/adapter.test.ts"
       ]
     },
@@ -777,7 +777,7 @@
       ],
       "tests": [
         "test/integrations/pi/components/shell-components.test.ts",
-        "test/integrations/pi/owned-ui/session-shell.test.ts",
+        "test/integrations/pi/session-ui/session-shell.test.ts",
         "test/integrations/pi/tui-runtime/adapter.test.ts"
       ]
     },
@@ -830,7 +830,7 @@
       ],
       "tests": [
         "test/integrations/pi/components/shell-components.test.ts",
-        "test/integrations/pi/owned-ui/session-shell.test.ts",
+        "test/integrations/pi/session-ui/session-shell.test.ts",
         "test/integrations/pi/tui-runtime/adapter.test.ts"
       ]
     },
@@ -865,7 +865,7 @@
       ],
       "tests": [
         "test/integrations/pi/engine/workflows.test.ts",
-        "test/integrations/pi/owned-ui/session-shell.test.ts"
+        "test/integrations/pi/session-ui/session-shell.test.ts"
       ]
     },
     {
@@ -932,7 +932,7 @@
         "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
         "test/features/owned-ui/pi-startup-composition-parity.test.ts",
         "test/integrations/pi/engine/workflows.test.ts",
-        "test/integrations/pi/owned-ui/session-shell.test.ts"
+        "test/integrations/pi/session-ui/session-shell.test.ts"
       ]
     },
     {
@@ -969,7 +969,7 @@
       ],
       "tests": [
         "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
-        "test/integrations/pi/owned-ui/session-shell.test.ts"
+        "test/integrations/pi/session-ui/session-shell.test.ts"
       ]
     },
     {
@@ -1006,7 +1006,7 @@
       ],
       "tests": [
         "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
-        "test/integrations/pi/owned-ui/session-shell.test.ts"
+        "test/integrations/pi/session-ui/session-shell.test.ts"
       ]
     },
     {
@@ -1041,7 +1041,7 @@
       ],
       "tests": [
         "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
-        "test/integrations/pi/owned-ui/session-shell.test.ts"
+        "test/integrations/pi/session-ui/session-shell.test.ts"
       ]
     },
     {
@@ -1078,7 +1078,7 @@
       ],
       "tests": [
         "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
-        "test/integrations/pi/owned-ui/session-shell.test.ts"
+        "test/integrations/pi/session-ui/session-shell.test.ts"
       ]
     },
     {
@@ -1115,7 +1115,7 @@
       ],
       "tests": [
         "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
-        "test/integrations/pi/owned-ui/session-shell.test.ts"
+        "test/integrations/pi/session-ui/session-shell.test.ts"
       ]
     },
     {
@@ -1198,7 +1198,7 @@
       "tests": [
         "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
         "test/integrations/pi/components/pinned-status-indicator-parity.test.ts",
-        "test/integrations/pi/owned-ui/session-shell.test.ts"
+        "test/integrations/pi/session-ui/session-shell.test.ts"
       ]
     },
     {
@@ -1274,7 +1274,7 @@
       ],
       "tests": [
         "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
-        "test/integrations/pi/owned-ui/session-shell.test.ts",
+        "test/integrations/pi/session-ui/session-shell.test.ts",
         "test/integrations/pi/components/pinned-reconciled-source-ports.test.ts"
       ]
     },
@@ -1312,7 +1312,7 @@
       ],
       "tests": [
         "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
-        "test/integrations/pi/owned-ui/session-shell.test.ts"
+        "test/integrations/pi/session-ui/session-shell.test.ts"
       ]
     },
     {
@@ -1353,7 +1353,7 @@
         "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
         "test/features/owned-ui/pi-startup-composition-parity.test.ts",
         "test/integrations/pi/engine/workflows.test.ts",
-        "test/integrations/pi/owned-ui/session-shell.test.ts",
+        "test/integrations/pi/session-ui/session-shell.test.ts",
         "test/integrations/pi/components/pinned-reconciled-source-ports.test.ts"
       ]
     },
@@ -1461,7 +1461,7 @@
         "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
         "test/features/owned-ui/pi-startup-composition-parity.test.ts",
         "test/integrations/pi/engine/workflows.test.ts",
-        "test/integrations/pi/owned-ui/session-shell.test.ts",
+        "test/integrations/pi/session-ui/session-shell.test.ts",
         "test/integrations/pi/components/pinned-reconciled-source-ports.test.ts"
       ]
     },
@@ -1624,7 +1624,7 @@
         "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
         "test/features/owned-ui/pi-startup-composition-parity.test.ts",
         "test/integrations/pi/engine/workflows.test.ts",
-        "test/integrations/pi/owned-ui/session-shell.test.ts",
+        "test/integrations/pi/session-ui/session-shell.test.ts",
         "test/integrations/pi/components/pinned-reconciled-source-ports.test.ts"
       ]
     },
@@ -1660,7 +1660,7 @@
       ],
       "tests": [
         "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
-        "test/integrations/pi/owned-ui/session-shell.test.ts"
+        "test/integrations/pi/session-ui/session-shell.test.ts"
       ],
       "localSha256": "3172cc8c7025ad85eb334246a0f60ee8c3d15af4d4b4fe8e54f5b745b54f173b"
     },
@@ -1952,7 +1952,7 @@
       ],
       "tests": [
         "test/integrations/pi/components/shell-components.test.ts",
-        "test/integrations/pi/owned-ui/session-shell.test.ts"
+        "test/integrations/pi/session-ui/session-shell.test.ts"
       ],
       "localSha256": "17c5d5fc7a468ec83d927886771c82ed003b9f241c61354aad5c18a0d1c70a07"
     },
@@ -2031,7 +2031,7 @@
       ],
       "tests": [
         "test/integrations/pi/components/session-selector.test.ts",
-        "test/integrations/pi/owned-ui/session-shell.test.ts"
+        "test/integrations/pi/session-ui/session-shell.test.ts"
       ],
       "localSha256": "0e8a0d018fe26454b0aaff5f6caceeb53e33ed8330f2c9e02631fe5d62efdc28"
     },
@@ -2146,7 +2146,7 @@
       ],
       "tests": [
         "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
-        "test/integrations/pi/owned-ui/session-shell.test.ts"
+        "test/integrations/pi/session-ui/session-shell.test.ts"
       ],
       "localSha256": "de5f0f04f74471857fa98e256fe4d3bf1694e9bc9f9243f67bee38a0d53e71b3"
     },
@@ -2191,7 +2191,7 @@
       "tests": [
         "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
         "test/integrations/pi/components/pinned-status-indicator-parity.test.ts",
-        "test/integrations/pi/owned-ui/session-shell.test.ts"
+        "test/integrations/pi/session-ui/session-shell.test.ts"
       ]
     },
     {
@@ -2305,7 +2305,7 @@
       ],
       "tests": [
         "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
-        "test/integrations/pi/owned-ui/session-shell.test.ts"
+        "test/integrations/pi/session-ui/session-shell.test.ts"
       ]
     },
     {
@@ -2343,7 +2343,7 @@
         "7.8"
       ],
       "tests": [
-        "test/integrations/pi/owned-ui/session-shell.test.ts"
+        "test/integrations/pi/session-ui/session-shell.test.ts"
       ],
       "localSha256": "0f2f038eb1d45fdc4a4f69400410d876bcf87b60591534004ae2c57242aaac0c"
     },
@@ -2382,7 +2382,7 @@
         "7.8"
       ],
       "tests": [
-        "test/integrations/pi/owned-ui/session-shell.test.ts"
+        "test/integrations/pi/session-ui/session-shell.test.ts"
       ],
       "localSha256": "9b9321a9f4c8df96c29bc94cd336c096d531a34ada64c1fc98c7b97d74414b45"
     },
@@ -2459,7 +2459,7 @@
       ],
       "tests": [
         "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
-        "test/integrations/pi/owned-ui/session-shell.test.ts"
+        "test/integrations/pi/session-ui/session-shell.test.ts"
       ]
     },
     {
@@ -2619,7 +2619,7 @@
         "test/integrations/pi/components/pinned-editor-input-parity.test.ts",
         "test/integrations/pi/components/shell-components.test.ts",
         "test/integrations/pi/engine/workflows.test.ts",
-        "test/integrations/pi/owned-ui/session-shell.test.ts",
+        "test/integrations/pi/session-ui/session-shell.test.ts",
         "test/integrations/pi/tui-runtime/adapter.test.ts"
       ]
     },
@@ -2649,7 +2649,7 @@
       ],
       "tests": [
         "test/integrations/pi/engine/adapter.test.ts",
-        "test/integrations/pi/owned-ui/session-shell.test.ts"
+        "test/integrations/pi/session-ui/session-shell.test.ts"
       ]
     },
     {
@@ -2689,7 +2689,7 @@
       ],
       "tests": [
         "test/integrations/pi/components/shell-components.test.ts",
-        "test/integrations/pi/owned-ui/session-shell.test.ts"
+        "test/integrations/pi/session-ui/session-shell.test.ts"
       ]
     },
     {
@@ -2952,7 +2952,7 @@
       ],
       "tests": [
         "test/integrations/pi/components/pinned-editor-input-parity.test.ts",
-        "test/integrations/pi/owned-ui/session-shell.test.ts"
+        "test/integrations/pi/session-ui/session-shell.test.ts"
       ]
     },
     {
@@ -3131,7 +3131,7 @@
       ],
       "tests": [
         "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
-        "test/integrations/pi/owned-ui/session-shell.test.ts"
+        "test/integrations/pi/session-ui/session-shell.test.ts"
       ]
     },
     {
@@ -3317,7 +3317,7 @@
       ],
       "tests": [
         "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
-        "test/integrations/pi/owned-ui/session-shell.test.ts"
+        "test/integrations/pi/session-ui/session-shell.test.ts"
       ]
     },
     {

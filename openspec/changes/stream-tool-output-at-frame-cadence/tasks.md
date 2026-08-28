@@ -30,7 +30,7 @@
 ## 4. Invalidate one block, not the shell
 
 - [x] 4.1 In the shell root's `applyTranscriptBlock`
-  (`src/integrations/pi/owned-ui/session-shell-root.ts`), replace the whole-shell
+  (`src/integrations/pi/session-ui/session-shell-root.ts`), replace the whole-shell
   `this.invalidate()` with dropping only that block's entry from the rendered-rows cache
   (`this.#renderedRows.delete(block.id)`); the updated component tracks its own
   dirtiness and the render request comes from the caller (`#syncBlock`)

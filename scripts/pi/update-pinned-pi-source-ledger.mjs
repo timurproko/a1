@@ -289,7 +289,7 @@ async function sourceMapRecord(pkg, sourceMapPath, scope) {
                   id: "owned-input-keybinding-aliases",
                   reason: "Bare A1 opts into ergonomic vanilla editing aliases plus declarative prompt-selection, cut, paste, redo, and extension actions while the comparison profile retains pinned defaults.",
                   upstreamBehavior: "The pinned comparison profile continues to use the exact upstream keybinding definitions and effective configuration.",
-                  acceptanceTest: "test/integrations/pi/owned-ui/session-shell.test.ts",
+                  acceptanceTest: "test/integrations/pi/session-ui/session-shell.test.ts",
                 }],
               }
             : undefined;

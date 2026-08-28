@@ -30,7 +30,7 @@ The owned Pi-backed surface is not an arbitrary-CLI terminal multiplexer. A feat
 - `protocol`: additive control handshake, bounded line framing, authenticated launch-instance commands, typed stop intent, snapshots, and command results.
 - `storage`: SQLite migrations, prior-boot reconciliation, and plural launch-instance persistence. Legacy foreground rows are historical migration input and never authorize current ownership.
 - `supervisor`: endpoint identity, plural cohort ownership, per-instance reconciliation, and aggregate release shutdown coordination. It owns no terminal surface.
-- `pi-engine-adapter`, `pi-component-adapter`, `pi-tui-runtime-adapter`, and `pi-owned-ui-integration`: isolate pinned Pi engine and presentation knowledge behind neutral contracts; product features do not import them directly.
+- `pi-engine-adapter`, `pi-component-adapter`, `pi-tui-runtime-adapter`, and `pi-session-ui-integration`: isolate pinned Pi engine and presentation knowledge behind neutral contracts; product features do not import them directly. The session UI render root assembles semantic document and dock rows, while its focused viewport controller owns follow state, pointer routing, selection, and interaction timers. Owned-app route lifecycle belongs to the neutral `ui-apps` owner and is only hosted by the Pi session UI.
 - release/update/bootstrap: package-derived immutable release identity, process-guardian integrity, cohort selection, durable update transactions, rollback, and dependency-light command entry.
 
 ## Dependency direction

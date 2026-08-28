@@ -13,7 +13,7 @@ import {
   PINNED_PI_WORKFLOW_COMMAND_NAMES,
 } from "../../../../src/integrations/pi/engine/index.js";
 import { applyPiTheme, piTheme } from "../../../../src/integrations/pi/components/index.js";
-import { OwnedUiSessionShell } from "../../../../src/integrations/pi/owned-ui/index.js";
+import { OwnedUiSessionShell } from "../../../../src/integrations/pi/session-ui/index.js";
 import { TestPresentationTerminal } from "../../../features/owned-ui/neutral-port-doubles.js";
 import type { OwnedUiViewportSettings, OwnedUiViewportSettingsPort } from "../../../../src/contracts/owned-ui/index.js";
 
@@ -309,8 +309,8 @@ describe("OwnedUiSessionShell", () => {
 
   it("keeps file hyperlinks cyan while web URLs use link blue", async () => {
     await withPinnedHyperlinks(async () => {
-      const label = "src/integrations/pi/owned-ui/session-shell-root.ts";
-      const target = "file:///D:/Git/a1/src/integrations/pi/owned-ui/session-shell-root.ts";
+      const label = "src/integrations/pi/session-ui/session-shell-root.ts";
+      const target = "file:///D:/Git/a1/src/integrations/pi/session-ui/session-shell-root.ts";
       const { terminal, shell } = await fixture([{
         role: "assistant",
         content: [{ type: "text", text: `[${label}](${target})` }],

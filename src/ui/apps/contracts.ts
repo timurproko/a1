@@ -1,4 +1,10 @@
-import type { PaneInputResult, PaneMouseEvent, PaneRect, UiTheme } from "../components/index.js";
+import type {
+  PaneInputResult,
+  PaneMouseEvent,
+  PaneRect,
+  RenderCacheContract,
+  UiTheme,
+} from "../components/index.js";
 
 export interface AppSize {
   readonly width: number;
@@ -30,6 +36,8 @@ export interface AppHostServices {
 
 export interface UiApp {
   readonly id: string;
+  /** Optional declared revisions used by the host's shared frame cache. */
+  readonly renderCache?: RenderCacheContract;
   render(rect: PaneRect, host: AppHostServices): readonly string[];
   onInput?(data: string, host: AppHostServices): PaneInputResult;
   onMouse?(event: PaneMouseEvent, host: AppHostServices): PaneInputResult;
@@ -42,6 +50,28 @@ export interface AppRegistration {
   /** Route that opens the app, without its leading slash. */
   readonly route: string;
   create(): UiApp;
+}
+
+/** A neutral owned-app surface mounted by a surrounding presentation runtime. */
+export interface UiRouteSurface {
+  readonly id: string;
+  /** Renders exactly `height` rows of at most `width` columns. */
+  render(width: number, height: number): readonly string[];
+  /** True when the key was consumed; false leaves it to the surrounding shell. */
+  handleInput(data: string): boolean;
+  /** Mouse report in surface-local coordinates. True when consumed. */
+  handleMouse(event: PaneMouseEvent): boolean;
+  isClosed(): boolean;
+  close(): void;
+  onRenderRequested(listener: () => void): void;
+  /** The surface asks to leave A1 entirely, not merely to close itself. */
+  onExitRequested(listener: () => void): void;
+}
+
+/** Route lookup seam shared by owned apps and any presentation runtime hosting them. */
+export interface UiRouteHost {
+  claims(route: string): boolean;
+  open(route: string): UiRouteSurface | null;
 }
 
 const ID_PATTERN = /^[a-z][a-z0-9-]{0,63}$/;

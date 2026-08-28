@@ -12,7 +12,7 @@ have been.
 
 Per-token cost grows with the transcript. Every engine event calls `#syncView`, which
 deep-copies the whole transcript twice (`pi-engine-adapter/adapter.ts:922`,
-`pi-owned-ui-integration/session-shell.ts:773-775`), resyncs component order with a
+`pi-session-ui-integration/session-shell.ts:773-775`), resyncs component order with a
 containment scan inside a loop (`session-shell.ts:531`), and every frame re-renders every
 block after locating it with a linear search inside a `flatMap` (`session-shell.ts:249`).
 Pinned Pi mutates one live component instead: `interactive-mode.js:2572` creates a single

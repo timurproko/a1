@@ -11,7 +11,7 @@ import {
 describe("project structure ownership policy", () => {
   it("declares every production and test owner with one public entry", () => {
     expect(Object.keys(PROJECT_OWNERS)).toEqual([
-      "product-identity", "cli", "composition", "launch", "workspace", "owned-ui", "lifecycle", "process-containment", "launch-guardian", "protocol", "release", "storage", "structured-agent-runtime", "native-host-protocol", "owned-ui-contracts", "ui-components", "ui-apps", "owned-ui-settings", "agent-engine-contracts", "presentation-contracts", "pi-engine-adapter", "pi-component-adapter", "pi-tui-runtime-adapter", "pi-owned-ui-integration", "supervision", "workspace-contracts",
+      "product-identity", "cli", "composition", "launch", "workspace", "owned-ui", "lifecycle", "process-containment", "launch-guardian", "protocol", "release", "storage", "structured-agent-runtime", "native-host-protocol", "owned-ui-contracts", "ui-components", "ui-apps", "owned-ui-settings", "agent-engine-contracts", "presentation-contracts", "pi-engine-adapter", "pi-component-adapter", "pi-tui-runtime-adapter", "pi-session-ui-integration", "supervision", "workspace-contracts",
     ]);
     for (const owner of Object.values(PROJECT_OWNERS)) {
       if (owner.id === "product-identity") {
@@ -86,8 +86,8 @@ describe("project structure ownership policy", () => {
     ],
     [
       "concrete Pi integration",
-      "import { OwnedUiSessionShell } from '../../integrations/pi/owned-ui/index.js';",
-      "feature may not import concrete Pi adapter '../../integrations/pi/owned-ui/index.js'",
+      "import { OwnedUiSessionShell } from '../../integrations/pi/session-ui/index.js';",
+      "feature may not import concrete Pi adapter '../../integrations/pi/session-ui/index.js'",
     ],
     [
       "Pi-named contract",

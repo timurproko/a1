@@ -27,7 +27,7 @@ for (const file of await walk(resolve(root, "src"))) {
   const path = relative(root, file).split(sep).join("/");
   const source = await readFile(file, "utf8");
   production[path] = source;
-  const debtScope = /^(?:src\/features\/owned-ui|src\/integrations\/pi\/(?:engine|components|tui-runtime|owned-ui))\//.test(path);
+  const debtScope = /^(?:src\/features\/owned-ui|src\/integrations\/pi\/(?:engine|components|tui-runtime|session-ui))\//.test(path);
   if (!debtScope) continue;
   const checks = [
     [/(?:InteractiveMode|TuiAltScreen|TuiMainScreen).*\.prototype|prototype\s*\.(?:render|start|stop|handle\w+)\s*=|node_modules\/.+\.(?:js|ts).*writeFile/i, "prohibited runtime or package patch"],

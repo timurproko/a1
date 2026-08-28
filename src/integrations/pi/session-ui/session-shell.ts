@@ -4,7 +4,7 @@ import type {
   OwnedUiSessionViewModel,
   OwnedUiThinkingLevel,
 } from "../../../contracts/owned-ui/index.js";
-import type { UiRouteHost } from "./route-host.js";
+import type { UiRouteHost } from "../../../ui/apps/index.js";
 import { MOUSE_TRACKING_OFF, MOUSE_TRACKING_ON, parseMouseInput } from "../../../ui/components/index.js";
 import {
   PINNED_PI_HIDDEN_COMMAND_NAMES,
