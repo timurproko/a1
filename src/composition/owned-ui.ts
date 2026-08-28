@@ -45,7 +45,9 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     : new OwnedUiSettingsSession({
       store: new OwnedUiSettingsStore({ configDir: resolveProductPaths().configDir, profileId: options.profileId }),
       agentProvider: () => adapter.settingsPort(),
-      ...(ownedSurfaces ? { hiddenAgentSettingIds: ["tuiMode", "theme", "fullscreenScrollbar"] } : {}),
+      ...(ownedSurfaces ? {
+        hiddenAgentSettingIds: ["tuiMode", "theme", "fullscreenScrollbar", "quietStartup"],
+      } : {}),
     });
   // Bare A1 intentionally ships one visual target while its UI is being completed:
   // dark, regardless of terminal detection or a previously stored Pi theme. The

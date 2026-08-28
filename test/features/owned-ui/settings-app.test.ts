@@ -22,7 +22,8 @@ const WARNING_FLAGS = [
 
 function port(failWrites = false): { port: AgentSettingsPort; writes: { key: string; value: AgentJsonValue }[] } {
   const values: Record<string, AgentJsonValue> = {
-    warnings: {}, thinkingLevel: "low", editorPaddingX: 3, outputPad: 0, fullscreenScrollbar: "auto",
+    warnings: {}, thinkingLevel: "low", editorPaddingX: 3, outputPad: 0,
+    fullscreenScrollbar: "auto", quietStartup: false,
   };
   const writes: { key: string; value: AgentJsonValue }[] = [];
   return {
@@ -42,6 +43,7 @@ function port(failWrites = false): { port: AgentSettingsPort; writes: { key: str
             choices: ["auto", "always", "hidden"],
             label: "Fullscreen scrollbar",
           },
+          { key: "quietStartup", valueType: "boolean", writable: true, label: "Quiet startup" },
         ];
       },
       async readSetting(key: string): Promise<AgentJsonValue | undefined> {
@@ -79,7 +81,7 @@ async function app(failWrites = false): Promise<{ app: SettingsApp; writes: { ke
   const session = new OwnedUiSettingsSession({
     store,
     agent: backing.port,
-    hiddenAgentSettingIds: ["fullscreenScrollbar"],
+    hiddenAgentSettingIds: ["fullscreenScrollbar", "quietStartup"],
   });
   await session.load();
   return { app: new SettingsApp(session), writes: backing.writes };
@@ -118,6 +120,7 @@ describe("the settings screen", () => {
     expect(lines.some(line => line.trim() === "Scroll")).toBe(true);
     expect(lines.some(line => line.includes("Scrollbar mode") && line.includes("auto"))).toBe(true);
     expect(lines.some(line => line.includes("Fullscreen scrollbar"))).toBe(false);
+    expect(lines.some(line => line.includes("Quiet startup"))).toBe(false);
     expect(lines.some(line => line.includes("Scrollbar style") && line.includes("thin"))).toBe(true);
     expect(lines.some(line => line.includes("Speed") && line.includes("normal"))).toBe(true);
     expect(lines.some(line => line.trim() === "A1")).toBe(false);
