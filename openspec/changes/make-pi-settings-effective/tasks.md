@@ -57,7 +57,7 @@
 
 ## 8. Deliver and accept separately
 
-- [ ] 8.1 After this specification pull request merges and the user explicitly requests implementation, fetch the resulting `origin/develop` and create a fresh detached implementation worktree, branch, commit history, and code pull request citing `make-pi-settings-effective`
+- [ ] 8.1 After this specification pull request merges and the user explicitly requests implementation, fetch the resulting `origin/develop` and create the fresh detached implementation worktree at `{working-dir}/.worktrees/make-pi-settings-effective`, where `{working-dir}` is the session's initial working directory (for working directory `D:/Git/a1`, use `D:/Git/a1/.worktrees/make-pi-settings-effective`, never `D:/Git/a1-make-pi-settings-effective`), with a new branch, commit history, and code pull request citing `make-pi-settings-effective`
 - [ ] 8.2 Leave the code pull request open with auto-merge disabled after CI and provide exact candidate build/run instructions for bare A1 and `a1 pi`; verify the pull-request diff contains no specification implementation accidentally stacked on this branch
 - [ ] 8.3 Perform user-controlled physical-terminal acceptance for live settings, project trust, cursor, progress, shrink, fullscreen exit modes, supported-terminal inline images, Windows Terminal fallback, selection/copy, and terminal restoration; record exact A1, Pi, OS, and terminal versions
 - [ ] 8.4 Merge the implementation manually only after the maintainer reports acceptance and explicitly authorizes integration, then record acceptance and archive this OpenSpec change in a separate specification-only follow-up

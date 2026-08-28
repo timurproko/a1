@@ -2,7 +2,7 @@ schema: spec-driven
 
 context: |
   Delivery:
-  - Keep the primary worktree on `develop` for integration. Do each stream in one detached `.worktrees/<task-id>` worktree based on current `origin/develop` unless the user chooses another base; push it with `git push origin HEAD:refs/heads/<branch>`.
+  - Keep the primary worktree on `develop` for integration. Do each stream in one detached worktree at `{working-dir}/.worktrees/<task-id>`, where `{working-dir}` is the session's initial working directory, based on current `origin/develop` unless the user chooses another base. For working directory `D:/Git/a1`, the required location is `D:/Git/a1/.worktrees/<task-id>`, never a sibling such as `D:/Git/a1-<task-id>`. Push it with `git push origin HEAD:refs/heads/<branch>`.
   - Address every worktree explicitly with `cd <worktree> && ...` or `git -C <worktree> ...`. Never edit or remove another session's worktree.
   - Keep unrelated changes out. Use `type(scope): subject` commits and `type/short-description` branches, where type is `feature`, `fix`, `refactor`, `docs`, `test`, `chore`, or `style`; mark incompatible changes with `BREAKING CHANGE:`.
   - A request to prepare, write, design, or update a specification creates an OpenSpec-only pull request. Do not include implementation, tests, scripts, workflows, generated baselines, or non-OpenSpec configuration.
