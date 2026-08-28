@@ -52,8 +52,8 @@ function syntheticPort(options: SyntheticAgentOptions = {}): SyntheticPort {
     async listSettings(): Promise<readonly AgentSettingDescriptor[]> {
       if (options.failListSettings) throw new Error("engine unreachable");
       return [
-        { key: "autoCompact", valueType: "boolean", writable: true },
-        { key: "thinkingLevel", valueType: "enum", writable: true, choices: ["off", "low", "high"] },
+        settingDescriptor("autoCompact", "boolean", values.autoCompact ?? null),
+        { ...settingDescriptor("thinkingLevel", "enum", values.thinkingLevel ?? null), choices: ["off", "low", "high"] },
       ];
     },
     async readSetting(key: string): Promise<AgentJsonValue | undefined> {
@@ -61,15 +61,21 @@ function syntheticPort(options: SyntheticAgentOptions = {}): SyntheticPort {
     },
     ...(write
       ? {
-        async writeSetting(key: string, value: AgentJsonValue): Promise<void> {
+        async writeSetting(key: string, value: AgentJsonValue) {
           if (options.failWrite) throw new Error("engine rejected the write");
           writes.push({ key, value });
           values[key] = value;
+          if (flush) flushes += 1;
+          return { status: "applied" as const, application: "live" as const, storedValue: value, effectiveValue: value, failure: null, limitationReason: null };
         },
       }
       : {}),
     ...(flush ? { async flush(): Promise<void> { flushes += 1; } } : {}),
   };
+}
+
+function settingDescriptor(key: string, valueType: AgentSettingDescriptor["valueType"], value: AgentJsonValue): AgentSettingDescriptor {
+  return { key, valueType, writable: true, application: "live", owner: "agent", available: true, limitationReason: null, storedValue: value, effectiveValue: value };
 }
 
 let root: string;
@@ -104,10 +110,10 @@ describe("owned UI settings session", () => {
       async listSettings(): Promise<readonly AgentSettingDescriptor[]> {
         return [
           ...await base.listSettings(),
-          { key: "tuiMode", valueType: "enum", writable: true, choices: ["regular", "fullscreen"] },
-          { key: "theme", valueType: "enum", writable: true, choices: ["dark", "light", "automatic"] },
-          { key: "fullscreenScrollbar", valueType: "enum", writable: true, choices: ["auto", "always", "hidden"] },
-          { key: "quietStartup", valueType: "boolean", writable: true },
+          { ...settingDescriptor("tuiMode", "enum", "regular"), choices: ["regular", "fullscreen"] },
+          { ...settingDescriptor("theme", "enum", "dark"), choices: ["dark", "light", "automatic"] },
+          { ...settingDescriptor("fullscreenScrollbar", "enum", "auto"), choices: ["auto", "always", "hidden"] },
+          settingDescriptor("quietStartup", "boolean", false),
         ];
       },
     };
@@ -137,8 +143,10 @@ describe("owned UI settings session", () => {
     let notified = 0;
     target.onChange(() => { notified += 1; });
 
-    expect(await target.change("a1", "density", "compact"))
-      .toEqual({ applied: true, pendingRestart: false, failure: null });
+    expect(await target.change("a1", "density", "compact")).toEqual({
+      status: "applied", applied: true, pendingRestart: false, application: "live",
+      storedValue: "compact", effectiveValue: "compact", limitationReason: null, failure: null,
+    });
     expect(target.value("density")).toBe("compact");
     expect(notified).toBe(1);
     expect(port.writes).toHaveLength(0);
@@ -149,8 +157,10 @@ describe("owned UI settings session", () => {
     const target = session(syntheticPort());
     await target.load();
 
-    expect(await target.change("a1", "confirmExit", true))
-      .toEqual({ applied: false, pendingRestart: true, failure: null });
+    expect(await target.change("a1", "confirmExit", true)).toEqual({
+      status: "deferred", applied: false, pendingRestart: true, application: "next-start",
+      storedValue: true, effectiveValue: false, limitationReason: null, failure: null,
+    });
     expect(target.value("confirmExit")).toBe(false);
     expect(target.pendingValue("confirmExit")).toBe(true);
 
@@ -164,8 +174,10 @@ describe("owned UI settings session", () => {
     const target = session(port);
     await target.load();
 
-    expect(await target.change("agent", "thinkingLevel", "high"))
-      .toEqual({ applied: true, pendingRestart: false, failure: null });
+    expect(await target.change("agent", "thinkingLevel", "high")).toEqual({
+      status: "applied", applied: true, pendingRestart: false, application: "live",
+      storedValue: "high", effectiveValue: "high", limitationReason: null, failure: null,
+    });
     expect(port.writes).toEqual([{ key: "thinkingLevel", value: "high" }]);
     expect(port.flushed()).toBe(1);
     expect(target.resolution.preserved).toEqual({});
@@ -194,10 +206,24 @@ describe("owned UI settings session", () => {
     await target.load();
     const outcome = await target.change("agent", "autoCompact", false);
     expect(outcome).toEqual({
-      applied: false,
-      pendingRestart: false,
+      status: "failed", applied: false, pendingRestart: false, application: null,
+      storedValue: null, effectiveValue: null, limitationReason: null,
       failure: "autoCompact could not be written to the agent engine: engine rejected the write",
     });
+  });
+
+  it("rejects incomplete or contradictory engine descriptors instead of promoting them", async () => {
+    const base = syntheticPort();
+    const malformed: AgentSettingsPort = {
+      ...base,
+      async listSettings() {
+        return [{ key: "storageOnly", valueType: "boolean", writable: true } as never];
+      },
+    };
+    const target = session(malformed);
+    await target.load();
+    expect(target.sections()[1]?.unavailableReason).toMatch(/descriptor is invalid/);
+    expect(target.sections()[1]?.entries).toEqual([]);
   });
 
   it("keeps A1 settings usable when the engine cannot report its settings", async () => {

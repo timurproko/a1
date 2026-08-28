@@ -52,8 +52,8 @@ function syntheticPort(options: SyntheticAgentOptions = {}): SyntheticPort {
     async listSettings(): Promise<readonly AgentSettingDescriptor[]> {
       if (options.failListSettings) throw new Error("engine unreachable");
       return [
-        { key: "autoCompact", valueType: "boolean", writable: true },
-        { key: "thinkingLevel", valueType: "enum", writable: true, choices: ["off", "low", "high"] },
+        settingDescriptor("autoCompact", "boolean", values.autoCompact ?? null),
+        { ...settingDescriptor("thinkingLevel", "enum", values.thinkingLevel ?? null), choices: ["off", "low", "high"] },
       ];
     },
     async readSetting(key: string): Promise<AgentJsonValue | undefined> {
@@ -61,15 +61,20 @@ function syntheticPort(options: SyntheticAgentOptions = {}): SyntheticPort {
     },
     ...(write
       ? {
-        async writeSetting(key: string, value: AgentJsonValue): Promise<void> {
+        async writeSetting(key: string, value: AgentJsonValue) {
           if (options.failWrite) throw new Error("engine rejected the write");
           writes.push({ key, value });
           values[key] = value;
+          return { status: "applied" as const, application: "live" as const, storedValue: value, effectiveValue: value, failure: null, limitationReason: null };
         },
       }
       : {}),
     ...(flush ? { async flush(): Promise<void> { flushes += 1; } } : {}),
   };
+}
+
+function settingDescriptor(key: string, valueType: AgentSettingDescriptor["valueType"], value: AgentJsonValue): AgentSettingDescriptor {
+  return { key, valueType, writable: true, application: "live", owner: "agent", available: true, limitationReason: null, storedValue: value, effectiveValue: value };
 }
 
 let root: string;

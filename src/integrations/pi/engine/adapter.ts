@@ -1,15 +1,18 @@
 import { execFile } from "node:child_process";
+import { createHash } from "node:crypto";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { PRODUCT_IDENTITY } from "../../../product-identity.js";
+import { configureOwnedHttpDispatcher } from "./http-dispatcher.js";
 import {
   copyToClipboard,
   DefaultPackageManager,
   getAgentDir,
   ProjectTrustStore,
   SessionManager,
+  VERSION,
   type AgentSession,
   type AgentSessionRuntime,
   type AgentSessionServices,
@@ -28,6 +31,8 @@ import {
   type OwnedUiCommandOutcome,
   type OwnedUiDiagnostics,
   type OwnedUiEditorState,
+  type OwnedUiImageAttachment,
+  type OwnedUiTranscriptImageReference,
   type OwnedUiEvent,
   type OwnedUiExtensionUiPort,
   type OwnedUiModelInfo,
@@ -58,7 +63,9 @@ import {
 import { createPiRuntimeIntegration } from "./runtime-integration.js";
 import { PiSessionCommandIntegration } from "./session-integration.js";
 import { PiSettingsIntegration } from "./settings-integration.js";
-import type { AgentJsonValue, AgentSettingsPort } from "../../../contracts/agent-engine/index.js";
+import type { PiSettingOwnerHandlers } from "./settings-effects.js";
+import type { PiProjectTrustPreflightPrompt } from "./project-trust-preflight.js";
+import type { AgentJsonValue, AgentSettingOwner } from "../../../contracts/agent-engine/index.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -77,6 +84,8 @@ export interface PiEngineRuntimeFactoryInput {
   readonly cwd: string;
   readonly agentDir: string;
   readonly sessionId: string;
+  readonly sessionPath?: string;
+  readonly projectTrustPrompt?: PiProjectTrustPreflightPrompt;
 }
 
 export interface PiScopedModelDescriptor {
@@ -174,6 +183,7 @@ export interface PiEngineAdapterOptions {
   readonly cwd?: string;
   readonly agentDir?: string;
   readonly sessionId?: string;
+  readonly sessionPath?: string;
   readonly createRuntime?: PiEngineRuntimeFactory;
   readonly workflowHost?: PiWorkflowHost;
   /**
@@ -182,6 +192,8 @@ export interface PiEngineAdapterOptions {
    * offering stay here.
    */
   readonly availableThemes?: () => readonly string[];
+  readonly settingsProductMode?: "bare" | "comparison";
+  readonly projectTrustPrompt?: PiProjectTrustPreflightPrompt;
   /**
    * Startup extension-package update probe, mirroring pinned Pi's interactive
    * mode. Returns display names of packages with updates available.
@@ -207,6 +219,7 @@ export class PiEngineAdapter {
   readonly #cwd: string;
   readonly #agentDir: string;
   readonly #sessionId: string;
+  readonly #sessionPath: string | undefined;
   readonly #workflowHost: PiWorkflowHost;
   #workflowInteraction: PiWorkflowInteractionHost;
   readonly #listeners = new Set<(event: OwnedUiEvent) => void>();
@@ -242,6 +255,7 @@ export class PiEngineAdapter {
   readonly #messageBlockIds = new WeakMap<object, string>();
   readonly #messageFallbackIds = new Map<string, string[]>();
   readonly #toolBlockIds = new Map<string, string>();
+  readonly #transcriptImageAssets = new Map<string, OwnedUiImageAttachment>();
   readonly #pendingToolUpdates = new Map<string, Record<string, unknown>>();
   #toolUpdateFlush: ReturnType<typeof setTimeout> | null = null;
   #usageCache: OwnedUiUsageView | undefined;
@@ -258,6 +272,10 @@ export class PiEngineAdapter {
   #extensionShutdown: (() => void | Promise<void>) | undefined;
   #extensionBound = false;
   #disposed = false;
+  readonly #settingsProductMode: "bare" | "comparison";
+  readonly #projectTrustPrompt: PiProjectTrustPreflightPrompt | undefined;
+  #settingsIntegration: PiSettingsIntegration | undefined;
+  #settingsIntegrationManager: unknown;
 
   /** Lists the themes installed on this machine, when the caller supplies one. */
   readonly #availableThemes: (() => readonly string[]) | null;
@@ -265,6 +283,7 @@ export class PiEngineAdapter {
     this.#cwd = options.cwd ?? process.cwd();
     this.#agentDir = options.agentDir ?? getAgentDir();
     this.#sessionId = options.sessionId ?? "owned-session-1";
+    this.#sessionPath = options.sessionPath;
     this.#runtimeFactory = options.createRuntime ?? createDefaultPiRuntime;
     this.#checkPackageUpdates = options.checkPackageUpdates
       ?? (options.createRuntime
@@ -272,6 +291,8 @@ export class PiEngineAdapter {
         : settingsManager => checkDefaultPiPackageUpdates(this.#cwd, this.#agentDir, settingsManager));
     this.#workflowHost = options.workflowHost ?? defaultWorkflowHost();
     this.#availableThemes = options.availableThemes ?? null;
+    this.#settingsProductMode = options.settingsProductMode ?? "bare";
+    this.#projectTrustPrompt = options.projectTrustPrompt;
     this.#workflowInteraction = { prompt: async () => null, notify() {} };
   }
 
@@ -291,6 +312,15 @@ export class PiEngineAdapter {
     return this.#agentDir;
   }
 
+  resolveTranscriptImage(assetId: string): OwnedUiImageAttachment | null {
+    return this.#transcriptImageAssets.get(assetId) ?? null;
+  }
+
+  currentSessionFile(): string | null {
+    const value = this.#session?.sessionManager?.getSessionFile?.();
+    return typeof value === "string" && value.length > 0 ? value : null;
+  }
+
   get disposed(): boolean {
     return this.#disposed;
   }
@@ -301,6 +331,8 @@ export class PiEngineAdapter {
       cwd: this.#cwd,
       agentDir: this.#agentDir,
       sessionId: this.#sessionId,
+      ...(this.#sessionPath === undefined ? {} : { sessionPath: this.#sessionPath }),
+      ...(this.#projectTrustPrompt === undefined ? {} : { projectTrustPrompt: this.#projectTrustPrompt }),
     }).catch(error => {
       this.#lifecycle = "failed";
       this.#addDiagnostic("error", "engine-startup", error instanceof Error ? error.message : String(error), false);
@@ -325,12 +357,30 @@ export class PiEngineAdapter {
       );
     }
     this.#bindSession(runtime.session);
+    await this.#announceChangelog(runtime.services.settingsManager);
     this.#lifecycle = "ready";
     this.#editor = { ...this.#editor, submitEnabled: true };
     this.#emitEvent({ type: "session-lifecycle", lifecycle: "ready", reason: null });
     this.#emitView();
     void this.#announcePackageUpdates(runtime.services.settingsManager);
     return this.view();
+  }
+
+  async #announceChangelog(settingsManager: PiServicesApi["settingsManager"]): Promise<void> {
+    if (!settingsManager || typeof settingsManager.getLastChangelogVersion !== "function"
+      || typeof settingsManager.setLastChangelogVersion !== "function") return;
+    if (settingsManager.getLastChangelogVersion() === VERSION) return;
+    const markdown = await this.#workflowHost.readChangelog().catch(() => "");
+    if (markdown.trim().length > 0) {
+      this.#addDiagnostic(
+        "info",
+        settingsManager.getCollapseChangelog() ? "changelog-collapsed" : "changelog-expanded",
+        markdown,
+        true,
+      );
+    }
+    settingsManager.setLastChangelogVersion(VERSION);
+    await settingsManager.flush();
   }
 
   async #announcePackageUpdates(settingsManager: PiServicesApi["settingsManager"]): Promise<void> {
@@ -618,17 +668,95 @@ export class PiEngineAdapter {
   }
 
   /** Settings port for the live runtime, or null before the runtime is available. */
-  settingsPort(): AgentSettingsPort | null {
+  settingsPort(): PiSettingsIntegration | null {
     const settings = this.#runtime?.services.settingsManager;
-    if (!settings) return null;
-    const session = this.#runtime?.session;
-    return new PiSettingsIntegration(settings, {
-      ...(this.#availableThemes === null ? {} : { themes: this.#availableThemes }),
-      thinkingLevels: () => {
-        const levels = session?.getAvailableThinkingLevels?.();
-        return Array.isArray(levels) ? levels.map(level => String(level)) : [];
-      },
-    });
+    if (!settings || typeof settings.getCompactionEnabled !== "function") return null;
+    if (this.#settingsIntegration === undefined || this.#settingsIntegrationManager !== settings) {
+      this.#settingsIntegrationManager = settings;
+      configureOwnedHttpDispatcher(settings.getHttpIdleTimeoutMs());
+      this.#settingsIntegration = new PiSettingsIntegration(settings, {
+        ...(this.#availableThemes === null ? {} : { themes: this.#availableThemes }),
+        thinkingLevels: () => {
+          const levels = this.#runtime?.session?.getAvailableThinkingLevels?.();
+          return Array.isArray(levels) ? levels.map(level => String(level)) : [];
+        },
+        productMode: this.#settingsProductMode,
+      });
+      this.#settingsIntegration.bindOwner("shell", {
+        enableSkillCommands: { apply: value => {
+          if (typeof value !== "boolean") throw new TypeError("Skill commands value is invalid");
+          settings.setEnableSkillCommands(value);
+        } },
+        doubleEscapeAction: { apply: value => {
+          if (value !== "tree" && value !== "fork" && value !== "none") throw new TypeError("Double-Escape action is invalid");
+          settings.setDoubleEscapeAction(value);
+        } },
+        treeFilterMode: { apply: value => {
+          if (value !== "default" && value !== "no-tools" && value !== "user-only" && value !== "labeled-only" && value !== "all") throw new TypeError("Tree filter mode is invalid");
+          settings.setTreeFilterMode(value);
+        } },
+        showCacheMissNotices: { apply: value => {
+          if (typeof value !== "boolean") throw new TypeError("Cache-miss notice setting is invalid");
+          settings.setShowCacheMissNotices(value);
+        } },
+      });
+      this.#settingsIntegration.bindOwner("startup", {
+        // Deferred application is the owner operation: the next preflight reads
+        // the persisted default before constructing project-backed services.
+        defaultProjectTrust: { apply() {} },
+        collapseChangelog: { apply() {} },
+      });
+      this.#settingsIntegration.bindOwner("agent", {
+        autoCompact: { apply: value => {
+          if (typeof value !== "boolean") throw new TypeError("Auto compact value is invalid");
+          this.#requireWorkflowSession().setAutoCompactionEnabled(value);
+        } },
+        autoResizeImages: { apply: value => {
+          if (typeof value !== "boolean") throw new TypeError("Auto-resize images value is invalid");
+          settings.setImageAutoResize(value);
+        } },
+        blockImages: { apply: value => {
+          if (typeof value !== "boolean") throw new TypeError("Block images value is invalid");
+          settings.setBlockImages(value);
+        } },
+        steeringMode: { apply: value => {
+          if (value !== "all" && value !== "one-at-a-time") throw new TypeError("Steering mode is invalid");
+          this.#requireWorkflowSession().setSteeringMode(value);
+        } },
+        followUpMode: { apply: value => {
+          if (value !== "all" && value !== "one-at-a-time") throw new TypeError("Follow-up mode is invalid");
+          this.#requireWorkflowSession().setFollowUpMode(value);
+        } },
+        transport: { apply: value => {
+          if (value !== "sse" && value !== "websocket" && value !== "websocket-cached" && value !== "auto") throw new TypeError("Transport is invalid");
+          this.#requireWorkflowSession().agent.transport = value;
+        } },
+        httpIdleTimeoutMs: { apply: value => {
+          if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) throw new TypeError("HTTP idle timeout is invalid");
+          // Provider streaming reads the manager per request; global fetch uses
+          // the matching owned dispatcher and zero maps to disabled semantics.
+          configureOwnedHttpDispatcher(value);
+          settings.setHttpIdleTimeoutMs(value);
+        } },
+        thinkingLevel: { apply: value => {
+          if (!isThinkingLevel(value)) throw new TypeError("Thinking level is invalid");
+          this.#requireWorkflowSession().setThinkingLevel(value);
+          this.#thinkingLevel = readThinkingLevel(this.#requireWorkflowSession().thinkingLevel);
+          this.#emitView();
+        } },
+        warnings: { apply: value => {
+          if (!isRecord(value) || Object.values(value).some(flag => typeof flag !== "boolean")) throw new TypeError("Warnings setting is invalid");
+          settings.setWarnings(value);
+        } },
+      });
+    }
+    return this.#settingsIntegration;
+  }
+
+  bindSettingsOwner(owner: AgentSettingOwner, handlers: PiSettingOwnerHandlers): () => void {
+    const settings = this.settingsPort();
+    if (settings === null) return () => {};
+    return settings.bindOwner(owner, handlers);
   }
 
   pinnedModelSelectorContext(): {
@@ -921,9 +1049,9 @@ export class PiEngineAdapter {
     };
   }
 
-  applyPinnedSettingValue(callback: PiPinnedSettingsCallback, value: unknown): PiWorkflowResult {
+  async applyPinnedSettingValue(callback: PiPinnedSettingsCallback, value: unknown): Promise<PiWorkflowResult> {
     try {
-      return this.#applyPinnedSetting(callback, value, true);
+      return await this.#applyPinnedSetting(callback, value, true);
     } catch (error) {
       return workflowResult("settings", "failed", error instanceof Error ? error.message : String(error));
     }
@@ -1025,6 +1153,7 @@ export class PiEngineAdapter {
       this.#toolUpdateFlush = null;
     }
     this.#pendingToolUpdates.clear();
+    this.#transcriptImageAssets.clear();
     this.#extensionBound = false;
     this.#extensionUi = undefined;
     this.#extensionShutdown = undefined;
@@ -1050,7 +1179,7 @@ export class PiEngineAdapter {
     switch (request.command) {
       case "settings": {
         if (!selection) return workflowResult(request.command, "failed", "Settings requires the owned settings controller");
-        return this.#applyPinnedSetting(selection);
+        return await this.#applyPinnedSetting(selection);
       }
       case "model": {
         const reference = selection ?? argument;
@@ -1414,7 +1543,7 @@ export class PiEngineAdapter {
     return sessionInfoOptions(await SessionManager.list(cwd, typeof sessionDir === "string" ? sessionDir : undefined));
   }
 
-  #applyPinnedSetting(selection: string, selectedValue?: unknown, hasSelectedValue = false): PiWorkflowResult {
+  async #applyPinnedSetting(selection: string, selectedValue?: unknown, hasSelectedValue = false): Promise<PiWorkflowResult> {
     if (!(PINNED_PI_SETTINGS_CALLBACKS as readonly string[]).includes(selection)) {
       return workflowResult("settings", "failed", `Unknown setting callback: ${selection}`);
     }
@@ -1459,24 +1588,17 @@ export class PiEngineAdapter {
       selectedValue = currentValues[callback];
       hasSelectedValue = true;
     }
-    const settings = this.#runtime?.services.settingsManager;
-    if (!settings) return workflowResult("settings", "failed", "Settings are unavailable");
-    const session = this.#requireWorkflowSession();
-    if (callback === "onThinkingLevelChange") {
-      if (!isThinkingLevel(selectedValue)) return workflowResult("settings", "failed", "Thinking level is invalid");
-      session.setThinkingLevel(selectedValue);
-    } else {
-      const key = settingKeyForCallback(callback);
-      if (key === null) return workflowResult("settings", "failed", `${settingLabel(callback)} is unavailable in this runtime`);
-      const value = agentJsonValue(selectedValue);
-      if (callback === "onAutoCompactChange") {
-        if (typeof value !== "boolean") return workflowResult("settings", "failed", "Auto compact value is invalid");
-        session.setAutoCompactionEnabled?.(value);
-      }
-      new PiSettingsIntegration(settings).writeSettingNow(key, value);
+    const port = this.settingsPort();
+    if (port === null) return workflowResult("settings", "failed", "Settings are unavailable");
+    const key = settingKeyForCallback(callback);
+    if (key === null) return workflowResult("settings", "failed", `${settingLabel(callback)} is unavailable in this runtime`);
+    const result = await port.writeSetting(key, agentJsonValue(selectedValue));
+    if (result.status === "failed" || result.status === "unavailable") {
+      return workflowResult("settings", "failed", result.failure ?? result.limitationReason ?? `${settingLabel(callback)} is unavailable`);
     }
     this.#emitView();
-    return workflowResult("settings", "completed", `${settingLabel(callback)}: ${String(selectedValue)}`);
+    const suffix = result.status === "deferred" ? ` (${result.application})` : "";
+    return workflowResult("settings", "completed", `${settingLabel(callback)}: ${String(selectedValue)}${suffix}`);
   }
 
   async #perform(command: OwnedUiCommand): Promise<void> {
@@ -1562,6 +1684,7 @@ export class PiEngineAdapter {
     this.#activeModel = readModel(session.model);
     this.#reconcileActiveModelAvailability();
     this.#thinkingLevel = readThinkingLevel(session.thinkingLevel);
+    this.#transcriptImageAssets.clear();
     this.#rebuildTranscript(session.messages, "finalized");
     this.#unsubscribe = session.subscribe(event => this.#handlePiEvent(event));
     if (this.#extensionUi !== undefined) void this.#bindExtensionUiToSession();
@@ -1621,6 +1744,10 @@ export class PiEngineAdapter {
     this.#transcript = blocks;
     this.#transcriptIndex.clear();
     for (const [index, block] of blocks.entries()) this.#transcriptIndex.set(block.id, index);
+    const retainedAssets = new Set(blocks.flatMap(block => block.imageReferences?.map(reference => reference.assetId) ?? []));
+    for (const assetId of this.#transcriptImageAssets.keys()) {
+      if (!retainedAssets.has(assetId)) this.#transcriptImageAssets.delete(assetId);
+    }
     this.#transcriptSnapshot = undefined;
   }
 
@@ -1883,6 +2010,7 @@ export class PiEngineAdapter {
         revision: this.#nextBlockRevision(baseId),
         title: "User",
         text: textFromContent(message.content),
+        imageReferences: this.#imageReferences(message.content, "user"),
         payload: {
           role: "user",
           imageCount: contentImageCount(message.content),
@@ -1958,6 +2086,7 @@ export class PiEngineAdapter {
         revision: this.#nextBlockRevision(blockId),
         title: stringValue(message.toolName) ?? existing?.title ?? "Tool result",
         text: textFromContent(message.content),
+        imageReferences: this.#imageReferences(message.content, "tool-result"),
         payload: {
           ...(existingPayload ?? {}),
           role: "toolResult",
@@ -2011,6 +2140,22 @@ export class PiEngineAdapter {
       });
     }
     return blocks;
+  }
+
+  #imageReferences(content: unknown, source: OwnedUiTranscriptImageReference["source"]): readonly OwnedUiTranscriptImageReference[] {
+    if (!Array.isArray(content)) return [];
+    const references: OwnedUiTranscriptImageReference[] = [];
+    for (const item of content) {
+      if (references.length >= 16 || !isRecord(item) || item.type !== "image"
+        || typeof item.data !== "string" || item.data.length === 0
+        || typeof item.mimeType !== "string" || !/^image\/[a-z0-9.+-]+$/i.test(item.mimeType)) continue;
+      const byteLength = Buffer.from(item.data, "base64").byteLength;
+      if (byteLength < 1 || byteLength > 20 * 1024 * 1024) continue;
+      const assetId = `image-${createHash("sha256").update(item.mimeType).update("\0").update(item.data).digest("hex").slice(0, 24)}`;
+      this.#transcriptImageAssets.set(assetId, { type: "image", data: item.data, mimeType: item.mimeType });
+      references.push({ assetId, mimeType: item.mimeType, byteLength, source });
+    }
+    return references;
   }
 
   /**
@@ -2294,7 +2439,12 @@ export async function createPiEngineAdapter(
 }
 
 async function createDefaultPiRuntime(input: PiEngineRuntimeFactoryInput): Promise<AgentSessionRuntime> {
-  return createPiRuntimeIntegration({ cwd: input.cwd, agentDir: input.agentDir });
+  return createPiRuntimeIntegration({
+    cwd: input.cwd,
+    agentDir: input.agentDir,
+    ...(input.sessionPath === undefined ? {} : { sessionPath: input.sessionPath }),
+    ...(input.projectTrustPrompt === undefined ? {} : { projectTrustPrompt: input.projectTrustPrompt }),
+  });
 }
 
 async function checkDefaultPiPackageUpdates(
@@ -2536,7 +2686,7 @@ function settingKeyForCallback(callback: PiPinnedSettingsCallback): string | nul
     onAutoCompactChange: "autoCompact", onShowImagesChange: "showImages", onImageWidthCellsChange: "imageWidthCells",
     onAutoResizeImagesChange: "autoResizeImages", onBlockImagesChange: "blockImages", onEnableSkillCommandsChange: "enableSkillCommands",
     onSteeringModeChange: "steeringMode", onFollowUpModeChange: "followUpMode", onTransportChange: "transport",
-    onHttpIdleTimeoutMsChange: "httpIdleTimeoutMs", onThemeChange: "theme", onThemePreview: "theme",
+    onHttpIdleTimeoutMsChange: "httpIdleTimeoutMs", onThinkingLevelChange: "thinkingLevel", onThemeChange: "theme", onThemePreview: "theme",
     onHideThinkingBlockChange: "hideThinkingBlock", onMermaidRenderingModeChange: "mermaidRenderingMode",
     onShowCacheMissNoticesChange: "showCacheMissNotices", onCollapseChangelogChange: "collapseChangelog",
     onEnableInstallTelemetryChange: "enableInstallTelemetry", onQuietStartupChange: "quietStartup",
@@ -2750,7 +2900,8 @@ function sameBlockContent(left: OwnedUiTranscriptBlock, right: OwnedUiTranscript
     && left.status === right.status
     && left.title === right.title
     && left.text === right.text
-    && sameValue(left.payload, right.payload);
+    && sameValue(left.payload, right.payload)
+    && sameValue(left.imageReferences ?? [], right.imageReferences ?? []);
 }
 
 function sameValue(left: unknown, right: unknown): boolean {

@@ -65,6 +65,9 @@ describe("Pi shell public component adapters", () => {
     });
     editor.setFocused?.(true);
     editor.setText("hello");
+    editor.setPaddingX(3);
+    editor.setAutocompleteMaxVisible(12);
+    expect(editor.getText()).toBe("hello");
     editor.handleInput?.("\r");
     expect(submit).toHaveBeenCalledWith("hello");
     expect(editor.render(40).length).toBeGreaterThan(0);
@@ -137,6 +140,55 @@ describe("Pi shell public component adapters", () => {
       const rows = renderPiShellTranscriptBlock(fixture, 60, process.cwd());
       expect(rows.length, fixture.kind).toBeGreaterThan(0);
     }
+  });
+
+  it("renders safe transcript-image placeholders for hidden and unavailable assets", () => {
+    const imageBlock = {
+      ...block("user", "image prompt"),
+      imageReferences: [{ assetId: "image-1", mimeType: "image/png", byteLength: 128, source: "user" as const }],
+    };
+    const component = createPiShellTranscriptComponent(
+      imageBlock, process.cwd(), undefined, undefined, 1, false, "off", false, 40,
+      { resolve: () => null },
+    );
+    expect(stripTerminalSequences(component.render(80).join("\n"))).toContain("Image hidden: image/png");
+    component.setImagePresentation(true, 40);
+    expect(stripTerminalSequences(component.render(80).join("\n"))).toContain("Image unavailable: image/png");
+  });
+
+  it("rebuilds finalized and streaming assistant presentation for thinking and Mermaid modes", () => {
+    const mixed = createPiShellTranscriptComponent(block("assistant", "fallback", {
+      content: [{ type: "thinking", thinking: "private chain" }, { type: "text", text: "public answer" }],
+    }), process.cwd());
+    expect(stripTerminalSequences(mixed.render(80).join("\n"))).toContain("private chain");
+    mixed.setHideThinkingBlock(true);
+    const hidden = stripTerminalSequences(mixed.render(80).join("\n"));
+    expect(hidden).not.toContain("private chain");
+    expect(hidden).toContain("public answer");
+
+    const diagramText = "```mermaid\ngraph TD\nA-->B\n```";
+    const finalized = createPiShellTranscriptComponent(block("assistant", diagramText), process.cwd());
+    expect(stripTerminalSequences(finalized.render(80).join("\n"))).toContain("graph TD");
+    finalized.setMermaidRenderingMode("final");
+    expect(stripTerminalSequences(finalized.render(80).join("\n"))).not.toContain("graph TD");
+
+    const liveBlock = { ...block("assistant", diagramText), status: "live" as const };
+    const streaming = createPiShellTranscriptComponent(liveBlock, process.cwd());
+    streaming.setMermaidRenderingMode("final");
+    expect(stripTerminalSequences(streaming.render(80).join("\n"))).toContain("graph TD");
+    streaming.setMermaidRenderingMode("streaming");
+    expect(stripTerminalSequences(streaming.render(80).join("\n"))).not.toContain("graph TD");
+  });
+
+  it("rebuilds existing transcript presentation for live output padding without changing identity", () => {
+    const component = createPiShellTranscriptComponent(block("error", "failure"), process.cwd());
+    const identity = component.id;
+    const revision = component.revision;
+    expect(stripTerminalSequences(component.render(60)[0] ?? "").startsWith(" ")).toBe(true);
+    component.setOutputPad(0);
+    expect(component.id).toBe(identity);
+    expect(component.revision).toBe(revision);
+    expect(stripTerminalSequences(component.render(60)[0] ?? "").startsWith("Error:")).toBe(true);
   });
 
   it("uses extension custom-message and tool renderers with fallback isolation", () => {

@@ -61,7 +61,30 @@ describe("normalized agent domain contracts", () => {
     expect(() => assertAgentToolDescriptor({ name: "read", description: "Read a file", inputSchema: { type: "object" } })).not.toThrow();
     expect(() => assertAgentUsage({ inputTokens: 1, outputTokens: 2, cacheReadTokens: 3, cacheWriteTokens: 4, cost: null })).not.toThrow();
     expect(() => assertAgentModelDescriptor({ providerId: "provider", modelId: "model", displayName: "Model", contextWindow: 1000, thinkingLevels: ["low", "high"] })).not.toThrow();
-    expect(() => assertAgentSettingDescriptor({ key: "thinking", valueType: "enum", writable: true, choices: ["low", "high"] })).not.toThrow();
+    expect(() => assertAgentSettingDescriptor({
+      key: "thinking",
+      valueType: "enum",
+      writable: true,
+      choices: ["low", "high"],
+      application: "live",
+      owner: "agent",
+      available: true,
+      limitationReason: null,
+      storedValue: "low",
+      effectiveValue: "low",
+    })).not.toThrow();
+    expect(() => assertAgentSettingDescriptor({ key: "incomplete", valueType: "boolean", writable: true } as never)).toThrow(/invalid/);
+    expect(() => assertAgentSettingDescriptor({
+      key: "contradictory",
+      valueType: "boolean",
+      writable: true,
+      application: "live",
+      owner: "agent",
+      available: false,
+      limitationReason: null,
+      storedValue: true,
+      effectiveValue: true,
+    })).toThrow(/contradictory/);
     expect(() => assertAgentResourceDescriptor({ id: "skill-1", kind: "skill", label: "Skill", metadata: {} })).not.toThrow();
     expect(() => assertAgentThemeDescriptor({ id: "dark", label: "Dark", tokens: { accent: "#fff" } })).not.toThrow();
     expect(() => assertAgentUiContribution({ id: "status-1", slot: "status", version: 1, payload: {} })).not.toThrow();

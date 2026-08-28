@@ -134,6 +134,7 @@ export class PiTuiRuntimeAdapter {
   #state: PiTuiRuntimeState = "idle";
   #stopPromise: Promise<void> | undefined;
   #rootDisposed = false;
+  #terminalProgress = false;
 
   constructor(options: PiTuiRuntimeAdapterOptions) {
     this.#root = options.root;
@@ -339,8 +340,27 @@ export class PiTuiRuntimeAdapter {
     return this.#tui.getShowHardwareCursor();
   }
 
+  setClearOnShrink(enabled: boolean): void {
+    this.#tui.setClearOnShrink(enabled);
+  }
+
+  getClearOnShrink(): boolean {
+    return this.#tui.getClearOnShrink();
+  }
+
+  setTerminalProgress(active: boolean): void {
+    if (this.#terminalProgress === active) return;
+    this.#terminal.setProgress(active);
+    this.#terminalProgress = active;
+  }
+
   setTitle(title: string): void {
     this.#terminal.setTitle(title);
+  }
+
+  writeAfterStop(text: string): void {
+    if (this.#state !== "stopped") throw new Error("terminal output requires a stopped Pi TUI runtime");
+    this.#terminal.write(text);
   }
 
   invalidate(): void {
@@ -361,6 +381,7 @@ export class PiTuiRuntimeAdapter {
     if (this.#stopPromise) return this.#stopPromise;
     if (this.#state === "idle") {
       this.#state = "stopped";
+      this.#clearTerminalProgress();
       this.#preInputListeners.clear();
       this.#disposeRoot();
       return Promise.resolve();
@@ -392,6 +413,7 @@ export class PiTuiRuntimeAdapter {
       failure ??= new PiTuiRuntimeError("restoration", error);
       this.#bestEffortTerminalRestore();
     } finally {
+      this.#clearTerminalProgress();
       this.#disposeComponents();
     }
 
@@ -497,7 +519,15 @@ export class PiTuiRuntimeAdapter {
     }
   }
 
+  #clearTerminalProgress(): void {
+    try {
+      this.#terminal.setProgress(false);
+    } catch {}
+    this.#terminalProgress = false;
+  }
+
   #bestEffortTerminalRestore(): void {
+    this.#clearTerminalProgress();
     try {
       this.#terminal.showCursor();
     } catch {}

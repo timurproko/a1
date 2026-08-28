@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import { SettingsManager } from "@earendil-works/pi-coding-agent";
 import {
   EXPOSED_SETTING_KEYS,
+  PI_SETTING_EFFECTS,
   PiSettingsIntegration,
+  settingsEffectInventoryDrift,
   settingsInventoryDrift,
 } from "../../src/integrations/pi/engine/index.js";
 import piSettingsMetadata from "../../src/integrations/pi/engine/pi-settings-metadata.json" with { type: "json" };
@@ -38,6 +40,11 @@ describe("Pi settings inventory governance", () => {
 
   it("takes the exposed inventory from the engine rather than a list beside it", () => {
     expect(EXPOSED_SETTING_KEYS).toEqual(piSettingsMetadata.presented);
+  });
+
+  it("requires one reviewed effect entry for every generated key", () => {
+    expect(settingsEffectInventoryDrift(piSettingsMetadata.presented, Object.keys(PI_SETTING_EFFECTS)))
+      .toEqual({ unmapped: [], stale: [], duplicated: [] });
   });
 
   it("offers what the engine offers, in the engine's order", async () => {

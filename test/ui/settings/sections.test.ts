@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { AgentJsonValue, AgentSettingDescriptor } from "../../../src/contracts/agent-engine/index.js";
 import {
   buildOwnedUiSettingsSections,
   findOwnedUiSettingsEntry,
@@ -33,14 +34,33 @@ function resolution(values: Record<string, unknown> = {}) {
   });
 }
 
+function descriptor(
+  key: string,
+  valueType: AgentSettingDescriptor["valueType"],
+  storedValue: AgentJsonValue,
+  options: Partial<AgentSettingDescriptor> = {},
+): AgentSettingDescriptor {
+  return {
+    key,
+    valueType,
+    writable: true,
+    application: "live",
+    owner: "agent",
+    available: true,
+    limitationReason: null,
+    storedValue,
+    effectiveValue: storedValue,
+    ...options,
+  };
+}
+
 const AGENT: AgentSettingsSnapshot = {
   descriptors: [
-    { key: "autoCompact", valueType: "boolean", writable: true },
-    { key: "thinkingLevel", valueType: "enum", writable: true, choices: ["off", "low", "high"] },
-    { key: "providerProfile", valueType: "json", writable: true },
-    { key: "installId", valueType: "string", writable: false },
+    descriptor("autoCompact", "boolean", true),
+    descriptor("thinkingLevel", "enum", "low", { choices: ["off", "low", "high"] }),
+    descriptor("providerProfile", "json", { nested: 1 }),
+    descriptor("installId", "string", "abc", { writable: false }),
   ],
-  values: { autoCompact: true, thinkingLevel: "low", providerProfile: { nested: 1 }, installId: "abc" },
   writeAdvertised: true,
   failure: null,
 };
@@ -50,7 +70,7 @@ describe("owned UI settings sections", () => {
     const [owned] = buildOwnedUiSettingsSections({ resolution: resolution({ density: "compact" }), agent: AGENT });
     expect(owned?.id).toBe("a1");
     expect(owned?.entries.map(entry => [entry.id, entry.origin, entry.application]))
-      .toEqual([["density", "stored", "live"], ["confirmExit", "default", "restart"]]);
+      .toEqual([["density", "stored", "live"], ["confirmExit", "default", "next-start"]]);
     expect(owned?.entries.every(entry => entry.backend === "a1" && entry.editable)).toBe(true);
   });
 
@@ -64,6 +84,30 @@ describe("owned UI settings sections", () => {
       .toEqual(["autoCompact", "thinkingLevel", "providerProfile", "installId"]);
     expect(findOwnedUiSettingsEntry(sections, "thinkingLevel", "agent")?.choices).toEqual(["off", "low", "high"]);
     expect(findOwnedUiSettingsEntry(sections, "autoCompact", "agent")?.value).toBe(true);
+  });
+
+  it("preserves stored, effective, deferred, and unavailable engine state", () => {
+    const sections = buildOwnedUiSettingsSections({
+      resolution: resolution(),
+      agent: {
+        descriptors: [
+          descriptor("collapseChangelog", "boolean", true, { application: "next-start", owner: "startup", effectiveValue: false }),
+          descriptor("fullscreenExitOutput", "enum", "resume-hint", { application: "current-exit", owner: "shutdown", effectiveValue: "transcript", choices: ["transcript", "resume-hint"] }),
+          descriptor("theme", "string", "dark", { writable: false, available: false, limitationReason: "Bare A1 uses its product-fixed theme", owner: "shell" }),
+        ],
+        writeAdvertised: true,
+        failure: null,
+      },
+    });
+    expect(findOwnedUiSettingsEntry(sections, "collapseChangelog", "agent")).toMatchObject({
+      storedValue: true, effectiveValue: false, application: "next-start", editable: true,
+    });
+    expect(findOwnedUiSettingsEntry(sections, "fullscreenExitOutput", "agent")).toMatchObject({
+      storedValue: "resume-hint", effectiveValue: "transcript", application: "current-exit", editable: true,
+    });
+    expect(findOwnedUiSettingsEntry(sections, "theme", "agent")).toMatchObject({
+      editable: false, available: false, limitationReason: "Bare A1 uses its product-fixed theme",
+    });
   });
 
   it("marks a structured setting editable through its own surface", () => {
@@ -92,7 +136,7 @@ describe("owned UI settings sections", () => {
     for (const agent of [
       null,
       { ...AGENT, failure: "engine unreachable" },
-      { ...AGENT, descriptors: [], values: {} },
+      { ...AGENT, descriptors: [] },
     ]) {
       const sections = buildOwnedUiSettingsSections({ resolution: resolution(), agent });
       const [owned, agentSection] = sections;
@@ -107,8 +151,7 @@ describe("owned UI settings sections", () => {
       resolution: resolution(),
       agent: {
         ...AGENT,
-        descriptors: [{ key: "installId", valueType: "string", writable: false }],
-        values: { installId: "abc" },
+        descriptors: [descriptor("installId", "string", "abc", { writable: false })],
       },
     });
     expect(sections.find(section => section.id === "agent")?.readOnlyReason)

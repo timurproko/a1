@@ -1,4 +1,10 @@
-import type { AgentJsonValue, AgentSettingsPort } from "../../contracts/agent-engine/index.js";
+import { assertAgentSettingDescriptor } from "../../contracts/agent-engine/index.js";
+import type {
+  AgentJsonValue,
+  AgentSettingApplicationBoundary,
+  AgentSettingChangeOutcome,
+  AgentSettingsPort,
+} from "../../contracts/agent-engine/index.js";
 import type { OwnedUiSettingValue } from "./declarations.js";
 import type { OwnedUiSettingsResolution } from "./resolution.js";
 import {
@@ -11,33 +17,27 @@ import {
 import type { OwnedUiSettingsStore } from "./store.js";
 
 export interface OwnedUiSettingsChangeOutcome {
+  readonly status: "applied" | "deferred" | "unavailable" | "failed";
   readonly applied: boolean;
-  /** True when the value is stored but only takes effect on the next start. */
+  /** Compatibility projection for existing A1 restart-bound declarations. */
   readonly pendingRestart: boolean;
-  /** Present when the change could not be persisted; the surface must not show it as saved. */
+  readonly application: AgentSettingApplicationBoundary | null;
+  readonly storedValue: AgentJsonValue | null;
+  readonly effectiveValue: AgentJsonValue | null;
+  readonly limitationReason: string | null;
   readonly failure: string | null;
 }
 
 export interface OwnedUiSettingsSessionOptions {
   readonly store: OwnedUiSettingsStore;
-  /** Null when no engine is attached; the Agent section then reports itself unavailable. */
   readonly agent?: AgentSettingsPort | null;
-  /**
-   * Resolves the port at load time instead of construction time, for an engine
-   * whose runtime is not up yet. Takes precedence over `agent`.
-   */
   readonly agentProvider?: () => AgentSettingsPort | null;
-  /** Agent-owned controls fixed by this product surface and therefore omitted. */
   readonly hiddenAgentSettingIds?: readonly string[];
 }
 
 export type OwnedUiSettingsListener = (session: OwnedUiSettingsSession) => void;
 
-/**
- * Holds the resolved settings for one owned UI session and routes every accepted
- * change to the backend that owns it: A1 settings to the A1 document, agent
- * settings to the engine settings port. Neither backend ever sees the other's value.
- */
+/** Routes every accepted setting change only to its owning backend. */
 export class OwnedUiSettingsSession {
   readonly #store: OwnedUiSettingsStore;
   readonly #agent: AgentSettingsPort | null;
@@ -60,10 +60,9 @@ export class OwnedUiSettingsSession {
     return this.#resolution;
   }
 
-  /** Reads the engine's settings so the Agent section can be built. Never throws. */
   async load(): Promise<void> {
     this.#resolution = this.#store.read();
-    const agent = this.#agentProvider === null ? this.#agent : this.#agentProvider();
+    const agent = this.#currentAgent();
     this.#agentSnapshot = agent === null ? null : await snapshotOf(agent, this.#hiddenAgentSettingIds);
     this.#notify();
   }
@@ -72,12 +71,10 @@ export class OwnedUiSettingsSession {
     return buildOwnedUiSettingsSections({ resolution: this.#resolution, agent: this.#agentSnapshot });
   }
 
-  /** Resolved value of an A1 setting, or null when it is not declared. */
   value(id: string): OwnedUiSettingValue | null {
     return this.#resolution.settings.find(setting => setting.declaration.id === id)?.value ?? null;
   }
 
-  /** Value stored this session but not yet in effect, for a restart-required setting. */
   pendingValue(id: string): OwnedUiSettingValue | null {
     return this.#pending.get(id) ?? null;
   }
@@ -87,27 +84,13 @@ export class OwnedUiSettingsSession {
     return () => this.#listeners.delete(listener);
   }
 
-  /** Writes a structured value, which only an engine-backed setting can hold. */
   async changeStructured(
     backend: OwnedUiSettingsBackend,
     id: string,
     value: Readonly<Record<string, unknown>>,
   ): Promise<OwnedUiSettingsChangeOutcome> {
     if (backend !== "agent") return failed("only an agent setting holds a structured value");
-    const agent = this.#agentProvider === null ? this.#agent : this.#agentProvider();
-    if (agent === null) return failed("no agent engine is attached");
-    if (!agent.capabilities.write || !agent.writeSetting) {
-      return failed("the agent engine does not support changing settings from this surface");
-    }
-    try {
-      await agent.writeSetting(id, value as AgentJsonValue);
-      if (agent.capabilities.flush && agent.flush) await agent.flush();
-    } catch (error) {
-      return failed(`${id} could not be written to the agent engine: ${describe(error)}`);
-    }
-    this.#agentSnapshot = await snapshotOf(agent, this.#hiddenAgentSettingIds);
-    this.#notify();
-    return { applied: true, pendingRestart: false, failure: null };
+    return await this.#changeAgentValue(id, value as AgentJsonValue);
   }
 
   async change(
@@ -117,9 +100,8 @@ export class OwnedUiSettingsSession {
   ): Promise<OwnedUiSettingsChangeOutcome> {
     const entry = findOwnedUiSettingsEntry(this.sections(), id, backend);
     if (entry === null) return failed(`unknown ${backend} setting: ${id}`);
-    if (!entry.editable) return failed(`${id} is not editable from this surface`);
-
-    return backend === "a1" ? this.#changeOwned(id, value) : await this.#changeAgent(id, value);
+    if (!entry.editable) return failed(entry.limitationReason ?? `${id} is not editable from this surface`);
+    return backend === "a1" ? this.#changeOwned(id, value) : await this.#changeAgentValue(id, value);
   }
 
   #changeOwned(id: string, value: OwnedUiSettingValue): OwnedUiSettingsChangeOutcome {
@@ -128,33 +110,39 @@ export class OwnedUiSettingsSession {
 
     const previous = this.#resolution;
     this.#resolution = this.#store.read();
-    const declaration = previous.settings.find(setting => setting.declaration.id === id)?.declaration;
-    if (declaration?.application === "restart") {
+    const previousSetting = previous.settings.find(setting => setting.declaration.id === id);
+    if (previousSetting?.declaration.application === "restart") {
       this.#pending.set(id, value);
       this.#resolution = previous;
       this.#notify();
-      return { applied: false, pendingRestart: true, failure: null };
+      return changed("deferred", "next-start", value as AgentJsonValue, previousSetting.value as AgentJsonValue);
     }
     this.#pending.delete(id);
     this.#notify();
-    return { applied: true, pendingRestart: false, failure: null };
+    return changed("applied", "live", value as AgentJsonValue, value as AgentJsonValue);
   }
 
-  async #changeAgent(id: string, value: OwnedUiSettingValue): Promise<OwnedUiSettingsChangeOutcome> {
-    const agent = this.#agentProvider === null ? this.#agent : this.#agentProvider();
+  async #changeAgentValue(id: string, value: AgentJsonValue): Promise<OwnedUiSettingsChangeOutcome> {
+    const agent = this.#currentAgent();
     if (agent === null) return failed("no agent engine is attached");
     if (!agent.capabilities.write || !agent.writeSetting) {
       return failed("the agent engine does not support changing settings from this surface");
     }
+    let result: AgentSettingChangeOutcome;
     try {
-      await agent.writeSetting(id, value satisfies AgentJsonValue);
-      if (agent.capabilities.flush && agent.flush) await agent.flush();
+      // The coordinator behind the port owns effect installation, persistence,
+      // flush, and rollback. A second surface-level flush would split authority.
+      result = await agent.writeSetting(id, value);
     } catch (error) {
       return failed(`${id} could not be written to the agent engine: ${describe(error)}`);
     }
     this.#agentSnapshot = await snapshotOf(agent, this.#hiddenAgentSettingIds);
     this.#notify();
-    return { applied: true, pendingRestart: false, failure: null };
+    return fromAgentOutcome(result);
+  }
+
+  #currentAgent(): AgentSettingsPort | null {
+    return this.#agentProvider === null ? this.#agent : this.#agentProvider();
   }
 
   #notify(): void {
@@ -164,28 +152,61 @@ export class OwnedUiSettingsSession {
 
 async function snapshotOf(agent: AgentSettingsPort, hidden: ReadonlySet<string>): Promise<AgentSettingsSnapshot> {
   try {
-    const descriptors = (await agent.listSettings()).filter(descriptor => !hidden.has(descriptor.key));
-    const values: Record<string, unknown> = {};
-    for (const descriptor of descriptors) {
-      try {
-        values[descriptor.key] = await agent.readSetting(descriptor.key) ?? null;
-      } catch {
-        values[descriptor.key] = null;
-      }
-    }
+    const listed = await agent.listSettings();
+    for (const descriptor of listed) assertAgentSettingDescriptor(descriptor);
+    const descriptors = listed.filter(descriptor => !hidden.has(descriptor.key));
     return {
       descriptors,
-      values,
       writeAdvertised: agent.capabilities.write && typeof agent.writeSetting === "function",
       failure: null,
     };
   } catch (error) {
-    return { descriptors: [], values: {}, writeAdvertised: false, failure: describe(error) };
+    return { descriptors: [], writeAdvertised: false, failure: describe(error) };
   }
 }
 
 function failed(failure: string): OwnedUiSettingsChangeOutcome {
-  return { applied: false, pendingRestart: false, failure };
+  return {
+    status: "failed",
+    applied: false,
+    pendingRestart: false,
+    application: null,
+    storedValue: null,
+    effectiveValue: null,
+    limitationReason: null,
+    failure,
+  };
+}
+
+function changed(
+  status: "applied" | "deferred",
+  application: AgentSettingApplicationBoundary,
+  storedValue: AgentJsonValue,
+  effectiveValue: AgentJsonValue,
+): OwnedUiSettingsChangeOutcome {
+  return {
+    status,
+    applied: status === "applied",
+    pendingRestart: status === "deferred" && application === "next-start",
+    application,
+    storedValue,
+    effectiveValue,
+    limitationReason: null,
+    failure: null,
+  };
+}
+
+function fromAgentOutcome(result: AgentSettingChangeOutcome): OwnedUiSettingsChangeOutcome {
+  return {
+    status: result.status,
+    applied: result.status === "applied",
+    pendingRestart: result.status === "deferred" && result.application === "next-start",
+    application: result.application,
+    storedValue: result.storedValue,
+    effectiveValue: result.effectiveValue,
+    limitationReason: result.limitationReason,
+    failure: result.failure,
+  };
 }
 
 function describe(error: unknown): string {

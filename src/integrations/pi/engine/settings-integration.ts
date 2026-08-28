@@ -1,37 +1,40 @@
 import type { SettingsManager } from "@earendil-works/pi-coding-agent";
-import type { AgentJsonValue, AgentSettingDescriptor, AgentSettingFlag, AgentSettingsPort } from "../../../contracts/agent-engine/index.js";
+import type {
+  AgentJsonValue,
+  AgentSettingChangeOutcome,
+  AgentSettingDescriptor,
+  AgentSettingFlag,
+  AgentSettingOwner,
+  AgentSettingsPort,
+} from "../../../contracts/agent-engine/index.js";
 import piSettingsMetadata from "./pi-settings-metadata.json" with { type: "json" };
+import {
+  PI_SETTING_EFFECTS,
+  PiSettingsCoordinator,
+  type PiSettingKey,
+  type PiSettingOwnerHandlers,
+  type PiSettingStorageOperation,
+  settingsEffectInventoryDrift,
+} from "./settings-effects.js";
 
-/**
- * Values only the running engine knows: the themes installed on this machine and
- * the thinking levels this session supports. The boundary asks for them as it is
- * read, so no layer above has to know they are not fixed.
- */
+/** Values only the running engine knows. */
 export interface PiSettingsProviders {
   readonly themes?: () => readonly string[];
   readonly thinkingLevels?: () => readonly string[];
+  readonly productMode?: "bare" | "comparison";
 }
 
-/**
- * The engine stores a theme as one string with two forms: a theme's name, or a
- * `light/dark` pair meaning "follow the terminal". That grammar is the engine's,
- * so it is parsed and composed here and reaches the surfaces above as ordinary
- * settings — a theme entry that offers `automatic`, and, while automatic, one
- * entry per terminal appearance.
- */
 export const AUTOMATIC_THEME = "automatic";
-/** The themes an automatic setting names for each terminal appearance. */
 const LIGHT_APPEARANCE_THEME = "light";
 const DARK_APPEARANCE_THEME = "dark";
-const THEME_KEY = "theme";
-const THINKING_KEY = "thinkingLevel";
+const THEME_KEY: PiSettingKey = "theme";
+const THINKING_KEY: PiSettingKey = "thinkingLevel";
 
 interface AutomaticTheme {
   readonly light: string;
   readonly dark: string;
 }
 
-/** A stored theme is automatic when it names one theme per terminal appearance. */
 export function parseAutomaticTheme(stored: string): AutomaticTheme | null {
   const at = stored.indexOf("/");
   if (at < 0 || stored.indexOf("/", at + 1) >= 0) return null;
@@ -40,16 +43,9 @@ export function parseAutomaticTheme(stored: string): AutomaticTheme | null {
   return light.length > 0 && dark.length > 0 ? { light, dark } : null;
 }
 
-type Operation = { readonly descriptor: AgentSettingDescriptor; readonly read: () => AgentJsonValue; readonly write: (value: AgentJsonValue) => void };
+type DescriptorSeed = Pick<AgentSettingDescriptor, "key" | "valueType" | "choices">;
+type Operation = PiSettingStorageOperation & { readonly descriptor: DescriptorSeed };
 
-
-
-/**
- * How the engine presents these settings — wording, order, and the flags a
- * dialog-backed setting offers — generated from its own source by
- * `npm run update:pi-settings-metadata` and verified by a governance test, so a
- * Pi upgrade cannot silently reword or reorder what A1 shows.
- */
 const PRESENTATION: {
   readonly presented: readonly string[];
   readonly order: readonly string[];
@@ -58,18 +54,8 @@ const PRESENTATION: {
   readonly bounds: Readonly<Record<string, { readonly minimum: number; readonly maximum?: number }>>;
 } = piSettingsMetadata;
 
-/**
- * The settings A1 exposes: the ones the engine presents. Kept as the engine's
- * own inventory rather than a list beside it, so a setting it adds or renames
- * shows up as a named test failure instead of quietly going missing.
- */
 export const EXPOSED_SETTING_KEYS: readonly string[] = PRESENTATION.presented;
 
-/**
- * What has drifted between the settings the engine presents and the settings A1
- * maps to its API: the ones A1 has not caught up with, and the ones it kept
- * after the engine dropped them. Either is a build failure with a name in it.
- */
 export function settingsInventoryDrift(
   presented: readonly string[],
   mapped: readonly string[],
@@ -82,62 +68,91 @@ export function settingsInventoryDrift(
   };
 }
 
-/** What the engine offers for a setting, as the strings it words them with. */
 function offered(key: string): readonly string[] {
   return PRESENTATION.settings[key]?.values ?? [];
 }
 
-/**
- * The same, read as the numbers a numeric setting stores. Only for a setting
- * whose list is its whole domain: where the engine offers a few numbers but
- * accepts any within a range, the range governs and the list is only shortcuts.
- */
 function offeredNumbers(key: string): readonly number[] {
   return offered(key).map(value => Number.parseInt(value, 10)).filter(value => Number.isSafeInteger(value));
 }
 
+/**
+ * Pi settings boundary backed by the transactional settings coordinator. The
+ * generated metadata owns presentation while the reviewed effect registry owns
+ * timing, availability, and active behavior.
+ */
 export class PiSettingsIntegration implements AgentSettingsPort {
   readonly capabilities = { write: true, flush: true };
-  readonly #operations: ReadonlyMap<string, Operation>;
+  readonly #operations: ReadonlyMap<PiSettingKey, Operation>;
   readonly #providers: PiSettingsProviders;
+  readonly #coordinator: PiSettingsCoordinator;
+
   constructor(private readonly settings: SettingsManager, providers: PiSettingsProviders = {}) {
     this.#providers = providers;
-    this.#operations = new Map(operations(settings).map(operation => [operation.descriptor.key, operation]));
-    if (this.#operations.size !== EXPOSED_SETTING_KEYS.length || EXPOSED_SETTING_KEYS.some(key => !this.#operations.has(key))) {
-      throw new Error("Pi settings integration does not cover every A1-exposed setting");
+    const mapped = operations(settings, providers);
+    this.#operations = new Map(mapped.map(operation => [operation.key, operation]));
+    const presentationDrift = settingsInventoryDrift(EXPOSED_SETTING_KEYS, mapped.map(operation => operation.key));
+    const effectDrift = settingsEffectInventoryDrift(EXPOSED_SETTING_KEYS);
+    if (presentationDrift.unmapped.length > 0 || presentationDrift.stale.length > 0
+      || effectDrift.unmapped.length > 0 || effectDrift.stale.length > 0 || effectDrift.duplicated.length > 0) {
+      throw new Error([
+        `unmapped operations: ${presentationDrift.unmapped.join(", ")}`,
+        `stale operations: ${presentationDrift.stale.join(", ")}`,
+        `unmapped effects: ${effectDrift.unmapped.join(", ")}`,
+        `stale effects: ${effectDrift.stale.join(", ")}`,
+        `duplicated effects: ${effectDrift.duplicated.join(", ")}`,
+      ].join("; "));
     }
+    this.#coordinator = new PiSettingsCoordinator(mapped, {
+      productMode: providers.productMode ?? "bare",
+      flush: () => settings.flush(),
+      drainErrors: () => settings.drainErrors(),
+    });
   }
+
+  bindOwner(owner: AgentSettingOwner, handlers: PiSettingOwnerHandlers): () => void {
+    return this.#coordinator.bindOwner(owner, handlers);
+  }
+
+  unbindOwner(owner: AgentSettingOwner): void {
+    this.#coordinator.unbindOwner(owner);
+  }
+
   async listSettings(): Promise<readonly AgentSettingDescriptor[]> {
     const rank = (key: string): number => {
       const at = PRESENTATION.order.indexOf(key);
       return at < 0 ? PRESENTATION.order.length : at;
     };
-    const listed = [...this.#operations.values()]
+    return [...this.#operations.values()]
       .map(operation => {
-        const key = operation.descriptor.key;
+        const key = operation.key;
         const wording = PRESENTATION.settings[key];
         const flags = PRESENTATION.dialogs[key];
         const bounds = PRESENTATION.bounds[key];
-        return {
+        const limitationReason = this.#coordinator.limitationReason(key);
+        const descriptor: AgentSettingDescriptor = {
           ...operation.descriptor,
+          application: PI_SETTING_EFFECTS[key].application,
+          owner: PI_SETTING_EFFECTS[key].owner,
+          available: limitationReason === null,
+          limitationReason,
+          writable: limitationReason === null,
+          storedValue: this.#coordinator.storedValue(key),
+          effectiveValue: this.#coordinator.effectiveValue(key),
           ...(bounds === undefined ? {} : bounds),
           ...(wording === undefined ? {} : { label: wording.label, description: wording.description }),
           ...(flags === undefined ? {} : { flags }),
         };
+        return this.#resolved(descriptor);
       })
-      .map(descriptor => this.#resolved(descriptor))
       .sort((left, right) => rank(left.key) - rank(right.key));
-    // Following the terminal is one choice on the theme itself, not two further
-    // settings: the pair behind it is the engine's grammar, not a reader's task.
-    return listed;
   }
 
-  /** Overlays the values a setting can only offer once something is running. */
   #resolved(descriptor: AgentSettingDescriptor): AgentSettingDescriptor {
     if (descriptor.key === THEME_KEY) {
       const themes = this.#themes();
       if (themes.length === 0) return descriptor;
-      return { ...descriptor, valueType: "enum", writable: true, resolvedWhenRead: true, choices: [AUTOMATIC_THEME, ...themes] };
+      return { ...descriptor, valueType: "enum", resolvedWhenRead: true, choices: [AUTOMATIC_THEME, ...themes] };
     }
     if (descriptor.key === THINKING_KEY) {
       const levels = this.#providers.thinkingLevels?.() ?? [];
@@ -151,52 +166,27 @@ export class PiSettingsIntegration implements AgentSettingsPort {
     return this.#providers.themes?.() ?? [];
   }
 
-  #storedTheme(): string {
-    const stored = this.#operations.get(THEME_KEY)?.read();
-    return typeof stored === "string" ? stored : "";
-  }
   async readSetting(key: string): Promise<AgentJsonValue | undefined> {
-    if (key === THEME_KEY) {
-      const pair = parseAutomaticTheme(this.#storedTheme());
-      return pair === null ? this.#operations.get(key)?.read() : AUTOMATIC_THEME;
-    }
-    return this.#operations.get(key)?.read();
-  }
-  async writeSetting(key: string, value: AgentJsonValue): Promise<void> { this.writeSettingNow(key, value); }
-  writeSettingNow(key: string, value: AgentJsonValue): void {
-    if (typeof value === "string" && key === THEME_KEY) {
-      this.#writeTheme(value);
-      return;
-    }
-    const operation = this.#operations.get(key);
-    if (!operation) throw new Error(`setting is unavailable: ${key}`);
-    operation.write(value);
+    return isPiSettingKey(key) && this.#operations.has(key) ? this.#coordinator.storedValue(key) : undefined;
   }
 
-  /**
-   * Writes the theme in the engine's own grammar. Following the terminal is
-   * stored as the pair the engine reads for it, made of the themes named for
-   * each appearance when they are installed; where they are not, the theme
-   * already in use stands for both, so the setting still round-trips.
-   */
-  #writeTheme(value: string): void {
-    const theme = this.#operations.get(THEME_KEY);
-    if (!theme) throw new Error(`setting is unavailable: ${THEME_KEY}`);
-    if (value !== AUTOMATIC_THEME) {
-      theme.write(value);
-      return;
-    }
-    if (parseAutomaticTheme(this.#storedTheme()) !== null) return;
-    const installed = this.#themes();
-    const current = this.#storedTheme();
-    const light = installed.includes(LIGHT_APPEARANCE_THEME) ? LIGHT_APPEARANCE_THEME : current;
-    const dark = installed.includes(DARK_APPEARANCE_THEME) ? DARK_APPEARANCE_THEME : current;
-    theme.write(`${light}/${dark}`);
+  async writeSetting(key: string, value: AgentJsonValue): Promise<AgentSettingChangeOutcome> {
+    if (!isPiSettingKey(key) || !this.#operations.has(key)) throw new Error(`setting is unavailable: ${key}`);
+    return await this.#coordinator.apply(key, value);
   }
-  async flush(): Promise<void> { await this.settings.flush(); }
+
+  /** Shared route used by the pinned selector and owned settings surface. */
+  async writeSettingNow(key: string, value: AgentJsonValue): Promise<AgentSettingChangeOutcome> {
+    return await this.writeSetting(key, value);
+  }
+
+  async flush(): Promise<void> {
+    await this.#coordinator.flush();
+  }
 }
 
-function operations(settings: SettingsManager): readonly Operation[] {
+function operations(settings: SettingsManager, providers: PiSettingsProviders): readonly Operation[] {
+  const themes = (): readonly string[] => providers.themes?.() ?? [];
   return [
     bool("autoCompact", () => settings.getCompactionEnabled(), value => settings.setCompactionEnabled(value)),
     bool("showImages", () => settings.getShowImages(), value => settings.setShowImages(value)),
@@ -208,12 +198,8 @@ function operations(settings: SettingsManager): readonly Operation[] {
     choice("followUpMode", offered("followUpMode"), () => settings.getFollowUpMode(), value => settings.setFollowUpMode(value as "all" | "one-at-a-time")),
     choice("transport", offered("transport"), () => settings.getTransport(), value => settings.setTransport(value as ReturnType<SettingsManager["getTransport"]>)),
     numberSetting("httpIdleTimeoutMs", () => settings.getHttpIdleTimeoutMs(), value => settings.setHttpIdleTimeoutMs(value), 0),
-    // The engine reads these from the running session rather than declaring them,
-    // so they arrive through the runtime provider rather than from its source.
     choice("thinkingLevel", ["off", "minimal", "low", "medium", "high", "xhigh"], () => settings.getDefaultThinkingLevel() ?? "medium", value => settings.setDefaultThinkingLevel(value as NonNullable<ReturnType<SettingsManager["getDefaultThinkingLevel"]>>)),
-    // The raw setting, not the resolved theme: the engine hides the automatic
-    // pair behind getTheme, and the pair is the thing A1 presents parts of.
-    stringSetting("theme", () => settings.getThemeSetting() ?? "default", value => settings.setTheme(value)),
+    themeSetting(settings, themes),
     bool("hideThinkingBlock", () => settings.getHideThinkingBlock(), value => settings.setHideThinkingBlock(value)),
     choice("mermaidRenderingMode", offered("mermaidRenderingMode"), () => settings.getMermaidRenderingMode(), value => settings.setMermaidRenderingMode(value as ReturnType<SettingsManager["getMermaidRenderingMode"]>)),
     bool("showCacheMissNotices", () => settings.getShowCacheMissNotices(), value => settings.setShowCacheMissNotices(value)),
@@ -236,29 +222,67 @@ function operations(settings: SettingsManager): readonly Operation[] {
   ];
 }
 
-function bool(key: string, read: () => boolean, write: (value: boolean) => void): Operation {
-  return { descriptor: { key, valueType: "boolean", writable: true }, read, write(value) { if (typeof value !== "boolean") invalid(key); write(value); } };
+function bool(key: PiSettingKey, read: () => boolean, write: (value: boolean) => void): Operation {
+  return operation(key, "boolean", read, value => { if (typeof value !== "boolean") invalid(key); }, value => write(value as boolean));
 }
-function numberSetting(key: string, read: () => number, write: (value: number) => void, minimum: number): Operation {
+
+function numberSetting(key: PiSettingKey, read: () => number, write: (value: number) => void, minimum: number): Operation {
   const declared = PRESENTATION.bounds[key];
   const low = declared?.minimum ?? minimum;
   const high = declared?.maximum;
+  return operation(key, "number", read, value => {
+    if (typeof value !== "number" || !Number.isSafeInteger(value) || value < low || (high !== undefined && value > high)) invalid(key);
+  }, value => write(value as number));
+}
+
+function jsonObject(key: PiSettingKey, read: () => object, write: (value: AgentJsonValue) => void): Operation {
+  const boundedRead = (): AgentJsonValue => Object.fromEntries(Object.entries(read()).filter((entry): entry is [string, boolean] => typeof entry[1] === "boolean"));
+  return operation(key, "json", boundedRead, value => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) invalid(key);
+  }, write);
+}
+
+function choice(key: PiSettingKey, choices: readonly AgentJsonValue[], read: () => AgentJsonValue, write: (value: AgentJsonValue) => void): Operation {
   return {
-    descriptor: { key, valueType: "number", writable: true },
-    read,
-    write(value) {
-      if (typeof value !== "number" || !Number.isSafeInteger(value) || value < low || (high !== undefined && value > high)) invalid(key);
-      write(value);
-    },
+    ...operation(key, "enum", read, value => { if (!choices.includes(value)) invalid(key); }, write),
+    descriptor: { key, valueType: "enum", choices },
   };
 }
-function stringSetting(key: string, read: () => string, write: (value: string) => void): Operation {
-  return { descriptor: { key, valueType: "string", writable: true }, read, write(value) { if (typeof value !== "string" || value.length === 0) invalid(key); write(value); } };
+
+function themeSetting(settings: SettingsManager, themes: () => readonly string[]): Operation {
+  const raw = (): string => settings.getThemeSetting() ?? "default";
+  const read = (): string => parseAutomaticTheme(raw()) === null ? raw() : AUTOMATIC_THEME;
+  return operation(THEME_KEY, "string", read, value => {
+    if (typeof value !== "string" || value.length === 0) invalid(THEME_KEY);
+  }, value => {
+    const selected = value as string;
+    if (selected !== AUTOMATIC_THEME) {
+      settings.setTheme(selected);
+      return;
+    }
+    if (parseAutomaticTheme(raw()) !== null) return;
+    const installed = themes();
+    const current = raw();
+    const light = installed.includes(LIGHT_APPEARANCE_THEME) ? LIGHT_APPEARANCE_THEME : current;
+    const dark = installed.includes(DARK_APPEARANCE_THEME) ? DARK_APPEARANCE_THEME : current;
+    settings.setTheme(`${light}/${dark}`);
+  });
 }
-function jsonObject(key: string, read: () => object, write: (value: AgentJsonValue) => void): Operation {
-  return { descriptor: { key, valueType: "json", writable: true }, read: () => Object.fromEntries(Object.entries(read()).filter((entry): entry is [string, boolean] => typeof entry[1] === "boolean")), write(value) { if (!value || typeof value !== "object" || Array.isArray(value)) invalid(key); write(value); } };
+
+function operation(
+  key: PiSettingKey,
+  valueType: AgentSettingDescriptor["valueType"],
+  read: () => AgentJsonValue,
+  validate: (value: AgentJsonValue) => void,
+  write: (value: AgentJsonValue) => void,
+): Operation {
+  return { key, descriptor: { key, valueType }, read, validate, write };
 }
-function choice(key: string, choices: readonly AgentJsonValue[], read: () => AgentJsonValue, write: (value: AgentJsonValue) => void): Operation {
-  return { descriptor: { key, valueType: "enum", writable: true, choices }, read, write(value) { if (!choices.includes(value)) invalid(key); write(value); } };
+
+function isPiSettingKey(key: string): key is PiSettingKey {
+  return Object.hasOwn(PI_SETTING_EFFECTS, key);
 }
-function invalid(key: string): never { throw new TypeError(`setting value is invalid: ${key}`); }
+
+function invalid(key: string): never {
+  throw new TypeError(`setting value is invalid: ${key}`);
+}

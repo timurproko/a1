@@ -40,6 +40,7 @@ import {
   createPiShellArmin,
   createPiShellAuthProviderSelector,
   createPiShellChangelog,
+  createPiShellCollapsedChangelog,
   createPiShellDaxnuts,
   createPiShellDialog,
   createPiShellEarendilAnnouncement,
@@ -77,6 +78,7 @@ import {
   type PiShellExtensionRendererResolver,
   type PiShellHeaderOptions,
   type PiShellHeaderPort,
+  type PiShellImageAssetResolver,
   type PiShellLoadedResourcesPort,
   type PiShellLoginDialogPort,
   type PiShellQueuedInputPort,
@@ -143,6 +145,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   readonly #footer: PiShellViewComponentPort;
   readonly #queued: PiShellQueuedInputPort;
   readonly #extensionRenderers: PiShellExtensionRendererResolver;
+  readonly #imageAssets: PiShellImageAssetResolver | undefined;
   readonly #promptChips = new PromptChipStore();
   readonly #customViewport: boolean;
   readonly #submittedPromptComposer: PiShellSubmittedPromptComposer | undefined;
@@ -154,6 +157,10 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   };
   #toolsExpanded = false;
   #thinkingVisible = true;
+  #mermaidRenderingMode: "off" | "final" | "streaming" = "off";
+  #showImages = true;
+  #imageWidthCells = 80;
+  #outputPad: 0 | 1 = 1;
   #workflowTranscriptSequence = 0;
   readonly #workflowStatusAnchors = new Map<string, number>();
   readonly #workflowStatusMessages = new Map<string, string>();
@@ -194,6 +201,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       getToolDefinition: () => undefined,
     },
     sessionLayout: "pinned" | "custom-viewport" = "pinned",
+    imageAssets?: PiShellImageAssetResolver,
   ) {
     this.#view = view;
     this.#customViewport = sessionLayout === "custom-viewport";
@@ -206,6 +214,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       : undefined;
     this.#cwd = cwd;
     this.#extensionRenderers = extensionRenderers;
+    this.#imageAssets = imageAssets;
     this.#componentRuntime = handlers;
     this.header = createPiShellHeader(startup);
     this.resources = createPiShellLoadedResources(startup.resources ?? [], startup.expanded ?? false);
@@ -284,6 +293,45 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     });
   }
 
+  setEditorPaddingX(padding: number): void {
+    this.editor.setPaddingX(padding);
+    this.#documentLayouts.clear();
+  }
+
+  setAutocompleteMaxVisible(maxVisible: number): void {
+    this.editor.setAutocompleteMaxVisible(maxVisible);
+  }
+
+  setOutputPad(padding: 0 | 1): void {
+    if (this.#outputPad === padding) return;
+    this.#outputPad = padding;
+    this.#status.setOutputPad(padding);
+    for (const component of this.#transcript.values()) component.setOutputPad(padding);
+    this.#invalidateTranscriptPresentation();
+  }
+
+  setHideThinkingBlock(hidden: boolean): void {
+    if (this.#thinkingVisible === !hidden) return;
+    this.#thinkingVisible = !hidden;
+    for (const component of this.#transcript.values()) component.setHideThinkingBlock(hidden);
+    this.#invalidateTranscriptPresentation();
+  }
+
+  setMermaidRenderingMode(mode: "off" | "final" | "streaming"): void {
+    if (this.#mermaidRenderingMode === mode) return;
+    this.#mermaidRenderingMode = mode;
+    for (const component of this.#transcript.values()) component.setMermaidRenderingMode(mode);
+    this.#invalidateTranscriptPresentation();
+  }
+
+  setImagePresentation(showImages: boolean, imageWidthCells: number): void {
+    if (this.#showImages === showImages && this.#imageWidthCells === imageWidthCells) return;
+    this.#showImages = showImages;
+    this.#imageWidthCells = imageWidthCells;
+    for (const component of this.#transcript.values()) component.setImagePresentation(showImages, imageWidthCells);
+    this.#invalidateTranscriptPresentation();
+  }
+
   preparePromptSubmission(text: string): PreparedPrompt {
     return this.#promptChips.prepareSubmission(text);
   }
@@ -312,7 +360,11 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.#blocksById.set(block.id, block);
     const component = this.#transcript.get(block.id);
     if (component === undefined) {
-      const created = createPiShellTranscriptComponent(block, this.#cwd, this.#extensionRenderers, this.#submittedPromptComposer);
+      const created = createPiShellTranscriptComponent(
+        block, this.#cwd, this.#extensionRenderers, this.#submittedPromptComposer,
+        this.#outputPad, !this.#thinkingVisible, this.#mermaidRenderingMode,
+        this.#showImages, this.#imageWidthCells, this.#imageAssets,
+      );
       created.setExpanded(this.#toolsExpanded);
       this.#transcript.set(block.id, created);
       this.#transcriptOrder.push(block.id);
@@ -569,7 +621,13 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
         width,
       )));
     rows.push(...diagnostics
-      .filter(diagnostic => diagnostic.code !== "engine-startup" && diagnostic.code !== "package-updates")
+      .filter(diagnostic => diagnostic.code === "changelog-collapsed" || diagnostic.code === "changelog-expanded")
+      .flatMap(diagnostic => diagnostic.code === "changelog-collapsed"
+        ? createPiShellCollapsedChangelog().render(width)
+        : createPiShellChangelog(diagnostic.message).render(width)));
+    rows.push(...diagnostics
+      .filter(diagnostic => diagnostic.code !== "engine-startup" && diagnostic.code !== "package-updates"
+        && diagnostic.code !== "changelog-collapsed" && diagnostic.code !== "changelog-expanded")
       .slice(-3)
       .flatMap(diagnostic =>
         renderPiShellTranscriptBlock({
@@ -625,6 +683,18 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     return this.#transcript.get(id);
   }
 
+  exitTranscript(width: number): string {
+    const rows: string[] = [];
+    for (const id of this.#transcriptOrder) {
+      const block = this.#blocksById.get(id);
+      if (block === undefined || (!this.#thinkingVisible && block.kind === "thinking")) continue;
+      if (rows.length > 0 && block.kind === "user") rows.push("");
+      rows.push(...this.#blockRows(id, block, width).map(row => stripAnsi(row).trimEnd()));
+    }
+    while (rows.at(-1) === "") rows.pop();
+    return rows.join("\n");
+  }
+
   appendWorkflowStatus(message: string): void {
     const previousId = this.#lastWorkflowStatusId;
     if (previousId !== undefined
@@ -637,7 +707,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     }
     const id = this.#appendAnchoredWorkflowComponent(width => [
       "",
-      ...renderPiShellStatusText(this.#workflowStatusMessages.get(id) ?? message, width),
+      ...renderPiShellStatusText(this.#workflowStatusMessages.get(id) ?? message, width, this.#outputPad),
     ]);
     this.#workflowStatusMessages.set(id, message);
     this.#lastWorkflowStatusId = id;
@@ -724,9 +794,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   }
 
   toggleThinkingVisibility(): void {
-    this.#thinkingVisible = !this.#thinkingVisible;
-    this.#documentLayouts.clear();
-    this.invalidate();
+    this.setHideThinkingBlock(this.#thinkingVisible);
   }
 
   get toolsExpanded(): boolean {
@@ -875,6 +943,12 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.#queued.dispose?.();
   }
 
+  #invalidateTranscriptPresentation(): void {
+    this.#renderedRows.clear();
+    this.#documentLayouts.clear();
+    this.invalidate();
+  }
+
   #syncTranscript(blocks: OwnedUiSessionViewModel["transcript"]): void {
     const previousIds = this.#transcriptOrder.filter(id => !id.startsWith("workflow-status-"));
     const transcriptChanged = previousIds.length !== blocks.length || blocks.some((block, index) => {
@@ -894,7 +968,11 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     for (const block of blocks) {
       const component = this.#transcript.get(block.id);
       if (component === undefined) {
-        const created = createPiShellTranscriptComponent(block, this.#cwd, this.#extensionRenderers, this.#submittedPromptComposer);
+        const created = createPiShellTranscriptComponent(
+          block, this.#cwd, this.#extensionRenderers, this.#submittedPromptComposer,
+          this.#outputPad, !this.#thinkingVisible, this.#mermaidRenderingMode,
+          this.#showImages, this.#imageWidthCells, this.#imageAssets,
+        );
         created.setExpanded(this.#toolsExpanded);
         this.#transcript.set(block.id, created);
       } else if (component.revision !== block.revision) {
@@ -928,6 +1006,10 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       invalidate() {},
       update() {},
       setExpanded() {},
+      setOutputPad() {},
+      setHideThinkingBlock() {},
+      setMermaidRenderingMode() {},
+      setImagePresentation() {},
       ...(dispose === undefined ? {} : { dispose }),
     };
     this.#transcript.set(id, component);

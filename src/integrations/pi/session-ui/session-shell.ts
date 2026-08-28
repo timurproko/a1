@@ -1,3 +1,4 @@
+import { PRODUCT_TEXT } from "../../../product-identity.js";
 import type {
   OwnedUiCommand,
   OwnedUiDialog,
@@ -117,6 +118,13 @@ export class OwnedUiSessionShell {
   readonly #customViewport: boolean;
   readonly #removeViewportPreInput: () => void;
   readonly #unsubscribeSettings: () => void;
+  readonly #unbindPiSettings: () => void;
+  readonly #unbindTerminalSettings: () => void;
+  readonly #unbindShutdownSettings: () => void;
+  #terminalProgressEnabled = false;
+  #showImages = true;
+  #imageWidthCells = 80;
+  #fullscreenExitOutput: "transcript" | "resume-hint" = "transcript";
   #compactionQueue: Array<{
     readonly text: string;
     readonly type: "steer" | "follow-up";
@@ -185,7 +193,9 @@ export class OwnedUiSessionShell {
     }, this.backend.agentDir, {
       getMessageRenderer: customType => this.backend.pinnedMessageRenderer(customType),
       getToolDefinition: toolName => this.backend.pinnedToolDefinition(toolName),
-    }, options.sessionLayout);
+    }, options.sessionLayout, {
+      resolve: assetId => this.backend.resolveTranscriptImage(assetId),
+    });
     // Bare A1 owns a bounded viewport and therefore always runs on the alternate
     // fullscreen surface. The pinned comparison profiles still honor Pi's mode.
     const tuiMode = this.#customViewport
@@ -200,6 +210,29 @@ export class OwnedUiSessionShell {
     };
     runtime = new PiTuiRuntimeAdapter(runtimeOptions);
     this.runtime = runtime;
+    const initialPiSettings = this.backend.pinnedSettingsSnapshot();
+    this.runtime.setHardwareCursor(initialPiSettings.showHardwareCursor);
+    this.runtime.setClearOnShrink(initialPiSettings.clearOnShrink);
+    this.#terminalProgressEnabled = initialPiSettings.showTerminalProgress;
+    this.#fullscreenExitOutput = initialPiSettings.fullscreenExitOutput;
+    this.#unbindShutdownSettings = this.backend.bindSettingsOwner("shutdown", {
+      fullscreenExitOutput: { apply() {} },
+    });
+    this.#unbindTerminalSettings = this.backend.bindSettingsOwner("terminal", {
+      showHardwareCursor: { apply: value => {
+        if (typeof value !== "boolean") throw new TypeError("Hardware cursor setting is invalid");
+        this.runtime.setHardwareCursor(value);
+      } },
+      clearOnShrink: { apply: value => {
+        if (typeof value !== "boolean") throw new TypeError("Clear-on-shrink setting is invalid");
+        this.runtime.setClearOnShrink(value);
+      } },
+      showTerminalProgress: { apply: value => {
+        if (typeof value !== "boolean") throw new TypeError("Terminal progress setting is invalid");
+        this.#terminalProgressEnabled = value;
+        this.#syncTerminalProgress(this.view());
+      } },
+    });
     this.#removeViewportPreInput = this.#customViewport
       ? this.runtime.addPreInputListener(data => {
           // An overlay or editor-replacement screen owns its entire pointer
@@ -227,6 +260,46 @@ export class OwnedUiSessionShell {
     this.#unsubscribeSettings = this.#customViewport && options.viewportSettings
       ? options.viewportSettings.onChange(settings => this.root.setViewportConfig(settings))
       : () => {};
+    this.root.setEditorPaddingX(initialPiSettings.editorPaddingX);
+    this.root.setAutocompleteMaxVisible(initialPiSettings.autocompleteMaxVisible);
+    this.root.setOutputPad(initialPiSettings.outputPad);
+    this.root.setHideThinkingBlock(initialPiSettings.hideThinkingBlock);
+    this.root.setMermaidRenderingMode(initialPiSettings.mermaidRenderingMode);
+    this.#showImages = initialPiSettings.showImages;
+    this.#imageWidthCells = initialPiSettings.imageWidthCells;
+    this.root.setImagePresentation(this.#showImages, this.#imageWidthCells);
+    this.#unbindPiSettings = this.backend.bindSettingsOwner("shell", {
+      editorPaddingX: { apply: value => {
+        if (typeof value !== "number") throw new TypeError("Editor padding is invalid");
+        this.root.setEditorPaddingX(value);
+      } },
+      autocompleteMaxVisible: { apply: value => {
+        if (typeof value !== "number") throw new TypeError("Autocomplete maximum is invalid");
+        this.root.setAutocompleteMaxVisible(value);
+      } },
+      outputPad: { apply: value => {
+        if (value !== 0 && value !== 1) throw new TypeError("Output padding is invalid");
+        this.root.setOutputPad(value);
+      } },
+      hideThinkingBlock: { apply: value => {
+        if (typeof value !== "boolean") throw new TypeError("Thinking-block visibility is invalid");
+        this.root.setHideThinkingBlock(value);
+      } },
+      mermaidRenderingMode: { apply: value => {
+        if (value !== "off" && value !== "final" && value !== "streaming") throw new TypeError("Mermaid mode is invalid");
+        this.root.setMermaidRenderingMode(value);
+      } },
+      showImages: { apply: value => {
+        if (typeof value !== "boolean") throw new TypeError("Image visibility is invalid");
+        this.#showImages = value;
+        this.root.setImagePresentation(this.#showImages, this.#imageWidthCells);
+      } },
+      imageWidthCells: { apply: value => {
+        if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 1) throw new TypeError("Image width is invalid");
+        this.#imageWidthCells = value;
+        this.root.setImagePresentation(this.#showImages, this.#imageWidthCells);
+      } },
+    });
     this.#extensionBridge = createPiExtensionUiBridge({
       runtime: {
         getColumns: () => this.runtime.viewport().columns,
@@ -270,6 +343,7 @@ export class OwnedUiSessionShell {
       const view = event.type === "transcript-block" && this.#sessionGeneration === this.backend.sessionGeneration
         ? this.#syncBlock(event.block)
         : semanticOnly ? this.view() : this.#syncView();
+      this.#syncTerminalProgress(view);
       if (view.lifecycle === "ready" && this.#compactionQueue.length > 0) void this.#flushCompactionQueue();
       if (event.type === "session-lifecycle" && event.lifecycle === "stopped") this.#resolveStopped?.();
     });
@@ -284,6 +358,7 @@ export class OwnedUiSessionShell {
     if (this.#started) return;
     this.#started = true;
     this.runtime.start();
+    this.#syncTerminalProgress(this.view());
     if (this.#customViewport) this.#setPointerReporting(true);
     void this.backend.bindExtensionUi(this.#extensionBridge.context, () => { void this.shutdown(); });
     this.#syncView();
@@ -723,10 +798,11 @@ export class OwnedUiSessionShell {
             this.#setPointerReporting(true);
           }
         }
-        const result = this.backend.applyPinnedSettingValue(callback, value);
-        if (result.outcome === "failed") this.root.appendWorkflowResult(result);
-        else if (callback === "onTuiModeChange") this.root.appendWorkflowStatus(`TUI mode: ${value}`);
-        this.runtime.requestRender();
+        void this.backend.applyPinnedSettingValue(callback, value).then(result => {
+          if (result.outcome === "failed") this.root.appendWorkflowResult(result);
+          else if (callback === "onTuiModeChange") this.root.appendWorkflowStatus(`TUI mode: ${value}`);
+          this.runtime.requestRender();
+        });
       },
       onCancel: close,
     });
@@ -950,11 +1026,26 @@ export class OwnedUiSessionShell {
     this.#setPointerReporting(false, true);
     this.#removeViewportPreInput();
     this.#unsubscribeSettings();
+    const exitMode = this.backend.disposed
+      ? this.#fullscreenExitOutput
+      : this.backend.pinnedSettingsSnapshot().fullscreenExitOutput;
+    const exitTranscript = this.root.exitTranscript(this.runtime.viewport().columns);
+    const sessionFile = this.backend.currentSessionFile();
+    const resumeHint = sessionFile === null ? "" : `Resume: ${formatSessionResumeCommand(sessionFile)}`;
+    const fullscreenExitText = this.runtime.mode !== "fullscreen"
+      ? ""
+      : exitMode === "resume-hint"
+        ? resumeHint
+        : [exitTranscript, resumeHint].filter(Boolean).join("\n\n");
+    this.#unbindPiSettings();
+    this.#unbindTerminalSettings();
+    this.#unbindShutdownSettings();
     this.#unsubscribe();
     this.#dialogHandle?.hide();
     await this.backend.unbindExtensionUi();
     this.#extensionBridge.dispose();
     await this.runtime.dispose();
+    if (fullscreenExitText.length > 0) this.runtime.writeAfterStop(`${fullscreenExitText}\n`);
   }
 
   /**
@@ -967,6 +1058,11 @@ export class OwnedUiSessionShell {
     const view = this.view();
     for (const listener of this.#listeners) listener(view);
     return view;
+  }
+
+  #syncTerminalProgress(view: OwnedUiSessionViewModel): void {
+    if (!this.runtime.active) return;
+    this.runtime.setTerminalProgress(this.#terminalProgressEnabled && view.lifecycle === "busy");
   }
 
   #syncView(): OwnedUiSessionViewModel {
@@ -1244,6 +1340,15 @@ export class OwnedUiSessionShell {
     this.#sequence += 1;
     return `pi-shell-${prefix}-${this.#sequence}`;
   }
+}
+
+export function formatSessionResumeCommand(sessionFile: string): string {
+  return `${PRODUCT_TEXT.commandName} --session ${quoteCommandArgument(sessionFile)}`;
+}
+
+export function quoteCommandArgument(value: string): string {
+  if (process.platform === "win32") return `"${value.replaceAll("\"", "\"\"")}"`;
+  return `'${value.replaceAll("'", `'\\''`)}'`;
 }
 
 function modelReference(model: unknown): string {

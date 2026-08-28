@@ -394,6 +394,13 @@ describe("Pi engine adapter", () => {
       "user", "assistant", "tool-result", "bash", "custom", "compaction",
     ]);
     expect(transcript[0]?.payload).toMatchObject({ role: "user", imageCount: 1 });
+    expect(transcript[0]?.imageReferences).toEqual([
+      expect.objectContaining({ assetId: expect.stringMatching(/^image-/), mimeType: "image/png", source: "user" }),
+    ]);
+    const imageAssetId = transcript[0]?.imageReferences?.[0]?.assetId;
+    expect(imageAssetId === undefined ? null : adapter.resolveTranscriptImage(imageAssetId)).toEqual({
+      type: "image", data: "secret-image-bytes", mimeType: "image/png",
+    });
     expect(transcript[1]?.payload).toMatchObject({
       role: "assistant",
       content: [

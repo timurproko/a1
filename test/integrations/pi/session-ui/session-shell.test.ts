@@ -13,7 +13,7 @@ import {
   PINNED_PI_WORKFLOW_COMMAND_NAMES,
 } from "../../../../src/integrations/pi/engine/index.js";
 import { applyPiTheme, piTheme } from "../../../../src/integrations/pi/components/index.js";
-import { OwnedUiSessionShell } from "../../../../src/integrations/pi/session-ui/index.js";
+import { formatSessionResumeCommand, OwnedUiSessionShell } from "../../../../src/integrations/pi/session-ui/index.js";
 import { TestPresentationTerminal } from "../../../features/owned-ui/neutral-port-doubles.js";
 import type { OwnedUiViewportSettings, OwnedUiViewportSettingsPort } from "../../../../src/contracts/owned-ui/index.js";
 
@@ -188,6 +188,24 @@ describe("OwnedUiSessionShell", () => {
     const pinned = await fixture();
     expect(pinned.shell.runtime.mode).toBe("regular");
     await pinned.shell.dispose();
+  });
+
+  it("restores fullscreen before printing the bounded final transcript", async () => {
+    const { shell, terminal } = await fixture([
+      { role: "user", content: [{ type: "text", text: "exit user" }] },
+      { role: "assistant", content: [{ type: "text", text: "exit answer" }] },
+    ], [], true);
+    await shell.dispose();
+    const bytes = terminal.writes.join("");
+    expect(bytes.indexOf("\x1b[?1049l")).toBeGreaterThanOrEqual(0);
+    expect(bytes.lastIndexOf("exit answer")).toBeGreaterThan(bytes.lastIndexOf("\x1b[?1049l"));
+    expect(bytes.slice(bytes.lastIndexOf("\x1b[?1049l"))).not.toContain("\x1b[?1049h");
+  });
+
+  it("formats an exact quoted session-selection command", () => {
+    const command = formatSessionResumeCommand("D:/session dir/resume.jsonl");
+    expect(command).toContain("a1 --session");
+    expect(command).toContain("session dir/resume.jsonl");
   });
 
   it("omits Pi startup help and loaded-resource inventory from bare A1 only", async () => {

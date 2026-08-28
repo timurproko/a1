@@ -69,6 +69,7 @@ const modules = [
   "shell-editor-autocomplete.ts",
   "shell-selectors-dialogs.ts",
   "shell-presenters-transcript.ts",
+  "shell-presenters-info.ts",
   "shell-footer-status.ts",
   "shell-extension-ui.ts",
 ];
