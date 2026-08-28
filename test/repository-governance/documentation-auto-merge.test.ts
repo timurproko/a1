@@ -12,6 +12,7 @@ import {
 } from "../../scripts/governance/documentation-auto-merge.mjs";
 
 const execFileAsync = promisify(execFile);
+const headSha = "a".repeat(40);
 
 function files(...paths: string[]): PullRequestChangedFile[] {
   return paths.map(filename => ({ filename, status: "modified" }));
@@ -125,15 +126,48 @@ describe("documentation auto-merge workflow", () => {
         name: "Development validation",
         event: "pull_request",
         conclusion: "success",
-        head_sha: "head-42",
+        head_sha: headSha,
         pull_requests: [{ number: 42 }],
       },
     }, pullFixture({ mergeable_state: "clean" }));
     const merge = result.requests.find(request => request.url === "/repos/owner/repository/pulls/42/merge");
     expect(merge).toMatchObject({ method: "PUT" });
-    expect(JSON.parse(merge?.body ?? "{}")).toEqual({ sha: "head-42", merge_method: "squash" });
+    expect(JSON.parse(merge?.body ?? "{}")).toEqual({ sha: headSha, merge_method: "squash" });
     expect(result.requests.some(request => request.body.includes("enablePullRequestAutoMerge"))).toBe(false);
     expect(result.stdout).toContain("squash-merged with expected head SHA");
+  });
+
+  it("synchronously merges and cleans an armed current head after validation", async () => {
+    const result = await runManager({
+      workflow_run: {
+        id: 9003,
+        name: "Development validation",
+        event: "pull_request",
+        conclusion: "success",
+        head_sha: headSha,
+        pull_requests: [{ number: 42 }],
+      },
+    }, pullFixture({ mergeable_state: "clean", auto_merge: { merge_method: "squash" } }));
+    expect(result.requests.some(request => request.url === "/repos/owner/repository/pulls/42/merge" && request.method === "PUT")).toBe(true);
+    expect(result.requests.some(request => request.url.includes("/git/refs/heads/") && request.method === "DELETE")).toBe(true);
+    expect(result.stdout).toContain('documentation branch cleanup {"disposition":"deleted"');
+  });
+
+  it("cleans when token-authored auto-merge closes during the validation fallback", async () => {
+    const open = pullFixture({ mergeable_state: "blocked", auto_merge: { merge_method: "squash" } });
+    const merged = pullFixture({ state: "closed", merged: true, merged_at: "2026-08-28T15:43:23Z", mergeable_state: "unknown", auto_merge: null });
+    const result = await runManager({
+      workflow_run: {
+        id: 9004,
+        name: "Development validation",
+        event: "pull_request",
+        conclusion: "success",
+        head_sha: headSha,
+        pull_requests: [{ number: 42 }],
+      },
+    }, [open, merged]);
+    expect(result.requests.some(request => request.url.includes("/git/refs/heads/") && request.method === "DELETE")).toBe(true);
+    expect(result.stdout).toContain('documentation branch cleanup {"disposition":"deleted"');
   });
 
   it("never directly merges when successful validation belongs to an older head", async () => {
@@ -162,6 +196,8 @@ describe("documentation auto-merge workflow", () => {
     expect(manager).toContain('body: { sha: pull.head.sha, merge_method: "squash" }');
     expect(manager).toContain("disablePullRequestAutoMerge");
     expect(manager).toContain("await disableIfArmed(pull, `classification failed:");
+    expect(manager).toContain("awaitAutomaticIntegration");
+    expect(manager).toContain("executeMergedBranchCleanup");
   });
 });
 
@@ -178,7 +214,7 @@ function pullFixture(overrides: Record<string, unknown> = {}): Record<string, un
     node_id: "pull-request-node-42",
     draft: false,
     base: { ref: "develop" },
-    head: { sha: "head-42", repo: { full_name: "owner/repository" } },
+    head: { ref: "docs/example", sha: headSha, repo: { full_name: "owner/repository" } },
     auto_merge: null,
     mergeable_state: "blocked",
     ...overrides,
@@ -187,9 +223,11 @@ function pullFixture(overrides: Record<string, unknown> = {}): Record<string, un
 
 async function runManager(
   event: Record<string, unknown>,
-  pull: Record<string, unknown>,
+  pull: Record<string, unknown> | readonly Record<string, unknown>[],
 ): Promise<{ readonly requests: RecordedRequest[]; readonly stdout: string }> {
   const requests: RecordedRequest[] = [];
+  let branchExists = true;
+  let pullRead = 0;
   const server = createServer((request, response) => {
     const chunks: Buffer[] = [];
     request.on("data", chunk => chunks.push(Buffer.from(chunk)));
@@ -202,8 +240,22 @@ async function runManager(
       requests.push(recorded);
 
       let body: unknown;
-      if (recorded.url === "/repos/owner/repository/pulls/42") {
-        body = pull;
+      if (recorded.url.includes("/git/refs/heads/") && recorded.method === "DELETE") {
+        branchExists = false;
+        response.writeHead(204);
+        response.end();
+        return;
+      } else if (recorded.url.includes("/git/ref/heads/") && recorded.method === "GET") {
+        if (!branchExists) {
+          response.writeHead(404, { "content-type": "application/json" });
+          response.end(JSON.stringify({ message: "Not Found" }));
+          return;
+        }
+        body = { object: { sha: headSha } };
+      } else if (recorded.url.includes("/branches/") && recorded.method === "GET") {
+        body = { protected: false };
+      } else if (recorded.url === "/repos/owner/repository/pulls/42") {
+        body = Array.isArray(pull) ? pull[Math.min(pullRead++, pull.length - 1)] : pull;
       } else if (recorded.url === "/repos/owner/repository/pulls/42/files?per_page=100&page=1") {
         body = [{ filename: "openspec/changes/example/proposal.md", status: "modified" }];
       } else if (recorded.url === "/repos/owner/repository/pulls/42/merge" && recorded.method === "PUT") {
@@ -240,6 +292,8 @@ async function runManager(
         GITHUB_REPOSITORY: "owner/repository",
         GITHUB_API_URL: `http://127.0.0.1:${address.port}`,
         GITHUB_GRAPHQL_URL: `http://127.0.0.1:${address.port}/graphql`,
+        A1_AUTO_MERGE_POLL_ATTEMPTS: "3",
+        A1_AUTO_MERGE_POLL_MS: "0",
       },
     });
     return { requests, stdout: result.stdout };
