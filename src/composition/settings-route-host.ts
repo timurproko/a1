@@ -1,8 +1,12 @@
 import { SETTINGS_APP_ID, SETTINGS_ROUTE, SettingsApp } from "../features/owned-ui/index.js";
 import { piTheme } from "../integrations/pi/components/index.js";
-import type { UiRouteHost, UiRouteSurface } from "../integrations/pi/owned-ui/index.js";
 import type { OwnedUiSettingsSession } from "../ui/settings/index.js";
-import { UiAppHost, UiAppRegistry } from "../ui/apps/index.js";
+import {
+  UiAppHost,
+  UiAppRegistry,
+  type UiRouteHost,
+  type UiRouteSurface,
+} from "../ui/apps/index.js";
 import { faint, type UiTheme, type UiThemeToken } from "../ui/components/index.js";
 
 /**

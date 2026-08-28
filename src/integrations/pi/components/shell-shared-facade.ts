@@ -11,6 +11,7 @@ import type {
   OwnedUiThinkingLevel,
   OwnedUiTranscriptBlock,
 } from "../../../contracts/owned-ui/index.js";
+import type { PresentationComponentPort } from "../../../contracts/presentation/index.js";
 import {
   KeybindingsManager,
 } from "./upstream/adjacent/core/keybindings.js";
@@ -21,13 +22,7 @@ import {
 /** Terminal-cell width authority used by Pi-rendered component rows. */
 export const piShellVisibleWidth = visibleWidth;
 
-export interface PiShellComponentPort {
-  render(width: number): readonly string[];
-  handleInput?(data: string): void;
-  invalidate(): void;
-  setFocused?(focused: boolean): void;
-  dispose?(): void;
-}
+export interface PiShellComponentPort extends PresentationComponentPort {}
 
 export type PiShellClipboardContent =
   | { readonly kind: "text"; readonly text: string }

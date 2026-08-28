@@ -2,9 +2,9 @@
 
 This fix was first implemented against the pre-restructure tree
 (`src/foundation/pi-engine-adapter/adapter.ts`,
-`src/foundation/pi-owned-ui-integration/session-shell-root.ts`) and re-applied after the
+`src/integrations/pi/session-ui/session-shell-root.ts`) and re-applied after the
 structure change moved the files to `src/integrations/pi/engine/adapter.ts` and
-`src/integrations/pi/owned-ui/session-shell-root.ts`. The document names symbols rather
+`src/integrations/pi/session-ui/session-shell-root.ts`. The document names symbols rather
 than line numbers so it survives further moves.
 
 ## Mechanics
@@ -98,7 +98,7 @@ if (this.#toolUpdateFlush !== null) {
 this.#pendingToolUpdates.clear();
 ```
 
-### Shell root (`src/integrations/pi/owned-ui/session-shell-root.ts`)
+### Shell root (`src/integrations/pi/session-ui/session-shell-root.ts`)
 
 `applyTranscriptBlock` — replace the trailing `this.invalidate();` with:
 

@@ -5,6 +5,7 @@ import {
   LineInput,
   PLAIN_THEME,
   ShortcutRegistry,
+  assertNoShortcutConflicts,
   PROMPT_GLYPH,
   blockJumpTarget,
   dialogValueColumn,
@@ -91,6 +92,7 @@ SETTINGS_SHORTCUTS.declare({ key: "left", scope: DIALOG_SCOPE, description: "Cha
 SETTINGS_SHORTCUTS.declare({ key: "right", scope: DIALOG_SCOPE, description: "Change this part", section: "Parts" }, "part-change");
 SETTINGS_SHORTCUTS.declare({ key: "up", scope: DIALOG_SCOPE, description: "Previous part", section: "Parts" }, "part-previous");
 SETTINGS_SHORTCUTS.declare({ key: "down", scope: DIALOG_SCOPE, description: "Next part", section: "Parts" }, "part-next");
+assertNoShortcutConflicts(SETTINGS_SHORTCUTS.assemble());
 
 const KEYS: Readonly<Record<string, string>> = {
   "\u001b[A": "up",

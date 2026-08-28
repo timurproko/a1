@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { UiAppHost, UiAppRegistry, type AppHostSurface, type UiApp } from "../../../src/ui/apps/index.js";
-import type { PaneRect } from "../../../src/ui/components/index.js";
+import {
+  RenderRevisionTracker,
+  type PaneRect,
+} from "../../../src/ui/components/index.js";
 
 const INTERRUPT = String.fromCharCode(3);
 
@@ -93,6 +96,42 @@ describe("presenting an app", () => {
     state.size = { width: 20, height: 6 };
     target.render();
     expect(state.frames.at(-1)).toHaveLength(6);
+  });
+
+  it("reuses only cache-aware frames with unchanged revisions and size", () => {
+    const state = recorder();
+    const revisions = new RenderRevisionTracker();
+    let cacheAwareRenders = 0;
+    const cacheAware = app("cached", {
+      renderCache: revisions,
+      render: rect => {
+        cacheAwareRenders += 1;
+        return Array.from({ length: rect.height }, () => `frame-${cacheAwareRenders}`);
+      },
+    });
+    const target = host(state.surface, [cacheAware]);
+    target.open("cached");
+    target.render();
+    expect(cacheAwareRenders).toBe(1);
+
+    revisions.bump("content");
+    target.render();
+    expect(cacheAwareRenders).toBe(2);
+
+    state.size = { width: 21, height: 3 };
+    target.render();
+    expect(cacheAwareRenders).toBe(3);
+
+    const uncachedState = recorder();
+    let uncachedRenders = 0;
+    const uncached = app("uncached", { render: rect => {
+      uncachedRenders += 1;
+      return Array.from({ length: rect.height }, () => "uncached");
+    } });
+    const uncachedTarget = host(uncachedState.surface, [uncached]);
+    uncachedTarget.open("uncached");
+    uncachedTarget.render();
+    expect(uncachedRenders).toBe(2);
   });
 
   it("clears the surface when it closes", () => {
