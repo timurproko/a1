@@ -12,6 +12,10 @@ GitHub Actions is the only automation platform. Three refs are protected:
 channel. The workflow starts at `03:17 UTC` for nightly development verification,
 or by explicit dispatch from `npm run develop` or `npm run release`.
 
+`.github/workflows/documentation-auto-merge.yml` is the only pull-request
+auto-merge authority. It runs trusted policy from `develop`; it never checks out or
+executes a pull request's code with its write token.
+
 `develop` is where work lands. `master` records what npm `latest` serves and is an
 effect of stable publication, not a trigger.
 
@@ -24,6 +28,27 @@ effect of stable publication, not a trigger.
 | Nightly at `03:17 UTC` | Complete non-physical suite on Windows, Linux, and macOS, every night |
 | `npm run release -- ...` | Complete exact-byte stable gates, then npm `latest`, tag, GitHub Release, and `master` |
 | `.github/workflows/full-regression.yml` | Additional on-demand complete regression without publication authority |
+
+## Pull request integration
+
+`Development validation required` remains the merge gate for every pull request.
+After it succeeds, documentation auto-merge reads the complete GitHub changed-file
+response and arms squash auto-merge only when every current and renamed-from path is
+under `openspec/**` or is exactly the root `README.md`. Eligible pull requests must
+use a non-draft branch in this repository and target `develop`.
+
+The exact allowlist is intentionally narrower than CI's docs-only classification.
+Ordinary `docs/**` files, other Markdown files, `LICENSE`, `.gitignore`, source,
+tests, scripts, workflows, configuration, generated baselines, and mixed changes do
+not auto-merge. The guard also runs when a pull request changes or auto-merge is
+manually enabled; if any path is outside the allowlist, it disables auto-merge while
+leaving the pull request available for a later manual merge.
+
+A specification request lands as an OpenSpec-only pull request. Implementation
+starts only after that specification merges and the maintainer explicitly requests
+it, in a fresh worktree and pull request based on updated `origin/develop`. Every
+code/operational pull request remains open after CI until the maintainer validates it
+locally and explicitly authorizes manual integration.
 
 ## Numbered development previews
 
@@ -92,6 +117,9 @@ Rules that do not bend:
 ## When something fails
 
 - **PR validation fails:** fix the code and push; do not mark a failed tier optional.
+- **Documentation auto-merge fails:** leave the pull request open, inspect its exact
+  changed-file classification and workflow permissions, and never broaden the
+  allowlist to make one pull request pass.
 - **Development publication fails:** fix the cause and rerun `npm run develop`; an npm version that already exists is never overwritten.
 - **Stable publication fails before npm accepts bytes:** no tag, release, or moved branch exists. Fix the cause and release the next version.
 - **Stable publication is uncertain after npm accepted bytes:** stop and inspect registry version, digest, tag, and release. Never republish immutable bytes.
