@@ -58,7 +58,8 @@ import {
 import { createPiRuntimeIntegration } from "./runtime-integration.js";
 import { PiSessionCommandIntegration } from "./session-integration.js";
 import { PiSettingsIntegration } from "./settings-integration.js";
-import type { AgentJsonValue, AgentSettingsPort } from "../../../contracts/agent-engine/index.js";
+import type { PiSettingOwnerHandlers } from "./settings-effects.js";
+import type { AgentJsonValue, AgentSettingOwner } from "../../../contracts/agent-engine/index.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -182,6 +183,7 @@ export interface PiEngineAdapterOptions {
    * offering stay here.
    */
   readonly availableThemes?: () => readonly string[];
+  readonly settingsProductMode?: "bare" | "comparison";
   /**
    * Startup extension-package update probe, mirroring pinned Pi's interactive
    * mode. Returns display names of packages with updates available.
@@ -258,6 +260,9 @@ export class PiEngineAdapter {
   #extensionShutdown: (() => void | Promise<void>) | undefined;
   #extensionBound = false;
   #disposed = false;
+  readonly #settingsProductMode: "bare" | "comparison";
+  #settingsIntegration: PiSettingsIntegration | undefined;
+  #settingsIntegrationManager: unknown;
 
   /** Lists the themes installed on this machine, when the caller supplies one. */
   readonly #availableThemes: (() => readonly string[]) | null;
@@ -272,6 +277,7 @@ export class PiEngineAdapter {
         : settingsManager => checkDefaultPiPackageUpdates(this.#cwd, this.#agentDir, settingsManager));
     this.#workflowHost = options.workflowHost ?? defaultWorkflowHost();
     this.#availableThemes = options.availableThemes ?? null;
+    this.#settingsProductMode = options.settingsProductMode ?? "bare";
     this.#workflowInteraction = { prompt: async () => null, notify() {} };
   }
 
@@ -618,17 +624,46 @@ export class PiEngineAdapter {
   }
 
   /** Settings port for the live runtime, or null before the runtime is available. */
-  settingsPort(): AgentSettingsPort | null {
+  settingsPort(): PiSettingsIntegration | null {
     const settings = this.#runtime?.services.settingsManager;
     if (!settings) return null;
-    const session = this.#runtime?.session;
-    return new PiSettingsIntegration(settings, {
-      ...(this.#availableThemes === null ? {} : { themes: this.#availableThemes }),
-      thinkingLevels: () => {
-        const levels = session?.getAvailableThinkingLevels?.();
-        return Array.isArray(levels) ? levels.map(level => String(level)) : [];
-      },
-    });
+    if (this.#settingsIntegration === undefined || this.#settingsIntegrationManager !== settings) {
+      this.#settingsIntegrationManager = settings;
+      this.#settingsIntegration = new PiSettingsIntegration(settings, {
+        ...(this.#availableThemes === null ? {} : { themes: this.#availableThemes }),
+        thinkingLevels: () => {
+          const levels = this.#runtime?.session?.getAvailableThinkingLevels?.();
+          return Array.isArray(levels) ? levels.map(level => String(level)) : [];
+        },
+        productMode: this.#settingsProductMode,
+      });
+      this.#settingsIntegration.bindOwner("agent", {
+        autoCompact: { apply: value => {
+          if (typeof value !== "boolean") throw new TypeError("Auto compact value is invalid");
+          this.#requireWorkflowSession().setAutoCompactionEnabled(value);
+        } },
+        steeringMode: { apply: value => {
+          if (value !== "all" && value !== "one-at-a-time") throw new TypeError("Steering mode is invalid");
+          this.#requireWorkflowSession().setSteeringMode(value);
+        } },
+        followUpMode: { apply: value => {
+          if (value !== "all" && value !== "one-at-a-time") throw new TypeError("Follow-up mode is invalid");
+          this.#requireWorkflowSession().setFollowUpMode(value);
+        } },
+        thinkingLevel: { apply: value => {
+          if (!isThinkingLevel(value)) throw new TypeError("Thinking level is invalid");
+          this.#requireWorkflowSession().setThinkingLevel(value);
+          this.#thinkingLevel = readThinkingLevel(this.#requireWorkflowSession().thinkingLevel);
+        } },
+      });
+    }
+    return this.#settingsIntegration;
+  }
+
+  bindSettingsOwner(owner: AgentSettingOwner, handlers: PiSettingOwnerHandlers): () => void {
+    const settings = this.settingsPort();
+    if (settings === null) throw new Error("engine settings are unavailable");
+    return settings.bindOwner(owner, handlers);
   }
 
   pinnedModelSelectorContext(): {
@@ -921,9 +956,9 @@ export class PiEngineAdapter {
     };
   }
 
-  applyPinnedSettingValue(callback: PiPinnedSettingsCallback, value: unknown): PiWorkflowResult {
+  async applyPinnedSettingValue(callback: PiPinnedSettingsCallback, value: unknown): Promise<PiWorkflowResult> {
     try {
-      return this.#applyPinnedSetting(callback, value, true);
+      return await this.#applyPinnedSetting(callback, value, true);
     } catch (error) {
       return workflowResult("settings", "failed", error instanceof Error ? error.message : String(error));
     }
@@ -1050,7 +1085,7 @@ export class PiEngineAdapter {
     switch (request.command) {
       case "settings": {
         if (!selection) return workflowResult(request.command, "failed", "Settings requires the owned settings controller");
-        return this.#applyPinnedSetting(selection);
+        return await this.#applyPinnedSetting(selection);
       }
       case "model": {
         const reference = selection ?? argument;
@@ -1414,7 +1449,7 @@ export class PiEngineAdapter {
     return sessionInfoOptions(await SessionManager.list(cwd, typeof sessionDir === "string" ? sessionDir : undefined));
   }
 
-  #applyPinnedSetting(selection: string, selectedValue?: unknown, hasSelectedValue = false): PiWorkflowResult {
+  async #applyPinnedSetting(selection: string, selectedValue?: unknown, hasSelectedValue = false): Promise<PiWorkflowResult> {
     if (!(PINNED_PI_SETTINGS_CALLBACKS as readonly string[]).includes(selection)) {
       return workflowResult("settings", "failed", `Unknown setting callback: ${selection}`);
     }
@@ -1459,24 +1494,17 @@ export class PiEngineAdapter {
       selectedValue = currentValues[callback];
       hasSelectedValue = true;
     }
-    const settings = this.#runtime?.services.settingsManager;
-    if (!settings) return workflowResult("settings", "failed", "Settings are unavailable");
-    const session = this.#requireWorkflowSession();
-    if (callback === "onThinkingLevelChange") {
-      if (!isThinkingLevel(selectedValue)) return workflowResult("settings", "failed", "Thinking level is invalid");
-      session.setThinkingLevel(selectedValue);
-    } else {
-      const key = settingKeyForCallback(callback);
-      if (key === null) return workflowResult("settings", "failed", `${settingLabel(callback)} is unavailable in this runtime`);
-      const value = agentJsonValue(selectedValue);
-      if (callback === "onAutoCompactChange") {
-        if (typeof value !== "boolean") return workflowResult("settings", "failed", "Auto compact value is invalid");
-        session.setAutoCompactionEnabled?.(value);
-      }
-      new PiSettingsIntegration(settings).writeSettingNow(key, value);
+    const port = this.settingsPort();
+    if (port === null) return workflowResult("settings", "failed", "Settings are unavailable");
+    const key = settingKeyForCallback(callback);
+    if (key === null) return workflowResult("settings", "failed", `${settingLabel(callback)} is unavailable in this runtime`);
+    const result = await port.writeSetting(key, agentJsonValue(selectedValue));
+    if (result.status === "failed" || result.status === "unavailable") {
+      return workflowResult("settings", "failed", result.failure ?? result.limitationReason ?? `${settingLabel(callback)} is unavailable`);
     }
     this.#emitView();
-    return workflowResult("settings", "completed", `${settingLabel(callback)}: ${String(selectedValue)}`);
+    const suffix = result.status === "deferred" ? ` (${result.application})` : "";
+    return workflowResult("settings", "completed", `${settingLabel(callback)}: ${String(selectedValue)}${suffix}`);
   }
 
   async #perform(command: OwnedUiCommand): Promise<void> {
@@ -2536,7 +2564,7 @@ function settingKeyForCallback(callback: PiPinnedSettingsCallback): string | nul
     onAutoCompactChange: "autoCompact", onShowImagesChange: "showImages", onImageWidthCellsChange: "imageWidthCells",
     onAutoResizeImagesChange: "autoResizeImages", onBlockImagesChange: "blockImages", onEnableSkillCommandsChange: "enableSkillCommands",
     onSteeringModeChange: "steeringMode", onFollowUpModeChange: "followUpMode", onTransportChange: "transport",
-    onHttpIdleTimeoutMsChange: "httpIdleTimeoutMs", onThemeChange: "theme", onThemePreview: "theme",
+    onHttpIdleTimeoutMsChange: "httpIdleTimeoutMs", onThinkingLevelChange: "thinkingLevel", onThemeChange: "theme", onThemePreview: "theme",
     onHideThinkingBlockChange: "hideThinkingBlock", onMermaidRenderingModeChange: "mermaidRenderingMode",
     onShowCacheMissNoticesChange: "showCacheMissNotices", onCollapseChangelogChange: "collapseChangelog",
     onEnableInstallTelemetryChange: "enableInstallTelemetry", onQuietStartupChange: "quietStartup",

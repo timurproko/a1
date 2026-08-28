@@ -36,10 +36,29 @@ export interface AgentModelDescriptor {
   readonly thinkingLevels: readonly string[];
 }
 
+export type AgentSettingApplicationBoundary = "live" | "next-session" | "next-start" | "current-exit";
+export type AgentSettingOwner = "agent" | "shell" | "terminal" | "startup" | "shutdown" | "installation";
+
+export interface AgentSettingChangeOutcome {
+  readonly status: "applied" | "deferred" | "unavailable" | "failed";
+  readonly application: AgentSettingApplicationBoundary;
+  readonly storedValue: AgentJsonValue;
+  readonly effectiveValue: AgentJsonValue;
+  readonly failure: string | null;
+  readonly limitationReason: string | null;
+}
+
 export interface AgentSettingDescriptor {
   readonly key: string;
   readonly valueType: "boolean" | "number" | "string" | "enum" | "json";
+  /** A setting is writable only when its declared owner/effect is available. */
   readonly writable: boolean;
+  readonly application: AgentSettingApplicationBoundary;
+  readonly owner: AgentSettingOwner;
+  readonly available: boolean;
+  readonly limitationReason: string | null;
+  readonly storedValue: AgentJsonValue;
+  readonly effectiveValue: AgentJsonValue;
   readonly choices?: readonly AgentJsonValue[];
   /** Label the engine shows for this setting, when it has one. */
   readonly label?: string;

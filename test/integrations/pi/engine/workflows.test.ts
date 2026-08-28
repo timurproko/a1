@@ -5,9 +5,11 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   createPiEngineAdapter,
+  PI_SETTING_EFFECTS,
   PINNED_PI_HIDDEN_COMMAND_NAMES,
   PINNED_PI_SETTINGS_CALLBACKS,
   PINNED_PI_WORKFLOW_COMMAND_NAMES,
+  type PiSettingOwnerHandlers,
   type PiWorkflowHost,
   type PiWorkflowRequest,
 } from "../../../../src/integrations/pi/engine/index.js";
@@ -87,6 +89,8 @@ class WorkflowRuntime {
   readonly settingsManager = new Proxy<Record<string, unknown>>({}, {
     get: (_target, property) => {
       const name = String(property);
+      if (name === "flush") return async () => {};
+      if (name === "drainErrors") return () => [];
       if (name.startsWith("get")) return () => this.settingsValues.get(name.slice(3));
       if (name.startsWith("set")) return (value: unknown) => { this.settingsValues.set(name.slice(3), value); };
       return undefined;
@@ -171,7 +175,14 @@ async function fixture(workflowHost = host(), configure?: (runtime: WorkflowRunt
     agentDir: join(tmpdir(), "a1-workflow-fixture"),
     createRuntime: async () => runtime as unknown as AgentSessionRuntime,
     workflowHost,
+    settingsProductMode: "comparison",
   });
+  for (const owner of ["agent", "shell", "terminal", "startup", "shutdown", "installation"] as const) {
+    const handlers = Object.fromEntries(Object.entries(PI_SETTING_EFFECTS)
+      .filter(([, definition]) => definition.owner === owner)
+      .map(([key]) => [key, { apply(value: unknown) { runtime.session.calls.push(`setting:${key}:${String(value)}`); } }])) as PiSettingOwnerHandlers;
+    adapter.bindSettingsOwner(owner, handlers);
+  }
   return { runtime, adapter };
 }
 
@@ -269,11 +280,11 @@ describe("pinned Pi command and input workflows", () => {
       const result = await adapter.executeWorkflow({ command: "settings", argument: "", selection: callback });
       expect(result.outcome, `${callback}: ${result.message}`).toBe(callback === "onCancel" ? "cancelled" : "completed");
     }
-    expect(adapter.applyPinnedSettingValue("onImageWidthCellsChange", 120)).toMatchObject({ outcome: "completed" });
+    expect(await adapter.applyPinnedSettingValue("onImageWidthCellsChange", 120)).toMatchObject({ outcome: "completed" });
     expect(runtime.settingsValues.get("ImageWidthCells")).toBe(120);
-    expect(adapter.applyPinnedSettingValue("onEditorPaddingXChange", 3)).toMatchObject({ outcome: "completed" });
+    expect(await adapter.applyPinnedSettingValue("onEditorPaddingXChange", 3)).toMatchObject({ outcome: "completed" });
     expect(runtime.settingsValues.get("EditorPaddingX")).toBe(3);
-    expect(adapter.applyPinnedSettingValue("onWarningsChange", { anthropicExtraUsage: false })).toMatchObject({ outcome: "completed" });
+    expect(await adapter.applyPinnedSettingValue("onWarningsChange", { anthropicExtraUsage: false })).toMatchObject({ outcome: "completed" });
     expect(runtime.settingsValues.get("Warnings")).toEqual({ anthropicExtraUsage: false });
     await expect(adapter.executeWorkflow({ command: "import", argument: "session.jsonl" })).resolves.toMatchObject({ outcome: "requires-confirmation" });
     await expect(adapter.executeWorkflow({ command: "import", argument: "session.jsonl", confirmed: false })).resolves.toMatchObject({ outcome: "cancelled" });

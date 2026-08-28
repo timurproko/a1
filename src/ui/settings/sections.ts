@@ -1,3 +1,4 @@
+import type { AgentJsonValue, AgentSettingApplicationBoundary, AgentSettingDescriptor } from "../../contracts/agent-engine/index.js";
 import type { OwnedUiSettingValue } from "./declarations.js";
 import type { OwnedUiSettingsResolution } from "./resolution.js";
 
@@ -11,9 +12,13 @@ export interface OwnedUiSettingsEntry {
   readonly description: string | null;
   /** Present when the value is a scalar the surface can offer as a choice. */
   readonly value: OwnedUiSettingValue | null;
-  /** Raw value as reported by its backend, for entries the surface can only display. */
+  /** Raw stored value as reported by its backend, for entries the surface can only display. */
   readonly rawValue: unknown;
+  readonly storedValue: unknown;
+  readonly effectiveValue: unknown;
   readonly editable: boolean;
+  readonly available: boolean;
+  readonly limitationReason: string | null;
   readonly choices: readonly OwnedUiSettingValue[] | null;
   /** True when the value is a structured object edited through its own surface. */
   readonly structured: boolean;
@@ -23,7 +28,7 @@ export interface OwnedUiSettingsEntry {
   /** Flags that surface offers, declared by the source rather than by the value. */
   readonly flags: readonly { readonly key: string; readonly label: string; readonly description: string; readonly fallback: boolean }[];
   readonly origin: "default" | "stored" | "engine";
-  readonly application: "live" | "restart" | "engine";
+  readonly application: AgentSettingApplicationBoundary;
 }
 
 export interface OwnedUiSettingsSection {
@@ -37,18 +42,7 @@ export interface OwnedUiSettingsSection {
 }
 
 export interface AgentSettingsSnapshot {
-  readonly descriptors: readonly {
-    readonly key: string;
-    readonly valueType: "boolean" | "number" | "string" | "enum" | "json";
-    readonly writable: boolean;
-    readonly choices?: readonly unknown[];
-    readonly label?: string;
-    readonly description?: string;
-    readonly minimum?: number;
-    readonly maximum?: number;
-    readonly flags?: readonly { readonly key: string; readonly label: string; readonly description: string; readonly fallback: boolean }[];
-  }[];
-  readonly values: Readonly<Record<string, unknown>>;
+  readonly descriptors: readonly AgentSettingDescriptor[];
   /** Whether the engine advertises settings write capability at all. */
   readonly writeAdvertised: boolean;
   /** Set when the engine could not report its settings. */
@@ -78,14 +72,18 @@ export function buildOwnedUiSettingsSections(
       description: setting.declaration.description,
       value: setting.value,
       rawValue: setting.value,
+      storedValue: setting.value,
+      effectiveValue: setting.value,
       editable: true,
+      available: true,
+      limitationReason: null,
       structured: false,
       minimum: null,
       maximum: null,
       flags: [],
       choices: setting.declaration.allowedValues,
       origin: setting.source,
-      application: setting.declaration.application,
+      application: setting.declaration.application === "restart" ? "next-start" : "live",
     });
     grouped.set(section.id, group);
   }
@@ -124,7 +122,7 @@ function agentSection(snapshot: AgentSettingsSnapshot | null): OwnedUiSettingsSe
   }
 
   const entries = snapshot.descriptors.map(descriptor => {
-    const raw = Object.hasOwn(snapshot.values, descriptor.key) ? snapshot.values[descriptor.key] : null;
+    const raw: AgentJsonValue = descriptor.storedValue;
     return {
       id: descriptor.key,
       label: descriptor.label ?? null,
@@ -132,9 +130,13 @@ function agentSection(snapshot: AgentSettingsSnapshot | null): OwnedUiSettingsSe
       description: descriptor.description ?? null,
       value: scalar(raw),
       rawValue: raw,
+      storedValue: descriptor.storedValue,
+      effectiveValue: descriptor.effectiveValue,
+      available: descriptor.available,
+      limitationReason: descriptor.limitationReason,
       // A structured value is editable through its own surface rather than a
       // value menu, so it stays reachable instead of being reported as fixed.
-      editable: snapshot.writeAdvertised && descriptor.writable,
+      editable: snapshot.writeAdvertised && descriptor.writable && descriptor.available,
       structured: descriptor.valueType === "json",
       minimum: descriptor.minimum ?? null,
       maximum: descriptor.maximum ?? null,
@@ -143,7 +145,7 @@ function agentSection(snapshot: AgentSettingsSnapshot | null): OwnedUiSettingsSe
       // so it opens the same menu as any other enumerated setting.
       choices: descriptor.valueType === "boolean" ? BOOLEAN_CHOICES : choicesOf(descriptor.choices),
       origin: "engine" as const,
-      application: "engine" as const,
+      application: descriptor.application,
     };
   });
 

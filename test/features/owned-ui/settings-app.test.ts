@@ -20,6 +20,15 @@ const WARNING_FLAGS = [
   { key: "unknownTools", label: "Unknown tools", description: "Warn about unknown tools", fallback: false },
 ] as const;
 
+function descriptor(
+  key: string,
+  valueType: AgentSettingDescriptor["valueType"],
+  storedValue: AgentJsonValue,
+  options: Partial<AgentSettingDescriptor> = {},
+): AgentSettingDescriptor {
+  return { key, valueType, writable: true, application: "live", owner: "shell", available: true, limitationReason: null, storedValue, effectiveValue: storedValue, ...options };
+}
+
 function port(failWrites = false): { port: AgentSettingsPort; writes: { key: string; value: AgentJsonValue }[] } {
   const values: Record<string, AgentJsonValue> = {
     warnings: {}, thinkingLevel: "low", editorPaddingX: 3, outputPad: 0,
@@ -32,27 +41,22 @@ function port(failWrites = false): { port: AgentSettingsPort; writes: { key: str
       capabilities: { write: true, flush: false },
       async listSettings(): Promise<readonly AgentSettingDescriptor[]> {
         return [
-          { key: "warnings", valueType: "json", writable: true, label: "Warnings", flags: WARNING_FLAGS },
-          { key: "thinkingLevel", valueType: "enum", writable: true, choices: ["low", "high"], label: "Thinking level" },
-          { key: "editorPaddingX", valueType: "number", writable: true, label: "Editor padding", minimum: 0, maximum: 3 },
-          { key: "outputPad", valueType: "enum", writable: true, choices: [0, 1], label: "Output padding" },
-          {
-            key: "fullscreenScrollbar",
-            valueType: "enum",
-            writable: true,
-            choices: ["auto", "always", "hidden"],
-            label: "Fullscreen scrollbar",
-          },
-          { key: "quietStartup", valueType: "boolean", writable: true, label: "Quiet startup" },
+          descriptor("warnings", "json", values.warnings ?? null, { label: "Warnings", flags: WARNING_FLAGS, owner: "agent" }),
+          descriptor("thinkingLevel", "enum", values.thinkingLevel ?? null, { choices: ["low", "high"], label: "Thinking level", owner: "agent" }),
+          descriptor("editorPaddingX", "number", values.editorPaddingX ?? null, { label: "Editor padding", minimum: 0, maximum: 3 }),
+          descriptor("outputPad", "enum", values.outputPad ?? null, { choices: [0, 1], label: "Output padding" }),
+          descriptor("fullscreenScrollbar", "enum", values.fullscreenScrollbar ?? null, { choices: ["auto", "always", "hidden"], label: "Fullscreen scrollbar" }),
+          descriptor("quietStartup", "boolean", values.quietStartup ?? null, { label: "Quiet startup", owner: "startup", application: "next-start" }),
         ];
       },
       async readSetting(key: string): Promise<AgentJsonValue | undefined> {
         return values[key];
       },
-      async writeSetting(key: string, value: AgentJsonValue): Promise<void> {
+      async writeSetting(key: string, value: AgentJsonValue) {
         if (failWrites) throw new Error("the engine refused");
         writes.push({ key, value });
         values[key] = value;
+        return { status: "applied" as const, application: "live" as const, storedValue: value, effectiveValue: value, failure: null, limitationReason: null };
       },
     },
   };

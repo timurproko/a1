@@ -47,7 +47,13 @@ describe("use-case-derived agent service ports", () => {
 
   it("accepts implemented optional operations independently", () => {
     const value = ports();
-    const settings = { ...value.settings, capabilities: { write: true, flush: false }, async writeSetting() {} };
+    const settings = {
+      ...value.settings,
+      capabilities: { write: true, flush: false },
+      async writeSetting() {
+        return { status: "applied" as const, application: "live" as const, storedValue: true, effectiveValue: true, failure: null, limitationReason: null };
+      },
+    };
     expect(() => assertAgentServicePorts({ ...value, settings })).not.toThrow();
   });
 

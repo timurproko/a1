@@ -4,11 +4,17 @@ import { AUTOMATIC_THEME, PiSettingsIntegration, parseAutomaticTheme } from "../
 
 const THEMES = ["dark", "light", "ocean"] as const;
 
+function bindTheme(target: PiSettingsIntegration): PiSettingsIntegration {
+  target.bindOwner("shell", { theme: { apply() {} } });
+  return target;
+}
+
 function integration(theme: string): PiSettingsIntegration {
-  return new PiSettingsIntegration(SettingsManager.inMemory({ theme }), {
+  return bindTheme(new PiSettingsIntegration(SettingsManager.inMemory({ theme }), {
     themes: () => THEMES,
     thinkingLevels: () => ["low", "high"],
-  });
+    productMode: "comparison",
+  }));
 }
 
 async function keys(target: PiSettingsIntegration): Promise<readonly string[]> {
@@ -52,7 +58,7 @@ describe("the theme at the engine boundary", () => {
 
   it("stores following the terminal as the theme named for each appearance", async () => {
     const settings = SettingsManager.inMemory({ theme: "ocean" });
-    const target = new PiSettingsIntegration(settings, { themes: () => THEMES, thinkingLevels: () => ["low"] });
+    const target = bindTheme(new PiSettingsIntegration(settings, { themes: () => THEMES, thinkingLevels: () => ["low"], productMode: "comparison" }));
 
     await target.writeSetting("theme", AUTOMATIC_THEME);
 
@@ -62,7 +68,7 @@ describe("the theme at the engine boundary", () => {
 
   it("keeps the theme in use for both appearances when neither is installed", async () => {
     const settings = SettingsManager.inMemory({ theme: "ocean" });
-    const target = new PiSettingsIntegration(settings, { themes: () => ["ocean"], thinkingLevels: () => ["low"] });
+    const target = bindTheme(new PiSettingsIntegration(settings, { themes: () => ["ocean"], thinkingLevels: () => ["low"], productMode: "comparison" }));
 
     await target.writeSetting("theme", AUTOMATIC_THEME);
 

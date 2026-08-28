@@ -723,10 +723,11 @@ export class OwnedUiSessionShell {
             this.#setPointerReporting(true);
           }
         }
-        const result = this.backend.applyPinnedSettingValue(callback, value);
-        if (result.outcome === "failed") this.root.appendWorkflowResult(result);
-        else if (callback === "onTuiModeChange") this.root.appendWorkflowStatus(`TUI mode: ${value}`);
-        this.runtime.requestRender();
+        void this.backend.applyPinnedSettingValue(callback, value).then(result => {
+          if (result.outcome === "failed") this.root.appendWorkflowResult(result);
+          else if (callback === "onTuiModeChange") this.root.appendWorkflowStatus(`TUI mode: ${value}`);
+          this.runtime.requestRender();
+        });
       },
       onCancel: close,
     });

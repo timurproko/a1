@@ -38,16 +38,17 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
   const cwd = options.cwd ?? process.cwd();
   const adapter = options.createPiAdapter
     ? await options.createPiAdapter()
-    : await createPiEngineAdapter({ cwd, availableThemes: () => getAvailablePiThemes().map(theme => theme.name) });
+    : await createPiEngineAdapter({
+      cwd,
+      availableThemes: () => getAvailablePiThemes().map(theme => theme.name),
+      settingsProductMode: options.ownedSurfaces === "off" ? "comparison" : "bare",
+    });
   const ownedSurfaces = options.ownedSurfaces !== "off";
   const settings = options.profileId === undefined
     ? null
     : new OwnedUiSettingsSession({
       store: new OwnedUiSettingsStore({ configDir: resolveProductPaths().configDir, profileId: options.profileId }),
       agentProvider: () => adapter.settingsPort(),
-      ...(ownedSurfaces ? {
-        hiddenAgentSettingIds: ["tuiMode", "theme", "fullscreenScrollbar", "quietStartup"],
-      } : {}),
     });
   // Bare A1 intentionally ships one visual target while its UI is being completed:
   // dark, regardless of terminal detection or a previously stored Pi theme. The

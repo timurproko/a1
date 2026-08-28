@@ -1,9 +1,9 @@
 ## 1. Establish the settings application contract
 
-- [ ] 1.1 Extend the agent-settings descriptor, validation, snapshots, and change outcome with stored/effective values, `live | next-session | next-start | current-exit` timing, availability, and limitation reason; verify focused contract and settings-section tests reject incomplete or contradictory descriptors
-- [ ] 1.2 Add an exhaustive reviewed effect registry for every key in generated Pi settings metadata, including owner, timing, and capability predicate; verify an added, removed, duplicated, or unmapped generated key fails the inventory test by name
-- [ ] 1.3 Implement the settings coordinator's validate, apply, persist, flush, rollback, bind-owner, and unbind-owner behavior; verify focused tests cover live success, deferred success, unavailable settings, effect failure, flush failure, rollback, rollback failure diagnostics, and disposal
-- [ ] 1.4 Route `PiSettingsIntegration` reads and writes through the coordinator and expose truthful effective state; verify storage-only setters can no longer make a descriptor writable without an effect or lifecycle handler
+- [x] 1.1 Extend the agent-settings descriptor, validation, snapshots, and change outcome with stored/effective values, `live | next-session | next-start | current-exit` timing, availability, and limitation reason; verify focused contract and settings-section tests reject incomplete or contradictory descriptors
+- [x] 1.2 Add an exhaustive reviewed effect registry for every key in generated Pi settings metadata, including owner, timing, and capability predicate; verify an added, removed, duplicated, or unmapped generated key fails the inventory test by name
+- [x] 1.3 Implement the settings coordinator's validate, apply, persist, flush, rollback, bind-owner, and unbind-owner behavior; verify focused tests cover live success, deferred success, unavailable settings, effect failure, flush failure, rollback, rollback failure diagnostics, and disposal
+- [x] 1.4 Route `PiSettingsIntegration` reads and writes through the coordinator and expose truthful effective state; verify storage-only setters can no longer make a descriptor writable without an effect or lifecycle handler
 - [ ] 1.5 Update the owned settings session and app to display applied, deferred, and unavailable outcomes with exact reasons and effective values; verify changing a live, next-start, current-exit, and unavailable fixture produces the specified screen state
 - [ ] 1.6 Delegate the pinned settings selector callbacks to the same coordinator rather than a second key-to-callback path; verify owned and pinned routes produce the same setting mutation and owner effect for a representative key in every owner category
 
