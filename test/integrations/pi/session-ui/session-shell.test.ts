@@ -398,7 +398,7 @@ describe("OwnedUiSessionShell", () => {
     await shell.dispose();
   });
 
-  it("matches Pi's queued steering order and dequeue hint while working", async () => {
+  it("keeps Pi's queued steering order and scrolls the complete transient group out of view", async () => {
     const messages = Array.from({ length: 18 }, (_, index) => ({
       role: "assistant",
       content: [{ type: "text", text: `queue-transcript-${index}` }],
@@ -420,10 +420,13 @@ describe("OwnedUiSessionShell", () => {
     expect(hint).toBeGreaterThan(second);
     expect(working).toBeGreaterThan(hint);
 
-    terminal.input("\u001b[<64;30;3M");
+    terminal.input("\u001b[1;1H");
     const detached = shell.root.render(60).map(row => stripTerminalSequences(row));
-    expect(detached.some(row => row.includes("Steering: first"))).toBe(true);
-    expect(detached.some(row => row.includes("Working"))).toBe(true);
+    expect(detached.some(row => row.includes("Steering: first"))).toBe(false);
+    expect(detached.some(row => row.includes("Steering: second"))).toBe(false);
+    expect(detached.some(row => row.includes("Alt+Up to edit all queued messages"))).toBe(false);
+    expect(detached.some(row => row.includes("Working"))).toBe(false);
+    expect(detached.some(row => row.includes("Jump to bottom (End)"))).toBe(true);
     await shell.dispose();
   });
 
