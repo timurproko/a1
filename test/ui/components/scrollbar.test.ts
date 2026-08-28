@@ -89,7 +89,7 @@ describe("scrollbar presentation policy", () => {
     const at = geometry(20)!;
     const presentation = (overrides: Partial<Parameters<typeof scrollbarPresentation>[0]> = {}) => scrollbarPresentation({
       geometry: at,
-      appearance: "hover",
+      appearance: "auto",
       style: "thin",
       hovered: false,
       dragging: false,

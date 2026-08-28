@@ -106,18 +106,28 @@ describe("owned UI settings session", () => {
           ...await base.listSettings(),
           { key: "tuiMode", valueType: "enum", writable: true, choices: ["regular", "fullscreen"] },
           { key: "theme", valueType: "enum", writable: true, choices: ["dark", "light", "automatic"] },
+          { key: "fullscreenScrollbar", valueType: "enum", writable: true, choices: ["auto", "always", "hidden"] },
+          { key: "quietStartup", valueType: "boolean", writable: true },
         ];
       },
     };
     const store = new OwnedUiSettingsStore({ configDir: root, profileId: "a1", declarations: DECLARATIONS, migrations: [] });
-    const target = new OwnedUiSettingsSession({ store, agent, hiddenAgentSettingIds: ["tuiMode", "theme"] });
+    const target = new OwnedUiSettingsSession({
+      store,
+      agent,
+      hiddenAgentSettingIds: ["tuiMode", "theme", "fullscreenScrollbar", "quietStartup"],
+    });
     await target.load();
 
     const entries = target.sections().flatMap(section => section.entries);
     expect(entries.some(entry => entry.id === "tuiMode")).toBe(false);
     expect(entries.some(entry => entry.id === "theme")).toBe(false);
+    expect(entries.some(entry => entry.id === "fullscreenScrollbar")).toBe(false);
+    expect(entries.some(entry => entry.id === "quietStartup")).toBe(false);
     expect((await target.change("agent", "tuiMode", "regular")).failure).toMatch(/unknown agent setting/);
     expect((await target.change("agent", "theme", "light")).failure).toMatch(/unknown agent setting/);
+    expect((await target.change("agent", "fullscreenScrollbar", "always")).failure).toMatch(/unknown agent setting/);
+    expect((await target.change("agent", "quietStartup", true)).failure).toMatch(/unknown agent setting/);
   });
 
   it("writes a live A1 setting to the document, applies it, and notifies", async () => {

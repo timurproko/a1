@@ -86,7 +86,7 @@ export interface TranscriptViewportFrame {
 const CONTROL_STYLE_RESET = "\u001b]8;;\u001b\\\u001b[0m";
 
 const DEFAULT_CONFIG: TranscriptViewportConfig = {
-  scrollbarAppearance: "hover",
+  scrollbarAppearance: "auto",
   scrollbarStyle: "thin",
 };
 const PLAIN_THEME: TranscriptViewportTheme = {

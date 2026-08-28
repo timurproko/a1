@@ -274,7 +274,7 @@ describe("transcript viewport", () => {
 
   it("reserves hover geometry while idle, reveals after activity, and gives hidden mode its column back", () => {
     const viewport = new TranscriptViewport();
-    viewport.setConfig({ scrollbarAppearance: "hover", scrollbarStyle: "thick" });
+    viewport.setConfig({ scrollbarAppearance: "auto", scrollbarStyle: "thick" });
     const fitting = viewport.compose({ documentRows: ["timestamp 14:48"], dockRows: ["dock"], promptAnchors: [], width: 20, height: 5, now: 99 });
     expect(fitting.contentWidth).toBe(19);
     expect(stripAnsi(fitting.rows[0] ?? "")).toHaveLength(20);
