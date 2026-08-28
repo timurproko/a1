@@ -36,7 +36,9 @@ This makes merging the specification approval of the contract and plan, not impl
 
 ### Decision: auto-merge eligibility is an exact path allowlist
 
-A pull request may be armed for auto-merge only when every changed path is either under `openspec/**` or exactly `README.md` at the repository root. Any path outside that allowlist classifies the entire pull request as code/operational, even if the implementation is called a refactor or behavior-preserving.
+A pull request may be integrated automatically only when every changed path is either under `openspec/**` or exactly `README.md` at the repository root. Any path outside that allowlist classifies the entire pull request as code/operational, even if the implementation is called a refactor or behavior-preserving.
+
+The trusted guard arms eligible pull requests while validation is pending, with protected `develop` retaining authority to block integration. A reconciliation run may directly squash-merge an already-clean pull request only when successful validation names its current head and the merge operation enforces that expected SHA. This removes a GitHub clean-state race without letting stale validation authorize a changed head.
 
 A mixed pull request does not inherit eligibility from its specification files. It must be split before review or follow the manual code path.
 
@@ -65,6 +67,7 @@ The guard must classify the complete pull-request diff, fail closed on classific
 2. Start a fresh implementation stream from the resulting `origin/develop` only after an explicit implementation request.
 3. Add repository agent guidance, path classification tests, and an auto-merge guard in the code/operational pull request.
 4. Leave that implementation pull request open for local validation and explicit manual merge.
+5. Prove the corrected guard with separate OpenSpec-only and root-`README.md`-only live acceptance pull requests before archiving this change.
 
 ## Open Questions
 

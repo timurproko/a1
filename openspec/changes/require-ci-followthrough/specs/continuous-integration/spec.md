@@ -24,15 +24,35 @@ reported as what it said rather than as what it was expected to say.
 - **THEN** the change SHALL NOT be described as passing
 
 ### Requirement: Only OpenSpec and root README changes merge on their own
-A pull request SHALL be armed for auto-merge only when every changed path is under
-`openspec/**` or is exactly the root `README.md`. A pull request containing any
-other path SHALL remain open for local maintainer validation and manual merge,
-including behavior-preserving refactors and mixed specification-plus-code changes.
-CI success SHALL NOT substitute for local maintainer acceptance of code.
+Repository automation SHALL arrange automatic squash integration only when every
+changed path is under `openspec/**` or is exactly the root `README.md`. It MAY arm
+an eligible pull request while required validation is pending because protected
+`develop` remains the merge gate. If validation finishes before automation can arm
+the pull request and GitHub already reports it clean, automation MAY merge only when
+the successful validation belongs to the current head and the merge request enforces
+that expected head SHA.
+
+A pull request containing any other path SHALL remain open for local maintainer
+validation and manual merge, including behavior-preserving refactors and mixed
+specification-plus-code changes. CI success SHALL NOT substitute for local
+maintainer acceptance of code. Failed validation or successful validation for an
+older head SHALL NOT authorize direct integration.
 
 #### Scenario: Complete diff is auto-merge eligible
 - **WHEN** every changed path is under `openspec/**` or is the root `README.md`
-- **THEN** the pull request MAY be armed to merge when its required check passes
+- **THEN** automation SHALL arrange squash integration behind the required validation gate
+
+#### Scenario: Eligible pull request is still validating
+- **WHEN** an eligible current head is blocked only because required validation is pending
+- **THEN** automation MAY arm squash auto-merge and SHALL rely on protected `develop` to prevent premature integration
+
+#### Scenario: Eligible pull request is already clean
+- **WHEN** successful required validation belongs to the current head and GitHub already reports that head clean
+- **THEN** automation MAY squash-merge using that exact head SHA
+
+#### Scenario: Successful validation belongs to an older head
+- **WHEN** the pull request head differs from the head that passed required validation
+- **THEN** automation SHALL NOT directly merge the current head
 
 #### Scenario: Behavior-preserving code changed
 - **WHEN** a pull request contains any path outside the auto-merge allowlist
