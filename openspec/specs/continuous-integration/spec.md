@@ -3,7 +3,9 @@
 ## Purpose
 
 Defines proportionate automated validation: fast checks during development, package gates for previews, and the complete suite only for stable releases.
+
 ## Requirements
+
 ### Requirement: Validation effort matches the change and the channel
 Automated validation SHALL scale with what is being shipped. Documentation and
 specification changes SHALL require no product build or product test execution, but
@@ -162,24 +164,22 @@ reported as what it said rather than as what it was expected to say.
 - **WHEN** validation has been triggered and its result has not been read
 - **THEN** the change SHALL NOT be described as passing
 
-### Requirement: Only OpenSpec and root README changes merge on their own
-Repository automation SHALL arrange automatic squash integration only when every
-changed path is under `openspec/**` or is exactly the root `README.md`. It MAY arm
-an eligible pull request while required validation is pending because protected
-`develop` remains the merge gate. If validation finishes before automation can arm
-the pull request and GitHub already reports it clean, automation MAY merge only when
-the successful validation belongs to the current head and the merge request enforces
-that expected head SHA.
+### Requirement: Documentation-only changes merge on their own
+Repository automation SHALL arrange automatic squash integration only when every changed and renamed-from path is under `openspec/**`, under `docs/**`, or is exactly the root `README.md`. It MAY arm an eligible pull request while required validation is pending because protected `develop` remains the merge gate. If validation finishes before automation can arm the pull request and GitHub already reports it clean, automation MAY merge only when the successful validation belongs to the current head and the merge request enforces that expected head SHA.
 
-A pull request containing any other path SHALL remain open for local maintainer
-validation and manual merge, including behavior-preserving refactors and mixed
-specification-plus-code changes. CI success SHALL NOT substitute for local
-maintainer acceptance of code. Failed validation or successful validation for an
-older head SHALL NOT authorize direct integration.
+An eligible pull request SHALL pass documentation-sensitive governance and, when OpenSpec is touched, strict OpenSpec validation. A pull request containing any other path SHALL remain open for local maintainer validation and manual merge, including behavior-preserving refactors and mixed documentation-plus-code changes. CI success SHALL NOT substitute for local maintainer acceptance of code. Failed validation or successful validation for an older head SHALL NOT authorize direct integration.
 
 #### Scenario: Complete diff is auto-merge eligible
-- **WHEN** every changed path is under `openspec/**` or is the root `README.md`
+- **WHEN** every changed and renamed-from path is under `openspec/**`, under `docs/**`, or is the root `README.md`
 - **THEN** automation SHALL arrange squash integration behind the required validation gate
+
+#### Scenario: Maintained docs change is validated
+- **WHEN** an eligible pull request changes a path under `docs/**`
+- **THEN** CI SHALL run documentation-sensitive governance before the required validation gate succeeds
+
+#### Scenario: OpenSpec change is validated
+- **WHEN** an eligible pull request changes a path under `openspec/**`
+- **THEN** CI SHALL run strict OpenSpec validation before the required validation gate succeeds
 
 #### Scenario: Eligible pull request is still validating
 - **WHEN** an eligible current head is blocked only because required validation is pending
@@ -194,10 +194,10 @@ older head SHALL NOT authorize direct integration.
 - **THEN** automation SHALL NOT directly merge the current head
 
 #### Scenario: Behavior-preserving code changed
-- **WHEN** a pull request contains any path outside the auto-merge allowlist
+- **WHEN** a pull request contains any changed or renamed-from path outside the auto-merge allowlist
 - **THEN** it SHALL NOT be armed to merge automatically even if behavior is intended to remain unchanged
 - **AND** it SHALL wait for local maintainer acceptance and manual merge
 
-#### Scenario: Specification and code are mixed
-- **WHEN** a pull request contains both OpenSpec paths and a path outside the allowlist
+#### Scenario: Documentation and code are mixed
+- **WHEN** a pull request contains both an allowed documentation path and a path outside the allowlist
 - **THEN** the entire pull request SHALL follow the manual code path
