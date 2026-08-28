@@ -1,13 +1,17 @@
 ## ADDED Requirements
 
 ### Requirement: The custom viewport exposes grouped appearance, style, and speed settings
-A1 SHALL declare `scrollbarAppearance`, `scrollbarStyle`, and `scrollbarSpeed` as live-applicable A1 settings grouped under a `Scroll` settings section. The visible row labels SHALL be `Scrollbar mode`, `Scrollbar style`, and `Speed`, without a redundant `A1` section or `(default)` suffix. `scrollbarAppearance` SHALL allow exactly `always`, `hover`, and `hidden`, with `hover` as its default. `scrollbarStyle` SHALL allow exactly `thin` and `thick`, with `thin` as its default. `scrollbarSpeed` SHALL allow exactly `normal`, `fast`, and `high`, in that order, with `normal` as its default. The settings SHALL be stored and resolved through the existing profile-local A1 settings document and SHALL NOT be read from or written to agent settings.
+A1 SHALL declare `scrollbarAppearance`, `scrollbarStyle`, and `scrollbarSpeed` as live-applicable A1 settings grouped under a `Scroll` settings section. The visible row labels SHALL be `Scrollbar mode`, `Scrollbar style`, and `Speed`, without a redundant `A1` section or `(default)` suffix. `scrollbarAppearance` SHALL allow exactly `auto`, `always`, and `hidden`, with `auto` as its default. `scrollbarStyle` SHALL allow exactly `thin` and `thick`, with `thin` as its default. `scrollbarSpeed` SHALL allow exactly `normal`, `fast`, and `high`, in that order, with `normal` as its default. The settings SHALL be stored and resolved through the existing profile-local A1 settings document and SHALL NOT be read from or written to agent settings.
 
 #### Scenario: Resolve defaults
 - **WHEN** the active A1 profile has no stored scrollbar values
-- **THEN** `scrollbarAppearance` SHALL resolve to `hover`
+- **THEN** `scrollbarAppearance` SHALL resolve to `auto`
 - **AND** `scrollbarStyle` SHALL resolve to `thin`
 - **AND** `scrollbarSpeed` SHALL resolve to `normal`
+
+#### Scenario: Migrate the former appearance value
+- **WHEN** a version-two settings document stores `scrollbarAppearance` as `hover`
+- **THEN** migration SHALL store and resolve it as `auto`
 
 #### Scenario: Change appearance live
 - **WHEN** the reader changes `scrollbarAppearance` to an allowed value

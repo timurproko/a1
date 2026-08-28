@@ -3,9 +3,7 @@
 ## Purpose
 
 Defines A1's independently owned Pi shell with vanilla-default regular main-screen mode and optional fullscreen mode, complete pinned interactive baseline including extension UI, exact current-version parity, public engine/runtime boundaries, customization slots, diagnostics, and upgrade-conformance policy.
-
 ## Requirements
-
 ### Requirement: The owned shell presents the complete pinned Pi interactive UI
 The A1-owned UI SHALL reproduce the complete visible and interactive behavior of pinned Pi `0.84.2` at commit `914cf1472e715297caa30db4b9535d534a9eb718`. The baseline SHALL include startup composition, themes, colors, spacing, layout, editor, autocomplete, keybindings, commands, prompt execution, transcript, streaming, tools, selectors, dialogs, settings, sessions, models, thinking, status/footer state, clipboard, resize, errors, and shutdown. A1 SHALL NOT substitute approximate layouts, colors, controllers, or workflows for covered pinned behavior. After parity acceptance a route MAY be superseded by a declared A1-owned replacement; the pinned behavior of a superseded route SHALL remain provable through `a1 pi`, and every capability the pinned route exposed SHALL remain reachable from its replacement.
 
@@ -387,3 +385,21 @@ acts on at startup SHALL NOT be silently ignored by the owned surface.
   command, and the package list — after the banner and loaded resources
 - **AND** with `PI_OFFLINE` set, or when the probe fails, no notice SHALL
   appear
+
+### Requirement: Session viewport interaction has a focused owner
+The Pi-backed owned shell SHALL keep custom-viewport interaction state and input policy in a focused viewport controller separate from the shell root that composes transcript document and dock rows. The extraction SHALL preserve the accepted bare-A1 frame, follow/detach behavior, prompt navigation, scrollbar, pointer selection, copy, editor pointer handling, modal bypass, resize, and terminal-restoration behavior. The pinned comparison path SHALL remain unchanged.
+
+#### Scenario: Render bare A1 after extraction
+- **WHEN** bare A1 renders the custom session viewport for the same session, terminal, theme, and settings state
+- **THEN** the complete frame and hit regions SHALL remain the accepted custom-viewport result
+- **AND** the viewport controller SHALL own the interaction state used to produce it
+
+#### Scenario: Route input after extraction
+- **WHEN** the viewport receives wheel, pointer, transcript-copy, prompt-navigation, editor, or unrelated keyboard input
+- **THEN** its consume/transform result and resulting state SHALL remain unchanged
+- **AND** unrelated input SHALL still reach the focused Pi surface
+
+#### Scenario: Use the pinned comparison profile
+- **WHEN** the same shell runs without the custom viewport
+- **THEN** the pinned root/layout and input behavior SHALL remain unchanged
+- **AND** the extracted viewport controller SHALL not claim pinned-profile interaction

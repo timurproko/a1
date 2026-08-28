@@ -1,8 +1,8 @@
 ## Context
 
-See `proposal.md` for motivation. Interactive startup currently has two lifecycle shapes: bare `a1` runs the owned UI in `a1-ui`, while `a1 pi` use a transparent broker that acquires one supervisor-wide SQLite lease before spawning Pi. The supervisor stores one in-memory lease, the database enforces one live row with a partial unique index, and socket closure only removes the client from a set. The transparent child identity is currently a PID plus a broker-local random token, so another process cannot re-verify it. Descendants are stopped through the direct `ChildProcess` handle only; a daemonized grandchild can survive root exit.
+See `proposal.md` for motivation. Both bare `a1` and prerelease `a1 pi` now use the shared owned rendering pipeline, but launch-instance ownership still has to remain independent for concurrent commands. The supervisor stores plural lifecycle state, and process identity and containment must remain independently verifiable so one command cannot terminate another or leave descendants after root exit.
 
-The immutable bootstrap already starts `a1-ui` as a foreground child with inherited stdio and waits for its result. The detached supervisor remains necessary for immutable-release and update coordination, but it must no longer act as a global interactive-terminal mutex. Transparent profiles must preserve direct physical-terminal attachment, and the lifecycle layer must not become a PTY, terminal relay, parser, renderer, or signal translation path.
+The immutable bootstrap starts `a1-ui` as a foreground child with inherited stdio and waits for its result. The detached supervisor remains necessary for immutable-release and update coordination, but it must not act as a global interactive-terminal mutex. The lifecycle layer preserves the shared owned runtime and must not become a PTY, terminal relay, parser, renderer, or signal translation path.
 
 ## Goals / Non-Goals
 
@@ -12,7 +12,7 @@ The immutable bootstrap already starts `a1-ui` as a foreground child with inheri
 - Support multiple simultaneous instances of all profiles while retaining one global release supervisor.
 - Guarantee terminate-tree-on-close for the root runtime and descendants, including abnormal guardian death where the platform can provide kernel containment.
 - Make one instance's normal exit, crash, owner disconnect, update stop, or reconciliation independent from every other instance.
-- Keep transparent stdin, stdout, stderr, terminal modes, resize, and ordinary signals on the native inherited path.
+- Keep the shared owned runtime in authority over stdin, stdout, stderr, terminal modes, resize, and ordinary signals.
 - Make ownership evidence plural, authenticated, boot-scoped, process-identity checked, and safe under PID reuse.
 - Preserve concise user diagnostics and automatic cleanup without requiring PID or database operations.
 
@@ -20,7 +20,7 @@ The immutable bootstrap already starts `a1-ui` as a foreground child with inheri
 
 - Persisting agents or terminal processes after their originating command closes.
 - Adding an implicit detach, resident workspace, reconnection, or background-agent mode.
-- Routing explicit Pi profiles through the owned UI or a composed terminal host.
+- Changing the shared owned rendering pipeline selected by either interactive profile.
 - Interpreting terminal traffic in the guardian or supervisor.
 - Resuming the held multi-agent/composed-terminal implementation.
 - Forcing the idle control supervisor to exit when the last interactive instance closes.
@@ -45,21 +45,21 @@ Keeping a global lease and adding stale-row takeover was rejected because it wou
 
 ### 2. Add one profile-neutral launch guardian above runtime selection
 
-The immutable bootstrap will start a launch guardian instead of starting `a1-ui` directly. The guardian then starts the immutable `a1-ui` entry with the selected profile environment inside a containment scope and waits for it. `a1-ui` continues to choose the owned UI or transparent Pi runtime exactly as it does today.
+The immutable bootstrap will start a launch guardian instead of starting `a1-ui` directly. The guardian then starts the immutable `a1-ui` entry with the selected profile environment inside a containment scope and waits for it. `a1-ui` continues to choose product or Pi-comparison configuration inside the shared owned runtime.
 
 ```text
 mutable a1 command
   -> immutable bootstrap
     -> Node launch guardian (authenticated instance coordinator)
       -> native process guardian (containment owner; lifecycle-only side channel)
-        -> a1-ui (runtime selector; inherited terminal handles)
-          -> owned UI, vanilla Pi
+        -> a1-ui (profile selector; inherited terminal handles)
+          -> owned product UI or owned Pi-comparison UI
             -> extensions, tools, agents, daemons, descendants
 ```
 
 The Node guardian owns the supervisor connection, instance protocol, close ordering, and final outcome. The approved native boundary is a standalone Rust `a1-process-guardian` executable rather than a Node-API addon. It owns the platform containment handle, launches `a1-ui`, monitors both its Node parent and runtime child, and exchanges only bounded lifecycle/identity messages with the Node guardian over a private local side channel. Neither guardian reads ordinary stdin, inspects stdout/stderr, reserves terminal rows, creates a PTY, parses bytes, renders, or synthesizes responses. Runtime terminal handles remain inherited directly. The guardians ignore ordinary foreground interrupt delivery where necessary so the selected runtime remains the terminal interaction owner; they react only to declared lifecycle shutdown conditions.
 
-Putting separate lifecycle wrappers inside each runtime was rejected because it duplicates failure handling and cannot reliably clean descendants after the runtime wrapper itself crashes. Having the detached supervisor spawn transparent Pi was rejected because it would not inherit the invoking physical terminal correctly.
+Putting separate lifecycle wrappers inside each profile composition was rejected because it duplicates failure handling and cannot reliably clean descendants after the runtime wrapper itself crashes. Having the detached supervisor own terminal rendering was rejected because it would violate the shared UI runtime's authority.
 
 ### 3. Use a platform containment adapter with kill-on-owner-close semantics
 
@@ -143,7 +143,7 @@ Allowing the held plan's default live-process reconnection semantics to coexist 
 1. Create a detached implementation worktree from current `origin/develop` and introduce dependency-free plural launch-instance domain/protocol contracts alongside the old lease contract.
 2. Add the control-store schema migration and plural supervisor model; migrate old live leases to historical interrupted outcomes while keeping launch behavior on the old path until cutover.
 3. Implement the profile-neutral guardian and an injectable containment boundary, then implement and package the Windows Job Object adapter before claiming Windows close guarantees.
-4. Route all three interactive profiles through the guardian while preserving existing owned and transparent runtime selection beneath it.
+4. Route both interactive profiles through the guardian while preserving the shared owned rendering pipeline beneath it.
 5. Remove singular lease acquisition, uniqueness, metadata, and cleanup paths after all profile routes use launch instances.
 6. Convert self-update and cohort ownership checks to plural instance fan-out.
 7. Add hermetic contract/integration fixtures plus exact-artifact platform checks; let CI provide required automated validation and obtain user-controlled close/process-tree acceptance before publication.

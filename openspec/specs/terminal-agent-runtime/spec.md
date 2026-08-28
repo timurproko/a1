@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Defines the selected application-agnostic transparent terminal capability for one directly attached foreground command and its explicit limitations.
+Defines the retained application-agnostic transparent terminal capability for an explicitly selected directly attached command and its limitations. Current `a1` and prerelease `a1 pi` launch forms use the separate shared owned UI pipeline.
 
 ## Requirements
 
