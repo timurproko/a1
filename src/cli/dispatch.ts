@@ -41,7 +41,7 @@ export function cliUsage(capabilities: CliCapabilities): string {
 export function cliHelp(capabilities: CliCapabilities): string {
   const command = PRODUCT_TEXT.commandName;
   return [
-    "Usage:",
+    "Common:",
     `  ${command}`,
     ...(capabilities.developmentComparison ? [`  ${command} pi`] : []),
     `  ${command} --help`,
@@ -49,12 +49,12 @@ export function cliHelp(capabilities: CliCapabilities): string {
     `  ${command} --version`,
     `  ${command} -v`,
     "",
-    `Update ${PRODUCT_TEXT.displayName}:`,
+    "Update:",
     `  ${command} update`,
     `  ${command} update --develop [preview-or-version]`,
     `  ${command} update --models`,
     "",
-    "Pi-compatible packages for A1:",
+    "Pi-compatible packages:",
     `  ${command} pi install <source>`,
     `  ${command} pi remove <source>`,
     `  ${command} pi uninstall <source>`,

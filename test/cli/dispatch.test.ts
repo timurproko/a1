@@ -184,6 +184,12 @@ describe("A1 CLI dispatch", () => {
 
   it("advertises exactly the implemented command design", () => {
     const usage = cliUsage(PRERELEASE);
+    const help = cliHelp(PRERELEASE);
+    expect(help).toMatch(/^Common:\n/);
+    expect(help).toContain("\nUpdate:\n");
+    expect(help).toContain("\nPi-compatible packages:\n");
+    expect(help).not.toContain("Update A1:");
+    expect(help).not.toContain("Pi-compatible packages for A1:");
     for (const form of [
       "--help",
       "-h",
