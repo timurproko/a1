@@ -117,6 +117,7 @@ export class OwnedUiSessionShell {
   readonly #customViewport: boolean;
   readonly #removeViewportPreInput: () => void;
   readonly #unsubscribeSettings: () => void;
+  readonly #unbindPiSettings: () => void;
   #compactionQueue: Array<{
     readonly text: string;
     readonly type: "steer" | "follow-up";
@@ -227,6 +228,19 @@ export class OwnedUiSessionShell {
     this.#unsubscribeSettings = this.#customViewport && options.viewportSettings
       ? options.viewportSettings.onChange(settings => this.root.setViewportConfig(settings))
       : () => {};
+    const initialPiSettings = this.backend.pinnedSettingsSnapshot();
+    this.root.setEditorPaddingX(initialPiSettings.editorPaddingX);
+    this.root.setAutocompleteMaxVisible(initialPiSettings.autocompleteMaxVisible);
+    this.#unbindPiSettings = this.backend.bindSettingsOwner("shell", {
+      editorPaddingX: { apply: value => {
+        if (typeof value !== "number") throw new TypeError("Editor padding is invalid");
+        this.root.setEditorPaddingX(value);
+      } },
+      autocompleteMaxVisible: { apply: value => {
+        if (typeof value !== "number") throw new TypeError("Autocomplete maximum is invalid");
+        this.root.setAutocompleteMaxVisible(value);
+      } },
+    });
     this.#extensionBridge = createPiExtensionUiBridge({
       runtime: {
         getColumns: () => this.runtime.viewport().columns,
@@ -951,6 +965,7 @@ export class OwnedUiSessionShell {
     this.#setPointerReporting(false, true);
     this.#removeViewportPreInput();
     this.#unsubscribeSettings();
+    this.#unbindPiSettings();
     this.#unsubscribe();
     this.#dialogHandle?.hide();
     await this.backend.unbindExtensionUi();

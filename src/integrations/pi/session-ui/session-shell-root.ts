@@ -284,6 +284,15 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     });
   }
 
+  setEditorPaddingX(padding: number): void {
+    this.editor.setPaddingX(padding);
+    this.#documentLayouts.clear();
+  }
+
+  setAutocompleteMaxVisible(maxVisible: number): void {
+    this.editor.setAutocompleteMaxVisible(maxVisible);
+  }
+
   preparePromptSubmission(text: string): PreparedPrompt {
     return this.#promptChips.prepareSubmission(text);
   }

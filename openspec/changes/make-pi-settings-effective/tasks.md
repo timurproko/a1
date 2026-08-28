@@ -25,7 +25,7 @@
 
 ## 4. Apply owned-shell and terminal settings
 
-- [ ] 4.1 Replace fixed editor geometry with live `editorPaddingX` and `autocompleteMaxVisible`; verify active editor reflow, autocomplete clipping, focus, cursor, history, and narrow-terminal behavior after each change
+- [x] 4.1 Replace fixed editor geometry with live `editorPaddingX` and `autocompleteMaxVisible`; verify active editor reflow, autocomplete clipping, focus, cursor, history, and narrow-terminal behavior after each change
 - [ ] 4.2 Replace fixed presenter spacing with live `outputPad` and a relevant presentation cache revision; verify existing and future status, error, Markdown, tool, and transcript rows re-render without losing block identity or viewport state
 - [ ] 4.3 Bind `hideThinkingBlock` and `mermaidRenderingMode` to transcript construction and Markdown transformation; verify existing finalized blocks and streaming blocks update for every Mermaid mode while selection, expansion, and semantic order remain stable
 - [ ] 4.4 Bind `showHardwareCursor`, `clearOnShrink`, and `showTerminalProgress` to the active TUI/terminal lifecycle; verify terminal-operation tests cover enable, disable, resize, active-agent transitions, failure, and unconditional disposal cleanup

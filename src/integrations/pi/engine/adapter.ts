@@ -632,7 +632,7 @@ export class PiEngineAdapter {
   /** Settings port for the live runtime, or null before the runtime is available. */
   settingsPort(): PiSettingsIntegration | null {
     const settings = this.#runtime?.services.settingsManager;
-    if (!settings) return null;
+    if (!settings || typeof settings.getCompactionEnabled !== "function") return null;
     if (this.#settingsIntegration === undefined || this.#settingsIntegrationManager !== settings) {
       this.#settingsIntegrationManager = settings;
       this.#settingsIntegration = new PiSettingsIntegration(settings, {
@@ -706,7 +706,7 @@ export class PiEngineAdapter {
 
   bindSettingsOwner(owner: AgentSettingOwner, handlers: PiSettingOwnerHandlers): () => void {
     const settings = this.settingsPort();
-    if (settings === null) throw new Error("engine settings are unavailable");
+    if (settings === null) return () => {};
     return settings.bindOwner(owner, handlers);
   }
 

@@ -65,6 +65,9 @@ describe("Pi shell public component adapters", () => {
     });
     editor.setFocused?.(true);
     editor.setText("hello");
+    editor.setPaddingX(3);
+    editor.setAutocompleteMaxVisible(12);
+    expect(editor.getText()).toBe("hello");
     editor.handleInput?.("\r");
     expect(submit).toHaveBeenCalledWith("hello");
     expect(editor.render(40).length).toBeGreaterThan(0);

@@ -54,6 +54,8 @@ export interface PiShellEditorPort extends PiShellComponentPort {
   setSubmitHandler(handler: (text: string) => void): void;
   setInterruptHandler(handler: () => void): void;
   setAutocompleteCommands(commands: readonly PiShellAutocompleteCommand[]): void;
+  setPaddingX(padding: number): void;
+  setAutocompleteMaxVisible(maxVisible: number): void;
   addAutocompleteProvider(factory: unknown): void;
   setThinkingLevel(level: OwnedUiThinkingLevel): void;
   hasSelection(): boolean;
