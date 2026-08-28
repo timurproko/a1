@@ -1,9 +1,17 @@
 import { execFile } from "node:child_process";
 import type { PiShellClipboardContent } from "../components/index.js";
+import { canonicalizeClipboardImage } from "./clipboard-image.js";
 
 const MAX_CLIPBOARD_BYTES = 16 * 1024 * 1024;
 
 type NativeClipboard = typeof import("@mariozechner/clipboard");
+
+export interface SystemClipboardImageReader {
+  hasImage(): boolean;
+  getImageBinary?(): Promise<readonly number[]>;
+  getImageBase64?(): Promise<string>;
+}
+
 let nativeClipboardPromise: Promise<NativeClipboard | null> | undefined;
 let pendingClipboardWrite: Promise<void> = Promise.resolve();
 
@@ -26,16 +34,46 @@ export async function readSystemClipboardContent(): Promise<PiShellClipboardCont
         const files = await readSystemClipboardText();
         if (files !== null) return { kind: "text", text: files };
       }
-      if (native.hasImage()) {
-        const data = await native.getImageBase64();
-        if (data.length > 0) return { kind: "image", data, mimeType: "image/png" };
-      }
+      const image = await readSystemClipboardImage(native);
+      if (image !== null) return { kind: "image", ...image };
     } catch {
       // Fall through to text and platform readers.
     }
   }
   const text = await readSystemClipboardText();
   return text === null ? null : { kind: "text", text };
+}
+
+export async function readSystemClipboardImage(
+  reader: SystemClipboardImageReader,
+): Promise<{ readonly data: string; readonly mimeType: string } | null> {
+  if (!reader.hasImage()) return null;
+
+  if (reader.getImageBinary !== undefined) {
+    try {
+      const bytes = await reader.getImageBinary();
+      if (bytes.length > 0 && bytes.every(byte => Number.isInteger(byte) && byte >= 0 && byte <= 255)) {
+        return canonicalizeClipboardImage({
+          data: Buffer.from(bytes).toString("base64"),
+          mimeType: "image/png",
+        });
+      }
+    } catch {
+      // Older or partially available native bindings may still expose base64.
+    }
+  }
+
+  if (reader.getImageBase64 !== undefined) {
+    try {
+      return canonicalizeClipboardImage({
+        data: await reader.getImageBase64(),
+        mimeType: "image/png",
+      });
+    } catch {
+      // Fall through to the caller's text path.
+    }
+  }
+  return null;
 }
 
 export async function readSystemClipboardText(): Promise<string | null> {

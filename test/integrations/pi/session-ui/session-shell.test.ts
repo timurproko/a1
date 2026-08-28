@@ -591,7 +591,7 @@ describe("OwnedUiSessionShell", () => {
   it("pastes URLs and clipboard images as atomic chips and expands them for copy and submission", async () => {
     let clipboardText = "https://example.com/a/very/useful/resource";
     let clipboardImage: { readonly data: string; readonly mimeType: string } | null = null;
-    const { engine, terminal, shell } = await fixture([], [], true, undefined, {
+    const { engine, adapter, terminal, shell } = await fixture([], [], true, undefined, {
       readText: async () => clipboardText,
       readImage: async () => clipboardImage,
       writeText: async text => { clipboardText = text; },
@@ -669,7 +669,9 @@ describe("OwnedUiSessionShell", () => {
     terminal.input("\u007f");
     expect(shell.root.editor.getText()).toBe("");
 
-    clipboardImage = { data: Buffer.from("fake-png").toString("base64"), mimeType: "image/png" };
+    const imageBytes = Buffer.from("fake-png");
+    const canonicalImageData = imageBytes.toString("base64");
+    clipboardImage = { data: canonicalImageData.replace(/=+$/u, ""), mimeType: "image/png" };
     shell.root.editor.setText("");
     terminal.input("\u0016");
     await vi.waitFor(() => expect(shell.root.editor.getText()).toMatch(/^\[📷 screenshot-[a-f0-9]+\.png\]$/u));
@@ -680,9 +682,48 @@ describe("OwnedUiSessionShell", () => {
     await shell.submit(imageTag);
     expect(engine.session.calls).toContain(`prompt:${imageTag}`);
     expect(engine.session.promptOptions.at(-1)).toMatchObject({
-      images: [{ type: "image", data: Buffer.from("fake-png").toString("base64"), mimeType: "image/png" }],
+      images: [{ type: "image", data: canonicalImageData, mimeType: "image/png" }],
+    });
+    expect(Buffer.from(canonicalImageData, "base64")).toEqual(imageBytes);
+
+    engine.session.emit({ type: "agent_start" });
+    await adapter.flushEvents();
+    await shell.submit(imageTag);
+    expect(engine.session.promptOptions.at(-1)).toMatchObject({
+      streamingBehavior: "steer",
+      images: [{ type: "image", data: canonicalImageData, mimeType: "image/png" }],
     });
 
+    shell.root.editor.setText(imageTag);
+    await shell.queueFollowUp();
+    expect(engine.session.promptOptions.at(-1)).toMatchObject({
+      streamingBehavior: "followUp",
+      images: [{ type: "image", data: canonicalImageData, mimeType: "image/png" }],
+    });
+
+    await shell.dispose();
+  });
+
+  it("falls back to text or leaves the editor unchanged for malformed clipboard images", async () => {
+    let clipboardText: string | null = "text fallback";
+    const readText = vi.fn(async () => clipboardText);
+    const readImage = vi.fn(async () => ({ data: "data:image/png;base64,invalid!", mimeType: "image/png" }));
+    const { engine, terminal, shell } = await fixture([], [], true, undefined, { readText, readImage });
+
+    terminal.input("\u0016");
+    await vi.waitFor(() => expect(shell.root.editor.getText()).toBe("text fallback"));
+    expect(shell.root.editor.getText()).not.toContain("[📷");
+    expect(engine.session.calls.some(call => call.startsWith("prompt:"))).toBe(false);
+
+    shell.root.editor.setText("unchanged");
+    clipboardText = null;
+    terminal.input("\u0016");
+    await vi.waitFor(() => expect(readText).toHaveBeenCalledTimes(2));
+    expect(shell.root.editor.getText()).toBe("unchanged");
+
+    await shell.submit("unchanged");
+    expect(engine.session.promptOptions.at(-1)).toBeUndefined();
+    expect(readImage).toHaveBeenCalledTimes(2);
     await shell.dispose();
   });
 

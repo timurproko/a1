@@ -46,12 +46,19 @@ describe("PromptChipStore", () => {
     });
   });
 
-  it("keeps image chips in prompt text and emits their attachment once", () => {
+  it("keeps canonical image chips in prompt text and emits their attachment once", () => {
     const store = new PromptChipStore();
-    const chip = store.transformPastedContent({ kind: "image", data: "aW1hZ2U=", mimeType: "image/png" });
+    const chip = store.transformPastedContent({ kind: "image", data: "aW1hZ2U", mimeType: "image/png" });
     const prepared = store.prepareSubmission(`${chip} ${chip}`);
     expect(chip).toMatch(/^\[📷 screenshot-[a-f0-9]+\.png\]$/u);
     expect(prepared.text).toBe(`${chip} ${chip}`);
     expect(prepared.images).toEqual([{ type: "image", data: "aW1hZ2U=", mimeType: "image/png" }]);
+  });
+
+  it("does not create a chip for malformed image data", () => {
+    const store = new PromptChipStore();
+    const chip = store.transformPastedContent({ kind: "image", data: "data:image/png;base64,aW1hZ2U=", mimeType: "image/png" });
+    expect(chip).toBe("");
+    expect(store.prepareSubmission("unchanged")).toEqual({ text: "unchanged", images: [] });
   });
 });

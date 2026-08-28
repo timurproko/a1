@@ -1,6 +1,7 @@
 import type {
   OwnedUiCommand,
   OwnedUiDialog,
+  OwnedUiImageAttachment,
   OwnedUiSessionViewModel,
   OwnedUiThinkingLevel,
 } from "../../../contracts/owned-ui/index.js";
@@ -80,6 +81,7 @@ import {
 } from "../tui-runtime/index.js";
 
 
+import { canonicalizeClipboardImage } from "./clipboard-image.js";
 import {
   preloadSystemClipboard,
   readSystemClipboardContent,
@@ -115,7 +117,11 @@ export class OwnedUiSessionShell {
   readonly #customViewport: boolean;
   readonly #removeViewportPreInput: () => void;
   readonly #unsubscribeSettings: () => void;
-  #compactionQueue: Array<{ readonly text: string; readonly type: "steer" | "follow-up" }> = [];
+  #compactionQueue: Array<{
+    readonly text: string;
+    readonly type: "steer" | "follow-up";
+    readonly images?: readonly OwnedUiImageAttachment[];
+  }> = [];
   #lastClearTime = 0;
   #lastEscapeTime = 0;
   #activeLoginDialog: PiShellLoginDialogPort | undefined;
@@ -161,8 +167,15 @@ export class OwnedUiSessionShell {
       readClipboardContent: async () => {
         await pendingClipboardWrite;
         if (options.clipboard === undefined) return readSystemClipboardContent();
-        const image = await options.clipboard.readImage?.();
-        if (image !== null && image !== undefined) return { kind: "image" as const, ...image };
+        try {
+          const image = await options.clipboard.readImage?.();
+          if (image !== null && image !== undefined) {
+            const canonical = canonicalizeClipboardImage(image);
+            if (canonical !== null) return { kind: "image" as const, ...canonical };
+          }
+        } catch {
+          // Treat an unavailable or malformed image as text-capable clipboard input.
+        }
         const text = await options.clipboard.readText();
         return text === null ? null : { kind: "text" as const, text };
       },
@@ -318,7 +331,11 @@ export class OwnedUiSessionShell {
     }
     if (this.view().status.workingMessage?.startsWith("Compacting") === true) {
       this.root.editor.addToHistory(displayInput);
-      this.#compactionQueue.push({ text: input, type: "steer" });
+      this.#compactionQueue.push({
+        text: input,
+        type: "steer",
+        ...(prepared.images.length === 0 ? {} : { images: prepared.images }),
+      });
       this.root.appendWorkflowResult({ command: "compact", outcome: "completed", message: `Queued during compaction: ${input}` });
       this.runtime.requestRender();
       return { outcome: "completed", diagnostic: null };
@@ -423,13 +440,19 @@ export class OwnedUiSessionShell {
   }
 
   async queueFollowUp(): Promise<AdapterCommandResult> {
-    const text = this.root.editor.getText().trim();
-    if (!text) return rejected("nothing to queue");
-    this.root.editor.addToHistory(text);
+    const displayInput = this.root.editor.getText().trim();
+    if (!displayInput) return rejected("nothing to queue");
+    const prepared = this.root.preparePromptSubmission(displayInput);
+    const text = prepared.text.trim();
+    this.root.editor.addToHistory(displayInput);
     this.root.editor.setText("");
     this.root.resumeViewportFollowing();
     if (this.view().status.workingMessage?.startsWith("Compacting") === true) {
-      this.#compactionQueue.push({ text, type: "follow-up" });
+      this.#compactionQueue.push({
+        text,
+        type: "follow-up",
+        ...(prepared.images.length === 0 ? {} : { images: prepared.images }),
+      });
       return { outcome: "completed", diagnostic: null };
     }
     return this.#execute({
@@ -437,6 +460,7 @@ export class OwnedUiSessionShell {
       correlationId: this.#correlation("follow-up"),
       sessionId: this.backend.sessionId,
       text,
+      ...(prepared.images.length === 0 ? {} : { images: prepared.images }),
     });
   }
 
@@ -1203,6 +1227,7 @@ export class OwnedUiSessionShell {
         correlationId: this.#correlation(`compaction-${item.type}`),
         sessionId: this.backend.sessionId,
         text: item.text,
+        ...(item.images === undefined ? {} : { images: item.images }),
       });
     }
   }
