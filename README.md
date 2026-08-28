@@ -78,6 +78,24 @@ npm run test:fast       # typecheck + fast suite (alias: npm test)
 npm run test:full       # complete non-physical suite
 ```
 
+## Pull request integration
+
+Pull requests whose complete diff is only under `openspec/**`, only the root
+`README.md`, or a combination of those paths are automatically squash-merged after
+`Development validation required` succeeds. The automation reads the complete
+GitHub changed-file list, including both sides of renames, and runs only for trusted
+branches in this repository.
+
+Any other path makes the pull request code/operational. That includes source, tests,
+scripts, workflows, configuration, generated baselines, ordinary `docs/**` files,
+and a mixed specification-plus-code change. Those pull requests remain open after
+CI for local maintainer validation and explicit manual merge; automation disables
+auto-merge if it was armed.
+
+Specification approval and implementation remain separate pull requests. An
+implementation starts from updated `origin/develop` only after its specification
+has merged and implementation was explicitly requested.
+
 ## Release
 
 Two channels, both published by CI from the exact bytes it validated — never from
