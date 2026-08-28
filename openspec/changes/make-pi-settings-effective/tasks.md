@@ -19,7 +19,7 @@
 - [ ] 3.1 Bind `autoCompact`, `autoResizeImages`, and `blockImages` to the active session and verify subsequent compaction checks, prompt images, tool images, and provider context observe live changes
 - [ ] 3.2 Bind `steeringMode`, `followUpMode`, and `transport` to the active agent and verify subsequent queued prompts and provider requests use new values without session recreation
 - [ ] 3.3 Bind `thinkingLevel` to the active session and persisted fresh-session default; verify capability clamping, footer/editor indicators, current-session requests, and a later fresh session agree
-- [ ] 3.4 Rebuild skill command registration and autocomplete when `enableSkillCommands` changes; verify commands appear or disappear live while unrelated extension and prompt commands retain identity and order
+- [x] 3.4 Rebuild skill command registration and autocomplete when `enableSkillCommands` changes; verify commands appear or disappear live while unrelated extension and prompt commands retain identity and order
 - [ ] 3.5 Apply `httpIdleTimeoutMs` to both provider streaming and Pi HTTP dispatcher configuration, including zero's disabled semantics; verify focused timeout-option and sequential-launch tests detect an immediate-timeout regression or leaked prior-profile value
 - [ ] 3.6 Bind structured `warnings` and `showCacheMissNotices` at their decision points; verify each warning flag changes only its declared warning and cache-miss notices toggle without rendered-string filtering
 
@@ -29,8 +29,8 @@
 - [ ] 4.2 Replace fixed presenter spacing with live `outputPad` and a relevant presentation cache revision; verify existing and future status, error, Markdown, tool, and transcript rows re-render without losing block identity or viewport state
 - [ ] 4.3 Bind `hideThinkingBlock` and `mermaidRenderingMode` to transcript construction and Markdown transformation; verify existing finalized blocks and streaming blocks update for every Mermaid mode while selection, expansion, and semantic order remain stable
 - [ ] 4.4 Bind `showHardwareCursor`, `clearOnShrink`, and `showTerminalProgress` to the active TUI/terminal lifecycle; verify terminal-operation tests cover enable, disable, resize, active-agent transitions, failure, and unconditional disposal cleanup
-- [ ] 4.5 Preserve live `doubleEscapeAction` and `treeFilterMode` through the coordinator; verify their next input action uses the changed value and both settings have behavioral rather than persistence-only coverage
-- [ ] 4.6 Replace bare-A1 hidden filtering for `theme`, `quietStartup`, `tuiMode`, and `fullscreenScrollbar` with non-editable product-mode descriptors and precise reasons while retaining pinned comparison behavior; verify no product-fixed key is writable or silently absent in bare A1
+- [x] 4.5 Preserve live `doubleEscapeAction` and `treeFilterMode` through the coordinator; verify their next input action uses the changed value and both settings have behavioral rather than persistence-only coverage
+- [x] 4.6 Replace bare-A1 hidden filtering for `theme`, `quietStartup`, `tuiMode`, and `fullscreenScrollbar` with non-editable product-mode descriptors and precise reasons while retaining pinned comparison behavior; verify no product-fixed key is writable or silently absent in bare A1
 
 ## 5. Preserve and present transcript images
 

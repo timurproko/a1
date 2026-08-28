@@ -643,6 +643,20 @@ export class PiEngineAdapter {
         },
         productMode: this.#settingsProductMode,
       });
+      this.#settingsIntegration.bindOwner("shell", {
+        enableSkillCommands: { apply: value => {
+          if (typeof value !== "boolean") throw new TypeError("Skill commands value is invalid");
+          settings.setEnableSkillCommands(value);
+        } },
+        doubleEscapeAction: { apply: value => {
+          if (value !== "tree" && value !== "fork" && value !== "none") throw new TypeError("Double-Escape action is invalid");
+          settings.setDoubleEscapeAction(value);
+        } },
+        treeFilterMode: { apply: value => {
+          if (value !== "default" && value !== "no-tools" && value !== "user-only" && value !== "labeled-only" && value !== "all") throw new TypeError("Tree filter mode is invalid");
+          settings.setTreeFilterMode(value);
+        } },
+      });
       this.#settingsIntegration.bindOwner("startup", {
         // Deferred application is the owner operation: the next preflight reads
         // the persisted default before constructing project-backed services.
@@ -653,6 +667,14 @@ export class PiEngineAdapter {
           if (typeof value !== "boolean") throw new TypeError("Auto compact value is invalid");
           this.#requireWorkflowSession().setAutoCompactionEnabled(value);
         } },
+        autoResizeImages: { apply: value => {
+          if (typeof value !== "boolean") throw new TypeError("Auto-resize images value is invalid");
+          settings.setImageAutoResize(value);
+        } },
+        blockImages: { apply: value => {
+          if (typeof value !== "boolean") throw new TypeError("Block images value is invalid");
+          settings.setBlockImages(value);
+        } },
         steeringMode: { apply: value => {
           if (value !== "all" && value !== "one-at-a-time") throw new TypeError("Steering mode is invalid");
           this.#requireWorkflowSession().setSteeringMode(value);
@@ -660,6 +682,17 @@ export class PiEngineAdapter {
         followUpMode: { apply: value => {
           if (value !== "all" && value !== "one-at-a-time") throw new TypeError("Follow-up mode is invalid");
           this.#requireWorkflowSession().setFollowUpMode(value);
+        } },
+        transport: { apply: value => {
+          if (value !== "sse" && value !== "websocket" && value !== "websocket-cached" && value !== "auto") throw new TypeError("Transport is invalid");
+          this.#requireWorkflowSession().agent.transport = value;
+        } },
+        httpIdleTimeoutMs: { apply: value => {
+          if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) throw new TypeError("HTTP idle timeout is invalid");
+          // Pinned SDK provider streaming reads this manager at each request. A
+          // coherent owned dispatcher port is added alongside it before HTTP
+          // conformance is considered complete.
+          settings.setHttpIdleTimeoutMs(value);
         } },
         thinkingLevel: { apply: value => {
           if (!isThinkingLevel(value)) throw new TypeError("Thinking level is invalid");

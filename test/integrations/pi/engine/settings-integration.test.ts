@@ -53,9 +53,10 @@ describe("Pi settings integration", () => {
     const autoCompact = (await port.listSettings()).find(value => value.key === "autoCompact");
     expect(autoCompact).toMatchObject({ writable: false, available: false, application: "live", owner: "agent" });
     expect(autoCompact?.limitationReason).toMatch(/agent effect is not bound/);
-    const theme = (await port.listSettings()).find(value => value.key === "theme");
-    expect(theme).toMatchObject({ writable: false, available: false, owner: "shell" });
-    expect(theme?.limitationReason).toMatch(/product-fixed dark owned theme/);
+    const productFixed = (await port.listSettings()).filter(value => ["theme", "quietStartup", "tuiMode", "fullscreenScrollbar"].includes(value.key));
+    expect(productFixed.map(value => value.key)).toEqual(["quietStartup", "tuiMode", "fullscreenScrollbar", "theme"]);
+    expect(productFixed.every(value => !value.writable && !value.available && value.limitationReason !== null)).toBe(true);
+    expect(productFixed.find(value => value.key === "theme")?.limitationReason).toMatch(/product-fixed dark owned theme/);
     await expect(port.writeSetting("autoCompact", false)).resolves.toMatchObject({ status: "unavailable", storedValue: true, effectiveValue: true });
     expect(await port.readSetting("autoCompact")).toBe(true);
   });
