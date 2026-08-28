@@ -85,15 +85,15 @@ Create every task worktree at `{working-dir}/.worktrees/<task-id>`, where
 
 ## Pull request integration
 
-Pull requests whose complete diff is only under `openspec/**`, only the root
-`README.md`, or a combination of those paths are automatically squash-merged after
-`Development validation required` succeeds. The automation reads the complete
-GitHub changed-file list, including both sides of renames, and runs only for trusted
-branches in this repository.
+Pull requests whose complete diff is only under `openspec/**`, under `docs/**`,
+exactly the root `README.md`, or a combination of those paths are automatically
+squash-merged after `Development validation required` succeeds. The automation
+reads the complete GitHub changed-file list, including both sides of renames, and
+runs only for trusted branches in this repository.
 
 Any other path makes the pull request code/operational. That includes source, tests,
-scripts, workflows, configuration, generated baselines, ordinary `docs/**` files,
-and a mixed specification-plus-code change. Those pull requests remain open after
+scripts, workflows, configuration, generated baselines, arbitrary root Markdown,
+and a mixed documentation-plus-code change. Those pull requests remain open after
 CI for local maintainer validation and explicit manual merge; automation disables
 auto-merge if it was armed. Documentation remains exempt from product builds and
 tests, but docs-sensitive generated governance and strict OpenSpec consistency are

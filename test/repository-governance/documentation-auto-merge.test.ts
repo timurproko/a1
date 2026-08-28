@@ -19,21 +19,27 @@ function files(...paths: string[]): PullRequestChangedFile[] {
 }
 
 describe("documentation auto-merge path policy", () => {
-  it("allows only OpenSpec paths and the root README", () => {
+  it("allows OpenSpec, maintained docs, and the root README in any combination", () => {
     expect(classifyDocumentationAutoMerge(files("openspec/changes/example/proposal.md")).eligible).toBe(true);
-    expect(classifyDocumentationAutoMerge(files("openspec/specs/example/spec.md", "README.md")).eligible).toBe(true);
+    expect(classifyDocumentationAutoMerge(files("docs/ci-release-runbook.md")).eligible).toBe(true);
+    expect(classifyDocumentationAutoMerge(files("docs/README.md")).eligible).toBe(true);
     expect(classifyDocumentationAutoMerge(files("README.md")).eligible).toBe(true);
+    expect(classifyDocumentationAutoMerge(files(
+      "openspec/specs/example/spec.md",
+      "docs/architecture/example.md",
+      "README.md",
+    )).eligible).toBe(true);
   });
 
   it.each([
-    ["ordinary docs", ["docs/ci-release-runbook.md"]],
-    ["nested readme", ["docs/README.md"]],
+    ["arbitrary root markdown", ["CONTRIBUTING.md"]],
     ["source", ["src/index.ts"]],
     ["tests", ["test/example.test.ts"]],
     ["scripts", ["scripts/example.mjs"]],
     ["configuration", ["config/validation-suites.json"]],
     ["workflow", [".github/workflows/ci.yml"]],
     ["generated baseline", ["config/baselines/example.json"]],
+    ["mixed docs and code", ["docs/architecture/example.md", "src/index.ts"]],
     ["mixed spec and code", ["openspec/changes/example/proposal.md", "src/index.ts"]],
   ])("rejects %s changes", (_label, paths) => {
     const result = classifyDocumentationAutoMerge(files(...paths));
@@ -49,13 +55,18 @@ describe("documentation auto-merge path policy", () => {
 
   it("examines both sides of a rename", () => {
     expect(classifyDocumentationAutoMerge([{
-      filename: "openspec/changes/example/proposal.md",
+      filename: "docs/architecture/unsafe.md",
       previous_filename: "src/unsafe.ts",
       status: "renamed",
     }])).toMatchObject({ eligible: false, disallowedPaths: ["src/unsafe.ts"] });
     expect(classifyDocumentationAutoMerge([{
       filename: "openspec/specs/new/spec.md",
       previous_filename: "openspec/specs/old/spec.md",
+      status: "renamed",
+    }]).eligible).toBe(true);
+    expect(classifyDocumentationAutoMerge([{
+      filename: "docs/architecture/new.md",
+      previous_filename: "docs/architecture/old.md",
       status: "renamed",
     }]).eligible).toBe(true);
   });
@@ -257,7 +268,7 @@ async function runManager(
       } else if (recorded.url === "/repos/owner/repository/pulls/42") {
         body = Array.isArray(pull) ? pull[Math.min(pullRead++, pull.length - 1)] : pull;
       } else if (recorded.url === "/repos/owner/repository/pulls/42/files?per_page=100&page=1") {
-        body = [{ filename: "openspec/changes/example/proposal.md", status: "modified" }];
+        body = [{ filename: "docs/architecture/example.md", status: "modified" }];
       } else if (recorded.url === "/repos/owner/repository/pulls/42/merge" && recorded.method === "PUT") {
         body = { merged: true };
       } else if (recorded.url === "/graphql") {

@@ -361,12 +361,12 @@
     },
     {
       "path": "test/repository-governance/documentation-auto-merge.test.ts",
-      "line": 295,
+      "line": 306,
       "identifier": "A1_AUTO_MERGE_POLL_ATTEMPTS"
     },
     {
       "path": "test/repository-governance/documentation-auto-merge.test.ts",
-      "line": 296,
+      "line": 307,
       "identifier": "A1_AUTO_MERGE_POLL_MS"
     },
     {

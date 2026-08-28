@@ -12,7 +12,7 @@ context: |
   - CI is the required automated gate. Optional local typechecking or focused tests are for debugging; do not run `test:fast`, `test:full`, or `test:release` locally without an explicit request.
   - OpenSpec changes receive strict OpenSpec validation. Other documentation-only changes require no test suite.
   - After pushing, do not watch CI in the foreground. Read and report its result before starting other work. A failing required check blocks further work; fix a change-caused failure there and isolate an unrelated failure in its own stream.
-  - Auto-merge only when every changed path is under `openspec/**` or is the root `README.md`. Any other path makes the entire pull request a code/operational change, including refactors and mixed changes.
+  - Auto-merge only when every changed and renamed-from path is under `openspec/**`, under `docs/**`, or is the root `README.md`. Any other path makes the entire pull request a code/operational change, including refactors and mixed changes.
   - Never enable auto-merge for a code/operational pull request. Leave it open after CI for the user's local validation, and merge manually only after the user reports acceptance and explicitly authorizes the merge.
 
   Manual handoff:

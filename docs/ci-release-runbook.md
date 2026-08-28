@@ -60,20 +60,20 @@ squash auto-merge for an eligible pull request while required validation is pend
 branch protection prevents integration until `Development validation required`
 succeeds. If validation finishes before auto-merge can be armed and GitHub already
 reports the pull request clean, the reconciler squash-merges only the validated head
-SHA. Every current and renamed-from path must be under `openspec/**` or exactly the
-root `README.md`. Eligible pull requests must use a non-draft branch in this
-repository and target `develop`.
+SHA. Every current and renamed-from path must be under `openspec/**`, under
+`docs/**`, or exactly the root `README.md`. Eligible pull requests must use a
+non-draft branch in this repository and target `develop`.
 
-The exact allowlist is intentionally narrower than CI's docs-only classification.
-Ordinary `docs/**` files, other Markdown files, `LICENSE`, `.gitignore`, source,
-tests, scripts, workflows, configuration, generated baselines, and mixed changes do
-not auto-merge. The guard also runs when a pull request changes or auto-merge is
-manually enabled; if any path is outside the allowlist, it disables auto-merge while
-leaving the pull request available for a later manual merge. Every docs-only change
-runs lightweight generated-governance consistency, so archiving an inventoried
-OpenSpec occurrence fails that pull request rather than a later code pull request.
-A legitimate generated baseline update remains outside the allowlist and follows
-the manually accepted mixed/code path.
+The exact allowlist covers maintained OpenSpec, architecture, feature, manual,
+runbook, and root README documentation. Other root Markdown files, `LICENSE`,
+`.gitignore`, source, tests, scripts, workflows, configuration, generated baselines,
+and mixed changes do not auto-merge. The guard also runs when a pull request changes
+or auto-merge is manually enabled; if any path is outside the allowlist, it disables
+auto-merge while leaving the pull request available for a later manual merge. Every
+docs-only change runs lightweight generated-governance consistency, so archiving an
+inventoried OpenSpec occurrence fails that pull request rather than a later code pull
+request. A legitimate generated baseline update remains outside the allowlist and
+follows the manually accepted mixed/code path.
 
 A specification request lands as an OpenSpec-only pull request. Implementation
 starts only after that specification merges and the maintainer explicitly requests

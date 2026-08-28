@@ -32,9 +32,11 @@ describe("docs-sensitive governance", () => {
     expect(after).not.toEqual(before);
   });
 
-  it("keeps generated baseline updates on the manual mixed/code path", () => {
+  it("allows maintained docs while keeping generated baselines on the manual mixed/code path", () => {
+    expect(classifyDocumentationAutoMerge([{ filename: "docs/architecture/example.md", status: "modified" }]).eligible).toBe(true);
     expect(classifyDocumentationAutoMerge([{ filename: "config/product-identity-legacy-inventory.json", status: "modified" }]).eligible).toBe(false);
     expect(classifyDocumentationAutoMerge([
+      { filename: "docs/architecture/example.md", status: "modified" },
       { filename: "openspec/changes/example/proposal.md", status: "modified" },
       { filename: "config/product-identity-legacy-inventory.json", status: "modified" },
     ]).eligible).toBe(false);
