@@ -16,12 +16,15 @@ or by explicit dispatch from `npm run develop` or `npm run release`.
 auto-merge authority. It runs trusted policy from `develop`; it never checks out or
 executes a pull request's code with its write token.
 
-`.github/workflows/merged-branch-cleanup.yml` is the only branch-deletion authority.
-On a pull-request close event it checks out trusted default-branch policy, installs
-no pull-request dependencies, and deletes only an unprotected same-repository topic
-ref whose live object still equals the merged pull request head SHA. An absent ref
-is success; fork, unmerged, advanced, protected, default, release-owned, or malformed
-refs are preserved and reported.
+`.github/workflows/merged-branch-cleanup.yml` owns branch deletion after a human or
+external actor closes a pull request. On the close event it checks out trusted
+default-branch policy and installs no pull-request dependencies. GitHub does not
+emit a new workflow event for a merge authored with the workflow `GITHUB_TOKEN`, so
+Documentation auto-merge also performs the same shared reconciliation synchronously
+after its own validated integration. Both paths delete only an unprotected same-
+repository topic ref whose live object still equals the merged pull request head SHA.
+An absent ref is success; fork, unmerged, advanced, protected, default, release-owned,
+or malformed refs are preserved and reported.
 
 `config/github-repository-governance.json` is the reviewed policy for repository
 settings, Actions defaults, security capabilities, environments, complete rulesets,
