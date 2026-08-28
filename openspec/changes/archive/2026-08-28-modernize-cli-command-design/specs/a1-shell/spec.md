@@ -45,6 +45,8 @@ registry, start the supervisor, install anything, or print migration guidance.
 - **WHEN** the user runs `a1 update:develop`, `a1 update:107`, `a1 update:0.1.8-dev.107`, or `a1 update self`
 - **THEN** A1 SHALL exit successfully without output or side effects
 
+## ADDED Requirements
+
 ### Requirement: Help is explicit and unsupported commands are quiet
 The installed application SHALL expose equivalent `a1 --help` and `a1 -h` forms
 that print the complete commands supported by that build and exit successfully.

@@ -33,6 +33,8 @@ and configuration design and SHALL NOT be advertised as supported by this change
 - **WHEN** the user runs `a1 pi update --models`
 - **THEN** A1 SHALL refresh the model catalogs under the A1 profile without updating packages, A1, or Pi
 
+## ADDED Requirements
+
 ### Requirement: Pinned Pi cannot be updated independently
 A1 SHALL reject recognized Pi self-update forms because the Pi runtime is pinned to
 the certified A1 release. The focused failure SHALL name the supported A1,

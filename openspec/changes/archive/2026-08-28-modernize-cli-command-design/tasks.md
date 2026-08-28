@@ -19,7 +19,7 @@
 - [x] 3.2 Prove unknown and removed forms exit successfully with no output or handler invocation
 - [x] 3.3 Cover invalid combinations, exact diagnostics, and pinned Pi refusals
 - [x] 3.4 Update built-CLI isolation and repository documentation tests
-- [ ] 3.5 Let pull-request CI run the required validation tiers
+- [x] 3.5 Let pull-request CI run the required validation tiers
 
 ## 4. Deliver implementation separately
 
