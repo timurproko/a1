@@ -16,6 +16,26 @@ or by explicit dispatch from `npm run develop` or `npm run release`.
 auto-merge authority. It runs trusted policy from `develop`; it never checks out or
 executes a pull request's code with its write token.
 
+`.github/workflows/merged-branch-cleanup.yml` is the only branch-deletion authority.
+On a pull-request close event it checks out trusted default-branch policy, installs
+no pull-request dependencies, and deletes only an unprotected same-repository topic
+ref whose live object still equals the merged pull request head SHA. An absent ref
+is success; fork, unmerged, advanced, protected, default, release-owned, or malformed
+refs are preserved and reported.
+
+`config/github-repository-governance.json` is the reviewed policy for repository
+settings, Actions defaults, security capabilities, environments, complete rulesets,
+protected refs, and workflow authority. Inspection is read-only by default:
+
+```sh
+node scripts/governance/check-github-repository-governance.mjs --check
+```
+
+Applying reviewed mutable drift is a separate maintainer operation requiring
+`--apply --confirm apply-a1-github-governance` and a matching post-apply read.
+Secrets and external npm trusted-publisher configuration are capability checks, not
+serialized credentials.
+
 `develop` is where work lands. `master` records what npm `latest` serves and is an
 effect of stable publication, not a trigger.
 
@@ -23,7 +43,7 @@ effect of stable publication, not a trigger.
 
 | Trigger | Validation and outcome |
 | --- | --- |
-| Pull request into `develop` | Fast required validation; docs/spec-only changes use strict OpenSpec validation |
+| Pull request into `develop` | Fast required validation; docs-only changes use lightweight governance consistency and OpenSpec changes also use strict OpenSpec validation |
 | `npm run develop` | Preview package gates on Windows, Linux, and macOS; an existing numbered preview is an early successful no-op |
 | Nightly at `03:17 UTC` | Complete non-physical suite on Windows, Linux, and macOS, every night |
 | `npm run release -- ...` | Complete exact-byte stable gates, then npm `latest`, tag, GitHub Release, and `master` |
@@ -46,7 +66,11 @@ Ordinary `docs/**` files, other Markdown files, `LICENSE`, `.gitignore`, source,
 tests, scripts, workflows, configuration, generated baselines, and mixed changes do
 not auto-merge. The guard also runs when a pull request changes or auto-merge is
 manually enabled; if any path is outside the allowlist, it disables auto-merge while
-leaving the pull request available for a later manual merge.
+leaving the pull request available for a later manual merge. Every docs-only change
+runs lightweight generated-governance consistency, so archiving an inventoried
+OpenSpec occurrence fails that pull request rather than a later code pull request.
+A legitimate generated baseline update remains outside the allowlist and follows
+the manually accepted mixed/code path.
 
 A specification request lands as an OpenSpec-only pull request. Implementation
 starts only after that specification merges and the maintainer explicitly requests
@@ -122,8 +146,12 @@ Rules that do not bend:
 
 - **PR validation fails:** fix the code and push; do not mark a failed tier optional.
 - **Documentation auto-merge fails:** leave the pull request open, inspect its exact
-  changed-file classification and workflow permissions, and never broaden the
-  allowlist to make one pull request pass.
+  changed-file classification, docs-sensitive inventory, and workflow permissions,
+  and never broaden the allowlist to make one pull request pass.
+- **Merged-branch cleanup fails:** inspect the bounded PR/ref/SHA disposition. Never
+  delete an advanced or protected ref merely because its name matches an old PR.
+- **Repository governance drifts:** run the read-only checker, review every reported
+  path, and use the confirmed apply mode only for an accepted mutable policy change.
 - **Development publication fails:** fix the cause and rerun `npm run develop`; an npm version that already exists is never overwritten.
 - **Stable publication fails before npm accepts bytes:** no tag, release, or moved branch exists. Fix the cause and release the next version.
 - **Stable publication is uncertain after npm accepted bytes:** stop and inspect registry version, digest, tag, and release. Never republish immutable bytes.
@@ -136,6 +164,8 @@ and resolved review threads, but zero approving reviews. `master` and release ta
 are written only after publication and are protected from force-push, movement, and
 deletion.
 
-Do not add direct-push bypasses. Ruleset mutation remains a separate administrative
-operation: inspect with `node scripts/governance/check-github-rulesets.mjs`, and apply only
-with explicit maintainer confirmation.
+Do not add direct-push bypasses. Approval count, strict-base validation, repository
+merge methods, Actions allowance/SHA enforcement, Dependabot, and npm environment
+protection remain explicit maintainer decisions; governance automation does not
+silently change them. Repository mutation remains a separate confirmed administrative
+operation through `check-github-repository-governance.mjs`.
