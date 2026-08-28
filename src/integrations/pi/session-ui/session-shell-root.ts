@@ -154,6 +154,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   };
   #toolsExpanded = false;
   #thinkingVisible = true;
+  #mermaidRenderingMode: "off" | "final" | "streaming" = "off";
   #outputPad: 0 | 1 = 1;
   #workflowTranscriptSequence = 0;
   readonly #workflowStatusAnchors = new Map<string, number>();
@@ -299,9 +300,21 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.#outputPad = padding;
     this.#status.setOutputPad(padding);
     for (const component of this.#transcript.values()) component.setOutputPad(padding);
-    this.#renderedRows.clear();
-    this.#documentLayouts.clear();
-    this.invalidate();
+    this.#invalidateTranscriptPresentation();
+  }
+
+  setHideThinkingBlock(hidden: boolean): void {
+    if (this.#thinkingVisible === !hidden) return;
+    this.#thinkingVisible = !hidden;
+    for (const component of this.#transcript.values()) component.setHideThinkingBlock(hidden);
+    this.#invalidateTranscriptPresentation();
+  }
+
+  setMermaidRenderingMode(mode: "off" | "final" | "streaming"): void {
+    if (this.#mermaidRenderingMode === mode) return;
+    this.#mermaidRenderingMode = mode;
+    for (const component of this.#transcript.values()) component.setMermaidRenderingMode(mode);
+    this.#invalidateTranscriptPresentation();
   }
 
   preparePromptSubmission(text: string): PreparedPrompt {
@@ -332,7 +345,10 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.#blocksById.set(block.id, block);
     const component = this.#transcript.get(block.id);
     if (component === undefined) {
-      const created = createPiShellTranscriptComponent(block, this.#cwd, this.#extensionRenderers, this.#submittedPromptComposer, this.#outputPad);
+      const created = createPiShellTranscriptComponent(
+        block, this.#cwd, this.#extensionRenderers, this.#submittedPromptComposer,
+        this.#outputPad, !this.#thinkingVisible, this.#mermaidRenderingMode,
+      );
       created.setExpanded(this.#toolsExpanded);
       this.#transcript.set(block.id, created);
       this.#transcriptOrder.push(block.id);
@@ -744,9 +760,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   }
 
   toggleThinkingVisibility(): void {
-    this.#thinkingVisible = !this.#thinkingVisible;
-    this.#documentLayouts.clear();
-    this.invalidate();
+    this.setHideThinkingBlock(this.#thinkingVisible);
   }
 
   get toolsExpanded(): boolean {
@@ -895,6 +909,12 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.#queued.dispose?.();
   }
 
+  #invalidateTranscriptPresentation(): void {
+    this.#renderedRows.clear();
+    this.#documentLayouts.clear();
+    this.invalidate();
+  }
+
   #syncTranscript(blocks: OwnedUiSessionViewModel["transcript"]): void {
     const previousIds = this.#transcriptOrder.filter(id => !id.startsWith("workflow-status-"));
     const transcriptChanged = previousIds.length !== blocks.length || blocks.some((block, index) => {
@@ -914,7 +934,10 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     for (const block of blocks) {
       const component = this.#transcript.get(block.id);
       if (component === undefined) {
-        const created = createPiShellTranscriptComponent(block, this.#cwd, this.#extensionRenderers, this.#submittedPromptComposer, this.#outputPad);
+        const created = createPiShellTranscriptComponent(
+          block, this.#cwd, this.#extensionRenderers, this.#submittedPromptComposer,
+          this.#outputPad, !this.#thinkingVisible, this.#mermaidRenderingMode,
+        );
         created.setExpanded(this.#toolsExpanded);
         this.#transcript.set(block.id, created);
       } else if (component.revision !== block.revision) {
@@ -949,6 +972,8 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       update() {},
       setExpanded() {},
       setOutputPad() {},
+      setHideThinkingBlock() {},
+      setMermaidRenderingMode() {},
       ...(dispose === undefined ? {} : { dispose }),
     };
     this.#transcript.set(id, component);

@@ -113,6 +113,8 @@ export interface PiShellTranscriptComponentPort extends PiShellComponentPort {
   update(block: OwnedUiTranscriptBlock): void;
   setExpanded(expanded: boolean): void;
   setOutputPad(padding: 0 | 1): void;
+  setHideThinkingBlock(hidden: boolean): void;
+  setMermaidRenderingMode(mode: "off" | "final" | "streaming"): void;
 }
 
 export interface PiShellStartupNotice {

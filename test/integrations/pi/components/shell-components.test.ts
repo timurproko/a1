@@ -142,6 +142,30 @@ describe("Pi shell public component adapters", () => {
     }
   });
 
+  it("rebuilds finalized and streaming assistant presentation for thinking and Mermaid modes", () => {
+    const mixed = createPiShellTranscriptComponent(block("assistant", "fallback", {
+      content: [{ type: "thinking", thinking: "private chain" }, { type: "text", text: "public answer" }],
+    }), process.cwd());
+    expect(stripTerminalSequences(mixed.render(80).join("\n"))).toContain("private chain");
+    mixed.setHideThinkingBlock(true);
+    const hidden = stripTerminalSequences(mixed.render(80).join("\n"));
+    expect(hidden).not.toContain("private chain");
+    expect(hidden).toContain("public answer");
+
+    const diagramText = "```mermaid\ngraph TD\nA-->B\n```";
+    const finalized = createPiShellTranscriptComponent(block("assistant", diagramText), process.cwd());
+    expect(stripTerminalSequences(finalized.render(80).join("\n"))).toContain("graph TD");
+    finalized.setMermaidRenderingMode("final");
+    expect(stripTerminalSequences(finalized.render(80).join("\n"))).not.toContain("graph TD");
+
+    const liveBlock = { ...block("assistant", diagramText), status: "live" as const };
+    const streaming = createPiShellTranscriptComponent(liveBlock, process.cwd());
+    streaming.setMermaidRenderingMode("final");
+    expect(stripTerminalSequences(streaming.render(80).join("\n"))).toContain("graph TD");
+    streaming.setMermaidRenderingMode("streaming");
+    expect(stripTerminalSequences(streaming.render(80).join("\n"))).not.toContain("graph TD");
+  });
+
   it("rebuilds existing transcript presentation for live output padding without changing identity", () => {
     const component = createPiShellTranscriptComponent(block("error", "failure"), process.cwd());
     const identity = component.id;

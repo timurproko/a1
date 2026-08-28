@@ -10,6 +10,7 @@ import {
   UserMessageComponent,
 } from "@earendil-works/pi-coding-agent";
 import { SkillInvocationMessageComponent } from "./upstream/components/skill-invocation-message.js";
+import { createMermaidMarkdownTransformer, type MermaidRenderingMode } from "./upstream/components/mermaid.js";
 import {
   Container,
   Markdown,
@@ -175,12 +176,19 @@ export function createPiShellTranscriptComponent(
   extensions?: PiShellExtensionRendererResolver,
   submittedPrompt?: PiShellSubmittedPromptComposer,
   initialOutputPad: 0 | 1 = PINNED_PI_LAYOUT.outputPad,
+  initialHideThinkingBlock = false,
+  initialMermaidRenderingMode: MermaidRenderingMode = "off",
 ): PiShellTranscriptComponentPort {
   ensureTheme();
   let block = initial;
   let expanded = false;
   let outputPad = initialOutputPad;
-  let component = transcriptComponent(block, cwd, expanded, extensions, submittedPrompt, outputPad);
+  let hideThinkingBlock = initialHideThinkingBlock;
+  let mermaidRenderingMode = initialMermaidRenderingMode;
+  const rebuild = () => transcriptComponent(
+    block, cwd, expanded, extensions, submittedPrompt, outputPad, hideThinkingBlock, mermaidRenderingMode,
+  );
+  let component = rebuild();
   return {
     get id() { return block.id; },
     get revision() { return block.revision; },
@@ -190,23 +198,28 @@ export function createPiShellTranscriptComponent(
       if (next.id !== block.id) throw new TypeError("Pi transcript component identity cannot change");
       const previous = block;
       block = next;
-      if (!updateTranscriptComponent(component, previous, next, expanded)) {
-        component = transcriptComponent(block, cwd, expanded, extensions, submittedPrompt, outputPad);
-      }
+      if (!updateTranscriptComponent(component, previous, next, expanded)) component = rebuild();
     },
     setExpanded(next) {
       if (expanded === next) return;
       expanded = next;
-      if ("setExpanded" in component && typeof component.setExpanded === "function") {
-        component.setExpanded(expanded);
-      } else {
-        component = transcriptComponent(block, cwd, expanded, extensions, submittedPrompt, outputPad);
-      }
+      if ("setExpanded" in component && typeof component.setExpanded === "function") component.setExpanded(expanded);
+      else component = rebuild();
     },
     setOutputPad(padding) {
       if (outputPad === padding) return;
       outputPad = padding;
-      component = transcriptComponent(block, cwd, expanded, extensions, submittedPrompt, outputPad);
+      component = rebuild();
+    },
+    setHideThinkingBlock(hidden) {
+      if (hideThinkingBlock === hidden) return;
+      hideThinkingBlock = hidden;
+      component = rebuild();
+    },
+    setMermaidRenderingMode(mode) {
+      if (mermaidRenderingMode === mode) return;
+      mermaidRenderingMode = mode;
+      component = rebuild();
     },
   };
 }
@@ -228,7 +241,7 @@ export function renderPiShellTranscriptBlock(
   cwd: string,
 ): readonly string[] {
   ensureTheme();
-  return transcriptComponent(block, cwd, true, undefined, undefined, PINNED_PI_LAYOUT.outputPad).render(width);
+  return transcriptComponent(block, cwd, true, undefined, undefined, PINNED_PI_LAYOUT.outputPad, false, "off").render(width);
 }
 
 /**
@@ -279,6 +292,8 @@ function transcriptComponent(
   extensions: PiShellExtensionRendererResolver | undefined,
   submittedPrompt: PiShellSubmittedPromptComposer | undefined,
   outputPad: 0 | 1,
+  hideThinkingBlock: boolean,
+  mermaidRenderingMode: MermaidRenderingMode,
 ): Component {
   switch (block.kind) {
     case "user": {
@@ -295,7 +310,7 @@ function transcriptComponent(
     }
     case "assistant":
     case "thinking":
-      return assistantComponent(block, outputPad);
+      return assistantComponent(block, outputPad, hideThinkingBlock, mermaidRenderingMode);
     case "tool-call":
     case "tool-result": {
       const component = toolComponent(block, cwd, extensions);
@@ -369,8 +384,16 @@ function updateTranscriptComponent(
   return false;
 }
 
-function assistantComponent(block: OwnedUiTranscriptBlock, outputPad: 0 | 1): AssistantMessageComponent {
-  const component = new AssistantMessageComponent(undefined, false, getMarkdownTheme(), undefined, outputPad);
+function assistantComponent(
+  block: OwnedUiTranscriptBlock,
+  outputPad: 0 | 1,
+  hideThinkingBlock: boolean,
+  mermaidRenderingMode: MermaidRenderingMode,
+): AssistantMessageComponent {
+  const transformer = createMermaidMarkdownTransformer({ getMode: () => mermaidRenderingMode, theme: piTheme() });
+  const component = new AssistantMessageComponent(
+    undefined, hideThinkingBlock, getMarkdownTheme(), undefined, outputPad, [transformer],
+  );
   component.updateContent(validatedAssistantMessage(block), block.status === "live");
   return component;
 }

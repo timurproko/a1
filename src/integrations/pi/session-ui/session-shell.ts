@@ -252,6 +252,8 @@ export class OwnedUiSessionShell {
     this.root.setEditorPaddingX(initialPiSettings.editorPaddingX);
     this.root.setAutocompleteMaxVisible(initialPiSettings.autocompleteMaxVisible);
     this.root.setOutputPad(initialPiSettings.outputPad);
+    this.root.setHideThinkingBlock(initialPiSettings.hideThinkingBlock);
+    this.root.setMermaidRenderingMode(initialPiSettings.mermaidRenderingMode);
     this.#unbindPiSettings = this.backend.bindSettingsOwner("shell", {
       editorPaddingX: { apply: value => {
         if (typeof value !== "number") throw new TypeError("Editor padding is invalid");
@@ -264,6 +266,14 @@ export class OwnedUiSessionShell {
       outputPad: { apply: value => {
         if (value !== 0 && value !== 1) throw new TypeError("Output padding is invalid");
         this.root.setOutputPad(value);
+      } },
+      hideThinkingBlock: { apply: value => {
+        if (typeof value !== "boolean") throw new TypeError("Thinking-block visibility is invalid");
+        this.root.setHideThinkingBlock(value);
+      } },
+      mermaidRenderingMode: { apply: value => {
+        if (value !== "off" && value !== "final" && value !== "streaming") throw new TypeError("Mermaid mode is invalid");
+        this.root.setMermaidRenderingMode(value);
       } },
     });
     this.#extensionBridge = createPiExtensionUiBridge({

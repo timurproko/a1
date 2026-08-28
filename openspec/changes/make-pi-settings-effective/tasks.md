@@ -27,7 +27,7 @@
 
 - [x] 4.1 Replace fixed editor geometry with live `editorPaddingX` and `autocompleteMaxVisible`; verify active editor reflow, autocomplete clipping, focus, cursor, history, and narrow-terminal behavior after each change
 - [x] 4.2 Replace fixed presenter spacing with live `outputPad` and a relevant presentation cache revision; verify existing and future status, error, Markdown, tool, and transcript rows re-render without losing block identity or viewport state
-- [ ] 4.3 Bind `hideThinkingBlock` and `mermaidRenderingMode` to transcript construction and Markdown transformation; verify existing finalized blocks and streaming blocks update for every Mermaid mode while selection, expansion, and semantic order remain stable
+- [x] 4.3 Bind `hideThinkingBlock` and `mermaidRenderingMode` to transcript construction and Markdown transformation; verify existing finalized blocks and streaming blocks update for every Mermaid mode while selection, expansion, and semantic order remain stable
 - [x] 4.4 Bind `showHardwareCursor`, `clearOnShrink`, and `showTerminalProgress` to the active TUI/terminal lifecycle; verify terminal-operation tests cover enable, disable, resize, active-agent transitions, failure, and unconditional disposal cleanup
 - [x] 4.5 Preserve live `doubleEscapeAction` and `treeFilterMode` through the coordinator; verify their next input action uses the changed value and both settings have behavioral rather than persistence-only coverage
 - [x] 4.6 Replace bare-A1 hidden filtering for `theme`, `quietStartup`, `tuiMode`, and `fullscreenScrollbar` with non-editable product-mode descriptors and precise reasons while retaining pinned comparison behavior; verify no product-fixed key is writable or silently absent in bare A1
