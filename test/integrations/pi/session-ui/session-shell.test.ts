@@ -340,24 +340,33 @@ describe("OwnedUiSessionShell", () => {
   });
 
   it("keeps file hyperlinks cyan while web URLs use link blue", async () => {
-    await withPinnedHyperlinks(async () => {
-      const label = "src/integrations/pi/session-ui/session-shell-root.ts";
-      const target = "file:///D:/Git/a1/src/integrations/pi/session-ui/session-shell-root.ts";
-      const { terminal, shell } = await fixture([{
-        role: "assistant",
-        content: [{ type: "text", text: `[${label}](${target})` }],
-        timestamp: Date.now(),
-      }], [], true);
-      terminal.resize(120, 12);
-      const row = shell.root.render(120).find(line => stripTerminalSequences(line).includes(label)) ?? "";
-      const start = stripTerminalSequences(row).indexOf(label);
+    // The dark theme's accent and mdLink colors both quantize to ANSI 256 color
+    // 109, so use truecolor when asserting which semantic color was selected.
+    const themeName = piTheme().name ?? "dark";
+    const themeMode = piTheme().getColorMode();
+    applyPiTheme(themeName, false, "truecolor");
+    try {
+      await withPinnedHyperlinks(async () => {
+        const label = "src/integrations/pi/session-ui/session-shell-root.ts";
+        const target = "file:///D:/Git/a1/src/integrations/pi/session-ui/session-shell-root.ts";
+        const { terminal, shell } = await fixture([{
+          role: "assistant",
+          content: [{ type: "text", text: `[${label}](${target})` }],
+          timestamp: Date.now(),
+        }], [], true);
+        terminal.resize(120, 12);
+        const row = shell.root.render(120).find(line => stripTerminalSequences(line).includes(label)) ?? "";
+        const start = stripTerminalSequences(row).indexOf(label);
 
-      expect(row).toContain(`\u001b]8;;${target}\u001b\\`);
-      expect(row).toContain(piTheme().fg("accent", label));
-      expect(row).not.toContain(piTheme().fg("mdLink", label));
-      expect(getPinnedPiTuiLinkAtColumn(row, start)).toBe(target);
-      await shell.dispose();
-    });
+        expect(row).toContain(`\u001b]8;;${target}\u001b\\`);
+        expect(row).toContain(piTheme().fg("accent", label));
+        expect(row).not.toContain(piTheme().fg("mdLink", label));
+        expect(getPinnedPiTuiLinkAtColumn(row, start)).toBe(target);
+        await shell.dispose();
+      });
+    } finally {
+      applyPiTheme(themeName, false, themeMode);
+    }
   });
 
   it("bounds bare bash-output URLs to stable terminal-native hover cells", async () => {
