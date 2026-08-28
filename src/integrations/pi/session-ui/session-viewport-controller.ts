@@ -67,6 +67,10 @@ export class SessionViewportController {
     return this.#editorPointerSelecting;
   }
 
+  get transcriptPointerSelecting(): boolean {
+    return this.#viewport.selectionActive;
+  }
+
   setEditorPointerFrame(frame: { readonly rowStart: number; readonly rowEnd: number } | undefined): void {
     this.#editorPointerFrame = frame;
   }
@@ -302,6 +306,9 @@ export class SessionViewportController {
         }
         if (this.#viewport.releaseSelection()) {
           this.#stopSelectionAutoScroll();
+          // Restore OSC 8 links only after the held-button selection paint has
+          // ended, then overwrite any terminal-cached hover cells immediately.
+          forceRepaint = true;
           repaint = true;
           return true;
         }

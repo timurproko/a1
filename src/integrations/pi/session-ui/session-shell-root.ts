@@ -12,6 +12,7 @@ import {
   composeSubmittedPromptRows,
   displayWidth,
   formatSubmittedPromptTime,
+  heldNativeHyperlinkStyle,
   hyperlinkSgrSpan,
   nativeHyperlinkStyle,
   overlaySpan,
@@ -332,26 +333,23 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
 
     const height = Math.max(0, this.#componentRuntime.getRows());
     const dock = this.#renderDockLayout(width);
-    const availableWithoutStatus = Math.max(0, height - Math.min(height, dock.rowsWithoutStatus.length));
+    const availableWithoutTransient = Math.max(0, height - Math.min(height, dock.rowsWithoutTransient.length));
     // Ordinary transcript content uses the full terminal width. The rail is an
     // overlay, not a lost wrapping cell. Submitted prompts alone retain the
     // intentional final gutter after their right-aligned timestamp.
     const documentWidth = width;
     let document = this.#renderDocumentLayout(documentWidth);
-    const statusRows = dock.statusRows;
-    // v2 pins Working only while the complete transcript still fits. Once the
-    // transcript overflows, status joins the scrollable document tail so it
-    // naturally leaves the screen when the user scrolls up.
-    // Pi presents pending messages before Working. Keep status in the dock while
-    // a queue exists so moving overflowing status into the document cannot
-    // reverse that semantic order; it returns to v2 scrolling once the queue clears.
-    const pinStatus = this.#view.editor.queuedSubmissions.length > 0
-      || document.rows.length + statusRows.length <= availableWithoutStatus;
-    const dockRows = pinStatus ? dock.rows : dock.rowsWithoutStatus;
+    // Keep queued steering/follow-up messages and Working together in Pi's
+    // semantic order while content fits. Once the transcript overflows, move
+    // the complete transient group into its tail so every row naturally
+    // scrolls away and the detached viewport can use the full space above the
+    // stable editor/footer dock.
+    const pinTransient = document.rows.length + dock.transientRows.length <= availableWithoutTransient;
+    const dockRows = pinTransient ? dock.rows : dock.rowsWithoutTransient;
     const selectableDocumentRowCount = document.rows.length;
-    if (!pinStatus) document = { ...document, rows: [...document.rows, ...statusRows] };
+    if (!pinTransient) document = { ...document, rows: [...document.rows, ...dock.transientRows] };
     const dockStartRow = height - dockRows.length + 1;
-    const editorOffset = pinStatus ? dock.editorOffsetWithStatus : dock.editorOffsetWithoutStatus;
+    const editorOffset = pinTransient ? dock.editorOffsetWithTransient : dock.editorOffsetWithoutTransient;
     this.#viewportController.setEditorPointerFrame(this.usesDefaultInputSurface()
       ? {
           rowStart: dockStartRow + editorOffset,
@@ -360,8 +358,11 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       : undefined);
     return this.#viewportController.compose({
       documentRows: document.rows,
-      // Overflowing Working rows scroll with the transcript but remain status
-      // chrome: pointer selection and Ctrl+C stop at the real document tail.
+      ...(this.#viewportController.transcriptPointerSelecting
+        ? { paintDocumentRow: heldNativeHyperlinkStyle }
+        : {}),
+      // Overflowing queued and Working rows scroll with the transcript but
+      // remain status chrome: selection and copying stop at the real document tail.
       selectableDocumentRowCount,
       dockRows,
       promptAnchors: document.promptAnchors,
@@ -432,26 +433,28 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
 
   #renderDockLayout(width: number): {
     readonly rows: readonly string[];
-    readonly rowsWithoutStatus: readonly string[];
-    readonly statusRows: readonly string[];
+    readonly rowsWithoutTransient: readonly string[];
+    readonly transientRows: readonly string[];
     readonly stableBottomRows: number;
-    readonly editorOffsetWithStatus: number;
-    readonly editorOffsetWithoutStatus: number;
+    readonly editorOffsetWithTransient: number;
+    readonly editorOffsetWithoutTransient: number;
     readonly inputRows: number;
   } {
     const queued = this.#view.editor.queuedSubmissions.length === 0 ? [] : this.#queued.render(width);
     const statusRows = this.#renderStatus(width);
+    const transientRows = [...queued, ...statusRows];
     const aboveWidgets = this.#renderWidgets("aboveEditor", width);
     const input = this.#inputSurface.render(width);
     const belowWidgets = this.#renderWidgets("belowEditor", width);
     const footer = this.#renderFooter(width);
+    const rowsWithoutTransient = [...aboveWidgets, ...input, ...belowWidgets, ...footer];
     return {
-      rows: [...queued, ...statusRows, ...aboveWidgets, ...input, ...belowWidgets, ...footer],
-      rowsWithoutStatus: [...queued, ...aboveWidgets, ...input, ...belowWidgets, ...footer],
-      statusRows,
-      stableBottomRows: aboveWidgets.length + input.length + belowWidgets.length + footer.length,
-      editorOffsetWithStatus: queued.length + statusRows.length + aboveWidgets.length,
-      editorOffsetWithoutStatus: queued.length + aboveWidgets.length,
+      rows: [...transientRows, ...rowsWithoutTransient],
+      rowsWithoutTransient,
+      transientRows,
+      stableBottomRows: rowsWithoutTransient.length,
+      editorOffsetWithTransient: transientRows.length + aboveWidgets.length,
+      editorOffsetWithoutTransient: aboveWidgets.length,
       inputRows: input.length,
     };
   }

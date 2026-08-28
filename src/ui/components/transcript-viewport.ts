@@ -45,6 +45,8 @@ export interface TranscriptViewportTheme {
 
 export interface TranscriptViewportFrameInput {
   readonly documentRows: readonly string[];
+  /** Optional paint-only transform; semantic selection and copying keep documentRows exact. */
+  readonly paintDocumentRow?: (row: string) => string;
   /** Leading document rows that participate in pointer selection and copying. */
   readonly selectableDocumentRowCount?: number;
   readonly dockRows: readonly string[];
@@ -335,7 +337,10 @@ export class TranscriptViewport {
     );
     this.#promptAnchors = input.promptAnchors;
     this.#contentWidth = contentWidth;
-    const visible = input.documentRows.slice(this.#scrollTop, this.#scrollTop + viewportHeight);
+    const paintDocumentRow = input.paintDocumentRow ?? (row => row);
+    const visible = input.documentRows
+      .slice(this.#scrollTop, this.#scrollTop + viewportHeight)
+      .map(paintDocumentRow);
     while (visible.length < viewportHeight) visible.push("");
 
     const governing = governingPrompt(input.promptAnchors, this.#scrollTop);
@@ -345,7 +350,7 @@ export class TranscriptViewport {
       // Sticky prompts use the same normal/hover surface roles as the bottom
       // control. Hover always starts from the full source row, so a quiet prompt
       // becomes prominent again with its timestamp intact.
-      const sticky = theme.sticky(governing.sourceRow, this.#stickyHovered);
+      const sticky = theme.sticky(paintDocumentRow(governing.sourceRow), this.#stickyHovered);
       visible[0] = quiet && !this.#stickyHovered ? theme.quietSticky(sticky) : sticky;
     }
 

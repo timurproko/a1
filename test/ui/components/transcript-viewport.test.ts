@@ -166,6 +166,27 @@ describe("transcript viewport", () => {
     expect(ranges).toContainEqual([1, 10]);
   });
 
+  it("keeps paint-only row transforms out of transcript copying", () => {
+    const viewport = new TranscriptViewport();
+    const source = "https://example.com/exact";
+    const input = {
+      documentRows: [source],
+      paintDocumentRow: (row: string) => row.replace("https://", "https:\uFE0E//"),
+      dockRows: [] as string[],
+      promptAnchors: [],
+      width: 40,
+      height: 1,
+      now: 100,
+    };
+
+    const painted = viewport.compose(input);
+    expect(stripAnsi(painted.rows[0] ?? "")).toContain("https:\uFE0E//example.com/exact");
+    viewport.pressSelection(1, 1, 101);
+    viewport.extendSelection(source.length, 1, 102);
+    viewport.releaseSelection();
+    expect(viewport.selectedText()).toBe(source);
+  });
+
   it("uses matching normal and hover surface roles for sticky and bottom controls", () => {
     const viewport = new TranscriptViewport();
     viewport.setConfig(ALWAYS);
