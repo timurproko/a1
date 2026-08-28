@@ -1,0 +1,30 @@
+name: Merged branch cleanup
+
+on:
+  pull_request_target:
+    branches: [develop]
+    types: [closed]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: merged-branch-cleanup-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    name: Reconcile merged topic branch
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check out trusted default-branch policy
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - name: Reconcile the exact merged head
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/governance/reconcile-merged-branch.mjs

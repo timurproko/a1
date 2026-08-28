@@ -90,7 +90,14 @@ Any other path makes the pull request code/operational. That includes source, te
 scripts, workflows, configuration, generated baselines, ordinary `docs/**` files,
 and a mixed specification-plus-code change. Those pull requests remain open after
 CI for local maintainer validation and explicit manual merge; automation disables
-auto-merge if it was armed.
+auto-merge if it was armed. Documentation remains exempt from product builds and
+tests, but docs-sensitive generated governance and strict OpenSpec consistency are
+checked before integration.
+
+After any same-repository pull request into `develop` merges, trusted close-event
+automation reconciles its remote topic branch. It deletes only an unprotected live
+ref that still equals the pull request's exact merged head SHA. Fork, advanced,
+reserved, protected, malformed, and unmerged refs are preserved and reported.
 
 Specification approval and implementation remain separate pull requests. An
 implementation starts from updated `origin/develop` only after its specification

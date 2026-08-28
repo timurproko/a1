@@ -76,9 +76,9 @@ jobs:
           echo "OpenSpec touched: $openspec_touched" >> "$GITHUB_STEP_SUMMARY"
 
   docs:
-    name: OpenSpec validation
+    name: Documentation governance validation
     needs: changes
-    if: needs.changes.outputs.docs-only == 'true' && needs.changes.outputs.openspec-touched == 'true'
+    if: needs.changes.outputs.docs-only == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -93,7 +93,11 @@ jobs:
         with:
           node-version: 24
 
+      - name: Verify docs-sensitive generated governance
+        run: node scripts/governance/check-docs-governance.mjs
+
       - name: Validate OpenSpec artifacts strictly
+        if: needs.changes.outputs.openspec-touched == 'true'
         run: npx --yes @fission-ai/openspec@1.8.0 validate --all --strict --no-interactive
 
   validate:
@@ -229,11 +233,10 @@ jobs:
           set -euo pipefail
           test "$CHANGES_RESULT" = "success"
           if [ "$DOCS_ONLY" = "true" ]; then
+            echo "Docs-only change: docs-sensitive governance validation required."
+            test "$DOCS_RESULT" = "success"
             if [ "$OPENSPEC_TOUCHED" = "true" ]; then
-              echo "Docs-only change: OpenSpec validation only."
-              test "$DOCS_RESULT" = "success"
-            else
-              echo "Docs-only change without spec edits: nothing to validate."
+              echo "OpenSpec change: strict OpenSpec validation also required."
             fi
           elif [ "$VERSION_ONLY" = "true" ]; then
             echo "Version-only change: the release pipeline revalidates the exact candidate; nothing to validate here."
