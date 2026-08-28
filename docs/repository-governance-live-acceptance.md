@@ -58,7 +58,7 @@ was verified absent after the explicit merge.
 - Implementation PR #180 was manually squash-merged after required validation from
   head `8f40bfaaa5e8410e77b1c9cc0667c62bc4c62d4b` to
   `45a59a7b696d537a4dc8fe62000a60c20e504ab2`.
-- PR #PENDING changes only this maintained `docs/**` file and is the live acceptance
+- PR #181 changes only this maintained `docs/**` file and is the live acceptance
   probe for the expanded allowlist.
 - Acceptance requires current-head documentation validation, automatic squash
   integration without maintainer merge action, and exact-head remote branch cleanup.
