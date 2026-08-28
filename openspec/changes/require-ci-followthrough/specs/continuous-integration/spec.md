@@ -23,20 +23,22 @@ reported as what it said rather than as what it was expected to say.
 - **WHEN** validation has been triggered and its result has not been read
 - **THEN** the change SHALL NOT be described as passing
 
-### Requirement: A change with nothing to accept by hand merges on its own
-A pull request that changes nothing a reader would see — a specification, its
-documentation, or a refactor whose tests show the behaviour is unchanged — SHALL be
-armed to merge as soon as its required check passes, and that arming SHALL be
-stated. A pull request that changes what a reader sees SHALL wait for the manual
-acceptance that change requires, so a change is accepted before it lands rather
-than explained after it.
+### Requirement: Only OpenSpec and root README changes merge on their own
+A pull request SHALL be armed for auto-merge only when every changed path is under
+`openspec/**` or is exactly the root `README.md`. A pull request containing any
+other path SHALL remain open for local maintainer validation and manual merge,
+including behavior-preserving refactors and mixed specification-plus-code changes.
+CI success SHALL NOT substitute for local maintainer acceptance of code.
 
-#### Scenario: Nothing visible changed
-- **WHEN** a pull request carries only specification, documentation, or a refactor
-  whose tests show no visible change
-- **THEN** it SHALL be armed to merge when its required check passes
+#### Scenario: Complete diff is auto-merge eligible
+- **WHEN** every changed path is under `openspec/**` or is the root `README.md`
+- **THEN** the pull request MAY be armed to merge when its required check passes
 
-#### Scenario: A reader would see the difference
-- **WHEN** a pull request changes what a reader sees
-- **THEN** it SHALL NOT be armed to merge automatically
-- **AND** it SHALL wait for manual acceptance
+#### Scenario: Behavior-preserving code changed
+- **WHEN** a pull request contains any path outside the auto-merge allowlist
+- **THEN** it SHALL NOT be armed to merge automatically even if behavior is intended to remain unchanged
+- **AND** it SHALL wait for local maintainer acceptance and manual merge
+
+#### Scenario: Specification and code are mixed
+- **WHEN** a pull request contains both OpenSpec paths and a path outside the allowlist
+- **THEN** the entire pull request SHALL follow the manual code path

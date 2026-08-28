@@ -7,6 +7,9 @@ context: |
   - Worktree-per-task is not the overhead to cut. Several agents work this repository at once, and isolated worktrees are what keeps one stream from editing another's checkout. Where the per-worktree cost hurts — installing, building, validating — cut that, never the model.
   - Working directories are shared between concurrent sessions and can change under a command, so address a worktree explicitly: `cd <worktree> && …` or `git -C <worktree> …`, never a bare relative path. A command that assumed its directory once landed deletions in another agent's worktree.
   - Keep unrelated changes out of commits, and integrate coherent work once after its relevant validation passes.
+  - Treat a request to prepare, write, design, or update a specification as a specification-only stream. Its pull request changes only `openspec/**`; do not implement the proposed source, test, script, workflow, or configuration changes in that branch.
+  - After the specification pull request has merged and the user explicitly asks to implement it, fetch the new `origin/develop` and start a separate implementation worktree, branch, commit history, and pull request. The implementation pull request cites the accepted OpenSpec change; it is never stacked on the specification branch.
+  - If specification and implementation changes are found in one branch before review, split them rather than treating their coexistence as approval to ship both.
   - Name a commit `type(scope): subject`, and name the branch it lands on `type/short-description` with the same type. The types are `feature` for behaviour a reader could notice, `fix` for a repair, `refactor` for a change of shape that leaves behaviour alone, and `docs`, `test`, `chore`, and `style` as they sound; an incompatible change says `BREAKING CHANGE:` in its body. This is Conventional Commits with `feat` written out as `feature`, because an abbreviation nobody expands reads as a truncation rather than a word. A tool added later that expects the standard spelling takes `feature` as a configured type.
   - Do not remove a worktree until its commits are integrated.
   - When a pull request merges — armed to merge on its own, or merged by hand after acceptance — delete its remote branch and remove its worktree, then prune. A merged branch left behind is one more thing to read past when looking for what is live.
@@ -41,8 +44,9 @@ context: |
   - Report what CI said rather than assuming it passed. A result that has not been read is not a result.
   - Where a failure is not this change's doing, say so with the evidence and still deal with it before moving on, because it fails every pull request behind it too.
   - `develop` requires the `Development validation required` check before a merge. Admin bypass stays on, no reviews are required, a branch need not be up to date with `develop` to merge, and force-pushing or deleting `develop` is refused.
-  - Arm auto-merge on a pull request that changes nothing a reader would see — a specification, documentation, a refactor whose tests prove the behaviour is unchanged — so it lands the moment validation passes. Say that it is armed.
-  - Leave a pull request that changes what a reader sees to merge by hand, after the manual acceptance that change needs. A feature is accepted before it lands, not explained after it.
+  - Auto-merge is allowed only when every changed path is under `openspec/**` or is the root `README.md`. Say when an eligible pull request is armed.
+  - Treat every pull request containing any other path as a code/operational change, including behavior-preserving refactors, tests, scripts, configuration, workflows, generated baselines, and mixed spec-plus-code changes. Never run `gh pr merge --auto` for such a pull request.
+  - Leave every code/operational pull request open for the user's local validation. CI passing does not replace that acceptance. Merge it manually only after the user reports acceptance and explicitly authorizes the merge.
 
 operations:
   apply:
