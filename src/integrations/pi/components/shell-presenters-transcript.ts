@@ -63,9 +63,9 @@ export interface PiShellSessionInfoPresentation {
   readonly usageBreakdown: readonly { readonly key: string; readonly cost: number; readonly tokens: number }[];
 }
 
-export function renderPiShellStatusText(message: string, width: number): readonly string[] {
+export function renderPiShellStatusText(message: string, width: number, outputPad: 0 | 1 = PINNED_PI_LAYOUT.outputPad): readonly string[] {
   ensureTheme();
-  return new Text(piTheme().fg("dim", message), PINNED_PI_LAYOUT.outputPad, 0).render(width);
+  return new Text(piTheme().fg("dim", message), outputPad, 0).render(width);
 }
 
 export function createPiShellSessionInfo(presentation: PiShellSessionInfoPresentation): PiShellComponentPort {
@@ -174,22 +174,24 @@ export function createPiShellTranscriptComponent(
   cwd: string,
   extensions?: PiShellExtensionRendererResolver,
   submittedPrompt?: PiShellSubmittedPromptComposer,
+  initialOutputPad: 0 | 1 = PINNED_PI_LAYOUT.outputPad,
 ): PiShellTranscriptComponentPort {
   ensureTheme();
   let block = initial;
   let expanded = false;
-  let component = transcriptComponent(block, cwd, expanded, extensions, submittedPrompt);
+  let outputPad = initialOutputPad;
+  let component = transcriptComponent(block, cwd, expanded, extensions, submittedPrompt, outputPad);
   return {
     get id() { return block.id; },
     get revision() { return block.revision; },
-    render: width => component.render(width),
+    render: width => renderWithOutputPad(component, block.kind, width, outputPad),
     invalidate: () => component.invalidate(),
     update(next) {
       if (next.id !== block.id) throw new TypeError("Pi transcript component identity cannot change");
       const previous = block;
       block = next;
       if (!updateTranscriptComponent(component, previous, next, expanded)) {
-        component = transcriptComponent(block, cwd, expanded, extensions, submittedPrompt);
+        component = transcriptComponent(block, cwd, expanded, extensions, submittedPrompt, outputPad);
       }
     },
     setExpanded(next) {
@@ -198,10 +200,26 @@ export function createPiShellTranscriptComponent(
       if ("setExpanded" in component && typeof component.setExpanded === "function") {
         component.setExpanded(expanded);
       } else {
-        component = transcriptComponent(block, cwd, expanded, extensions, submittedPrompt);
+        component = transcriptComponent(block, cwd, expanded, extensions, submittedPrompt, outputPad);
       }
     },
+    setOutputPad(padding) {
+      if (outputPad === padding) return;
+      outputPad = padding;
+      component = transcriptComponent(block, cwd, expanded, extensions, submittedPrompt, outputPad);
+    },
   };
+}
+
+function renderWithOutputPad(
+  component: Component,
+  kind: OwnedUiTranscriptBlock["kind"],
+  width: number,
+  outputPad: 0 | 1,
+): readonly string[] {
+  const rows = component.render(width);
+  if (outputPad !== 0 || (kind !== "tool-call" && kind !== "tool-result" && kind !== "bash")) return rows;
+  return rows.map(row => row.startsWith(" ") ? row.slice(1) : row);
 }
 
 export function renderPiShellTranscriptBlock(
@@ -210,7 +228,7 @@ export function renderPiShellTranscriptBlock(
   cwd: string,
 ): readonly string[] {
   ensureTheme();
-  return transcriptComponent(block, cwd, true).render(width);
+  return transcriptComponent(block, cwd, true, undefined, undefined, PINNED_PI_LAYOUT.outputPad).render(width);
 }
 
 /**
@@ -258,8 +276,9 @@ function transcriptComponent(
   block: OwnedUiTranscriptBlock,
   cwd: string,
   expanded: boolean,
-  extensions?: PiShellExtensionRendererResolver,
-  submittedPrompt?: PiShellSubmittedPromptComposer,
+  extensions: PiShellExtensionRendererResolver | undefined,
+  submittedPrompt: PiShellSubmittedPromptComposer | undefined,
+  outputPad: 0 | 1,
 ): Component {
   switch (block.kind) {
     case "user": {
@@ -276,7 +295,7 @@ function transcriptComponent(
     }
     case "assistant":
     case "thinking":
-      return assistantComponent(block);
+      return assistantComponent(block, outputPad);
     case "tool-call":
     case "tool-result": {
       const component = toolComponent(block, cwd, extensions);
@@ -294,13 +313,13 @@ function transcriptComponent(
       return component;
     }
     case "retry":
-      return new Text(piTheme().fg("warning", `Retry: ${block.text}`), PINNED_PI_LAYOUT.outputPad, 0);
+      return new Text(piTheme().fg("warning", `Retry: ${block.text}`), outputPad, 0);
     case "error":
-      return new Text(piTheme().fg("error", `Error: ${block.text}`), PINNED_PI_LAYOUT.outputPad, 0);
+      return new Text(piTheme().fg("error", `Error: ${block.text}`), outputPad, 0);
     case "system":
-      return new Text(piTheme().fg("dim", block.text), PINNED_PI_LAYOUT.outputPad, 0);
+      return new Text(piTheme().fg("dim", block.text), outputPad, 0);
     case "custom":
-      return customMessageComponent(block, expanded, extensions);
+      return customMessageComponent(block, expanded, extensions, outputPad);
     case "bash":
       return bashExecutionComponent(block, cwd, expanded);
   }
@@ -350,8 +369,8 @@ function updateTranscriptComponent(
   return false;
 }
 
-function assistantComponent(block: OwnedUiTranscriptBlock): AssistantMessageComponent {
-  const component = new AssistantMessageComponent(undefined, false, getMarkdownTheme(), undefined, PINNED_PI_LAYOUT.outputPad);
+function assistantComponent(block: OwnedUiTranscriptBlock, outputPad: 0 | 1): AssistantMessageComponent {
+  const component = new AssistantMessageComponent(undefined, false, getMarkdownTheme(), undefined, outputPad);
   component.updateContent(validatedAssistantMessage(block), block.status === "live");
   return component;
 }
@@ -457,7 +476,8 @@ function toolComponent(
 function customMessageComponent(
   block: OwnedUiTranscriptBlock,
   expanded: boolean,
-  extensions?: PiShellExtensionRendererResolver,
+  extensions: PiShellExtensionRendererResolver | undefined,
+  outputPad: 0 | 1,
 ): CustomMessageComponent {
   const payload = blockPayload(block);
   const message = {
@@ -469,7 +489,7 @@ function customMessageComponent(
     timestamp: numericPayload(block, "timestamp") || 0,
   };
   const renderer = validatedMessageRenderer(extensions?.getMessageRenderer(message.customType));
-  const component = new CustomMessageComponent(message, renderer, getMarkdownTheme(), PINNED_PI_LAYOUT.outputPad);
+  const component = new CustomMessageComponent(message, renderer, getMarkdownTheme(), outputPad);
   component.setExpanded(expanded);
   return component;
 }

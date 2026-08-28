@@ -154,6 +154,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   };
   #toolsExpanded = false;
   #thinkingVisible = true;
+  #outputPad: 0 | 1 = 1;
   #workflowTranscriptSequence = 0;
   readonly #workflowStatusAnchors = new Map<string, number>();
   readonly #workflowStatusMessages = new Map<string, string>();
@@ -293,6 +294,16 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.editor.setAutocompleteMaxVisible(maxVisible);
   }
 
+  setOutputPad(padding: 0 | 1): void {
+    if (this.#outputPad === padding) return;
+    this.#outputPad = padding;
+    this.#status.setOutputPad(padding);
+    for (const component of this.#transcript.values()) component.setOutputPad(padding);
+    this.#renderedRows.clear();
+    this.#documentLayouts.clear();
+    this.invalidate();
+  }
+
   preparePromptSubmission(text: string): PreparedPrompt {
     return this.#promptChips.prepareSubmission(text);
   }
@@ -321,7 +332,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.#blocksById.set(block.id, block);
     const component = this.#transcript.get(block.id);
     if (component === undefined) {
-      const created = createPiShellTranscriptComponent(block, this.#cwd, this.#extensionRenderers, this.#submittedPromptComposer);
+      const created = createPiShellTranscriptComponent(block, this.#cwd, this.#extensionRenderers, this.#submittedPromptComposer, this.#outputPad);
       created.setExpanded(this.#toolsExpanded);
       this.#transcript.set(block.id, created);
       this.#transcriptOrder.push(block.id);
@@ -646,7 +657,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     }
     const id = this.#appendAnchoredWorkflowComponent(width => [
       "",
-      ...renderPiShellStatusText(this.#workflowStatusMessages.get(id) ?? message, width),
+      ...renderPiShellStatusText(this.#workflowStatusMessages.get(id) ?? message, width, this.#outputPad),
     ]);
     this.#workflowStatusMessages.set(id, message);
     this.#lastWorkflowStatusId = id;
@@ -903,7 +914,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     for (const block of blocks) {
       const component = this.#transcript.get(block.id);
       if (component === undefined) {
-        const created = createPiShellTranscriptComponent(block, this.#cwd, this.#extensionRenderers, this.#submittedPromptComposer);
+        const created = createPiShellTranscriptComponent(block, this.#cwd, this.#extensionRenderers, this.#submittedPromptComposer, this.#outputPad);
         created.setExpanded(this.#toolsExpanded);
         this.#transcript.set(block.id, created);
       } else if (component.revision !== block.revision) {
@@ -937,6 +948,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       invalidate() {},
       update() {},
       setExpanded() {},
+      setOutputPad() {},
       ...(dispose === undefined ? {} : { dispose }),
     };
     this.#transcript.set(id, component);

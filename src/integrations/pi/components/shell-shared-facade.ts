@@ -77,6 +77,7 @@ export interface PiShellViewComponentPort extends PiShellComponentPort {
 
 export interface PiShellStatusPort extends PiShellViewComponentPort {
   setWorkingOverride(message: string | undefined): void;
+  setOutputPad(padding: 0 | 1): void;
 }
 
 export interface PiShellQueuedInputPort extends PiShellComponentPort {
@@ -111,6 +112,7 @@ export interface PiShellTranscriptComponentPort extends PiShellComponentPort {
   readonly revision: number;
   update(block: OwnedUiTranscriptBlock): void;
   setExpanded(expanded: boolean): void;
+  setOutputPad(padding: 0 | 1): void;
 }
 
 export interface PiShellStartupNotice {

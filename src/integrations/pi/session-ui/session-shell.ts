@@ -118,6 +118,8 @@ export class OwnedUiSessionShell {
   readonly #removeViewportPreInput: () => void;
   readonly #unsubscribeSettings: () => void;
   readonly #unbindPiSettings: () => void;
+  readonly #unbindTerminalSettings: () => void;
+  #terminalProgressEnabled = false;
   #compactionQueue: Array<{
     readonly text: string;
     readonly type: "steer" | "follow-up";
@@ -201,6 +203,25 @@ export class OwnedUiSessionShell {
     };
     runtime = new PiTuiRuntimeAdapter(runtimeOptions);
     this.runtime = runtime;
+    const initialPiSettings = this.backend.pinnedSettingsSnapshot();
+    this.runtime.setHardwareCursor(initialPiSettings.showHardwareCursor);
+    this.runtime.setClearOnShrink(initialPiSettings.clearOnShrink);
+    this.#terminalProgressEnabled = initialPiSettings.showTerminalProgress;
+    this.#unbindTerminalSettings = this.backend.bindSettingsOwner("terminal", {
+      showHardwareCursor: { apply: value => {
+        if (typeof value !== "boolean") throw new TypeError("Hardware cursor setting is invalid");
+        this.runtime.setHardwareCursor(value);
+      } },
+      clearOnShrink: { apply: value => {
+        if (typeof value !== "boolean") throw new TypeError("Clear-on-shrink setting is invalid");
+        this.runtime.setClearOnShrink(value);
+      } },
+      showTerminalProgress: { apply: value => {
+        if (typeof value !== "boolean") throw new TypeError("Terminal progress setting is invalid");
+        this.#terminalProgressEnabled = value;
+        this.#syncTerminalProgress(this.view());
+      } },
+    });
     this.#removeViewportPreInput = this.#customViewport
       ? this.runtime.addPreInputListener(data => {
           // An overlay or editor-replacement screen owns its entire pointer
@@ -228,9 +249,9 @@ export class OwnedUiSessionShell {
     this.#unsubscribeSettings = this.#customViewport && options.viewportSettings
       ? options.viewportSettings.onChange(settings => this.root.setViewportConfig(settings))
       : () => {};
-    const initialPiSettings = this.backend.pinnedSettingsSnapshot();
     this.root.setEditorPaddingX(initialPiSettings.editorPaddingX);
     this.root.setAutocompleteMaxVisible(initialPiSettings.autocompleteMaxVisible);
+    this.root.setOutputPad(initialPiSettings.outputPad);
     this.#unbindPiSettings = this.backend.bindSettingsOwner("shell", {
       editorPaddingX: { apply: value => {
         if (typeof value !== "number") throw new TypeError("Editor padding is invalid");
@@ -239,6 +260,10 @@ export class OwnedUiSessionShell {
       autocompleteMaxVisible: { apply: value => {
         if (typeof value !== "number") throw new TypeError("Autocomplete maximum is invalid");
         this.root.setAutocompleteMaxVisible(value);
+      } },
+      outputPad: { apply: value => {
+        if (value !== 0 && value !== 1) throw new TypeError("Output padding is invalid");
+        this.root.setOutputPad(value);
       } },
     });
     this.#extensionBridge = createPiExtensionUiBridge({
@@ -284,6 +309,7 @@ export class OwnedUiSessionShell {
       const view = event.type === "transcript-block" && this.#sessionGeneration === this.backend.sessionGeneration
         ? this.#syncBlock(event.block)
         : semanticOnly ? this.view() : this.#syncView();
+      this.#syncTerminalProgress(view);
       if (view.lifecycle === "ready" && this.#compactionQueue.length > 0) void this.#flushCompactionQueue();
       if (event.type === "session-lifecycle" && event.lifecycle === "stopped") this.#resolveStopped?.();
     });
@@ -298,6 +324,7 @@ export class OwnedUiSessionShell {
     if (this.#started) return;
     this.#started = true;
     this.runtime.start();
+    this.#syncTerminalProgress(this.view());
     if (this.#customViewport) this.#setPointerReporting(true);
     void this.backend.bindExtensionUi(this.#extensionBridge.context, () => { void this.shutdown(); });
     this.#syncView();
@@ -966,6 +993,7 @@ export class OwnedUiSessionShell {
     this.#removeViewportPreInput();
     this.#unsubscribeSettings();
     this.#unbindPiSettings();
+    this.#unbindTerminalSettings();
     this.#unsubscribe();
     this.#dialogHandle?.hide();
     await this.backend.unbindExtensionUi();
@@ -983,6 +1011,11 @@ export class OwnedUiSessionShell {
     const view = this.view();
     for (const listener of this.#listeners) listener(view);
     return view;
+  }
+
+  #syncTerminalProgress(view: OwnedUiSessionViewModel): void {
+    if (!this.runtime.active) return;
+    this.runtime.setTerminalProgress(this.#terminalProgressEnabled && view.lifecycle === "busy");
   }
 
   #syncView(): OwnedUiSessionViewModel {

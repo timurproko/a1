@@ -142,6 +142,17 @@ describe("Pi shell public component adapters", () => {
     }
   });
 
+  it("rebuilds existing transcript presentation for live output padding without changing identity", () => {
+    const component = createPiShellTranscriptComponent(block("error", "failure"), process.cwd());
+    const identity = component.id;
+    const revision = component.revision;
+    expect(stripTerminalSequences(component.render(60)[0] ?? "").startsWith(" ")).toBe(true);
+    component.setOutputPad(0);
+    expect(component.id).toBe(identity);
+    expect(component.revision).toBe(revision);
+    expect(stripTerminalSequences(component.render(60)[0] ?? "").startsWith("Error:")).toBe(true);
+  });
+
   it("uses extension custom-message and tool renderers with fallback isolation", () => {
     const resolver = {
       getMessageRenderer: (customType: string) => customType === "extension-message"

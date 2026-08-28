@@ -99,14 +99,15 @@ export function createPiShellStatus(
   ensureTheme();
   const statusUi = createTuiFacade(runtime ?? { getColumns: () => 80, getRows: () => 24, requestRender() {} });
   let workingOverride: string | undefined;
-  let component = statusComponent(view, statusUi, workingOverride);
-  let signature = statusSignature(view, workingOverride);
+  let outputPad: 0 | 1 = PINNED_PI_LAYOUT.outputPad;
+  let component = statusComponent(view, statusUi, workingOverride, outputPad);
+  let signature = statusSignature(view, workingOverride, outputPad);
   const rebuild = () => {
-    const nextSignature = statusSignature(view, workingOverride);
+    const nextSignature = statusSignature(view, workingOverride, outputPad);
     if (nextSignature === signature) return;
     if (component !== undefined && "dispose" in component && typeof component.dispose === "function") component.dispose();
     signature = nextSignature;
-    component = statusComponent(view, statusUi, workingOverride);
+    component = statusComponent(view, statusUi, workingOverride, outputPad);
   };
   return {
     render: width => component?.render(width) ?? [],
@@ -117,6 +118,10 @@ export function createPiShellStatus(
     },
     setWorkingOverride(message) {
       workingOverride = message;
+      rebuild();
+    },
+    setOutputPad(padding) {
+      outputPad = padding;
       rebuild();
     },
     dispose() {
@@ -153,19 +158,19 @@ export function createPiQueuedInputStatus(
 }
 
 
-function statusComponent(view: OwnedUiSessionViewModel, ui: TUI, workingOverride?: string): Component | undefined {
+function statusComponent(view: OwnedUiSessionViewModel, ui: TUI, workingOverride: string | undefined, outputPad: 0 | 1): Component | undefined {
   if (view.lifecycle === "busy") return new WorkingStatusIndicator(ui, workingOverride ?? view.status.workingMessage ?? "Working...");
   if (view.lifecycle === "failed") {
-    return new Text(piTheme().fg("error", view.status.diagnostics.at(-1) ?? "Session failed"), PINNED_PI_LAYOUT.outputPad, 0);
+    return new Text(piTheme().fg("error", view.status.diagnostics.at(-1) ?? "Session failed"), outputPad, 0);
   }
   if (view.status.workingMessage !== null) {
-    return new Text(piTheme().fg("muted", view.status.workingMessage), PINNED_PI_LAYOUT.outputPad, 0);
+    return new Text(piTheme().fg("muted", view.status.workingMessage), outputPad, 0);
   }
   return undefined;
 }
 
-function statusSignature(view: OwnedUiSessionViewModel, workingOverride?: string): string {
-  return `${view.lifecycle}\u0000${workingOverride ?? ""}\u0000${view.status.workingMessage ?? ""}\u0000${view.status.diagnostics.at(-1) ?? ""}`;
+function statusSignature(view: OwnedUiSessionViewModel, workingOverride: string | undefined, outputPad: 0 | 1): string {
+  return `${outputPad}\u0000${view.lifecycle}\u0000${workingOverride ?? ""}\u0000${view.status.workingMessage ?? ""}\u0000${view.status.diagnostics.at(-1) ?? ""}`;
 }
 
 function queuedInputText(
