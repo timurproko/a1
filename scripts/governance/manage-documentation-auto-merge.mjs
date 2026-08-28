@@ -1,5 +1,5 @@
 import { appendFile, readFile } from "node:fs/promises";
-import { classifyDocumentationAutoMerge } from "./documentation-auto-merge.mjs";
+import { classifyDocumentationAutoMerge, planDocumentationAutoMerge } from "./documentation-auto-merge.mjs";
 
 const token = process.env.GITHUB_TOKEN;
 const eventPath = process.env.GITHUB_EVENT_PATH;
@@ -18,11 +18,12 @@ const context = event.workflow_run
       validationComplete: event.workflow_run.name === "Development validation"
         && event.workflow_run.event === "pull_request",
       validationSucceeded: event.workflow_run.conclusion === "success",
+      validatedHeadSha: event.workflow_run.head_sha,
       candidates: event.workflow_run.pull_requests ?? [],
     }
   : event.pull_request
-    ? { validationComplete: false, validationSucceeded: false, candidates: [event.pull_request] }
-    : { validationComplete: false, validationSucceeded: false, candidates: [] };
+    ? { validationComplete: false, validationSucceeded: false, validatedHeadSha: undefined, candidates: [event.pull_request] }
+    : { validationComplete: false, validationSucceeded: false, validatedHeadSha: undefined, candidates: [] };
 
 if (event.workflow_run && !context.validationComplete) {
   await summary("No pull-request Development validation run to process.");
@@ -66,17 +67,37 @@ async function processPullRequest(number, run) {
     return await summary(`PR #${number}: auto-merge not eligible — ${reason}.`);
   }
 
-  if (!run.validationComplete || !run.validationSucceeded) {
-    return await summary(`PR #${number}: eligible; waiting for successful Development validation.`);
+  const validationMatchesHead = run.validationComplete && run.validatedHeadSha === pull.head?.sha;
+  const validation = validationMatchesHead
+    ? run.validationSucceeded ? "success" : "failure"
+    : "pending";
+  const action = planDocumentationAutoMerge({
+    validation,
+    autoMergeArmed: Boolean(pull.auto_merge),
+    mergeableState: pull.mergeable_state,
+  });
+
+  if (action === "unchanged") {
+    return await summary(`PR #${number}: eligible and squash auto-merge is already armed.`);
   }
-  if (pull.auto_merge) return await summary(`PR #${number}: eligible and auto-merge is already armed.`);
+  if (action === "wait") {
+    return await summary(`PR #${number}: eligible but current-head Development validation failed; auto-merge remains unchanged.`);
+  }
+  if (action === "merge") {
+    const result = await rest(`/repos/${owner}/${repository}/pulls/${number}/merge`, {
+      method: "PUT",
+      body: { sha: pull.head.sha, merge_method: "squash" },
+    });
+    if (result?.merged !== true) throw new Error(`GitHub did not merge eligible clean PR #${number}: ${JSON.stringify(result)}`);
+    return await summary(`PR #${number}: current head passed validation and is clean; squash-merged with expected head SHA.`);
+  }
 
   await graph(`mutation EnableDocumentationAutoMerge($pullRequestId: ID!) {
     enablePullRequestAutoMerge(input: { pullRequestId: $pullRequestId, mergeMethod: SQUASH }) {
       pullRequest { number }
     }
   }`, { pullRequestId: pull.node_id });
-  await summary(`PR #${number}: successful validation and exact documentation allowlist; squash auto-merge armed.`);
+  await summary(`PR #${number}: exact documentation allowlist; squash auto-merge armed behind required validation.`);
 }
 
 async function changedFiles(number) {
@@ -100,8 +121,12 @@ async function disableIfArmed(pull, reason) {
   await summary(`PR #${pull.number}: disabled auto-merge — ${reason}.`);
 }
 
-async function rest(path) {
-  const response = await fetch(`${apiUrl}${path}`, { headers: headers() });
+async function rest(path, options = {}) {
+  const response = await fetch(`${apiUrl}${path}`, {
+    method: options.method ?? "GET",
+    headers: options.body ? { ...headers(), "content-type": "application/json" } : headers(),
+    body: options.body ? JSON.stringify(options.body) : undefined,
+  });
   if (!response.ok) throw new Error(`GitHub REST ${response.status}: ${await response.text()}`);
   return await response.json();
 }
