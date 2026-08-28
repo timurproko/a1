@@ -1,6 +1,6 @@
 {
   "schema": "a1-legacy-identity-allowlist-v1",
-  "generatedAt": "2026-08-26T08:54:14.770Z",
+  "generatedAt": "2026-08-28T07:55:10.091Z",
   "inventorySchema": "a1-legacy-identity-inventory-v1",
   "occurrences": [
     {
@@ -124,33 +124,27 @@
       "reason": "documented hard-cut or deprecation assertion"
     },
     {
-      "id": "openspec/changes/unify-launch-instance-lifecycle/specs/launch-profiles/spec.md:17:50",
+      "id": "openspec/specs/a1-shell/spec.md:72:391",
       "value": "addone",
-      "fingerprint": "c85356f5786cede4b723b4bac7cf135910a18b777376596c4591c775e8e250db",
-      "reason": "documented hard-cut or deprecation assertion"
-    },
-    {
-      "id": "openspec/specs/a1-shell/spec.md:94:391",
-      "value": "addone",
-      "fingerprint": "15e877ad19cfd936b63de3a169bc0ea18f2afc8c795e7be1ef755f01fcf1a728",
+      "fingerprint": "2865a1029f07c1942fcee3870d34e7423f6a2d15feca35a0a2f95c71dc2ce7cf",
       "reason": "obsolete-package rejection requirement"
     },
     {
-      "id": "openspec/specs/a1-shell/spec.md:106:52",
+      "id": "openspec/specs/a1-shell/spec.md:84:52",
       "value": "addone",
-      "fingerprint": "8a89da7913882da72b60bf2b03c9c66f1f1c5a8a473f7d3ca9db0d4b46dee60f",
+      "fingerprint": "9debc1036f89306e3ac8075f02eae58211ce11c65ddc0a92d237463452ba5091",
       "reason": "explicit obsolete-package rejection or deprecation fixture"
     },
     {
-      "id": "openspec/specs/a1-shell/spec.md:109:322",
+      "id": "openspec/specs/a1-shell/spec.md:87:322",
       "value": "addone",
-      "fingerprint": "d238252983c4f41144bf811826ec23f7d519262cc3f6a826ada1284483c95cb7",
+      "fingerprint": "5df3ca87dd36bffb1a279f4ffab504d0b234636bdf12eec992fda9aee5e7863f",
       "reason": "obsolete-package rejection requirement"
     },
     {
-      "id": "openspec/specs/a1-shell/spec.md:113:84",
+      "id": "openspec/specs/a1-shell/spec.md:91:84",
       "value": "addone",
-      "fingerprint": "22e2e4ea3b19166bc4f5170ef30a8356dc9d58308c6e69048c7bd2ceaa727e8d",
+      "fingerprint": "948ea103f78f971ebdf9dccbc09bac0d564265588448139b77a2550824f11b51",
       "reason": "explicit obsolete-package rejection or deprecation fixture"
     },
     {

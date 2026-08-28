@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   backgroundSgrSpan,
   displayWidth,
+  heldNativeHyperlinkStyle,
   hyperlinkSgrSpan,
   nativeHyperlinkStyle,
   overlaySpan,
@@ -83,6 +84,28 @@ describe("overlaying a span on a rendered row", () => {
       .toBe(`${open}example${close}`);
     expect(nativeHyperlinkStyle(`${open}${ESC}[4mexample${ESC}[24m${close}`, text => `${BLUE}${text}${RESET}`))
       .toBe(`${open}${BLUE}example${RESET}${close}`);
+  });
+
+  it("keeps links dotted but non-interactive during a held-button paint", () => {
+    const target = "https://example.com/full";
+    const open = `\u001b]8;;${target}\u001b\\`;
+    const close = "\u001b]8;;\u001b\\";
+    const source = `${open}${BLUE}${target}${RESET}${close} tail`;
+
+    const result = heldNativeHyperlinkStyle(source);
+
+    expect(result).not.toContain("\u001b]8;;");
+    expect(result).toContain("\u001b[4:4m");
+    expect(result).toContain("\u001b[24m");
+    expect(result).toContain("https:\uFE0E//example.com/full");
+    expect(stripAnsi(result).replaceAll("\uFE0E", "")).toBe(stripAnsi(source));
+
+    const fileOpen = "\u001b]8;;file:///D:/work/package.json\u001b\\";
+    const fileSource = `${fileOpen}${BLUE}package.json${RESET}${close}`;
+    const heldFile = heldNativeHyperlinkStyle(fileSource);
+    expect(heldFile).not.toContain("\u001b]8;;");
+    expect(heldFile).toContain("p\uFE0Eackage.json");
+    expect(stripAnsi(heldFile).replaceAll("\uFE0E", "")).toBe("package.json");
   });
 
   it("gives bare URLs explicit, independently bounded native hover regions", () => {

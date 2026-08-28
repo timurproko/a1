@@ -131,6 +131,58 @@ export function nativeHyperlinkStyle(
   return hyperlinkTarget === undefined ? output : output + HYPERLINK_OFF;
 }
 
+/**
+ * Held-button paint for terminal-native links. OSC 8 is removed so the terminal
+ * cannot switch a selected link to its solid hover underline. A dotted SGR
+ * underline preserves the idle appearance, and VS15 transiently breaks native
+ * plain-text URL detection without changing visible width.
+ */
+export function heldNativeHyperlinkStyle(line: string): string {
+  let hyperlinkTarget: string | undefined;
+  let fileDetectorBroken = false;
+  let output = "";
+  for (const token of line.split(ANSI_SPLIT)) {
+    if (!token) continue;
+    const link = HYPERLINK.exec(token);
+    if (link) {
+      const nextTarget = (link[1] ?? "") || undefined;
+      if ((nextTarget !== undefined) !== (hyperlinkTarget !== undefined)) {
+        output += nextTarget === undefined ? "\u001b[24m" : "\u001b[4:4m";
+      }
+      if (nextTarget !== hyperlinkTarget) fileDetectorBroken = false;
+      hyperlinkTarget = nextTarget;
+      continue;
+    }
+    if (token.startsWith("\u001b")) {
+      output += token;
+      // Foreground helpers may reset every SGR attribute; restore the held
+      // dotted underline without disturbing the source colour or intensity.
+      if (hyperlinkTarget !== undefined && SGR.test(token)) output += "\u001b[4:4m";
+      continue;
+    }
+    if (hyperlinkTarget === undefined) {
+      output += token;
+      continue;
+    }
+    let painted = token.replaceAll("https://", "https:\uFE0E//").replaceAll("http://", "http:\uFE0E//");
+    // Windows Terminal also detects file-link labels such as package.json and
+    // D:/work/file.ts after OSC 8 is removed. Break that detector once inside
+    // the paint-only label; semantic transcript text remains untouched.
+    if (!fileDetectorBroken && /^file:/iu.test(hyperlinkTarget)) {
+      const firstVisible = /\S/u.exec(painted);
+      if (firstVisible?.index !== undefined) {
+        const index = firstVisible.index;
+        const codePoint = painted.codePointAt(index) ?? 0;
+        const end = index + (codePoint > 0xffff ? 2 : 1);
+        painted = `${painted.slice(0, end)}\uFE0E${painted.slice(end)}`;
+        fileDetectorBroken = true;
+      }
+    }
+    output += painted;
+  }
+  return hyperlinkTarget === undefined ? output : `${output}\u001b[24m`;
+}
+
 function decorateBareUrls(
   text: string,
   color: (text: string, target: string) => string,

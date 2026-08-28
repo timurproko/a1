@@ -307,6 +307,38 @@ describe("OwnedUiSessionShell", () => {
     });
   });
 
+  it("keeps transcript links dotted and non-interactive while LMB selection is held", async () => {
+    await withPinnedHyperlinks(async () => {
+      const label = "package.json";
+      const target = "file:///D:/work/package.json";
+      const { terminal, shell } = await fixture([
+        { role: "assistant", content: [{ type: "text", text: `[${label}](${target})` }], timestamp: Date.now() },
+      ], [], true);
+      terminal.resize(100, 12);
+      const initial = shell.root.render(100);
+      const rowIndex = initial.findIndex(line => stripTerminalSequences(line).includes(label));
+      const plain = stripTerminalSequences(initial[rowIndex] ?? "");
+      const start = plain.indexOf(label) + 1;
+      const end = start + label.length - 1;
+      const row = rowIndex + 1;
+
+      terminal.input(`\u001b[<0;${start};${row}M`);
+      const held = shell.root.render(100)[rowIndex] ?? "";
+      expect(held).not.toContain(`\u001b]8;;${target}\u001b\\`);
+      expect(held).toContain("\u001b[4:4m");
+      expect(held).toContain("p\uFE0Eackage.json");
+      expect(getPinnedPiTuiLinkAtColumn(held, start - 1)).toBeUndefined();
+
+      terminal.input(`\u001b[<32;${end};${row}M`);
+      terminal.input(`\u001b[<0;${end};${row}m`);
+      const released = shell.root.render(100)[rowIndex] ?? "";
+      expect(released).toContain(`\u001b]8;;${target}\u001b\\`);
+      terminal.input("\u0003");
+      expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from(label).toString("base64")}\u0007`);
+      await shell.dispose();
+    });
+  });
+
   it("keeps file hyperlinks cyan while web URLs use link blue", async () => {
     await withPinnedHyperlinks(async () => {
       const label = "src/integrations/pi/session-ui/session-shell-root.ts";
@@ -398,7 +430,7 @@ describe("OwnedUiSessionShell", () => {
     await shell.dispose();
   });
 
-  it("matches Pi's queued steering order and dequeue hint while working", async () => {
+  it("keeps Pi's queued steering order and scrolls the complete transient group out of view", async () => {
     const messages = Array.from({ length: 18 }, (_, index) => ({
       role: "assistant",
       content: [{ type: "text", text: `queue-transcript-${index}` }],
@@ -420,10 +452,13 @@ describe("OwnedUiSessionShell", () => {
     expect(hint).toBeGreaterThan(second);
     expect(working).toBeGreaterThan(hint);
 
-    terminal.input("\u001b[<64;30;3M");
+    terminal.input("\u001b[1;1H");
     const detached = shell.root.render(60).map(row => stripTerminalSequences(row));
-    expect(detached.some(row => row.includes("Steering: first"))).toBe(true);
-    expect(detached.some(row => row.includes("Working"))).toBe(true);
+    expect(detached.some(row => row.includes("Steering: first"))).toBe(false);
+    expect(detached.some(row => row.includes("Steering: second"))).toBe(false);
+    expect(detached.some(row => row.includes("Alt+Up to edit all queued messages"))).toBe(false);
+    expect(detached.some(row => row.includes("Working"))).toBe(false);
+    expect(detached.some(row => row.includes("Jump to bottom (End)"))).toBe(true);
     await shell.dispose();
   });
 
