@@ -15,6 +15,26 @@ Pi runtime. `--models` SHALL NOT combine with `--develop` or a preview value.
 - **WHEN** the user invokes `a1 update`
 - **THEN** A1 SHALL run the stable self-update workflow
 
+#### Scenario: Update in Pi's spelling
+- **WHEN** the user invokes the removed `a1 update self` form
+- **THEN** A1 SHALL return successfully and silently without registry or update work
+
+#### Scenario: Update installed packages
+- **WHEN** the user invokes `a1 pi update --extensions`
+- **THEN** A1 SHALL update the packages configured in the A1 profile and SHALL NOT self-update
+
+#### Scenario: Update one package
+- **WHEN** the user invokes `a1 pi update <source>` for a configured package source
+- **THEN** A1 SHALL update that package alone and SHALL NOT self-update
+
+#### Scenario: Refresh model catalogs
+- **WHEN** the user invokes `a1 update --models`
+- **THEN** A1 SHALL refresh the model catalogs of the A1 profile and SHALL NOT self-update
+
+#### Scenario: Pinned Pi is targeted
+- **WHEN** the user invokes `a1 update pi`
+- **THEN** A1 SHALL fail before update work and explain that Pi is pinned to the certified A1 release
+
 #### Scenario: Update current development A1
 - **WHEN** the user invokes `a1 update --develop`
 - **THEN** A1 SHALL run the development-channel self-update workflow

@@ -3,7 +3,9 @@
 ## Purpose
 
 Defines A1's independently owned Pi shell with vanilla-default regular main-screen mode and optional fullscreen mode, complete pinned interactive baseline including extension UI, exact current-version parity, public engine/runtime boundaries, customization slots, diagnostics, and upgrade-conformance policy.
+
 ## Requirements
+
 ### Requirement: The owned shell presents the complete pinned Pi interactive UI
 The A1-owned UI SHALL reproduce the complete visible and interactive behavior of pinned Pi `0.84.2` at commit `914cf1472e715297caa30db4b9535d534a9eb718`. The baseline SHALL include startup composition, themes, colors, spacing, layout, editor, autocomplete, keybindings, commands, prompt execution, transcript, streaming, tools, selectors, dialogs, settings, sessions, models, thinking, status/footer state, clipboard, resize, errors, and shutdown. A1 SHALL NOT substitute approximate layouts, colors, controllers, or workflows for covered pinned behavior. After parity acceptance a route MAY be superseded by a declared A1-owned replacement; the pinned behavior of a superseded route SHALL remain provable through `a1 pi`, and every capability the pinned route exposed SHALL remain reachable from its replacement.
 
@@ -403,3 +405,171 @@ The Pi-backed owned shell SHALL keep custom-viewport interaction state and input
 - **WHEN** the same shell runs without the custom viewport
 - **THEN** the pinned root/layout and input behavior SHALL remain unchanged
 - **AND** the extracted viewport controller SHALL not claim pinned-profile interaction
+
+### Requirement: The declared bare-A1 viewport customizes layout without replacing shell behavior
+After the pinned shell baseline and customization prerequisite are accepted, bare A1 SHALL apply the custom session viewport as a declared layout customization over the owned shell's existing engine, transcript components, input surfaces, status/footer components, extension bridge, commands, selectors, dialogs, and lifecycle. The customization SHALL own viewport composition and navigation but SHALL NOT patch installed Pi code, inspect private Pi renderer state, infer transcript semantics from rendered terminal text, or introduce a second agent or terminal authority.
+
+The viewport's intentional differences SHALL be limited to its declared capability: a bounded transcript above a pinned dock, A1 scrollbar presentation, detached/follow navigation, the scroll-to-bottom control, and timestamped sticky submitted prompts. Correct text or behavior from an existing shell surface SHALL NOT be reimplemented as viewport-specific status, editor, workflow, or extension behavior.
+
+#### Scenario: Compose the custom viewport
+- **WHEN** bare A1 starts after the customization prerequisite is satisfied
+- **THEN** the viewport SHALL compose the accepted owned-shell surfaces through their existing public A1 boundaries
+- **AND** the docked status, input, footer, commands, modal surfaces, and extension contributions SHALL keep their existing behavior
+
+#### Scenario: Open a pinned workflow from the custom viewport
+- **WHEN** the reader invokes a command, selector, dialog, authentication flow, session flow, or extension interaction not declared as replaced
+- **THEN** its controller, result, cancellation, focus restoration, and lifecycle SHALL remain the accepted pinned-shell behavior
+
+#### Scenario: Compare an explicit profile
+- **WHEN** `a1 pi` is started
+- **THEN** the declared viewport layout customization SHALL be absent
+- **AND** those profiles SHALL remain suitable for observing the pinned presentation without A1 viewport rows, controls, prompt timestamps, or scrollbar settings
+
+#### Scenario: Upgrade the pinned integration
+- **WHEN** the pinned Pi or Pi TUI version changes
+- **THEN** the viewport SHALL continue to depend only on documented public runtime/component contracts and A1-owned ports
+- **AND** an unabsorbed input, layout, or component-boundary change SHALL fail conformance rather than being handled through a private-field or prototype workaround
+
+#### Scenario: Viewport customization is not yet accepted
+- **WHEN** its implementation, focused regression evidence, or user-controlled manual acceptance is incomplete or contradicted
+- **THEN** the custom viewport milestone SHALL remain unaccepted
+- **AND** that incomplete milestone SHALL NOT authorize the held multi-agent workspace work
+
+### Requirement: Compact extension labels preserve source identity
+
+The owned startup Extensions section SHALL use pinned Pi's compact naming rules
+rather than reducing every loaded extension to the final segment of its entry
+path.
+
+#### Scenario: Show an extension supplied by an npm package
+
+- **WHEN** an npm package supplies an extension below its package root
+- **THEN** the compact label SHALL contain the configured npm package source and
+  the meaningful entry suffix, omitting a terminal `index.ts` or `index.js`
+- **AND** `npm:@narumitw/pi-statusline` loaded from `dist/index.ts` SHALL appear
+  as `@narumitw/pi-statusline:dist`, not `dist`
+
+#### Scenario: Show a package-root index
+
+- **WHEN** an npm or Git package supplies its root `index.ts` or `index.js`
+- **THEN** the compact label SHALL be the package identity without an `index`
+  suffix
+
+#### Scenario: Disambiguate local extension entries
+
+- **WHEN** two visible non-package extensions would have the same compact leaf
+  label
+- **THEN** each label SHALL include the shortest trailing path that uniquely
+  identifies it, with a terminal directory index omitted as pinned Pi omits it
+
+#### Scenario: Keep hidden extensions out of label resolution
+
+- **WHEN** a loaded extension is marked hidden
+- **THEN** it SHALL remain absent from the startup Extensions section and SHALL
+  NOT force a longer label for a visible extension
+
+### Requirement: Streaming output does not cost the shell its responsiveness
+The owned shell SHALL remain responsive while the agent streams. The work it performs for
+one engine event SHALL NOT grow with the number of transcript blocks already present, and
+engine events SHALL be delivered so the runtime's event loop turns between batches rather
+than after the burst has drained. Typed input SHALL be serviced while output arrives, and
+a pending frame SHALL NOT delay it. Rendering SHALL be coalesced to the runtime's frame
+interval rather than performed once per streamed update.
+
+A transcript block that has not changed SHALL NOT be re-rendered to produce a frame, and
+locating the block an event refers to SHALL NOT scan the transcript.
+
+#### Scenario: Type while the agent streams
+- **WHEN** the user types, submits, or invokes a command while the agent is streaming output
+- **THEN** the keystroke SHALL be accepted and shown without waiting for streaming to stop
+
+#### Scenario: Stream into a long transcript
+- **WHEN** the agent streams into a session that already holds a large transcript
+- **THEN** the work performed per streamed update SHALL be equivalent to the work performed
+  for the same update in an empty session
+- **AND** the shell SHALL NOT become progressively less responsive as the session grows
+
+#### Scenario: Timed indicators keep running
+- **WHEN** an indicator animates on a timer while the agent streams
+- **THEN** it SHALL continue to animate rather than stalling until the run ends
+
+#### Scenario: Pointer input during streaming
+- **WHEN** the terminal reports pointer input while the agent streams
+- **THEN** it SHALL be handled at the time it arrives rather than after the run ends
+
+### Requirement: Working state is cleared only by the event that ends the work
+The owned shell SHALL treat entering a working, retrying, or compacting state and leaving it
+as separate transitions, each ended only by the event that ends that work. A retry finishing
+or a compaction finishing SHALL NOT clear a state it did not start, and neither SHALL be
+reported as the session becoming idle while the run continues.
+
+Clearing SHALL be scoped to the state being cleared, so ending one kind of work leaves any
+other kind still standing. Ending a turn SHALL leave the working state, as the recorded
+pinned baseline does; the engine ends a turn for every continuation it makes — a retry, a
+compaction, a queued message — and reports the run settled once, when its loop is done, so
+settlement is what ends the run.
+
+#### Scenario: A turn ends while a compaction is shown
+- **WHEN** a turn ends while the compaction state is the one being shown
+- **THEN** the compaction state SHALL remain shown rather than being cleared by the turn
+
+#### Scenario: Automatic compaction inside a turn
+- **WHEN** compaction starts and finishes while the turn continues
+- **THEN** the compaction indicator SHALL be shown for its duration and removed at its end
+- **AND** the working state SHALL be the one shown once compaction ends, without waiting for
+  a further prompt
+
+#### Scenario: Automatic retry inside a turn
+- **WHEN** a retry starts and finishes while the turn continues
+- **THEN** the retry indicator SHALL be removed at its end and the working state SHALL stand
+
+#### Scenario: Run settles
+- **WHEN** the engine reports the run settled
+- **THEN** the working state SHALL be cleared and the session SHALL be reported as ready
+
+#### Scenario: Compaction outside a run
+- **WHEN** a compaction starts and finishes while no run is active
+- **THEN** the compaction state SHALL be cleared and the session SHALL be reported as ready
+  rather than as working
+
+#### Scenario: Content continues after a cleared indicator
+- **WHEN** transcript content is still arriving
+- **THEN** the shell SHALL NOT present the session as idle
+
+### Requirement: A streaming tool execution costs frames, not chunks
+While a tool execution streams output, the owned shell SHALL bound its work by the frame
+cadence rather than by the number of output chunks the engine reports. Partial results
+that arrive faster than a frame SHALL be coalesced so that only the newest accumulated
+output per tool call is applied, and the work performed to apply one partial SHALL NOT
+re-serialize or re-summarize the whole accumulated output. A tool execution's final
+result SHALL supersede any partial still waiting, and SHALL be applied without waiting
+for the coalescing interval.
+
+Applying one streamed block SHALL invalidate only that block's rendered state; the other
+components' caches SHALL survive the chunk. Reading the view during a stream SHALL NOT
+recompute derived session aggregates (usage, context, subscription state) per chunk;
+they SHALL be recomputed only when an event that can change them arrives.
+
+#### Scenario: Shell stays live under a heavy command
+- **WHEN** the agent executes a command that streams output faster than the frame
+  interval for many seconds
+- **THEN** typed input SHALL be accepted and echoed while the command runs
+- **AND** timed indicators SHALL keep animating for the duration of the command
+
+#### Scenario: Chunks outnumber frames
+- **WHEN** many partial results for one tool call arrive within one coalescing interval
+- **THEN** the shell SHALL apply only the newest of them
+- **AND** the intermediate partials SHALL NOT each pay the event pipeline's full cost
+
+#### Scenario: The end of a tool execution is immediate
+- **WHEN** a tool execution ends while a coalesced partial is still waiting
+- **THEN** the final result SHALL be applied immediately and the waiting partial SHALL be
+  discarded rather than applied afterwards
+- **AND** flushing the adapter's events SHALL deliver any coalesced partial that has not
+  yet been applied, so a caller that flushes observes the newest output
+
+#### Scenario: A partial result is not summarized
+- **WHEN** a partial tool result restates the accumulated output
+- **THEN** the shell SHALL render it from the block's text
+- **AND** a serialized summary of the result SHALL be produced only when the execution
+  ends
