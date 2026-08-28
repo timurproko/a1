@@ -44,6 +44,14 @@ coherent registry result.
 - **WHEN** the user runs `a1 --version` or `a1 -v` from a stable release
 - **THEN** A1 SHALL print only the installed exact semantic version without querying remote channels
 
+#### Scenario: Development build versions
+- **WHEN** the user runs `a1 --version` from a development build
+- **THEN** A1 SHALL display `Current`, `Develop`, and `Release` in order, applying the declared unavailable behavior when remote channel metadata is absent or unreachable
+
+#### Scenario: Old subcommand notation
+- **WHEN** the user runs `a1 version`
+- **THEN** A1 SHALL reject it as an unknown command
+
 #### Scenario: Development channel versions are available
 - **WHEN** the user runs `a1 --version` from a development build while npm `latest` and the internal development dist-tag are defined and reachable
 - **THEN** A1 SHALL display valid exact semantic versions in the order `Current`, `Develop`, and `Release`

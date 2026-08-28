@@ -23,20 +23,27 @@ npm install -g @timurproko/a1@0.1.8-dev.107
 ## Use
 
 ```sh
-a1                      # launch A1 (profile: ~/.a1/agent)
-a1 --version            # show the version (short form: a1 -v)
-                        # development builds also show channel versions
-a1 update               # install the newest stable release
-a1 update:develop       # install the current development preview
-a1 update:107           # install numbered preview 107
-a1 update --models      # refresh A1's model catalogs
+a1                                      # launch A1 (profile: ~/.a1/agent)
+a1 --help                               # show all commands (short form: a1 -h)
+a1 --version                            # show the version (short form: a1 -v)
+a1 update                               # install the newest stable release
+a1 update --develop                     # install the current development preview
+a1 update --develop 107                 # install numbered preview 107
+a1 update --develop 0.1.8-dev.107       # install that exact preview
+a1 update --models                      # refresh A1's model catalogs
 ```
+
+Stable builds print only their installed version. Development builds also show the
+current development and stable channel versions.
 
 Development previews add the Pi comparison profile; release builds do not carry it.
 
 ```sh
-a1 pi           # vanilla Pi oracle: ~/.pi/agent
+a1 pi                                   # vanilla Pi oracle: ~/.pi/agent
 ```
+
+Unsupported commands exit quietly without launching anything. The removed
+`update:<preview>` forms are not aliases; use `update --develop`.
 
 ## Extensions
 
@@ -50,7 +57,11 @@ a1 pi remove npm:pi-mcp-adapter    # remove it (alias: a1 pi uninstall)
 a1 pi list                         # list installed packages
 a1 pi update --extensions          # update every installed package
 a1 pi update npm:pi-mcp-adapter    # update one
+a1 pi update --models              # refresh A1's model catalogs
 ```
+
+A1 pins the Pi runtime carried by each release, so Pi self-update forms are refused.
+Update A1 itself with `a1 update` or `a1 update --develop`.
 
 A running session picks up a newly installed package after a restart.
 Configuration is isolated the same way: bare `a1` reads `~/.a1/agent` (or the
@@ -89,8 +100,8 @@ npm run develop             # request the preview publish run and wait for it
 Install:
 
 ```sh
-a1 update:107               # install preview 107
-a1 update:0.1.8-dev.107     # install that exact full preview version
+a1 update --develop 107                 # install preview 107
+a1 update --develop 0.1.8-dev.107       # install that exact full preview version
 ```
 
 ### Stable
