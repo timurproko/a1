@@ -20,6 +20,7 @@ export interface PiRuntimeIntegrationOptions {
   readonly cwd: string;
   readonly agentDir: string;
   readonly sessionDir?: string;
+  readonly sessionPath?: string;
   readonly projectTrustPrompt?: PiProjectTrustPreflightPrompt;
   readonly preflightDependencies?: PiRuntimePreflightDependencies;
 }
@@ -99,7 +100,10 @@ export async function createPiRuntimeServicesAfterTrust(
 }
 
 export async function createPiRuntimeIntegration(options: PiRuntimeIntegrationOptions): Promise<AgentSessionRuntime> {
-  const sessionManager = SessionManager.create(options.cwd, options.sessionDir ?? process.env.PI_CODING_AGENT_SESSION_DIR);
+  const sessionDir = options.sessionDir ?? process.env.PI_CODING_AGENT_SESSION_DIR;
+  const sessionManager = options.sessionPath === undefined
+    ? SessionManager.create(options.cwd, sessionDir)
+    : SessionManager.open(options.sessionPath, sessionDir, options.cwd);
   const createRuntime: CreateAgentSessionRuntimeFactory = async ({
     cwd,
     sessionManager: targetSessionManager,

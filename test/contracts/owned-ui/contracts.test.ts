@@ -146,6 +146,14 @@ describe("owned UI command, event, and snapshot contracts", () => {
     }))).not.toThrow();
   });
 
+  it("accepts bounded opaque image references and rejects raw or malformed image metadata", () => {
+    const reference = { assetId: "image-abc", mimeType: "image/png", byteLength: 128, source: "user" as const };
+    expect(() => assertOwnedUiSessionViewModel(view({ transcript: [block({ imageReferences: [reference] })] }))).not.toThrow();
+    expect(() => assertOwnedUiSessionViewModel(view({ transcript: [block({ imageReferences: [{ ...reference, mimeType: "text/plain" }] })] }))).toThrow(/MIME/);
+    expect(() => assertOwnedUiSessionViewModel(view({ transcript: [block({ imageReferences: [{ ...reference, byteLength: 30 * 1024 * 1024 }] })] }))).toThrow(/byte length/);
+    expect(() => assertOwnedUiSessionViewModel(view({ transcript: [block({ payload: { data: "x".repeat(70 * 1024) } })] }))).toThrow(/byte limit/);
+  });
+
   it("rejects malformed identities, unknown enums, and invalid focus geometry", () => {
     expect(() => assertOwnedUiCommand(command({ correlationId: "bad id" }))).toThrow(/unsupported characters/);
     expect(() => assertOwnedUiEvent(event({ type: "future" } as unknown as OwnedUiEvent))).toThrow(/unknown/);

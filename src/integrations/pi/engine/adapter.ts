@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { createHash } from "node:crypto";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -11,6 +12,7 @@ import {
   getAgentDir,
   ProjectTrustStore,
   SessionManager,
+  VERSION,
   type AgentSession,
   type AgentSessionRuntime,
   type AgentSessionServices,
@@ -29,6 +31,8 @@ import {
   type OwnedUiCommandOutcome,
   type OwnedUiDiagnostics,
   type OwnedUiEditorState,
+  type OwnedUiImageAttachment,
+  type OwnedUiTranscriptImageReference,
   type OwnedUiEvent,
   type OwnedUiExtensionUiPort,
   type OwnedUiModelInfo,
@@ -80,6 +84,7 @@ export interface PiEngineRuntimeFactoryInput {
   readonly cwd: string;
   readonly agentDir: string;
   readonly sessionId: string;
+  readonly sessionPath?: string;
   readonly projectTrustPrompt?: PiProjectTrustPreflightPrompt;
 }
 
@@ -178,6 +183,7 @@ export interface PiEngineAdapterOptions {
   readonly cwd?: string;
   readonly agentDir?: string;
   readonly sessionId?: string;
+  readonly sessionPath?: string;
   readonly createRuntime?: PiEngineRuntimeFactory;
   readonly workflowHost?: PiWorkflowHost;
   /**
@@ -213,6 +219,7 @@ export class PiEngineAdapter {
   readonly #cwd: string;
   readonly #agentDir: string;
   readonly #sessionId: string;
+  readonly #sessionPath: string | undefined;
   readonly #workflowHost: PiWorkflowHost;
   #workflowInteraction: PiWorkflowInteractionHost;
   readonly #listeners = new Set<(event: OwnedUiEvent) => void>();
@@ -248,6 +255,7 @@ export class PiEngineAdapter {
   readonly #messageBlockIds = new WeakMap<object, string>();
   readonly #messageFallbackIds = new Map<string, string[]>();
   readonly #toolBlockIds = new Map<string, string>();
+  readonly #transcriptImageAssets = new Map<string, OwnedUiImageAttachment>();
   readonly #pendingToolUpdates = new Map<string, Record<string, unknown>>();
   #toolUpdateFlush: ReturnType<typeof setTimeout> | null = null;
   #usageCache: OwnedUiUsageView | undefined;
@@ -275,6 +283,7 @@ export class PiEngineAdapter {
     this.#cwd = options.cwd ?? process.cwd();
     this.#agentDir = options.agentDir ?? getAgentDir();
     this.#sessionId = options.sessionId ?? "owned-session-1";
+    this.#sessionPath = options.sessionPath;
     this.#runtimeFactory = options.createRuntime ?? createDefaultPiRuntime;
     this.#checkPackageUpdates = options.checkPackageUpdates
       ?? (options.createRuntime
@@ -303,6 +312,15 @@ export class PiEngineAdapter {
     return this.#agentDir;
   }
 
+  resolveTranscriptImage(assetId: string): OwnedUiImageAttachment | null {
+    return this.#transcriptImageAssets.get(assetId) ?? null;
+  }
+
+  currentSessionFile(): string | null {
+    const value = this.#session?.sessionManager?.getSessionFile?.();
+    return typeof value === "string" && value.length > 0 ? value : null;
+  }
+
   get disposed(): boolean {
     return this.#disposed;
   }
@@ -313,6 +331,7 @@ export class PiEngineAdapter {
       cwd: this.#cwd,
       agentDir: this.#agentDir,
       sessionId: this.#sessionId,
+      ...(this.#sessionPath === undefined ? {} : { sessionPath: this.#sessionPath }),
       ...(this.#projectTrustPrompt === undefined ? {} : { projectTrustPrompt: this.#projectTrustPrompt }),
     }).catch(error => {
       this.#lifecycle = "failed";
@@ -338,12 +357,30 @@ export class PiEngineAdapter {
       );
     }
     this.#bindSession(runtime.session);
+    await this.#announceChangelog(runtime.services.settingsManager);
     this.#lifecycle = "ready";
     this.#editor = { ...this.#editor, submitEnabled: true };
     this.#emitEvent({ type: "session-lifecycle", lifecycle: "ready", reason: null });
     this.#emitView();
     void this.#announcePackageUpdates(runtime.services.settingsManager);
     return this.view();
+  }
+
+  async #announceChangelog(settingsManager: PiServicesApi["settingsManager"]): Promise<void> {
+    if (!settingsManager || typeof settingsManager.getLastChangelogVersion !== "function"
+      || typeof settingsManager.setLastChangelogVersion !== "function") return;
+    if (settingsManager.getLastChangelogVersion() === VERSION) return;
+    const markdown = await this.#workflowHost.readChangelog().catch(() => "");
+    if (markdown.trim().length > 0) {
+      this.#addDiagnostic(
+        "info",
+        settingsManager.getCollapseChangelog() ? "changelog-collapsed" : "changelog-expanded",
+        markdown,
+        true,
+      );
+    }
+    settingsManager.setLastChangelogVersion(VERSION);
+    await settingsManager.flush();
   }
 
   async #announcePackageUpdates(settingsManager: PiServicesApi["settingsManager"]): Promise<void> {
@@ -667,6 +704,7 @@ export class PiEngineAdapter {
         // Deferred application is the owner operation: the next preflight reads
         // the persisted default before constructing project-backed services.
         defaultProjectTrust: { apply() {} },
+        collapseChangelog: { apply() {} },
       });
       this.#settingsIntegration.bindOwner("agent", {
         autoCompact: { apply: value => {
@@ -1115,6 +1153,7 @@ export class PiEngineAdapter {
       this.#toolUpdateFlush = null;
     }
     this.#pendingToolUpdates.clear();
+    this.#transcriptImageAssets.clear();
     this.#extensionBound = false;
     this.#extensionUi = undefined;
     this.#extensionShutdown = undefined;
@@ -1645,6 +1684,7 @@ export class PiEngineAdapter {
     this.#activeModel = readModel(session.model);
     this.#reconcileActiveModelAvailability();
     this.#thinkingLevel = readThinkingLevel(session.thinkingLevel);
+    this.#transcriptImageAssets.clear();
     this.#rebuildTranscript(session.messages, "finalized");
     this.#unsubscribe = session.subscribe(event => this.#handlePiEvent(event));
     if (this.#extensionUi !== undefined) void this.#bindExtensionUiToSession();
@@ -1704,6 +1744,10 @@ export class PiEngineAdapter {
     this.#transcript = blocks;
     this.#transcriptIndex.clear();
     for (const [index, block] of blocks.entries()) this.#transcriptIndex.set(block.id, index);
+    const retainedAssets = new Set(blocks.flatMap(block => block.imageReferences?.map(reference => reference.assetId) ?? []));
+    for (const assetId of this.#transcriptImageAssets.keys()) {
+      if (!retainedAssets.has(assetId)) this.#transcriptImageAssets.delete(assetId);
+    }
     this.#transcriptSnapshot = undefined;
   }
 
@@ -1966,6 +2010,7 @@ export class PiEngineAdapter {
         revision: this.#nextBlockRevision(baseId),
         title: "User",
         text: textFromContent(message.content),
+        imageReferences: this.#imageReferences(message.content, "user"),
         payload: {
           role: "user",
           imageCount: contentImageCount(message.content),
@@ -2041,6 +2086,7 @@ export class PiEngineAdapter {
         revision: this.#nextBlockRevision(blockId),
         title: stringValue(message.toolName) ?? existing?.title ?? "Tool result",
         text: textFromContent(message.content),
+        imageReferences: this.#imageReferences(message.content, "tool-result"),
         payload: {
           ...(existingPayload ?? {}),
           role: "toolResult",
@@ -2094,6 +2140,22 @@ export class PiEngineAdapter {
       });
     }
     return blocks;
+  }
+
+  #imageReferences(content: unknown, source: OwnedUiTranscriptImageReference["source"]): readonly OwnedUiTranscriptImageReference[] {
+    if (!Array.isArray(content)) return [];
+    const references: OwnedUiTranscriptImageReference[] = [];
+    for (const item of content) {
+      if (references.length >= 16 || !isRecord(item) || item.type !== "image"
+        || typeof item.data !== "string" || item.data.length === 0
+        || typeof item.mimeType !== "string" || !/^image\/[a-z0-9.+-]+$/i.test(item.mimeType)) continue;
+      const byteLength = Buffer.from(item.data, "base64").byteLength;
+      if (byteLength < 1 || byteLength > 20 * 1024 * 1024) continue;
+      const assetId = `image-${createHash("sha256").update(item.mimeType).update("\0").update(item.data).digest("hex").slice(0, 24)}`;
+      this.#transcriptImageAssets.set(assetId, { type: "image", data: item.data, mimeType: item.mimeType });
+      references.push({ assetId, mimeType: item.mimeType, byteLength, source });
+    }
+    return references;
   }
 
   /**
@@ -2380,6 +2442,7 @@ async function createDefaultPiRuntime(input: PiEngineRuntimeFactoryInput): Promi
   return createPiRuntimeIntegration({
     cwd: input.cwd,
     agentDir: input.agentDir,
+    ...(input.sessionPath === undefined ? {} : { sessionPath: input.sessionPath }),
     ...(input.projectTrustPrompt === undefined ? {} : { projectTrustPrompt: input.projectTrustPrompt }),
   });
 }
@@ -2837,7 +2900,8 @@ function sameBlockContent(left: OwnedUiTranscriptBlock, right: OwnedUiTranscript
     && left.status === right.status
     && left.title === right.title
     && left.text === right.text
-    && sameValue(left.payload, right.payload);
+    && sameValue(left.payload, right.payload)
+    && sameValue(left.imageReferences ?? [], right.imageReferences ?? []);
 }
 
 function sameValue(left: unknown, right: unknown): boolean {

@@ -120,6 +120,13 @@ export interface OwnedUiOverlay {
   readonly payload: unknown;
 }
 
+export interface OwnedUiTranscriptImageReference {
+  readonly assetId: OwnedUiEntityId;
+  readonly mimeType: string;
+  readonly byteLength: number;
+  readonly source: "user" | "tool-result";
+}
+
 export interface OwnedUiTranscriptBlock {
   readonly id: OwnedUiEntityId;
   readonly kind: OwnedUiTranscriptBlockKind;
@@ -128,6 +135,8 @@ export interface OwnedUiTranscriptBlock {
   readonly title: string | null;
   readonly text: string;
   readonly payload: unknown;
+  /** Bounded opaque references; image bytes remain in the session-scoped engine asset store. */
+  readonly imageReferences?: readonly OwnedUiTranscriptImageReference[];
 }
 
 export type OwnedUiSlotId =

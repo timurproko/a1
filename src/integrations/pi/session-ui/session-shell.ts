@@ -1,3 +1,4 @@
+import { PRODUCT_TEXT } from "../../../product-identity.js";
 import type {
   OwnedUiCommand,
   OwnedUiDialog,
@@ -119,9 +120,11 @@ export class OwnedUiSessionShell {
   readonly #unsubscribeSettings: () => void;
   readonly #unbindPiSettings: () => void;
   readonly #unbindTerminalSettings: () => void;
+  readonly #unbindShutdownSettings: () => void;
   #terminalProgressEnabled = false;
   #showImages = true;
   #imageWidthCells = 80;
+  #fullscreenExitOutput: "transcript" | "resume-hint" = "transcript";
   #compactionQueue: Array<{
     readonly text: string;
     readonly type: "steer" | "follow-up";
@@ -190,7 +193,9 @@ export class OwnedUiSessionShell {
     }, this.backend.agentDir, {
       getMessageRenderer: customType => this.backend.pinnedMessageRenderer(customType),
       getToolDefinition: toolName => this.backend.pinnedToolDefinition(toolName),
-    }, options.sessionLayout);
+    }, options.sessionLayout, {
+      resolve: assetId => this.backend.resolveTranscriptImage(assetId),
+    });
     // Bare A1 owns a bounded viewport and therefore always runs on the alternate
     // fullscreen surface. The pinned comparison profiles still honor Pi's mode.
     const tuiMode = this.#customViewport
@@ -209,6 +214,10 @@ export class OwnedUiSessionShell {
     this.runtime.setHardwareCursor(initialPiSettings.showHardwareCursor);
     this.runtime.setClearOnShrink(initialPiSettings.clearOnShrink);
     this.#terminalProgressEnabled = initialPiSettings.showTerminalProgress;
+    this.#fullscreenExitOutput = initialPiSettings.fullscreenExitOutput;
+    this.#unbindShutdownSettings = this.backend.bindSettingsOwner("shutdown", {
+      fullscreenExitOutput: { apply() {} },
+    });
     this.#unbindTerminalSettings = this.backend.bindSettingsOwner("terminal", {
       showHardwareCursor: { apply: value => {
         if (typeof value !== "boolean") throw new TypeError("Hardware cursor setting is invalid");
@@ -1017,13 +1026,26 @@ export class OwnedUiSessionShell {
     this.#setPointerReporting(false, true);
     this.#removeViewportPreInput();
     this.#unsubscribeSettings();
+    const exitMode = this.backend.disposed
+      ? this.#fullscreenExitOutput
+      : this.backend.pinnedSettingsSnapshot().fullscreenExitOutput;
+    const exitTranscript = this.root.exitTranscript(this.runtime.viewport().columns);
+    const sessionFile = this.backend.currentSessionFile();
+    const resumeHint = sessionFile === null ? "" : `Resume: ${formatSessionResumeCommand(sessionFile)}`;
+    const fullscreenExitText = this.runtime.mode !== "fullscreen"
+      ? ""
+      : exitMode === "resume-hint"
+        ? resumeHint
+        : [exitTranscript, resumeHint].filter(Boolean).join("\n\n");
     this.#unbindPiSettings();
     this.#unbindTerminalSettings();
+    this.#unbindShutdownSettings();
     this.#unsubscribe();
     this.#dialogHandle?.hide();
     await this.backend.unbindExtensionUi();
     this.#extensionBridge.dispose();
     await this.runtime.dispose();
+    if (fullscreenExitText.length > 0) this.runtime.writeAfterStop(`${fullscreenExitText}\n`);
   }
 
   /**
@@ -1318,6 +1340,15 @@ export class OwnedUiSessionShell {
     this.#sequence += 1;
     return `pi-shell-${prefix}-${this.#sequence}`;
   }
+}
+
+export function formatSessionResumeCommand(sessionFile: string): string {
+  return `${PRODUCT_TEXT.commandName} --session ${quoteCommandArgument(sessionFile)}`;
+}
+
+export function quoteCommandArgument(value: string): string {
+  if (process.platform === "win32") return `"${value.replaceAll("\"", "\"\"")}"`;
+  return `'${value.replaceAll("'", `'\\''`)}'`;
 }
 
 function modelReference(model: unknown): string {

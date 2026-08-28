@@ -7,6 +7,7 @@ import {
   type TUI,
 } from "#pi-tui";
 import type {
+  OwnedUiImageAttachment,
   OwnedUiSessionViewModel,
   OwnedUiThinkingLevel,
   OwnedUiTranscriptBlock,
@@ -100,6 +101,10 @@ export interface PiShellResourceEntry {
 
 export interface PiShellLoadedResourcesPort extends PiShellComponentPort {
   setExpanded(expanded: boolean): void;
+}
+
+export interface PiShellImageAssetResolver {
+  resolve(assetId: string): OwnedUiImageAttachment | null;
 }
 
 export interface PiShellExtensionRendererResolver {

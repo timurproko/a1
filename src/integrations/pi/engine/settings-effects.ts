@@ -26,6 +26,7 @@ const PRODUCT_FIXED = {
   quietStartup: "Bare A1 owns startup composition and does not expose Pi startup suppression",
   tuiMode: "Bare A1 uses its product-fixed custom fullscreen viewport",
   fullscreenScrollbar: "Bare A1 replaces Pi's scrollbar with declared A1 viewport settings",
+  enableInstallTelemetry: "Bare A1 does not run Pi's install/update telemetry lifecycle",
 } as const;
 
 /**
@@ -49,7 +50,7 @@ export const PI_SETTING_EFFECTS: Readonly<Record<PiSettingKey, PiSettingEffectDe
   mermaidRenderingMode: { application: "live", owner: "shell" },
   showCacheMissNotices: { application: "live", owner: "shell" },
   collapseChangelog: { application: "next-start", owner: "startup" },
-  enableInstallTelemetry: { application: "next-start", owner: "installation" },
+  enableInstallTelemetry: { application: "next-start", owner: "installation", bareLimitation: PRODUCT_FIXED.enableInstallTelemetry },
   quietStartup: { application: "next-start", owner: "startup", bareLimitation: PRODUCT_FIXED.quietStartup },
   defaultProjectTrust: { application: "next-start", owner: "startup" },
   doubleEscapeAction: { application: "live", owner: "shell" },

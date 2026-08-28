@@ -24,8 +24,9 @@ describe("Pi session shell provenance", () => {
     expect(evidence.publicExports).toContain("FooterComponent");
     expect(evidence.publicExports).toContain("CombinedAutocompleteProvider");
     expect(new Set(evidence.publicExports).size).toBe(evidence.publicExports.length);
-    expect(evidence.orchestrationPorts).toHaveLength(4);
-    expect(evidence.orchestrationPorts.every(port => port.copiedFiles.length === 0 && port.copiedLines === false)).toBe(true);
+    expect(evidence.orchestrationPorts).toHaveLength(6);
+    expect(evidence.orchestrationPorts.slice(0, 4).every(port => port.copiedFiles.length === 0 && port.copiedLines === false)).toBe(true);
+    expect(evidence.orchestrationPorts.slice(4).every(port => port.copiedFiles.length === 1 && port.copiedLines === true)).toBe(true);
     expect(evidence.orchestrationPorts.every(port => port.upstreamCommit === evidence.upstream.commit)).toBe(true);
     expect(evidence.orchestrationPorts[0]).toMatchObject({
       copiedFiles: [],

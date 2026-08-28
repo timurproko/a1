@@ -358,6 +358,11 @@ export class PiTuiRuntimeAdapter {
     this.#terminal.setTitle(title);
   }
 
+  writeAfterStop(text: string): void {
+    if (this.#state !== "stopped") throw new Error("terminal output requires a stopped Pi TUI runtime");
+    this.#terminal.write(text);
+  }
+
   invalidate(): void {
     this.#tui.invalidate();
     if (this.active) this.#tui.requestRender();

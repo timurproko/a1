@@ -16,6 +16,8 @@ export interface OwnedUiCompositionOptions {
   readonly cwd?: string;
   readonly terminal?: PresentationTerminalPort;
   readonly createPiAdapter?: () => Promise<PiEngineAdapter>;
+  /** Exact persisted session selected by the narrow `--session` launch form. */
+  readonly sessionPath?: string;
   /**
    * A1 profile whose settings this session reads and writes. Omitted keeps the
    * session settings-free, which is what the pinned comparison paths use.
@@ -47,6 +49,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
       cwd,
       availableThemes: () => getAvailablePiThemes().map(theme => theme.name),
       settingsProductMode: options.ownedSurfaces === "off" ? "comparison" : "bare",
+      ...(options.sessionPath === undefined ? {} : { sessionPath: options.sessionPath }),
       ...(options.projectTrustPrompt === undefined ? {} : { projectTrustPrompt: options.projectTrustPrompt }),
     });
   const ownedSurfaces = options.ownedSurfaces !== "off";

@@ -40,6 +40,7 @@ import {
   createPiShellArmin,
   createPiShellAuthProviderSelector,
   createPiShellChangelog,
+  createPiShellCollapsedChangelog,
   createPiShellDaxnuts,
   createPiShellDialog,
   createPiShellEarendilAnnouncement,
@@ -77,6 +78,7 @@ import {
   type PiShellExtensionRendererResolver,
   type PiShellHeaderOptions,
   type PiShellHeaderPort,
+  type PiShellImageAssetResolver,
   type PiShellLoadedResourcesPort,
   type PiShellLoginDialogPort,
   type PiShellQueuedInputPort,
@@ -143,6 +145,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   readonly #footer: PiShellViewComponentPort;
   readonly #queued: PiShellQueuedInputPort;
   readonly #extensionRenderers: PiShellExtensionRendererResolver;
+  readonly #imageAssets: PiShellImageAssetResolver | undefined;
   readonly #promptChips = new PromptChipStore();
   readonly #customViewport: boolean;
   readonly #submittedPromptComposer: PiShellSubmittedPromptComposer | undefined;
@@ -198,6 +201,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       getToolDefinition: () => undefined,
     },
     sessionLayout: "pinned" | "custom-viewport" = "pinned",
+    imageAssets?: PiShellImageAssetResolver,
   ) {
     this.#view = view;
     this.#customViewport = sessionLayout === "custom-viewport";
@@ -210,6 +214,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       : undefined;
     this.#cwd = cwd;
     this.#extensionRenderers = extensionRenderers;
+    this.#imageAssets = imageAssets;
     this.#componentRuntime = handlers;
     this.header = createPiShellHeader(startup);
     this.resources = createPiShellLoadedResources(startup.resources ?? [], startup.expanded ?? false);
@@ -358,7 +363,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       const created = createPiShellTranscriptComponent(
         block, this.#cwd, this.#extensionRenderers, this.#submittedPromptComposer,
         this.#outputPad, !this.#thinkingVisible, this.#mermaidRenderingMode,
-        this.#showImages, this.#imageWidthCells,
+        this.#showImages, this.#imageWidthCells, this.#imageAssets,
       );
       created.setExpanded(this.#toolsExpanded);
       this.#transcript.set(block.id, created);
@@ -616,7 +621,13 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
         width,
       )));
     rows.push(...diagnostics
-      .filter(diagnostic => diagnostic.code !== "engine-startup" && diagnostic.code !== "package-updates")
+      .filter(diagnostic => diagnostic.code === "changelog-collapsed" || diagnostic.code === "changelog-expanded")
+      .flatMap(diagnostic => diagnostic.code === "changelog-collapsed"
+        ? createPiShellCollapsedChangelog().render(width)
+        : createPiShellChangelog(diagnostic.message).render(width)));
+    rows.push(...diagnostics
+      .filter(diagnostic => diagnostic.code !== "engine-startup" && diagnostic.code !== "package-updates"
+        && diagnostic.code !== "changelog-collapsed" && diagnostic.code !== "changelog-expanded")
       .slice(-3)
       .flatMap(diagnostic =>
         renderPiShellTranscriptBlock({
@@ -670,6 +681,18 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
 
   transcriptComponent(id: string): PiShellTranscriptComponentPort | undefined {
     return this.#transcript.get(id);
+  }
+
+  exitTranscript(width: number): string {
+    const rows: string[] = [];
+    for (const id of this.#transcriptOrder) {
+      const block = this.#blocksById.get(id);
+      if (block === undefined || (!this.#thinkingVisible && block.kind === "thinking")) continue;
+      if (rows.length > 0 && block.kind === "user") rows.push("");
+      rows.push(...this.#blockRows(id, block, width).map(row => stripAnsi(row).trimEnd()));
+    }
+    while (rows.at(-1) === "") rows.pop();
+    return rows.join("\n");
   }
 
   appendWorkflowStatus(message: string): void {
@@ -948,7 +971,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
         const created = createPiShellTranscriptComponent(
           block, this.#cwd, this.#extensionRenderers, this.#submittedPromptComposer,
           this.#outputPad, !this.#thinkingVisible, this.#mermaidRenderingMode,
-          this.#showImages, this.#imageWidthCells,
+          this.#showImages, this.#imageWidthCells, this.#imageAssets,
         );
         created.setExpanded(this.#toolsExpanded);
         this.#transcript.set(block.id, created);

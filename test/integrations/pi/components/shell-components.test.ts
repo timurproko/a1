@@ -142,6 +142,20 @@ describe("Pi shell public component adapters", () => {
     }
   });
 
+  it("renders safe transcript-image placeholders for hidden and unavailable assets", () => {
+    const imageBlock = {
+      ...block("user", "image prompt"),
+      imageReferences: [{ assetId: "image-1", mimeType: "image/png", byteLength: 128, source: "user" as const }],
+    };
+    const component = createPiShellTranscriptComponent(
+      imageBlock, process.cwd(), undefined, undefined, 1, false, "off", false, 40,
+      { resolve: () => null },
+    );
+    expect(stripTerminalSequences(component.render(80).join("\n"))).toContain("Image hidden: image/png");
+    component.setImagePresentation(true, 40);
+    expect(stripTerminalSequences(component.render(80).join("\n"))).toContain("Image unavailable: image/png");
+  });
+
   it("rebuilds finalized and streaming assistant presentation for thinking and Mermaid modes", () => {
     const mixed = createPiShellTranscriptComponent(block("assistant", "fallback", {
       content: [{ type: "thinking", thinking: "private chain" }, { type: "text", text: "public answer" }],

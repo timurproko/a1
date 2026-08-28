@@ -30,6 +30,8 @@ const MAX_BADGES = 32;
 const MAX_STATUS_DIAGNOSTICS = 32;
 const MAX_ACTIVE_COMMANDS = 64;
 
+const IMAGE_REFERENCE_SOURCES = new Set(["user", "tool-result"]);
+
 const BLOCK_KINDS = new Set([
   "user",
   "assistant",
@@ -237,6 +239,15 @@ export function assertOwnedUiTranscriptBlock(block: OwnedUiTranscriptBlock): voi
   assertOptionalText(block.title, "owned-UI transcript block title", MAX_LABEL_LENGTH);
   assertPossiblyEmptyText(block.text, "owned-UI transcript block text", MAX_TEXT_BYTES);
   assertJsonValue(block.payload, "owned-UI transcript block payload", MAX_PAYLOAD_BYTES);
+  if (block.imageReferences !== undefined) {
+    assertCollection(block.imageReferences, "owned-UI transcript image references", 16);
+    for (const reference of block.imageReferences) {
+      assertId(reference.assetId, "owned-UI transcript image asset id");
+      if (!/^image\/[a-z0-9.+-]+$/i.test(reference.mimeType)) throw new TypeError("owned-UI transcript image MIME type is invalid");
+      assertIntegerInRange(reference.byteLength, 1, 20 * 1024 * 1024, "owned-UI transcript image byte length");
+      assertEnum(reference.source, IMAGE_REFERENCE_SOURCES, "owned-UI transcript image source");
+    }
+  }
 }
 
 export function assertOwnedUiEditorState(editor: OwnedUiEditorState): void {
