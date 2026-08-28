@@ -53,6 +53,17 @@ manually squash-merged it to `6ab1e4d29b9edec8501bac774bc755e66240ea40`.
 Close-event cleanup run `33188616709` reported `already-absent`, and the remote branch
 was verified absent after the explicit merge.
 
+## Automatic maintained-documentation acceptance
+
+- Implementation PR #180 was manually squash-merged after required validation from
+  head `8f40bfaaa5e8410e77b1c9cc0667c62bc4c62d4b` to
+  `45a59a7b696d537a4dc8fe62000a60c20e504ab2`.
+- PR #PENDING changes only this maintained `docs/**` file and is the live acceptance
+  probe for the expanded allowlist.
+- Acceptance requires current-head documentation validation, automatic squash
+  integration without maintainer merge action, and exact-head remote branch cleanup.
+  Exact run and merge evidence is recorded with the completed OpenSpec change.
+
 ## Advanced-ref refusal and final policy state
 
 The isolated mocked-GitHub fixture executed the production shared reconciler with
