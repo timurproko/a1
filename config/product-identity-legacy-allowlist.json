@@ -1,6 +1,6 @@
 {
   "schema": "a1-legacy-identity-allowlist-v1",
-  "generatedAt": "2026-08-28T14:44:58.725Z",
+  "generatedAt": "2026-08-28T15:23:11.908Z",
   "inventorySchema": "a1-legacy-identity-inventory-v1",
   "occurrences": [
     {
@@ -118,27 +118,27 @@
       "reason": "exact historical evidence record"
     },
     {
-      "id": "openspec/specs/a1-shell/spec.md:74:391",
+      "id": "openspec/specs/a1-shell/spec.md:96:391",
       "value": "addone",
-      "fingerprint": "961b9b3bba3f04627067ff37d86c0396bff7905990dfc3cff55b61f33fd192c7",
+      "fingerprint": "c9cd5e873f3d9700f8cc59cbb621cd7c9fafbe64cc0bf9c779c4fd29c890dd96",
       "reason": "obsolete-package rejection requirement"
     },
     {
-      "id": "openspec/specs/a1-shell/spec.md:86:52",
+      "id": "openspec/specs/a1-shell/spec.md:108:52",
       "value": "addone",
-      "fingerprint": "cd56b46f5633aaa2e98bc73321ed4ae98a980d10b257a60e4ae8bd210cb7da37",
+      "fingerprint": "3dddf77ecefbd674ec8d6092168563e5cbcaa79232a320fb7e40642492d88321",
       "reason": "explicit obsolete-package rejection or deprecation fixture"
     },
     {
-      "id": "openspec/specs/a1-shell/spec.md:89:322",
+      "id": "openspec/specs/a1-shell/spec.md:111:322",
       "value": "addone",
-      "fingerprint": "2ee286ea18414e9f0fc851c467f97dbc7b4ef21cc3c47933aeee2a74771d8050",
+      "fingerprint": "b7ec483efabf085d34dfc53437173520f36c495649d3eeca885f345993b862d6",
       "reason": "obsolete-package rejection requirement"
     },
     {
-      "id": "openspec/specs/a1-shell/spec.md:93:84",
+      "id": "openspec/specs/a1-shell/spec.md:115:84",
       "value": "addone",
-      "fingerprint": "2813849985eac2973818f88fe5812d3d6bab9fe899b870c6cb7ad648bf1c0b13",
+      "fingerprint": "99b7f90f7941c221e8b4959c2cba8332422aa0b950327df63583eaddfbad4b27",
       "reason": "explicit obsolete-package rejection or deprecation fixture"
     },
     {
@@ -343,6 +343,12 @@
       "id": "test/product-identity/product-identity.test.ts:67:65",
       "value": "ADDONE",
       "fingerprint": "50a1595f439e38086b244a91199f3f4059a57c8c904a311d0421e83bd695be5d",
+      "reason": "explicit legacy rejection fixture"
+    },
+    {
+      "id": "test/repository-governance/docs-sensitive-governance.test.ts:24:59",
+      "value": "AddOne",
+      "fingerprint": "f4dfb5d7bf79a0c13649aa498467fcb3846afaed36cf6806950078a521815ce8",
       "reason": "explicit legacy rejection fixture"
     },
     {

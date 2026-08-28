@@ -43,21 +43,21 @@
     "explicit-obsolete-package-fixtures"
   ],
   "summary": {
-    "total": 74,
-    "files": 23,
+    "total": 75,
+    "files": 24,
     "byLocationKind": {
-      "content": 74,
+      "content": 75,
       "path": 0
     },
     "byClass": {
-      "runtime-symbols": 49,
+      "runtime-symbols": 50,
       "diagnostics": 3,
       "environment-keys": 14,
-      "paths": 49,
+      "paths": 50,
       "schemas": 13,
       "artifacts": 16,
       "native-names": 3,
-      "tests": 49,
+      "tests": 50,
       "current-docs-specs": 25,
       "historical-records": 12,
       "explicit-obsolete-package-fixtures": 5
@@ -378,10 +378,10 @@
       ]
     },
     {
-      "id": "openspec/specs/a1-shell/spec.md:74:391",
+      "id": "openspec/specs/a1-shell/spec.md:96:391",
       "path": "openspec/specs/a1-shell/spec.md",
       "locationKind": "content",
-      "line": 74,
+      "line": 96,
       "column": 391,
       "value": "addone",
       "context": "The official npm distribution SHALL be named `@timurproko/a1`, SHALL begin its independent stable version lineage at `0.1.0`, and SHALL declare only `a1` as a public executable. Internal process entry files MAY remain in the package payl...",
@@ -393,10 +393,10 @@
       ]
     },
     {
-      "id": "openspec/specs/a1-shell/spec.md:86:52",
+      "id": "openspec/specs/a1-shell/spec.md:108:52",
       "path": "openspec/specs/a1-shell/spec.md",
       "locationKind": "content",
-      "line": 86,
+      "line": 108,
       "column": 52,
       "value": "addone",
       "context": "- **THEN** every published version of `@timurproko/addone` SHALL carry an npm deprecation directing users to `@timurproko/a1`, and current product behavior SHALL continue to reject the obsolete identity",
@@ -409,10 +409,10 @@
       ]
     },
     {
-      "id": "openspec/specs/a1-shell/spec.md:89:322",
+      "id": "openspec/specs/a1-shell/spec.md:111:322",
       "path": "openspec/specs/a1-shell/spec.md",
       "locationKind": "content",
-      "line": 89,
+      "line": 111,
       "column": 322,
       "value": "addone",
       "context": "Version discovery, self-update, installed metadata lookup, immutable release derivation, release validation, publication evidence, and registry verification SHALL use `@timurproko/a1` as the sole accepted package identity. The product SH...",
@@ -423,10 +423,10 @@
       ]
     },
     {
-      "id": "openspec/specs/a1-shell/spec.md:93:84",
+      "id": "openspec/specs/a1-shell/spec.md:115:84",
       "path": "openspec/specs/a1-shell/spec.md",
       "locationKind": "content",
-      "line": 93,
+      "line": 115,
       "column": 84,
       "value": "addone",
       "context": "- **THEN** it SHALL accept `@timurproko/a1` metadata and SHALL reject `@timurproko/addone` as an unexpected package identity",
@@ -996,6 +996,22 @@
       ]
     },
     {
+      "id": "test/repository-governance/docs-sensitive-governance.test.ts:24:59",
+      "path": "test/repository-governance/docs-sensitive-governance.test.ts",
+      "locationKind": "content",
+      "line": 24,
+      "column": 59,
+      "value": "AddOne",
+      "context": "\"openspec/changes/current/evidence.md\": \"Historical AddOne record.\",",
+      "matchedCase": "title-or-mixed",
+      "primaryClass": "runtime-symbols",
+      "classes": [
+        "runtime-symbols",
+        "paths",
+        "tests"
+      ]
+    },
+    {
       "id": "test/repository-governance/product-identity-documentation.test.ts:11:67",
       "path": "test/repository-governance/product-identity-documentation.test.ts",
       "locationKind": "content",
@@ -1265,5 +1281,5 @@
       ]
     }
   ],
-  "generatedAt": "2026-08-28T14:44:58.659Z"
+  "generatedAt": "2026-08-28T15:23:11.832Z"
 }
