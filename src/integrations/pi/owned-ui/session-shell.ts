@@ -117,6 +117,7 @@ export class OwnedUiSessionShell {
   readonly #unsubscribeSettings: () => void;
   #compactionQueue: Array<{ readonly text: string; readonly type: "steer" | "follow-up" }> = [];
   #lastClearTime = 0;
+  #lastEscapeTime = 0;
   #activeLoginDialog: PiShellLoginDialogPort | undefined;
   #sessionGeneration: number;
 
@@ -342,13 +343,26 @@ export class OwnedUiSessionShell {
     return { outcome: "completed", diagnostic: null };
   }
 
-  async interrupt(): Promise<AdapterCommandResult> {
+  async interrupt(now = Date.now()): Promise<AdapterCommandResult> {
     if (this.view().lifecycle === "busy") return this.abort();
-    if (this.root.editor.getText().length > 0) {
+    if (this.root.editor.getText().trim().length > 0) {
       this.root.editor.setText("");
       return { outcome: "completed", diagnostic: null };
     }
-    return { outcome: "rejected", diagnostic: "nothing to interrupt" };
+
+    // Match Pi: with an empty editor, two escapes inside 500 ms open the
+    // configured session navigator. The first escape intentionally does not
+    // interrupt or mutate the prompt.
+    const action = this.backend.pinnedSettingsSnapshot().doubleEscapeAction;
+    if (action === "none") return { outcome: "rejected", diagnostic: "nothing to interrupt" };
+    if (now - this.#lastEscapeTime < 500) {
+      this.#lastEscapeTime = 0;
+      if (action === "tree") this.showTreeSelector();
+      else this.showForkSelector();
+      return { outcome: "completed", diagnostic: null };
+    }
+    this.#lastEscapeTime = now;
+    return { outcome: "completed", diagnostic: null };
   }
 
   async abort(): Promise<AdapterCommandResult> {

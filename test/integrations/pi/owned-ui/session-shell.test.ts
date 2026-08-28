@@ -57,6 +57,7 @@ class Session {
 class Runtime {
   readonly session: Session;
   enabledModels: readonly string[] | undefined;
+  doubleEscapeAction: "fork" | "tree" | "none" = "tree";
   loginPromptKind: "select" | "optional-text" = "select";
   completeLogin: (() => void) | undefined;
   readonly availableModels = [
@@ -126,6 +127,7 @@ class Runtime {
     settingsManager: {
       getEnabledModels: () => this.enabledModels,
       setEnabledModels: (patterns: readonly string[] | undefined) => { this.enabledModels = patterns; },
+      getDoubleEscapeAction: () => this.doubleEscapeAction,
     },
     diagnostics: [],
   };
@@ -1277,6 +1279,24 @@ describe("OwnedUiSessionShell", () => {
     expect(frame).toContain("two/shared");
     expect(frame).not.toContain("hidden/shared");
     expect(frame).not.toContain("  dist,");
+    await shell.dispose();
+  });
+
+  it("opens the configured fork selector on double escape with an empty editor", async () => {
+    const { engine, terminal, shell } = await fixture([], [], true);
+    engine.doubleEscapeAction = "fork";
+
+    terminal.input("\x1b");
+    expect(shell.root.usesDefaultInputSurface()).toBe(true);
+    terminal.input("\x1b");
+    expect(shell.root.usesDefaultInputSurface()).toBe(false);
+    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Fork point");
+
+    terminal.input("\x1b");
+    engine.doubleEscapeAction = "none";
+    terminal.input("\x1b");
+    terminal.input("\x1b");
+    expect(shell.root.usesDefaultInputSurface()).toBe(true);
     await shell.dispose();
   });
 
