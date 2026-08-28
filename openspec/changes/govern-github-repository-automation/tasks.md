@@ -44,7 +44,7 @@
 ## 7. Deliver implementation separately
 
 - [x] 7.1 After this specification auto-merges and the maintainer explicitly requests implementation, fetch updated `origin/develop` and create a fresh detached implementation worktree and separate code/operational pull request
-- [ ] 7.2 Leave the implementation pull request open with auto-merge disabled after CI and provide exact focused local validation and live-inspection commands
+- [x] 7.2 Leave the implementation pull request open with auto-merge disabled after CI and provide exact focused local validation and live-inspection commands
 - [ ] 7.3 Merge manually only after explicit maintainer acceptance, then confirm the implementation branch itself is deleted or record why the new close handler was not yet eligible to process its own merge
 
 ## 8. Perform live acceptance and archive
