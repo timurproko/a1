@@ -60,6 +60,16 @@
       "identifier": "A1_DATABASE_PATH"
     },
     {
+      "path": "scripts/governance/manage-documentation-auto-merge.mjs",
+      "line": 122,
+      "identifier": "A1_AUTO_MERGE_POLL_ATTEMPTS"
+    },
+    {
+      "path": "scripts/governance/manage-documentation-auto-merge.mjs",
+      "line": 123,
+      "identifier": "A1_AUTO_MERGE_POLL_MS"
+    },
+    {
       "path": "test/cli/packages.test.ts",
       "line": 67,
       "identifier": "A1_PROFILE_HOME"
@@ -348,6 +358,16 @@
       "path": "test/foundation/storage/storage.test.ts",
       "line": 284,
       "identifier": "A1_PANE_ID"
+    },
+    {
+      "path": "test/repository-governance/documentation-auto-merge.test.ts",
+      "line": 295,
+      "identifier": "A1_AUTO_MERGE_POLL_ATTEMPTS"
+    },
+    {
+      "path": "test/repository-governance/documentation-auto-merge.test.ts",
+      "line": 296,
+      "identifier": "A1_AUTO_MERGE_POLL_MS"
     },
     {
       "path": "test/repository-governance/pinned-pi-source-ledger.test.ts",

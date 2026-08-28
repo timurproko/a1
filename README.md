@@ -94,8 +94,10 @@ auto-merge if it was armed. Documentation remains exempt from product builds and
 tests, but docs-sensitive generated governance and strict OpenSpec consistency are
 checked before integration.
 
-After any same-repository pull request into `develop` merges, trusted close-event
-automation reconciles its remote topic branch. It deletes only an unprotected live
+After any same-repository pull request into `develop` merges, trusted automation
+reconciles its remote topic branch. Human merges use the close-event workflow;
+documentation merges authored by `GITHUB_TOKEN` use a synchronous fallback because
+GitHub suppresses recursive workflow events. Both delete only an unprotected live
 ref that still equals the pull request's exact merged head SHA. Fork, advanced,
 reserved, protected, malformed, and unmerged refs are preserved and reported.
 

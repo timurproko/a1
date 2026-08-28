@@ -1,5 +1,6 @@
 import { appendFile, readFile } from "node:fs/promises";
 import { classifyDocumentationAutoMerge, planDocumentationAutoMerge } from "./documentation-auto-merge.mjs";
+import { executeMergedBranchCleanup } from "./execute-merged-branch-cleanup.mjs";
 
 const token = process.env.GITHUB_TOKEN;
 const eventPath = process.env.GITHUB_EVENT_PATH;
@@ -41,8 +42,11 @@ if (event.workflow_run && !context.validationComplete) {
 }
 
 async function processPullRequest(number, run) {
-  const pull = await rest(`/repos/${owner}/${repository}/pulls/${number}`);
-  if (pull.state !== "open") return await summary(`PR #${number}: not open; no action.`);
+  let pull = await rest(`/repos/${owner}/${repository}/pulls/${number}`);
+  if (pull.state !== "open") {
+    if (pull.merged === true) return await reconcileDocumentationBranch(pull);
+    return await summary(`PR #${number}: closed without merge; no action.`);
+  }
 
   let files;
   try {
@@ -71,6 +75,17 @@ async function processPullRequest(number, run) {
   const validation = validationMatchesHead
     ? run.validationSucceeded ? "success" : "failure"
     : "pending";
+  if (validation === "success" && pull.auto_merge) {
+    pull = await awaitAutomaticIntegration(number, pull);
+    if (pull.state !== "open") {
+      if (pull.merged === true) return await reconcileDocumentationBranch(pull);
+      return await summary(`PR #${number}: closed without merge while awaiting automatic integration; no branch mutation.`);
+    }
+    if (pull.head?.sha !== run.validatedHeadSha) {
+      return await summary(`PR #${number}: head changed while awaiting automatic integration; no branch mutation.`);
+    }
+  }
+
   const action = planDocumentationAutoMerge({
     validation,
     autoMergeArmed: Boolean(pull.auto_merge),
@@ -89,7 +104,8 @@ async function processPullRequest(number, run) {
       body: { sha: pull.head.sha, merge_method: "squash" },
     });
     if (result?.merged !== true) throw new Error(`GitHub did not merge eligible clean PR #${number}: ${JSON.stringify(result)}`);
-    return await summary(`PR #${number}: current head passed validation and is clean; squash-merged with expected head SHA.`);
+    await summary(`PR #${number}: current head passed validation and is clean; squash-merged with expected head SHA.`);
+    return await reconcileDocumentationBranch({ ...pull, state: "closed", merged: true, merged_at: new Date().toISOString() });
   }
 
   await graph(`mutation EnableDocumentationAutoMerge($pullRequestId: ID!) {
@@ -98,6 +114,44 @@ async function processPullRequest(number, run) {
     }
   }`, { pullRequestId: pull.node_id });
   await summary(`PR #${number}: exact documentation allowlist; squash auto-merge armed behind required validation.`);
+}
+
+async function awaitAutomaticIntegration(number, initial) {
+  const expectedSha = initial.head?.sha;
+  let pull = initial;
+  const attempts = Number(process.env.A1_AUTO_MERGE_POLL_ATTEMPTS ?? 30);
+  const delayMs = Number(process.env.A1_AUTO_MERGE_POLL_MS ?? 2000);
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    if (pull.state !== "open" || pull.head?.sha !== expectedSha) return pull;
+    if (pull.mergeable_state === "clean") {
+      try {
+        const result = await rest(`/repos/${owner}/${repository}/pulls/${number}/merge`, {
+          method: "PUT",
+          body: { sha: expectedSha, merge_method: "squash" },
+        });
+        if (result?.merged === true) return { ...pull, state: "closed", merged: true, merged_at: new Date().toISOString() };
+      } catch (error) {
+        pull = await rest(`/repos/${owner}/${repository}/pulls/${number}`);
+        if (pull.merged === true) return pull;
+        throw error;
+      }
+    }
+    if (delayMs > 0) await new Promise(resolve => setTimeout(resolve, delayMs));
+    pull = await rest(`/repos/${owner}/${repository}/pulls/${number}`);
+  }
+  return pull;
+}
+
+async function reconcileDocumentationBranch(pull) {
+  const decision = await executeMergedBranchCleanup({ pull, repository: repositoryName, request });
+  await summary(`PR #${pull.number}: documentation branch cleanup ${JSON.stringify({
+    disposition: decision.disposition,
+    ref: decision.ref ?? null,
+    expectedSha: decision.expectedSha ?? null,
+    actualSha: decision.actualSha ?? null,
+    reason: decision.reason ?? null,
+  })}.`);
+  if (decision.disposition === "failure") throw new Error(`post-delete verification failed for PR #${pull.number}`);
 }
 
 async function changedFiles(number) {
@@ -122,13 +176,19 @@ async function disableIfArmed(pull, reason) {
 }
 
 async function rest(path, options = {}) {
+  return (await request(path, { ...options, expected: options.expected ?? [200] })).body;
+}
+
+async function request(path, options = {}) {
   const response = await fetch(`${apiUrl}${path}`, {
     method: options.method ?? "GET",
     headers: options.body ? { ...headers(), "content-type": "application/json" } : headers(),
     body: options.body ? JSON.stringify(options.body) : undefined,
   });
-  if (!response.ok) throw new Error(`GitHub REST ${response.status}: ${await response.text()}`);
-  return await response.json();
+  const text = await response.text();
+  const expected = options.expected ?? [200];
+  if (!expected.includes(response.status)) throw new Error(`GitHub REST ${response.status}: ${text.slice(0, 300)}`);
+  return { status: response.status, body: text ? JSON.parse(text) : undefined };
 }
 
 async function graph(query, variables) {

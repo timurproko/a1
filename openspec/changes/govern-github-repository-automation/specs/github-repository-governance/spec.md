@@ -102,6 +102,10 @@ never operate on fork refs, local branches, or worktrees.
 - **WHEN** a merged same-repository pull request targeted `develop` and its unprotected topic ref still equals `pull_request.head.sha`
 - **THEN** trusted cleanup SHALL delete that exact remote ref and verify it is absent
 
+#### Scenario: Workflow token authors documentation integration
+- **WHEN** trusted documentation automation merges with `GITHUB_TOKEN` and GitHub suppresses a recursive close-event workflow
+- **THEN** that same trusted automation SHALL invoke the shared exact-head reconciliation synchronously
+
 #### Scenario: Topic branch advanced after merge
 - **WHEN** the live topic ref no longer equals the pull request's merged head SHA
 - **THEN** cleanup SHALL refuse deletion and report both identities

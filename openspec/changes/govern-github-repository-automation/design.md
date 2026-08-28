@@ -71,19 +71,22 @@ separate command requiring an exact confirmation token and post-apply verificati
 Secrets and external npm trusted-publisher configuration are reported by capability,
 not serialized.
 
-### Cleanup is a trusted close-event reconciliation
+### Cleanup uses trusted close-event and synchronous reconciliation
 
 Use a dedicated minimal workflow on `pull_request_target: closed`, checked out from
 the default branch with `contents: write` and no PR checkout. It processes only a
 merged pull request whose base is `develop` and whose head repository is this
-repository.
+repository. GitHub suppresses recursive workflow events caused by `GITHUB_TOKEN`, so
+a documentation merge authored by that token cannot rely on the close event. The
+trusted documentation manager SHALL therefore invoke the same reconciliation
+synchronously after it observes or performs validated integration.
 
-The reconciler validates the head ref as a normal non-protected topic ref, loads the
-live Git ref, and compares its object SHA with `pull_request.head.sha`. If the ref is
-absent, cleanup is already complete. If it matches, delete that exact ref. If it
-advanced, is protected/reserved, belongs to a fork, is malformed, or the PR was merely
-closed, refuse deletion and report the reason. A deletion API failure fails the
-workflow and preserves bounded evidence.
+The shared reconciler validates the head ref as a normal non-protected topic ref,
+loads the live Git ref, and compares its object SHA with `pull_request.head.sha`. If
+the ref is absent, cleanup is already complete. If it matches, delete that exact ref.
+If it advanced, is protected/reserved, belongs to a fork, is malformed, or the PR was
+merely closed, refuse deletion and report the reason. A deletion API failure fails
+the trusted automation and preserves bounded evidence.
 
 The SHA comparison closes the reuse race between merge and cleanup. Branch-name
 filtering alone is not sufficient authority.

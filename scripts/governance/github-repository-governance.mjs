@@ -65,7 +65,7 @@ export function inspectWorkflowSource(path, source) {
 
   const authority = [];
   if (source.includes("Development validation required")) authority.push("Development validation required");
-  if (source.includes("manage-documentation-auto-merge.mjs")) authority.push("documentation-auto-merge");
+  if (source.includes("manage-documentation-auto-merge.mjs")) authority.push("documentation-auto-merge", "matching-merged-head-delete");
   if (source.includes('VALIDATION_SELECTION_JSON: \'["full-release"]\'')) authority.push("complete-regression");
   if (source.includes("reconcile-merged-branch.mjs")) authority.push("matching-merged-head-delete");
   if (source.includes('channel = "next"')) authority.push("npm-next");

@@ -139,7 +139,7 @@
       "triggers": ["pull_request_target", "workflow_run"],
       "permissions": ["contents: write", "pull-requests: write"],
       "trustedSource": "default-branch",
-      "authority": ["documentation-auto-merge"],
+      "authority": ["documentation-auto-merge", "matching-merged-head-delete"],
       "concurrency": "documentation-auto-merge-",
       "environments": [],
       "artifactRetentionDays": []
