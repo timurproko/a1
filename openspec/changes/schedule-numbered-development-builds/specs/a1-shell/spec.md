@@ -32,8 +32,8 @@ to finish the update.
 - **THEN** A1 SHALL launch the already active target without printing installation or activation messages
 
 ### Requirement: Version output follows the Pi command convention
-The installed application SHALL expose `a1 --version` and SHALL NOT expose a
-`version` subcommand. It SHALL NOT start or mutate the interactive runtime,
+The installed application SHALL expose equivalent `a1 --version` and `a1 -v`
+forms and SHALL NOT expose a `version` subcommand. It SHALL NOT start or mutate the interactive runtime,
 supervisor, storage, release cohort, or update transaction. A stable release SHALL
 print only its installed exact semantic version, matching Pi's version output. A
 development build SHALL report `Current`, `Develop`, and `Release` in that order and
@@ -41,7 +41,7 @@ SHALL discover the remote channels from the authoritative package dist-tags as o
 coherent registry result.
 
 #### Scenario: Stable release version
-- **WHEN** the user runs `a1 --version` from a stable release
+- **WHEN** the user runs `a1 --version` or `a1 -v` from a stable release
 - **THEN** A1 SHALL print only the installed exact semantic version without querying remote channels
 
 #### Scenario: Development channel versions are available
