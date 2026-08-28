@@ -34,14 +34,14 @@
       "upstreamSource": "packages/coding-agent/src/modes/interactive/interactive-mode.ts",
       "upstreamCommit": "914cf1472e715297caa30db4b9535d534a9eb718",
       "upstreamLines": [528, 994],
-      "localFile": "src/integrations/pi/owned-ui/session-shell.ts",
+      "localFile": "src/integrations/pi/session-ui/session-shell.ts",
       "adapterFile": "src/integrations/pi/components/shell-components.ts",
       "behavior": "persistent startup/header/transcript/status/editor/footer composition, session-event subscription, selector/dialog focus, shutdown and terminal restoration",
       "copiedFiles": [],
       "copiedLines": false,
       "modifications": "Reimplemented against AddOne-owned view models and PiEngineAdapter commands; stock InteractiveMode is never instantiated, inspected, or patched.",
       "coverage": [
-        "test/integrations/pi/owned-ui/session-shell.test.ts",
+        "test/integrations/pi/session-ui/session-shell.test.ts",
         "test/features/owned-ui/pi-startup-composition-parity.test.ts",
         "test/features/owned-ui/pi-upstream-startup-fixture.ts",
         "test/features/owned-ui/pi-a1-startup-fixture.ts",
@@ -65,7 +65,7 @@
       "upstreamCommit": "914cf1472e715297caa30db4b9535d534a9eb718",
       "upstreamLines": [[2870, 3058], [3998, 6205], [6207, 6374]],
       "localFile": "src/integrations/pi/engine/adapter.ts",
-      "shellFile": "src/integrations/pi/owned-ui/session-shell.ts",
+      "shellFile": "src/integrations/pi/session-ui/session-shell.ts",
       "contractFile": "src/integrations/pi/engine/workflows.ts",
       "behavior": "complete advertised and hidden command routing, prompt/template/skill input, model and thinking controls, settings callbacks, session selectors and replacement, authentication, import/export/share/copy, bash, queued input, reload, diagnostics and shutdown",
       "copiedFiles": [],
@@ -74,7 +74,7 @@
       "independentEvidence": "config/baselines/pinned-pi-command-workflow-outcomes.json",
       "coverage": [
         "test/integrations/pi/engine/workflows.test.ts",
-        "test/integrations/pi/owned-ui/session-shell.test.ts",
+        "test/integrations/pi/session-ui/session-shell.test.ts",
         "test/integrations/pi/components/shell-components.test.ts"
       ]
     },

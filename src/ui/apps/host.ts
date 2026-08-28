@@ -49,6 +49,7 @@ export class UiAppHost {
   readonly #theme: UiTheme | undefined;
   /** When the first interrupt of a chord was seen, or null when disarmed. */
   #interruptArmedAt: number | null = null;
+  #renderedInterruptArmed: boolean | undefined;
   readonly #cache = new FrameCache();
   #app: UiApp | null = null;
 
@@ -94,7 +95,14 @@ export class UiAppHost {
     }
     const size = this.#surface.size();
     const rect: PaneRect = { width: Math.max(0, size.width), height: Math.max(0, size.height) };
-    const lines = this.#guard(() => finalizeFrame(app.render(rect, this.#services()), rect, app.id));
+    const interruptArmed = this.interruptArmed;
+    if (this.#renderedInterruptArmed !== interruptArmed) this.#cache.invalidate();
+    this.#renderedInterruptArmed = interruptArmed;
+    const lines = this.#guard(() => this.#cache.render(
+      app,
+      rect,
+      () => finalizeFrame(app.render(rect, this.#services()), rect, app.id),
+    ));
     this.#surface.present(lines ?? null);
   }
 
@@ -135,6 +143,9 @@ export class UiAppHost {
       return { consumed: true, render: true };
     }
     this.#interruptArmedAt = now;
+    // Host-owned state participates in the app's next frame independently of
+    // the app's own revision contract.
+    this.#cache.invalidate();
     return { consumed: true, render: true };
   }
 

@@ -1,7 +1,7 @@
 import { resolveProductPaths } from "../foundation/lifecycle/index.js";
 import { applyConfiguredPiTheme, getAvailablePiThemes } from "../integrations/pi/components/index.js";
 import { createPiEngineAdapter, type PiEngineAdapter } from "../integrations/pi/engine/index.js";
-import { OwnedUiSessionShell } from "../integrations/pi/owned-ui/index.js";
+import { OwnedUiSessionShell } from "../integrations/pi/session-ui/index.js";
 import { OwnedUiSettingsSession, OwnedUiSettingsStore } from "../ui/settings/index.js";
 import { createPiTerminalBridge } from "../integrations/pi/tui-runtime/index.js";
 import type { OwnedUiApplicationPort, PresentationTerminalPort } from "../contracts/presentation/index.js";

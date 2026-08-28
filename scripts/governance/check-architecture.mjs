@@ -79,7 +79,7 @@ for (const file of await walk(sourceRoot)) {
     errors.push(`${path}: UI may render virtual terminal state but may not relay opaque child bytes`);
   }
 
-    if (/^(?:src\/features\/owned-ui|src\/foundation\/owned-ui-contracts|src\/integrations\/pi\/(?:engine|components|tui-runtime|owned-ui))\//.test(path)) {
+    if (/^(?:src\/features\/owned-ui|src\/foundation\/owned-ui-contracts|src\/integrations\/pi\/(?:engine|components|tui-runtime|session-ui))\//.test(path)) {
     const ownedUiForbidden = [
       { pattern: /\b(?:InteractiveMode|TuiAltScreen|TuiMainScreen|ProcessTerminal)\b.*prototype|prototype\s*\.(?:render|start|stop|handle[A-Za-z]+)\s*=/, label: "stock Pi interactive prototype mutation" },
       { pattern: /\b(?:previousLines|previousWidth|previousHeight|cursorRow|hardwareCursorRow|maxLinesRendered|previousViewportTop)\b/, label: "private Pi renderer-state inspection" },

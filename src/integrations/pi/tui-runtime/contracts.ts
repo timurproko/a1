@@ -1,3 +1,5 @@
+import type { PresentationComponentPort } from "../../../contracts/presentation/index.js";
+
 export type PiTuiRuntimeState = "idle" | "running" | "stopping" | "stopped" | "failed";
 
 export interface PiTuiViewport {
@@ -12,13 +14,8 @@ export interface PiTuiScrollState {
   readonly scrollbarVisible: boolean;
 }
 
-export interface PiTuiComponentPort {
-  render(width: number): readonly string[];
-  invalidate(): void;
-  handleInput?(data: string): void;
+export interface PiTuiComponentPort extends PresentationComponentPort {
   readonly wantsKeyRelease?: boolean;
-  setFocused?(focused: boolean): void;
-  dispose?(): void;
 }
 
 export interface PiTuiTerminalPort {
