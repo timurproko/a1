@@ -3,7 +3,9 @@
 ## Purpose
 
 Defines the installed A1 command surface, immutable release behavior, and shared owned interactive rendering path.
+
 ## Requirements
+
 ### Requirement: Every package update is one immediate replacement command
 The installed application SHALL expose `a1 update` as the stable update command resolving npm tag `latest`, and `a1 update:next` as the development-preview update command resolving npm tag `next`. Invocation SHALL authorize stopping verified A1-owned sessions, installing the exact resolved version, materializing and activating an immutable release, and verifying the result through one ownership-safe transaction. The command SHALL return to the invoking shell after reporting its final result and SHALL NOT require manual process IDs, state deletion, a separate activation operation, or a subsequent bare launch to finish the update.
 
@@ -94,3 +96,17 @@ Version discovery, self-update, installed metadata lookup, immutable release der
 - **WHEN** `a1 --version`, `a1 update`, or `a1 update:next` resolves npm metadata
 - **THEN** every registry query and installation target SHALL reference `@timurproko/a1`
 
+### Requirement: Interactive launch forms share one non-detachable instance boundary
+The immutable interactive launcher SHALL establish the same non-detachable launch-instance ownership boundary before selecting bare `a1` or prerelease `a1 pi`. Both forms SHALL retain the shared owned rendering and input pipeline inside that boundary. The lifecycle layer SHALL own process containment and cleanup without reading terminal input, parsing output, reconstructing display state, or selecting a second rendering path.
+
+#### Scenario: Launch owned A1
+- **WHEN** the shell selects bare `a1`
+- **THEN** the owned product UI and every process it creates SHALL belong to that command's launch instance
+
+#### Scenario: Launch the Pi comparison
+- **WHEN** the shell selects prerelease `a1 pi`
+- **THEN** the owned comparison UI and every process it creates SHALL belong to that command's launch instance without changing the shared rendering pipeline
+
+#### Scenario: Another instance is active
+- **WHEN** the shell launches while one or more interactive instances already exist
+- **THEN** it SHALL create another independent instance rather than acquiring a product-wide foreground slot

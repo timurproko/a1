@@ -21,6 +21,14 @@ guidance and without automatically printing the complete help.
 - **WHEN** the user runs `a1 --version` or `a1 -v`
 - **THEN** A1 SHALL execute the dependency-light version query without launching any profile
 
+#### Scenario: Manage packages
+- **WHEN** the user runs `a1 pi install`, `a1 pi remove`, `a1 pi uninstall`, `a1 pi list`, or an accepted package update form
+- **THEN** A1 SHALL run the package operation against the A1 profile without launching any interactive profile
+
+#### Scenario: Launch form is given an argument
+- **WHEN** an interactive launch form is followed by an argument outside the declared maintenance grammar
+- **THEN** A1 SHALL return successfully and silently without launching a profile
+
 #### Scenario: Unknown subcommand
 - **WHEN** the user provides a word outside the declared grammar
 - **THEN** A1 SHALL return successfully and silently without invoking a shell or child process
