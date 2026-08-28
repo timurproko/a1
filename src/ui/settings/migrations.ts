@@ -21,6 +21,15 @@ export const OWNED_UI_SETTINGS_MIGRATIONS: readonly OwnedUiSettingsMigration[] =
         : { ...values };
     },
   }),
+  Object.freeze({
+    to: 3,
+    description: "Match Pi's auto scrollbar appearance name and ordering.",
+    migrate(values: Readonly<Record<string, unknown>>): Record<string, unknown> {
+      return values.scrollbarAppearance === "hover"
+        ? { ...values, scrollbarAppearance: "auto" }
+        : { ...values };
+    },
+  }),
 ]);
 
 export function assertOwnedUiSettingsMigrations(

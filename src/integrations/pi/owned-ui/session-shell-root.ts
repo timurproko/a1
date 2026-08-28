@@ -152,13 +152,15 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   readonly #submittedPromptComposer: PiShellSubmittedPromptComposer | undefined;
   readonly #viewport = new TranscriptViewport();
   #viewportConfig: OwnedUiViewportSettings = {
-    scrollbarAppearance: "hover",
+    scrollbarAppearance: "auto",
     scrollbarStyle: "thin",
     scrollbarSpeed: "normal",
   };
   #dragGrabOffset: number | null = null;
   /** A left-button sequence begun in status/editor/footer chrome is swallowed. */
   #dockPointerSuppressed = false;
+  /** True only while the editor owns a held left mouse button. */
+  #editorPointerSelecting = false;
   /** Last composed terminal rows occupied by the default prompt editor. */
   #editorPointerFrame: { readonly rowStart: number; readonly rowEnd: number } | undefined;
   #selectionAutoScrollTimer: ReturnType<typeof setTimeout> | undefined;
@@ -249,16 +251,31 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
         const plain = stripAnsi(row);
         const ranges = this.#promptChips.hyperlinkRanges(plain);
         if (ranges.length === 0) return row;
-        const decorated = ranges.reduce((result, range) => hyperlinkSgrSpan(
-          result,
-          piShellVisibleWidth(plain.slice(0, range.start)),
-          piShellVisibleWidth(plain.slice(0, range.end)),
-          range.target,
-          piShellVisibleWidth,
-        ), row);
+        const linkResetAndTail = `\u001b]8;;\u001b\\\u001b[24m${" ".repeat(Math.max(0, width - piShellVisibleWidth(row)))}`;
+        // VS15 is zero-column and default-ignorable. It breaks Windows Terminal's
+        // plain-text URL detector only in the held-button paint; semantic text stays exact.
+        const paintRow = this.#editorPointerSelecting
+          ? row.replaceAll("https://", "https:\uFE0E//").replaceAll("http://", "http:\uFE0E//")
+          : row;
+        const decorated = this.#editorPointerSelecting
+          ? ranges.reduce((result, range) => backgroundSgrSpan(
+              result,
+              piShellVisibleWidth(plain.slice(0, range.start)),
+              piShellVisibleWidth(plain.slice(0, range.end)),
+              "\u001b[4:4m",
+              "\u001b[24m",
+              piShellVisibleWidth,
+            ), paintRow)
+          : ranges.reduce((result, range) => hyperlinkSgrSpan(
+              result,
+              piShellVisibleWidth(plain.slice(0, range.start)),
+              piShellVisibleWidth(plain.slice(0, range.end)),
+              range.target,
+              piShellVisibleWidth,
+            ), row);
         // Windows Terminal can retain stale native dotted-link cells when a mutable
         // prompt replaces a longer URL. Explicit non-link spaces overwrite that tail.
-        return `${decorated}\u001b]8;;\u001b\\\u001b[24m${" ".repeat(Math.max(0, width - piShellVisibleWidth(decorated)))}`;
+        return `${decorated}${linkResetAndTail}`;
       },
 
       expandCopiedEditorText: text => this.#promptChips.expandCopiedText(text),
@@ -420,6 +437,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   resetViewport(): void {
     if (this.#viewportActivityTimer !== undefined) clearTimeout(this.#viewportActivityTimer);
     this.#viewportActivityTimer = undefined;
+    this.#editorPointerSelecting = false;
     this.#stopSelectionAutoScroll();
     this.#viewport.reset();
   }
@@ -429,6 +447,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.#viewportActivityTimer = undefined;
     this.#dragGrabOffset = null;
     this.#dockPointerSuppressed = false;
+    this.#editorPointerSelecting = false;
     this.#stopSelectionAutoScroll();
     this.#viewport.clearSelection();
     this.#viewport.clearTransient();
@@ -448,6 +467,12 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     // bracketed paste; the latter continues unchanged to Pi below.
     if (this.editor.matchesTerminalKey(data, "ctrl+v") && this.editor.pasteClipboard()) {
       return { data: "", consumed: true };
+    }
+    // Deleting a hovered URL chip must overwrite the terminal's cached link
+    // cells in the same input frame rather than waiting for hover expiry.
+    if (EDITOR_LINK_DELETION_INPUTS.has(data)
+      && this.#promptChips.hyperlinkRanges(this.editor.getText()).length > 0) {
+      this.#componentRuntime.requestRender(true);
     }
     if (this.#viewport.frame === null) return { data, consumed: false };
     if (data === "\u0003") {
@@ -522,6 +547,8 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
             column: event.column,
             row: event.row - this.#editorPointerFrame.rowStart + 1,
           });
+          // Keep held-button frames differential: clearing the screen mid-drag
+          // makes Windows Terminal terminate the remaining motion reports.
           return true;
         }
         if (this.#dockPointerSuppressed) return true;
@@ -603,6 +630,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
             row: event.row - editorFrame.rowStart + 1,
           });
           if (!handled) this.#dockPointerSuppressed = true;
+          this.#editorPointerSelecting = handled;
           repaint = true;
           return true;
         }
@@ -621,12 +649,15 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       }
       if (event.kind === "release") {
         if (this.editor.ownsPointer() && this.#editorPointerFrame !== undefined) {
+          const wasEditorSelecting = this.#editorPointerSelecting;
           this.editor.handlePointer({
             kind: "release",
             button: event.button,
             column: event.column,
             row: event.row - this.#editorPointerFrame.rowStart + 1,
           });
+          this.#editorPointerSelecting = false;
+          forceRepaint ||= wasEditorSelecting;
           repaint = true;
           return true;
         }
@@ -1271,6 +1302,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
 }
 
 const SELECTION_AUTO_SCROLL_INTERVAL_MS = 30;
+const EDITOR_LINK_DELETION_INPUTS = new Set(["\b", "\u007f", "\u001b[3~"]);
 const SHIFT_UP_INPUTS = new Set(["\u001b[1;2A"]);
 const SHIFT_DOWN_INPUTS = new Set(["\u001b[1;2B"]);
 const SCROLLBAR_CELL_RESET = "\u001b[22;23;24;25;27;28;29;39;54;55m";

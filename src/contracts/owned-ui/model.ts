@@ -39,7 +39,7 @@ export interface OwnedUiModelInfo {
 export type OwnedUiThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh";
 
 export interface OwnedUiViewportSettings {
-  readonly scrollbarAppearance: "always" | "hover" | "hidden";
+  readonly scrollbarAppearance: "auto" | "always" | "hidden";
   readonly scrollbarStyle: "thin" | "thick";
   /** normal is baseline; fast is 2x normal; high is normal plus fast. */
   readonly scrollbarSpeed: "normal" | "fast" | "high";

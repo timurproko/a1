@@ -1,4 +1,4 @@
-export const OWNED_UI_SETTINGS_VERSION = 2;
+export const OWNED_UI_SETTINGS_VERSION = 3;
 
 export type OwnedUiSettingValue = string | number | boolean;
 
@@ -28,8 +28,8 @@ export const OWNED_UI_SETTING_DECLARATIONS: readonly OwnedUiSettingDeclaration[]
     section: SCROLL_SECTION,
     description: "When the session transcript scrollbar is visible.",
     application: "live",
-    defaultValue: "hover",
-    allowedValues: Object.freeze(["always", "hover", "hidden"]),
+    defaultValue: "auto",
+    allowedValues: Object.freeze(["auto", "always", "hidden"]),
   }),
   Object.freeze({
     id: "scrollbarStyle",

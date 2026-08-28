@@ -31,8 +31,8 @@ describe("owned UI setting declarations", () => {
       label: "Scrollbar mode",
       section: { id: "scroll", title: "Scroll" },
       application: "live",
-      defaultValue: "hover",
-      allowedValues: ["always", "hover", "hidden"],
+      defaultValue: "auto",
+      allowedValues: ["auto", "always", "hidden"],
     });
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "scrollbarStyle")).toMatchObject({
       label: "Scrollbar style",
@@ -104,10 +104,14 @@ describe("owned UI settings migrations", () => {
     expect(OWNED_UI_SETTINGS_MIGRATIONS).toHaveLength(OWNED_UI_SETTINGS_VERSION - 1);
   });
 
-  it("migrates the former high speed name to fast", () => {
-    expect(OWNED_UI_SETTINGS_MIGRATIONS).toHaveLength(1);
+  it("migrates the former speed and appearance names", () => {
+    expect(OWNED_UI_SETTINGS_MIGRATIONS).toHaveLength(2);
     expect(OWNED_UI_SETTINGS_MIGRATIONS[0]?.migrate({ scrollbarSpeed: "high", future: true }))
       .toEqual({ scrollbarSpeed: "fast", future: true });
+    expect(OWNED_UI_SETTINGS_MIGRATIONS[1]?.migrate({ scrollbarAppearance: "hover", future: true }))
+      .toEqual({ scrollbarAppearance: "auto", future: true });
+    expect(OWNED_UI_SETTINGS_MIGRATIONS[1]?.migrate({ scrollbarAppearance: "always" }))
+      .toEqual({ scrollbarAppearance: "always" });
   });
 
   it("rejects a list with a gap or a wrong end version", () => {
