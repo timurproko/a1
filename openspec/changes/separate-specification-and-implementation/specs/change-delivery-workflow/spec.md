@@ -24,15 +24,25 @@ A request to prepare, write, design, or update a specification SHALL produce a s
 - **AND** implementation SHALL follow the specification only after the specification merges
 
 ### Requirement: Auto-merge eligibility uses an exact documentation allowlist
-A pull request SHALL be eligible for auto-merge only when every changed path is under `openspec/**` or is exactly the root `README.md`. Any pull request containing another path SHALL be classified as code/operational, regardless of whether it claims to preserve behavior. Classification SHALL examine the complete pull-request diff and SHALL fail closed.
+A pull request SHALL be eligible for automatic squash integration only when every changed path is under `openspec/**` or is exactly the root `README.md`. Any pull request containing another path SHALL be classified as code/operational, regardless of whether it claims to preserve behavior. Classification SHALL examine the complete pull-request diff and SHALL fail closed.
+
+For an eligible pull request, automation MAY arm auto-merge while required validation is pending because protected `develop` remains the merge gate. If the pull request is already clean after validation, automation MAY merge directly only when successful validation belongs to the current head and the merge request enforces that expected head SHA.
 
 #### Scenario: OpenSpec-only pull request
 - **WHEN** every changed path is under `openspec/**`
-- **THEN** the pull request MAY be armed for auto-merge after its required validation
+- **THEN** automation SHALL arrange squash integration behind its required validation
 
 #### Scenario: Root README-only pull request
 - **WHEN** every changed path is exactly `README.md`
-- **THEN** the pull request MAY be armed for auto-merge after its required validation
+- **THEN** automation SHALL arrange squash integration behind its required validation
+
+#### Scenario: Validation and reconciliation race
+- **WHEN** an eligible current head becomes clean before auto-merge is armed
+- **THEN** automation MAY squash-merge only after matching successful validation and with the expected head SHA
+
+#### Scenario: Stale successful validation
+- **WHEN** successful validation belongs to an older pull-request head
+- **THEN** automation SHALL NOT directly merge the current head
 
 #### Scenario: Behavior-preserving refactor
 - **WHEN** a pull request changes source or any other path outside the allowlist
