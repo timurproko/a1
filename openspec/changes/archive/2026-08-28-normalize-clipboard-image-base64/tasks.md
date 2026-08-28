@@ -13,7 +13,7 @@
 
 - [x] 3.1 Add an end-to-end session-shell regression that pastes an image with omitted required padding, submits its chip, and asserts `PromptOptions.images` contains the required `=` padding, unchanged MIME type, and equivalent decoded bytes while the chip label remains in prompt text
 - [x] 3.2 Add a malformed-image regression proving no image option reaches the agent session and no false successful image chip is shown; verify both text-fallback and no-fallback outcomes
-- [ ] 3.3 Run the focused clipboard, prompt-chip, session-shell, owned-command, and Pi session-integration tests plus typechecking in CI; verify the implementation pull request reports all required checks passing
+- [x] 3.3 Run the focused clipboard, prompt-chip, session-shell, owned-command, and Pi session-integration tests plus typechecking in CI; verify the implementation pull request reports all required checks passing
 
 ## 4. Deliver and accept separately
 
