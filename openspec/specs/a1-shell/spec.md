@@ -27,20 +27,20 @@ The installed application SHALL expose `a1 update` as the stable update command 
 - **WHEN** the user runs bare `a1` after the update command reported success
 - **THEN** A1 SHALL launch the already active target without printing installation or activation messages
 
-### Requirement: Installed and channel versions are visible without runtime startup
-The installed application SHALL expose `a1 version`. It SHALL report `Installed`, `Release`, and `Next` in that order and SHALL NOT start or mutate the interactive runtime, supervisor, storage, release cohort, or update transaction. Remote channel discovery SHALL read the authoritative package dist-tags as one coherent registry result.
+### Requirement: Version output follows the Pi command convention
+The installed application SHALL expose equivalent `a1 --version` and `a1 -v` forms and SHALL NOT expose a `version` subcommand or start or mutate the interactive runtime, supervisor, storage, release cohort, or update transaction. A stable release SHALL print only its installed exact semantic version without remote discovery. A development build SHALL report `Current`, `Develop`, and `Release` in that order and SHALL discover authoritative package dist-tags as one coherent result; an absent development tag SHALL be unavailable without a diagnostic, while discovery failure SHALL make both remote fields unavailable with one concise `A1` diagnostic.
 
-#### Scenario: Registry versions are available
-- **WHEN** the user runs `a1 version` while npm `latest` and `next` are defined and reachable
-- **THEN** A1 SHALL display valid exact semantic versions in the order `Installed`, `Release`, and `Next`
+#### Scenario: Stable release version
+- **WHEN** the user runs `a1 --version` from a stable release
+- **THEN** A1 SHALL print only the installed exact semantic version without querying remote channels
 
-#### Scenario: Next channel is not defined
-- **WHEN** npm metadata is reachable, `latest` is defined, and the package has no `next` dist-tag
-- **THEN** A1 SHALL display the latest version under `Release`, display `Next: unavailable`, emit no error diagnostic for the absent optional channel, and exit successfully
+#### Scenario: Development build versions
+- **WHEN** the user runs `a1 --version` from a development build
+- **THEN** A1 SHALL display `Current`, `Develop`, and `Release` in order, applying the declared unavailable behavior when remote channel metadata is absent or unreachable
 
-#### Scenario: Registry is unavailable
-- **WHEN** installed package metadata is readable but the package dist-tags query fails
-- **THEN** A1 SHALL preserve `Installed`, mark both remote fields unavailable, emit one concise `A1` diagnostic describing the registry failure, and exit successfully
+#### Scenario: Old subcommand notation
+- **WHEN** the user runs `a1 version`
+- **THEN** A1 SHALL reject it as an unknown command
 
 ### Requirement: Interactive launch forms use the owned Pi UI pipeline
 Bare `a1` SHALL launch the A1-owned product surface directly. Explicit prerelease `a1 pi` SHALL use the same owned rendering and input pipeline with A1-specific surfaces withheld and Pi's ordinary user profile selected. Profile selection SHALL NOT introduce transparent child attachment, a PTY, a terminal parser, a byte relay, or a second rendering path. The redundant `a1 ui` route SHALL NOT be exposed.
@@ -91,6 +91,6 @@ Version discovery, self-update, installed metadata lookup, immutable release der
 - **THEN** it SHALL accept `@timurproko/a1` metadata and SHALL reject `@timurproko/addone` as an unexpected package identity
 
 #### Scenario: Query release channels
-- **WHEN** `a1 version`, `a1 update`, or `a1 update:next` resolves npm metadata
+- **WHEN** `a1 --version`, `a1 update`, or `a1 update:next` resolves npm metadata
 - **THEN** every registry query and installation target SHALL reference `@timurproko/a1`
 

@@ -30,7 +30,7 @@ describe("product identity authority", () => {
     const text = createProductIdentityText({ displayName: "Z1", commandName: "z1", packageName: "@example/z1" });
 
     expect(text.diagnostic("could not start")).toBe("Z1 could not start");
-    expect(text.usage(["", "version", "update:develop"])).toBe("Usage: z1 | z1 version | z1 update:develop");
+    expect(text.usage(["", "--version", "update:develop"])).toBe("Usage: z1 | z1 --version | z1 update:develop");
     expect(text).toMatchObject({ displayName: "Z1", commandName: "z1", packageName: "@example/z1" });
     expect(Object.isFrozen(text)).toBe(true);
   });

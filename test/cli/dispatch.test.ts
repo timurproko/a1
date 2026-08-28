@@ -18,7 +18,8 @@ describe("A1 CLI dispatch", () => {
   it.each([
     [[], { kind: "launch", profileId: "a1" }],
     [["pi"], { kind: "launch", profileId: "pi" }],
-    [["version"], { kind: "version" }],
+    [["--version"], { kind: "version" }],
+    [["-v"], { kind: "version" }],
     [["update"], { kind: "update", channel: "stable" }],
     [["update", "self"], { kind: "update", channel: "stable" }],
     [["update:develop"], { kind: "update", channel: "next" }],
@@ -127,6 +128,9 @@ describe("A1 CLI dispatch", () => {
 
   it.each([
     { arguments_: ["unknown"] },
+    { arguments_: ["version"] },
+    { arguments_: ["--version", "extra"] },
+    { arguments_: ["-v", "extra"] },
     { arguments_: ["pi", "extra"] },
     { arguments_: ["ui", "extra"] },
     { arguments_: ["pi", "install"] },
@@ -192,7 +196,8 @@ describe("A1 CLI dispatch in a release build", () => {
 
   it.each([
     { arguments_: [] as const, kind: "launch" },
-    { arguments_: ["version"] as const, kind: "version" },
+    { arguments_: ["--version"] as const, kind: "version" },
+    { arguments_: ["-v"] as const, kind: "version" },
     { arguments_: ["update"] as const, kind: "update" },
     { arguments_: ["update:develop"] as const, kind: "update" },
     { arguments_: ["pi", "list"] as const, kind: "packages" },

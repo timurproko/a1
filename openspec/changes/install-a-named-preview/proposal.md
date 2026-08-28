@@ -14,7 +14,7 @@ message — not whatever happens to be newest by the time you type the command.
 - `a1 update:<commit>` installs the preview built from that commit, resolving it
   against what the registry actually published.
 - A full version is accepted in the same position, for anyone reading one back
-  from `a1 version`.
+  from `a1 --version`.
 - A commit that was never published is refused by name, and one that somehow
   matches more than one published version is refused rather than guessed at.
 - `a1 update:next` keeps meaning the newest preview, and `a1 update` keeps meaning

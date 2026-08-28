@@ -13,7 +13,7 @@ fuller spelling. It should say no.
 - A release named after the colon is refused, saying it is a release and pointing
   at `a1 update`.
 - A preview's full version still works there, because that is the string
-  `a1 version` prints and pasting it back is the natural thing to do.
+  `a1 --version` prints and pasting it back is the natural thing to do.
 - The README shows only the commit form. The version form is documented as the
   forgiving spelling it is, not as a second way of doing the same thing.
 

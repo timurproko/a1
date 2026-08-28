@@ -45,7 +45,7 @@ command or status wording.
 - **THEN** progress SHALL begin with `a1 update: <running> → <target>`, without a channel label
 
 #### Scenario: Versions are displayed
-- **WHEN** the user runs `a1 version`
+- **WHEN** the user runs `a1 --version`
 - **THEN** the preview channel SHALL be labeled `Develop`, not `Next`
 
 #### Scenario: Removed next spelling is requested

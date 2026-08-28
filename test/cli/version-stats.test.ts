@@ -17,7 +17,7 @@ describe("version stats", () => {
     } });
 
     expect(code).toBe(0);
-    expect(harness.stdout.join("")).toBe("Current: 1.1.0\nDevelop: 1.2.0-dev.3\nRelease: 1.1.4\n");
+    expect(harness.stdout.join("")).toBe("Current: 1.1.0-dev.2\nDevelop: 1.2.0-dev.3\nRelease: 1.1.4\n");
     expect(harness.stderr).toEqual([]);
     expect(calls).toEqual([
       { command: "npm", arguments_: ["view", "@timurproko/a1", "dist-tags", "--json"] },
@@ -32,8 +32,25 @@ describe("version stats", () => {
     });
 
     expect(code).toBe(0);
-    expect(harness.stdout.join("")).toBe("Current: 1.1.0\nDevelop: 1.2.0-dev.3\nRelease: 1.1.4\n");
+    expect(harness.stdout.join("")).toBe("Current: 1.1.0-dev.2\nDevelop: 1.2.0-dev.3\nRelease: 1.1.4\n");
     expect(harness.stderr).toEqual([]);
+  });
+
+  it("prints only the installed version for a stable release without querying npm", async () => {
+    const harness = await createHarness("1.1.0");
+    let queried = false;
+    const code = await runVersionStats({
+      ...harness.options,
+      runner: async () => {
+        queried = true;
+        throw new Error("stable versions must not query npm");
+      },
+    });
+
+    expect(code).toBe(0);
+    expect(harness.stdout.join("")).toBe("1.1.0\n");
+    expect(harness.stderr).toEqual([]);
+    expect(queried).toBe(false);
   });
 
   it("treats an absent optional development tag as normally unavailable", async () => {
@@ -44,7 +61,7 @@ describe("version stats", () => {
     });
 
     expect(code).toBe(0);
-    expect(harness.stdout.join("")).toBe("Current: 1.1.0\nDevelop: unavailable\nRelease: 1.1.4\n");
+    expect(harness.stdout.join("")).toBe("Current: 1.1.0-dev.2\nDevelop: unavailable\nRelease: 1.1.4\n");
     expect(harness.stderr).toEqual([]);
   });
 
@@ -56,7 +73,7 @@ describe("version stats", () => {
     const code = await runVersionStats({ ...harness.options, runner });
 
     expect(code).toBe(0);
-    expect(harness.stdout.join("")).toBe("Current: 1.1.0\nDevelop: unavailable\nRelease: unavailable\n");
+    expect(harness.stdout.join("")).toBe("Current: 1.1.0-dev.2\nDevelop: unavailable\nRelease: unavailable\n");
     expect(harness.stderr).toHaveLength(1);
     expect(harness.stderr[0]).toContain("A1 could not resolve npm dist-tags");
     expect(harness.stderr[0]).toContain(expected);
@@ -94,7 +111,7 @@ describe("version stats", () => {
     });
 
     expect(code).toBe(0);
-    expect(harness.stdout.join("")).toBe("Current: 1.1.0\nDevelop: 1.2.0-dev.3\nRelease: 1.1.4\n");
+    expect(harness.stdout.join("")).toBe("Current: 1.1.0-dev.2\nDevelop: 1.2.0-dev.3\nRelease: 1.1.4\n");
     expect(harness.stderr).toEqual([]);
     expect(urls).toEqual(["https://registry.npmjs.org/-/package/%40timurproko%2Fa1/dist-tags"]);
   });
@@ -108,7 +125,7 @@ describe("version stats", () => {
     });
 
     expect(code).toBe(0);
-    expect(harness.stdout.join("")).toBe("Current: 1.1.0\nDevelop: unavailable\nRelease: unavailable\n");
+    expect(harness.stdout.join("")).toBe("Current: 1.1.0-dev.2\nDevelop: unavailable\nRelease: unavailable\n");
     expect(harness.stderr).toHaveLength(1);
     expect(harness.stderr[0]).toContain("npm exited with status 17");
     expect(harness.stderr[0]).toContain("registry fallback failed: registry responded with status 503");
@@ -121,11 +138,11 @@ describe("version stats", () => {
   });
 });
 
-async function createHarness() {
+async function createHarness(version = "1.1.0-dev.2") {
   const root = await mkdtemp(resolve(tmpdir(), "a1-version-stats-"));
   roots.push(root);
   await mkdir(root, { recursive: true });
-  await writeFile(resolve(root, "package.json"), JSON.stringify({ version: "1.1.0" }));
+  await writeFile(resolve(root, "package.json"), JSON.stringify({ version }));
   const stdout: string[] = [];
   const stderr: string[] = [];
   const options: VersionStatsOptions = {
