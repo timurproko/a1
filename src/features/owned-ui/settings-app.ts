@@ -401,7 +401,7 @@ export class SettingsApp implements UiApp {
     // and pointing at it is not a request for anything else.
     if (typeof shown === "number") return;
     if (!entry.editable || entry.choices === null || entry.choices.length === 0) {
-      this.#notice = `${labelOf(entry)} cannot be changed here`;
+      this.#notice = entry.limitationReason ?? `${labelOf(entry)} cannot be changed here`;
       return;
     }
     const current = shown === null ? 0 : Math.max(0, entry.choices.indexOf(shown));
@@ -532,7 +532,7 @@ export class SettingsApp implements UiApp {
     if (row === undefined || row.kind !== "element") return;
     const entry = row.value;
     if (!entry.editable) {
-      this.#notice = `${labelOf(entry)} cannot be changed here`;
+      this.#notice = entry.limitationReason ?? `${labelOf(entry)} cannot be changed here`;
       return;
     }
     const shown = this.#shownValue(entry);
@@ -545,7 +545,7 @@ export class SettingsApp implements UiApp {
     }
     const choices = entry.choices;
     if (choices === null || choices.length === 0) {
-      this.#notice = `${labelOf(entry)} cannot be changed here`;
+      this.#notice = entry.limitationReason ?? `${labelOf(entry)} cannot be changed here`;
       return;
     }
     const current = shown === null ? -1 : choices.indexOf(shown);
@@ -561,14 +561,21 @@ export class SettingsApp implements UiApp {
     // steps from here rather than from a value the source has not caught up to.
     this.#pending.set(key, value);
     void this.#session.change(entry.backend, entry.id, value).then(outcome => {
-      if (outcome.failure !== null) {
+      if (outcome.failure !== null || outcome.status === "failed") {
         this.#pending.delete(key);
-        this.#notice = `Could not save ${labelOf(entry)}: ${outcome.failure}`;
+        this.#notice = `Could not save ${labelOf(entry)}: ${outcome.failure ?? "the effect failed"}`;
+        return;
+      }
+      if (outcome.status === "unavailable" || outcome.limitationReason !== null) {
+        this.#pending.delete(key);
+        this.#notice = outcome.limitationReason ?? `${labelOf(entry)} is unavailable`;
         return;
       }
       // A later press may have moved on; only the last request clears itself.
       if (this.#pending.get(key) === value) this.#pending.delete(key);
-      this.#notice = outcome.pendingRestart ? `${labelOf(entry)} applies on the next start` : null;
+      this.#notice = outcome.status === "deferred" && outcome.application !== null
+        ? `${labelOf(entry)} is stored and applies ${applicationLabel(outcome.application)}`
+        : null;
     });
   }
 
@@ -650,9 +657,13 @@ export class SettingsApp implements UiApp {
   /** What the list view needs to draw a setting: its words, and where it can go. */
   #viewRow(entry: OwnedUiSettingsEntry): ListViewRow {
     const shown = this.#shownValue(entry);
-    const value = entry.structured
-      ? CONFIGURE
-      : shown === null ? describeRaw(entry.rawValue) : displayValue(shown);
+    const value = !entry.available
+      ? `unavailable — ${entry.limitationReason ?? "effect is unavailable"}`
+      : entry.structured
+        ? CONFIGURE
+        : shown === null
+          ? describeRaw(entry.rawValue)
+          : effectiveDisplay(entry, shown);
     const range = rangeOf(entry);
     return {
       key: `${entry.backend}:${entry.id}`,
@@ -740,6 +751,24 @@ function rangeOf(entry: OwnedUiSettingsEntry): NumericRange {
 function displayValue(value: OwnedUiSettingValue): string {
   if (typeof value === "boolean") return value ? "yes" : "no";
   return String(value);
+}
+
+function effectiveDisplay(entry: OwnedUiSettingsEntry, stored: OwnedUiSettingValue): string {
+  const effective = entry.effectiveValue;
+  if (effective === stored) return displayValue(stored);
+  const shownEffective = typeof effective === "string" || typeof effective === "number" || typeof effective === "boolean"
+    ? displayValue(effective)
+    : describeRaw(effective);
+  return `${displayValue(stored)} (effective ${shownEffective}; ${applicationLabel(entry.application)})`;
+}
+
+function applicationLabel(application: OwnedUiSettingsEntry["application"]): string {
+  switch (application) {
+    case "live": return "live";
+    case "next-session": return "in the next session";
+    case "next-start": return "on the next start";
+    case "current-exit": return "when the current session exits";
+  }
 }
 
 function describeRaw(value: unknown): string {

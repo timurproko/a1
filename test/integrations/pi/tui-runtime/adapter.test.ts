@@ -47,6 +47,7 @@ class TestTerminal implements PiTuiTerminalPort {
   failStart = false;
   failStop = false;
   failDrain = false;
+  failProgress = false;
   #input: ((data: string) => void) | undefined;
   #resize: (() => void) | undefined;
 
@@ -112,6 +113,7 @@ class TestTerminal implements PiTuiTerminalPort {
   }
 
   setProgress(active: boolean): void {
+    if (this.failProgress) throw new Error("progress failed");
     this.write(`progress:${active}`);
   }
 }
@@ -131,6 +133,12 @@ describe("PiTuiRuntimeAdapter", () => {
     expect(terminal.starts).toBe(1);
     expect(root.focus.at(-1)).toBe(true);
     expect(terminal.writes.join("")).toContain("\x1b[?1049h");
+    runtime.setHardwareCursor(true);
+    runtime.setClearOnShrink(false);
+    runtime.setTerminalProgress(true);
+    expect(runtime.getHardwareCursor()).toBe(true);
+    expect(runtime.getClearOnShrink()).toBe(false);
+    expect(terminal.writes).toContain("progress:true");
 
     terminal.input("root");
     runtime.renderNow();
@@ -167,6 +175,17 @@ describe("PiTuiRuntimeAdapter", () => {
     expect(terminal.stops).toBe(1);
     expect(root.disposed).toBe(true);
     expect(terminal.writes.join("")).toContain("\x1b[?1049l");
+    expect(terminal.writes.at(-1)).toBe("progress:false");
+  });
+
+  it("reports progress control failure and still performs unconditional cleanup", async () => {
+    const terminal = new TestTerminal();
+    const runtime = new PiTuiRuntimeAdapter({ root: new TestComponent(["root"]), terminal });
+    runtime.start();
+    terminal.failProgress = true;
+    expect(() => runtime.setTerminalProgress(true)).toThrow("progress failed");
+    await expect(runtime.stop()).resolves.toBeUndefined();
+    expect(runtime.state).toBe("stopped");
   });
 
   it("routes and transforms physical input before the TUI in registration order", async () => {

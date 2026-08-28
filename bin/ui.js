@@ -12,13 +12,28 @@ assertSinglePiTuiModuleAtLaunch(fileURLToPath(new URL("..", import.meta.url)), m
 
 const { runSelectedInteractiveRuntime } = await import("../dist/features/launch/index.js");
 
+const launchArgs = process.argv.slice(2);
+let sessionPath;
+if (launchArgs.length > 0) {
+  if (launchArgs.length !== 2 || launchArgs[0] !== "--session" || launchArgs[1].trim().length === 0) {
+    throw new Error("Usage: a1 [--session <session-file>]");
+  }
+  sessionPath = launchArgs[1];
+}
+
 runSelectedInteractiveRuntime(process.env.A1_LAUNCH_PROFILE ?? "a1", {
   ownedUi: async (profileId, ownedSurfaces) => {
-    const [{ runOwnedUi }, { composeOwnedUi }] = await Promise.all([
+    const [{ createConsoleProjectTrustPrompt, runOwnedUi }, { composeOwnedUi }] = await Promise.all([
       import("../dist/features/owned-ui/index.js"),
       import("../dist/composition/index.js"),
     ]);
-    const { application, settings } = await composeOwnedUi({ cwd: process.cwd(), profileId, ownedSurfaces });
+    const { application, settings } = await composeOwnedUi({
+      cwd: process.cwd(),
+      profileId,
+      ownedSurfaces,
+      projectTrustPrompt: createConsoleProjectTrustPrompt(),
+      ...(sessionPath === undefined ? {} : { sessionPath }),
+    });
     return await runOwnedUi({ application, ...(settings === null ? {} : { settings }) });
   },
 }).then(

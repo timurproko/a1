@@ -47,7 +47,25 @@ export function assertAgentMessageContent(content: AgentMessageContent): void {
 export function assertAgentToolDescriptor(value: AgentToolDescriptor): void { id(value.name, "tool name"); text(value.description, "tool description", true); json(value.inputSchema, "tool input schema"); }
 export function assertAgentUsage(value: AgentUsage): void { for (const amount of [value.inputTokens, value.outputTokens, value.cacheReadTokens, value.cacheWriteTokens]) nonNegative(amount, "usage token count"); if (value.cost !== null && (!(typeof value.cost === "number") || !Number.isFinite(value.cost) || value.cost < 0)) throw new TypeError("usage cost is invalid"); }
 export function assertAgentModelDescriptor(value: AgentModelDescriptor): void { id(value.providerId, "model provider id"); id(value.modelId, "model id"); text(value.displayName, "model display name"); nonNegative(value.contextWindow, "model context window"); unique(value.thinkingLevels, undefined, "model thinking levels"); }
-export function assertAgentSettingDescriptor(value: AgentSettingDescriptor): void { id(value.key, "setting key"); if (!["boolean", "number", "string", "enum", "json"].includes(value.valueType) || typeof value.writable !== "boolean") throw new TypeError("setting descriptor is invalid"); if (value.choices) for (const choice of value.choices) json(choice, "setting choice"); }
+export function assertAgentSettingDescriptor(value: AgentSettingDescriptor): void {
+  id(value.key, "setting key");
+  if (!["boolean", "number", "string", "enum", "json"].includes(value.valueType)
+    || typeof value.writable !== "boolean"
+    || !["live", "next-session", "next-start", "current-exit"].includes(value.application)
+    || !["agent", "shell", "terminal", "startup", "shutdown", "installation"].includes(value.owner)
+    || typeof value.available !== "boolean"
+    || !(value.limitationReason === null || typeof value.limitationReason === "string")) {
+    throw new TypeError("setting descriptor is invalid");
+  }
+  json(value.storedValue, "stored setting value");
+  json(value.effectiveValue, "effective setting value");
+  if ((value.available && value.limitationReason !== null)
+    || (!value.available && (value.limitationReason === null || value.limitationReason.length === 0))) {
+    throw new TypeError("setting descriptor availability is contradictory");
+  }
+  if (value.writable && !value.available) throw new TypeError("unavailable setting cannot be writable");
+  if (value.choices) for (const choice of value.choices) json(choice, "setting choice");
+}
 export function assertAgentResourceDescriptor(value: AgentResourceDescriptor): void { id(value.id, "resource id"); if (!["command", "prompt", "skill", "extension", "other"].includes(value.kind)) throw new TypeError("resource kind is invalid"); text(value.label, "resource label"); json(value.metadata, "resource metadata"); }
 export function assertAgentThemeDescriptor(value: AgentThemeDescriptor): void { id(value.id, "theme id"); text(value.label, "theme label"); if (!value.tokens || typeof value.tokens !== "object" || Object.values(value.tokens).some(token => typeof token !== "string")) throw new TypeError("theme tokens are invalid"); }
 export function assertAgentUiContribution(value: AgentUiContribution): void { id(value.id, "UI contribution id"); if (!CAPABILITIES.uiContributions.has(value.slot) || !Number.isSafeInteger(value.version) || value.version < 1) throw new TypeError("UI contribution metadata is invalid"); json(value.payload, "UI contribution payload"); }

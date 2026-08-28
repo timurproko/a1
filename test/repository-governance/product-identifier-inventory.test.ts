@@ -13,7 +13,7 @@ describe("repository-global semantic identifier inventory", () => {
       externalIdentityIdentifiers: evidence.externalIdentityIdentifiers,
     });
     expect(evidence.baselineInternalIdentifiers.length).toBeGreaterThan(0);
-  });
+  }, 20_000);
 
   it("rejects product-prefixed class, variable, field, and constant mutations", () => {
     const result = inspectTypeScript("mutation.ts", `

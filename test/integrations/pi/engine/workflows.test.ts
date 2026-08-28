@@ -5,9 +5,11 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   createPiEngineAdapter,
+  PI_SETTING_EFFECTS,
   PINNED_PI_HIDDEN_COMMAND_NAMES,
   PINNED_PI_SETTINGS_CALLBACKS,
   PINNED_PI_WORKFLOW_COMMAND_NAMES,
+  type PiSettingOwnerHandlers,
   type PiWorkflowHost,
   type PiWorkflowRequest,
 } from "../../../../src/integrations/pi/engine/index.js";
@@ -16,6 +18,9 @@ class WorkflowSession {
   readonly sessionId = "workflow-session";
   model: unknown = { provider: "openai", id: "gpt-5", name: "GPT-5" };
   thinkingLevel: unknown = "medium";
+  steeringMode: unknown = "all";
+  followUpMode: unknown = "all";
+  readonly agent = { transport: "sse" };
   isStreaming = false;
   readonly isIdle = true;
   isRetrying = false;
@@ -42,6 +47,8 @@ class WorkflowSession {
   async compact(instructions?: string): Promise<void> { this.calls.push(`compact:${instructions ?? ""}`); }
   async setModel(model: unknown): Promise<void> { this.model = model; this.calls.push("setModel"); }
   setThinkingLevel(level: unknown): void { this.thinkingLevel = level; }
+  setSteeringMode(mode: unknown): void { this.steeringMode = mode; }
+  setFollowUpMode(mode: unknown): void { this.followUpMode = mode; }
   dispose(): void {}
   setScopedModels(models: readonly unknown[]): void { this.calls.push(`scoped:${models.length}`); }
   async cycleModel(): Promise<unknown> { return { model: { provider: "anthropic", id: "claude", name: "Claude" }, thinkingLevel: "high" }; }
@@ -87,6 +94,8 @@ class WorkflowRuntime {
   readonly settingsManager = new Proxy<Record<string, unknown>>({}, {
     get: (_target, property) => {
       const name = String(property);
+      if (name === "flush") return async () => {};
+      if (name === "drainErrors") return () => [];
       if (name.startsWith("get")) return () => this.settingsValues.get(name.slice(3));
       if (name.startsWith("set")) return (value: unknown) => { this.settingsValues.set(name.slice(3), value); };
       return undefined;
@@ -163,7 +172,7 @@ function host(overrides: Partial<PiWorkflowHost> = {}): PiWorkflowHost {
   };
 }
 
-async function fixture(workflowHost = host(), configure?: (runtime: WorkflowRuntime) => void) {
+async function fixture(workflowHost = host(), configure?: (runtime: WorkflowRuntime) => void, bindAllSettings = true) {
   const runtime = new WorkflowRuntime();
   configure?.(runtime);
   const adapter = await createPiEngineAdapter({
@@ -171,7 +180,16 @@ async function fixture(workflowHost = host(), configure?: (runtime: WorkflowRunt
     agentDir: join(tmpdir(), "a1-workflow-fixture"),
     createRuntime: async () => runtime as unknown as AgentSessionRuntime,
     workflowHost,
+    settingsProductMode: "comparison",
   });
+  if (bindAllSettings) {
+    for (const owner of ["agent", "shell", "terminal", "startup", "shutdown", "installation"] as const) {
+      const handlers = Object.fromEntries(Object.entries(PI_SETTING_EFFECTS)
+        .filter(([, definition]) => definition.owner === owner)
+        .map(([key]) => [key, { apply(value: unknown) { runtime.session.calls.push(`setting:${key}:${String(value)}`); } }])) as PiSettingOwnerHandlers;
+      adapter.bindSettingsOwner(owner, handlers);
+    }
+  }
   return { runtime, adapter };
 }
 
@@ -269,11 +287,11 @@ describe("pinned Pi command and input workflows", () => {
       const result = await adapter.executeWorkflow({ command: "settings", argument: "", selection: callback });
       expect(result.outcome, `${callback}: ${result.message}`).toBe(callback === "onCancel" ? "cancelled" : "completed");
     }
-    expect(adapter.applyPinnedSettingValue("onImageWidthCellsChange", 120)).toMatchObject({ outcome: "completed" });
+    expect(await adapter.applyPinnedSettingValue("onImageWidthCellsChange", 120)).toMatchObject({ outcome: "completed" });
     expect(runtime.settingsValues.get("ImageWidthCells")).toBe(120);
-    expect(adapter.applyPinnedSettingValue("onEditorPaddingXChange", 3)).toMatchObject({ outcome: "completed" });
+    expect(await adapter.applyPinnedSettingValue("onEditorPaddingXChange", 3)).toMatchObject({ outcome: "completed" });
     expect(runtime.settingsValues.get("EditorPaddingX")).toBe(3);
-    expect(adapter.applyPinnedSettingValue("onWarningsChange", { anthropicExtraUsage: false })).toMatchObject({ outcome: "completed" });
+    expect(await adapter.applyPinnedSettingValue("onWarningsChange", { anthropicExtraUsage: false })).toMatchObject({ outcome: "completed" });
     expect(runtime.settingsValues.get("Warnings")).toEqual({ anthropicExtraUsage: false });
     await expect(adapter.executeWorkflow({ command: "import", argument: "session.jsonl" })).resolves.toMatchObject({ outcome: "requires-confirmation" });
     await expect(adapter.executeWorkflow({ command: "import", argument: "session.jsonl", confirmed: false })).resolves.toMatchObject({ outcome: "cancelled" });
@@ -296,6 +314,40 @@ describe("pinned Pi command and input workflows", () => {
       treeSummary: { summarize: true, customInstructions: "Preserve decisions" },
     })).resolves.toMatchObject({ outcome: "completed", message: "Navigated to selected point" });
     expect(runtime.session.calls).toContain("tree:entry-1:summary:Preserve decisions");
+  });
+
+  it("applies active agent and dynamic command settings through production owners", async () => {
+    const { runtime, adapter } = await fixture(host(), undefined, false);
+    const port = adapter.settingsPort();
+    expect(port).not.toBeNull();
+    await expect(port!.writeSetting("autoResizeImages", false)).resolves.toMatchObject({ status: "applied", effectiveValue: false });
+    await expect(port!.writeSetting("blockImages", true)).resolves.toMatchObject({ status: "applied", effectiveValue: true });
+    await expect(port!.writeSetting("steeringMode", "one-at-a-time")).resolves.toMatchObject({ status: "applied", effectiveValue: "one-at-a-time" });
+    await expect(port!.writeSetting("followUpMode", "one-at-a-time")).resolves.toMatchObject({ status: "applied", effectiveValue: "one-at-a-time" });
+    await expect(port!.writeSetting("transport", "websocket")).resolves.toMatchObject({ status: "applied", effectiveValue: "websocket" });
+    await expect(port!.writeSetting("thinkingLevel", "high")).resolves.toMatchObject({ status: "applied", effectiveValue: "high" });
+    await expect(port!.writeSetting("httpIdleTimeoutMs", 0)).resolves.toMatchObject({ status: "applied", effectiveValue: 0 });
+    await expect(port!.writeSetting("showCacheMissNotices", true)).resolves.toMatchObject({ status: "applied", effectiveValue: true });
+    await expect(port!.writeSetting("warnings", { anthropicExtraUsage: false })).resolves.toMatchObject({ status: "applied" });
+    expect(runtime.settingsValues.get("ImageAutoResize")).toBe(false);
+    expect(runtime.settingsValues.get("BlockImages")).toBe(true);
+    expect(runtime.session.steeringMode).toBe("one-at-a-time");
+    expect(runtime.session.followUpMode).toBe("one-at-a-time");
+    expect(runtime.session.agent.transport).toBe("websocket");
+    expect(runtime.session.thinkingLevel).toBe("high");
+    expect(runtime.settingsValues.get("HttpIdleTimeoutMs")).toBe(0);
+    expect(runtime.settingsValues.get("ShowCacheMissNotices")).toBe(true);
+    expect(runtime.settingsValues.get("Warnings")).toEqual({ anthropicExtraUsage: false });
+
+    expect(adapter.workflowAutocompleteCommands().some(command => command.name === "skill:review")).toBe(true);
+    await expect(port!.writeSetting("enableSkillCommands", false)).resolves.toMatchObject({ status: "applied" });
+    expect(adapter.workflowAutocompleteCommands().some(command => command.name === "skill:review")).toBe(false);
+    expect(adapter.workflowAutocompleteCommands().some(command => command.name === "plan")).toBe(true);
+
+    await port!.writeSetting("doubleEscapeAction", "none");
+    await port!.writeSetting("treeFilterMode", "all");
+    expect(adapter.pinnedSettingsSnapshot().doubleEscapeAction).toBe("none");
+    expect(adapter.pinnedTreeSelectorContext().filterMode).toBe("all");
   });
 
   it("covers resource autocomplete, bash context modes, model controls, queue restoration, and contained failures", async () => {

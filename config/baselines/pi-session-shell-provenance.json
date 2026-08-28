@@ -27,7 +27,8 @@
     "Container",
     "SelectList",
     "TuiAltScreen",
-    "ProcessTerminal"
+    "ProcessTerminal",
+    "Image"
   ],
   "orchestrationPorts": [
     {
@@ -91,6 +92,28 @@
         "test/features/owned-ui/pi-startup-composition-parity.test.ts",
         "test/integrations/pi/components/shell-components.test.ts"
       ]
+    },
+    {
+      "upstreamSource": "packages/coding-agent/src/modes/interactive/components/mermaid.ts",
+      "upstreamCommit": "914cf1472e715297caa30db4b9535d534a9eb718",
+      "upstreamLines": [1, 103],
+      "localFile": "src/integrations/pi/components/upstream/components/mermaid.ts",
+      "behavior": "live off, finalized, and streaming Mermaid markdown transformation",
+      "copiedFiles": ["src/integrations/pi/components/upstream/components/mermaid.ts"],
+      "copiedLines": true,
+      "modifications": "Private imports were replaced with package-root types and the owned theme boundary.",
+      "coverage": ["test/integrations/pi/components/shell-components.test.ts"]
+    },
+    {
+      "upstreamSource": "packages/coding-agent/src/core/http-dispatcher.ts",
+      "upstreamCommit": "914cf1472e715297caa30db4b9535d534a9eb718",
+      "upstreamLines": [1, 112],
+      "localFile": "src/integrations/pi/engine/http-dispatcher.ts",
+      "behavior": "profile-scoped HTTP idle timeout dispatcher configuration including disabled semantics",
+      "copiedFiles": ["src/integrations/pi/engine/http-dispatcher.ts"],
+      "copiedLines": true,
+      "modifications": "Reduced to the public undici dispatcher seam and A1 diagnostics state; no private Pi import remains.",
+      "coverage": ["test/integrations/pi/engine/http-dispatcher.test.ts"]
     }
   ],
   "rejected": [

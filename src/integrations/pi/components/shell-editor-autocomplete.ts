@@ -171,6 +171,16 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
     setSubmitHandler: handler => { submitHandler = handler; },
     setInterruptHandler: handler => { interruptHandler = handler; },
     setAutocompleteCommands,
+    setPaddingX(padding) {
+      editor.setPaddingX(padding);
+      editor.invalidate();
+      tui.requestRender();
+    },
+    setAutocompleteMaxVisible(maxVisible) {
+      editor.setAutocompleteMaxVisible(maxVisible);
+      editor.invalidate();
+      tui.requestRender();
+    },
     addAutocompleteProvider(factory) {
       if (typeof factory !== "function") throw new TypeError("extension autocomplete factory must be a function");
       const candidate: unknown = Reflect.apply(factory, undefined, [autocompleteProvider]);

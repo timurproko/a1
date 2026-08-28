@@ -7,6 +7,7 @@ import {
   type TUI,
 } from "#pi-tui";
 import type {
+  OwnedUiImageAttachment,
   OwnedUiSessionViewModel,
   OwnedUiThinkingLevel,
   OwnedUiTranscriptBlock,
@@ -54,6 +55,8 @@ export interface PiShellEditorPort extends PiShellComponentPort {
   setSubmitHandler(handler: (text: string) => void): void;
   setInterruptHandler(handler: () => void): void;
   setAutocompleteCommands(commands: readonly PiShellAutocompleteCommand[]): void;
+  setPaddingX(padding: number): void;
+  setAutocompleteMaxVisible(maxVisible: number): void;
   addAutocompleteProvider(factory: unknown): void;
   setThinkingLevel(level: OwnedUiThinkingLevel): void;
   hasSelection(): boolean;
@@ -75,6 +78,7 @@ export interface PiShellViewComponentPort extends PiShellComponentPort {
 
 export interface PiShellStatusPort extends PiShellViewComponentPort {
   setWorkingOverride(message: string | undefined): void;
+  setOutputPad(padding: 0 | 1): void;
 }
 
 export interface PiShellQueuedInputPort extends PiShellComponentPort {
@@ -99,6 +103,10 @@ export interface PiShellLoadedResourcesPort extends PiShellComponentPort {
   setExpanded(expanded: boolean): void;
 }
 
+export interface PiShellImageAssetResolver {
+  resolve(assetId: string): OwnedUiImageAttachment | null;
+}
+
 export interface PiShellExtensionRendererResolver {
   getMessageRenderer(customType: string): unknown;
   getToolDefinition(toolName: string): unknown;
@@ -109,6 +117,10 @@ export interface PiShellTranscriptComponentPort extends PiShellComponentPort {
   readonly revision: number;
   update(block: OwnedUiTranscriptBlock): void;
   setExpanded(expanded: boolean): void;
+  setOutputPad(padding: 0 | 1): void;
+  setHideThinkingBlock(hidden: boolean): void;
+  setMermaidRenderingMode(mode: "off" | "final" | "streaming"): void;
+  setImagePresentation(showImages: boolean, imageWidthCells: number): void;
 }
 
 export interface PiShellStartupNotice {
