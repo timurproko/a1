@@ -152,7 +152,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   readonly #submittedPromptComposer: PiShellSubmittedPromptComposer | undefined;
   readonly #viewport = new TranscriptViewport();
   #viewportConfig: OwnedUiViewportSettings = {
-    scrollbarAppearance: "hover",
+    scrollbarAppearance: "auto",
     scrollbarStyle: "thin",
     scrollbarSpeed: "normal",
   };

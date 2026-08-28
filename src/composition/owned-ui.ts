@@ -45,7 +45,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     : new OwnedUiSettingsSession({
       store: new OwnedUiSettingsStore({ configDir: resolveProductPaths().configDir, profileId: options.profileId }),
       agentProvider: () => adapter.settingsPort(),
-      ...(ownedSurfaces ? { hiddenAgentSettingIds: ["tuiMode", "theme"] } : {}),
+      ...(ownedSurfaces ? { hiddenAgentSettingIds: ["tuiMode", "theme", "fullscreenScrollbar"] } : {}),
     });
   // Bare A1 intentionally ships one visual target while its UI is being completed:
   // dark, regardless of terminal detection or a previously stored Pi theme. The
@@ -80,7 +80,7 @@ function viewportSettingsSnapshot(settings: OwnedUiSettingsSession): OwnedUiView
   const style = settings.value("scrollbarStyle");
   const speed = settings.value("scrollbarSpeed");
   return {
-    scrollbarAppearance: appearance === "always" || appearance === "hidden" ? appearance : "hover",
+    scrollbarAppearance: appearance === "always" || appearance === "hidden" ? appearance : "auto",
     scrollbarStyle: style === "thick" ? "thick" : "thin",
     scrollbarSpeed: speed === "high" ? "high" : speed === "fast" ? "fast" : "normal",
   };

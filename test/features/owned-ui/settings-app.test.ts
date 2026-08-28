@@ -21,7 +21,9 @@ const WARNING_FLAGS = [
 ] as const;
 
 function port(failWrites = false): { port: AgentSettingsPort; writes: { key: string; value: AgentJsonValue }[] } {
-  const values: Record<string, AgentJsonValue> = { warnings: {}, thinkingLevel: "low", editorPaddingX: 3, outputPad: 0 };
+  const values: Record<string, AgentJsonValue> = {
+    warnings: {}, thinkingLevel: "low", editorPaddingX: 3, outputPad: 0, fullscreenScrollbar: "auto",
+  };
   const writes: { key: string; value: AgentJsonValue }[] = [];
   return {
     writes,
@@ -33,6 +35,13 @@ function port(failWrites = false): { port: AgentSettingsPort; writes: { key: str
           { key: "thinkingLevel", valueType: "enum", writable: true, choices: ["low", "high"], label: "Thinking level" },
           { key: "editorPaddingX", valueType: "number", writable: true, label: "Editor padding", minimum: 0, maximum: 3 },
           { key: "outputPad", valueType: "enum", writable: true, choices: [0, 1], label: "Output padding" },
+          {
+            key: "fullscreenScrollbar",
+            valueType: "enum",
+            writable: true,
+            choices: ["auto", "always", "hidden"],
+            label: "Fullscreen scrollbar",
+          },
         ];
       },
       async readSetting(key: string): Promise<AgentJsonValue | undefined> {
@@ -67,7 +76,11 @@ async function app(failWrites = false): Promise<{ app: SettingsApp; writes: { ke
     declarations: OWNED_UI_SETTING_DECLARATIONS,
     migrations: [],
   });
-  const session = new OwnedUiSettingsSession({ store, agent: backing.port });
+  const session = new OwnedUiSettingsSession({
+    store,
+    agent: backing.port,
+    hiddenAgentSettingIds: ["fullscreenScrollbar"],
+  });
   await session.load();
   return { app: new SettingsApp(session), writes: backing.writes };
 }
@@ -103,7 +116,8 @@ describe("the settings screen", () => {
     const { app: target } = await app();
     const lines = screen(target);
     expect(lines.some(line => line.trim() === "Scroll")).toBe(true);
-    expect(lines.some(line => line.includes("Scrollbar mode") && line.includes("hover"))).toBe(true);
+    expect(lines.some(line => line.includes("Scrollbar mode") && line.includes("auto"))).toBe(true);
+    expect(lines.some(line => line.includes("Fullscreen scrollbar"))).toBe(false);
     expect(lines.some(line => line.includes("Scrollbar style") && line.includes("thin"))).toBe(true);
     expect(lines.some(line => line.includes("Speed") && line.includes("normal"))).toBe(true);
     expect(lines.some(line => line.trim() === "A1")).toBe(false);

@@ -204,7 +204,7 @@ export class OwnedUiSessionShell {
     const applyViewportSettings = () => {
       const snapshot = options.viewportSettings?.snapshot();
       this.root.setViewportConfig(snapshot ?? {
-        scrollbarAppearance: "hover",
+        scrollbarAppearance: "auto",
         scrollbarStyle: "thin",
         scrollbarSpeed: "normal",
       });
