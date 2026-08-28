@@ -1,57 +1,30 @@
 schema: spec-driven
 
 context: |
-  Development workflow:
-  - Keep the primary worktree on develop for integration only.
-  - Make changes in one detached worktree under the repository's `.worktrees/<task-id>` directory, based on current origin/develop unless the user selects another base. The worktree is detached because a branch can be checked out in only one worktree at a time; commit there and push with `git push origin HEAD:refs/heads/<branch>`, so the branch exists on the remote and no local ref goes stale.
-  - Worktree-per-task is not the overhead to cut. Several agents work this repository at once, and isolated worktrees are what keeps one stream from editing another's checkout. Where the per-worktree cost hurts — installing, building, validating — cut that, never the model.
-  - Working directories are shared between concurrent sessions and can change under a command, so address a worktree explicitly: `cd <worktree> && …` or `git -C <worktree> …`, never a bare relative path. A command that assumed its directory once landed deletions in another agent's worktree.
-  - Keep unrelated changes out of commits, and integrate coherent work once after its relevant validation passes.
-  - Treat a request to prepare, write, design, or update a specification as a specification-only stream. Its pull request changes only `openspec/**`; do not implement the proposed source, test, script, workflow, or configuration changes in that branch.
-  - After the specification pull request has merged and the user explicitly asks to implement it, fetch the new `origin/develop` and start a separate implementation worktree, branch, commit history, and pull request. The implementation pull request cites the accepted OpenSpec change; it is never stacked on the specification branch.
-  - If specification and implementation changes are found in one branch before review, split them rather than treating their coexistence as approval to ship both.
-  - Name a commit `type(scope): subject`, and name the branch it lands on `type/short-description` with the same type. The types are `feature` for behaviour a reader could notice, `fix` for a repair, `refactor` for a change of shape that leaves behaviour alone, and `docs`, `test`, `chore`, and `style` as they sound; an incompatible change says `BREAKING CHANGE:` in its body. This is Conventional Commits with `feat` written out as `feature`, because an abbreviation nobody expands reads as a truncation rather than a word. A tool added later that expects the standard spelling takes `feature` as a configured type.
-  - Do not remove a worktree until its commits are integrated.
-  - When a pull request merges — armed to merge on its own, or merged by hand after acceptance — delete its remote branch and remove its worktree, then prune. A merged branch left behind is one more thing to read past when looking for what is live.
-  - Judge merged by what the pull request says, not by whether the branch is an ancestor of `develop`: these merges are squashed, so the branch tip never becomes an ancestor and `git branch --merged` reports a landed branch as unmerged. `gh pr view <n> --json state` is the answer.
-  - Leave alone a worktree that belongs to another session's open pull request, and say when a directory could not be removed because something is still running in it.
-  - Remove a worktree deliberately once its pull request has merged: confirm with `gh pr view <n> --json state`, then `git worktree remove` it and prune. A directory Windows will not release is closed and removed by hand rather than left behind.
-  - After manual validation is accepted, record the acceptance, archive the completed OpenSpec change, integrate the archive commit, then remove and prune every retained task or acceptance worktree for that change.
-  - Store local package archives and ad hoc builds under the repository's `.builds/` directory.
+  Delivery:
+  - Keep the primary worktree on `develop` for integration. Do each stream in one detached `.worktrees/<task-id>` worktree based on current `origin/develop` unless the user chooses another base; push it with `git push origin HEAD:refs/heads/<branch>`.
+  - Address every worktree explicitly with `cd <worktree> && ...` or `git -C <worktree> ...`. Never edit or remove another session's worktree.
+  - Keep unrelated changes out. Use `type(scope): subject` commits and `type/short-description` branches, where type is `feature`, `fix`, `refactor`, `docs`, `test`, `chore`, or `style`; mark incompatible changes with `BREAKING CHANGE:`.
+  - A request to prepare, write, design, or update a specification creates an OpenSpec-only pull request. Do not include implementation, tests, scripts, workflows, generated baselines, or non-OpenSpec configuration.
+  - After that specification merges and the user explicitly requests implementation, fetch `origin/develop` and use a new worktree, branch, history, and pull request that cites the accepted change. Split any branch that mixes specification and implementation.
 
-  Manual testing handoff — never make the user ask how to run it:
-  - The moment work becomes drivable by hand, send the exact commands unprompted: the `cd` path, the branch name and commit, whether a build is needed, and what to type once it is running.
-  - Give one copy-pasteable block. Do not describe the steps in prose and do not assume the user knows which worktree, branch, or build state is current.
-  - State what to try and what is expected, then state plainly what is not implemented yet, so a known gap is not reported as a bug.
-  - When nothing is testable by hand, say so explicitly and say which task makes it testable, rather than leaving the user to discover there is nothing to see.
-  - Repeat the commands after any push that changes what the user would run, including a rebuild step when the built output is now stale.
-  - When there is something new to try, end the reply with the run commands as the very last thing, with nothing after them — no summary, no question, no sign-off. The block is exactly a `🔬 Manual test:` line, then the `cd` to the active worktree, then the build-and-run command:
+  Validation and integration:
+  - CI is the required automated gate. Optional local typechecking or focused tests are for debugging; do not run `test:fast`, `test:full`, or `test:release` locally without an explicit request.
+  - OpenSpec changes receive strict OpenSpec validation. Other documentation-only changes require no test suite.
+  - After pushing, do not watch CI in the foreground. Read and report its result before starting other work. A failing required check blocks further work; fix a change-caused failure there and isolate an unrelated failure in its own stream.
+  - Auto-merge only when every changed path is under `openspec/**` or is the root `README.md`. Any other path makes the entire pull request a code/operational change, including refactors and mixed changes.
+  - Never enable auto-merge for a code/operational pull request. Leave it open after CI for the user's local validation, and merge manually only after the user reports acceptance and explicitly authorizes the merge.
 
-        🔬 Manual test:
-        cd D:/Git/a1/.worktrees/<task-id>
-        npm run build && npm start
+  Manual handoff:
+  - When a change becomes runnable, provide the exact applicable worktree, branch/commit, build/run commands, what to try, expected behavior, and known gaps. Repeat the commands after a push that changes what the user runs.
+  - End such a reply with one copy-pasteable block headed `🔬 Manual test:` and use forward-slash paths. Do not hardcode a generic command when the change needs another command.
+  - When nothing is runnable, say so briefly and do not include a manual-test block.
 
-  - Write the `cd` path with forward slashes, exactly as in the example. A backslashed Windows path breaks in the chat rendering — `\.` is eaten as an escape, so `D:\Git\a1\.worktrees\x` reaches the user as the nonexistent `D:\Git\a1.worktrees\x` — and forward slashes paste fine into every shell used here.
-  - Send that block only when the reply changed what the user would see or do by running it. A reply that changed nothing runnable — analysis, a plan, a spec, a question, a status report — ends without it, because a block that appears every time stops meaning "there is something to test".
-
-  Validation policy — CI validates, not the workstation:
-  - GitHub Actions on the pull request is the only required validation. Write the code, commit, open the PR, and let CI test it.
-  - Do not run test suites locally as a gate. `npm run typecheck` before pushing is a fast optional sanity check; `npx vitest run <files>` is for debugging a specific failure, never a completion requirement.
-  - Never run `npm run test:fast`, `test:full`, or `test:release` locally on your own initiative; the first belongs to CI, the rest to release workflows or an explicit user request.
-  - Docs/spec-only changes get no tests anywhere; CI runs only the OpenSpec lint.
-  - After pushing a PR, do not poll or watch CI in the foreground. Fill the wait with work on that same change if there is any, then read the result before anything else starts.
-  - A red pull request is the next task. Fix it and push again — the round trip is about two minutes — before starting new work, and never stack new work on top of a change whose validation is failing.
-  - Report what CI said rather than assuming it passed. A result that has not been read is not a result.
-  - Where a failure is not this change's doing, say so with the evidence and still deal with it before moving on, because it fails every pull request behind it too.
-  - `develop` requires the `Development validation required` check before a merge. Admin bypass stays on, no reviews are required, a branch need not be up to date with `develop` to merge, and force-pushing or deleting `develop` is refused.
-  - Auto-merge is allowed only when every changed path is under `openspec/**` or is the root `README.md`. Say when an eligible pull request is armed.
-  - Treat every pull request containing any other path as a code/operational change, including behavior-preserving refactors, tests, scripts, configuration, workflows, generated baselines, and mixed spec-plus-code changes. Never run `gh pr merge --auto` for such a pull request.
-  - Leave every code/operational pull request open for the user's local validation. CI passing does not replace that acceptance. Merge it manually only after the user reports acceptance and explicitly authorizes the merge.
+  Completion:
+  - Do not remove a worktree before its pull request merges. Because merges are squashed, confirm with `gh pr view <n> --json state`, then delete the remote branch, remove the worktree, and prune.
+  - After accepted code merges, record acceptance and archive its completed OpenSpec change in a specification-only follow-up, then clean up retained task and acceptance worktrees.
 
 operations:
-  apply:
-    guidance:
-      - Treat an `ON HOLD — USER-CONTROLLED RESUME ONLY` marker as a hard stop unless the user explicitly resumes that named change.
   archive:
     guidance:
-      - For a manually accepted change, archive only after acceptance is recorded; after the archive commit is integrated, remove and prune every task or acceptance worktree retained for that change.
+      - Archive only after acceptance is recorded; after the archive commit integrates, remove and prune retained worktrees for that change.
