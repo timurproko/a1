@@ -15,5 +15,5 @@
 
 - [x] 3.1 Add repository governance coverage proving viewport input/timer state remains in the controller and does not return to `OwnedUiSessionShellRoot`
 - [x] 3.2 Update architecture documentation with the canonical component lifecycle, neutral route owner, and session shell/controller responsibilities
-- [ ] 3.3 Run optional typechecking only if needed for debugging, commit the behavior-preserving implementation, push `refactor/owned-ui-composition`, open a separate PR against `develop`, and arm auto-merge
+- [x] 3.3 Run optional typechecking only if needed for debugging, commit the behavior-preserving implementation, push `refactor/owned-ui-composition`, open a separate PR against `develop`, and arm auto-merge
 - [ ] 3.4 Read and report the GitHub development validation result; fix the PR before starting unrelated work if it is red
