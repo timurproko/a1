@@ -547,7 +547,8 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
             column: event.column,
             row: event.row - this.#editorPointerFrame.rowStart + 1,
           });
-          forceRepaint ||= this.#editorPointerSelecting;
+          // Keep held-button frames differential: clearing the screen mid-drag
+          // makes Windows Terminal terminate the remaining motion reports.
           return true;
         }
         if (this.#dockPointerSuppressed) return true;
@@ -630,7 +631,6 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
           });
           if (!handled) this.#dockPointerSuppressed = true;
           this.#editorPointerSelecting = handled;
-          forceRepaint ||= handled;
           repaint = true;
           return true;
         }

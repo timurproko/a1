@@ -597,14 +597,15 @@ describe("OwnedUiSessionShell", () => {
     const chipColumn = (chipFrame[chipRow - 1]?.indexOf("https://example.com") ?? -1) + 4;
     terminal.input(`\u001b[<0;${chipColumn};${chipRow}M`);
     terminal.input(`\u001b[<0;${chipColumn};${chipRow}m`);
+    shell.runtime.renderNow();
     expect(shell.root.render(60).join("\n")).toContain("\u001b[7m");
 
-    const writesBeforeDrag = terminal.writes.length;
+    const redrawsBeforeDrag = shell.runtime.fullRedraws;
     terminal.input(`\u001b[<0;${chipColumn};${chipRow}M`);
     terminal.input(`\u001b[<32;${chipColumn + 1};${chipRow}M`);
     shell.runtime.renderNow();
     const heldChip = shell.root.render(60).join("\n");
-    expect(terminal.writes.slice(writesBeforeDrag).some(write => write.includes("\u001b[2J"))).toBe(true);
+    expect(shell.runtime.fullRedraws).toBe(redrawsBeforeDrag);
     expect(heldChip).toContain("\u001b[27m\u001b[48;2;38;79;120m");
     expect(heldChip).toContain("\u001b[4:4m");
     expect(heldChip).not.toContain("\u001b]8;;https://example.com/a/very/useful/resource\u001b\\");
@@ -612,9 +613,11 @@ describe("OwnedUiSessionShell", () => {
     expect(visibleWidth(heldChip.split("\n").find(row => stripTerminalSequences(row).includes("https:\uFE0E//")) ?? "")).toBe(60);
     expect(shell.root.editor.getText()).toContain("https://example.com");
 
+    const writesBeforeRelease = terminal.writes.length;
     terminal.input(`\u001b[<0;${chipColumn + 1};${chipRow}m`);
     shell.runtime.renderNow();
     const draggedChip = shell.root.render(60).join("\n");
+    expect(terminal.writes.slice(writesBeforeRelease).some(write => write.includes("\u001b[2J"))).toBe(true);
     expect(draggedChip).toContain("\u001b[27m\u001b[48;2;38;79;120m");
     expect(draggedChip).toContain("\u001b]8;;https://example.com/a/very/useful/resource\u001b\\");
     terminal.input("\u007f");
@@ -634,6 +637,44 @@ describe("OwnedUiSessionShell", () => {
       images: [{ type: "image", data: Buffer.from("fake-png").toString("base64"), mimeType: "image/png" }],
     });
 
+    await shell.dispose();
+  });
+
+  it("extends an uninterrupted LMB drag through adjacent URL chips and their ellipses", async () => {
+    const url = "https://example.com/a/very/useful/resource";
+    let clipboardText = url;
+    const { terminal, shell } = await fixture([], [], true, undefined, {
+      readText: async () => clipboardText,
+      readImage: async () => null,
+      writeText: async text => { clipboardText = text; },
+    });
+    terminal.resize(120, 12);
+    terminal.input("\u0016");
+    await vi.waitFor(() => expect(shell.root.editor.getText()).toContain("[🔗"));
+    const chip = shell.root.editor.getText();
+    shell.root.editor.setText(`${chip}${chip}`);
+    const frame = shell.root.render(120).map(row => stripTerminalSequences(row));
+    const promptRow = frame.findIndex(row => row.includes("https://example.com"));
+    const prompt = frame[promptRow] ?? "";
+    const firstUrlColumn = prompt.indexOf("https://") + 1;
+    const secondEllipsisColumn = prompt.lastIndexOf("…") + 1;
+    const secondBracketColumn = prompt.lastIndexOf("]") + 1;
+    expect(firstUrlColumn).toBeGreaterThan(0);
+    expect(secondEllipsisColumn).toBeGreaterThan(firstUrlColumn);
+    expect(secondBracketColumn).toBeGreaterThan(secondEllipsisColumn);
+
+    const redrawsBeforeDrag = shell.runtime.fullRedraws;
+    terminal.input(`\u001b[<0;${firstUrlColumn};${promptRow + 1}M`);
+    terminal.input(`\u001b[<32;${secondEllipsisColumn};${promptRow + 1}M`);
+    terminal.input(`\u001b[<32;${secondBracketColumn};${promptRow + 1}M`);
+    shell.runtime.renderNow();
+    expect(shell.runtime.fullRedraws).toBe(redrawsBeforeDrag);
+    expect(shell.root.editor.hasSelection()).toBe(true);
+    expect(shell.root.render(120).join("\n")).toContain("\u001b[27m\u001b[48;2;38;79;120m");
+
+    terminal.input(`\u001b[<0;${secondBracketColumn};${promptRow + 1}m`);
+    terminal.input("\u0003");
+    await vi.waitFor(() => expect(clipboardText).toBe(`${url}${url}`));
     await shell.dispose();
   });
 
