@@ -393,6 +393,26 @@ describe("OwnedUiSessionShell", () => {
       expect(getPinnedPiTuiLinkAtColumn(row, start)).toBe(url);
       expect(getPinnedPiTuiLinkAtColumn(row, start + url.length)).toBeUndefined();
     }
+
+    const firstRowIndex = rows.findIndex(line => stripTerminalSequences(line).includes(first));
+    const firstColumn = stripTerminalSequences(rows[firstRowIndex] ?? "").indexOf(first) + 1;
+    shell.runtime.renderNow();
+    const redrawsBeforeHover = shell.runtime.fullRedraws;
+    terminal.input(`\u001b[<35;${firstColumn};${firstRowIndex + 1}M`);
+    shell.runtime.renderNow();
+    expect(shell.runtime.fullRedraws).toBe(redrawsBeforeHover);
+    terminal.input(`\u001b[<35;1;${firstRowIndex + 1}M`);
+    shell.runtime.renderNow();
+    expect(shell.runtime.fullRedraws).toBeGreaterThan(redrawsBeforeHover);
+
+    terminal.input(`\u001b[<35;${firstColumn};${firstRowIndex + 1}M`);
+    shell.runtime.renderNow();
+    const redrawsBeforeShift = shell.runtime.fullRedraws;
+    shell.root.appendWorkflowStatus("shift link away ".repeat(300));
+    shell.runtime.requestRender();
+    shell.runtime.renderNow();
+    shell.runtime.renderNow();
+    expect(shell.runtime.fullRedraws).toBeGreaterThan(redrawsBeforeShift);
     await shell.dispose();
   });
 
