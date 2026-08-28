@@ -129,11 +129,11 @@ Production source, scripts, workflows, current tests and fixtures, current docum
 - **THEN** governance SHALL preserve and allow that record while proving no live runtime or generation path consumes it as current identity
 
 ### Requirement: Development work is isolated and integrated once
-Planning and implementation SHALL occur in one detached worktree under `.worktrees/`, based on current `origin/develop` unless another base is selected. The primary worktree SHALL remain on `develop` for integration only. Coherent work for one request SHALL use one temporary pull-request branch, one relevant validation cycle, and one integration; planning SHALL NOT be merged separately when implementation is part of the same approved request.
+Planning and implementation SHALL occur in one detached worktree at `{working-dir}/.worktrees/<task-id>`, where `{working-dir}` is the agent session's initial working directory, based on current `origin/develop` unless another base is selected. `.worktrees/` SHALL be a child of that working directory; a sibling checkout path such as `{working-dir}-<task-id>` SHALL NOT be used. The primary worktree SHALL remain on `develop` for integration only. Coherent work for one request SHALL use one temporary pull-request branch, one relevant validation cycle, and one integration; planning SHALL NOT be merged separately when implementation is part of the same approved request.
 
 #### Scenario: Work begins
 - **WHEN** a request requires repository changes
-- **THEN** work SHALL begin in one detached worktree rather than editing the primary worktree
+- **THEN** work SHALL begin in one detached worktree at `{working-dir}/.worktrees/<task-id>` rather than editing the primary worktree or creating a sibling checkout
 
 #### Scenario: Approved implementation has ready scope
 - **WHEN** the user requests implementation and its planning artifacts are ready

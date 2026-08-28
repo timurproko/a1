@@ -78,6 +78,11 @@ npm run test:fast       # typecheck + fast suite (alias: npm test)
 npm run test:full       # complete non-physical suite
 ```
 
+Create every task worktree at `{working-dir}/.worktrees/<task-id>`, where
+`{working-dir}` is the session's initial working directory. For working directory
+`D:/Git/a1`, use `D:/Git/a1/.worktrees/<task-id>`—never a sibling such as
+`D:/Git/a1-<task-id>`. The primary worktree remains on `develop` for integration only.
+
 ## Pull request integration
 
 Pull requests whose complete diff is only under `openspec/**`, only the root
