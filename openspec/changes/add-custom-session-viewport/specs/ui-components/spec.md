@@ -1,15 +1,16 @@
 ## MODIFIED Requirements
 
 ### Requirement: One scrollbar serves every scrollable surface
-A1 SHALL provide one scrollbar with declared geometry derived from content length, viewport height, scroll position, and track height. Each scrollable surface SHALL identify its own rail so two surfaces cannot share activity, hover, or drag state. The scrollbar SHALL support pointer hover, thumb drag, and track paging, and SHALL reserve no space when the content fits.
+A1 SHALL provide one scrollbar with declared geometry derived from content length, viewport height, scroll position, and track height. Each scrollable surface SHALL identify its own rail so two surfaces cannot share activity, hover, or drag state. The scrollbar SHALL support pointer hover, thumb drag, and track paging. `auto` and `always` SHALL reserve the final rail cell even while content fits so later visibility does not reflow content; `hidden` SHALL reserve no rail cell.
 
-For overflowing content, the shared scrollbar SHALL accept an appearance of `always`, `hover`, or `hidden` and a style of `thin` or `thick`. `always` SHALL draw the rail whenever content overflows. `hover` SHALL draw it while its pointer zone is active, while its thumb is being dragged, and for a bounded linger after that rail scrolls; it SHALL keep the same rail column reserved while temporarily invisible so appearing does not reflow content. `hidden` SHALL draw no rail, reserve no rail column, and expose no interactive thumb or track. The track SHALL remain a connected dim `│` hairline. The selected style SHALL change the thumb from the accent `│` used by `thin` to the centered accent `┃` used by `thick`, without changing geometry or hit targets. A pointed-at or dragged thin thumb MAY temporarily use `┃` as its interaction emphasis. Track, thumb, hover, and drag emphasis SHALL use declared theme roles rather than literal terminal colors.
+For overflowing content, the shared scrollbar SHALL accept an appearance of `auto`, `always`, or `hidden` and a style of `thin` or `thick`. `always` SHALL draw the rail whenever content overflows. `auto` SHALL draw it while its pointer zone is active, while its thumb is being dragged, and for a bounded linger after that rail scrolls; it SHALL keep the same rail column reserved while temporarily invisible. `hidden` SHALL draw no rail, reserve no rail column, and expose no interactive thumb or track. The track SHALL remain a connected dim `│` hairline. The selected style SHALL change the thumb from the accent `│` used by `thin` to the centered accent `┃` used by `thick`, without changing geometry or hit targets. A pointed-at or dragged thin thumb MAY temporarily use `┃` as its interaction emphasis. Track, thumb, hover, and drag emphasis SHALL use declared theme roles rather than literal terminal colors.
 
 The shared scrollbar SHALL accept a speed of `normal`, `fast`, or `high`. Normal SHALL map one wheel event to three lines, fast to six lines, and high to nine lines. Appearance and style SHALL NOT change that selected wheel distance.
 
 #### Scenario: Content fits the viewport
 - **WHEN** content is no longer than the viewport
-- **THEN** no scrollbar SHALL be drawn and no width SHALL be reserved for it
+- **THEN** no scrollbar SHALL be drawn
+- **AND** `auto` or `always` SHALL retain the final rail cell while `hidden` SHALL return it to content
 
 #### Scenario: Derive thumb geometry
 - **WHEN** content is longer than the viewport
@@ -19,18 +20,18 @@ The shared scrollbar SHALL accept a speed of `normal`, `fast`, or `high`. Normal
 - **WHEN** content overflows and appearance is `always`
 - **THEN** the track and thumb SHALL be drawn without requiring pointer or scroll activity
 
-#### Scenario: Reveal a hover rail
-- **WHEN** content overflows, appearance is `hover`, and the pointer enters that rail's zone or that rail scrolls
+#### Scenario: Reveal an automatic rail
+- **WHEN** content overflows, appearance is `auto`, and the pointer enters that rail's zone or that rail scrolls
 - **THEN** the rail SHALL be drawn
 - **AND** its reserved column SHALL be the same before, during, and after temporary visibility
 
 #### Scenario: Linger after activity
-- **WHEN** a hover rail was revealed by scrolling and receives no further activity
+- **WHEN** an automatic rail was revealed by scrolling and receives no further activity
 - **THEN** it SHALL remain visible for the bounded linger and then disappear
 - **AND** the transcript or pane content SHALL NOT rewrap when it disappears
 
 #### Scenario: Hold visibility while dragging
-- **WHEN** a hover rail's thumb is being dragged and the pointer leaves its ordinary hover zone
+- **WHEN** an automatic rail's thumb is being dragged and the pointer leaves its ordinary hover zone
 - **THEN** that rail SHALL remain visible until the drag ends
 
 #### Scenario: Hide a rail
@@ -60,7 +61,7 @@ The shared scrollbar SHALL accept a speed of `normal`, `fast`, or `high`. Normal
 
 #### Scenario: Use high wheel speed
 - **WHEN** scrollbar speed is `high`
-- **THEN** one wheel event SHALL request six lines in its direction
+- **THEN** one wheel event SHALL request nine lines in its direction
 
 #### Scenario: Appearance and style do not set wheel speed
 - **WHEN** appearance or style changes

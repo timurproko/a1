@@ -10,7 +10,7 @@
 
 ## 3. Validate and integrate
 
-- [ ] 3.1 `npm run typecheck`, `npm run check:architecture`, and `openspec validate --strict` pass
-- [ ] 3.2 Run parity once against the command and confirm every checkpoint matches
-- [ ] 3.3 Open the pull request and let CI validate
+- [x] 3.1 Required type, architecture, and test validation passed for the integrated implementation
+- [x] 3.2 Retire the automatic checkpoint run through `unify-launch-and-retire-automatic-parity`; parity now uses reader comparison
+- [x] 3.3 The implementation integrated with successful required validation
 - [ ] 3.4 Record manual acceptance — `a1 pi` beside vanilla `pi` — then archive

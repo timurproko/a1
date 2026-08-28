@@ -26,5 +26,5 @@ A transparent launch owner and supervisor SHALL exchange only validated launch i
 A transparent instance SHALL reach its terminal outcome only after the root command has exited and its remaining verified descendants have been closed within the bounded instance cleanup policy.
 
 #### Scenario: Pi exits after starting a daemon
-- **WHEN** the transparent Pi root exits while an extension daemon or agent descendant remains
+- **WHEN** a transparent root exits while one of its verified descendants remains
 - **THEN** A1 SHALL terminate the remaining instance-owned process tree before returning the final command outcome

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Defines the installed A1 command surface, immutable release behavior, and selected transparent single-foreground terminal handoff.
+Defines the installed A1 command surface, immutable release behavior, and shared owned interactive rendering path.
 ## Requirements
 ### Requirement: Every package update is one immediate replacement command
 The installed application SHALL expose `a1 update` as the stable update command resolving npm tag `latest`, and `a1 update:next` as the development-preview update command resolving npm tag `next`. Invocation SHALL authorize stopping verified A1-owned sessions, installing the exact resolved version, materializing and activating an immutable release, and verifying the result through one ownership-safe transaction. The command SHALL return to the invoking shell after reporting its final result and SHALL NOT require manual process IDs, state deletion, a separate activation operation, or a subsequent bare launch to finish the update.
@@ -42,49 +42,27 @@ The installed application SHALL expose `a1 version`. It SHALL report `Installed`
 - **WHEN** installed package metadata is readable but the package dist-tags query fails
 - **THEN** A1 SHALL preserve `Installed`, mark both remote fields unavailable, emit one concise `A1` diagnostic describing the registry failure, and exit successfully
 
-### Requirement: Bare A1 launches the owned Pi UI
-Bare `a1` SHALL launch the A1-owned Pi UI directly. The owned UI SHALL be the ordinary development and product path rather than an opt-in profile. Explicit `a1 pi` SHALL remain the prerelease Pi comparison launch. The redundant `a1 ui` route SHALL NOT be exposed.
+### Requirement: Interactive launch forms use the owned Pi UI pipeline
+Bare `a1` SHALL launch the A1-owned product surface directly. Explicit prerelease `a1 pi` SHALL use the same owned rendering and input pipeline with A1-specific surfaces withheld and Pi's ordinary user profile selected. Profile selection SHALL NOT introduce transparent child attachment, a PTY, a terminal parser, a byte relay, or a second rendering path. The redundant `a1 ui` route SHALL NOT be exposed.
 
 #### Scenario: Launch bare A1
 - **WHEN** the user runs `a1`
-- **THEN** A1 SHALL start and attach the owned Pi UI without requiring a profile argument
+- **THEN** A1 SHALL start the owned product UI without requiring a profile argument
 
 #### Scenario: Launch after a prior exit
 - **WHEN** the user runs bare A1 after a previous owned foreground session exited
 - **THEN** A1 SHALL start a fresh owned session without replaying the prior retained terminal surface
 
-#### Scenario: Launch the upstream fallback
-- **WHEN** the user runs `a1 pi`
-- **THEN** A1 SHALL start untouched upstream Pi through transparent direct attachment without routing through the owned UI
+#### Scenario: Launch the Pi comparison
+- **WHEN** the user runs prerelease `a1 pi`
+- **THEN** A1 SHALL use the shared owned pipeline with product surfaces withheld and Pi's ordinary profile selected
 
 #### Scenario: Request the removed development alias
 - **WHEN** the user runs `a1 ui`
 - **THEN** A1 SHALL reject the unsupported profile and SHALL NOT silently select another runtime
 
-### Requirement: Transparent handoff uses the complete physical viewport
-The selected transparent capability SHALL attach one child across the complete physical terminal viewport with no A1-reserved rows, terminal parser, input relay, output reconstruction, inferred readiness frame, or display write after handoff.
-
-#### Scenario: Physical terminal resizes
-- **WHEN** the physical terminal changes size during the transparent session
-- **THEN** the child SHALL observe native terminal dimensions without A1 chrome offsets
-
-#### Scenario: Foreground child exits
-- **WHEN** the transparent child exits
-- **THEN** A1 SHALL preserve child-produced output and spacing, perform bounded ownership cleanup, emit no reconstructed final frame, and return the child outcome
-
-### Requirement: Transparent terminal ownership remains native
-During transparent handoff, the child and physical terminal SHALL own rendering, input encoding, selection, clipboard, scrollback, and terminal modes. A1 SHALL retain only foreground lease, process identity, lifecycle reporting, and bounded abnormal-exit cleanup.
-
-#### Scenario: User interacts after handoff
-- **WHEN** the user sends key, text, paste, focus, mouse, wheel, selection, clipboard, or resize actions
-- **THEN** the native terminal path SHALL handle them without an A1 input command or application-specific translation
-
-#### Scenario: Foreground ownership is lost
-- **WHEN** the broker or child fails during transparent attachment
-- **THEN** A1 SHALL apply bounded owned-process cleanup, report that visual reconnection is unavailable, and leave the parent terminal usable
-
 ### Requirement: Stable platform claims require certification
-The transparent architecture SHALL remain application-agnostic across its native platform launchers, but a stable terminal support or parity claim for a platform SHALL require the separately deferred physical and exact-package certification for that platform.
+The owned terminal UI architecture SHALL remain application-agnostic across its native platform launchers, but a stable terminal support or parity claim for a platform SHALL require the separately deferred physical and exact-package certification for that platform.
 
 #### Scenario: Uncertified preview is published
 - **WHEN** a manually accepted candidate passes applicable non-desktop gates without complete physical certification
