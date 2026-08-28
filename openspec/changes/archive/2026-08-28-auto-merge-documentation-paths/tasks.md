@@ -18,6 +18,6 @@
 ## 4. Deliver and accept separately
 
 - [x] 4.1 After this specification pull request merges and the user explicitly requests implementation, fetch updated `origin/develop` and create the detached implementation worktree at `{working-dir}/.worktrees/implement-documentation-auto-merge`
-- [ ] 4.2 Deliver classifier, tests, and guidance in a separate code/operational pull request with auto-merge disabled; run focused governance tests and required GitHub development validation
-- [ ] 4.3 After maintainer acceptance and explicit manual merge, re-trigger or recreate a `docs/**` pull request and verify successful current-head validation causes automatic squash integration and exact-head remote branch cleanup
-- [ ] 4.4 Record live acceptance and archive this OpenSpec change in a separate specification-only follow-up
+- [x] 4.2 Deliver classifier, tests, and guidance in a separate code/operational pull request with auto-merge disabled; run focused governance tests and required GitHub development validation
+- [x] 4.3 After maintainer acceptance and explicit manual merge, re-trigger or recreate a `docs/**` pull request and verify successful current-head validation causes automatic squash integration and exact-head remote branch cleanup
+- [x] 4.4 Record live acceptance and archive this OpenSpec change in a separate specification-only follow-up
