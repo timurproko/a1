@@ -6,6 +6,7 @@ export * from "./model-auth-integration.js";
 export * from "./settings-integration.js";
 export * from "./settings-effects.js";
 export * from "./project-trust-preflight.js";
+export * from "./http-dispatcher.js";
 export * from "./package-integration.js";
 export * from "./resource-extension-integration.js";
 export * from "./workflow-controllers.js";

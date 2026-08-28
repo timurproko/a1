@@ -20,7 +20,7 @@
 - [x] 3.2 Bind `steeringMode`, `followUpMode`, and `transport` to the active agent and verify subsequent queued prompts and provider requests use new values without session recreation
 - [x] 3.3 Bind `thinkingLevel` to the active session and persisted fresh-session default; verify capability clamping, footer/editor indicators, current-session requests, and a later fresh session agree
 - [x] 3.4 Rebuild skill command registration and autocomplete when `enableSkillCommands` changes; verify commands appear or disappear live while unrelated extension and prompt commands retain identity and order
-- [ ] 3.5 Apply `httpIdleTimeoutMs` to both provider streaming and Pi HTTP dispatcher configuration, including zero's disabled semantics; verify focused timeout-option and sequential-launch tests detect an immediate-timeout regression or leaked prior-profile value
+- [x] 3.5 Apply `httpIdleTimeoutMs` to both provider streaming and Pi HTTP dispatcher configuration, including zero's disabled semantics; verify focused timeout-option and sequential-launch tests detect an immediate-timeout regression or leaked prior-profile value
 - [x] 3.6 Bind structured `warnings` and `showCacheMissNotices` at their decision points; verify each warning flag changes only its declared warning and cache-miss notices toggle without rendered-string filtering
 
 ## 4. Apply owned-shell and terminal settings

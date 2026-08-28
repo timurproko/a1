@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { PRODUCT_IDENTITY } from "../../../product-identity.js";
+import { configureOwnedHttpDispatcher } from "./http-dispatcher.js";
 import {
   copyToClipboard,
   DefaultPackageManager,
@@ -635,6 +636,7 @@ export class PiEngineAdapter {
     if (!settings || typeof settings.getCompactionEnabled !== "function") return null;
     if (this.#settingsIntegration === undefined || this.#settingsIntegrationManager !== settings) {
       this.#settingsIntegrationManager = settings;
+      configureOwnedHttpDispatcher(settings.getHttpIdleTimeoutMs());
       this.#settingsIntegration = new PiSettingsIntegration(settings, {
         ...(this.#availableThemes === null ? {} : { themes: this.#availableThemes }),
         thinkingLevels: () => {
@@ -693,9 +695,9 @@ export class PiEngineAdapter {
         } },
         httpIdleTimeoutMs: { apply: value => {
           if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) throw new TypeError("HTTP idle timeout is invalid");
-          // Pinned SDK provider streaming reads this manager at each request. A
-          // coherent owned dispatcher port is added alongside it before HTTP
-          // conformance is considered complete.
+          // Provider streaming reads the manager per request; global fetch uses
+          // the matching owned dispatcher and zero maps to disabled semantics.
+          configureOwnedHttpDispatcher(value);
           settings.setHttpIdleTimeoutMs(value);
         } },
         thinkingLevel: { apply: value => {
