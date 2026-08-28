@@ -49,8 +49,8 @@
 
 ## 8. Perform live acceptance and archive
 
-- [ ] 8.1 Open an OpenSpec-only disposable acceptance pull request and record automatic squash merge, matching validated head, resulting `develop` commit, and remote head-ref absence
-- [ ] 8.2 Open a root-`README.md`-only disposable acceptance pull request and record the same automatic merge and cleanup evidence
+- [x] 8.1 Open an OpenSpec-only disposable acceptance pull request and record automatic squash merge, matching validated head, resulting `develop` commit, and remote head-ref absence
+- [x] 8.2 Open a root-`README.md`-only disposable acceptance pull request and record the same automatic merge and cleanup evidence
 - [ ] 8.3 Prove a mixed/code pull request remains manual through green CI and its unchanged remote branch is removed only after explicit manual merge
 - [ ] 8.4 Use an isolated API fixture or disposable branch to prove an advanced post-merge ref is preserved and reported; never risk a working branch to manufacture evidence
 - [ ] 8.5 Run strict OpenSpec validation, focused repository-governance tests, live read-only drift inspection, and required GitHub validation; preserve exact bounded evidence
