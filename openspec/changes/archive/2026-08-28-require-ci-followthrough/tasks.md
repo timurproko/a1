@@ -9,7 +9,7 @@
 
 - [x] 2.1 Protect `develop` so the required development validation check must pass before a
   merge, and confirm a pull request cannot be merged while it is red
-- [ ] 2.2 Use an eligible OpenSpec-only acceptance pull request and confirm it lands on its own when validation passes
+- [x] 2.2 Use an eligible OpenSpec-only acceptance pull request and confirm it lands on its own when validation passes
 
 ## 3. Validate and integrate
 
