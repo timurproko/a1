@@ -4,6 +4,7 @@ import {
   displayWidth,
   heldNativeHyperlinkStyle,
   hyperlinkSgrSpan,
+  hyperlinkTargetAtColumn,
   nativeHyperlinkStyle,
   overlaySpan,
   stripAnsi,
@@ -84,6 +85,19 @@ describe("overlaying a span on a rendered row", () => {
       .toBe(`${open}example${close}`);
     expect(nativeHyperlinkStyle(`${open}${ESC}[4mexample${ESC}[24m${close}`, text => `${BLUE}${text}${RESET}`))
       .toBe(`${open}${BLUE}example${RESET}${close}`);
+  });
+
+  it("finds the exact visible columns occupied by an OSC 8 hyperlink", () => {
+    const target = "https://example.com/full";
+    const open = `\u001b]8;;${target}\u001b\\`;
+    const close = "\u001b]8;;\u001b\\";
+    const row = `${RED}ab${open}${BLUE}link${RESET}${close} tail`;
+
+    expect(hyperlinkTargetAtColumn(row, 1)).toBeUndefined();
+    expect(hyperlinkTargetAtColumn(row, 2)).toBe(target);
+    expect(hyperlinkTargetAtColumn(row, 5)).toBe(target);
+    expect(hyperlinkTargetAtColumn(row, 6)).toBeUndefined();
+    expect(hyperlinkTargetAtColumn(row, -1)).toBeUndefined();
   });
 
   it("keeps links dotted but non-interactive during a held-button paint", () => {
