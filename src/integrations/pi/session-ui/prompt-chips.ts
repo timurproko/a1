@@ -6,6 +6,7 @@ import type {
   PiShellClipboardContent,
   PiShellEditorTextRange,
 } from "../components/index.js";
+import { canonicalizeClipboardImage } from "./clipboard-image.js";
 
 export interface PromptImageAttachment {
   readonly type: "image";
@@ -34,12 +35,14 @@ export class PromptChipStore {
 
   transformPastedContent(content: PiShellClipboardContent): string {
     if (content.kind === "image") {
+      const image = canonicalizeClipboardImage(content);
+      if (image === null) return "";
       const id = randomBytes(5).toString("hex");
       const tag = `[📷 screenshot-${id}.png]`;
       this.#chips.set(tag, {
         kind: "image",
         tag,
-        image: { type: "image", data: content.data, mimeType: content.mimeType },
+        image: { type: "image", data: image.data, mimeType: image.mimeType },
       });
       return tag;
     }
