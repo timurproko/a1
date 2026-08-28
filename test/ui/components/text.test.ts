@@ -28,6 +28,25 @@ describe("display width", () => {
     expect(displayWidth("👩‍💻")).toBe(2);
   });
 
+  it("counts emoji outside the wide code point blocks as two columns", () => {
+    for (const emoji of ["⚡", "✅", "❌", "⭐", "✨", "🚀", "🟢", "🩹", "🫠", "🇺🇸"]) {
+      expect(displayWidth(emoji)).toBe(2);
+    }
+  });
+
+  it("counts an emoji presentation sequence as two columns", () => {
+    for (const emoji of ["⚠️", "▶️", "☀️", "♻️", "❤️", "✔️", "➡️", "🛠️"]) {
+      expect(displayWidth(emoji)).toBe(2);
+    }
+  });
+
+  it("keeps text symbols that terminals render narrow at one column", () => {
+    expect(displayWidth("—")).toBe(1);
+    expect(displayWidth("…")).toBe(1);
+    expect(displayWidth("│")).toBe(1);
+    expect(displayWidth("é")).toBe(1);
+  });
+
   it("ignores styling escapes", () => {
     expect(displayWidth(`${RED}red${RESET}`)).toBe(3);
     expect(stripAnsi(`${RED}red${RESET}`)).toBe("red");

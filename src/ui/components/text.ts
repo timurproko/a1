@@ -9,6 +9,17 @@ const ANSI_PATTERN = /\[[0-9;:?]*[ -/]*[@-~]|\][^]*(?:|\\)|[@-Z\\-_]/g;
 const SEGMENTER = new Intl.Segmenter(undefined, { granularity: "grapheme" });
 const WORD_SEGMENTER = new Intl.Segmenter(undefined, { granularity: "word" });
 
+/**
+ * Recommended-for-general-interchange emoji. Terminals give every one of these
+ * two columns wherever its code points sit, so the wide blocks in
+ * `codePointWidth` cannot carry the measurement alone: a lone U+26A1 or any
+ * U+FE0F presentation sequence escapes them and would measure one column short.
+ */
+const RGI_EMOJI_PATTERN = /^\p{RGI_Emoji}$/v;
+
+/** Columns a terminal advances for a tab, matching the host runtime. */
+const TAB_WIDTH = 3;
+
 /** Removes styling sequences so only visible characters remain. */
 export function stripAnsi(text: string): string {
   return text.replace(ANSI_PATTERN, "");
@@ -35,13 +46,27 @@ function codePointWidth(codePoint: number): number {
   if (codePoint >= 0x1f300 && codePoint <= 0x1f64f) return 2;
   if (codePoint >= 0x1f900 && codePoint <= 0x1f9ff) return 2;
   if (codePoint >= 0x20000 && codePoint <= 0x3fffd) return 2;
-  // Control characters occupy nothing.
+  // A tab advances to the host runtime's stop; other control characters occupy nothing.
+  if (codePoint === 0x09) return TAB_WIDTH;
   if (codePoint < 0x20 || (codePoint >= 0x7f && codePoint < 0xa0)) return 0;
   return 1;
 }
 
-/** Width of one grapheme cluster: the widest code point it contains, marks excluded. */
+/** Cheap pre-filter: only clusters that could be emoji pay for the RGI test. */
+function couldBeEmoji(grapheme: string): boolean {
+  const codePoint = grapheme.codePointAt(0) ?? 0;
+  return (
+    (codePoint >= 0x1f000 && codePoint <= 0x1fbff) ||
+    (codePoint >= 0x2300 && codePoint <= 0x23ff) ||
+    (codePoint >= 0x2600 && codePoint <= 0x27bf) ||
+    (codePoint >= 0x2b00 && codePoint <= 0x2bff) ||
+    grapheme.length > 1
+  );
+}
+
+/** Width of one grapheme cluster: two for emoji, else the widest code point it contains. */
 function graphemeWidth(grapheme: string): number {
+  if (couldBeEmoji(grapheme) && RGI_EMOJI_PATTERN.test(grapheme)) return 2;
   let width = 0;
   for (const character of grapheme) {
     width = Math.max(width, codePointWidth(character.codePointAt(0) ?? 0));
