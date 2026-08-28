@@ -1,9 +1,9 @@
 const ALLOWED_ROOT_FILE = "README.md";
-const ALLOWED_PREFIX = "openspec/";
+const ALLOWED_PREFIXES = Object.freeze(["openspec/", "docs/"]);
 
 /**
  * Classify the complete changed-file response from GitHub's pull-request files API.
- * Renames inspect both names so moving code into openspec cannot become eligible.
+ * Renames inspect both names so moving code into documentation cannot become eligible.
  */
 export function classifyDocumentationAutoMerge(files) {
   if (!Array.isArray(files) || files.length === 0) {
@@ -25,13 +25,15 @@ export function classifyDocumentationAutoMerge(files) {
   }
 
   const examinedPaths = unique(examined);
-  const disallowedPaths = examinedPaths.filter(path => path !== ALLOWED_ROOT_FILE && !path.startsWith(ALLOWED_PREFIX));
+  const disallowedPaths = examinedPaths.filter(path =>
+    path !== ALLOWED_ROOT_FILE && !ALLOWED_PREFIXES.some(prefix => path.startsWith(prefix))
+  );
   return {
     eligible: disallowedPaths.length === 0,
     examinedPaths,
     disallowedPaths,
     reason: disallowedPaths.length === 0
-      ? "every changed path is under openspec/ or is the root README.md"
+      ? "every changed path is under openspec/, under docs/, or is the root README.md"
       : `paths outside the auto-merge allowlist: ${disallowedPaths.join(", ")}`,
   };
 }
