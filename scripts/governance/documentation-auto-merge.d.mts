@@ -14,3 +14,12 @@ export interface DocumentationAutoMergeClassification {
 export function classifyDocumentationAutoMerge(
   files: readonly PullRequestChangedFile[],
 ): DocumentationAutoMergeClassification;
+
+export type DocumentationValidationState = "pending" | "success" | "failure";
+export type DocumentationAutoMergeAction = "arm" | "merge" | "wait" | "unchanged";
+
+export function planDocumentationAutoMerge(input: {
+  readonly validation: DocumentationValidationState;
+  readonly autoMergeArmed: boolean;
+  readonly mergeableState: string | null | undefined;
+}): DocumentationAutoMergeAction;

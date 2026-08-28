@@ -1,6 +1,17 @@
-import { readFile } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { createServer } from "node:http";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
-import { classifyDocumentationAutoMerge, type PullRequestChangedFile } from "../../scripts/governance/documentation-auto-merge.mjs";
+import {
+  classifyDocumentationAutoMerge,
+  planDocumentationAutoMerge,
+  type PullRequestChangedFile,
+} from "../../scripts/governance/documentation-auto-merge.mjs";
+
+const execFileAsync = promisify(execFile);
 
 function files(...paths: string[]): PullRequestChangedFile[] {
   return paths.map(filename => ({ filename, status: "modified" }));
@@ -49,6 +60,42 @@ describe("documentation auto-merge path policy", () => {
   });
 });
 
+describe("documentation auto-merge planning", () => {
+  it("arms eligible PRs while required validation is pending", () => {
+    expect(planDocumentationAutoMerge({
+      validation: "pending",
+      autoMergeArmed: false,
+      mergeableState: "blocked",
+    })).toBe("arm");
+  });
+
+  it("directly merges a validated clean head and arms a validated blocked head", () => {
+    expect(planDocumentationAutoMerge({
+      validation: "success",
+      autoMergeArmed: false,
+      mergeableState: "clean",
+    })).toBe("merge");
+    expect(planDocumentationAutoMerge({
+      validation: "success",
+      autoMergeArmed: false,
+      mergeableState: "blocked",
+    })).toBe("arm");
+  });
+
+  it("does not arm a failed head or disturb auto-merge that is already armed", () => {
+    expect(planDocumentationAutoMerge({
+      validation: "failure",
+      autoMergeArmed: false,
+      mergeableState: "blocked",
+    })).toBe("wait");
+    expect(planDocumentationAutoMerge({
+      validation: "pending",
+      autoMergeArmed: true,
+      mergeableState: "blocked",
+    })).toBe("unchanged");
+  });
+});
+
 describe("documentation auto-merge workflow", () => {
   it("runs trusted policy after validation and when auto-merge state can become unsafe", async () => {
     const workflow = await readFile(".github/workflows/documentation-auto-merge.yml", "utf8");
@@ -63,14 +110,141 @@ describe("documentation auto-merge workflow", () => {
     expect(workflow).not.toContain("github.event.pull_request.head.sha");
   });
 
-  it("arms only successful trusted documentation PRs and disables ineligible auto-merge", async () => {
+  it("arms an eligible trusted PR before validation finishes", async () => {
+    const result = await runManager({ pull_request: { number: 42 } }, pullFixture({ mergeable_state: "blocked" }));
+    const graphql = result.requests.find(request => request.url === "/graphql");
+    expect(graphql?.method).toBe("POST");
+    expect(graphql?.body).toContain("enablePullRequestAutoMerge");
+    expect(result.stdout).toContain("squash auto-merge armed behind required validation");
+  });
+
+  it("squash-merges only the current successfully validated clean head", async () => {
+    const result = await runManager({
+      workflow_run: {
+        id: 9001,
+        name: "Development validation",
+        event: "pull_request",
+        conclusion: "success",
+        head_sha: "head-42",
+        pull_requests: [{ number: 42 }],
+      },
+    }, pullFixture({ mergeable_state: "clean" }));
+    const merge = result.requests.find(request => request.url === "/repos/owner/repository/pulls/42/merge");
+    expect(merge).toMatchObject({ method: "PUT" });
+    expect(JSON.parse(merge?.body ?? "{}")).toEqual({ sha: "head-42", merge_method: "squash" });
+    expect(result.requests.some(request => request.body.includes("enablePullRequestAutoMerge"))).toBe(false);
+    expect(result.stdout).toContain("squash-merged with expected head SHA");
+  });
+
+  it("never directly merges when successful validation belongs to an older head", async () => {
+    const result = await runManager({
+      workflow_run: {
+        id: 9002,
+        name: "Development validation",
+        event: "pull_request",
+        conclusion: "success",
+        head_sha: "old-head",
+        pull_requests: [{ number: 42 }],
+      },
+    }, pullFixture({ mergeable_state: "blocked" }));
+    expect(result.requests.some(request => request.method === "PUT")).toBe(false);
+    expect(result.requests.some(request => request.body.includes("enablePullRequestAutoMerge"))).toBe(true);
+  });
+
+  it("retains trusted classification and ineligible disable guards", async () => {
     const manager = await readFile("scripts/governance/manage-documentation-auto-merge.mjs", "utf8");
     expect(manager).toContain('event.workflow_run.conclusion === "success"');
+    expect(manager).toContain('run.validatedHeadSha === pull.head?.sha');
     expect(manager).toContain('pull.head?.repo?.full_name === repositoryName');
     expect(manager).toContain('pull.base?.ref === "develop"');
     expect(manager).toContain("enablePullRequestAutoMerge");
     expect(manager).toContain("mergeMethod: SQUASH");
+    expect(manager).toContain('body: { sha: pull.head.sha, merge_method: "squash" }');
     expect(manager).toContain("disablePullRequestAutoMerge");
     expect(manager).toContain("await disableIfArmed(pull, `classification failed:");
   });
 });
+
+interface RecordedRequest {
+  readonly method: string;
+  readonly url: string;
+  readonly body: string;
+}
+
+function pullFixture(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    number: 42,
+    state: "open",
+    node_id: "pull-request-node-42",
+    draft: false,
+    base: { ref: "develop" },
+    head: { sha: "head-42", repo: { full_name: "owner/repository" } },
+    auto_merge: null,
+    mergeable_state: "blocked",
+    ...overrides,
+  };
+}
+
+async function runManager(
+  event: Record<string, unknown>,
+  pull: Record<string, unknown>,
+): Promise<{ readonly requests: RecordedRequest[]; readonly stdout: string }> {
+  const requests: RecordedRequest[] = [];
+  const server = createServer((request, response) => {
+    const chunks: Buffer[] = [];
+    request.on("data", chunk => chunks.push(Buffer.from(chunk)));
+    request.on("end", () => {
+      const recorded = {
+        method: request.method ?? "GET",
+        url: request.url ?? "",
+        body: Buffer.concat(chunks).toString("utf8"),
+      };
+      requests.push(recorded);
+
+      let body: unknown;
+      if (recorded.url === "/repos/owner/repository/pulls/42") {
+        body = pull;
+      } else if (recorded.url === "/repos/owner/repository/pulls/42/files?per_page=100&page=1") {
+        body = [{ filename: "openspec/changes/example/proposal.md", status: "modified" }];
+      } else if (recorded.url === "/repos/owner/repository/pulls/42/merge" && recorded.method === "PUT") {
+        body = { merged: true };
+      } else if (recorded.url === "/graphql") {
+        body = { data: { pullRequest: { number: 42 } } };
+      } else {
+        response.writeHead(404, { "content-type": "application/json" });
+        response.end(JSON.stringify({ error: `unexpected request: ${recorded.method} ${recorded.url}` }));
+        return;
+      }
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(JSON.stringify(body));
+    });
+  });
+
+  await new Promise<void>((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", resolve);
+  });
+  const address = server.address();
+  if (!address || typeof address === "string") throw new Error("test API server did not expose a TCP address");
+
+  const temporary = await mkdtemp(join(tmpdir(), "a1-documentation-auto-merge-"));
+  const eventPath = join(temporary, "event.json");
+  await writeFile(eventPath, JSON.stringify(event));
+  try {
+    const result = await execFileAsync(process.execPath, ["scripts/governance/manage-documentation-auto-merge.mjs"], {
+      cwd: process.cwd(),
+      env: {
+        ...process.env,
+        GITHUB_TOKEN: "test-token",
+        GITHUB_EVENT_PATH: eventPath,
+        GITHUB_REPOSITORY: "owner/repository",
+        GITHUB_API_URL: `http://127.0.0.1:${address.port}`,
+        GITHUB_GRAPHQL_URL: `http://127.0.0.1:${address.port}/graphql`,
+      },
+    });
+    return { requests, stdout: result.stdout };
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+    await rm(temporary, { recursive: true, force: true });
+  }
+}

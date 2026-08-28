@@ -33,7 +33,7 @@ jobs:
         with:
           node-version: 24
 
-      - name: Arm eligible or disable ineligible auto-merge
+      - name: Reconcile documentation auto-merge policy
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: node scripts/governance/manage-documentation-auto-merge.mjs

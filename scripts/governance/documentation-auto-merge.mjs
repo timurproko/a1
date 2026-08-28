@@ -36,6 +36,13 @@ export function classifyDocumentationAutoMerge(files) {
   };
 }
 
+export function planDocumentationAutoMerge({ validation, autoMergeArmed, mergeableState }) {
+  if (autoMergeArmed) return "unchanged";
+  if (validation === "failure") return "wait";
+  if (validation === "success" && mergeableState === "clean") return "merge";
+  return "arm";
+}
+
 function validPath(value) {
   return typeof value === "string"
     && value.length > 0
