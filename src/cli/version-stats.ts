@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import crossSpawn from "cross-spawn";
-import { valid as validSemver } from "semver";
+import { prerelease, valid as validSemver } from "semver";
 import { PRODUCT_TEXT } from "../product-identity.js";
 
 interface VersionProcessResult { readonly code: number | null; readonly stdout: string }
@@ -33,6 +33,13 @@ export async function runVersionStats(options: VersionStatsOptions): Promise<num
   } catch (error) {
     output.stderr(`${PRODUCT_TEXT.diagnostic(`could not read its installed version: ${message(error)}`)}\n`);
     return 1;
+  }
+
+  // Match Pi's release behavior: stable builds print only their installed version.
+  // Development builds retain channel visibility for preview comparison and updates.
+  if (prerelease(installed) === null) {
+    output.stdout(`${installed}\n`);
+    return 0;
   }
 
   const remote = await queryDistTags(runner, options.fetcher ?? defaultRegistryFetcher);

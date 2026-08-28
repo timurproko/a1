@@ -12,7 +12,7 @@ operation acts on SHALL be given as a flag or a positional source, as in
 `pi update --extensions`, so one separator never carries two meanings.
 
 #### Scenario: Query version
-- **WHEN** the user runs `a1 version`
+- **WHEN** the user runs `a1 --version`
 - **THEN** A1 SHALL execute the dependency-light version query without launching any interactive profile
 
 #### Scenario: Manage packages

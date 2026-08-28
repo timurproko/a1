@@ -24,7 +24,7 @@ npm install -g @timurproko/a1@0.1.8-dev.107
 
 ```sh
 a1                      # launch A1 (profile: ~/.a1/agent)
-a1 version              # show Current, Develop, and Release versions
+a1 --version            # show the version (and channels in development builds)
 a1 update               # install the newest stable release
 a1 update:develop       # install the current development preview
 a1 update:107           # install numbered preview 107

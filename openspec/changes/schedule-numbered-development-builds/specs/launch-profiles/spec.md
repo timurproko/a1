@@ -7,7 +7,7 @@ forwarded to Pi. Unknown A1 subcommands, including the removed `update:next`
 spelling, SHALL fail before supervisor or foreground-child startup.
 
 #### Scenario: Query version
-- **WHEN** the user runs `a1 version`
+- **WHEN** the user runs `a1 --version`
 - **THEN** A1 SHALL execute the dependency-light version query without launching any interactive profile
 
 #### Scenario: Unknown subcommand

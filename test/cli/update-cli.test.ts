@@ -50,7 +50,7 @@ describe("update CLI dispatch", () => {
     await writeFile(loader, `
 import { appendFileSync } from "node:fs";
 export async function resolve(specifier, context, nextResolve) {
-  if (specifier === "node-pty" || specifier.includes("/dist/foundation/supervision/") || specifier.includes("/dist/foundation/transparent-terminal/") || (process.argv.includes("version") && specifier.includes("/dist/foundation/release/"))) {
+  if (specifier === "node-pty" || specifier.includes("/dist/foundation/supervision/") || specifier.includes("/dist/foundation/transparent-terminal/") || (process.argv.includes("--version") && specifier.includes("/dist/foundation/release/"))) {
     appendFileSync(${JSON.stringify(forbiddenImportLog)}, specifier + "\\n");
     throw new Error("Update imported forbidden interactive runtime module: " + specifier);
   }
@@ -109,7 +109,7 @@ else process.exitCode = 64;
 
     await expect(access(npmLog)).rejects.toThrow();
 
-    const result = await execFileAsync(process.execPath, [cli, "version"], {
+    const result = await execFileAsync(process.execPath, [cli, "--version"], {
       cwd: temporaryRoot,
       env: {
         ...process.env,

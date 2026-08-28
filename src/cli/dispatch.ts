@@ -20,7 +20,7 @@ export function cliUsage(capabilities: CliCapabilities): string {
   return PRODUCT_TEXT.usage([
     "",
     ...(capabilities.developmentComparison ? ["pi"] : []),
-    "version",
+    "--version",
     "update [self|--models]",
     "update:develop",
     "update:<number>",
@@ -65,7 +65,7 @@ export function parseCliCommand(arguments_: readonly string[], capabilities: Cli
     if (rest.length > 0) return parsePiPackageCommand(rest);
     if (capabilities.developmentComparison) return { kind: "launch", profileId: "pi" };
   }
-  if (command === "version") return withoutArguments(rest, { kind: "version" });
+  if (command === "--version") return withoutArguments(rest, { kind: "version" });
   if (command !== undefined && command.startsWith("update:")) return parseColonUpdate(command.slice("update:".length), rest);
   if (command === "update") return parseUpdate(rest);
   if (command === "install" || command === "remove" || command === "uninstall" || command === "list") {
