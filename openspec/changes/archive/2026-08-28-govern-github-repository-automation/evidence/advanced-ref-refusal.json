@@ -1,0 +1,21 @@
+{
+  "schema": "a1-advanced-ref-refusal-v1",
+  "fixture": "isolated-mocked-github-api",
+  "disposition": "refused",
+  "number": 999999,
+  "ref": "acceptance/reused-topic-fixture",
+  "expectedSha": "1111111111111111111111111111111111111111",
+  "actualSha": "2222222222222222222222222222222222222222",
+  "reason": "live branch advanced after merge",
+  "deleteRequests": 0,
+  "requests": [
+    {
+      "method": "GET",
+      "path": "/repos/timurproko/a1/git/ref/heads/acceptance%2Freused-topic-fixture"
+    },
+    {
+      "method": "GET",
+      "path": "/repos/timurproko/a1/branches/acceptance%2Freused-topic-fixture"
+    }
+  ]
+}
