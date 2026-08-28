@@ -12,6 +12,6 @@
 ## 3. Deliver the implementation separately
 
 - [x] 3.1 After this specification pull request merges and the user explicitly requests implementation, create a fresh worktree and branch from updated `origin/develop`
-- [ ] 3.2 Open a separate code/operational pull request citing this OpenSpec change and leave auto-merge disabled
+- [x] 3.2 Open a separate code/operational pull request citing this OpenSpec change and leave auto-merge disabled
 - [ ] 3.3 Provide exact local validation instructions and leave the pull request open until the maintainer reports acceptance
 - [ ] 3.4 Merge manually only after explicit maintainer authorization, then report the merge result
