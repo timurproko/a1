@@ -46,4 +46,4 @@ Normal root exit, terminal closure, guardian failure, and verified update shutdo
 
 ## Recovery and comparison
 
-If bare `a1` cannot start or a UI workflow diverges, run `a1 pi` from the same working directory and compare the behavior. Profile data is intentionally separate, so authentication or settings may need to be configured independently. Use `a1 version` to record the installed A1 release before reporting a difference.
+If bare `a1` cannot start or a UI workflow diverges, run `a1 pi` from the same working directory and compare the behavior. Profile data is intentionally separate, so authentication or settings may need to be configured independently. Use `a1 --version` to record the installed A1 release before reporting a difference.

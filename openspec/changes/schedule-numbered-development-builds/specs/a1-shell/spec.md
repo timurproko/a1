@@ -31,21 +31,27 @@ to finish the update.
 - **WHEN** the user runs bare `a1` after the update command reported success
 - **THEN** A1 SHALL launch the already active target without printing installation or activation messages
 
-### Requirement: Current and channel versions are visible without runtime startup
-The installed application SHALL expose `a1 version`. It SHALL report `Current`,
-`Develop`, and `Release` in that order and SHALL NOT start or mutate the interactive
-runtime, supervisor, storage, release cohort, or update transaction. Remote channel
-discovery SHALL read the authoritative package dist-tags as one coherent registry
-result.
+### Requirement: Version output follows the Pi command convention
+The installed application SHALL expose equivalent `a1 --version` and `a1 -v`
+forms and SHALL NOT expose a `version` subcommand. It SHALL NOT start or mutate the interactive runtime,
+supervisor, storage, release cohort, or update transaction. A stable release SHALL
+print only its installed exact semantic version, matching Pi's version output. A
+development build SHALL report `Current`, `Develop`, and `Release` in that order and
+SHALL discover the remote channels from the authoritative package dist-tags as one
+coherent registry result.
 
-#### Scenario: Registry versions are available
-- **WHEN** the user runs `a1 version` while npm `latest` and the internal development dist-tag are defined and reachable
+#### Scenario: Stable release version
+- **WHEN** the user runs `a1 --version` or `a1 -v` from a stable release
+- **THEN** A1 SHALL print only the installed exact semantic version without querying remote channels
+
+#### Scenario: Development channel versions are available
+- **WHEN** the user runs `a1 --version` from a development build while npm `latest` and the internal development dist-tag are defined and reachable
 - **THEN** A1 SHALL display valid exact semantic versions in the order `Current`, `Develop`, and `Release`
 
 #### Scenario: Development channel is not defined
-- **WHEN** npm metadata is reachable, `latest` is defined, and the package has no development dist-tag
+- **WHEN** the user runs `a1 --version` from a development build, npm metadata is reachable, `latest` is defined, and the package has no development dist-tag
 - **THEN** A1 SHALL display `Develop: unavailable`, display the latest version under `Release`, emit no error diagnostic for the absent optional channel, and exit successfully
 
-#### Scenario: Registry is unavailable
-- **WHEN** installed package metadata is readable but the package dist-tags query fails
+#### Scenario: Registry is unavailable to a development build
+- **WHEN** installed development package metadata is readable but the package dist-tags query fails
 - **THEN** A1 SHALL preserve `Current`, mark both remote fields unavailable, emit one concise `A1` diagnostic describing the registry failure, and exit successfully

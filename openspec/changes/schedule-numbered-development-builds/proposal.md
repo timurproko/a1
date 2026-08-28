@@ -38,7 +38,7 @@ names should use the decimal number GitHub presents beside `develop` — for exa
   version remains an accepted exact name. The old public spelling
   `a1 update:next` is removed.
 - User-visible development-channel terminology is consistently `develop`: update
-  progress says `a1 update` without a channel label and `a1 version` labels the remote preview
+  progress says `a1 update` without a channel label and `a1 --version` labels the remote preview
   `Develop`, never `Next`. The underlying npm `next` dist-tag remains an internal
   registry convention unless a separate tag migration is approved.
 - The README and release runbook replace per-commit automatic-preview instructions
