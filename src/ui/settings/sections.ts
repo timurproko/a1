@@ -17,8 +17,6 @@ export interface OwnedUiSettingsEntry {
   readonly storedValue: unknown;
   readonly effectiveValue: unknown;
   readonly editable: boolean;
-  readonly available: boolean;
-  readonly limitationReason: string | null;
   readonly choices: readonly OwnedUiSettingValue[] | null;
   /** True when the value is a structured object edited through its own surface. */
   readonly structured: boolean;
@@ -75,8 +73,6 @@ export function buildOwnedUiSettingsSections(
       storedValue: setting.value,
       effectiveValue: setting.value,
       editable: true,
-      available: true,
-      limitationReason: null,
       structured: false,
       minimum: null,
       maximum: null,
@@ -118,10 +114,13 @@ function agentSection(snapshot: AgentSettingsSnapshot | null): OwnedUiSettingsSe
     return frozenSection(`Agent settings are unavailable: ${snapshot.failure}`, null, []);
   }
   if (snapshot.descriptors.length === 0) {
-    return frozenSection("The agent engine reported no settings", null, []);
+    return { id: AGENT_SECTION_ID, title: "Agent", entries: Object.freeze([]), unavailableReason: null, readOnlyReason: null };
   }
 
-  const entries = snapshot.descriptors.map(descriptor => {
+  const presented = snapshot.writeAdvertised
+    ? snapshot.descriptors.filter(descriptor => descriptor.writable && descriptor.available)
+    : [];
+  const entries = presented.map(descriptor => {
     const raw: AgentJsonValue = descriptor.storedValue;
     return {
       id: descriptor.key,
@@ -132,11 +131,9 @@ function agentSection(snapshot: AgentSettingsSnapshot | null): OwnedUiSettingsSe
       rawValue: raw,
       storedValue: descriptor.storedValue,
       effectiveValue: descriptor.effectiveValue,
-      available: descriptor.available,
-      limitationReason: descriptor.limitationReason,
-      // A structured value is editable through its own surface rather than a
-      // value menu, so it stays reachable instead of being reported as fixed.
-      editable: snapshot.writeAdvertised && descriptor.writable && descriptor.available,
+      // Unavailable and non-writable descriptors are filtered before projection.
+      // Every presented structured value remains editable through its own surface.
+      editable: true,
       structured: descriptor.valueType === "json",
       minimum: descriptor.minimum ?? null,
       maximum: descriptor.maximum ?? null,
@@ -149,18 +146,12 @@ function agentSection(snapshot: AgentSettingsSnapshot | null): OwnedUiSettingsSe
     };
   });
 
-  const readOnlyReason = snapshot.writeAdvertised
-    ? (entries.some(entry => entry.editable)
-      ? null
-      : "The agent engine reports no writable settings")
-    : "The agent engine does not support changing settings from this surface";
-
   return {
     id: AGENT_SECTION_ID,
     title: "Agent",
     entries: Object.freeze(entries),
     unavailableReason: null,
-    readOnlyReason,
+    readOnlyReason: null,
   };
 }
 

@@ -124,19 +124,19 @@ export class PiSettingsIntegration implements AgentSettingsPort {
       return at < 0 ? PRESENTATION.order.length : at;
     };
     return [...this.#operations.values()]
+      .filter(operation => this.#coordinator.available(operation.key))
       .map(operation => {
         const key = operation.key;
         const wording = PRESENTATION.settings[key];
         const flags = PRESENTATION.dialogs[key];
         const bounds = PRESENTATION.bounds[key];
-        const limitationReason = this.#coordinator.limitationReason(key);
         const descriptor: AgentSettingDescriptor = {
           ...operation.descriptor,
           application: PI_SETTING_EFFECTS[key].application,
           owner: PI_SETTING_EFFECTS[key].owner,
-          available: limitationReason === null,
-          limitationReason,
-          writable: limitationReason === null,
+          available: true,
+          limitationReason: null,
+          writable: true,
           storedValue: this.#coordinator.storedValue(key),
           effectiveValue: this.#coordinator.effectiveValue(key),
           ...(bounds === undefined ? {} : bounds),

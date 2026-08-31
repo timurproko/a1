@@ -13,15 +13,22 @@ const OWNERS: readonly AgentSettingOwner[] = ["agent", "shell", "terminal", "sta
 
 function integration(settings = SettingsManager.inMemory({ compaction: { enabled: true } })): PiSettingsIntegration {
   const target = new PiSettingsIntegration(settings, { productMode: "comparison" });
+  bindEffects(target, () => true);
+  return target;
+}
+
+function bindEffects(
+  target: PiSettingsIntegration,
+  include: (key: PiSettingKey, owner: AgentSettingOwner) => boolean,
+): void {
   for (const owner of OWNERS) {
     const handlers = Object.fromEntries(
       Object.entries(PI_SETTING_EFFECTS)
-        .filter(([, definition]) => definition.owner === owner)
+        .filter(([key, definition]) => definition.owner === owner && include(key as PiSettingKey, owner))
         .map(([key]) => [key, { apply() {} }]),
     ) as PiSettingOwnerHandlers;
     target.bindOwner(owner, handlers);
   }
-  return target;
 }
 
 describe("Pi settings integration", () => {
@@ -48,16 +55,30 @@ describe("Pi settings integration", () => {
     expect(await port.readSetting("outputPad")).toBe(1);
   });
 
-  it("keeps an unbound effect read-only and reports its exact limitation", async () => {
+  it("omits every unavailable bare-A1 option while retaining supported fallbacks", async () => {
     const port = new PiSettingsIntegration(SettingsManager.inMemory({ compaction: { enabled: true } }));
-    const autoCompact = (await port.listSettings()).find(value => value.key === "autoCompact");
-    expect(autoCompact).toMatchObject({ writable: false, available: false, application: "live", owner: "agent" });
-    expect(autoCompact?.limitationReason).toMatch(/agent effect is not bound/);
-    const productFixed = (await port.listSettings()).filter(value => ["theme", "quietStartup", "tuiMode", "fullscreenScrollbar"].includes(value.key));
-    expect(productFixed.map(value => value.key)).toEqual(["quietStartup", "tuiMode", "fullscreenScrollbar", "theme"]);
-    expect(productFixed.every(value => !value.writable && !value.available && value.limitationReason !== null)).toBe(true);
-    expect(productFixed.find(value => value.key === "theme")?.limitationReason).toMatch(/product-fixed dark owned theme/);
-    await expect(port.writeSetting("autoCompact", false)).resolves.toMatchObject({ status: "unavailable", storedValue: true, effectiveValue: true });
+    bindEffects(port, (key, owner) => owner !== "installation" && PI_SETTING_EFFECTS[key].hiddenInBare !== true);
+
+    const descriptors = await port.listSettings();
+    const visible = new Set(descriptors.map(value => value.key));
+    for (const key of EXPOSED_SETTING_KEYS) {
+      const definition = PI_SETTING_EFFECTS[key as PiSettingKey];
+      const expected = definition.hiddenInBare !== true && definition.owner !== "installation";
+      expect(visible.has(key), `${key} has incorrect bare-A1 visibility`).toBe(expected);
+    }
+    expect(visible.has("showImages")).toBe(true);
+    expect(visible.has("enableInstallTelemetry")).toBe(false);
+    expect(descriptors.every(value => value.writable && value.available && value.limitationReason === null)).toBe(true);
+    await expect(port.writeSetting("theme", "light")).resolves.toMatchObject({ status: "unavailable" });
+    expect(await port.readSetting("theme")).not.toBe("light");
+  });
+
+  it("omits unbound effects instead of returning disabled explanatory descriptors", async () => {
+    const port = new PiSettingsIntegration(SettingsManager.inMemory({ compaction: { enabled: true } }));
+    expect(await port.listSettings()).toEqual([]);
+    await expect(port.writeSetting("autoCompact", false)).resolves.toMatchObject({
+      status: "unavailable", storedValue: true, effectiveValue: true,
+    });
     expect(await port.readSetting("autoCompact")).toBe(true);
   });
 

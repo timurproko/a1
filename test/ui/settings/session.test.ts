@@ -103,26 +103,23 @@ describe("owned UI settings session", () => {
     expect(sections[1]?.entries.map(entry => entry.id)).toEqual(["autoCompact", "thinkingLevel"]);
   });
 
-  it("omits agent controls fixed by the owning product surface", async () => {
+  it("omits unavailable agent controls without exposing their reason copy", async () => {
     const base = syntheticPort();
+    const unavailable = { writable: false, available: false, limitationReason: "fixture reason must stay hidden" } as const;
     const agent: AgentSettingsPort = {
       ...base,
       async listSettings(): Promise<readonly AgentSettingDescriptor[]> {
         return [
           ...await base.listSettings(),
-          { ...settingDescriptor("tuiMode", "enum", "regular"), choices: ["regular", "fullscreen"] },
-          { ...settingDescriptor("theme", "enum", "dark"), choices: ["dark", "light", "automatic"] },
-          { ...settingDescriptor("fullscreenScrollbar", "enum", "auto"), choices: ["auto", "always", "hidden"] },
-          settingDescriptor("quietStartup", "boolean", false),
+          { ...settingDescriptor("tuiMode", "enum", "regular"), ...unavailable, choices: ["regular", "fullscreen"] },
+          { ...settingDescriptor("theme", "enum", "dark"), ...unavailable, choices: ["dark", "light", "automatic"] },
+          { ...settingDescriptor("fullscreenScrollbar", "enum", "auto"), ...unavailable, choices: ["auto", "always", "hidden"] },
+          { ...settingDescriptor("quietStartup", "boolean", false), ...unavailable },
         ];
       },
     };
     const store = new OwnedUiSettingsStore({ configDir: root, profileId: "a1", declarations: DECLARATIONS, migrations: [] });
-    const target = new OwnedUiSettingsSession({
-      store,
-      agent,
-      hiddenAgentSettingIds: ["tuiMode", "theme", "fullscreenScrollbar", "quietStartup"],
-    });
+    const target = new OwnedUiSettingsSession({ store, agent });
     await target.load();
 
     const entries = target.sections().flatMap(section => section.entries);
@@ -193,12 +190,14 @@ describe("owned UI settings session", () => {
     expect(port.flushed()).toBe(0);
   });
 
-  it("refuses an agent change when write is not advertised", async () => {
+  it("omits agent options and refuses a hidden route when write is not advertised", async () => {
     const target = session(syntheticPort({ write: false }));
     await target.load();
+    expect(target.sections()[1]?.entries).toEqual([]);
+    expect(target.sections()[1]?.readOnlyReason).toBeNull();
     const outcome = await target.change("agent", "autoCompact", false);
     expect(outcome.applied).toBe(false);
-    expect(outcome.failure).toMatch(/not editable from this surface/);
+    expect(outcome.failure).toMatch(/unknown agent setting/);
   });
 
   it("reports a failed engine write rather than claiming it was saved", async () => {

@@ -10,11 +10,13 @@ function bindTheme(target: PiSettingsIntegration): PiSettingsIntegration {
 }
 
 function integration(theme: string): PiSettingsIntegration {
-  return bindTheme(new PiSettingsIntegration(SettingsManager.inMemory({ theme }), {
+  const target = bindTheme(new PiSettingsIntegration(SettingsManager.inMemory({ theme }), {
     themes: () => THEMES,
     thinkingLevels: () => ["low", "high"],
     productMode: "comparison",
   }));
+  target.bindOwner("agent", { thinkingLevel: { apply() {} } });
+  return target;
 }
 
 async function keys(target: PiSettingsIntegration): Promise<readonly string[]> {
