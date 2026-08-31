@@ -13,8 +13,8 @@ Project trust currently has an ordering constraint: Pi settings and resource ser
 **Goals:**
 
 - Give storage state and effective runtime state one typed authority and one outcome model.
-- Make every setting currently visible in bare A1 produce its pinned effect at the earliest supported boundary.
-- Make every setting in the generated Pi inventory explicit: effective, deferred, or unavailable with a reason.
+- Make every setting visible in bare A1 produce its pinned effect at the earliest supported boundary, and omit settings with no effect in the active product mode or environment.
+- Make every setting in the generated Pi inventory explicit internally as effective, deferred, or unavailable, while presenting only effective or supported deferred entries in the settings UI.
 - Preserve bounded owned-UI contracts while allowing validated image content to reach the presenter.
 - Make trust fail closed before project configuration or executable resources load.
 - Keep the implementation on public Pi APIs or attributed coherent owned ports.
@@ -33,16 +33,17 @@ Project trust currently has an ordering constraint: Pi settings and resource ser
 
 Introduce a Pi settings coordinator behind `AgentSettingsPort`. The coordinator owns the generated setting operations and a reviewed effect registry. Both the A1-owned settings app and the pinned specialized selector delegate accepted changes to this coordinator; neither calls `SettingsManager` or runtime setters independently.
 
-Each descriptor carries:
+Each presented descriptor carries:
 
 - application boundary: `live | next-session | next-start | current-exit`;
-- availability and reason for the active A1 mode;
 - stored value and, when different, effective value;
 - owner category used by conformance: agent, shell, terminal, startup, shutdown, or installation.
 
+The reviewed effect registry retains the capability predicate needed for exhaustive inventory checks. Entries whose predicate is false are filtered before UI descriptors are produced, so product-specific unavailability copy is neither rendered nor required in the settings implementation.
+
 A write returns a typed outcome rather than `void`. For a live change the coordinator validates, captures the previous stored/effective value, installs the effect through the bound owner, persists and flushes, and publishes the new effective value. If installation or persistence fails, it invokes the inverse application with the previous value and reports the failure. Handlers must therefore be idempotent and reversible. Deferred writes persist immediately but keep the prior effective value and return the exact boundary.
 
-Runtime owners register typed handlers when composition creates them and unregister on disposal. A descriptor is writable only when its required handler or lifecycle capability is present. This avoids constructing the settings UI around callbacks while still allowing settings to load before the shell exists.
+Runtime owners register typed handlers when composition creates them and unregister on disposal. An entry is presented only when its required handler or lifecycle capability is present. This avoids constructing the settings UI around callbacks while still allowing settings to load before the shell exists.
 
 Alternative considered: add more callbacks to `OwnedUiSettingsSession`. Rejected because it would make a generic settings UI understand Pi keys and leave the pinned and owned routes divergent.
 
@@ -83,12 +84,12 @@ The target inventory is:
 | `showTerminalProgress` | live | active and subsequent progress reporting |
 | `fullscreenExitOutput` | current-exit | restored parent-terminal output |
 | `warnings` | live | subsequent matching warnings |
-| `theme` | unavailable in bare A1 | product-fixed dark owned theme; comparison profile retains Pi behavior |
-| `quietStartup` | unavailable in bare A1 | owned startup composition does not expose Pi's startup suppression lifecycle |
-| `tuiMode` | unavailable in bare A1 | product-fixed custom fullscreen viewport; comparison profile retains Pi behavior |
-| `fullscreenScrollbar` | unavailable in bare A1 | replaced by declared A1 scrollbar settings; comparison profile retains Pi behavior |
+| `theme` | hidden in bare A1 | product-fixed dark owned theme; comparison profile retains Pi behavior |
+| `quietStartup` | hidden in bare A1 | owned startup composition does not expose Pi's startup suppression lifecycle |
+| `tuiMode` | hidden in bare A1 | product-fixed custom fullscreen viewport; comparison profile retains Pi behavior |
+| `fullscreenScrollbar` | hidden in bare A1 | replaced by declared A1 scrollbar settings; comparison profile retains Pi behavior |
 
-The four product-fixed keys are no longer silently removed from the settings model. They appear non-editable with their reason, preserving capability discoverability without claiming that a write controls bare A1. If product policy later changes, adding a handler makes the same descriptor writable.
+The four product-fixed keys remain in the exhaustive internal inventory but are omitted from the bare A1 settings model and have no product-specific explanatory rows or values. The pinned comparison profile retains its existing behavior. If product policy later changes, adding the required handler and satisfying the capability predicate makes the same inventory entry visible.
 
 ### 3. The shell consumes a versioned live Pi presentation snapshot
 
@@ -116,7 +117,7 @@ When rendering:
 
 1. `showImages=false` yields the pinned textual placeholder.
 2. A supported Kitty/iTerm2 capability resolves the asset and constructs the pinned image component with `imageWidthCells` and available width.
-3. `images:null`, including pinned Pi's Windows Terminal result, yields a textual attachment placeholder and a settings limitation note.
+3. `images:null`, including pinned Pi's Windows Terminal result, yields a textual attachment placeholder; `showImages` remains visible because it controls that supported fallback.
 4. Resolution or validation failure yields a safe diagnostic, never raw control data.
 
 Alternative considered: raise the 64 KiB transcript payload limit. Rejected because one screenshot would still exceed it and would make every view copy large provider data.
@@ -150,7 +151,7 @@ Alternative considered: print while the alternate screen is active. Rejected bec
 
 The HTTP effect updates both the agent's request transport timeout and Pi's dispatcher configuration through a public export or a minimal attributed adapter. Zero is normalized exactly as Pi does rather than passed to an SDK as an immediate timeout.
 
-Terminal progress has one state machine driven by agent lifecycle and the setting. Disabling it immediately clears progress; disposal always clears it. Warning checks read the live warning snapshot at the decision point. Cache notices and changelog presentation use their existing semantic event/startup owners rather than rendered-string filtering. Install telemetry is writable only when A1 invokes the corresponding Pi lifecycle; otherwise its descriptor is unavailable for that composition.
+Terminal progress has one state machine driven by agent lifecycle and the setting. Disabling it immediately clears progress; disposal always clears it. Warning checks read the live warning snapshot at the decision point. Cache notices and changelog presentation use their existing semantic event/startup owners rather than rendered-string filtering. Install telemetry is visible only when A1 invokes the corresponding Pi lifecycle; otherwise the composition filters it before building the settings section.
 
 ### 8. Conformance tests prove effects, not plumbing
 
@@ -163,7 +164,7 @@ Create a table keyed by the complete generated inventory. Each writable row name
 - rollback on effect or flush failure;
 - capability-limited behavior.
 
-Focused shell tests cover reconstructing existing blocks without losing viewport state. Image tests run with deterministic Kitty/iTerm2 and unsupported capabilities; no synthetic test claims Windows Terminal inline support. Trust tests assert no project loader or extension is created before the decision. Exit tests assert restore bytes precede transcript/hint bytes. Existing reachability and storage tests remain useful but no longer satisfy effect coverage on their own.
+Focused shell tests cover reconstructing existing blocks without losing viewport state. Image tests run with deterministic Kitty/iTerm2 and unsupported capabilities; no synthetic test claims Windows Terminal inline support. Visibility tests assert every false capability predicate omits its row and explanatory copy while supported fallback settings remain present. Trust tests assert no project loader or extension is created before the decision. Exit tests assert restore bytes precede transcript/hint bytes. Existing reachability and storage tests remain useful but no longer satisfy effect coverage on their own.
 
 Physical terminal checks remain user-controlled under the repository checkpoint. Acceptance covers cursor, progress, clear-on-shrink, alternate-screen exit, selection/restoration, and image inline/fallback behavior in each claimed terminal.
 
@@ -174,18 +175,18 @@ Physical terminal checks remain user-controlled under the repository checkpoint.
 - **[Image assets can outlive their messages or duplicate memory]** → Reference authoritative message content, scope IDs to one session, and prune on every authoritative snapshot, session switch, and disposal.
 - **[A trust prompt before the shell complicates startup]** → Use a bounded preflight surface with no project-derived theme, extension, prompt, or command dependencies; fail closed on error.
 - **[Dispatcher configuration may be process-global]** → Give the active launch owner exclusive configuration authority and restore/default it on disposal where the public API permits; test sequential profile launches.
-- **[Product-fixed settings appearing read-only may add rows]** → Preserve their pinned labels and give concise reasons; this is more truthful than hiding capabilities or showing writable no-ops.
+- **[Filtering product-fixed settings reduces capability discoverability]** → Keep them in the exhaustive internal inventory and conformance table while omitting non-actionable rows from the user-facing settings UI.
 - **[A1 resume syntax can overlap pending CLI redesign]** → Add only a narrow session-selection launch contract and keep formatting behind one product-identity helper so later CLI work has one migration point.
 - **[Lifecycle telemetry has privacy consequences]** → Preserve Pi's default and opt-out semantics exactly, send nothing when disabled, and never broaden payloads or events beyond the pinned lifecycle.
 
 ## Migration Plan
 
 1. Extend the neutral agent-settings contract with timing, availability, effective value, and typed change outcomes; adapt test engines without changing production behavior.
-2. Add the exhaustive Pi effect registry and coordinator, then route the pinned selector and owned settings app through it while handlers initially report unavailable.
+2. Add the exhaustive Pi effect registry and coordinator, then route the pinned selector and owned settings app through it while filtering entries whose handlers are unavailable.
 3. Add secure trust preflight before enabling project-backed service construction.
-4. Bind active agent, shell, terminal, startup, shutdown, and installation handlers in focused increments, turning each descriptor writable only when its behavioral test passes.
+4. Bind active agent, shell, terminal, startup, shutdown, and installation handlers in focused increments, exposing each descriptor only when its behavioral and visibility tests pass.
 5. Add the image asset resolver and transcript reconstruction, preserving the existing payload limits.
 6. Add post-restoration exit output and executable session resume formatting.
 7. Run strict inventory/effect conformance in CI, then obtain user-controlled terminal acceptance before integration.
 
-Rollback disables individual handlers and makes their descriptors unavailable; it does not return them to writable no-ops. The storage grammar is unchanged, so values remain available for a corrected implementation or pinned comparison profile.
+Rollback disables individual handlers and removes their descriptors from the active settings UI; it does not return them as disabled rows or writable no-ops. The storage grammar is unchanged, so values remain available for a corrected implementation or pinned comparison profile.

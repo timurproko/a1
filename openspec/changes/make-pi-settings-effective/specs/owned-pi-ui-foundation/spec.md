@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: The owned shell preserves setting-controlled Pi behavior
-Every Pi setting the A1-owned settings replacement presents as writable SHALL control the same active-session, presentation, terminal, startup, or shutdown behavior that the pinned Pi setting controls. The replacement SHALL not count persistence, callback reachability, or selector rendering as preservation of a pinned capability. Product-fixed or terminal-unsupported behavior SHALL be represented as unavailable with a reason rather than as a writable value.
+Every Pi setting the A1-owned settings replacement presents SHALL control the same active-session, presentation, terminal, startup, or shutdown behavior that the pinned Pi setting controls. The replacement SHALL not count persistence, callback reachability, or selector rendering as preservation of a pinned capability. An inventory entry with no effect in the active product mode or environment SHALL be omitted from the settings UI rather than rendered as an unavailable option. A supported setting that provides a defined terminal fallback remains present and SHALL render that fallback truthfully.
 
 #### Scenario: Change a pinned live setting through bare A1
 - **WHEN** the user changes a setting that pinned Pi applies live
@@ -23,6 +23,7 @@ Every Pi setting the A1-owned settings replacement presents as writable SHALL co
 - **WHEN** no effective project-trust decision has been resolved
 - **THEN** the owned runtime SHALL not construct a project-trusted resource pipeline or load project-scoped resources
 
-#### Scenario: A writable setting has no behavioral consumer
-- **WHEN** conformance finds a setting that can be written but cannot change its declared observable behavior
-- **THEN** the owned-shell acceptance gate SHALL fail even if settings persistence and route-reachability tests pass
+#### Scenario: An inventory setting has no behavioral consumer
+- **WHEN** conformance finds a setting that cannot change its declared observable behavior in the active product mode or environment
+- **THEN** the owned settings UI SHALL omit the option
+- **AND** the owned-shell acceptance gate SHALL fail if the option is rendered even when disabled or accompanied by explanatory text
