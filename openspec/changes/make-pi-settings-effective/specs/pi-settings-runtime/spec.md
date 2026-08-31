@@ -58,7 +58,7 @@ A1 SHALL apply `autoCompact`, `autoResizeImages`, `blockImages`, `enableSkillCom
 - **THEN** that warning SHALL no longer be presented while unrelated warnings remain governed by their own values
 
 ### Requirement: Owned-shell presentation settings update their real components
-A1 SHALL apply `showImages`, `imageWidthCells`, `showHardwareCursor`, `editorPaddingX`, `outputPad`, `autocompleteMaxVisible`, `clearOnShrink`, `showTerminalProgress`, `hideThinkingBlock`, `mermaidRenderingMode`, `showCacheMissNotices`, `doubleEscapeAction`, and `treeFilterMode` to the active owned shell. A changed value SHALL affect existing content where pinned Pi rebuilds or re-renders it and future content where the setting governs construction.
+A1 SHALL apply `showImages`, `imageWidthCells`, `showHardwareCursor`, `editorPaddingX`, `outputPad`, `autocompleteMaxVisible`, `clearOnShrink`, `showTerminalProgress`, `hideThinkingBlock`, `mermaidRenderingMode`, `showCacheMissNotices`, `doubleEscapeAction`, and `treeFilterMode` to the active owned shell. A changed value SHALL affect existing content where pinned Pi rebuilds or re-renders it and future content where the setting governs construction. For equivalent semantic content and terminal state, each resulting frame SHALL preserve pinned Pi's semantic ANSI styling, borders, padding, blank rows, alignment, wrapping, clipping, cursor placement, and terminal-control ordering.
 
 #### Scenario: Change editor geometry
 - **WHEN** editor padding or autocomplete maximum changes
@@ -105,7 +105,7 @@ A1 SHALL preserve validated image attachments from user messages and tool result
 - **THEN** A1 SHALL reject or replace that attachment with a safe diagnostic and SHALL NOT emit malformed terminal control data
 
 ### Requirement: Project trust is decided before project resources load
-A1 SHALL resolve saved project trust and `defaultProjectTrust` before Pi loads project settings, context files, skills, prompts, extensions, themes, or other project-scoped executable resources. `ask` SHALL obtain an explicit decision when interaction is available, `trusted` SHALL allow project resources, and `untrusted` SHALL withhold them. A saved path decision SHALL override the default exactly as pinned Pi specifies. A1 SHALL fail closed when a required decision cannot be obtained.
+A1 SHALL resolve saved project trust and `defaultProjectTrust` before Pi loads project settings, context files, skills, prompts, extensions, themes, or other project-scoped executable resources. `ask` SHALL obtain an explicit decision when interaction is available, `trusted` SHALL allow project resources, and `untrusted` SHALL withhold them. A saved path decision SHALL override the default exactly as pinned Pi specifies. A1 SHALL fail closed when a required decision cannot be obtained. Interactive preflight SHALL use a bounded pinned-style startup selector constructed without project-derived resources and SHALL preserve pinned focus, selection, cancellation, clearing, and terminal-restoration semantics rather than using a plain line-oriented prompt.
 
 #### Scenario: Ask for an undecided project
 - **WHEN** the default is `ask` and no saved decision covers the working directory
@@ -123,16 +123,35 @@ A1 SHALL resolve saved project trust and `defaultProjectTrust` before Pi loads p
 - **WHEN** the effective default requires a decision but the launch has no interactive trust surface
 - **THEN** A1 SHALL treat the project as untrusted and report the reason
 
+#### Scenario: Present interactive trust preflight
+- **WHEN** an undecided interactive launch can request trust
+- **THEN** the preflight frame, options, selected state, footer hints, key handling, and terminal cleanup SHALL match pinned Pi's startup-selector semantics with declared product wording substitutions only
+
+#### Scenario: Cancel or fail trust preflight
+- **WHEN** the selector is cancelled, interrupted, or fails
+- **THEN** project resources SHALL remain withheld
+- **AND** the selector SHALL clear and restore the terminal before one bounded diagnostic is emitted, without leaving a warning above a blank fullscreen frame
+
 ### Requirement: Fullscreen exit output is emitted after terminal restoration
-When the A1-owned shell uses a fullscreen alternate surface, `fullscreenExitOutput` SHALL govern output produced after that surface is restored. `transcript` SHALL print the final conversation transcript followed by an actionable A1 resume hint. `resume-hint` SHALL print only the actionable hint. Exit output SHALL not contain alternate-screen control sequences, duplicate terminal rows, image control payloads, active animations, or private session data beyond what the selected transcript already displays.
+When the A1-owned shell uses a fullscreen alternate surface, `fullscreenExitOutput` SHALL govern output produced after that surface is restored. `transcript` SHALL print the final conversation transcript with the same semantic ANSI styles, spacing, wrapping, and block order that pinned Pi emits when preserving its transcript, followed by an actionable A1 resume hint. `resume-hint` SHALL print only the actionable hint. The hint SHALL use pinned wording and dim-prefix styling, substitute the product command name, select the persisted session by compact session id, and include `--session-dir` only when the persisted session is outside the default directory. Exit output SHALL not expose a raw default session-file path and SHALL not contain alternate-screen control sequences, duplicate terminal rows, image control payloads, active animations, overlays, editor drafts, or private session data beyond what the selected transcript already displays.
 
 #### Scenario: Exit with transcript output
 - **WHEN** fullscreen A1 exits with `fullscreenExitOutput` set to `transcript`
-- **THEN** the parent terminal SHALL first be restored and then receive the final textual transcript followed by an actionable resume hint
+- **THEN** the parent terminal SHALL first be restored and then receive the final styled transcript followed by an actionable resume hint
+- **AND** user prompts, assistant Markdown, thinking, tools, notices, warnings, errors, and spacing SHALL preserve their pinned visible styles unless excluded by another active setting
 
 #### Scenario: Exit with resume hint only
 - **WHEN** fullscreen A1 exits with `fullscreenExitOutput` set to `resume-hint`
-- **THEN** the parent terminal SHALL first be restored and then receive only an actionable resume hint
+- **THEN** the parent terminal SHALL first be restored and then receive only the dim pinned-style `To resume this session:` prefix and product-aware resume command
+
+#### Scenario: Format a default-directory resume command
+- **WHEN** the persisted session uses the default session directory
+- **THEN** the resume command SHALL contain the product command and compact session id
+- **AND** it SHALL contain neither `--session-dir` nor the raw session-file path
+
+#### Scenario: Format a custom-directory resume command
+- **WHEN** the persisted session uses a non-default session directory
+- **THEN** the resume command SHALL place a correctly quoted `--session-dir` before `--session` and SHALL resume the exact session id
 
 #### Scenario: Exit after a failure
 - **WHEN** the shell fails while the alternate screen is active
@@ -154,11 +173,20 @@ If A1 exposes `collapseChangelog` or `enableInstallTelemetry`, the active A1 sta
 - **THEN** the settings surface SHALL omit the setting and its lifecycle reason
 
 ### Requirement: Behavioral conformance covers every exposed Pi setting
-The accepted inventory of Pi settings known to A1 SHALL map each key to persistence, application timing, active owner, observable effect, capability constraints, UI visibility, and independent acceptance evidence. Automated conformance SHALL fail when a presented key has only metadata, a storage setter, or a selector callback without a tested effect, or when an unavailable key appears as a disabled explanatory row. Terminal-dependent behavior SHALL additionally receive user-controlled physical-terminal acceptance on each claimed platform and terminal.
+The accepted inventory of Pi settings known to A1 SHALL map each key to persistence, application timing, active owner, observable effect, capability constraints, UI visibility, visual class, pinned source surface, and independent acceptance evidence. Automated conformance SHALL fail when a presented key has only metadata, a storage setter, or a selector callback without a tested effect, when an unavailable key appears as a disabled explanatory row, or when an applicable setting-controlled frame lacks independent raw-style and geometry parity evidence. Terminal-dependent behavior SHALL additionally receive user-controlled physical-terminal acceptance on each claimed platform and terminal.
 
 #### Scenario: Add or expose a Pi setting
 - **WHEN** the pinned Pi inventory gains a setting or A1 begins presenting one
 - **THEN** conformance SHALL fail until its application contract, owner, effect test, capability predicate, and visible-or-hidden behavior are recorded
+
+#### Scenario: Normalize automated parity evidence
+- **WHEN** pinned and A1 terminal frames are compared
+- **THEN** normalization MAY remove synchronized-output envelopes, nondeterministic timing, absolute hyperlink targets, product/session data, and declared product identity substitutions
+- **AND** it SHALL preserve semantic SGR roles, reset boundaries, borders, padding, row geometry, cursor operations, clearing, restoration, and post-stop write order
+
+#### Scenario: Reject self-referential visual evidence
+- **WHEN** a parity fixture is generated only from A1 output or strips all ANSI before comparison
+- **THEN** it SHALL NOT satisfy setting visual conformance even if its visible plain text matches
 
 #### Scenario: Disconnect an existing effect
 - **WHEN** a writable setting continues to persist but no longer changes its declared owner or observable output
