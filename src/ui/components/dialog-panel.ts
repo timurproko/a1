@@ -52,9 +52,11 @@ export function renderDialogPanel(state: DialogPanelState, width: number, theme:
     const padded = `${row.label}${" ".repeat(Math.max(0, labelColumn - displayWidth(row.label)))}`;
     const cursor = selected ? "→ " : "  ";
     const raw = `${cursor}${padded}  ${row.value}`;
-    // An unselected label is left unpainted and its value quietened, both lifted
-    // to the accent on the row the cursor is on — as the engine paints its own.
-    const painted = `${theme.fg("accent", cursor)}${selected ? theme.fg("accent", padded) : padded}  ${theme.fg("muted", row.value)}`;
+    // Match pinned SettingsList: selected cursor, label, and value all use the
+    // accent role; an unselected label is plain and its value is muted.
+    const painted = selected
+      ? `${theme.fg("accent", cursor)}${theme.fg("accent", padded)}  ${theme.fg("accent", row.value)}`
+      : `${cursor}${padded}  ${theme.fg("muted", row.value)}`;
     return pad(truncateToWidth(painted, width), width, raw);
   });
 

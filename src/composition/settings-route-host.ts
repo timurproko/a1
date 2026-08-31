@@ -76,7 +76,9 @@ function pinnedTheme(): UiTheme {
     // Quiet, and quieter again: the terminal's own faint attribute over the
     // dimmest colour the theme has.
     disabled: (text: string) => faint(piTheme().fg("dim", text)),
-    highlight: (text: string) => `[48;2;82;82;82m[97m${text}[39m[49m`,
-    panel: (text: string) => `[48;2;55;55;55m${text}[49m`,
+    // Pi's SelectList uses accent text rather than invented floating-panel
+    // backgrounds. The menu remains an overlay geometrically, not chromatically.
+    highlight: (text: string) => piTheme().fg("accent", text),
+    panel: (text: string) => text,
   };
 }

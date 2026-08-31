@@ -6,7 +6,6 @@ import {
   PLAIN_THEME,
   ShortcutRegistry,
   assertNoShortcutConflicts,
-  PROMPT_GLYPH,
   blockJumpTarget,
   dialogValueColumn,
   numericValues,
@@ -14,8 +13,6 @@ import {
   renderDialogPanel,
   renderEmptyState,
   renderGroupHeader,
-  renderInputRow,
-  renderStatusLine,
   renderListRow,
   renderNote,
   dialogRowAt,
@@ -27,11 +24,9 @@ import {
   steppedValue,
   valueColumnFor,
   valueMenuFrame,
-  promptRule,
   caretCell,
   blockRowSpan,
   displayWidth,
-  faint,
   handleLineInputKey,
   humanizeLabel,
   humanizeTitle,
@@ -49,6 +44,7 @@ import {
   type PaneMouseEvent,
   type PaneRect,
   type UiTheme,
+  truncateToWidth,
 } from "../../ui/components/index.js";
 import type {
   OwnedUiSettingValue,
@@ -62,7 +58,6 @@ const SCOPE = SETTINGS_APP_ID;
 /** The panel a setting with parts opens: its own keys, its own hint. */
 const DIALOG_SCOPE = `${SETTINGS_APP_ID}-parts`;
 const SCROLLBAR_TOP_INSET = 1;
-const SEARCH_PLACEHOLDER = "search settings";
 /** What a structured value offers instead of printing itself. */
 const CONFIGURE = "configure";
 
@@ -72,19 +67,20 @@ type Action =
   | "part-previous" | "part-next" | "part-change";
 
 export const SETTINGS_SHORTCUTS = new ShortcutRegistry<Action>();
-SETTINGS_SHORTCUTS.declare({ key: "/", scope: SCOPE, description: "Search settings", section: "Change", hint: { keys: "/", does: "to search" } }, "open-filter");
-SETTINGS_SHORTCUTS.declare({ key: "up", scope: SCOPE, description: "Previous setting", section: "Navigate", hint: { keys: "↑↓", does: "to navigate" } }, "move-up");
-SETTINGS_SHORTCUTS.declare({ key: "down", scope: SCOPE, description: "Next setting", section: "Navigate", hint: { keys: "↑↓", does: "to navigate" } }, "move-down");
-SETTINGS_SHORTCUTS.declare({ key: "shift+up", scope: SCOPE, description: "Previous section", section: "Navigate", hint: { keys: "Shift+↑↓", does: "to jump" } }, "block-up");
-SETTINGS_SHORTCUTS.declare({ key: "shift+down", scope: SCOPE, description: "Next section", section: "Navigate", hint: { keys: "Shift+↑↓", does: "to jump" } }, "block-down");
+SETTINGS_SHORTCUTS.declare({ key: "/", scope: SCOPE, description: "Search settings", section: "Change" }, "open-filter");
+SETTINGS_SHORTCUTS.declare({ key: "printable", scope: SCOPE, description: "Type to search settings", section: "Change", hint: { keys: "Type", does: "to search" } }, "open-filter");
+SETTINGS_SHORTCUTS.declare({ key: "up", scope: SCOPE, description: "Previous setting", section: "Navigate" }, "move-up");
+SETTINGS_SHORTCUTS.declare({ key: "down", scope: SCOPE, description: "Next setting", section: "Navigate" }, "move-down");
+SETTINGS_SHORTCUTS.declare({ key: "shift+up", scope: SCOPE, description: "Previous section", section: "Navigate" }, "block-up");
+SETTINGS_SHORTCUTS.declare({ key: "shift+down", scope: SCOPE, description: "Next section", section: "Navigate" }, "block-down");
 SETTINGS_SHORTCUTS.declare({ key: "pageUp", scope: SCOPE, description: "Up a page", section: "Navigate" }, "page-up");
 SETTINGS_SHORTCUTS.declare({ key: "pageDown", scope: SCOPE, description: "Down a page", section: "Navigate" }, "page-down");
 SETTINGS_SHORTCUTS.declare({ key: "home", scope: SCOPE, description: "First setting", section: "Navigate" }, "first");
 SETTINGS_SHORTCUTS.declare({ key: "end", scope: SCOPE, description: "Last setting", section: "Navigate" }, "last");
 SETTINGS_SHORTCUTS.declare({ key: "enter", scope: SCOPE, description: "Change value", section: "Change", hint: { keys: "Enter/Space", does: "to change" } }, "activate");
 SETTINGS_SHORTCUTS.declare({ key: "space", scope: SCOPE, description: "Change value", section: "Change", hint: { keys: "Enter/Space", does: "to change" } }, "activate");
-SETTINGS_SHORTCUTS.declare({ key: "left", scope: SCOPE, description: "Previous value", section: "Change", hint: { keys: "←→", does: "to adjust" } }, "previous-value");
-SETTINGS_SHORTCUTS.declare({ key: "right", scope: SCOPE, description: "Next value", section: "Change", hint: { keys: "←→", does: "to adjust" } }, "next-value");
+SETTINGS_SHORTCUTS.declare({ key: "left", scope: SCOPE, description: "Previous value", section: "Change" }, "previous-value");
+SETTINGS_SHORTCUTS.declare({ key: "right", scope: SCOPE, description: "Next value", section: "Change" }, "next-value");
 SETTINGS_SHORTCUTS.declare({ key: "escape", scope: GLOBAL_SCOPE, description: "Close", section: "Screen", hint: { keys: "Esc", does: "to cancel" } }, "close");
 SETTINGS_SHORTCUTS.declare({ key: "enter", scope: DIALOG_SCOPE, description: "Change this part", section: "Parts", hint: { keys: "Enter/Space", does: "to change" } }, "part-change");
 SETTINGS_SHORTCUTS.declare({ key: "space", scope: DIALOG_SCOPE, description: "Change this part", section: "Parts", hint: { keys: "Enter/Space", does: "to change" } }, "part-change");
@@ -181,12 +177,14 @@ export class SettingsApp implements UiApp {
     const theme = host.theme ?? PLAIN_THEME;
     this.#interruptArmed = host.interruptArmed;
     const rows = this.#rows();
-    const footer = this.#footerLines(rect.width, theme);
+    const selected = indexOfKey(rows, this.#selectedKey);
+    const selectedRow = rows[selected];
+    const selectedEntry = selectedRow?.kind === "element" ? selectedRow.value : undefined;
+    const footer = this.#footerLines(rect.width, theme, selectedEntry);
     this.#footerHeight = footer.length;
     this.#panelTopForFrame = Math.max(0, rect.height - footer.length);
     this.#panelTop = this.#panelTopForFrame;
     const bodyHeight = Math.max(0, rect.height - footer.length);
-    const selected = indexOfKey(rows, this.#selectedKey);
     if (this.#selectionNeedsReveal) {
       this.#scroll = scrollForSelection(rows, bodyHeight, this.#scroll, selected, this.#reveal);
       this.#selectionNeedsReveal = false;
@@ -240,7 +238,11 @@ export class SettingsApp implements UiApp {
     if (this.#menu !== null) return this.#menuKey(data);
     if (this.#filter !== null) return this.#filterKey(data);
 
-    const action = SETTINGS_SHORTCUTS.resolve(KEYS[data] ?? data, SCOPE);
+    // Pinned SettingsList searches as soon as printable text is entered. `/`
+    // remains an explicit shortcut, while the printable declaration keeps the
+    // dispatched action and its reader-facing hint under one authority.
+    const key = KEYS[data] ?? (data.length === 1 && data >= "!" && data !== "\u007f" ? "printable" : data);
+    const action = SETTINGS_SHORTCUTS.resolve(key, SCOPE);
     if (action === null) return { consumed: false };
 
     const rows = this.#rows();
@@ -252,7 +254,7 @@ export class SettingsApp implements UiApp {
       case "open-filter":
         this.#filter = new LineInput("");
         this.#notice = null;
-        return { consumed: true };
+        return key === "printable" ? this.#filterKey(data) : { consumed: true };
       case "activate": {
         const row = rows[selected];
         if (row?.kind === "element" && row.value.structured) this.#openStructured(row.value);
@@ -355,7 +357,7 @@ export class SettingsApp implements UiApp {
       // The whole list pane owns wheel scrolling, including blank space beside
       // short labels. It must not depend on finding an item under the pointer.
       if (event.row < 1 || event.row > this.#panelTopForFrame) return { consumed: false };
-      this.#scroll = Math.max(0, this.#scroll + (event.kind === "wheel-down" ? 3 : -3));
+      this.#scroll = Math.max(0, this.#scroll + (event.kind === "wheel-down" ? 8 : -8));
       return { consumed: true };
     }
 
@@ -405,9 +407,8 @@ export class SettingsApp implements UiApp {
       return;
     }
     const current = shown === null ? 0 : Math.max(0, entry.choices.indexOf(shown));
-    // Nothing is highlighted until the pointer or a key picks a row, so opening
-    // the menu does not flash a highlight the reader did not ask for.
-    this.#menu = { entry, current, anchorKey: `${entry.backend}:${entry.id}`, choices: entry.choices, index: -1 };
+    // Pinned SelectList opens on the value currently in effect.
+    this.#menu = { entry, current, anchorKey: `${entry.backend}:${entry.id}`, choices: entry.choices, index: current };
   }
 
   /**
@@ -716,17 +717,26 @@ export class SettingsApp implements UiApp {
     return renderDialogPanel({ rows, index: open.index, hint: SETTINGS_SHORTCUTS.hint(DIALOG_SCOPE) }, width, theme);
   }
 
-  #footerLines(width: number, theme: UiTheme): readonly string[] {
+  #footerLines(width: number, theme: UiTheme, selected?: OwnedUiSettingsEntry): readonly string[] {
     const open = this.#structured;
     if (open !== null) return this.#dialogLines(open, width, theme);
 
-    // The hint is the declarations, so a key cannot be described here and bound
-    // to something else.
-    const hint = this.#interruptArmed ? "press ctrl+c again to exit A1" : SETTINGS_SHORTCUTS.hint(SCOPE);
-    const status = renderStatusLine({ hint, report: this.#notice }, width, theme);
+    const hint = this.#interruptArmed
+      ? "press ctrl+c again to exit A1"
+      : `  ${SETTINGS_SHORTCUTS.hint(SCOPE)}`;
+    const report = this.#notice;
+    const statusText = report === null ? hint : `  ${report}`;
+    const status = truncateToWidth(
+      report?.startsWith("Could not save") === true ? theme.fg("error", statusText) : theme.fg("dim", statusText),
+      width,
+    );
+    const description = selected?.description?.trim();
+    const details = description
+      ? ["", ...wrapSettingDescription(description, Math.max(1, width - 4)).map(line => theme.fg("dim", `  ${line}`)), ""]
+      : [];
     const input = this.#filter;
-    if (input === null) return [status];
-    return [...renderInputRow(input, width, { placeholder: SEARCH_PLACEHOLDER }).lines, status];
+    if (input === null) return [...details, status];
+    return [...details, renderPinnedSettingsSearch(input, width), status];
   }
 }
 
@@ -773,4 +783,34 @@ function describeRaw(value: unknown): string {
   if (value === null || value === undefined) return "unset";
   if (typeof value === "object") return Array.isArray(value) ? `${value.length} items` : "structured value";
   return String(value);
+}
+
+function renderPinnedSettingsSearch(input: LineInput, width: number): string {
+  const available = Math.max(0, width - 2);
+  const view = input.view(available);
+  const before = view.text.slice(0, view.caretColumn);
+  const at = view.text.slice(view.caretColumn, view.caretColumn + 1) || " ";
+  const after = view.text.slice(view.caretColumn + at.length);
+  const row = `> ${before}${caretCell(at)}${after}`;
+  return `${row}${" ".repeat(Math.max(0, width - displayWidth(row)))}`;
+}
+
+function wrapSettingDescription(text: string, width: number): readonly string[] {
+  const words = text.split(/\s+/u).filter(Boolean);
+  const lines: string[] = [];
+  let line = "";
+  for (const word of words) {
+    if (line.length === 0) {
+      line = word;
+      continue;
+    }
+    if (displayWidth(`${line} ${word}`) <= width) {
+      line += ` ${word}`;
+      continue;
+    }
+    lines.push(line);
+    line = word;
+  }
+  if (line.length > 0) lines.push(line);
+  return lines;
 }

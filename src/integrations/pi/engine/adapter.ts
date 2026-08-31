@@ -124,6 +124,12 @@ export interface PiTreeSelectorContext {
   readonly appendLabelChange: (entryId: string, label: string | undefined) => void;
 }
 
+export interface PiSessionResumeMetadata {
+  readonly sessionId: string;
+  readonly sessionDir: string;
+  readonly usesDefaultSessionDir: boolean;
+}
+
 export interface PiSessionSelectorContext {
   readonly currentSessionFilePath: string | undefined;
   readonly loadCurrentSessions: (onProgress?: (loaded: number, total: number) => void) => Promise<SessionInfo[]>;
@@ -319,6 +325,21 @@ export class PiEngineAdapter {
   currentSessionFile(): string | null {
     const value = this.#session?.sessionManager?.getSessionFile?.();
     return typeof value === "string" && value.length > 0 ? value : null;
+  }
+
+  currentSessionResumeMetadata(): PiSessionResumeMetadata | null {
+    const manager = this.#session?.sessionManager;
+    if (manager === undefined
+      || typeof manager.isPersisted !== "function"
+      || typeof manager.getSessionId !== "function"
+      || typeof manager.getSessionDir !== "function"
+      || typeof manager.usesDefaultSessionDir !== "function"
+      || manager.isPersisted() !== true
+      || this.currentSessionFile() === null) return null;
+    const sessionId = manager.getSessionId();
+    const sessionDir = manager.getSessionDir();
+    if (!sessionId || !sessionDir) return null;
+    return { sessionId, sessionDir, usesDefaultSessionDir: manager.usesDefaultSessionDir() };
   }
 
   get disposed(): boolean {

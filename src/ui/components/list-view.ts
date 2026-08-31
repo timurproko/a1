@@ -51,8 +51,8 @@ export interface ListRowPlacement {
  * and with the stepper's columns reserved for every row when any row has one, so
  * a number does not shift its own value out of the column it shares.
  */
-export function valueColumnFor(rows: readonly ListViewRow[], indent = 4, gap = 2): number {
-  const widest = Math.max(0, ...rows.map(row => displayWidth(row.label)));
+export function valueColumnFor(rows: readonly ListViewRow[], indent = 2, gap = 2): number {
+  const widest = Math.min(30, Math.max(0, ...rows.map(row => displayWidth(row.label))));
   const stepper = rows.some(row => row.stepper !== undefined) ? STEPPER_RESERVE : 0;
   return indent + widest + gap + stepper;
 }
@@ -75,15 +75,22 @@ export function renderListRow(
   theme: UiTheme,
 ): string {
   const cursor = state.selected ? "→ " : "  ";
-  const leftRaw = `${cursor}  ${row.label}`;
-  const left = `${theme.fg("accent", cursor)}  ${state.selected ? theme.fg("accent", row.label) : theme.plain(row.label)}`;
+  const labelColumn = Math.max(displayWidth(row.label), valueColumn - 4 - (row.stepper === undefined ? 0 : STEPPER_RESERVE));
+  const labelPadded = `${row.label}${" ".repeat(Math.max(0, labelColumn - displayWidth(row.label)))}`;
+  const leftRaw = `${cursor}${labelPadded}`;
+  const left = state.selected
+    ? `${theme.fg("accent", cursor)}${theme.fg("accent", labelPadded)}`
+    : `${cursor}${theme.plain(labelPadded)}`;
   const gap = Math.max(2, valueColumn - displayWidth(leftRaw));
 
-  // Pointing anywhere on the row is pointing at the item; pointing at the value
-  // is what brightens it. The selection speaks through the label alone.
+  // Pinned SettingsList gives the selected label and value the same accent
+  // role. Pointer hover may brighten an unselected value without changing the
+  // keyboard selection.
   const valueHovered = state.hovered && state.region !== "label";
   const stepper = row.stepper !== undefined && valueHovered;
-  const value = valueHovered ? theme.plain(row.value) : theme.fg("muted", row.value);
+  const value = state.selected
+    ? theme.fg("accent", row.value)
+    : valueHovered ? theme.plain(row.value) : theme.fg("muted", row.value);
 
   const minus = stepper
     ? row.stepper?.lower === true
