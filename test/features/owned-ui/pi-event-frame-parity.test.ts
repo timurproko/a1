@@ -9,6 +9,8 @@ import {
 interface EventFrameFixture extends EventFrameParityResult {
   readonly schema: string;
   readonly generatedFrom: {
+    readonly producer: "a1-diagnostic";
+    readonly evidenceAuthority: false;
     readonly sourceCommit: string;
     readonly packages: Record<string, string>;
   };
@@ -25,6 +27,8 @@ describe("pinned Pi scripted event and terminal-frame parity", () => {
     const result = await buildEventFrameParityResult();
 
     expect(fixture.schema).toBe("a1-pi-event-frame-parity-v1");
+    expect(fixture.generatedFrom.producer).toBe("a1-diagnostic");
+    expect(fixture.generatedFrom.evidenceAuthority).toBe(false);
     expect(fixture.generatedFrom.sourceCommit).toBe("914cf1472e715297caa30db4b9535d534a9eb718");
     expect(fixture.generatedFrom.packages).toEqual({
       "@earendil-works/pi-coding-agent": "0.84.2",
@@ -39,8 +43,8 @@ describe("pinned Pi scripted event and terminal-frame parity", () => {
     const result = await buildEventFrameParityResult();
 
     expect(fixture.tolerance).toEqual({
-      ignored: ["cursor visibility", "synchronized-output envelope", "render timing", "file hyperlink availability and absolute target"],
-      preserved: ["rendered row payloads", "cursor addressing", "state transitions", "resize dimensions"],
+      ignored: ["synchronized-output envelope", "render timing", "absolute hyperlink targets", "declared product and path substitutions"],
+      preserved: ["semantic ANSI", "reset boundaries", "rendered row payloads", "cursor visibility", "cursor addressing", "clearing and restoration order", "state transitions", "resize dimensions"],
     });
     expect(portableFrames(result.frames)).toEqual(portableFrames(fixture.frames));
     expect(result.frames.map(frame => frame.stage)).toEqual(["initial", "streaming", "tool-result", "completed", "resized"]);
@@ -51,9 +55,7 @@ describe("pinned Pi scripted event and terminal-frame parity", () => {
 function portableFrames(frames: readonly EventFrameParityResult["frames"][number][]): readonly EventFrameParityResult["frames"][number][] {
   return frames.map(frame => ({
     ...frame,
-    capturedAnsi: frame.capturedAnsi
-      .replace(/\u001b\[[0-9;]*m/g, "")
-      .replace(/(?:~\/\S*\/)?D:\/parity/g, "D:/parity"),
+    capturedAnsi: frame.capturedAnsi.replace(/(?:~\/\S*\/)?D:\/parity/g, "D:/parity"),
   }));
 }
 

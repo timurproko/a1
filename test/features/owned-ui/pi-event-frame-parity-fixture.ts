@@ -169,10 +169,7 @@ function normalizeCapturedFrame(frame: string): string {
   return frame
     .replaceAll("\x1b[?2026h", "")
     .replaceAll("\x1b[?2026l", "")
-    .replaceAll("\x1b[?25h", "")
-    .replaceAll("\x1b[?25l", "")
-    .replace(/\x1b]8;;file:\/\/\/[^\x07\x1b]*\/README\.md\x1b\\/g, "")
-    .replaceAll("\x1b]8;;\x1b\\", "");
+    .replace(/\x1b]8;;file:\/\/\/[^\x07\x1b]*\/README\.md\x1b\\/g, "\x1b]8;;<absolute-link-target>/README.md\x1b\\");
 }
 
 function assistantMessage(text: string, stopReason: string): Record<string, unknown> {

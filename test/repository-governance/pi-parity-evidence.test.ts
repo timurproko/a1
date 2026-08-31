@@ -39,10 +39,17 @@ describe("Pi parity machine-readable evidence", () => {
     for (const fixture of evidence.fixtures) {
       const bytes = await readFile(fixture.path);
       expect(createHash("sha256").update(bytes).digest("hex"), fixture.path).toBe(fixture.sha256);
+      const diagnostic = JSON.parse(bytes.toString("utf8")) as {
+        generatedFrom: { producer: string; evidenceAuthority: boolean };
+        tolerance: { ignored: string[]; preserved: string[] };
+      };
       expect(fixture.classification).toContain("no independent upstream producer");
+      expect(diagnostic.generatedFrom).toMatchObject({ producer: "a1-diagnostic", evidenceAuthority: false });
       expect(fixture.coverage.length).toBeGreaterThan(0);
       expect(fixture.tolerance.ignored.length).toBeGreaterThan(0);
       expect(fixture.tolerance.preserved.length).toBeGreaterThan(0);
+      expect([...fixture.tolerance.ignored, ...diagnostic.tolerance.ignored].join(" ")).not.toMatch(/ANSI control|cursor visibility/i);
+      expect([...fixture.tolerance.preserved, ...diagnostic.tolerance.preserved]).toContain("semantic ANSI");
     }
     expect(evidence.visualDivergences).toHaveLength(4);
     expect(evidence.gateCorrections.every(value => value.status === "corrected")).toBe(true);

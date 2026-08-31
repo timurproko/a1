@@ -689,7 +689,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       const block = this.#blocksById.get(id);
       if (block === undefined || (!this.#thinkingVisible && block.kind === "thinking")) continue;
       if (rows.length > 0 && block.kind === "user") rows.push("");
-      rows.push(...this.#blockRows(id, block, width).map(row => stripAnsi(row).trimEnd()));
+      rows.push(...this.#blockRows(id, block, width).map(sanitizeExitTranscriptRow));
     }
     while (rows.at(-1) === "") rows.pop();
     return rows.join("\n");
@@ -1072,6 +1072,13 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
 }
 
 const SCROLLBAR_CELL_RESET = "\u001b[22;23;24;25;27;28;29;39;54;55m";
+const KITTY_IMAGE_CONTROL = /\u001b_G[\s\S]*?\u001b\\/g;
+const ITERM_IMAGE_CONTROL = /\u001b]1337;File=[^\u0007]*(?:\u0007|\u001b\\)/g;
+
+/** Keep semantic SGR/OSC styling while excluding non-replayable image payloads. */
+function sanitizeExitTranscriptRow(row: string): string {
+  return row.replace(KITTY_IMAGE_CONTROL, "").replace(ITERM_IMAGE_CONTROL, "");
+}
 const TERMINAL_BACKGROUND = /\u001b\[(?:4[0-9]|10[0-7]|48(?:[;:][0-9;:]*)?)m/g;
 
 /** Web URLs use link blue; file targets retain A1's cyan interactive accent. */

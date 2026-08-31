@@ -24,9 +24,12 @@ describe("Pi session shell provenance", () => {
     expect(evidence.publicExports).toContain("FooterComponent");
     expect(evidence.publicExports).toContain("CombinedAutocompleteProvider");
     expect(new Set(evidence.publicExports).size).toBe(evidence.publicExports.length);
-    expect(evidence.orchestrationPorts).toHaveLength(6);
-    expect(evidence.orchestrationPorts.slice(0, 4).every(port => port.copiedFiles.length === 0 && port.copiedLines === false)).toBe(true);
-    expect(evidence.orchestrationPorts.slice(4).every(port => port.copiedFiles.length === 1 && port.copiedLines === true)).toBe(true);
+    expect(evidence.orchestrationPorts).toHaveLength(9);
+    expect(evidence.orchestrationPorts.filter(port => !port.copiedLines)
+      .every(port => port.copiedFiles.length === 0)).toBe(true);
+    expect(evidence.orchestrationPorts.filter(port => port.copiedLines)).toHaveLength(2);
+    expect(evidence.orchestrationPorts.filter(port => port.copiedLines)
+      .every(port => port.copiedFiles.length === 1)).toBe(true);
     expect(evidence.orchestrationPorts.every(port => port.upstreamCommit === evidence.upstream.commit)).toBe(true);
     expect(evidence.orchestrationPorts[0]).toMatchObject({
       copiedFiles: [],
@@ -43,6 +46,11 @@ describe("Pi session shell provenance", () => {
       copiedLines: false,
     });
     expect(evidence.orchestrationPorts[2]?.coverage).toContain("test/integrations/pi/engine/workflows.test.ts");
+    expect(evidence.orchestrationPorts.map(port => port.localFile)).toEqual(expect.arrayContaining([
+      "src/features/owned-ui/settings-app.ts",
+      "src/features/owned-ui/project-trust-prompt.ts",
+      "src/integrations/pi/session-ui/session-shell.ts",
+    ]));
     expect(evidence.rejected).toContain("private field inspection");
   });
 });

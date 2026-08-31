@@ -5,6 +5,8 @@ import { buildStaticParityCases, normalizeParityRow, STATIC_PARITY_COVERAGE } fr
 interface StaticParityFixture {
   readonly schema: string;
   readonly generatedFrom: {
+    readonly producer: "a1-diagnostic";
+    readonly evidenceAuthority: false;
     readonly sourceCommit: string;
     readonly packages: Record<string, string>;
   };
@@ -24,14 +26,16 @@ describe("pinned Pi static component parity", () => {
     )) as StaticParityFixture;
 
     expect(fixture.schema).toBe("a1-pi-static-component-parity-v1");
+    expect(fixture.generatedFrom.producer).toBe("a1-diagnostic");
+    expect(fixture.generatedFrom.evidenceAuthority).toBe(false);
     expect(fixture.generatedFrom.sourceCommit).toBe("914cf1472e715297caa30db4b9535d534a9eb718");
     expect(fixture.generatedFrom.packages).toEqual({
       "@earendil-works/pi-coding-agent": "0.84.2",
       "@earendil-works/pi-tui": "0.84.2",
     });
     expect(fixture.tolerance).toEqual({
-      ignored: ["ANSI control sequences"],
-      preserved: ["visible text", "row order", "row count", "wrapping", "width truncation"],
+      ignored: ["absolute hyperlink targets", "declared product and path substitutions"],
+      preserved: ["semantic ANSI", "reset boundaries", "visible text", "row order", "row count", "wrapping", "width truncation"],
     });
     expect(fixture.coverage).toEqual(STATIC_PARITY_COVERAGE);
     const portableFixture = fixture.cases.map(entry => ({ ...entry, rows: entry.rows.map(normalizeParityRow) }));

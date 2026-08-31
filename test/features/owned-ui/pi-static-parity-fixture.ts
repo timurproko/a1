@@ -67,8 +67,7 @@ function parityCase(id: string, width: number, coverage: readonly string[], rows
 
 export function normalizeParityRow(row: string): string {
   return row
-    .replace(/\u001b\][\s\S]*?(?:\u0007|\u001b\\)/g, "")
-    .replace(/\u001b\[[0-?]*[ -/]*[@-~]/g, "")
+    .replace(/\u001b]8;;file:\/\/\/[^\u0007\u001b]*(?:\/|\\)README\.md(\u0007|\u001b\\)/g, "\u001b]8;;<absolute-link-target>/README.md$1")
     .replace("\u001b_pi:c\u0007", "")
     .replace(/(?:~\/\S*\/)?D:\/work/g, "D:/work");
 }

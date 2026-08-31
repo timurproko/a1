@@ -1030,8 +1030,10 @@ export class OwnedUiSessionShell {
       ? this.#fullscreenExitOutput
       : this.backend.pinnedSettingsSnapshot().fullscreenExitOutput;
     const exitTranscript = this.root.exitTranscript(this.runtime.viewport().columns);
-    const sessionFile = this.backend.currentSessionFile();
-    const resumeHint = sessionFile === null ? "" : `Resume: ${formatSessionResumeCommand(sessionFile)}`;
+    const resume = this.backend.currentSessionResumeMetadata();
+    const resumeHint = resume === null
+      ? ""
+      : `${dim("To resume this session:")} ${formatSessionResumeCommand(resume)}`;
     const fullscreenExitText = this.runtime.mode !== "fullscreen"
       ? ""
       : exitMode === "resume-hint"
@@ -1342,13 +1344,26 @@ export class OwnedUiSessionShell {
   }
 }
 
-export function formatSessionResumeCommand(sessionFile: string): string {
-  return `${PRODUCT_TEXT.commandName} --session ${quoteCommandArgument(sessionFile)}`;
+export interface SessionResumeCommandMetadata {
+  readonly sessionId: string;
+  readonly sessionDir: string;
+  readonly usesDefaultSessionDir: boolean;
+}
+
+export function formatSessionResumeCommand(metadata: SessionResumeCommandMetadata): string {
+  const args = [PRODUCT_TEXT.commandName];
+  if (!metadata.usesDefaultSessionDir) args.push("--session-dir", quoteCommandArgument(metadata.sessionDir));
+  args.push("--session", metadata.sessionId);
+  return args.join(" ");
 }
 
 export function quoteCommandArgument(value: string): string {
-  if (process.platform === "win32") return `"${value.replaceAll("\"", "\"\"")}"`;
+  if (value.length > 0 && !/[^a-zA-Z0-9_\-./~:@]/.test(value)) return value;
   return `'${value.replaceAll("'", `'\\''`)}'`;
+}
+
+function dim(value: string): string {
+  return `\u001b[2m${value}\u001b[22m`;
 }
 
 function modelReference(model: unknown): string {

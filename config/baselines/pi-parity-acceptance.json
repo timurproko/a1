@@ -32,7 +32,7 @@
   "fixtures": [
     {
       "path": "test/features/owned-ui/fixtures/pi-component-parity.json",
-      "sha256": "a4b19e2043ca67d1203f906c280b613501ce30520985476dc3d1570063f7e52f",
+      "sha256": "42ee49a45a52e9ea5b0b9f3679bae46121e1cd6f92a62bc9defdcf455e0c3c4d",
       "cases": 4,
       "classification": "AddOne-generated regression fixture; no independent upstream producer",
       "coverage": [
@@ -49,9 +49,12 @@
       ],
       "tolerance": {
         "ignored": [
-          "ANSI control sequences"
+          "absolute hyperlink targets",
+          "declared product and path substitutions"
         ],
         "preserved": [
+          "semantic ANSI",
+          "reset boundaries",
           "visible text",
           "row order",
           "row count",
@@ -62,7 +65,7 @@
     },
     {
       "path": "test/features/owned-ui/fixtures/pi-event-frame-parity.json",
-      "sha256": "71f67b1c0bf025abc0cd740c0cd9809d0d25818a294096800a11739a5378c7dc",
+      "sha256": "311c6c2d00ffc51857f88ca431288b7769e86e00ce450910cd87e1dca4034315",
       "stateTransitions": 12,
       "capturedFrames": 5,
       "classification": "Synthetic AddOne-session regression fixture; no independent upstream producer",
@@ -82,14 +85,18 @@
       ],
       "tolerance": {
         "ignored": [
-          "cursor visibility",
           "synchronized-output envelope",
           "render timing",
-          "file hyperlink availability and absolute target"
+          "absolute hyperlink targets",
+          "declared product and path substitutions"
         ],
         "preserved": [
+          "semantic ANSI",
+          "reset boundaries",
           "rendered row payloads",
+          "cursor visibility",
           "cursor addressing",
+          "clearing and restoration order",
           "state transitions",
           "resize dimensions"
         ]
