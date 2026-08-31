@@ -18,6 +18,7 @@ Project trust currently has an ordering constraint: Pi settings and resource ser
 - Preserve bounded owned-UI contracts while allowing validated image content to reach the presenter.
 - Make trust fail closed before project configuration or executable resources load.
 - Keep the implementation on public Pi APIs or attributed coherent owned ports.
+- Make every visible setting-controlled A1 frame and restored-parent output semantically style-equivalent to pinned Pi at the same terminal size and equivalent state.
 
 **Non-Goals:**
 
@@ -26,6 +27,7 @@ Project trust currently has an ordering constraint: Pi settings and resource ser
 - Make A1 product settings aliases for Pi settings that A1 deliberately replaces.
 - Begin multi-agent, native-host, PTY, or arbitrary-terminal rendering work.
 - Treat a synthetic terminal-capability flag as physical terminal certification.
+- Require pixel identity across fonts, terminal applications, or dynamic user/model/package content; parity is defined by terminal cells, semantic ANSI roles, control ordering, and declared substitutions.
 
 ## Decisions
 
@@ -168,6 +170,75 @@ Focused shell tests cover reconstructing existing blocks without losing viewport
 
 Physical terminal checks remain user-controlled under the repository checkpoint. Acceptance covers cursor, progress, clear-on-shrink, alternate-screen exit, selection/restoration, and image inline/fallback behavior in each claimed terminal.
 
+### 9. Every setting has a reviewed visual-parity classification
+
+Extend the exhaustive effect inventory with one reviewed visual class and evidence target per key. `none` means the setting has no direct visible output and remains governed by behavioral evidence; it does not permit a visible error or status path to diverge. The accepted matrix is:
+
+| Setting | Visual class | Pinned surface or evidence |
+| --- | --- | --- |
+| `autoCompact` | transcript/status | compaction start, summary, completion, and failure rows |
+| `showImages` | transcript | inline image or hidden/unsupported textual fallback |
+| `imageWidthCells` | transcript geometry | image width and available-column clipping |
+| `autoResizeImages` | none | provider payload behavior; any preparation error uses pinned warning style |
+| `blockImages` | none | provider-context behavior; any blocked-image notice uses pinned style |
+| `enableSkillCommands` | editor/menu | command autocomplete presence, order, selection, and description styling |
+| `steeringMode` | queue/transcript | submitted prompt, steering queue labels, order, and dequeue hint |
+| `followUpMode` | queue/transcript | submitted prompt, follow-up queue labels, order, and dequeue hint |
+| `transport` | status/error | request behavior and any visible provider failure/status row |
+| `httpIdleTimeoutMs` | retry/error | timeout, retry, and failure presentation |
+| `thinkingLevel` | footer/transcript | model indicator, active level, thinking rows, and capability clamp notice |
+| `theme` | hidden in bare A1 | no bare row; comparison profile retains pinned theme selector and theme behavior |
+| `hideThinkingBlock` | transcript | existing and future thinking-row presence, spacing, and reconstruction |
+| `mermaidRenderingMode` | Markdown | existing and future Mermaid text/graphics transformation and spacing |
+| `showCacheMissNotices` | transcript notice | subsequent cache-miss notice wording and style |
+| `collapseChangelog` | startup/transcript | collapsed and expanded startup changelog plus `/changelog` |
+| `enableInstallTelemetry` | none/hidden | network lifecycle when owned; no bare row or explanation when not owned |
+| `quietStartup` | hidden in bare A1 | no bare row; comparison profile retains pinned behavior |
+| `defaultProjectTrust` | startup selector | undecided trust selector, accept/reject/cancel, warning, clearing, and restoration |
+| `doubleEscapeAction` | selector | next tree/fork action and its selector frame |
+| `treeFilterMode` | selector | next tree selector rows, filter input, hints, and selected state |
+| `showHardwareCursor` | terminal/cursor | active editor, overlays, blur, exit, and failure cursor state |
+| `editorPaddingX` | editor geometry | borders, horizontal padding, cursor column, wrapping, and reflow |
+| `outputPad` | transcript geometry | status, error, Markdown, tool, and transcript horizontal padding |
+| `autocompleteMaxVisible` | menu geometry | visible item count, clipping, selection, and editor anchoring |
+| `clearOnShrink` | terminal/frame | resize clearing bytes and resulting frame without duplicate rows |
+| `showTerminalProgress` | terminal/status | enable, disable, active-agent transitions, failure, and disposal clearing |
+| `tuiMode` | hidden in bare A1 | no bare row; comparison profile retains pinned mode selector and behavior |
+| `fullscreenExitOutput` | restored-parent output | styled transcript, terminal restoration order, and compact dim resume hint |
+| `fullscreenScrollbar` | hidden in bare A1 | no bare row; comparison profile retains pinned scrollbar behavior |
+| `warnings` | transcript notice | each warning part's exact semantic style without affecting unrelated warnings |
+
+A setting cannot pass final conformance until its visual class has independent evidence at every applicable value and lifecycle boundary. Hidden and `none` rows remain explicit so a future visible effect cannot bypass review.
+
+### 10. Parity compares independent raw terminal semantics
+
+The pinned producer is the installed Pi `0.84.2` public component/runtime behavior or a minimally attributed coherent source port recorded in provenance. The A1 producer receives the same semantic messages, settings, terminal dimensions, theme, capabilities, and lifecycle events. Evidence compares:
+
+- visible text, punctuation, row order, row count, wrapping, truncation, and alignment;
+- SGR foreground/background roles, bold, dim, italic, underline, and reset boundaries;
+- borders, padding, blank rows, editor/footer geometry, cursor placement, and scrollbar reservation;
+- terminal control ordering for alternate-screen restore, clearing, cursor, progress, and post-stop writes.
+
+Normalization may remove synchronized-output envelopes, nondeterministic render timing, absolute hyperlink targets, product/session data, and the `a1` versus `pi` command name. It must not strip SGR styling, replace styled rows with plain text, compare A1 only to an A1-generated golden file, or ignore geometry. Existing text-only fixtures remain useful diagnostics but do not satisfy visual acceptance.
+
+Alternative considered: screenshot pixel diffs. Rejected as the automated authority because fonts, DPI, terminal chrome, and rasterization vary; user screenshots remain valuable physical evidence while deterministic cell/ANSI comparison owns regression detection.
+
+### 11. Settings and project trust use pinned-style interactive composition
+
+The owned settings screen keeps A1 and Agent grouping plus the accepted hidden-entry policy, but adopts pinned Pi's semantic colors, selected-row emphasis, value styling, descriptions, menus, dialog borders, search/filter input, footer hints, padding, and narrow-terminal behavior. A1-only labels and values are allowed content differences, not style differences.
+
+Project trust remains a pre-resource security boundary. It uses a bounded startup TUI built only from global settings, fixed product identity, pinned public TUI primitives, and an attributed owned selector; no project theme, extension, prompt, package, skill, setting, or command is loaded first. Accept, reject, cancel, invalid input, unavailable interaction, and exceptions all clear and restore the startup surface in pinned order. A fail-closed diagnostic appears once in the correct parent or owned surface rather than above a blank fullscreen frame.
+
+Alternative considered: retain the readline prompt because it is secure. Rejected because it satisfies ordering but not the approved interactive presentation or cleanup contract.
+
+### 12. Fullscreen exit reuses rendered transcript semantics and pinned resume grammar
+
+The exit path must not call a formatter that strips all ANSI from already parity-matched transcript components. Before disposal it freezes authoritative blocks, removes only overlays, drafts, animations, hidden thinking, and inline-image payloads, and renders the same semantic transcript rows used by pinned regular-mode exit at the final parent width. After terminal restoration it writes those bounded styled rows.
+
+The resume line is `${dim("To resume this session:")} <product-aware command>`. The command uses the persisted session id, adds `--session-dir` only outside the default session directory, quotes with pinned grammar for the active platform, and substitutes `a1` for `pi`. A raw default session-file path is never printed. Empty, failed, non-persisted, custom-directory, transcript, and resume-hint-only exits receive byte-order and visual-parity evidence.
+
+Alternative considered: print the current fullscreen capture. Rejected because it includes viewport-only chrome and may omit off-screen transcript rows. Alternative considered: keep a plain text transcript for safety. Rejected because the owned components already produce bounded trusted ANSI and stripping it is the observed parity defect.
+
 ## Risks / Trade-offs
 
 - **[A logical rollback can itself fail]** → Make handlers idempotent, retain the previous effective snapshot, emit a high-severity inconsistency diagnostic, and mark the setting unavailable until owner reconstruction succeeds.
@@ -178,6 +249,9 @@ Physical terminal checks remain user-controlled under the repository checkpoint.
 - **[Filtering product-fixed settings reduces capability discoverability]** → Keep them in the exhaustive internal inventory and conformance table while omitting non-actionable rows from the user-facing settings UI.
 - **[A1 resume syntax can overlap pending CLI redesign]** → Add only a narrow session-selection launch contract and keep formatting behind one product-identity helper so later CLI work has one migration point.
 - **[Lifecycle telemetry has privacy consequences]** → Preserve Pi's default and opt-out semantics exactly, send nothing when disabled, and never broaden payloads or events beyond the pinned lifecycle.
+- **[Raw ANSI parity can become platform-fragile]** → Compare semantic SGR/control roles and cell geometry, normalize only declared nondeterminism, and keep physical-terminal acceptance separate from deterministic evidence.
+- **[Styled exit output can leak fullscreen-only chrome or unsafe payloads]** → Render from authoritative transcript components after filtering excluded semantics; never replay captured terminal bytes, overlays, editor drafts, animation frames, or inline-image payloads.
+- **[A startup TUI could accidentally load project resources before trust]** → Construct it from global settings and reviewed built-in primitives only, with an order-sensitive test that fails on any project-source access.
 
 ## Migration Plan
 
@@ -187,6 +261,9 @@ Physical terminal checks remain user-controlled under the repository checkpoint.
 4. Bind active agent, shell, terminal, startup, shutdown, and installation handlers in focused increments, exposing each descriptor only when its behavioral and visibility tests pass.
 5. Add the image asset resolver and transcript reconstruction, preserving the existing payload limits.
 6. Add post-restoration exit output and executable session resume formatting.
-7. Run strict inventory/effect conformance in CI, then obtain user-controlled terminal acceptance before integration.
+7. Replace text-only visual evidence with independent pinned/A1 raw-style and geometry producers covering the complete setting matrix.
+8. Port pinned-style settings, trust-preflight, transcript-exit, resume-hint, warning, notice, selector, editor, footer, and terminal states in focused increments.
+9. Update provenance for every minimally ported style or lifecycle rule and run strict inventory/effect/visual conformance in CI.
+10. Obtain user-controlled physical-terminal acceptance only after deterministic visual parity passes.
 
 Rollback disables individual handlers and removes their descriptors from the active settings UI; it does not return them as disabled rows or writable no-ops. The storage grammar is unchanged, so values remain available for a corrected implementation or pinned comparison profile.

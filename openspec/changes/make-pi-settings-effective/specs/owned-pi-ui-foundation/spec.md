@@ -27,3 +27,28 @@ Every Pi setting the A1-owned settings replacement presents SHALL control the sa
 - **WHEN** conformance finds a setting that cannot change its declared observable behavior in the active product mode or environment
 - **THEN** the owned settings UI SHALL omit the option
 - **AND** the owned-shell acceptance gate SHALL fail if the option is rendered even when disabled or accompanied by explanatory text
+
+### Requirement: Setting-controlled owned surfaces preserve pinned Pi visual semantics
+For the same terminal dimensions, theme, capabilities, semantic content, setting values, and lifecycle state, every visible surface controlled by a Pi setting SHALL match pinned Pi's terminal-cell presentation. Parity SHALL include visible text and punctuation, semantic foreground and background styling, bold/dim/italic/underline roles, borders, padding, blank rows, row order, wrapping, truncation, alignment, editor and footer geometry, cursor placement, and terminal-control ordering. Declared product identity, A1-only setting content, hidden bare-A1 entries, profile/session values, dynamic usage data, absolute link targets, and nondeterministic render timing MAY differ; no other visual difference is implicit.
+
+#### Scenario: Render a setting-controlled frame
+- **WHEN** bare A1 and pinned Pi receive equivalent content and lifecycle events with the same visible setting value and terminal dimensions
+- **THEN** their normalized terminal cells, semantic ANSI roles, geometry, and control ordering SHALL match except for declared substitutions
+
+#### Scenario: Render the owned settings surface
+- **WHEN** A1 presents its A1 and Agent settings sections
+- **THEN** rows, values, descriptions, selected state, menus, dialogs, search input, footer hints, padding, and narrow-terminal behavior SHALL use pinned Pi visual semantics
+- **AND** A1-specific grouping and hidden entries SHALL remain the only structural product differences
+
+#### Scenario: Present project trust before loading project resources
+- **WHEN** an undecided interactive launch requires a trust decision
+- **THEN** the bounded preflight SHALL present a pinned-style startup selector with equivalent focus, accept, reject, cancel, clear, and terminal-restoration behavior
+- **AND** no project-derived presentation or executable resource SHALL load before the decision
+
+#### Scenario: Compare automated visual evidence
+- **WHEN** automated parity evidence is evaluated
+- **THEN** it SHALL compare independent pinned and A1 producers without stripping semantic SGR styling or replacing geometry with text-only snapshots
+
+#### Scenario: Claim final visual acceptance
+- **WHEN** deterministic parity checks pass
+- **THEN** user-controlled physical-terminal comparison SHALL still verify the claimed terminal's rasterized result, selection, resize, cursor, restoration, and supported image behavior
