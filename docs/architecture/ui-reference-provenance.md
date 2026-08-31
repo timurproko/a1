@@ -29,7 +29,7 @@ its own `core` facade layer; A1 is a product, so the port adapts imports and kee
 | `ui-components/list-block.ts` — sticky scroll | `settings/impl.ts` — `stickyHeaderGroup`, `topPaddingRows`, `visibleRowCountAt`, `clampScrollForView` | Same reservation arithmetic and two-pass reveal. |
 | `ui-components/mouse.ts` | `core/panes/sgr-mouse.ts` | Same SGR decoding and per-call regex reset; A1 emits its own event shape. |
 | `ui-components/mouse.ts` — tracking sequences | `core/host/pi/providers/host-bridge-surface.ts` | Mouse modes only. A1 does not take the alternate screen, because the Pi TUI owns the screen A1 renders through. |
-| `features/owned-ui/settings-app.ts` — layout | `settings/impl.ts` — `settingsValueColumn`, `renderFieldLine`, footer and search rendering | Setting discovery is A1's own section model; presentation follows the reference. |
+| `features/owned-ui/settings-app.ts` — section layout, pointer controls, and scrolling | `settings/impl.ts` — `settingsValueColumn`, block navigation, sticky sections, and pointer hit regions | Setting discovery is A1's own A1/Agent section model. Section navigation and pointer-only numeric controls follow the A1 reference; setting row styling, search, descriptions, menus, and hints are governed separately by pinned Pi below. |
 
 ## Ported from the pinned engine
 
@@ -37,11 +37,14 @@ its own `core` facade layer; A1 is a product, so the port adapts imports and kee
 | --- | --- | --- |
 | `pi-engine-adapter/settings-integration.ts` — `SETTING_LABELS` | pinned Pi settings selector | Labels and descriptions transcribed so an owned screen reads as the vanilla route words it. Ids are mapped from the selector kebab-case to the exposed camelCase keys. |
 | `pi-engine/session-integration.ts` and `pi-components/shell-footer-status.ts` — steering queue | pinned Pi interactive mode `onSubmit` and `updatePendingMessagesDisplay` | Steering/follow-up uses `prompt(..., { streamingBehavior })`, allowing Pi to emit the accepted user row, while remaining steering rows preserve Pi's opening spacer, dim `Steering:` labels, dequeue hint, and order before `Working`. |
+| `ui-components/list-view.ts`, `dialog-panel.ts`, `value-menu.ts`, and `features/owned-ui/settings-app.ts` — setting presentation | pinned Pi `SettingsSelectorComponent`, Pi TUI `SettingsList`, `SelectList`, and `Input` at `0.84.2` | A1/Agent grouping and pointer steppers remain product-owned. Cursor, selected label/value accents, unselected muted values, 30-column label cap, descriptions, search prompt/cursor, scalar-menu selection, error/deferred notices, and footer hints preserve pinned semantic ANSI and narrow-width geometry. Independent evidence: `test/features/owned-ui/pinned-settings-presentation-parity.test.ts`. |
+| `features/owned-ui/project-trust-prompt.ts` — pre-resource selector | pinned Pi `cli/startup-ui.ts`, `cli/project-trust.ts`, and `core/project-trust.ts` at commit `914cf1472e715297caa30db4b9535d534a9eb718` | Uses a fixed, dependency-bounded A1 startup selector rather than importing private CLI modules. It preserves selected-option accent, navigation/accept/reject/cancel semantics, fail-closed behavior, raw-mode restoration, clearing, cursor restoration, and parent-screen restoration before diagnostics. |
+| `pi-session-ui/session-shell-root.ts` and `session-shell.ts` — fullscreen exit | pinned Pi `InteractiveMode.formatResumeCommand()` and shutdown output at commit `914cf1472e715297caa30db4b9535d534a9eb718` | Re-renders authoritative transcript components with semantic SGR intact, excludes inline-image control payloads and fullscreen-only chrome, restores the terminal first, then emits pinned dim `To resume this session:` wording with `a1`, compact session id, and conditional quoted `--session-dir`. |
+| `test/features/owned-ui/pi-raw-terminal-parity.ts` — parity normalization | pinned Pi public components/runtime at `0.84.2` | Only synchronized-output envelopes, absolute hyperlink targets, declared product/path substitutions, and nondeterministic timing may normalize. SGR roles/reset boundaries, rows, cursor operations, clearing, restoration, and write order remain authoritative; A1-generated JSON captures are diagnostics and cannot serve as pinned evidence. |
 
 ## Deliberate differences
 
-- **No alternate screen.** The reference owns its surface and can switch screens; A1 renders
-  through the pinned Pi TUI, so an owned screen is a full-viewport overlay instead.
+- **Owned in-session routes are overlays.** The A1 UI reference owns its surface and can switch screens; A1 renders in-session owned routes through the pinned Pi TUI as full-viewport overlays. The pre-resource trust selector is separate and uses a bounded alternate startup surface solely so every completion path can restore the untouched parent terminal before engine activation or a fail-closed diagnostic.
 - **Colour is a port, not an import.** The reference takes a Pi `Theme` directly. A1 defines
   `UiTheme` so the component layer never imports a Pi adapter and can be rendered plainly in
   tests.

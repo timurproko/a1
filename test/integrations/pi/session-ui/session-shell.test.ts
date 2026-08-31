@@ -202,10 +202,41 @@ describe("OwnedUiSessionShell", () => {
     expect(bytes.slice(bytes.lastIndexOf("\x1b[?1049l"))).not.toContain("\x1b[?1049h");
   });
 
-  it("formats an exact quoted session-selection command", () => {
-    const command = formatSessionResumeCommand("D:/session dir/resume.jsonl");
-    expect(command).toContain("a1 --session");
-    expect(command).toContain("session dir/resume.jsonl");
+  it("prints styled transcript and a dim compact resume hint only after restoration", async () => {
+    const { shell, engine, terminal } = await fixture([
+      { role: "user", content: [{ type: "text", text: "styled exit user" }], timestamp: 1 },
+      { role: "assistant", content: [{ type: "text", text: "styled exit answer" }], stopReason: "stop", timestamp: 2 },
+    ], [], true);
+    Object.assign(engine.session, {
+      sessionManager: {
+        isPersisted: () => true,
+        getSessionFile: () => "D:/default/sessions/raw-session-file.jsonl",
+        getSessionId: () => "compact-id",
+        getSessionDir: () => "D:/default/sessions",
+        usesDefaultSessionDir: () => true,
+      },
+    });
+    await shell.dispose();
+    const bytes = terminal.writes.join("");
+    const restored = bytes.lastIndexOf("\u001b[?1049l");
+    const parent = bytes.slice(restored);
+    expect(parent).toContain("\u001b[");
+    expect(parent).toContain("styled exit answer");
+    expect(parent).toContain("\u001b[2mTo resume this session:\u001b[22m a1 --session compact-id");
+    expect(parent).not.toContain("raw-session-file.jsonl");
+  });
+
+  it("formats pinned compact resume grammar for default and custom session directories", () => {
+    expect(formatSessionResumeCommand({
+      sessionId: "abc123",
+      sessionDir: "D:/default/sessions",
+      usesDefaultSessionDir: true,
+    })).toBe("a1 --session abc123");
+    expect(formatSessionResumeCommand({
+      sessionId: "abc123",
+      sessionDir: "D:/custom session's",
+      usesDefaultSessionDir: false,
+    })).toBe("a1 --session-dir 'D:/custom session'\\''s' --session abc123");
   });
 
   it("omits Pi startup help and loaded-resource inventory from bare A1 only", async () => {

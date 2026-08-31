@@ -239,11 +239,11 @@ describe("the settings screen", () => {
     const { app: target } = await app();
     target.onInput?.("/", HOST);
     target.onInput?.("t", HOST);
-    const before = find(target, "❯").replace(/\s+$/, "");
+    const before = find(target, ">").replace(/\s+$/, "");
 
     target.onInput?.(DOWN, HOST);
     const after = screen(target);
-    expect(after.find(line => line.includes("❯"))?.replace(/\s+$/, "")).toBe(before);
+    expect(after.find(line => line.startsWith(">"))?.replace(/\s+$/, "")).toBe(before);
     expect(after.some(line => line.trimStart().startsWith("→"))).toBe(true);
   });
 
@@ -255,8 +255,8 @@ describe("the settings screen", () => {
     // Wheel over otherwise blank list space, not over a setting row.
     target.onMouse?.({ kind: "wheel-down", button: 0, row: 1, column: 70 }, HOST);
     const lines = target.render({ width: 80, height: 13 }, HOST).map(line => line.replace(STYLE, "").trimEnd());
-    const searchRow = lines.findIndex(line => line.toLowerCase().includes("search settings"));
-    expect(lines[searchRow - 2]).toContain("Output padding");
+    const searchRow = lines.findIndex(line => line.startsWith(">"));
+    expect(lines.slice(0, searchRow).some(line => line.includes("Output padding"))).toBe(true);
   });
 
   it("restores the opening blank row when Home returns to the beginning during search", async () => {
@@ -279,21 +279,21 @@ describe("the settings screen", () => {
     target.onInput?.(END, HOST);
 
     const lines = target.render({ width: 80, height: 8 }, HOST).map(line => line.replace(STYLE, "").trimEnd());
-    const searchRow = lines.findIndex(line => line.toLowerCase().includes("search settings"));
+    const searchRow = lines.findIndex(line => line.startsWith(">"));
+    expect(searchRow, JSON.stringify(lines)).toBeGreaterThanOrEqual(0);
     expect(lines.find(line => line.includes("Output padding"))?.trimStart()).toMatch(/^→/);
-    // The rule immediately above the input belongs to the search footer; the
-    // last result occupies the final list row above that rule.
-    expect(lines[searchRow - 2]).toContain("Output padding");
+    // Pinned SettingsList places the search input directly below the final row.
+    expect(lines[searchRow - 1]).toContain("Output padding");
   });
 
   it("jumps a section from the search, as the arrows move through it", async () => {
     const { app: target } = await app();
     target.onInput?.("/", HOST);
-    const before = find(target, "❯").replace(/s+$/, "");
+    const before = find(target, ">").replace(/s+$/, "");
 
     target.onInput?.(`${ESC}[1;2B`, HOST);
     const after = screen(target);
-    expect(after.find(line => line.includes("❯"))?.replace(/s+$/, "")).toBe(before);
+    expect(after.find(line => line.startsWith(">"))?.replace(/s+$/, "")).toBe(before);
     expect(after.some(line => line.trimStart().startsWith("→"))).toBe(true);
   });
 
@@ -314,7 +314,7 @@ describe("the settings screen", () => {
     for (const letter of "zzzz") target.onInput?.(letter, HOST);
     target.onInput?.(DOWN, HOST);
     target.onInput?.(`${ESC}[1;2B`, HOST);
-    expect(find(target, "❯")).toContain("zzzz");
+    expect(find(target, ">")).toContain("zzzz");
     expect(screen(target).some(line => line.trimStart().startsWith("→"))).toBe(false);
   });
 
@@ -348,10 +348,10 @@ describe("the list view behind the screen", () => {
     expect(writes).toHaveLength(0);
     expect(screen(target).find(line => line.trimStart().startsWith("→"))).toBe(selectedBefore);
 
-    // The value opens its dropdown without moving that arrow or changing yet.
+    // The value opens its pinned-style dropdown without moving the row selection.
     target.onMouse?.({ kind: "press", button: 0, row: row + 1, column: valueColumn }, HOST);
     expect(writes).toHaveLength(0);
-    expect(screen(target).some(line => line.includes("✓ low"))).toBe(true);
+    expect(screen(target).some(line => line.includes("→ low"))).toBe(true);
     expect(screen(target).find(line => line.trimStart().startsWith("→"))).toBe(selectedBefore);
   });
 
@@ -385,7 +385,7 @@ describe("the value dropdown behind the screen", () => {
     const row = lines.findIndex(line => line.includes("Thinking level"));
     const valueColumn = (lines[row] ?? "").indexOf("low") + 1;
     target.onMouse?.({ kind: "press", button: 0, row: row + 1, column: valueColumn }, HOST);
-    expect(screen(target).some(line => line.includes("✓ low"))).toBe(true);
+    expect(screen(target).some(line => line.includes("→ low"))).toBe(true);
 
     target.onInput?.(DOWN, HOST);
     target.onInput?.(DOWN, HOST);
@@ -395,12 +395,12 @@ describe("the value dropdown behind the screen", () => {
 });
 
 describe("the input row and status line behind the screen", () => {
-  it("shows the placeholder with the caret over its first cell", async () => {
+  it("matches pinned SettingsList's search prompt and inverse cursor", async () => {
     const { app: target } = await app();
     target.onInput?.("/", HOST);
-    const painted = target.render({ width: 80, height: 24 }, HOST).find(line => line.includes("earch settings")) ?? "";
+    const painted = target.render({ width: 80, height: 24 }, HOST).find(line => line.startsWith("> ")) ?? "";
     expect(painted).toContain(String.fromCharCode(27) + "[7m");
-    expect(painted.replace(STYLE, "")).toContain("❯ search settings");
+    expect(painted.replace(STYLE, "")).toMatch(/^>\s{2}/);
   });
 
   it("says one thing at a time, reporting over the standing hint", async () => {

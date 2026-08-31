@@ -14,9 +14,41 @@ export type PiSettingKey =
   | "autocompleteMaxVisible" | "clearOnShrink" | "showTerminalProgress" | "tuiMode"
   | "fullscreenExitOutput" | "fullscreenScrollbar" | "warnings";
 
+export type PiSettingVisualClass =
+  | "none"
+  | "transcript"
+  | "transcript-geometry"
+  | "editor-menu"
+  | "queue-transcript"
+  | "status-error"
+  | "retry-error"
+  | "footer-transcript"
+  | "markdown"
+  | "transcript-notice"
+  | "startup-transcript"
+  | "startup-selector"
+  | "selector"
+  | "terminal-cursor"
+  | "editor-geometry"
+  | "menu-geometry"
+  | "terminal-frame"
+  | "terminal-status"
+  | "restored-parent-output"
+  | "hidden";
+
+export interface PiSettingVisualEvidence {
+  /** Reviewed visual family; `none` still names the behavior that can emit styled diagnostics. */
+  readonly class: PiSettingVisualClass;
+  /** Pinned component, lifecycle, or provider-visible failure surface used as the visual authority. */
+  readonly pinnedSurface: string;
+  /** Independent pinned/A1 test or physical checkpoint that owns acceptance. */
+  readonly evidence: string;
+}
+
 export interface PiSettingEffectDefinition {
   readonly application: AgentSettingApplicationBoundary;
   readonly owner: AgentSettingOwner;
+  readonly visual: PiSettingVisualEvidence;
   /** Bare A1 deliberately replaces this Pi behavior, so its settings UI omits the entry. */
   readonly hiddenInBare?: true;
 }
@@ -26,38 +58,57 @@ export interface PiSettingEffectDefinition {
  * generated; this table states who must make each accepted value observable.
  */
 export const PI_SETTING_EFFECTS: Readonly<Record<PiSettingKey, PiSettingEffectDefinition>> = Object.freeze({
-  autoCompact: { application: "live", owner: "agent" },
-  showImages: { application: "live", owner: "shell" },
-  imageWidthCells: { application: "live", owner: "shell" },
-  autoResizeImages: { application: "live", owner: "agent" },
-  blockImages: { application: "live", owner: "agent" },
-  enableSkillCommands: { application: "live", owner: "shell" },
-  steeringMode: { application: "live", owner: "agent" },
-  followUpMode: { application: "live", owner: "agent" },
-  transport: { application: "live", owner: "agent" },
-  httpIdleTimeoutMs: { application: "live", owner: "agent" },
-  thinkingLevel: { application: "live", owner: "agent" },
-  theme: { application: "live", owner: "shell", hiddenInBare: true },
-  hideThinkingBlock: { application: "live", owner: "shell" },
-  mermaidRenderingMode: { application: "live", owner: "shell" },
-  showCacheMissNotices: { application: "live", owner: "shell" },
-  collapseChangelog: { application: "next-start", owner: "startup" },
-  enableInstallTelemetry: { application: "next-start", owner: "installation" },
-  quietStartup: { application: "next-start", owner: "startup", hiddenInBare: true },
-  defaultProjectTrust: { application: "next-start", owner: "startup" },
-  doubleEscapeAction: { application: "live", owner: "shell" },
-  treeFilterMode: { application: "live", owner: "shell" },
-  showHardwareCursor: { application: "live", owner: "terminal" },
-  editorPaddingX: { application: "live", owner: "shell" },
-  outputPad: { application: "live", owner: "shell" },
-  autocompleteMaxVisible: { application: "live", owner: "shell" },
-  clearOnShrink: { application: "live", owner: "terminal" },
-  showTerminalProgress: { application: "live", owner: "terminal" },
-  tuiMode: { application: "next-session", owner: "shell", hiddenInBare: true },
-  fullscreenExitOutput: { application: "current-exit", owner: "shutdown" },
-  fullscreenScrollbar: { application: "live", owner: "shell", hiddenInBare: true },
-  warnings: { application: "live", owner: "agent" },
+  autoCompact: effect("live", "agent", "transcript", "compaction status, summary, completion, and failure rows", "pinned-transcript-lifecycle-parity"),
+  showImages: effect("live", "shell", "transcript", "pinned inline image and textual fallback components", "pinned-transcript-image-parity"),
+  imageWidthCells: effect("live", "shell", "transcript-geometry", "pinned image component width and clipping", "pinned-transcript-image-parity"),
+  autoResizeImages: effect("live", "agent", "none", "provider image preparation and pinned warning row", "settings-effects-provider-parity"),
+  blockImages: effect("live", "agent", "none", "provider context conversion and pinned blocked-image notice", "settings-effects-provider-parity"),
+  enableSkillCommands: effect("live", "shell", "editor-menu", "pinned command autocomplete list", "pinned-editor-input-parity"),
+  steeringMode: effect("live", "agent", "queue-transcript", "pinned steering queue and submitted prompt rows", "pinned-status-indicator-parity"),
+  followUpMode: effect("live", "agent", "queue-transcript", "pinned follow-up queue and submitted prompt rows", "pinned-status-indicator-parity"),
+  transport: effect("live", "agent", "status-error", "pinned provider request status and failure rows", "settings-effects-provider-parity"),
+  httpIdleTimeoutMs: effect("live", "agent", "retry-error", "pinned timeout, retry, and terminal failure rows", "pinned-transcript-lifecycle-parity"),
+  thinkingLevel: effect("live", "agent", "footer-transcript", "pinned footer indicator, thinking rows, and clamp notice", "pinned-status-indicator-parity"),
+  theme: hiddenEffect("live", "shell", "pinned theme selector and complete themed shell", "pinned-theme-parity"),
+  hideThinkingBlock: effect("live", "shell", "transcript", "pinned thinking block presence and spacing", "pinned-transcript-lifecycle-parity"),
+  mermaidRenderingMode: effect("live", "shell", "markdown", "pinned Mermaid Markdown transformation", "pinned-assistant-content-parity"),
+  showCacheMissNotices: effect("live", "shell", "transcript-notice", "pinned cache-miss transcript notice", "pinned-transcript-lifecycle-parity"),
+  collapseChangelog: effect("next-start", "startup", "startup-transcript", "pinned startup and command changelog components", "pi-startup-composition-parity"),
+  enableInstallTelemetry: effect("next-start", "installation", "none", "install lifecycle and its pinned failure diagnostic", "settings-effects-installation-parity"),
+  quietStartup: hiddenEffect("next-start", "startup", "pinned startup suppression lifecycle", "pi-startup-composition-parity"),
+  defaultProjectTrust: effect("next-start", "startup", "startup-selector", "pinned pre-resource project trust selector", "project-trust-startup-parity"),
+  doubleEscapeAction: effect("live", "shell", "selector", "pinned tree or fork selector", "pinned-selector-parity"),
+  treeFilterMode: effect("live", "shell", "selector", "pinned tree selector filter, rows, and hints", "pinned-selector-parity"),
+  showHardwareCursor: effect("live", "terminal", "terminal-cursor", "pinned editor, overlay, blur, failure, and exit cursor operations", "pi-terminal-operation-parity"),
+  editorPaddingX: effect("live", "shell", "editor-geometry", "pinned editor border, padding, wrapping, and cursor column", "pinned-editor-input-parity"),
+  outputPad: effect("live", "shell", "transcript-geometry", "pinned transcript, tool, status, and error horizontal padding", "pinned-transcript-lifecycle-parity"),
+  autocompleteMaxVisible: effect("live", "shell", "menu-geometry", "pinned autocomplete clipping and editor anchoring", "pinned-editor-input-parity"),
+  clearOnShrink: effect("live", "terminal", "terminal-frame", "pinned resize clearing and resulting terminal frame", "pi-terminal-operation-parity"),
+  showTerminalProgress: effect("live", "terminal", "terminal-status", "pinned OSC progress lifecycle", "pi-terminal-operation-parity"),
+  tuiMode: hiddenEffect("next-session", "shell", "pinned regular/fullscreen selector and terminal lifecycle", "pi-terminal-operation-parity"),
+  fullscreenExitOutput: effect("current-exit", "shutdown", "restored-parent-output", "pinned styled transcript and compact dim resume hint", "pinned-fullscreen-exit-parity"),
+  fullscreenScrollbar: hiddenEffect("live", "shell", "pinned fullscreen scrollbar reservation", "pi-terminal-operation-parity"),
+  warnings: effect("live", "agent", "transcript-notice", "pinned warning rows by warning part", "pinned-transcript-lifecycle-parity"),
 });
+
+function effect(
+  application: AgentSettingApplicationBoundary,
+  owner: AgentSettingOwner,
+  visualClass: Exclude<PiSettingVisualClass, "hidden">,
+  pinnedSurface: string,
+  evidence: string,
+): PiSettingEffectDefinition {
+  return { application, owner, visual: { class: visualClass, pinnedSurface, evidence } };
+}
+
+function hiddenEffect(
+  application: AgentSettingApplicationBoundary,
+  owner: AgentSettingOwner,
+  pinnedSurface: string,
+  evidence: string,
+): PiSettingEffectDefinition {
+  return { application, owner, hiddenInBare: true, visual: { class: "hidden", pinnedSurface, evidence } };
+}
 
 export interface PiSettingEffectHandler {
   /** Install one value in the active owner. Handlers must be idempotent and reversible. */
@@ -267,6 +318,27 @@ export function settingsEffectInventoryDrift(
     stale: reviewed.filter(key => !presentedSet.has(key)),
     duplicated: [...counts].filter(([, count]) => count > 1).map(([key]) => key),
   };
+}
+
+export function settingsVisualInventoryViolations(
+  presented: readonly string[],
+  reviewed: Readonly<Partial<Record<PiSettingKey, PiSettingEffectDefinition>>> = PI_SETTING_EFFECTS,
+): readonly string[] {
+  const violations: string[] = [];
+  for (const candidate of presented) {
+    const key = candidate as PiSettingKey;
+    const definition = reviewed[key];
+    if (definition === undefined) {
+      violations.push(`${candidate}: missing visual classification`);
+      continue;
+    }
+    const visual = definition.visual;
+    if (!visual || visual.pinnedSurface.trim().length === 0) violations.push(`${candidate}: missing pinned visual source`);
+    if (!visual || visual.evidence.trim().length === 0) violations.push(`${candidate}: missing independent visual evidence`);
+    if (definition.hiddenInBare === true && visual?.class !== "hidden") violations.push(`${candidate}: hidden setting declares a visible frame`);
+    if (definition.hiddenInBare !== true && visual?.class === "hidden") violations.push(`${candidate}: visible setting declares hidden evidence`);
+  }
+  return violations;
 }
 
 function outcome(

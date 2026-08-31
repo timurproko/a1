@@ -7,6 +7,7 @@ import {
   PiSettingsIntegration,
   settingsEffectInventoryDrift,
   settingsInventoryDrift,
+  settingsVisualInventoryViolations,
   type PiSettingOwnerHandlers,
 } from "../../src/integrations/pi/engine/index.js";
 import piSettingsMetadata from "../../src/integrations/pi/engine/pi-settings-metadata.json" with { type: "json" };
@@ -55,6 +56,30 @@ describe("Pi settings inventory governance", () => {
   it("requires one reviewed effect entry for every generated key", () => {
     expect(settingsEffectInventoryDrift(piSettingsMetadata.presented, Object.keys(PI_SETTING_EFFECTS)))
       .toEqual({ unmapped: [], stale: [], duplicated: [] });
+  });
+
+  it("requires a reviewed pinned source and independent visual evidence for every generated key", () => {
+    expect(settingsVisualInventoryViolations(piSettingsMetadata.presented)).toEqual([]);
+  });
+
+  it("names missing, self-contradictory, and source-less visual classifications", () => {
+    const visible = PI_SETTING_EFFECTS.autoCompact;
+    const hidden = PI_SETTING_EFFECTS.theme;
+    expect(settingsVisualInventoryViolations(["autoCompact", "theme", "somethingNew"], {
+      autoCompact: { ...visible, visual: { ...visible.visual, pinnedSurface: "" } },
+      theme: { ...hidden, visual: { ...hidden.visual, class: "transcript" } },
+    })).toEqual([
+      "autoCompact: missing pinned visual source",
+      "theme: hidden setting declares a visible frame",
+      "somethingNew: missing visual classification",
+    ]);
+  });
+
+  it("rejects a visible setting that claims hidden evidence", () => {
+    const visible = PI_SETTING_EFFECTS.autoCompact;
+    expect(settingsVisualInventoryViolations(["autoCompact"], {
+      autoCompact: { ...visible, visual: { ...visible.visual, class: "hidden" } },
+    })).toEqual(["autoCompact: visible setting declares hidden evidence"]);
   });
 
   it("offers what the engine offers, in the engine's order", async () => {

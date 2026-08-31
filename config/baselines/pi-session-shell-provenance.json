@@ -114,6 +114,51 @@
       "copiedLines": true,
       "modifications": "Reduced to the public undici dispatcher seam and A1 diagnostics state; no private Pi import remains.",
       "coverage": ["test/integrations/pi/engine/http-dispatcher.test.ts"]
+    },
+    {
+      "upstreamSource": "packages/coding-agent/src/modes/interactive/components/settings-selector.ts and packages/tui/src/components/settings-list.ts",
+      "upstreamCommit": "914cf1472e715297caa30db4b9535d534a9eb718",
+      "upstreamLines": [[1, 620], [1, 251]],
+      "localFile": "src/features/owned-ui/settings-app.ts",
+      "componentFiles": ["src/ui/components/list-view.ts", "src/ui/components/dialog-panel.ts", "src/ui/components/value-menu.ts"],
+      "behavior": "semantic ANSI, selected setting rows and values, descriptions, search input, scalar and structured controls, footer hints, wrapping, and narrow-width settings geometry",
+      "copiedFiles": [],
+      "copiedLines": false,
+      "modifications": "A1 retains its owned A1/Agent grouping, hidden-entry policy, pointer controls, and asynchronous outcome model while porting pinned SettingsList and SelectList presentation semantics through the neutral UiTheme boundary.",
+      "coverage": [
+        "test/features/owned-ui/pinned-settings-presentation-parity.test.ts",
+        "test/features/owned-ui/settings-app.test.ts"
+      ]
+    },
+    {
+      "upstreamSource": "packages/coding-agent/src/cli/startup-ui.ts, packages/coding-agent/src/cli/project-trust.ts, and packages/coding-agent/src/core/project-trust.ts",
+      "upstreamCommit": "914cf1472e715297caa30db4b9535d534a9eb718",
+      "upstreamLines": [[1, 190], [1, 52], [1, 61]],
+      "localFile": "src/features/owned-ui/project-trust-prompt.ts",
+      "behavior": "pre-resource startup selector focus, navigation, accept, reject, cancel, clearing, fail-closed diagnostics, and terminal restoration",
+      "copiedFiles": [],
+      "copiedLines": false,
+      "modifications": "Reimplemented as a fixed A1-owned raw-key selector so no project-derived resource or private Pi CLI module loads before trust resolution; product wording is substituted and the parent screen is restored on every completion path.",
+      "coverage": [
+        "test/features/owned-ui/project-trust-prompt.test.ts",
+        "test/integrations/pi/engine/project-trust-preflight.test.ts",
+        "test/integrations/pi/engine/runtime-integration.test.ts"
+      ]
+    },
+    {
+      "upstreamSource": "packages/coding-agent/src/modes/interactive/interactive-mode.ts",
+      "upstreamCommit": "914cf1472e715297caa30db4b9535d534a9eb718",
+      "upstreamLines": [[115, 131], [3138, 3150]],
+      "localFile": "src/integrations/pi/session-ui/session-shell.ts",
+      "transcriptFile": "src/integrations/pi/session-ui/session-shell-root.ts",
+      "behavior": "styled fullscreen transcript output after restoration and compact dim session-id resume command grammar",
+      "copiedFiles": [],
+      "copiedLines": false,
+      "modifications": "Uses authoritative owned transcript components and public SessionManager metadata; substitutes the A1 command, excludes inline image payloads and fullscreen chrome, and preserves pinned quoting and optional session-directory ordering.",
+      "coverage": [
+        "test/integrations/pi/session-ui/session-shell.test.ts",
+        "test/features/owned-ui/pi-raw-terminal-parity.test.ts"
+      ]
     }
   ],
   "rejected": [

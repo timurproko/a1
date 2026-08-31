@@ -32,7 +32,8 @@ describe("list rows against the reader's terminal", () => {
   it("carries the selection on the label", () => {
     const line = render({ selected: true, hovered: false, region: "label" });
 
-    expect(line).toContain("<accent>Theme</accent>");
+    expect(line).toContain("<accent>Theme");
+    expect(line).toContain("<accent>light</accent>");
   });
 
   it("brightens a pointed-at value to the terminal's own foreground", () => {
