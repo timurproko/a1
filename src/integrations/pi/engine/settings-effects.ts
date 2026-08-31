@@ -17,17 +17,9 @@ export type PiSettingKey =
 export interface PiSettingEffectDefinition {
   readonly application: AgentSettingApplicationBoundary;
   readonly owner: AgentSettingOwner;
-  /** Bare A1 deliberately replaces this Pi behavior and therefore cannot apply it. */
-  readonly bareLimitation?: string;
+  /** Bare A1 deliberately replaces this Pi behavior, so its settings UI omits the entry. */
+  readonly hiddenInBare?: true;
 }
-
-const PRODUCT_FIXED = {
-  theme: "Bare A1 uses its product-fixed dark owned theme",
-  quietStartup: "Bare A1 owns startup composition and does not expose Pi startup suppression",
-  tuiMode: "Bare A1 uses its product-fixed custom fullscreen viewport",
-  fullscreenScrollbar: "Bare A1 replaces Pi's scrollbar with declared A1 viewport settings",
-  enableInstallTelemetry: "Bare A1 does not run Pi's install/update telemetry lifecycle",
-} as const;
 
 /**
  * Reviewed effect authority for every generated Pi setting. Presentation remains
@@ -45,13 +37,13 @@ export const PI_SETTING_EFFECTS: Readonly<Record<PiSettingKey, PiSettingEffectDe
   transport: { application: "live", owner: "agent" },
   httpIdleTimeoutMs: { application: "live", owner: "agent" },
   thinkingLevel: { application: "live", owner: "agent" },
-  theme: { application: "live", owner: "shell", bareLimitation: PRODUCT_FIXED.theme },
+  theme: { application: "live", owner: "shell", hiddenInBare: true },
   hideThinkingBlock: { application: "live", owner: "shell" },
   mermaidRenderingMode: { application: "live", owner: "shell" },
   showCacheMissNotices: { application: "live", owner: "shell" },
   collapseChangelog: { application: "next-start", owner: "startup" },
-  enableInstallTelemetry: { application: "next-start", owner: "installation", bareLimitation: PRODUCT_FIXED.enableInstallTelemetry },
-  quietStartup: { application: "next-start", owner: "startup", bareLimitation: PRODUCT_FIXED.quietStartup },
+  enableInstallTelemetry: { application: "next-start", owner: "installation" },
+  quietStartup: { application: "next-start", owner: "startup", hiddenInBare: true },
   defaultProjectTrust: { application: "next-start", owner: "startup" },
   doubleEscapeAction: { application: "live", owner: "shell" },
   treeFilterMode: { application: "live", owner: "shell" },
@@ -61,9 +53,9 @@ export const PI_SETTING_EFFECTS: Readonly<Record<PiSettingKey, PiSettingEffectDe
   autocompleteMaxVisible: { application: "live", owner: "shell" },
   clearOnShrink: { application: "live", owner: "terminal" },
   showTerminalProgress: { application: "live", owner: "terminal" },
-  tuiMode: { application: "next-session", owner: "shell", bareLimitation: PRODUCT_FIXED.tuiMode },
+  tuiMode: { application: "next-session", owner: "shell", hiddenInBare: true },
   fullscreenExitOutput: { application: "current-exit", owner: "shutdown" },
-  fullscreenScrollbar: { application: "live", owner: "shell", bareLimitation: PRODUCT_FIXED.fullscreenScrollbar },
+  fullscreenScrollbar: { application: "live", owner: "shell", hiddenInBare: true },
   warnings: { application: "live", owner: "agent" },
 });
 
@@ -124,8 +116,8 @@ export class PiSettingsCoordinator {
       const definition = PI_SETTING_EFFECTS[key];
       if (definition === undefined) throw new Error(`unknown Pi setting effect: ${key}`);
       if (definition.owner !== owner) throw new Error(`${key} belongs to ${definition.owner}, not ${owner}`);
-      if (this.#productMode === "bare" && definition.bareLimitation !== undefined) {
-        throw new Error(`${key} is product-fixed in bare A1`);
+      if (this.#productMode === "bare" && definition.hiddenInBare === true) {
+        throw new Error(`${key} is hidden in bare A1`);
       }
       this.#handlers.set(key, handler);
       bound.push(key);
@@ -156,7 +148,7 @@ export class PiSettingsCoordinator {
 
   limitationReason(key: PiSettingKey): string | null {
     const definition = PI_SETTING_EFFECTS[key];
-    if (this.#productMode === "bare" && definition.bareLimitation !== undefined) return definition.bareLimitation;
+    if (this.#productMode === "bare" && definition.hiddenInBare === true) return "setting is not available in the active product mode";
     const inconsistent = this.#requireState(key).inconsistentReason;
     if (inconsistent !== null) return inconsistent;
     if (!this.#handlers.has(key)) return `${definition.owner} effect is not bound for ${definition.application} application`;

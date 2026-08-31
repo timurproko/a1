@@ -81,19 +81,19 @@ describe("owned UI settings sections", () => {
     expect(agent?.unavailableReason).toBeNull();
     expect(agent?.readOnlyReason).toBeNull();
     expect(agent?.entries.map(entry => entry.id))
-      .toEqual(["autoCompact", "thinkingLevel", "providerProfile", "installId"]);
+      .toEqual(["autoCompact", "thinkingLevel", "providerProfile"]);
     expect(findOwnedUiSettingsEntry(sections, "thinkingLevel", "agent")?.choices).toEqual(["off", "low", "high"]);
     expect(findOwnedUiSettingsEntry(sections, "autoCompact", "agent")?.value).toBe(true);
   });
 
-  it("preserves stored, effective, deferred, and unavailable engine state", () => {
+  it("preserves stored, effective, and deferred state while omitting unavailable entries", () => {
     const sections = buildOwnedUiSettingsSections({
       resolution: resolution(),
       agent: {
         descriptors: [
           descriptor("collapseChangelog", "boolean", true, { application: "next-start", owner: "startup", effectiveValue: false }),
           descriptor("fullscreenExitOutput", "enum", "resume-hint", { application: "current-exit", owner: "shutdown", effectiveValue: "transcript", choices: ["transcript", "resume-hint"] }),
-          descriptor("theme", "string", "dark", { writable: false, available: false, limitationReason: "Bare A1 uses its product-fixed theme", owner: "shell" }),
+          descriptor("theme", "string", "dark", { writable: false, available: false, limitationReason: "fixture reason must stay hidden", owner: "shell" }),
         ],
         writeAdvertised: true,
         failure: null,
@@ -105,9 +105,7 @@ describe("owned UI settings sections", () => {
     expect(findOwnedUiSettingsEntry(sections, "fullscreenExitOutput", "agent")).toMatchObject({
       storedValue: "resume-hint", effectiveValue: "transcript", application: "current-exit", editable: true,
     });
-    expect(findOwnedUiSettingsEntry(sections, "theme", "agent")).toMatchObject({
-      editable: false, available: false, limitationReason: "Bare A1 uses its product-fixed theme",
-    });
+    expect(findOwnedUiSettingsEntry(sections, "theme", "agent")).toBeNull();
   });
 
   it("marks a structured setting editable through its own surface", () => {
@@ -117,27 +115,22 @@ describe("owned UI settings sections", () => {
     expect(findOwnedUiSettingsEntry(sections, "providerProfile", "agent")?.editable).toBe(true);
     expect(findOwnedUiSettingsEntry(sections, "providerProfile", "agent")?.structured).toBe(true);
     expect(findOwnedUiSettingsEntry(sections, "autoCompact", "agent")?.structured).toBe(false);
-    expect(findOwnedUiSettingsEntry(sections, "installId", "agent")?.editable).toBe(false);
+    expect(findOwnedUiSettingsEntry(sections, "installId", "agent")).toBeNull();
     expect(findOwnedUiSettingsEntry(sections, "autoCompact", "agent")?.editable).toBe(true);
   });
 
-  it("renders the Agent section read-only with a reason when write is not advertised", () => {
+  it("omits Agent options when write is not advertised", () => {
     const sections = buildOwnedUiSettingsSections({
       resolution: resolution(),
       agent: { ...AGENT, writeAdvertised: false },
     });
     const agent = sections.find(section => section.id === "agent");
-    expect(agent?.readOnlyReason).toMatch(/does not support changing settings/);
-    expect(agent?.entries.every(entry => !entry.editable)).toBe(true);
-    expect(agent?.entries).toHaveLength(4);
+    expect(agent?.readOnlyReason).toBeNull();
+    expect(agent?.entries).toEqual([]);
   });
 
   it("reports an unavailable Agent section while keeping the A1 section usable", () => {
-    for (const agent of [
-      null,
-      { ...AGENT, failure: "engine unreachable" },
-      { ...AGENT, descriptors: [] },
-    ]) {
+    for (const agent of [null, { ...AGENT, failure: "engine unreachable" }]) {
       const sections = buildOwnedUiSettingsSections({ resolution: resolution(), agent });
       const [owned, agentSection] = sections;
       expect(owned?.entries).toHaveLength(2);
@@ -146,7 +139,17 @@ describe("owned UI settings sections", () => {
     }
   });
 
-  it("reports a read-only reason when the engine advertises write but nothing is writable", () => {
+  it("shows no placeholder copy when the engine has no presentable settings", () => {
+    const agent = buildOwnedUiSettingsSections({
+      resolution: resolution(),
+      agent: { ...AGENT, descriptors: [] },
+    }).find(section => section.id === "agent");
+    expect(agent?.entries).toEqual([]);
+    expect(agent?.unavailableReason).toBeNull();
+    expect(agent?.readOnlyReason).toBeNull();
+  });
+
+  it("omits non-writable options without adding explanatory copy", () => {
     const sections = buildOwnedUiSettingsSections({
       resolution: resolution(),
       agent: {
@@ -154,8 +157,9 @@ describe("owned UI settings sections", () => {
         descriptors: [descriptor("installId", "string", "abc", { writable: false })],
       },
     });
-    expect(sections.find(section => section.id === "agent")?.readOnlyReason)
-      .toMatch(/no writable settings/);
+    const agent = sections.find(section => section.id === "agent");
+    expect(agent?.entries).toEqual([]);
+    expect(agent?.readOnlyReason).toBeNull();
   });
 
   it("does not expose an unknown key as an entry and finds nothing for a wrong backend", () => {

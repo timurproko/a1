@@ -401,7 +401,7 @@ export class SettingsApp implements UiApp {
     // and pointing at it is not a request for anything else.
     if (typeof shown === "number") return;
     if (!entry.editable || entry.choices === null || entry.choices.length === 0) {
-      this.#notice = entry.limitationReason ?? `${labelOf(entry)} cannot be changed here`;
+      this.#notice = `${labelOf(entry)} cannot be changed here`;
       return;
     }
     const current = shown === null ? 0 : Math.max(0, entry.choices.indexOf(shown));
@@ -532,7 +532,7 @@ export class SettingsApp implements UiApp {
     if (row === undefined || row.kind !== "element") return;
     const entry = row.value;
     if (!entry.editable) {
-      this.#notice = entry.limitationReason ?? `${labelOf(entry)} cannot be changed here`;
+      this.#notice = `${labelOf(entry)} cannot be changed here`;
       return;
     }
     const shown = this.#shownValue(entry);
@@ -545,7 +545,7 @@ export class SettingsApp implements UiApp {
     }
     const choices = entry.choices;
     if (choices === null || choices.length === 0) {
-      this.#notice = entry.limitationReason ?? `${labelOf(entry)} cannot be changed here`;
+      this.#notice = `${labelOf(entry)} cannot be changed here`;
       return;
     }
     const current = shown === null ? -1 : choices.indexOf(shown);
@@ -657,13 +657,11 @@ export class SettingsApp implements UiApp {
   /** What the list view needs to draw a setting: its words, and where it can go. */
   #viewRow(entry: OwnedUiSettingsEntry): ListViewRow {
     const shown = this.#shownValue(entry);
-    const value = !entry.available
-      ? `unavailable — ${entry.limitationReason ?? "effect is unavailable"}`
-      : entry.structured
-        ? CONFIGURE
-        : shown === null
-          ? describeRaw(entry.rawValue)
-          : effectiveDisplay(entry, shown);
+    const value = entry.structured
+      ? CONFIGURE
+      : shown === null
+        ? describeRaw(entry.rawValue)
+        : effectiveDisplay(entry, shown);
     const range = rangeOf(entry);
     return {
       key: `${entry.backend}:${entry.id}`,

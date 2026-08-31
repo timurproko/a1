@@ -45,8 +45,11 @@ function port(failWrites = false): { port: AgentSettingsPort; writes: { key: str
           descriptor("thinkingLevel", "enum", values.thinkingLevel ?? null, { choices: ["low", "high"], label: "Thinking level", owner: "agent" }),
           descriptor("editorPaddingX", "number", values.editorPaddingX ?? null, { label: "Editor padding", minimum: 0, maximum: 3 }),
           descriptor("outputPad", "enum", values.outputPad ?? null, { choices: [0, 1], label: "Output padding" }),
-          descriptor("fullscreenScrollbar", "enum", values.fullscreenScrollbar ?? null, { choices: ["auto", "always", "hidden"], label: "Fullscreen scrollbar" }),
-          descriptor("quietStartup", "boolean", values.quietStartup ?? null, { label: "Quiet startup", owner: "startup", application: "next-start" }),
+          descriptor("fullscreenScrollbar", "enum", values.fullscreenScrollbar ?? null, { choices: ["auto", "always", "hidden"], label: "Fullscreen scrollbar", writable: false, available: false, limitationReason: "fixture reason must stay hidden" }),
+          descriptor("quietStartup", "boolean", values.quietStartup ?? null, { label: "Quiet startup", owner: "startup", application: "next-start", writable: false, available: false, limitationReason: "fixture reason must stay hidden" }),
+          descriptor("theme", "enum", "dark", { choices: ["dark", "light"], label: "Theme", writable: false, available: false, limitationReason: "fixture reason must stay hidden" }),
+          descriptor("tuiMode", "enum", "fullscreen", { choices: ["regular", "fullscreen"], label: "TUI mode", writable: false, available: false, limitationReason: "fixture reason must stay hidden" }),
+          descriptor("enableInstallTelemetry", "boolean", true, { label: "Install telemetry", owner: "installation", application: "next-start", writable: false, available: false, limitationReason: "fixture reason must stay hidden" }),
         ];
       },
       async readSetting(key: string): Promise<AgentJsonValue | undefined> {
@@ -82,11 +85,7 @@ async function app(failWrites = false): Promise<{ app: SettingsApp; writes: { ke
     declarations: OWNED_UI_SETTING_DECLARATIONS,
     migrations: [],
   });
-  const session = new OwnedUiSettingsSession({
-    store,
-    agent: backing.port,
-    hiddenAgentSettingIds: ["fullscreenScrollbar", "quietStartup"],
-  });
+  const session = new OwnedUiSettingsSession({ store, agent: backing.port });
   await session.load();
   return { app: new SettingsApp(session), writes: backing.writes };
 }
@@ -125,10 +124,29 @@ describe("the settings screen", () => {
     expect(lines.some(line => line.includes("Scrollbar mode") && line.includes("auto"))).toBe(true);
     expect(lines.some(line => line.includes("Fullscreen scrollbar"))).toBe(false);
     expect(lines.some(line => line.includes("Quiet startup"))).toBe(false);
+    expect(lines.join("\n")).not.toContain("fixture reason must stay hidden");
     expect(lines.some(line => line.includes("Scrollbar style") && line.includes("thin"))).toBe(true);
     expect(lines.some(line => line.includes("Speed") && line.includes("normal"))).toBe(true);
     expect(lines.some(line => line.trim() === "A1")).toBe(false);
     expect(lines.join("\n")).not.toContain("(default)");
+  });
+
+  it("keeps unavailable options and their explanatory copy out of search", async () => {
+    const { app: target } = await app();
+    for (const [query, label] of [
+      ["theme", "Theme"],
+      ["tui mode", "TUI mode"],
+      ["install telemetry", "Install telemetry"],
+      ["fullscreen scrollbar", "Fullscreen scrollbar"],
+      ["quiet startup", "Quiet startup"],
+    ] as const) {
+      target.onInput?.("/", HOST);
+      for (const letter of query) target.onInput?.(letter, HOST);
+      const shown = screen(target);
+      expect(shown.some(line => line.includes(label))).toBe(false);
+      expect(shown.join("\n")).not.toContain("fixture reason must stay hidden");
+      target.onInput?.(ESC, HOST);
+    }
   });
 
   it("steps to the next value on enter", async () => {
