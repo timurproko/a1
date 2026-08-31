@@ -26,12 +26,17 @@ A1 SHALL apply a changed setting at the application boundary declared by its res
 - **THEN** no value SHALL be stored and the running session SHALL be unaffected
 
 ### Requirement: Resolved settings are offered to a surface as grouped sections
-A1 SHALL expose the resolved settings as sections a consuming surface can present without knowing where a value is stored: the declared available A1 settings in their own section, and the available settings reported by the engine settings port under a distinct Agent section. Each presented entry SHALL carry its current stored value, current effective value when different, whether it can be changed from A1, its application boundary, its available choices where its source declares them, and its description where its source provides one. Agent settings SHALL be read, written, and applied only through the engine settings port; A1 SHALL NOT write Pi settings storage directly. Where the engine does not advertise the write or effect capability required by an entry, that entry SHALL be filtered from the presented section. A descriptor without an application contract SHALL not be promoted to a UI entry.
+A1 SHALL expose the resolved settings as sections a consuming surface can present without knowing where a value is stored: the declared available A1 settings in their own section, and the available settings reported by the engine settings port under a distinct Agent section. Each presented entry SHALL carry its current stored value, current effective value when different, whether it can be changed from A1, its application boundary, its available choices where its source declares them, and its description where its source provides one. Agent settings SHALL be read, written, and applied only through the engine settings port; A1 SHALL NOT write Pi settings storage directly. Where the engine does not advertise the write or effect capability required by an entry, that entry SHALL be filtered from the presented section. A descriptor without an application contract SHALL not be promoted to a UI entry. The consuming surface SHALL use pinned Pi's semantic styles and geometry for setting rows, labels, values, descriptions, selected state, controls, menus, structured dialogs, search/filter input, deferred and failure notices, footer hints, wrapping, and narrow-terminal clipping; A1/Agent grouping and A1-only content remain declared product differences.
 
 #### Scenario: Build sections with an attached engine
 - **WHEN** sections are built while the engine reports its settings
 - **THEN** the A1 section SHALL list every declared setting with its resolved value, choices, description, source, and application boundary
 - **AND** the Agent section SHALL list every available setting the engine reports with its stored and effective state, writability, and application boundary
+
+#### Scenario: Present settings with pinned visual semantics
+- **WHEN** the settings surface renders equivalent scalar, numeric, structured, selected, searched, deferred, failed, and narrow-width states
+- **THEN** its terminal cells and semantic ANSI roles SHALL match pinned Pi's corresponding settings presentation
+- **AND** unavailable entries and their option-specific explanation SHALL remain absent
 
 #### Scenario: Change a setting in the A1 section
 - **WHEN** a change is accepted for an entry in the A1 section
