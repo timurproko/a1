@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { SettingsManager } from "@earendil-works/pi-coding-agent";
+import type { AgentSettingOwner } from "../../src/contracts/agent-engine/index.js";
 import {
   EXPOSED_SETTING_KEYS,
   PI_SETTING_EFFECTS,
   PiSettingsIntegration,
   settingsEffectInventoryDrift,
   settingsInventoryDrift,
+  type PiSettingOwnerHandlers,
 } from "../../src/integrations/pi/engine/index.js";
 import piSettingsMetadata from "../../src/integrations/pi/engine/pi-settings-metadata.json" with { type: "json" };
 
@@ -15,7 +17,15 @@ import piSettingsMetadata from "../../src/integrations/pi/engine/pi-settings-met
  * named failure rather than as a row that quietly stops appearing.
  */
 async function mappedKeys(): Promise<readonly string[]> {
-  const integration = new PiSettingsIntegration(SettingsManager.inMemory({}));
+  const integration = new PiSettingsIntegration(SettingsManager.inMemory({}), { productMode: "comparison" });
+  const owners: readonly AgentSettingOwner[] = ["agent", "shell", "terminal", "startup", "shutdown", "installation"];
+  for (const owner of owners) {
+    integration.bindOwner(owner, Object.fromEntries(
+      Object.entries(PI_SETTING_EFFECTS)
+        .filter(([, definition]) => definition.owner === owner)
+        .map(([key]) => [key, { apply() {} }]),
+    ) as PiSettingOwnerHandlers);
+  }
   return (await integration.listSettings()).map(descriptor => descriptor.key);
 }
 
@@ -48,7 +58,15 @@ describe("Pi settings inventory governance", () => {
   });
 
   it("offers what the engine offers, in the engine's order", async () => {
-    const integration = new PiSettingsIntegration(SettingsManager.inMemory({}));
+    const integration = new PiSettingsIntegration(SettingsManager.inMemory({}), { productMode: "comparison" });
+    const owners: readonly AgentSettingOwner[] = ["agent", "shell", "terminal", "startup", "shutdown", "installation"];
+    for (const owner of owners) {
+      integration.bindOwner(owner, Object.fromEntries(
+        Object.entries(PI_SETTING_EFFECTS)
+          .filter(([, definition]) => definition.owner === owner)
+          .map(([key]) => [key, { apply() {} }]),
+      ) as PiSettingOwnerHandlers);
+    }
     const descriptors = await integration.listSettings();
     for (const [key, entry] of Object.entries(piSettingsMetadata.settings)) {
       const values = (entry as { values?: readonly string[] }).values;

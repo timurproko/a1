@@ -100,7 +100,7 @@ export class OwnedUiSettingsSession {
   ): Promise<OwnedUiSettingsChangeOutcome> {
     const entry = findOwnedUiSettingsEntry(this.sections(), id, backend);
     if (entry === null) return failed(`unknown ${backend} setting: ${id}`);
-    if (!entry.editable) return failed(entry.limitationReason ?? `${id} is not editable from this surface`);
+    if (!entry.editable) return failed(`${id} is not editable from this surface`);
     return backend === "a1" ? this.#changeOwned(id, value) : await this.#changeAgentValue(id, value);
   }
 
@@ -154,10 +154,13 @@ async function snapshotOf(agent: AgentSettingsPort, hidden: ReadonlySet<string>)
   try {
     const listed = await agent.listSettings();
     for (const descriptor of listed) assertAgentSettingDescriptor(descriptor);
-    const descriptors = listed.filter(descriptor => !hidden.has(descriptor.key));
+    const writeAdvertised = agent.capabilities.write && typeof agent.writeSetting === "function";
+    const descriptors = listed.filter(descriptor =>
+      !hidden.has(descriptor.key) && writeAdvertised && descriptor.writable && descriptor.available,
+    );
     return {
       descriptors,
-      writeAdvertised: agent.capabilities.write && typeof agent.writeSetting === "function",
+      writeAdvertised,
       failure: null,
     };
   } catch (error) {
