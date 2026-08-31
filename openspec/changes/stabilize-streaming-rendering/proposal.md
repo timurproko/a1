@@ -1,0 +1,30 @@
+## Why
+
+Bare `a1` shows visible instability while assistant content streams, including flicker that is not present in vanilla Pi or the pinned `a1 pi` comparison. The three paths reuse the same Pi transcript components, but bare A1 alone forces the custom fullscreen viewport: as follow-tail advances, its position-based screen diff can clear and rewrite most transcript rows for one newly wrapped row, and its transient dock can also change ownership at the fit/overflow boundary. Existing parity and responsiveness tests verify content and event cost, not terminal paint stability, so this regression is currently invisible to automation.
+
+## What Changes
+
+- Add an equivalent-state rendering analysis that captures semantic frames and raw terminal writes from bare `a1`, `a1 pi`, and untouched pinned Pi at the same geometry, mode, theme, transcript, and deterministic stream cadence.
+- Classify every paint by cause and measure frame cadence, cleared/rewritten rows, bytes, full redraws, viewport shifts, stable-row rewrites, and dock geometry changes, with bounded artifacts suitable for diagnosing terminal-visible flicker.
+- Make follow-tail streaming damage-aware so ordinary text growth does not repaint stable transcript rows merely because the viewport advanced by one row; use atomic terminal updates and avoid whole-screen clears outside declared structural cases.
+- Keep transient queued/working rows in one stable ownership region across the fit-to-overflow transition so streaming does not produce a one-frame dock/document jump.
+- Coalesce presentation to a deliberate streaming cadence while preserving immediate input feedback, final content, status animation, and the existing per-block engine update path.
+- Add deterministic regression gates and exact-artifact manual comparison for sustained prose, Markdown reflow, thinking, tools, fit/overflow crossing, long transcripts, resize, detached scrolling, and terminals with and without synchronized-update support.
+- Preserve `a1 pi` and untouched Pi as independent comparison producers; do not change their profile, rendering policy, or visible output.
+
+## Capabilities
+
+### New Capabilities
+
+- None.
+
+### Modified Capabilities
+
+- `custom-session-viewport`: Require visually stable, damage-bounded streaming frames and stable dock ownership while retaining follow-tail, detached scrolling, sticky prompts, and viewport controls.
+- `owned-pi-ui-foundation`: Require independent terminal-paint evidence, bounded streaming presentation cadence, and rendering-quality regression coverage in addition to semantic parity and responsiveness.
+
+## Impact
+
+- Affected areas: Pi engine-to-shell event presentation, custom session viewport composition, Pi TUI runtime adaptation, terminal-frame diagnostics, focused integration tests, and OpenSpec acceptance evidence.
+- The implementation may require a documented public Pi TUI rendering capability or a pinned dependency update; private imports, prototype patches, installed-package edits, and stock `InteractiveMode` construction remain prohibited.
+- No CLI, session format, extension contract, profile isolation, or model behavior changes are intended. Bare A1 remains fullscreen and keeps its custom viewport; `a1 pi` remains the oracle.
