@@ -67,7 +67,9 @@ function parityCase(id: string, width: number, coverage: readonly string[], rows
 
 export function normalizeParityRow(row: string): string {
   return row
-    .replace(/\u001b]8;;file:\/\/\/[^\u0007\u001b]*(?:\/|\\)README\.md(\u0007|\u001b\\)/g, "\u001b]8;;<absolute-link-target>/README.md$1")
+    // Stored A1 diagnostics are cross-platform and do not own parity authority;
+    // normalize optional OSC 8 wrappers while preserving every SGR byte and cell.
+    .replace(/\u001b]8;;[^\u0007\u001b]*(?:\u0007|\u001b\\)/g, "")
     .replace("\u001b_pi:c\u0007", "")
     .replace(/(?:~\/\S*\/)?D:\/work/g, "D:/work");
 }

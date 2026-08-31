@@ -67,19 +67,20 @@ type Action =
   | "part-previous" | "part-next" | "part-change";
 
 export const SETTINGS_SHORTCUTS = new ShortcutRegistry<Action>();
-SETTINGS_SHORTCUTS.declare({ key: "/", scope: SCOPE, description: "Search settings", section: "Change", hint: { keys: "/", does: "to search" } }, "open-filter");
-SETTINGS_SHORTCUTS.declare({ key: "up", scope: SCOPE, description: "Previous setting", section: "Navigate", hint: { keys: "↑↓", does: "to navigate" } }, "move-up");
-SETTINGS_SHORTCUTS.declare({ key: "down", scope: SCOPE, description: "Next setting", section: "Navigate", hint: { keys: "↑↓", does: "to navigate" } }, "move-down");
-SETTINGS_SHORTCUTS.declare({ key: "shift+up", scope: SCOPE, description: "Previous section", section: "Navigate", hint: { keys: "Shift+↑↓", does: "to jump" } }, "block-up");
-SETTINGS_SHORTCUTS.declare({ key: "shift+down", scope: SCOPE, description: "Next section", section: "Navigate", hint: { keys: "Shift+↑↓", does: "to jump" } }, "block-down");
+SETTINGS_SHORTCUTS.declare({ key: "/", scope: SCOPE, description: "Search settings", section: "Change" }, "open-filter");
+SETTINGS_SHORTCUTS.declare({ key: "printable", scope: SCOPE, description: "Type to search settings", section: "Change", hint: { keys: "Type", does: "to search" } }, "open-filter");
+SETTINGS_SHORTCUTS.declare({ key: "up", scope: SCOPE, description: "Previous setting", section: "Navigate" }, "move-up");
+SETTINGS_SHORTCUTS.declare({ key: "down", scope: SCOPE, description: "Next setting", section: "Navigate" }, "move-down");
+SETTINGS_SHORTCUTS.declare({ key: "shift+up", scope: SCOPE, description: "Previous section", section: "Navigate" }, "block-up");
+SETTINGS_SHORTCUTS.declare({ key: "shift+down", scope: SCOPE, description: "Next section", section: "Navigate" }, "block-down");
 SETTINGS_SHORTCUTS.declare({ key: "pageUp", scope: SCOPE, description: "Up a page", section: "Navigate" }, "page-up");
 SETTINGS_SHORTCUTS.declare({ key: "pageDown", scope: SCOPE, description: "Down a page", section: "Navigate" }, "page-down");
 SETTINGS_SHORTCUTS.declare({ key: "home", scope: SCOPE, description: "First setting", section: "Navigate" }, "first");
 SETTINGS_SHORTCUTS.declare({ key: "end", scope: SCOPE, description: "Last setting", section: "Navigate" }, "last");
 SETTINGS_SHORTCUTS.declare({ key: "enter", scope: SCOPE, description: "Change value", section: "Change", hint: { keys: "Enter/Space", does: "to change" } }, "activate");
 SETTINGS_SHORTCUTS.declare({ key: "space", scope: SCOPE, description: "Change value", section: "Change", hint: { keys: "Enter/Space", does: "to change" } }, "activate");
-SETTINGS_SHORTCUTS.declare({ key: "left", scope: SCOPE, description: "Previous value", section: "Change", hint: { keys: "←→", does: "to adjust" } }, "previous-value");
-SETTINGS_SHORTCUTS.declare({ key: "right", scope: SCOPE, description: "Next value", section: "Change", hint: { keys: "←→", does: "to adjust" } }, "next-value");
+SETTINGS_SHORTCUTS.declare({ key: "left", scope: SCOPE, description: "Previous value", section: "Change" }, "previous-value");
+SETTINGS_SHORTCUTS.declare({ key: "right", scope: SCOPE, description: "Next value", section: "Change" }, "next-value");
 SETTINGS_SHORTCUTS.declare({ key: "escape", scope: GLOBAL_SCOPE, description: "Close", section: "Screen", hint: { keys: "Esc", does: "to cancel" } }, "close");
 SETTINGS_SHORTCUTS.declare({ key: "enter", scope: DIALOG_SCOPE, description: "Change this part", section: "Parts", hint: { keys: "Enter/Space", does: "to change" } }, "part-change");
 SETTINGS_SHORTCUTS.declare({ key: "space", scope: DIALOG_SCOPE, description: "Change this part", section: "Parts", hint: { keys: "Enter/Space", does: "to change" } }, "part-change");
@@ -237,16 +238,12 @@ export class SettingsApp implements UiApp {
     if (this.#menu !== null) return this.#menuKey(data);
     if (this.#filter !== null) return this.#filterKey(data);
 
-    const action = SETTINGS_SHORTCUTS.resolve(KEYS[data] ?? data, SCOPE);
-    if (action === null) {
-      // Pinned SettingsList searches as soon as printable text is entered. `/`
-      // remains an explicit discoverable shortcut, but is not a prerequisite.
-      if (data.length === 1 && data >= "!" && data !== "\u007f") {
-        this.#filter = new LineInput("");
-        return this.#filterKey(data);
-      }
-      return { consumed: false };
-    }
+    // Pinned SettingsList searches as soon as printable text is entered. `/`
+    // remains an explicit shortcut, while the printable declaration keeps the
+    // dispatched action and its reader-facing hint under one authority.
+    const key = KEYS[data] ?? (data.length === 1 && data >= "!" && data !== "\u007f" ? "printable" : data);
+    const action = SETTINGS_SHORTCUTS.resolve(key, SCOPE);
+    if (action === null) return { consumed: false };
 
     const rows = this.#rows();
     const selected = indexOfKey(rows, this.#selectedKey);
@@ -257,7 +254,7 @@ export class SettingsApp implements UiApp {
       case "open-filter":
         this.#filter = new LineInput("");
         this.#notice = null;
-        return { consumed: true };
+        return key === "printable" ? this.#filterKey(data) : { consumed: true };
       case "activate": {
         const row = rows[selected];
         if (row?.kind === "element" && row.value.structured) this.#openStructured(row.value);
@@ -726,7 +723,7 @@ export class SettingsApp implements UiApp {
 
     const hint = this.#interruptArmed
       ? "press ctrl+c again to exit A1"
-      : "  Type to search · Enter/Space to change · Esc to cancel";
+      : `  ${SETTINGS_SHORTCUTS.hint(SCOPE)}`;
     const report = this.#notice;
     const statusText = report === null ? hint : `  ${report}`;
     const status = truncateToWidth(

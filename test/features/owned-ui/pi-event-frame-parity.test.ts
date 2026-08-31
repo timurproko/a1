@@ -43,7 +43,7 @@ describe("pinned Pi scripted event and terminal-frame parity", () => {
     const result = await buildEventFrameParityResult();
 
     expect(fixture.tolerance).toEqual({
-      ignored: ["synchronized-output envelope", "render timing", "absolute hyperlink targets", "declared product and path substitutions"],
+      ignored: ["synchronized-output envelope", "render timing", "file hyperlink availability and absolute targets", "declared product and path substitutions"],
       preserved: ["semantic ANSI", "reset boundaries", "rendered row payloads", "cursor visibility", "cursor addressing", "clearing and restoration order", "state transitions", "resize dimensions"],
     });
     expect(portableFrames(result.frames)).toEqual(portableFrames(fixture.frames));
@@ -55,7 +55,9 @@ describe("pinned Pi scripted event and terminal-frame parity", () => {
 function portableFrames(frames: readonly EventFrameParityResult["frames"][number][]): readonly EventFrameParityResult["frames"][number][] {
   return frames.map(frame => ({
     ...frame,
-    capturedAnsi: frame.capturedAnsi.replace(/(?:~\/\S*\/)?D:\/parity/g, "D:/parity"),
+    capturedAnsi: frame.capturedAnsi
+      .replace(/\x1b]8;;[^\x07\x1b]*(?:\x07|\x1b\\)/g, "")
+      .replace(/(?:~\/\S*\/)?D:\/parity/g, "D:/parity"),
   }));
 }
 

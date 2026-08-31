@@ -12,7 +12,7 @@
   },
   "tolerance": {
     "ignored": [
-      "absolute hyperlink targets",
+      "file hyperlink availability and absolute targets",
       "declared product and path substitutions"
     ],
     "preserved": [

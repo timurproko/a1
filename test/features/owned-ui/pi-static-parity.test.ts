@@ -34,7 +34,7 @@ describe("pinned Pi static component parity", () => {
       "@earendil-works/pi-tui": "0.84.2",
     });
     expect(fixture.tolerance).toEqual({
-      ignored: ["absolute hyperlink targets", "declared product and path substitutions"],
+      ignored: ["file hyperlink availability and absolute targets", "declared product and path substitutions"],
       preserved: ["semantic ANSI", "reset boundaries", "visible text", "row order", "row count", "wrapping", "width truncation"],
     });
     expect(fixture.coverage).toEqual(STATIC_PARITY_COVERAGE);

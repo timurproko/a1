@@ -15,7 +15,7 @@ const output = {
     },
   },
   tolerance: {
-    ignored: ["absolute hyperlink targets", "declared product and path substitutions"],
+    ignored: ["file hyperlink availability and absolute targets", "declared product and path substitutions"],
     preserved: ["semantic ANSI", "reset boundaries", "visible text", "row order", "row count", "wrapping", "width truncation"],
   },
   coverage: STATIC_PARITY_COVERAGE,

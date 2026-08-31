@@ -16,7 +16,7 @@ const output = {
     }
   },
   tolerance: {
-    ignored: ["synchronized-output envelope", "render timing", "absolute hyperlink targets", "declared product and path substitutions"],
+    ignored: ["synchronized-output envelope", "render timing", "file hyperlink availability and absolute targets", "declared product and path substitutions"],
     preserved: ["semantic ANSI", "reset boundaries", "rendered row payloads", "cursor visibility", "cursor addressing", "clearing and restoration order", "state transitions", "resize dimensions"]
   },
   eventStages: ["initial", ...SCRIPTED_PI_EVENTS.map(entry => entry.stage), "resized"],

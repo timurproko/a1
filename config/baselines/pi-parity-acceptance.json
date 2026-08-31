@@ -32,7 +32,7 @@
   "fixtures": [
     {
       "path": "test/features/owned-ui/fixtures/pi-component-parity.json",
-      "sha256": "42ee49a45a52e9ea5b0b9f3679bae46121e1cd6f92a62bc9defdcf455e0c3c4d",
+      "sha256": "01c52a19eba2c7adf9805f62c84e4f22388f8091bbc843a50e53ca7a1e202f5c",
       "cases": 4,
       "classification": "AddOne-generated regression fixture; no independent upstream producer",
       "coverage": [
@@ -49,7 +49,7 @@
       ],
       "tolerance": {
         "ignored": [
-          "absolute hyperlink targets",
+          "file hyperlink availability and absolute targets",
           "declared product and path substitutions"
         ],
         "preserved": [
@@ -65,7 +65,7 @@
     },
     {
       "path": "test/features/owned-ui/fixtures/pi-event-frame-parity.json",
-      "sha256": "311c6c2d00ffc51857f88ca431288b7769e86e00ce450910cd87e1dca4034315",
+      "sha256": "bf226ebaf3ad40762018af1c800abf9432f6a869f7cb3ae437f880db9fc42b5a",
       "stateTransitions": 12,
       "capturedFrames": 5,
       "classification": "Synthetic AddOne-session regression fixture; no independent upstream producer",
@@ -87,7 +87,7 @@
         "ignored": [
           "synchronized-output envelope",
           "render timing",
-          "absolute hyperlink targets",
+          "file hyperlink availability and absolute targets",
           "declared product and path substitutions"
         ],
         "preserved": [

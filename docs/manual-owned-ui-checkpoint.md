@@ -4,6 +4,8 @@ This checkpoint is user-controlled. Tests and coding agents must not launch or f
 
 ## Prepare an exact candidate
 
+For a checkout smoke test in Git Bash, build once and launch with `./scripts/dev` or `./scripts/dev pi`. Do not invoke `node scripts/development/dev-launch.mjs` or `node scripts/development/start-local.mjs` directly: that bypasses the color-preserving shell `exec` shape and can collapse the pinned 24-bit palette to Git Bash's 16 terminal colors. Run `node scripts/check-terminal-colour.mjs` first when color fidelity is in doubt; the first color block must differ from the terminal-palette cyan block.
+
 From the candidate checkout, pack once and install that tarball into a disposable prefix:
 
 ```powershell
