@@ -17,6 +17,7 @@ context: |
 
   Manual handoff:
   - When a change becomes runnable, provide the exact applicable worktree, branch/commit, build/run commands, what to try, expected behavior, and known gaps. Repeat the commands after a push that changes what the user runs.
+  - For every repository-checkout manual test that launches the interactive A1 or Pi UI, build first and invoke the color-preserving shell entry as `./scripts/dev` or `./scripts/dev pi`. Never hand off a direct `node scripts/development/dev-launch.mjs` or `node scripts/development/start-local.mjs` interactive launch: on Windows Git Bash that shape can collapse the pinned 24-bit palette to terminal colors and invalidate visual review.
   - End such a reply with exactly two lines: the heading `🧪 Manual test:` followed by one copy-pasteable shell command. Use forward-slash paths and combine worktree selection with applicable build/run steps using `&&`.
   - The one command must exercise the changed behavior directly. Do not hardcode a generic launcher such as `npm start` when a focused CLI or script command applies.
   - When nothing is runnable, say so briefly and do not include a manual-test block.

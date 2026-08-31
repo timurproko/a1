@@ -46,11 +46,14 @@ describe("terminal colour fidelity", () => {
     expect(developmentLauncher).toMatch(/stdio: "inherit"/u);
   });
 
-  it("gives development runs the launch shape the installed command has", async () => {
+  it("gives development runs and manual handoffs the launch shape the installed command has", async () => {
     const developmentEntry = await source("scripts/dev");
+    const workflow = await source("openspec/config.yaml");
 
     expect(developmentEntry.startsWith("#!/bin/sh")).toBe(true);
     expect(developmentEntry).toMatch(/exec node .*development\/start-local\.mjs/u);
+    expect(workflow).toContain("./scripts/dev");
+    expect(workflow).toContain("Never hand off a direct `node scripts/development/dev-launch.mjs`");
   });
 
   // npm runs scripts through cmd.exe on Windows, where the MSYS shell is not on
