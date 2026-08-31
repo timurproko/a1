@@ -50,7 +50,7 @@ describe("terminal colour fidelity", () => {
     const developmentEntry = await source("scripts/dev");
 
     expect(developmentEntry.startsWith("#!/bin/sh")).toBe(true);
-    expect(developmentEntry).toMatch(/exec node .*start-local\.mjs/u);
+    expect(developmentEntry).toMatch(/exec node .*development\/start-local\.mjs/u);
   });
 
   // npm runs scripts through cmd.exe on Windows, where the MSYS shell is not on

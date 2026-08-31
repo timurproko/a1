@@ -10,4 +10,4 @@
 #
 # The installed `a1` command is an npm shim of exactly this shape, so this keeps
 # a repository-local run showing the same colours a user sees.
-exec node "$(dirname "$0")/start-local.mjs" "$@"
+exec node "$(dirname "$0")/development/start-local.mjs" "$@"
