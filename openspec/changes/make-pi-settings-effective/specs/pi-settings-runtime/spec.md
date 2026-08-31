@@ -5,7 +5,7 @@ Defines how every Pi setting exposed through A1 is persisted, applied to the cor
 ## ADDED Requirements
 
 ### Requirement: Writable Pi settings have an observable application contract
-Every Pi setting A1 presents as writable SHALL declare when its effect applies as one of `live`, `next-session`, `next-start`, or `current-exit`. Accepting a value SHALL persist it and SHALL produce the declared effect at that boundary. A1 SHALL NOT report a setting as applied merely because its value was accepted by Pi settings storage. A setting whose effect A1 cannot provide in the active product mode or terminal SHALL be reported as unavailable with a reason and SHALL NOT be presented as writable.
+Every Pi setting A1 presents SHALL declare when its effect applies as one of `live`, `next-session`, `next-start`, or `current-exit`. Accepting a value SHALL persist it and SHALL produce the declared effect at that boundary. A1 SHALL NOT report a setting as applied merely because its value was accepted by Pi settings storage. A setting whose effect A1 cannot provide in the active product mode or environment SHALL be omitted from the settings UI, including its option-specific unavailability explanation, and SHALL NOT be reachable as a writable hidden option.
 
 #### Scenario: Apply a live setting
 - **WHEN** the user accepts a Pi setting declared `live`
@@ -22,8 +22,8 @@ Every Pi setting A1 presents as writable SHALL declare when its effect applies a
 - **THEN** A1 SHALL report the failure, SHALL NOT claim the new value is in effect, and SHALL restore one consistent effective value across settings surfaces
 
 #### Scenario: Current environment cannot support the effect
-- **WHEN** a setting depends on a product mode or terminal capability that is unavailable
-- **THEN** the setting SHALL expose the limitation and reason rather than accepting a value that can produce no observable behavior
+- **WHEN** a setting has no observable effect because a required product-mode or environment capability is unavailable
+- **THEN** the settings UI SHALL omit the option and its unavailability explanation rather than accepting a value that can produce no observable behavior
 
 ### Requirement: Agent behavior settings reach the active Pi session
 A1 SHALL apply `autoCompact`, `autoResizeImages`, `blockImages`, `enableSkillCommands`, `steeringMode`, `followUpMode`, `transport`, `httpIdleTimeoutMs`, `thinkingLevel`, and `warnings` with pinned Pi semantics. Settings that Pi can change during a session SHALL affect subsequent applicable work in that session; startup defaults SHALL remain authoritative for newly created sessions. HTTP idle timeout changes SHALL cover the same provider stream and dispatcher idle behavior as pinned Pi, including the documented disabled value. Warning parts SHALL govern only their corresponding warning.
@@ -90,7 +90,7 @@ A1 SHALL preserve validated image attachments from user messages and tool result
 #### Scenario: Use an unsupported terminal
 - **WHEN** an image reaches the transcript while the terminal advertises no supported image protocol
 - **THEN** A1 SHALL show a textual image fallback that identifies the attachment
-- **AND** the settings surface SHALL make clear that inline rendering is unavailable in that terminal
+- **AND** `showImages` SHALL remain available because it still controls the defined textual fallback rather than becoming an unavailable placeholder option
 
 #### Scenario: Hide images
 - **WHEN** `showImages` is disabled
@@ -138,8 +138,8 @@ When the A1-owned shell uses a fullscreen alternate surface, `fullscreenExitOutp
 - **WHEN** the shell fails while the alternate screen is active
 - **THEN** terminal restoration SHALL still precede the configured bounded exit output
 
-### Requirement: Pi startup and installation settings are either honored or unavailable
-If A1 exposes `collapseChangelog` or `enableInstallTelemetry` as writable, the active A1 startup and installation lifecycle SHALL consume them with pinned Pi semantics. If A1 does not execute the corresponding lifecycle, it SHALL report that setting unavailable and SHALL NOT advertise a writable no-op.
+### Requirement: Pi startup and installation settings are either honored or hidden
+If A1 exposes `collapseChangelog` or `enableInstallTelemetry`, the active A1 startup and installation lifecycle SHALL consume them with pinned Pi semantics. If A1 does not execute the corresponding lifecycle, it SHALL omit that setting and its lifecycle-unavailability explanation from the settings UI and SHALL NOT advertise a writable no-op.
 
 #### Scenario: Start with changelog collapsing enabled
 - **WHEN** A1 performs pinned changelog startup presentation and the configured changelog has already been acknowledged
@@ -151,14 +151,14 @@ If A1 exposes `collapseChangelog` or `enableInstallTelemetry` as writable, the a
 
 #### Scenario: Lifecycle is not owned by A1
 - **WHEN** A1 cannot provide the Pi lifecycle controlled by one of these settings
-- **THEN** the settings surface SHALL mark it unavailable with the lifecycle reason
+- **THEN** the settings surface SHALL omit the setting and its lifecycle reason
 
 ### Requirement: Behavioral conformance covers every exposed Pi setting
-The accepted inventory of Pi settings exposed by A1 SHALL map each key to persistence, application timing, active owner, observable effect, capability constraints, and independent acceptance evidence. Automated conformance SHALL fail when a writable key has only metadata, a storage setter, or a selector callback without a tested effect. Terminal-dependent behavior SHALL additionally receive user-controlled physical-terminal acceptance on each claimed platform and terminal.
+The accepted inventory of Pi settings known to A1 SHALL map each key to persistence, application timing, active owner, observable effect, capability constraints, UI visibility, and independent acceptance evidence. Automated conformance SHALL fail when a presented key has only metadata, a storage setter, or a selector callback without a tested effect, or when an unavailable key appears as a disabled explanatory row. Terminal-dependent behavior SHALL additionally receive user-controlled physical-terminal acceptance on each claimed platform and terminal.
 
 #### Scenario: Add or expose a Pi setting
 - **WHEN** the pinned Pi inventory gains a setting or A1 begins presenting one
-- **THEN** conformance SHALL fail until its application contract, owner, effect test, and unsupported-context behavior are recorded
+- **THEN** conformance SHALL fail until its application contract, owner, effect test, capability predicate, and visible-or-hidden behavior are recorded
 
 #### Scenario: Disconnect an existing effect
 - **WHEN** a writable setting continues to persist but no longer changes its declared owner or observable output
