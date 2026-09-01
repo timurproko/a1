@@ -1,14 +1,20 @@
 import { displayWidth, stripAnsi } from "./text.js";
 
+/** A reported pointer cell plus its grapheme-aligned zero-based boundaries. */
 export interface TextSelectionPoint {
   readonly line: number;
   readonly column: number;
+  readonly from?: number;
+  readonly to?: number;
 }
 
 export interface TextSelection {
   readonly anchor: TextSelectionPoint;
   readonly head: TextSelectionPoint;
   readonly selecting: boolean;
+  /** Ordinary point selection has received at least one distinct motion report. */
+  readonly dragged?: boolean;
+  /** Word selection uses inclusive pointer-cell endpoints supplied by its semantic range. */
   readonly cell?: boolean;
   readonly fullRow?: boolean;
   /** Paint an edge whitespace run through the viewport's overlaid rail cell. */
@@ -28,6 +34,7 @@ export interface TextSelectionLineContent {
   readonly selectable?: boolean;
 }
 
+/** Ordered zero-based, half-open display-column boundaries. */
 export interface OrderedTextSelection {
   readonly start: TextSelectionPoint;
   readonly end: TextSelectionPoint;
@@ -51,14 +58,48 @@ export const TEXT_SELECTION_MULTI_CLICK_MS = 500;
 export function orderedTextSelection(selection: TextSelection | undefined): OrderedTextSelection | undefined {
   if (selection === undefined) return undefined;
   const { anchor, head } = selection;
-  if (anchor.line === head.line && anchor.column === head.column && !selection.cell && !selection.fullRow) return undefined;
-  const anchorFirst = anchor.line < head.line || (anchor.line === head.line && anchor.column <= head.column);
-  const ordered: OrderedTextSelection = anchorFirst
-    ? { start: anchor, end: head }
-    : { start: head, end: anchor };
+  if (selection.fullRow) {
+    const startLine = Math.min(anchor.line, head.line);
+    const endLine = Math.max(anchor.line, head.line);
+    return {
+      start: { line: startLine, column: 0 },
+      end: { line: endLine, column: Number.MAX_SAFE_INTEGER },
+      fullRow: true,
+      ...(selection.throughFinalColumn ? { throughFinalColumn: true } : {}),
+    };
+  }
+  if (selection.cell) {
+    const anchorFirst = comparePoints(anchor, head) <= 0;
+    const first = anchorFirst ? anchor : head;
+    const last = anchorFirst ? head : anchor;
+    return {
+      start: { line: first.line, column: pointBefore(first) },
+      end: { line: last.line, column: pointAfter(last) },
+      ...(selection.throughFinalColumn ? { throughFinalColumn: true } : {}),
+    };
+  }
+  if (selection.dragged !== true) return undefined;
+
+  const direction = comparePoints(anchor, head);
+  if (direction === 0) return undefined;
+  if (sameGrapheme(anchor, head)) {
+    return {
+      start: { line: anchor.line, column: pointBefore(anchor) },
+      end: { line: anchor.line, column: pointAfter(anchor) },
+    };
+  }
+  const ordered = direction < 0
+    ? {
+        start: { line: anchor.line, column: pointBefore(anchor) },
+        end: { line: head.line, column: pointBefore(head) },
+      }
+    : {
+        start: { line: head.line, column: pointAfter(head) },
+        end: { line: anchor.line, column: pointAfter(anchor) },
+      };
+  if (ordered.start.line === ordered.end.line && ordered.start.column >= ordered.end.column) return undefined;
   return {
     ...ordered,
-    ...(selection.fullRow ? { fullRow: true } : {}),
     ...(selection.throughFinalColumn ? { throughFinalColumn: true } : {}),
   };
 }
@@ -99,12 +140,13 @@ export function pressTextSelection(input: TextSelectionPressInput): {
       kind: "line",
     };
   }
+  const point = textSelectionPointAt(input.line, column, input.lineText);
   return {
     selection: {
-      anchor: { line: input.line, column },
-      head: { line: input.line, column },
+      anchor: point,
+      head: point,
       selecting: true,
-      cell: false,
+      dragged: false,
     },
     click,
     kind: "point",
@@ -113,14 +155,14 @@ export function pressTextSelection(input: TextSelectionPressInput): {
 
 export function extendTextSelection(selection: TextSelection | undefined, point: TextSelectionPoint): TextSelection | undefined {
   if (selection?.selecting !== true) return selection;
-  if (selection.fullRow) {
-    if (point.line === selection.anchor.line && selection.head.line === selection.anchor.line) return selection;
-    const edge = point.line < selection.anchor.line ? Number.MAX_SAFE_INTEGER : 1;
-    if (selection.anchor.column !== edge) {
-      return { ...selection, anchor: { line: selection.anchor.line, column: edge }, head: point };
-    }
-  }
-  return { ...selection, head: point };
+  const distinctMotion = comparePoints(selection.head, point) !== 0;
+  if (!distinctMotion) return selection;
+  if (selection.fullRow) return { ...selection, head: point };
+  return {
+    ...selection,
+    head: point,
+    dragged: true,
+  };
 }
 
 export function releaseTextSelection(selection: TextSelection | undefined): TextSelection | undefined {
@@ -131,6 +173,22 @@ export function releaseTextSelection(selection: TextSelection | undefined): Text
 
 export function textSelectionLineExtendColumn(selection: TextSelection, line: number, contentWidth: number): number {
   return line < selection.anchor.line ? 1 : Math.max(1, contentWidth);
+}
+
+/** Resolves a reported one-based pointer cell to the complete grapheme it intersects. */
+export function textSelectionPointAt(line: number, column: number, lineText: string): TextSelectionPoint {
+  const plain = stripAnsi(lineText);
+  const target = Math.max(0, column - 1);
+  let width = 0;
+  for (const { segment } of GRAPHEMES.segment(plain)) {
+    const cellWidth = displayWidth(segment);
+    const next = width + cellWidth;
+    if (cellWidth > 0 && target >= width && target < next) {
+      return { line, column, from: width, to: next };
+    }
+    width = next;
+  }
+  return { line, column, from: target, to: target + 1 };
 }
 
 export function textSelectionText(
@@ -146,19 +204,21 @@ export function textSelectionText(
       parts.push("");
       continue;
     }
-    const baseFrom = line === selection.start.line ? selection.start.column - 1 : 0;
+    const baseFrom = line === selection.start.line ? selection.start.column : 0;
     const baseTo = line === selection.end.line ? selection.end.column : Number.MAX_SAFE_INTEGER;
-    const from = Math.max(baseFrom, Math.max(0, (content?.from ?? 1) - 1));
-    const to = Math.max(from, Math.min(baseTo, content?.to ?? Number.MAX_SAFE_INTEGER));
-    parts.push(plain.slice(indexAtDisplayWidth(plain, from), indexAtDisplayWidth(plain, to)).trimEnd());
+    const contentFrom = Math.max(0, (content?.from ?? 1) - 1);
+    const contentTo = Math.max(contentFrom, (content?.to ?? Number.MAX_SAFE_INTEGER) - 1);
+    const from = Math.max(baseFrom, contentFrom);
+    const to = Math.max(from, Math.min(baseTo, contentTo));
+    parts.push(plain.slice(indexAtDisplayBoundary(plain, from, "start"), indexAtDisplayBoundary(plain, to, "end")).trimEnd());
   }
   return parts.join("\n");
 }
 
-/** Returns the plain cells covered by [from,to), using terminal grapheme widths. */
+/** Returns the plain cells covered by [from,to), expanding at grapheme edges. */
 export function plainTextBetweenColumns(line: string, from: number, to: number): string {
   const plain = stripAnsi(line);
-  return plain.slice(indexAtDisplayWidth(plain, from), indexAtDisplayWidth(plain, to));
+  return plain.slice(indexAtDisplayBoundary(plain, from, "start"), indexAtDisplayBoundary(plain, to, "end"));
 }
 
 export function usefulTextLineContent(line: string, from = 1): TextSelectionLineContent {
@@ -200,18 +260,35 @@ function characterClass(character: string): number {
   return 2;
 }
 
-function indexAtDisplayWidth(plain: string, column: number): number {
+function indexAtDisplayBoundary(plain: string, column: number, edge: "start" | "end"): number {
   if (column <= 0) return 0;
   let width = 0;
   let index = 0;
   for (const { segment } of GRAPHEMES.segment(plain)) {
     const cellWidth = displayWidth(segment);
-    if (width + cellWidth > column) break;
-    width += cellWidth;
+    const next = width + cellWidth;
+    if (column < next) return edge === "start" ? index : index + segment.length;
     index += segment.length;
-    if (width >= column) break;
+    width = next;
+    if (width >= column) return index;
   }
   return index;
+}
+
+function pointBefore(point: TextSelectionPoint): number {
+  return point.from ?? Math.max(0, point.column - 1);
+}
+
+function pointAfter(point: TextSelectionPoint): number {
+  return point.to ?? Math.max(0, point.column);
+}
+
+function sameGrapheme(left: TextSelectionPoint, right: TextSelectionPoint): boolean {
+  return left.line === right.line && pointBefore(left) === pointBefore(right) && pointAfter(left) === pointAfter(right);
+}
+
+function comparePoints(left: TextSelectionPoint, right: TextSelectionPoint): number {
+  return left.line === right.line ? left.column - right.column : left.line - right.line;
 }
 
 function clamp(value: number, minimum: number, maximum: number): number {

@@ -51,6 +51,13 @@ export interface TerminalReplayCheckpoint {
   readonly rows: number;
 }
 
+export interface TerminalBackgroundCell {
+  readonly row: number;
+  readonly column: number;
+  readonly mode: "rgb" | "palette";
+  readonly color: number;
+}
+
 const BEGIN_SYNCHRONIZED_OUTPUT = "\u001b[?2026h";
 const END_SYNCHRONIZED_OUTPUT = "\u001b[?2026l";
 const DEFAULT_MAX_BYTES = 512 * 1024;
@@ -184,6 +191,38 @@ export async function replayTerminalCheckpoints(
       frames.push(snapshot(terminal, checkpoint.rows));
     }
     return frames;
+  } finally {
+    terminal.dispose();
+  }
+}
+
+/** Replays final cell attributes separately so immutable text-frame evidence stays stable. */
+export async function replayTerminalBackgroundCells(
+  writes: readonly TimedTerminalWrite[],
+  options: { readonly columns: number; readonly rows: number },
+): Promise<readonly TerminalBackgroundCell[]> {
+  if (!Number.isSafeInteger(options.columns) || options.columns < 1) throw new RangeError("terminal replay columns must be positive");
+  if (!Number.isSafeInteger(options.rows) || options.rows < 1) throw new RangeError("terminal replay rows must be positive");
+  classifyTerminalPaint(writes);
+  const terminal = new Terminal({ cols: options.columns, rows: options.rows, allowProposedApi: true, scrollback: 0 });
+  try {
+    for (const write of writes) await terminalWrite(terminal, write.data);
+    const cells: TerminalBackgroundCell[] = [];
+    for (let row = 0; row < options.rows; row += 1) {
+      const line = terminal.buffer.active.getLine(row);
+      if (line === undefined) continue;
+      for (let column = 0; column < options.columns; column += 1) {
+        const cell = line.getCell(column);
+        if (cell === undefined || cell.isBgDefault()) continue;
+        cells.push({
+          row: row + 1,
+          column: column + 1,
+          mode: cell.isBgRGB() ? "rgb" : "palette",
+          color: cell.getBgColor(),
+        });
+      }
+    }
+    return cells;
   } finally {
     terminal.dispose();
   }

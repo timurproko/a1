@@ -14,6 +14,8 @@ describe("viewport frame descriptor architecture", () => {
     expect(descriptor).toContain("previousDocumentRange");
     expect(descriptor).toContain("verticalShiftRows");
     expect(descriptor).toContain("safeVerticalShift");
+    expect(descriptor).toContain("selectionRevision");
+    expect(descriptor).toContain("selectionDamagedRows");
     expect(descriptor).not.toMatch(/stripAnsi|visibleWidth|ANSI|OSC|SGR|instanceof|\.constructor|component|@earendil|#pi-tui/u);
   });
 

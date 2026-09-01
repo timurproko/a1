@@ -21,6 +21,7 @@ import {
   type TranscriptPromptAnchor,
   type TranscriptViewportFrame,
   type TranscriptViewportFrameDescriptor,
+  type TranscriptViewportTheme,
 } from "../../../ui/components/index.js";
 import {
   PINNED_PI_HIDDEN_COMMAND_NAMES,
@@ -159,6 +160,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   readonly #customViewport: boolean;
   readonly #submittedPromptComposer: PiShellSubmittedPromptComposer | undefined;
   readonly #viewportController: SessionViewportController;
+  readonly #viewportTheme: TranscriptViewportTheme;
   readonly #onViewportFrame: ((frame: TranscriptViewportFrame) => void) | undefined;
   readonly #componentRuntime: {
     readonly getColumns: () => number;
@@ -291,6 +293,25 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       requestRender: force => this.#componentRuntime.requestRender(force),
       hasEditorLinks: () => this.#promptChips.hyperlinkRanges(this.editor.getText()).length > 0,
     });
+    // Performance: stable painter identities let the neutral viewport retain row-level
+    // selection variants while each callback still resolves the live Pi theme.
+    this.#viewportTheme = {
+      track: text => `${SCROLLBAR_CELL_RESET}${piTheme().fg("dim", text)}`,
+      thumb: text => `${SCROLLBAR_CELL_RESET}${piTheme().fg("accent", text)}`,
+      sticky: (text, hovered) => piTheme().bg(
+        hovered ? "selectedBg" : "toolPendingBg",
+        piTheme().fg("text", withoutTerminalBackground(text)),
+      ),
+      quietSticky: text => `\u001b[2m${text.replace(/\u001b\[(?:0|22)m/g, "$&\u001b[2m")}\u001b[22m`,
+      bottomControl: (text, hovered) => piTheme().bg(hovered ? "selectedBg" : "toolPendingBg", piTheme().fg("text", text)),
+      selection: (line, from, to) => backgroundSgrSpan(
+        line,
+        from,
+        to,
+        "\u001b[48;2;38;79;120m",
+        "\u001b[49m",
+      ),
+    };
     this.editor.setThinkingLevel(view.thinkingLevel);
     this.#inputSurface = this.editor;
     for (const block of view.transcript) {
@@ -430,30 +451,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       // Invariant: the control belongs immediately above the complete dock,
       // never on top of a queued or Working row.
       bottomControlRow: Math.max(0, height - Math.min(height, dockRows.length) - 1),
-      theme: {
-        // Compatibility: match the v2 rail: a continuously dim track and an accent thumb at
-        // rest, thickening on hover/drag through the presentation glyph. Reset
-        // inherited text decorations so dim transcript rows cannot dull the
-        // thumb; the row background deliberately remains intact.
-        track: text => `${SCROLLBAR_CELL_RESET}${piTheme().fg("dim", text)}`,
-        thumb: text => `${SCROLLBAR_CELL_RESET}${piTheme().fg("accent", text)}`,
-        sticky: (text, hovered) => piTheme().bg(
-          hovered ? "selectedBg" : "toolPendingBg",
-          piTheme().fg("text", withoutTerminalBackground(text)),
-        ),
-        quietSticky: text => `\u001b[2m${text.replace(/\u001b\[(?:0|22)m/g, "$&\u001b[2m")}\u001b[22m`,
-        bottomControl: (text, hovered) => piTheme().bg(hovered ? "selectedBg" : "toolPendingBg", piTheme().fg("text", text)),
-        // Compatibility: selection paints only the familiar dark-blue background. Source
-        // foreground roles (including links, warnings, muted text, and bold
-        // intensity) remain exactly as rendered instead of being inverted.
-        selection: (line, from, to) => backgroundSgrSpan(
-          line,
-          from,
-          to,
-          "\u001b[48;2;38;79;120m",
-          "\u001b[49m",
-        ),
-      },
+      theme: this.#viewportTheme,
     });
     this.#onViewportFrame?.(frame);
     return frame.rows;
