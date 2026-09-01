@@ -385,23 +385,18 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
 
     const height = Math.max(0, this.#componentRuntime.getRows());
     const dock = this.#renderDockLayout(width);
-    const availableWithoutTransient = Math.max(0, height - Math.min(height, dock.rowsWithoutTransient.length));
     // Ordinary transcript content uses the full terminal width. The rail is an
     // overlay, not a lost wrapping cell. Submitted prompts alone retain the
     // intentional final gutter after their right-aligned timestamp.
     const documentWidth = width;
-    let document = this.#renderDocumentLayout(documentWidth);
-    // Keep queued steering/follow-up messages and Working together in Pi's
-    // semantic order while content fits. Once the transcript overflows, move
-    // the complete transient group into its tail so every row naturally
-    // scrolls away and the detached viewport can use the full space above the
-    // stable editor/footer dock.
-    const pinTransient = document.rows.length + dock.transientRows.length <= availableWithoutTransient;
-    const dockRows = pinTransient ? dock.rows : dock.rowsWithoutTransient;
+    const document = this.#renderDocumentLayout(documentWidth);
+    // Prompt-adjacent transient surfaces always belong to the dock. Changing
+    // from fitting to overflowing content reallocates transcript rows only; it
+    // never moves queued or Working rows into selectable document history.
+    const dockRows = dock.rows;
     const selectableDocumentRowCount = document.rows.length;
-    if (!pinTransient) document = { ...document, rows: [...document.rows, ...dock.transientRows] };
     const dockStartRow = height - dockRows.length + 1;
-    const editorOffset = pinTransient ? dock.editorOffsetWithTransient : dock.editorOffsetWithoutTransient;
+    const editorOffset = dock.editorOffset;
     this.#viewportController.setEditorPointerFrame(this.usesDefaultInputSurface()
       ? {
           rowStart: dockStartRow + editorOffset,
@@ -420,10 +415,10 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       promptAnchors: document.promptAnchors,
       width,
       height,
-      // Anchor above the stable editor/widget/footer group. Queued input,
-      // working states, and transient notifications may grow above it without
-      // moving the floating control up and down the terminal.
-      bottomControlRow: Math.max(0, height - Math.min(height, dock.stableBottomRows) - 1),
+      // Every prompt-adjacent surface now remains in the dock, so the control
+      // belongs immediately above the complete dock rather than on top of a
+      // queued or Working row.
+      bottomControlRow: Math.max(0, height - Math.min(height, dockRows.length) - 1),
       theme: {
         // Match the v2 rail: a continuously dim track and an accent thumb at
         // rest, thickening on hover/drag through the presentation glyph. Reset
@@ -485,11 +480,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
 
   #renderDockLayout(width: number): {
     readonly rows: readonly string[];
-    readonly rowsWithoutTransient: readonly string[];
-    readonly transientRows: readonly string[];
-    readonly stableBottomRows: number;
-    readonly editorOffsetWithTransient: number;
-    readonly editorOffsetWithoutTransient: number;
+    readonly editorOffset: number;
     readonly inputRows: number;
   } {
     const queued = this.#view.editor.queuedSubmissions.length === 0 ? [] : this.#queued.render(width);
@@ -502,11 +493,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     const rowsWithoutTransient = [...aboveWidgets, ...input, ...belowWidgets, ...footer];
     return {
       rows: [...transientRows, ...rowsWithoutTransient],
-      rowsWithoutTransient,
-      transientRows,
-      stableBottomRows: rowsWithoutTransient.length,
-      editorOffsetWithTransient: transientRows.length + aboveWidgets.length,
-      editorOffsetWithoutTransient: aboveWidgets.length,
+      editorOffset: transientRows.length + aboveWidgets.length,
       inputRows: input.length,
     };
   }

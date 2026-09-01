@@ -477,7 +477,7 @@ describe("OwnedUiSessionShell", () => {
     await shell.dispose();
   });
 
-  it("scrolls an overflowing Working status with the transcript like v2", async () => {
+  it("keeps an overflowing Working status in the dock while the transcript scrolls", async () => {
     const messages = Array.from({ length: 18 }, (_, index) => ({
       role: index % 2 === 0 ? "user" : "assistant",
       content: [{ type: "text", text: `Status transcript ${index}` }],
@@ -504,18 +504,18 @@ describe("OwnedUiSessionShell", () => {
     terminal.input("\u001b[<64;30;3M");
     shell.runtime.renderNow();
     expect(terminal.writes.slice(writesBeforeWheel).some(write => write.includes("\u001b[2J"))).toBe(true);
-    expect(shell.root.render(60).every(row => !stripTerminalSequences(row).includes("Working"))).toBe(true);
+    expect(shell.root.render(60).some(row => stripTerminalSequences(row).includes("Working"))).toBe(true);
     await shell.dispose();
   });
 
-  it("keeps Pi's queued steering order and scrolls the complete transient group out of view", async () => {
+  it("keeps Pi's queued steering order in the dock while detached transcript content scrolls", async () => {
     const messages = Array.from({ length: 18 }, (_, index) => ({
       role: "assistant",
       content: [{ type: "text", text: `queue-transcript-${index}` }],
       timestamp: Date.now() + index,
     }));
     const { engine, terminal, shell } = await fixture(messages, [], true);
-    terminal.resize(60, 12);
+    terminal.resize(60, 18);
     engine.session.emit({ type: "agent_start" });
     engine.session.emit({ type: "queue_update", steering: ["first", "second"], followUp: [] });
     await shell.backend.flushEvents();
@@ -530,13 +530,59 @@ describe("OwnedUiSessionShell", () => {
     expect(hint).toBeGreaterThan(second);
     expect(working).toBeGreaterThan(hint);
 
-    terminal.input("\u001b[1;1H");
+    expect(shell.root.handleViewportPreInput("\u001b[<64;30;1M")).toMatchObject({ consumed: true });
     const detached = shell.root.render(60).map(row => stripTerminalSequences(row));
-    expect(detached.some(row => row.includes("Steering: first"))).toBe(false);
-    expect(detached.some(row => row.includes("Steering: second"))).toBe(false);
-    expect(detached.some(row => row.includes("Alt+Up to edit all queued messages"))).toBe(false);
-    expect(detached.some(row => row.includes("Working"))).toBe(false);
+    expect(detached.some(row => row.includes("Steering: first"))).toBe(true);
+    expect(detached.some(row => row.includes("Steering: second"))).toBe(true);
+    expect(detached.some(row => row.includes("Alt+Up to edit all queued messages"))).toBe(true);
+    expect(detached.some(row => row.includes("Working"))).toBe(true);
     expect(detached.some(row => row.includes("Jump to bottom (End)"))).toBe(true);
+    await shell.dispose();
+  });
+
+  it("keeps dock row identity stable while queued streaming crosses the fit boundary", async () => {
+    const { engine, terminal, shell } = await fixture([
+      { role: "assistant", content: [{ type: "text", text: "fitting transcript" }], timestamp: 1 },
+    ], [], true);
+    terminal.resize(60, 18);
+    engine.session.emit({ type: "agent_start" });
+    engine.session.emit({ type: "queue_update", steering: ["stable queue"], followUp: [] });
+    await shell.backend.flushEvents();
+
+    const positions = () => {
+      const rows = shell.root.render(60).map(row => stripTerminalSequences(row));
+      return {
+        rows,
+        queue: rows.findIndex(row => row.includes("Steering: stable queue")),
+        hint: rows.findIndex(row => row.includes("Alt+Up to edit all queued messages")),
+        working: rows.findIndex(row => row.includes("Working")),
+      };
+    };
+    const fitting = positions();
+    expect(fitting.queue).toBeGreaterThan(-1);
+    expect(fitting.hint).toBeGreaterThan(fitting.queue);
+    expect(fitting.working).toBeGreaterThan(fitting.hint);
+
+    for (let index = 0; index < 16; index += 1) {
+      engine.session.emit({
+        type: "message_start",
+        message: { role: "user", content: [{ type: "text", text: `overflow prompt ${index}` }], timestamp: 10 + index },
+      });
+    }
+    await shell.backend.flushEvents();
+    const overflowing = positions();
+    expect(overflowing.queue).toBe(fitting.queue);
+    expect(overflowing.hint).toBe(fitting.hint);
+    expect(overflowing.working).toBe(fitting.working);
+    expect(overflowing.rows.filter(row => row.includes("Steering: stable queue"))).toHaveLength(1);
+    expect(overflowing.rows.filter(row => row.includes("Working"))).toHaveLength(1);
+
+    engine.session.emit({ type: "queue_update", steering: [], followUp: [] });
+    await shell.backend.flushEvents();
+    const cleared = positions();
+    expect(cleared.queue).toBe(-1);
+    expect(cleared.hint).toBe(-1);
+    expect(cleared.rows.filter(row => row.includes("Working"))).toHaveLength(1);
     await shell.dispose();
   });
 

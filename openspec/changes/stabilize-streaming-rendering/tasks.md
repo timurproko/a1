@@ -1,15 +1,15 @@
 ## 1. Build Rendering Evidence Before Changing Production Paints
 
-- [ ] 1.1 Add a bounded terminal-write classifier and headless cell-grid replayer for full-screen clears, row clears/writes, scroll regions, synchronized-update boundaries, cursor placement, bytes, and frame timing; verify focused unit tests cover synchronization honored and ignored, malformed streams, and artifact truncation.
-- [ ] 1.2 Add deterministic streamed prose, incomplete Markdown, thinking, tool output, fit/overflow, long-transcript, resize, and detached-scroll workloads with named semantic and cell checkpoints; verify each fixture is independent of production row-comparison logic.
-- [ ] 1.3 Add isolated producers for bare `a1`, `a1 pi`, and untouched pinned Pi with equivalent profile, geometry, theme, mode, capabilities, transcript, and input state; verify producer failure, timeout, and process cleanup tests.
-- [ ] 1.4 Run the default-mode and mode-matched fullscreen matrix against the unchanged baseline, preserve a bounded diagnostic showing the broad stable-row rewrites and transient ownership transition, and verify `a1 pi` remains aligned with untouched Pi in equivalent modes.
+- [x] 1.1 Add a bounded terminal-write classifier and headless cell-grid replayer for full-screen clears, row clears/writes, scroll regions, synchronized-update boundaries, cursor placement, bytes, and frame timing; verify focused unit tests cover synchronization honored and ignored, malformed streams, and artifact truncation.
+- [x] 1.2 Add deterministic streamed prose, incomplete Markdown, thinking, tool output, fit/overflow, long-transcript, resize, and detached-scroll workloads with named semantic and cell checkpoints; verify each fixture is independent of production row-comparison logic.
+- [x] 1.3 Add isolated producers for bare `a1`, `a1 pi`, and untouched pinned Pi with equivalent profile, geometry, theme, mode, capabilities, transcript, and input state; verify producer failure, timeout, and process cleanup tests.
+- [x] 1.4 Run the default-mode and mode-matched fullscreen matrix against the unchanged baseline, preserve a bounded diagnostic showing the broad stable-row rewrites and transient ownership transition, and verify `a1 pi` remains aligned with untouched Pi in equivalent modes.
 
 ## 2. Stabilize Custom Viewport Geometry
 
-- [ ] 2.1 Keep queued input, working/extension status, widgets, active input, and footer in one dock region for fitting, overflowing, and detached frames; verify custom-viewport tests cover boundary crossing, queue appearance/removal, no duplication/omission, selection exclusion, and unchanged pinned-profile rows.
-- [ ] 2.2 Extend the neutral viewport frame result with transcript/dock rectangles, prior and next document ranges, follow state, and safe vertical-shift metadata; verify unit tests cover no shift, one/many-row shifts, detached output, legitimate Markdown reflow, resize, tiny terminals, sticky prompts, selection, overlays, and reset.
-- [ ] 2.3 Prove the frame descriptor derives only from owned semantic layout state and does not inspect ANSI text, Pi private state, or component constructors; verify architecture and malformed-descriptor tests reject forbidden or inconsistent metadata.
+- [x] 2.1 Keep queued input, working/extension status, widgets, active input, and footer in one dock region for fitting, overflowing, and detached frames; verify custom-viewport tests cover boundary crossing, queue appearance/removal, no duplication/omission, selection exclusion, and unchanged pinned-profile rows.
+- [x] 2.2 Extend the neutral viewport frame result with transcript/dock rectangles, prior and next document ranges, follow state, and safe vertical-shift metadata; verify unit tests cover no shift, one/many-row shifts, detached output, legitimate Markdown reflow, resize, tiny terminals, sticky prompts, selection, overlays, and reset.
+- [x] 2.3 Prove the frame descriptor derives only from owned semantic layout state and does not inspect ANSI text, Pi private state, or component constructors; verify architecture and malformed-descriptor tests reject forbidden or inconsistent metadata.
 
 ## 3. Add Damage-Aware Fullscreen Painting Through a Public Boundary
 
