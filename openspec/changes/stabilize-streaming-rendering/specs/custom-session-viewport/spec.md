@@ -22,6 +22,12 @@ Updates arriving within one presentation interval SHALL be coalesced into the ne
 - **AND** rows outside the affected presentation and follow-tail movement SHALL remain untouched
 - **AND** no intermediate frame SHALL show cleared content
 
+#### Scenario: Pinned Pi has no viewport-damage API
+- **WHEN** bare A1 can safely express a followed viewport transition as bounded transcript movement but the pinned Pi fullscreen renderer exposes no damage-hint method
+- **THEN** an A1-owned adapter SHALL apply the movement through Pi's public terminal/runtime boundary
+- **AND** it SHALL keep the pinned package files, private renderer state, and comparison producers untouched
+- **AND** it SHALL transform a terminal write only when the write and semantic frame match the declared safe presentation contract
+
 #### Scenario: Coalesce a burst of chunks
 - **WHEN** multiple semantic stream updates arrive before the next presentation interval
 - **THEN** the viewport SHALL present the newest complete state in one frame
