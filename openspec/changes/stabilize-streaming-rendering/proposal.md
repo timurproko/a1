@@ -6,7 +6,7 @@ Bare `a1` shows visible instability while assistant content streams, including f
 
 - Add an equivalent-state rendering analysis that captures semantic frames and raw terminal writes from bare `a1`, `a1 pi`, and untouched pinned Pi at the same geometry, mode, theme, transcript, and deterministic stream cadence.
 - Classify every paint by cause and measure frame cadence, cleared/rewritten rows, bytes, full redraws, viewport shifts, stable-row rewrites, and dock geometry changes, with bounded artifacts suitable for diagnosing terminal-visible flicker.
-- Make follow-tail streaming damage-aware so ordinary text growth does not repaint stable transcript rows merely because the viewport advanced by one row; use atomic terminal updates and avoid whole-screen clears outside declared structural cases.
+- Make follow-tail streaming damage-aware through an A1-owned presentation adapter over Pi's public terminal boundary, so ordinary text growth does not repaint stable transcript rows merely because the viewport advanced by one row; use bounded terminal-region movement and avoid whole-screen clears outside declared structural cases.
 - Keep transient queued/working rows in one stable ownership region across the fit-to-overflow transition so streaming does not produce a one-frame dock/document jump.
 - Coalesce presentation to a deliberate streaming cadence while preserving immediate input feedback, final content, status animation, and the existing per-block engine update path.
 - Add deterministic regression gates and exact-artifact manual comparison for sustained prose, Markdown reflow, thinking, tools, fit/overflow crossing, long transcripts, resize, detached scrolling, and terminals with and without synchronized-update support.
@@ -26,5 +26,5 @@ Bare `a1` shows visible instability while assistant content streams, including f
 ## Impact
 
 - Affected areas: Pi engine-to-shell event presentation, custom session viewport composition, Pi TUI runtime adaptation, terminal-frame diagnostics, focused integration tests, and OpenSpec acceptance evidence.
-- The implementation may require a documented public Pi TUI rendering capability or a pinned dependency update; private imports, prototype patches, installed-package edits, and stock `InteractiveMode` construction remain prohibited.
+- The implementation will keep the pinned Pi packages untouched and add an A1-owned, fail-closed presentation adapter over public terminal/runtime ports; it SHALL NOT depend on an upstream Pi pull request or release. Private imports, prototype patches, installed-package edits, and stock `InteractiveMode` construction remain prohibited.
 - No CLI, session format, extension contract, profile isolation, or model behavior changes are intended. Bare A1 remains fullscreen and keeps its custom viewport; `a1 pi` remains the oracle.
