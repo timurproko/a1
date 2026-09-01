@@ -121,13 +121,15 @@
       "upstreamLines": [[1, 620], [1, 251]],
       "localFile": "src/features/owned-ui/settings-app.ts",
       "componentFiles": ["src/ui/components/list-view.ts", "src/ui/components/dialog-panel.ts", "src/ui/components/value-menu.ts"],
-      "behavior": "semantic ANSI, selected setting rows and values, scalar and structured controls, notices, wrapping, narrow-width geometry, and reviewed owned search, status, description-visibility, and wheel interactions",
+      "behavior": "semantic ANSI, selected setting rows and values, scalar and structured controls, notices, wrapping, narrow-width geometry, and reviewed owned search, status, description-visibility, wheel, and floating scalar-menu interactions",
       "copiedFiles": [],
       "copiedLines": false,
-      "modifications": "A1 retains its owned A1/Agent grouping, hidden-entry policy, pointer controls, asynchronous outcome model, explicit slash-invoked ruled search input, shortcut-derived status hints, suppressed selected descriptions, and configured scrollbar speed while porting retained SettingsList and SelectList row, value, menu, dialog, and geometry semantics through the neutral UiTheme boundary.",
+      "modifications": "A1 retains its owned A1/Agent grouping, hidden-entry policy, pointer controls, asynchronous outcome model, explicit slash-invoked ruled search input, shortcut-derived status hints, suppressed selected descriptions, configured scrollbar speed, and prior dark floating scalar menu with a lighter white-text active row and independent effective-value check mark. Shared ValueMenu placement, clipping, keyboard, and pointer behavior remain intact through the neutral UiTheme boundary.",
       "coverage": [
         "test/features/owned-ui/pinned-settings-presentation-parity.test.ts",
-        "test/features/owned-ui/settings-app.test.ts"
+        "test/features/owned-ui/settings-app.test.ts",
+        "test/ui/components/value-menu.test.ts",
+        "test/composition/settings-route-host.test.ts"
       ]
     },
     {

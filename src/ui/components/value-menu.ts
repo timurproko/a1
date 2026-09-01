@@ -67,8 +67,8 @@ export function renderValueMenu(
   state.choices.forEach((choice, index) => {
     const target = frame.top + index;
     if (target < 0 || target >= output.length) return;
-    const prefix = index === state.index ? "→ " : "  ";
-    const text = padToWidth(`${prefix}${choice} `, frame.width);
+    const mark = choice === state.current ? "✓ " : "  ";
+    const text = padToWidth(`${mark}${choice} `, frame.width);
     const painted = index === state.index ? theme.highlight(text) : theme.panel(text);
     output[target] = overlaySpan(output[target] ?? "", frame.column, frame.column + frame.width, painted);
   });
