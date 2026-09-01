@@ -29,7 +29,7 @@ Every Pi setting the A1-owned settings replacement presents SHALL control the sa
 - **AND** the owned-shell acceptance gate SHALL fail if the option is rendered even when disabled or accompanied by explanatory text
 
 ### Requirement: Setting-controlled owned surfaces preserve pinned Pi visual semantics
-For the same terminal dimensions, theme, capabilities, semantic content, setting values, and lifecycle state, every visible surface controlled by a Pi setting SHALL match pinned Pi's terminal-cell presentation. Parity SHALL include visible text and punctuation, semantic foreground and background styling, bold/dim/italic/underline roles, borders, padding, blank rows, row order, wrapping, truncation, alignment, editor and footer geometry, cursor placement, and terminal-control ordering. Declared product identity, A1-only setting content, hidden bare-A1 entries, profile/session values, dynamic usage data, absolute link targets, and nondeterministic render timing MAY differ; no other visual difference is implicit.
+For the same terminal dimensions, theme, capabilities, semantic content, setting values, and lifecycle state, every visible surface controlled by a Pi setting SHALL match pinned Pi's terminal-cell presentation. Parity SHALL include visible text and punctuation, semantic foreground and background styling, bold/dim/italic/underline roles, borders, padding, blank rows, row order, wrapping, truncation, alignment, editor and footer geometry, cursor placement, and terminal-control ordering. Declared product identity, A1-only setting content, hidden bare-A1 entries, the owned settings interaction contract, profile/session values, dynamic usage data, absolute link targets, and nondeterministic render timing MAY differ; no other visual difference is implicit.
 
 #### Scenario: Render a setting-controlled frame
 - **WHEN** bare A1 and pinned Pi receive equivalent content and lifecycle events with the same visible setting value and terminal dimensions
@@ -37,8 +37,13 @@ For the same terminal dimensions, theme, capabilities, semantic content, setting
 
 #### Scenario: Render the owned settings surface
 - **WHEN** A1 presents its A1 and Agent settings sections
-- **THEN** rows, values, descriptions, selected state, menus, dialogs, search input, footer hints, padding, and narrow-terminal behavior SHALL use pinned Pi visual semantics
-- **AND** A1-specific grouping and hidden entries SHALL remain the only structural product differences
+- **THEN** rows, values, selected state, numeric controls, menus, dialogs, notices, padding, wrapping, clipping, and narrow-terminal behavior SHALL retain the reviewed shared-component semantics
+- **AND** selected-entry descriptions SHALL remain model metadata without rendering description rows
+- **AND** search SHALL remain closed until `/` is invoked, then render through the shared ruled line-input composition with its search placeholder
+- **AND** ordinary printable input outside an open search SHALL not become a query
+- **AND** the standing status bar SHALL derive its visible guidance from the active settings shortcut declarations
+- **AND** settings-list wheel movement SHALL use the current effective `scrollbarSpeed` through the shared scrollbar distance policy, including a pending live selection, without an independent row-count literal
+- **AND** A1-specific grouping, hidden entries, and this owned settings interaction SHALL remain declared product differences
 
 #### Scenario: Present project trust before loading project resources
 - **WHEN** an undecided interactive launch requires a trust decision
