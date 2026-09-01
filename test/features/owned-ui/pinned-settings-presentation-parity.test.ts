@@ -55,12 +55,10 @@ describe("owned settings pinned presentation parity", () => {
     )).not.toThrow();
   });
 
-  it("uses pinned dim roles for description and footer hints", () => {
-    initTheme("dark", false);
-    applyPiTheme("dark", false, "truecolor");
-    const expected = getSettingsListTheme();
-    expect(ownedTheme().fg("dim", "  Reasoning depth")).toBe(expected.description("  Reasoning depth"));
-    expect(ownedTheme().fg("dim", "  Type to search · Enter/Space to change · Esc to cancel"))
-      .toBe(expected.hint("  Type to search · Enter/Space to change · Esc to cancel"));
+  it("limits pinned parity to the retained row and value presentation", () => {
+    const pinned = pinnedRows(72);
+    const owned = ownedRows(72);
+    expect(owned).toEqual(pinned.slice(0, owned.length));
+    expect(pinned.length).toBeGreaterThan(owned.length);
   });
 });
