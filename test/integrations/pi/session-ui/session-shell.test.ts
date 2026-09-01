@@ -2128,18 +2128,25 @@ describe("OwnedUiSessionShell", () => {
     engine.session.emit({ type: "agent_start" });
     await adapter.flushEvents();
     let rows = shell.root.render(100).map(row => stripTerminalSequences(row).trimEnd());
-    const working = rows.findIndex(row => row.includes("Working"));
+    const working = rows.findIndex(row => row.includes("Working..."));
     expect(working).toBeGreaterThan(-1);
     expect(rows[working + 1]?.trim()).toBe("");
     expect(rows[working + 2]).toMatch(/^─+$/);
 
     shell.root.setExtensionWorking("Extension indexing source");
     rows = shell.root.render(100).map(row => stripTerminalSequences(row).trimEnd());
-    expect(rows.some(row => row.includes("Extension indexing source"))).toBe(true);
+    expect(rows.some(row => row.includes("Extension indexing source..."))).toBe(true);
     expect(rows.some(row => row.includes("Working..."))).toBe(false);
+
+    shell.root.setExtensionWorking("Legacy extension…");
+    rows = shell.root.render(100).map(row => stripTerminalSequences(row).trimEnd());
+    expect(rows.some(row => row.includes("Legacy extension..."))).toBe(true);
+    expect(rows.some(row => row.includes("Legacy extension…"))).toBe(false);
+
     shell.root.setExtensionWorking(undefined);
     rows = shell.root.render(100).map(row => stripTerminalSequences(row).trimEnd());
-    expect(rows.some(row => row.includes("Extension indexing source"))).toBe(false);
+    expect(rows.some(row => row.includes("Legacy extension"))).toBe(false);
+    expect(rows.some(row => row.includes("Working..."))).toBe(true);
 
     engine.session.emit({ type: "agent_end", messages: [] });
     engine.session.emit({ type: "agent_settled" });

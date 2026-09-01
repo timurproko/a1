@@ -6,6 +6,7 @@ export * from "./list-block.js";
 export * from "./list-view.js";
 export * from "./mouse.js";
 export * from "./pane.js";
+export * from "./progress-status.js";
 export * from "./revision.js";
 export * from "./scrollbar.js";
 export * from "./shortcuts.js";

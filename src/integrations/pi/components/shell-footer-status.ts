@@ -94,20 +94,21 @@ export function createPiShellLoadedResources(
 
 export function createPiShellStatus(
   view: OwnedUiSessionViewModel,
+  formatProgressStatus: (message: string) => string,
   runtime?: Pick<PiShellEditorOptions, "getColumns" | "getRows" | "requestRender">,
 ): PiShellStatusPort {
   ensureTheme();
   const statusUi = createTuiFacade(runtime ?? { getColumns: () => 80, getRows: () => 24, requestRender() {} });
   let workingOverride: string | undefined;
   let outputPad: 0 | 1 = PINNED_PI_LAYOUT.outputPad;
-  let component = statusComponent(view, statusUi, workingOverride, outputPad);
+  let component = statusComponent(view, statusUi, workingOverride, outputPad, formatProgressStatus);
   let signature = statusSignature(view, workingOverride, outputPad);
   const rebuild = () => {
     const nextSignature = statusSignature(view, workingOverride, outputPad);
     if (nextSignature === signature) return;
     if (component !== undefined && "dispose" in component && typeof component.dispose === "function") component.dispose();
     signature = nextSignature;
-    component = statusComponent(view, statusUi, workingOverride, outputPad);
+    component = statusComponent(view, statusUi, workingOverride, outputPad, formatProgressStatus);
   };
   return {
     render: width => component?.render(width) ?? [],
@@ -158,8 +159,16 @@ export function createPiQueuedInputStatus(
 }
 
 
-function statusComponent(view: OwnedUiSessionViewModel, ui: TUI, workingOverride: string | undefined, outputPad: 0 | 1): Component | undefined {
-  if (view.lifecycle === "busy") return new WorkingStatusIndicator(ui, workingOverride ?? view.status.workingMessage ?? "Working...");
+function statusComponent(
+  view: OwnedUiSessionViewModel,
+  ui: TUI,
+  workingOverride: string | undefined,
+  outputPad: 0 | 1,
+  formatProgressStatus: (message: string) => string,
+): Component | undefined {
+  if (view.lifecycle === "busy") {
+    return new WorkingStatusIndicator(ui, formatProgressStatus(workingOverride ?? view.status.workingMessage ?? "Working"));
+  }
   if (view.lifecycle === "failed") {
     return new Text(piTheme().fg("error", view.status.diagnostics.at(-1) ?? "Session failed"), outputPad, 0);
   }

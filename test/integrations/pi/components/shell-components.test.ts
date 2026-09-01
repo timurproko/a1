@@ -17,10 +17,15 @@ import {
   createPiShellTranscriptComponent,
   PINNED_PI_BUILTIN_SLASH_COMMANDS,
   renderPiShellTranscriptBlock,
+  WorkingStatusIndicator,
 } from "../../../../src/integrations/pi/components/index.js";
 
 function block(kind: OwnedUiTranscriptBlock["kind"], text: string, payload: unknown = {}): OwnedUiTranscriptBlock {
   return { id: `${kind}-1`, kind, status: "finalized", revision: 1, title: kind.startsWith("tool") ? "read" : null, text, payload };
+}
+
+function canonicalProgressStatus(message: string): string {
+  return `${message.replace(/(?:…|\.+)$/u, "")}...`;
 }
 
 function view(): OwnedUiSessionViewModel {
@@ -325,6 +330,87 @@ describe("Pi shell public component adapters", () => {
     expect(stripTerminalSequences(mismatchedMethod.render(80).join("\n"))).toContain("OpenAI • subscription configured");
   });
 
+  it("applies one injected formatter to every spinner-backed status source", () => {
+    for (const [message, expected] of [
+      ["Working", "Working..."],
+      ["Retrying", "Retrying..."],
+      ["Compacting", "Compacting..."],
+    ] as const) {
+      const candidate = view();
+      const status = createPiShellStatus({
+        ...candidate,
+        lifecycle: "busy",
+        status: { ...candidate.status, workingMessage: message, badges: ["busy"] },
+      }, canonicalProgressStatus);
+      try {
+        expect(stripTerminalSequences(status.render(80).join("\n"))).toContain(expected);
+      } finally {
+        status.dispose?.();
+      }
+    }
+
+    const candidate = view();
+    const extension = createPiShellStatus({
+      ...candidate,
+      lifecycle: "busy",
+      status: { ...candidate.status, workingMessage: "Working", badges: ["busy"] },
+    }, canonicalProgressStatus);
+    try {
+      for (const [message, expected] of [
+        ["Indexing sources", "Indexing sources..."],
+        ["Legacy extension…", "Legacy extension..."],
+        ["Legacy extension......", "Legacy extension..."],
+      ] as const) {
+        extension.setWorkingOverride(message);
+        const rendered = stripTerminalSequences(extension.render(80).join("\n"));
+        expect(rendered).toContain(expected);
+        expect(rendered).not.toContain("…");
+        expect(rendered).not.toContain("....");
+      }
+    } finally {
+      extension.dispose?.();
+    }
+  });
+
+  it("preserves synchronized spinner frames, ANSI roles, geometry, and non-spinner text", () => {
+    const candidate = view();
+    const runtime = { getColumns: () => 40, getRows: () => 24, requestRender() {} };
+    const owned = createPiShellStatus({
+      ...candidate,
+      lifecycle: "busy",
+      status: { ...candidate.status, workingMessage: "Working", badges: ["busy"] },
+    }, canonicalProgressStatus, runtime);
+    const synchronized = new WorkingStatusIndicator(
+      { requestRender() {}, invalidate() {}, terminal: { kittyProtocolActive: false } } as never,
+      "Working...",
+    );
+    try {
+      expect(owned.render(40)).toEqual(synchronized.render(40));
+    } finally {
+      owned.dispose?.();
+      synchronized.dispose();
+    }
+
+    const untouched = vi.fn(canonicalProgressStatus);
+    const failed = createPiShellStatus({
+      ...candidate,
+      lifecycle: "failed",
+      status: { ...candidate.status, diagnostics: ["Failure…"], workingMessage: null },
+    }, untouched);
+    const nonSpinner = createPiShellStatus({
+      ...candidate,
+      status: { ...candidate.status, workingMessage: "Plain status…" },
+    }, untouched);
+    try {
+      expect(stripTerminalSequences(failed.render(80).join("\n")).trim()).toBe("Failure…");
+      expect(stripTerminalSequences(nonSpinner.render(80).join("\n")).trim()).toBe("Plain status…");
+      expect(untouched).not.toHaveBeenCalled();
+    } finally {
+      failed.dispose?.();
+      nonSpinner.dispose?.();
+    }
+  });
+
   it("adapts selectors, dialogs, and status through public Pi TUI components", () => {
     const selected = vi.fn();
     const selector = createPiShellSelector({ options: [{ id: "one", label: "One" }], onSelect: selected });
@@ -333,7 +419,7 @@ describe("Pi shell public component adapters", () => {
 
     const dialog: OwnedUiDialog = { id: "dialog", title: "Choose", kind: "choice", payload: { options: [{ id: "yes", label: "Yes" }] } };
     expect(createPiShellDialog(dialog).render(50).join("\n")).toContain("Choose");
-    expect(createPiShellStatus(view()).render(80)).toEqual([]);
+    expect(createPiShellStatus(view(), canonicalProgressStatus).render(80)).toEqual([]);
     expect(createPiShellFooter(view(), "D:/work").render(80).join("\n")).toContain("gpt-5 • medium");
     expect(createPiShellHeader().render(80).join("\n")).toContain("v0.84.2");
   });
