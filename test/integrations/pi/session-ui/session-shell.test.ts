@@ -384,8 +384,8 @@ describe("OwnedUiSessionShell", () => {
       expect(held).toContain("p\uFE0Eackage.json");
       expect(getPinnedPiTuiLinkAtColumn(held, start - 1)).toBeUndefined();
 
-      terminal.input(`\u001b[<32;${end};${row}M`);
-      terminal.input(`\u001b[<0;${end};${row}m`);
+      terminal.input(`\u001b[<32;${end + 1};${row}M`);
+      terminal.input(`\u001b[<0;${end + 1};${row}m`);
       const released = shell.root.render(100)[rowIndex] ?? "";
       expect(released).toContain(`\u001b]8;;${target}\u001b\\`);
       terminal.input("\u0003");
@@ -622,6 +622,27 @@ describe("OwnedUiSessionShell", () => {
     expect(tripleSelected).not.toContain("38;2;0;0;0");
     terminal.input("\u0003");
     expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from("Selectable assistant words").toString("base64")}\u0007`);
+  });
+
+  it("selects and copies one transcript character with the smallest drag", async () => {
+    const messages = [
+      { role: "assistant", content: [{ type: "text", text: "One character" }], timestamp: Date.now() },
+    ];
+    const { terminal, shell } = await fixture(messages, [], true);
+    terminal.resize(60, 12);
+    const frame = shell.root.render(60).map(row => stripTerminalSequences(row));
+    const rowIndex = frame.findIndex(row => row.includes("One character"));
+    const column = (frame[rowIndex] ?? "").indexOf("character") + 1;
+    const row = rowIndex + 1;
+
+    terminal.input(`\u001b[<0;${column};${row}M`);
+    terminal.input(`\u001b[<32;${column + 1};${row}M`);
+    terminal.input(`\u001b[<0;${column + 1};${row}m`);
+    const selected = shell.root.render(60)[rowIndex] ?? "";
+    expect(selected).toContain("\u001b[48;2;38;79;120m");
+    terminal.input("\u0003");
+    expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from("c").toString("base64")}\u0007`);
+    await shell.dispose();
   });
 
   it("keeps Ctrl+Home/End and A1 editing aliases in Pi's editor", async () => {
@@ -1170,8 +1191,8 @@ describe("OwnedUiSessionShell", () => {
 
     terminal.input(`\u001b[<0;${start};${row}M`);
     // Protocol: code 35 is motion with no button bits set.
-    terminal.input(`\u001b[<35;${end};${row}M`);
-    terminal.input(`\u001b[<0;${end};${row}m`);
+    terminal.input(`\u001b[<35;${end + 1};${row}M`);
+    terminal.input(`\u001b[<0;${end + 1};${row}m`);
     terminal.input("\u0003");
 
     expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from("Selectable").toString("base64")}\u0007`);
@@ -1428,10 +1449,20 @@ describe("OwnedUiSessionShell", () => {
     });
     await adapter.flushEvents();
     expect(presentedFrames()).toBe(0);
+    const selectionFrame = shell.root.render(80).map(row => stripTerminalSequences(row));
+    const selectionRow = selectionFrame.findIndex(row => row.includes("one two three four five"));
+    const selectionColumn = (selectionFrame[selectionRow] ?? "").indexOf("one") + 1;
+    terminal.input(`\u001b[<0;${selectionColumn};${selectionRow + 1}M`);
+    terminal.input(`\u001b[<32;${selectionColumn + 1};${selectionRow + 1}M`);
+    await new Promise(resolve => setTimeout(resolve, 25));
+    const selectionFrames = presentedFrames();
+    expect(selectionFrames).toBeGreaterThanOrEqual(1);
+    expect(shell.root.render(80).join("\n")).toContain("\u001b[48;2;38;79;120m");
+    terminal.input(`\u001b[<0;${selectionColumn + 1};${selectionRow + 1}m`);
     terminal.input("x");
     await new Promise(resolve => setTimeout(resolve, 25));
     const immediateFrames = presentedFrames();
-    expect(immediateFrames).toBeGreaterThanOrEqual(1);
+    expect(immediateFrames).toBeGreaterThanOrEqual(selectionFrames);
     advancePresentation(33);
     await new Promise(resolve => setTimeout(resolve, 25));
     expect(presentedFrames()).toBeLessThanOrEqual(immediateFrames + 1); // Concurrency: Working animation may tick independently.
@@ -1442,7 +1473,12 @@ describe("OwnedUiSessionShell", () => {
     engine.session.emit({ type: "message_end", message: assistant("one two three four final", "stop") });
     await adapter.flushEvents();
     await new Promise(resolve => setTimeout(resolve, 25));
-    expect(presentedFrames()).toBe(1);
+    const finalFrames = presentedFrames();
+    // Concurrency: final content contributes one immediate frame; a due Working animation
+    // may contribute one independent status frame after the longer selection interaction.
+    expect(finalFrames).toBeGreaterThanOrEqual(1);
+    expect(finalFrames).toBeLessThanOrEqual(2);
+    expect(terminal.writes.some(write => stripTerminalSequences(write).includes("final"))).toBe(true);
     expect(shell.root.render(80).join("\n")).toContain("final");
     await shell.dispose();
   }, 15_000);

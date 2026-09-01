@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { stripAnsi } from "../../../../src/ui/components/index.js";
+import { backgroundSgrSpan, stripAnsi } from "../../../../src/ui/components/index.js";
 import type { PiShellEditorPointerEvent, PiShellEditorPort } from "../../../../src/integrations/pi/components/index.js";
 import { SessionViewportController } from "../../../../src/integrations/pi/session-ui/session-viewport-controller.js";
 
@@ -121,6 +121,73 @@ describe("session viewport interaction controller", () => {
       ["motion", 2],
       ["release", 2],
     ]);
+  });
+
+  it("leaves Ctrl+C to the focused surface after an unextended transcript click", () => {
+    const target = new SessionViewportController({ enabled: true, editor: editor(), requestRender() {} });
+    frame(target, 1);
+    expect(target.handlePreInput("\u001b[<0;2;1M").consumed).toBe(true);
+    expect(target.handlePreInput("\u001b[<0;2;1m").consumed).toBe(true);
+    expect(target.handlePreInput("\u0003")).toEqual({ data: "\u0003", consumed: false });
+  });
+
+  it("coalesces a pointer-report burst to the latest selection endpoint", () => {
+    const renders: (boolean | undefined)[] = [];
+    const target = new SessionViewportController({
+      enabled: true,
+      editor: editor(),
+      requestRender: force => renders.push(force),
+    });
+    frame(target, 1);
+    renders.length = 0;
+
+    const burst = target.handlePreInput("\u001b[<0;1;1M\u001b[<32;2;1M\u001b[<35;5;1M");
+    expect(burst.consumed).toBe(true);
+    expect(renders).toEqual([false]);
+    const latest = target.compose({
+      documentRows: ["row-0"], dockRows: [], promptAnchors: [], width: 20, height: 1,
+    });
+    expect(latest.descriptor.selectionRevision).toBe(target.selectionRevision);
+
+    target.handlePreInput("\u001b[<0;5;1m");
+    const copied = target.handlePreInput("\u0003");
+    expect(copied).toMatchObject({ consumed: true, copyText: "row-" });
+  });
+
+  it("requests one latest-state follow-up when selection changes during composition", () => {
+    const renders: (boolean | undefined)[] = [];
+    const target = new SessionViewportController({
+      enabled: true,
+      editor: editor(),
+      requestRender: force => renders.push(force),
+    });
+    const input = { documentRows: ["abcdef"], dockRows: [] as string[], promptAnchors: [], width: 10, height: 1 };
+    target.compose(input);
+    target.handlePreInput("\u001b[<0;1;1M");
+    target.handlePreInput("\u001b[<32;3;1M");
+    renders.length = 0;
+    let injected = false;
+    const theme = {
+      track: (text: string) => text,
+      thumb: (text: string) => text,
+      sticky: (text: string) => text,
+      quietSticky: (text: string) => text,
+      bottomControl: (text: string) => text,
+      selection: (line: string, from: number, to: number) => {
+        if (!injected) {
+          injected = true;
+          target.handlePreInput("\u001b[<35;5;1M");
+        }
+        return backgroundSgrSpan(line, from, to);
+      },
+    };
+
+    const stale = target.compose({ ...input, theme });
+    expect(stale.descriptor.selectionRevision).toBeLessThan(target.selectionRevision);
+    expect(renders).toEqual([false]);
+    const latest = target.compose({ ...input, theme });
+    expect(latest.descriptor.selectionRevision).toBe(target.selectionRevision);
+    expect(stripAnsi(latest.rows[0] ?? "").trimEnd()).toBe("abcdef");
   });
 
   it("clears pointer geometry and transient interaction on reset", () => {
