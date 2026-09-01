@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
-import { STREAM_RENDERING_WORKLOADS } from "./streaming-workloads.js";
+import { STREAM_RENDERING_WORKLOADS } from "../../../support/rendering/streaming-workloads.js";
 
 const REQUIRED_WORKLOADS = [
   "streamed-prose",
@@ -37,7 +37,7 @@ describe("deterministic rendering workloads", () => {
   });
 
   it("uses semantic source events and physical actions without production row comparison", async () => {
-    const source = await readFile(new URL("./streaming-workloads.ts", import.meta.url), "utf8");
+    const source = await readFile(new URL("../../../support/rendering/streaming-workloads.ts", import.meta.url), "utf8");
     expect(source).not.toContain("src/");
     expect(source).not.toMatch(/render\(|stripAnsi|visibleWidth|terminal rows differ/u);
     for (const workload of STREAM_RENDERING_WORKLOADS) {

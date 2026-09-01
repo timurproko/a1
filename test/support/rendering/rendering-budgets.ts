@@ -52,7 +52,7 @@ export function evaluateRenderingBudgets(matrix: RenderingMatrixResult): Renderi
     if (chunks.length === 0 || chunks.some(checkpoint => checkpoint.damageDecision?.reason !== "transformed")) {
       violations.push(`${matrix.workloadId}: ordinary followed prose did not use bounded movement`);
     }
-    if (matrix.findings.bareA1MaximumRowClearsPerStreamCheckpoint > 3) {
+    if (matrix.findings.customViewportMaximumRowClearsPerStreamCheckpoint > 3) {
       violations.push(`${matrix.workloadId}: ordinary followed prose exceeded three damaged rows`);
     }
   }

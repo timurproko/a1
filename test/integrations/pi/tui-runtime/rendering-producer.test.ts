@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { runRenderingProducer, type RenderingProducerRequest } from "./rendering-producer.js";
-import { STREAM_RENDERING_WORKLOADS } from "./streaming-workloads.js";
+import { runRenderingProducer, type RenderingProducerRequest } from "../../../support/rendering/rendering-producer.js";
+import { STREAM_RENDERING_WORKLOADS } from "../../../support/rendering/streaming-workloads.js";
 
 const prose = STREAM_RENDERING_WORKLOADS.find(workload => workload.id === "streamed-prose")!;
 

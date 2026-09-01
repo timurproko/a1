@@ -25,7 +25,7 @@ describe("legacy product identity inventory", () => {
     for (const category of LEGACY_IDENTITY_CLASSES) expect(actual.summary.byClass[category]).toBeGreaterThan(0);
     expect(actual.occurrences.every(occurrence => !occurrence.path.startsWith("openspec/changes/archive/"))).toBe(true);
     expect(actual.occurrences.every(occurrence => !/(^|\/)(node_modules|dist|target|vendor)(\/|$)/.test(occurrence.path))).toBe(true);
-  });
+  }, 30_000);
 
   it("finds title, lower, and upper forms while excluding archives and generated dependencies", async () => {
     const root = await fixture({

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { runRenderingMatrix } from "./rendering-matrix.js";
+import { runRenderingMatrix } from "../../../support/rendering/rendering-matrix.js";
 
 describe("three-producer two-mode rendering matrix", () => {
   it("separates default mode policy from mode-matched fullscreen and preserves comparison semantics", async () => {
@@ -15,8 +15,8 @@ describe("three-producer two-mode rendering matrix", () => {
 
   it("replaces the baseline viewport-sized repaint with bounded followed damage", async () => {
     const result = await runRenderingMatrix("long-transcript-follow");
-    expect(result.findings.bareA1MaximumRowClearsPerStreamCheckpoint).toBeLessThanOrEqual(3);
-    expect(result.findings.bareA1UnexpectedFullScreenClears).toBe(0);
+    expect(result.findings.customViewportMaximumRowClearsPerStreamCheckpoint).toBeLessThanOrEqual(3);
+    expect(result.findings.customViewportUnexpectedFullScreenClears).toBe(0);
     const bare = result.fullscreenMode.find(entry => entry.producer === "bare-a1")!;
     const shifted = bare.checkpoints.find(checkpoint => checkpoint.name === "long-tail-chunk-1");
     expect(shifted?.paint).toMatchObject({

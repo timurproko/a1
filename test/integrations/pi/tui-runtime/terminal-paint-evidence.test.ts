@@ -4,7 +4,7 @@ import {
   replayTerminalCheckpoints,
   replayTerminalPaint,
   type TimedTerminalWrite,
-} from "./terminal-paint-evidence.js";
+} from "../../../support/rendering/terminal-paint-evidence.js";
 
 const SYNC_BEGIN = "\u001b[?2026h";
 const SYNC_END = "\u001b[?2026l";

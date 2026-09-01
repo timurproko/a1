@@ -204,8 +204,8 @@ export class DamageAwareTerminalAdapter implements PiTuiTerminalPort {
     for (const row of parsed.rows) {
       if (descriptor.dock !== null && row.row >= descriptor.dock.rowStart && row.row <= descriptor.dock.rowEnd) painted.add(row.row);
     }
-    // Ordinary followed prose may change one active tail source row, expose the
-    // shifted suffix, and restyle one sticky boundary row. Larger changes indicate
+    // Rationale: ordinary followed prose may change one active tail source row, expose
+    // the shifted suffix, and restyle one sticky boundary row. Larger changes indicate
     // Markdown/theme/overlay reflow and fail closed.
     if (painted.size > descriptor.verticalShiftRows + 2 + countDockRows(parsed.rows, descriptor.dock)) {
       return { ...base, reason: "excessive-real-damage" };

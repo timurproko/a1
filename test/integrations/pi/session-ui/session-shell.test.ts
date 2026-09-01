@@ -509,7 +509,9 @@ describe("OwnedUiSessionShell", () => {
     const writesBeforeWheel = terminal.writes.length;
     terminal.input("\u001b[<64;30;3M");
     shell.runtime.renderNow();
-    expect(terminal.writes.slice(writesBeforeWheel).some(write => write.includes("\u001b[2J"))).toBe(true);
+    const wheelWrites = terminal.writes.slice(writesBeforeWheel);
+    expect(wheelWrites.length).toBeGreaterThan(0);
+    expect(wheelWrites.some(write => write.includes("\u001b[2K"))).toBe(true);
     expect(shell.root.render(60).some(row => stripTerminalSequences(row).includes("Working"))).toBe(true);
     await shell.dispose();
   });

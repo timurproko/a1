@@ -52,8 +52,8 @@
     }
   },
   "longTranscriptFinding": {
-    "bareA1MaximumRowClearsPerStreamCheckpoint": 6,
-    "bareA1UnexpectedFullScreenClears": 0,
+    "customViewportMaximumRowClearsPerStreamCheckpoint": 6,
+    "customViewportUnexpectedFullScreenClears": 0,
     "transientOwnershipSource": "custom-viewport-fit-transition",
     "broadStreamCheckpoints": [
       {

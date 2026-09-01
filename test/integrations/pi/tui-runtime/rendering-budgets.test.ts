@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { evaluateRenderingBudgets } from "./rendering-budgets.js";
-import { runRenderingMatrix, type RenderingMatrixResult } from "./rendering-matrix.js";
-import { STREAM_RENDERING_WORKLOADS } from "./streaming-workloads.js";
+import { evaluateRenderingBudgets } from "../../../support/rendering/rendering-budgets.js";
+import { runRenderingMatrix, type RenderingMatrixResult } from "../../../support/rendering/rendering-matrix.js";
+import { STREAM_RENDERING_WORKLOADS } from "../../../support/rendering/streaming-workloads.js";
 
 describe("rendering stability logical-damage gate", () => {
   it("accepts every deterministic workload and rejects undeclared damage", async () => {

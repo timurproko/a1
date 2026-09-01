@@ -62,7 +62,7 @@ describe("stream presentation coalescer", () => {
     expect(coalescer.pending).toBe(true);
 
     coalescer.noteImmediatePresentation();
-    presentations += 1; // Immediate editor/overlay/resize path renders current state itself.
+    presentations += 1; // Invariant: the immediate editor/overlay/resize path renders current state itself.
     scheduler.advance(100);
     expect(presentations).toBe(2);
     expect(coalescer.pending).toBe(false);

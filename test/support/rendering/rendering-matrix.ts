@@ -35,8 +35,8 @@ export interface RenderingMatrixResult {
   readonly fullscreenMode: readonly RenderingMatrixProducerResult[];
   readonly comparisonSemanticParity: { readonly regular: boolean; readonly fullscreen: boolean };
   readonly findings: {
-    readonly bareA1MaximumRowClearsPerStreamCheckpoint: number;
-    readonly bareA1UnexpectedFullScreenClears: number;
+    readonly customViewportMaximumRowClearsPerStreamCheckpoint: number;
+    readonly customViewportUnexpectedFullScreenClears: number;
     readonly safeShiftCheckpoints: readonly string[];
     readonly dockGeometry: readonly {
       readonly checkpoint: string;
@@ -69,8 +69,8 @@ export async function runRenderingMatrix(workloadId: string): Promise<RenderingM
       fullscreen: sameTranscript(fullscreenRaw[1]!, fullscreenRaw[2]!),
     },
     findings: {
-      bareA1MaximumRowClearsPerStreamCheckpoint: Math.max(0, ...streamPaint.map(checkpoint => checkpoint.paint.rowClears)),
-      bareA1UnexpectedFullScreenClears: streamPaint.reduce((total, checkpoint) => total + checkpoint.paint.fullScreenClears, 0),
+      customViewportMaximumRowClearsPerStreamCheckpoint: Math.max(0, ...streamPaint.map(checkpoint => checkpoint.paint.rowClears)),
+      customViewportUnexpectedFullScreenClears: streamPaint.reduce((total, checkpoint) => total + checkpoint.paint.fullScreenClears, 0),
       safeShiftCheckpoints: defaultRaw[0]!.checkpoints
         .filter(checkpoint => checkpoint.viewport?.safeVerticalShift === true)
         .map(checkpoint => checkpoint.name),

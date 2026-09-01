@@ -93,8 +93,8 @@ function renderSummary(value: unknown): string {
     phase?: unknown;
     comparisons?: { comparisonSemanticParity?: unknown };
     longTranscriptFinding?: {
-      bareA1MaximumRowClearsPerStreamCheckpoint?: unknown;
-      bareA1UnexpectedFullScreenClears?: unknown;
+      customViewportMaximumRowClearsPerStreamCheckpoint?: unknown;
+      customViewportUnexpectedFullScreenClears?: unknown;
       streamDamageCheckpoints?: readonly { readonly name?: unknown; readonly damageDecision?: { readonly reason?: unknown } }[];
       broadStreamCheckpoints?: readonly { readonly name?: unknown }[];
     };
@@ -105,8 +105,8 @@ function renderSummary(value: unknown): string {
   return [
     `Rendering stability evidence (${String(report.phase ?? "unknown")})`,
     `Comparison semantic parity: ${JSON.stringify(report.comparisons?.comparisonSemanticParity ?? null)}`,
-    `Maximum bare-A1 stream row clears: ${String(report.longTranscriptFinding?.bareA1MaximumRowClearsPerStreamCheckpoint ?? "unknown")}`,
-    `Unexpected bare-A1 full-screen clears: ${String(report.longTranscriptFinding?.bareA1UnexpectedFullScreenClears ?? "unknown")}`,
+    `Maximum bare-A1 stream row clears: ${String(report.longTranscriptFinding?.customViewportMaximumRowClearsPerStreamCheckpoint ?? "unknown")}`,
+    `Unexpected bare-A1 full-screen clears: ${String(report.longTranscriptFinding?.customViewportUnexpectedFullScreenClears ?? "unknown")}`,
     `Stream checkpoints: ${checkpoints.map(checkpoint => `${String(checkpoint.name)}:${String(checkpoint.damageDecision?.reason ?? "baseline-broad-repaint")}`).join(", ")}`,
     "",
   ].join("\n");
