@@ -13,7 +13,11 @@ import {
   PINNED_PI_WORKFLOW_COMMAND_NAMES,
 } from "../../../../src/integrations/pi/engine/index.js";
 import { applyPiTheme, piTheme } from "../../../../src/integrations/pi/components/index.js";
-import { formatSessionResumeCommand, OwnedUiSessionShell } from "../../../../src/integrations/pi/session-ui/index.js";
+import {
+  formatSessionResumeCommand,
+  OwnedUiSessionShell,
+  type OwnedUiSessionShellOptions,
+} from "../../../../src/integrations/pi/session-ui/index.js";
 import { TestPresentationTerminal } from "../../../features/owned-ui/neutral-port-doubles.js";
 import type { OwnedUiViewportSettings, OwnedUiViewportSettingsPort } from "../../../../src/contracts/owned-ui/index.js";
 
@@ -161,6 +165,7 @@ async function fixture(
     readImage?(): Promise<{ readonly data: string; readonly mimeType: string } | null>;
     writeText?(text: string): Promise<void>;
   },
+  streamPresentation?: OwnedUiSessionShellOptions["streamPresentation"],
 ) {
   const engine = new Runtime(messages);
   engine.extensionResources = extensions;
@@ -173,6 +178,7 @@ async function fixture(
     ...(customViewport ? { sessionLayout: "custom-viewport" as const } : {}),
     ...(viewportSettings === undefined ? {} : { viewportSettings }),
     ...(clipboard === undefined ? {} : { clipboard }),
+    ...(streamPresentation === undefined ? {} : { streamPresentation }),
   });
   shell.start();
   shell.runtime.renderNow();
@@ -477,7 +483,7 @@ describe("OwnedUiSessionShell", () => {
     await shell.dispose();
   });
 
-  it("scrolls an overflowing Working status with the transcript like v2", async () => {
+  it("keeps an overflowing Working status in the dock while the transcript scrolls", async () => {
     const messages = Array.from({ length: 18 }, (_, index) => ({
       role: index % 2 === 0 ? "user" : "assistant",
       content: [{ type: "text", text: `Status transcript ${index}` }],
@@ -503,19 +509,21 @@ describe("OwnedUiSessionShell", () => {
     const writesBeforeWheel = terminal.writes.length;
     terminal.input("\u001b[<64;30;3M");
     shell.runtime.renderNow();
-    expect(terminal.writes.slice(writesBeforeWheel).some(write => write.includes("\u001b[2J"))).toBe(true);
-    expect(shell.root.render(60).every(row => !stripTerminalSequences(row).includes("Working"))).toBe(true);
+    const wheelWrites = terminal.writes.slice(writesBeforeWheel);
+    expect(wheelWrites.length).toBeGreaterThan(0);
+    expect(wheelWrites.some(write => write.includes("\u001b[2K"))).toBe(true);
+    expect(shell.root.render(60).some(row => stripTerminalSequences(row).includes("Working"))).toBe(true);
     await shell.dispose();
   });
 
-  it("keeps Pi's queued steering order and scrolls the complete transient group out of view", async () => {
+  it("keeps Pi's queued steering order in the dock while detached transcript content scrolls", async () => {
     const messages = Array.from({ length: 18 }, (_, index) => ({
       role: "assistant",
       content: [{ type: "text", text: `queue-transcript-${index}` }],
       timestamp: Date.now() + index,
     }));
     const { engine, terminal, shell } = await fixture(messages, [], true);
-    terminal.resize(60, 12);
+    terminal.resize(60, 18);
     engine.session.emit({ type: "agent_start" });
     engine.session.emit({ type: "queue_update", steering: ["first", "second"], followUp: [] });
     await shell.backend.flushEvents();
@@ -530,13 +538,59 @@ describe("OwnedUiSessionShell", () => {
     expect(hint).toBeGreaterThan(second);
     expect(working).toBeGreaterThan(hint);
 
-    terminal.input("\u001b[1;1H");
+    expect(shell.root.handleViewportPreInput("\u001b[<64;30;1M")).toMatchObject({ consumed: true });
     const detached = shell.root.render(60).map(row => stripTerminalSequences(row));
-    expect(detached.some(row => row.includes("Steering: first"))).toBe(false);
-    expect(detached.some(row => row.includes("Steering: second"))).toBe(false);
-    expect(detached.some(row => row.includes("Alt+Up to edit all queued messages"))).toBe(false);
-    expect(detached.some(row => row.includes("Working"))).toBe(false);
+    expect(detached.some(row => row.includes("Steering: first"))).toBe(true);
+    expect(detached.some(row => row.includes("Steering: second"))).toBe(true);
+    expect(detached.some(row => row.includes("Alt+Up to edit all queued messages"))).toBe(true);
+    expect(detached.some(row => row.includes("Working"))).toBe(true);
     expect(detached.some(row => row.includes("Jump to bottom (End)"))).toBe(true);
+    await shell.dispose();
+  });
+
+  it("keeps dock row identity stable while queued streaming crosses the fit boundary", async () => {
+    const { engine, terminal, shell } = await fixture([
+      { role: "assistant", content: [{ type: "text", text: "fitting transcript" }], timestamp: 1 },
+    ], [], true);
+    terminal.resize(60, 18);
+    engine.session.emit({ type: "agent_start" });
+    engine.session.emit({ type: "queue_update", steering: ["stable queue"], followUp: [] });
+    await shell.backend.flushEvents();
+
+    const positions = () => {
+      const rows = shell.root.render(60).map(row => stripTerminalSequences(row));
+      return {
+        rows,
+        queue: rows.findIndex(row => row.includes("Steering: stable queue")),
+        hint: rows.findIndex(row => row.includes("Alt+Up to edit all queued messages")),
+        working: rows.findIndex(row => row.includes("Working")),
+      };
+    };
+    const fitting = positions();
+    expect(fitting.queue).toBeGreaterThan(-1);
+    expect(fitting.hint).toBeGreaterThan(fitting.queue);
+    expect(fitting.working).toBeGreaterThan(fitting.hint);
+
+    for (let index = 0; index < 16; index += 1) {
+      engine.session.emit({
+        type: "message_start",
+        message: { role: "user", content: [{ type: "text", text: `overflow prompt ${index}` }], timestamp: 10 + index },
+      });
+    }
+    await shell.backend.flushEvents();
+    const overflowing = positions();
+    expect(overflowing.queue).toBe(fitting.queue);
+    expect(overflowing.hint).toBe(fitting.hint);
+    expect(overflowing.working).toBe(fitting.working);
+    expect(overflowing.rows.filter(row => row.includes("Steering: stable queue"))).toHaveLength(1);
+    expect(overflowing.rows.filter(row => row.includes("Working"))).toHaveLength(1);
+
+    engine.session.emit({ type: "queue_update", steering: [], followUp: [] });
+    await shell.backend.flushEvents();
+    const cleared = positions();
+    expect(cleared.queue).toBe(-1);
+    expect(cleared.hint).toBe(-1);
+    expect(cleared.rows.filter(row => row.includes("Working"))).toHaveLength(1);
     await shell.dispose();
   });
 
@@ -695,7 +749,10 @@ describe("OwnedUiSessionShell", () => {
     const writesBeforeChipDelete = terminal.writes.length;
     terminal.input("\u007f");
     shell.runtime.renderNow();
-    expect(terminal.writes.slice(writesBeforeChipDelete).some(write => write.includes("\u001b[2J"))).toBe(true);
+    const chipDeletionWrites = terminal.writes.slice(writesBeforeChipDelete);
+    // Platform: exact row overwrites clear stale native-link cells without blanking the screen.
+    expect(chipDeletionWrites.some(write => write.includes("\u001b[2J"))).toBe(false);
+    expect(chipDeletionWrites.some(write => write.includes("\u001b[2K"))).toBe(true);
     expect(shell.root.editor.getText()).toBe("");
     terminal.input("\u001a");
     expect(shell.root.editor.getText()).toContain("[🔗 https://example.com/");
@@ -1307,6 +1364,88 @@ describe("OwnedUiSessionShell", () => {
     expect(answer).toBeGreaterThan(question);
     await shell.dispose();
   });
+
+  it("bounds custom-viewport terminal frames for a burst and flushes final content immediately", async () => {
+    let now = 0;
+    let nextTimer = 1;
+    const scheduled = new Map<number, { readonly at: number; readonly callback: () => void }>();
+    const scheduler = {
+      now: () => now,
+      setTimeout: (callback: () => void, delayMs: number) => {
+        const timer = nextTimer++;
+        scheduled.set(timer, { at: now + delayMs, callback });
+        return timer as unknown as ReturnType<typeof setTimeout>;
+      },
+      clearTimeout: (timer: ReturnType<typeof setTimeout>) => { scheduled.delete(timer as unknown as number); },
+    };
+    const advancePresentation = (delayMs: number) => {
+      now += delayMs;
+      for (const [timer, task] of [...scheduled]) {
+        if (task.at > now) continue;
+        scheduled.delete(timer);
+        task.callback();
+      }
+    };
+    const { engine, adapter, terminal, shell } = await fixture(
+      [], [], true, undefined, undefined, { scheduler },
+    );
+    const assistant = (text: string, stopReason = "pending") => ({
+      role: "assistant",
+      content: [{ type: "text", text }],
+      stopReason,
+      timestamp: 5,
+    });
+    const presentedFrames = () => terminal.writes.filter(write => write.includes("\u001b[?2026h")).length;
+    shell.runtime.renderNow();
+    terminal.writes.length = 0;
+
+    engine.session.emit({ type: "agent_start" });
+    engine.session.emit({ type: "message_start", message: assistant("one") });
+    await adapter.flushEvents();
+    await new Promise(resolve => setTimeout(resolve, 25));
+    expect(presentedFrames()).toBe(1);
+    terminal.writes.length = 0;
+
+    for (const text of ["one two", "one two three", "one two three four"]) {
+      engine.session.emit({
+        type: "message_update",
+        message: assistant(text),
+        assistantMessageEvent: { type: "text_delta", delta: text },
+      });
+      await adapter.flushEvents();
+    }
+    expect(presentedFrames()).toBe(0);
+    advancePresentation(33);
+    await new Promise(resolve => setTimeout(resolve, 25));
+    expect(presentedFrames()).toBe(1);
+    expect(shell.root.render(80).join("\n")).toContain("one two three four");
+    terminal.writes.length = 0;
+
+    engine.session.emit({
+      type: "message_update",
+      message: assistant("one two three four five"),
+      assistantMessageEvent: { type: "text_delta", delta: " five" },
+    });
+    await adapter.flushEvents();
+    expect(presentedFrames()).toBe(0);
+    terminal.input("x");
+    await new Promise(resolve => setTimeout(resolve, 25));
+    const immediateFrames = presentedFrames();
+    expect(immediateFrames).toBeGreaterThanOrEqual(1);
+    advancePresentation(33);
+    await new Promise(resolve => setTimeout(resolve, 25));
+    expect(presentedFrames()).toBeLessThanOrEqual(immediateFrames + 1); // Concurrency: Working animation may tick independently.
+    expect(shell.root.render(80).join("\n")).toContain("one two three four five");
+    expect(shell.root.editor.getText()).toBe("x");
+    terminal.writes.length = 0;
+
+    engine.session.emit({ type: "message_end", message: assistant("one two three four final", "stop") });
+    await adapter.flushEvents();
+    await new Promise(resolve => setTimeout(resolve, 25));
+    expect(presentedFrames()).toBe(1);
+    expect(shell.root.render(80).join("\n")).toContain("final");
+    await shell.dispose();
+  }, 15_000);
 
   it("reuses a finalized block's rows until its revision, the width, the theme, or expansion changes", async () => {
     const { engine, adapter, shell } = await fixture();

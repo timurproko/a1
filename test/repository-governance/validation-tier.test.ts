@@ -23,6 +23,7 @@ describe("validation tier planning", () => {
       "typecheck",
       "architecture",
       "fast",
+      "rendering-stability",
       "dist-integration",
       "launch-integration",
       "pi-engine-conformance",
@@ -38,6 +39,7 @@ describe("validation tier planning", () => {
       invocations: [
         { id: "vitest-full-without-isolated", arguments: expect.arrayContaining(["--exclude", "test/foundation/release/update-performance.integration.test.ts", "--exclude", "test/foundation/release/package-surface.test.ts", "test/foundation/release/package-install.integration.test.ts"]) },
         { id: "vitest-isolated-timing", arguments: expect.arrayContaining(["test/foundation/release/update-performance.integration.test.ts", "test/foundation/release/package-surface.test.ts", "--no-file-parallelism"]) },
+        { id: "vitest-isolated-suites", arguments: expect.arrayContaining(["test/integrations/pi/tui-runtime/rendering-budgets.test.ts", "test/integrations/pi/tui-runtime/rendering-matrix.test.ts", "test/integrations/pi/tui-runtime/rendering-producer.test.ts", "--no-file-parallelism", "--testTimeout=600000"]) },
         { id: "vitest-package-install", arguments: expect.arrayContaining(["test/foundation/release/package-install.integration.test.ts", "--no-file-parallelism"]) },
       ],
     });
@@ -63,6 +65,18 @@ describe("validation tier planning", () => {
     expect(plan.vitest?.invocations[0]?.arguments).toContain("--exclude");
     expect(plan.vitest?.invocations[0]?.arguments).toContain("test/foundation/release/package-surface.test.ts");
     expect(plan.vitest?.invocations[0]?.arguments).toContain("test/foundation/release/package-install.integration.test.ts");
+    expect(plan.vitest?.invocations[0]?.arguments).toContain("test/integrations/pi/tui-runtime/rendering-budgets.test.ts");
+  });
+
+  it("serializes rendering evidence outside the fast worker pool", async () => {
+    const plan = await createTierPlan(["fast", "rendering-stability"]);
+    expect(plan.vitest?.invocations).toEqual([
+      expect.objectContaining({ id: "vitest-fast" }),
+      expect.objectContaining({
+        id: "vitest-isolated-suites",
+        arguments: expect.arrayContaining(["--no-file-parallelism", "--testTimeout=600000"]),
+      }),
+    ]);
   });
 
   it("inherits code documentation in full release exactly once", async () => {

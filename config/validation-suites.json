@@ -21,6 +21,9 @@
         "test/integrations/pi/engine/conformance.test.ts",
         "test/integrations/pi/engine/runtime-integration.test.ts",
         "test/integrations/pi/engine/session-integration.test.ts",
+        "test/integrations/pi/tui-runtime/rendering-budgets.test.ts",
+        "test/integrations/pi/tui-runtime/rendering-matrix.test.ts",
+        "test/integrations/pi/tui-runtime/rendering-producer.test.ts",
         "test/foundation/release/package-surface.test.ts",
         "test/foundation/release/package-install.integration.test.ts",
         "test/foundation/release/update-performance.integration.test.ts",
@@ -34,6 +37,7 @@
         "typecheck",
         "architecture",
         "fast",
+        "rendering-stability",
         "dist-integration",
         "launch-integration",
         "pi-engine-conformance",
@@ -57,6 +61,14 @@
       "kind": "commands",
       "commands": [
         { "id": "architecture", "executable": "npm", "arguments": ["run", "check:architecture"] }
+      ]
+    },
+    "rendering-stability": {
+      "kind": "vitest-isolated",
+      "tests": [
+        "test/integrations/pi/tui-runtime/rendering-budgets.test.ts",
+        "test/integrations/pi/tui-runtime/rendering-matrix.test.ts",
+        "test/integrations/pi/tui-runtime/rendering-producer.test.ts"
       ]
     },
     "dist-integration": {

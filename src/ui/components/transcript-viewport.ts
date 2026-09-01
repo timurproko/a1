@@ -76,6 +76,21 @@ export interface TranscriptViewportHitRegions {
   readonly bottom: { readonly row: number; readonly columnStart: number; readonly columnEnd: number } | null;
 }
 
+export interface TranscriptViewportFrameDescriptor {
+  readonly frameId: number;
+  readonly width: number;
+  readonly height: number;
+  readonly transcript: { readonly rowStart: number; readonly rowEnd: number } | null;
+  readonly dock: { readonly rowStart: number; readonly rowEnd: number } | null;
+  readonly previousDocumentRange: { readonly start: number; readonly end: number } | null;
+  readonly nextDocumentRange: { readonly start: number; readonly end: number };
+  readonly previousFollowingEnd: boolean | null;
+  readonly followingEnd: boolean;
+  readonly verticalShiftRows: number;
+  readonly safeVerticalShift: boolean;
+  readonly cause: "initial" | "steady" | "follow-shift" | "detached" | "geometry-change";
+}
+
 export interface TranscriptViewportFrame {
   readonly rows: readonly string[];
   readonly contentWidth: number;
@@ -83,6 +98,7 @@ export interface TranscriptViewportFrame {
   readonly maxScroll: number;
   readonly followingEnd: boolean;
   readonly hits: TranscriptViewportHitRegions;
+  readonly descriptor: TranscriptViewportFrameDescriptor;
 }
 
 const CONTROL_STYLE_RESET = "\u001b]8;;\u001b\\\u001b[0m";
@@ -121,6 +137,7 @@ export class TranscriptViewport {
   #selectableDocumentRowCount = 0;
   #promptAnchors: readonly TranscriptPromptAnchor[] = [];
   #contentWidth = 0;
+  #frameId = 0;
   #frame: TranscriptViewportFrame | null = null;
 
   get scrollTop(): number { return this.#scrollTop; }
@@ -304,6 +321,7 @@ export class TranscriptViewport {
     const width = Math.max(1, input.width);
     const height = Math.max(0, input.height);
     const theme = input.theme ?? PLAIN_THEME;
+    const previousDescriptor = this.#frame?.descriptor ?? null;
     const dock = input.dockRows.length > height ? input.dockRows.slice(-height) : [...input.dockRows];
     const viewportHeight = Math.max(0, height - dock.length);
     this.#maxScroll = Math.max(0, input.documentRows.length - viewportHeight);
@@ -393,7 +411,7 @@ export class TranscriptViewport {
 
     const frameRows = [...visible, ...dock].slice(0, height);
     let bottomHit: TranscriptViewportHitRegions["bottom"] = null;
-    if (geometry !== null && !this.#followingEnd && frameRows.length > 0) {
+    if (this.#maxScroll > 0 && !this.#followingEnd && frameRows.length > 0) {
       const genericLabel = " Jump to bottom (End) ";
       const countedLabel = this.#newMessages > 0
         ? ` ${this.#newMessages} new message${this.#newMessages === 1 ? "" : "s"} (End) `
@@ -414,6 +432,47 @@ export class TranscriptViewport {
       }
     }
 
+    const nextDocumentRange = {
+      start: this.#scrollTop,
+      end: Math.min(input.documentRows.length, this.#scrollTop + viewportHeight),
+    };
+    const previousDocumentRange = previousDescriptor?.nextDocumentRange ?? null;
+    const sameGeometry = previousDescriptor !== null
+      && previousDescriptor.width === width
+      && previousDescriptor.height === height
+      && sameRectangle(previousDescriptor.transcript, viewportHeight === 0 ? null : { rowStart: 1, rowEnd: viewportHeight })
+      && sameRectangle(previousDescriptor.dock, dock.length === 0 ? null : { rowStart: viewportHeight + 1, rowEnd: height });
+    const verticalShiftRows = previousDocumentRange === null ? 0 : nextDocumentRange.start - previousDocumentRange.start;
+    const safeVerticalShift = sameGeometry
+      && previousDescriptor?.followingEnd === true
+      && this.#followingEnd
+      && this.#selection === undefined
+      && verticalShiftRows > 0
+      && verticalShiftRows < viewportHeight;
+    const descriptor: TranscriptViewportFrameDescriptor = {
+      frameId: ++this.#frameId,
+      width,
+      height,
+      transcript: viewportHeight === 0 ? null : { rowStart: 1, rowEnd: viewportHeight },
+      dock: dock.length === 0 ? null : { rowStart: viewportHeight + 1, rowEnd: height },
+      previousDocumentRange,
+      nextDocumentRange,
+      previousFollowingEnd: previousDescriptor?.followingEnd ?? null,
+      followingEnd: this.#followingEnd,
+      verticalShiftRows,
+      safeVerticalShift,
+      cause: previousDescriptor === null
+        ? "initial"
+        : !sameGeometry
+          ? "geometry-change"
+          : !this.#followingEnd
+            ? "detached"
+            : safeVerticalShift
+              ? "follow-shift"
+              : "steady",
+    };
+    assertTranscriptViewportFrameDescriptor(descriptor);
+
     const hits: TranscriptViewportHitRegions = {
       viewportHeight,
       rail: geometry === null || this.#config.scrollbarAppearance === "hidden" ? null : {
@@ -432,6 +491,7 @@ export class TranscriptViewport {
       maxScroll: this.#maxScroll,
       followingEnd: this.#followingEnd,
       hits,
+      descriptor,
     };
     this.#frame = frame;
     return frame;
@@ -472,6 +532,58 @@ function padRowPreservingBackground(line: string, width: number): string {
   if (background) return `${shown}${background}${" ".repeat(padding)}\u001b[49m`;
   if (reverse) return `${shown}${reverse}${" ".repeat(padding)}\u001b[27m`;
   return shown + " ".repeat(padding);
+}
+
+export function assertTranscriptViewportFrameDescriptor(descriptor: TranscriptViewportFrameDescriptor): void {
+  if (!Number.isSafeInteger(descriptor.frameId) || descriptor.frameId < 1) throw new TypeError("viewport frame descriptor identity is invalid");
+  if (!Number.isSafeInteger(descriptor.width) || descriptor.width < 1) throw new TypeError("viewport frame descriptor width is invalid");
+  if (!Number.isSafeInteger(descriptor.height) || descriptor.height < 0) throw new TypeError("viewport frame descriptor height is invalid");
+  assertRectangle(descriptor.transcript, descriptor.height, "transcript");
+  assertRectangle(descriptor.dock, descriptor.height, "dock");
+  if (descriptor.transcript !== null && descriptor.dock !== null && descriptor.transcript.rowEnd >= descriptor.dock.rowStart) {
+    throw new TypeError("viewport frame descriptor regions overlap");
+  }
+  assertDocumentRange(descriptor.nextDocumentRange, "next");
+  if (descriptor.previousDocumentRange !== null) assertDocumentRange(descriptor.previousDocumentRange, "previous");
+  if (!Number.isSafeInteger(descriptor.verticalShiftRows)) throw new TypeError("viewport frame descriptor shift is invalid");
+  if (descriptor.previousDocumentRange === null && descriptor.verticalShiftRows !== 0) {
+    throw new TypeError("viewport frame descriptor initial shift is invalid");
+  }
+  if (descriptor.previousDocumentRange !== null
+    && descriptor.verticalShiftRows !== descriptor.nextDocumentRange.start - descriptor.previousDocumentRange.start) {
+    throw new TypeError("viewport frame descriptor shift disagrees with document ranges");
+  }
+  if (descriptor.safeVerticalShift && (descriptor.verticalShiftRows <= 0
+    || descriptor.previousFollowingEnd !== true
+    || !descriptor.followingEnd
+    || descriptor.cause !== "follow-shift")) {
+    throw new TypeError("viewport frame descriptor marks an unsafe shift");
+  }
+}
+
+function assertRectangle(
+  rectangle: TranscriptViewportFrameDescriptor["transcript"],
+  height: number,
+  label: string,
+): void {
+  if (rectangle === null) return;
+  if (!Number.isSafeInteger(rectangle.rowStart) || !Number.isSafeInteger(rectangle.rowEnd)
+    || rectangle.rowStart < 1 || rectangle.rowEnd < rectangle.rowStart || rectangle.rowEnd > height) {
+    throw new TypeError(`viewport frame descriptor ${label} region is invalid`);
+  }
+}
+
+function assertDocumentRange(range: { readonly start: number; readonly end: number }, label: string): void {
+  if (!Number.isSafeInteger(range.start) || !Number.isSafeInteger(range.end) || range.start < 0 || range.end < range.start) {
+    throw new TypeError(`viewport frame descriptor ${label} document range is invalid`);
+  }
+}
+
+function sameRectangle(
+  left: TranscriptViewportFrameDescriptor["transcript"],
+  right: TranscriptViewportFrameDescriptor["transcript"],
+): boolean {
+  return left === null ? right === null : right !== null && left.rowStart === right.rowStart && left.rowEnd === right.rowEnd;
 }
 
 function clamp(value: number, minimum: number, maximum: number): number {

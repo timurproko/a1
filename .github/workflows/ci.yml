@@ -139,7 +139,7 @@ jobs:
       - name: Select validation matching the change surface
         id: selection
         shell: bash
-        run: echo 'selected=["typecheck","architecture","fast","dist-integration"]' >> "$GITHUB_OUTPUT"
+        run: echo 'selected=["typecheck","architecture","fast","rendering-stability","dist-integration"]' >> "$GITHUB_OUTPUT"
 
       - name: Run selected validation
         shell: bash

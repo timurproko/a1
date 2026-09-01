@@ -353,7 +353,7 @@ jobs:
           MODE: ${{ needs.plan.outputs.mode }}
         run: |
           if [ "$MODE" = "develop" ]; then
-            selected='["typecheck","architecture","fast","dist-integration","package-smoke","package-install"]'
+            selected='["typecheck","architecture","fast","rendering-stability","dist-integration","package-smoke","package-install"]'
           else
             selected='["full-release"]'
           fi

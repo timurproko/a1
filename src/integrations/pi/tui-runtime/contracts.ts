@@ -127,6 +127,8 @@ export interface PiTuiRuntimeAdapterOptions {
   readonly mode?: "regular" | "fullscreen";
   readonly layoutRoot?: PiTuiLayoutNode;
   readonly terminal?: PiTuiTerminalPort;
+  /** A1-owned public-boundary decorator; comparison paths omit it. */
+  readonly decorateTerminal?: (terminal: PiTuiTerminalPort) => PiTuiTerminalPort;
   readonly hardwareCursor?: boolean;
   readonly mouse?: boolean;
   readonly wheelScrollLines?: number;
