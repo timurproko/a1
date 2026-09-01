@@ -52,27 +52,33 @@ The replay runs both with synchronized updates honored and ignored. The latter e
 
 Alternative considered: rely only on `PI_TUI_WRITE_LOG`. Rejected because a raw log has no equivalent-state orchestration, cell checkpoints, attribution, or bounded pass/fail budget.
 
-### 3. Give the renderer explicit semantic damage hints
+### 3. Apply semantic damage through an A1-owned public terminal boundary
 
-The custom viewport controller will produce a neutral frame descriptor alongside rows: transcript rectangle, stable dock rectangle, prior and next document ranges, follow state, and whether the transition is a pure vertical shift. It will not expose Pi components or ANSI-derived semantics.
+The custom viewport controller will produce a neutral frame descriptor alongside rows: transcript rectangle, stable dock rectangle, prior and next document ranges, follow state, current frame identity, and whether the transition is a pure vertical shift. It will not expose Pi components or infer semantics from ANSI text.
 
-The runtime will pass this descriptor through a documented public rendering contract. If the pinned Pi TUI does not yet expose the required contract, the implementation must first land the capability in the maintained Pi TUI package and pin the released version; the A1 change must not patch package files or reach into private renderer state.
+Bare A1 will route its fullscreen terminal through an A1-owned presentation adapter implementing the existing public terminal port. During owned-root rendering, the semantic frame descriptor arms that adapter for exactly the corresponding terminal write. The pinned Pi renderer remains responsible for layout, overlays, input, selection, images, and its ordinary differential output; no Pi package, prototype, private field, or deep import changes.
 
-For a pure followed shift, the fullscreen renderer will:
+The adapter recognizes only a finite terminal-write grammar captured from the exact pinned Pi fullscreen renderer and covered by package-identity and conformance fixtures. The grammar check validates complete write boundaries, addressed rows, clears, synchronization markers, cursor placement, dimensions, and absence of unsafe image or structural operations. It does not derive transcript meaning from bytes: the owned descriptor is authoritative about transcript/dock geometry and shift safety. Any missing descriptor or grammar, capability, geometry, frame-identity, overlay, selection, image, resize, theme, or reflow mismatch forwards the original write unchanged without partial transformation.
 
-1. begin one synchronized update when the terminal supports it;
-2. restrict scrolling to the transcript rectangle;
-3. move existing cells with a bounded scroll-region operation;
-4. restore the full scrolling region;
-5. clear and paint only exposed rows and rows with real cell damage;
-6. paint independently changed dock rows;
-7. position the cursor and end the update.
+For a proven pure followed shift, the adapter will replace the broad positional row rewrite with one complete presentation that:
 
-When the transition is not safely expressible as a shift—resize, overlay composition, image damage, arbitrary Markdown reflow, theme change—the existing differential path remains the fallback. A full-screen clear remains limited to initial entry, resize/structural reset, and image-protocol cases that require it.
+1. begins a synchronized update when the terminal supports it;
+2. restricts scrolling to the transcript rectangle;
+3. moves existing cells with a bounded scroll-region operation;
+4. restores the full scrolling region immediately;
+5. clears and paints only exposed rows and rows proven genuinely changed by the validated write and semantic frame;
+6. forwards independently changed dock rows;
+7. restores the validated cursor placement and ends the update.
 
-Alternative considered: detect shifted rows by comparing ANSI strings alone. Rejected because repeated rows can make the match ambiguous, overlays can invalidate a region, and the compositor already owns authoritative document ranges.
+The adapter is enabled only for bare A1's custom fullscreen viewport. `a1 pi`, regular mode, and untouched Pi bypass it and remain independent comparison producers. A full-screen clear remains limited to initial entry, resize/structural reset, and image-protocol cases that require it.
 
-Alternative considered: intercept and rewrite Pi TUI's terminal bytes. Rejected because it would create a fragile terminal parser in the production hot path and violate the public boundary.
+Alternative considered: land a damage-hint API in upstream Pi TUI and wait for a release. Rejected because this change must be deliverable without maintainer communication or an external release while still respecting public package boundaries.
+
+Alternative considered: detect viewport movement from ANSI strings alone. Rejected because repeated rows are ambiguous and overlays can invalidate a region; terminal bytes are validated only as presentation syntax after the owned semantic descriptor proves the transition.
+
+Alternative considered: vendor or fork the complete Pi fullscreen renderer. Rejected because it would duplicate selection, overlay, image, input, and layout behavior and create a large parity burden.
+
+Alternative considered: accept arbitrary terminal-byte rewriting. Rejected in favor of a finite, pinned, fail-closed grammar for one complete write. Unknown output always passes through unchanged, which keeps protocol risk bounded and makes upstream drift visible in conformance tests.
 
 Alternative considered: simply reduce the frame rate. Rejected as the sole fix because fewer viewport-sized erase/repaint operations can still flicker and remain needlessly expensive.
 
@@ -104,8 +110,9 @@ Manual comparison will use the repository's color-preserving `./scripts/dev` and
 
 ## Risks / Trade-offs
 
-- **[The required public Pi TUI damage API is not available at implementation time]** → Treat landing and pinning that public capability as an explicit prerequisite; do not substitute a private patch or byte-rewriting shim.
-- **[Scroll-region operations vary across terminals]** → Gate by declared capability, replay the unsupported path, restore margins in the same write, and fall back to differential row painting when safe regional scrolling is unavailable.
+- **[The pinned Pi fullscreen write grammar changes]** → Pin package identity, validate the complete one-write grammar before transformation, fail closed to the original write, and make conformance drift fail the rendering gate rather than guessing.
+- **[The A1-owned adapter becomes an accidental general terminal parser]** → Accept only the finite operations emitted by the pinned safe-shift fixture, keep transcript semantics exclusively in the frame descriptor, and reject partial or unknown writes.
+- **[Scroll-region operations vary across terminals]** → Gate by declared capability, replay the unsupported path, restore margins in the same write, and fall back to unchanged Pi differential painting when safe regional scrolling is unavailable.
 - **[OSC 8 links, selection paint, sticky rows, overlays, or images make a shift unsafe]** → Mark those frames non-shiftable unless the descriptor proves the complete affected region; use the existing differential fallback and focused fixtures.
 - **[A 30 fps stream cadence feels laggy]** → Keep input immediate, flush completion immediately, measure first-paint and final-paint latency, and adjust the interval from evidence without changing the spec.
 - **[Stable dock ownership reduces transcript height while working]** → This matches the declared pinned-dock contract; cover tiny terminals, multiline status, queued input, and extension widgets explicitly.
@@ -115,8 +122,8 @@ Manual comparison will use the repository's color-preserving `./scripts/dev` and
 ## Migration Plan
 
 1. Add the independent capture/replay harness and baseline workloads without changing production rendering; retain a failing artifact that reproduces the broad-row rewrite and dock transition.
-2. Stabilize dock ownership and add semantic frame descriptors behind the bare-A1 custom-viewport composition only.
-3. Land or consume the documented public Pi TUI damage contract, pin the exact dependency, and enable regional shift rendering for safe frames.
+2. Make repeated evidence runs deterministic, derive findings from captured checkpoints, stabilize dock ownership, and add semantic frame descriptors behind the bare-A1 custom-viewport composition only.
+3. Add the A1-owned public-terminal adapter, pin conformance to the installed Pi package identity and one-write grammar, and enable regional shift rendering only for proven safe frames.
 4. Add stream presentation coalescing and completion/input preemption.
 5. Run focused deterministic gates, then CI, then exact-artifact physical comparison through `./scripts/dev` and `./scripts/dev pi`.
-6. Keep `a1 pi` and untouched Pi unchanged throughout. If acceptance fails, disable the new damage/coalescing path and retain the evidence harness; do not weaken budgets or patch installed Pi code.
+6. Keep `a1 pi`, untouched Pi, and installed Pi package files unchanged throughout. If acceptance fails, disable the new damage/coalescing path and retain the evidence harness; do not weaken budgets or add a private dependency patch.

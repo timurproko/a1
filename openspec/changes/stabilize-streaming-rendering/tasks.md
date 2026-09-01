@@ -2,8 +2,8 @@
 
 - [ ] 1.1 Add a bounded terminal-write classifier and headless cell-grid replayer for full-screen clears, row clears/writes, scroll regions, synchronized-update boundaries, cursor placement, bytes, and frame timing; verify focused unit tests cover synchronization honored and ignored, malformed streams, and artifact truncation.
 - [ ] 1.2 Add deterministic streamed prose, incomplete Markdown, thinking, tool output, fit/overflow, long-transcript, resize, and detached-scroll workloads with named semantic and cell checkpoints; verify each fixture is independent of production row-comparison logic.
-- [ ] 1.3 Add isolated producers for bare `a1`, `a1 pi`, and untouched pinned Pi with equivalent profile, geometry, theme, mode, capabilities, transcript, and input state; verify producer failure, timeout, and process cleanup tests.
-- [ ] 1.4 Run the default-mode and mode-matched fullscreen matrix against the unchanged baseline, preserve a bounded diagnostic showing the broad stable-row rewrites and transient ownership transition, and verify `a1 pi` remains aligned with untouched Pi in equivalent modes.
+- [ ] 1.3 Add isolated producers for bare `a1`, `a1 pi`, and untouched pinned Pi with equivalent profile, geometry, theme, mode, capabilities, transcript, and input state, using bounded scheduling and workload-specific startup/completion deadlines; verify back-to-back invocation, producer failure, diagnostic timeout, Windows process-tree cleanup, and no orphan tests.
+- [ ] 1.4 Run the default-mode and mode-matched fullscreen matrix against an immutable provenance-labelled baseline, preserve bounded captured diagnostics for broad stable-row rewrites and the historical transient ownership transition, and verify repeated reports derive current findings from checkpoints, never present baseline facts as current behavior, and keep `a1 pi` aligned with untouched Pi in equivalent modes.
 
 ## 2. Stabilize Custom Viewport Geometry
 
@@ -13,11 +13,11 @@
 
 ## 3. Add Damage-Aware Fullscreen Painting Through a Public Boundary
 
-- [ ] 3.1 Land or consume a documented public Pi TUI contract for bounded viewport damage/shift hints and pin the released package versions; verify package identity, source provenance, API-boundary governance, install layouts, and upstream conformance without patches or deep imports.
-- [ ] 3.2 Carry the neutral frame descriptor through the A1 runtime adapter only for bare A1's custom viewport; verify adapter tests prove `a1 pi`, regular mode, overlays, and components without descriptors retain their current renderer path.
-- [ ] 3.3 Implement safe transcript-region scroll painting that moves unchanged cells, restores terminal margins, paints only exposed or genuinely damaged rows, keeps the dock fixed, and positions the cursor in one complete write; verify focused terminal-write and cell-grid tests with one-row and multi-row followed growth.
-- [ ] 3.4 Implement capability and safety fallbacks for unsupported synchronized updates, unsupported regional scrolling, OSC 8 links, active selection, sticky/overlay changes, images, resize, theme invalidation, and arbitrary reflow; verify no fallback exposes a blank intermediate grid or performs an undeclared full-screen clear.
-- [ ] 3.5 Preserve initial-entry, structural-reset, resize, and image-protocol redraw behavior where required; verify every allowed full-screen clear is cause-classified and ordinary prose/thinking/tool streaming cannot reach it.
+- [ ] 3.1 Define an A1-owned damage-presentation contract over the existing public terminal/runtime ports and pin its accepted one-write grammar to the installed Pi package identity; verify source-provenance, install-layout, API-boundary, and conformance governance forbids Pi package edits, private/deep imports, prototype patches, broad terminal parsing, and any upstream PR/release dependency.
+- [ ] 3.2 Carry frame identity plus the neutral descriptor from the owned root to the terminal adapter for exactly one corresponding bare-A1 custom-viewport write; verify adapter tests prove stale/missing descriptors fail closed and `a1 pi`, regular mode, overlays, and components without descriptors retain their current renderer path.
+- [ ] 3.3 Implement finite-grammar validation and safe transcript-region scroll painting that moves unchanged cells, restores terminal margins, paints only exposed or genuinely damaged rows, keeps the dock fixed, and preserves validated cursor placement in one complete write; verify focused terminal-write and cell-grid tests with one-row and multi-row followed growth.
+- [ ] 3.4 Implement fail-closed capability and safety handling for grammar drift, unsupported synchronized updates, unsupported regional scrolling, OSC 8 links, active selection, sticky/overlay changes, images, resize, theme invalidation, and arbitrary reflow; verify rejection forwards the complete original Pi write without partial output, blank intermediate grids, or undeclared full-screen clears.
+- [ ] 3.5 Preserve initial-entry, structural-reset, resize, image-protocol, and ordinary Pi fallback behavior where required; verify every allowed full-screen clear and every transformed/bypassed write is cause-classified and ordinary safe prose/thinking/tool shifts use the owned bounded path.
 
 ## 4. Bound Stream Presentation Cadence
 
@@ -30,11 +30,11 @@
 
 - [ ] 5.1 Add logical-damage budgets for every deterministic workload and verify the gate fails on unexpected full-screen clears, repaint outside damage, stable-row rewrites, dock jumps, blank/partial intermediate grids, excessive frames, stale final cells, or missing synchronization classification.
 - [ ] 5.2 Cover sustained content while following and detached, fit/overflow crossings, Markdown reflow, thinking, concurrent status animation, streamed tools, queued input, long sessions, resize, selection, sticky prompts, hyperlinks, images, overlays, tiny terminals, and shutdown; verify focused suites pass in synchronization-supported and ignored replay modes.
-- [ ] 5.3 Run the independent three-producer/two-mode matrix after remediation and generate bounded human-readable and machine-readable results attributing component, mode, viewport, and paint differences; verify bare A1 meets its damage budgets and both Pi comparison producers remain unchanged.
+- [ ] 5.3 Run the independent three-producer/two-mode matrix after remediation and generate bounded human-readable and machine-readable results that separately label immutable baseline evidence and current captured behavior while attributing component, mode, viewport, and paint differences; verify bare A1 meets its damage budgets, findings are checkpoint-derived, repeated runs complete deterministically, and both Pi comparison producers remain unchanged.
 - [ ] 5.4 Run focused typechecking, architecture, component, viewport, runtime, engine, package-identity, and rendering-evidence checks needed for debugging, then push the implementation branch and use CI as the required full automated gate.
 
 ## 6. Exact-Artifact Acceptance
 
-- [ ] 6.1 Provide the exact implementation worktree, branch/commit, build command, deterministic evidence command, and color-preserving `./scripts/dev` / `./scripts/dev pi` comparison steps, including expected stable behavior and known fallback cases.
+- [ ] 6.1 Provide the exact implementation worktree, branch/commit, build command, deterministic remediated-evidence command, and color-preserving `./scripts/dev` / `./scripts/dev pi` comparison steps that directly exercise sustained streaming, including expected stable behavior and known fail-closed fallback cases; do not present a baseline-only diagnostic as acceptance.
 - [ ] 6.2 Obtain user-controlled visual acceptance on the exact built artifact under sustained prose, Markdown reflow, tool output, fit/overflow crossing, and resize in Windows Terminal, recording terminal version and synchronized-update support; do not weaken automated damage budgets to match a failed visual verdict.
 - [ ] 6.3 If acceptance fails, retain the evidence, disable the new damage/coalescing path without changing `a1 pi`, and keep the code pull request unmerged; if it passes and CI is green, leave manual merge to the user's explicit authorization and hand off acceptance recording/archive to the required specification-only follow-up.
