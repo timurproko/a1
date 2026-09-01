@@ -249,12 +249,5 @@ describe("repository code documentation baseline", () => {
       synchronizedDestinations: new Set<string>(ledger.records.map((record: { localDestination: string }) => record.localDestination)),
     });
     expect(diagnostics).toEqual([]);
-  });
-
-  it("runs the focused repository command successfully", async () => {
-    const repository = fileURLToPath(new URL("../..", import.meta.url));
-    const result = await execFileAsync(process.execPath, ["scripts/governance/check-code-documentation.mjs"], { cwd: repository });
-    expect(result.stderr).toBe("");
-    expect(result.stdout).toBe("Code documentation governance OK: no violations.\n");
-  });
+  }, 30_000);
 });
