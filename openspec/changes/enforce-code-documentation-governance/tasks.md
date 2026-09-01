@@ -30,4 +30,4 @@
 
 - [x] 5.1 Select `check:code-documentation` in fast validation and rely on full-release composition to inherit it exactly once; verify validation-plan tests prove the command is present in fast and full plans without duplicate execution.
 - [x] 5.2 Update repository-governance validation assertions and package-script coverage for the new required gate; verify the focused validation-tier and repository-governance tests pass.
-- [ ] 5.3 Run the focused documentation command and relevant governance tests from the implementation worktree, then push the implementation for required CI validation; verify CI reports the code-documentation gate passing in both applicable pull-request validation composition and that no runtime/manual UI validation is claimed.
+- [x] 5.3 Run the focused documentation command and relevant governance tests from the implementation worktree, then push the implementation for required CI validation; verify CI reports the code-documentation gate passing in both applicable pull-request validation composition and that no runtime/manual UI validation is claimed.
