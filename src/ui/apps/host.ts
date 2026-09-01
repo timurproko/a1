@@ -31,7 +31,7 @@ export interface AppHostOptions {
   readonly theme?: UiTheme;
 }
 
-// The interrupt byte, written as an escape: as a raw byte it is invisible to
+// Invariant: the interrupt byte is written as an escape: as a raw byte it is invisible to
 // every text tool, and this constant had already been emptied by one.
 const INTERRUPT = "";
 /** How long the first interrupt of the chord stays armed. */
@@ -47,7 +47,7 @@ export class UiAppHost {
   readonly #surface: AppHostSurface;
   readonly #closeOnInterrupt: boolean;
   readonly #theme: UiTheme | undefined;
-  /** When the first interrupt of a chord was seen, or null when disarmed. */
+  // Invariant: the first interrupt timestamp is null whenever the chord is disarmed.
   #interruptArmedAt: number | null = null;
   #renderedInterruptArmed: boolean | undefined;
   readonly #cache = new FrameCache();
@@ -128,11 +128,7 @@ export class UiAppHost {
     return result;
   }
 
-  /**
-   * Two interrupts leave A1, from any screen. One arms the chord and repaints so
-   * the screen can say so; a second within the window exits rather than merely
-   * closing the screen, which is what the chord means everywhere else.
-   */
+  // Protocol: two interrupts within the chord window leave A1 from every screen.
   #interrupt(): PaneInputResult {
     const now = Date.now();
     const armed = this.#interruptArmedAt;
@@ -143,7 +139,7 @@ export class UiAppHost {
       return { consumed: true, render: true };
     }
     this.#interruptArmedAt = now;
-    // Host-owned state participates in the app's next frame independently of
+    // Invariant: host-owned state participates in the app's next frame independently of
     // the app's own revision contract.
     this.#cache.invalidate();
     return { consumed: true, render: true };
@@ -183,7 +179,7 @@ export class UiAppHost {
     };
   }
 
-  /** Contains a failure: the app is closed and the surface restored, never left broken. */
+  // Security: an app failure closes its app and restores the surface.
   #guard<T>(work: () => T): T | undefined {
     try {
       return work();

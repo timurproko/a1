@@ -18,7 +18,7 @@ export function collectPiApiBoundaryBaseline(root, baselineCommit) {
   const sources = new Map(sourcePaths.map(path => [path, gitShow(repository, commit, path)]));
   const manifest = JSON.parse(gitShow(repository, commit, "package.json"));
   const lockfile = JSON.parse(gitShow(repository, commit, "package-lock.json"));
-  // The accepted commit keeps whatever tree it had: this baseline moved to config/
+  // Provenance: the accepted commit keeps whatever tree it had: this baseline moved to config/
   // after that commit was accepted, so both names are tried before giving up.
   const ledger = JSON.parse(gitShowFirst(repository, commit, [
     "config/baselines/pinned-pi-source-port-ledger.json",

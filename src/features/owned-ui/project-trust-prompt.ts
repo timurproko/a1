@@ -115,7 +115,7 @@ export function createConsoleProjectTrustPrompt(
               finish(null);
               return;
             }
-            // Retain y/n aliases for terminals or automation that cannot send
+            // Compatibility: retain y/n aliases for terminals or automation that cannot send
             // navigation keys; the visible interaction remains selector-first.
             if (key === "y" || key === "Y") {
               finish(true);

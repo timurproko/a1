@@ -97,6 +97,7 @@ import {
 } from "./session-shell-root.js";
 export { OwnedUiSessionShellRoot, type OwnedUiSessionShellOptions } from "./session-shell-root.js";
 
+/** Coordinates backend, owned presentation, and Pi TUI lifecycles for one interactive session. */
 export class OwnedUiSessionShell {
   readonly backend: OwnedUiBackendPort;
   readonly root: OwnedUiSessionShellRoot;
@@ -182,7 +183,7 @@ export class OwnedUiSessionShell {
             if (canonical !== null) return { kind: "image" as const, ...canonical };
           }
         } catch {
-          // Treat an unavailable or malformed image as text-capable clipboard input.
+          // Compatibility: treat an unavailable or malformed image as text-capable clipboard input.
         }
         const text = await options.clipboard.readText();
         return text === null ? null : { kind: "text" as const, text };
@@ -196,7 +197,7 @@ export class OwnedUiSessionShell {
     }, options.sessionLayout, {
       resolve: assetId => this.backend.resolveTranscriptImage(assetId),
     });
-    // Bare A1 owns a bounded viewport and therefore always runs on the alternate
+    // Invariant: bare A1 owns a bounded viewport and therefore always runs on the alternate
     // fullscreen surface. The pinned comparison profiles still honor Pi's mode.
     const tuiMode = this.#customViewport
       ? "fullscreen"
@@ -235,7 +236,7 @@ export class OwnedUiSessionShell {
     });
     this.#removeViewportPreInput = this.#customViewport
       ? this.runtime.addPreInputListener(data => {
-          // An overlay or editor-replacement screen owns its entire pointer
+          // Invariant: an overlay or editor-replacement screen owns its entire pointer
           // surface. Letting the transcript pre-router inspect those reports
           // steals settings value menus and numeric +/- controls before the
           // settings app can receive them.
@@ -334,7 +335,7 @@ export class OwnedUiSessionShell {
     });
     this.root.editor.setAutocompleteCommands(this.backend.workflowAutocompleteCommands());
     this.#unsubscribe = this.backend.onEvent(event => {
-      // A streamed chunk names one block, and touching only that block is what keeps the
+      // Performance: a streamed chunk names one block, and touching only that block is what keeps the
       // cost of a chunk the same in a long session as in a new one. Everything else
       // resynchronizes the view, which is cheap next to re-reading the transcript.
       if (event.type === "agent-run-started") this.root.resumeViewportFollowing();
@@ -442,7 +443,7 @@ export class OwnedUiSessionShell {
       return { outcome: "completed", diagnostic: null };
     }
 
-    // Match Pi: with an empty editor, two escapes inside 500 ms open the
+    // Compatibility: match Pi: with an empty editor, two escapes inside 500 ms open the
     // configured session navigator. The first escape intentionally does not
     // interrupt or mutate the prompt.
     const action = this.backend.pinnedSettingsSnapshot().doubleEscapeAction;
@@ -784,7 +785,7 @@ export class OwnedUiSessionShell {
           return;
         }
         if (callback === "onTuiModeChange") {
-          // The custom bare-A1 surface is permanently fullscreen; this callback
+          // Invariant: the custom bare-A1 surface is permanently fullscreen; this callback
           // remains available only to pinned comparison profiles.
           if (this.#customViewport) return;
           if (value !== "regular" && value !== "fullscreen") return;
@@ -1005,12 +1006,7 @@ export class OwnedUiSessionShell {
     }
   }
 
-  /**
-   * Turns terminal pointer reporting on for a screen that reads the pointer, and off for
-   * every path that ends it. While it is on the terminal hands A1 the wheel and the
-   * button instead of scrolling and selecting itself, so leaving it on outlives the
-   * screen that wanted it and takes the terminal's own scrolling and selection with it.
-   */
+  // Invariant: pointer reporting is disabled on every path that ends the owning screen.
   #setPointerReporting(enabled: boolean, forceOff = false): void {
     const effective = forceOff ? false : this.#customViewport || enabled;
     if (this.#pointerReporting === effective) return;
@@ -1050,10 +1046,7 @@ export class OwnedUiSessionShell {
     if (fullscreenExitText.length > 0) this.runtime.writeAfterStop(`${fullscreenExitText}\n`);
   }
 
-  /**
-   * Applies one transcript block without re-reading the session. The listeners still hear
-   * the view they would have heard, so nothing downstream can tell the difference.
-   */
+  // Invariant: incremental block updates notify listeners with the same complete view contract.
   #syncBlock(block: OwnedUiSessionViewModel["transcript"][number]): OwnedUiSessionViewModel {
     this.root.applyTranscriptBlock(block);
     this.runtime.requestRender();
@@ -1073,7 +1066,7 @@ export class OwnedUiSessionShell {
       this.#sessionGeneration = this.backend.sessionGeneration;
       this.#activeLoginDialog = undefined;
       this.#extensionBridge.reset();
-      // A replaced session takes its transient viewport and owned-route state with it.
+      // Invariant: a replaced session takes its transient viewport and owned-route state with it.
       this.root.resetViewport();
       this.#dialogHandle?.hide();
       this.#dialogHandle = undefined;
@@ -1098,10 +1091,10 @@ export class OwnedUiSessionShell {
 
     this.#dialogHandle?.hide();
     this.#dialogSource = "route";
-    // Any-event reporting: hover and drag are what the screen is driven by, and
+    // Protocol: any-event reporting: hover and drag are what the screen is driven by, and
     // it also stops the terminal treating a drag as a text selection.
     this.#setPointerReporting(true);
-    // The interrupt chord is global, so it is watched on raw input rather than
+    // Protocol: the interrupt chord is global, so it is watched on raw input rather than
     // through the overlay: the pinned shell handles that key before an overlay
     // ever sees it, which is why an owned screen must not rely on being asked.
     let armedAt = 0;
@@ -1116,7 +1109,7 @@ export class OwnedUiSessionShell {
       }
       armedAt = now;
       this.runtime.requestRender();
-      // The presented screen owns the chord, so the pinned shell never sees a
+      // Invariant: the presented screen owns the chord, so the pinned shell never sees a
       // stray interrupt while it is up.
       return { consume: true };
     });
@@ -1130,7 +1123,7 @@ export class OwnedUiSessionShell {
       this.#dialogId = undefined;
       this.#dialogSource = undefined;
     };
-    // Fullscreen Pi owns a fallback text-selection layer before focused overlay
+    // Compatibility: fullscreen Pi owns a fallback text-selection layer before focused overlay
     // components see pointer input. Route every mouse report to the owned screen
     // at the pre-input boundary so dropdowns, value hover, and numeric +/- work,
     // and consume even unhandled reports so settings content is never selected.
@@ -1170,7 +1163,7 @@ export class OwnedUiSessionShell {
   #syncDialog(dialog: OwnedUiDialog | null): void {
     if (!this.runtime.active) return;
     if (dialog === null) {
-      // Locally owned routes (notably /settings) are independent of backend
+      // Invariant: locally owned routes (notably /settings) are independent of backend
       // lifecycle/status events and remain open while an agent is working.
       if (this.#dialogSource !== "backend") return;
       this.#dialogHandle?.hide();
@@ -1207,7 +1200,7 @@ export class OwnedUiSessionShell {
     const argument = separator < 0 ? "" : body.slice(separator + 1).trimStart();
     if (this.#routeHost?.claims(name)) return this.#openOwnedRoute(name);
     if (isWorkflowRoute(name)) return this.runWorkflow({ command: name, argument });
-    // Unknown slash input, prompt templates, skills, and extension commands remain Pi prompt input.
+    // Compatibility: unknown slash input, prompt templates, skills, and extension commands remain Pi prompt input.
     this.root.editor.addToHistory(text);
     this.root.resumeViewportFollowing();
     return this.#execute({

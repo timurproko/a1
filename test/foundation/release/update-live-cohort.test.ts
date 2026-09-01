@@ -92,7 +92,7 @@ describe("update ownership with a live cohort", () => {
 
     expect(result.priorActiveVersion).toBe("1.2.0");
     expect(terminate).not.toHaveBeenCalled();
-    // Its endpoint is still published, so its sessions can still reach it.
+    // Invariant: its endpoint is still published, so its sessions can still reach it.
     expect(JSON.parse(await readFile(cohort.endpointMetadataPath, "utf8"))).toMatchObject({ releaseId: expect.any(String) });
   });
 
@@ -106,7 +106,7 @@ describe("update ownership with a live cohort", () => {
 
     await coordinator.shutdownVerifiedOwners("1.3.0");
 
-    // Leaving sessions running is the expected outcome; announcing it would tear the
+    // Rationale: leaving sessions running is the expected outcome; announcing it would tear the
     // update progress bar, so nothing is written.
     expect(stdout.join("")).toBe("");
   });
@@ -114,10 +114,10 @@ describe("update ownership with a live cohort", () => {
   it("plans by where the owner runs from", () => {
     expect(planUpdateOwnership("dead", true)).toBe("clean-dead-record");
     expect(planUpdateOwnership("dead", false)).toBe("clean-dead-record");
-    // A session on an installed release keeps working; the installation replaces files it
+    // Invariant: a session on an installed release keeps working; the installation replaces files it
     // does not read.
     expect(planUpdateOwnership("live-verified", true)).toBe("leave-running");
-    // A session running from the package being replaced cannot be preserved.
+    // Invariant: a session running from the package being replaced cannot be preserved.
     expect(planUpdateOwnership("live-verified", false)).toBe("end-session");
   });
 });

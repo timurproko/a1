@@ -38,6 +38,7 @@ export type StructuredSnapshotApplyResult =
   | { readonly kind: "snapshot-stale"; readonly view: StructuredRuntimeView; readonly currentPosition: number; readonly snapshotPosition: number }
   | { readonly kind: "rejected"; readonly code: string; readonly diagnostic: string };
 
+/** Applies ordered structured events and snapshots while exposing gaps as explicit resynchronization. */
 export class StructuredEventReducer {
   readonly #capability: StructuredCapabilityContract;
   #lastAppliedPosition: number | null = null;

@@ -4,6 +4,7 @@ import {
   type NativeHostProofMessage,
 } from "./messages.js";
 
+/** Identifies a bounded native-host framing or message-contract failure. */
 export class NativeHostProtocolError extends Error {
   constructor(readonly code: "frame-too-large" | "malformed-frame" | "invalid-message", message: string) {
     super(message);
@@ -11,6 +12,7 @@ export class NativeHostProtocolError extends Error {
   }
 }
 
+/** Encodes and incrementally decodes size-bounded newline-delimited native-host proof messages. */
 export class NativeHostFrameCodec {
   #buffer = "";
 

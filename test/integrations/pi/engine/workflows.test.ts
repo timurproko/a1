@@ -234,7 +234,7 @@ describe("pinned Pi command and input workflows", () => {
       const result = await adapter.executeWorkflow(request);
       expect(result.outcome, `${command}: ${result.message}`).toBe("completed");
     }
-    // /quit disposes the first adapter, so hidden routes use a fresh running runtime.
+    // Invariant: /quit disposes the first adapter, so hidden routes use a fresh running runtime.
     const hidden = await fixture();
     for (const command of PINNED_PI_HIDDEN_COMMAND_NAMES) {
       await expect(hidden.adapter.executeWorkflow({ command, argument: "" })).resolves.toMatchObject({ command, outcome: "completed" });

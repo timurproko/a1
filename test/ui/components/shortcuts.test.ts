@@ -63,7 +63,7 @@ describe("conflicting declarations", () => {
     ]);
     expect(result.conflicts[0]?.kind).toBe("shadowed");
     expect(result.conflicts[0]?.scopes).toEqual([GLOBAL_SCOPE, SCREEN]);
-    // Shadowing is declared intent, so it is reported without failing.
+    // Rationale: shadowing is declared intent, so it is reported without failing.
     expect(() => assertNoShortcutConflicts(result)).not.toThrow();
   });
 
@@ -80,7 +80,7 @@ describe("the listing", () => {
   it("is derived from the declarations dispatch reads", () => {
     const target = registry();
     const listed = target.list(SCREEN);
-    // Grouped by section, then by key: Change, Navigate, Screen.
+    // Invariant: grouped by section, then by key: Change, Navigate, Screen.
     expect(listed.map(entry => entry.key)).toEqual(["/", "up", "escape"]);
     for (const entry of listed) {
       expect(target.resolve(entry.key, SCREEN), `${entry.key} is listed but dispatches nothing`).not.toBeNull();

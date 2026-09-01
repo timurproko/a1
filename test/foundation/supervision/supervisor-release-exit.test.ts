@@ -96,7 +96,7 @@ describe("superseded cohort retirement", () => {
       vi.fn(),
       undefined,
       undefined,
-      // Another release is what new sessions start on now.
+      // Invariant: another release is what new sessions start on now.
       async () => "9.9.9-cccccccccccccccccccc",
       10,
     );

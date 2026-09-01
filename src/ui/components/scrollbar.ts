@@ -56,7 +56,7 @@ export interface ScrollbarPresentation {
 /** Pure appearance decision; activity time is supplied so tests own the clock. */
 export function scrollbarPresentation(input: ScrollbarPresentationInput): ScrollbarPresentation {
   const overflowing = input.geometry !== null;
-  // As in v2, auto/always reserve the final rail cell even while content fits.
+  // Invariant: auto/always reserve the final rail cell even while content fits.
   // The blank gutter prevents prompt timestamps from touching the terminal edge
   // and keeps later scrollbar appearance from reflowing the transcript.
   const reservesSpace = input.appearance !== "hidden";

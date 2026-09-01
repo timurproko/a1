@@ -99,6 +99,7 @@ export function encodeFrame(message: ClientMessage | ServerMessage | Readonly<Re
   return `${JSON.stringify(message)}\n`;
 }
 
+/** Incrementally decodes size-bounded newline-delimited control frames from arbitrary chunks. */
 export class LineFrameDecoder {
   #buffer = "";
 

@@ -10,6 +10,7 @@ interface ClientEvents {
   disconnect: [];
 }
 
+/** Maintains one negotiated supervisor connection and rejects all pending commands on disconnect. */
 export class SupervisorClient extends EventEmitter<ClientEvents> {
   readonly clientId = randomUUID();
   readonly releaseId?: string;

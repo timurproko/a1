@@ -40,11 +40,11 @@ export async function runBootstrap(options: BootstrapOptions): Promise<number> {
 
   const stateStore = new CohortStateStore(paths.dataDir);
   let state = await stateStore.read();
-  // Records left by cohorts whose processes are gone say nothing about ownership, and there
+  // Invariant: records left by cohorts whose processes are gone say nothing about ownership, and there
   // can now be several of them. Clearing them first keeps the decision below about what is
   // actually running.
   await sweepDeadEndpoints(paths).catch(() => []);
-  // Each cohort keeps its own endpoint, so a launch looks for the endpoint of the release it
+  // Protocol: each cohort keeps its own endpoint, so a launch looks for the endpoint of the release it
   // is about to run rather than for the one endpoint the runtime directory used to have.
   const activeReleaseId = state.references.active;
   let endpointPaths = activeReleaseId === null
@@ -52,7 +52,7 @@ export async function runBootstrap(options: BootstrapOptions): Promise<number> {
     : resolveCohortEndpoint(paths, activeReleaseId, environment);
   let endpoint = await readEndpointMetadata(endpointPaths.endpointMetadataPath);
   if (endpoint === null) {
-    // A release that predates cohort-scoped endpoints published one endpoint for the whole
+    // Compatibility: a release that predates cohort-scoped endpoints published one endpoint for the whole
     // runtime directory. Recognizing it is what lets a session started by that release keep
     // working through the first launch that knows about cohorts.
     const legacy = await readEndpointMetadata(paths.endpointMetadataPath);
@@ -94,7 +94,7 @@ export async function runBootstrap(options: BootstrapOptions): Promise<number> {
     state = await stateStore.read();
   } else if (!activeIsLaunchable && candidate.releaseId !== activeId
     && state.releases[candidate.releaseId]?.approval !== "approved") {
-    // The active reference points at a copy that cannot launch, so reusing it
+    // Invariant: the active reference points at a copy that cannot launch, so reusing it
     // is off the table — but an unapproved candidate would lose the selection
     // below to that same broken active (`start-active`). Approving the healed
     // candidate here lets ordinary cohort selection activate it, while a live
@@ -104,7 +104,7 @@ export async function runBootstrap(options: BootstrapOptions): Promise<number> {
     state = await stateStore.read();
   }
 
-  // The candidate's own endpoint decides whether this launch attaches or starts a supervisor.
+  // Protocol: the candidate's own endpoint decides whether this launch attaches or starts a supervisor.
   // A cohort other than this one is not in the way: it listens somewhere else.
   endpointPaths = resolveCohortEndpoint(paths, candidate.releaseId, environment);
   endpoint = await readEndpointMetadata(endpointPaths.endpointMetadataPath);
@@ -360,7 +360,7 @@ export async function releaseVerifiedIdleOwner(
     await (operations.waitForExit ?? waitForProcessExit)(metadata.pid, 3_000);
     return true;
   } catch {
-    // The authenticated idle-release handshake authorizes bounded cleanup of
+    // Security: the authenticated idle-release handshake authorizes bounded cleanup of
     // this exact boot when a native handle outlives graceful shutdown.
     const diagnostics = await (operations.cleanup ?? cleanupProvenIdleOwner)(metadata);
     await writeFile(resolve(dataDir, `cleanup-${Date.now()}.json`), JSON.stringify(diagnostics, null, 2));

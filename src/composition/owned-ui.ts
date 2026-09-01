@@ -59,7 +59,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
       store: new OwnedUiSettingsStore({ configDir: resolveProductPaths().configDir, profileId: options.profileId }),
       agentProvider: () => adapter.settingsPort(),
     });
-  // Bare A1 intentionally ships one visual target while its UI is being completed:
+  // Compatibility: bare A1 intentionally ships one visual target while its UI is being completed:
   // dark, regardless of terminal detection or a previously stored Pi theme. The
   // comparison profile keeps Pi's configured theme behavior and settings surface.
   applyConfiguredPiTheme(ownedSurfaces ? "dark" : adapter.configuredTheme());

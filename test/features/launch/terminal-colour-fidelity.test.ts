@@ -27,7 +27,7 @@ describe("terminal colour fidelity", () => {
     expect(theme.fg("accent", "x")).toMatch(new RegExp(`^${ESCAPE}\\[38;5;\\d+mx${ESCAPE}\\[39m$`, "u"));
   });
 
-  // The colour a user sees also depends on the console handle Node is given: when
+  // Platform: the colour a user sees also depends on the console handle Node is given: when
   // it cannot enable virtual terminal processing it renders ANSI itself and knows
   // only sixteen colours. Every process in a launch inherits that decision, so the
   // chain must inherit the terminal it was started from rather than open its own.
@@ -56,7 +56,7 @@ describe("terminal colour fidelity", () => {
     expect(workflow).toContain("Never hand off a direct `node scripts/development/dev-launch.mjs`");
   });
 
-  // npm runs scripts through cmd.exe on Windows, where the MSYS shell is not on
+  // Platform: npm runs scripts through cmd.exe on Windows, where the MSYS shell is not on
   // PATH, so the launcher locates it from what Git Bash exports rather than
   // assuming `sh` resolves, and launches Node directly everywhere else.
   it("locates the MSYS shell for npm-run development launches", async () => {

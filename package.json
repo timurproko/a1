@@ -27,6 +27,7 @@
     "build:process-guardian": "node scripts/development/build-process-guardian.mjs",
     "typecheck": "tsgo -p tsconfig.json --noEmit",
     "check:architecture": "node scripts/governance/check-architecture.mjs && node scripts/governance/product-identifier-policy.mjs --check && node scripts/governance/check-product-identity-boundaries.mjs && node scripts/governance/check-package-identity.mjs && node scripts/governance/check-pinned-pi-source-ledger.mjs && node scripts/governance/check-terminal-host-provenance.mjs",
+    "check:code-documentation": "node scripts/governance/check-code-documentation.mjs",
     "check:customization-ready": "node scripts/governance/check-owned-ui-customization-prerequisites.mjs",
     "check:deprecated": "node scripts/governance/check-deprecated-dependencies.mjs",
     "check:docs-governance": "node scripts/governance/check-docs-governance.mjs",

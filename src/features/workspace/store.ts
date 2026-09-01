@@ -6,6 +6,7 @@ import {
 import type { AgentRecoveryAuthority, RecoveryReferenceId } from "../../contracts/workspace/index.js";
 import { WorkspaceReducer, type WorkspaceAgentState, type WorkspaceView } from "./reducer.js";
 
+/** Persists complete workspace views and recovery references through the control-store boundary. */
 export class WorkspaceStore {
   readonly #store: ControlStore;
 

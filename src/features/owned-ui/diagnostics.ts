@@ -21,6 +21,7 @@ export interface OwnedUiDiagnosticsSnapshot {
   readonly terminalRestorationFailed: boolean;
 }
 
+/** Retains bounded, redacted UI diagnostics together with frame and resource observations. */
 export class OwnedUiDiagnosticsRecorder {
   readonly #entries: OwnedUiDiagnostics[] = [];
   #sequence = 0;

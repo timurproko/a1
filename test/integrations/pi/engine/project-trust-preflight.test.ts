@@ -89,7 +89,7 @@ describe("project trust preflight", () => {
     const current = await resolvePiProjectTrustPreflight(options());
     expect(current.trusted).toBe(true);
     new ProjectTrustStore(agentDir).set(cwd, false);
-    // The already returned activation authority cannot be rewritten retroactively.
+    // Security: the already returned activation authority cannot be rewritten retroactively.
     expect(current.trusted).toBe(true);
     expect(await resolvePiProjectTrustPreflight(options())).toMatchObject({ trusted: false, source: "saved" });
   });

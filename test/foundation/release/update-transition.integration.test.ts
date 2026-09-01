@@ -130,7 +130,7 @@ describe("release-gating N-1 update transitions", () => {
       "shutdown:1.1.0:owned-ui,supervisor,child-process",
       "activate:1.1.0:maintenance-mode",
     ]);
-    // Each channel is announced by the name a reader knows it by — "release" and
+    // Invariant: each channel is announced by the name a reader knows it by — "release" and
     // "develop" — and the success line names the version alone, the channel having
     // already been said.
     expect(stdout.join("")).toContain("a1 update: 1.0.0 → 1.1.0");

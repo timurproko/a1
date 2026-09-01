@@ -80,7 +80,7 @@ export function renderPackageOutcome(
   profileRoot: string,
   style: PackageCommandStyle = chalk,
 ): string {
-  // Model refresh remains an A1 top-level command. The `a1 pi` compatibility
+  // Compatibility: model refresh remains an A1 top-level command. The `a1 pi` compatibility
   // transcript applies to package operations only.
   if (outcome.operation === "refresh-models") {
     if (outcome.status === "failed") {

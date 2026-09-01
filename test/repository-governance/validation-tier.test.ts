@@ -47,6 +47,7 @@ describe("validation tier planning", () => {
       "candidate-pack",
       "typecheck",
       "architecture",
+      "code-documentation",
       "candidate-engine-conformance-report",
       "deprecated-dependencies",
     ]);
@@ -57,11 +58,18 @@ describe("validation tier planning", () => {
   it("runs ordinary fast validation without any build or package installation", async () => {
     const plan = await createTierPlan(["typecheck", "fast"]);
     expect(plan.requiresBuild).toBe(false);
-    expect(plan.commands.map(command => command.id)).toEqual(["typecheck"]);
+    expect(plan.commands.map(command => command.id)).toEqual(["typecheck", "code-documentation"]);
     expect(plan.vitest?.mode).toBe("fast-and-explicit");
     expect(plan.vitest?.invocations[0]?.arguments).toContain("--exclude");
     expect(plan.vitest?.invocations[0]?.arguments).toContain("test/foundation/release/package-surface.test.ts");
     expect(plan.vitest?.invocations[0]?.arguments).toContain("test/foundation/release/package-install.integration.test.ts");
+  });
+
+  it("inherits code documentation in full release exactly once", async () => {
+    const fast = await createTierPlan(["fast"]);
+    const full = await createTierPlan(["full-release"]);
+    expect(fast.commands.filter(command => command.id === "code-documentation")).toHaveLength(1);
+    expect(full.commands.filter(command => command.id === "code-documentation")).toHaveLength(1);
   });
 
   it("builds once for multiple build-dependent integration scopes", async () => {

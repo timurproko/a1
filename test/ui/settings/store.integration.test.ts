@@ -126,7 +126,7 @@ describe("owned UI settings store", () => {
     const target = store();
     const settingsDir = path.join(root, "settings");
     mkdirSync(settingsDir, { recursive: true });
-    // A directory at the target path cannot be replaced by rename.
+    // Platform: a directory at the target path cannot be replaced by rename.
     mkdirSync(path.join(settingsDir, "a1.json"), { recursive: true });
 
     const outcome = target.write(target.read(), "density", "compact");
