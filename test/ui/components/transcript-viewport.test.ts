@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { backgroundSgrSpan, stripAnsi, TranscriptViewport } from "../../../src/ui/components/index.js";
+import {
+  assertTranscriptViewportFrameDescriptor,
+  backgroundSgrSpan,
+  stripAnsi,
+  TranscriptViewport,
+  type TranscriptViewportFrameDescriptor,
+} from "../../../src/ui/components/index.js";
 
 const ALWAYS = { scrollbarAppearance: "always" as const, scrollbarStyle: "thin" as const };
 const rows = (count: number) => Array.from({ length: count }, (_, index) => `row ${index}`);
@@ -15,6 +21,87 @@ describe("transcript viewport", () => {
     expect(stripAnsi(frame.rows[1] ?? "")).toContain("│");
     expect(frame.hits.rail).toMatchObject({ rowStart: 2, trackHeight: 3 });
     expect(frame.rows.slice(-2).map(row => row.trimEnd())).toEqual(["editor", "footer"]);
+  });
+
+  it("describes initial, followed-shift, detached, geometry, selection, and reset damage without inspecting rows", () => {
+    const viewport = new TranscriptViewport();
+    viewport.setConfig(ALWAYS);
+    const initial = viewport.compose({ documentRows: rows(10), dockRows: ["editor", "footer"], promptAnchors: [], width: 30, height: 7, now: 100 });
+    expect(initial.descriptor).toEqual({
+      frameId: 1,
+      width: 30,
+      height: 7,
+      transcript: { rowStart: 1, rowEnd: 5 },
+      dock: { rowStart: 6, rowEnd: 7 },
+      previousDocumentRange: null,
+      nextDocumentRange: { start: 5, end: 10 },
+      previousFollowingEnd: null,
+      followingEnd: true,
+      verticalShiftRows: 0,
+      safeVerticalShift: false,
+      cause: "initial",
+    });
+
+    const shiftedOne = viewport.compose({ documentRows: rows(11), dockRows: ["editor", "footer"], promptAnchors: [], width: 30, height: 7, now: 101 });
+    expect(shiftedOne.descriptor).toMatchObject({
+      frameId: 2,
+      previousDocumentRange: { start: 5, end: 10 },
+      nextDocumentRange: { start: 6, end: 11 },
+      verticalShiftRows: 1,
+      safeVerticalShift: true,
+      cause: "follow-shift",
+    });
+    const shiftedMany = viewport.compose({ documentRows: rows(13), dockRows: ["editor", "footer"], promptAnchors: [], width: 30, height: 7, now: 102 });
+    expect(shiftedMany.descriptor).toMatchObject({ verticalShiftRows: 2, safeVerticalShift: true, cause: "follow-shift" });
+    const reflow = viewport.compose({
+      documentRows: rows(13).map(row => `changed ${row}`),
+      dockRows: ["editor", "footer"],
+      promptAnchors: [],
+      width: 30,
+      height: 7,
+      now: 102.5,
+    });
+    expect(reflow.descriptor).toMatchObject({ verticalShiftRows: 0, safeVerticalShift: false, cause: "steady" });
+
+    viewport.scrollBy(-2, 103);
+    const detached = viewport.compose({ documentRows: rows(14), dockRows: ["editor", "footer"], promptAnchors: [], width: 30, height: 7, now: 104 });
+    expect(detached.descriptor).toMatchObject({ followingEnd: false, safeVerticalShift: false, cause: "detached" });
+
+    const resized = viewport.compose({ documentRows: rows(14), dockRows: ["editor", "footer"], promptAnchors: [], width: 31, height: 8, now: 105 });
+    expect(resized.descriptor).toMatchObject({ safeVerticalShift: false, cause: "geometry-change" });
+
+    viewport.scrollToEnd(106);
+    viewport.compose({ documentRows: rows(14), dockRows: ["editor", "footer"], promptAnchors: [], width: 31, height: 8, now: 107 });
+    viewport.pressSelection(2, 2, 108);
+    const selectedShift = viewport.compose({ documentRows: rows(15), dockRows: ["editor", "footer"], promptAnchors: [], width: 31, height: 8, now: 109 });
+    expect(selectedShift.descriptor).toMatchObject({ verticalShiftRows: 1, safeVerticalShift: false, cause: "steady" });
+
+    viewport.reset();
+    const reset = viewport.compose({ documentRows: rows(2), dockRows: rows(5), promptAnchors: [], width: 20, height: 3, now: 110 });
+    expect(reset.descriptor).toMatchObject({ transcript: null, dock: { rowStart: 1, rowEnd: 3 }, previousDocumentRange: null, cause: "initial" });
+  });
+
+  it("rejects malformed frame descriptors", () => {
+    const valid: TranscriptViewportFrameDescriptor = {
+      frameId: 1,
+      width: 20,
+      height: 6,
+      transcript: { rowStart: 1, rowEnd: 4 },
+      dock: { rowStart: 5, rowEnd: 6 },
+      previousDocumentRange: { start: 2, end: 6 },
+      nextDocumentRange: { start: 3, end: 7 },
+      previousFollowingEnd: true,
+      followingEnd: true,
+      verticalShiftRows: 1,
+      safeVerticalShift: true,
+      cause: "follow-shift",
+    };
+    expect(() => assertTranscriptViewportFrameDescriptor(valid)).not.toThrow();
+    expect(() => assertTranscriptViewportFrameDescriptor({ ...valid, frameId: 0 })).toThrow(/identity/);
+    expect(() => assertTranscriptViewportFrameDescriptor({ ...valid, transcript: { rowStart: 1, rowEnd: 5 } })).toThrow(/overlap/);
+    expect(() => assertTranscriptViewportFrameDescriptor({ ...valid, verticalShiftRows: 2 })).toThrow(/disagrees/);
+    expect(() => assertTranscriptViewportFrameDescriptor({ ...valid, safeVerticalShift: true, followingEnd: false })).toThrow(/unsafe/);
+    expect(() => assertTranscriptViewportFrameDescriptor({ ...valid, nextDocumentRange: { start: -1, end: 7 } })).toThrow(/next document range/);
   });
 
   it("keeps a detached row fixed while output grows and resumes at the end", () => {

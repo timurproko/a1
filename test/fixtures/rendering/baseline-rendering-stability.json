@@ -1,0 +1,88 @@
+{
+  "schema": "a1-rendering-stability-evidence-v1",
+  "phase": "baseline",
+  "provenance": {
+    "sourceCommit": "6173d919e33144af604acc0f6b5623308d5cae40",
+    "sourceDescription": "unchanged rendering at accepted specification PR #188",
+    "immutable": true
+  },
+  "producers": [
+    "bare-a1",
+    "a1-pi",
+    "pinned-pi"
+  ],
+  "comparisons": {
+    "default": [
+      {
+        "producer": "bare-a1",
+        "requestedMode": "regular",
+        "effectiveMode": "fullscreen"
+      },
+      {
+        "producer": "a1-pi",
+        "requestedMode": "regular",
+        "effectiveMode": "regular"
+      },
+      {
+        "producer": "pinned-pi",
+        "requestedMode": "regular",
+        "effectiveMode": "regular"
+      }
+    ],
+    "modeMatchedFullscreen": [
+      {
+        "producer": "bare-a1",
+        "requestedMode": "fullscreen",
+        "effectiveMode": "fullscreen"
+      },
+      {
+        "producer": "a1-pi",
+        "requestedMode": "fullscreen",
+        "effectiveMode": "fullscreen"
+      },
+      {
+        "producer": "pinned-pi",
+        "requestedMode": "fullscreen",
+        "effectiveMode": "fullscreen"
+      }
+    ],
+    "comparisonSemanticParity": {
+      "regular": true,
+      "fullscreen": true
+    }
+  },
+  "longTranscriptFinding": {
+    "bareA1MaximumRowClearsPerStreamCheckpoint": 6,
+    "bareA1UnexpectedFullScreenClears": 0,
+    "transientOwnershipSource": "custom-viewport-fit-transition",
+    "broadStreamCheckpoints": [
+      {
+        "name": "long-tail-chunk-1",
+        "rowClears": 6,
+        "addressedRowWrites": [1, 2, 3, 4, 5, 6],
+        "fullScreenClears": 0,
+        "bytes": 1078
+      },
+      {
+        "name": "long-tail-chunk-2",
+        "rowClears": 6,
+        "addressedRowWrites": [1, 2, 3, 4, 5, 6],
+        "fullScreenClears": 0,
+        "bytes": 1183
+      },
+      {
+        "name": "long-tail-chunk-3",
+        "rowClears": 6,
+        "addressedRowWrites": [1, 2, 3, 4, 5, 6],
+        "fullScreenClears": 0,
+        "bytes": 879
+      }
+    ]
+  },
+  "transientOwnershipFinding": {
+    "historical": true,
+    "source": "src/integrations/pi/session-ui/session-shell-root.ts",
+    "behavior": "queued and working rows moved from dockRows to document.rows when fit changed to overflow",
+    "consequence": "detached transcript scrolling could scroll transient chrome away and changed ownership at the boundary"
+  }
+}

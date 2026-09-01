@@ -74,8 +74,10 @@ import {
   type PiShellViewComponentPort,
 } from "../components/index.js";
 import {
+  DamageAwareTerminalAdapter,
   PiTuiRuntimeAdapter,
   type PiTuiComponentPort,
+  type PiTuiDamageDecision,
   type PiTuiLayoutNode,
   type PiTuiOverlayHandle,
   type PiTuiTerminalPort,
@@ -83,6 +85,10 @@ import {
 
 
 import { canonicalizeClipboardImage } from "./clipboard-image.js";
+import {
+  STREAM_PRESENTATION_INTERVAL_MS,
+  StreamPresentationCoalescer,
+} from "./stream-presentation-coalescer.js";
 import {
   preloadSystemClipboard,
   readSystemClipboardContent,
@@ -117,6 +123,8 @@ export class OwnedUiSessionShell {
   #disposed = false;
   #pointerReporting = false;
   readonly #customViewport: boolean;
+  readonly #damageTerminal: DamageAwareTerminalAdapter | null;
+  readonly #streamPresentation: StreamPresentationCoalescer;
   readonly #removeViewportPreInput: () => void;
   readonly #unsubscribeSettings: () => void;
   readonly #unbindPiSettings: () => void;
@@ -147,11 +155,18 @@ export class OwnedUiSessionShell {
       this.#resolveStopped = resolve;
     });
     let runtime: PiTuiRuntimeAdapter | undefined;
+    let damageTerminal: DamageAwareTerminalAdapter | undefined;
+    let streamPresentation: StreamPresentationCoalescer | undefined;
     let pendingClipboardWrite: Promise<void> = Promise.resolve();
     this.root = new OwnedUiSessionShellRoot(this.backend.view(), options.cwd, {
       getColumns: () => runtime?.viewport().columns ?? options.terminal?.columns ?? 80,
       getRows: () => runtime?.viewport().rows ?? options.terminal?.rows ?? 24,
       requestRender: force => runtime?.requestRender(force),
+      onViewportFrame: frame => damageTerminal?.arm(frame.descriptor, {
+        overlayActive: runtime?.hasOverlay() ?? false,
+        selectionActive: this.root.hasActiveSelection(),
+        replacementSurfaceActive: !this.root.usesDefaultInputSurface(),
+      }),
       onSubmit: text => { void this.submit(text); },
       onInterrupt: () => { void this.interrupt(); },
       onClear: () => { void this.clearOrExit(); },
@@ -205,12 +220,30 @@ export class OwnedUiSessionShell {
     const runtimeOptions = {
       root: this.root,
       mode: tuiMode,
-      ...(this.#customViewport ? {} : { layoutRoot: this.root.layoutRoot() }),
+      ...(this.#customViewport ? {
+        decorateTerminal: (terminal: PiTuiTerminalPort) => {
+          damageTerminal = new DamageAwareTerminalAdapter(terminal, {
+            regionalScroll: process.env.TERM !== "dumb",
+            onResize: () => streamPresentation?.noteImmediatePresentation(),
+          });
+          return damageTerminal;
+        },
+      } : { layoutRoot: this.root.layoutRoot() }),
       ...(options.terminal === undefined ? {} : { terminal: options.terminal }),
       hardwareCursor: this.backend.view().terminal.hardwareCursor,
     };
     runtime = new PiTuiRuntimeAdapter(runtimeOptions);
     this.runtime = runtime;
+    this.#damageTerminal = damageTerminal ?? null;
+    const presentationInterval = options.streamPresentation?.intervalMs ?? STREAM_PRESENTATION_INTERVAL_MS;
+    streamPresentation = options.streamPresentation?.scheduler === undefined
+      ? new StreamPresentationCoalescer(() => this.runtime.requestRender(), presentationInterval)
+      : new StreamPresentationCoalescer(
+          () => this.runtime.requestRender(),
+          presentationInterval,
+          options.streamPresentation.scheduler,
+        );
+    this.#streamPresentation = streamPresentation;
     const initialPiSettings = this.backend.pinnedSettingsSnapshot();
     this.runtime.setHardwareCursor(initialPiSettings.showHardwareCursor);
     this.runtime.setClearOnShrink(initialPiSettings.clearOnShrink);
@@ -236,6 +269,7 @@ export class OwnedUiSessionShell {
     });
     this.#removeViewportPreInput = this.#customViewport
       ? this.runtime.addPreInputListener(data => {
+          this.#streamPresentation.noteImmediatePresentation();
           // Invariant: an overlay or editor-replacement screen owns its entire pointer
           // surface. Letting the transcript pre-router inspect those reports
           // steals settings value menus and numeric +/- controls before the
@@ -353,6 +387,10 @@ export class OwnedUiSessionShell {
 
   view(): OwnedUiSessionViewModel {
     return this.backend.view();
+  }
+
+  damagePresentationDecision(): PiTuiDamageDecision | null {
+    return this.#damageTerminal?.lastDecision ?? null;
   }
 
   start(): void {
@@ -1021,6 +1059,7 @@ export class OwnedUiSessionShell {
     this.root.clearViewportPointerState();
     this.#setPointerReporting(false, true);
     this.#removeViewportPreInput();
+    this.#streamPresentation.dispose();
     this.#unsubscribeSettings();
     const exitMode = this.backend.disposed
       ? this.#fullscreenExitOutput
@@ -1049,7 +1088,13 @@ export class OwnedUiSessionShell {
   // Invariant: incremental block updates notify listeners with the same complete view contract.
   #syncBlock(block: OwnedUiSessionViewModel["transcript"][number]): OwnedUiSessionViewModel {
     this.root.applyTranscriptBlock(block);
-    this.runtime.requestRender();
+    if (this.#customViewport && block.status === "live" && isCoalescedStreamBlock(block.kind)) {
+      this.#streamPresentation.request();
+    } else if (this.#streamPresentation.pending) {
+      this.#streamPresentation.flush();
+    } else {
+      this.#streamPresentation.presentImmediate();
+    }
     const view = this.view();
     for (const listener of this.#listeners) listener(view);
     return view;
@@ -1061,6 +1106,7 @@ export class OwnedUiSessionShell {
   }
 
   #syncView(): OwnedUiSessionViewModel {
+    this.#streamPresentation.noteImmediatePresentation();
     const view = this.view();
     if (this.backend.sessionGeneration !== this.#sessionGeneration) {
       this.#sessionGeneration = this.backend.sessionGeneration;
@@ -1335,6 +1381,10 @@ export class OwnedUiSessionShell {
     this.#sequence += 1;
     return `pi-shell-${prefix}-${this.#sequence}`;
   }
+}
+
+function isCoalescedStreamBlock(kind: OwnedUiSessionViewModel["transcript"][number]["kind"]): boolean {
+  return kind === "assistant" || kind === "thinking" || kind === "tool-call" || kind === "tool-result";
 }
 
 export interface SessionResumeCommandMetadata {

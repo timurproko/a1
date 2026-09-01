@@ -74,6 +74,14 @@ export class SessionViewportController {
     return this.#viewport.selectionActive;
   }
 
+  get hasSelection(): boolean {
+    return this.#viewport.hasSelection;
+  }
+
+  get frame(): TranscriptViewportFrame | null {
+    return this.#viewport.frame;
+  }
+
   setEditorPointerFrame(frame: { readonly rowStart: number; readonly rowEnd: number } | undefined): void {
     this.#editorPointerFrame = frame;
   }

@@ -141,7 +141,8 @@ export class PiTuiRuntimeAdapter {
   constructor(options: PiTuiRuntimeAdapterOptions) {
     this.#root = options.root;
     this.#terminal = options.terminal ?? new ProcessTerminal();
-    this.#tuiTerminal = preInputTerminal(this.#terminal, data => this.#routePreInput(data));
+    const decoratedTerminal = options.decorateTerminal?.(this.#terminal) ?? this.#terminal;
+    this.#tuiTerminal = preInputTerminal(decoratedTerminal, data => this.#routePreInput(data));
     this.#layoutRoot = options.layoutRoot;
     this.#logDirectory = options.logDirectory;
     this.#rootBridge = new ComponentBridge(options.root);
