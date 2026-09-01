@@ -30,13 +30,13 @@ The formatter removes one terminal Unicode ellipsis or a terminal run of ASCII p
 
 This is preferred over changing each event literal because producer-by-producer edits preserve the ownership bug. It is also preferred over modifying Pi's `Loader` or source-synchronized `StatusIndicator`, which would alter comparison behavior and provenance.
 
-### 2. Apply the rule once where bare A1 chooses a spinner-backed status
+### 2. Inject the rule once where bare A1 chooses a spinner-backed status
 
-The bare-A1 shell status adapter will normalize the final effective message after resolving the default, engine state, and extension override, immediately before constructing the existing spinner component. This single boundary covers ordinary work, retry, compaction, and extension working messages without branching on status kind.
+The architecture permits the Pi session-UI integration to depend on both neutral UI components and the Pi component adapter, but forbids the lower-level Pi component adapter from importing neutral UI components. The session shell root will therefore inject the neutral formatter into the shell-status factory. The adapter will resolve the default, engine state, or extension override and invoke that injected formatter exactly once, immediately before constructing the existing spinner component. This single boundary covers ordinary work, retry, compaction, and extension working messages without branching on status kind or reversing the dependency direction.
 
-The adapter will continue to use the existing public TUI loader component, timing, colors, geometry, invalidation, disposal, and terminal behavior. Non-busy text branches will not call the progress formatter because they do not render a spinner.
+The adapter will continue to use the existing public TUI loader component, timing, colors, geometry, invalidation, disposal, and terminal behavior. Non-busy text branches will not call the progress formatter because they do not render a spinner. Requiring composition to supply the formatter also prevents a second hidden punctuation policy inside the Pi adapter.
 
-An alternative was to add a progress marker during model validation. That would conflate semantic state with presentation and would also alter consumers that do not render a spinner, so it is rejected.
+Alternatives rejected are a direct Pi-adapter import of `ui-components`, which violates the repository architecture, and adding a progress marker during model validation, which would conflate semantic state with presentation and alter consumers that do not render a spinner.
 
 ### 3. Make built-in engine messages semantic labels
 
@@ -63,7 +63,8 @@ Physical acceptance will reproduce the user's working and compaction screenshots
 ## Risks / Trade-offs
 
 - **[Risk] An extension intentionally ends its working text with a different number of periods or a Unicode ellipsis.** → Spinner-backed progress text is explicitly component-owned; normalize only the terminal progress marker and leave all other message content intact.
-- **[Risk] A formatter is accidentally applied to a non-progress notice.** → Call it only in the shell branch that constructs the animated status component and test non-spinner branches unchanged.
+- **[Risk] A formatter is accidentally applied to a non-progress notice.** → Inject it into the status factory but call it only in the shell branch that constructs the animated status component, and test non-spinner branches unchanged.
+- **[Risk] Dependency injection leaves a caller without the owned policy.** → Make the formatter a required factory dependency, keep the session shell root as the sole production caller, and cover the composition boundary with governance evidence.
 - **[Risk] Editing synchronized Pi code would create provenance drift.** → Keep synchronized status classes untouched; add the formatter to A1-owned components and record the owned adapter difference.
 - **[Risk] Removing punctuation from engine labels could expose bare labels in a race or ready-state branch.** → Exercise lifecycle transitions and assert the active spinner branch always formats the effective message while non-spinner states retain their existing ownership and timing.
 

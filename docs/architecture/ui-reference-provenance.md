@@ -54,6 +54,13 @@ its own `core` facade layer; A1 is a product, so the port adapts imports and kee
   input behavior, but A1 uses its prior dark floating panel, lighter white-text active row,
   and independent effective-value check mark because physical review rejected a menu that
   blended into the settings rows.
+- **Spinner-backed progress punctuation.** Bare A1 resolves built-in and extension working
+  labels through `ui-components/progress-status.ts`, injected by
+  `pi-session-ui/session-shell-root.ts` into the shared `pi-components/shell-footer-status.ts`
+  spinner factory. The factory canonicalizes the visible progress marker once, to three ASCII
+  periods, without importing across the component-adapter boundary. Engine producers remain
+  semantic and the source-synchronized Pi status indicators, installed packages, `a1 pi`, and
+  vanilla Pi remain untouched.
 - **No viewport prototype or child-tree patches.** `ui/agent-view/user-prompt.ts` and the
   private-child traversal in `ui/agent-view/render.ts` were analyzed only for behavior. The
   destination renders source timestamps through an owned transcript adapter and derives sticky

@@ -16,6 +16,7 @@ import {
   hyperlinkSgrSpan,
   nativeHyperlinkStyle,
   overlaySpan,
+  progressStatusText,
   submittedPromptLayout,
   stripAnsi,
   type TranscriptPromptAnchor,
@@ -232,7 +233,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.#onViewportFrame = handlers.onViewportFrame;
     this.header = createPiShellHeader(startup);
     this.resources = createPiShellLoadedResources(startup.resources ?? [], startup.expanded ?? false);
-    this.#status = createPiShellStatus(view, handlers);
+    this.#status = createPiShellStatus(view, progressStatusText, handlers);
     this.#footer = createPiShellFooter(this.#viewWithExtensionStatuses(view), cwd);
     this.#queued = createPiQueuedInputStatus(
       view.editor.queuedSubmissions,
