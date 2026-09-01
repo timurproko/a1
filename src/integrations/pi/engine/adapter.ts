@@ -1787,7 +1787,7 @@ export class PiEngineAdapter {
   #endWorkState(kind: "retry" | "compaction"): void {
     if (this.#statusKind !== kind) return;
     if (this.#agentRunActive) {
-      this.#enterWorkState("working", "Working...");
+      this.#enterWorkState("working", "Working");
       return;
     }
     this.#leaveWorkStates();
@@ -1810,7 +1810,7 @@ export class PiEngineAdapter {
       case "agent_start":
         this.#agentRunActive = true;
         this.#emitEvent({ type: "agent-run-started" });
-        this.#enterWorkState("working", "Working...");
+        this.#enterWorkState("working", "Working");
         return;
       case "message_start":
         this.#upsertMessageBlock(event.message, "live");
@@ -1888,13 +1888,13 @@ export class PiEngineAdapter {
         return;
       }
       case "auto_retry_start":
-        this.#enterWorkState("retry", "Retrying…");
+        this.#enterWorkState("retry", "Retrying");
         return;
       case "auto_retry_end":
         this.#endWorkState("retry");
         return;
       case "compaction_start":
-        this.#enterWorkState("compaction", "Compacting…");
+        this.#enterWorkState("compaction", "Compacting");
         return;
       case "compaction_end":
         this.#endWorkState("compaction");

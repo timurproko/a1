@@ -509,22 +509,25 @@ describe("Pi engine adapter", () => {
 
     session.emit({ type: "agent_start" });
     await adapter.flushEvents();
-    expect(adapter.view().status.workingMessage).toBe("Working...");
+    expect(adapter.view().status.workingMessage).toBe("Working");
 
     session.emit({ type: "compaction_start", reason: "threshold" });
     await adapter.flushEvents();
-    expect(adapter.view().status.workingMessage).toBe("Compacting…");
+    expect(adapter.view().status.workingMessage).toBe("Compacting");
 
     session.emit({ type: "compaction_end", reason: "threshold", aborted: false, willRetry: true });
     await adapter.flushEvents();
     expect(adapter.view().lifecycle).toBe("busy");
-    expect(adapter.view().status.workingMessage).toBe("Working...");
+    expect(adapter.view().status.workingMessage).toBe("Working");
 
     session.emit({ type: "auto_retry_start", attempt: 1 });
+    await adapter.flushEvents();
+    expect(adapter.view().status.workingMessage).toBe("Retrying");
+
     session.emit({ type: "auto_retry_end", success: true, attempt: 1 });
     await adapter.flushEvents();
     expect(adapter.view().lifecycle).toBe("busy");
-    expect(adapter.view().status.workingMessage).toBe("Working...");
+    expect(adapter.view().status.workingMessage).toBe("Working");
 
     session.emit({ type: "agent_end", messages: [], willRetry: false });
     await adapter.flushEvents();
@@ -544,7 +547,7 @@ describe("Pi engine adapter", () => {
 
     session.emit({ type: "compaction_start", reason: "manual" });
     await adapter.flushEvents();
-    expect(adapter.view().status.workingMessage).toBe("Compacting…");
+    expect(adapter.view().status.workingMessage).toBe("Compacting");
 
     session.emit({ type: "compaction_end", reason: "manual", aborted: false, willRetry: false });
     await adapter.flushEvents();
