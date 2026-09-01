@@ -1473,7 +1473,12 @@ describe("OwnedUiSessionShell", () => {
     engine.session.emit({ type: "message_end", message: assistant("one two three four final", "stop") });
     await adapter.flushEvents();
     await new Promise(resolve => setTimeout(resolve, 25));
-    expect(presentedFrames()).toBe(1);
+    const finalFrames = presentedFrames();
+    // Concurrency: final content contributes one immediate frame; a due Working animation
+    // may contribute one independent status frame after the longer selection interaction.
+    expect(finalFrames).toBeGreaterThanOrEqual(1);
+    expect(finalFrames).toBeLessThanOrEqual(2);
+    expect(terminal.writes.some(write => stripTerminalSequences(write).includes("final"))).toBe(true);
     expect(shell.root.render(80).join("\n")).toContain("final");
     await shell.dispose();
   }, 15_000);
