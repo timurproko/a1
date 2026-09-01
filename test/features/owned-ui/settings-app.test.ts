@@ -42,7 +42,7 @@ function port(failWrites = false): { port: AgentSettingsPort; writes: { key: str
       async listSettings(): Promise<readonly AgentSettingDescriptor[]> {
         return [
           descriptor("warnings", "json", values.warnings ?? null, { label: "Warnings", flags: WARNING_FLAGS, owner: "agent" }),
-          descriptor("thinkingLevel", "enum", values.thinkingLevel ?? null, { choices: ["low", "high"], label: "Thinking level", owner: "agent" }),
+          descriptor("thinkingLevel", "enum", values.thinkingLevel ?? null, { choices: ["low", "high"], label: "Thinking level", description: "Reasoning depth", owner: "agent" }),
           descriptor("editorPaddingX", "number", values.editorPaddingX ?? null, { label: "Editor padding", minimum: 0, maximum: 3 }),
           descriptor("outputPad", "enum", values.outputPad ?? null, { choices: [0, 1], label: "Output padding" }),
           descriptor("fullscreenScrollbar", "enum", values.fullscreenScrollbar ?? null, { choices: ["auto", "always", "hidden"], label: "Fullscreen scrollbar", writable: false, available: false, limitationReason: "fixture reason must stay hidden" }),
@@ -77,7 +77,10 @@ const HOST: AppHostServices = {
 
 let root: string;
 
-async function app(failWrites = false): Promise<{ app: SettingsApp; writes: { key: string; value: AgentJsonValue }[] }> {
+async function app(
+  failWrites = false,
+  scrollbarSpeed?: "normal" | "fast" | "high",
+): Promise<{ app: SettingsApp; writes: { key: string; value: AgentJsonValue }[] }> {
   const backing = port(failWrites);
   const store = new OwnedUiSettingsStore({
     configDir: root,
@@ -85,6 +88,7 @@ async function app(failWrites = false): Promise<{ app: SettingsApp; writes: { ke
     declarations: OWNED_UI_SETTING_DECLARATIONS,
     migrations: [],
   });
+  if (scrollbarSpeed !== undefined) store.write(store.read(), "scrollbarSpeed", scrollbarSpeed);
   const session = new OwnedUiSettingsSession({ store, agent: backing.port });
   await session.load();
   return { app: new SettingsApp(session), writes: backing.writes };
@@ -129,6 +133,13 @@ describe("the settings screen", () => {
     expect(lines.some(line => line.includes("Speed") && line.includes("normal"))).toBe(true);
     expect(lines.some(line => line.trim() === "A1")).toBe(false);
     expect(lines.join("\n")).not.toContain("(default)");
+    expect(lines.join("\n")).not.toContain("When the session transcript scrollbar is visible.");
+  });
+
+  it("retains descriptions as metadata without rendering selected-entry details", async () => {
+    const { app: target } = await app();
+    selectRow(target, "Thinking level");
+    expect(screen(target).join("\n")).not.toContain("Reasoning depth");
   });
 
   it("keeps unavailable options and their explanatory copy out of search", async () => {
@@ -239,11 +250,11 @@ describe("the settings screen", () => {
     const { app: target } = await app();
     target.onInput?.("/", HOST);
     target.onInput?.("t", HOST);
-    const before = find(target, ">").replace(/\s+$/, "");
+    const before = find(target, "❯").replace(/\s+$/, "");
 
     target.onInput?.(DOWN, HOST);
     const after = screen(target);
-    expect(after.find(line => line.startsWith(">"))?.replace(/\s+$/, "")).toBe(before);
+    expect(after.find(line => line.includes("❯"))?.replace(/\s+$/, "")).toBe(before);
     expect(after.some(line => line.trimStart().startsWith("→"))).toBe(true);
   });
 
@@ -255,8 +266,8 @@ describe("the settings screen", () => {
     // Rationale: wheel over otherwise blank list space, not over a setting row.
     target.onMouse?.({ kind: "wheel-down", button: 0, row: 1, column: 70 }, HOST);
     const lines = target.render({ width: 80, height: 13 }, HOST).map(line => line.replace(STYLE, "").trimEnd());
-    const searchRow = lines.findIndex(line => line.startsWith(">"));
-    expect(lines.slice(0, searchRow).some(line => line.includes("Output padding"))).toBe(true);
+    const searchRow = lines.findIndex(line => line.includes("search settings"));
+    expect(lines[searchRow - 2]).toContain("Output padding");
   });
 
   it("restores the opening blank row when Home returns to the beginning during search", async () => {
@@ -279,21 +290,21 @@ describe("the settings screen", () => {
     target.onInput?.(END, HOST);
 
     const lines = target.render({ width: 80, height: 8 }, HOST).map(line => line.replace(STYLE, "").trimEnd());
-    const searchRow = lines.findIndex(line => line.startsWith(">"));
+    const searchRow = lines.findIndex(line => line.includes("search settings"));
     expect(searchRow, JSON.stringify(lines)).toBeGreaterThanOrEqual(0);
     expect(lines.find(line => line.includes("Output padding"))?.trimStart()).toMatch(/^→/);
-    // Compatibility: pinned SettingsList places the search input directly below the final row.
-    expect(lines[searchRow - 1]).toContain("Output padding");
+    // Invariant: the ruled search footer leaves its final result on the last body row.
+    expect(lines[searchRow - 2]).toContain("Output padding");
   });
 
   it("jumps a section from the search, as the arrows move through it", async () => {
     const { app: target } = await app();
     target.onInput?.("/", HOST);
-    const before = find(target, ">").replace(/s+$/, "");
+    const before = find(target, "❯").replace(/s+$/, "");
 
     target.onInput?.(`${ESC}[1;2B`, HOST);
     const after = screen(target);
-    expect(after.find(line => line.startsWith(">"))?.replace(/s+$/, "")).toBe(before);
+    expect(after.find(line => line.includes("❯"))?.replace(/s+$/, "")).toBe(before);
     expect(after.some(line => line.trimStart().startsWith("→"))).toBe(true);
   });
 
@@ -314,7 +325,7 @@ describe("the settings screen", () => {
     for (const letter of "zzzz") target.onInput?.(letter, HOST);
     target.onInput?.(DOWN, HOST);
     target.onInput?.(`${ESC}[1;2B`, HOST);
-    expect(find(target, ">")).toContain("zzzz");
+    expect(find(target, "❯")).toContain("zzzz");
     expect(screen(target).some(line => line.trimStart().startsWith("→"))).toBe(false);
   });
 
@@ -395,19 +406,62 @@ describe("the value dropdown behind the screen", () => {
 });
 
 describe("the input row and status line behind the screen", () => {
-  it("matches pinned SettingsList's search prompt and inverse cursor", async () => {
+  it("opens the shared ruled search input only when slash invokes it", async () => {
     const { app: target } = await app();
+    expect(target.onInput?.("t", HOST)).toMatchObject({ consumed: false });
+    expect(screen(target).join("\n")).not.toContain("search settings");
+
     target.onInput?.("/", HOST);
-    const painted = target.render({ width: 80, height: 24 }, HOST).find(line => line.startsWith("> ")) ?? "";
-    expect(painted).toContain(String.fromCharCode(27) + "[7m");
-    expect(painted.replace(STYLE, "")).toMatch(/^>\s{2}/);
+    const painted = target.render({ width: 80, height: 24 }, HOST);
+    const searchRow = painted.findIndex(line => line.replace(STYLE, "").includes("search settings"));
+    expect(painted[searchRow]).toContain(String.fromCharCode(27) + "[7m");
+    expect(painted[searchRow]?.replace(STYLE, "")).toContain("❯ search settings");
+    expect(painted[searchRow - 1]?.replace(STYLE, "")).toMatch(/^─+$/u);
+    expect(painted[searchRow + 1]?.replace(STYLE, "")).toMatch(/^─+$/u);
   });
 
-  it("says one thing at a time, reporting over the standing hint", async () => {
+  it("derives the complete standing status from active shortcut declarations", async () => {
     const { app: target } = await app();
-    // Invariant: the hint is one line; at a width that fits it, it names every key.
     const wide = target.render({ width: 200, height: 24 }, HOST).map(line => line.replace(STYLE, ""));
-    expect(wide.find(line => line.includes("to search"))).toContain("Esc to cancel");
+    const hint = wide.find(line => line.includes("/ to search")) ?? "";
+    expect(hint).toContain("↑↓ to navigate");
+    expect(hint).toContain("Shift+↑↓ to jump");
+    expect(hint).toContain("Enter/Space to change");
+    expect(hint).toContain("←→ to adjust");
+    expect(hint).toContain("Esc to cancel");
+    expect(hint).not.toContain("Type to search");
+
+    const narrow = target.render({ width: 24, height: 8 }, HOST).map(line => line.replace(STYLE, ""));
+    expect(narrow.at(-1)).toHaveLength(24);
+  });
+
+  it("uses the configured live scrollbar speed for settings-list wheel movement", async () => {
+    const visibleAfterWheel = async (speed: "normal" | "fast" | "high"): Promise<string> => {
+      const { app: target } = await app(false, speed);
+      target.render({ width: 80, height: 3 }, HOST);
+      target.onMouse?.({ kind: "wheel-down", button: 0, row: 1, column: 70 }, HOST);
+      return target.render({ width: 80, height: 3 }, HOST).map(line => line.replace(STYLE, "")).join("\n");
+    };
+
+    const normal = await visibleAfterWheel("normal");
+    const fast = await visibleAfterWheel("fast");
+    const high = await visibleAfterWheel("high");
+    expect(normal).toContain("Agent");
+    expect(normal).not.toContain("Thinking level");
+    expect(fast).toContain("Thinking level");
+    expect(fast).not.toContain("Output padding");
+    expect(high).toContain("Output padding");
+    expect(new Set([normal, fast, high]).size).toBe(3);
+  });
+
+  it("uses an accepted live speed before its source reflection settles", async () => {
+    const { app: target } = await app();
+    selectRow(target, "Speed");
+    target.onInput?.(ENTER, HOST);
+    target.render({ width: 80, height: 3 }, HOST);
+    target.onMouse?.({ kind: "wheel-down", button: 0, row: 1, column: 70 }, HOST);
+    const visible = target.render({ width: 80, height: 3 }, HOST).map(line => line.replace(STYLE, "")).join("\n");
+    expect(visible).toContain("Warnings");
   });
 
   it("reports a failed write instead of the hint", async () => {
