@@ -359,10 +359,10 @@ describe("the list view behind the screen", () => {
     expect(writes).toHaveLength(0);
     expect(screen(target).find(line => line.trimStart().startsWith("→"))).toBe(selectedBefore);
 
-    // Compatibility: the value opens its pinned-style dropdown without moving the row selection.
+    // Compatibility: the value opens its shared dropdown without moving the row selection.
     target.onMouse?.({ kind: "press", button: 0, row: row + 1, column: valueColumn }, HOST);
     expect(writes).toHaveLength(0);
-    expect(screen(target).some(line => line.includes("→ low"))).toBe(true);
+    expect(screen(target).some(line => line.includes("✓ low"))).toBe(true);
     expect(screen(target).find(line => line.trimStart().startsWith("→"))).toBe(selectedBefore);
   });
 
@@ -396,11 +396,25 @@ describe("the value dropdown behind the screen", () => {
     const row = lines.findIndex(line => line.includes("Thinking level"));
     const valueColumn = (lines[row] ?? "").indexOf("low") + 1;
     target.onMouse?.({ kind: "press", button: 0, row: row + 1, column: valueColumn }, HOST);
-    expect(screen(target).some(line => line.includes("→ low"))).toBe(true);
+    expect(screen(target).some(line => line.includes("✓ low"))).toBe(true);
 
     target.onInput?.(DOWN, HOST);
-    target.onInput?.(DOWN, HOST);
+    expect(screen(target).some(line => line.includes("✓ low"))).toBe(true);
     target.onInput?.(ENTER, HOST);
+    expect(writes.at(-1)).toEqual({ key: "thinkingLevel", value: "high" });
+  });
+
+  it("applies the choice pressed inside the shared menu", async () => {
+    const { app: target, writes } = await app();
+    const lines = screen(target);
+    const row = lines.findIndex(line => line.includes("Thinking level"));
+    const valueColumn = (lines[row] ?? "").indexOf("low") + 1;
+    target.onMouse?.({ kind: "press", button: 0, row: row + 1, column: valueColumn }, HOST);
+
+    const menu = screen(target);
+    const highRow = menu.findIndex(line => line.includes("high"));
+    const highColumn = (menu[highRow] ?? "").indexOf("high") + 1;
+    target.onMouse?.({ kind: "press", button: 0, row: highRow + 1, column: highColumn }, HOST);
     expect(writes.at(-1)).toEqual({ key: "thinkingLevel", value: "high" });
   });
 });

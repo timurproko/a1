@@ -76,9 +76,9 @@ function pinnedTheme(): UiTheme {
     // Rationale: quiet, and quieter again: the terminal's own faint attribute over the
     // dimmest colour the theme has.
     disabled: (text: string) => faint(piTheme().fg("dim", text)),
-    // Compatibility: Pi's SelectList uses accent text rather than invented floating-panel
-    // backgrounds. The menu remains an overlay geometrically, not chromatically.
-    highlight: (text: string) => piTheme().fg("accent", text),
-    panel: (text: string) => text,
+    // Rationale: physical review requires the shared value menu to read as a floating
+    // product surface instead of blending into the settings rows behind it.
+    highlight: (text: string) => `\u001b[48;2;82;82;82m\u001b[97m${text}\u001b[39m\u001b[49m`,
+    panel: (text: string) => `\u001b[48;2;55;55;55m${text}\u001b[49m`,
   };
 }
