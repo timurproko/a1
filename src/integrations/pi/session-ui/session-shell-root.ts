@@ -19,6 +19,8 @@ import {
   submittedPromptLayout,
   stripAnsi,
   type TranscriptPromptAnchor,
+  type TranscriptViewportFrame,
+  type TranscriptViewportFrameDescriptor,
 } from "../../../ui/components/index.js";
 import {
   PINNED_PI_HIDDEN_COMMAND_NAMES,
@@ -99,6 +101,7 @@ import {
 } from "../tui-runtime/index.js";
 import { PromptChipStore, type PreparedPrompt } from "./prompt-chips.js";
 import { SessionViewportController } from "./session-viewport-controller.js";
+import type { StreamPresentationScheduler } from "./stream-presentation-coalescer.js";
 
 export type OwnedUiBackendPort = PiEngineAdapter;
 export type OwnedUiTerminalPort = PiTuiTerminalPort;
@@ -126,6 +129,11 @@ export interface OwnedUiSessionShellOptions {
   readonly viewportSettings?: OwnedUiViewportSettingsPort;
   /** Optional platform seam; production uses A1's system clipboard adapter. */
   readonly clipboard?: OwnedUiClipboardPort;
+  /** Deterministic scheduling seam for presentation-cadence tests. */
+  readonly streamPresentation?: {
+    readonly intervalMs?: number;
+    readonly scheduler?: StreamPresentationScheduler;
+  };
 }
 
 /** Composes backend session state into the owned transcript, viewport, editor, and dock presentation. */
@@ -151,6 +159,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   readonly #customViewport: boolean;
   readonly #submittedPromptComposer: PiShellSubmittedPromptComposer | undefined;
   readonly #viewportController: SessionViewportController;
+  readonly #onViewportFrame: ((frame: TranscriptViewportFrame) => void) | undefined;
   readonly #componentRuntime: {
     readonly getColumns: () => number;
     readonly getRows: () => number;
@@ -181,6 +190,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       readonly getColumns: () => number;
       readonly getRows: () => number;
       readonly requestRender: (force?: boolean) => void;
+      readonly onViewportFrame?: (frame: TranscriptViewportFrame) => void;
       readonly onSubmit: (text: string) => void;
       readonly onInterrupt: () => void;
       readonly onClear?: () => void;
@@ -217,6 +227,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.#extensionRenderers = extensionRenderers;
     this.#imageAssets = imageAssets;
     this.#componentRuntime = handlers;
+    this.#onViewportFrame = handlers.onViewportFrame;
     this.header = createPiShellHeader(startup);
     this.resources = createPiShellLoadedResources(startup.resources ?? [], startup.expanded ?? false);
     this.#status = createPiShellStatus(view, handlers);
@@ -386,45 +397,39 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
 
     const height = Math.max(0, this.#componentRuntime.getRows());
     const dock = this.#renderDockLayout(width);
-    const availableWithoutTransient = Math.max(0, height - Math.min(height, dock.rowsWithoutTransient.length));
     // Invariant: ordinary transcript content uses the full terminal width. The rail is an
     // overlay, not a lost wrapping cell. Submitted prompts alone retain the
     // intentional final gutter after their right-aligned timestamp.
     const documentWidth = width;
-    let document = this.#renderDocumentLayout(documentWidth);
-    // Compatibility: keep queued steering/follow-up messages and Working together in Pi's
-    // semantic order while content fits. Once the transcript overflows, move
-    // the complete transient group into its tail so every row naturally
-    // scrolls away and the detached viewport can use the full space above the
-    // stable editor/footer dock.
-    const pinTransient = document.rows.length + dock.transientRows.length <= availableWithoutTransient;
-    const dockRows = pinTransient ? dock.rows : dock.rowsWithoutTransient;
+    const document = this.#renderDocumentLayout(documentWidth);
+    // Invariant: prompt-adjacent transient surfaces always belong to the dock.
+    // Changing from fitting to overflowing content reallocates transcript rows
+    // only; it never moves queued or Working rows into selectable history.
+    const dockRows = dock.rows;
     const selectableDocumentRowCount = document.rows.length;
-    if (!pinTransient) document = { ...document, rows: [...document.rows, ...dock.transientRows] };
     const dockStartRow = height - dockRows.length + 1;
-    const editorOffset = pinTransient ? dock.editorOffsetWithTransient : dock.editorOffsetWithoutTransient;
+    const editorOffset = dock.editorOffset;
     this.#viewportController.setEditorPointerFrame(this.usesDefaultInputSurface()
       ? {
           rowStart: dockStartRow + editorOffset,
           rowEnd: dockStartRow + editorOffset + dock.inputRows - 1,
         }
       : undefined);
-    return this.#viewportController.compose({
+    const frame = this.#viewportController.compose({
       documentRows: document.rows,
       ...(this.#viewportController.transcriptPointerSelecting
         ? { paintDocumentRow: heldNativeHyperlinkStyle }
         : {}),
-      // Invariant: overflowing queued and Working rows scroll with the transcript but
-      // remain status chrome: selection and copying stop at the real document tail.
+      // Invariant: selection and copying stop at the real document tail; queued
+      // and Working rows remain dock-owned status chrome at every fit boundary.
       selectableDocumentRowCount,
       dockRows,
       promptAnchors: document.promptAnchors,
       width,
       height,
-      // Invariant: anchor above the stable editor/widget/footer group. Queued input,
-      // working states, and transient notifications may grow above it without
-      // moving the floating control up and down the terminal.
-      bottomControlRow: Math.max(0, height - Math.min(height, dock.stableBottomRows) - 1),
+      // Invariant: the control belongs immediately above the complete dock,
+      // never on top of a queued or Working row.
+      bottomControlRow: Math.max(0, height - Math.min(height, dockRows.length) - 1),
       theme: {
         // Compatibility: match the v2 rail: a continuously dim track and an accent thumb at
         // rest, thickening on hover/drag through the presentation glyph. Reset
@@ -449,7 +454,17 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
           "\u001b[49m",
         ),
       },
-    }).rows;
+    });
+    this.#onViewportFrame?.(frame);
+    return frame.rows;
+  }
+
+  viewportFrameDescriptor(): TranscriptViewportFrameDescriptor | null {
+    return this.#viewportController.frame?.descriptor ?? null;
+  }
+
+  hasActiveSelection(): boolean {
+    return this.#viewportController.hasSelection || this.editor.hasSelection();
   }
 
   setViewportConfig(config: OwnedUiViewportSettings): void {
@@ -486,11 +501,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
 
   #renderDockLayout(width: number): {
     readonly rows: readonly string[];
-    readonly rowsWithoutTransient: readonly string[];
-    readonly transientRows: readonly string[];
-    readonly stableBottomRows: number;
-    readonly editorOffsetWithTransient: number;
-    readonly editorOffsetWithoutTransient: number;
+    readonly editorOffset: number;
     readonly inputRows: number;
   } {
     const queued = this.#view.editor.queuedSubmissions.length === 0 ? [] : this.#queued.render(width);
@@ -503,11 +514,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     const rowsWithoutTransient = [...aboveWidgets, ...input, ...belowWidgets, ...footer];
     return {
       rows: [...transientRows, ...rowsWithoutTransient],
-      rowsWithoutTransient,
-      transientRows,
-      stableBottomRows: rowsWithoutTransient.length,
-      editorOffsetWithTransient: transientRows.length + aboveWidgets.length,
-      editorOffsetWithoutTransient: aboveWidgets.length,
+      editorOffset: transientRows.length + aboveWidgets.length,
       inputRows: input.length,
     };
   }

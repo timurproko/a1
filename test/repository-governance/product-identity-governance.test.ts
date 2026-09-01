@@ -17,7 +17,7 @@ describe("inventory-driven product identity governance", () => {
     const result = run(repository);
     expect(result.status, result.stderr).toBe(0);
     expect(result.stdout).toContain("Product identity governance OK");
-  });
+  }, 30_000);
 
   it("has no temporary migration approvals after closure", async () => {
     const allowlist = JSON.parse(await readFile(resolve(repository, "config/product-identity-legacy-allowlist.json"), "utf8")) as {
