@@ -220,21 +220,22 @@ The pinned producer is the installed Pi `0.84.2` public component/runtime behavi
 - borders, padding, blank rows, editor/footer geometry, cursor placement, and scrollbar reservation;
 - terminal control ordering for alternate-screen restore, clearing, cursor, progress, and post-stop writes.
 
-Normalization may remove synchronized-output envelopes, nondeterministic render timing, absolute hyperlink targets, product/session data, and the `a1` versus `pi` command name. It must not strip SGR styling, replace styled rows with plain text, compare A1 only to an A1-generated golden file, or ignore geometry. Existing text-only fixtures remain useful diagnostics but do not satisfy visual acceptance. The owned settings search trigger, ruled input composition, shortcut-derived status bar, suppressed description rows, and configured wheel cadence are declared interaction differences and require their own deterministic component evidence instead of a false pinned-frame equality claim.
+Normalization may remove synchronized-output envelopes, nondeterministic render timing, absolute hyperlink targets, product/session data, and the `a1` versus `pi` command name. It must not strip SGR styling, replace styled rows with plain text, compare A1 only to an A1-generated golden file, or ignore geometry. Existing text-only fixtures remain useful diagnostics but do not satisfy visual acceptance. The owned settings search trigger, ruled input composition, shortcut-derived status bar, suppressed description rows, configured wheel cadence, and distinct floating scalar-menu treatment are declared interaction differences and require their own deterministic component evidence instead of a false pinned-frame equality claim.
 
 Alternative considered: screenshot pixel diffs. Rejected as the automated authority because fonts, DPI, terminal chrome, and rasterization vary; user screenshots remain valuable physical evidence while deterministic cell/ANSI comparison owns regression detection.
 
 ### 11. Settings preserve owned interaction composition while project trust uses pinned style
 
-The owned settings screen keeps A1 and Agent grouping, accepted hidden-entry policy, and the existing shared input, list, menu, dialog, shortcut, and scrollbar components. Reviewed row/value colors, selected state, numeric controls, scalar menus, structured dialogs, deferred/failure notices, wrapping, clipping, and narrow geometry remain intact. Five settings interactions deliberately remain product-owned rather than copied from pinned `SettingsList`:
+The owned settings screen keeps A1 and Agent grouping, accepted hidden-entry policy, and the existing shared input, list, menu, dialog, shortcut, and scrollbar components. Reviewed row/value colors, selected state, numeric controls, structured dialogs, deferred/failure notices, wrapping, clipping, and narrow geometry remain intact. Six settings interactions deliberately remain product-owned rather than copied from pinned `SettingsList`:
 
 1. Search is closed until `/` is invoked; ordinary printable input outside search is not consumed as a query.
 2. Open search is rendered by the shared ruled line-input composition with the `search settings` placeholder, not a bespoke unruled row.
 3. The standing status bar is assembled from the active shortcut declarations, so `/` search, navigation, section jump, value change/adjustment, and cancel guidance cannot drift from the keymap.
 4. Entry descriptions remain available as model metadata but are not rendered below the selected row.
 5. Settings-list wheel movement resolves the current effective `scrollbarSpeed` value, including a pending live selection, and delegates distance mapping to the shared scrollbar policy; the settings app contains no independent row-count literal.
+6. Scalar choices retain the shared `ValueMenu` geometry and input handling but render as A1's distinct floating surface: unselected choices use the prior dark panel background, the active choice uses the prior lighter background with white text, and a `✓` marks the effective value independently of the active row.
 
-Alternative considered: restore the old screen by reverting shared component improvements. Rejected because the interaction regression is local to settings composition, while the shared architecture and later menu/dialog/style corrections remain valid. Alternative considered: keep pinned type-to-search and description rows for parity. Rejected by physical product review because they replaced the accepted explicit-search workflow and consumed persistent screen space.
+Alternative considered: restore the old screen by reverting shared component improvements. Rejected because the interaction regression is local to settings composition and theme mapping; the shared architecture remains valid. Alternative considered: keep pinned type-to-search, description rows, and background-free scalar selector for parity. Rejected by physical product review because the first two replaced the accepted explicit-search workflow and consumed persistent screen space, while the background-free selector visually merges with the settings rows and does not make the open menu obvious.
 
 Project trust remains a pre-resource security boundary. It uses a bounded startup TUI built only from global settings, fixed product identity, pinned public TUI primitives, and an attributed owned selector; no project theme, extension, prompt, package, skill, setting, or command is loaded first. Accept, reject, cancel, invalid input, unavailable interaction, and exceptions all clear and restore the startup surface in pinned order. A fail-closed diagnostic appears once in the correct parent or owned surface rather than above a blank fullscreen frame.
 
@@ -261,7 +262,7 @@ Alternative considered: print the current fullscreen capture. Rejected because i
 - **[Raw ANSI parity can become platform-fragile]** → Compare semantic SGR/control roles and cell geometry, normalize only declared nondeterminism, and keep physical-terminal acceptance separate from deterministic evidence.
 - **[Styled exit output can leak fullscreen-only chrome or unsafe payloads]** → Render from authoritative transcript components after filtering excluded semantics; never replay captured terminal bytes, overlays, editor drafts, animation frames, or inline-image payloads.
 - **[A startup TUI could accidentally load project resources before trust]** → Construct it from global settings and reviewed built-in primitives only, with an order-sensitive test that fails on any project-source access.
-- **[Restoring settings UX could accidentally fork shared components or desynchronize wheel speed]** → Keep composition in `SettingsApp`, render search through the shared line-input helper, derive hints from the shortcut registry, and resolve wheel movement through the same effective setting and shared scrollbar policy used by the transcript.
+- **[Restoring settings UX could accidentally fork shared components, flatten menu contrast, or desynchronize wheel speed]** → Keep composition in `SettingsApp`, render search through the shared line-input helper, derive hints from the shortcut registry, map the existing `ValueMenu` panel/highlight roles at the owned theme boundary, and resolve wheel movement through the same effective setting and shared scrollbar policy used by the transcript.
 
 ## Migration Plan
 
@@ -272,7 +273,7 @@ Alternative considered: print the current fullscreen capture. Rejected because i
 5. Add the image asset resolver and transcript reconstruction, preserving the existing payload limits.
 6. Add post-restoration exit output and executable session resume formatting.
 7. Replace text-only visual evidence with independent pinned/A1 raw-style and geometry producers covering the complete setting matrix.
-8. Port pinned-style runtime surfaces and reviewed settings row/menu/dialog styles, while preserving the declared owned settings search, status-bar, description, and configured-scroll interactions on shared components.
+8. Port pinned-style runtime surfaces and reviewed settings row/dialog styles, while preserving the declared owned settings search, status-bar, description, configured-scroll, and distinct floating scalar-menu interactions on shared components.
 9. Update provenance for every minimally ported style or lifecycle rule and run strict inventory/effect/visual conformance in CI.
 10. Obtain user-controlled physical-terminal acceptance only after deterministic visual parity passes.
 
