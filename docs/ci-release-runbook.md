@@ -46,11 +46,37 @@ effect of stable publication, not a trigger.
 
 | Trigger | Validation and outcome |
 | --- | --- |
-| Pull request into `develop` | Fast required validation; docs-only changes use lightweight governance consistency and OpenSpec changes also use strict OpenSpec validation |
+| Pull request into `develop` | Modular fast validation; changed/new source documentation is checked once, and rendering runs as `none`, `smoke`, or `full` from the exact impact |
 | `npm run develop` | Preview package gates on Windows, Linux, and macOS; an existing numbered preview is an early successful no-op |
-| Nightly at `03:17 UTC` | Complete non-physical suite on Windows, Linux, and macOS, every night |
+| Nightly at `03:17 UTC` | One full documentation review plus the complete non-physical suite on Windows, Linux, and macOS, every night |
 | `npm run release -- ...` | Complete exact-byte stable gates, then npm `latest`, tag, GitHub Release, and `master` |
 | `.github/workflows/full-regression.yml` | Additional on-demand complete regression without publication authority |
+
+## Impact-aware development validation
+
+`scripts/release/select-validation-impact.mjs` is the single pull-request selector. It records the complete merge-base-to-head name-status diff, changed/new documentation inputs, rendering dependency reasons, conservative fallbacks, and the exact head SHA in a machine-readable artifact. Missing history, unresolved rendering dependencies, unknown relevant inputs, or classifier failure select full rendering rather than silently skipping it.
+
+Ordinary type, architecture, unit/contract, and dist checks always run for code changes. Changed-file documentation and rendering run as independent parallel jobs. Rendered shell/component changes select `smoke`; viewport, scheduler, terminal adapter, evidence harness, package identity, and selector changes select `full`; unrelated changes select `none`. The aggregate accepts a skipped modular job only when the current selector requested the skip.
+
+Inspect local committed and worktree impact without running tests:
+
+```sh
+npm run select:validation-impact -- --include-worktree
+```
+
+Check documentation only for modified, added, copied, and renamed-to policy files:
+
+```sh
+npm run check:code-documentation:changed
+```
+
+Run the explicit complete documentation review used by nightly and complete regression:
+
+```sh
+npm run check:code-documentation
+```
+
+Rendering evidence captures each selected producer/mode/workload matrix once and reuses it for semantic, paint, parity, and damage assertions. A deliberate second `streamed-prose` capture remains only for determinism. Workflow summaries separate repository-gate timing from runner setup; wall-clock values diagnose runner/cache variance, while selected scopes, matrix captures, producer launches, documentation file counts, and full-scan counts are structural gates.
 
 ## Pull request integration
 
@@ -98,8 +124,7 @@ already exists it reports that version without dispatching package work. Otherwi
 it dispatches GitHub Actions, waits, and reports the published version. It never
 builds or uploads npm bytes from the workstation.
 
-Nightly resolves the same current `origin/develop` source. It always runs complete
-verification even if source has not changed. For a new number it packs once and
+Nightly resolves the same current `origin/develop` source. It runs one platform-independent full documentation review before the platform matrix, and the matrix records that prerequisite instead of repeating the scan four times. It always runs complete verification even if source has not changed. For a new number it packs once and
 runs the suite against that final-version tarball before publication. For an
 existing number it downloads the exact npm tarball and runs package/update gates
 against those registry bytes; publication is then a successful no-op.
@@ -155,6 +180,7 @@ Rules that do not bend:
   delete an advanced or protected ref merely because its name matches an old PR.
 - **Repository governance drifts:** run the read-only checker, review every reported
   path, and use the confirmed apply mode only for an accepted mutable policy change.
+- **Nightly documentation review fails:** inspect the reported paths and rules, identify the introducing merge from the nightly interval, and repair the invariant before unrelated work proceeds.
 - **Development publication fails:** fix the cause and rerun `npm run develop`; an npm version that already exists is never overwritten.
 - **Stable publication fails before npm accepts bytes:** no tag, release, or moved branch exists. Fix the cause and release the next version.
 - **Stable publication is uncertain after npm accepted bytes:** stop and inspect registry version, digest, tag, and release. Never republish immutable bytes.

@@ -20,6 +20,7 @@ interface SuiteManifest {
   schema: string;
   tiers: Record<string, SuiteDefinition>;
   scopes: Record<string, SuiteDefinition & { tests?: string[] }>;
+  fullReleaseSupersedes: Record<string, string[]>;
   releaseContracts: Record<string, string>;
 }
 
@@ -67,7 +68,12 @@ describe("validation suite ownership", () => {
     expect(Object.keys(suites.releaseContracts)).toHaveLength(8);
     expect(Object.values(suites.releaseContracts).filter(owner => !declaredOwners.has(owner))).toEqual([]);
     expect(releaseSource).toContain("Object.entries(suites.releaseContracts)");
-    expect(suites.tiers["full-release"]!.includes).toEqual(expect.arrayContaining(Object.keys(suites.scopes)));
+    const included = new Set(suites.tiers["full-release"]!.includes);
+    const superseded = new Set(Object.entries(suites.fullReleaseSupersedes).flatMap(([owner, values]) => {
+      expect(included.has(owner)).toBe(true);
+      return values;
+    }));
+    expect(Object.keys(suites.scopes).filter(scope => !included.has(scope) && !superseded.has(scope))).toEqual([]);
   });
 
   it("keeps planning and invariant commands separate from test owners", async () => {

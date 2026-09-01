@@ -12,6 +12,7 @@ export interface ValidationPlan {
   requiresBuild: boolean;
   consumesPackage: boolean;
   candidateTarball: string;
+  structuralEvidence?: Record<string, Record<string, number>>;
   commands: ValidationCommandPlan[];
   vitest: null | {
     mode: string;

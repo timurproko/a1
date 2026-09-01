@@ -72,20 +72,26 @@ export function classifyCodeDocumentationSource(rawPath) {
 export async function loadTrackedCodeDocumentationSources(repository) {
   const root = resolve(repository);
   const { stdout } = await execFileAsync("git", ["ls-files", "-z"], { cwd: root, encoding: "buffer", maxBuffer: 32 * 1024 * 1024 });
-  const paths = stdout.toString("utf8").split("\0").filter(Boolean).map(normalizeCodeDocumentationPath);
+  return await loadCodeDocumentationSources(root, stdout.toString("utf8").split("\0").filter(Boolean));
+}
+
+export async function loadCodeDocumentationSources(repository, requestedPaths) {
+  const root = resolve(repository);
+  const paths = [...new Set(requestedPaths.map(normalizeCodeDocumentationPath))].sort();
   const sources = [];
   for (const path of paths) {
+    if (!path || path.startsWith("../") || path.includes("/../") || resolve(root, path) === root) throw new TypeError(`invalid documentation source path: ${path}`);
     const role = classifyCodeDocumentationSource(path);
     if (role === "unmatched" && !isCodePath(path)) continue;
-    if (role === "ignored") {
+    if (role === "ignored" || role === "vendored") {
       sources.push({ path, role, source: null });
       continue;
     }
-    if (role === "vendored") {
-      sources.push({ path, role, source: null });
-      continue;
+    try {
+      sources.push({ path, role, source: await readFile(resolve(root, path), "utf8") });
+    } catch (error) {
+      if (error?.code !== "ENOENT") throw error;
     }
-    sources.push({ path, role, source: await readFile(resolve(root, path), "utf8") });
   }
   return sources;
 }
@@ -97,8 +103,9 @@ export function sourceRecordsFromFiles(files) {
   });
 }
 
-export function inspectCodeDocumentation({ sources, owners = {}, synchronizedDestinations = new Set() }) {
+export function inspectCodeDocumentation({ sources, owners = {}, synchronizedDestinations = new Set(), diagnosticPaths }) {
   const diagnostics = [];
+  const selected = diagnosticPaths === undefined ? null : new Set([...diagnosticPaths].map(normalizeCodeDocumentationPath));
   const records = sources.map(record => ({
     path: normalizeCodeDocumentationPath(record.path),
     role: record.role ?? classifyCodeDocumentationSource(record.path),
@@ -106,6 +113,7 @@ export function inspectCodeDocumentation({ sources, owners = {}, synchronizedDes
   }));
 
   for (const record of records) {
+    if (selected !== null && !selected.has(record.path)) continue;
     if (record.role === "unmatched" && isCodePath(record.path)) {
       diagnostics.push(diagnostic(CODE_DOCUMENTATION_RULES.sourceClassification, record.path, 1, 1, null, "tracked code has no documentation source role"));
       continue;
@@ -117,10 +125,10 @@ export function inspectCodeDocumentation({ sources, owners = {}, synchronizedDes
 
   const scriptRecords = records.filter(record => SCRIPT_EXTENSIONS.has(extname(record.path)) && typeof record.source === "string");
   const programContext = createVirtualProgram(scriptRecords);
-  inspectOwnerPublicClasses(programContext, records, owners, diagnostics);
+  inspectOwnerPublicClasses(programContext, records, owners, diagnostics, selected);
 
   for (const record of records) {
-    if (!isFirstParty(record.role) || typeof record.source !== "string") continue;
+    if ((selected !== null && !selected.has(record.path)) || !isFirstParty(record.role) || typeof record.source !== "string") continue;
     if (SCRIPT_EXTENSIONS.has(extname(record.path))) {
       const sourceFile = programContext.sourceFileByPath.get(record.path)
         ?? ts.createSourceFile(record.path, record.source, ts.ScriptTarget.Latest, true, scriptKind(record.path));
@@ -183,7 +191,7 @@ function createVirtualProgram(records) {
   return { program, checker: program.getTypeChecker(), virtualRoot, sourceFileByPath, pathByAbsolute };
 }
 
-function inspectOwnerPublicClasses(context, records, owners, diagnostics) {
+function inspectOwnerPublicClasses(context, records, owners, diagnostics, selected) {
   const roleByPath = new Map(records.map(record => [record.path, record.role]));
   const seen = new Set();
   for (const owner of Object.values(owners)) {
@@ -197,7 +205,7 @@ function inspectOwnerPublicClasses(context, records, owners, diagnostics) {
       for (const declaration of symbol.declarations ?? []) {
         if (!ts.isClassDeclaration(declaration)) continue;
         const path = context.pathByAbsolute.get(normalizeAbsolute(declaration.getSourceFile().fileName));
-        if (!path || roleByPath.get(path) !== "first-party-production") continue;
+        if (!path || roleByPath.get(path) !== "first-party-production" || (selected !== null && !selected.has(path))) continue;
         const key = `${path}:${declaration.pos}`;
         if (seen.has(key)) continue;
         seen.add(key);
