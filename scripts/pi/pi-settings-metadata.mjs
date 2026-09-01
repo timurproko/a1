@@ -1,16 +1,8 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-/**
- * Reads the pinned engine's own settings presentation — wording, order, offered
- * values, and which entries open a dialog — instead of transcribing it by hand.
- * A hand-kept copy rots the first time the engine rewords or reorders anything;
- * this is regenerated and verified, so drift fails a check rather than a user.
- *
- * The engine's ids are kebab-case UI ids while the exposed settings are the
- * camelCase keys A1 reads and writes, so that pairing is the one thing declared
- * here. Everything else is extracted.
- */
+// Provenance: metadata is extracted from the pinned engine's settings presentation.
+// Only its kebab-case UI ids to A1 camelCase keys are declared locally.
 
 /** The package blocks deep imports through its exports map, so this is read by path. */
 export const SETTINGS_SELECTOR_PATH =
@@ -81,12 +73,12 @@ function mapKeys(source, name) {
 function describedItems(source) {
   return itemChunks(source).map(chunk => {
     const description = /description:\s*"([^"]*)"/.exec(chunk.body)?.[1] ?? "";
-    // An entry either offers a value list or opens its own dialog. That is the
+    // Invariant: an entry either offers a value list or opens its own dialog. That is the
     // engine's own distinction rather than a guess from the value's type.
     const opensDialog = /\bsubmenu:/.test(chunk.body);
     const listed = [...(/values:\s*\[([^\]]*)\]/.exec(chunk.body)?.[1] ?? "").matchAll(/"([^"]*)"/g)]
       .map(match => match[1]);
-    // A map's keys are what the engine stores; its values are only how it words them.
+    // Protocol: a map's keys are what the engine stores; its values are only how it words them.
     const fromMap = /values:\s*Object\.values\((\w+)\)/.exec(chunk.body)?.[1];
     const values = listed.length > 0 ? listed : fromMap === undefined ? [] : mapKeys(source, fromMap);
     const literalValue = /currentValue:\s*"([^"]+)"/.exec(chunk.body)?.[1];
@@ -100,7 +92,7 @@ function describedItems(source) {
  * splices in the order it performs them is the only way to get what it presents.
  */
 function presentedOrder(source) {
-  // Submenu classes declare items of their own earlier in the file, so the main
+  // Invariant: submenu classes declare items of their own earlier in the file, so the main
   // list has to be isolated first: a fixed-index splice counts from its start.
   const region = source.slice(source.lastIndexOf("const items = ["));
   const firstSplice = region.indexOf("items.splice(");
@@ -109,7 +101,7 @@ function presentedOrder(source) {
   const inserts = [...region.matchAll(/items\.splice\(([^,]+),\s*0,\s*\{\s*\n?\s*id:\s*"([a-z0-9-]+)"/g)]
     .map(match => {
       const expression = (match[1] ?? "").trim();
-      // A position is a number, a named index plus one, or a ternary choosing
+      // Protocol: a position is a number, a named index plus one, or a ternary choosing
       // between two positions. A1 exposes the image settings unconditionally, so
       // a conditional position takes the branch where they are present.
       const chosen = expression.includes("?")
@@ -207,7 +199,7 @@ export function extractPiSettingsMetadata() {
 
   const presented = presentedOrder(source).map(id => ID_TO_KEY[id]).filter(key => key !== undefined);
   return {
-    // What the engine presents, in its order. A1's exposed set is checked
+    // Provenance: what the engine presents, in its order. A1's exposed set is checked
     // against this, so a setting it adds or renames fails a test by name.
     presented,
     order: presented,

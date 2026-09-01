@@ -28,7 +28,7 @@ beforeAll(async () => {
 afterAll(async () => { if (fakeBin) await rm(fakeBin, { recursive: true, force: true }); });
 
 async function launchWithPath(path: string) {
-  // The engine A1 runs is the pinned dependency, never whichever Pi executable a
+  // Invariant: the engine A1 runs is the pinned dependency, never whichever Pi executable a
   // PATH happens to offer, so the entry that loads it is asked for its version.
   const entry = resolve("dist/integrations/pi/engine/public-main-entry.js");
   return await execute(process.execPath, [entry, "--version"], {

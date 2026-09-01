@@ -130,7 +130,7 @@ export class OwnedUiSettingsSession {
     }
     let result: AgentSettingChangeOutcome;
     try {
-      // The coordinator behind the port owns effect installation, persistence,
+      // Invariant: the coordinator behind the port owns effect installation, persistence,
       // flush, and rollback. A second surface-level flush would split authority.
       result = await agent.writeSetting(id, value);
     } catch (error) {

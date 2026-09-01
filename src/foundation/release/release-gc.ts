@@ -19,7 +19,7 @@ export async function collectRelease(
   const state = await store.read();
   const release = state.releases[releaseId];
   if (!release) throw new Error(`unknown release ${releaseId}`);
-  // A superseded cohort keeps working until its last session leaves, and it runs from this
+  // Invariant: a superseded cohort keeps working until its last session leaves, and it runs from this
   // content while it does. Collecting it would pull the release out from under live work.
   if (paths && (await liveReleaseIds(paths)).includes(releaseId)) {
     throw new Error(`release ${releaseId} is still running a live cohort`);

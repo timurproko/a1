@@ -128,6 +128,7 @@ export interface OwnedUiSessionShellOptions {
   readonly clipboard?: OwnedUiClipboardPort;
 }
 
+/** Composes backend session state into the owned transcript, viewport, editor, and dock presentation. */
 export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   readonly editor: PiShellEditorPort;
   readonly header: PiShellHeaderPort;
@@ -136,7 +137,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   readonly #transcript = new Map<string, PiShellTranscriptComponentPort>();
   readonly #blocksById = new Map<string, OwnedUiSessionViewModel["transcript"][number]>();
   readonly #renderedRows = new Map<string, Map<number, { readonly revision: number; readonly rows: readonly string[] }>>();
-  /** Flattened transcript rows reused by wheel, rail, jump, and selection frames. */
+  // Performance: document layouts are shared by wheel, rail, jump, and selection frames.
   readonly #documentLayouts = new Map<number, { readonly rows: readonly string[]; readonly promptAnchors: readonly TranscriptPromptAnchor[] }>();
   readonly #themeUnsubscribe: () => void;
   #transcriptOrder: string[] = [];
@@ -242,7 +243,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
         const ranges = this.#promptChips.hyperlinkRanges(plain);
         if (ranges.length === 0) return row;
         const linkResetAndTail = `\u001b]8;;\u001b\\\u001b[24m${" ".repeat(Math.max(0, width - piShellVisibleWidth(row)))}`;
-        // VS15 is zero-column and default-ignorable. It breaks Windows Terminal's
+        // Platform: VS15 is zero-column and default-ignorable. It breaks Windows Terminal's
         // plain-text URL detector only in the held-button paint; semantic text stays exact.
         const paintRow = this.#viewportController.editorPointerSelecting
           ? row.replaceAll("https://", "https:\uFE0E//").replaceAll("http://", "http:\uFE0E//")
@@ -263,7 +264,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
               range.target,
               piShellVisibleWidth,
             ), row);
-        // Windows Terminal can retain stale native dotted-link cells when a mutable
+        // Platform: Windows Terminal can retain stale native dotted-link cells when a mutable
         // prompt replaces a longer URL. Explicit non-link spaces overwrite that tail.
         return `${decorated}${linkResetAndTail}`;
       },
@@ -285,7 +286,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       if (block.kind === "user") this.editor.addToHistory(block.text);
     }
     this.#syncTranscript(view.transcript);
-    // Colours come from the active theme, so rendered rows outlive their revision only
+    // Invariant: colours come from the active theme, so rendered rows outlive their revision only
     // until the theme under them changes.
     this.#themeUnsubscribe = onPiThemeChange(() => {
       this.#renderedRows.clear();
@@ -371,7 +372,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     } else if (component.revision !== block.revision) {
       component.update(block);
     }
-    // One chunk touches one block, and the updated component tracks its own dirtiness.
+    // Performance: one chunk touches one block, and the updated component tracks its own dirtiness.
     // Invalidating the whole shell here would re-wrap the entire transcript per chunk.
     this.#renderedRows.delete(block.id);
     this.#documentLayouts.clear();
@@ -386,12 +387,12 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     const height = Math.max(0, this.#componentRuntime.getRows());
     const dock = this.#renderDockLayout(width);
     const availableWithoutTransient = Math.max(0, height - Math.min(height, dock.rowsWithoutTransient.length));
-    // Ordinary transcript content uses the full terminal width. The rail is an
+    // Invariant: ordinary transcript content uses the full terminal width. The rail is an
     // overlay, not a lost wrapping cell. Submitted prompts alone retain the
     // intentional final gutter after their right-aligned timestamp.
     const documentWidth = width;
     let document = this.#renderDocumentLayout(documentWidth);
-    // Keep queued steering/follow-up messages and Working together in Pi's
+    // Compatibility: keep queued steering/follow-up messages and Working together in Pi's
     // semantic order while content fits. Once the transcript overflows, move
     // the complete transient group into its tail so every row naturally
     // scrolls away and the detached viewport can use the full space above the
@@ -413,19 +414,19 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       ...(this.#viewportController.transcriptPointerSelecting
         ? { paintDocumentRow: heldNativeHyperlinkStyle }
         : {}),
-      // Overflowing queued and Working rows scroll with the transcript but
+      // Invariant: overflowing queued and Working rows scroll with the transcript but
       // remain status chrome: selection and copying stop at the real document tail.
       selectableDocumentRowCount,
       dockRows,
       promptAnchors: document.promptAnchors,
       width,
       height,
-      // Anchor above the stable editor/widget/footer group. Queued input,
+      // Invariant: anchor above the stable editor/widget/footer group. Queued input,
       // working states, and transient notifications may grow above it without
       // moving the floating control up and down the terminal.
       bottomControlRow: Math.max(0, height - Math.min(height, dock.stableBottomRows) - 1),
       theme: {
-        // Match the v2 rail: a continuously dim track and an accent thumb at
+        // Compatibility: match the v2 rail: a continuously dim track and an accent thumb at
         // rest, thickening on hover/drag through the presentation glyph. Reset
         // inherited text decorations so dim transcript rows cannot dull the
         // thumb; the row background deliberately remains intact.
@@ -437,7 +438,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
         ),
         quietSticky: text => `\u001b[2m${text.replace(/\u001b\[(?:0|22)m/g, "$&\u001b[2m")}\u001b[22m`,
         bottomControl: (text, hovered) => piTheme().bg(hovered ? "selectedBg" : "toolPendingBg", piTheme().fg("text", text)),
-        // Selection paints only the familiar dark-blue background. Source
+        // Compatibility: selection paints only the familiar dark-blue background. Source
         // foreground roles (including links, warnings, muted text, and bold
         // intensity) remain exactly as rendered instead of being inverted.
         selection: (line, from, to) => backgroundSgrSpan(
@@ -566,7 +567,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   }
 
   #renderDocumentLayout(width: number): { readonly rows: readonly string[]; readonly promptAnchors: readonly TranscriptPromptAnchor[] } {
-    // Extension headers may animate independently of transcript revisions, so
+    // Performance: extension headers may animate independently of transcript revisions, so
     // only the stable built-in document participates in this frame cache.
     const cached = this.#extensionHeader === null ? this.#documentLayouts.get(width) : undefined;
     if (cached !== undefined) return cached;
@@ -597,7 +598,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
         : width;
       const blockRows = this.#blockRows(id, block, blockWidth);
       if (block?.kind === "user") {
-        // The first natural prompt gets one breathing row at the document top.
+        // Compatibility: the first natural prompt gets one breathing row at the document top.
         // Once scrolling advances, the prompt itself reaches row zero and then
         // becomes sticky there, so the spacer is never pinned with it.
         if (this.#customViewport && index === 0) rows.push("");
@@ -642,18 +643,13 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     const layout = { rows: Object.freeze(rows), promptAnchors: Object.freeze(promptAnchors) };
     if (this.#extensionHeader === null) {
       this.#documentLayouts.set(width, layout);
-      // The custom viewport commonly probes full width and reserved-rail width.
+      // Performance: the custom viewport commonly probes full width and reserved-rail width.
       while (this.#documentLayouts.size > 2) this.#documentLayouts.delete(this.#documentLayouts.keys().next().value!);
     }
     return layout;
   }
 
-  /**
-   * Rows for one transcript block. A finalized block renders once for a given revision
-   * and width and is reused after that, so a frame costs what changed rather than what
-   * the session has accumulated. A live block, and anything the shell drives itself, is
-   * rendered every time because its content is still moving.
-   */
+  // Performance: finalized blocks cache by revision and width; live blocks always render.
   #blockRows(id: string, block: OwnedUiSessionViewModel["transcript"][number] | undefined, width: number): readonly string[] {
     const component = this.#transcript.get(id);
     if (component === undefined) return [];
@@ -673,7 +669,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       this.#renderedRows.set(id, byWidth);
     }
     byWidth.set(width, { revision: block.revision, rows });
-    // Bare A1 probes full width before reserving the overflowing rail column;
+    // Invariant: bare A1 probes full width before reserving the overflowing rail column;
     // retain both widths without turning resize history into an unbounded cache.
     while (byWidth.size > 2) byWidth.delete(byWidth.keys().next().value!);
     return rows;
@@ -864,7 +860,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.#extensionWorkingMessage = undefined;
     this.#status.setWorkingOverride(undefined);
     this.#footer.update(this.#viewWithExtensionStatuses(this.#view));
-    // An extension renderer may have drawn transcript blocks that are now unrendered by it.
+    // Invariant: an extension renderer may have drawn transcript blocks that are now unrendered by it.
     this.#renderedRows.clear();
     this.#documentLayouts.clear();
     this.invalidate();
@@ -1064,7 +1060,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.header.setExpanded(expanded);
     this.resources.setExpanded(expanded);
     for (const component of this.#transcript.values()) component.setExpanded(expanded);
-    // Expansion changes what a block draws without changing its revision.
+    // Invariant: expansion changes what a block draws without changing its revision.
     this.#renderedRows.clear();
     this.#documentLayouts.clear();
     this.invalidate();

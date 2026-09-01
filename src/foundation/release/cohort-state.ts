@@ -66,6 +66,7 @@ export interface SupervisorEndpointMetadata {
   readonly contractDigest: string;
 }
 
+/** Serializes validated cohort-state revisions under a lock and commits each update atomically. */
 export class CohortStateStore {
   readonly path: string;
 

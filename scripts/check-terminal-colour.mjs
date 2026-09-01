@@ -1,4 +1,4 @@
-// Says whether this terminal, launched this way, carries 24-bit colour.
+// Platform: this probe says whether the current launch path carries 24-bit colour.
 //
 // The same escape is printed three ways. When the first block matches the third,
 // Node collapsed the colour to the terminal's palette before it reached the

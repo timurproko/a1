@@ -31,6 +31,7 @@ export type StructuredReconnectionResult =
   | { readonly kind: "terminated"; readonly reason: "non-reconnectable"; readonly diagnostic: string }
   | { readonly kind: "rejected"; readonly code: string; readonly diagnostic: string };
 
+/** Accepts a recovery boundary once after validating negotiated identity, proof, and protocol continuity. */
 export class StructuredReconnectionManager {
   readonly #capability: StructuredCapabilityContract;
   readonly #acceptedBoundaries = new Set<string>();

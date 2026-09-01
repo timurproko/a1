@@ -3,7 +3,7 @@
 const { assertSinglePiTuiModuleAtLaunch } = await import("./module-identity.js");
 const { fileURLToPath } = await import("node:url");
 
-// Before the composition loads pinned Pi's terminal stack: confirm A1 and Pi
+// Compatibility: before the composition loads pinned Pi's terminal stack: confirm A1 and Pi
 // resolve it to the same copy, so extensions and the owned UI share one module
 // identity (see bin/module-identity.js for the full story). Nothing is repaired
 // here — A1's package manifest decides which copy wins, and this only reports

@@ -18,7 +18,7 @@ function render(state: { selected: boolean; hovered: boolean; region: "label" | 
 }
 
 describe("list rows against the reader's terminal", () => {
-  // A theme built for a light background writes near-black text; painting rows
+  // Compatibility: a theme built for a light background writes near-black text; painting rows
   // with it puts a settings list out of reach in a dark terminal, so unselected
   // rows stay the terminal's own foreground, as the engine's lists do.
   it("leaves an unselected label unpainted", () => {

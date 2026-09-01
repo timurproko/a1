@@ -21,7 +21,7 @@ fn main() {
         .trim()
         .to_owned();
 
-    // Zig 0.15.2 has a Windows drive-letter path failure when this repository is
+    // Platform: Zig 0.15.2 has a Windows drive-letter path failure when this repository is
     // built from D:. Build from the system temporary directory instead; the
     // source copy is stamped with the pinned source commit.
     let work = env::temp_dir().join(format!("a1-libghostty-vt-{GHOSTTY_COMMIT}"));

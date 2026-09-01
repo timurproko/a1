@@ -2,11 +2,7 @@ import { isThumbRow, type ScrollbarGeometry } from "./scrollbar.js";
 import { displayWidth } from "./text.js";
 import type { UiTheme } from "./theme.js";
 
-/**
- * The chrome around a list: the rail down its right edge, and what it shows when
- * there is nothing to list. Both are the same on any screen, so neither is a
- * screen's to draw.
- */
+// Rationale: shared list chrome belongs here rather than in individual screens.
 
 /** Columns the rail occupies: its own, plus the gap before it. */
 export const RAIL_COLUMNS = 2;

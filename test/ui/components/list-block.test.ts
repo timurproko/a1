@@ -22,6 +22,7 @@ const element = (name: string, key: string, selectable = true): Row =>
 const note = (name: string, text: string): Row => ({ kind: "note", group: name, text });
 const spacer: Row = { kind: "spacer" };
 
+// Rationale: fixture row map.
 //  0 group A      3 spacer          7 group C (no selectable)
 //  1 a1           4 group B         8 note
 //  2 a2           5 note            9 spacer

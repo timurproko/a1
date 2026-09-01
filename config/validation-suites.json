@@ -10,6 +10,9 @@
     "fast": {
       "kind": "vitest-remainder",
       "includeRoot": "test",
+      "commands": [
+        { "id": "code-documentation", "executable": "npm", "arguments": ["run", "check:code-documentation"] }
+      ],
       "exclude": [
         "test/cli/update-cli.test.ts",
         "test/features/launch/development-launch.test.ts",

@@ -18,6 +18,7 @@ export interface PiModelAuthenticationOptions {
   readonly scopedModelIds?: () => readonly string[] | undefined;
 }
 
+/** Adapts the pinned model runtime to neutral model selection and authentication operations. */
 export class PiModelAuthenticationIntegration implements AgentModelPort, AgentAuthenticationPort {
   readonly capabilities = { selection: true, refresh: true, scopedCatalog: true, login: true, logout: true };
   readonly #timeoutMs: number;

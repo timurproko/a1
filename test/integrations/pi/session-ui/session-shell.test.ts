@@ -293,7 +293,7 @@ describe("OwnedUiSessionShell", () => {
     await shell.backend.flushEvents();
     expect(shell.root.render(60).some(row => stripTerminalSequences(row).includes("1 new message (End)"))).toBe(true);
 
-    // v2 resumes follow at the exact agent_start boundary, which also clears
+    // Compatibility: v2 resumes follow at the exact agent_start boundary, which also clears
     // the completed-message count on the next frame.
     engine.session.emit({ type: "agent_start" });
     await shell.backend.flushEvents();
@@ -389,7 +389,7 @@ describe("OwnedUiSessionShell", () => {
   });
 
   it("keeps file hyperlinks cyan while web URLs use link blue", async () => {
-    // The dark theme's accent and mdLink colors both quantize to ANSI 256 color
+    // Compatibility: the dark theme's accent and mdLink colors both quantize to ANSI 256 color
     // 109, so use truecolor when asserting which semantic color was selected.
     const themeName = piTheme().name ?? "dark";
     const themeMode = piTheme().getColorMode();
@@ -606,21 +606,21 @@ describe("OwnedUiSessionShell", () => {
     shell.root.editor.setText("alpha beta");
     shell.root.render(60);
 
-    terminal.input("\u0001"); // Ctrl+A
+    terminal.input("\u0001"); // Protocol: Ctrl+A
     expect(shell.root.render(60).join("\n")).toContain("\u001b[48;2;38;79;120m");
-    terminal.input("\u0003"); // Ctrl+C
+    terminal.input("\u0003"); // Protocol: Ctrl+C
     expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from("alpha beta").toString("base64")}\u0007`);
     expect(shell.root.render(60).join("\n")).not.toContain("\u001b[48;2;38;79;120m");
 
-    terminal.input("\u0001"); // Select again because copying collapses the selection.
-    terminal.input("\u0018"); // Ctrl+X
+    terminal.input("\u0001"); // Invariant: select again because copying collapses the selection.
+    terminal.input("\u0018"); // Protocol: Ctrl+X
     expect(shell.root.editor.getText()).toBe("");
-    terminal.input("\u001a"); // Ctrl+Z
+    terminal.input("\u001a"); // Protocol: Ctrl+Z
     expect(shell.root.editor.getText()).toBe("alpha beta");
-    terminal.input("\u0019"); // Ctrl+Y
+    terminal.input("\u0019"); // Protocol: Ctrl+Y
     expect(shell.root.editor.getText()).toBe("");
 
-    terminal.input("\u0016"); // Ctrl+V immediately after copying/cutting
+    terminal.input("\u0016"); // Concurrency: Ctrl+V immediately follows copying or cutting.
     await vi.waitFor(() => expect(shell.root.editor.getText()).toBe("alpha beta"));
     terminal.input("\u001a");
     expect(shell.root.editor.getText()).toBe("");
@@ -643,9 +643,9 @@ describe("OwnedUiSessionShell", () => {
     await vi.waitFor(() => expect(shell.root.editor.getText()).toBe("right pasted text"));
 
     shell.root.editor.setText("abcd");
-    terminal.input("\u001b[1;2D"); // Shift+Left: d
-    terminal.input("\u001b[1;2D"); // Shift+Left: cd
-    terminal.input("\u001b[1;2C"); // Shift+Right shrinks to d
+    terminal.input("\u001b[1;2D"); // Protocol: Shift+Left selects d.
+    terminal.input("\u001b[1;2D"); // Protocol: Shift+Left extends selection to cd.
+    terminal.input("\u001b[1;2C"); // Protocol: Shift+Right shrinks selection to d.
     terminal.input("\u0003");
     expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from("d").toString("base64")}\u0007`);
 
@@ -684,7 +684,7 @@ describe("OwnedUiSessionShell", () => {
     expect(visibleWidth(linkedChipRow)).toBe(60);
     expect(stripTerminalSequences(linkedChipRow)).toMatch(/\] +$/u);
 
-    terminal.input("\u001b[D"); // Left focuses the adjacent chip as one inverted item.
+    terminal.input("\u001b[D"); // Invariant: Left focuses the adjacent chip as one item.
     const focusedChip = shell.root.render(60).find(row => stripTerminalSequences(row).includes("https://example.com")) ?? "";
     expect(focusedChip).toContain("\u001b[7m");
     expect(focusedChip).toContain("\u001b]8;;https://example.com/a/very/useful/resource\u001b\\");
@@ -700,12 +700,12 @@ describe("OwnedUiSessionShell", () => {
     terminal.input("\u001a");
     expect(shell.root.editor.getText()).toContain("[🔗 https://example.com/");
 
-    terminal.input("\u001b[1;5C"); // Ctrl+Right also treats the chip as one item.
+    terminal.input("\u001b[1;5C"); // Invariant: Ctrl+Right treats the chip as one item.
     expect(shell.root.render(60).join("\n")).toContain("\u001b[7m");
-    terminal.input("\u001b[1;5C"); // Collapse at its far edge.
-    terminal.input("\u001b[1;5D"); // Ctrl+Left selects the whole chip, never its interior.
+    terminal.input("\u001b[1;5C"); // Invariant: collapse at the chip's far edge.
+    terminal.input("\u001b[1;5D"); // Invariant: Ctrl+Left selects the whole chip, never its interior.
     expect(shell.root.render(60).join("\n")).toContain("\u001b[7m");
-    terminal.input("\u001b[1;5D"); // Collapse at its near edge before the mouse check.
+    terminal.input("\u001b[1;5D"); // Invariant: collapse at its near edge before the mouse check.
 
     const chipFrame = shell.root.render(60).map(row => stripTerminalSequences(row));
     const chipRow = chipFrame.findIndex(row => row.includes("https://example.com")) + 1;
@@ -898,8 +898,8 @@ describe("OwnedUiSessionShell", () => {
     const adjacent = shell.root.editor.getText();
     const spaced = adjacent.replace("][", "] [");
 
-    terminal.input("\u001b[D"); // Focus second chip.
-    terminal.input(" "); // Insert before atomic focus; neither chip is replaced.
+    terminal.input("\u001b[D"); // Invariant: focus the second chip.
+    terminal.input(" "); // Invariant: insert before atomic focus; neither chip is replaced.
     expect(shell.root.editor.getText()).toBe(spaced);
     clipboardText = "";
     terminal.input("\u0003");
@@ -907,58 +907,58 @@ describe("OwnedUiSessionShell", () => {
     terminal.input("\u001b[C");
 
     shell.root.editor.setText(adjacent);
-    terminal.input("\u001b[1;5H"); // Focus the first chip through the native cursor.
+    terminal.input("\u001b[1;5H"); // Invariant: focus the first chip through the native cursor.
     terminal.input(" ");
     expect(shell.root.editor.getText()).toBe(` ${adjacent}`);
     terminal.input("\u001b[C");
     terminal.input("\u001b[C");
     shell.root.editor.setText(adjacent);
 
-    terminal.input("\u001b[D"); // Focus second chip.
-    terminal.input("\u001b[D"); // Adjacent first chip is one atomic item left.
+    terminal.input("\u001b[D"); // Invariant: focus the second chip.
+    terminal.input("\u001b[D"); // Invariant: the adjacent first chip is one atomic item left.
     clipboardText = "";
     terminal.input("\u0003");
     await vi.waitFor(() => expect(clipboardText).toBe(firstUrl));
     expect(shell.root.editor.hasSelection()).toBe(false);
 
     shell.root.editor.setText(adjacent);
-    terminal.input("\u001b[1;5H"); // Native editor cursor at the first atomic segment start.
+    terminal.input("\u001b[1;5H"); // Invariant: native editor cursor starts at the first atomic segment.
     expect(shell.root.editor.hasSelection()).toBe(true);
-    terminal.input("\u001b[C"); // Must move to the second chip, not re-select the first.
+    terminal.input("\u001b[C"); // Invariant: move to the second chip rather than reselecting the first.
     clipboardText = "";
     terminal.input("\u0003");
     await vi.waitFor(() => expect(clipboardText).toBe(secondUrl));
     expect(shell.root.editor.hasSelection()).toBe(false);
 
     shell.root.editor.setText(spaced);
-    terminal.input("\u001b[D"); // Focus second chip.
-    terminal.input("\u001b[D"); // Move only one character left, onto the separator.
+    terminal.input("\u001b[D"); // Invariant: focus the second chip.
+    terminal.input("\u001b[D"); // Invariant: move one character left onto the separator.
     terminal.input("X");
     expect(shell.root.editor.getText()).toBe(spaced.replace("] [", "]X ["));
 
     shell.root.editor.setText(spaced);
-    terminal.input("\u001b[D"); // Focus second chip.
-    terminal.input("\u001b[D"); // Separator.
-    terminal.input("\u001b[D"); // First chip.
-    terminal.input("\u001b[C"); // Separator.
-    terminal.input("\u001b[C"); // Second chip.
+    terminal.input("\u001b[D"); // Invariant: focus the second chip.
+    terminal.input("\u001b[D"); // Protocol: separator.
+    terminal.input("\u001b[D"); // Protocol: first chip.
+    terminal.input("\u001b[C"); // Protocol: separator.
+    terminal.input("\u001b[C"); // Protocol: second chip.
     clipboardText = "";
     terminal.input("\u0003");
     await vi.waitFor(() => expect(clipboardText).toBe(secondUrl));
 
     const imageRun = "[📷 first.png][📷 second.png][📷 third.png]";
     shell.root.editor.setText(`words ${imageRun}`);
-    terminal.input("\u001b[1;5D"); // Ctrl+Left crosses the adjacent run and stops on its separator.
+    terminal.input("\u001b[1;5D"); // Invariant: Ctrl+Left crosses the adjacent run and stops on its separator.
     terminal.input("X");
     expect(shell.root.editor.getText()).toBe(`wordsX ${imageRun}`);
 
     shell.root.editor.setText(`words tail${imageRun}`);
-    terminal.input("\u001b[1;5D"); // An attached chip run also crosses its attached word to the separator.
+    terminal.input("\u001b[1;5D"); // Invariant: an attached chip run also crosses its word to the separator.
     terminal.input("X");
     expect(shell.root.editor.getText()).toBe(`wordsX tail${imageRun}`);
 
     shell.root.editor.setText("doio ddh did d diud");
-    terminal.input("\u001b[1;5D"); // Ctrl+Left stops on the separator before an ordinary word too.
+    terminal.input("\u001b[1;5D"); // Invariant: Ctrl+Left stops on the separator before an ordinary word.
     terminal.input("X");
     expect(shell.root.editor.getText()).toBe("doio ddh did dX diud");
 
@@ -1057,7 +1057,7 @@ describe("OwnedUiSessionShell", () => {
     await new Promise(resolve => setTimeout(resolve, 130));
     expect(firstVisible()).toBe(whileHeld);
 
-    // Leave enough room below for the faster direction to demonstrate its
+    // Rationale: leave enough room below for the faster direction to demonstrate its
     // greater distance rather than immediately hitting the document end.
     terminal.input("\u001b[<64;30;3M");
     terminal.input("\u001b[<64;30;3M");
@@ -1112,7 +1112,7 @@ describe("OwnedUiSessionShell", () => {
     const row = rowIndex + 1;
 
     terminal.input(`\u001b[<0;${start};${row}M`);
-    // Code 35 is motion with no button bits set.
+    // Protocol: code 35 is motion with no button bits set.
     terminal.input(`\u001b[<35;${end};${row}M`);
     terminal.input(`\u001b[<0;${end};${row}m`);
     terminal.input("\u0003");
@@ -1271,7 +1271,7 @@ describe("OwnedUiSessionShell", () => {
     terminal.input("\u001b[<0;21;4m");
     expect(mouseEvents).toBe(3);
 
-    // The screen is still up: ending the session has to restore the terminal anyway.
+    // Invariant: the screen is still up: ending the session has to restore the terminal anyway.
     await shell.dispose();
     expect(terminal.writes.some(write => write.includes("[?1003l"))).toBe(true);
     expect(terminal.writes.some(write => write.includes("[?1006l"))).toBe(true);
@@ -1303,7 +1303,7 @@ describe("OwnedUiSessionShell", () => {
     const question = streamed.findIndex(row => row.includes("Question"));
     const answer = streamed.findIndex(row => row.includes("partial answer"));
     expect(question).toBeGreaterThan(-1);
-    // The chunk went through the block it named without disturbing the order around it.
+    // Invariant: the chunk went through the block it named without disturbing the order around it.
     expect(answer).toBeGreaterThan(question);
     await shell.dispose();
   });
@@ -1323,9 +1323,9 @@ describe("OwnedUiSessionShell", () => {
     const rowsOf = (width: number) => shell.root.render(width).map(row => stripTerminalSequences(row).trimEnd());
     const first = rowsOf(80);
     expect(first.some(row => row.includes("Settled answer"))).toBe(true);
-    // A repeat frame at the same width shows the same content from the cached rows.
+    // Performance: a repeat frame at the same width shows the same content from the cached rows.
     expect(rowsOf(80)).toEqual(first);
-    // A different width is a different render rather than a stale hit.
+    // Performance: a different width is a different render rather than a stale hit.
     expect(rowsOf(52).some(row => row.includes("Settled answer"))).toBe(true);
     expect(rowsOf(80)).toEqual(first);
 

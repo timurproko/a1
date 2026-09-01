@@ -53,7 +53,7 @@ describe("preparing a profile", () => {
     try {
       symlinkSync(root, link, "junction");
     } catch {
-      return; // the platform refuses to make one without privileges; nothing to assert
+      return; // Platform: the platform refuses to make one without privileges; nothing to assert
     }
     await expect(initializeProductProfile(target)).rejects.toThrow(/not an owned directory/);
   });

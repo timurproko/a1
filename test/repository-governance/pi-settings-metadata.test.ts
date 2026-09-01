@@ -5,7 +5,7 @@ import { METADATA_PATH, renderMetadata } from "../../scripts/pi/update-pi-settin
 
 describe("Pi settings presentation metadata", () => {
   it("matches what the pinned engine currently declares", () => {
-    // Regenerating must be a no-op. When a Pi upgrade rewords, reorders, or adds
+    // Compatibility: regenerating must be a no-op. When a Pi upgrade rewords, reorders, or adds
     // a setting, this fails until `npm run update:pi-settings-metadata` is rerun,
     // so what A1 shows cannot silently drift from what the engine shows.
     expect(readFileSync(METADATA_PATH, "utf8")).toBe(renderMetadata());
@@ -21,7 +21,7 @@ describe("Pi settings presentation metadata", () => {
 
   it("declares the flags a dialog-backed setting offers, with their defaults", () => {
     const metadata = extractPiSettingsMetadata();
-    // Taken from the declaration, not from a stored value: an unset flag still
+    // Invariant: taken from the declaration, not from a stored value: an unset flag still
     // has a row, which is why an untouched profile still shows something.
     const warnings = metadata.dialogs["warnings"] ?? [];
     expect(warnings.length).toBeGreaterThan(0);

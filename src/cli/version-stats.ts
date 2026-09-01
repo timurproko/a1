@@ -35,7 +35,7 @@ export async function runVersionStats(options: VersionStatsOptions): Promise<num
     return 1;
   }
 
-  // Match Pi's release behavior: stable builds print only their installed version.
+  // Compatibility: match Pi's release behavior: stable builds print only their installed version.
   // Development builds retain channel visibility for preview comparison and updates.
   if (prerelease(installed) === null) {
     output.stdout(`${installed}\n`);
@@ -48,7 +48,7 @@ export async function runVersionStats(options: VersionStatsOptions): Promise<num
   return 0;
 }
 
-// npm view respects the user's .npmrc registry and proxy, so it stays primary; the direct
+// Rationale: npm view respects the user's .npmrc registry and proxy, so it stays primary; the direct
 // registry fetch below covers npm CLI versions whose --json output shape we cannot parse.
 async function queryDistTags(runner: VersionProcessRunner, fetcher: RegistryFetcher): Promise<RemoteVersions> {
   const fromNpm = await queryDistTagsViaNpm(runner);
@@ -69,7 +69,7 @@ async function queryDistTagsViaNpm(runner: VersionProcessRunner): Promise<Remote
 
   try {
     const parsed: unknown = JSON.parse(result.stdout);
-    // npm 12 wraps `npm view <pkg> dist-tags --json` output in a one-element array; older npm returns the bare object.
+    // Compatibility: npm 12 wraps `npm view <pkg> dist-tags --json` output in a one-element array; older npm returns the bare object.
     const metadata: unknown = Array.isArray(parsed) && parsed.length === 1 ? parsed[0] : parsed;
     return parseDistTags(metadata, "npm");
   } catch (error) {

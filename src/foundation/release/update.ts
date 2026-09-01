@@ -188,18 +188,18 @@ export function createUpdateLifecycleCoordinator(
         await removeEndpointArtifacts(owner.paths.endpointMetadataPath, owner.paths.endpoint);
         return { priorActiveVersion };
       }
-      // Leaving sessions alone is the expected outcome, and saying so mid-update tears
+      // Rationale: leaving sessions alone is the expected outcome, and saying so mid-update tears
       // the progress bar; only ending a session (below) is worth interrupting it for.
       if (plan === "leave-running") return { priorActiveVersion };
 
-      // Say whose work is ending before it ends.
+      // Rationale: say whose work is ending before it ends.
       const live = endpoint.ownership.liveInstanceIds.length;
       if (live > 0) {
         output.stderr(`${PRODUCT_TEXT.diagnostic(`ending ${live === 1 ? "one session" : `${live} sessions`} that run from the installation being replaced; a session started by an installed release would have been left alone.`)}\n`);
       }
       const identity = await requestUpdateShutdown(endpoint, targetVersion, 2_000);
       if (!identity.accepted && processIsAlive(endpoint.pid)) {
-        // Explicit update consent permits bounded cleanup of an authenticated
+        // Security: explicit update consent permits bounded cleanup of an authenticated
         // older owner that predates the update-shutdown message.
         const cleanup = await cleanupVerifiedOwner(endpoint, { allowLiveInstances: true, reason: "legacy-mutable-install" });
         if (!cleanup.terminated) throw new Error(`verified ${PRODUCT_TEXT.displayName} owner ${endpoint.pid} rejected shutdown and could not be terminated: ${identity.reason}`);
@@ -220,7 +220,7 @@ export function createUpdateLifecycleCoordinator(
         await rename(packageRoot, probe);
         await rename(probe, packageRoot);
       } catch (error) {
-        // Best-effort rollback if the first rename succeeded and the second did not.
+        // Invariant: best-effort rollback runs if the first rename succeeded and the second did not.
         await rename(probe, packageRoot).catch(() => {});
         throw new Error(PRODUCT_TEXT.diagnostic(`package remains locked after verified shutdown: ${errorMessage(error)}`));
       }
@@ -298,7 +298,7 @@ function createUpdateProgress(output: UpdateOutput, enabled: boolean): UpdatePro
       shown = -1;
       draw();
       if (creepTo <= current) return;
-      // Creep asymptotically toward (but never reach) the next milestone so
+      // Rationale: creep asymptotically toward (but never reach) the next milestone so
       // long opaque phases such as npm install still show visible motion. The
       // ceiling stays a whole point below the milestone: settling on `creepTo`
       // itself would render as that milestone and make arriving at it invisible,
@@ -309,7 +309,7 @@ function createUpdateProgress(output: UpdateOutput, enabled: boolean): UpdatePro
       }, PROGRESS_TICK_MS);
       timer.unref?.();
     },
-    // The bar exists to say the update is still moving. Once it has finished
+    // Rationale: the bar exists to say the update is still moving. Once it has finished
     // there is a better line to occupy that row — the one naming what is now
     // installed — so the bar gives the row back rather than leaving a full
     // meter above a message that already implies it.
@@ -367,7 +367,7 @@ async function resolveRequestedPreview(runner: UpdateProcessRunner, requested: s
 
   const exact = versions.find(version => version === requested);
   if (exact !== undefined) {
-    // Naming a release here would install it through the preview path, which is a
+    // Rationale: naming a release here would install it through the preview path, which is a
     // different command with a different meaning.
     if (!exact.includes("-dev.")) {
       output.stderr(`${PRODUCT_TEXT.diagnostic(`${exact} is a release, not a preview; run ${PRODUCT_TEXT.commandName} update to move to the current release.`)}\n`);
@@ -416,7 +416,7 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
     : await resolveRequestedPreview(runner, requested, output));
   if (resolved.version === null) return resolved.exitCode;
   const targetVersion = resolved.version;
-  // No full stop after a version: it already ends in a dot-separated identifier,
+  // Rationale: no full stop after a version: it already ends in a dot-separated identifier,
   // and a trailing one reads as part of the version rather than as punctuation.
   output.stdout(`${PRODUCT_TEXT.commandName} update: ${runningVersion} → ${targetVersion}\n`);
   const progress = createUpdateProgress(output, options.progress ?? (options.output === undefined && process.stdout.isTTY === true));
@@ -455,7 +455,7 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
       output.stdout(`${PRODUCT_TEXT.commandName} is up to date — no update needed.\n`);
       return 0;
     }
-    // The bar first appears here so a no-change run never flashes it.
+    // Rationale: the bar first appears here so a no-change run never flashes it.
     progress.set(3, 15);
     const cohortState = await new CohortStateStore(paths.dataDir).read();
     transaction = await transactionStore.begin({
@@ -490,7 +490,7 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
       transaction = await transactionStore.advance("package-installed");
     }
 
-    // npm 12 blocks install scripts unless allowScripts covers the package, so
+    // Compatibility: npm 12 blocks install scripts unless allowScripts covers the package, so
     // the postinstall that points the #pi-tui proxy at the tree npm just built
     // may never have run. Run the shipped script directly: the proxy must be
     // correct before the release store copies this tree. A failure is reported
@@ -503,7 +503,7 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
     }
     progress.set(70, 75);
 
-    // Ownership can be reacquired after an interrupted installation (for
+    // Concurrency: ownership can be reacquired after an interrupted installation (for
     // example, if bare A1 is launched before the update is resumed). Recheck
     // immediately before activation so recovery cannot start a second cohort.
     await measure("ownership-release", async () => { await lifecycle.shutdownVerifiedOwners(targetVersion); });
@@ -599,7 +599,7 @@ async function rollbackPriorCohort(dataDir: string, environment: NodeJS.ProcessE
   }
   const release = await readMaterializedRelease(prior.releaseRoot);
   const paths = resolveProductPaths(environment);
-  // Rollback re-points the active reference and starts the prior cohort on its own endpoint;
+  // Invariant: rollback re-points the active reference and starts the prior cohort on its own endpoint;
   // a cohort that survived the update keeps serving the work it already had.
   await startSupervisor(release, environment);
   await waitForVerifiedEndpoint(resolveCohortEndpoint(paths, release.releaseId, environment).endpointMetadataPath, release, 8_000);

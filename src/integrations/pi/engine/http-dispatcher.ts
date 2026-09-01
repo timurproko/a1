@@ -1,4 +1,4 @@
-// Mechanically adapted from Pi commit 914cf14
+// Provenance: mechanically adapted from Pi commit 914cf14
 // packages/coding-agent/src/core/http-dispatcher.ts (MIT).
 // Local modifications: expose only A1's owned timeout seam and retain no private Pi imports.
 import { EnvHttpProxyAgent, install, setGlobalDispatcher } from "undici";

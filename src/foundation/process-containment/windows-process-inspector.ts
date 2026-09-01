@@ -12,6 +12,7 @@ export interface InspectorCommandRunner {
   run(executable: string, arguments_: readonly string[]): Promise<InspectorCommandResult>;
 }
 
+/** Verifies Windows process identity through the bounded process-guardian inspection command. */
 export class WindowsNativeProcessInspector implements NativeProcessInspector {
   constructor(
     readonly helperPath: string,

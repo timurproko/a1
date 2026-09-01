@@ -188,7 +188,7 @@ function existingClipboardPath(value: string): ClipboardPath | null {
     if (stat.isDirectory()) return { fullPath, kind: "folder" };
     if (stat.isFile()) return { fullPath, kind: "file" };
   } catch {
-    // Clipboard path probing is best-effort.
+    // Compatibility: clipboard path probing is best-effort.
   }
   return null;
 }

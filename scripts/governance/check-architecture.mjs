@@ -42,7 +42,7 @@ for (const file of await walk(sourceRoot)) {
   const imports = [...source.matchAll(/(?:from\s+|import\s*\()(["'])([^"']+)\1/g)].map(match => match[2]);
 
   for (const specifier of imports) {
-    // `#pi-tui` is A1's own alias for pinned Pi's terminal package, so it is a Pi
+    // Invariant: `#pi-tui` is A1's own alias for pinned Pi's terminal package, so it is a Pi
     // import wherever it appears and belongs to the same adapter boundary.
     const isPi = !specifier.startsWith(".") && /(?:^|[#/])(?:pi-agent|pi-ai|pi-coding-agent|pi-tui|@mariozechner\/pi-|@oh-my-pi\/pi-)/.test(specifier);
     const piAdapterPath = /^src\/(?:integrations\/pi\/(?:engine|components|tui-runtime)|drivers\/pi|profiles\/pi)\//.test(path);
@@ -309,7 +309,7 @@ async function inspectTerminalParityBoundary() {
     if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
     return;
   }
-  // Terminal capture belongs to tests alone: a pseudo-terminal or cell reader
+  // Security: terminal capture belongs to tests alone: a pseudo-terminal or cell reader
   // shipped in the product would be a second way to draw the screen.
   for (const dependency of ["node-pty", "@xterm/headless"]) {
     if (manifest.dependencies?.[dependency]) errors.push(`package.json: terminal capture dependency '${dependency}' must be development-only`);

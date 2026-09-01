@@ -138,7 +138,7 @@ export class SettingsApp implements UiApp {
   readonly #session: OwnedUiSettingsSession;
   #selectedKey: string | undefined;
   #scroll = 0;
-  /** Keyboard navigation requests visibility once; pointer scrolling then stays free. */
+  // Invariant: keyboard navigation requests visibility once; pointer scrolling then stays free.
   #selectionNeedsReveal = true;
   #reveal: ListRowSpan | undefined;
   #notice: string | null = null;
@@ -147,19 +147,15 @@ export class SettingsApp implements UiApp {
   #structured: StructuredEdit | null = null;
   #loading = true;
   #interruptArmed = false;
-  /** Values requested but not yet reflected by the source, keyed by entry. */
+  // Invariant: pending values remain visible until the source reflects them.
   readonly #pending = new Map<string, OwnedUiSettingValue>();
   #footerHeight = 1;
-  /** Column the dialog's values start at, so a label stays a label. */
   #dialogValueColumn = 0;
-  /** Screen row the dialog panel starts on, for pointer hits. */
   #panelTop = 0;
   #panelTopForFrame = 0;
-  /** Row key under the pointer, and where each row was drawn last frame. */
   #hoverKey: string | null = null;
   #hoverRegion: "label" | "value" | "minus" | "plus" = "label";
   #frameRows: { key: string; screenRow: number; valueColumn: number; valueWidth: number; stepper: boolean }[] = [];
-  /** Where the value menu was drawn last frame, for hit testing. */
   #menuFrame: { top: number; column: number; width: number; rows: number } | null = null;
 
   constructor(session: OwnedUiSettingsSession) {
@@ -238,7 +234,7 @@ export class SettingsApp implements UiApp {
     if (this.#menu !== null) return this.#menuKey(data);
     if (this.#filter !== null) return this.#filterKey(data);
 
-    // Pinned SettingsList searches as soon as printable text is entered. `/`
+    // Compatibility: pinned SettingsList searches as soon as printable text is entered. `/`
     // remains an explicit shortcut, while the printable declaration keeps the
     // dispatched action and its reader-facing hint under one authority.
     const key = KEYS[data] ?? (data.length === 1 && data >= "!" && data !== "\u007f" ? "printable" : data);
@@ -277,7 +273,7 @@ export class SettingsApp implements UiApp {
       }
       case "first":
       case "last": {
-        // End lands on the very last setting, not on the head of its section.
+        // Invariant: End lands on the very last setting, not on the head of its section.
         const selectable = selectableIndexes(rows);
         const target = action === "last" ? selectable.at(-1) : selectable[0];
         if (target !== undefined) {
@@ -302,7 +298,7 @@ export class SettingsApp implements UiApp {
       const overRow = menuRowAt(frame, event.row - 1, event.column);
       const overMenu = overRow !== null;
       if (event.kind === "motion") {
-        // The menu owns the pointer, but the row it came from is still the thing
+        // Invariant: the menu owns the pointer, but the row it came from is still the thing
         // being changed, so its value keeps reading as the one under the pointer.
         // Only a dialog that takes the screen puts that out.
         const hadHover = this.#hoverKey !== menu.anchorKey || this.#hoverRegion !== "value";
@@ -319,7 +315,7 @@ export class SettingsApp implements UiApp {
       }
       if (event.kind !== "press") return { consumed: true, render: false };
       if (overRow === null) {
-        // A press anywhere else dismisses the menu rather than acting through it.
+        // Invariant: a press anywhere else dismisses the menu rather than acting through it.
         this.#menu = null;
         return { consumed: true };
       }
@@ -331,7 +327,7 @@ export class SettingsApp implements UiApp {
 
     const open = this.#structured;
     if (open !== null) {
-      // The panel owns the pointer while it is open; its flag rows are the targets.
+      // Invariant: the panel owns the pointer while it is open; its flag rows are the targets.
       // The panel's rows begin one line below its rule.
       const panel = { firstRow: this.#panelTop + 1, rows: open.flags.length, valueColumn: this.#dialogValueColumn };
       const row = event.row - 1 - panel.firstRow;
@@ -343,7 +339,7 @@ export class SettingsApp implements UiApp {
       }
       if (event.kind === "press") {
         open.index = row;
-        // Pointing at the label picks the row; the value is what changes it,
+        // Rationale: pointing at the label picks the row; the value is what changes it,
         // exactly as in the list behind the dialog.
         const key = open.flags[row] ?? "";
         const width = displayWidth((open.record[key] ?? false) ? "true" : "false");
@@ -354,7 +350,7 @@ export class SettingsApp implements UiApp {
     }
 
     if (event.kind === "wheel-up" || event.kind === "wheel-down") {
-      // The whole list pane owns wheel scrolling, including blank space beside
+      // Invariant: the whole list pane owns wheel scrolling, including blank space beside
       // short labels. It must not depend on finding an item under the pointer.
       if (event.row < 1 || event.row > this.#panelTopForFrame) return { consumed: false };
       this.#scroll = Math.max(0, this.#scroll + (event.kind === "wheel-down" ? 8 : -8));
@@ -378,7 +374,7 @@ export class SettingsApp implements UiApp {
       const rows = this.#rows();
       const index = rows.findIndex(candidate => rowKey(candidate) === row.key);
       if (index >= 0) {
-        // The pointer acts where it points; the arrow belongs to the keyboard.
+        // Rationale: the pointer acts where it points; the arrow belongs to the keyboard.
         this.#notice = null;
         if (this.#hoverRegion === "minus") this.#cycle(rows, index, -1);
         else if (this.#hoverRegion === "plus") this.#cycle(rows, index, 1);
@@ -399,7 +395,7 @@ export class SettingsApp implements UiApp {
       return;
     }
     const shown = this.#shownValue(entry);
-    // A number is stepped, not picked from a list: it has its own two controls,
+    // Rationale: a number is stepped, not picked from a list: it has its own two controls,
     // and pointing at it is not a request for anything else.
     if (typeof shown === "number") return;
     if (!entry.editable || entry.choices === null || entry.choices.length === 0) {
@@ -407,16 +403,13 @@ export class SettingsApp implements UiApp {
       return;
     }
     const current = shown === null ? 0 : Math.max(0, entry.choices.indexOf(shown));
-    // Pinned SelectList opens on the value currently in effect.
+    // Compatibility: pinned SelectList opens on the value currently in effect.
     this.#menu = { entry, current, anchorKey: `${entry.backend}:${entry.id}`, choices: entry.choices, index: current };
   }
 
-  /**
-   * A structured setting is a set of flags, so it opens as its own list rather
-   * than as a value menu: each row names one flag and toggles it in place.
-   */
+  // Rationale: a structured setting opens as its own flag list rather than a value menu.
   #openStructured(entry: OwnedUiSettingsEntry): void {
-    // The flags come from the declaration, not from the stored value: an unset
+    // Invariant: the flags come from the declaration, not from the stored value: an unset
     // flag still has a row, showing the default the source would apply.
     if (entry.flags.length === 0) {
       this.#notice = `${labelOf(entry)} has nothing to configure`;
@@ -430,7 +423,7 @@ export class SettingsApp implements UiApp {
       const value = stored[flag.key];
       record[flag.key] = typeof value === "boolean" ? value : flag.fallback;
     }
-    // The dialog takes the screen: the row it was opened from stops being the
+    // Invariant: the dialog takes the screen: the row it was opened from stops being the
     // thing under the pointer, so it stops looking like it.
     this.#hoverKey = null;
     this.#hoverRegion = "label";
@@ -478,7 +471,7 @@ export class SettingsApp implements UiApp {
       return { consumed: true };
     }
     if (key === "up" || key === "down") {
-      // The keyboard starts from the value in effect rather than from the top.
+      // Compatibility: the keyboard starts from the value in effect rather than from the top.
       menu.index = menu.index < 0
         ? menu.current
         : Math.min(menu.choices.length - 1, Math.max(0, menu.index + (key === "down" ? 1 : -1)));
@@ -508,7 +501,7 @@ export class SettingsApp implements UiApp {
     }
     if (key === "up" || key === "down" || key === "shift+up" || key === "shift+down") {
       const rows = this.#rows();
-      // Nothing found means nothing to move through; the key is still swallowed
+      // Rationale: nothing found means nothing to move through; the key is still swallowed
       // rather than typed into the search.
       if (selectableIndexes(rows).length === 0) return { consumed: true, render: false };
       const selected = indexOfKey(rows, this.#selectedKey);
@@ -538,7 +531,7 @@ export class SettingsApp implements UiApp {
     }
     const shown = this.#shownValue(entry);
     if (typeof shown === "number") {
-      // At the end of the range there is nothing to say: the arrow already reads
+      // Rationale: at the end of the range there is nothing to say: the arrow already reads
       // as unavailable, so a message would only repeat it.
       const next = steppedValue(rangeOf(entry), shown, delta);
       if (next !== null) this.#apply(entry, next);
@@ -558,7 +551,7 @@ export class SettingsApp implements UiApp {
 
   #apply(entry: OwnedUiSettingsEntry, value: OwnedUiSettingValue): void {
     const key = `${entry.backend}:${entry.id}`;
-    // Shown immediately so the row never lags a keypress, and so the next press
+    // Invariant: shown immediately so the row never lags a keypress, and so the next press
     // steps from here rather than from a value the source has not caught up to.
     this.#pending.set(key, value);
     void this.#session.change(entry.backend, entry.id, value).then(outcome => {
@@ -572,7 +565,7 @@ export class SettingsApp implements UiApp {
         this.#notice = outcome.limitationReason ?? `${labelOf(entry)} is unavailable`;
         return;
       }
-      // A later press may have moved on; only the last request clears itself.
+      // Concurrency: a later press may have moved on; only the last request clears itself.
       if (this.#pending.get(key) === value) this.#pending.delete(key);
       this.#notice = outcome.status === "deferred" && outcome.application !== null
         ? `${labelOf(entry)} is stored and applies ${applicationLabel(outcome.application)}`
@@ -580,7 +573,6 @@ export class SettingsApp implements UiApp {
     });
   }
 
-  /** What the row shows: the value asked for if one is outstanding, else the source's. */
   #shownValue(entry: OwnedUiSettingsEntry): OwnedUiSettingValue | null {
     return this.#pending.get(`${entry.backend}:${entry.id}`) ?? entry.value;
   }
@@ -606,7 +598,7 @@ export class SettingsApp implements UiApp {
 
     const rows: Row[] = [];
     for (const section of this.#session.sections()) {
-      // A section named by the search is what the reader asked for, so it arrives
+      // Rationale: a section named by the search is what the reader asked for, so it arrives
       // whole rather than narrowed to the entries that happen to repeat its name.
       const named = needle.length > 0 && section.title.toLowerCase().includes(needle);
       const entries = named ? section.entries : section.entries.filter(matches);
@@ -620,7 +612,7 @@ export class SettingsApp implements UiApp {
       if (section.readOnlyReason !== null && (needle.length === 0 || named)) {
         rows.push({ kind: "note", group: section.id, text: section.readOnlyReason });
       }
-      // Presented in the order the source reports, which is the order the
+      // Invariant: presented in the order the source reports, which is the order the
       // pinned engine shows and is neither declaration order nor alphabetical.
       for (const entry of entries) {
         rows.push({
@@ -655,7 +647,6 @@ export class SettingsApp implements UiApp {
     return renderListRow(this.#viewRow(entry), { selected, hovered, region: this.#hoverRegion }, valueColumn, width, theme);
   }
 
-  /** What the list view needs to draw a setting: its words, and where it can go. */
   #viewRow(entry: OwnedUiSettingsEntry): ListViewRow {
     const shown = this.#shownValue(entry);
     const value = entry.structured
@@ -701,13 +692,12 @@ export class SettingsApp implements UiApp {
     return renderValueMenu(lines, state, frame, theme);
   }
 
-  /** What the panel needs to present a structured setting's parts. */
   #dialogLines(open: StructuredEdit, width: number, theme: UiTheme): readonly string[] {
     const rows = open.flags.map(key => {
       const declared = open.entry.flags.find(flag => flag.key === key);
       return {
         label: declared?.label ?? humanizeLabel(key),
-        // The engine writes these as the booleans they are rather than as yes/no.
+        // Protocol: the engine writes these as the booleans they are rather than as yes/no.
         value: (open.record[key] ?? false) ? "true" : "false",
         ...(declared?.description === undefined ? {} : { description: declared.description }),
       };

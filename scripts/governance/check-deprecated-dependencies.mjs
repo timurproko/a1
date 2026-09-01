@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 const REGISTRY = "https://registry.npmjs.org";
 const identity = JSON.parse(await readFile(new URL("../../src/product-identity.json", import.meta.url), "utf8"));
 
-// Pi 0.84.x carries these deprecated transitive packages through its public SDK
+// Compatibility: Pi 0.84.x carries these deprecated transitive packages through its public SDK
 // dependency graph. They are accepted only on those exact versions and paths;
 // any A1 update must re-evaluate them instead of broadening the exception.
 const DOCUMENTED_DEPRECATED_EXCEPTIONS = [

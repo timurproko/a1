@@ -17,6 +17,7 @@ export type WorkspaceRouterResult<T = undefined> =
   | { readonly kind: "applied"; readonly view: WorkspaceView; readonly value: T }
   | { readonly kind: "rejected"; readonly code: string; readonly diagnostic: string };
 
+/** Serializes workspace actions and capability-gates structured commands at the selected-agent boundary. */
 export class WorkspaceRouter {
   readonly #trackers = new Map<string, StructuredCommandTracker>();
   #tail: Promise<void> = Promise.resolve();

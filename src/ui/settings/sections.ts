@@ -131,14 +131,14 @@ function agentSection(snapshot: AgentSettingsSnapshot | null): OwnedUiSettingsSe
       rawValue: raw,
       storedValue: descriptor.storedValue,
       effectiveValue: descriptor.effectiveValue,
-      // Unavailable and non-writable descriptors are filtered before projection.
+      // Invariant: unavailable and non-writable descriptors are filtered before projection.
       // Every presented structured value remains editable through its own surface.
       editable: true,
       structured: descriptor.valueType === "json",
       minimum: descriptor.minimum ?? null,
       maximum: descriptor.maximum ?? null,
       flags: descriptor.flags ?? [],
-      // A boolean is a two-value choice even when the engine names no choices,
+      // Protocol: a boolean is a two-value choice even when the engine names no choices,
       // so it opens the same menu as any other enumerated setting.
       choices: descriptor.valueType === "boolean" ? BOOLEAN_CHOICES : choicesOf(descriptor.choices),
       origin: "engine" as const,

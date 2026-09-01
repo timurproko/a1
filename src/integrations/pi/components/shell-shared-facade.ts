@@ -184,7 +184,7 @@ export interface PiShellSelectorOptions {
   readonly onCancel?: () => void;
 }
 
-// Pinned from packages/coding-agent/src/core/slash-commands.ts at 914cf14.
+// Provenance: pinned from packages/coding-agent/src/core/slash-commands.ts at 914cf14.
 
 export function createTuiFacade(options: Pick<PiShellEditorOptions, "getColumns" | "getRows" | "requestRender"> & { readonly onSubmit?: (text: string) => void }): TUI {
   const children: Component[] = [];
