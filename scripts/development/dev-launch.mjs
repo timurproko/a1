@@ -1,4 +1,4 @@
-// Repository-local launch that keeps the colours a user sees.
+// Platform: repository-local launch that keeps the colours a user sees.
 //
 // Node decides once, at startup, whether it may send VT sequences to the
 // terminal; when it decides it may not, it renders ANSI itself and knows only
@@ -21,7 +21,7 @@ const entry = resolve(scriptsDirectory, "start-local.mjs");
 const passedArguments = process.argv.slice(2);
 const shell = msysShell();
 
-// An interactive screen needs a terminal on its input. Run through a package
+// Platform: an interactive screen needs a terminal on its input. Run through a package
 // manager on Windows and the script is handed to cmd.exe, which can leave the
 // launch without one, and the session would end the moment it read end of file.
 if (!process.stdin.isTTY) {

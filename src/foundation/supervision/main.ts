@@ -22,7 +22,7 @@ export async function runSupervisor(): Promise<void> {
     resolve(paths.dataDir, "releases"),
   );
   await assertImmutableExecutionRoot(release, paths.dataDir);
-  // One endpoint per cohort: a superseded cohort keeps serving what it already has while the
+  // Protocol: one endpoint per cohort: a superseded cohort keeps serving what it already has while the
   // installed release listens on its own address.
   paths = { ...productPaths, ...resolveCohortEndpoint(productPaths, release.releaseId) };
   const bootNonce = randomUUID();

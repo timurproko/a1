@@ -160,7 +160,7 @@ describe("the settings screen", () => {
     const { app: target, writes } = await app();
     selectRow(target, "Editor padding");
 
-    // Already at the top of what the engine accepts: the step is not taken, and
+    // Invariant: already at the top of what the engine accepts: the step is not taken, and
     // nothing is said about it.
     target.onInput?.(`${ESC}[C`, HOST);
     expect(writes).toHaveLength(0);
@@ -183,7 +183,7 @@ describe("the settings screen", () => {
 
     target.onInput?.(`${ESC}[C`, HOST);
     expect(writes).toEqual([{ key: "outputPad", value: 1 }]);
-    // One and zero are its ends: there is nowhere above one to go.
+    // Invariant: one and zero are its ends: there is nowhere above one to go.
     target.onInput?.(`${ESC}[C`, HOST);
     expect(writes).toHaveLength(1);
   });
@@ -193,7 +193,7 @@ describe("the settings screen", () => {
     selectRow(target, "Warnings");
     target.onInput?.(ENTER, HOST);
 
-    // The declaration decides what a flag shows before anything is stored.
+    // Invariant: the declaration decides what a flag shows before anything is stored.
     expect(find(target, "Anthropic extra usage")).toContain("true");
     expect(find(target, "Unknown tools")).toContain("false");
     expect(find(target, "Enter/Space to change")).toContain("Esc to cancel");
@@ -202,7 +202,7 @@ describe("the settings screen", () => {
     expect(find(target, "Anthropic extra usage")).toContain("false");
     expect(writes.at(-1)).toEqual({ key: "warnings", value: { anthropicExtraUsage: false, unknownTools: false } });
 
-    // A second press steps from what the dialog shows, not from the snapshot it
+    // Invariant: a second press steps from what the dialog shows, not from the snapshot it
     // was opened with.
     target.onInput?.(SPACE, HOST);
     expect(find(target, "Anthropic extra usage")).toContain("true");
@@ -252,7 +252,7 @@ describe("the settings screen", () => {
     target.onInput?.("/", HOST);
     target.render({ width: 80, height: 13 }, HOST);
 
-    // Wheel over otherwise blank list space, not over a setting row.
+    // Rationale: wheel over otherwise blank list space, not over a setting row.
     target.onMouse?.({ kind: "wheel-down", button: 0, row: 1, column: 70 }, HOST);
     const lines = target.render({ width: 80, height: 13 }, HOST).map(line => line.replace(STYLE, "").trimEnd());
     const searchRow = lines.findIndex(line => line.startsWith(">"));
@@ -282,7 +282,7 @@ describe("the settings screen", () => {
     const searchRow = lines.findIndex(line => line.startsWith(">"));
     expect(searchRow, JSON.stringify(lines)).toBeGreaterThanOrEqual(0);
     expect(lines.find(line => line.includes("Output padding"))?.trimStart()).toMatch(/^→/);
-    // Pinned SettingsList places the search input directly below the final row.
+    // Compatibility: pinned SettingsList places the search input directly below the final row.
     expect(lines[searchRow - 1]).toContain("Output padding");
   });
 
@@ -343,12 +343,12 @@ describe("the list view behind the screen", () => {
     const valueColumn = (lines[row] ?? "").indexOf("low") + 1;
     const selectedBefore = lines.find(line => line.trimStart().startsWith("→"));
 
-    // Pointer presses do not move the keyboard selection arrow.
+    // Invariant: pointer presses do not move the keyboard selection arrow.
     target.onMouse?.({ kind: "press", button: 0, row: row + 1, column: 8 }, HOST);
     expect(writes).toHaveLength(0);
     expect(screen(target).find(line => line.trimStart().startsWith("→"))).toBe(selectedBefore);
 
-    // The value opens its pinned-style dropdown without moving the row selection.
+    // Compatibility: the value opens its pinned-style dropdown without moving the row selection.
     target.onMouse?.({ kind: "press", button: 0, row: row + 1, column: valueColumn }, HOST);
     expect(writes).toHaveLength(0);
     expect(screen(target).some(line => line.includes("→ low"))).toBe(true);
@@ -405,7 +405,7 @@ describe("the input row and status line behind the screen", () => {
 
   it("says one thing at a time, reporting over the standing hint", async () => {
     const { app: target } = await app();
-    // The hint is one line; at a width that fits it, it names every key.
+    // Invariant: the hint is one line; at a width that fits it, it names every key.
     const wide = target.render({ width: 200, height: 24 }, HOST).map(line => line.replace(STYLE, ""));
     expect(wide.find(line => line.includes("to search"))).toContain("Esc to cancel");
   });
@@ -414,7 +414,7 @@ describe("the input row and status line behind the screen", () => {
     const { app: target } = await app(true);
     selectRow(target, "Thinking level");
     target.onInput?.(ENTER, HOST);
-    // The write is reported once it has been attempted, not on the keypress.
+    // Invariant: the write is reported once it has been attempted, not on the keypress.
     await new Promise(resolve => setTimeout(resolve, 0));
     const wide = target.render({ width: 200, height: 24 }, HOST).map(line => line.replace(STYLE, ""));
     expect(wide.find(line => line.includes("Could not save"))).toContain("Thinking level");

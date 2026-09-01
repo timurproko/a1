@@ -43,7 +43,7 @@ export async function resolvePiProjectTrustPreflight(
   const saved = trustStore.get(options.cwd);
   if (saved !== null) return { trusted: saved, source: "saved", diagnostic: null };
 
-  // projectTrusted:false is the security boundary: this read may see global
+  // Security: projectTrusted:false is the boundary: this read may see global
   // settings but cannot consume project settings or construct project resources.
   const globalSettings = SettingsManager.create(options.cwd, options.agentDir, { projectTrusted: false });
   const fallback = globalSettings.getDefaultProjectTrust();

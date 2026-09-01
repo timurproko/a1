@@ -14,6 +14,7 @@ export interface PiResourceExtensionOptions {
   readonly unbindUi: () => Promise<void>;
 }
 
+/** Adapts Pi resource discovery and extension binding while containing extension failures at the port. */
 export class PiResourceExtensionIntegration implements AgentResourcesPort, AgentExtensionPort {
   readonly capabilities = { reload: true, extensionBinding: true, binding: true, renderers: true };
   readonly #failures = new Set<(failure: AgentExtensionFailure) => void>();

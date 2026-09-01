@@ -70,13 +70,13 @@ function pinnedTheme(): UiTheme {
   return {
     fg: (token: UiThemeToken, text: string) => piTheme().fg(token, text),
     bold: (text: string) => piTheme().bold(text),
-    // Unpainted, so a list reads against the terminal the reader actually has
+    // Rationale: unpainted, so a list reads against the terminal the reader actually has
     // rather than against the background the configured theme was built for.
     plain: (text: string) => text,
-    // Quiet, and quieter again: the terminal's own faint attribute over the
+    // Rationale: quiet, and quieter again: the terminal's own faint attribute over the
     // dimmest colour the theme has.
     disabled: (text: string) => faint(piTheme().fg("dim", text)),
-    // Pi's SelectList uses accent text rather than invented floating-panel
+    // Compatibility: Pi's SelectList uses accent text rather than invented floating-panel
     // backgrounds. The menu remains an overlay geometrically, not chromatically.
     highlight: (text: string) => piTheme().fg("accent", text),
     panel: (text: string) => text,

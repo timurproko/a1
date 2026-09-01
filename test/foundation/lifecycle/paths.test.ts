@@ -88,7 +88,7 @@ describe("product control paths", () => {
     expect(first.endpointMetadataPath).not.toBe(second.endpointMetadataPath);
     expect(first.endpoint.startsWith(paths.runtimeDir)).toBe(true);
     expect(first.endpointMetadataPath.startsWith(paths.endpointsDir)).toBe(true);
-    // Neither is the endpoint a release without cohort identity published.
+    // Invariant: neither is the endpoint a release without cohort identity published.
     expect(first.endpoint).not.toBe(paths.endpoint);
     expect(first.endpointMetadataPath).not.toBe(paths.endpointMetadataPath);
     expect(resolveCohortEndpoint(paths, "0.1.8-aaaaaaaaaaaaaaaaaaaa", environment, "linux")).toEqual(first);

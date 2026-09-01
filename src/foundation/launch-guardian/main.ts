@@ -51,7 +51,7 @@ export async function runLaunchGuardian(options: LaunchGuardianOptions): Promise
   if (!guardianIdentity) throw diagnosticError("launch guardian cannot verify its own native process identity", "PROCESS_IDENTITY_UNAVAILABLE");
 
   const client = options.control ?? new SupervisorClient(environment[PRODUCT_IDENTITY.environment.releaseId]);
-  // An instance belongs to the cohort that launched it and talks to that cohort's endpoint
+  // Invariant: an instance belongs to the cohort that launched it and talks to that cohort's endpoint
   // for its whole life, whatever release becomes the active one meanwhile.
   const releaseId = environment[PRODUCT_IDENTITY.environment.releaseId];
   const endpoint = releaseId

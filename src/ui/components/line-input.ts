@@ -164,7 +164,7 @@ export class LineInput {
 export function handleLineInputKey(input: LineInput, data: string): LineInputOutcome {
   if (data === "\r" || data === "\n") return { kind: "accepted", value: input.value };
   if (data === "\u001b" || data === "\u0003") return { kind: "cancelled" };
-  // A word delete is decided before a plain one: on Windows Terminal the raw
+  // Platform: a word delete is decided before a plain one: on Windows Terminal the raw
   // backspace byte IS ctrl+backspace, and the plain branch would swallow it.
   if (data === "\b" || data === "\u001b\u007f" || data === "\u0017") {
     input.deleteWordBefore();
@@ -206,7 +206,7 @@ export function handleLineInputKey(input: LineInput, data: string): LineInputOut
     input.moveCaretToEnd();
     return { kind: "editing" };
   }
-  // Any other escape sequence is a key this input has no answer for - a page
+  // Rationale: any other escape sequence is a key this input has no answer for - a page
   // key, a function key, a chord. It is swallowed rather than typed, because the
   // one thing it certainly is not is text the reader meant to enter.
   if (data.startsWith("\u001b")) return { kind: "editing" };
@@ -214,12 +214,7 @@ export function handleLineInputKey(input: LineInput, data: string): LineInputOut
   return { kind: "editing" };
 }
 
-/**
- * The prompt the reference draws at the head of an input row, in the grey it
- * uses for one (#9AA0A6), painted foreground-only so anything drawn behind the
- * row survives.
- */
-/** A rule drawn in the prompt's own grey, as the reference rules an input row. */
+/** Draws the reference prompt rule foreground-only so underlying cells survive. */
 export function promptRule(width: number): string {
   return `\u001b[38;2;154;160;166m${"─".repeat(Math.max(0, width))}\u001b[39m`;
 }
@@ -257,7 +252,7 @@ export function renderInputRow(input: LineInput, width: number, options: InputRo
   const under = view.text.slice(view.caretColumn, view.caretColumn + 1) || " ";
   const after = view.text.slice(view.caretColumn + 1);
 
-  // Typed text is left unpainted, the caret reverses its cell, and the
+  // Rationale: typed text is left unpainted, the caret reverses its cell, and the
   // placeholder is quietened by weight rather than by a colour of its own.
   const body = empty
     ? `${caretCell(placeholder.slice(0, 1))}${faint(placeholder.slice(1))}`

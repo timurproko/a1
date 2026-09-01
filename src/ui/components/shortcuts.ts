@@ -73,6 +73,7 @@ export function assertNoShortcutConflicts(result: ShortcutRegistryResult): void 
   }
 }
 
+/** Keeps shortcut dispatch and reader-facing listings derived from one ordered declaration set. */
 export class ShortcutRegistry<Action extends string = string> {
   readonly #declarations: ShortcutDeclaration[] = [];
   readonly #actions = new Map<string, Action>();

@@ -47,6 +47,7 @@ interface MutableUsage {
   bytes: number;
 }
 
+/** Issues bounded resource leases and selects the negotiated backpressure action on exhaustion. */
 export class StructuredBackpressureController {
   readonly #budgets: Readonly<Record<StructuredBackpressureResource, ResourceBudget>>;
   readonly #usage: Record<StructuredBackpressureResource, MutableUsage> = {

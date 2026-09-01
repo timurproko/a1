@@ -29,7 +29,7 @@ describe("overlaying a span on a rendered row", () => {
     const result = overlaySpan(line, 2, 5, "XYZ");
     expect(stripAnsi(result)).toBe("abXYZfgh");
     expect(result.startsWith(`${RED}ab`)).toBe(true);
-    // The tail keeps its colour rather than inheriting the span's reset.
+    // Invariant: the tail keeps its colour rather than inheriting the span's reset.
     expect(result.indexOf(RED)).toBeLessThan(result.indexOf("XYZ"));
     expect(result.slice(result.indexOf("XYZ"))).toContain(RED);
   });

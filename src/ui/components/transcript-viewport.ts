@@ -179,7 +179,7 @@ export class TranscriptViewport {
     const selection = this.#selection;
     const viewportHeight = this.#frame?.hits.viewportHeight ?? 0;
     if (selection?.selecting !== true || viewportHeight <= 0 || this.#documentRows.length === 0) return false;
-    // Pointer motion updates only the endpoint; the shell's fixed-cadence timer
+    // Performance: pointer motion updates only the endpoint; the shell's fixed-cadence timer
     // owns edge scrolling. This option prevents high-rate motion reports from
     // adding irregular extra rows between timer ticks.
     if (autoScroll && viewportRow > viewportHeight) this.scrollBy(1, now);
@@ -232,7 +232,7 @@ export class TranscriptViewport {
     const next = clamp(position, 0, this.#maxScroll);
     const changed = next !== this.#scrollTop || this.#followingEnd;
     this.#scrollTop = next;
-    // Every scrolling path that reaches the final legal top row resumes follow.
+    // Invariant: every scrolling path that reaches the final legal top row resumes follow.
     this.#followingEnd = next >= this.#maxScroll;
     if (this.#followingEnd) this.#newMessages = 0;
     this.noteScrollActivity(now);
@@ -256,7 +256,7 @@ export class TranscriptViewport {
       earliest = Math.min(earliest, anchor.firstRow);
       if (anchor.firstRow < this.#scrollTop && anchor.firstRow > target) target = anchor.firstRow;
     }
-    // The first prompt owns the document's opening breathing row. At that final
+    // Invariant: the first prompt owns the document's opening breathing row. At that final
     // navigation stop, reveal the spacer too rather than pinning the prompt to
     // terminal row one as later prompt jumps do.
     const destination = target === earliest ? 0 : target;
@@ -267,7 +267,7 @@ export class TranscriptViewport {
   scrollToNextPrompt(now = Date.now()): boolean {
     if (this.#promptAnchors.length === 0) return false;
     const earliest = Math.min(...this.#promptAnchors.map(anchor => anchor.firstRow));
-    // Scroll position zero is the first-prompt stop because it includes that
+    // Invariant: scroll position zero is the first-prompt stop because it includes that
     // prompt's opening spacer. Do not spend an extra keypress moving one row.
     const after = this.#scrollTop === 0 ? earliest : this.#scrollTop;
     let target = Number.POSITIVE_INFINITY;
@@ -316,7 +316,7 @@ export class TranscriptViewport {
       contentLength: input.documentRows.length,
       viewportHeight,
       scroll: this.#scrollTop,
-      // The session rail deliberately starts one line below the viewport top.
+      // Compatibility: the session rail deliberately starts one line below the viewport top.
       trackHeight: Math.max(0, viewportHeight - 1),
     });
     const presentation = scrollbarPresentation({
@@ -347,7 +347,7 @@ export class TranscriptViewport {
     const stickyActive = governing !== null && governing.firstRow < this.#scrollTop;
     if (stickyActive && visible.length > 0) {
       const quiet = this.#scrollTop > governing.lastRow;
-      // Sticky prompts use the same normal/hover surface roles as the bottom
+      // Compatibility: sticky prompts use the same normal/hover surface roles as the bottom
       // control. Hover always starts from the full source row, so a quiet prompt
       // becomes prominent again with its timestamp intact.
       const sticky = theme.sticky(paintDocumentRow(governing.sourceRow), this.#stickyHovered);
@@ -377,7 +377,7 @@ export class TranscriptViewport {
           if (to > from) line = theme.selection(line, from, Math.min(width, to));
         }
       }
-      // Paint the rail after selection. Full-row selection reaches the terminal
+      // Invariant: paint the rail after selection. Full-row selection reaches the terminal
       // edge, while the foreground thumb/track remains visible above that
       // background instead of disappearing into it.
       // Row zero is the intentional one-line breathing room above the rail.

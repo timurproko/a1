@@ -169,7 +169,7 @@ function normalizeCapturedFrame(frame: string): string {
   return frame
     .replaceAll("\x1b[?2026h", "")
     .replaceAll("\x1b[?2026l", "")
-    // Stored A1 diagnostics are cross-platform and do not own parity authority;
+    // Compatibility: stored A1 diagnostics are cross-platform and do not own parity authority;
     // normalize optional OSC 8 wrappers while preserving every SGR byte and cell.
     .replace(/\x1b]8;;[^\x07\x1b]*(?:\x07|\x1b\\)/g, "");
 }

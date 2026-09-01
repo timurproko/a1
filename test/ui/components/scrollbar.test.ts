@@ -137,7 +137,7 @@ describe("two rails on one screen", () => {
     expect(rails.isDragging("right")).toBe(false);
     expect(rails.draggingKey).toBe("left");
 
-    // A report addressed to the other rail cannot continue this drag.
+    // Invariant: a report addressed to the other rail cannot continue this drag.
     expect(rails.dragTo(RIGHT, at, { column: 60, row: 8 })).toBeNull();
     expect(rails.dragTo(LEFT, at, { column: 30, row: 8 })).toBeGreaterThan(0);
   });
@@ -154,7 +154,7 @@ describe("two rails on one screen", () => {
   it("carries the grab offset so the thumb does not jump", () => {
     const rails = new ScrollbarRails();
     const at = geometry(0);
-    // Grabbing the thumb's second row and putting it back where it was is no move.
+    // Invariant: grabbing the thumb's second row and putting it back where it was is no move.
     rails.beginDrag(LEFT, at, { column: 30, row: 3 });
     expect(rails.dragTo(LEFT, at, { column: 30, row: 3 })).toBe(0);
   });

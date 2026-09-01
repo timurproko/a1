@@ -470,7 +470,7 @@ describe("Pi engine adapter", () => {
     expect(settled.length).toBeGreaterThan(0);
 
     const blockEventsBefore = events.filter(event => event.type === "transcript-block").length;
-    // A second turn ending on the same messages restates them; nothing changed, so nothing
+    // Invariant: a second turn ending on the same messages restates them; nothing changed, so nothing
     // is a new revision and the shell is told nothing.
     session.emit({ type: "agent_end", messages, willRetry: false });
     await adapter.flushEvents();

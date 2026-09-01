@@ -184,7 +184,7 @@ function queuedInputText(
   }
   const messages = submissions.map(submission => theme.fg("dim", `Steering: ${submission.replaceAll("\n", " ⏎ ")}`));
   const dequeueHint = theme.fg("dim", "↳ Alt+Up to edit all queued messages");
-  // The custom viewport matches Pi's interactive queue presentation while the
+  // Compatibility: the custom viewport matches Pi's interactive queue presentation while the
   // comparison shell remains byte-for-byte compatible with its pinned fixture.
   return ["", ...messages, dequeueHint].join("\n");
 }

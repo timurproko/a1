@@ -34,7 +34,7 @@ describe("pi-tui module identity in the installed tree", () => {
   });
 
   it("resolves #pi-tui through the proxy to the copy pinned Pi resolves", () => {
-    // Ask Node itself, then follow the proxy by loading both sides and
+    // Invariant: ask Node itself, then follow the proxy by loading both sides and
     // comparing class identity: prototype patches from Pi's extension realm
     // must land on the classes A1 constructs.
     expect(nodeResolvedOwn()).toBe(join(packageRoot, "bin", "pi-tui.js"));
@@ -49,7 +49,7 @@ describe("pi-tui module identity in the installed tree", () => {
   });
 
   it("declares no package-imports target that Node would silently reject", () => {
-    // Node treats a relative imports target containing a node_modules segment
+    // Compatibility: Node treats a relative imports target containing a node_modules segment
     // as an Invalid Package Target and falls through to the next entry without
     // a word — the exact mechanism that reintroduced the split. Targets must
     // stay inside the package's own shipped files.

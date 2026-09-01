@@ -40,6 +40,7 @@ interface MutableCommandRecord {
   revision: number;
 }
 
+/** Tracks structured commands by correlation identity through one idempotent terminal outcome. */
 export class StructuredCommandTracker {
   readonly #capability: StructuredCapabilityContract;
   readonly #commandTimeoutMs: number;

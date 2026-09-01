@@ -31,6 +31,7 @@ import type {
 
 export type PiTuiRuntimeErrorStage = "construction" | "start" | "input-drain" | "restoration";
 
+/** Identifies the Pi TUI lifecycle stage that failed while preserving the original cause. */
 export class PiTuiRuntimeError extends Error {
   constructor(readonly stage: PiTuiRuntimeErrorStage, cause: unknown) {
     super(`Pi TUI runtime failed during ${stage}: ${cause instanceof Error ? cause.message : String(cause)}`, { cause });
@@ -116,6 +117,7 @@ class OverlayHandleBridge implements PiTuiOverlayHandle {
   }
 }
 
+/** Bridges neutral presentation ports to one Pi TUI instance and owns terminal restoration on stop. */
 export class PiTuiRuntimeAdapter {
   readonly #terminal: PiTuiTerminalPort;
   readonly #tuiTerminal: PiTuiTerminalPort;

@@ -68,7 +68,7 @@ describe("packaged update activation performance", () => {
       expect((await state.read()).references).toMatchObject({ active: release.releaseId, pending: null });
     } finally {
       if (release) {
-        // An update leaves a live cohort alone now, so the supervisor this test started is
+        // Invariant: an update leaves a live cohort alone now, so the supervisor this test started is
         // this test's to stop.
         const cohort = resolveCohortEndpoint(resolveProductPaths(environment), release.releaseId, environment);
         const owner = await readEndpointMetadata(cohort.endpointMetadataPath);

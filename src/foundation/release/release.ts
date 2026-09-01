@@ -192,7 +192,7 @@ async function findInstalledDependency(root: string, requesterRoot: string, name
     if (await isContained(root, candidate)) {
       const metadata = await lstat(candidate).catch(() => null);
       if (metadata?.isDirectory() && !metadata.isSymbolicLink()) return candidate;
-      // A linked dependency directory is how this installation unifies a module
+      // Invariant: a linked dependency directory is how this installation unifies a module
       // that would otherwise be present twice, and the link is made by A1 itself
       // at install and at every launch. Follow it to the directory it names and
       // collect from there, so the payload still reads only real files — but

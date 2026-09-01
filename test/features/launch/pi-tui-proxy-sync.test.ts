@@ -2,7 +2,7 @@ import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-// Shipped plain JS modules outside the Pi API boundary (see bin/*.js headers).
+// Provenance: shipped plain JS modules outside the Pi API boundary (see bin/*.js headers).
 // @ts-expect-error — no type declarations.
 import { inspectPiTuiModuleIdentity } from "../../../bin/module-identity.js";
 // @ts-expect-error — no type declarations.
@@ -64,7 +64,7 @@ afterEach(() => {
 
 describe("pi-tui proxy sync", () => {
   it("repoints the proxy at the hoisted copy when npm materialized no nested one", () => {
-    // The global-install layout under test: pi-tui hoisted to the
+    // Compatibility: the global-install layout under test: pi-tui hoisted to the
     // root, pinned Pi's nested copy absent, the shipped proxy naming a file
     // that does not exist.
     const packageRoot = packageRootWith({ root: "0.84.2" });

@@ -5,7 +5,7 @@ const { fileURLToPath } = await import("node:url");
 const { readFile } = await import("node:fs/promises");
 const { cliCapabilities, dispatchCli } = await import("../dist/cli/index.js");
 
-// Which commands this build exposes follows from the build's own version, so a
+// Compatibility: which commands this build exposes follows from the build's own version, so a
 // released a1 cannot be argued into offering the development profiles.
 const capabilities = cliCapabilities(JSON.parse(await readFile(new URL("package.json", packageRoot), "utf8")).version);
 
@@ -16,7 +16,7 @@ process.exitCode = await dispatchCli(process.argv.slice(2), {
       import("../dist/foundation/release/index.js"),
       import("./module-identity.js"),
     ]);
-    // Self-heal the installed tree before the release store copies it: npm 12
+    // Compatibility: self-heal the installed tree before the release store copies it: npm 12
     // blocks install scripts by default, so the postinstall that normally
     // repairs module identity may never have run (see bin/module-identity.js).
     const packageRootPath = fileURLToPath(packageRoot);

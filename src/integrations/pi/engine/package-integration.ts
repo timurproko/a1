@@ -68,7 +68,7 @@ export function createPiPackagesPort(input: AgentPackagesPortInput): AgentPackag
 
     async update(source?: string): Promise<AgentPackageOutcome> {
       return await attempt("update", source ?? null, async () => {
-        // Asking first keeps "that package is not installed here" a structural
+        // Rationale: asking first keeps "that package is not installed here" a structural
         // answer rather than a string a caller would have to recognize.
         if (source !== undefined && !isConfigured(source)) return agentPackageOutcome("update", "not-found", null, source);
         await packageManager.update(source);

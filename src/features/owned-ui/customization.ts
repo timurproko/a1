@@ -19,6 +19,7 @@ export interface OwnedCommandHandlerContext {
 
 export type OwnedCommandHandler = (context: OwnedCommandHandlerContext) => OwnedUiCommand | Promise<OwnedUiCommand>;
 
+/** Registers owned UI commands and assigns a monotonic correlation identifier to each dispatch. */
 export class OwnedCommandSurface {
   readonly #handlers = new Map<string, OwnedCommandHandler>();
   #sequence = 0;
@@ -50,6 +51,7 @@ export interface ResolvedOwnedUiSlot {
   readonly implementation: OwnedUiSlotImplementation;
 }
 
+/** Resolves one customization per slot by precedence and version while preserving registration identity. */
 export class OwnedUiCustomizationRegistry {
   readonly #registrations = new Map<OwnedUiSlotId, Map<string, RegisteredCustomization>>();
 

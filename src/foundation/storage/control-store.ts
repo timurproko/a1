@@ -50,6 +50,7 @@ interface HostTopologyRow { host_instance_id: string; protocol_version: number; 
 interface TerminalSessionRow { id: string; host_instance_id: string; pane_id: string; lifecycle: string; launch_json: string; recovery_reference_id: string | null; updated_at: string }
 interface RecoveryReferenceRow { id: string; agent_id: string; authority_json: string; status: "pending" | "accepted" | "rejected" | "discontinuous"; rollback_json: string; created_at: string; updated_at: string }
 
+/** Owns WAL-backed control persistence and reconciles prior-boot records before current use. */
 export class ControlStore {
   readonly database: DatabaseSync;
 

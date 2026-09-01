@@ -18,6 +18,7 @@ import { ControlStore } from "../storage/index.js";
 import { resolveProductPaths, type ProductPaths } from "./paths.js";
 import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
 
+/** Owns one release-cohort endpoint and the authenticated launch instances registered through it. */
 export class SupervisorServer {
   readonly id = randomUUID();
   readonly bootNonce: string;
@@ -95,10 +96,7 @@ export class SupervisorServer {
     }
   }
 
-  /**
-   * Notices that another release has become the one new sessions start on. Nothing is
-   * interrupted by that: this cohort finishes what it is holding and then leaves.
-   */
+  // Invariant: superseding a cohort never interrupts its held instances; it retires only when empty.
   async #refreshCohortRole(): Promise<void> {
     if (this.#closing || !this.readActiveReleaseId) return;
     const active = await this.readActiveReleaseId().catch(() => null);
@@ -316,7 +314,7 @@ export class SupervisorServer {
     this.#uncertainInstances.delete(stored.id);
     this.#unbindOwner(stored.id, socket);
     this.#mutated();
-    // The last session on a superseded cohort has left; there is nothing here to keep.
+    // Invariant: the last session on a superseded cohort has left; there is nothing here to keep.
     if (this.#superseded && this.#instances.size === 0) void this.retire();
   }
 
@@ -407,7 +405,7 @@ export class SupervisorServer {
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
       if (this.#instances.size === 0) {
-        // Let the terminal command result flush before closing owner sockets.
+        // Concurrency: allow the terminal command result to flush before closing owner sockets.
         await new Promise(resolvePromise => setTimeout(resolvePromise, 25));
         return this.#instances.size === 0;
       }

@@ -8,7 +8,7 @@ const architecture = process.arch;
 const executable = platform === "win32" ? "process-guardian.exe" : "process-guardian";
 const cargo = process.env.CARGO ?? "cargo";
 const manifestPath = resolve("native/process-guardian/Cargo.toml");
-// A build that worked has nothing to say. Its output is kept and shown only when
+// Rationale: a build that worked has nothing to say. Its output is kept and shown only when
 // it failed, or when the reader asked for it with A1_BUILD_VERBOSE=1.
 const verbose = process.env.A1_BUILD_VERBOSE === "1";
 const build = crossSpawn.sync(cargo, ["build", "--release", "--locked", "--manifest-path", manifestPath], {

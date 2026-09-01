@@ -32,6 +32,7 @@ type MutableAgentState = {
 
 const REMOVABLE_STATES: ReadonlySet<AgentLifecycleState> = new Set(["stopped", "failed", "discontinuous"]);
 
+/** Applies validated workspace mutations and advances the revision only when observable state changes. */
 export class WorkspaceReducer {
   readonly #agents = new Map<string, MutableAgentState>();
   #selectedAgentId: string | null;

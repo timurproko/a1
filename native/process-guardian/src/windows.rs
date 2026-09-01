@@ -126,7 +126,7 @@ pub(super) fn run(invocation: Invocation) -> Result<u8, String> {
         return Err(last_error("cannot read contained runtime exit code"));
     }
 
-    // The root has exited. Closing the Job Object is the terminal boundary for
+    // Security: the root has exited. Closing the Job Object is the terminal boundary for
     // every descendant that remained after the root's own graceful shutdown.
     unsafe { TerminateJobObject(job.raw(), exit_code) };
     Ok(exit_code.min(255) as u8)

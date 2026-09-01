@@ -43,11 +43,11 @@ export class SessionViewportController {
     scrollbarSpeed: "normal",
   };
   #dragGrabOffset: number | null = null;
-  /** A left-button sequence begun in status/editor/footer chrome is swallowed. */
+  // Invariant: a left-button sequence begun in dock chrome remains owned by the dock.
   #dockPointerSuppressed = false;
-  /** True only while the editor owns a held left mouse button. */
+  // Invariant: editor selection remains true only while its left button is held.
   #editorPointerSelecting = false;
-  /** Last composed terminal rows occupied by the default prompt editor. */
+  // Invariant: pointer routing uses the most recently composed editor rows.
   #editorPointerFrame: { readonly rowStart: number; readonly rowEnd: number } | undefined;
   #selectionAutoScrollTimer: ReturnType<typeof setTimeout> | undefined;
   #selectionAutoScrollPointer: { readonly column: number; readonly row: number } | undefined;
@@ -84,7 +84,7 @@ export class SessionViewportController {
     if (this.#pointerPosition !== undefined && !this.#viewport.selectionActive && !this.#editorPointerSelecting) {
       const next = this.#hyperlinkKeyAt(frame, this.#pointerPosition.column, this.#pointerPosition.row);
       if (this.#hoveredHyperlinkKey !== undefined && next !== this.#hoveredHyperlinkKey) {
-        // Windows Terminal can leave its solid native-hover underline behind
+        // Platform: Windows Terminal can leave its solid native-hover underline behind
         // when a following viewport moves the link away from a stationary pointer.
         this.#requestRender(true);
       }
@@ -141,15 +141,15 @@ export class SessionViewportController {
 
   handlePreInput(data: string, allowWheel = true, now = Date.now()): SessionViewportInputResult {
     if (!this.#enabled) return { data, consumed: false };
-    // Pi components share one keybinding manager. Restore bare A1's aliases
+    // Compatibility: Pi components share one keybinding manager. Restore bare A1's aliases
     // before the focused vanilla editor handles this input.
     this.#editor.activateKeybindings();
-    // Handle the physical paste chord at the pre-input boundary. Windows
+    // Platform: handle the physical paste chord at the pre-input boundary. Windows
     // terminals vary between forwarding Ctrl+V and terminal-owned bracketed paste.
     if (this.#editor.matchesTerminalKey(data, "ctrl+v") && this.#editor.pasteClipboard()) {
       return { data: "", consumed: true };
     }
-    // URL chip deletion must overwrite terminal link cells in the same frame.
+    // Platform: URL chip deletion must overwrite terminal link cells in the same frame.
     if (EDITOR_LINK_DELETION_INPUTS.has(data) && this.#hasEditorLinks()) this.#requestRender(true);
     if (this.#viewport.frame === null) return { data, consumed: false };
     if (data === "\u0003") {
@@ -212,7 +212,7 @@ export class SessionViewportController {
         if (!this.#viewport.selectionActive && !this.#editorPointerSelecting) {
           const nextHyperlink = this.#hyperlinkKeyAt(frame, event.column, event.row);
           if (this.#hoveredHyperlinkKey !== undefined && nextHyperlink !== this.#hoveredHyperlinkKey) {
-            // A forced redraw overwrites Windows Terminal's cached solid hover
+            // Platform: a forced redraw overwrites Windows Terminal's cached solid hover
             // underline exactly once when the pointer leaves or changes links.
             forceRepaint = true;
           }
@@ -333,7 +333,7 @@ export class SessionViewportController {
         }
         if (this.#viewport.releaseSelection()) {
           this.#stopSelectionAutoScroll();
-          // Restore OSC 8 links only after the held-button selection paint has
+          // Platform: restore OSC 8 links only after the held-button selection paint has
           // ended, then overwrite any terminal-cached hover cells immediately.
           forceRepaint = true;
           repaint = true;

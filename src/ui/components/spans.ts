@@ -41,7 +41,7 @@ export function overlaySpan(line: string, from: number, to: number, span: string
         const link = HYPERLINK.exec(token);
         if (link) hyperlinkOpen = (link[1] ?? "").length > 0;
       }
-      // Re-assert everything still active: the span's own reset clobbers the tail.
+      // Invariant: re-assert everything still active: the span's own reset clobbers the tail.
       replay += token;
       continue;
     }
@@ -58,11 +58,6 @@ export function overlaySpan(line: string, from: number, to: number, span: string
   return head + (hyperlinkOpen ? HYPERLINK_OFF : "") + span + replay + tail;
 }
 
-/**
- * Paints only a background over [from,to), preserving every glyph and its
- * foreground, bold, underline, and hyperlink styling. Embedded resets reapply
- * the selection background, while leaving the span restores the row's styles.
- */
 /** Wraps visible columns `[from,to)` in an explicit OSC 8 hyperlink. */
 export function hyperlinkSgrSpan(
   line: string,
@@ -181,7 +176,7 @@ export function heldNativeHyperlinkStyle(line: string): string {
     }
     if (token.startsWith("\u001b")) {
       output += token;
-      // Foreground helpers may reset every SGR attribute; restore the held
+      // Protocol: foreground helpers may reset every SGR attribute; restore the held
       // dotted underline without disturbing the source colour or intensity.
       if (hyperlinkTarget !== undefined && SGR.test(token)) output += "\u001b[4:4m";
       continue;
@@ -191,7 +186,7 @@ export function heldNativeHyperlinkStyle(line: string): string {
       continue;
     }
     let painted = token.replaceAll("https://", "https:\uFE0E//").replaceAll("http://", "http:\uFE0E//");
-    // Windows Terminal also detects file-link labels such as package.json and
+    // Platform: Windows Terminal also detects file-link labels such as package.json and
     // D:/work/file.ts after OSC 8 is removed. Break that detector once inside
     // the paint-only label; semantic transcript text remains untouched.
     if (!fileDetectorBroken && /^file:/iu.test(hyperlinkTarget)) {

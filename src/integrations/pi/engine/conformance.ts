@@ -29,6 +29,7 @@ export const REQUIRED_PI_CAPABILITY_OPERATIONS = Object.freeze({
   disposal: ["subscription.dispose", "session.dispose", "services.cleanup"],
 } as const);
 
+/** Identifies one required Pi capability operation that differs from the accepted integration contract. */
 export class PiCapabilityCompatibilityError extends Error {
   constructor(readonly packageVersion: string, readonly capability: string, readonly operation: string, detail: string) {
     super(`Pi ${packageVersion} capability ${capability} operation ${operation} is incompatible: ${detail}`);
@@ -47,6 +48,7 @@ export interface PiUpgradeConformanceReport {
   readonly capabilities: readonly PiCapabilityConformanceResult[];
 }
 
+/** Identifies the public Pi SDK stage that failed during upgrade conformance. */
 export class PiUpgradeConformanceError extends Error {
   constructor(
     readonly stage: "exports" | "services" | "session",

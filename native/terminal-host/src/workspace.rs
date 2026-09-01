@@ -187,7 +187,7 @@ impl FixedLayout {
 }
 
 struct Pane {
-    // These pointer-backed helpers must drop before the terminal they reference.
+    // Invariant: these pointer-backed helpers must drop before the terminal they reference.
     selection: SelectionGesture,
     mouse_encoder: MouseEncoder,
     key_encoder: KeyEncoder,

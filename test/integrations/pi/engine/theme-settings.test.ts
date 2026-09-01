@@ -45,7 +45,7 @@ describe("the theme at the engine boundary", () => {
     expect(thinking?.resolvedWhenRead).toBe(true);
   });
 
-  // Following the terminal is one choice on the theme, not two further settings
+  // Invariant: following the terminal is one choice on the theme, not two further settings
   // a reader has to keep in step: the pair is the engine's grammar for it.
   it("never turns the appearances into settings of their own", async () => {
     expect(await keys(integration("dark"))).not.toContain("themeLight");

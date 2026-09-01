@@ -2,7 +2,7 @@ import { mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from "node
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-// The check lives in bin/ (shipped, outside the Pi API boundary): it inspects
+// Rationale: the check lives in bin/ (shipped, outside the Pi API boundary): it inspects
 // dependency resolution, which src/ code must never touch.
 // @ts-expect-error — plain shipped JS module without type declarations.
 import { inspectPiTuiModuleIdentity } from "../../../bin/module-identity.js";
@@ -82,7 +82,7 @@ describe("pi-tui module identity", () => {
 
     expect(outcome.kind).toBe("unified");
     expect(outcome.path).toContain(join("pi-coding-agent", "node_modules"));
-    // The duplicate is left exactly where npm put it: nothing is linked, moved,
+    // Invariant: the duplicate is left exactly where npm put it: nothing is linked, moved,
     // or deleted. Which copy A1 uses is decided by resolution alone.
     expect(() => rmSync(join(packageRoot, "node_modules", "@earendil-works", "pi-tui", "package.json"))).not.toThrow();
   });
@@ -92,7 +92,7 @@ describe("pi-tui module identity", () => {
 
     const outcome = inspectPiTuiModuleIdentity(packageRoot) as { kind: string; side: string; message: string };
 
-    // Launch would fail at the proxy's import with the same path; the check
+    // Rationale: launch would fail at the proxy's import with the same path; the check
     // names it up front instead of letting A1 silently render the root copy.
     expect(outcome.kind).toBe("unresolved");
     expect(outcome.side).toBe("a1");
@@ -100,7 +100,7 @@ describe("pi-tui module identity", () => {
   });
 
   it("reports the split a direct node_modules alias target silently causes", () => {
-    // The pre-proxy manifest shape: Node rejects a package-imports target
+    // Compatibility: the pre-proxy manifest shape: Node rejects a package-imports target
     // containing a node_modules segment (Invalid Package Target) and falls
     // through to the bare fallback — the hoisted root copy — while the manifest
     // reads as though the nested copy had been chosen. The check must measure

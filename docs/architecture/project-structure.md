@@ -107,7 +107,7 @@ The primary worktree stays on `develop` for integration and must not be used for
 - `docs/features` explains maintained user-facing behavior.
 - Operational and manual procedures live in focused runbooks under `docs`.
 - OpenSpec and Git carry planning and implementation history.
-- Source comments explain only non-obvious rationale, safety/security invariants, platform constraints, or public semantic contracts. Names, types, and decomposition explain normal control flow.
+- Source documentation follows the focused [code-documentation policy](code-documentation.md): owner-public class contracts are consistent, retained implementation comments state their intent, and names, types, and decomposition explain ordinary control flow.
 
 ## Terminal capability boundary
 

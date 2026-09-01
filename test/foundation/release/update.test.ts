@@ -206,7 +206,7 @@ describe("A1 self-update orchestration", () => {
 
     await expect(runSelfUpdate({ ...harness, channel: "next", target: "107" })).resolves.toBe(0);
 
-    // The published list is consulted rather than constructing a version from the
+    // Invariant: the published list is consulted rather than constructing a version from the
     // currently installed base.
     expect(harness.invocations[0]).toEqual({ command: "npm", arguments: ["view", PRODUCT_PACKAGE, "versions", "--json"], request: { captureStdout: true } });
     expect(harness.stdout.join("")).toContain("1.3.0-dev.106 → 1.3.0-dev.107");
@@ -251,7 +251,7 @@ describe("A1 self-update orchestration", () => {
     await expect(runSelfUpdate({ ...harness, channel: "next", target: "107" })).resolves.toBe(1);
 
     expect(harness.stderr.join("")).toContain("published no preview for 107");
-    // Nothing is installed when the target cannot be resolved.
+    // Invariant: nothing is installed when the target cannot be resolved.
     expect(harness.invocations.some(call => call.arguments[0] === "install")).toBe(false);
   });
 
@@ -283,7 +283,7 @@ describe("A1 self-update orchestration", () => {
 
     const text = harness.stdout.join("");
     expect(text).toContain("░");
-    // The bar is erased rather than left completed, so what remains is the two
+    // Invariant: the bar is erased rather than left completed, so what remains is the two
     // lines a reader keeps: what is being installed, and what now is.
     expect(text).not.toContain("100%");
     expect(rendered(text)).toEqual([
@@ -340,7 +340,7 @@ describe("A1 self-update orchestration", () => {
       .filter((value): value is string => value !== undefined)
       .map(Number);
     const copying = percents.filter(percent => percent > 78 && percent < 92);
-    // Several distinct readings across the copy span, not one jump over it.
+    // Performance: several distinct readings across the copy span, not one jump over it.
     expect(new Set(copying).size).toBeGreaterThan(4);
     expect(percents).toEqual([...percents].sort((left, right) => left - right));
     expect(percents.at(-1)).toBeLessThan(100);

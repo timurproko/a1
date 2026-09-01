@@ -37,7 +37,7 @@ export async function readSystemClipboardContent(): Promise<PiShellClipboardCont
       const image = await readSystemClipboardImage(native);
       if (image !== null) return { kind: "image", ...image };
     } catch {
-      // Fall through to text and platform readers.
+      // Compatibility: fall through to text and platform readers.
     }
   }
   const text = await readSystemClipboardText();
@@ -59,7 +59,7 @@ export async function readSystemClipboardImage(
         });
       }
     } catch {
-      // Older or partially available native bindings may still expose base64.
+      // Compatibility: older or partially available native bindings may still expose base64.
     }
   }
 
@@ -70,14 +70,14 @@ export async function readSystemClipboardImage(
         mimeType: "image/png",
       });
     } catch {
-      // Fall through to the caller's text path.
+      // Compatibility: fall through to the caller's text path.
     }
   }
   return null;
 }
 
 export async function readSystemClipboardText(): Promise<string | null> {
-  // Ctrl+C/Ctrl+X and Ctrl+V can arrive in adjacent input turns. Serialize the
+  // Concurrency: Ctrl+C/Ctrl+X and Ctrl+V can arrive in adjacent input turns. Serialize the
   // read behind our native write so paste never observes the previous value.
   await pendingClipboardWrite;
   if (process.platform === "win32" || process.platform === "darwin") {
@@ -87,7 +87,7 @@ export async function readSystemClipboardText(): Promise<string | null> {
         const text = await native.getText();
         if (text.length > 0) return text;
       } catch {
-        // Fall through to the platform command.
+        // Compatibility: fall through to the platform command.
       }
     }
   }
@@ -112,7 +112,7 @@ export function writeSystemClipboardText(text: string): Promise<void> {
         await native.setText(text);
         return;
       } catch {
-        // The caller still emits its terminal clipboard fallback.
+        // Compatibility: the caller still emits its terminal clipboard fallback.
       }
     }
   };

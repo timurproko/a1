@@ -32,6 +32,7 @@ export interface OwnedUiSettingsWriteOutcome {
   readonly failure: string | null;
 }
 
+/** Resolves and atomically persists one profile's owned settings without discarding unknown keys. */
 export class OwnedUiSettingsStore {
   readonly #file: string;
   readonly #declarations: readonly OwnedUiSettingDeclaration[];
@@ -107,7 +108,7 @@ export class OwnedUiSettingsStore {
       try {
         rmSync(temporary, { force: true });
       } catch {
-        // A leftover temporary file is inert: read() only ever opens the target path.
+        // Security: a leftover temporary file is inert: read() only ever opens the target path.
       }
       return { stored: false, failure: `${this.#file} could not be written: ${describe(error)}` };
     }

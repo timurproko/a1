@@ -20,7 +20,7 @@ describe("reviewable GitHub rulesets", () => {
     expect(develop!.rules.map(rule => rule.type)).toEqual(expect.arrayContaining(["pull_request", "required_status_checks"]));
     const pullRequest = develop!.rules.find(rule => rule.type === "pull_request")!;
     expect(pullRequest.parameters).toMatchObject({ required_approving_review_count: 0, require_last_push_approval: false, required_review_thread_resolution: true });
-    // master only ever fast-forwards to a commit the release already published, and
+    // Security: master only ever fast-forwards to a commit the release already published, and
     // a tag is cut from an already-validated commit. Neither carries a check; what
     // matters is that neither can be rewritten.
     for (const ruleset of [master, tag]) {

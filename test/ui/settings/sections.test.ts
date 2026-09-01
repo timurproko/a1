@@ -110,7 +110,7 @@ describe("owned UI settings sections", () => {
 
   it("marks a structured setting editable through its own surface", () => {
     const sections = buildOwnedUiSettingsSections({ resolution: resolution(), agent: AGENT });
-    // A structured value is edited through its own surface rather than a value
+    // Rationale: a structured value is edited through its own surface rather than a value
     // menu, so it stays reachable instead of being reported as fixed.
     expect(findOwnedUiSettingsEntry(sections, "providerProfile", "agent")?.editable).toBe(true);
     expect(findOwnedUiSettingsEntry(sections, "providerProfile", "agent")?.structured).toBe(true);

@@ -112,7 +112,7 @@ export function parseCliCommand(arguments_: readonly string[], capabilities: Cli
   if (command === "update") return parseUpdate(rest);
   if (command?.startsWith("update:")) return { kind: "noop" };
 
-  // Unsupported and reserved command spaces are deliberately quiet. Help is
+  // Rationale: unsupported and reserved command spaces are deliberately quiet. Help is
   // explicit, and a typo must never start an interactive or maintenance path.
   return { kind: "noop" };
 }
@@ -126,7 +126,7 @@ function parseUpdate(rest: readonly string[]): CliCommand {
   if (rest.length === 0) return { kind: "update", channel: "stable" };
   const [selector, ...values] = rest;
 
-  // Removed compatibility notation is unsupported rather than deprecated.
+  // Compatibility: removed notation is unsupported rather than deprecated.
   if (selector === "self") return { kind: "noop" };
 
   if (selector === "--develop") {
@@ -147,7 +147,7 @@ function parseUpdate(rest: readonly string[]): CliCommand {
   if (selector === "pi") return pinnedPiUpdateError();
   if (selector !== undefined && selector.startsWith("-")) return unknownOption(selector, "update");
 
-  // Positional update targets are reserved for a future A1-native plugin model.
+  // Rationale: positional update targets are reserved for a future A1-native plugin model.
   return { kind: "noop" };
 }
 

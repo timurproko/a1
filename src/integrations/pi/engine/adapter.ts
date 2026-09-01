@@ -74,7 +74,7 @@ const execFileAsync = promisify(execFile);
  * that a streaming burst never holds input, large enough that an ordinary turn is one
  * batch.
  */
-// Deliver at most one engine event per event-loop turn. Transcript updates can
+// Performance: deliver at most one engine event per event-loop turn. Transcript updates can
 // be expensive in long sessions; a larger synchronous batch starves terminal
 // input and makes an in-progress mouse selection appear frozen.
 const EVENT_DELIVERY_BATCH = 1;
@@ -219,6 +219,7 @@ const DEFAULT_SURFACE: OwnedUiTerminalSurface = {
   hardwareCursor: false,
 };
 
+/** Owns the pinned Pi session lifecycle and translates its events into the neutral agent-engine contract. */
 export class PiEngineAdapter {
   readonly #runtimeFactory: PiEngineRuntimeFactory;
   readonly #checkPackageUpdates: (settingsManager: PiServicesApi["settingsManager"]) => Promise<readonly string[]>;
@@ -283,7 +284,6 @@ export class PiEngineAdapter {
   #settingsIntegration: PiSettingsIntegration | undefined;
   #settingsIntegrationManager: unknown;
 
-  /** Lists the themes installed on this machine, when the caller supplies one. */
   readonly #availableThemes: (() => readonly string[]) | null;
   constructor(options: PiEngineAdapterOptions = {}) {
     this.#cwd = options.cwd ?? process.cwd();
@@ -722,7 +722,7 @@ export class PiEngineAdapter {
         } },
       });
       this.#settingsIntegration.bindOwner("startup", {
-        // Deferred application is the owner operation: the next preflight reads
+        // Invariant: deferred application is the owner operation: the next preflight reads
         // the persisted default before constructing project-backed services.
         defaultProjectTrust: { apply() {} },
         collapseChangelog: { apply() {} },
@@ -754,7 +754,7 @@ export class PiEngineAdapter {
         } },
         httpIdleTimeoutMs: { apply: value => {
           if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) throw new TypeError("HTTP idle timeout is invalid");
-          // Provider streaming reads the manager per request; global fetch uses
+          // Invariant: provider streaming reads the manager per request; global fetch uses
           // the matching owned dispatcher and zero maps to disabled semantics.
           configureOwnedHttpDispatcher(value);
           settings.setHttpIdleTimeoutMs(value);
@@ -1756,11 +1756,7 @@ export class PiEngineAdapter {
     }
   }
 
-  /**
-   * Replaces the transcript and the index that finds a block by its identifier. Every
-   * lookup goes through the index, so streaming a chunk costs the same in a long session
-   * as in a new one.
-   */
+  // Performance: replacing the transcript rebuilds its index so block lookup stays constant-time.
   #setTranscript(blocks: OwnedUiTranscriptBlock[]): void {
     this.#transcript = blocks;
     this.#transcriptIndex.clear();
@@ -1777,7 +1773,7 @@ export class PiEngineAdapter {
     return index === undefined ? undefined : this.#transcript[index];
   }
 
-  /** Shows the state named by `kind`, which becomes the state a later end can clear. */
+  // Invariant: the named work state is the only state a matching end may clear.
   #enterWorkState(kind: "working" | "retry" | "compaction", message: string): void {
     const wasBusy = this.#lifecycle === "busy";
     this.#statusKind = kind;
@@ -1787,11 +1783,7 @@ export class PiEngineAdapter {
     this.#emitEvent({ type: "status", status: this.#status });
   }
 
-  /**
-   * Ends one named state. A state the shell is not in is left alone, so a finished
-   * compaction or retry cannot clear the working state it never replaced. While the run
-   * continues, ending either of those returns to working rather than to idle.
-   */
+  // Invariant: ending retry or compaction cannot clear a different active work state.
   #endWorkState(kind: "retry" | "compaction"): void {
     if (this.#statusKind !== kind) return;
     if (this.#agentRunActive) {
@@ -1801,7 +1793,6 @@ export class PiEngineAdapter {
     this.#leaveWorkStates();
   }
 
-  /** Leaves every work state and reports the session idle. */
   #leaveWorkStates(): void {
     this.#statusKind = null;
     this.#lifecycle = "ready";
@@ -1812,7 +1803,7 @@ export class PiEngineAdapter {
 
   #handlePiEvent(event: unknown): void {
     if (!isRecord(event) || typeof event.type !== "string") return;
-    // Usage moves at message and lifecycle boundaries, not with stream chunks, so the
+    // Invariant: usage moves at message and lifecycle boundaries, not with stream chunks, so the
     // two streaming event kinds keep the memo and everything else drops it.
     if (event.type !== "message_update" && event.type !== "tool_execution_update") this.#usageCache = undefined;
     switch (event.type) {
@@ -1828,7 +1819,7 @@ export class PiEngineAdapter {
         const delta = isRecord(event.assistantMessageEvent) && typeof event.assistantMessageEvent.delta === "string"
           ? event.assistantMessageEvent.delta
           : undefined;
-        // The delta is folded in before the block is stored, so a chunk is one update to
+        // Invariant: the delta is folded in before the block is stored, so a chunk is one update to
         // one block rather than a store without the delta followed by a store with it.
         const blocks = this.#messageBlocks(event.message, "live", this.#transcript.length);
         for (const [index, block] of blocks.entries()) {
@@ -1840,7 +1831,7 @@ export class PiEngineAdapter {
       }
       case "message_end":
         this.#upsertMessageBlock(event.message, "finalized");
-        // Preserve the same semantic boundary v2 counted. Transcript block
+        // Compatibility: preserve the same semantic boundary v2 counted. Transcript block
         // finalization is intentionally not a substitute: rebuilds, retries,
         // thinking parts, and tool rows can all finalize independently.
         if (isRecord(event.message) && event.message.role === "assistant") {
@@ -1855,7 +1846,7 @@ export class PiEngineAdapter {
         return;
       case "tool_execution_start":
       case "tool_execution_end": {
-        // The end supersedes any update still waiting on the coalescing timer.
+        // Concurrency: the end supersedes any update still waiting on the coalescing timer.
         const toolCallId = stringValue(event.toolCallId);
         if (toolCallId !== undefined) this.#pendingToolUpdates.delete(toolCallId);
         this.#upsertToolExecutionBlock(event);
@@ -1872,7 +1863,7 @@ export class PiEngineAdapter {
           : this.#session?.messages ?? [];
         if (finalMessages.length > 0) this.#rebuildTranscript(finalMessages, "finalized");
         else this.#setTranscript(this.#transcript.map(block => block.status === "live" ? { ...block, status: "finalized" } : block));
-        // Ending a turn leaves the working state, as the recorded pinned baseline does, but
+        // Compatibility: ending a turn leaves the working state, as the recorded pinned baseline does, but
         // it leaves only that state: a compaction or retry being shown outlives the turn
         // that ended under it. Settlement ends the run, and with it every state — the
         // engine ends a turn for each continuation it makes and settles once.
@@ -1996,7 +1987,7 @@ export class PiEngineAdapter {
         }
       }
     }
-    // An authoritative rebuild restates most of what is already there. Reusing the block
+    // Performance: an authoritative rebuild restates most of what is already there. Reusing the block
     // that already says it keeps its revision, and with it the rows the shell rendered for
     // it — otherwise every turn that ends re-renders the whole session.
     this.#setTranscript(blocks.map(block => {
@@ -2179,12 +2170,7 @@ export class PiEngineAdapter {
     return references;
   }
 
-  /**
-   * A busy tool streams far more output chunks than a terminal frame can show, and every
-   * chunk restates the whole accumulated output. Keeping only the newest chunk per tool
-   * and applying it on a short timer bounds the per-command work by frames rather than
-   * by chunks, which is what keeps typed input and the spinner alive under the stream.
-   */
+  // Performance: coalescing each tool to its newest chunk bounds work by frames, not stream events.
   #coalesceToolExecutionUpdate(event: Record<string, unknown>): void {
     const toolCallId = stringValue(event.toolCallId);
     if (!toolCallId) return;
@@ -2224,7 +2210,7 @@ export class PiEngineAdapter {
         toolCallId,
         toolName: stringValue(event.toolName) ?? "unknown",
         arguments: jsonSummary(event.args),
-        // A partial result repeats the whole accumulated output on every chunk;
+        // Performance: a partial result repeats the whole accumulated output on every chunk;
         // summarizing it each time would cost quadratic work over the stream.
         result: ended ? jsonSummary(source) : { summary: "", json: null },
         partialResult: event.type === "tool_execution_update",
@@ -2238,7 +2224,7 @@ export class PiEngineAdapter {
     const index = this.#transcriptIndex.get(block.id);
     if (index !== undefined) {
       const existing = this.#transcript[index];
-      // Nothing to tell the shell about a block that repeats itself, and keeping the
+      // Performance: nothing is emitted for a block that repeats itself, and keeping the
       // revision keeps the rows it already rendered.
       if (existing !== undefined && sameBlockContent(existing, block)) return;
       this.#transcript[index] = block;
@@ -2395,7 +2381,7 @@ export class PiEngineAdapter {
           }
         }
         deliveredSinceYield += 1;
-        // A microtask chain runs to exhaustion before the loop turns, so a streaming
+        // Concurrency: a microtask chain runs to exhaustion before the loop turns, so a streaming
         // burst would hold typed input, pointer reports, and timed indicators until it
         // drained. Yielding on a macrotask hands those their turn between batches.
         if (deliveredSinceYield >= EVENT_DELIVERY_BATCH && this.#eventQueue.length > 0) {

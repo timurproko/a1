@@ -26,7 +26,7 @@ export function stripAnsi(text: string): string {
 }
 
 function codePointWidth(codePoint: number): number {
-  // Zero-width: combining marks, joiners, variation selectors, and format characters.
+  // Protocol: zero-width includes combining marks, joiners, variation selectors, and format characters.
   if (codePoint === 0x200d || codePoint === 0xfeff) return 0;
   if (codePoint >= 0x0300 && codePoint <= 0x036f) return 0;
   if (codePoint >= 0x200b && codePoint <= 0x200f) return 0;
@@ -35,7 +35,7 @@ function codePointWidth(codePoint: number): number {
   if (codePoint >= 0x1ab0 && codePoint <= 0x1aff) return 0;
   if (codePoint >= 0x1dc0 && codePoint <= 0x1dff) return 0;
   if (codePoint >= 0xe0100 && codePoint <= 0xe01ef) return 0;
-  // Wide: CJK, Hangul, fullwidth forms, and the emoji planes terminals render double-width.
+  // Protocol: wide cells include CJK, Hangul, fullwidth forms, and the emoji planes terminals render double-width.
   if (codePoint >= 0x1100 && codePoint <= 0x115f) return 2;
   if (codePoint >= 0x2e80 && codePoint <= 0xa4cf && codePoint !== 0x303f) return 2;
   if (codePoint >= 0xac00 && codePoint <= 0xd7a3) return 2;
@@ -46,7 +46,7 @@ function codePointWidth(codePoint: number): number {
   if (codePoint >= 0x1f300 && codePoint <= 0x1f64f) return 2;
   if (codePoint >= 0x1f900 && codePoint <= 0x1f9ff) return 2;
   if (codePoint >= 0x20000 && codePoint <= 0x3fffd) return 2;
-  // A tab advances to the host runtime's stop; other control characters occupy nothing.
+  // Protocol: a tab advances to the host runtime's stop; other control characters occupy nothing.
   if (codePoint === 0x09) return TAB_WIDTH;
   if (codePoint < 0x20 || (codePoint >= 0x7f && codePoint < 0xa0)) return 0;
   return 1;

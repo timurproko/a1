@@ -69,7 +69,7 @@ describe("package-derived release identity", () => {
     const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as Record<string, unknown>;
     await writeFile(manifestPath, JSON.stringify({ ...manifest, dependencies: { "linked-package": "1.0.0" } }));
 
-    // The real copy lives nested, exactly as pinned Pi's pi-tui does.
+    // Invariant: the real copy lives nested, exactly as pinned Pi's pi-tui does.
     const nested = resolve(root, "node_modules/host/node_modules/linked-package");
     await mkdir(nested, { recursive: true });
     await writeFile(resolve(nested, "package.json"), JSON.stringify({ name: "linked-package", version: "1.0.0" }));
@@ -80,7 +80,7 @@ describe("package-derived release identity", () => {
     const payload = await discoverReleasePayload(root);
 
     expect(payload.paths).toContain("node_modules/host/node_modules/linked-package/index.js");
-    // Collected from where the files really are, never through the link itself.
+    // Provenance: collected from where the files really are, never through the link itself.
     expect(payload.paths.some(path => path.startsWith("node_modules/linked-package/"))).toBe(false);
   });
 

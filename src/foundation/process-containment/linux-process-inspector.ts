@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import type { NativeProcessIdentity } from "../lifecycle/index.js";
 import type { NativeProcessInspector } from "./contracts.js";
 
+/** Verifies Linux process identity from the PID and kernel start-time field in procfs. */
 export class LinuxNativeProcessInspector implements NativeProcessInspector {
   async observe(pid: number): Promise<NativeProcessIdentity | null> {
     if (!Number.isSafeInteger(pid) || pid <= 0) throw new TypeError("inspected PID must be a positive safe integer");

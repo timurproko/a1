@@ -1,5 +1,6 @@
 import { assertAppRegistration, type AppRegistration } from "./contracts.js";
 
+/** Registers owned applications under unique routes and unregisters only the matching definition. */
 export class UiAppRegistry {
   readonly #byId = new Map<string, AppRegistration>();
 

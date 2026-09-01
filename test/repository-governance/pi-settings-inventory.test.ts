@@ -97,7 +97,7 @@ describe("Pi settings inventory governance", () => {
       const values = (entry as { values?: readonly string[] }).values;
       const descriptor = descriptors.find(candidate => candidate.key === key);
       if (values === undefined || descriptor === undefined || descriptor.valueType !== "enum") continue;
-      // A boolean is offered as true/false by the engine but is a boolean here,
+      // Protocol: a boolean is offered as true/false by the engine but is a boolean here,
       // and a number the engine accepts by range keeps the range rather than the
       // few values its own menu offers as shortcuts.
       if (values.every(value => value === "true" || value === "false")) continue;

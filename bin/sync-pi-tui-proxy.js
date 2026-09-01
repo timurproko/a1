@@ -35,7 +35,7 @@ const RE_EXPORT_LINE = /^export \* from "[^"]+";$/m;
  * pinned Pi resolves. Returns a discriminated outcome; never throws.
  */
 export function syncPiTuiProxy(packageRoot) {
-  // resolvePinnedPiTui answers with a canonical real path, so the directory the
+  // Platform: resolvePinnedPiTui answers with a canonical real path, so the directory the
   // relative specifier is computed from must be canonical too (Windows short
   // names, symlinked installs).
   const canonicalRoot = canonical(packageRoot);

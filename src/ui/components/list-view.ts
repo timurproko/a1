@@ -1,12 +1,7 @@
 import { displayWidth, truncateToWidth } from "./text.js";
 import type { UiTheme } from "./theme.js";
 
-/**
- * A list of things that each carry a label and a value. It owns where a value
- * starts, how a row reads when it is selected or pointed at, and which part of a
- * row the pointer is on — so a screen decides what a row means and this decides
- * how it looks and where it can be touched.
- */
+// Rationale: screens own row meaning; this module owns list geometry, rendering, and hit regions.
 
 /** The part of a row the pointer is over. A label selects; a value acts. */
 export type ListRegion = "label" | "value" | "minus" | "plus";
@@ -83,7 +78,7 @@ export function renderListRow(
     : `${cursor}${theme.plain(labelPadded)}`;
   const gap = Math.max(2, valueColumn - displayWidth(leftRaw));
 
-  // Pinned SettingsList gives the selected label and value the same accent
+  // Compatibility: pinned SettingsList gives the selected label and value the same accent
   // role. Pointer hover may brighten an unselected value without changing the
   // keyboard selection.
   const valueHovered = state.hovered && state.region !== "label";

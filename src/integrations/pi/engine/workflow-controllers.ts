@@ -29,6 +29,7 @@ const DEFINITIONS: readonly WorkflowDefinition[] = [
   define("quit", "process.quit"), define("debug", "diagnostics.read"), define("arminsayshi", "resources.read"), define("dementedelves", "resources.read"),
 ];
 
+/** Capability-gates pinned Pi workflows before delegating execution through the neutral workflow port. */
 export class PiWorkflowControllerPort implements AgentWorkflowPort {
   readonly capabilities = { execute: true };
   readonly #available: ReadonlySet<WorkflowCapability>;

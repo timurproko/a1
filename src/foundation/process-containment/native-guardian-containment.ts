@@ -10,6 +10,7 @@ interface ReadyStatus extends NativeProcessIdentity {
   readonly containmentToken: string;
 }
 
+/** Delegates one root runtime to the native guardian and exposes its verified containment identity. */
 export class NativeGuardianContainment implements ProcessContainment {
   #identity: ProcessContainmentIdentity;
   #helper: ChildProcess | null = null;

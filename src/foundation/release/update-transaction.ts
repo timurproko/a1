@@ -29,6 +29,7 @@ export interface UpdateTransaction {
   readonly updatedAt: string;
 }
 
+/** Persists the durable update journal and permits only validated forward transaction phases. */
 export class UpdateTransactionStore {
   readonly path: string;
   constructor(dataDir: string) { this.path = resolve(dataDir, "update-transaction.json"); }

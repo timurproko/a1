@@ -26,7 +26,7 @@ export function resolveDevelopmentLaunchEnvironment(
   const selectedDevelopmentRoot = source[PRODUCT_IDENTITY.environment.developmentRoot];
   const developmentRoot = resolve(selectedDevelopmentRoot
     ?? join(checkoutRoot, releaseId, "instances", instanceId));
-  // Runtime/data remain instance-isolated, but product settings are user
+  // Rationale: runtime/data remain instance-isolated, but product settings are user
   // preferences and must survive a fresh local launch (and a rebuilt candidate).
   // An explicit development root retains its historical self-contained policy.
   const persistentConfigDir = selectedDevelopmentRoot
