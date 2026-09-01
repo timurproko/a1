@@ -29,7 +29,7 @@ Every Pi setting the A1-owned settings replacement presents SHALL control the sa
 - **AND** the owned-shell acceptance gate SHALL fail if the option is rendered even when disabled or accompanied by explanatory text
 
 ### Requirement: Setting-controlled owned surfaces preserve pinned Pi visual semantics
-For the same terminal dimensions, theme, capabilities, semantic content, setting values, and lifecycle state, every visible surface controlled by a Pi setting SHALL match pinned Pi's terminal-cell presentation. Parity SHALL include visible text and punctuation, semantic foreground and background styling, bold/dim/italic/underline roles, borders, padding, blank rows, row order, wrapping, truncation, alignment, editor and footer geometry, cursor placement, and terminal-control ordering. Declared product identity, A1-only setting content, hidden bare-A1 entries, the owned settings interaction contract, profile/session values, dynamic usage data, absolute link targets, and nondeterministic render timing MAY differ; no other visual difference is implicit.
+For the same terminal dimensions, theme, capabilities, semantic content, setting values, and lifecycle state, every visible surface controlled by a Pi setting SHALL match pinned Pi's terminal-cell presentation. Parity SHALL include visible text and punctuation, semantic foreground and background styling, bold/dim/italic/underline roles, borders, padding, blank rows, row order, wrapping, truncation, alignment, editor and footer geometry, cursor placement, and terminal-control ordering. Declared product identity, A1-only setting content, hidden bare-A1 entries, the owned settings interaction contract including its distinct floating scalar menus, profile/session values, dynamic usage data, absolute link targets, and nondeterministic render timing MAY differ; no other visual difference is implicit.
 
 #### Scenario: Render a setting-controlled frame
 - **WHEN** bare A1 and pinned Pi receive equivalent content and lifecycle events with the same visible setting value and terminal dimensions
@@ -43,6 +43,7 @@ For the same terminal dimensions, theme, capabilities, semantic content, setting
 - **AND** ordinary printable input outside an open search SHALL not become a query
 - **AND** the standing status bar SHALL derive its visible guidance from the active settings shortcut declarations
 - **AND** settings-list wheel movement SHALL use the current effective `scrollbarSpeed` through the shared scrollbar distance policy, including a pending live selection, without an independent row-count literal
+- **AND** a scalar menu SHALL retain shared `ValueMenu` geometry and input behavior while rendering unselected choices on A1's dark floating-panel background, the active choice on its lighter background with white text, and `✓` beside the effective value independently of the active choice
 - **AND** A1-specific grouping, hidden entries, and this owned settings interaction SHALL remain declared product differences
 
 #### Scenario: Present project trust before loading project resources
