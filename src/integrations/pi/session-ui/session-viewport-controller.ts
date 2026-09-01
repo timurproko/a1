@@ -53,6 +53,7 @@ export class SessionViewportController {
   #selectionAutoScrollPointer: { readonly column: number; readonly row: number } | undefined;
   #pointerPosition: { readonly column: number; readonly row: number } | undefined;
   #hoveredHyperlinkKey: string | undefined;
+  #lastRequestedSelectionRevision = -1;
   #activityTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(options: SessionViewportControllerOptions) {
@@ -78,6 +79,10 @@ export class SessionViewportController {
     return this.#viewport.hasSelection;
   }
 
+  get selectionRevision(): number {
+    return this.#viewport.selectionRevision;
+  }
+
   get frame(): TranscriptViewportFrame | null {
     return this.#viewport.frame;
   }
@@ -88,7 +93,15 @@ export class SessionViewportController {
 
   compose(input: TranscriptViewportFrameInput): TranscriptViewportFrame {
     this.#viewport.setConfig(this.#config);
+    const selectionRevision = this.#viewport.selectionRevision;
     const frame = this.#viewport.compose(input);
+    // Concurrency: if selection changed during composition, this frame truthfully carries
+    // the older revision and exactly one ordinary follow-up render publishes the latest.
+    if (this.#viewport.selectionRevision !== selectionRevision
+      && this.#lastRequestedSelectionRevision < this.#viewport.selectionRevision) {
+      this.#lastRequestedSelectionRevision = this.#viewport.selectionRevision;
+      this.#requestRender();
+    }
     if (this.#pointerPosition !== undefined && !this.#viewport.selectionActive && !this.#editorPointerSelecting) {
       const next = this.#hyperlinkKeyAt(frame, this.#pointerPosition.column, this.#pointerPosition.row);
       if (this.#hoveredHyperlinkKey !== undefined && next !== this.#hoveredHyperlinkKey) {
@@ -361,7 +374,10 @@ export class SessionViewportController {
       return false;
     });
     if (activity) this.#scheduleActivityExpiry();
-    if (repaint) this.#requestRender(forceRepaint);
+    if (repaint) {
+      this.#lastRequestedSelectionRevision = this.#viewport.selectionRevision;
+      this.#requestRender(forceRepaint);
+    }
     return routed;
   }
 
@@ -401,6 +417,7 @@ export class SessionViewportController {
       this.#stopSelectionAutoScroll();
       return;
     }
+    this.#lastRequestedSelectionRevision = this.#viewport.selectionRevision;
     this.#requestRender();
     this.#scheduleActivityExpiry();
     this.#selectionAutoScrollTimer = setTimeout(() => this.#selectionAutoScrollTick(), SELECTION_AUTO_SCROLL_INTERVAL_MS);

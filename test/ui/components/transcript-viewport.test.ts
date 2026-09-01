@@ -39,6 +39,8 @@ describe("transcript viewport", () => {
       followingEnd: true,
       verticalShiftRows: 0,
       safeVerticalShift: false,
+      selectionRevision: 0,
+      selectionDamagedRows: [1, 2, 3, 4, 5],
       cause: "initial",
     });
 
@@ -94,6 +96,8 @@ describe("transcript viewport", () => {
       followingEnd: true,
       verticalShiftRows: 1,
       safeVerticalShift: true,
+      selectionRevision: 0,
+      selectionDamagedRows: [],
       cause: "follow-shift",
     };
     expect(() => assertTranscriptViewportFrameDescriptor(valid)).not.toThrow();
@@ -102,6 +106,8 @@ describe("transcript viewport", () => {
     expect(() => assertTranscriptViewportFrameDescriptor({ ...valid, verticalShiftRows: 2 })).toThrow(/disagrees/);
     expect(() => assertTranscriptViewportFrameDescriptor({ ...valid, safeVerticalShift: true, followingEnd: false })).toThrow(/unsafe/);
     expect(() => assertTranscriptViewportFrameDescriptor({ ...valid, nextDocumentRange: { start: -1, end: 7 } })).toThrow(/next document range/);
+    expect(() => assertTranscriptViewportFrameDescriptor({ ...valid, selectionRevision: -1 })).toThrow(/selection revision/);
+    expect(() => assertTranscriptViewportFrameDescriptor({ ...valid, selectionDamagedRows: [2, 2] })).toThrow(/selection damage/);
   });
 
   it("keeps a detached row fixed while output grows and resumes at the end", () => {
@@ -269,7 +275,7 @@ describe("transcript viewport", () => {
     const painted = viewport.compose(input);
     expect(stripAnsi(painted.rows[0] ?? "")).toContain("https:\uFE0E//example.com/exact");
     viewport.pressSelection(1, 1, 101);
-    viewport.extendSelection(source.length, 1, 102);
+    viewport.extendSelection(source.length + 1, 1, 102);
     viewport.releaseSelection();
     expect(viewport.selectedText()).toBe(source);
   });
@@ -378,6 +384,71 @@ describe("transcript viewport", () => {
     expect(selectionEnds).toContain(10);
     expect(stripAnsi(thumbRow).at(-1)).toBe("│");
     expect(thumbRow).toContain("\u001b[32m│");
+  });
+
+  it("reuses stable visible rows and bounds one-row multiline selection damage at 192x54", () => {
+    const viewport = new TranscriptViewport();
+    viewport.setConfig({ scrollbarAppearance: "hidden", scrollbarStyle: "thin" });
+    const documentRows = Array.from({ length: 1_000 }, (_, index) => `row ${index} ${".".repeat(180)}`);
+    const input = { documentRows, dockRows: [] as string[], promptAnchors: [], width: 192, height: 54, now: 100 };
+    viewport.compose(input);
+    viewport.scrollTo(0, 101);
+    viewport.compose({ ...input, now: 102 });
+
+    const stable = viewport.compose({ ...input, now: 103 });
+    expect(stable.selectionDamage.recomputedRows).toEqual([]);
+    expect(stable.selectionDamage.reusedRows).toHaveLength(54);
+    expect(stable.descriptor.selectionDamagedRows).toEqual([]);
+
+    viewport.pressSelection(2, 1, 104);
+    viewport.extendSelection(190, 2, 105);
+    let frame = viewport.compose({ ...input, now: 106 });
+    expect(frame.descriptor.selectionDamagedRows).toEqual([1, 2]);
+    expect(frame.selectionDamage.recomputedRows).toEqual([1, 2]);
+
+    for (let row = 3; row <= 54; row += 1) {
+      viewport.extendSelection(190, row, 106 + row);
+      frame = viewport.compose({ ...input, now: 200 + row });
+      expect(frame.descriptor.selectionDamagedRows.length).toBeLessThanOrEqual(2);
+      expect(frame.selectionDamage.recomputedRows.length).toBeLessThanOrEqual(2);
+    }
+    expect(frame.selectionDamage.cacheEntries).toBeLessThanOrEqual(54 * 24);
+  });
+
+  it("invalidates only rows affected by source, selection painter, and geometry revisions", () => {
+    const viewport = new TranscriptViewport();
+    viewport.setConfig({ scrollbarAppearance: "hidden", scrollbarStyle: "thin" });
+    const documentRows = rows(12);
+    const baseTheme = {
+      track: (text: string) => text,
+      thumb: (text: string) => text,
+      sticky: (text: string) => text,
+      quietSticky: (text: string) => text,
+      bottomControl: (text: string) => text,
+      selection: (line: string, from: number, to: number) => backgroundSgrSpan(line, from, to, "\u001b[44m"),
+    };
+    const input = { documentRows, dockRows: [] as string[], promptAnchors: [], width: 30, height: 6, now: 100, theme: baseTheme };
+    viewport.compose(input);
+    viewport.scrollTo(0, 101);
+    viewport.compose({ ...input, now: 102 });
+    viewport.pressSelection(2, 2, 103);
+    viewport.extendSelection(4, 3, 104);
+    viewport.compose({ ...input, now: 105 });
+
+    const changedRows = [...documentRows];
+    changedRows[4] = "changed source";
+    const sourceChanged = viewport.compose({ ...input, documentRows: changedRows, now: 106 });
+    expect(sourceChanged.descriptor.selectionDamagedRows).toEqual([5]);
+    expect(sourceChanged.selectionDamage.recomputedRows).toEqual([5]);
+
+    const nextTheme = { ...baseTheme, selection: (line: string, from: number, to: number) => backgroundSgrSpan(line, from, to, "\u001b[45m") };
+    const themeChanged = viewport.compose({ ...input, documentRows: changedRows, theme: nextTheme, now: 107 });
+    expect(themeChanged.descriptor.selectionDamagedRows).toEqual([2, 3]);
+    expect(themeChanged.rows[1]).toContain("\u001b[45m");
+    expect(themeChanged.rows[2]).toContain("\u001b[45m");
+
+    const resized = viewport.compose({ ...input, documentRows: changedRows, theme: nextTheme, width: 31, now: 108 });
+    expect(resized.descriptor.selectionDamagedRows).toEqual([1, 2, 3, 4, 5, 6]);
   });
 
   it("reserves hover geometry while idle, reveals after activity, and gives hidden mode its column back", () => {

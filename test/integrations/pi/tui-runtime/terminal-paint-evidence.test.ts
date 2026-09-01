@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   classifyTerminalPaint,
+  replayTerminalBackgroundCells,
   replayTerminalCheckpoints,
   replayTerminalPaint,
   type TimedTerminalWrite,
@@ -51,6 +52,23 @@ describe("terminal paint evidence", () => {
     expect(ignored.states.length).toBeGreaterThan(honored.states.length);
     expect(ignored.states.some(state => state.rows[1] === "")).toBe(true);
     expect(ignored.final).toEqual(honored.final);
+  });
+
+  it("records bounded selection row damage and final truecolor background cells", async () => {
+    const writes = [
+      frame("\u001b[1;1H\u001b[2Kabcdef", 0, "initial"),
+      frame("\u001b[1;1H\u001b[2Ka\u001b[48;2;38;79;120mb\u001b[49mcdef", 16, "selection"),
+    ];
+    const paint = classifyTerminalPaint(writes);
+    expect(paint).toMatchObject({ fullScreenClears: 0, rowClears: 2, addressedRowWrites: [1, 1] });
+    const replay = await replayTerminalPaint(writes, { columns: 8, rows: 2, synchronizedUpdates: "honor" });
+    expect(replay.final.rows[0]).toBe("abcdef");
+    expect(await replayTerminalBackgroundCells(writes, { columns: 8, rows: 2 })).toEqual([{
+      row: 1,
+      column: 2,
+      mode: "rgb",
+      color: (38 << 16) | (79 << 8) | 120,
+    }]);
   });
 
   it("rejects malformed synchronized streams and evidence beyond its byte bound", async () => {
