@@ -21,6 +21,9 @@
         "test/integrations/pi/tui-runtime/rendering-budgets.test.ts",
         "test/integrations/pi/tui-runtime/rendering-smoke.test.ts",
         "test/integrations/pi/tui-runtime/rendering-producer.test.ts",
+        "test/integrations/pi/tui-runtime/input-responsiveness-budgets.test.ts",
+        "test/integrations/pi/tui-runtime/input-responsiveness-smoke.test.ts",
+        "test/integrations/pi/tui-runtime/input-producer.test.ts",
         "test/foundation/release/package-surface.test.ts",
         "test/foundation/release/package-install.integration.test.ts",
         "test/foundation/release/update-performance.integration.test.ts",
@@ -75,17 +78,20 @@
     },
     "rendering-smoke": {
       "kind": "vitest-isolated",
-      "evidence": { "workloadCaptures": 2, "deliberateRepeatCaptures": 0, "matrixProducerLaunches": 12, "protocolProducerLaunches": 0, "totalProducerLaunches": 12 },
+      "evidence": { "workloadCaptures": 4, "deliberateRepeatCaptures": 0, "matrixProducerLaunches": 15, "protocolProducerLaunches": 0, "totalProducerLaunches": 15 },
       "tests": [
-        "test/integrations/pi/tui-runtime/rendering-smoke.test.ts"
+        "test/integrations/pi/tui-runtime/rendering-smoke.test.ts",
+        "test/integrations/pi/tui-runtime/input-responsiveness-smoke.test.ts"
       ]
     },
     "rendering-stability": {
       "kind": "vitest-isolated",
-      "evidence": { "workloadCaptures": 8, "deliberateRepeatCaptures": 1, "matrixProducerLaunches": 54, "protocolProducerLaunches": 4, "totalProducerLaunches": 58 },
+      "evidence": { "workloadCaptures": 14, "deliberateRepeatCaptures": 2, "matrixProducerLaunches": 60, "protocolProducerLaunches": 10, "totalProducerLaunches": 70 },
       "tests": [
         "test/integrations/pi/tui-runtime/rendering-budgets.test.ts",
-        "test/integrations/pi/tui-runtime/rendering-producer.test.ts"
+        "test/integrations/pi/tui-runtime/rendering-producer.test.ts",
+        "test/integrations/pi/tui-runtime/input-responsiveness-budgets.test.ts",
+        "test/integrations/pi/tui-runtime/input-producer.test.ts"
       ]
     },
     "dist-integration": {

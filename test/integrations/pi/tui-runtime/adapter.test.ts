@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   PiTuiRuntimeAdapter,
   PiTuiRuntimeError,
+  classifyPiTuiInput,
   type PiTuiComponentPort,
   type PiTuiTerminalPort,
 } from "../../../../src/integrations/pi/tui-runtime/index.js";
@@ -11,12 +12,14 @@ class TestComponent implements PiTuiComponentPort {
   readonly inputs: string[] = [];
   readonly focus: boolean[] = [];
   invalidations = 0;
+  renders = 0;
   disposed = false;
 
-  constructor(public lines: readonly string[]) {}
+  constructor(public lines: readonly string[], readonly reflectInputs = false) {}
 
   render(): readonly string[] {
-    return this.lines;
+    this.renders += 1;
+    return this.reflectInputs ? [...this.lines, this.inputs.join("")] : this.lines;
   }
 
   handleInput(data: string): void {
@@ -213,6 +216,76 @@ describe("PiTuiRuntimeAdapter", () => {
     terminal.input("plain");
     expect(root.inputs).toEqual(["key", "plain"]);
     await runtime.stop();
+  });
+
+  it("coordinates safe custom-viewport input into one current-state immediate render with phase evidence", async () => {
+    const terminal = new TestTerminal();
+    const root = new TestComponent(["root"], true);
+    const phases: Array<{ phase: string; revision: number; pendingDepth: number }> = [];
+    const runtime = new PiTuiRuntimeAdapter({
+      root,
+      terminal,
+      mode: "fullscreen",
+      inputCoordination: { classify: (data, overlay) => classifyPiTuiInput(data, overlay ?? "editor") },
+      inputDiagnostics: { onEvent: event => phases.push(event) },
+    });
+    runtime.start();
+    runtime.renderNow();
+    const baselineRenders = root.renders;
+    phases.length = 0;
+
+    terminal.input("a");
+    terminal.input("b");
+    expect(root.inputs).toEqual([]);
+    await new Promise<void>(resolve => setImmediate(resolve));
+
+    expect(root.inputs).toEqual(["a", "b"]);
+    expect(root.renders).toBe(baselineRenders + 1);
+    expect(phases.filter(event => event.phase === "receipt").map(event => event.revision)).toEqual([1, 2]);
+    expect(phases.filter(event => event.phase === "semantic-end").map(event => event.revision)).toEqual([1, 2]);
+    expect(phases.filter(event => event.phase === "composition-end").at(-1)).toMatchObject({ revision: 2, pendingDepth: 0 });
+    expect(phases.filter(event => event.phase === "write-end").at(-1)?.revision).toBe(2);
+    await runtime.stop({ drainInput: false, preserveScreen: true });
+  });
+
+  it("flushes safe input before barriers and resize without changing synchronous comparison input", async () => {
+    const coordinatedTerminal = new TestTerminal();
+    const coordinatedRoot = new TestComponent(["root"]);
+    const coordinated = new PiTuiRuntimeAdapter({
+      root: coordinatedRoot,
+      terminal: coordinatedTerminal,
+      inputCoordination: { classify: (data, overlay) => classifyPiTuiInput(data, overlay ?? "editor") },
+    });
+    coordinated.start();
+    coordinatedTerminal.input("before");
+    coordinatedTerminal.input("\r");
+    expect(coordinatedRoot.inputs).toEqual(["before", "\r"]);
+    coordinatedTerminal.input("resize-first");
+    coordinatedTerminal.resize(40, 8);
+    expect(coordinatedRoot.inputs.at(-1)).toBe("resize-first");
+
+    const ownedOverlay = new TestComponent(["owned"]);
+    const ownedHandle = coordinated.showOverlay(ownedOverlay, { inputCoordination: "owned" });
+    coordinatedTerminal.input("a");
+    coordinatedTerminal.input("b");
+    expect(ownedOverlay.inputs).toEqual([]);
+    await new Promise<void>(resolve => setImmediate(resolve));
+    expect(ownedOverlay.inputs).toEqual(["a", "b"]);
+    ownedHandle.hide();
+
+    const opaqueOverlay = new TestComponent(["opaque"]);
+    coordinated.showOverlay(opaqueOverlay);
+    coordinatedTerminal.input("extension-data");
+    expect(opaqueOverlay.inputs).toEqual(["extension-data"]);
+    await coordinated.stop({ drainInput: false, preserveScreen: true });
+
+    const comparisonTerminal = new TestTerminal();
+    const comparisonRoot = new TestComponent(["root"]);
+    const comparison = new PiTuiRuntimeAdapter({ root: comparisonRoot, terminal: comparisonTerminal });
+    comparison.start();
+    comparisonTerminal.input("immediate");
+    expect(comparisonRoot.inputs).toEqual(["immediate"]);
+    await comparison.stop({ drainInput: false, preserveScreen: true });
   });
 
   it("rejects over-width component rows instead of silently rewriting source layout", async () => {

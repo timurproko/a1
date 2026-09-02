@@ -23,6 +23,35 @@ describe("transcript viewport", () => {
     expect(frame.rows.slice(-2).map(row => row.trimEnd())).toEqual(["editor", "footer"]);
   });
 
+  it("reuses established transcript rows for a same-height dock-only frame and fails closed on geometry or selection", () => {
+    const viewport = new TranscriptViewport();
+    viewport.setConfig(ALWAYS);
+    const initial = viewport.compose({
+      documentRows: rows(12),
+      dockRows: ["editor", "footer"],
+      promptAnchors: [],
+      width: 30,
+      height: 7,
+      now: 100,
+    });
+    const dockOnly = viewport.composeDockOnly(["edited", "footer"], 30, 7);
+    expect(dockOnly).not.toBeNull();
+    expect(dockOnly!.rows.slice(0, 5)).toEqual(initial.rows.slice(0, 5));
+    expect(dockOnly!.rows.slice(-2).map(row => row.trimEnd())).toEqual(["edited", "footer"]);
+    expect(dockOnly!.descriptor).toMatchObject({
+      frameId: 2,
+      cause: "dock-input",
+      verticalShiftRows: 0,
+      safeVerticalShift: false,
+      previousDocumentRange: initial.descriptor.nextDocumentRange,
+      nextDocumentRange: initial.descriptor.nextDocumentRange,
+    });
+    expect(dockOnly!.selectionDamage).toMatchObject({ recomputedRows: [], reusedRows: [1, 2, 3, 4, 5] });
+    expect(viewport.composeDockOnly(["wrapped", "editor", "footer"], 30, 7)).toBeNull();
+    viewport.pressSelection(2, 2, 101);
+    expect(viewport.composeDockOnly(["edited again", "footer"], 30, 7)).toBeNull();
+  });
+
   it("describes initial, followed-shift, detached, geometry, selection, and reset damage without inspecting rows", () => {
     const viewport = new TranscriptViewport();
     viewport.setConfig(ALWAYS);
