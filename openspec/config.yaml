@@ -30,3 +30,5 @@ operations:
   archive:
     guidance:
       - Archive only after acceptance is recorded; after the archive commit integrates, remove and prune retained worktrees for that change.
+      - When acceptance is recorded, every artifact is done or skipped, every task is complete, delta-spec synchronization is unambiguous, and the archive target is available, default to synchronizing every delta spec and archiving the change as complete without asking the maintainer to choose that default again.
+      - Prompt instead of claiming completion when acceptance is missing or contradictory, an artifact or task is incomplete, synchronization is ambiguous or fails verification, the archive target already exists, or the maintainer explicitly requests another disposition.
