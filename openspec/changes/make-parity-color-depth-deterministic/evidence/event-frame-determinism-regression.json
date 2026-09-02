@@ -1,0 +1,50 @@
+{
+  "schema": "a1-event-frame-parity-determinism-regression-v1",
+  "capturedAt": "2026-09-02",
+  "pullRequest": 214,
+  "developmentValidationRun": 33642848728,
+  "headCommit": "caf52c6822334ad4aefedfd142aeb71366ea7ad6",
+  "failure": {
+    "jobId": 100290167282,
+    "jobName": "Fast validation",
+    "test": "test/features/owned-ui/pi-event-frame-parity.test.ts",
+    "assertion": "produces one truecolor diagnostic hash under opposing ambient capabilities",
+    "expectedUniqueHashes": 1,
+    "actualUniqueHashes": 2
+  },
+  "focusedReproduction": {
+    "command": "npx vitest run test/features/owned-ui/pi-event-frame-parity.test.ts --no-file-parallelism",
+    "failedIteration": 2,
+    "firstDifferencePath": "result.frames.0.capturedAnsi",
+    "difference": "one capture ended with an additional idempotent cursor-column and cursor-hide maintenance sequence from a no-damage scheduled render"
+  },
+  "classification": {
+    "kind": "test-producer-scheduling",
+    "colorGrammarDiffered": false,
+    "semanticRowsDiffered": false,
+    "fixtureContentDiffered": false,
+    "runtimeProductionBehavior": false,
+    "retryAccepted": false
+  },
+  "repairEvidence": {
+    "strategy": "discard any prior no-damage maintenance render before each scripted transition and capture either the already-emitted post-event render or one explicit render, never both",
+    "repeatedModePairs": 100,
+    "uniqueStructuredResults": 1,
+    "retainedFixtureSha256": "f1e0fd6f1e3512c2512b9f41771b47b660d050c47bab4573099632e3eda34bba",
+    "fixturePayloadChanged": false,
+    "focusedFilesPassed": 11,
+    "focusedTestsPassed": 62
+  },
+  "otherFastValidationFailures": [
+    {
+      "test": "test/repository-governance/code-documentation.test.ts",
+      "outcome": "5000ms timeout",
+      "classification": "separate runner contention evidence"
+    },
+    {
+      "test": "test/foundation/storage/storage.test.ts",
+      "outcome": "5000ms timeout",
+      "classification": "separate runner contention evidence"
+    }
+  ]
+}
