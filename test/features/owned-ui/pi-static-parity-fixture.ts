@@ -1,6 +1,10 @@
 import type { OwnedUiSessionViewModel, OwnedUiTranscriptBlock } from "../../../src/contracts/owned-ui/index.js";
 import { applyPiTheme, createPiShellDialog, createPiShellSelector } from "../../../src/integrations/pi/components/index.js";
 import { OwnedUiSessionShellRoot } from "../../../src/integrations/pi/session-ui/index.js";
+import { withPiParityColorMode } from "../../support/pi-terminal-capabilities.js";
+
+/** Declared color grammar retained by the static diagnostic fixture. */
+export const STATIC_PARITY_COLOR_MODE = "truecolor" as const;
 
 export const STATIC_PARITY_COVERAGE = [
   "transcript",
@@ -23,42 +27,46 @@ export interface StaticParityCase {
 }
 
 export function buildStaticParityCases(): readonly StaticParityCase[] {
-  applyPiTheme("dark", false, "truecolor");
-  const view = staticView();
-  const root = new OwnedUiSessionShellRoot(view, "D:/work", {
-    getColumns: () => 72,
-    getRows: () => 30,
-    requestRender() {},
-    onSubmit() {},
-    onInterrupt() {},
-    onExit() {},
-    onModelSelect() {},
-    onThinkingCycle() {},
-  });
-  root.editor.setText("Queued-aware editor text");
+  return withPiParityColorMode(STATIC_PARITY_COLOR_MODE, () => {
+    applyPiTheme("dark", false, STATIC_PARITY_COLOR_MODE);
+    const view = staticView();
+    const root = new OwnedUiSessionShellRoot(view, "D:/work", {
+      getColumns: () => 72,
+      getRows: () => 30,
+      requestRender() {},
+      onSubmit() {},
+      onInterrupt() {},
+      onExit() {},
+      onModelSelect() {},
+      onThinkingCycle() {},
+    });
+    root.editor.setText("Queued-aware editor text");
 
-  const dialog = createPiShellDialog({
-    id: "confirm",
-    title: "Confirm action",
-    kind: "confirmation",
-    payload: { options: [{ id: "yes", label: "Yes" }, { id: "no", label: "No" }] },
-  });
-  const selector = createPiShellSelector({
-    title: "Select model",
-    options: [
-      { id: "openai/gpt-5", label: "GPT-5", description: "openai/gpt-5" },
-      { id: "anthropic/claude", label: "Claude", description: "anthropic/claude" },
-    ],
-  });
+    try {
+      const dialog = createPiShellDialog({
+        id: "confirm",
+        title: "Confirm action",
+        kind: "confirmation",
+        payload: { options: [{ id: "yes", label: "Yes" }, { id: "no", label: "No" }] },
+      });
+      const selector = createPiShellSelector({
+        title: "Select model",
+        options: [
+          { id: "openai/gpt-5", label: "GPT-5", description: "openai/gpt-5" },
+          { id: "anthropic/claude", label: "Claude", description: "anthropic/claude" },
+        ],
+      });
 
-  const cases = [
-    parityCase("shell-72", 72, ["transcript", "streaming", "tools", "editor", "queued-input", "status", "errors"], root.render(72)),
-    parityCase("shell-resize-44", 44, ["resize", "transcript", "streaming", "tools", "editor", "queued-input", "status", "errors"], root.render(44)),
-    parityCase("dialog-52", 52, ["dialogs"], dialog.render(52)),
-    parityCase("selector-48", 48, ["selectors"], selector.render(48)),
-  ];
-  root.dispose();
-  return cases;
+      return [
+        parityCase("shell-72", 72, ["transcript", "streaming", "tools", "editor", "queued-input", "status", "errors"], root.render(72)),
+        parityCase("shell-resize-44", 44, ["resize", "transcript", "streaming", "tools", "editor", "queued-input", "status", "errors"], root.render(44)),
+        parityCase("dialog-52", 52, ["dialogs"], dialog.render(52)),
+        parityCase("selector-48", 48, ["selectors"], selector.render(48)),
+      ];
+    } finally {
+      root.dispose();
+    }
+  }, { hyperlinks: true });
 }
 
 function parityCase(id: string, width: number, coverage: readonly string[], rows: readonly string[]): StaticParityCase {
@@ -68,10 +76,16 @@ function parityCase(id: string, width: number, coverage: readonly string[], rows
 export function normalizeParityRow(row: string): string {
   return row
     // Compatibility: stored A1 diagnostics are cross-platform and do not own parity authority;
-    // normalize optional OSC 8 wrappers while preserving every SGR byte and cell.
-    .replace(/\u001b]8;;[^\u0007\u001b]*(?:\u0007|\u001b\\)/g, "")
+    // canonicalize optional OSC 8 targets while preserving wrappers, every SGR byte, and every cell.
+    .replace(/\u001b]8;;([^\u0007\u001b]*)(\u0007|\u001b\\)/g, normalizeOsc8Link)
     .replace("\u001b_pi:c\u0007", "")
     .replace(/(?:~\/\S*\/)?D:\/work/g, "D:/work");
+}
+
+function normalizeOsc8Link(sequence: string, target: string, terminator: string): string {
+  if (!target) return sequence;
+  const suffix = target.split(/[\\/]/u).at(-1) ?? "target";
+  return `\u001b]8;;<absolute-link-target>/${suffix}${terminator}`;
 }
 
 function staticView(): OwnedUiSessionViewModel {

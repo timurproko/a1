@@ -1,6 +1,10 @@
 import { writeFile } from "node:fs/promises";
 import identity from "../../src/product-identity.json" with { type: "json" };
-import { buildEventFrameParityResult, SCRIPTED_PI_EVENTS } from "../../test/features/owned-ui/pi-event-frame-parity-fixture.js";
+import {
+  buildEventFrameParityResult,
+  EVENT_FRAME_PARITY_COLOR_MODE,
+  SCRIPTED_PI_EVENTS,
+} from "../../test/features/owned-ui/pi-event-frame-parity-fixture.js";
 
 const result = await buildEventFrameParityResult();
 const output = {
@@ -8,6 +12,7 @@ const output = {
   generatedFrom: {
     producer: "a1-diagnostic",
     evidenceAuthority: false,
+    colorMode: EVENT_FRAME_PARITY_COLOR_MODE,
     repository: "https://github.com/earendil-works/pi.git",
     sourceCommit: "914cf1472e715297caa30db4b9535d534a9eb718",
     packages: {

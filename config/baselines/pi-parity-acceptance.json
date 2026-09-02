@@ -32,8 +32,9 @@
   "fixtures": [
     {
       "path": "test/features/owned-ui/fixtures/pi-component-parity.json",
-      "sha256": "990cf5b97844e83984e45df3a090247c1b20b24999439a0b095aae6200e3ad20",
+      "sha256": "2f9a3a56345359851cb7a23072d97b0664ed1465da6a1add83148ce25d8162dd",
       "cases": 4,
+      "colorMode": "truecolor",
       "classification": "AddOne-generated regression fixture; no independent upstream producer",
       "coverage": [
         "transcript",
@@ -65,9 +66,10 @@
     },
     {
       "path": "test/features/owned-ui/fixtures/pi-event-frame-parity.json",
-      "sha256": "bf226ebaf3ad40762018af1c800abf9432f6a869f7cb3ae437f880db9fc42b5a",
+      "sha256": "f1e0fd6f1e3512c2512b9f41771b47b660d050c47bab4573099632e3eda34bba",
       "stateTransitions": 12,
       "capturedFrames": 5,
+      "colorMode": "truecolor",
       "classification": "Synthetic AddOne-session regression fixture; no independent upstream producer",
       "coverage": [
         "initial",

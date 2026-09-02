@@ -19,6 +19,10 @@ import {
   type PiTerminalTheme,
 } from "../../../../src/integrations/pi/components/index.js";
 import { capturePinnedTheme } from "./pinned-theme-upstream-fixture.js";
+import {
+  PI_PARITY_COLOR_MODES,
+  withPiParityColorMode,
+} from "../../../support/pi-terminal-capabilities.js";
 
 const FOREGROUNDS = [
   "accent", "border", "borderAccent", "borderMuted", "success", "error", "warning", "muted", "dim", "text",
@@ -57,30 +61,34 @@ class ThemeSettings {
 }
 
 describe("pinned Pi theme and layout parity", () => {
-  it.each(["dark", "light"] as const)("matches every pinned %s ANSI token and fixed-width component row", async themeName => {
-    for (const width of [24, 40, 80]) {
-      const upstream = await capturePinnedTheme(themeName, width);
-      expect(applyPiTheme(themeName)).toMatchObject({ success: true, name: themeName });
-      const theme = piTheme();
-      const actual = {
-        foregrounds: Object.fromEntries(FOREGROUNDS.map(color => [color, theme.fg(color, "probe")])),
-        backgrounds: Object.fromEntries(BACKGROUNDS.map(color => [color, theme.bg(color, "probe")])),
-        styles: { bold: theme.bold("probe"), italic: theme.italic("probe"), colorMode: theme.getColorMode() },
-        rows: {
-          user: adaptPiUserMessage(block("user", "User theme probe"), width),
-          assistant: adaptPiAssistantMessage(block("assistant", "Assistant **theme** probe"), width),
-          selector: createPiShellSelector({
-            options: [
-              { id: "one", label: "One", description: "First option" },
-              { id: "two", label: "Two", description: "Second option" },
-            ],
-            maxVisible: 2,
-          }).render(width),
-        },
-      };
-      expect(actual).toEqual(upstream);
-    }
-  });
+  it.each(PI_PARITY_COLOR_MODES.flatMap(mode => (["dark", "light"] as const).map(theme => [mode, theme] as const)))(
+    "matches every pinned %s %s ANSI token and fixed-width component row",
+    async (mode, themeName) => await withPiParityColorMode(mode, async () => {
+      for (const width of [24, 40, 80]) {
+        const upstream = await capturePinnedTheme(themeName, width);
+        expect(applyPiTheme(themeName, false, mode)).toMatchObject({ success: true, name: themeName });
+        const theme = piTheme();
+        const actual = {
+          foregrounds: Object.fromEntries(FOREGROUNDS.map(color => [color, theme.fg(color, "probe")])),
+          backgrounds: Object.fromEntries(BACKGROUNDS.map(color => [color, theme.bg(color, "probe")])),
+          styles: { bold: theme.bold("probe"), italic: theme.italic("probe"), colorMode: theme.getColorMode() },
+          rows: {
+            user: adaptPiUserMessage(block("user", "User theme probe"), width),
+            assistant: adaptPiAssistantMessage(block("assistant", "Assistant **theme** probe"), width),
+            selector: createPiShellSelector({
+              options: [
+                { id: "one", label: "One", description: "First option" },
+                { id: "two", label: "Two", description: "Second option" },
+              ],
+              maxVisible: 2,
+            }).render(width),
+          },
+        };
+        expect(theme.getColorMode()).toBe(mode);
+        expect(actual).toEqual(upstream);
+      }
+    }),
+  );
 
   it("pins spacing defaults to independently recorded upstream source", async () => {
     const [interactiveMap, settingsMap] = await Promise.all([

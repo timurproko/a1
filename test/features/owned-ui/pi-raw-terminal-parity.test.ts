@@ -8,6 +8,11 @@ import {
   normalizeRawTerminalFrame,
   type RawTerminalFrame,
 } from "./pi-raw-terminal-parity.js";
+import {
+  PI_PARITY_COLOR_MODES,
+  withPiParityColorMode,
+  type PiParityColorMode,
+} from "../../support/pi-terminal-capabilities.js";
 
 function pinnedUserFrame(width: number): RawTerminalFrame {
   initTheme("dark", false);
@@ -15,8 +20,8 @@ function pinnedUserFrame(width: number): RawTerminalFrame {
   return { producer: "pinned-pi-0.84.2", surface: "user-transcript", width, rows: component.render(width) };
 }
 
-function ownedUserFrame(width: number): RawTerminalFrame {
-  applyPiTheme("dark", false, "truecolor");
+function ownedUserFrame(width: number, mode: PiParityColorMode): RawTerminalFrame {
+  applyPiTheme("dark", false, mode);
   const block: OwnedUiTranscriptBlock = {
     id: "user-parity",
     kind: "user",
@@ -35,22 +40,31 @@ function ownedUserFrame(width: number): RawTerminalFrame {
 }
 
 describe("independent raw terminal visual parity authority", () => {
-  it.each([24, 40, 72])("compares independently produced styled rows at %i columns", width => {
-    expect(() => assertIndependentRawTerminalParity(pinnedUserFrame(width), ownedUserFrame(width))).not.toThrow();
+  it.each(PI_PARITY_COLOR_MODES.flatMap(mode => [24, 40, 72].map(width => [mode, width] as const)))(
+    "compares independently produced %s rows at %i columns",
+    (mode, width) => withPiParityColorMode(mode, () => {
+      expect(() => assertIndependentRawTerminalParity(pinnedUserFrame(width), ownedUserFrame(width, mode))).not.toThrow();
+    }),
+  );
+
+  it.each(PI_PARITY_COLOR_MODES)("fails when %s semantic SGR styling is stripped", mode => {
+    withPiParityColorMode(mode, () => {
+      const pinned = pinnedUserFrame(40);
+      const owned = ownedUserFrame(40, mode);
+      const stripped: RawTerminalFrame = {
+        ...owned,
+        rows: owned.rows.map(row => row.replace(/\u001b\[[0-9;:]*m/g, "")),
+      };
+      expect(() => assertIndependentRawTerminalParity(pinned, stripped)).toThrow(/semantic ANSI/);
+    });
   });
 
-  it("fails when semantic SGR styling is stripped even though plain text is unchanged", () => {
-    const pinned = pinnedUserFrame(40);
-    const stripped: RawTerminalFrame = {
-      ...ownedUserFrame(40),
-      rows: ownedUserFrame(40).rows.map(row => row.replace(/\u001b\[[0-9;:]*m/g, "")),
-    };
-    expect(() => assertIndependentRawTerminalParity(pinned, stripped)).toThrow(/semantic ANSI/);
-  });
-
-  it("rejects an owned-product golden frame as the pinned authority", () => {
-    const diagnostic: RawTerminalFrame = { ...ownedUserFrame(40), producer: "owned-diagnostic" };
-    expect(() => assertIndependentRawTerminalParity(diagnostic, ownedUserFrame(40))).toThrow(/independently produced/);
+  it.each(PI_PARITY_COLOR_MODES)("rejects an owned-product %s golden frame as pinned authority", mode => {
+    withPiParityColorMode(mode, () => {
+      const owned = ownedUserFrame(40, mode);
+      const diagnostic: RawTerminalFrame = { ...owned, producer: "owned-diagnostic" };
+      expect(() => assertIndependentRawTerminalParity(diagnostic, owned)).toThrow(/independently produced/);
+    });
   });
 
   it("preserves cursor, clearing, restoration, and post-stop control order", () => {

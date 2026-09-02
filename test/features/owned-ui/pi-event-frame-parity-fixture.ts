@@ -3,6 +3,10 @@ import { createPiEngineAdapter } from "../../../src/integrations/pi/engine/index
 import { applyPiTheme } from "../../../src/integrations/pi/components/index.js";
 import type { PiTuiTerminalPort } from "../../../src/integrations/pi/tui-runtime/index.js";
 import { OwnedUiSessionShell } from "../../../src/integrations/pi/session-ui/index.js";
+import { withPiParityColorMode } from "../../support/pi-terminal-capabilities.js";
+
+/** Declared color grammar retained by the event-frame diagnostic fixture. */
+export const EVENT_FRAME_PARITY_COLOR_MODE = "truecolor" as const;
 
 export interface EventStateParityEntry {
   readonly stage: string;
@@ -51,55 +55,57 @@ export const SCRIPTED_PI_EVENTS: readonly { readonly stage: string; readonly eve
 ];
 
 export async function buildEventFrameParityResult(): Promise<EventFrameParityResult> {
-  applyPiTheme("dark", false, "truecolor");
-  const engine = new ScriptedRuntime();
-  const adapter = await createPiEngineAdapter({
-    cwd: "D:/parity",
-    sessionId: "event-frame-parity",
-    createRuntime: async () => engine as unknown as AgentSessionRuntime,
-  });
-  const physical = new CapturingTerminal(64, 18);
-  const shell = new OwnedUiSessionShell({ backend: adapter, cwd: "D:/parity", terminal: physical });
-  const states: EventStateParityEntry[] = [];
-  const frames: TerminalFrameParityEntry[] = [];
-  let writeOffset = 0;
-
-  const capture = async (stage: string, captureFrame = false): Promise<void> => {
-    await adapter.flushEvents();
-    shell.runtime.renderNow();
-    const capturedAnsi = physical.writes.slice(writeOffset).join("");
-    writeOffset = physical.writes.length;
-    const view = shell.view();
-    states.push({
-      stage,
-      lifecycle: view.lifecycle,
-      queued: [...view.editor.queuedSubmissions],
-      transcript: view.transcript.map(block => ({ kind: block.kind, status: block.status, text: block.text })),
+  return await withPiParityColorMode(EVENT_FRAME_PARITY_COLOR_MODE, async () => {
+    applyPiTheme("dark", false, EVENT_FRAME_PARITY_COLOR_MODE);
+    const engine = new ScriptedRuntime();
+    const adapter = await createPiEngineAdapter({
+      cwd: "D:/parity",
+      sessionId: "event-frame-parity",
+      createRuntime: async () => engine as unknown as AgentSessionRuntime,
     });
-    if (captureFrame) {
-      frames.push({
-        stage,
-        columns: physical.columns,
-        rows: physical.rows,
-        capturedAnsi: normalizeCapturedFrame(capturedAnsi),
-      });
-    }
-  };
+    const physical = new CapturingTerminal(64, 18);
+    const shell = new OwnedUiSessionShell({ backend: adapter, cwd: "D:/parity", terminal: physical });
+    const states: EventStateParityEntry[] = [];
+    const frames: TerminalFrameParityEntry[] = [];
+    let writeOffset = 0;
 
-  try {
-    shell.start();
-    await capture("initial", true);
-    for (const entry of SCRIPTED_PI_EVENTS) {
-      engine.session.emit(entry.event);
-      await capture(entry.stage, ["streaming", "tool-result", "completed"].includes(entry.stage));
+    const capture = async (stage: string, captureFrame = false): Promise<void> => {
+      await adapter.flushEvents();
+      shell.runtime.renderNow();
+      const capturedAnsi = physical.writes.slice(writeOffset).join("");
+      writeOffset = physical.writes.length;
+      const view = shell.view();
+      states.push({
+        stage,
+        lifecycle: view.lifecycle,
+        queued: [...view.editor.queuedSubmissions],
+        transcript: view.transcript.map(block => ({ kind: block.kind, status: block.status, text: block.text })),
+      });
+      if (captureFrame) {
+        frames.push({
+          stage,
+          columns: physical.columns,
+          rows: physical.rows,
+          capturedAnsi: normalizeCapturedFrame(capturedAnsi),
+        });
+      }
+    };
+
+    try {
+      shell.start();
+      await capture("initial", true);
+      for (const entry of SCRIPTED_PI_EVENTS) {
+        engine.session.emit(entry.event);
+        await capture(entry.stage, ["streaming", "tool-result", "completed"].includes(entry.stage));
+      }
+      physical.resize(48, 16);
+      await capture("resized", true);
+      return { states, frames };
+    } finally {
+      await shell.dispose();
+      if (!adapter.disposed) await adapter.dispose();
     }
-    physical.resize(48, 16);
-    await capture("resized", true);
-    return { states, frames };
-  } finally {
-    await shell.dispose();
-    if (!adapter.disposed) await adapter.dispose();
-  }
+  }, { hyperlinks: true });
 }
 
 class ScriptedSession {
@@ -170,8 +176,14 @@ function normalizeCapturedFrame(frame: string): string {
     .replaceAll("\x1b[?2026h", "")
     .replaceAll("\x1b[?2026l", "")
     // Compatibility: stored A1 diagnostics are cross-platform and do not own parity authority;
-    // normalize optional OSC 8 wrappers while preserving every SGR byte and cell.
-    .replace(/\x1b]8;;[^\x07\x1b]*(?:\x07|\x1b\\)/g, "");
+    // canonicalize optional OSC 8 targets while preserving wrappers, every SGR byte, and every cell.
+    .replace(/\x1b]8;;([^\x07\x1b]*)(\x07|\x1b\\)/g, normalizeOsc8Link);
+}
+
+function normalizeOsc8Link(sequence: string, target: string, terminator: string): string {
+  if (!target) return sequence;
+  const suffix = target.split(/[\\/]/u).at(-1) ?? "target";
+  return `\x1b]8;;<absolute-link-target>/${suffix}${terminator}`;
 }
 
 function assistantMessage(text: string, stopReason: string): Record<string, unknown> {

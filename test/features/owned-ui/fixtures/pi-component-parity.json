@@ -3,6 +3,7 @@
   "generatedFrom": {
     "producer": "a1-diagnostic",
     "evidenceAuthority": false,
+    "colorMode": "truecolor",
     "repository": "https://github.com/earendil-works/pi.git",
     "sourceCommit": "914cf1472e715297caa30db4b9535d534a9eb718",
     "packages": {

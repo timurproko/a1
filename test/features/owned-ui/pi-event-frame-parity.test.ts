@@ -1,16 +1,23 @@
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 import {
   buildEventFrameParityResult,
+  EVENT_FRAME_PARITY_COLOR_MODE,
   SCRIPTED_PI_EVENTS,
   type EventFrameParityResult,
 } from "./pi-event-frame-parity-fixture.js";
+import {
+  PI_PARITY_COLOR_MODES,
+  withPiParityColorMode,
+} from "../../support/pi-terminal-capabilities.js";
 
 interface EventFrameFixture extends EventFrameParityResult {
   readonly schema: string;
   readonly generatedFrom: {
     readonly producer: "a1-diagnostic";
     readonly evidenceAuthority: false;
+    readonly colorMode: "truecolor";
     readonly sourceCommit: string;
     readonly packages: Record<string, string>;
   };
@@ -29,6 +36,7 @@ describe("pinned Pi scripted event and terminal-frame parity", () => {
     expect(fixture.schema).toBe("a1-pi-event-frame-parity-v1");
     expect(fixture.generatedFrom.producer).toBe("a1-diagnostic");
     expect(fixture.generatedFrom.evidenceAuthority).toBe(false);
+    expect(fixture.generatedFrom.colorMode).toBe(EVENT_FRAME_PARITY_COLOR_MODE);
     expect(fixture.generatedFrom.sourceCommit).toBe("914cf1472e715297caa30db4b9535d534a9eb718");
     expect(fixture.generatedFrom.packages).toEqual({
       "@earendil-works/pi-coding-agent": "0.84.2",
@@ -49,6 +57,16 @@ describe("pinned Pi scripted event and terminal-frame parity", () => {
     expect(portableFrames(result.frames)).toEqual(portableFrames(fixture.frames));
     expect(result.frames.map(frame => frame.stage)).toEqual(["initial", "streaming", "tool-result", "completed", "resized"]);
     expect(result.frames.at(-1)).toMatchObject({ columns: 48, rows: 16 });
+  });
+
+  it("produces one truecolor diagnostic hash under opposing ambient capabilities", async () => {
+    const hashes: string[] = [];
+    for (const ambientMode of PI_PARITY_COLOR_MODES) {
+      hashes.push(await withPiParityColorMode(ambientMode, async () => createHash("sha256")
+        .update(JSON.stringify({ colorMode: EVENT_FRAME_PARITY_COLOR_MODE, result: await buildEventFrameParityResult() }))
+        .digest("hex")));
+    }
+    expect(new Set(hashes).size).toBe(1);
   });
 });
 

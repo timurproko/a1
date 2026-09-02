@@ -1,12 +1,23 @@
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
-import { buildStaticParityCases, normalizeParityRow, STATIC_PARITY_COVERAGE } from "./pi-static-parity-fixture.js";
+import {
+  buildStaticParityCases,
+  normalizeParityRow,
+  STATIC_PARITY_COLOR_MODE,
+  STATIC_PARITY_COVERAGE,
+} from "./pi-static-parity-fixture.js";
+import {
+  PI_PARITY_COLOR_MODES,
+  withPiParityColorMode,
+} from "../../support/pi-terminal-capabilities.js";
 
 interface StaticParityFixture {
   readonly schema: string;
   readonly generatedFrom: {
     readonly producer: "a1-diagnostic";
     readonly evidenceAuthority: false;
+    readonly colorMode: "truecolor";
     readonly sourceCommit: string;
     readonly packages: Record<string, string>;
   };
@@ -28,6 +39,7 @@ describe("pinned Pi static component parity", () => {
     expect(fixture.schema).toBe("a1-pi-static-component-parity-v1");
     expect(fixture.generatedFrom.producer).toBe("a1-diagnostic");
     expect(fixture.generatedFrom.evidenceAuthority).toBe(false);
+    expect(fixture.generatedFrom.colorMode).toBe(STATIC_PARITY_COLOR_MODE);
     expect(fixture.generatedFrom.sourceCommit).toBe("914cf1472e715297caa30db4b9535d534a9eb718");
     expect(fixture.generatedFrom.packages).toEqual({
       "@earendil-works/pi-coding-agent": "0.84.2",
@@ -49,5 +61,12 @@ describe("pinned Pi static component parity", () => {
     )) as StaticParityFixture;
     const covered = new Set(fixture.cases.flatMap(value => value.coverage));
     for (const surface of STATIC_PARITY_COVERAGE) expect(covered.has(surface), surface).toBe(true);
+  });
+
+  it("produces one truecolor diagnostic hash under opposing ambient capabilities", () => {
+    const hashes = PI_PARITY_COLOR_MODES.map(ambientMode => withPiParityColorMode(ambientMode, () => createHash("sha256")
+      .update(JSON.stringify({ colorMode: STATIC_PARITY_COLOR_MODE, cases: buildStaticParityCases() }))
+      .digest("hex")));
+    expect(new Set(hashes).size).toBe(1);
   });
 });
