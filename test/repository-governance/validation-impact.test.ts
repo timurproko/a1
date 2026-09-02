@@ -96,7 +96,14 @@ describe("development validation impact", () => {
     const fullHead = await commit(repository, "validation config");
     const changes = await collectCommitChanges(repository, head, fullHead);
     expect(await classifyRenderingImpact(repository, head, fullHead, changes)).toMatchObject({ tier: "full" });
-    for (const path of ["package-lock.json", "scripts/release/validation-impact.mjs", "src/integrations/pi/components/theme.asset"]) {
+    for (const path of [
+      "package-lock.json",
+      "scripts/release/validation-impact.mjs",
+      "src/integrations/pi/components/theme.asset",
+      "test/support/input-responsiveness/input-producer.ts",
+      "test/integrations/pi/tui-runtime/input-responsiveness-budgets.test.ts",
+      "src/integrations/pi/tui-runtime/input-presentation-coordinator.ts",
+    ]) {
       expect(await classifyRenderingImpact(repository, fullHead, fullHead, [{ status: "M", path }]), path).toMatchObject({ tier: "full" });
     }
   });

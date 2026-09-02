@@ -76,10 +76,12 @@ import {
 import {
   DamageAwareTerminalAdapter,
   PiTuiRuntimeAdapter,
+  classifyPiTuiInput,
   type PiTuiComponentPort,
   type PiTuiDamageDecision,
   type PiTuiLayoutNode,
   type PiTuiOverlayHandle,
+  type PiTuiRuntimeAdapterOptions,
   type PiTuiTerminalPort,
 } from "../tui-runtime/index.js";
 
@@ -167,6 +169,7 @@ export class OwnedUiSessionShell {
         selectionActive: this.root.hasActiveSelection(),
         replacementSurfaceActive: !this.root.usesDefaultInputSurface(),
       }),
+      enableDockInputReuse: options.inputPresentation?.viewportReuse !== false,
       onSubmit: text => { void this.submit(text); },
       onInterrupt: () => { void this.interrupt(); },
       onClear: () => { void this.clearOrExit(); },
@@ -217,7 +220,7 @@ export class OwnedUiSessionShell {
     const tuiMode = this.#customViewport
       ? "fullscreen"
       : this.backend.disposed ? "regular" : this.backend.pinnedSettingsSnapshot().tuiMode;
-    const runtimeOptions = {
+    const runtimeOptions: PiTuiRuntimeAdapterOptions = {
       root: this.root,
       mode: tuiMode,
       ...(this.#customViewport ? {
@@ -228,7 +231,25 @@ export class OwnedUiSessionShell {
           });
           return damageTerminal;
         },
+        ...(options.inputPresentation?.coordination === false ? {} : {
+          inputCoordination: {
+            classify: (data: string, focusedOverlay) => classifyPiTuiInput(
+              data,
+              focusedOverlay ?? this.root.inputCoordinationSurface(),
+            ),
+            onReceipt: () => streamPresentation?.noteImmediatePresentation(),
+            ...(options.inputPresentation?.scheduler === undefined
+              ? {}
+              : { scheduler: options.inputPresentation.scheduler }),
+          },
+        }),
       } : { layoutRoot: this.root.layoutRoot() }),
+      ...(options.inputPresentation?.onEvent === undefined ? {} : {
+        inputDiagnostics: {
+          onEvent: options.inputPresentation.onEvent,
+          ...(options.inputPresentation.now === undefined ? {} : { now: options.inputPresentation.now }),
+        },
+      }),
       ...(options.terminal === undefined ? {} : { terminal: options.terminal }),
       hardwareCursor: this.backend.view().terminal.hardwareCursor,
     };
@@ -269,7 +290,7 @@ export class OwnedUiSessionShell {
     });
     this.#removeViewportPreInput = this.#customViewport
       ? this.runtime.addPreInputListener(data => {
-          this.#streamPresentation.noteImmediatePresentation();
+          if (options.inputPresentation?.coordination === false) this.#streamPresentation.noteImmediatePresentation();
           // Invariant: an overlay or editor-replacement screen owns its entire pointer
           // surface. Letting the transcript pre-router inspect those reports
           // steals settings value menus and numeric +/- controls before the
@@ -342,7 +363,7 @@ export class OwnedUiSessionShell {
         requestRender: () => this.runtime.requestRender(),
       },
       agentDir: this.backend.agentDir,
-      setInputSurface: component => this.root.setInputSurface(component),
+      setInputSurface: component => this.root.setInputSurface(component, true, "opaque"),
       showOverlay: (component, overlayOptions) => this.runtime.showOverlay(component, overlayOptions),
       listenInput: handler => this.runtime.addInputListener(handler),
       replaceWidget: (key, component, placement) => this.root.setExtensionWidget(key, component, placement),
@@ -356,7 +377,7 @@ export class OwnedUiSessionShell {
       setEditorText: text => this.root.editor.setText(text),
       pasteToEditor: text => this.root.editor.insertText(text),
       addAutocompleteProvider: factory => this.root.editor.addAutocompleteProvider(factory),
-      setCustomEditor: component => this.root.setInputSurface(component),
+      setCustomEditor: component => this.root.setInputSurface(component, true, "opaque"),
       getFooterData: () => this.root.extensionFooterData(),
       getToolsExpanded: () => this.root.toolsExpanded,
       setToolsExpanded: expanded => this.root.setToolsExpanded(expanded),
@@ -611,7 +632,12 @@ export class OwnedUiSessionShell {
         onCancel?.();
       },
     });
-    const handle = this.runtime.showOverlay(component, { width: "70%", maxHeight: "80%", anchor: "center" });
+    const handle = this.runtime.showOverlay(component, {
+      width: "70%",
+      maxHeight: "80%",
+      anchor: "center",
+      inputCoordination: "owned",
+    });
     this.#dialogHandle = handle;
     return handle;
   }
@@ -1201,7 +1227,12 @@ export class OwnedUiSessionShell {
       closeSurface();
       void this.shutdown();
     });
-    this.#dialogHandle = this.runtime.showOverlay(component, { width: "100%", maxHeight: "100%", anchor: "top-left" });
+    this.#dialogHandle = this.runtime.showOverlay(component, {
+      width: "100%",
+      maxHeight: "100%",
+      anchor: "top-left",
+      inputCoordination: "owned",
+    });
     this.#dialogId = surface.id;
     return { outcome: "completed", diagnostic: null };
   }
@@ -1235,7 +1266,12 @@ export class OwnedUiSessionShell {
         this.#dialogSource = undefined;
       },
     });
-    this.#dialogHandle = this.runtime.showOverlay(component, { width: "70%", maxHeight: "80%", anchor: "center" });
+    this.#dialogHandle = this.runtime.showOverlay(component, {
+      width: "70%",
+      maxHeight: "80%",
+      anchor: "center",
+      inputCoordination: "owned",
+    });
     this.#dialogId = dialog.id;
   }
 

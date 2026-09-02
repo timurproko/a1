@@ -96,7 +96,11 @@ import {
 } from "../components/index.js";
 import {
   PiTuiRuntimeAdapter,
+  classifyPiTuiInput,
   type PiTuiComponentPort,
+  type PiTuiInputSurfaceKind,
+  type PiTuiInputCoordinationScheduler,
+  type PiTuiInputDiagnosticsEvent,
   type PiTuiLayoutNode,
   type PiTuiOverlayHandle,
   type PiTuiTerminalPort,
@@ -135,6 +139,16 @@ export interface OwnedUiSessionShellOptions {
   readonly streamPresentation?: {
     readonly intervalMs?: number;
     readonly scheduler?: StreamPresentationScheduler;
+  };
+  /** Optional deterministic seam for keyboard scheduling and phase evidence. */
+  readonly inputPresentation?: {
+    readonly scheduler?: PiTuiInputCoordinationScheduler;
+    readonly onEvent?: (event: PiTuiInputDiagnosticsEvent) => void;
+    readonly now?: () => number;
+    /** Evidence-only baseline seam; production leaves coordination enabled. */
+    readonly coordination?: boolean;
+    /** Evidence-only baseline seam; production leaves dock reuse enabled. */
+    readonly viewportReuse?: boolean;
   };
 }
 
@@ -179,6 +193,22 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   readonly #workflowStatusMessages = new Map<string, string>();
   #lastWorkflowStatusId: string | undefined;
   #inputSurface: PiShellComponentPort;
+  #inputSurfaceCoordination: PiTuiInputSurfaceKind = "editor";
+  readonly #dockInputReuseEnabled: boolean;
+  #dockInputCandidate = false;
+  #visibleViewportSnapshot: {
+    readonly width: number;
+    readonly height: number;
+    readonly documentRows: readonly string[];
+    readonly promptAnchors: readonly TranscriptPromptAnchor[];
+    readonly dockLength: number;
+    readonly inputSurface: PiShellComponentPort;
+    readonly viewportRevision: number;
+    readonly selectionRevision: number;
+  } | undefined;
+  #fullViewportCompositions = 0;
+  #dockOnlyViewportCompositions = 0;
+  #transcriptBlockRenders = 0;
   #extensionHeader: PiShellComponentPort | null = null;
   #extensionFooter: PiShellComponentPort | null = null;
   readonly #extensionWidgets = new Map<string, { readonly component: PiShellComponentPort; readonly placement: "aboveEditor" | "belowEditor" }>();
@@ -194,6 +224,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       readonly getRows: () => number;
       readonly requestRender: (force?: boolean) => void;
       readonly onViewportFrame?: (frame: TranscriptViewportFrame) => void;
+      readonly enableDockInputReuse?: boolean;
       readonly onSubmit: (text: string) => void;
       readonly onInterrupt: () => void;
       readonly onClear?: () => void;
@@ -231,6 +262,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.#imageAssets = imageAssets;
     this.#componentRuntime = handlers;
     this.#onViewportFrame = handlers.onViewportFrame;
+    this.#dockInputReuseEnabled = handlers.enableDockInputReuse ?? true;
     this.header = createPiShellHeader(startup);
     this.resources = createPiShellLoadedResources(startup.resources ?? [], startup.expanded ?? false);
     this.#status = createPiShellStatus(view, progressStatusText, handlers);
@@ -437,23 +469,51 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
           rowEnd: dockStartRow + editorOffset + dock.inputRows - 1,
         }
       : undefined);
-    const frame = this.#viewportController.compose({
-      documentRows: document.rows,
-      ...(this.#viewportController.transcriptPointerSelecting
-        ? { paintDocumentRow: heldNativeHyperlinkStyle }
-        : {}),
-      // Invariant: selection and copying stop at the real document tail; queued
-      // and Working rows remain dock-owned status chrome at every fit boundary.
-      selectableDocumentRowCount,
-      dockRows,
-      promptAnchors: document.promptAnchors,
+    const snapshot = this.#visibleViewportSnapshot;
+    const dockInputCandidate = this.#dockInputCandidate;
+    this.#dockInputCandidate = false;
+    let frame = dockInputCandidate
+      && snapshot !== undefined
+      && snapshot.width === width
+      && snapshot.height === height
+      && snapshot.documentRows === document.rows
+      && snapshot.promptAnchors === document.promptAnchors
+      && snapshot.dockLength === dockRows.length
+      && snapshot.inputSurface === this.#inputSurface
+      && snapshot.viewportRevision === this.#viewportController.presentationRevision
+      && snapshot.selectionRevision === this.#viewportController.selectionRevision
+      ? this.#viewportController.composeDockOnly(dockRows, width, height)
+      : null;
+    if (frame === null) {
+      frame = this.#viewportController.compose({
+        documentRows: document.rows,
+        ...(this.#viewportController.transcriptPointerSelecting
+          ? { paintDocumentRow: heldNativeHyperlinkStyle }
+          : {}),
+        // Invariant: selection and copying stop at the real document tail; queued
+        // and Working rows remain dock-owned status chrome at every fit boundary.
+        selectableDocumentRowCount,
+        dockRows,
+        promptAnchors: document.promptAnchors,
+        width,
+        height,
+        // Invariant: the control belongs immediately above the complete dock,
+        // never on top of a queued or Working row.
+        bottomControlRow: Math.max(0, height - Math.min(height, dockRows.length) - 1),
+        theme: this.#viewportTheme,
+      });
+      this.#fullViewportCompositions += 1;
+    } else this.#dockOnlyViewportCompositions += 1;
+    this.#visibleViewportSnapshot = {
       width,
       height,
-      // Invariant: the control belongs immediately above the complete dock,
-      // never on top of a queued or Working row.
-      bottomControlRow: Math.max(0, height - Math.min(height, dockRows.length) - 1),
-      theme: this.#viewportTheme,
-    });
+      documentRows: document.rows,
+      promptAnchors: document.promptAnchors,
+      dockLength: dockRows.length,
+      inputSurface: this.#inputSurface,
+      viewportRevision: this.#viewportController.presentationRevision,
+      selectionRevision: this.#viewportController.selectionRevision,
+    };
     this.#onViewportFrame?.(frame);
     return frame.rows;
   }
@@ -660,6 +720,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     const component = this.#transcript.get(id);
     if (component === undefined) return [];
     const render = (): readonly string[] => {
+      this.#transcriptBlockRenders += 1;
       const rows = component.render(width);
       if (!this.#customViewport || block?.kind === "user") return rows;
       return rows.map(row => nativeHyperlinkStyle(row, nativeTranscriptLinkColor));
@@ -895,18 +956,47 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     return this.#inputSurface === this.editor;
   }
 
-  setInputSurface(component: PiShellComponentPort | null, disposePrevious = true): void {
+  inputCoordinationSurface(): PiTuiInputSurfaceKind {
+    return this.#inputSurfaceCoordination;
+  }
+
+  viewportCompositionEvidence(): { readonly full: number; readonly dockOnly: number } {
+    return { full: this.#fullViewportCompositions, dockOnly: this.#dockOnlyViewportCompositions };
+  }
+
+  transcriptRenderCount(): number {
+    return this.#transcriptBlockRenders;
+  }
+
+  setInputSurface(
+    component: PiShellComponentPort | null,
+    disposePrevious = true,
+    coordination: Exclude<PiTuiInputSurfaceKind, "editor"> = "owned",
+  ): void {
     const next = component ?? this.editor;
-    if (next === this.#inputSurface) return;
+    const nextCoordination = next === this.editor ? "editor" : coordination;
+    if (next === this.#inputSurface) {
+      this.#inputSurfaceCoordination = nextCoordination;
+      return;
+    }
+    this.#dockInputCandidate = false;
     this.#inputSurface.setFocused?.(false);
     if (disposePrevious && this.#inputSurface !== this.editor) this.#inputSurface.dispose?.();
     this.#inputSurface = next;
+    this.#inputSurfaceCoordination = nextCoordination;
     this.#inputSurface.setFocused?.(true);
     this.invalidate();
   }
 
   handleInput(data: string): void {
-    this.#inputSurface.handleInput?.(data);
+    this.#dockInputCandidate = this.#customViewport && this.#dockInputReuseEnabled
+      && classifyPiTuiInput(data, this.#inputSurfaceCoordination) === "safe";
+    try {
+      this.#inputSurface.handleInput?.(data);
+    } catch (error) {
+      this.#dockInputCandidate = false;
+      throw error;
+    }
   }
 
   invalidate(): void {
@@ -934,6 +1024,8 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.#transcript.clear();
     this.#renderedRows.clear();
     this.#documentLayouts.clear();
+    this.#visibleViewportSnapshot = undefined;
+    this.#dockInputCandidate = false;
     if (this.#inputSurface !== this.editor) this.#inputSurface.dispose?.();
     this.#extensionHeader?.dispose?.();
     this.#extensionFooter?.dispose?.();

@@ -24,8 +24,10 @@ const FULL_EXACT = new Set([
 const FULL_PREFIXES = Object.freeze([
   "bin/pi-tui.",
   "test/support/rendering/",
+  "test/support/input-responsiveness/",
   "test/fixtures/rendering/",
   "test/integrations/pi/tui-runtime/rendering-",
+  "test/integrations/pi/tui-runtime/input-",
 ]);
 const FULL_PRODUCTION = Object.freeze([
   /^src\/integrations\/pi\/tui-runtime\//u,

@@ -67,6 +67,7 @@ describe("validation tier planning", () => {
     expect(plan.vitest?.invocations[0]?.arguments).toContain("test/foundation/release/package-surface.test.ts");
     expect(plan.vitest?.invocations[0]?.arguments).toContain("test/foundation/release/package-install.integration.test.ts");
     expect(plan.vitest?.invocations[0]?.arguments).toContain("test/integrations/pi/tui-runtime/rendering-budgets.test.ts");
+    expect(plan.vitest?.invocations[0]?.arguments).toContain("test/integrations/pi/tui-runtime/input-responsiveness-budgets.test.ts");
   });
 
   it("serializes smoke and full rendering evidence outside the fast worker pool", async () => {
@@ -75,19 +76,26 @@ describe("validation tier planning", () => {
       expect.objectContaining({ id: "vitest-fast" }),
       expect.objectContaining({
         id: "vitest-isolated-suites",
-        arguments: expect.arrayContaining(["test/integrations/pi/tui-runtime/rendering-smoke.test.ts", "--no-file-parallelism", "--testTimeout=600000"]),
+        arguments: expect.arrayContaining([
+          "test/integrations/pi/tui-runtime/rendering-smoke.test.ts",
+          "test/integrations/pi/tui-runtime/input-responsiveness-smoke.test.ts",
+          "--no-file-parallelism",
+          "--testTimeout=600000",
+        ]),
       }),
     ]);
     expect(smoke.structuralEvidence).toEqual({
-      "rendering-smoke": { workloadCaptures: 2, deliberateRepeatCaptures: 0, matrixProducerLaunches: 12, protocolProducerLaunches: 0, totalProducerLaunches: 12 },
+      "rendering-smoke": { workloadCaptures: 4, deliberateRepeatCaptures: 0, matrixProducerLaunches: 15, protocolProducerLaunches: 0, totalProducerLaunches: 15 },
     });
     const full = await createTierPlan(["rendering-stability"]);
     expect(full.vitest?.invocations[0]?.arguments).toEqual(expect.arrayContaining([
       "test/integrations/pi/tui-runtime/rendering-budgets.test.ts",
       "test/integrations/pi/tui-runtime/rendering-producer.test.ts",
+      "test/integrations/pi/tui-runtime/input-responsiveness-budgets.test.ts",
+      "test/integrations/pi/tui-runtime/input-producer.test.ts",
     ]));
     expect(full.structuralEvidence).toEqual({
-      "rendering-stability": { workloadCaptures: 8, deliberateRepeatCaptures: 1, matrixProducerLaunches: 54, protocolProducerLaunches: 4, totalProducerLaunches: 58 },
+      "rendering-stability": { workloadCaptures: 14, deliberateRepeatCaptures: 2, matrixProducerLaunches: 60, protocolProducerLaunches: 10, totalProducerLaunches: 70 },
     });
   });
 
