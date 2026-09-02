@@ -412,7 +412,7 @@ jobs:
   publish:
     name: Publish ${{ needs.plan.outputs.version }} to npm ${{ needs.plan.outputs.channel }}
     needs: [plan, package, documentation, validate]
-    if: needs.plan.outputs.build == 'true' && needs.package.result == 'success' && (needs.documentation.result == 'success' || needs.documentation.result == 'skipped') && needs.validate.result == 'success'
+    if: always() && needs.plan.outputs.build == 'true' && needs.package.result == 'success' && (needs.documentation.result == 'success' || needs.documentation.result == 'skipped') && needs.validate.result == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     environment: npm-publish
