@@ -130,7 +130,7 @@
       "authority": ["Development validation required"],
       "concurrency": "development-validation-",
       "environments": [],
-      "artifactRetentionDays": []
+      "artifactRetentionDays": [14]
     },
     {
       "name": "Documentation auto-merge",

@@ -18,100 +18,16 @@ jobs:
     name: Detect change surface
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    outputs:
-      docs-only: ${{ steps.diff.outputs.docs_only }}
-      version-only: ${{ steps.diff.outputs.version_only }}
-      openspec-touched: ${{ steps.diff.outputs.openspec_touched }}
-    steps:
-      - name: Check out head
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Classify changed paths
-        id: diff
-        shell: bash
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          EVENT_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
-          EVENT_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-        run: |
-          set -euo pipefail
-          head_sha="$(git rev-parse "$EVENT_HEAD_SHA")"
-          if [ "$EVENT_NAME" = "pull_request" ]; then
-            base_sha="$(git merge-base "$EVENT_BASE_SHA" "$head_sha")"
-          elif [[ "$EVENT_BASE_SHA" =~ ^[a-f0-9]{40}$ ]] && [ "$EVENT_BASE_SHA" != "0000000000000000000000000000000000000000" ] && git cat-file -e "$EVENT_BASE_SHA^{commit}" 2>/dev/null; then
-            base_sha="$EVENT_BASE_SHA"
-          else
-            base_sha="$(git rev-parse "$head_sha^")"
-          fi
-          docs_only=true
-          openspec_touched=false
-          while IFS= read -r path; do
-            case "$path" in
-              openspec/*) openspec_touched=true ;;
-              docs/*|*.md|LICENSE|.gitignore) ;;
-              *) docs_only=false ;;
-            esac
-          done < <(git diff --name-only "$base_sha" "$head_sha")
-          version_only=false
-          if [ "$docs_only" != "true" ]; then
-            changed="$(git diff --name-only "$base_sha" "$head_sha")"
-            if [ -n "$changed" ] && ! grep -qvE '^(package\.json|package-lock\.json)$' <<< "$changed"; then
-              if ! git diff --unified=0 "$base_sha" "$head_sha" -- package.json package-lock.json \
-                | grep -E '^[+-]' | grep -vE '^(\+\+\+|---)' \
-                | grep -qvE '^[+-][[:space:]]*"version": "[^"]+",?$'; then
-                version_only=true
-              fi
-            fi
-          fi
-          echo "docs_only=$docs_only" >> "$GITHUB_OUTPUT"
-          echo "version_only=$version_only" >> "$GITHUB_OUTPUT"
-          echo "openspec_touched=$openspec_touched" >> "$GITHUB_OUTPUT"
-          echo "Docs-only change: $docs_only" >> "$GITHUB_STEP_SUMMARY"
-          echo "Version-only change: $version_only" >> "$GITHUB_STEP_SUMMARY"
-          echo "OpenSpec touched: $openspec_touched" >> "$GITHUB_STEP_SUMMARY"
-
-  docs:
-    name: Documentation governance validation
-    needs: changes
-    if: needs.changes.outputs.docs-only == 'true'
-    runs-on: ubuntu-24.04
     timeout-minutes: 10
+    outputs:
+      docs-only: ${{ steps.selection.outputs.docs_only }}
+      version-only: ${{ steps.selection.outputs.version_only }}
+      openspec-touched: ${{ steps.selection.outputs.openspec_touched }}
+      rendering-tier: ${{ steps.selection.outputs.rendering_tier }}
+      documentation-required: ${{ steps.selection.outputs.documentation_required }}
+      head-sha: ${{ steps.selection.outputs.head_sha }}
     steps:
       - name: Check out head
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          persist-credentials: false
-
-      - name: Set up Node
-        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
-        with:
-          node-version: 24
-
-      - name: Verify docs-sensitive generated governance
-        run: node scripts/governance/check-docs-governance.mjs
-
-      - name: Validate OpenSpec artifacts strictly
-        if: needs.changes.outputs.openspec-touched == 'true'
-        run: npx --yes @fission-ai/openspec@1.8.0 validate --all --strict --no-interactive
-
-  validate:
-    name: Fast validation
-    needs: changes
-    if: needs.changes.outputs.docs-only != 'true' && needs.changes.outputs.version-only != 'true'
-    runs-on: windows-2025
-    timeout-minutes: 25
-    steps:
-      - name: Preserve repository bytes during checkout
-        shell: bash
-        run: git config --global core.autocrlf false
-
-      - name: Check out validation head
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -124,35 +40,164 @@ jobs:
           node-version: 24
           cache: npm
 
+      - name: Install exact analysis dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Select validation from the complete impact
+        id: selection
+        shell: bash
+        env:
+          EVENT_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          EVENT_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          base_args=()
+          if [ -n "$EVENT_BASE_SHA" ]; then base_args=(--base "$EVENT_BASE_SHA"); fi
+          node scripts/release/select-validation-impact.mjs \
+            "${base_args[@]}" \
+            --head "$EVENT_HEAD_SHA" \
+            --output .artifacts/validation/impact.json \
+            > "$RUNNER_TEMP/impact.json"
+          node --input-type=module <<'NODE' >> "$GITHUB_OUTPUT"
+          import { readFile } from "node:fs/promises";
+          const value = JSON.parse(await readFile(".artifacts/validation/impact.json", "utf8"));
+          console.log(`docs_only=${value.docsOnly}`);
+          console.log(`version_only=${value.versionOnly}`);
+          console.log(`openspec_touched=${value.openspecTouched}`);
+          console.log(`rendering_tier=${value.rendering.tier}`);
+          console.log(`documentation_required=${value.documentation.required}`);
+          console.log(`head_sha=${value.head}`);
+          NODE
+          node --input-type=module <<'NODE' >> "$GITHUB_STEP_SUMMARY"
+          import { readFile } from "node:fs/promises";
+          const value = JSON.parse(await readFile(".artifacts/validation/impact.json", "utf8"));
+          console.log("## Development validation impact\n");
+          console.log(`Head: \`${value.head}\``);
+          console.log(`Rendering: **${value.rendering.tier}**`);
+          console.log(`Documentation files: **${value.documentation.paths.length}**`);
+          console.log(`Classifier: **${value.timing.classifierMs}ms**\n`);
+          for (const reason of [...value.rendering.reasons, ...value.rendering.fallbacks].slice(0, 20)) console.log(`- ${reason}`);
+          NODE
+
+      - name: Upload exact impact selection
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: development-validation-impact
+          path: .artifacts/validation/impact.json
+          if-no-files-found: error
+          retention-days: 14
+
+  docs:
+    name: Documentation governance validation
+    needs: changes
+    if: needs.changes.outputs.docs-only == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out head
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ needs.changes.outputs.head-sha }}
+          persist-credentials: false
+      - name: Set up Node
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 24
+      - name: Verify docs-sensitive generated governance
+        run: node scripts/governance/check-docs-governance.mjs
+      - name: Validate OpenSpec artifacts strictly
+        if: needs.changes.outputs.openspec-touched == 'true'
+        run: npx --yes @fission-ai/openspec@1.8.0 validate --all --strict --no-interactive
+
+  documentation:
+    name: Changed-file documentation validation
+    needs: changes
+    if: needs.changes.outputs.docs-only != 'true' && needs.changes.outputs.version-only != 'true' && needs.changes.outputs.documentation-required == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out selected head
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ needs.changes.outputs.head-sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Node
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: development-validation-impact
+          path: .artifacts/validation
+      - name: Check modified and new documentation inputs
+        run: node scripts/governance/check-code-documentation.mjs --mode changed --selection .artifacts/validation/impact.json --result .artifacts/validation/code-documentation.json
+      - name: Report changed-file documentation evidence
+        if: always()
+        shell: bash
+        run: |
+          if [ -f .artifacts/validation/code-documentation.json ]; then
+            node --input-type=module <<'NODE' >> "$GITHUB_STEP_SUMMARY"
+          import { readFile } from "node:fs/promises";
+          const value = JSON.parse(await readFile(".artifacts/validation/code-documentation.json", "utf8"));
+          console.log(`Files inspected: **${value.filesInspected}**; context files: **${value.contextFiles}**; full scans: **${value.fullRepositoryScans}**; duration: **${value.durationMs}ms**.`);
+          NODE
+          fi
+      - name: Upload changed-file documentation evidence
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: development-code-documentation
+          path: .artifacts/validation/code-documentation.json
+          if-no-files-found: warn
+          retention-days: 14
+
+  validate:
+    name: Fast validation
+    needs: changes
+    if: needs.changes.outputs.docs-only != 'true' && needs.changes.outputs.version-only != 'true'
+    runs-on: windows-2025
+    timeout-minutes: 20
+    steps:
+      - name: Start ordinary timing
+        shell: bash
+        run: echo "A1_JOB_STARTED_MS=$(node -e 'process.stdout.write(String(Date.now()))')" >> "$GITHUB_ENV"
+      - name: Preserve repository bytes during checkout
+        shell: bash
+        run: git config --global core.autocrlf false
+      - name: Check out validation head
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ needs.changes.outputs.head-sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Node
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 24
+          cache: npm
       - name: Cache process guardian build
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           workspaces: native/process-guardian
-
       - name: Install exact dependencies
         run: npm ci
-
       - name: Build process guardian fixture artifact
         shell: bash
         run: cargo build --locked --manifest-path native/process-guardian/Cargo.toml
-
-      - name: Select validation matching the change surface
-        id: selection
-        shell: bash
-        run: echo 'selected=["typecheck","architecture","fast","rendering-stability","dist-integration"]' >> "$GITHUB_OUTPUT"
-
-      - name: Run selected validation
+      - name: Run ordinary validation
         shell: bash
         env:
-          VALIDATION_SELECTION_JSON: ${{ steps.selection.outputs.selected }}
+          VALIDATION_SELECTION_JSON: '["typecheck","architecture","fast","dist-integration"]'
           A1_CONFIG_DIR: ${{ runner.temp }}\a1-ci-config
           A1_DATA_DIR: ${{ runner.temp }}\a1-ci-data
           A1_RUNTIME_DIR: ${{ runner.temp }}\a1-ci-runtime
           A1_PROCESS_GUARDIAN_PATH: ${{ github.workspace }}\native\process-guardian\target\debug\process-guardian.exe
           A1_RUN_PROCESS_CONTAINMENT_INTEGRATION: "1"
         run: node scripts/release/run-validation-tier.mjs --result .artifacts/validation/outcomes.json
-
-      - name: Add timing summary
+      - name: Add ordinary timing summary
         if: always()
         shell: bash
         run: |
@@ -160,12 +205,66 @@ jobs:
             node --input-type=module <<'NODE' >> "$GITHUB_STEP_SUMMARY"
           import { readFile } from "node:fs/promises";
           const result = JSON.parse(await readFile(".artifacts/validation/outcomes.json", "utf8"));
-          console.log("## Validation timing\n");
-          console.log(`Total: **${((result.completedAt - result.startedAt) / 1000).toFixed(2)}s**\n`);
+          const setup = Math.max(0, result.startedAt - Number(process.env.A1_JOB_STARTED_MS));
+          console.log(`Setup: **${(setup / 1000).toFixed(2)}s**; repository gates: **${((result.completedAt - result.startedAt) / 1000).toFixed(2)}s**\n`);
           console.log("| Gate | Seconds | Result |\n| --- | ---: | --- |");
           for (const outcome of result.outcomes) console.log(`| ${outcome.id} | ${(outcome.durationMs / 1000).toFixed(2)} | ${outcome.exitCode === 0 ? outcome.skipped ?? "passed" : "failed"} |`);
           NODE
           fi
+
+  rendering:
+    name: Rendering validation
+    needs: changes
+    if: needs.changes.outputs.docs-only != 'true' && needs.changes.outputs.version-only != 'true' && needs.changes.outputs.rendering-tier != 'none'
+    runs-on: windows-2025
+    timeout-minutes: 20
+    steps:
+      - name: Start rendering timing
+        shell: bash
+        run: echo "A1_RENDERING_JOB_STARTED_MS=$(node -e 'process.stdout.write(String(Date.now()))')" >> "$GITHUB_ENV"
+      - name: Preserve repository bytes during checkout
+        shell: bash
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ needs.changes.outputs.head-sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Run selected rendering evidence
+        shell: bash
+        env:
+          RENDERING_TIER: ${{ needs.changes.outputs.rendering-tier }}
+        run: |
+          set -euo pipefail
+          if [ "$RENDERING_TIER" = "full" ]; then scope=rendering-stability; else scope=rendering-smoke; fi
+          node scripts/release/run-validation-tier.mjs "$scope" --result .artifacts/validation/rendering.json
+      - name: Add rendering timing summary
+        if: always()
+        shell: bash
+        run: |
+          if [ -f .artifacts/validation/rendering.json ]; then
+            node --input-type=module <<'NODE' >> "$GITHUB_STEP_SUMMARY"
+          import { readFile } from "node:fs/promises";
+          const result = JSON.parse(await readFile(".artifacts/validation/rendering.json", "utf8"));
+          const scope = result.selected.find(value => value.startsWith("rendering-"));
+          const structure = result.structuralEvidence?.[scope] ?? {};
+          const setup = Math.max(0, result.startedAt - Number(process.env.A1_RENDERING_JOB_STARTED_MS));
+          console.log(`Rendering scope: **${scope}**; setup: **${(setup / 1000).toFixed(2)}s**; repository gate time: **${((result.completedAt - result.startedAt) / 1000).toFixed(2)}s**.`);
+          console.log(`Workload captures: **${structure.workloadCaptures ?? 0}**; deliberate repeats: **${structure.deliberateRepeatCaptures ?? 0}**; producer launches: **${structure.totalProducerLaunches ?? 0}**.`);
+          NODE
+          fi
+      - name: Upload rendering evidence
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: development-rendering-${{ needs.changes.outputs.rendering-tier }}
+          path: .artifacts/validation/rendering.json
+          if-no-files-found: warn
+          retention-days: 14
 
   containment:
     name: Process containment (${{ matrix.os }})
@@ -185,29 +284,21 @@ jobs:
       - name: Check out validation head
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ needs.changes.outputs.head-sha }}
           persist-credentials: false
-
       - name: Set up Node
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: 24
           cache: npm
-
       - name: Cache process guardian build
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           workspaces: native/process-guardian
-
-      - name: Install exact dependencies
-        run: npm ci
-
-      - name: Build exact process guardian
-        shell: bash
+      - run: npm ci
+      - shell: bash
         run: cargo build --locked --manifest-path native/process-guardian/Cargo.toml
-
-      - name: Verify process containment contracts
-        shell: bash
+      - shell: bash
         env:
           A1_PROCESS_GUARDIAN_PATH: ${{ github.workspace }}/native/process-guardian/target/debug/${{ matrix.binary }}
           A1_RUN_PROCESS_CONTAINMENT_INTEGRATION: "1"
@@ -216,31 +307,28 @@ jobs:
   required:
     name: Development validation required
     if: always() && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
-    needs: [changes, docs, validate, containment]
+    needs: [changes, docs, documentation, validate, rendering, containment]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - name: Require the validation matching the change surface
+      - name: Check out selected head
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ needs.changes.outputs.head-sha }}
+          persist-credentials: false
+      - name: Require current impact-selected validation
         env:
           CHANGES_RESULT: ${{ needs.changes.result }}
           DOCS_RESULT: ${{ needs.docs.result }}
+          DOCUMENTATION_RESULT: ${{ needs.documentation.result }}
           VALIDATE_RESULT: ${{ needs.validate.result }}
+          RENDERING_RESULT: ${{ needs.rendering.result }}
           CONTAINMENT_RESULT: ${{ needs.containment.result }}
           DOCS_ONLY: ${{ needs.changes.outputs.docs-only }}
           VERSION_ONLY: ${{ needs.changes.outputs.version-only }}
           OPENSPEC_TOUCHED: ${{ needs.changes.outputs.openspec-touched }}
-        run: |
-          set -euo pipefail
-          test "$CHANGES_RESULT" = "success"
-          if [ "$DOCS_ONLY" = "true" ]; then
-            echo "Docs-only change: docs-sensitive governance validation required."
-            test "$DOCS_RESULT" = "success"
-            if [ "$OPENSPEC_TOUCHED" = "true" ]; then
-              echo "OpenSpec change: strict OpenSpec validation also required."
-            fi
-          elif [ "$VERSION_ONLY" = "true" ]; then
-            echo "Version-only change: the release pipeline revalidates the exact candidate; nothing to validate here."
-          else
-            test "$VALIDATE_RESULT" = "success"
-            test "$CONTAINMENT_RESULT" = "success"
-          fi
+          DOCUMENTATION_REQUIRED: ${{ needs.changes.outputs.documentation-required }}
+          RENDERING_TIER: ${{ needs.changes.outputs.rendering-tier }}
+          SELECTED_HEAD: ${{ needs.changes.outputs.head-sha }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: node scripts/release/require-development-validation.mjs

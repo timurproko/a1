@@ -34,6 +34,9 @@ export async function createTierPlan(requested, repository = process.cwd()) {
   const full = requested.includes("full-release");
   const requiresBuild = definitions.some(({ definition }) => definition.requiresBuild === true);
   const consumesPackage = definitions.some(({ definition }) => definition.consumesPackage === true);
+  const structuralEvidence = Object.fromEntries(definitions
+    .filter(({ definition }) => definition.evidence !== undefined)
+    .map(({ name, definition }) => [name, definition.evidence]));
   const candidateTarball = resolve(repository, ".artifacts", "validation", "package", "candidate.tgz");
   const commands = [];
   const commandIds = new Map();
@@ -103,6 +106,7 @@ export async function createTierPlan(requested, repository = process.cwd()) {
     requiresBuild,
     consumesPackage,
     candidateTarball,
+    structuralEvidence,
     commands,
     vitest,
     releaseContracts: full ? suites.releaseContracts : undefined,
@@ -121,6 +125,10 @@ export async function runTierPlan(plan, options = {}) {
     }
     if (command.id === "candidate-pack" && environment.VALIDATION_CANDIDATE_TARBALL) {
       outcomes.push({ id: command.id, command: `${command.executable} ${command.arguments.join(" ")}`, exitCode: 0, durationMs: 0, skipped: "existing-exact-package" });
+      continue;
+    }
+    if (command.id === "code-documentation-full" && environment.VALIDATION_DOCUMENTATION_FULL_READY === "1") {
+      outcomes.push({ id: command.id, command: `${command.executable} ${command.arguments.join(" ")}`, exitCode: 0, durationMs: 0, skipped: "existing-full-documentation-review" });
       continue;
     }
     const outcome = await runCommand(command, environment, options.stdio ?? "inherit");

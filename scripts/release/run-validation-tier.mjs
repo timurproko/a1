@@ -14,7 +14,7 @@ if (process.argv.includes("--plan")) {
   const resultPath = valueAfter("--result");
   if (resultPath) {
     await mkdir(dirname(resolve(resultPath)), { recursive: true });
-    await writeFile(resolve(resultPath), `${JSON.stringify({ ...result, requested, selected: plan.selected }, null, 2)}\n`);
+    await writeFile(resolve(resultPath), `${JSON.stringify({ ...result, requested, selected: plan.selected, structuralEvidence: plan.structuralEvidence }, null, 2)}\n`);
   }
   process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
   process.exitCode = result.passed ? 0 : 1;

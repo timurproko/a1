@@ -10,9 +10,6 @@
     "fast": {
       "kind": "vitest-remainder",
       "includeRoot": "test",
-      "commands": [
-        { "id": "code-documentation", "executable": "npm", "arguments": ["run", "check:code-documentation"] }
-      ],
       "exclude": [
         "test/cli/update-cli.test.ts",
         "test/features/launch/development-launch.test.ts",
@@ -22,7 +19,7 @@
         "test/integrations/pi/engine/runtime-integration.test.ts",
         "test/integrations/pi/engine/session-integration.test.ts",
         "test/integrations/pi/tui-runtime/rendering-budgets.test.ts",
-        "test/integrations/pi/tui-runtime/rendering-matrix.test.ts",
+        "test/integrations/pi/tui-runtime/rendering-smoke.test.ts",
         "test/integrations/pi/tui-runtime/rendering-producer.test.ts",
         "test/foundation/release/package-surface.test.ts",
         "test/foundation/release/package-install.integration.test.ts",
@@ -37,6 +34,7 @@
         "typecheck",
         "architecture",
         "fast",
+        "documentation-full",
         "rendering-stability",
         "dist-integration",
         "launch-integration",
@@ -63,11 +61,30 @@
         { "id": "architecture", "executable": "npm", "arguments": ["run", "check:architecture"] }
       ]
     },
+    "documentation-changed": {
+      "kind": "commands",
+      "commands": [
+        { "id": "code-documentation-changed", "executable": "node", "arguments": ["scripts/release/run-changed-documentation.mjs"] }
+      ]
+    },
+    "documentation-full": {
+      "kind": "commands",
+      "commands": [
+        { "id": "code-documentation-full", "executable": "npm", "arguments": ["run", "check:code-documentation"] }
+      ]
+    },
+    "rendering-smoke": {
+      "kind": "vitest-isolated",
+      "evidence": { "workloadCaptures": 2, "deliberateRepeatCaptures": 0, "matrixProducerLaunches": 12, "protocolProducerLaunches": 0, "totalProducerLaunches": 12 },
+      "tests": [
+        "test/integrations/pi/tui-runtime/rendering-smoke.test.ts"
+      ]
+    },
     "rendering-stability": {
       "kind": "vitest-isolated",
+      "evidence": { "workloadCaptures": 8, "deliberateRepeatCaptures": 1, "matrixProducerLaunches": 54, "protocolProducerLaunches": 4, "totalProducerLaunches": 58 },
       "tests": [
         "test/integrations/pi/tui-runtime/rendering-budgets.test.ts",
-        "test/integrations/pi/tui-runtime/rendering-matrix.test.ts",
         "test/integrations/pi/tui-runtime/rendering-producer.test.ts"
       ]
     },
@@ -139,6 +156,10 @@
         { "id": "deprecated-dependencies", "executable": "npm", "arguments": ["run", "check:deprecated"] }
       ]
     }
+  },
+  "fullReleaseSupersedes": {
+    "documentation-full": ["documentation-changed"],
+    "rendering-stability": ["rendering-smoke"]
   },
   "releaseContracts": {
     "architecture": "architecture",
