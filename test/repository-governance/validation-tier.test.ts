@@ -23,6 +23,7 @@ describe("validation tier planning", () => {
       "typecheck",
       "architecture",
       "fast",
+      "documentation-full",
       "rendering-stability",
       "dist-integration",
       "launch-integration",
@@ -39,7 +40,7 @@ describe("validation tier planning", () => {
       invocations: [
         { id: "vitest-full-without-isolated", arguments: expect.arrayContaining(["--exclude", "test/foundation/release/update-performance.integration.test.ts", "--exclude", "test/foundation/release/package-surface.test.ts", "test/foundation/release/package-install.integration.test.ts"]) },
         { id: "vitest-isolated-timing", arguments: expect.arrayContaining(["test/foundation/release/update-performance.integration.test.ts", "test/foundation/release/package-surface.test.ts", "--no-file-parallelism"]) },
-        { id: "vitest-isolated-suites", arguments: expect.arrayContaining(["test/integrations/pi/tui-runtime/rendering-budgets.test.ts", "test/integrations/pi/tui-runtime/rendering-matrix.test.ts", "test/integrations/pi/tui-runtime/rendering-producer.test.ts", "--no-file-parallelism", "--testTimeout=600000"]) },
+        { id: "vitest-isolated-suites", arguments: expect.arrayContaining(["test/integrations/pi/tui-runtime/rendering-budgets.test.ts", "test/integrations/pi/tui-runtime/rendering-producer.test.ts", "--no-file-parallelism", "--testTimeout=600000"]) },
         { id: "vitest-package-install", arguments: expect.arrayContaining(["test/foundation/release/package-install.integration.test.ts", "--no-file-parallelism"]) },
       ],
     });
@@ -49,7 +50,7 @@ describe("validation tier planning", () => {
       "candidate-pack",
       "typecheck",
       "architecture",
-      "code-documentation",
+      "code-documentation-full",
       "candidate-engine-conformance-report",
       "deprecated-dependencies",
     ]);
@@ -60,7 +61,7 @@ describe("validation tier planning", () => {
   it("runs ordinary fast validation without any build or package installation", async () => {
     const plan = await createTierPlan(["typecheck", "fast"]);
     expect(plan.requiresBuild).toBe(false);
-    expect(plan.commands.map(command => command.id)).toEqual(["typecheck", "code-documentation"]);
+    expect(plan.commands.map(command => command.id)).toEqual(["typecheck"]);
     expect(plan.vitest?.mode).toBe("fast-and-explicit");
     expect(plan.vitest?.invocations[0]?.arguments).toContain("--exclude");
     expect(plan.vitest?.invocations[0]?.arguments).toContain("test/foundation/release/package-surface.test.ts");
@@ -68,22 +69,35 @@ describe("validation tier planning", () => {
     expect(plan.vitest?.invocations[0]?.arguments).toContain("test/integrations/pi/tui-runtime/rendering-budgets.test.ts");
   });
 
-  it("serializes rendering evidence outside the fast worker pool", async () => {
-    const plan = await createTierPlan(["fast", "rendering-stability"]);
-    expect(plan.vitest?.invocations).toEqual([
+  it("serializes smoke and full rendering evidence outside the fast worker pool", async () => {
+    const smoke = await createTierPlan(["fast", "rendering-smoke"]);
+    expect(smoke.vitest?.invocations).toEqual([
       expect.objectContaining({ id: "vitest-fast" }),
       expect.objectContaining({
         id: "vitest-isolated-suites",
-        arguments: expect.arrayContaining(["--no-file-parallelism", "--testTimeout=600000"]),
+        arguments: expect.arrayContaining(["test/integrations/pi/tui-runtime/rendering-smoke.test.ts", "--no-file-parallelism", "--testTimeout=600000"]),
       }),
     ]);
+    expect(smoke.structuralEvidence).toEqual({
+      "rendering-smoke": { workloadCaptures: 2, deliberateRepeatCaptures: 0, matrixProducerLaunches: 12, protocolProducerLaunches: 0, totalProducerLaunches: 12 },
+    });
+    const full = await createTierPlan(["rendering-stability"]);
+    expect(full.vitest?.invocations[0]?.arguments).toEqual(expect.arrayContaining([
+      "test/integrations/pi/tui-runtime/rendering-budgets.test.ts",
+      "test/integrations/pi/tui-runtime/rendering-producer.test.ts",
+    ]));
+    expect(full.structuralEvidence).toEqual({
+      "rendering-stability": { workloadCaptures: 8, deliberateRepeatCaptures: 1, matrixProducerLaunches: 54, protocolProducerLaunches: 4, totalProducerLaunches: 58 },
+    });
   });
 
-  it("inherits code documentation in full release exactly once", async () => {
+  it("keeps changed documentation out of ordinary plans and full review exactly once", async () => {
     const fast = await createTierPlan(["fast"]);
+    const changed = await createTierPlan(["documentation-changed"]);
     const full = await createTierPlan(["full-release"]);
-    expect(fast.commands.filter(command => command.id === "code-documentation")).toHaveLength(1);
-    expect(full.commands.filter(command => command.id === "code-documentation")).toHaveLength(1);
+    expect(fast.commands).toEqual([]);
+    expect(changed.commands.map(command => command.id)).toEqual(["code-documentation-changed"]);
+    expect(full.commands.filter(command => command.id === "code-documentation-full")).toHaveLength(1);
   });
 
   it("builds once for multiple build-dependent integration scopes", async () => {
@@ -119,6 +133,20 @@ describe("validation tier planning", () => {
       expect.objectContaining({ id: "candidate-build", durationMs: 0, skipped: "existing-explicit-build" }),
       expect.objectContaining({ id: "candidate-pack", durationMs: 0, skipped: "existing-exact-package" }),
     ]);
+  });
+
+  it("reuses one workflow-owned full documentation review", async () => {
+    const result = await runTierPlan({
+      schema: "a1-validation-plan-v1",
+      requested: ["documentation-full"],
+      selected: ["documentation-full"],
+      requiresBuild: false,
+      consumesPackage: false,
+      candidateTarball: "unused.tgz",
+      commands: [{ id: "code-documentation-full", executable: "node", arguments: ["missing.mjs"], owners: ["documentation-full"] }],
+      vitest: null,
+    }, { env: { VALIDATION_DOCUMENTATION_FULL_READY: "1" }, stdio: "pipe" });
+    expect(result).toMatchObject({ passed: true, outcomes: [{ id: "code-documentation-full", durationMs: 0, skipped: "existing-full-documentation-review" }] });
   });
 
   it("rejects unknown selections", async () => {

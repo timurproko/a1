@@ -1,0 +1,44 @@
+{
+  "schema": "a1-development-validation-baseline-v1",
+  "classification": "diagnostic-wall-time-and-structural-counts",
+  "samples": {
+    "pr201": {
+      "workflowRun": 33536370678,
+      "workflowSeconds": 477,
+      "fastJobSeconds": 456,
+      "setupSeconds": 149,
+      "selectedValidationSeconds": 297.51,
+      "ordinaryVitestSeconds": 62.05,
+      "documentationCommandSeconds": 5.152,
+      "renderingSeconds": 211.502,
+      "renderingTestSeconds": {
+        "budgets": 127.487,
+        "matrix": 62.584,
+        "producerProtocol": 19.578
+      },
+      "renderingProducerLaunches": {
+        "budgetMatrices": 48,
+        "repeatedAssertionMatrices": 24,
+        "producerProtocol": 11,
+        "total": 83
+      }
+    },
+    "preRenderingRepresentative": {
+      "workflowRun": 33197019593,
+      "fastJobSeconds": 150,
+      "selectedValidationSeconds": 74.571,
+      "ordinaryVitestSeconds": 53.56,
+      "passingTests": 1211
+    }
+  },
+  "acceptance": {
+    "wallClockIsDiagnostic": true,
+    "structuralGates": [
+      "selected scopes",
+      "matrix captures",
+      "producer launches",
+      "documentation files",
+      "full repository scans"
+    ]
+  }
+}

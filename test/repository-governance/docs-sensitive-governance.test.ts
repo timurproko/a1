@@ -11,7 +11,7 @@ afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, { recursi
 describe("docs-sensitive governance", () => {
   it("runs lightweight inventory consistency for every docs-only pull request", async () => {
     const workflow = await readFile(".github/workflows/ci.yml", "utf8");
-    const docsJob = workflow.slice(workflow.indexOf("\n  docs:"), workflow.indexOf("\n  validate:"));
+    const docsJob = workflow.slice(workflow.indexOf("\n  docs:"), workflow.indexOf("\n  documentation:"));
     expect(docsJob).toContain("if: needs.changes.outputs.docs-only == 'true'");
     expect(docsJob).toContain("check-docs-governance.mjs");
     expect(docsJob).toContain("if: needs.changes.outputs.openspec-touched == 'true'");

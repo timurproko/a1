@@ -13,7 +13,6 @@ import {
   loadTrackedCodeDocumentationSources,
   sourceRecordsFromFiles,
 } from "../../scripts/governance/code-documentation-policy.mjs";
-import { PROJECT_OWNERS } from "../../scripts/governance/project-structure-policy.mjs";
 
 const execFileAsync = promisify(execFile);
 const owner = { fixture: { id: "fixture", publicEntry: "src/fixture/index.ts" } };
@@ -127,6 +126,16 @@ describe("owner-public class contracts", () => {
     ]);
   });
 
+  it("limits owner diagnostics to changed files while using bounded export context", () => {
+    const sources = sourceRecordsFromFiles({
+      "src/fixture/index.ts": "export * from './changed.js';\nexport * from './unchanged.js';",
+      "src/fixture/changed.ts": "export class ChangedClass {}",
+      "src/fixture/unchanged.ts": "export class UnchangedClass {}",
+    });
+    const diagnostics = inspectCodeDocumentation({ sources, owners: owner, diagnosticPaths: new Set(["src/fixture/changed.ts"]) });
+    expect(diagnostics).toEqual([expect.objectContaining({ path: "src/fixture/changed.ts", symbol: "ChangedClass", rule: CODE_DOCUMENTATION_RULES.publicClassContract })]);
+  });
+
   it("does not require a contract for a synchronized class re-exported by an owner", () => {
     const path = "src/integrations/pi/components/upstream/component.ts";
     const diagnostics = inspectCodeDocumentation({
@@ -232,22 +241,11 @@ describe("implementation comment hygiene", () => {
   });
 });
 
-describe("repository code documentation baseline", () => {
-  it("declares the focused package command", async () => {
+describe("code documentation command surface", () => {
+  it("declares separate full and changed-file package commands", async () => {
     const repository = fileURLToPath(new URL("../..", import.meta.url));
     const manifest = JSON.parse(await readFile(join(repository, "package.json"), "utf8"));
-    expect(manifest.scripts["check:code-documentation"]).toBe("node scripts/governance/check-code-documentation.mjs");
+    expect(manifest.scripts["check:code-documentation"]).toBe("node scripts/governance/check-code-documentation.mjs --mode full");
+    expect(manifest.scripts["check:code-documentation:changed"]).toBe("node scripts/release/run-changed-documentation.mjs");
   });
-
-  it("has no accepted violation baseline across tracked first-party source", async () => {
-    const repository = fileURLToPath(new URL("../..", import.meta.url));
-    const ledger = JSON.parse(await readFile(join(repository, "config/baselines/pinned-pi-source-port-ledger.json"), "utf8"));
-    const sources = await loadTrackedCodeDocumentationSources(repository);
-    const diagnostics = inspectCodeDocumentation({
-      sources,
-      owners: PROJECT_OWNERS,
-      synchronizedDestinations: new Set<string>(ledger.records.map((record: { localDestination: string }) => record.localDestination)),
-    });
-    expect(diagnostics).toEqual([]);
-  }, 30_000);
 });

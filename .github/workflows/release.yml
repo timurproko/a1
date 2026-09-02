@@ -175,6 +175,36 @@ jobs:
             echo "$MODE will build and verify $VERSION before publication." >> "$GITHUB_STEP_SUMMARY"
           fi
 
+  documentation:
+    name: Full documentation review
+    needs: plan
+    if: needs.plan.result == 'success' && (needs.plan.outputs.mode == 'nightly' || needs.plan.outputs.mode == 'stable')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ needs.plan.outputs.source }}
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Review every tracked documentation-policy source once
+        run: node scripts/governance/check-code-documentation.mjs --mode full --result .artifacts/validation/code-documentation-full.json
+      - name: Report full documentation evidence
+        if: always()
+        shell: bash
+        run: |
+          if [ -f .artifacts/validation/code-documentation-full.json ]; then
+            node --input-type=module <<'NODE' >> "$GITHUB_STEP_SUMMARY"
+          import { readFile } from "node:fs/promises";
+          const value = JSON.parse(await readFile(".artifacts/validation/code-documentation-full.json", "utf8"));
+          console.log(`Files inspected: **${value.filesInspected}**; full scans: **${value.fullRepositoryScans}**; duration: **${value.durationMs}ms**.`);
+          NODE
+          fi
+
   guardians:
     name: Build process guardian (${{ matrix.os }})
     needs: plan
@@ -209,8 +239,8 @@ jobs:
 
   package:
     name: Obtain exact package ${{ needs.plan.outputs.version }}
-    needs: [plan, guardians]
-    if: always() && needs.plan.result == 'success' && needs.plan.outputs.work == 'true' && (needs.guardians.result == 'success' || needs.guardians.result == 'skipped')
+    needs: [plan, guardians, documentation]
+    if: always() && needs.plan.result == 'success' && needs.plan.outputs.work == 'true' && (needs.guardians.result == 'success' || needs.guardians.result == 'skipped') && (needs.documentation.result == 'success' || needs.documentation.result == 'skipped')
     runs-on: windows-2025
     timeout-minutes: 30
     outputs:
@@ -315,8 +345,8 @@ jobs:
 
   validate:
     name: Validate ${{ matrix.platform }}
-    needs: [plan, package]
-    if: always() && needs.plan.result == 'success' && needs.package.result == 'success'
+    needs: [plan, package, documentation]
+    if: always() && needs.plan.result == 'success' && needs.package.result == 'success' && (needs.documentation.result == 'success' || needs.documentation.result == 'skipped')
     strategy:
       fail-fast: false
       matrix:
@@ -363,6 +393,7 @@ jobs:
         env:
           VALIDATION_SELECTION_JSON: ${{ steps.selection.outputs.selected }}
           VALIDATION_BUILD_READY: "1"
+          VALIDATION_DOCUMENTATION_FULL_READY: ${{ needs.documentation.result == 'success' && '1' || '0' }}
           VALIDATION_CANDIDATE_TARBALL: ${{ github.workspace }}/.artifacts/release/candidate.tgz
           A1_RELEASE_RUNNER_LABEL: github-${{ matrix.platform }}-${{ needs.plan.outputs.mode }}
           A1_CONFIG_DIR: ${{ runner.temp }}/a1-release-config
@@ -380,8 +411,8 @@ jobs:
 
   publish:
     name: Publish ${{ needs.plan.outputs.version }} to npm ${{ needs.plan.outputs.channel }}
-    needs: [plan, package, validate]
-    if: needs.plan.outputs.build == 'true' && needs.package.result == 'success' && needs.validate.result == 'success'
+    needs: [plan, package, documentation, validate]
+    if: needs.plan.outputs.build == 'true' && needs.package.result == 'success' && (needs.documentation.result == 'success' || needs.documentation.result == 'skipped') && needs.validate.result == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     environment: npm-publish

@@ -15,7 +15,9 @@ describe("complete regression automation", () => {
 
   it("builds and packs once before the complete deduplicated suite", async () => {
     const workflow = await readFile(".github/workflows/full-regression.yml", "utf8");
-    expect(workflow.match(/run: npm ci/g)).toHaveLength(1);
+    expect(workflow.match(/run: npm ci/g)).toHaveLength(2);
+    expect(workflow.match(/check-code-documentation\.mjs --mode full/g)).toHaveLength(1);
+    expect(workflow).toContain('VALIDATION_DOCUMENTATION_FULL_READY: "1"');
     expect(workflow.match(/run: node scripts\/release\/prepare-validation-package\.mjs/g)).toHaveLength(1);
     expect(workflow).toContain("VALIDATION_SELECTION_JSON: '[\"full-release\"]'");
     expect(workflow).toContain('VALIDATION_BUILD_READY: "1"');

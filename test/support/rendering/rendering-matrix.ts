@@ -22,8 +22,10 @@ export interface RenderingMatrixCheckpoint {
 
 export interface RenderingMatrixProducerResult {
   readonly producer: RenderingProducerId;
+  readonly processId: number;
   readonly requestedMode: RenderingMode;
   readonly effectiveMode: RenderingMode;
+  readonly state: RenderingProducerResult["state"];
   readonly checkpoints: readonly RenderingMatrixCheckpoint[];
 }
 
@@ -122,8 +124,10 @@ async function summarize(result: RenderingProducerResult, requestedMode: Renderi
   let writeStart = 0;
   return {
     producer: result.producer,
+    processId: result.processId,
     requestedMode,
     effectiveMode: result.effectiveMode,
+    state: result.state,
     checkpoints: result.checkpoints.map((checkpoint, index) => {
       const writes = result.writes.slice(writeStart, checkpoint.writeEnd);
       writeStart = checkpoint.writeEnd;

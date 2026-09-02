@@ -11,7 +11,24 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  documentation:
+    name: Full documentation review
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: node scripts/governance/check-code-documentation.mjs --mode full --result .artifacts/validation/code-documentation-full.json
+
   full-regression:
+    needs: documentation
     name: Complete non-physical regression (${{ matrix.os }}, node ${{ matrix.node }})
     strategy:
       fail-fast: false
@@ -57,6 +74,7 @@ jobs:
         env:
           VALIDATION_SELECTION_JSON: '["full-release"]'
           VALIDATION_BUILD_READY: "1"
+          VALIDATION_DOCUMENTATION_FULL_READY: "1"
           VALIDATION_CANDIDATE_TARBALL: ${{ github.workspace }}/.artifacts/validation/package/candidate.tgz
           A1_RELEASE_RUNNER_LABEL: github-${{ matrix.os }}-node${{ matrix.node }}-full-regression
           A1_CONFIG_DIR: ${{ runner.temp }}/a1-full-config

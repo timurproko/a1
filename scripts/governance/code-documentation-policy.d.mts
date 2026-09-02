@@ -47,10 +47,12 @@ export const IMPLEMENTATION_INTENTS: readonly string[];
 export function normalizeCodeDocumentationPath(path: string): string;
 export function classifyCodeDocumentationSource(path: string): CodeDocumentationSourceRole;
 export function loadTrackedCodeDocumentationSources(repository: string): Promise<CodeDocumentationSource[]>;
+export function loadCodeDocumentationSources(repository: string, requestedPaths: readonly string[]): Promise<CodeDocumentationSource[]>;
 export function sourceRecordsFromFiles(files: Readonly<Record<string, string>>): CodeDocumentationSource[];
 export function inspectCodeDocumentation(input: {
   readonly sources: readonly CodeDocumentationSource[];
   readonly owners?: Readonly<Record<string, CodeDocumentationOwner>>;
   readonly synchronizedDestinations?: ReadonlySet<string>;
+  readonly diagnosticPaths?: ReadonlySet<string>;
 }): CodeDocumentationDiagnostic[];
 export function formatCodeDocumentationDiagnostics(diagnostics: readonly CodeDocumentationDiagnostic[]): string;
