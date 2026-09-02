@@ -34,10 +34,10 @@
 ## 6. Automated Delivery Gate
 
 - [x] 6.1 Run focused selection/component/viewport/shell/runtime/terminal tests, then `npm run typecheck`, `npm run build`, documentation governance, architecture governance, strict `openspec validate make-transcript-selection-precise-responsive --strict`, and `git diff --check`; record exact results without running a forbidden local full suite.
-- [ ] 6.2 Commit only the accepted implementation and evidence on a fresh implementation worktree/branch based on merged specification `origin/develop`, push it to its own code pull request, keep auto-merge disabled, and verify required CI succeeds before physical handoff.
+- [x] 6.2 Commit only the accepted implementation and evidence on a fresh implementation worktree/branch based on merged specification `origin/develop`, push it to its own code pull request, keep auto-merge disabled, and verify required CI succeeds before physical handoff.
 
 ## 7. Exact-Artifact Acceptance
 
-- [ ] 7.1 Provide the exact implementation worktree, branch/commit, build command, and color-preserving `./scripts/dev` and `./scripts/dev pi` comparison command with one-grapheme, reverse, multiline, copy, streaming, auto-scroll, resize, style/link, and scrollbar checks.
-- [ ] 7.2 Obtain user-controlled Windows Terminal acceptance of the exact built candidate, recording terminal/version, geometry, relevant viewport settings, one-grapheme copy result, multiline tracking verdict, and comparison result; keep the code pull request unmerged if any physical finding contradicts automation.
-- [ ] 7.3 After CI and physical acceptance, merge only with explicit user authorization, then record acceptance and archive the completed OpenSpec change in the required specification-only follow-up.
+- [x] 7.1 Provide the exact implementation worktree, branch/commit, build command, and color-preserving `./scripts/dev` and `./scripts/dev pi` comparison command with one-grapheme, reverse, multiline, copy, streaming, auto-scroll, resize, style/link, and scrollbar checks.
+- [x] 7.2 Obtain user-controlled Windows Terminal acceptance of the exact built candidate, recording terminal/version, geometry, relevant viewport settings, one-grapheme copy result, multiline tracking verdict, and comparison result; keep the code pull request unmerged if any physical finding contradicts automation.
+- [x] 7.3 After CI and physical acceptance, merge only with explicit user authorization, then record acceptance and archive the completed OpenSpec change in the required specification-only follow-up.
