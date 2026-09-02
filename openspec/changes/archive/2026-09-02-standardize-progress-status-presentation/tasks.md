@@ -21,11 +21,11 @@
 
 - [x] 4.1 Run the focused component, engine, shell, extension, parity, provenance, and architecture tests; verify every selected suite passes without running unrestricted local fast/full/release tiers.
 - [x] 4.2 Run `npm run build`, `npm run typecheck`, `npm run check:code-documentation`, `npm run check:architecture`, `openspec validate standardize-progress-status-presentation --strict`, and `git diff --check`; verify every command succeeds.
-- [ ] 4.3 Push the implementation branch and open a code pull request citing the accepted OpenSpec change; verify required CI succeeds and auto-merge remains disabled.
+- [x] 4.3 Push the implementation branch and open a code pull request citing the accepted OpenSpec change; verify required CI succeeds and auto-merge remains disabled.
 
 ## 5. Exact-Artifact Windows Terminal Acceptance
 
-- [ ] 5.1 After CI succeeds, provide the exact worktree, branch/commit, `npm run build && ./scripts/dev` command, expected status text, comparison command, and known gaps; verify the handoff points to the pushed candidate artifact.
-- [ ] 5.2 In Windows Terminal, reproduce ordinary work and compaction from the candidate and verify the spinner rows show `Working...` and `Compacting...` with exactly three ASCII periods, matching spinner style, color, placement, and cadence.
-- [ ] 5.3 Exercise retry and extension working-message evidence where available, and run `npm run build && ./scripts/dev pi`; verify bare A1 canonicalizes spinner-backed text while the regular Pi route remains unchanged.
-- [ ] 5.4 Record the user's visual acceptance and explicit merge authorization, then merge manually; verify the code pull request is merged only after both are present.
+- [x] 5.1 After CI succeeds, provide the exact worktree, branch/commit, `npm run build && ./scripts/dev` command, expected status text, comparison command, and known gaps; verify the handoff points to the pushed candidate artifact.
+- [x] 5.2 In Windows Terminal, reproduce ordinary work and compaction from the candidate and verify the spinner rows show `Working...` and `Compacting...` with exactly three ASCII periods, matching spinner style, color, placement, and cadence.
+- [x] 5.3 Exercise retry and extension working-message evidence where available, and run `npm run build && ./scripts/dev pi`; verify bare A1 canonicalizes spinner-backed text while the regular Pi route remains unchanged.
+- [x] 5.4 Record the user's visual acceptance and explicit merge authorization, then merge manually; verify the code pull request is merged only after both are present.
