@@ -78,6 +78,24 @@ npm run check:code-documentation
 
 Rendering evidence captures each selected producer/mode/workload matrix once and reuses it for semantic, paint, parity, and damage assertions. A deliberate second `streamed-prose` capture remains only for determinism. Workflow summaries separate repository-gate timing from runner setup; wall-clock values diagnose runner/cache variance, while selected scopes, matrix captures, producer launches, documentation file counts, and full-scan counts are structural gates.
 
+## Resource-sensitive fast validation
+
+The authoritative fast-tier declaration identifies tests that repeatedly create temporary repositories, launch child processes, mutate storage, or coordinate release cohorts. The planner removes those files from the parallel remainder and runs them exactly once as `vitest-fast-resource-sensitive` with file parallelism disabled. Pull-request, development-package, and complete release plans use the same partition on every platform.
+
+The partition retains Vitest's five-second default test timeout. It does not add a test, suite, platform, or workflow timeout, and a failure is not retried or converted to success. If a serialized test still approaches five seconds, use `scripts/release/report-resource-sensitive-validation.mjs` to record repeated per-file and test-body timing, then optimize repository setup, subprocess count, storage operations, or release fixtures. Do not increase a timeout to create margin.
+
+Inspect the partition without running tests:
+
+```sh
+node scripts/release/run-validation-tier.mjs fast --plan
+```
+
+Record three focused serialized executions without running the complete fast tier:
+
+```sh
+node scripts/release/report-resource-sensitive-validation.mjs --repeats 3 --output .artifacts/validation/resource-sensitive-focused.json
+```
+
 ## Pull request integration
 
 `Development validation required` remains the merge gate for every pull request.

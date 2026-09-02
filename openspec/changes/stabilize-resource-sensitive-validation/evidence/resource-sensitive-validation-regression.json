@@ -1,0 +1,120 @@
+{
+  "schema": "a1-resource-sensitive-validation-regression-v1",
+  "classification": "shared-runner-process-and-filesystem-contention",
+  "policy": {
+    "testTimeoutMs": 5000,
+    "timeoutSource": "vitest-default",
+    "timeoutIncreaseAllowed": false,
+    "automaticRetries": 0,
+    "fileParallelism": false
+  },
+  "partition": [
+    "test/repository-governance/validation-impact.test.ts",
+    "test/repository-governance/code-documentation.test.ts",
+    "test/foundation/storage/storage.test.ts",
+    "test/foundation/release/cohort-state.test.ts",
+    "test/foundation/release/update-live-cohort.test.ts"
+  ],
+  "incidents": [
+    {
+      "workflowRun": 33617331350,
+      "job": "Validate win32-node24",
+      "platform": "windows-2025-node24",
+      "url": "https://github.com/timurproko/a1/actions/runs/33617331350/job/100207029380",
+      "timeoutMs": 5000,
+      "timedOutTests": [
+        "test/foundation/release/cohort-state.test.ts > persists candidate, approval, active, rollback, and retention references",
+        "test/foundation/release/update-live-cohort.test.ts > leaves a cohort running from a retained release alone",
+        "test/foundation/release/update-live-cohort.test.ts > stays silent about the sessions it is leaving alone"
+      ],
+      "comparison": {
+        "job": "Validate win32-node22",
+        "url": "https://github.com/timurproko/a1/actions/runs/33617331350/job/100207029430",
+        "result": "same exact package and tests passed"
+      },
+      "excludedUnrelatedFailures": [
+        "truecolor parity failures on Linux and macOS",
+        "downstream publication aggregate failure"
+      ]
+    },
+    {
+      "workflowRun": 33642848728,
+      "job": "Fast validation",
+      "platform": "windows-2025-node24",
+      "url": "https://github.com/timurproko/a1/actions/runs/33642848728/job/100290167282",
+      "timeoutMs": 5000,
+      "timedOutTests": [
+        "test/repository-governance/code-documentation.test.ts > loads normalized tracked code without reading ignored and vendored content",
+        "test/foundation/storage/storage.test.ts > reconciles prior-boot launch instances without accepting stale owner mutations"
+      ],
+      "comparison": {
+        "job": "Validate win32-node24",
+        "url": "https://github.com/timurproko/a1/actions/runs/33657859943/job/100342153594",
+        "result": "both files passed in a later Windows Node 24 exact-package lane"
+      },
+      "excludedUnrelatedFailures": [
+        "event-frame deterministic hash failure repaired independently in PR 215",
+        "downstream required aggregate failure"
+      ]
+    },
+    {
+      "workflowRun": 33657859943,
+      "job": "Validate win32-node24",
+      "platform": "windows-2025-node24",
+      "url": "https://github.com/timurproko/a1/actions/runs/33657859943/job/100342153594",
+      "timeoutMs": 5000,
+      "timedOutTests": [
+        "test/repository-governance/validation-impact.test.ts > validates bounded selection evidence"
+      ],
+      "observedTiming": {
+        "contendedFileDurationMs": 19358,
+        "comparisonFileDurationMs": 6186,
+        "comparisonTestDurationMs": 1011
+      },
+      "comparison": {
+        "job": "Validate win32-node22 and rerun Validate win32-node24",
+        "url": "https://github.com/timurproko/a1/actions/runs/33657859943",
+        "result": "the same exact package passed Windows Node 22 and the failed Windows Node 24 job passed on rerun"
+      },
+      "excludedUnrelatedFailures": [
+        "downstream publication aggregate failure from the failed prerequisite"
+      ]
+    }
+  ],
+  "verification": {
+    "focusedExecution": {
+      "platform": "win32-x64",
+      "node": "v24.16.0",
+      "repeats": 3,
+      "maximumObservedTestBodyDurationMs": 1233.4233000000002,
+      "timeoutMs": 5000,
+      "result": "passed"
+    },
+    "commands": [
+      {
+        "command": "node scripts/release/report-resource-sensitive-validation.mjs --repeats 3 --output openspec/changes/stabilize-resource-sensitive-validation/evidence/resource-sensitive-execution.json",
+        "result": "passed"
+      },
+      {
+        "command": "npx vitest run test/repository-governance/validation-tier.test.ts test/repository-governance/validation-suite-policy.test.ts test/repository-governance/resource-sensitive-validation.test.ts test/repository-governance/ci-release-runbook.test.ts",
+        "result": "20 tests passed"
+      },
+      {
+        "command": "npm run typecheck",
+        "result": "passed"
+      },
+      {
+        "command": "npm run check:architecture",
+        "result": "passed"
+      },
+      {
+        "command": "npm run check:code-documentation:changed",
+        "result": "passed"
+      },
+      {
+        "command": "npx openspec validate stabilize-resource-sensitive-validation --strict --no-interactive",
+        "result": "passed"
+      }
+    ]
+  }
+}
