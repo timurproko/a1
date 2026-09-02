@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Resource-sensitive regressions avoid shared runner contention
-Automated tests that repeatedly create repositories, launch subprocesses, mutate temporary storage, or coordinate release processes SHALL be eligible for a declared resource-sensitive execution class. Tests in that class SHALL run one file at a time under a finite workload-specific timeout rather than sharing the parallel fast-test worker pool. Classification SHALL be reviewed configuration, SHALL be applied consistently across supported platforms, and SHALL not suppress output, remove assertions, or authorize retries of semantic failures. Tests not assigned to the class SHALL retain the ordinary fast scheduler unless another declared isolation contract applies.
+Automated tests that repeatedly create repositories, launch subprocesses, mutate temporary storage, or coordinate release processes SHALL be eligible for a declared resource-sensitive execution class. Tests in that class SHALL run one file at a time under the unchanged fast-tier test timeout rather than sharing the parallel fast-test worker pool. Classification SHALL be reviewed configuration, SHALL be applied consistently across supported platforms, and SHALL not suppress output, remove assertions, increase timeouts, or authorize retries of semantic failures. Repeated isolated evidence SHALL expose available fixture and subprocess timing, and a test that remains slow SHALL be optimized before acceptance. Tests not assigned to the class SHALL retain the ordinary fast scheduler unless another declared isolation contract applies.
 
 #### Scenario: A repeated contention timeout is confirmed
 - **WHEN** evidence shows a process- or filesystem-intensive fast test passes independently but intermittently times out while sharing the parallel runner
@@ -10,8 +10,13 @@ Automated tests that repeatedly create repositories, launch subprocesses, mutate
 
 #### Scenario: Resource-sensitive tests execute
 - **WHEN** multiple tests in the resource-sensitive class are selected
-- **THEN** their files SHALL execute without file parallelism under the declared finite timeout
+- **THEN** their files SHALL execute without file parallelism under the existing fast-tier timeout
 - **AND** no selected file SHALL execute more than once
+
+#### Scenario: Serialization is insufficient
+- **WHEN** a resource-sensitive test remains near or beyond the existing timeout during repeated isolated execution
+- **THEN** its setup and subprocess phases SHALL be measured and optimized
+- **AND** the test SHALL NOT receive a larger timeout or an automatic retry
 
 #### Scenario: An ordinary test is not resource-sensitive
 - **WHEN** a fast test has no declared resource-sensitive ownership and no other isolation requirement
