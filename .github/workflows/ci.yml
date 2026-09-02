@@ -311,6 +311,11 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
+      - name: Check out selected head
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ needs.changes.outputs.head-sha }}
+          persist-credentials: false
       - name: Require current impact-selected validation
         env:
           CHANGES_RESULT: ${{ needs.changes.result }}
