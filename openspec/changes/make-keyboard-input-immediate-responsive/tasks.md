@@ -44,7 +44,7 @@
 
 ## 6. CI, physical acceptance, and completion
 
-- [ ] 6.1 Push the implementation from a fresh worktree and branch based on current `origin/develop`, open a code pull request citing this accepted change, and verify the pull request contains no planning-worktree or unrelated `bin/pi-tui.d.ts` change.
+- [x] 6.1 Push the implementation from a fresh worktree and branch based on current `origin/develop`, open a code pull request citing this accepted change, and verify the pull request contains no planning-worktree or unrelated `bin/pi-tui.d.ts` change.
 - [ ] 6.2 Run the required impact-selected CI and read its completed current-head result without foreground polling; verify ordinary, documentation, input/rendering, containment, and aggregate checks pass and retain the exact candidate artifact.
 - [ ] 6.3 Build the exact candidate and hand off color-preserving Windows Terminal commands using `./scripts/dev` and `./scripts/dev pi`; verify the instructions cover isolated typing, rapid bursts, cursor movement, deletion, submit, held/repeated menu arrows, editor wrapping, long transcript, replacement surfaces, and input during streaming.
 - [ ] 6.4 Obtain user-controlled side-by-side acceptance that bare `a1` visibly starts immediately, finishes bursts without catch-up, tracks current menu selection, and preserves all accepted visuals and controls; record any contradiction as reopened work rather than overriding it with diagnostics.
