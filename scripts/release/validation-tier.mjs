@@ -1,5 +1,5 @@
 import crossSpawn from "cross-spawn";
-import { readFile } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import { resolve } from "node:path";
 
 const npmExecutable = process.platform === "win32" ? "npm.cmd" : "npm";
@@ -8,6 +8,7 @@ const npxExecutable = process.platform === "win32" ? "npx.cmd" : "npx";
 export async function loadValidationSuites(repository = process.cwd()) {
   const suites = JSON.parse(await readFile(resolve(repository, "config", "validation-suites.json"), "utf8"));
   if (suites.schema !== "a1-validation-suites-v1") throw new Error("unsupported validation suite schema");
+  await validateValidationSuites(suites, repository);
   return suites;
 }
 
@@ -60,6 +61,7 @@ export async function createTierPlan(requested, repository = process.cwd()) {
   }
 
   const fast = definitions.find(({ definition }) => definition.kind === "vitest-remainder");
+  const resourceSensitiveTests = fast ? [...fast.definition.resourceSensitiveTests] : [];
   const explicitTests = definitions.flatMap(({ name, definition }) => (definition.tests ?? []).map(test => ({ test, owner: name })));
   const duplicateTests = explicitTests.filter((entry, index) => explicitTests.findIndex(candidate => candidate.test === entry.test) !== index);
   if (duplicateTests.length > 0) throw new Error(`tests have duplicate selected owners: ${duplicateTests.map(entry => entry.test).join(", ")}`);
@@ -78,8 +80,22 @@ export async function createTierPlan(requested, repository = process.cwd()) {
   const requestedIsolated = [...isolatedTests].filter(path => selectedTestPaths.has(path));
   const requestedPackageSmoke = [...packageSmokeTests].filter(path => selectedTestPaths.has(path));
   const requestedPackageInstall = [...packageInstallTests].filter(path => selectedTestPaths.has(path));
+  const resourceSensitiveInvocation = resourceSensitiveTests.length > 0 ? {
+    id: "vitest-fast-resource-sensitive",
+    arguments: ["vitest", "run", ...resourceSensitiveTests, "--no-file-parallelism"],
+    evidence: {
+      executionClass: "resource-sensitive",
+      testFiles: resourceSensitiveTests,
+      fileParallelism: false,
+      timeoutMs: 5_000,
+      timeoutSource: "vitest-default",
+      retries: 0,
+      perFileTiming: "vitest-default-reporter",
+    },
+  } : null;
   const regularInvocations = [
-    ...(fast ? [{ id: "vitest-fast", arguments: ["vitest", "run", fast.definition.includeRoot, ...fast.definition.exclude.flatMap(path => ["--exclude", path])] }] : []),
+    ...(fast ? [{ id: "vitest-fast", arguments: ["vitest", "run", fast.definition.includeRoot, ...[...fast.definition.exclude, ...resourceSensitiveTests].flatMap(path => ["--exclude", path])] }] : []),
+    ...(resourceSensitiveInvocation ? [resourceSensitiveInvocation] : []),
     ...(regularExplicitTests.length > 0 ? [{ id: "vitest-explicit", arguments: ["vitest", "run", ...regularExplicitTests.map(entry => entry.test), "--testTimeout=30000"] }] : []),
     ...(requestedPerformance.length + requestedPackageSmoke.length > 0 ? [{ id: "vitest-isolated-timing", arguments: ["vitest", "run", ...requestedPerformance, ...requestedPackageSmoke, "--no-file-parallelism", "--testTimeout=120000"] }] : []),
     ...(requestedIsolated.length > 0 ? [{ id: "vitest-isolated-suites", arguments: ["vitest", "run", ...requestedIsolated, "--no-file-parallelism", "--testTimeout=600000"] }] : []),
@@ -89,7 +105,8 @@ export async function createTierPlan(requested, repository = process.cwd()) {
     ? {
         mode: "full-deduplicated",
         invocations: [
-          { id: "vitest-full-without-isolated", arguments: ["vitest", "run", ...[...packageTests, ...independentlyTimedTests].flatMap(path => ["--exclude", path]), "--testTimeout=30000"] },
+          { id: "vitest-full-without-isolated", arguments: ["vitest", "run", ...[...packageTests, ...independentlyTimedTests, ...resourceSensitiveTests].flatMap(path => ["--exclude", path]), "--testTimeout=30000"] },
+          ...(resourceSensitiveInvocation ? [resourceSensitiveInvocation] : []),
           { id: "vitest-isolated-timing", arguments: ["vitest", "run", ...performanceTests, ...packageSmokeTests, "--no-file-parallelism", "--testTimeout=120000"] },
           { id: "vitest-isolated-suites", arguments: ["vitest", "run", ...isolatedTests, "--no-file-parallelism", "--testTimeout=600000"] },
           { id: "vitest-package-install", arguments: ["vitest", "run", ...packageInstallTests, "--no-file-parallelism", "--testTimeout=600000"] },
@@ -117,6 +134,7 @@ export async function runTierPlan(plan, options = {}) {
   const startedAt = Date.now();
   const outcomes = [];
   const environment = { ...process.env, ...(options.env ?? {}) };
+  const executeCommand = options.executeCommand ?? runCommand;
 
   for (const command of plan.commands) {
     if (command.id === "candidate-build" && environment.VALIDATION_BUILD_READY === "1") {
@@ -131,7 +149,7 @@ export async function runTierPlan(plan, options = {}) {
       outcomes.push({ id: command.id, command: `${command.executable} ${command.arguments.join(" ")}`, exitCode: 0, durationMs: 0, skipped: "existing-full-documentation-review" });
       continue;
     }
-    const outcome = await runCommand(command, environment, options.stdio ?? "inherit");
+    const outcome = await executeCommand(command, environment, options.stdio ?? "inherit");
     outcomes.push(outcome);
     if (outcome.exitCode !== 0) return finish(false);
     if (command.id === "candidate-build") environment.VALIDATION_BUILD_READY = "1";
@@ -140,7 +158,8 @@ export async function runTierPlan(plan, options = {}) {
 
   if (plan.vitest) {
     for (const invocation of plan.vitest.invocations) {
-      const outcome = await runCommand({ id: invocation.id, executable: "npx", arguments: invocation.arguments }, environment, options.stdio ?? "inherit");
+      const executed = await executeCommand({ id: invocation.id, executable: "npx", arguments: invocation.arguments }, environment, options.stdio ?? "inherit");
+      const outcome = invocation.evidence ? { ...executed, evidence: invocation.evidence } : executed;
       outcomes.push(outcome);
       if (outcome.exitCode !== 0) return finish(false);
     }
@@ -150,6 +169,42 @@ export async function runTierPlan(plan, options = {}) {
 
   function finish(passed) {
     return { schema: "a1-validation-outcomes-v1", passed, startedAt, completedAt: Date.now(), outcomes };
+  }
+}
+
+async function validateValidationSuites(suites, repository) {
+  const fast = suites.tiers?.fast;
+  if (!fast || fast.kind !== "vitest-remainder") throw new Error("fast validation must be a vitest remainder");
+  const supportedFastFields = new Set(["kind", "includeRoot", "exclude", "resourceSensitiveTests"]);
+  const unsupportedFields = Object.keys(fast).filter(field => !supportedFastFields.has(field));
+  if (unsupportedFields.length > 0) throw new Error(`unsupported fast validation fields: ${unsupportedFields.join(", ")}`);
+  if (!Array.isArray(fast.resourceSensitiveTests) || fast.resourceSensitiveTests.length === 0) {
+    throw new Error("fast validation requires resourceSensitiveTests");
+  }
+  if (fast.resourceSensitiveTests.some(test => typeof test !== "string")) throw new Error("resource-sensitive test paths must be strings");
+  const duplicateResourceTests = fast.resourceSensitiveTests.filter((test, index) => fast.resourceSensitiveTests.indexOf(test) !== index);
+  if (duplicateResourceTests.length > 0) throw new Error(`duplicate resource-sensitive tests: ${[...new Set(duplicateResourceTests)].join(", ")}`);
+
+  const excluded = new Set(fast.exclude ?? []);
+  const explicitOwners = new Map();
+  for (const [scope, definition] of Object.entries(suites.scopes ?? {})) {
+    for (const test of definition.tests ?? []) {
+      const owners = explicitOwners.get(test) ?? [];
+      owners.push(scope);
+      explicitOwners.set(test, owners);
+    }
+  }
+  for (const test of fast.resourceSensitiveTests) {
+    if (test.includes("\\") || !test.startsWith(`${fast.includeRoot}/`) || !test.endsWith(".test.ts")) {
+      throw new Error(`invalid resource-sensitive test path: ${test}`);
+    }
+    if (excluded.has(test)) throw new Error(`resource-sensitive test overlaps fast exclusion: ${test}`);
+    if (explicitOwners.has(test)) throw new Error(`resource-sensitive test overlaps explicit scope ${explicitOwners.get(test).join(", ")}: ${test}`);
+    try {
+      if (!(await stat(resolve(repository, test))).isFile()) throw new Error("not a file");
+    } catch {
+      throw new Error(`resource-sensitive test does not exist: ${test}`);
+    }
   }
 }
 

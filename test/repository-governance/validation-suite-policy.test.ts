@@ -14,6 +14,7 @@ interface SuiteDefinition {
   commands?: ValidationCommand[];
   exclude?: string[];
   includeRoot?: string;
+  resourceSensitiveTests?: string[];
 }
 
 interface SuiteManifest {
@@ -87,6 +88,14 @@ describe("validation suite ownership", () => {
         arguments: ["--yes", "@fission-ai/openspec@1.8.0", "validate", "--all", "--strict", "--no-interactive"],
       }],
     });
+    expect(suites.tiers["fast"]!.resourceSensitiveTests).toEqual([
+      "test/repository-governance/validation-impact.test.ts",
+      "test/repository-governance/code-documentation.test.ts",
+      "test/foundation/storage/storage.test.ts",
+      "test/foundation/release/cohort-state.test.ts",
+      "test/foundation/release/update-live-cohort.test.ts",
+    ]);
+    expect(Object.keys(suites.tiers["fast"]!).filter(key => key.toLowerCase().includes("timeout"))).toEqual([]);
     expect(suites.scopes["typecheck"]!.commands?.map(command => command.id)).toEqual(["typecheck"]);
     expect(suites.scopes["architecture"]!.commands?.map(command => command.id)).toEqual(["architecture"]);
     expect(suites.scopes["package-smoke"]!.tests).toEqual([

@@ -1,0 +1,195 @@
+{
+  "schema": "a1-resource-sensitive-execution-v1",
+  "generatedAt": "2026-09-02T17:53:22.161Z",
+  "platform": "win32",
+  "architecture": "x64",
+  "node": "v24.16.0",
+  "policy": {
+    "fileParallelism": false,
+    "timeoutMs": 5000,
+    "timeoutSource": "vitest-default",
+    "retries": 0,
+    "timeoutOverridePresent": false
+  },
+  "invocation": {
+    "id": "vitest-fast-resource-sensitive",
+    "arguments": [
+      "vitest",
+      "run",
+      "test/repository-governance/validation-impact.test.ts",
+      "test/repository-governance/code-documentation.test.ts",
+      "test/foundation/storage/storage.test.ts",
+      "test/foundation/release/cohort-state.test.ts",
+      "test/foundation/release/update-live-cohort.test.ts",
+      "--no-file-parallelism"
+    ],
+    "testFiles": [
+      "test/repository-governance/validation-impact.test.ts",
+      "test/repository-governance/code-documentation.test.ts",
+      "test/foundation/storage/storage.test.ts",
+      "test/foundation/release/cohort-state.test.ts",
+      "test/foundation/release/update-live-cohort.test.ts"
+    ]
+  },
+  "runs": [
+    {
+      "index": 1,
+      "startedAt": "2026-09-02T17:52:24.992Z",
+      "durationMs": 24723,
+      "files": [
+        {
+          "path": "test/repository-governance/code-documentation.test.ts",
+          "status": "passed",
+          "durationMs": 8643.197998046875,
+          "testCount": 25,
+          "maxTestBodyDurationMs": 1110.5305999999998,
+          "totalTestBodyDurationMs": 8641.2602,
+          "fileOverheadMs": 1.9377980468743772
+        },
+        {
+          "path": "test/repository-governance/validation-impact.test.ts",
+          "status": "passed",
+          "durationMs": 3820.0419921875,
+          "testCount": 7,
+          "maxTestBodyDurationMs": 866.9052,
+          "totalTestBodyDurationMs": 3819.3870999999995,
+          "fileOverheadMs": 0.6548921875005362
+        },
+        {
+          "path": "test/foundation/release/cohort-state.test.ts",
+          "status": "passed",
+          "durationMs": 81.529541015625,
+          "testCount": 4,
+          "maxTestBodyDurationMs": 33.864799999999974,
+          "totalTestBodyDurationMs": 80.9767,
+          "fileOverheadMs": 0.5528410156250061
+        },
+        {
+          "path": "test/foundation/release/update-live-cohort.test.ts",
+          "status": "passed",
+          "durationMs": 115.216796875,
+          "testCount": 3,
+          "maxTestBodyDurationMs": 65.63819999999998,
+          "totalTestBodyDurationMs": 115.01950000000011,
+          "fileOverheadMs": 0.19729687499989268
+        },
+        {
+          "path": "test/foundation/storage/storage.test.ts",
+          "status": "passed",
+          "durationMs": 438.501708984375,
+          "testCount": 10,
+          "maxTestBodyDurationMs": 59.48829999999998,
+          "totalTestBodyDurationMs": 437.78000000000065,
+          "fileOverheadMs": 0.7217089843743452
+        }
+      ],
+      "maxTestBodyDurationMs": 1110.5305999999998
+    },
+    {
+      "index": 2,
+      "startedAt": "2026-09-02T17:52:49.715Z",
+      "durationMs": 15957,
+      "files": [
+        {
+          "path": "test/repository-governance/code-documentation.test.ts",
+          "status": "passed",
+          "durationMs": 7784.87451171875,
+          "testCount": 25,
+          "maxTestBodyDurationMs": 1233.4233000000002,
+          "totalTestBodyDurationMs": 7782.892299999998,
+          "fileOverheadMs": 1.9822117187522963
+        },
+        {
+          "path": "test/repository-governance/validation-impact.test.ts",
+          "status": "passed",
+          "durationMs": 3956.80712890625,
+          "testCount": 7,
+          "maxTestBodyDurationMs": 866.1532000000001,
+          "totalTestBodyDurationMs": 3956.3473,
+          "fileOverheadMs": 0.4598289062500953
+        },
+        {
+          "path": "test/foundation/release/cohort-state.test.ts",
+          "status": "passed",
+          "durationMs": 73.016357421875,
+          "testCount": 4,
+          "maxTestBodyDurationMs": 32.2363,
+          "totalTestBodyDurationMs": 72.59699999999998,
+          "fileOverheadMs": 0.41935742187502
+        },
+        {
+          "path": "test/foundation/release/update-live-cohort.test.ts",
+          "status": "passed",
+          "durationMs": 114.19970703125,
+          "testCount": 3,
+          "maxTestBodyDurationMs": 67.56119999999999,
+          "totalTestBodyDurationMs": 113.95979999999997,
+          "fileOverheadMs": 0.2399070312500271
+        },
+        {
+          "path": "test/foundation/storage/storage.test.ts",
+          "status": "passed",
+          "durationMs": 544.0625,
+          "testCount": 10,
+          "maxTestBodyDurationMs": 82.91630000000004,
+          "totalTestBodyDurationMs": 544.1194,
+          "fileOverheadMs": 0
+        }
+      ],
+      "maxTestBodyDurationMs": 1233.4233000000002
+    },
+    {
+      "index": 3,
+      "startedAt": "2026-09-02T17:53:05.673Z",
+      "durationMs": 16485,
+      "files": [
+        {
+          "path": "test/repository-governance/code-documentation.test.ts",
+          "status": "passed",
+          "durationMs": 8732.169189453125,
+          "testCount": 25,
+          "maxTestBodyDurationMs": 1151.1182000000001,
+          "totalTestBodyDurationMs": 8729.9425,
+          "fileOverheadMs": 2.2266894531258004
+        },
+        {
+          "path": "test/repository-governance/validation-impact.test.ts",
+          "status": "passed",
+          "durationMs": 3666.864990234375,
+          "testCount": 7,
+          "maxTestBodyDurationMs": 839.0561,
+          "totalTestBodyDurationMs": 3665.1049000000003,
+          "fileOverheadMs": 1.7600902343747293
+        },
+        {
+          "path": "test/foundation/storage/storage.test.ts",
+          "status": "passed",
+          "durationMs": 419.44775390625,
+          "testCount": 10,
+          "maxTestBodyDurationMs": 59.675299999999936,
+          "totalTestBodyDurationMs": 419.37869999999975,
+          "fileOverheadMs": 0.06905390625024665
+        },
+        {
+          "path": "test/foundation/release/cohort-state.test.ts",
+          "status": "passed",
+          "durationMs": 98.660888671875,
+          "testCount": 4,
+          "maxTestBodyDurationMs": 45.93709999999999,
+          "totalTestBodyDurationMs": 98.63650000000004,
+          "fileOverheadMs": 0.0243886718749593
+        },
+        {
+          "path": "test/foundation/release/update-live-cohort.test.ts",
+          "status": "passed",
+          "durationMs": 113.5859375,
+          "testCount": 3,
+          "maxTestBodyDurationMs": 61.630799999999965,
+          "totalTestBodyDurationMs": 113.42839999999995,
+          "fileOverheadMs": 0.1575375000000463
+        }
+      ],
+      "maxTestBodyDurationMs": 1151.1182000000001
+    }
+  ]
+}
