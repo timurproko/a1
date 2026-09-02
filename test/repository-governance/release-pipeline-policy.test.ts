@@ -38,6 +38,17 @@ describe("deliberate publication pipeline", () => {
     expect(validate).toContain("if: always() && needs.plan.result == 'success' && needs.package.result == 'success'");
   });
 
+  it("evaluates publication after an allowed prerequisite skip without weakening required outcomes", async () => {
+    const source = await workflow();
+    const publish = source.slice(source.indexOf("\n  publish:"), source.indexOf("\n  result:"));
+    const condition = publish.match(/^    if: (.+)$/m)?.[1];
+    expect(condition).toBe("always() && needs.plan.outputs.build == 'true' && needs.package.result == 'success' && (needs.documentation.result == 'success' || needs.documentation.result == 'skipped') && needs.validate.result == 'success'");
+
+    const result = source.slice(source.indexOf("\n  result:"));
+    expect(result).toContain('if [ "$WORK" != true ]; then');
+    expect(result).toContain('if [ "$BUILD" = true ]; then test "$PUBLISH" = success; fi');
+  });
+
   it("serializes registry publication without cancellation", async () => {
     const source = await workflow();
     expect(source).toContain("group: a1-registry-publication");

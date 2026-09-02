@@ -1,0 +1,80 @@
+{
+  "schema": "a1-development-publication-gate-regression-v1",
+  "capturedAt": "2026-09-02",
+  "classification": "github-job-scheduling",
+  "releaseRun": {
+    "id": 33638818217,
+    "url": "https://github.com/timurproko/a1/actions/runs/33638818217",
+    "event": "workflow_dispatch",
+    "conclusion": "failure",
+    "sourceCommit": "cd9f58d0384c630452e5428985737aa85eeacf1a",
+    "packageVersion": "0.1.8-dev.212",
+    "registryVersionExistedAtPlan": false
+  },
+  "jobs": {
+    "plan": {
+      "id": 100276435952,
+      "name": "Resolve numbered publication",
+      "conclusion": "success"
+    },
+    "package": {
+      "id": 100276889777,
+      "name": "Obtain exact package 0.1.8-dev.212",
+      "conclusion": "success"
+    },
+    "validation": [
+      {
+        "id": 100277361591,
+        "name": "Validate win32-node22",
+        "conclusion": "success"
+      },
+      {
+        "id": 100277361630,
+        "name": "Validate win32-node24",
+        "conclusion": "success"
+      },
+      {
+        "id": 100277361611,
+        "name": "Validate darwin-node24",
+        "conclusion": "success"
+      },
+      {
+        "id": 100277361565,
+        "name": "Validate linux-node24",
+        "conclusion": "success"
+      }
+    ],
+    "publish": {
+      "id": 100281579277,
+      "name": "Publish ${{ needs.plan.outputs.version }} to npm ${{ needs.plan.outputs.channel }}",
+      "conclusion": "skipped",
+      "started": false
+    },
+    "result": {
+      "id": 100281578090,
+      "name": "Publication result",
+      "conclusion": "failure"
+    }
+  },
+  "resultEnvironment": {
+    "PLAN": "success",
+    "WORK": "true",
+    "BUILD": "true",
+    "PACKAGE": "success",
+    "VALIDATE": "success",
+    "PUBLISH": "skipped",
+    "VERSION": "0.1.8-dev.212"
+  },
+  "diagnosis": {
+    "optionalPrerequisite": "Full documentation review",
+    "optionalPrerequisiteConclusion": "skipped",
+    "publisherExplicitlyAllowedDocumentationSkip": true,
+    "publisherHadStatusCheckFunction": false,
+    "implicitGuard": "success()",
+    "publicationAttempted": false,
+    "npmAuthenticationReached": false,
+    "npmRegistryUploadReached": false,
+    "colorDepthRegressionPresent": false,
+    "explanation": "GitHub skipped the publisher before evaluating its explicit documentation success-or-skipped predicate because the job-level condition lacked a status-check function. Exact-package validation succeeded on every configured platform, proving the earlier parity color-depth defect was corrected. No npm credential, provenance, upload, or registry verification step ran."
+  }
+}
