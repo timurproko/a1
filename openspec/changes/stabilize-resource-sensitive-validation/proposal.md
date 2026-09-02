@@ -5,10 +5,11 @@ Development publication has repeatedly failed on Windows Node 24 because process
 ## What Changes
 
 - Declare the fast-tier tests whose subprocess, temporary-repository, storage, or release-cohort workloads are sensitive to shared runner contention.
-- Exclude those tests from the parallel fast remainder and execute them exactly once in a dedicated non-file-parallel invocation with an explicit bounded timeout suitable for their workload.
-- Use the same partitioned plan in pull-request and exact-package validation on every platform, while retaining all assertions and failing on any real assertion failure, process error, or bounded timeout.
-- Emit distinct plan and outcome evidence for the ordinary remainder and resource-sensitive partition so omissions, duplicates, timing, and failures are auditable.
-- Add governance and regression coverage proving complete fast-tier ownership, single execution, bounded serialization, and the absence of arbitrary automatic test retries.
+- Exclude those tests from the parallel fast remainder and execute them exactly once in a dedicated non-file-parallel invocation while retaining the existing five-second test timeout.
+- Use the same partitioned plan in pull-request and exact-package validation on every platform, while retaining all assertions and failing on any real assertion failure, process error, or timeout.
+- Emit distinct plan, subprocess/fixture timing, and outcome evidence for the ordinary remainder and resource-sensitive partition so omissions, duplicates, contention, and failures are auditable.
+- Require repeated isolated passes under the existing timeout and optimize fixture or subprocess work if a test remains slow; this change SHALL NOT increase a test, suite, platform, or workflow timeout.
+- Add governance and regression coverage proving complete fast-tier ownership, single execution, bounded serialization, unchanged timeout policy, and the absence of arbitrary automatic test retries.
 
 ## Capabilities
 
