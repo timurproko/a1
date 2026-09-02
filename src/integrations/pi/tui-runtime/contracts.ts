@@ -1,4 +1,9 @@
 import type { PresentationComponentPort } from "../../../contracts/presentation/index.js";
+import type {
+  PiTuiInputCoordinationDecision,
+  PiTuiInputCoordinationScheduler,
+  PiTuiInputSurfaceKind,
+} from "./input-presentation-coordinator.js";
 
 export type PiTuiRuntimeState = "idle" | "running" | "stopping" | "stopped" | "failed";
 
@@ -67,6 +72,8 @@ export interface PiTuiOverlayOptions {
   readonly margin?: PiTuiOverlayMargin | number;
   readonly visible?: (columns: number, rows: number) => boolean;
   readonly nonCapturing?: boolean;
+  /** A1-owned input scheduling declaration; omitted extension overlays fail closed. */
+  readonly inputCoordination?: Exclude<PiTuiInputSurfaceKind, "editor">;
 }
 
 export interface PiTuiOverlayUnfocusOptions {
@@ -122,6 +129,24 @@ export type PiTuiLayoutNode =
     readonly scrollbarHideDelayMs?: number;
   };
 
+export type PiTuiInputDiagnosticsPhase =
+  | "receipt"
+  | "semantic-start"
+  | "semantic-end"
+  | "composition-start"
+  | "composition-end"
+  | "write-start"
+  | "write-end";
+
+export interface PiTuiInputDiagnosticsEvent {
+  readonly phase: PiTuiInputDiagnosticsPhase;
+  readonly revision: number;
+  readonly atMs: number;
+  readonly pendingDepth: number;
+  readonly pendingPresentationDepth: 0 | 1;
+  readonly appliedRevision: number;
+}
+
 export interface PiTuiRuntimeAdapterOptions {
   readonly root: PiTuiComponentPort;
   readonly mode?: "regular" | "fullscreen";
@@ -129,6 +154,20 @@ export interface PiTuiRuntimeAdapterOptions {
   readonly terminal?: PiTuiTerminalPort;
   /** A1-owned public-boundary decorator; comparison paths omit it. */
   readonly decorateTerminal?: (terminal: PiTuiTerminalPort) => PiTuiTerminalPort;
+  /** Bare-custom-viewport scheduling policy; comparison paths omit it. */
+  readonly inputCoordination?: {
+    readonly classify: (
+      data: string,
+      focusedOverlay?: Exclude<PiTuiInputSurfaceKind, "editor">,
+    ) => PiTuiInputCoordinationDecision;
+    readonly onReceipt?: () => void;
+    readonly scheduler?: PiTuiInputCoordinationScheduler;
+  };
+  /** Optional bounded evidence hook. Production composition omits it. */
+  readonly inputDiagnostics?: {
+    readonly onEvent: (event: PiTuiInputDiagnosticsEvent) => void;
+    readonly now?: () => number;
+  };
   readonly hardwareCursor?: boolean;
   readonly mouse?: boolean;
   readonly wheelScrollLines?: number;

@@ -166,6 +166,7 @@ async function fixture(
     writeText?(text: string): Promise<void>;
   },
   streamPresentation?: OwnedUiSessionShellOptions["streamPresentation"],
+  inputPresentation?: OwnedUiSessionShellOptions["inputPresentation"],
 ) {
   const engine = new Runtime(messages);
   engine.extensionResources = extensions;
@@ -179,13 +180,97 @@ async function fixture(
     ...(viewportSettings === undefined ? {} : { viewportSettings }),
     ...(clipboard === undefined ? {} : { clipboard }),
     ...(streamPresentation === undefined ? {} : { streamPresentation }),
+    ...(inputPresentation === undefined ? {} : { inputPresentation }),
   });
   shell.start();
   shell.runtime.renderNow();
   return { engine, adapter, terminal, shell };
 }
 
+class InputImmediateScheduler {
+  readonly callbacks = new Map<ReturnType<typeof setImmediate>, () => void>();
+  scheduleImmediate(callback: () => void): ReturnType<typeof setImmediate> {
+    const handle = {} as ReturnType<typeof setImmediate>;
+    this.callbacks.set(handle, callback);
+    return handle;
+  }
+  cancelImmediate(handle: ReturnType<typeof setImmediate>): void { this.callbacks.delete(handle); }
+  flush(): void {
+    for (const [handle, callback] of [...this.callbacks]) {
+      this.callbacks.delete(handle);
+      callback();
+    }
+  }
+}
+
+async function nextImmediate(): Promise<void> {
+  await new Promise<void>(resolve => setImmediate(resolve));
+}
+
 describe("OwnedUiSessionShell", () => {
+  it("coordinates rapid bare-A1 editor input into one latest-state dock frame while pinned input stays synchronous", async () => {
+    const scheduler = new InputImmediateScheduler();
+    const phases: Array<{ phase: string; revision: number }> = [];
+    const custom = await fixture([], [], true, undefined, undefined, undefined, {
+      scheduler,
+      onEvent: event => phases.push(event),
+    });
+    await nextImmediate();
+    const before = custom.shell.root.viewportCompositionEvidence();
+
+    custom.terminal.input("a");
+    custom.terminal.input("e\u0301");
+    expect(custom.shell.root.editor.getText()).toBe("");
+    expect(scheduler.callbacks.size).toBe(1);
+    scheduler.flush();
+    await nextImmediate();
+
+    expect(custom.shell.root.editor.getText()).toBe("ae\u0301");
+    expect(custom.shell.root.viewportFrameDescriptor()?.cause).toBe("dock-input");
+    expect(custom.shell.root.viewportCompositionEvidence()).toEqual({
+      full: before.full,
+      dockOnly: before.dockOnly + 1,
+    });
+    expect(phases.filter(event => event.phase === "semantic-end").map(event => event.revision)).toEqual([1, 2]);
+    await custom.shell.dispose();
+
+    const pinned = await fixture();
+    pinned.terminal.input("p");
+    expect(pinned.shell.root.editor.getText()).toBe("p");
+    await pinned.shell.dispose();
+  });
+
+  it("applies repeated owned-surface navigation in order and treats opaque extension input as a barrier", async () => {
+    const scheduler = new InputImmediateScheduler();
+    const custom = await fixture([], [], true, undefined, undefined, undefined, { scheduler });
+    const navigation = {
+      selected: 0,
+      render() { return [`selected:${this.selected}`, "instructions"]; },
+      handleInput(data: string) { if (data === "\u001b[B") this.selected += 1; },
+      invalidate() {},
+      setFocused() {},
+    };
+    custom.shell.root.setInputSurface(navigation);
+    custom.shell.runtime.renderNow();
+    const before = custom.shell.root.viewportCompositionEvidence();
+    custom.terminal.input("\u001b[B");
+    custom.terminal.input("\u001b[B");
+    custom.terminal.input("\u001b[B");
+    expect(navigation.selected).toBe(0);
+    scheduler.flush();
+    await nextImmediate();
+    expect(navigation.selected).toBe(3);
+    expect(custom.shell.root.viewportCompositionEvidence()).toEqual({ full: before.full, dockOnly: before.dockOnly + 1 });
+
+    const opaqueInputs: string[] = [];
+    const opaque = { render: () => ["opaque", "instructions"], handleInput: (data: string) => opaqueInputs.push(data), invalidate() {}, setFocused() {} };
+    custom.shell.root.setInputSurface(opaque, true, "opaque");
+    custom.terminal.input("x");
+    expect(opaqueInputs).toEqual(["x"]);
+    expect(scheduler.callbacks.size).toBe(0);
+    await custom.shell.dispose();
+  });
+
   it("forces the custom bare-A1 surface to fullscreen without changing pinned mode policy", async () => {
     const custom = await fixture([], [], true);
     expect(custom.shell.runtime.mode).toBe("fullscreen");
@@ -655,6 +740,7 @@ describe("OwnedUiSessionShell", () => {
     terminal.input("start ");
     terminal.input("\u001b[1;5F");
     terminal.input(" end");
+    await nextImmediate();
     expect(shell.root.editor.getText()).toBe("start alpha beta end");
 
     terminal.input("\u001b[127;5u");
@@ -725,6 +811,7 @@ describe("OwnedUiSessionShell", () => {
     expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from("d").toString("base64")}\u0007`);
 
     terminal.input("X");
+    await nextImmediate();
     expect(shell.root.editor.getText()).toBe("abcdX");
     terminal.input("\u001a");
     expect(shell.root.editor.getText()).toBe("abcd");
@@ -760,6 +847,7 @@ describe("OwnedUiSessionShell", () => {
     expect(stripTerminalSequences(linkedChipRow)).toMatch(/\] +$/u);
 
     terminal.input("\u001b[D"); // Invariant: Left focuses the adjacent chip as one item.
+    await nextImmediate();
     const focusedChip = shell.root.render(60).find(row => stripTerminalSequences(row).includes("https://example.com")) ?? "";
     expect(focusedChip).toContain("\u001b[7m");
     expect(focusedChip).toContain("\u001b]8;;https://example.com/a/very/useful/resource\u001b\\");
@@ -769,6 +857,7 @@ describe("OwnedUiSessionShell", () => {
     await vi.waitFor(() => expect(clipboardText).toBe("https://example.com/a/very/useful/resource"));
     const writesBeforeChipDelete = terminal.writes.length;
     terminal.input("\u007f");
+    await nextImmediate();
     shell.runtime.renderNow();
     const chipDeletionWrites = terminal.writes.slice(writesBeforeChipDelete);
     // Platform: exact row overwrites clear stale native-link cells without blanking the screen.
@@ -779,11 +868,14 @@ describe("OwnedUiSessionShell", () => {
     expect(shell.root.editor.getText()).toContain("[🔗 https://example.com/");
 
     terminal.input("\u001b[1;5C"); // Invariant: Ctrl+Right treats the chip as one item.
+    await nextImmediate();
     expect(shell.root.render(60).join("\n")).toContain("\u001b[7m");
     terminal.input("\u001b[1;5C"); // Invariant: collapse at the chip's far edge.
     terminal.input("\u001b[1;5D"); // Invariant: Ctrl+Left selects the whole chip, never its interior.
+    await nextImmediate();
     expect(shell.root.render(60).join("\n")).toContain("\u001b[7m");
     terminal.input("\u001b[1;5D"); // Invariant: collapse at its near edge before the mouse check.
+    await nextImmediate();
 
     const chipFrame = shell.root.render(60).map(row => stripTerminalSequences(row));
     const chipRow = chipFrame.findIndex(row => row.includes("https://example.com")) + 1;
@@ -814,6 +906,7 @@ describe("OwnedUiSessionShell", () => {
     expect(draggedChip).toContain("\u001b[27m\u001b[48;2;38;79;120m");
     expect(draggedChip).toContain("\u001b]8;;https://example.com/a/very/useful/resource\u001b\\");
     terminal.input("\u007f");
+    await nextImmediate();
     expect(shell.root.editor.getText()).toBe("");
 
     const imageBytes = Buffer.from("fake-png");
@@ -918,6 +1011,7 @@ describe("OwnedUiSessionShell", () => {
     const chips = Array.from({ length: 6 }, (_, index) => `[🖼  Clipboard (${index + 1}).png]`);
     shell.root.editor.setText(chips.join(""));
     terminal.input("\u001b[D");
+    await nextImmediate();
 
     const row = shell.root.editor.render(180).find(line => stripTerminalSequences(line).includes("Clipboard (6).png")) ?? "";
     const reversed = [...row.matchAll(/\u001b\[7m([^\u001b]*)\u001b\[0m/gu)].map(match => match[1] ?? "");
@@ -951,6 +1045,7 @@ describe("OwnedUiSessionShell", () => {
     terminal.input("\u0016");
     await vi.waitFor(() => expect(shell.root.editor.getText()).toBe(`firstsecond${chip}`));
     terminal.input("\u007f");
+    await nextImmediate();
     expect(shell.root.editor.getText()).toBe("firstsecond");
 
     await shell.dispose();
@@ -978,6 +1073,7 @@ describe("OwnedUiSessionShell", () => {
 
     terminal.input("\u001b[D"); // Invariant: focus the second chip.
     terminal.input(" "); // Invariant: insert before atomic focus; neither chip is replaced.
+    await nextImmediate();
     expect(shell.root.editor.getText()).toBe(spaced);
     clipboardText = "";
     terminal.input("\u0003");
@@ -987,9 +1083,11 @@ describe("OwnedUiSessionShell", () => {
     shell.root.editor.setText(adjacent);
     terminal.input("\u001b[1;5H"); // Invariant: focus the first chip through the native cursor.
     terminal.input(" ");
+    await nextImmediate();
     expect(shell.root.editor.getText()).toBe(` ${adjacent}`);
     terminal.input("\u001b[C");
     terminal.input("\u001b[C");
+    await nextImmediate();
     shell.root.editor.setText(adjacent);
 
     terminal.input("\u001b[D"); // Invariant: focus the second chip.
@@ -1012,6 +1110,7 @@ describe("OwnedUiSessionShell", () => {
     terminal.input("\u001b[D"); // Invariant: focus the second chip.
     terminal.input("\u001b[D"); // Invariant: move one character left onto the separator.
     terminal.input("X");
+    await nextImmediate();
     expect(shell.root.editor.getText()).toBe(spaced.replace("] [", "]X ["));
 
     shell.root.editor.setText(spaced);
@@ -1028,16 +1127,19 @@ describe("OwnedUiSessionShell", () => {
     shell.root.editor.setText(`words ${imageRun}`);
     terminal.input("\u001b[1;5D"); // Invariant: Ctrl+Left crosses the adjacent run and stops on its separator.
     terminal.input("X");
+    await nextImmediate();
     expect(shell.root.editor.getText()).toBe(`wordsX ${imageRun}`);
 
     shell.root.editor.setText(`words tail${imageRun}`);
     terminal.input("\u001b[1;5D"); // Invariant: an attached chip run also crosses its word to the separator.
     terminal.input("X");
+    await nextImmediate();
     expect(shell.root.editor.getText()).toBe(`wordsX tail${imageRun}`);
 
     shell.root.editor.setText("doio ddh did d diud");
     terminal.input("\u001b[1;5D"); // Invariant: Ctrl+Left stops on the separator before an ordinary word.
     terminal.input("X");
+    await nextImmediate();
     expect(shell.root.editor.getText()).toBe("doio ddh did dX diud");
 
     await shell.dispose();
@@ -1085,18 +1187,24 @@ describe("OwnedUiSessionShell", () => {
     expect(rows()[1]).toContain("❯ one");
 
     terminal.input("\u001b[1;2B");
+    await nextImmediate();
     expect(top()).toContain("❯ two");
     terminal.input("\u001b[1;2B");
+    await nextImmediate();
     expect(top()).toContain("❯ three");
     terminal.input("\u001b[1;2B");
+    await nextImmediate();
     expect(top()).toContain("❯ three");
 
     terminal.input("\u001b[1;2A");
+    await nextImmediate();
     expect(top()).toContain("❯ two");
     terminal.input("\u001b[1;2A");
+    await nextImmediate();
     expect(top().trim()).toBe("");
     expect(rows()[1]).toContain("❯ one");
     terminal.input("\u001b[1;2A");
+    await nextImmediate();
     expect(top().trim()).toBe("");
     expect(rows()[1]).toContain("❯ one");
 

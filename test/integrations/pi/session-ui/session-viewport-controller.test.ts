@@ -45,6 +45,21 @@ describe("session viewport interaction controller", () => {
     expect(target.handlePreInput("home")).toEqual({ data: "home", consumed: false });
   });
 
+  it("advances an explicit presentation revision for viewport-invalidating interaction", () => {
+    const target = new SessionViewportController({ enabled: true, editor: editor(), requestRender() {} });
+    frame(target);
+    const initial = target.presentationRevision;
+    target.handlePreInput("\u001b[<64;1;2M", true, 1_000);
+    expect(target.presentationRevision).toBeGreaterThan(initial);
+    const afterWheel = target.presentationRevision;
+    target.setConfig({ scrollbarAppearance: "always", scrollbarStyle: "thin", scrollbarSpeed: "normal" });
+    expect(target.presentationRevision).toBe(afterWheel + 1);
+    target.reset();
+    expect(target.presentationRevision).toBe(afterWheel + 2);
+    target.clearPointerState();
+    expect(target.presentationRevision).toBe(afterWheel + 3);
+  });
+
   it("owns follow state and routes wheel and boundary keys without shell state", () => {
     const renders: (boolean | undefined)[] = [];
     const target = new SessionViewportController({

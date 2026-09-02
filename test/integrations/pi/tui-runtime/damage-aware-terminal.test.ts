@@ -98,6 +98,19 @@ describe("A1-owned damage-aware terminal adapter", () => {
     expect(actual.final.rows.slice(0, 8)).toEqual(["B", "C", "D", "E", "F", "G", "editor", "footer"]);
   });
 
+  it("forwards a dock-only input differential without touching stable transcript rows", () => {
+    const { adapter, terminal } = initialized();
+    const dockWrite = fullscreenWrite(["edited"], 7, 7);
+    adapter.arm({ ...descriptor(2), cause: "dock-input" }, { ...SAFE, replacementSurfaceActive: true });
+    adapter.write(dockWrite);
+    expect(adapter.lastDecision).toMatchObject({ frameId: 2, transformed: false, reason: "unsafe-frame" });
+    expect(classifyTerminalPaint([{ data: terminal.writes.at(-1)!, atMs: 1 }])).toMatchObject({
+      fullScreenClears: 0,
+      addressedRowWrites: [7],
+      rowClears: 1,
+    });
+  });
+
   it("moves multiple rows and repaints only the exposed suffix", () => {
     const { adapter, terminal } = initialized();
     adapter.arm(descriptor(2, 2, true), SAFE);

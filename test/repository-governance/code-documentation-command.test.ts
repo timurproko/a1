@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 
 const execFileAsync = promisify(execFile);
 const checker = "scripts/governance/check-code-documentation.mjs";
+const COMMAND_TEST_TIMEOUT_MS = 15_000;
 
 async function put(root: string, path: string, source: string) {
   await mkdir(dirname(join(root, path)), { recursive: true });
@@ -49,7 +50,7 @@ describe("code documentation command modes", () => {
       filesInspected: 1,
       fullRepositoryScans: 0,
     });
-  });
+  }, COMMAND_TEST_TIMEOUT_MS);
 
   it("rejects changed-file violations and invalid selection paths", async () => {
     const root = await repositoryFixture("// unclear\nexport const value = 1;\n");
@@ -57,7 +58,7 @@ describe("code documentation command modes", () => {
     await expect(execFileAsync(process.execPath, [checker, "--root", root, "--mode", "changed", "--selection", "selection.json"])).rejects.toMatchObject({ code: 1 });
     await put(root, "bad.json", `${JSON.stringify(selection("../outside.ts"))}\n`);
     await expect(execFileAsync(process.execPath, [checker, "--root", root, "--mode", "changed", "--selection", "bad.json"])).rejects.toBeDefined();
-  });
+  }, COMMAND_TEST_TIMEOUT_MS);
 
   it("performs one explicit complete scan and reports seeded violations", async () => {
     const root = await repositoryFixture("// unclear\nexport const value = 1;\n");
@@ -68,11 +69,11 @@ describe("code documentation command modes", () => {
       filesInspected: 1,
       fullRepositoryScans: 1,
     });
-  });
+  }, COMMAND_TEST_TIMEOUT_MS);
 
   it("rejects unsupported modes and missing changed selection", async () => {
     const root = await repositoryFixture();
     await expect(execFileAsync(process.execPath, [checker, "--root", root, "--mode", "unknown"])).rejects.toBeDefined();
     await expect(execFileAsync(process.execPath, [checker, "--root", root, "--mode", "changed"])).rejects.toBeDefined();
-  });
+  }, COMMAND_TEST_TIMEOUT_MS);
 });

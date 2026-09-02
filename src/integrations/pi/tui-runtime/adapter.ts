@@ -13,6 +13,10 @@ import {
   type TuiAltScreenOptions,
   visibleWidth,
 } from "#pi-tui";
+import {
+  InputPresentationCoordinator,
+  type PiTuiInputCoordinationTrace,
+} from "./input-presentation-coordinator.js";
 import type {
   PiTuiComponentPort,
   PiTuiInputListener,
@@ -42,7 +46,10 @@ export class PiTuiRuntimeError extends Error {
 class ComponentBridge implements Component, Focusable {
   #focused = false;
 
-  constructor(readonly port: PiTuiComponentPort) {}
+  constructor(
+    readonly port: PiTuiComponentPort,
+    readonly traceComposition?: (phase: "composition-start" | "composition-end") => void,
+  ) {}
 
   get focused(): boolean {
     return this.#focused;
@@ -58,12 +65,17 @@ class ComponentBridge implements Component, Focusable {
   }
 
   render(width: number): string[] {
-    const lines = [...this.port.render(width)];
-    const overflow = lines.findIndex(line => visibleWidth(line) > width);
-    if (overflow >= 0) {
-      throw new RangeError(`Pi TUI component row ${overflow} exceeds available width ${width}`);
+    this.traceComposition?.("composition-start");
+    try {
+      const lines = [...this.port.render(width)];
+      const overflow = lines.findIndex(line => visibleWidth(line) > width);
+      if (overflow >= 0) {
+        throw new RangeError(`Pi TUI component row ${overflow} exceeds available width ${width}`);
+      }
+      return lines;
+    } finally {
+      this.traceComposition?.("composition-end");
     }
-    return lines;
   }
 
   handleInput(data: string): void {
@@ -131,8 +143,13 @@ export class PiTuiRuntimeAdapter {
   readonly #mountedComponents = new Set<PiTuiComponentPort>();
   readonly #scrollViews = new Map<string, ScrollView>();
   readonly #overlayDisposers = new Set<() => void>();
+  readonly #overlayInputCoordination = new Map<ComponentBridge, "owned" | "opaque">();
   readonly #inputListeners = new Map<PiTuiInputListener, () => void>();
   readonly #preInputListeners = new Set<PiTuiPreInputListener>();
+  readonly #inputCoordinator: InputPresentationCoordinator | undefined;
+  readonly #inputDiagnostics: PiTuiRuntimeAdapterOptions["inputDiagnostics"];
+  readonly #diagnosticNow: () => number;
+  #inputSink: ((data: string) => void) | undefined;
   #state: PiTuiRuntimeState = "idle";
   #stopPromise: Promise<void> | undefined;
   #rootDisposed = false;
@@ -141,11 +158,42 @@ export class PiTuiRuntimeAdapter {
   constructor(options: PiTuiRuntimeAdapterOptions) {
     this.#root = options.root;
     this.#terminal = options.terminal ?? new ProcessTerminal();
-    const decoratedTerminal = options.decorateTerminal?.(this.#terminal) ?? this.#terminal;
-    this.#tuiTerminal = preInputTerminal(decoratedTerminal, data => this.#routePreInput(data));
+    this.#inputDiagnostics = options.inputDiagnostics;
+    this.#diagnosticNow = options.inputDiagnostics?.now ?? (() => performance.now());
+    const tracedTerminal = options.inputDiagnostics === undefined
+      ? this.#terminal
+      : diagnosticTerminal(this.#terminal, phase => this.#traceRuntimePhase(phase));
+    const decoratedTerminal = options.decorateTerminal?.(tracedTerminal) ?? tracedTerminal;
+    const coordination = options.inputCoordination ?? (options.inputDiagnostics === undefined
+      ? undefined
+      : { classify: () => "barrier" as const });
+    this.#inputCoordinator = coordination === undefined
+      ? undefined
+      : new InputPresentationCoordinator({
+          classify: data => coordination.classify(data, this.#focusedOverlayInputCoordination()),
+          deliver: data => {
+            const routed = this.#routePreInput(data);
+            if (routed.length > 0) this.#inputSink?.(routed);
+          },
+          ...(coordination.onReceipt === undefined ? {} : { onReceipt: coordination.onReceipt }),
+          ...(coordination.scheduler === undefined ? {} : { scheduler: coordination.scheduler }),
+          now: this.#diagnosticNow,
+          ...(options.inputDiagnostics === undefined ? {} : {
+            onTrace: event => this.#traceInputCoordination(event),
+          }),
+        });
+    this.#tuiTerminal = this.#inputCoordinator === undefined
+      ? preInputTerminal(decoratedTerminal, data => this.#routePreInput(data))
+      : coordinatedInputTerminal(
+          decoratedTerminal,
+          this.#inputCoordinator,
+          sink => { this.#inputSink = sink; },
+        );
     this.#layoutRoot = options.layoutRoot;
     this.#logDirectory = options.logDirectory;
-    this.#rootBridge = new ComponentBridge(options.root);
+    this.#rootBridge = new ComponentBridge(options.root, options.inputDiagnostics === undefined
+      ? undefined
+      : phase => this.#traceRuntimePhase(phase));
     this.#bridges.set(options.root, this.#rootBridge);
     this.#mountedComponents.add(options.root);
 
@@ -265,10 +313,12 @@ export class PiTuiRuntimeAdapter {
       if (hidden) return;
       hidden = true;
       this.#overlayDisposers.delete(dispose);
+      this.#overlayInputCoordination.delete(bridge);
       this.#bridges.delete(component);
       component.dispose?.();
     };
     this.#overlayDisposers.add(dispose);
+    this.#overlayInputCoordination.set(bridge, options?.inputCoordination ?? "opaque");
     const handle = this.#tui.showOverlay(bridge, toOverlayOptions(options));
     return new OverlayHandleBridge(handle, target => this.#bridgeFor(target), dispose);
   }
@@ -400,6 +450,7 @@ export class PiTuiRuntimeAdapter {
 
   async #stop(options: PiTuiStopOptions): Promise<void> {
     this.#state = "stopping";
+    this.#inputCoordinator?.flush();
     let failure: PiTuiRuntimeError | undefined;
     if (options.drainInput !== false) {
       try {
@@ -439,6 +490,30 @@ export class PiTuiRuntimeAdapter {
       else if (result?.consume === true) current = "";
     }
     return current;
+  }
+
+  #focusedOverlayInputCoordination(): "owned" | "opaque" | undefined {
+    for (const [bridge, coordination] of this.#overlayInputCoordination) {
+      if (bridge.focused) return coordination;
+    }
+    return undefined;
+  }
+
+  #traceInputCoordination(event: PiTuiInputCoordinationTrace): void {
+    this.#inputDiagnostics?.onEvent(event);
+  }
+
+  #traceRuntimePhase(phase: "composition-start" | "composition-end" | "write-start" | "write-end"): void {
+    if (this.#inputDiagnostics === undefined) return;
+    const coordinator = this.#inputCoordinator;
+    this.#inputDiagnostics.onEvent({
+      phase,
+      revision: coordinator?.appliedRevision ?? 0,
+      atMs: this.#diagnosticNow(),
+      pendingDepth: coordinator?.pendingDepth ?? 0,
+      pendingPresentationDepth: coordinator?.pendingPresentation === true ? 1 : 0,
+      appliedRevision: coordinator?.appliedRevision ?? 0,
+    });
   }
 
   #mountTui(tui: TUI): void {
@@ -547,12 +622,79 @@ export class PiTuiRuntimeAdapter {
   }
 
   #disposeComponents(): void {
+    this.#inputCoordinator?.dispose(false);
+    this.#inputSink = undefined;
     for (const remove of this.#inputListeners.values()) remove();
     this.#inputListeners.clear();
     this.#preInputListeners.clear();
     for (const dispose of [...this.#overlayDisposers]) dispose();
+    this.#overlayInputCoordination.clear();
     this.#disposeRoot();
   }
+}
+
+function coordinatedInputTerminal(
+  terminal: PiTuiTerminalPort,
+  coordinator: InputPresentationCoordinator,
+  setSink: (sink: ((data: string) => void) | undefined) => void,
+): PiTuiTerminalPort {
+  return {
+    get columns() { return terminal.columns; },
+    get rows() { return terminal.rows; },
+    get kittyProtocolActive() { return terminal.kittyProtocolActive; },
+    start(onInput, onResize) {
+      setSink(onInput);
+      terminal.start(data => coordinator.accept(data), () => {
+        coordinator.flush();
+        onResize();
+      });
+    },
+    stop() {
+      coordinator.flush();
+      setSink(undefined);
+      terminal.stop();
+    },
+    drainInput: (maxMs, idleMs) => terminal.drainInput(maxMs, idleMs),
+    write: data => terminal.write(data),
+    moveBy: lines => terminal.moveBy(lines),
+    hideCursor: () => terminal.hideCursor(),
+    showCursor: () => terminal.showCursor(),
+    clearLine: () => terminal.clearLine(),
+    clearFromCursor: () => terminal.clearFromCursor(),
+    clearScreen: () => terminal.clearScreen(),
+    setTitle: title => terminal.setTitle(title),
+    setProgress: active => terminal.setProgress(active),
+  };
+}
+
+function diagnosticTerminal(
+  terminal: PiTuiTerminalPort,
+  trace: (phase: "write-start" | "write-end") => void,
+): PiTuiTerminalPort {
+  return {
+    get columns() { return terminal.columns; },
+    get rows() { return terminal.rows; },
+    get kittyProtocolActive() { return terminal.kittyProtocolActive; },
+    start: (onInput, onResize) => terminal.start(onInput, onResize),
+    stop: () => terminal.stop(),
+    drainInput: (maxMs, idleMs) => terminal.drainInput(maxMs, idleMs),
+    write(data) {
+      trace("write-start");
+      try {
+        terminal.write(data);
+      } finally {
+        trace("write-end");
+      }
+    },
+    moveBy: lines => terminal.moveBy(lines),
+    hideCursor: () => terminal.hideCursor(),
+    showCursor: () => terminal.showCursor(),
+    clearLine: () => terminal.clearLine(),
+    clearFromCursor: () => terminal.clearFromCursor(),
+    clearScreen: () => terminal.clearScreen(),
+    setTitle: title => terminal.setTitle(title),
+    setProgress: active => terminal.setProgress(active),
+  };
 }
 
 function preInputTerminal(terminal: PiTuiTerminalPort, route: (data: string) => string): PiTuiTerminalPort {

@@ -94,7 +94,7 @@ export interface TranscriptViewportFrameDescriptor {
   readonly selectionRevision: number;
   /** One-based terminal rows whose source or normalized selection range changed. */
   readonly selectionDamagedRows: readonly number[];
-  readonly cause: "initial" | "steady" | "follow-shift" | "detached" | "geometry-change";
+  readonly cause: "initial" | "steady" | "dock-input" | "follow-shift" | "detached" | "geometry-change";
 }
 
 export interface TranscriptViewportFrame {
@@ -579,6 +579,56 @@ export class TranscriptViewport {
         reusedRows,
         cacheEntries: this.#paintedRowCache.size + this.#baseRowCache.size
           + this.#selectedRowCache.size + this.#finalRowCache.size,
+      },
+    };
+    this.#frame = frame;
+    return frame;
+  }
+
+  /** Reuses an established transcript frame when only same-height dock rows changed. */
+  composeDockOnly(dockRows: readonly string[], width: number, height: number): TranscriptViewportFrame | null {
+    const previous = this.#frame;
+    const boundedWidth = Math.max(1, width);
+    const boundedHeight = Math.max(0, height);
+    if (previous === null || previous.descriptor.width !== boundedWidth || previous.descriptor.height !== boundedHeight
+      || previous.descriptor.selectionRevision !== this.#selectionRevision) return null;
+    const dock = dockRows.length > boundedHeight ? dockRows.slice(-boundedHeight) : [...dockRows];
+    const viewportHeight = Math.max(0, boundedHeight - dock.length);
+    const expectedDock = dock.length === 0 ? null : { rowStart: viewportHeight + 1, rowEnd: boundedHeight };
+    const expectedTranscript = viewportHeight === 0 ? null : { rowStart: 1, rowEnd: viewportHeight };
+    if (!sameRectangle(previous.descriptor.dock, expectedDock)
+      || !sameRectangle(previous.descriptor.transcript, expectedTranscript)) return null;
+
+    const descriptor: TranscriptViewportFrameDescriptor = {
+      frameId: ++this.#frameId,
+      width: boundedWidth,
+      height: boundedHeight,
+      transcript: expectedTranscript,
+      dock: expectedDock,
+      previousDocumentRange: previous.descriptor.nextDocumentRange,
+      nextDocumentRange: previous.descriptor.nextDocumentRange,
+      previousFollowingEnd: previous.followingEnd,
+      followingEnd: previous.followingEnd,
+      verticalShiftRows: 0,
+      safeVerticalShift: false,
+      selectionRevision: this.#selectionRevision,
+      selectionDamagedRows: [],
+      cause: "dock-input",
+    };
+    assertTranscriptViewportFrameDescriptor(descriptor);
+    const frame: TranscriptViewportFrame = {
+      rows: [...previous.rows.slice(0, viewportHeight), ...dock].slice(0, boundedHeight),
+      contentWidth: previous.contentWidth,
+      scrollTop: previous.scrollTop,
+      maxScroll: previous.maxScroll,
+      followingEnd: previous.followingEnd,
+      hits: previous.hits,
+      descriptor,
+      selectionDamage: {
+        revision: this.#selectionRevision,
+        recomputedRows: [],
+        reusedRows: Array.from({ length: viewportHeight }, (_, index) => index + 1),
+        cacheEntries: previous.selectionDamage.cacheEntries,
       },
     };
     this.#frame = frame;

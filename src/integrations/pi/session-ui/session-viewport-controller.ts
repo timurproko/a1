@@ -54,12 +54,16 @@ export class SessionViewportController {
   #pointerPosition: { readonly column: number; readonly row: number } | undefined;
   #hoveredHyperlinkKey: string | undefined;
   #lastRequestedSelectionRevision = -1;
+  #presentationRevision = 0;
   #activityTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(options: SessionViewportControllerOptions) {
     this.#enabled = options.enabled;
     this.#editor = options.editor;
-    this.#requestRender = options.requestRender;
+    this.#requestRender = force => {
+      this.#presentationRevision += 1;
+      options.requestRender(force);
+    };
     this.#hasEditorLinks = options.hasEditorLinks ?? (() => false);
   }
 
@@ -81,6 +85,10 @@ export class SessionViewportController {
 
   get selectionRevision(): number {
     return this.#viewport.selectionRevision;
+  }
+
+  get presentationRevision(): number {
+    return this.#presentationRevision;
   }
 
   get frame(): TranscriptViewportFrame | null {
@@ -114,6 +122,10 @@ export class SessionViewportController {
     return frame;
   }
 
+  composeDockOnly(dockRows: readonly string[], width: number, height: number): TranscriptViewportFrame | null {
+    return this.#viewport.composeDockOnly(dockRows, width, height);
+  }
+
   /** Returns true when document wrapping may have changed. */
   setConfig(config: OwnedUiViewportSettings): boolean {
     const appearanceChanged = config.scrollbarAppearance !== this.#config.scrollbarAppearance;
@@ -138,6 +150,7 @@ export class SessionViewportController {
   }
 
   reset(): void {
+    this.#presentationRevision += 1;
     this.#clearActivityTimer();
     this.#stopSelectionAutoScroll();
     this.#editorPointerSelecting = false;
@@ -148,6 +161,7 @@ export class SessionViewportController {
   }
 
   clearPointerState(): void {
+    this.#presentationRevision += 1;
     this.#clearActivityTimer();
     this.#dragGrabOffset = null;
     this.#dockPointerSuppressed = false;

@@ -47,6 +47,7 @@
     "test:pi-engine-conformance": "vitest run test/integrations/pi/engine/conformance.test.ts test/integrations/pi/engine/runtime-integration.test.ts test/integrations/pi/engine/session-integration.test.ts",
     "report:pi-engine-conformance": "npm run build --silent && node scripts/pi/run-pi-engine-conformance.mjs",
     "report:rendering-stability": "tsx scripts/pi/report-rendering-stability.ts",
+    "report:input-responsiveness": "tsx scripts/pi/report-input-responsiveness.ts",
     "sync:pi-ui": "npm run update:pi-component-parity && npm run update:pi-event-frame-parity && npm run update:pi-settings-metadata",
     "update:pi-component-parity": "tsx scripts/pi/update-pi-component-parity.ts",
     "update:pi-event-frame-parity": "tsx scripts/pi/update-pi-event-frame-parity.ts",
