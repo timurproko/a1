@@ -51,8 +51,8 @@
 
 ## 6. CI Evidence and Integration
 
-- [ ] 6.1 Push the implementation branch and verify required CI proves an unrelated fixture selects no rendering, a rendered-shell fixture selects smoke, a rendering-core/classifier fixture selects full, and each changed-file documentation fixture selects the expected destinations.
-- [ ] 6.2 Compare CI structural outcomes with the accepted baseline: ordinary validation has zero rendering launches and zero full documentation scans, smoke has representative coverage, full retains every workload with no equivalent repeated matrix, and nightly configuration has one full documentation review.
-- [ ] 6.3 Report wall-clock setup and repository-gate timing separately for the implementation PR, treat runner/cache variance as diagnostic, and investigate any repository-gate regression not explained by selected contract coverage.
-- [ ] 6.4 Provide the exact implementation worktree, branch/commit, selector inspection commands, focused changed-documentation command, smoke/full plan commands, expected selections, and known conservative fallbacks for maintainer review.
-- [ ] 6.5 Keep the code/operational pull request open after CI; record maintainer acceptance and explicit merge authorization before manual integration, then hand off acceptance recording and archive as a specification-only follow-up.
+- [x] 6.1 Push the implementation branch and verify required CI proves an unrelated fixture selects no rendering, a rendered-shell fixture selects smoke, a rendering-core/classifier fixture selects full, and each changed-file documentation fixture selects the expected destinations.
+- [x] 6.2 Compare CI structural outcomes with the accepted baseline: ordinary validation has zero rendering launches and zero full documentation scans, smoke has representative coverage, full retains every workload with no equivalent repeated matrix, and nightly configuration has one full documentation review.
+- [x] 6.3 Report wall-clock setup and repository-gate timing separately for the implementation PR, treat runner/cache variance as diagnostic, and investigate any repository-gate regression not explained by selected contract coverage.
+- [x] 6.4 Provide the exact implementation worktree, branch/commit, selector inspection commands, focused changed-documentation command, smoke/full plan commands, expected selections, and known conservative fallbacks for maintainer review.
+- [x] 6.5 Keep the code/operational pull request open after CI; record maintainer acceptance and explicit merge authorization before manual integration, then hand off acceptance recording and archive as a specification-only follow-up.
