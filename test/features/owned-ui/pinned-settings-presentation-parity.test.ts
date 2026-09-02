@@ -9,6 +9,11 @@ import {
 } from "../../../src/ui/components/index.js";
 import { applyPiTheme, piTheme } from "../../../src/integrations/pi/components/index.js";
 import { assertIndependentRawTerminalParity } from "./pi-raw-terminal-parity.js";
+import {
+  PI_PARITY_COLOR_MODES,
+  withPiParityColorMode,
+  type PiParityColorMode,
+} from "../../support/pi-terminal-capabilities.js";
 
 const rows: readonly ListViewRow[] = [
   { key: "alpha", label: "Auto-compact", value: "true" },
@@ -34,8 +39,8 @@ function pinnedRows(width: number): readonly string[] {
   ], 10, getSettingsListTheme(), () => {}, () => {}).render(width);
 }
 
-function ownedRows(width: number): readonly string[] {
-  applyPiTheme("dark", false, "truecolor");
+function ownedRows(width: number, mode: PiParityColorMode): readonly string[] {
+  applyPiTheme("dark", false, mode);
   const valueColumn = valueColumnFor(rows);
   return rows.map((row, index) => renderListRow(row, {
     selected: index === 0,
@@ -45,20 +50,25 @@ function ownedRows(width: number): readonly string[] {
 }
 
 describe("owned settings pinned presentation parity", () => {
-  it.each([28, 40, 72])("matches pinned selected/unselected row ANSI and geometry at %i columns", width => {
-    const expected = pinnedRows(width).slice(0, 2);
-    const actual = ownedRows(width);
-    expect(actual).toEqual(expected);
-    expect(() => assertIndependentRawTerminalParity(
-      { producer: "pinned-pi-0.84.2", surface: "settings-rows", width, rows: expected },
-      { producer: "owned-product", surface: "settings-rows", width, rows: actual },
-    )).not.toThrow();
-  });
+  it.each(PI_PARITY_COLOR_MODES.flatMap(mode => [28, 40, 72].map(width => [mode, width] as const)))(
+    "matches pinned selected/unselected %s rows at %i columns",
+    (mode, width) => withPiParityColorMode(mode, () => {
+      const expected = pinnedRows(width).slice(0, 2);
+      const actual = ownedRows(width, mode);
+      expect(actual).toEqual(expected);
+      expect(() => assertIndependentRawTerminalParity(
+        { producer: "pinned-pi-0.84.2", surface: "settings-rows", width, rows: expected },
+        { producer: "owned-product", surface: "settings-rows", width, rows: actual },
+      )).not.toThrow();
+    }),
+  );
 
-  it("limits pinned parity to the retained row and value presentation", () => {
-    const pinned = pinnedRows(72);
-    const owned = ownedRows(72);
-    expect(owned).toEqual(pinned.slice(0, owned.length));
-    expect(pinned.length).toBeGreaterThan(owned.length);
+  it.each(PI_PARITY_COLOR_MODES)("limits %s parity to the retained row and value presentation", mode => {
+    withPiParityColorMode(mode, () => {
+      const pinned = pinnedRows(72);
+      const owned = ownedRows(72, mode);
+      expect(owned).toEqual(pinned.slice(0, owned.length));
+      expect(pinned.length).toBeGreaterThan(owned.length);
+    });
   });
 });
