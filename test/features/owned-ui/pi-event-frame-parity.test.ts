@@ -61,10 +61,12 @@ describe("pinned Pi scripted event and terminal-frame parity", () => {
 
   it("produces one truecolor diagnostic hash under opposing ambient capabilities", async () => {
     const hashes: string[] = [];
-    for (const ambientMode of PI_PARITY_COLOR_MODES) {
-      hashes.push(await withPiParityColorMode(ambientMode, async () => createHash("sha256")
-        .update(JSON.stringify({ colorMode: EVENT_FRAME_PARITY_COLOR_MODE, result: await buildEventFrameParityResult() }))
-        .digest("hex")));
+    for (let repetition = 0; repetition < 12; repetition += 1) {
+      for (const ambientMode of PI_PARITY_COLOR_MODES) {
+        hashes.push(await withPiParityColorMode(ambientMode, async () => createHash("sha256")
+          .update(JSON.stringify({ colorMode: EVENT_FRAME_PARITY_COLOR_MODE, result: await buildEventFrameParityResult() }))
+          .digest("hex")));
+      }
     }
     expect(new Set(hashes).size).toBe(1);
   });

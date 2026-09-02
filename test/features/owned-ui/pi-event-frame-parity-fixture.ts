@@ -69,9 +69,8 @@ export async function buildEventFrameParityResult(): Promise<EventFrameParityRes
     const frames: TerminalFrameParityEntry[] = [];
     let writeOffset = 0;
 
-    const capture = async (stage: string, captureFrame = false): Promise<void> => {
-      await adapter.flushEvents();
-      shell.runtime.renderNow();
+    const captureRendered = (stage: string, captureFrame = false, forceRender = false): void => {
+      if (forceRender || physical.writes.length === writeOffset) shell.runtime.renderNow();
       const capturedAnsi = physical.writes.slice(writeOffset).join("");
       writeOffset = physical.writes.length;
       const view = shell.view();
@@ -90,16 +89,28 @@ export async function buildEventFrameParityResult(): Promise<EventFrameParityRes
         });
       }
     };
+    const discardMaintenanceRender = (): void => {
+      shell.runtime.renderNow();
+      writeOffset = physical.writes.length;
+    };
+    const captureEvent = async (stage: string, captureFrame = false): Promise<void> => {
+      await adapter.flushEvents();
+      captureRendered(stage, captureFrame);
+    };
 
     try {
       shell.start();
-      await capture("initial", true);
+      captureRendered("initial", true, true);
       for (const entry of SCRIPTED_PI_EVENTS) {
+        // Compatibility: cancel and discard the prior no-damage maintenance frame before
+        // queuing a transition, so exactly one post-event render owns its byte boundary.
+        discardMaintenanceRender();
         engine.session.emit(entry.event);
-        await capture(entry.stage, ["streaming", "tool-result", "completed"].includes(entry.stage));
+        await captureEvent(entry.stage, ["streaming", "tool-result", "completed"].includes(entry.stage));
       }
+      discardMaintenanceRender();
       physical.resize(48, 16);
-      await capture("resized", true);
+      captureRendered("resized", true);
       return { states, frames };
     } finally {
       await shell.dispose();
