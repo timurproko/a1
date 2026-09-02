@@ -99,7 +99,7 @@ describe("code documentation source roles", () => {
       synchronizedDestinations: new Set([path]),
     });
     expect(accepted).toEqual([]);
-  }, 30_000);
+  });
 });
 
 describe("owner-public class contracts", () => {
