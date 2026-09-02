@@ -1,12 +1,17 @@
 import { writeFile } from "node:fs/promises";
 import identity from "../../src/product-identity.json" with { type: "json" };
-import { buildStaticParityCases, STATIC_PARITY_COVERAGE } from "../../test/features/owned-ui/pi-static-parity-fixture.js";
+import {
+  buildStaticParityCases,
+  STATIC_PARITY_COLOR_MODE,
+  STATIC_PARITY_COVERAGE,
+} from "../../test/features/owned-ui/pi-static-parity-fixture.js";
 
 const output = {
   schema: identity.evidence.piComponentParitySchema,
   generatedFrom: {
     producer: "a1-diagnostic",
     evidenceAuthority: false,
+    colorMode: STATIC_PARITY_COLOR_MODE,
     repository: "https://github.com/earendil-works/pi.git",
     sourceCommit: "914cf1472e715297caa30db4b9535d534a9eb718",
     packages: {
