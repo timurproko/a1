@@ -59,9 +59,33 @@ export interface ReleaseCleanupDiagnostic {
   readonly error: string;
 }
 
+export type ReleaseCleanupWorkerStatus = "scheduled" | "running" | "completed" | "blocked" | "continued" | "failed" | "skipped";
+
+export interface ReleaseCleanupWorkerRun {
+  readonly runId: string;
+  readonly status: ReleaseCleanupWorkerStatus;
+  readonly scheduledAt: string;
+  readonly startedAt: string | null;
+  readonly completedAt: string | null;
+  readonly pid: number | null;
+  readonly batches: number;
+  readonly attempted: number;
+  readonly completed: number;
+  readonly remaining: number;
+  readonly error: string | null;
+}
+
+export interface ReleaseCleanupWorkerSummary {
+  readonly batches: number;
+  readonly attempted: number;
+  readonly completed: number;
+  readonly remaining: number;
+}
+
 export interface ReleaseCleanupState {
   readonly pending: Readonly<Record<string, ReleaseCleanupDisposition>>;
   readonly diagnostics: readonly ReleaseCleanupDiagnostic[];
+  readonly workerRuns: readonly ReleaseCleanupWorkerRun[];
 }
 
 export interface CohortState {
@@ -343,6 +367,7 @@ export class CohortStateStore {
       return {
         ...current,
         cleanup: {
+          ...current.cleanup,
           pending,
           diagnostics: [...current.cleanup.diagnostics, { releaseId, stage, attemptedAt, error: message }].slice(-64),
         },
@@ -356,6 +381,64 @@ export class CohortStateStore {
       delete pending[releaseId];
       return { ...current, cleanup: { ...current.cleanup, pending } };
     });
+  }
+
+  async recordCleanupWorkerScheduled(runId: string): Promise<CohortState> {
+    return await this.update(current => {
+      const scheduledAt = new Date().toISOString();
+      const run: ReleaseCleanupWorkerRun = {
+        runId,
+        status: "scheduled",
+        scheduledAt,
+        startedAt: null,
+        completedAt: null,
+        pid: null,
+        batches: 0,
+        attempted: 0,
+        completed: 0,
+        remaining: Object.keys(current.cleanup.pending).length,
+        error: null,
+      };
+      return { ...current, cleanup: { ...current.cleanup, workerRuns: [...current.cleanup.workerRuns, run].slice(-16) } };
+    });
+  }
+
+  async recordCleanupWorkerStarted(runId: string, pid: number): Promise<CohortState> {
+    return await this.update(current => replaceCleanupWorkerRun(current, runId, existing => ({
+      ...(existing ?? cleanupWorkerRun(runId, Object.keys(current.cleanup.pending).length)),
+      status: "running",
+      startedAt: new Date().toISOString(),
+      completedAt: null,
+      pid,
+      error: null,
+    })));
+  }
+
+  async recordCleanupWorkerProgress(runId: string, summary: ReleaseCleanupWorkerSummary): Promise<CohortState> {
+    return await this.update(current => replaceCleanupWorkerRun(current, runId, existing => ({
+      ...(existing ?? cleanupWorkerRun(runId, summary.remaining)),
+      status: "running",
+      startedAt: existing?.startedAt ?? new Date().toISOString(),
+      pid: existing?.pid ?? process.pid,
+      ...summary,
+    })));
+  }
+
+  async recordCleanupWorkerFinished(
+    runId: string,
+    status: Exclude<ReleaseCleanupWorkerStatus, "scheduled" | "running">,
+    summary: ReleaseCleanupWorkerSummary,
+    error: unknown = null,
+  ): Promise<CohortState> {
+    return await this.update(current => replaceCleanupWorkerRun(current, runId, existing => ({
+      ...(existing ?? cleanupWorkerRun(runId, summary.remaining)),
+      status,
+      startedAt: existing?.startedAt ?? new Date().toISOString(),
+      completedAt: new Date().toISOString(),
+      pid: existing?.pid ?? process.pid,
+      ...summary,
+      error: error === null ? null : boundedError(error),
+    })));
   }
 
   async removeUnreferencedRelease(releaseId: string, externalReferences: readonly string[]): Promise<CohortState> {
@@ -390,7 +473,7 @@ export function emptyState(): CohortState {
     revision: 0,
     releases: {},
     references: { active: null, pending: null, approved: null, rollback: null, retention: [] },
-    cleanup: { pending: {}, diagnostics: [] },
+    cleanup: { pending: {}, diagnostics: [], workerRuns: [] },
     activation: activation("idle", null),
   };
 }
@@ -400,6 +483,32 @@ function cleanupDisposition(release: ReleaseRecord, stage: ReleaseCleanupStage, 
 }
 function replaceCleanup(current: CohortState, releaseId: string, disposition: ReleaseCleanupDisposition): CohortState {
   return { ...current, cleanup: { ...current.cleanup, pending: { ...current.cleanup.pending, [releaseId]: disposition } } };
+}
+function cleanupWorkerRun(runId: string, remaining: number): ReleaseCleanupWorkerRun {
+  return {
+    runId,
+    status: "scheduled",
+    scheduledAt: new Date().toISOString(),
+    startedAt: null,
+    completedAt: null,
+    pid: null,
+    batches: 0,
+    attempted: 0,
+    completed: 0,
+    remaining,
+    error: null,
+  };
+}
+function replaceCleanupWorkerRun(
+  current: CohortState,
+  runId: string,
+  operation: (existing: ReleaseCleanupWorkerRun | undefined) => ReleaseCleanupWorkerRun,
+): CohortState {
+  const existing = current.cleanup.workerRuns.find(run => run.runId === runId);
+  const workerRuns = existing
+    ? current.cleanup.workerRuns.map(run => run.runId === runId ? operation(run) : run)
+    : [...current.cleanup.workerRuns, operation(undefined)];
+  return { ...current, cleanup: { ...current.cleanup, workerRuns: workerRuns.slice(-16) } };
 }
 function activation(state: CohortState["activation"]["state"], reason: string | null): CohortState["activation"] {
   return { state, reason, blockerGenerationIds: [], updatedAt: new Date().toISOString() };
@@ -455,16 +564,31 @@ async function reclaimAbandonedLock(path: string): Promise<boolean> {
 function normalizeState(value: unknown): CohortState {
   if (!value || typeof value !== "object") return value as CohortState;
   const state = value as Partial<CohortState>;
+  const cleanup = state.cleanup;
   return {
     ...state,
-    cleanup: state.cleanup ?? { pending: {}, diagnostics: [] },
+    cleanup: cleanup
+      ? { ...cleanup, workerRuns: cleanup.workerRuns ?? [] }
+      : { pending: {}, diagnostics: [], workerRuns: [] },
   } as CohortState;
 }
 function validateState(state: CohortState): void {
   if (!state || state.schema !== RELEASE_COHORT_SCHEMA || !Number.isSafeInteger(state.revision) || state.revision < 0
     || !state.releases || typeof state.releases !== "object" || !state.references || !Array.isArray(state.references.retention)
-    || !state.cleanup || typeof state.cleanup.pending !== "object" || !Array.isArray(state.cleanup.diagnostics)) {
+    || !state.cleanup || typeof state.cleanup.pending !== "object" || !Array.isArray(state.cleanup.diagnostics)
+    || !Array.isArray(state.cleanup.workerRuns)) {
     throw new Error("invalid release cohort state");
+  }
+  for (const run of state.cleanup.workerRuns) {
+    if (!run || typeof run.runId !== "string" || run.runId.length === 0
+      || !["scheduled", "running", "completed", "blocked", "continued", "failed", "skipped"].includes(run.status)
+      || typeof run.scheduledAt !== "string" || (run.startedAt !== null && typeof run.startedAt !== "string")
+      || (run.completedAt !== null && typeof run.completedAt !== "string") || (run.pid !== null && (!Number.isSafeInteger(run.pid) || run.pid < 1))
+      || !Number.isSafeInteger(run.batches) || run.batches < 0 || !Number.isSafeInteger(run.attempted) || run.attempted < 0
+      || !Number.isSafeInteger(run.completed) || run.completed < 0 || run.completed > run.attempted
+      || !Number.isSafeInteger(run.remaining) || run.remaining < 0 || (run.error !== null && typeof run.error !== "string")) {
+      throw new Error("invalid release cleanup worker run");
+    }
   }
   for (const [releaseId, release] of Object.entries(state.releases)) validateReleaseRecord(releaseId, release);
   for (const reference of [state.references.active, state.references.pending, state.references.approved, state.references.rollback]) {

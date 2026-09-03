@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
-import { lstat, mkdir, readFile, readdir, realpath, rename, rm } from "node:fs/promises";
+import { lstat, mkdir, open, readFile, readdir, realpath, rename, rm, stat, type FileHandle } from "node:fs/promises";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -24,7 +24,12 @@ import { collectCompileCaches, startupCompileCachePath } from "../startup/index.
 
 const DEFAULT_CANDIDATE_AGE_MS = 60 * 60 * 1_000;
 const DEFAULT_LIMITS: ReleaseCleanupLimits = { maxItems: 8, maxDurationMs: 2_000, concurrency: 1 };
+const DEFAULT_WORKER_DURATION_MS = 10 * 60 * 1_000;
+const DEFAULT_NO_PROGRESS_BATCHES = 5;
+const DEFAULT_RETRY_DELAY_MS = 500;
 const WORKER_HOLDS_ENV = "A1_RELEASE_CLEANUP_HOLDS";
+const WORKER_RUN_ID_ENV = "A1_RELEASE_CLEANUP_RUN_ID";
+const WORKER_LEASE_FILENAME = "release-cleanup-worker.lock";
 
 export interface ReleaseCleanupLimits {
   readonly maxItems: number;
@@ -45,6 +50,18 @@ export interface ReleaseCleanupOptions {
   readonly now?: () => number;
   /** Fault-injection seam for bounded filesystem recovery tests. */
   readonly operations?: ReleaseCleanupOperations;
+  /** Process-start seam for scheduler and continuation tests. */
+  readonly workerSpawner?: (entry: string, environment: NodeJS.ProcessEnv) => Promise<void>;
+}
+
+export interface ReleaseCleanupWorkerOptions {
+  readonly cleanup?: ReleaseCleanupOptions;
+  readonly maxDurationMs?: number;
+  readonly maxNoProgressBatches?: number;
+  readonly retryDelayMs?: number;
+  readonly now?: () => number;
+  readonly sleep?: (durationMs: number) => Promise<void>;
+  readonly continueWorker?: (dataDir: string, paths: ProductPaths, options: ReleaseCleanupOptions) => Promise<void>;
 }
 
 export interface ReleaseCleanupResult {
@@ -88,51 +105,81 @@ export async function runBoundedReleaseCleanup(
   paths?: ProductPaths,
   options: ReleaseCleanupOptions = {},
 ): Promise<ReleaseCleanupResult> {
-  const startedAt = (options.now ?? Date.now)();
   const now = options.now ?? Date.now;
   const limits = normalizeLimits(options.limits);
   const { store, discovered } = await prepareReleaseCleanup(dataDir, paths, options);
+  // The physical-work allowance begins after discovery, ownership probes, and the durable
+  // reconciliation write. A slow preparation phase must not starve every worker invocation.
+  const startedAt = now();
   const initial = await store.read();
-  const pending = Object.values(initial.cleanup.pending).sort((left, right) => left.release.releaseId.localeCompare(right.release.releaseId));
-  let attempted = 0;
-  let completed = 0;
-
-  for (let offset = 0; offset < pending.length && attempted < limits.maxItems; offset += limits.concurrency) {
-    if (now() - startedAt >= limits.maxDurationMs) break;
-    const batch = pending.slice(offset, Math.min(offset + limits.concurrency, offset + (limits.maxItems - attempted)));
-    attempted += batch.length;
-    const results = await Promise.all(batch.map(async disposition => await collectDisposition(store, dataDir, paths, disposition, options)));
-    completed += results.filter(Boolean).length;
-  }
-
-  const transaction = await (options.transactionStore ?? new UpdateTransactionStore(dataDir)).read();
+  const pending = sortCleanupDispositions(Object.values(initial.cleanup.pending));
+  const transactionStore = options.transactionStore ?? new UpdateTransactionStore(dataDir);
+  const transaction = await transactionStore.read();
   const activeTransaction = transaction?.status === "active";
-  const artifactBudget = Math.max(0, limits.maxItems - attempted);
-  const artifacts = [
+  const artifacts = sortArtifacts([
     ...(!activeTransaction ? discovered.candidates : []),
     ...discovered.unmanagedTrash,
     ...discovered.certifications,
-  ].slice(0, artifactBudget);
-  for (const artifact of artifacts) {
-    if (now() - startedAt >= limits.maxDurationMs) break;
-    const certificationId = certificationReleaseId(artifact);
-    if (certificationId !== null) {
-      const inputs = await protectionInputs(paths, options.transactionStore ?? new UpdateTransactionStore(dataDir), options.externalHolds ?? []);
-      if (isProtectedDetachedRelease(await store.read(), inputs, certificationId)) continue;
-    }
-    attempted += 1;
-    try {
-      await removeAbandonedArtifact(dataDir, artifact, options.operations);
-      completed += 1;
-    } catch (error) {
-      await store.recordCleanupFailure(artifactName(artifact), "artifact-delete", error);
-    }
-  }
+  ], initial);
+  let attempted = 0;
+  let completed = 0;
+  let pendingOffset = 0;
+  let artifactOffset = 0;
 
-  if (!activeTransaction && attempted < limits.maxItems && now() - startedAt < limits.maxDurationMs) {
+  const hasTime = (guaranteed = false): boolean => guaranteed || attempted === 0 || now() - startedAt < limits.maxDurationMs;
+  const attemptPending = async (maximum: number, guaranteed = false): Promise<void> => {
+    while (pendingOffset < pending.length && attempted < limits.maxItems && maximum > 0 && hasTime(guaranteed)) {
+      const size = Math.min(limits.concurrency, maximum, limits.maxItems - attempted, pending.length - pendingOffset);
+      const batch = pending.slice(pendingOffset, pendingOffset + size);
+      pendingOffset += size;
+      maximum -= size;
+      attempted += batch.length;
+      const results = await Promise.all(batch.map(async disposition => await collectDisposition(store, dataDir, paths, disposition, options)));
+      completed += results.filter(Boolean).length;
+      guaranteed = false;
+    }
+  };
+  const attemptArtifacts = async (maximum: number, guaranteed = false): Promise<void> => {
+    while (artifactOffset < artifacts.length && attempted < limits.maxItems && maximum > 0 && hasTime(guaranteed)) {
+      const artifact = artifacts[artifactOffset++]!;
+      maximum -= 1;
+      const certificationId = certificationReleaseId(artifact);
+      if (certificationId !== null) {
+        const inputs = await protectionInputs(paths, transactionStore, options.externalHolds ?? []);
+        if (isProtectedDetachedRelease(await store.read(), inputs, certificationId)) continue;
+      }
+      attempted += 1;
+      try {
+        await removeAbandonedArtifact(dataDir, artifact, options.operations);
+        completed += 1;
+      } catch (error) {
+        await store.recordCleanupFailure(artifactName(artifact), "artifact-delete", error);
+      }
+      guaranteed = false;
+    }
+  };
+
+  // Give each available class one opportunity before filling the batch. This keeps a locked
+  // release or a large release backlog from indefinitely starving candidates and evidence.
+  if (pending.length > 0) await attemptPending(1, true);
+  if (artifacts.length > 0 && attempted < limits.maxItems) await attemptArtifacts(1, true);
+  if (!activeTransaction && attempted < limits.maxItems) {
+    const layerResult = await collectUnreferencedDependencyLayers(store, dataDir, 1, options);
+    attempted += layerResult.attempted;
+    completed += layerResult.completed;
+  }
+  while (attempted < limits.maxItems && hasTime()) {
+    const before = attempted;
+    await attemptPending(1);
+    if (attempted < limits.maxItems) await attemptArtifacts(1);
+    if (attempted === before) break;
+  }
+  if (!activeTransaction && attempted < limits.maxItems && hasTime()) {
     const layerResult = await collectUnreferencedDependencyLayers(store, dataDir, limits.maxItems - attempted, options);
     attempted += layerResult.attempted;
     completed += layerResult.completed;
+  }
+  if (!activeTransaction && hasTime()) {
     await collectCompileCaches(dataDir, await protectedCompileCachePaths(dataDir, await store.read())).catch(() => {});
   }
 
@@ -150,33 +197,102 @@ export async function scheduleReleaseCleanup(
   options: ReleaseCleanupOptions = {},
 ): Promise<void> {
   const { store } = await prepareReleaseCleanup(dataDir, paths, options);
+  const runId = randomUUID();
+  await store.recordCleanupWorkerScheduled(runId);
   const entry = fileURLToPath(new URL("../../../bin/release-cleanup.js", import.meta.url));
+  const environment = {
+    ...process.env,
+    [PRODUCT_IDENTITY.environment.dataDir]: dataDir,
+    [PRODUCT_IDENTITY.environment.runtimeDir]: paths.runtimeDir,
+    [WORKER_HOLDS_ENV]: JSON.stringify(options.externalHolds ?? []),
+    [WORKER_RUN_ID_ENV]: runId,
+  };
   try {
-    const child = spawn(process.execPath, [entry], {
-      detached: true,
-      windowsHide: true,
-      stdio: "ignore",
-      env: {
-        ...process.env,
-        [PRODUCT_IDENTITY.environment.dataDir]: dataDir,
-        [PRODUCT_IDENTITY.environment.runtimeDir]: paths.runtimeDir,
-        [WORKER_HOLDS_ENV]: JSON.stringify(options.externalHolds ?? []),
-      },
-    });
-    await new Promise<void>((resolvePromise, rejectPromise) => {
-      child.once("spawn", resolvePromise);
-      child.once("error", rejectPromise);
-    });
-    child.unref();
+    await (options.workerSpawner ?? spawnCleanupWorker)(entry, environment);
   } catch (error) {
+    const summary = { batches: 0, attempted: 0, completed: 0, remaining: Object.keys((await store.read()).cleanup.pending).length };
+    await store.recordCleanupWorkerFinished(runId, "failed", summary, error);
     await store.recordCleanupFailure("worker", "spawn", error);
   }
 }
 
 /** Entry used by the private cleanup executable shipped in every immutable release. */
-export async function runReleaseCleanupWorker(environment: NodeJS.ProcessEnv = process.env): Promise<ReleaseCleanupResult> {
+export async function runReleaseCleanupWorker(
+  environment: NodeJS.ProcessEnv = process.env,
+  workerOptions: ReleaseCleanupWorkerOptions = {},
+): Promise<ReleaseCleanupResult> {
   const paths = resolveProductPaths(environment);
-  return await runBoundedReleaseCleanup(paths.dataDir, paths, { externalHolds: parseWorkerHolds(environment[WORKER_HOLDS_ENV]) });
+  const store = new CohortStateStore(paths.dataDir);
+  const runId = environment[WORKER_RUN_ID_ENV] ?? randomUUID();
+  const now = workerOptions.now ?? Date.now;
+  const sleep = workerOptions.sleep ?? (async durationMs => await new Promise(resolvePromise => setTimeout(resolvePromise, durationMs)));
+  const cleanupOptions: ReleaseCleanupOptions = {
+    ...workerOptions.cleanup,
+    externalHolds: workerOptions.cleanup?.externalHolds ?? parseWorkerHolds(environment[WORKER_HOLDS_ENV]),
+  };
+  const summary = { batches: 0, attempted: 0, completed: 0, remaining: Object.keys((await store.read()).cleanup.pending).length };
+  let lease: FileHandle | null = null;
+  let continuation = false;
+  let status: "completed" | "blocked" | "continued" | "failed" | "skipped" = "completed";
+  let failure: unknown = null;
+  const startedAt = now();
+
+  try {
+    lease = await acquireWorkerLease(paths.dataDir, runId);
+    if (lease === null) {
+      status = "skipped";
+      failure = "another release cleanup worker owns the data root";
+      return { planned: 0, attempted: 0, completed: 0, remaining: summary.remaining, durationMs: 0 };
+    }
+    await store.recordCleanupWorkerStarted(runId, process.pid);
+    let noProgressBatches = 0;
+    while (true) {
+      const result = await runBoundedReleaseCleanup(paths.dataDir, paths, cleanupOptions);
+      summary.batches += 1;
+      summary.attempted += result.attempted;
+      summary.completed += result.completed;
+      summary.remaining = result.remaining;
+      await store.recordCleanupWorkerProgress(runId, summary);
+
+      if (result.attempted === 0) break;
+      if (result.completed === 0) {
+        noProgressBatches += 1;
+        if (noProgressBatches >= (workerOptions.maxNoProgressBatches ?? DEFAULT_NO_PROGRESS_BATCHES)) {
+          status = "blocked";
+          failure = "cleanup made no progress within its bounded retry allowance";
+          break;
+        }
+        await sleep((workerOptions.retryDelayMs ?? DEFAULT_RETRY_DELAY_MS) * (2 ** (noProgressBatches - 1)));
+      } else {
+        noProgressBatches = 0;
+      }
+      if (now() - startedAt >= (workerOptions.maxDurationMs ?? DEFAULT_WORKER_DURATION_MS)) {
+        status = "continued";
+        continuation = true;
+        break;
+      }
+    }
+  } catch (error) {
+    status = "failed";
+    failure = error;
+  } finally {
+    if (lease !== null) await releaseWorkerLease(paths.dataDir, runId, lease);
+    await store.recordCleanupWorkerFinished(runId, status, summary, failure);
+  }
+
+  if (continuation) {
+    await (workerOptions.continueWorker ?? scheduleReleaseCleanup)(paths.dataDir, paths, cleanupOptions).catch(async error => {
+      await store.recordCleanupFailure("worker", "continuation", error);
+    });
+  }
+  if (status === "failed") throw failure instanceof Error ? failure : new Error(errorMessage(failure));
+  return {
+    planned: summary.remaining + summary.completed,
+    attempted: summary.attempted,
+    completed: summary.completed,
+    remaining: summary.remaining,
+    durationMs: Math.max(0, now() - startedAt),
+  };
 }
 
 /** Compatibility helper: detach one requested release and execute a one-item pass. */
@@ -379,18 +495,22 @@ async function assertReleaseDirectory(path: string, parent: string, release: Rel
 
 async function removeCertificationEvidence(dataDir: string, release: ReleaseRecord, store: CohortStateStore): Promise<void> {
   if (release.diagnosticsPath === null) return;
+  // Security: the persisted path is historical metadata, not deletion authority. Derive the
+  // only permitted target from validated identity so Windows casing changes cannot strand it.
   const expected = resolve(dataDir, `certification-${release.releaseId}.json`);
-  if (resolve(release.diagnosticsPath) !== expected) {
-    await store.recordCleanupFailure(release.releaseId, "certification", "refused to delete certification evidence outside its managed identity path");
-    return;
-  }
   const metadata = await lstat(expected).catch(error => missingOrThrow(error));
   if (metadata === null) return;
   if (!metadata.isFile() || metadata.isSymbolicLink()) {
     await store.recordCleanupFailure(release.releaseId, "certification", "refused to delete linked or non-file certification evidence");
     return;
   }
-  await rm(expected, { force: true });
+  const [canonicalDataDir, canonicalEvidence] = await Promise.all([realpath(dataDir), realpath(expected)]);
+  assertDirectChild(canonicalDataDir, canonicalEvidence);
+  if (artifactName(canonicalEvidence) !== `certification-${release.releaseId}.json`) {
+    await store.recordCleanupFailure(release.releaseId, "certification", "refused to delete certification evidence with a different managed identity");
+    return;
+  }
+  await rm(canonicalEvidence, { force: true });
 }
 
 async function canonicalReleaseStore(dataDir: string): Promise<string> {
@@ -572,6 +692,90 @@ function normalizeLimits(input: Partial<ReleaseCleanupLimits> | undefined): Rele
     if (!Number.isSafeInteger(value) || value < 1) throw new Error(`invalid release cleanup ${name}: ${value}`);
   }
   return limits;
+}
+
+function sortCleanupDispositions(dispositions: readonly ReleaseCleanupDisposition[]): ReleaseCleanupDisposition[] {
+  return [...dispositions].sort((left, right) => left.attempts - right.attempts
+    || (left.lastAttemptAt ?? "").localeCompare(right.lastAttemptAt ?? "")
+    || left.release.releaseId.localeCompare(right.release.releaseId));
+}
+
+function sortArtifacts(artifacts: readonly string[], state: CohortState): string[] {
+  const attempts = new Map<string, number>();
+  for (const diagnostic of state.cleanup.diagnostics) {
+    attempts.set(diagnostic.releaseId, (attempts.get(diagnostic.releaseId) ?? 0) + 1);
+  }
+  return [...artifacts].sort((left, right) => (attempts.get(artifactName(left)) ?? 0) - (attempts.get(artifactName(right)) ?? 0)
+    || artifactName(left).localeCompare(artifactName(right)));
+}
+
+async function spawnCleanupWorker(entry: string, environment: NodeJS.ProcessEnv): Promise<void> {
+  const child = spawn(process.execPath, [entry], {
+    detached: true,
+    windowsHide: true,
+    stdio: "ignore",
+    env: environment,
+  });
+  await new Promise<void>((resolvePromise, rejectPromise) => {
+    child.once("spawn", resolvePromise);
+    child.once("error", rejectPromise);
+  });
+  child.unref();
+}
+
+async function acquireWorkerLease(dataDir: string, runId: string): Promise<FileHandle | null> {
+  const path = resolve(dataDir, WORKER_LEASE_FILENAME);
+  await mkdir(dataDir, { recursive: true, mode: 0o700 });
+  try {
+    const lease = await open(path, "wx", 0o600);
+    await lease.writeFile(JSON.stringify({ runId, pid: process.pid, createdAt: new Date().toISOString() }));
+    await lease.sync();
+    return lease;
+  } catch (error) {
+    if (!(error instanceof Error && "code" in error && error.code === "EEXIST")) throw error;
+  }
+  const owner = await readWorkerLease(path);
+  if (owner?.pid && processIsAlive(owner.pid)) return null;
+  if (owner === null) {
+    const metadata = await stat(path).catch(() => null);
+    if (metadata !== null && Date.now() - metadata.mtimeMs < 10_000) return null;
+  }
+  const quarantine = `${path}.${randomUUID()}.abandoned`;
+  try {
+    await rename(path, quarantine);
+    await rm(quarantine, { force: true });
+  } catch {
+    return null;
+  }
+  return await acquireWorkerLease(dataDir, runId);
+}
+
+async function releaseWorkerLease(dataDir: string, runId: string, lease: FileHandle): Promise<void> {
+  const path = resolve(dataDir, WORKER_LEASE_FILENAME);
+  await lease.close().catch(() => {});
+  const owner = await readWorkerLease(path);
+  if (owner?.runId === runId) await rm(path, { force: true });
+}
+
+async function readWorkerLease(path: string): Promise<{ readonly runId?: string; readonly pid?: number } | null> {
+  try {
+    const value = JSON.parse(await readFile(path, "utf8")) as { runId?: unknown; pid?: unknown };
+    return {
+      ...(typeof value.runId === "string" ? { runId: value.runId } : {}),
+      ...(typeof value.pid === "number" ? { pid: value.pid } : {}),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function processIsAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return error instanceof Error && "code" in error && error.code === "EPERM";
+  }
 }
 
 function parseWorkerHolds(value: string | undefined): readonly ExternalReleaseHold[] {

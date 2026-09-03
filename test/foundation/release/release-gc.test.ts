@@ -6,9 +6,12 @@ import {
   CohortStateStore,
   materializeRelease,
   runBoundedReleaseCleanup,
+  runReleaseCleanupWorker,
+  scheduleReleaseCleanup,
   type MaterializedRelease,
   type UpdateTransaction,
 } from "../../../src/foundation/release/index.js";
+import { resolveProductPaths } from "../../../src/foundation/lifecycle/index.js";
 
 const roots: string[] = [];
 afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))));
@@ -38,6 +41,30 @@ describe("bounded immutable release cleanup", () => {
     await expect(lstat(obsoleteCertification)).rejects.toMatchObject({ code: "ENOENT" });
     await expect(lstat(active!.releaseRoot)).resolves.toBeTruthy();
     await expect(lstat(rollback!.releaseRoot)).resolves.toBeTruthy();
+  });
+
+  it("deletes only canonical managed certification evidence when legacy metadata uses another path spelling", async () => {
+    const fixture = await releaseFixture(3);
+    const obsolete = fixture.releases[0]!;
+    await activateAll(fixture.store, fixture.releases);
+    const canonical = resolve(fixture.dataDir, `certification-${obsolete.releaseId}.json`);
+    const unrelated = resolve(fixture.root, "outside-certification.json");
+    await writeFile(unrelated, "keep");
+    await fixture.store.update(state => ({
+      ...state,
+      releases: {
+        ...state.releases,
+        [obsolete.releaseId]: {
+          ...state.releases[obsolete.releaseId]!,
+          diagnosticsPath: process.platform === "win32" ? canonical.toUpperCase() : unrelated,
+        },
+      },
+    }));
+
+    await runBoundedReleaseCleanup(fixture.dataDir, undefined, { transactionStore: noTransaction });
+
+    await expect(lstat(canonical)).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(readFile(unrelated, "utf8")).resolves.toBe("keep");
   });
 
   it("recovers when interruption occurs after trash movement but before state advancement", async () => {
@@ -102,6 +129,21 @@ describe("bounded immutable release cleanup", () => {
     expect(released.releases[transaction!.releaseId]).toBeUndefined();
   });
 
+  it("attempts eligible work even when its physical batch clock is already exhausted", async () => {
+    const fixture = await releaseFixture(3);
+    await activateAll(fixture.store, fixture.releases);
+    let tick = 0;
+
+    const result = await runBoundedReleaseCleanup(fixture.dataDir, undefined, {
+      transactionStore: noTransaction,
+      limits: { maxItems: 3, concurrency: 1, maxDurationMs: 1 },
+      now: () => { tick += 10; return tick; },
+    });
+
+    expect(result.attempted).toBe(1);
+    expect(result.completed).toBe(1);
+  });
+
   it("bounds a large backlog by item count and leaves retry dispositions", async () => {
     const fixture = await releaseFixture(42);
     await activateAll(fixture.store, fixture.releases);
@@ -115,6 +157,28 @@ describe("bounded immutable release cleanup", () => {
     expect(first.completed).toBe(3);
     expect(first.remaining).toBe(37);
     expect(Object.keys((await fixture.store.read()).releases)).toHaveLength(2);
+  }, 30_000);
+
+  it("drains a backlog larger than one worker batch without another user command", async () => {
+    const fixture = await releaseFixture(12);
+    await activateAll(fixture.store, fixture.releases);
+    const environment = cleanupEnvironment(fixture.dataDir, "drain-run");
+
+    const result = await runReleaseCleanupWorker(environment, {
+      cleanup: { transactionStore: noTransaction, limits: { maxItems: 2, concurrency: 1, maxDurationMs: 60_000 } },
+      maxDurationMs: 60_000,
+    });
+    const state = await fixture.store.read();
+
+    expect(result.completed).toBe(10);
+    expect(result.remaining).toBe(0);
+    expect(Object.keys(state.releases)).toHaveLength(2);
+    expect(state.cleanup.workerRuns.find(run => run.runId === "drain-run")).toMatchObject({
+      status: "completed",
+      attempted: 10,
+      completed: 10,
+      remaining: 0,
+    });
   }, 30_000);
 
   it("preserves stale candidates during an active transaction and removes them afterward", async () => {
@@ -158,6 +222,29 @@ describe("bounded immutable release cleanup", () => {
     expect((await fixture.store.read()).cleanup.pending[obsolete.releaseId]).toBeUndefined();
   });
 
+  it("does not let one persistently blocked release starve other eligible releases", async () => {
+    const fixture = await releaseFixture(5);
+    const blocked = fixture.releases[0]!;
+    await activateAll(fixture.store, fixture.releases);
+    const remove = vi.fn<typeof rm>(async (path, options) => {
+      if (String(path).includes(`${blocked.releaseId}--`)) throw Object.assign(new Error("sharing violation"), { code: "EPERM" });
+      return await rm(path, options);
+    });
+
+    await runReleaseCleanupWorker(cleanupEnvironment(fixture.dataDir, "blocked-run"), {
+      cleanup: { transactionStore: noTransaction, operations: { remove } },
+      maxNoProgressBatches: 2,
+      retryDelayMs: 1,
+      sleep: async () => {},
+    });
+    const state = await fixture.store.read();
+
+    expect(Object.keys(state.cleanup.pending)).toEqual([blocked.releaseId]);
+    expect(state.cleanup.pending[blocked.releaseId]?.attempts).toBeGreaterThanOrEqual(2);
+    expect(state.cleanup.workerRuns.find(run => run.runId === "blocked-run")?.status).toBe("blocked");
+    for (const release of fixture.releases.slice(1, 3)) await expect(lstat(release!.releaseRoot)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
   it("rechecks transaction protection after detachment before moving content", async () => {
     const fixture = await releaseFixture(3);
     const obsolete = fixture.releases[0]!;
@@ -175,6 +262,120 @@ describe("bounded immutable release cleanup", () => {
     expect(result.completed).toBe(0);
     await expect(lstat(obsolete.releaseRoot)).resolves.toBeTruthy();
     expect((await fixture.store.read()).cleanup.pending[obsolete.releaseId]).toBeDefined();
+  });
+
+  it("uses one physical worker lease and records duplicate workers as skipped", async () => {
+    const fixture = await releaseFixture(3);
+    await activateAll(fixture.store, fixture.releases);
+    let releaseRemovalStarted!: () => void;
+    let allowRemoval!: () => void;
+    const started = new Promise<void>(resolvePromise => { releaseRemovalStarted = resolvePromise; });
+    const allowed = new Promise<void>(resolvePromise => { allowRemoval = resolvePromise; });
+    let paused = false;
+    const remove = vi.fn<typeof rm>(async (path, options) => {
+      if (!paused && String(path).includes(".trash")) {
+        paused = true;
+        releaseRemovalStarted();
+        await allowed;
+      }
+      return await rm(path, options);
+    });
+    const first = runReleaseCleanupWorker(cleanupEnvironment(fixture.dataDir, "lease-owner"), {
+      cleanup: { transactionStore: noTransaction, operations: { remove } },
+    });
+    await started;
+
+    const duplicate = await runReleaseCleanupWorker(cleanupEnvironment(fixture.dataDir, "lease-duplicate"), {
+      cleanup: { transactionStore: noTransaction },
+    });
+    allowRemoval();
+    await first;
+    const state = await fixture.store.read();
+
+    expect(duplicate.attempted).toBe(0);
+    expect(state.cleanup.workerRuns.find(run => run.runId === "lease-duplicate")?.status).toBe("skipped");
+  });
+
+  it("reclaims a stale worker lease before draining", async () => {
+    const fixture = await releaseFixture(3);
+    await activateAll(fixture.store, fixture.releases);
+    await writeFile(resolve(fixture.dataDir, "release-cleanup-worker.lock"), JSON.stringify({ runId: "dead", pid: 999_999 }));
+
+    const result = await runReleaseCleanupWorker(cleanupEnvironment(fixture.dataDir, "recovered-run"), {
+      cleanup: { transactionStore: noTransaction },
+    });
+
+    expect(result.completed).toBe(1);
+    await expect(lstat(resolve(fixture.dataDir, "release-cleanup-worker.lock"))).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("keeps spawn success scheduled until the worker records real progress", async () => {
+    const fixture = await releaseFixture(3);
+    await activateAll(fixture.store, fixture.releases);
+    const environment = cleanupEnvironment(fixture.dataDir, "unused");
+    const paths = resolveProductPaths(environment);
+    let workerEnvironment: NodeJS.ProcessEnv | undefined;
+
+    await scheduleReleaseCleanup(fixture.dataDir, paths, {
+      transactionStore: noTransaction,
+      workerSpawner: async (_entry, childEnvironment) => { workerEnvironment = childEnvironment; },
+    });
+    const scheduled = (await fixture.store.read()).cleanup.workerRuns.at(-1)!;
+    expect(scheduled).toMatchObject({ status: "scheduled", attempted: 0, completed: 0 });
+
+    await runReleaseCleanupWorker(workerEnvironment!, { cleanup: { transactionStore: noTransaction } });
+    const completed = (await fixture.store.read()).cleanup.workerRuns.find(run => run.runId === scheduled.runId);
+    expect(completed).toMatchObject({ status: "completed", completed: 1, remaining: 0 });
+  });
+
+  it("records scheduling failure without claiming that maintenance ran", async () => {
+    const fixture = await releaseFixture(3);
+    await activateAll(fixture.store, fixture.releases);
+    const environment = cleanupEnvironment(fixture.dataDir, "unused");
+    const paths = resolveProductPaths(environment);
+
+    await scheduleReleaseCleanup(fixture.dataDir, paths, {
+      transactionStore: noTransaction,
+      workerSpawner: async () => { throw new Error("worker executable missing"); },
+    });
+    const state = await fixture.store.read();
+    const run = state.cleanup.workerRuns.at(-1);
+
+    expect(run).toMatchObject({ status: "failed", batches: 0, attempted: 0, completed: 0 });
+    expect(run?.error).toContain("worker executable missing");
+    expect(state.cleanup.diagnostics.at(-1)).toMatchObject({ releaseId: "worker", stage: "spawn" });
+  });
+
+  it("persists a fatal worker failure and rejects the private entry operation", async () => {
+    const fixture = await releaseFixture(3);
+    await activateAll(fixture.store, fixture.releases);
+
+    await expect(runReleaseCleanupWorker(cleanupEnvironment(fixture.dataDir, "failed-run"), {
+      cleanup: { transactionStore: { read: async () => { throw new Error("transaction journal unavailable"); } } },
+    })).rejects.toThrow("transaction journal unavailable");
+    const run = (await fixture.store.read()).cleanup.workerRuns.find(item => item.runId === "failed-run");
+
+    expect(run).toMatchObject({ status: "failed", attempted: 0, completed: 0 });
+    expect(run?.error).toContain("transaction journal unavailable");
+  });
+
+  it("records successor handoff when the worker lifetime expires", async () => {
+    const fixture = await releaseFixture(5);
+    await activateAll(fixture.store, fixture.releases);
+    let tick = 0;
+    const continuation = vi.fn(async () => {});
+
+    const result = await runReleaseCleanupWorker(cleanupEnvironment(fixture.dataDir, "continued-run"), {
+      cleanup: { transactionStore: noTransaction, limits: { maxItems: 1, concurrency: 1, maxDurationMs: 60_000 } },
+      maxDurationMs: 1,
+      now: () => { tick += 10; return tick; },
+      continueWorker: continuation,
+    });
+    const run = (await fixture.store.read()).cleanup.workerRuns.find(item => item.runId === "continued-run");
+
+    expect(result.completed).toBe(1);
+    expect(run?.status).toBe("continued");
+    expect(continuation).toHaveBeenCalledOnce();
   });
 
   it("converges when two cleanup coordinators overlap", async () => {
@@ -237,6 +438,15 @@ async function activateAll(store: CohortStateStore, releases: readonly Materiali
     await store.approve(release.releaseId, certification);
     await store.activate(release.releaseId);
   }
+}
+
+function cleanupEnvironment(dataDir: string, runId: string): NodeJS.ProcessEnv {
+  return {
+    ...process.env,
+    A1_DATA_DIR: dataDir,
+    A1_RUNTIME_DIR: resolve(dataDir, "runtime"),
+    A1_RELEASE_CLEANUP_RUN_ID: runId,
+  };
 }
 
 function transactionFixture(priorActiveReleaseId: string | null): UpdateTransaction {
