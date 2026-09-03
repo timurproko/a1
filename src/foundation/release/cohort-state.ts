@@ -1,10 +1,11 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, open, readFile, rename, rm } from "node:fs/promises";
+import { mkdir, open, readFile, rename, rm, stat } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import type { MaterializedRelease } from "./release-store.js";
 import { PRODUCT_IDENTITY } from "../../product-identity.js";
 
 export const RELEASE_COHORT_SCHEMA = PRODUCT_IDENTITY.protocol.releaseCohortSchema;
+const RELEASE_ID_PATTERN = /^[0-9A-Za-z.+_-]+-[a-f0-9]{20}$/;
 
 export type ReleaseApproval = "candidate" | "approved" | "rejected";
 
@@ -27,11 +28,48 @@ export interface ReleaseReferences {
   readonly retention: readonly string[];
 }
 
+export type ExternalReleaseHoldAuthority = "agent" | "migration";
+
+/** A current hold supplied by an authority that must participate in every reconciliation. */
+export interface ExternalReleaseHold {
+  readonly authority: ExternalReleaseHoldAuthority;
+  readonly releaseId: string;
+}
+
+export interface ActiveReleaseTransactionReference {
+  readonly status: "active" | "completed" | "rolled-back" | "failed";
+  readonly priorActiveReleaseId: string | null;
+}
+
+export type ReleaseCleanupStage = "detached" | "trash";
+
+export interface ReleaseCleanupDisposition {
+  readonly release: ReleaseRecord;
+  readonly stage: ReleaseCleanupStage;
+  readonly trashPath: string | null;
+  readonly attempts: number;
+  readonly lastAttemptAt: string | null;
+  readonly lastError: string | null;
+}
+
+export interface ReleaseCleanupDiagnostic {
+  readonly releaseId: string;
+  readonly stage: string;
+  readonly attemptedAt: string;
+  readonly error: string;
+}
+
+export interface ReleaseCleanupState {
+  readonly pending: Readonly<Record<string, ReleaseCleanupDisposition>>;
+  readonly diagnostics: readonly ReleaseCleanupDiagnostic[];
+}
+
 export interface CohortState {
   readonly schema: typeof RELEASE_COHORT_SCHEMA;
   readonly revision: number;
   readonly releases: Readonly<Record<string, ReleaseRecord>>;
   readonly references: ReleaseReferences;
+  readonly cleanup: ReleaseCleanupState;
   readonly activation: {
     readonly state: "idle" | "pending" | "draining" | "blocked" | "failed";
     readonly reason: string | null;
@@ -66,6 +104,60 @@ export interface SupervisorEndpointMetadata {
   readonly contractDigest: string;
 }
 
+export interface ProtectedReleaseInputs {
+  readonly liveReleaseIds?: readonly string[];
+  readonly externalHolds?: readonly ExternalReleaseHold[];
+  readonly transaction?: ActiveReleaseTransactionReference | null;
+}
+
+export interface ProtectedReleasePlan {
+  readonly protectedReleaseIds: readonly string[];
+  readonly retainedReleaseIds: readonly string[];
+  readonly collectibleReleaseIds: readonly string[];
+}
+
+export interface OrphanReleaseDisposition {
+  readonly release: ReleaseRecord;
+  readonly stage: ReleaseCleanupStage;
+  readonly trashPath?: string | null;
+}
+
+export interface ReleaseRetentionReconciliation {
+  readonly state: CohortState;
+  readonly plan: ProtectedReleasePlan;
+  readonly detachedReleaseIds: readonly string[];
+}
+
+/**
+ * Derive protection exclusively from current selectors and ownership authorities.
+ * The historical retention snapshot is deliberately not an input to this plan.
+ */
+export function planProtectedReleases(state: CohortState, inputs: ProtectedReleaseInputs = {}): ProtectedReleasePlan {
+  const holds = inputs.externalHolds ?? [];
+  for (const hold of holds) {
+    if (hold.authority !== "agent" && hold.authority !== "migration") throw new Error(`unknown release hold authority: ${String(hold.authority)}`);
+    if (!state.releases[hold.releaseId] && !state.cleanup.pending[hold.releaseId]) {
+      throw new Error(`external ${hold.authority} hold names unknown release ${hold.releaseId}`);
+    }
+  }
+  const protectedIds = new Set<string>();
+  for (const id of [state.references.active, state.references.pending, state.references.approved, state.references.rollback]) {
+    if (id !== null) protectedIds.add(id);
+  }
+  for (const id of inputs.liveReleaseIds ?? []) protectedIds.add(id);
+  for (const hold of holds) protectedIds.add(hold.releaseId);
+  if (inputs.transaction?.status === "active" && inputs.transaction.priorActiveReleaseId !== null) {
+    protectedIds.add(inputs.transaction.priorActiveReleaseId);
+  }
+  const protectedReleaseIds = [...protectedIds].sort();
+  const known = Object.keys(state.releases).sort();
+  return {
+    protectedReleaseIds,
+    retainedReleaseIds: known.filter(id => protectedIds.has(id)),
+    collectibleReleaseIds: known.filter(id => !protectedIds.has(id)),
+  };
+}
+
 /** Serializes validated cohort-state revisions under a lock and commits each update atomically. */
 export class CohortStateStore {
   readonly path: string;
@@ -76,7 +168,7 @@ export class CohortStateStore {
 
   async read(): Promise<CohortState> {
     try {
-      const state = JSON.parse(await readFile(this.path, "utf8")) as CohortState;
+      const state = normalizeState(JSON.parse(await readFile(this.path, "utf8")));
       validateState(state);
       return state;
     } catch (error) {
@@ -85,13 +177,13 @@ export class CohortStateStore {
     }
   }
 
-  async update(operation: (current: CohortState) => CohortState): Promise<CohortState> {
+  async update(operation: (current: CohortState) => CohortState | Promise<CohortState>): Promise<CohortState> {
     await mkdir(dirname(this.path), { recursive: true, mode: 0o700 });
     const lockPath = `${this.path}.lock`;
     const lock = await acquireLock(lockPath);
     try {
       const current = await this.read();
-      const next = operation(current);
+      const next = await operation(current);
       validateTransition(current, next);
       const committed: CohortState = { ...next, revision: current.revision + 1 };
       const temporary = `${this.path}.${process.pid}.${randomUUID()}.tmp`;
@@ -129,7 +221,6 @@ export class CohortStateStore {
         references: {
           ...current.references,
           pending: current.references.active === release.releaseId ? current.references.pending : release.releaseId,
-          retention: unique([...current.references.retention, release.releaseId]),
         },
         activation: activation("pending", "candidate awaits certification and safe activation"),
       };
@@ -155,11 +246,11 @@ export class CohortStateStore {
       return {
         ...current,
         references: {
+          ...current.references,
           active: releaseId,
           pending: null,
           approved: releaseId,
           rollback: prior && prior !== releaseId ? prior : current.references.rollback,
-          retention: unique([...current.references.retention, releaseId, ...(prior ? [prior] : [])]),
         },
         activation: activation("idle", null),
       };
@@ -185,7 +276,6 @@ export class CohortStateStore {
           pending: null,
           approved: rollbackId,
           rollback: current.references.active,
-          retention: unique([...current.references.retention, rollbackId, ...(current.references.active ? [current.references.active] : [])]),
         },
         activation: activation("idle", null),
       };
@@ -199,9 +289,78 @@ export class CohortStateStore {
     });
   }
 
+  /** Atomically replace legacy retention history and detach every currently collectible record. */
+  async reconcileRetention(
+    resolveInputs: (current: CohortState) => ProtectedReleaseInputs | Promise<ProtectedReleaseInputs>,
+    orphans: readonly OrphanReleaseDisposition[] = [],
+  ): Promise<ReleaseRetentionReconciliation> {
+    let plan: ProtectedReleasePlan | null = null;
+    let detachedReleaseIds: readonly string[] = [];
+    const state = await this.update(async current => {
+      const inputs = await resolveInputs(current);
+      plan = planProtectedReleases(current, inputs);
+      const nextReleases = { ...current.releases };
+      const pending = { ...current.cleanup.pending };
+      for (const releaseId of plan.collectibleReleaseIds) {
+        const release = nextReleases[releaseId]!;
+        pending[releaseId] ??= cleanupDisposition(release, "detached", null);
+        delete nextReleases[releaseId];
+      }
+      for (const orphan of orphans) {
+        const releaseId = orphan.release.releaseId;
+        if (nextReleases[releaseId] || pending[releaseId] || plan.protectedReleaseIds.includes(releaseId)) continue;
+        pending[releaseId] = cleanupDisposition(orphan.release, orphan.stage, orphan.trashPath ?? null);
+      }
+      detachedReleaseIds = plan.collectibleReleaseIds;
+      return {
+        ...current,
+        releases: nextReleases,
+        references: { ...current.references, retention: plan.retainedReleaseIds },
+        cleanup: { ...current.cleanup, pending },
+      };
+    });
+    if (plan === null) throw new Error("release retention reconciliation did not produce a plan");
+    return { state, plan, detachedReleaseIds };
+  }
+
+  async markCleanupTrash(releaseId: string, trashPath: string): Promise<CohortState> {
+    return await this.update(current => {
+      const disposition = current.cleanup.pending[releaseId];
+      if (!disposition) throw new Error(`release ${releaseId} has no cleanup disposition`);
+      return replaceCleanup(current, releaseId, { ...disposition, stage: "trash", trashPath, lastError: null });
+    });
+  }
+
+  async recordCleanupFailure(releaseId: string, stage: string, error: unknown): Promise<CohortState> {
+    return await this.update(current => {
+      const attemptedAt = new Date().toISOString();
+      const message = boundedError(error);
+      const disposition = current.cleanup.pending[releaseId];
+      const pending = disposition ? {
+        ...current.cleanup.pending,
+        [releaseId]: { ...disposition, attempts: disposition.attempts + 1, lastAttemptAt: attemptedAt, lastError: message },
+      } : current.cleanup.pending;
+      return {
+        ...current,
+        cleanup: {
+          pending,
+          diagnostics: [...current.cleanup.diagnostics, { releaseId, stage, attemptedAt, error: message }].slice(-64),
+        },
+      };
+    });
+  }
+
+  async completeCleanup(releaseId: string): Promise<CohortState> {
+    return await this.update(current => {
+      const pending = { ...current.cleanup.pending };
+      delete pending[releaseId];
+      return { ...current, cleanup: { ...current.cleanup, pending } };
+    });
+  }
+
   async removeUnreferencedRelease(releaseId: string, externalReferences: readonly string[]): Promise<CohortState> {
     return await this.update(current => {
-      requiredRelease(current, releaseId);
+      const release = requiredRelease(current, releaseId);
       const protectedIds = new Set([
         current.references.active,
         current.references.pending,
@@ -213,7 +372,14 @@ export class CohortStateStore {
       if (protectedIds.has(releaseId)) throw new Error(`release ${releaseId} is still referenced and cannot be collected`);
       const releases = { ...current.releases };
       delete releases[releaseId];
-      return { ...current, releases };
+      return {
+        ...current,
+        releases,
+        cleanup: {
+          ...current.cleanup,
+          pending: { ...current.cleanup.pending, [releaseId]: cleanupDisposition(release, "detached", null) },
+        },
+      };
     });
   }
 }
@@ -224,10 +390,17 @@ export function emptyState(): CohortState {
     revision: 0,
     releases: {},
     references: { active: null, pending: null, approved: null, rollback: null, retention: [] },
+    cleanup: { pending: {}, diagnostics: [] },
     activation: activation("idle", null),
   };
 }
 
+function cleanupDisposition(release: ReleaseRecord, stage: ReleaseCleanupStage, trashPath: string | null): ReleaseCleanupDisposition {
+  return { release, stage, trashPath, attempts: 0, lastAttemptAt: null, lastError: null };
+}
+function replaceCleanup(current: CohortState, releaseId: string, disposition: ReleaseCleanupDisposition): CohortState {
+  return { ...current, cleanup: { ...current.cleanup, pending: { ...current.cleanup.pending, [releaseId]: disposition } } };
+}
 function activation(state: CohortState["activation"]["state"], reason: string | null): CohortState["activation"] {
   return { state, reason, blockerGenerationIds: [], updatedAt: new Date().toISOString() };
 }
@@ -240,21 +413,80 @@ function unique(values: readonly string[]): string[] { return [...new Set(values
 async function acquireLock(path: string) {
   const deadline = Date.now() + 5_000;
   while (true) {
-    try { return await open(path, "wx", 0o600); }
-    catch (error) {
-      if (!(error instanceof Error && "code" in error && error.code === "EEXIST") || Date.now() >= deadline) throw error;
+    try {
+      const lock = await open(path, "wx", 0o600);
+      await lock.writeFile(JSON.stringify({ pid: process.pid, createdAt: new Date().toISOString() }));
+      await lock.sync();
+      return lock;
+    } catch (error) {
+      if (!(error instanceof Error && "code" in error && error.code === "EEXIST")) throw error;
+      if (await reclaimAbandonedLock(path)) continue;
+      if (Date.now() >= deadline) throw error;
       await new Promise(resolvePromise => setTimeout(resolvePromise, 20));
     }
   }
 }
+async function reclaimAbandonedLock(path: string): Promise<boolean> {
+  let abandoned = false;
+  try {
+    const value = JSON.parse(await readFile(path, "utf8")) as { pid?: unknown };
+    if (typeof value.pid === "number") {
+      try { process.kill(value.pid, 0); }
+      catch (error) { abandoned = !(error instanceof Error && "code" in error && error.code === "EPERM"); }
+    }
+  } catch {
+    const metadata = await stat(path).catch(() => null);
+    abandoned = metadata !== null && Date.now() - metadata.mtimeMs > 10_000;
+  }
+  if (!abandoned) return false;
+  const quarantine = `${path}.abandoned`;
+  const oldQuarantine = await stat(quarantine).catch(() => null);
+  if (oldQuarantine && Date.now() - oldQuarantine.mtimeMs > 10_000) await rm(quarantine, { force: true });
+  try {
+    // Concurrency: the fixed destination lets exactly one waiter claim the stale lock;
+    // another waiter cannot accidentally rename a newly acquired replacement.
+    await rename(path, quarantine);
+    await rm(quarantine, { force: true });
+    return true;
+  } catch {
+    return false;
+  }
+}
+function normalizeState(value: unknown): CohortState {
+  if (!value || typeof value !== "object") return value as CohortState;
+  const state = value as Partial<CohortState>;
+  return {
+    ...state,
+    cleanup: state.cleanup ?? { pending: {}, diagnostics: [] },
+  } as CohortState;
+}
 function validateState(state: CohortState): void {
-  if (state.schema !== RELEASE_COHORT_SCHEMA || !Number.isSafeInteger(state.revision) || state.revision < 0) throw new Error("invalid release cohort state");
+  if (!state || state.schema !== RELEASE_COHORT_SCHEMA || !Number.isSafeInteger(state.revision) || state.revision < 0
+    || !state.releases || typeof state.releases !== "object" || !state.references || !Array.isArray(state.references.retention)
+    || !state.cleanup || typeof state.cleanup.pending !== "object" || !Array.isArray(state.cleanup.diagnostics)) {
+    throw new Error("invalid release cohort state");
+  }
+  for (const [releaseId, release] of Object.entries(state.releases)) validateReleaseRecord(releaseId, release);
   for (const reference of [state.references.active, state.references.pending, state.references.approved, state.references.rollback]) {
     if (reference !== null && !state.releases[reference]) throw new Error(`release reference points to an unknown release: ${reference}`);
+  }
+  for (const [releaseId, disposition] of Object.entries(state.cleanup.pending)) {
+    validateReleaseRecord(releaseId, disposition.release);
+    if (!["detached", "trash"].includes(disposition.stage)) throw new Error(`invalid cleanup disposition for ${releaseId}`);
+  }
+}
+function validateReleaseRecord(releaseId: string, release: ReleaseRecord): void {
+  if (release.releaseId !== releaseId || !RELEASE_ID_PATTERN.test(releaseId) || typeof release.releaseRoot !== "string"
+    || typeof release.packageVersion !== "string" || !/^[a-f0-9]{64}$/.test(release.contentDigest)
+    || !["candidate", "approved", "rejected"].includes(release.approval)) {
+    throw new Error(`invalid release record for ${releaseId}`);
   }
 }
 function validateTransition(current: CohortState, next: CohortState): void {
   validateState(next);
   if (next.schema !== current.schema) throw new Error("release cohort schema cannot change during a state update");
   if (next.revision !== current.revision) throw new Error("release cohort revision is controlled by the state store");
+}
+function boundedError(error: unknown): string {
+  return (error instanceof Error ? error.message : String(error)).replace(/[\r\n]+/g, " ").slice(0, 1_000);
 }
