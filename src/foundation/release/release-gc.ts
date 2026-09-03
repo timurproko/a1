@@ -108,8 +108,8 @@ export async function runBoundedReleaseCleanup(
   const now = options.now ?? Date.now;
   const limits = normalizeLimits(options.limits);
   const { store, discovered } = await prepareReleaseCleanup(dataDir, paths, options);
-  // The physical-work allowance begins after discovery, ownership probes, and the durable
-  // reconciliation write. A slow preparation phase must not starve every worker invocation.
+  // Performance: The physical-work allowance begins after discovery, ownership probes, and the
+  // durable reconciliation write. A slow preparation phase must not starve every worker invocation.
   const startedAt = now();
   const initial = await store.read();
   const pending = sortCleanupDispositions(Object.values(initial.cleanup.pending));
@@ -159,8 +159,8 @@ export async function runBoundedReleaseCleanup(
     }
   };
 
-  // Give each available class one opportunity before filling the batch. This keeps a locked
-  // release or a large release backlog from indefinitely starving candidates and evidence.
+  // Concurrency: Give each available class one opportunity before filling the batch. This keeps
+  // a locked release or a large release backlog from indefinitely starving candidates and evidence.
   if (pending.length > 0) await attemptPending(1, true);
   if (artifacts.length > 0 && attempted < limits.maxItems) await attemptArtifacts(1, true);
   if (!activeTransaction && attempted < limits.maxItems) {
