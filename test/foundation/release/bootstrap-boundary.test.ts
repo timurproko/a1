@@ -57,6 +57,18 @@ describe("mutable bootstrap boundary", () => {
     expect(`${bootstrap}\n${update}`).not.toMatch(/installing .* files/);
   });
 
+  it("schedules release cleanup after endpoint sweeping without awaiting background deletion", async () => {
+    const bootstrap = await readFile(resolve(repository, "src/foundation/release/bootstrap.ts"), "utf8");
+    const sweep = bootstrap.indexOf("await sweepDeadEndpoints(paths)");
+    const schedule = bootstrap.indexOf("void scheduleMaintenance(paths.dataDir, paths)");
+    const selection = bootstrap.indexOf("const activeReleaseId = state.references.active");
+
+    expect(sweep).toBeGreaterThan(0);
+    expect(schedule).toBeGreaterThan(sweep);
+    expect(selection).toBeGreaterThan(schedule);
+    expect(bootstrap).not.toContain("await scheduleMaintenance(paths.dataDir, paths)");
+  });
+
   it("keeps the dependency-light coordinator free of terminal implementation imports", async () => {
     const bootstrap = await readFile(resolve(repository, "src/foundation/release/bootstrap.ts"), "utf8");
     expect(bootstrap).not.toMatch(/from ["']\.\/(?:ui|supervisor|drivers|presentation)/);
