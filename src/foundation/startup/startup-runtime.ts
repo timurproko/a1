@@ -121,7 +121,7 @@ export function startupCompileCachePath(dataDir: string, releaseId: string | nul
   const content = dependencyLayerIds.length > 0
     ? `layers-${layers}`
     : `release-${(releaseId ?? "mutable").replace(/[^0-9A-Za-z.+_-]/g, "_")}`;
-  // Stable layer paths intentionally share compiled dependency entries across product releases;
+  // Performance: stable layer paths share compiled dependency entries across product releases;
   // Node's own cache key still isolates each release-specific module path and source bytes.
   return resolve(dataDir, "cache", "compile", `${process.versions.modules ?? "node"}-${process.version.replace(/[^0-9A-Za-z.-]/g, "_")}-${content}`);
 }

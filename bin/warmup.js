@@ -4,8 +4,8 @@ const startup = await import("../dist/foundation/startup/index.js");
 startup.assertImmutableWarmupEnvironment(process.env);
 startup.enableEnvironmentCompileCache(process.env);
 
-// This entry deliberately imports but never composes: no terminal, profile/session path,
-// trust callback, executable resource loader, extension runner, or network client is created.
+// Security: this entry imports but never composes, so it creates no terminal, profile/session
+// path, trust callback, executable resource loader, extension runner, or network client.
 const [composition, engine, components, runtime] = await Promise.all([
   import("../dist/composition/index.js"),
   import("../dist/integrations/pi/engine/index.js"),
