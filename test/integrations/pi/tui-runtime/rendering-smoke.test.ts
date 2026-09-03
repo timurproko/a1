@@ -7,7 +7,7 @@ const smokeWorkloads = ["streamed-prose", "long-transcript-follow"] as const;
 
 describe("rendering smoke gate", () => {
   it("covers independent producers, both modes, replay, parity, status, and followed damage", async () => {
-    const captured = await captureRenderingGate(smokeWorkloads, null);
+    const captured = await captureRenderingGate(smokeWorkloads);
     expect(captured.structure).toEqual({ workloadCaptures: 2, deliberateRepeatCaptures: 0, producerLaunches: 12 });
     for (const workloadId of smokeWorkloads) {
       const matrix = captured.matrices.get(workloadId)!;

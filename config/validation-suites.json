@@ -15,7 +15,8 @@
         "test/repository-governance/code-documentation.test.ts",
         "test/foundation/storage/storage.test.ts",
         "test/foundation/release/cohort-state.test.ts",
-        "test/foundation/release/update-live-cohort.test.ts"
+        "test/foundation/release/update-live-cohort.test.ts",
+        "test/features/workspace/reconciliation.test.ts"
       ],
       "exclude": [
         "test/cli/update-cli.test.ts",
@@ -93,7 +94,7 @@
     },
     "rendering-stability": {
       "kind": "vitest-isolated",
-      "evidence": { "workloadCaptures": 14, "deliberateRepeatCaptures": 2, "matrixProducerLaunches": 60, "protocolProducerLaunches": 10, "totalProducerLaunches": 70 },
+      "evidence": { "workloadCaptures": 14, "deliberateRepeatCaptures": 0, "matrixProducerLaunches": 51, "protocolProducerLaunches": 10, "totalProducerLaunches": 61 },
       "tests": [
         "test/integrations/pi/tui-runtime/rendering-budgets.test.ts",
         "test/integrations/pi/tui-runtime/rendering-producer.test.ts",
