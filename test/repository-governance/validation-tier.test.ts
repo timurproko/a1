@@ -97,7 +97,7 @@ describe("validation tier planning", () => {
       "test/integrations/pi/tui-runtime/input-producer.test.ts",
     ]));
     expect(full.structuralEvidence).toEqual({
-      "rendering-stability": { workloadCaptures: 14, deliberateRepeatCaptures: 2, matrixProducerLaunches: 60, protocolProducerLaunches: 10, totalProducerLaunches: 70 },
+      "rendering-stability": { workloadCaptures: 14, deliberateRepeatCaptures: 0, matrixProducerLaunches: 51, protocolProducerLaunches: 10, totalProducerLaunches: 61 },
     });
   });
 

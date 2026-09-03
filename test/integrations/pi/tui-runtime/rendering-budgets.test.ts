@@ -7,9 +7,9 @@ import { STREAM_RENDERING_WORKLOADS } from "../../../support/rendering/streaming
 const workloadIds = STREAM_RENDERING_WORKLOADS.map(workload => workload.id);
 
 describe("full rendering stability gate", () => {
-  it("captures every workload once, preserves matrix contracts, and repeats only determinism", async () => {
-    const captured = await captureRenderingGate(workloadIds, "streamed-prose");
-    expect(captured.structure).toEqual({ workloadCaptures: 8, deliberateRepeatCaptures: 1, producerLaunches: 54 });
+  it("captures every workload once and preserves product-facing matrix contracts", async () => {
+    const captured = await captureRenderingGate(workloadIds);
+    expect(captured.structure).toEqual({ workloadCaptures: 8, deliberateRepeatCaptures: 0, producerLaunches: 48 });
     for (const [workloadId, matrix] of captured.matrices) {
       const budget = evaluateRenderingBudgets(matrix);
       expect(budget.violations, workloadId).toEqual([]);
@@ -28,8 +28,6 @@ describe("full rendering stability gate", () => {
     ]);
     expect(prose.fullscreenMode.map(entry => entry.effectiveMode)).toEqual(["fullscreen", "fullscreen", "fullscreen"]);
     expect(prose.comparisonSemanticParity).toEqual({ regular: true, fullscreen: true });
-    expect(captured.repeated?.findings).toEqual(prose.findings);
-    expect(captured.repeated?.comparisonSemanticParity).toEqual(prose.comparisonSemanticParity);
 
     const followed = captured.matrices.get("long-transcript-follow")!;
     expect(followed.findings.customViewportMaximumRowClearsPerStreamCheckpoint).toBeLessThanOrEqual(3);

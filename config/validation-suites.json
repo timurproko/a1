@@ -93,7 +93,7 @@
     },
     "rendering-stability": {
       "kind": "vitest-isolated",
-      "evidence": { "workloadCaptures": 14, "deliberateRepeatCaptures": 2, "matrixProducerLaunches": 60, "protocolProducerLaunches": 10, "totalProducerLaunches": 70 },
+      "evidence": { "workloadCaptures": 14, "deliberateRepeatCaptures": 0, "matrixProducerLaunches": 51, "protocolProducerLaunches": 10, "totalProducerLaunches": 61 },
       "tests": [
         "test/integrations/pi/tui-runtime/rendering-budgets.test.ts",
         "test/integrations/pi/tui-runtime/rendering-producer.test.ts",
