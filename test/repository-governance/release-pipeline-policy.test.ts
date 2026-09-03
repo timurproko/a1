@@ -33,6 +33,7 @@ describe("deliberate publication pipeline", () => {
     expect(source).toContain('const work = process.env.MODE === "nightly" || !exists');
     expect(source).toContain("Download the immutable registry package");
     expect(source).toContain("registry tarball integrity differs from registry metadata");
+    expect(source).toContain('selected=\'["package-smoke","package-install"]\'');
     expect(source).toContain('selected=\'["full-release"]\'');
     const validate = source.slice(source.indexOf("\n  validate:"), source.indexOf("\n  publish:"));
     expect(validate).toContain("if: always() && needs.plan.result == 'success' && needs.package.result == 'success'");

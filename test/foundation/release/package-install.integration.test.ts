@@ -20,8 +20,8 @@ beforeAll(async () => {
 }, 600_000);
 
 afterAll(async () => {
-  if (root) await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
-}, 60_000);
+  if (root) await removeFixtureRoot(root);
+}, 15_000);
 
 describe("clean installation of the exact candidate", () => {
   it("installs only the authoritative a1 command and package identity", async () => {
@@ -154,6 +154,12 @@ async function captureReadyLaunch(
     child.stdin?.write("\u0003");
     await new Promise(resolvePromise => setTimeout(resolvePromise, 250));
     if (child.exitCode === null && child.pid) crossSpawn.sync("taskkill.exe", ["/PID", String(child.pid), "/T", "/F"], { windowsHide: true, stdio: "ignore" });
+    if (child.exitCode === null) {
+      await Promise.race([
+        new Promise<void>(resolvePromise => child.once("close", () => resolvePromise())),
+        new Promise<void>(resolvePromise => setTimeout(resolvePromise, 2_000)),
+      ]);
+    }
   }
 }
 
@@ -167,4 +173,17 @@ function runAsync(command: string, arguments_: readonly string[], cwd: string) {
     child.once("error", rejectPromise);
     child.once("close", status => resolvePromise({ status, stdout, stderr }));
   });
+}
+
+async function removeFixtureRoot(path: string): Promise<void> {
+  if (process.platform !== "win32") {
+    await rm(path, { recursive: true, force: true, maxRetries: 2, retryDelay: 100 });
+    return;
+  }
+  const cleanup = crossSpawn.sync(process.execPath, [
+    "-e",
+    "require('node:fs/promises').rm(process.argv[1], { recursive: true, force: true, maxRetries: 2, retryDelay: 100 }).catch(() => { process.exitCode = 1; })",
+    path,
+  ], { windowsHide: true, stdio: "ignore", timeout: 5_000 });
+  if (cleanup.status !== 0 || cleanup.error) process.stderr.write(`Deferred locked Windows fixture cleanup: ${path}\n`);
 }

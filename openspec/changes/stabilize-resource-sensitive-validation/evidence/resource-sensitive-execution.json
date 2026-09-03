@@ -1,6 +1,6 @@
 {
   "schema": "a1-resource-sensitive-execution-v1",
-  "generatedAt": "2026-09-02T17:53:22.161Z",
+  "generatedAt": "2026-09-03T16:23:34.555Z",
   "platform": "win32",
   "architecture": "x64",
   "node": "v24.16.0",
@@ -21,6 +21,7 @@
       "test/foundation/storage/storage.test.ts",
       "test/foundation/release/cohort-state.test.ts",
       "test/foundation/release/update-live-cohort.test.ts",
+      "test/features/workspace/reconciliation.test.ts",
       "--no-file-parallelism"
     ],
     "testFiles": [
@@ -28,168 +29,196 @@
       "test/repository-governance/code-documentation.test.ts",
       "test/foundation/storage/storage.test.ts",
       "test/foundation/release/cohort-state.test.ts",
-      "test/foundation/release/update-live-cohort.test.ts"
+      "test/foundation/release/update-live-cohort.test.ts",
+      "test/features/workspace/reconciliation.test.ts"
     ]
   },
   "runs": [
     {
       "index": 1,
-      "startedAt": "2026-09-02T17:52:24.992Z",
-      "durationMs": 24723,
+      "startedAt": "2026-09-03T16:22:41.050Z",
+      "durationMs": 17950,
       "files": [
         {
           "path": "test/repository-governance/code-documentation.test.ts",
           "status": "passed",
-          "durationMs": 8643.197998046875,
+          "durationMs": 8126.086181640625,
           "testCount": 25,
-          "maxTestBodyDurationMs": 1110.5305999999998,
-          "totalTestBodyDurationMs": 8641.2602,
-          "fileOverheadMs": 1.9377980468743772
+          "maxTestBodyDurationMs": 1130.5997999999997,
+          "totalTestBodyDurationMs": 8124.486899999998,
+          "fileOverheadMs": 1.5992816406269412
         },
         {
           "path": "test/repository-governance/validation-impact.test.ts",
           "status": "passed",
-          "durationMs": 3820.0419921875,
+          "durationMs": 3850.84033203125,
           "testCount": 7,
-          "maxTestBodyDurationMs": 866.9052,
-          "totalTestBodyDurationMs": 3819.3870999999995,
-          "fileOverheadMs": 0.6548921875005362
+          "maxTestBodyDurationMs": 942.1683,
+          "totalTestBodyDurationMs": 3849.890399999999,
+          "fileOverheadMs": 0.9499320312511372
         },
         {
           "path": "test/foundation/release/cohort-state.test.ts",
           "status": "passed",
-          "durationMs": 81.529541015625,
-          "testCount": 4,
-          "maxTestBodyDurationMs": 33.864799999999974,
-          "totalTestBodyDurationMs": 80.9767,
-          "fileOverheadMs": 0.5528410156250061
+          "durationMs": 1246.5595703125,
+          "testCount": 6,
+          "maxTestBodyDurationMs": 1076.3085999999998,
+          "totalTestBodyDurationMs": 1246.9546999999998,
+          "fileOverheadMs": 0
         },
         {
           "path": "test/foundation/release/update-live-cohort.test.ts",
           "status": "passed",
-          "durationMs": 115.216796875,
+          "durationMs": 174.26318359375,
           "testCount": 3,
-          "maxTestBodyDurationMs": 65.63819999999998,
-          "totalTestBodyDurationMs": 115.01950000000011,
-          "fileOverheadMs": 0.19729687499989268
+          "maxTestBodyDurationMs": 93.94170000000003,
+          "totalTestBodyDurationMs": 173.77710000000008,
+          "fileOverheadMs": 0.4860835937499246
         },
         {
           "path": "test/foundation/storage/storage.test.ts",
           "status": "passed",
-          "durationMs": 438.501708984375,
+          "durationMs": 504.763916015625,
           "testCount": 10,
-          "maxTestBodyDurationMs": 59.48829999999998,
-          "totalTestBodyDurationMs": 437.78000000000065,
-          "fileOverheadMs": 0.7217089843743452
+          "maxTestBodyDurationMs": 76.0496,
+          "totalTestBodyDurationMs": 505.12579999999997,
+          "fileOverheadMs": 0
+        },
+        {
+          "path": "test/features/workspace/reconciliation.test.ts",
+          "status": "passed",
+          "durationMs": 139.740966796875,
+          "testCount": 2,
+          "maxTestBodyDurationMs": 72.7439,
+          "totalTestBodyDurationMs": 139.4848,
+          "fileOverheadMs": 0.256166796874993
         }
       ],
-      "maxTestBodyDurationMs": 1110.5305999999998
+      "maxTestBodyDurationMs": 1130.5997999999997
     },
     {
       "index": 2,
-      "startedAt": "2026-09-02T17:52:49.715Z",
-      "durationMs": 15957,
+      "startedAt": "2026-09-03T16:22:59.001Z",
+      "durationMs": 17891,
       "files": [
         {
           "path": "test/repository-governance/code-documentation.test.ts",
           "status": "passed",
-          "durationMs": 7784.87451171875,
+          "durationMs": 8080.818115234375,
           "testCount": 25,
-          "maxTestBodyDurationMs": 1233.4233000000002,
-          "totalTestBodyDurationMs": 7782.892299999998,
-          "fileOverheadMs": 1.9822117187522963
+          "maxTestBodyDurationMs": 1166.0491000000002,
+          "totalTestBodyDurationMs": 8079.019199999999,
+          "fileOverheadMs": 1.7989152343761816
         },
         {
           "path": "test/repository-governance/validation-impact.test.ts",
           "status": "passed",
-          "durationMs": 3956.80712890625,
+          "durationMs": 3900.014404296875,
           "testCount": 7,
-          "maxTestBodyDurationMs": 866.1532000000001,
-          "totalTestBodyDurationMs": 3956.3473,
-          "fileOverheadMs": 0.4598289062500953
+          "maxTestBodyDurationMs": 925.8602,
+          "totalTestBodyDurationMs": 3898.8832999999995,
+          "fileOverheadMs": 1.1311042968754919
+        },
+        {
+          "path": "test/features/workspace/reconciliation.test.ts",
+          "status": "passed",
+          "durationMs": 144.376220703125,
+          "testCount": 2,
+          "maxTestBodyDurationMs": 78.61869999999999,
+          "totalTestBodyDurationMs": 143.99489999999997,
+          "fileOverheadMs": 0.3813207031250272
         },
         {
           "path": "test/foundation/release/cohort-state.test.ts",
           "status": "passed",
-          "durationMs": 73.016357421875,
-          "testCount": 4,
-          "maxTestBodyDurationMs": 32.2363,
-          "totalTestBodyDurationMs": 72.59699999999998,
-          "fileOverheadMs": 0.41935742187502
+          "durationMs": 1216.60888671875,
+          "testCount": 6,
+          "maxTestBodyDurationMs": 1049.5493999999999,
+          "totalTestBodyDurationMs": 1215.9689999999998,
+          "fileOverheadMs": 0.6398867187501764
         },
         {
           "path": "test/foundation/release/update-live-cohort.test.ts",
           "status": "passed",
-          "durationMs": 114.19970703125,
+          "durationMs": 165.248291015625,
           "testCount": 3,
-          "maxTestBodyDurationMs": 67.56119999999999,
-          "totalTestBodyDurationMs": 113.95979999999997,
-          "fileOverheadMs": 0.2399070312500271
+          "maxTestBodyDurationMs": 87.07130000000001,
+          "totalTestBodyDurationMs": 164.86510000000004,
+          "fileOverheadMs": 0.38319101562495916
         },
         {
           "path": "test/foundation/storage/storage.test.ts",
           "status": "passed",
-          "durationMs": 544.0625,
+          "durationMs": 546.539794921875,
           "testCount": 10,
-          "maxTestBodyDurationMs": 82.91630000000004,
-          "totalTestBodyDurationMs": 544.1194,
-          "fileOverheadMs": 0
+          "maxTestBodyDurationMs": 80.7749,
+          "totalTestBodyDurationMs": 545.9300000000001,
+          "fileOverheadMs": 0.6097949218749363
         }
       ],
-      "maxTestBodyDurationMs": 1233.4233000000002
+      "maxTestBodyDurationMs": 1166.0491000000002
     },
     {
       "index": 3,
-      "startedAt": "2026-09-02T17:53:05.673Z",
-      "durationMs": 16485,
+      "startedAt": "2026-09-03T16:23:16.892Z",
+      "durationMs": 17661,
       "files": [
         {
           "path": "test/repository-governance/code-documentation.test.ts",
           "status": "passed",
-          "durationMs": 8732.169189453125,
+          "durationMs": 8042.031494140625,
           "testCount": 25,
-          "maxTestBodyDurationMs": 1151.1182000000001,
-          "totalTestBodyDurationMs": 8729.9425,
-          "fileOverheadMs": 2.2266894531258004
+          "maxTestBodyDurationMs": 1036.2886,
+          "totalTestBodyDurationMs": 8039.092300000001,
+          "fileOverheadMs": 2.93919414062384
         },
         {
           "path": "test/repository-governance/validation-impact.test.ts",
           "status": "passed",
-          "durationMs": 3666.864990234375,
+          "durationMs": 3914.368408203125,
           "testCount": 7,
-          "maxTestBodyDurationMs": 839.0561,
-          "totalTestBodyDurationMs": 3665.1049000000003,
-          "fileOverheadMs": 1.7600902343747293
-        },
-        {
-          "path": "test/foundation/storage/storage.test.ts",
-          "status": "passed",
-          "durationMs": 419.44775390625,
-          "testCount": 10,
-          "maxTestBodyDurationMs": 59.675299999999936,
-          "totalTestBodyDurationMs": 419.37869999999975,
-          "fileOverheadMs": 0.06905390625024665
+          "maxTestBodyDurationMs": 851.8720999999999,
+          "totalTestBodyDurationMs": 3913.5053999999996,
+          "fileOverheadMs": 0.863008203125446
         },
         {
           "path": "test/foundation/release/cohort-state.test.ts",
           "status": "passed",
-          "durationMs": 98.660888671875,
-          "testCount": 4,
-          "maxTestBodyDurationMs": 45.93709999999999,
-          "totalTestBodyDurationMs": 98.63650000000004,
-          "fileOverheadMs": 0.0243886718749593
+          "durationMs": 1175.39453125,
+          "testCount": 6,
+          "maxTestBodyDurationMs": 1011.151,
+          "totalTestBodyDurationMs": 1174.9389999999999,
+          "fileOverheadMs": 0.45553125000014916
         },
         {
           "path": "test/foundation/release/update-live-cohort.test.ts",
           "status": "passed",
-          "durationMs": 113.5859375,
+          "durationMs": 131.2158203125,
           "testCount": 3,
-          "maxTestBodyDurationMs": 61.630799999999965,
-          "totalTestBodyDurationMs": 113.42839999999995,
-          "fileOverheadMs": 0.1575375000000463
+          "maxTestBodyDurationMs": 69.1465,
+          "totalTestBodyDurationMs": 130.89460000000003,
+          "fileOverheadMs": 0.3212203124999746
+        },
+        {
+          "path": "test/foundation/storage/storage.test.ts",
+          "status": "passed",
+          "durationMs": 488.40478515625,
+          "testCount": 10,
+          "maxTestBodyDurationMs": 73.97390000000001,
+          "totalTestBodyDurationMs": 487.9102,
+          "fileOverheadMs": 0.4945851562500252
+        },
+        {
+          "path": "test/features/workspace/reconciliation.test.ts",
+          "status": "passed",
+          "durationMs": 112.48828125,
+          "testCount": 2,
+          "maxTestBodyDurationMs": 60.97640000000001,
+          "totalTestBodyDurationMs": 112.4647,
+          "fileOverheadMs": 0.02358125000000655
         }
       ],
-      "maxTestBodyDurationMs": 1151.1182000000001
+      "maxTestBodyDurationMs": 1036.2886
     }
   ]
 }

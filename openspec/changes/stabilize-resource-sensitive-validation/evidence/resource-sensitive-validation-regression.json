@@ -13,7 +13,8 @@
     "test/repository-governance/code-documentation.test.ts",
     "test/foundation/storage/storage.test.ts",
     "test/foundation/release/cohort-state.test.ts",
-    "test/foundation/release/update-live-cohort.test.ts"
+    "test/foundation/release/update-live-cohort.test.ts",
+    "test/features/workspace/reconciliation.test.ts"
   ],
   "incidents": [
     {
@@ -79,6 +80,26 @@
       "excludedUnrelatedFailures": [
         "downstream publication aggregate failure from the failed prerequisite"
       ]
+    },
+    {
+      "workflowRun": 33767055550,
+      "job": "Fast validation",
+      "platform": "windows-2025-node24",
+      "url": "https://github.com/timurproko/a1/actions/runs/33767055550/job/100687635127",
+      "timeoutMs": 5000,
+      "timedOutTests": [
+        "test/features/workspace/reconciliation.test.ts > reconciles verified, stale, missing, non-reconnectable, and unavailable composed authorities",
+        "test/features/workspace/reconciliation.test.ts > persists reconciliation across a process restart and keeps rollback-readable records",
+        "test/repository-governance/resource-sensitive-validation.test.ts > fails closed on invalid ownership, missing files, and timeout configuration"
+      ],
+      "comparison": {
+        "job": "Rendering validation",
+        "url": "https://github.com/timurproko/a1/actions/runs/33767055550/job/100687635066",
+        "result": "independent rendering validation passed while 1441 fast assertions passed"
+      },
+      "excludedUnrelatedFailures": [
+        "downstream required aggregate failure"
+      ]
     }
   ],
   "verification": {
@@ -86,7 +107,7 @@
       "platform": "win32-x64",
       "node": "v24.16.0",
       "repeats": 3,
-      "maximumObservedTestBodyDurationMs": 1233.4233000000002,
+      "maximumObservedTestBodyDurationMs": 1166.0491000000002,
       "timeoutMs": 5000,
       "result": "passed"
     },
