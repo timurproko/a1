@@ -15,7 +15,8 @@
         "test/repository-governance/code-documentation.test.ts",
         "test/foundation/storage/storage.test.ts",
         "test/foundation/release/cohort-state.test.ts",
-        "test/foundation/release/update-live-cohort.test.ts"
+        "test/foundation/release/update-live-cohort.test.ts",
+        "test/features/workspace/reconciliation.test.ts"
       ],
       "exclude": [
         "test/cli/update-cli.test.ts",

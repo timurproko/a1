@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -10,6 +10,7 @@ const resourceSensitiveTests = [
   "test/foundation/storage/storage.test.ts",
   "test/foundation/release/cohort-state.test.ts",
   "test/foundation/release/update-live-cohort.test.ts",
+  "test/features/workspace/reconciliation.test.ts",
 ];
 
 function invocation(plan: Awaited<ReturnType<typeof createTierPlan>>, id: string) {
@@ -85,11 +86,16 @@ describe("resource-sensitive validation partition", () => {
       },
     ];
 
-    for (const fixture of fixtures) {
-      const value = structuredClone(source);
-      fixture.mutate(value);
-      const repository = await suiteFixture(value);
-      await expect(loadValidationSuites(repository), fixture.label).rejects.toThrow(fixture.error);
+    const repository = await suiteFixture(source);
+    try {
+      for (const fixture of fixtures) {
+        const value = structuredClone(source);
+        fixture.mutate(value);
+        await writeFile(join(repository, "config", "validation-suites.json"), `${JSON.stringify(value, null, 2)}\n`);
+        await expect(loadValidationSuites(repository), fixture.label).rejects.toThrow(fixture.error);
+      }
+    } finally {
+      await rm(repository, { recursive: true, force: true });
     }
   });
 
@@ -139,7 +145,7 @@ describe("resource-sensitive validation partition", () => {
       policy: { testTimeoutMs: 5000, timeoutIncreaseAllowed: false, automaticRetries: 0, fileParallelism: false },
       partition: resourceSensitiveTests,
     });
-    expect(regression.incidents.map((incident: any) => incident.workflowRun)).toEqual([33617331350, 33642848728, 33657859943]);
+    expect(regression.incidents.map((incident: any) => incident.workflowRun)).toEqual([33617331350, 33642848728, 33657859943, 33767055550]);
     expect(regression.verification).toMatchObject({
       focusedExecution: { platform: "win32-x64", node: "v24.16.0", repeats: 3, timeoutMs: 5000, result: "passed" },
     });
