@@ -17,8 +17,10 @@ import { liveReleaseIds } from "./endpoints.js";
 import type { ProductPaths } from "../lifecycle/index.js";
 import { resolveProductPaths } from "../lifecycle/index.js";
 import { RELEASE_MANIFEST_FILENAME } from "./release-store.js";
+import { DEPENDENCY_LAYER_MANIFEST, dependencyLayerCertificationPath } from "./dependency-layer.js";
 import { UpdateTransactionStore, type UpdateTransaction } from "./update-transaction.js";
 import { PRODUCT_IDENTITY } from "../../product-identity.js";
+import { collectCompileCaches, startupCompileCachePath } from "../startup/index.js";
 
 const DEFAULT_CANDIDATE_AGE_MS = 60 * 60 * 1_000;
 const DEFAULT_LIMITS: ReleaseCleanupLimits = { maxItems: 8, maxDurationMs: 2_000, concurrency: 1 };
@@ -125,6 +127,13 @@ export async function runBoundedReleaseCleanup(
     } catch (error) {
       await store.recordCleanupFailure(artifactName(artifact), "artifact-delete", error);
     }
+  }
+
+  if (!activeTransaction && attempted < limits.maxItems && now() - startedAt < limits.maxDurationMs) {
+    const layerResult = await collectUnreferencedDependencyLayers(store, dataDir, limits.maxItems - attempted, options);
+    attempted += layerResult.attempted;
+    completed += layerResult.completed;
+    await collectCompileCaches(dataDir, await protectedCompileCachePaths(dataDir, await store.read())).catch(() => {});
   }
 
   const remaining = Object.keys((await store.read()).cleanup.pending).length;
@@ -432,6 +441,122 @@ async function removeAbandonedArtifact(dataDir: string, path: string, operations
     return;
   }
   throw new Error("abandoned artifact is outside managed candidate, trash, or certification paths");
+}
+
+async function collectUnreferencedDependencyLayers(
+  store: CohortStateStore,
+  dataDir: string,
+  maxItems: number,
+  options: ReleaseCleanupOptions,
+): Promise<{ readonly attempted: number; readonly completed: number }> {
+  const layersRoot = resolve(dataDir, "dependency-layers");
+  const layersMetadata = await lstat(layersRoot).catch(error => missingOrThrow(error));
+  if (layersMetadata === null) return { attempted: 0, completed: 0 };
+  if (!layersMetadata.isDirectory() || layersMetadata.isSymbolicLink()) throw new Error("dependency-layer store is not a managed directory");
+  const referenced = await referencedDependencyLayerIds(dataDir);
+  const trashRoot = resolve(layersRoot, ".trash");
+  await mkdir(trashRoot, { recursive: true, mode: 0o700 });
+  let attempted = 0;
+  let completed = 0;
+  const entries = await readdir(layersRoot, { withFileTypes: true });
+  const candidates: Array<{ path: string; layerId: string | null; inTrash: boolean }> = [];
+  for (const entry of entries) {
+    if (entry.name === ".trash") continue;
+    const path = resolve(layersRoot, entry.name);
+    if (entry.name.startsWith(".candidate-")) {
+      const metadata = await lstat(path);
+      const currentTime = options.now?.() ?? Date.now();
+      if (currentTime - metadata.mtimeMs >= (options.candidateAgeMs ?? DEFAULT_CANDIDATE_AGE_MS)) {
+        candidates.push({ path, layerId: null, inTrash: false });
+      }
+      continue;
+    }
+    if (!referenced.has(entry.name)) candidates.push({ path, layerId: entry.name, inTrash: false });
+  }
+  for (const entry of await readdir(trashRoot, { withFileTypes: true })) {
+    candidates.push({ path: resolve(trashRoot, entry.name), layerId: entry.name.split("--", 1)[0] ?? null, inTrash: true });
+  }
+  for (const candidate of candidates.slice(0, maxItems)) {
+    if (candidate.layerId !== null && referenced.has(candidate.layerId)) continue;
+    attempted += 1;
+    try {
+      const metadata = await lstat(candidate.path);
+      if (!metadata.isDirectory() || metadata.isSymbolicLink()) throw new Error("dependency-layer cleanup candidate is not a non-link directory");
+      let removalPath = candidate.path;
+      if (!candidate.inTrash) {
+        const canonicalRoot = await realpath(layersRoot);
+        const canonical = await realpath(candidate.path);
+        assertDirectChild(canonicalRoot, canonical);
+        if (candidate.layerId !== null) {
+          const manifest = JSON.parse(await readFile(resolve(canonical, DEPENDENCY_LAYER_MANIFEST), "utf8")) as Record<string, unknown>;
+          if (manifest.layerId !== candidate.layerId || typeof manifest.contentDigest !== "string") throw new Error("dependency-layer manifest does not match its directory");
+        }
+        removalPath = resolve(trashRoot, `${candidate.layerId ?? ".candidate"}--${randomUUID()}`);
+        await (options.operations?.rename ?? rename)(canonical, removalPath);
+      } else {
+        const canonicalTrash = await realpath(trashRoot);
+        assertDirectChild(canonicalTrash, await realpath(removalPath));
+      }
+      await (options.operations?.remove ?? rm)(removalPath, { recursive: true, force: false, maxRetries: 0 });
+      if (candidate.layerId !== null && /^dependencies-[a-f0-9]{32}$/.test(candidate.layerId)) {
+        await rm(dependencyLayerCertificationPath(dataDir, candidate.layerId), { force: true });
+      }
+      completed += 1;
+    } catch (error) {
+      // Platform: the pass is retry based, so a sharing violation leaves managed trash.
+      await store.recordCleanupFailure(candidate.layerId ?? artifactName(candidate.path), "dependency-layer-delete", error);
+    }
+  }
+  if (attempted < maxItems) {
+    for (const entry of await readdir(dataDir, { withFileTypes: true })) {
+      const match = /^dependency-layer-certification-(dependencies-[a-f0-9]{32})\.json$/.exec(entry.name);
+      if (!match || !entry.isFile() || referenced.has(match[1]!)) continue;
+      if (await lstat(resolve(layersRoot, match[1]!)).catch(error => missingOrThrow(error)) !== null) continue;
+      attempted += 1;
+      try {
+        await (options.operations?.remove ?? rm)(resolve(dataDir, entry.name), { force: true });
+        completed += 1;
+      } catch (error) {
+        await store.recordCleanupFailure(match[1]!, "dependency-layer-certification", error);
+      }
+      if (attempted >= maxItems) break;
+    }
+  }
+  return { attempted, completed };
+}
+
+async function protectedCompileCachePaths(dataDir: string, state: CohortState): Promise<readonly string[]> {
+  const paths: string[] = [];
+  for (const release of Object.values(state.releases)) {
+    try {
+      const manifest = JSON.parse(await readFile(resolve(release.releaseRoot, RELEASE_MANIFEST_FILENAME), "utf8")) as { dependencyLayers?: Array<{ layerId?: unknown }> };
+      const layers = (manifest.dependencyLayers ?? []).map(layer => layer.layerId).filter((id): id is string => typeof id === "string");
+      paths.push(startupCompileCachePath(dataDir, release.releaseId, layers));
+    } catch {
+      paths.push(startupCompileCachePath(dataDir, release.releaseId, []));
+    }
+  }
+  return paths;
+}
+
+async function referencedDependencyLayerIds(dataDir: string): Promise<Set<string>> {
+  const referenced = new Set<string>();
+  const releasesRoot = resolve(dataDir, "releases");
+  const roots: string[] = [];
+  for (const entry of await readdir(releasesRoot, { withFileTypes: true }).catch(() => [])) {
+    if (entry.name === ".trash") {
+      for (const trash of await readdir(resolve(releasesRoot, entry.name), { withFileTypes: true }).catch(() => [])) {
+        if (trash.isDirectory()) roots.push(resolve(releasesRoot, entry.name, trash.name));
+      }
+    } else if (entry.isDirectory() && !entry.name.startsWith(".candidate-")) roots.push(resolve(releasesRoot, entry.name));
+  }
+  for (const root of roots) {
+    try {
+      const manifest = JSON.parse(await readFile(resolve(root, RELEASE_MANIFEST_FILENAME), "utf8")) as { dependencyLayers?: Array<{ layerId?: unknown }> };
+      for (const layer of manifest.dependencyLayers ?? []) if (typeof layer.layerId === "string") referenced.add(layer.layerId);
+    } catch {}
+  }
+  return referenced;
 }
 
 function assertDirectChild(parent: string, child: string): void {

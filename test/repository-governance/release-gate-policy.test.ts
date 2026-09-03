@@ -8,8 +8,9 @@ describe("mandatory release compatibility policy", () => {
     expect(Object.keys(suites.releaseContracts)).toEqual([
       "architecture", "compatibility-authority", "candidate-engine-conformance", "exact-vanilla-oracle",
       "packaged-public-entry", "owned-ui-regression", "extension-behavior", "architecture-independent-n-minus-one-update-transition",
+      "post-update-startup-performance", "immutable-dependency-layer-compatibility",
     ]);
-    expect(new Set(Object.keys(suites.releaseContracts)).size).toBe(8);
+    expect(new Set(Object.keys(suites.releaseContracts)).size).toBe(10);
     expect(source).toContain("createTierPlan([\"full-release\"])");
     expect(source).toContain("Object.entries(suites.releaseContracts)");
     expect(source).toContain("MANDATORY_RELEASE_GATES.map");

@@ -1,6 +1,7 @@
 export * from "./bootstrap.js";
 export * from "./cohort-selection.js";
 export * from "./cohort-state.js";
+export * from "./dependency-layer.js";
 export * from "./endpoints.js";
 export * from "./process-cleanup.js";
 export * from "./release.js";
@@ -9,3 +10,4 @@ export * from "./release-store.js";
 export * from "./stable-release.js";
 export * from "./update.js";
 export * from "./update-transaction.js";
+export * from "./warmup.js";

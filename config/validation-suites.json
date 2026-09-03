@@ -182,6 +182,8 @@
     "packaged-public-entry": "package-smoke",
     "owned-ui-regression": "fast",
     "extension-behavior": "fast",
-    "architecture-independent-n-minus-one-update-transition": "release-update"
+    "architecture-independent-n-minus-one-update-transition": "release-update",
+    "post-update-startup-performance": "package-install",
+    "immutable-dependency-layer-compatibility": "package-install"
   }
 }

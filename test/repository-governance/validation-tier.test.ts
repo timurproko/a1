@@ -56,7 +56,7 @@ describe("validation tier planning", () => {
       "deprecated-dependencies",
     ]);
     expect(new Set(plan.commands.map(command => command.id)).size).toBe(plan.commands.length);
-    expect(Object.keys(plan.releaseContracts ?? {})).toHaveLength(8);
+    expect(Object.keys(plan.releaseContracts ?? {})).toHaveLength(10);
   });
 
   it("runs ordinary fast validation without any build or package installation", async () => {
