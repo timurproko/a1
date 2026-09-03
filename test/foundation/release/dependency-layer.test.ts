@@ -1,4 +1,4 @@
-import { chmod, lstat, mkdir, mkdtemp, readFile, readdir, rm, symlink, unlink, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdir, mkdtemp, readFile, readdir, rename, rm, symlink, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -8,6 +8,8 @@ import {
   discoverReleasePayload,
   generateDependencyRuntimePayload,
   materializeRelease,
+  RUNTIME_PAYLOAD_INVENTORY,
+  selectPublishedDependencyRuntimePayload,
   readMaterializedRelease,
   runBoundedReleaseCleanup,
   verifyMaterializedRelease,
@@ -34,6 +36,41 @@ describe("certified immutable dependency layers", () => {
       expect.objectContaining({ path: expect.stringMatching(/index\.d\.ts$/), reason: "type-declaration" }),
       expect.objectContaining({ path: expect.stringMatching(/index\.js\.map$/), reason: "source-map" }),
     ]));
+  });
+
+  it("applies published classifications across relocated dependency topology", async () => {
+    const root = await mkdtemp(resolve(tmpdir(), "a1-runtime-topology-"));
+    roots.push(root);
+    const sourceRoot = await fixturePackage(root, "source", "1.0.0", "import 'fixture-dependency';", "dependency");
+    const source = await discoverReleasePayload(sourceRoot);
+    const generated = await generateDependencyRuntimePayload(source.packageRoot, source.paths, source.paths.filter(path => !path.startsWith("node_modules/")));
+
+    const installedRoot = await fixturePackage(root, "installed", "1.0.0", "product", "dependency");
+    const holderRoot = resolve(installedRoot, "node_modules", "holder");
+    await mkdir(resolve(holderRoot, "node_modules"), { recursive: true });
+    await writeFile(resolve(holderRoot, "package.json"), JSON.stringify({ name: "holder", version: "1.0.0" }));
+    await writeFile(resolve(holderRoot, "unknown.d.ts"), "export declare const unknown: string;");
+    await rename(resolve(installedRoot, "node_modules", "fixture-dependency"), resolve(holderRoot, "node_modules", "fixture-dependency"));
+    await writeFile(resolve(installedRoot, RUNTIME_PAYLOAD_INVENTORY), JSON.stringify({
+      schema: generated.inventory.schema,
+      entryPoints: ["dist/app.js"],
+      declaredAssets: [],
+      ...generated,
+    }));
+    const installedPaths = [
+      "node_modules/holder/package.json",
+      "node_modules/holder/unknown.d.ts",
+      "node_modules/holder/node_modules/fixture-dependency/package.json",
+      "node_modules/holder/node_modules/fixture-dependency/dist/index.js",
+      "node_modules/holder/node_modules/fixture-dependency/dist/index.d.ts",
+      "node_modules/holder/node_modules/fixture-dependency/dist/index.js.map",
+    ];
+    const selected = await selectPublishedDependencyRuntimePayload(installedRoot, installedPaths);
+
+    expect(selected.paths).toContain("node_modules/holder/node_modules/fixture-dependency/dist/index.js");
+    expect(selected.paths).toContain("node_modules/holder/package.json");
+    expect(selected.paths.some(path => /index\.d\.ts$|index\.js\.map$/.test(path))).toBe(false);
+    expect(selected.inventory).toMatchObject({ includedFiles: 3, excludedFiles: 3 });
   });
 
   it("reuses unchanged dependency content while product identity changes", async () => {

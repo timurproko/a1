@@ -55,28 +55,83 @@ export interface SelectedRuntimePayload {
   readonly inventory: RuntimePayloadInventory;
 }
 
-export interface PublishedRuntimePayload extends SelectedRuntimePayload {
+export interface PublishedRuntimeFileClassification {
+  readonly packageName: string;
+  readonly packageVersion: string;
+  readonly packagePath: string;
+  readonly disposition: "include" | "exclude";
+  readonly reason?: RuntimePayloadExclusion["reason"];
+}
+
+export interface GeneratedRuntimePayload extends SelectedRuntimePayload {
+  readonly classifications: readonly PublishedRuntimeFileClassification[];
+}
+
+export interface PublishedRuntimePayload extends GeneratedRuntimePayload {
   readonly schema: typeof PRODUCT_IDENTITY.evidence.runtimePayloadSchema;
   readonly entryPoints: readonly string[];
   readonly declaredAssets: readonly string[];
 }
 
-/** Consume a publication-generated inventory when present, otherwise retain the conservative policy. */
+/** Consume topology-independent publication classifications, retaining unknown installed content. */
 export async function selectPublishedDependencyRuntimePayload(packageRoot: string, paths: readonly string[]): Promise<SelectedRuntimePayload> {
   const inventoryPath = resolve(packageRoot, RUNTIME_PAYLOAD_INVENTORY);
   const published = await readFile(inventoryPath, "utf8").then(source => JSON.parse(source) as PublishedRuntimePayload).catch(() => null);
   if (published === null) return await selectDependencyRuntimePayload(packageRoot, paths);
   if (published.schema !== PRODUCT_IDENTITY.evidence.runtimePayloadSchema || !Array.isArray(published.paths)
-    || !Array.isArray(published.entryPoints) || !Array.isArray(published.declaredAssets) || !published.inventory
-    || published.inventory.schema !== PRODUCT_IDENTITY.evidence.runtimePayloadSchema) {
+    || !Array.isArray(published.entryPoints) || !Array.isArray(published.declaredAssets) || !Array.isArray(published.classifications)
+    || !published.inventory || published.inventory.schema !== PRODUCT_IDENTITY.evidence.runtimePayloadSchema
+    || published.classifications.some(classification => !validPublishedClassification(classification))) {
     throw new Error("published runtime payload inventory is invalid");
   }
-  const discovered = [...paths].sort();
-  const accounted = [...published.paths, ...published.inventory.exclusions.map(item => item.path)].sort();
-  if (JSON.stringify(discovered) !== JSON.stringify(accounted)) {
-    throw new Error("installed dependency topology differs from the published runtime inventory");
+  const classificationByKey = new Map<string, PublishedRuntimeFileClassification>();
+  for (const classification of published.classifications) {
+    const key = classificationKey(classification.packageName, classification.packageVersion, classification.packagePath);
+    const existing = classificationByKey.get(key);
+    if (existing && (existing.disposition !== classification.disposition || existing.reason !== classification.reason)) {
+      throw new Error("published runtime payload inventory contains conflicting classifications");
+    }
+    classificationByKey.set(key, classification);
   }
-  return { paths: [...published.paths], inventory: published.inventory };
+  const descriptors = await dependencyPackageDescriptors(packageRoot, paths);
+  const selected: string[] = [];
+  const exclusions: RuntimePayloadExclusion[] = [];
+  let includedBytes = 0;
+  let excludedBytes = 0;
+  let uncertaintyRetainedFiles = 0;
+  await mapWithConcurrency([...paths].sort(), LAYER_IO_CONCURRENCY, async path => {
+    const descriptor = descriptorForPath(path, descriptors);
+    const packagePath = descriptor === null ? null : path.slice(descriptor.root.length + 1);
+    const classification = descriptor === null || packagePath === null
+      ? undefined
+      : classificationByKey.get(classificationKey(descriptor.name, descriptor.version, packagePath));
+    const bytes = (await lstat(resolveWithin(packageRoot, path))).size;
+    const intrinsicExclusion = /\.d\.(?:ts|mts|cts)$/.test(path) ? "type-declaration" as const
+      : /\.map$/.test(path) ? "source-map" as const
+      : null;
+    if (classification?.disposition === "exclude" || intrinsicExclusion !== null) {
+      exclusions.push({ path, reason: classification?.disposition === "exclude" ? classification.reason! : intrinsicExclusion! });
+      excludedBytes += bytes;
+      return;
+    }
+    selected.push(path);
+    includedBytes += bytes;
+    if (classification === undefined || !isKnownRuntimePath(path)) uncertaintyRetainedFiles += 1;
+  });
+  selected.sort();
+  exclusions.sort((left, right) => left.path.localeCompare(right.path));
+  return {
+    paths: selected,
+    inventory: {
+      schema: PRODUCT_IDENTITY.evidence.runtimePayloadSchema,
+      includedFiles: selected.length,
+      includedBytes,
+      excludedFiles: exclusions.length,
+      excludedBytes,
+      uncertaintyRetainedFiles,
+      exclusions,
+    },
+  };
 }
 
 /** Generate publication evidence from literal module reachability and declared runtime assets. */
@@ -84,7 +139,7 @@ export async function generateDependencyRuntimePayload(
   packageRoot: string,
   allPaths: readonly string[],
   productPaths: readonly string[],
-): Promise<SelectedRuntimePayload> {
+): Promise<GeneratedRuntimePayload> {
   const available = new Set(allPaths);
   const selected = new Set<string>();
   const queue = productPaths.filter(isJavaScriptModule);
@@ -146,17 +201,19 @@ export async function generateDependencyRuntimePayload(
       exclusions.push({ path, reason: conservativeReasons.get(path) ?? "unreachable-development" });
     }
   }
+  const inventory: RuntimePayloadInventory = {
+    schema: PRODUCT_IDENTITY.evidence.runtimePayloadSchema,
+    includedFiles: paths.length,
+    includedBytes,
+    excludedFiles: exclusions.length,
+    excludedBytes,
+    uncertaintyRetainedFiles,
+    exclusions,
+  };
   return {
     paths,
-    inventory: {
-      schema: PRODUCT_IDENTITY.evidence.runtimePayloadSchema,
-      includedFiles: paths.length,
-      includedBytes,
-      excludedFiles: exclusions.length,
-      excludedBytes,
-      uncertaintyRetainedFiles,
-      exclusions,
-    },
+    inventory,
+    classifications: await createPublishedClassifications(packageRoot, allPaths, new Set(paths), new Map(exclusions.map(item => [item.path, item.reason]))),
   };
 }
 
@@ -441,6 +498,70 @@ function dependencyPackagePrefix(path: string): string {
   const nodeModules = parts.lastIndexOf("node_modules");
   const packageParts = parts[nodeModules + 1]?.startsWith("@") ? 2 : 1;
   return parts.slice(0, nodeModules + 1 + packageParts).join("/");
+}
+
+interface DependencyPackageDescriptor {
+  readonly root: string;
+  readonly name: string;
+  readonly version: string;
+}
+
+async function dependencyPackageDescriptors(packageRoot: string, paths: readonly string[]): Promise<readonly DependencyPackageDescriptor[]> {
+  const descriptors: DependencyPackageDescriptor[] = [];
+  for (const path of paths.filter(path => path.endsWith("/package.json")).sort()) {
+    try {
+      const manifest = JSON.parse(await readFile(resolveWithin(packageRoot, path), "utf8")) as { name?: unknown; version?: unknown };
+      if (typeof manifest.name !== "string" || manifest.name.length === 0 || typeof manifest.version !== "string" || manifest.version.length === 0) continue;
+      descriptors.push({ root: path.slice(0, -"/package.json".length), name: manifest.name, version: manifest.version });
+    } catch {}
+  }
+  return descriptors.sort((left, right) => right.root.length - left.root.length || left.root.localeCompare(right.root));
+}
+
+function descriptorForPath(path: string, descriptors: readonly DependencyPackageDescriptor[]): DependencyPackageDescriptor | null {
+  return descriptors.find(descriptor => path.startsWith(`${descriptor.root}/`)) ?? null;
+}
+
+async function createPublishedClassifications(
+  packageRoot: string,
+  paths: readonly string[],
+  included: ReadonlySet<string>,
+  exclusionReasons: ReadonlyMap<string, RuntimePayloadExclusion["reason"]>,
+): Promise<readonly PublishedRuntimeFileClassification[]> {
+  const descriptors = await dependencyPackageDescriptors(packageRoot, paths);
+  const classifications = new Map<string, PublishedRuntimeFileClassification>();
+  for (const path of paths.filter(path => path.startsWith("node_modules/")).sort()) {
+    const descriptor = descriptorForPath(path, descriptors);
+    if (descriptor === null) continue;
+    const packagePath = path.slice(descriptor.root.length + 1);
+    const classification: PublishedRuntimeFileClassification = included.has(path)
+      ? { packageName: descriptor.name, packageVersion: descriptor.version, packagePath, disposition: "include" }
+      : { packageName: descriptor.name, packageVersion: descriptor.version, packagePath, disposition: "exclude", reason: exclusionReasons.get(path) ?? "unreachable-development" };
+    const key = classificationKey(classification.packageName, classification.packageVersion, classification.packagePath);
+    const existing = classifications.get(key);
+    if (existing?.disposition === "include") continue;
+    if (classification.disposition === "include" || existing === undefined) classifications.set(key, classification);
+  }
+  return [...classifications.values()].sort((left, right) => classificationKey(left.packageName, left.packageVersion, left.packagePath)
+    .localeCompare(classificationKey(right.packageName, right.packageVersion, right.packagePath)));
+}
+
+function validPublishedClassification(value: PublishedRuntimeFileClassification): boolean {
+  const validReason = value.reason === "type-declaration" || value.reason === "source-map" || value.reason === "unreachable-development";
+  return typeof value.packageName === "string" && value.packageName.length > 0
+    && typeof value.packageVersion === "string" && value.packageVersion.length > 0
+    && typeof value.packagePath === "string" && value.packagePath.length > 0
+    && !value.packagePath.startsWith("/") && !value.packagePath.includes("\\")
+    && !value.packagePath.split("/").includes("..")
+    && (value.disposition === "include" ? value.reason === undefined : value.disposition === "exclude" && validReason);
+}
+
+function classificationKey(packageName: string, packageVersion: string, packagePath: string): string {
+  return `${packageName}\0${packageVersion}\0${packagePath}`;
+}
+
+function isKnownRuntimePath(path: string): boolean {
+  return /\.(?:js|mjs|cjs|json|node|wasm|css|html|png|jpg|jpeg|gif|svg)$/.test(path) || /(?:^|\/)LICENSE(?:\.|$)/i.test(path);
 }
 
 function isJavaScriptModule(path: string): boolean { return /\.(?:js|mjs|cjs)$/.test(path); }

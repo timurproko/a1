@@ -19,6 +19,7 @@ const output = {
   entryPoints: ["bin/cli.js", "bin/guardian.js", "bin/supervisor.js", "bin/ui.js", "bin/warmup.js"],
   declaredAssets,
   paths: selected.paths,
+  classifications: selected.classifications,
   inventory: selected.inventory,
 };
 await writeFile(resolve(repository, RUNTIME_PAYLOAD_INVENTORY), `${JSON.stringify(output, null, 2)}\n`, "utf8");
