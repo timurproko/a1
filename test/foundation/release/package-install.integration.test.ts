@@ -1,5 +1,5 @@
 import crossSpawn from "cross-spawn";
-import { access, mkdtemp, readFile, rm } from "node:fs/promises";
+import { access, copyFile, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -77,6 +77,86 @@ describe("clean installation of the exact candidate", () => {
     };
     expect(identity.inspectPiTuiModuleIdentity(release.releaseRoot)).toMatchObject({ kind: "unified" });
   }, 600_000);
+
+  it("drains a production-shaped historical backlog through the exact packaged private worker", async () => {
+    const packageRoot = resolve(prefix, ...(process.platform === "win32" ? [] : ["lib"]), "node_modules", "@timurproko", "a1");
+    const dataDir = resolve(root, "cleanup-data");
+    const runtimeDir = resolve(root, "cleanup-runtime");
+    const releases = await createPackagedCleanupBacklog(dataDir, 42, 128);
+    const environment = {
+      ...process.env,
+      A1_DATA_DIR: dataDir,
+      A1_RUNTIME_DIR: runtimeDir,
+      A1_RELEASE_CLEANUP_RUN_ID: "exact-package-cleanup",
+      A1_RELEASE_CLEANUP_HOLDS: JSON.stringify([{ authority: "migration", releaseId: releases[39]!.releaseId }]),
+    };
+
+    const before = await treeUsage(resolve(dataDir, "releases"));
+    const cleanup = await runAsync(process.execPath, [resolve(packageRoot, "bin", "release-cleanup.js")], root, environment);
+    expect(cleanup.status, cleanup.stderr).toBe(0);
+    const state = JSON.parse(await readFile(resolve(dataDir, "release-state.json"), "utf8")) as {
+      releases: Record<string, unknown>;
+      cleanup: { pending: Record<string, unknown>; workerRuns: Array<{ runId: string; status: string; completed: number }> };
+    };
+    const remainingRoots = (await readdir(resolve(dataDir, "releases"))).filter(name => !name.startsWith("."));
+
+    expect(Object.keys(state.releases).sort()).toEqual([releases[39]!.releaseId, releases[40]!.releaseId, releases[41]!.releaseId].sort());
+    const after = await treeUsage(resolve(dataDir, "releases"));
+    expect(Object.keys(state.cleanup.pending)).toHaveLength(0);
+    expect(remainingRoots.sort()).toEqual(Object.keys(state.releases).sort());
+    expect(after.files).toBeLessThan(before.files);
+    expect(after.bytes).toBeLessThan(before.bytes);
+    expect(state.cleanup.workerRuns.find(run => run.runId === "exact-package-cleanup")).toMatchObject({ status: "completed", completed: 39 });
+  }, 120_000);
+
+  it("leaves durable scheduled evidence when the exact private entry cannot import its runtime", async () => {
+    const packageRoot = resolve(prefix, ...(process.platform === "win32" ? [] : ["lib"]), "node_modules", "@timurproko", "a1");
+    const brokenRoot = resolve(root, "broken-cleanup-package");
+    const dataDir = resolve(root, "broken-cleanup-data");
+    const releases = await createPackagedCleanupBacklog(dataDir, 3, 1);
+    await mkdir(resolve(brokenRoot, "bin"), { recursive: true });
+    await copyFile(resolve(packageRoot, "bin", "release-cleanup.js"), resolve(brokenRoot, "bin", "release-cleanup.js"));
+    const statePath = resolve(dataDir, "release-state.json");
+    const state = JSON.parse(await readFile(statePath, "utf8")) as any;
+    const obsolete = state.releases[releases[0]!.releaseId];
+    delete state.releases[releases[0]!.releaseId];
+    state.references.retention = [releases[1]!.releaseId, releases[2]!.releaseId];
+    state.cleanup.pending[releases[0]!.releaseId] = {
+      release: obsolete,
+      stage: "detached",
+      trashPath: null,
+      attempts: 0,
+      lastAttemptAt: null,
+      lastError: null,
+    };
+    state.cleanup.workerRuns = [{
+      runId: "broken-import",
+      status: "scheduled",
+      scheduledAt: new Date().toISOString(),
+      startedAt: null,
+      completedAt: null,
+      pid: null,
+      batches: 0,
+      attempted: 0,
+      completed: 0,
+      remaining: 1,
+      error: null,
+    }];
+    await writeFile(statePath, JSON.stringify(state, null, 2));
+
+    const result = await runAsync(process.execPath, [resolve(brokenRoot, "bin", "release-cleanup.js")], root, {
+      ...process.env,
+      A1_DATA_DIR: dataDir,
+      A1_RUNTIME_DIR: resolve(dataDir, "runtime"),
+      A1_RELEASE_CLEANUP_RUN_ID: "broken-import",
+    });
+    const preserved = JSON.parse(await readFile(statePath, "utf8")) as typeof state;
+
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toMatch(/Cannot find module|cannot find module|ERR_MODULE_NOT_FOUND/);
+    expect(preserved.cleanup.pending[releases[0]!.releaseId]).toBeDefined();
+    expect(preserved.cleanup.workerRuns[0]).toMatchObject({ runId: "broken-import", status: "scheduled", attempted: 0 });
+  });
 
   it.runIf(process.platform === "win32")("gates post-update and warm startup for both exact packaged profiles", async () => {
     const { certifyMaterializedRelease, CohortStateStore, materializeRelease, releaseVerifiedIdleOwner, startSupervisor, waitForVerifiedEndpoint, warmMaterializedRelease } = await import("../../../src/foundation/release/index.js");
@@ -163,9 +243,83 @@ async function captureReadyLaunch(
   }
 }
 
-function runAsync(command: string, arguments_: readonly string[], cwd: string) {
+async function createPackagedCleanupBacklog(dataDir: string, count: number, payloadFilesPerRelease: number) {
+  const releasesRoot = resolve(dataDir, "releases");
+  await mkdir(releasesRoot, { recursive: true });
+  const releases = [] as Array<{
+    releaseId: string;
+    releaseRoot: string;
+    packageVersion: string;
+    contentDigest: string;
+    approval: "approved";
+    materializedAt: string;
+    certifiedAt: string;
+    diagnosticsPath: string;
+  }>;
+  for (let index = 0; index < count; index += 1) {
+    const packageVersion = `1.0.${index}`;
+    const identity = (index + 1).toString(16).padStart(20, "0");
+    const contentDigest = (index + 1).toString(16).padStart(64, "0");
+    const releaseId = `${packageVersion}-${identity}`;
+    const releaseRoot = resolve(releasesRoot, releaseId);
+    await mkdir(resolve(releaseRoot, "node_modules", "fixture"), { recursive: true });
+    await Promise.all(Array.from({ length: payloadFilesPerRelease }, async (_, file) => {
+      await writeFile(resolve(releaseRoot, "node_modules", "fixture", `${file}.js`), `export default ${file};`);
+    }));
+    await writeFile(resolve(releaseRoot, ".a1-release.json"), JSON.stringify({ releaseId, packageVersion, contentDigest }));
+    const diagnosticsPath = resolve(dataDir, `certification-${releaseId}.json`);
+    await writeFile(diagnosticsPath, JSON.stringify({ releaseId }));
+    releases.push({
+      releaseId,
+      releaseRoot,
+      packageVersion,
+      contentDigest,
+      approval: "approved",
+      materializedAt: new Date(0).toISOString(),
+      certifiedAt: new Date(0).toISOString(),
+      diagnosticsPath,
+    });
+  }
+  const active = releases.at(-1)!;
+  const rollback = releases.at(-2)!;
+  await writeFile(resolve(dataDir, "release-state.json"), JSON.stringify({
+    schema: "a1-release-cohort-v1",
+    revision: 1,
+    releases: Object.fromEntries(releases.map(release => [release.releaseId, release])),
+    references: {
+      active: active.releaseId,
+      pending: null,
+      approved: active.releaseId,
+      rollback: rollback.releaseId,
+      retention: releases.map(release => release.releaseId),
+    },
+    cleanup: { pending: {}, diagnostics: [] },
+    activation: { state: "idle", reason: null, blockerGenerationIds: [], updatedAt: new Date(0).toISOString() },
+  }, null, 2));
+  return releases;
+}
+
+async function treeUsage(root: string): Promise<{ files: number; bytes: number }> {
+  const pending = [root];
+  let files = 0;
+  let bytes = 0;
+  while (pending.length > 0) {
+    const directory = pending.pop()!;
+    for (const entry of await readdir(directory, { withFileTypes: true })) {
+      const path = resolve(directory, entry.name);
+      if (entry.isDirectory()) pending.push(path);
+      else {
+        files += 1;
+        bytes += (await stat(path)).size;
+      }
+    }
+  }
+  return { files, bytes };
+}
+
+function runAsync(command: string, arguments_: readonly string[], cwd: string, environment: NodeJS.ProcessEnv = process.env) {
   return new Promise<{ status: number | null; stdout: string; stderr: string }>((resolvePromise, rejectPromise) => {
-    const child = crossSpawn(command, [...arguments_], { cwd, env: process.env, windowsHide: true });
+    const child = crossSpawn(command, [...arguments_], { cwd, env: environment, windowsHide: true });
     let stdout = "";
     let stderr = "";
     child.stdout?.on("data", chunk => { stdout += chunk.toString(); });

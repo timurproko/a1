@@ -817,10 +817,10 @@
       ]
     },
     {
-      "id": "test/foundation/release/package-surface.test.ts:41:32",
+      "id": "test/foundation/release/package-surface.test.ts:42:32",
       "path": "test/foundation/release/package-surface.test.ts",
       "locationKind": "content",
-      "line": 41,
+      "line": 42,
       "column": 32,
       "value": "addone",
       "context": "expect(paths.some(path => /addone/i.test(path))).toBe(false);",
@@ -1281,5 +1281,5 @@
       ]
     }
   ],
-  "generatedAt": "2026-08-28T15:23:11.832Z"
+  "generatedAt": "2026-09-03T17:35:20.422Z"
 }
