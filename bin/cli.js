@@ -1,6 +1,12 @@
 #!/usr/bin/env node
 
+const commandStartedAtMs = performance.timeOrigin + performance.now();
 const packageRoot = new URL("..", import.meta.url);
+const startup = await import("../dist/foundation/startup/index.js");
+const startupProfile = process.argv[2] === "pi" ? "pi" : "a1";
+startup.initializeStartupTrace(process.env, startupProfile, commandStartedAtMs);
+startup.enableEnvironmentCompileCache(process.env);
+await startup.markStartupPhase(process.env, "command-invoked");
 const { fileURLToPath } = await import("node:url");
 const { readFile } = await import("node:fs/promises");
 const { cliCapabilities, dispatchCli } = await import("../dist/cli/index.js");

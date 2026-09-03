@@ -1,10 +1,9 @@
 import { createHash, randomUUID } from "node:crypto";
-import { chmod, lstat, mkdir, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdir, readFile, realpath, rename, rm, symlink, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import {
   PRODUCT_PACKAGE_NAME,
   createReleaseIdentity,
-  digestManifestFiles,
   discoverReleasePayload,
   releaseFileIdentity,
   resolveWithin,
@@ -13,6 +12,16 @@ import {
 } from "./release.js";
 import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
 import { mapWithConcurrency } from "./concurrency.js";
+import {
+  dependencyReference,
+  materializeDependencyLayer,
+  readCertifiedDependencyLayer,
+  selectPublishedDependencyRuntimePayload,
+  verifyDependencyLayer,
+  type DependencyLayerOperationEvent,
+  type DependencyLayerReference,
+  type RuntimePayloadInventory,
+} from "./dependency-layer.js";
 
 const RELEASE_FILE_IO_CONCURRENCY = 32;
 const certificationReady = new WeakSet<MaterializedRelease>();
@@ -23,7 +32,7 @@ export interface MaterializedRelease extends ReleaseIdentity {
   readonly releaseRoot: string;
 }
 
-export type ReleaseContentOperation = "source-read" | "candidate-write" | "verification-read";
+export type ReleaseContentOperation = "source-read" | "candidate-write" | "layer-write" | "layer-reuse" | "verification-read";
 export interface ReleaseContentOperationEvent {
   readonly operation: ReleaseContentOperation;
   readonly path: string;
@@ -33,6 +42,7 @@ export interface ReleaseContentOperationEvent {
 export interface MaterializeReleaseOptions {
   readonly onProgress?: (progress: { readonly phase: "copying"; readonly fileCount: number }) => void;
   readonly onOperation?: (event: ReleaseContentOperationEvent) => void;
+  readonly onRuntimeInventory?: (inventory: RuntimePayloadInventory) => void;
   /** Test seam for deterministic write-failure coverage. */
   readonly writeCandidateFile?: (path: string, bytes: Uint8Array, mode: number) => Promise<void>;
 }
@@ -54,16 +64,32 @@ export async function materializeRelease(packageRoot: string, dataDir: string, o
   });
   const storeRoot = resolve(dataDir, "releases");
   await mkdir(storeRoot, { recursive: true, mode: 0o700 });
-  options.onProgress?.({ phase: "copying", fileCount: payload.paths.length });
+  const dependencyPaths = payload.paths.filter(path => path.startsWith("node_modules/"));
+  const productPaths = payload.paths.filter(path => !path.startsWith("node_modules/"));
+  const selectedDependencies = await selectPublishedDependencyRuntimePayload(payload.packageRoot, dependencyPaths);
+  options.onRuntimeInventory?.(selectedDependencies.inventory);
+  const layerOperations: DependencyLayerOperationEvent[] = [];
+  const layer = await materializeDependencyLayer(payload.packageRoot, dataDir, selectedDependencies.paths, {
+    inventory: selectedDependencies.inventory,
+    cachedFiles: payload.cachedFiles,
+    onOperation: event => layerOperations.push(event),
+    ...(options.writeCandidateFile === undefined ? {} : { writeCandidateFile: options.writeCandidateFile }),
+  });
+  const layerReferences = layer === null ? [] : [dependencyReference(layer)];
+  options.onProgress?.({
+    phase: "copying",
+    fileCount: productPaths.length + (layer?.reused === false ? layer.files.length : 0),
+  });
+  for (const event of layerOperations) options.onOperation?.(event);
 
   const candidate = resolveWithin(storeRoot, `.candidate-${randomUUID()}`);
   await mkdir(candidate, { recursive: false, mode: 0o700 });
   try {
-    const directories = [...new Set(payload.paths.map(path => dirname(resolveWithin(candidate, path))))];
+    const directories = [...new Set(productPaths.map(path => dirname(resolveWithin(candidate, path))))];
     await mapWithConcurrency(directories, RELEASE_FILE_IO_CONCURRENCY, async directory => {
       await mkdir(directory, { recursive: true, mode: 0o700 });
     });
-    const files = await mapWithConcurrency(payload.paths, RELEASE_FILE_IO_CONCURRENCY, async path => {
+    const files = await mapWithConcurrency(productPaths, RELEASE_FILE_IO_CONCURRENCY, async path => {
       const source = resolveWithin(payload.packageRoot, path);
       const destination = resolveWithin(candidate, path);
       const metadata = await lstat(source);
@@ -81,7 +107,12 @@ export async function materializeRelease(packageRoot: string, dataDir: string, o
       return releaseFileIdentity(path, bytes, (metadata.mode & 0o111) !== 0);
     });
 
-    const identity = createReleaseIdentity(payload.packageRoot, payload.packageVersion, files);
+    const identity = createReleaseIdentity(payload.packageRoot, payload.packageVersion, files, layerReferences);
+    if (layer !== null) {
+      const binding = resolveWithin(candidate, "node_modules");
+      const target = resolveWithin(layer.layerRoot, "node_modules");
+      await symlink(target, binding, process.platform === "win32" ? "junction" : "dir");
+    }
     const releaseRoot = resolveWithin(storeRoot, identity.releaseId);
     if (await lstat(releaseRoot).catch(() => null)) {
       await rm(candidate, { recursive: true, force: true });
@@ -127,7 +158,8 @@ export async function readCertifiedReleaseManifest(
   selectedStoreRoot: string,
 ): Promise<MaterializedRelease> {
   const canonical = await realpath(record.releaseRoot);
-  assertContained(await realpath(selectedStoreRoot), canonical, "release root is outside the selected release store");
+  const canonicalStoreRoot = await realpath(selectedStoreRoot);
+  assertContained(canonicalStoreRoot, canonical, "release root is outside the selected release store");
   const manifest = JSON.parse(await readFile(resolveWithin(canonical, RELEASE_MANIFEST_FILENAME), "utf8")) as ReleaseIdentity;
   validateManifest(manifest);
   if (manifest.releaseId !== record.releaseId || manifest.contentDigest !== record.contentDigest
@@ -135,6 +167,7 @@ export async function readCertifiedReleaseManifest(
     throw new Error(`certified release record differs from manifest for ${canonical}`);
   }
   if (canonical.split(sep).at(-1) !== manifest.releaseId) throw new Error(`release directory does not match identity ${manifest.releaseId}`);
+  await verifyReleaseDependencies(canonical, canonicalStoreRoot, manifest.dependencyLayers ?? [], false);
   return { ...manifest, releaseRoot: canonical };
 }
 
@@ -145,7 +178,8 @@ export async function verifyMaterializedRelease(
   options: VerifyMaterializedReleaseOptions = {},
 ): Promise<MaterializedRelease> {
   const canonical = await realpath(releaseRoot);
-  if (selectedStoreRoot) assertContained(await realpath(selectedStoreRoot), canonical, "release root is outside the selected release store");
+  const canonicalStoreRoot = selectedStoreRoot ? await realpath(selectedStoreRoot) : await realpath(dirname(canonical));
+  assertContained(canonicalStoreRoot, canonical, "release root is outside the selected release store");
   const manifestPath = resolveWithin(canonical, RELEASE_MANIFEST_FILENAME);
   const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as ReleaseIdentity;
   validateManifest(manifest);
@@ -158,8 +192,9 @@ export async function verifyMaterializedRelease(
   await mapWithConcurrency(manifest.files, RELEASE_FILE_IO_CONCURRENCY, async file => {
     await verifyFile(canonical, file, options);
   });
-  const recomputed = digestManifestFiles(manifest.files);
+  const recomputed = createReleaseIdentity(manifest.packageRoot, manifest.packageVersion, manifest.files, manifest.dependencyLayers ?? []).contentDigest;
   if (recomputed !== manifest.contentDigest) throw new Error(`release content digest mismatch for ${manifest.releaseId}`);
+  await verifyReleaseDependencies(canonical, canonicalStoreRoot, manifest.dependencyLayers ?? [], true, options);
   return { ...manifest, releaseRoot: canonical };
 }
 
@@ -179,6 +214,28 @@ export async function resolveReleaseEntryPoint(release: MaterializedRelease, ent
   const canonical = await realpath(path);
   assertContained(release.releaseRoot, canonical, "entry point resolves outside the selected release root");
   return canonical;
+}
+
+async function verifyReleaseDependencies(
+  releaseRoot: string,
+  storeRoot: string,
+  references: readonly DependencyLayerReference[],
+  fullVerification: boolean,
+  options: VerifyMaterializedReleaseOptions = {},
+): Promise<void> {
+  if (references.length === 0) return;
+  if (references.length !== 1) throw new Error("release currently supports exactly one dependency layer");
+  const dataDir = dirname(storeRoot);
+  const reference = references[0]!;
+  const layer = fullVerification
+    ? await verifyDependencyLayer(dataDir, reference, event => options.onOperation?.({ operation: event.operation, path: event.path, bytes: event.bytes }))
+    : await readCertifiedDependencyLayer(dataDir, reference.layerId, reference);
+  const binding = resolveWithin(releaseRoot, reference.binding);
+  const metadata = await lstat(binding);
+  if (!metadata.isSymbolicLink()) throw new Error(`release dependency binding is not managed: ${binding}`);
+  const target = await realpath(binding);
+  const expected = await realpath(resolveWithin(layer.layerRoot, "node_modules"));
+  if (target !== expected) throw new Error(`release dependency binding targets unexpected content: ${target}`);
 }
 
 async function verifyFile(root: string, file: ReleaseFileIdentity, options: VerifyMaterializedReleaseOptions): Promise<void> {
@@ -201,6 +258,11 @@ function validateManifest(value: ReleaseIdentity): void {
   if (value.packageName !== PRODUCT_PACKAGE_NAME || typeof value.packageVersion !== "string") throw new Error(PRODUCT_TEXT.diagnostic("release manifest metadata is invalid"));
   if (!/^[a-f0-9]{64}$/.test(value.contentDigest) || !/^[0-9A-Za-z.+_-]+-[a-f0-9]{20}$/.test(value.releaseId)) throw new Error(PRODUCT_TEXT.diagnostic("release identity is invalid"));
   if (!Array.isArray(value.files) || value.files.length === 0) throw new Error("release manifest contains no files");
+  if (value.dependencyLayers !== undefined && (!Array.isArray(value.dependencyLayers) || value.dependencyLayers.length === 0
+    || value.dependencyLayers.some(layer => !/^dependencies-[a-f0-9]{32}$/.test(layer.layerId)
+      || !/^[a-f0-9]{64}$/.test(layer.contentDigest) || layer.binding !== "node_modules"))) {
+    throw new Error("release dependency-layer references are invalid");
+  }
   for (const file of value.files) {
     if (typeof file.path !== "string" || file.path.length === 0 || file.path.includes("\\") || file.path.startsWith("/") || file.path.split("/").includes("..")) {
       throw new Error(`invalid release manifest path: ${String(file.path)}`);

@@ -289,6 +289,43 @@ describe("A1 self-update orchestration", () => {
     expect(harness.stdout.join("")).toContain("a1 updated successfully: 1.3.0");
   });
 
+  it("fails safely when the activated startup graph cannot warm", async () => {
+    const harness = createHarness({ responses: [success("1.3.0\n"), success(`${resolve("fixtures", "global")}\n`), success(), success()] });
+    harness.lifecycle.activateInstalled = async (_path, _version, phase) => {
+      for (const value of ["materialized", "certified", "active-reference-committed"] as const) await phase(value);
+      throw new Error("immutable startup warmup failed");
+    };
+
+    await expect(runSelfUpdate(harness)).resolves.toBe(1);
+
+    expect(harness.stdout.join("")).not.toContain("updated successfully");
+    expect(harness.stderr.join("")).toContain("immutable startup warmup failed");
+    expect(harness.stderr.join("")).toContain("previous test lifecycle retained");
+  });
+
+  it("represents bounded warmup as a measured monotonic update phase", async () => {
+    const harness = createHarness({ responses: [success("1.3.0\n"), success(`${resolve("fixtures", "global")}\n`), success(), success()] });
+    harness.lifecycle.activateInstalled = async (_path, _version, phase, _onMaterializing, onWarmup) => {
+      for (const value of ["materialized", "certified", "active-reference-committed"] as const) await phase(value);
+      onWarmup?.("started");
+      onWarmup?.("completed");
+    };
+    let tick = 0;
+    const phases: string[] = [];
+
+    await expect(runSelfUpdate({
+      ...harness,
+      progress: true,
+      now: () => { tick += 5; return tick; },
+      onPhaseTiming: event => phases.push(event.phase),
+    })).resolves.toBe(0);
+
+    expect(phases).toContain("warmup");
+    const percents = harness.stdout.join("").split("\r")
+      .map(frame => /(\d+)%/.exec(frame)?.[1]).filter((value): value is string => value !== undefined).map(Number);
+    expect(percents).toEqual([...percents].sort((left, right) => left - right));
+  });
+
   it("gives the progress row back to the line that says what was installed", async () => {
     const harness = createHarness({ responses: [success("1.3.0\n"), success(`${resolve("fixtures", "global")}\n`), success(), success()] });
 

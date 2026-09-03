@@ -21,6 +21,7 @@
     "fixtureInput": "A1_FIXTURE_INPUT",
     "fixtureToken": "A1_FIXTURE_TOKEN",
     "inputAcknowledgement": "A1_INPUT_ACK",
+    "immutableWarmup": "A1_IMMUTABLE_WARMUP",
     "internalPackaging": "A1_INTERNAL_PACKAGING",
     "launchProfile": "A1_LAUNCH_PROFILE",
     "nativePi": "A1_NATIVE_PI",
@@ -35,10 +36,12 @@
     "protocolVersion": "A1_PROTOCOL_VERSION",
     "releaseDigest": "A1_RELEASE_DIGEST",
     "releaseId": "A1_RELEASE_ID",
+    "releaseLayers": "A1_RELEASE_LAYERS",
     "releaseRoot": "A1_RELEASE_ROOT",
     "releaseRunnerLabel": "A1_RELEASE_RUNNER_LABEL",
     "runtimeDir": "A1_RUNTIME_DIR",
     "structuredFlowLimits": "A1_STRUCTURED_FLOW_LIMITS",
+    "startupTrace": "A1_STARTUP_TRACE",
     "terminalArgumentsJson": "A1_TERMINAL_ARGUMENTS_JSON",
     "terminalExecutable": "A1_TERMINAL_EXECUTABLE",
     "terminalSessionId": "A1_TERMINAL_SESSION_ID"
@@ -81,7 +84,11 @@
     "previewPlatformVerdictSchema": "a1-development-preview-platform-verdict-v2",
     "piSourceLedgerSchema": "a1-pinned-pi-source-port-ledger-v1",
     "piComponentParitySchema": "a1-pi-static-component-parity-v1",
-    "piEventFrameParitySchema": "a1-pi-event-frame-parity-v1"
+    "piEventFrameParitySchema": "a1-pi-event-frame-parity-v1",
+    "startupTraceSchema": "a1-startup-trace-v1",
+    "dependencyLayerSchema": "a1-dependency-layer-v1",
+    "dependencyLayerCertificationSchema": "a1-dependency-layer-certification-v1",
+    "runtimePayloadSchema": "a1-runtime-payload-v1"
   },
   "artifacts": {
     "cliEntry": "bin/cli.js",

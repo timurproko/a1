@@ -20,6 +20,7 @@ import { CohortStateStore, type SupervisorEndpointMetadata } from "./cohort-stat
 import { cleanupVerifiedOwner, processIsAlive } from "./process-cleanup.js";
 import { materializeRelease, readMaterializedRelease } from "./release-store.js";
 import { scheduleReleaseCleanup } from "./release-gc.js";
+import { warmMaterializedRelease } from "./warmup.js";
 import { UpdateTransactionStore, type UpdateTransaction, type UpdateTransactionPhase } from "./update-transaction.js";
 
 export const PRODUCT_PACKAGE = PRODUCT_TEXT.packageName;
@@ -43,6 +44,7 @@ export type UpdateMeasuredPhase =
   | "materialized"
   | "certified"
   | "active-reference-committed"
+  | "warmup"
   | "supervisor-verified"
   | "transaction-complete";
 export interface UpdatePhaseTimingEvent { readonly phase: UpdateMeasuredPhase; readonly durationMs: number }
@@ -51,6 +53,12 @@ export interface UpdatePerformanceEvidence {
   readonly sourceReads: number;
   readonly candidateWrites: number;
   readonly verificationReads: number;
+  readonly layerWrites?: number;
+  readonly layerReusedFiles?: number;
+  readonly layerReusedBytes?: number;
+  readonly payloadExcludedFiles?: number;
+  readonly payloadExcludedBytes?: number;
+  readonly warmupDurationMs?: number;
   readonly postNpmDurationMs: number;
 }
 export interface SelfUpdateOptions {
@@ -91,6 +99,7 @@ export interface UpdateLifecycleCoordinator {
     targetVersion: string,
     phase: (phase: UpdateActivationPhase) => Promise<void>,
     onMaterializing?: (progress: UpdateMaterializationProgress) => void,
+    onWarmup?: (state: "started" | "completed") => void,
   ): Promise<void>;
 }
 export interface UpdateTransactionJournal {
@@ -228,7 +237,7 @@ export function createUpdateLifecycleCoordinator(
         throw new Error(PRODUCT_TEXT.diagnostic(`package remains locked after verified shutdown: ${errorMessage(error)}`));
       }
     },
-    async activateInstalled(packageRoot, targetVersion, phase, onMaterializing) {
+    async activateInstalled(packageRoot, targetVersion, phase, onMaterializing, onWarmup) {
       let total = 0;
       let completed = 0;
       const candidate = await materializeRelease(packageRoot, paths.dataDir, {
@@ -237,7 +246,7 @@ export function createUpdateLifecycleCoordinator(
           onMaterializing?.({ completed, total });
         },
         onOperation: event => {
-          if (event.operation !== "candidate-write") return;
+          if (event.operation !== "candidate-write" && event.operation !== "layer-write") return;
           completed += 1;
           onMaterializing?.({ completed, total });
         },
@@ -250,6 +259,9 @@ export function createUpdateLifecycleCoordinator(
       await phase("certified");
       await stateStore.activate(candidate.releaseId);
       await phase("active-reference-committed");
+      onWarmup?.("started");
+      await warmMaterializedRelease(candidate, environment);
+      onWarmup?.("completed");
       await startSupervisor(candidate, environment);
       await waitForVerifiedEndpoint(resolveCohortEndpoint(paths, candidate.releaseId, environment).endpointMetadataPath, candidate, 8_000);
     },
@@ -525,6 +537,15 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
       const span = MATERIALIZE_PROGRESS.to - MATERIALIZE_PROGRESS.from;
       const done = total > 0 ? Math.min(1, completed / total) : 0;
       progress.set(MATERIALIZE_PROGRESS.from + span * done);
+    }, state => {
+      if (state === "started") {
+        activationPhaseStartedAt = now();
+        progress.set(98, 99);
+      } else {
+        options.onPhaseTiming?.({ phase: "warmup", durationMs: Math.max(0, now() - activationPhaseStartedAt) });
+        activationPhaseStartedAt = now();
+        progress.set(99);
+      }
     });
     options.onPhaseTiming?.({ phase: "supervisor-verified", durationMs: Math.max(0, now() - activationPhaseStartedAt) });
     const transactionStartedAt = now();
@@ -557,7 +578,8 @@ export function assertUpdatePerformanceBudget(
   const failures: string[] = [];
   if (evidence.fileCount < 1) failures.push("fixture contains no payload files");
   if (evidence.sourceReads !== evidence.fileCount) failures.push(`source payload read count is ${evidence.sourceReads} for ${evidence.fileCount} files`);
-  if (evidence.candidateWrites !== evidence.fileCount) failures.push(`candidate payload write count is ${evidence.candidateWrites} for ${evidence.fileCount} files`);
+  const totalWrites = evidence.candidateWrites + (evidence.layerWrites ?? 0);
+  if (totalWrites !== evidence.fileCount) failures.push(`runtime payload write count is ${totalWrites} for ${evidence.fileCount} files`);
   if (evidence.verificationReads > 0) failures.push(`fresh certification reread ${evidence.verificationReads} candidate files`);
   if (evidence.postNpmDurationMs > maximumPostNpmDurationMs) failures.push(`post-npm activation took ${Math.round(evidence.postNpmDurationMs)}ms; budget is ${maximumPostNpmDurationMs}ms`);
   if (failures.length > 0) throw new Error(`update performance budget failed: ${failures.join("; ")}`);
