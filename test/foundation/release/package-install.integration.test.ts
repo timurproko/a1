@@ -20,7 +20,7 @@ beforeAll(async () => {
 }, 600_000);
 
 afterAll(async () => {
-  if (root) await rm(root, { recursive: true, force: true });
+  if (root) await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
 }, 60_000);
 
 describe("clean installation of the exact candidate", () => {
