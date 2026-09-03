@@ -10,6 +10,7 @@ import { encodeFrame, LineFrameDecoder } from "../protocol/index.js";
 import { cleanupProvenIdleOwner, processIsAlive } from "./process-cleanup.js";
 import { sweepDeadEndpoints } from "./endpoints.js";
 import { consumeMaterializationProof, materializeRelease, readCertifiedReleaseManifest, readMaterializedRelease, resolveReleaseEntryPoint, verifyMaterializedRelease, type MaterializedRelease, type VerifyMaterializedReleaseOptions } from "./release-store.js";
+import { scheduleReleaseCleanup } from "./release-gc.js";
 import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
 
 export interface BootstrapOptions {
@@ -27,6 +28,8 @@ export interface BootstrapOptions {
    * release is fit.
    */
   readonly releaseIsLaunchable?: (releaseRoot: string) => boolean;
+  /** Test seam for bounded maintenance scheduled after stale endpoint sweeping. */
+  readonly scheduleMaintenance?: (dataDir: string, paths: ReturnType<typeof resolveProductPaths>) => Promise<void>;
 }
 
 export async function runBootstrap(options: BootstrapOptions): Promise<number> {
@@ -44,6 +47,10 @@ export async function runBootstrap(options: BootstrapOptions): Promise<number> {
   // can now be several of them. Clearing them first keeps the decision below about what is
   // actually running.
   await sweepDeadEndpoints(paths).catch(() => []);
+  // Performance: reconciliation is serialized by cohort state, but launch never awaits a physical
+  // backlog. The scheduler commits a plan and starts a detached bounded worker.
+  const scheduleMaintenance = options.scheduleMaintenance ?? scheduleReleaseCleanup;
+  void scheduleMaintenance(paths.dataDir, paths).catch(() => {});
   // Protocol: each cohort keeps its own endpoint, so a launch looks for the endpoint of the release it
   // is about to run rather than for the one endpoint the runtime directory used to have.
   const activeReleaseId = state.references.active;

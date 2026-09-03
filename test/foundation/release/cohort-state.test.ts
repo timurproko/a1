@@ -1,15 +1,15 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { CohortStateStore, emptyState, RELEASE_COHORT_SCHEMA } from "../../../src/foundation/release/index.js";
+import { CohortStateStore, emptyState, planProtectedReleases, RELEASE_COHORT_SCHEMA } from "../../../src/foundation/release/index.js";
 import type { MaterializedRelease } from "../../../src/foundation/release/index.js";
 
 const roots: string[] = [];
 afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))));
 
 describe("atomic release references", () => {
-  it("persists candidate, approval, active, rollback, and retention references", async () => {
+  it("persists candidate, approval, active, and rollback without appending activation history", async () => {
     const root = await mkdtemp(resolve(tmpdir(), "a1-cohort-state-"));
     roots.push(root);
     const store = new CohortStateStore(root);
@@ -29,7 +29,7 @@ describe("atomic release references", () => {
       pending: null,
       approved: second.releaseId,
       rollback: first.releaseId,
-      retention: [first.releaseId, second.releaseId],
+      retention: [],
     });
     expect((await store.read()).revision).toBe(6);
   });
@@ -64,6 +64,48 @@ describe("atomic release references", () => {
 
     expect(RELEASE_COHORT_SCHEMA).toBe("a1-release-cohort-v1");
     await expect(store.read()).rejects.toThrow(/invalid release cohort state/);
+  });
+
+  it("reconciles a large legacy retention list to current typed ownership", async () => {
+    const root = await mkdtemp(resolve(tmpdir(), "a1-cohort-migration-"));
+    roots.push(root);
+    const store = new CohortStateStore(root);
+    const releases = Array.from({ length: 40 }, (_, index) => release(`1.0.${index}`, String(index + 1)));
+    for (const candidate of releases) {
+      await store.recordCandidate(candidate);
+      await store.approve(candidate.releaseId, `${candidate.releaseId}.json`);
+      await store.activate(candidate.releaseId);
+    }
+    await store.setRetention(releases.map(candidate => candidate.releaseId));
+    const legacyState = JSON.parse(await readFile(store.path, "utf8")) as { cleanup?: unknown };
+    delete legacyState.cleanup;
+    await writeFile(store.path, JSON.stringify(legacyState));
+    const active = releases[39]!;
+    const rollback = releases[38]!;
+    const live = releases[7]!;
+    const held = releases[11]!;
+
+    const reconciled = await store.reconcileRetention(() => ({
+      liveReleaseIds: [live.releaseId],
+      externalHolds: [{ authority: "migration", releaseId: held.releaseId }],
+      transaction: { status: "active", priorActiveReleaseId: rollback.releaseId },
+    }));
+
+    expect(reconciled.plan.retainedReleaseIds).toEqual([active.releaseId, live.releaseId, held.releaseId, rollback.releaseId].sort());
+    expect(Object.keys(reconciled.state.releases).sort()).toEqual(reconciled.plan.retainedReleaseIds);
+    expect(Object.keys(reconciled.state.cleanup.pending)).toHaveLength(36);
+    expect(reconciled.state.references.retention).toEqual(reconciled.plan.retainedReleaseIds);
+  });
+
+  it("produces deterministic protection and rejects unknown typed holds", () => {
+    const first = release("1.0.0", "8");
+    const state = {
+      ...emptyState(),
+      releases: { [first.releaseId]: { ...first, approval: "approved" as const, materializedAt: new Date(0).toISOString(), certifiedAt: new Date(0).toISOString(), diagnosticsPath: null } },
+      references: { ...emptyState().references, active: first.releaseId },
+    };
+    expect(planProtectedReleases(state, { liveReleaseIds: [first.releaseId, first.releaseId] }).protectedReleaseIds).toEqual([first.releaseId]);
+    expect(() => planProtectedReleases(state, { externalHolds: [{ authority: "agent", releaseId: "missing" }] })).toThrow(/unknown release/);
   });
 
   it("durably records activation blockers", async () => {
