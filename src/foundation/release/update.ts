@@ -19,6 +19,7 @@ import { encodeFrame, LineFrameDecoder } from "../protocol/index.js";
 import { CohortStateStore, type SupervisorEndpointMetadata } from "./cohort-state.js";
 import { cleanupVerifiedOwner, processIsAlive } from "./process-cleanup.js";
 import { materializeRelease, readMaterializedRelease } from "./release-store.js";
+import { scheduleReleaseCleanup } from "./release-gc.js";
 import { UpdateTransactionStore, type UpdateTransaction, type UpdateTransactionPhase } from "./update-transaction.js";
 
 export const PRODUCT_PACKAGE = PRODUCT_TEXT.packageName;
@@ -63,6 +64,8 @@ export interface SelfUpdateOptions {
   runner?: UpdateProcessRunner;
   lifecycle?: UpdateLifecycleCoordinator;
   transactionStore?: UpdateTransactionJournal;
+  /** Test or embedding seam for post-activation release maintenance. */
+  maintenance?: () => Promise<void>;
   progress?: boolean;
   onPhaseTiming?: (event: UpdatePhaseTimingEvent) => void;
   now?: () => number;
@@ -444,6 +447,9 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
   const paths = resolveProductPaths(environment);
   const lifecycle = options.lifecycle ?? createUpdateLifecycleCoordinator(environment, fileSystem, output);
   const transactionStore = options.transactionStore ?? new UpdateTransactionStore(paths.dataDir);
+  const maintenance = options.maintenance ?? (options.lifecycle
+    ? async () => {}
+    : async () => await scheduleReleaseCleanup(paths.dataDir, paths));
   let transaction = await transactionStore.read();
   try {
     if (await lifecycle.targetIsActive(targetVersion)) {
@@ -451,6 +457,7 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
         await transactionStore.advance("supervisor-verified");
         await transactionStore.finish("completed");
       }
+      await maintenance();
       await transactionStore.clearCompleted();
       output.stdout(`${PRODUCT_TEXT.commandName} is up to date — no update needed.\n`);
       return 0;
@@ -523,6 +530,9 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
     const transactionStartedAt = now();
     await transactionStore.advance("supervisor-verified");
     await transactionStore.finish("completed");
+    // Invariant: successful output follows the durable cleanup disposition. Slow recursive
+    // removal belongs to the detached worker started by this maintenance coordinator.
+    await maintenance();
     await transactionStore.clearCompleted();
     options.onPhaseTiming?.({ phase: "transaction-complete", durationMs: Math.max(0, now() - transactionStartedAt) });
     progress.finish();

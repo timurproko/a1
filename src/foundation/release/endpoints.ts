@@ -1,6 +1,6 @@
 import { readdir } from "node:fs/promises";
 import { resolve } from "node:path";
-import { readEndpointMetadata, removeEndpointArtifacts } from "./bootstrap.js";
+import { probeOwnership, readEndpointMetadata, removeEndpointArtifacts } from "./bootstrap.js";
 import { processIsAlive } from "./process-cleanup.js";
 import type { SupervisorEndpointMetadata } from "./cohort-state.js";
 import type { CohortEndpointPaths, ProductPaths } from "../lifecycle/index.js";
@@ -46,11 +46,12 @@ export async function sweepDeadEndpoints(paths: ProductPaths): Promise<readonly 
   return swept;
 }
 
-/** The releases that a live cohort is running from, and so must be retained. */
+/** The releases that an identity-verified live cohort runs from and that must be retained. */
 export async function liveReleaseIds(paths: ProductPaths): Promise<readonly string[]> {
-  const live: string[] = [];
-  for (const recorded of await listRecordedEndpoints(paths)) {
-    if (processIsAlive(recorded.metadata.pid)) live.push(recorded.metadata.releaseId);
-  }
-  return live;
+  const recorded = await listRecordedEndpoints(paths);
+  const ownership = await Promise.all(recorded.map(async endpoint => ({
+    releaseId: endpoint.metadata.releaseId,
+    probe: await probeOwnership(endpoint.metadata),
+  })));
+  return [...new Set(ownership.filter(item => item.probe === "live-verified").map(item => item.releaseId))].sort();
 }

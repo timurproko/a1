@@ -276,6 +276,19 @@ describe("A1 self-update orchestration", () => {
     expect(harness.stderr).toEqual([]);
   });
 
+  it("commits cleanup maintenance before reporting update success", async () => {
+    const harness = createHarness({ responses: [success("1.3.0\n"), success(`${resolve("fixtures", "global")}\n`), success(), success()] });
+    const observations: string[] = [];
+
+    await expect(runSelfUpdate({
+      ...harness,
+      maintenance: async () => { observations.push(`maintenance:${harness.stdout.join("").includes("updated successfully")}`); },
+    })).resolves.toBe(0);
+
+    expect(observations).toEqual(["maintenance:false"]);
+    expect(harness.stdout.join("")).toContain("a1 updated successfully: 1.3.0");
+  });
+
   it("gives the progress row back to the line that says what was installed", async () => {
     const harness = createHarness({ responses: [success("1.3.0\n"), success(`${resolve("fixtures", "global")}\n`), success(), success()] });
 
