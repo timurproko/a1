@@ -325,6 +325,56 @@
       "identifier": "A1_PROCESS_GUARDIAN_PATH"
     },
     {
+      "path": "test/foundation/release/package-install.integration.test.ts",
+      "line": 88,
+      "identifier": "A1_DATA_DIR"
+    },
+    {
+      "path": "test/foundation/release/package-install.integration.test.ts",
+      "line": 89,
+      "identifier": "A1_RUNTIME_DIR"
+    },
+    {
+      "path": "test/foundation/release/package-install.integration.test.ts",
+      "line": 90,
+      "identifier": "A1_RELEASE_CLEANUP_RUN_ID"
+    },
+    {
+      "path": "test/foundation/release/package-install.integration.test.ts",
+      "line": 91,
+      "identifier": "A1_RELEASE_CLEANUP_HOLDS"
+    },
+    {
+      "path": "test/foundation/release/package-install.integration.test.ts",
+      "line": 149,
+      "identifier": "A1_DATA_DIR"
+    },
+    {
+      "path": "test/foundation/release/package-install.integration.test.ts",
+      "line": 150,
+      "identifier": "A1_RUNTIME_DIR"
+    },
+    {
+      "path": "test/foundation/release/package-install.integration.test.ts",
+      "line": 151,
+      "identifier": "A1_RELEASE_CLEANUP_RUN_ID"
+    },
+    {
+      "path": "test/foundation/release/release-gc.test.ts",
+      "line": 446,
+      "identifier": "A1_DATA_DIR"
+    },
+    {
+      "path": "test/foundation/release/release-gc.test.ts",
+      "line": 447,
+      "identifier": "A1_RUNTIME_DIR"
+    },
+    {
+      "path": "test/foundation/release/release-gc.test.ts",
+      "line": 448,
+      "identifier": "A1_RELEASE_CLEANUP_RUN_ID"
+    },
+    {
       "path": "test/foundation/release/update-live-cohort.test.ts",
       "line": 51,
       "identifier": "A1_CONFIG_DIR"
