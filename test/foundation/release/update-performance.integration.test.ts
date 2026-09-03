@@ -24,7 +24,7 @@ const roots: string[] = [];
 afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))));
 
 describe("packaged update activation performance", () => {
-  it("activates a large unchanged-dependency payload with one source read and one candidate write", async () => {
+  it("activates a large payload with one source read and one product-or-layer write per selected file", async () => {
     const root = await mkdtemp(resolve(tmpdir(), "a1-update-performance-"));
     roots.push(root);
     const dataDir = resolve(root, "data");
@@ -41,8 +41,13 @@ describe("packaged update activation performance", () => {
     let release: Awaited<ReturnType<typeof materializeRelease>> | undefined;
 
     try {
-      release = await materializeRelease(repository, dataDir, { onOperation: event => operations.push(event) });
-      expect(release.files.length).toBeGreaterThanOrEqual(10_000);
+      let excludedFiles = 0;
+      let excludedBytes = 0;
+      release = await materializeRelease(repository, dataDir, {
+        onOperation: event => operations.push(event),
+        onRuntimeInventory: inventory => { excludedFiles = inventory.excludedFiles; excludedBytes = inventory.excludedBytes; },
+      });
+      expect(release.dependencyLayers).toHaveLength(1);
       const diagnostics = await certifyMaterializedRelease(release, dataDir, { onOperation: event => operations.push(event) });
       const state = new CohortStateStore(dataDir);
       await state.recordCandidate(release);
@@ -54,14 +59,18 @@ describe("packaged update activation performance", () => {
 
       const durationMs = performance.now() - startedAt;
       const counts = operationCounts(operations);
-      expect(counts).toEqual({
-        sourceReads: release.files.length,
-        candidateWrites: release.files.length,
-        verificationReads: 0,
-      });
+      const fileCount = release.files.length + counts.layerWrites;
+      expect(counts.sourceReads).toBe(fileCount);
+      expect(counts.candidateWrites).toBe(release.files.length);
+      expect(counts.layerWrites).toBeGreaterThan(1_000);
+      expect(counts.verificationReads).toBe(0);
+      expect(excludedFiles).toBeGreaterThan(1_000);
+      expect(excludedBytes).toBeGreaterThan(1_000);
       assertUpdatePerformanceBudget({
-        fileCount: release.files.length,
+        fileCount,
         ...counts,
+        payloadExcludedFiles: excludedFiles,
+        payloadExcludedBytes: excludedBytes,
         postNpmDurationMs: durationMs,
       }, process.platform === "win32" ? 30_000 : Number.POSITIVE_INFINITY);
       expect(await readEndpointMetadata(cohort.endpointMetadataPath)).toMatchObject({ releaseId: release.releaseId });
@@ -85,7 +94,7 @@ describe("packaged update activation performance", () => {
       candidateWrites: 10_001,
       verificationReads: 10_000,
       postNpmDurationMs: 30_001,
-    })).toThrow(/source payload read count is 20000.*candidate payload write count is 10001.*fresh certification reread 10000.*took 30001ms/);
+    })).toThrow(/source payload read count is 20000.*runtime payload write count is 10001.*fresh certification reread 10000.*took 30001ms/);
   });
 
   it("keeps bare launch free of installation output after update activation", async () => {
@@ -100,6 +109,9 @@ function operationCounts(events: readonly ReleaseContentOperationEvent[]) {
   return {
     sourceReads: events.filter(event => event.operation === "source-read").length,
     candidateWrites: events.filter(event => event.operation === "candidate-write").length,
+    layerWrites: events.filter(event => event.operation === "layer-write").length,
+    layerReusedFiles: events.filter(event => event.operation === "layer-reuse").length,
+    layerReusedBytes: events.filter(event => event.operation === "layer-reuse").reduce((total, event) => total + event.bytes, 0),
     verificationReads: events.filter(event => event.operation === "verification-read").length,
   };
 }

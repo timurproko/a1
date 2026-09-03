@@ -66,7 +66,7 @@ describe("validation suite ownership", () => {
     const releaseSource = await readFile("scripts/release/run-release-gates.mjs", "utf8");
     const declaredOwners = new Set([...Object.keys(suites.tiers), ...Object.keys(suites.scopes)]);
 
-    expect(Object.keys(suites.releaseContracts)).toHaveLength(8);
+    expect(Object.keys(suites.releaseContracts)).toHaveLength(10);
     expect(Object.values(suites.releaseContracts).filter(owner => !declaredOwners.has(owner))).toEqual([]);
     expect(releaseSource).toContain("Object.entries(suites.releaseContracts)");
     const included = new Set(suites.tiers["full-release"]!.includes);

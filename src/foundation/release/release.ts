@@ -3,6 +3,7 @@ import { lstat, readFile, readdir, realpath } from "node:fs/promises";
 import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
 import { mapWithConcurrency } from "./concurrency.js";
+import type { DependencyLayerReference } from "./dependency-layer.js";
 
 const RELEASE_FILE_IO_CONCURRENCY = 32;
 
@@ -22,6 +23,8 @@ export interface ReleaseIdentity {
   readonly releaseId: string;
   readonly packageRoot: string;
   readonly files: readonly ReleaseFileIdentity[];
+  /** Absent for legacy full-copy releases. */
+  readonly dependencyLayers?: readonly DependencyLayerReference[];
 }
 
 export interface DiscoveredReleasePayload {
@@ -98,8 +101,15 @@ export function createReleaseIdentity(
   packageRoot: string,
   packageVersion: string,
   files: readonly ReleaseFileIdentity[],
+  dependencyLayers: readonly DependencyLayerReference[] = [],
 ): ReleaseIdentity {
-  const contentDigest = digestManifestFiles(files);
+  const productDigest = digestManifestFiles(files);
+  const contentDigest = dependencyLayers.length === 0
+    ? productDigest
+    : createHash("sha256")
+      .update(`product\0${productDigest}\n`)
+      .update(dependencyLayers.map(layer => `${layer.layerId}\0${layer.contentDigest}\0${layer.binding}\n`).join(""))
+      .digest("hex");
   return {
     packageName: PRODUCT_PACKAGE_NAME,
     packageVersion,
@@ -107,6 +117,7 @@ export function createReleaseIdentity(
     releaseId: `${packageVersion}-${contentDigest.slice(0, 20)}`,
     packageRoot,
     files: [...files].sort(compareReleaseFiles),
+    ...(dependencyLayers.length === 0 ? {} : { dependencyLayers: [...dependencyLayers] }),
   };
 }
 

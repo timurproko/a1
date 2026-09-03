@@ -15,6 +15,7 @@ import {
   resolvePiProjectTrustPreflight,
   type PiProjectTrustPreflightPrompt,
 } from "./project-trust-preflight.js";
+import { markStartupPhase } from "../../../foundation/startup/index.js";
 
 export interface PiRuntimeIntegrationOptions {
   readonly cwd: string;
@@ -95,7 +96,10 @@ export async function createPiRuntimeServicesAfterTrust(
     ...(options.projectTrustPrompt === undefined ? {} : { prompt: options.projectTrustPrompt }),
   });
   const settingsManager = createSettingsManager(options.cwd, options.agentDir, trust.trusted);
+  await markStartupPhase(process.env, "settings-loaded");
   const services = await createServices({ cwd: options.cwd, agentDir: options.agentDir, settingsManager });
+  await markStartupPhase(process.env, "pi-services");
+  await markStartupPhase(process.env, "resource-discovery");
   return { services, trust };
 }
 
@@ -125,6 +129,7 @@ export async function createPiRuntimeIntegration(options: PiRuntimeIntegrationOp
       ...(modelScope.thinkingLevel && !hasExistingSession ? { thinkingLevel: modelScope.thinkingLevel } : {}),
       ...(modelScope.scopedModels.length > 0 ? { scopedModels: [...modelScope.scopedModels] } : {}),
     });
+    await markStartupPhase(process.env, "session-created");
     return {
       ...created,
       services,

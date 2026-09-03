@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 
+const startup = await import("../dist/foundation/startup/index.js");
+startup.enableEnvironmentCompileCache(process.env);
+await startup.markStartupPhase(process.env, "guardian-start");
 const { fileURLToPath } = await import("node:url");
 const { resolve } = await import("node:path");
 const { runLaunchGuardian } = await import("../dist/foundation/launch-guardian/index.js");

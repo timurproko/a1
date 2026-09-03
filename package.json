@@ -23,7 +23,7 @@
   "scripts": {
     "postinstall": "node bin/sync-pi-tui-proxy.js",
     "clean": "node scripts/clean.mjs",
-    "build": "npm run clean && tsc -p tsconfig.build.json && node scripts/development/build-process-guardian.mjs",
+    "build": "npm run clean && tsc -p tsconfig.build.json && node scripts/development/build-process-guardian.mjs && node scripts/release/generate-runtime-payload-inventory.mjs",
     "build:process-guardian": "node scripts/development/build-process-guardian.mjs",
     "typecheck": "tsgo -p tsconfig.json --noEmit",
     "check:architecture": "node scripts/governance/check-architecture.mjs && node scripts/governance/product-identifier-policy.mjs --check && node scripts/governance/check-product-identity-boundaries.mjs && node scripts/governance/check-package-identity.mjs && node scripts/governance/check-pinned-pi-source-ledger.mjs && node scripts/governance/check-terminal-host-provenance.mjs",

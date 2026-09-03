@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 
+const startup = await import("../dist/foundation/startup/index.js");
+startup.enableEnvironmentCompileCache(process.env);
+await startup.markStartupPhase(process.env, "ui-entry");
 const { assertSinglePiTuiModuleAtLaunch } = await import("./module-identity.js");
 const { fileURLToPath } = await import("node:url");
 
@@ -27,6 +30,7 @@ runSelectedInteractiveRuntime(process.env.A1_LAUNCH_PROFILE ?? "a1", {
       import("../dist/features/owned-ui/index.js"),
       import("../dist/composition/index.js"),
     ]);
+    await startup.markStartupPhase(process.env, "ui-modules-loaded");
     const { application, settings } = await composeOwnedUi({
       cwd: process.cwd(),
       profileId,

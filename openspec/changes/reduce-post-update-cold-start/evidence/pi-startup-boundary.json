@@ -1,0 +1,24 @@
+{
+  "schema": "a1-pi-startup-boundary-evidence-v1",
+  "pinnedPackage": "@earendil-works/pi-coding-agent@0.84.2",
+  "documentedExports": [
+    ".",
+    "./client",
+    "./rpc-entry"
+  ],
+  "ownedStartupRequirement": {
+    "entry": ".",
+    "imports": [
+      "createAgentSessionFromServices",
+      "createAgentSessionRuntime",
+      "createAgentSessionServices",
+      "resolveModelScopeWithDiagnostics",
+      "SessionManager",
+      "SettingsManager"
+    ]
+  },
+  "narrowRuntimeExportAvailable": false,
+  "facadeAccepted": false,
+  "decision": "retain-public-package-root",
+  "reason": "The pinned package exports no documented runtime/component subpath covering the owned startup requirements. A bundled facade cannot yet prove provider registration, extension singleton behavior, licenses, and the external #pi-tui module identity, so stable dependency paths, payload inventory, compile cache, and bounded warmup are used without private deep imports."
+}

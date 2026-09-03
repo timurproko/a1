@@ -12,6 +12,7 @@ import { sweepDeadEndpoints } from "./endpoints.js";
 import { consumeMaterializationProof, materializeRelease, readCertifiedReleaseManifest, readMaterializedRelease, resolveReleaseEntryPoint, verifyMaterializedRelease, type MaterializedRelease, type VerifyMaterializedReleaseOptions } from "./release-store.js";
 import { scheduleReleaseCleanup } from "./release-gc.js";
 import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
+import { markStartupPhase } from "../startup/index.js";
 
 export interface BootstrapOptions {
   readonly packageRoot: string;
@@ -34,6 +35,7 @@ export interface BootstrapOptions {
 
 export async function runBootstrap(options: BootstrapOptions): Promise<number> {
   const environment = { ...(options.environment ?? process.env) };
+  await markStartupPhase(environment, "bootstrap-start");
   const launchProfileId = options.launchIntent?.profileId ?? "a1";
   assertLaunchProfileId(launchProfileId);
   environment[PRODUCT_IDENTITY.environment.launchProfile] = launchProfileId;
@@ -231,6 +233,7 @@ export async function startSupervisor(release: MaterializedRelease, environment:
 }
 
 async function launchUi(release: MaterializedRelease, environment: NodeJS.ProcessEnv): Promise<number> {
+  await markStartupPhase(environment, "bootstrap-selected");
   const entry = await resolveReleaseEntryPoint(release, "bin/guardian.js");
   return await new Promise<number>((resolvePromise, rejectPromise) => {
     const child = spawn(process.execPath, [entry], {
@@ -247,6 +250,7 @@ export function releaseEnvironment(environment: NodeJS.ProcessEnv, release: Mate
   return {
     ...environment,
     [PRODUCT_IDENTITY.environment.releaseId]: release.releaseId,
+    [PRODUCT_IDENTITY.environment.releaseLayers]: (release.dependencyLayers ?? []).map(layer => layer.layerId).join(","),
     [PRODUCT_IDENTITY.environment.releaseRoot]: release.releaseRoot,
     [PRODUCT_IDENTITY.environment.releaseDigest]: release.contentDigest,
   };

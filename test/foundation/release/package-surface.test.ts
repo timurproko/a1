@@ -30,7 +30,7 @@ describe("exact packed npm command surface", () => {
       "bin/cli.js",
       "bin/guardian.js",
       "bin/ui.js",
-      "bin/supervisor.js",
+      "bin/supervisor.js", "bin/warmup.js", "dist/runtime-payload-inventory.json",
       "dist/product-identity.js",
       "dist/product-identity.json",
       "dist/product-identity.d.ts",

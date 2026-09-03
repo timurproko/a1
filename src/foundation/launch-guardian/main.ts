@@ -15,6 +15,7 @@ import {
 } from "../process-containment/index.js";
 import { SupervisorClient } from "../protocol/index.js";
 import { resolveCohortEndpoint, resolveProductPaths } from "../supervision/index.js";
+import { markStartupPhase } from "../startup/index.js";
 
 interface GuardianControl {
   connect(endpoint: string, timeoutMs?: number): Promise<unknown>;
@@ -58,6 +59,7 @@ export async function runLaunchGuardian(options: LaunchGuardianOptions): Promise
     ? resolveCohortEndpoint(paths, releaseId, environment).endpoint
     : paths.endpoint;
   await client.connect(endpoint);
+  await markStartupPhase(environment, "guardian-connected");
   const containment = options.containment ?? new NativeGuardianContainment(
     instanceId,
     helperPath,
