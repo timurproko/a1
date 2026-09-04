@@ -45,7 +45,16 @@
 - [x] 6.3 Add tamper and compatibility gates for release/layer bindings, native assets, full-copy rollback, compile-cache invalidation, side-effect-free warmup, public Pi API use, and one terminal module identity; verify each fault fails at its bounded authority.
 - [ ] 6.4 Submit the implementation to required CI and verify strict OpenSpec, architecture, code-documentation, focused release/update/launch/Pi compatibility tests, and exact-package Windows evidence pass before handoff.
 
-## 7. Manual Acceptance and Completion
+## 7. Restart Certification Correction
 
-- [ ] 7.1 Build the exact candidate and provide update plus `a1`/`a1 pi` manual timing checks; verify the maintainer confirms the first input-ready frame is prompt, both profiles behave normally, extensions/native features still work, and old live sessions survive the update.
-- [ ] 7.2 Record accepted payload, layer-reuse, cold/warm timing, compatibility, and manual evidence in the change, complete or deliberately skip every remaining task, and archive the OpenSpec change only after the implementation pull request is accepted and merged.
+- [ ] 7.1 Extend startup evidence with durable-validation and replacement-supervisor phases, and verify a no-live-supervisor regression fixture attributes the complete bootstrap interval rather than hiding it under `bootstrap-selected`.
+- [ ] 7.2 Add exact-package topology fixtures that distinguish updater-started, no-live-supervisor, and live-supervisor launches; verify each profile's restart fixture stops the prior supervisor and preserves the approved release and certification state.
+- [ ] 7.3 Qualify platform-backed durable immutable-root evidence for Windows and Unix, and verify ordinary payload mutation cannot occur without changing evidence checked by restart validation; provide a complete-verification fallback where qualification is unavailable or ambiguous.
+- [ ] 7.4 Commit restart seals after complete certification and consume them on the approved active-release path with no live supervisor; verify accepted restart validation performs no reads or hashes proportional to payload file count or bytes before starting the replacement supervisor.
+- [ ] 7.5 Add restart-seal fault coverage for changed release records, manifests, layer identities, managed roots, dependency bindings, immutability controls, interrupted transactions, and unsupported platform evidence; verify each fault rejects the fast path before selected release content executes and safely verifies or fails.
+- [ ] 7.6 Run Defender-enabled exact-package Windows gates for both profiles with no live supervisor and require first input-ready render within 5 seconds; verify a payload-wide verification regression fails with durable validation identified as the dominant phase.
+
+## 8. Manual Acceptance and Completion
+
+- [ ] 8.1 Build the exact candidate and provide update plus `a1`/`a1 pi` manual timing checks after the supervisor is stopped and after machine restart; verify the maintainer confirms the first input-ready frame is prompt, both profiles behave normally, extensions/native features still work, and old live sessions survive the update.
+- [ ] 8.2 Record accepted payload, layer-reuse, post-update/no-live-supervisor/warm timing, compatibility, and manual evidence in the change, complete or deliberately skip every remaining task, and archive the OpenSpec change only after the corrective implementation pull request is accepted and merged.
