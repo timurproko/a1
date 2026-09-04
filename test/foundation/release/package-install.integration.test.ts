@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import type { SupervisorEndpointMetadata } from "../../../src/foundation/release/index.js";
 import { loadValidationCandidate } from "./package-candidate-fixture.js";
 
 const npm = process.platform === "win32" ? "npm.cmd" : "npm";
@@ -158,11 +159,12 @@ describe("clean installation of the exact candidate", () => {
     expect(preserved.cleanup.workerRuns[0]).toMatchObject({ runId: "broken-import", status: "scheduled", attempted: 0 });
   });
 
-  it.runIf(process.platform === "win32")("gates post-update and warm startup for both exact packaged profiles", async () => {
+  it.runIf(process.platform === "win32")("gates post-update, no-live-supervisor, and warm startup for both exact packaged profiles", async () => {
     const { certifyMaterializedRelease, CohortStateStore, materializeRelease, releaseVerifiedIdleOwner, startSupervisor, waitForVerifiedEndpoint, warmMaterializedRelease } = await import("../../../src/foundation/release/index.js");
     const { resolveCohortEndpoint, resolveProductPaths } = await import("../../../src/foundation/lifecycle/index.js");
     const { assertStartupPerformanceBudget } = await import("../../../src/foundation/startup/index.js");
     const { PRODUCT_IDENTITY } = await import("../../../src/product-identity.js");
+    await expectWindowsDefenderProtection();
     const packageRoot = resolve(prefix, "node_modules", "@timurproko", "a1");
     const dataDir = resolve(root, "startup-data");
     const runtimeDir = resolve(root, "startup-runtime");
@@ -189,12 +191,23 @@ describe("clean installation of the exact candidate", () => {
       for (const profileId of ["a1", "pi"] as const) {
         const postUpdate = await captureReadyLaunch(packageRoot, environment, profileId, "post-update");
         assertStartupPerformanceBudget({ profileId, launchKind: "post-update", events: postUpdate });
+        await stopPackagedSupervisor(cohort.endpointMetadataPath, dataDir, releaseVerifiedIdleOwner);
+
+        const restarted = await captureReadyLaunch(packageRoot, environment, profileId, "no-live-supervisor");
+        assertStartupPerformanceBudget({ profileId, launchKind: "no-live-supervisor", events: restarted });
+        const phases = restarted.map(event => event.phase);
+        expect(phases).toEqual(expect.arrayContaining([
+          "durable-validation-start", "durable-validation-complete", "replacement-supervisor-start", "replacement-supervisor-ready",
+        ]));
+        const validationStart = restarted.find(event => event.phase === "durable-validation-start")!;
+        const validationComplete = restarted.find(event => event.phase === "durable-validation-complete")!;
+        expect(validationComplete.fileReadOperations - validationStart.fileReadOperations).toBeLessThan(64);
+
         const warm = await captureReadyLaunch(packageRoot, environment, profileId, "warm");
         assertStartupPerformanceBudget({ profileId, launchKind: "warm", events: warm });
       }
     } finally {
-      const owner = JSON.parse(await readFile(cohort.endpointMetadataPath, "utf8")) as Parameters<typeof releaseVerifiedIdleOwner>[0];
-      await releaseVerifiedIdleOwner(owner, dataDir).catch(() => {});
+      await stopPackagedSupervisor(cohort.endpointMetadataPath, dataDir, releaseVerifiedIdleOwner).catch(() => {});
     }
   }, 600_000);
 });
@@ -203,7 +216,7 @@ async function captureReadyLaunch(
   packageRoot: string,
   environment: NodeJS.ProcessEnv,
   profileId: "a1" | "pi",
-  launchKind: "post-update" | "warm",
+  launchKind: "post-update" | "no-live-supervisor" | "warm",
 ) {
   const { parseStartupTrace } = await import("../../../src/foundation/startup/index.js");
   const { PRODUCT_IDENTITY } = await import("../../../src/product-identity.js");
@@ -241,6 +254,32 @@ async function captureReadyLaunch(
       ]);
     }
   }
+}
+
+async function stopPackagedSupervisor(
+  endpointMetadataPath: string,
+  dataDir: string,
+  releaseVerifiedIdleOwner: (owner: SupervisorEndpointMetadata, dataDir: string) => Promise<boolean>,
+): Promise<void> {
+  const deadline = Date.now() + 5_000;
+  let owner: SupervisorEndpointMetadata | null = null;
+  while (Date.now() < deadline) {
+    owner = JSON.parse(await readFile(endpointMetadataPath, "utf8")) as SupervisorEndpointMetadata;
+    if (owner.ownership.liveInstanceIds.length === 0) break;
+    await new Promise(resolvePromise => setTimeout(resolvePromise, 40));
+  }
+  if (!owner || owner.ownership.liveInstanceIds.length !== 0) throw new Error("exact-package supervisor did not become idle");
+  expect(await releaseVerifiedIdleOwner(owner, dataDir)).toBe(true);
+}
+
+async function expectWindowsDefenderProtection(): Promise<void> {
+  const result = await runAsync("powershell.exe", [
+    "-NoProfile",
+    "-Command",
+    "(Get-MpComputerStatus).RealTimeProtectionEnabled",
+  ], root);
+  expect(result.status, result.stderr).toBe(0);
+  expect(result.stdout.trim()).toBe("True");
 }
 
 async function createPackagedCleanupBacklog(dataDir: string, count: number, payloadFilesPerRelease: number) {

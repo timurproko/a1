@@ -10,6 +10,10 @@ export type StartupPhase =
   | "command-invoked"
   | "bootstrap-start"
   | "bootstrap-selected"
+  | "durable-validation-start"
+  | "durable-validation-complete"
+  | "replacement-supervisor-start"
+  | "replacement-supervisor-ready"
   | "guardian-start"
   | "guardian-connected"
   | "ui-entry"
@@ -31,7 +35,7 @@ interface StartupTraceContext {
 
 export interface StartupPerformanceEvidence {
   readonly profileId: "a1" | "pi";
-  readonly launchKind: "post-update" | "warm";
+  readonly launchKind: "post-update" | "no-live-supervisor" | "warm";
   readonly events: readonly StartupTraceEvent[];
 }
 
@@ -152,7 +156,7 @@ export function assertStartupPerformanceBudget(
   const events = [...evidence.events].sort((left, right) => left.elapsedMs - right.elapsedMs);
   const ready = events.findLast(event => event.phase === "first-input-ready-render");
   if (!ready) throw new Error(`startup budget failed for ${evidence.profileId}: first input-ready render was not recorded`);
-  const budget = evidence.launchKind === "post-update" ? budgets.postUpdateMs : budgets.warmMs;
+  const budget = evidence.launchKind === "warm" ? budgets.warmMs : budgets.postUpdateMs;
   if (ready.elapsedMs <= budget) return;
   const intervals = events.map((event, index) => ({
     phase: event.phase,

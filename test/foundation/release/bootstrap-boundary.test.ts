@@ -44,6 +44,21 @@ describe("mutable bootstrap boundary", () => {
     expect(bootstrap).toContain('active?.approval === "approved"');
   });
 
+  it("validates durable restart authority before starting a replacement supervisor", async () => {
+    const bootstrap = await readFile(resolve(repository, "src/foundation/release/bootstrap.ts"), "utf8");
+    const validationStart = bootstrap.indexOf('"durable-validation-start"');
+    const restartRead = bootstrap.indexOf("await readRestartCertifiedRelease");
+    const completeFallback = bootstrap.indexOf("await readMaterializedRelease(active.releaseRoot");
+    const supervisorStart = bootstrap.indexOf('"replacement-supervisor-start"');
+    const start = bootstrap.indexOf("await startSupervisor(retained");
+
+    expect(validationStart).toBeGreaterThan(0);
+    expect(restartRead).toBeGreaterThan(validationStart);
+    expect(completeFallback).toBeGreaterThan(restartRead);
+    expect(supervisorStart).toBeGreaterThan(completeFallback);
+    expect(start).toBeGreaterThan(supervisorStart);
+  });
+
   it("keeps launch and update activation progress out of the user-facing terminal", async () => {
     const [bootstrap, update] = await Promise.all([
       readFile(resolve(repository, "src/foundation/release/bootstrap.ts"), "utf8"),
