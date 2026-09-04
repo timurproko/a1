@@ -4,6 +4,8 @@ See `proposal.md` for motivation and the delta specs for required behavior. Rele
 
 The launch fast path correctly avoids rematerialization, but the new release path makes the owned composition and broad Pi public root graph cold to filesystem and antivirus caches. A measured composition import fell from 17.8 seconds on a cold retained path to 1.47 seconds on the immediate second import. Immutable execution, old-session continuity, rollback, public Pi API governance, native dependencies, dynamic extension loading, and one Pi TUI module identity cannot be weakened for speed.
 
+Manual acceptance of `0.1.8-dev.226` exposed a distinct retained-release path that the original implementation and gate missed. The mutable CLI started at `08:36:41.452`, while the replacement supervisor did not start until `08:37:07.831`: 26.38 seconds elapsed before UI process creation. The active release was already approved, layered, warmed, and compile-cached, but loss of the live supervisor selected complete release and layer verification. That path read and hashed 443 product files (7.04 MiB) and 5,846 dependency files (41.0 MiB) while Windows real-time antivirus protection was enabled. The exact-package performance fixture started a supervisor before labeling its next launch `post-update`, so it exercised the live-authority fast path rather than the no-live-supervisor path.
+
 This design depends on the accepted bounded-retention behavior from `bound-immutable-release-retention` for final layer collection. It can develop manifests, layering, and measurements independently, but must not enable shared-layer deletion before that protection model is integrated.
 
 ## Goals / Non-Goals
@@ -12,7 +14,8 @@ This design depends on the accepted bounded-retention behavior from `bound-immut
 
 - Keep unchanged dependency modules at a stable certified path across updates.
 - Reduce copied and scanned files using evidence-backed runtime payload selection.
-- Bound post-update and warm interactive startup on the accepted Windows runner.
+- Bound post-update, no-live-supervisor, and warm interactive startup on the accepted Windows runner.
+- Preserve restart-valid certification authority without payload-wide reads while continuing to reject uncertain or changed immutable content before execution.
 - Preserve exact release/layer identity, rollback, public Pi APIs, extension behavior, and native assets.
 - Make startup costs attributable by phase and keep diagnostics opt-in.
 
@@ -22,6 +25,7 @@ This design depends on the accepted bounded-retention behavior from `bound-immut
 - Treat hard links to mutable npm content as immutable.
 - Remove old full-copy releases while they are live or selected for rollback.
 - Promise identical cold-cache timings on unbounded third-party machines; normative budgets apply to the accepted release runner.
+- Gain speed by trusting an ordinary writable marker, skipping integrity validation, moving validation behind selected code execution, or recommending antivirus exclusions.
 - Make project extensions execute during updater warmup.
 
 ## Decisions
@@ -93,9 +97,29 @@ Alternative: rely only on process-local module caching. Rejected because every i
 
 After activation and before success, a dedicated immutable warmup entry imports and validates the common owned composition graph. It receives no terminal, session path, project trust callback, or network permission; profile and project executable resource loading are disabled. It is separately contained, bounded, and represented in update progress. Import or identity failure is treated as candidate startup failure and uses existing rollback handling.
 
-Evidence may remove warmup once cold-path improvements satisfy the 5-second next-launch budget without it. Warmup moves unavoidable scanning into the visible update and is therefore a mitigation, not the primary architecture.
+Evidence may remove warmup once cold-path improvements satisfy the 5-second next-launch budget without it. Warmup moves unavoidable scanning into the visible update and is therefore a mitigation, not the primary architecture. It does not establish restart performance because volatile filesystem and antivirus caches, plus live supervisor authority, can disappear after update completion.
 
 Alternative: start and immediately close a hidden interactive session. Rejected because it can mutate profile/session state, execute extensions, or prompt for trust.
+
+### 8. Make certification durable across supervisor loss
+
+Successful complete certification will commit a restart seal that binds the release record, release and ordered layer content identities, canonical managed roots and dependency bindings, and platform evidence that the sealed roots remain immutable. The seal is useful only when the current launch can validate it with work bounded independently of payload file count and bytes. A missing supervisor does not invalidate a sound seal; a changed path, binding, identity, immutability control, unsupported platform proof, or incomplete transaction does.
+
+The implementation will first qualify platform-backed immutable-root evidence on Windows and Unix. A qualifying mechanism must prevent ordinary payload mutation without changing evidence checked by launch and must detect loss or replacement of that protection. If a platform cannot provide such proof, it must use a safe bounded representation such as a sealed startup payload or retain complete verification; an ordinary certification file beside writable content is insufficient. Complete verification remains the recovery path and creates a new seal only after every byte and binding passes.
+
+Alternative: replace the dead-supervisor branch's complete verifier with the existing metadata-only certified-manifest reader. Rejected because that reader's current precondition is authority from the same parent process or an authenticated live supervisor, neither of which exists after restart.
+
+Alternative: start the UI and verify the tree in the background. Rejected because selected code could execute before tamper detection.
+
+Alternative: register a logon warmup or antivirus exclusion. Rejected as the primary design because it shifts cost into login or weakens host protection without fixing launch authority.
+
+### 9. Gate the actual no-live-supervisor topology
+
+Exact-package startup validation will distinguish three topologies: post-update with the updater-started supervisor, approved active release with no supervisor, and subsequent live-supervisor launch. The no-live-supervisor fixture must stop and verify exit of the supervisor while retaining release state and durable evidence, then launch each profile from that state. In addition to elapsed budgets, operation evidence must prove the accepted restart fast path does not scale reads or hashes with payload file count. Fault fixtures invalidate each seal input and require safe fallback or failure before selected code execution.
+
+Startup tracing adds separate durable-validation and replacement-supervisor phases so a bootstrap gap cannot be hidden inside a broad `bootstrap-selected` interval again.
+
+Alternative: infer restart coverage from a newly addressed post-update path. Rejected because update intentionally starts a supervisor, making its authority and cache topology different from restart.
 
 ## Risks / Trade-offs
 
@@ -105,6 +129,9 @@ Alternative: start and immediately close a hidden interactive session. Rejected 
 - **[Risk] Bundling public Pi exports changes singleton or extension behavior.** → Prefer documented narrow exports; externalize the terminal module; require compatibility and extension conformance; omit bundling if proof fails.
 - **[Risk] Warmup increases update duration.** → Show it as progress, bound it, measure its benefit, and remove it when cold launch meets budget directly.
 - **[Risk] Compile cache grows or becomes incompatible.** → Scope it by immutable identity and Node ABI, bound retention, and fall back without changing behavior.
+- **[Risk] A durable seal becomes a writable trust token.** → Accept only platform-backed immutable-root evidence bound to canonical identities; reject metadata-only markers and fall back before execution.
+- **[Risk] Platform mutation evidence is unavailable, reset, wrapped, or ambiguous.** → Treat uncertainty as fast-path rejection and use a qualified bounded representation or complete verification.
+- **[Risk] A warm fixture passes while restart remains slow.** → Stop the supervisor explicitly, assert topology and payload-read counts, and retain a Defender-enabled Windows acceptance run.
 - **[Risk] Existing rollback code cannot understand layered records.** → Preserve full-copy record support and only activate the new layout with a bootstrap capable of validating both forms.
 
 ## Migration Plan
@@ -117,3 +144,7 @@ Alternative: start and immediately close a hidden interactive session. Rejected 
 6. Add the side-effect-free warmup only if the next-launch budget still requires it.
 7. Evaluate narrow public Pi exports or a proven build-time facade as a separate measured optimization within the same compatibility gates.
 8. Remove the old-layout writer only after exact packaged update, live-cohort, rollback, extension, native-asset, and Windows startup acceptance; retain old-layout reading until no supported rollback can require it.
+9. Reproduce and trace the approved-release/no-live-supervisor path, record payload-wide verification operations, and keep the original implementation unaccepted until the correction passes.
+10. Qualify durable immutable-root evidence on supported platforms and implement restart seals with complete-verification fallback behind compatibility tests.
+11. Change retained-release bootstrap to use the restart seal only when every bound identity, path, dependency binding, transaction state, and immutability proof agrees; otherwise verify completely before execution.
+12. Gate both profiles with the supervisor explicitly stopped, payload-read assertions, tamper faults, and Defender-enabled Windows timing before repeating manual restart acceptance.
