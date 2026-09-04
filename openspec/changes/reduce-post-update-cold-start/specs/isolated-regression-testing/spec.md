@@ -1,11 +1,19 @@
 ## ADDED Requirements
 
 ### Requirement: Exact-package startup performance is release-gated
-The accepted Windows release runner SHALL measure command invocation through first input-ready frame for exact packaged `a1` and `a1 pi` launches. Evidence SHALL include a newly addressed cold release path, the first launch after completed update handling, and a subsequent warm launch, with phase durations and immutable content identities.
+The accepted Windows release runner SHALL measure command invocation through first input-ready frame for exact packaged `a1` and `a1 pi` launches. Evidence SHALL include a newly addressed cold release path, the first launch after completed update handling, a launch of an approved active release after its supervisor has stopped, and a subsequent warm launch, with phase durations and immutable content identities.
 
 #### Scenario: First launch follows update
 - **WHEN** an exact packaged update activates a release whose product path has not previously launched on the worker
 - **THEN** both supported profile scenarios SHALL satisfy the 5-second post-update startup budget and record phase-level evidence
+
+#### Scenario: Restart-equivalent launch has no live supervisor
+- **WHEN** exact-package validation stops the active release's supervisor while preserving its approved immutable release and durable certification
+- **THEN** both supported profiles SHALL satisfy the 5-second startup budget, evidence SHALL identify durable validation and replacement-supervisor startup separately, and the accepted fast path SHALL perform no payload-wide file reads or hashes
+
+#### Scenario: Restart evidence is invalid
+- **WHEN** exact-package validation changes the certified release, dependency binding, managed path, or platform immutability evidence while no supervisor is live
+- **THEN** launch SHALL reject the restart fast path before executing selected release content and the gate SHALL observe safe fallback or failure
 
 #### Scenario: Warm launch is measured
 - **WHEN** the active release startup graph and dependency layer have already been warmed

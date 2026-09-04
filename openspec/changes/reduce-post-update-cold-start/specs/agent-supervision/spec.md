@@ -23,6 +23,21 @@ A materialized release MAY bind release-specific product content to one or more 
 - **WHEN** bounded retention removes the final release reference and no live cohort executes the layer
 - **THEN** A1 SHALL make the layer eligible for ownership-safe collection
 
+### Requirement: Certified immutable content remains safely restartable
+A1 SHALL preserve bounded durable certification evidence for an approved immutable release and its dependency layers so loss of the certifying supervisor does not by itself require payload-wide content reads before the next launch. Restart validation SHALL bind the selected release record, complete content identities, canonical managed paths, dependency bindings, and platform immutability evidence. A1 SHALL execute no selected release content when that evidence is stale, ambiguous, unsupported, or inconsistent until complete verification succeeds.
+
+#### Scenario: Approved release loses its supervisor
+- **WHEN** the active approved release has valid durable certification but no live verified supervisor
+- **THEN** A1 SHALL validate that certification with work bounded independently of the number and total bytes of payload files before starting a replacement supervisor
+
+#### Scenario: Restart certification is inconsistent
+- **WHEN** the release record, manifest, dependency binding, managed path, content identity, or platform immutability evidence differs from durable certification
+- **THEN** A1 SHALL reject the restart fast path and SHALL NOT execute selected release content unless complete verification succeeds
+
+#### Scenario: Platform cannot prove durable immutability
+- **WHEN** the current platform cannot establish that certified release and layer content remained immutable while no supervisor was live
+- **THEN** A1 SHALL use a safe bounded alternative or complete verification rather than treating prior process authority as current authority
+
 ### Requirement: Existing full-copy releases remain valid compatibility cohorts
 Introducing layered releases SHALL NOT invalidate an existing certified full-copy release that remains selected for rollback or used by a live cohort. New launches SHALL follow the active release layout, while each existing process SHALL continue using the layout from which it started.
 
