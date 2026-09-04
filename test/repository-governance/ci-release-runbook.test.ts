@@ -25,4 +25,15 @@ describe("CI and release operations runbook", () => {
     expect(runbook).toContain("explicitly dispatches");
     expect(runbook).toContain("A push of the stable version does not publish");
   });
+
+  it("enables Defender before accepted Windows exact-package startup gates", async () => {
+    for (const path of [".github/workflows/release.yml", ".github/workflows/full-regression.yml"]) {
+      const workflow = await readFile(path, "utf8");
+      expect(workflow).toContain("Set-MpPreference -DisableRealtimeMonitoring $false");
+      expect(workflow).toContain("Get-MpComputerStatus).RealTimeProtectionEnabled");
+      const protection = workflow.indexOf("Enable Defender real-time protection for startup acceptance");
+      expect(protection).toBeGreaterThanOrEqual(0);
+      expect(protection).toBeLessThan(workflow.indexOf("run: npm ci", protection));
+    }
+  });
 });
