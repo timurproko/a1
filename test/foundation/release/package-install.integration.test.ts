@@ -4,7 +4,6 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import type { SupervisorEndpointMetadata } from "../../../src/foundation/release/index.js";
 import { loadValidationCandidate } from "./package-candidate-fixture.js";
 
 const npm = process.platform === "win32" ? "npm.cmd" : "npm";
@@ -259,12 +258,12 @@ async function captureReadyLaunch(
 async function stopPackagedSupervisor(
   endpointMetadataPath: string,
   dataDir: string,
-  releaseVerifiedIdleOwner: (owner: SupervisorEndpointMetadata, dataDir: string) => Promise<boolean>,
+  releaseVerifiedIdleOwner: typeof import("../../../src/foundation/release/index.js")["releaseVerifiedIdleOwner"],
 ): Promise<void> {
   const deadline = Date.now() + 5_000;
-  let owner: SupervisorEndpointMetadata | null = null;
+  let owner: Parameters<typeof releaseVerifiedIdleOwner>[0] | null = null;
   while (Date.now() < deadline) {
-    owner = JSON.parse(await readFile(endpointMetadataPath, "utf8")) as SupervisorEndpointMetadata;
+    owner = JSON.parse(await readFile(endpointMetadataPath, "utf8")) as Parameters<typeof releaseVerifiedIdleOwner>[0];
     if (owner.ownership.liveInstanceIds.length === 0) break;
     await new Promise(resolvePromise => setTimeout(resolvePromise, 40));
   }
