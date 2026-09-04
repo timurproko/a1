@@ -243,8 +243,16 @@ async function captureReadyLaunch(
     }
     throw new Error(`exact ${profileId} launch did not become input-ready within 15000ms: ${stderr}`);
   } finally {
-    child.stdin?.write("\u0003");
-    await new Promise(resolvePromise => setTimeout(resolvePromise, 250));
+    // Ctrl+D is the documented empty-editor exit. Ctrl+C only clears the editor,
+    // so forcing the wrapper tree immediately afterward can strand the supervisor's
+    // launch instance in uncertain reconciliation on Defender-enabled Windows.
+    child.stdin?.write("\u0004");
+    if (child.exitCode === null) {
+      await Promise.race([
+        new Promise<void>(resolvePromise => child.once("close", () => resolvePromise())),
+        new Promise<void>(resolvePromise => setTimeout(resolvePromise, 2_000)),
+      ]);
+    }
     if (child.exitCode === null && child.pid) crossSpawn.sync("taskkill.exe", ["/PID", String(child.pid), "/T", "/F"], { windowsHide: true, stdio: "ignore" });
     if (child.exitCode === null) {
       await Promise.race([
