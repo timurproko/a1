@@ -63,6 +63,20 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: npm
 
+      - name: Enable Defender real-time protection for startup acceptance
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          Set-MpPreference -DisableRealtimeMonitoring $false
+          $deadline = (Get-Date).AddSeconds(30)
+          do {
+            $enabled = (Get-MpComputerStatus).RealTimeProtectionEnabled
+            if ($enabled) { break }
+            Start-Sleep -Seconds 1
+          } while ((Get-Date) -lt $deadline)
+          if (-not $enabled) { throw "Windows Defender real-time protection could not be enabled" }
+
       - name: Install dependencies and build once
         run: npm ci
 
