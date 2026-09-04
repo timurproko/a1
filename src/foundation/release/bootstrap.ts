@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { connect } from "node:net";
 import { platform } from "node:os";
 import { resolve } from "node:path";
@@ -11,6 +11,7 @@ import { cleanupProvenIdleOwner, processIsAlive } from "./process-cleanup.js";
 import { sweepDeadEndpoints } from "./endpoints.js";
 import { consumeMaterializationProof, materializeRelease, readCertifiedReleaseManifest, readMaterializedRelease, resolveReleaseEntryPoint, verifyMaterializedRelease, type MaterializedRelease, type VerifyMaterializedReleaseOptions } from "./release-store.js";
 import { scheduleReleaseCleanup } from "./release-gc.js";
+import { createRestartSeal, readRestartCertifiedRelease, releaseCertificationDocument } from "./restart-certification.js";
 import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
 import { markStartupPhase } from "../startup/index.js";
 
@@ -85,10 +86,21 @@ export async function runBootstrap(options: BootstrapOptions): Promise<number> {
     }
     if (endpoint === null || probe === "dead") {
       if (endpoint) await removeEndpointArtifacts(endpointPaths.endpointMetadataPath, endpointPaths.endpoint);
-      const retained = await readMaterializedRelease(active.releaseRoot);
+      await markStartupPhase(environment, "durable-validation-start");
+      const retained = await readRestartCertifiedRelease(active, paths.dataDir).catch(async () => {
+        const verified = await readMaterializedRelease(active.releaseRoot, resolve(paths.dataDir, "releases"));
+        if (verified.releaseId !== active.releaseId || verified.contentDigest !== active.contentDigest || verified.packageVersion !== active.packageVersion) {
+          throw new Error("completely verified release differs from the approved active record");
+        }
+        await certifyMaterializedRelease(verified, paths.dataDir);
+        return verified;
+      });
+      await markStartupPhase(environment, "durable-validation-complete");
       const retainedPaths = resolveCohortEndpoint(paths, retained.releaseId, environment);
+      await markStartupPhase(environment, "replacement-supervisor-start");
       await startSupervisor(retained, environment);
       await waitForVerifiedEndpoint(retainedPaths.endpointMetadataPath, retained, 8_000);
+      await markStartupPhase(environment, "replacement-supervisor-ready");
       return await launchUi(retained, environment);
     }
   }
@@ -207,13 +219,10 @@ export async function certifyMaterializedRelease(
     await verifyMaterializedRelease(release.releaseRoot, release, resolve(dataDir, "releases"), verification);
   }
   const path = resolve(dataDir, `certification-${release.releaseId}.json`);
-  await writeFile(path, JSON.stringify({
-    schema: PRODUCT_IDENTITY.evidence.releaseCertificationSchema,
-    releaseId: release.releaseId,
-    contentDigest: release.contentDigest,
-    verifiedAt: new Date().toISOString(),
-    checks: [{ id: "immutable-content", passed: true }],
-  }, null, 2), { mode: 0o600 });
+  const restartSeal = await createRestartSeal(release, dataDir);
+  await chmod(path, 0o600).catch(() => {});
+  await writeFile(path, JSON.stringify(releaseCertificationDocument(release, restartSeal), null, 2), { mode: 0o600 });
+  await chmod(path, 0o400);
   return path;
 }
 

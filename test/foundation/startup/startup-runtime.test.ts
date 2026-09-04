@@ -31,11 +31,18 @@ describe("opt-in startup evidence and compile cache", () => {
     initializeStartupTrace(environment, "pi");
     await markStartupPhase(environment, "command-invoked");
     await markStartupPhase(environment, "bootstrap-start");
+    await markStartupPhase(environment, "durable-validation-start");
+    await markStartupPhase(environment, "durable-validation-complete");
+    await markStartupPhase(environment, "replacement-supervisor-start");
+    await markStartupPhase(environment, "replacement-supervisor-ready");
     await markStartupPhase(environment, "first-input-ready-render");
 
     const source = await readFile(path, "utf8");
     const events = parseStartupTrace(source);
-    expect(events.map(event => event.phase)).toEqual(["command-invoked", "bootstrap-start", "first-input-ready-render"]);
+    expect(events.map(event => event.phase)).toEqual([
+      "command-invoked", "bootstrap-start", "durable-validation-start", "durable-validation-complete",
+      "replacement-supervisor-start", "replacement-supervisor-ready", "first-input-ready-render",
+    ]);
     expect(events.map(event => event.elapsedMs)).toEqual([...events.map(event => event.elapsedMs)].sort((left, right) => left - right));
     expect(Object.keys(events[0]!).sort()).toEqual([
       "dependencyLayerIds", "elapsedMs", "fileReadOperations", "nodeVersion", "phase", "processId", "profileId", "releaseId", "schema", "traceId",
@@ -72,6 +79,11 @@ describe("opt-in startup evidence and compile cache", () => {
       launchKind: "post-update",
       events: [event("command-invoked", 0), event("ui-modules-loaded", 5_500), event("first-input-ready-render", 6_000)],
     })).toThrow(/ui-modules-loaded 5500ms/);
+    expect(() => assertStartupPerformanceBudget({
+      profileId: "a1",
+      launchKind: "no-live-supervisor",
+      events: [event("command-invoked", 0), event("ui-modules-loaded", 5_500), event("first-input-ready-render", 6_000)],
+    })).toThrow(/no-live-supervisor/);
   });
 
   it("falls back without behavior changes when cache storage is unavailable", async () => {

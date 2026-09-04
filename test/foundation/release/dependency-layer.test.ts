@@ -176,7 +176,7 @@ describe("certified immutable dependency layers", () => {
     const layerFile = resolve(dataDir, "dependency-layers", reference.layerId, "node_modules", "fixture-dependency", "dist", "index.js");
     await chmod(layerFile, 0o600);
     await writeFile(layerFile, "tampered bytes");
-    await expect(verifyMaterializedRelease(release.releaseRoot)).rejects.toThrow(/dependency layer file/);
+    await expect(verifyMaterializedRelease(release.releaseRoot)).rejects.toThrow(/immutable payload file|dependency layer file/);
     await writeFile(layerFile, "dependency");
     await chmod(layerFile, 0o400);
 

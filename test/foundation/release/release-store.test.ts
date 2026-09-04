@@ -67,7 +67,7 @@ describe("immutable release materialization", () => {
     await chmod(payload, 0o600);
     await writeFile(payload, "tampered");
     await expect(readCertifiedReleaseManifest(release, resolve(dataDir, "releases"))).resolves.toMatchObject({ releaseId: release.releaseId });
-    await expect(readMaterializedRelease(release.releaseRoot)).rejects.toThrow(/size mismatch|digest mismatch/);
+    await expect(readMaterializedRelease(release.releaseRoot)).rejects.toThrow(/writable|size mismatch|digest mismatch/);
   });
 
   it("rejects obsolete package metadata in a materialized release", async () => {
@@ -96,7 +96,7 @@ describe("immutable release materialization", () => {
     const release = await materializeRelease(packageRoot, dataDir);
     await chmod(resolve(release.releaseRoot, "dist/app.js"), 0o600);
     await writeFile(resolve(release.releaseRoot, "dist/app.js"), "tampered");
-    await expect(verifyMaterializedRelease(release.releaseRoot)).rejects.toThrow(/size mismatch|digest mismatch/);
+    await expect(verifyMaterializedRelease(release.releaseRoot)).rejects.toThrow(/writable|size mismatch|digest mismatch/);
 
     const otherStore = await mkdtemp(resolve(tmpdir(), "a1-other-store-"));
     roots.push(otherStore);

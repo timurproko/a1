@@ -12,6 +12,7 @@ import {
 } from "./release.js";
 import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
 import { mapWithConcurrency } from "./concurrency.js";
+import { assertImmutableFileMode } from "./immutable-platform.js";
 import {
   dependencyReference,
   materializeDependencyLayer,
@@ -141,10 +142,10 @@ export function consumeMaterializationProof(release: MaterializedRelease): boole
   return true;
 }
 
-export async function readMaterializedRelease(releaseRoot: string): Promise<MaterializedRelease> {
+export async function readMaterializedRelease(releaseRoot: string, selectedStoreRoot?: string): Promise<MaterializedRelease> {
   const canonical = await realpath(releaseRoot);
   const manifest = JSON.parse(await readFile(resolve(canonical, RELEASE_MANIFEST_FILENAME), "utf8")) as ReleaseIdentity;
-  return await verifyMaterializedRelease(canonical, manifest);
+  return certificationReadyRelease(await verifyMaterializedRelease(canonical, manifest, selectedStoreRoot));
 }
 
 /**
@@ -243,6 +244,7 @@ async function verifyFile(root: string, file: ReleaseFileIdentity, options: Veri
   const metadata = await lstat(path).catch(() => null);
   if (!metadata?.isFile() || metadata.isSymbolicLink()) throw new Error(`release candidate is incomplete: ${file.path}`);
   if (metadata.size !== file.bytes) throw new Error(`release file size mismatch: ${file.path}`);
+  assertImmutableFileMode(metadata, path);
   const bytes = await readFile(path);
   options.onOperation?.({ operation: "verification-read", path: file.path, bytes: bytes.length });
   const digest = createHash("sha256").update(bytes).digest("hex");

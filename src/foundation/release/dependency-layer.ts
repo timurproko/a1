@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { chmod, lstat, mkdir, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, posix, relative, resolve, sep } from "node:path";
 import { mapWithConcurrency } from "./concurrency.js";
+import { assertImmutableFileMode, immutablePlatformPolicy } from "./immutable-platform.js";
 import { digestManifestFiles, releaseFileIdentity, resolveWithin, type ReleaseFileIdentity } from "./release.js";
 import { PRODUCT_IDENTITY } from "../../product-identity.js";
 
@@ -346,7 +347,8 @@ export async function readCertifiedDependencyLayer(
   const manifest = JSON.parse(await readFile(resolve(layerRoot, DEPENDENCY_LAYER_MANIFEST), "utf8")) as DependencyLayerIdentity;
   validateLayerManifest(manifest);
   const certification = JSON.parse(await readFile(certificationPath(dataDir, layerId), "utf8")) as Record<string, unknown>;
-  if (certification.schema !== PRODUCT_IDENTITY.evidence.dependencyLayerCertificationSchema || certification.layerId !== manifest.layerId || certification.contentDigest !== manifest.contentDigest) {
+  if (certification.schema !== PRODUCT_IDENTITY.evidence.dependencyLayerCertificationSchema || certification.layerId !== manifest.layerId || certification.contentDigest !== manifest.contentDigest
+    || certification.platform !== process.platform || certification.platformPolicy !== immutablePlatformPolicy()) {
     throw new Error(`dependency layer certification differs from manifest: ${layerId}`);
   }
   if (expected && (expected.layerId !== manifest.layerId || expected.contentDigest !== manifest.contentDigest)) {
@@ -371,6 +373,7 @@ export async function verifyDependencyLayer(
     const path = resolveWithin(layerRoot, file.path);
     const metadata = await lstat(path);
     if (!metadata.isFile() || metadata.isSymbolicLink() || metadata.size !== file.bytes) throw new Error(`dependency layer file mismatch: ${file.path}`);
+    assertImmutableFileMode(metadata, path);
     const bytes = await readFile(path);
     onOperation?.({ operation: "verification-read", path: file.path, bytes: bytes.length });
     const actual = releaseFileIdentity(file.path, bytes, file.executable);
@@ -410,14 +413,14 @@ async function writeLayerCertification(dataDir: string, identity: DependencyLaye
     schema: PRODUCT_IDENTITY.evidence.dependencyLayerCertificationSchema,
     layerId: identity.layerId,
     contentDigest: identity.contentDigest,
+    platform: process.platform,
+    platformPolicy: immutablePlatformPolicy(),
     certifiedAt: new Date().toISOString(),
-  }, null, 2), { flag: "wx", mode: 0o600 });
-  try {
-    await rename(temporary, path);
-  } catch (error) {
-    if (!await lstat(path).catch(() => null)) throw error;
-    await rm(temporary, { force: true });
-  }
+  }, null, 2), { flag: "wx", mode: 0o400 });
+  await chmod(path, 0o600).catch(() => {});
+  await rm(path, { force: true });
+  await rename(temporary, path);
+  await chmod(path, 0o400);
 }
 
 function validateLayerManifest(value: DependencyLayerIdentity): void {
