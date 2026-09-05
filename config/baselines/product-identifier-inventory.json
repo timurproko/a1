@@ -76,8 +76,23 @@
     },
     {
       "path": "test/cli/packages.test.ts",
-      "line": 196,
+      "line": 213,
       "identifier": "A1_PROFILE_HOME"
+    },
+    {
+      "path": "test/cli/packages.test.ts",
+      "line": 248,
+      "identifier": "A1_PROFILE_HOME"
+    },
+    {
+      "path": "test/cli/pinned-package-message-worker.mjs",
+      "line": 38,
+      "identifier": "A1_PROFILE_HOME"
+    },
+    {
+      "path": "test/cli/pinned-package-message-worker.mjs",
+      "line": 56,
+      "identifier": "A1_MESSAGE_SCENARIO"
     },
     {
       "path": "test/cli/update-cli.test.ts",
