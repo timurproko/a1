@@ -224,6 +224,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       readonly getRows: () => number;
       readonly requestRender: (force?: boolean) => void;
       readonly onViewportFrame?: (frame: TranscriptViewportFrame) => void;
+      readonly requestHyperlinkCleanup?: () => void;
       readonly enableDockInputReuse?: boolean;
       readonly onSubmit: (text: string) => void;
       readonly onInterrupt: () => void;
@@ -324,6 +325,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       enabled: this.#customViewport,
       editor: this.editor,
       requestRender: force => this.#componentRuntime.requestRender(force),
+      requestHyperlinkCleanup: () => handlers.requestHyperlinkCleanup?.(),
       hasEditorLinks: () => this.#promptChips.hyperlinkRanges(this.editor.getText()).length > 0,
     });
     // Performance: stable painter identities let the neutral viewport retain row-level

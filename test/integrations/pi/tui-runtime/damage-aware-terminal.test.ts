@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { readVisibleHyperlinks } from "../../../../src/ui/components/visible-hyperlinks.js";
 import {
   DamageAwareTerminalAdapter,
   PINNED_PI_TUI_DAMAGE_GRAMMAR,
@@ -19,10 +20,12 @@ class RecordingTerminal implements PiTuiTerminalPort {
   readonly writes: string[] = [];
   readonly kittyProtocolActive = false;
   constructor(public columns = 40, public rows = 8) {}
-  start(): void {}
+  onResize: (() => void) | undefined;
+  onWrite: (() => void) | undefined;
+  start(_input?: (data: string) => void, onResize?: () => void): void { this.onResize = onResize; }
   stop(): void {}
   async drainInput(): Promise<void> {}
-  write(data: string): void { this.writes.push(data); }
+  write(data: string): void { this.writes.push(data); this.onWrite?.(); }
   moveBy(): void {}
   hideCursor(): void {}
   showCursor(): void {}
@@ -53,7 +56,7 @@ function fullscreenWrite(rows: readonly string[], rowStart = 1, cursorRow = 7): 
 
 function initialized(options: { readonly regionalScroll?: boolean } = {}) {
   const terminal = new RecordingTerminal();
-  const adapter = new DamageAwareTerminalAdapter(terminal, { regionalScroll: options.regionalScroll ?? true });
+  const adapter = new DamageAwareTerminalAdapter(terminal, { regionalScroll: options.regionalScroll ?? true, inspectHyperlinks: readVisibleHyperlinks });
   const initial = fullscreenWrite(initialRows);
   adapter.arm(descriptor(1), SAFE);
   adapter.write(initial);
@@ -152,7 +155,7 @@ describe("A1-owned damage-aware terminal adapter", () => {
     expect(ready.terminal.writes.at(-1)).not.toContain("\u001b[2J");
 
     const coldTerminal = new RecordingTerminal();
-    const cold = new DamageAwareTerminalAdapter(coldTerminal, { regionalScroll: true });
+    const cold = new DamageAwareTerminalAdapter(coldTerminal, { regionalScroll: true, inspectHyperlinks: readVisibleHyperlinks });
     cold.arm(descriptor(1), SAFE);
     cold.write(forced);
     expect(coldTerminal.writes.at(-1)).toBe(forced);
@@ -162,6 +165,243 @@ describe("A1-owned damage-aware terminal adapter", () => {
     ready.adapter.arm(resized, SAFE);
     ready.adapter.write(forced);
     expect(ready.terminal.writes.at(-1)).toBe(forced);
+  });
+
+  it("suppresses an unrelated forced clear when every link occurrence is unchanged", () => {
+    const { adapter, terminal } = initialized();
+    const linked = ["https://example.test", ...initialRows.slice(1)];
+    adapter.arm(descriptor(2), SAFE);
+    adapter.write(fullscreenWrite(linked));
+    const forced = fullscreenWrite(linked).replace("\u001b[?2026h", "\u001b[?2026h\u001b[2J");
+    adapter.arm(descriptor(3), SAFE);
+    adapter.write(forced);
+    expect(adapter.lastDecision.reason).toBe("suppressed-redundant-clear");
+    expect(terminal.writes.at(-1)).not.toContain("\u001b[2J");
+  });
+
+  it("preserves a forced cleanup when the last visible hyperlink disappears", () => {
+    const { adapter, terminal } = initialized();
+    const link = "\u001b]8;;https://example.test/full\u0007long linked label\u001b]8;;\u0007";
+    adapter.arm(descriptor(2), SAFE);
+    adapter.write(fullscreenWrite([link, ...initialRows.slice(1)]));
+    const replacement = fullscreenWrite(["", ...initialRows.slice(1)])
+      .replace("\u001b[?2026h", "\u001b[?2026h\u001b[2J");
+    adapter.arm(descriptor(3), SAFE);
+    adapter.write(replacement);
+
+    // Invariant: safety depends on the previously presented link, not just
+    // the link-free replacement. Row clears cannot stand in for this cleanup.
+    expect(terminal.writes.at(-1)).toBe(replacement);
+  });
+
+  it.each(["https://example.test/long", "file:///C:/work/source.ts", "C:/work/source.ts", "package.json"])(
+    "preserves cleanup for the host-detected label %s without OSC 8", label => {
+      const { adapter, terminal } = initialized();
+      adapter.arm(descriptor(2), SAFE);
+      adapter.write(fullscreenWrite([label, ...initialRows.slice(1)]));
+      const replacement = fullscreenWrite(["plain", ...initialRows.slice(1)])
+        .replace("\u001b[?2026h", "\u001b[?2026h\u001b[2J");
+      adapter.arm(descriptor(3), SAFE);
+      adapter.write(replacement);
+      expect(terminal.writes.at(-1)).toBe(replacement);
+      expect(adapter.lastDecision.reason).toBe("hyperlink-cleanup");
+      expect(adapter.hyperlinkCleanupPending).toBe(false);
+    },
+  );
+
+  it.each(["honor", "ignore"] as const)("upgrades a link differential to one complete current frame (%s sync)", async synchronizedUpdates => {
+    const { adapter, terminal } = initialized();
+    adapter.arm(descriptor(2), SAFE);
+    adapter.write(fullscreenWrite(["https://example.test", ...initialRows.slice(1)]));
+    const before = terminal.writes.at(-1)!;
+    adapter.arm(descriptor(3), SAFE);
+    adapter.write(fullscreenWrite(["latest plain content"]));
+    const output = terminal.writes.at(-1)!;
+    expect(adapter.lastDecision.reason).toBe("hyperlink-cleanup");
+    expect(classifyTerminalPaint([{ data: output, atMs: 1 }])).toMatchObject({
+      fullScreenClears: 1, rowClears: 8, frames: 1,
+      synchronizedUpdates: { begins: 1, ends: 1, balanced: true },
+    });
+    const replay = await replayTerminalPaint([{ data: before, atMs: 0 }, { data: output, atMs: 1 }], {
+      columns: 40, rows: 8, synchronizedUpdates,
+    });
+    expect(replay.final.rows.slice(0, 8)).toEqual(["latest plain content", ...initialRows.slice(1)]);
+    expect(replay.final.cursor).toEqual({ row: 7, column: 1 });
+    if (synchronizedUpdates === "honor") expect(replay.states.some(frame => frame.rows.every(row => row === ""))).toBe(false);
+  });
+
+  it.each(["honor", "ignore"] as const)("preserves all 192x54 cells and newest content during cleanup (%s sync)", async synchronizedUpdates => {
+    const terminal = new RecordingTerminal(192, 54);
+    const adapter = new DamageAwareTerminalAdapter(terminal, { regionalScroll: true, inspectHyperlinks: readVisibleHyperlinks });
+    const frame = (id: number) => ({ ...descriptor(id), width: 192, height: 54,
+      transcript: { rowStart: 1, rowEnd: 50 }, dock: { rowStart: 51, rowEnd: 54 } });
+    const rows = Array.from({ length: 54 }, (_, index) => index === 0
+      ? "https://example.test/previous" : `\u001b[38;2;80;120;160mstable ${index}\u001b[0m`);
+    const initial = fullscreenWrite(rows, 1, 53);
+    adapter.arm(frame(1), SAFE);
+    adapter.write(initial);
+    adapter.requestHyperlinkCleanup();
+    adapter.arm(frame(2), SAFE);
+    adapter.arm(frame(3), SAFE);
+    adapter.write(fullscreenWrite(["\u001b[1mnewest\u001b[0m"], 1, 53));
+    const output = terminal.writes.at(-1)!;
+    expect(adapter.lastDecision).toMatchObject({ frameId: 3, reason: "hyperlink-cleanup" });
+    expect(classifyTerminalPaint([{ data: output, atMs: 1 }])).toMatchObject({ fullScreenClears: 1, rowClears: 54, frames: 1 });
+    for (let row = 1; row < rows.length; row += 1) expect(output).toContain(rows[row]);
+    const replay = await replayTerminalPaint([{ data: initial, atMs: 0 }, { data: output, atMs: 1 }], {
+      columns: 192, rows: 54, synchronizedUpdates,
+    });
+    expect(replay.final.rows).toEqual(["newest", ...Array.from({ length: 53 }, (_, index) => `stable ${index + 1}`)]);
+    expect(replay.final.cursor).toEqual({ row: 53, column: 1 });
+    if (synchronizedUpdates === "honor") expect(replay.states).toHaveLength(2);
+  }, 20_000);
+
+  it("reuses unchanged row analysis for dock-only paint", () => {
+    const terminal = new RecordingTerminal();
+    const inspect = vi.fn(readVisibleHyperlinks);
+    const adapter = new DamageAwareTerminalAdapter(terminal, { regionalScroll: true, inspectHyperlinks: inspect });
+    adapter.arm(descriptor(1), SAFE);
+    adapter.write(fullscreenWrite(["https://example.test", ...initialRows.slice(1)]));
+    inspect.mockClear();
+    adapter.arm(descriptor(2), SAFE);
+    adapter.write(fullscreenWrite(["edited"], 7));
+    expect(inspect).toHaveBeenCalledTimes(1);
+    expect(inspect).toHaveBeenCalledWith("edited");
+  });
+
+  it("does not treat a replay-unsafe link-free row as hyperlink cleanup", () => {
+    const { adapter, terminal } = initialized();
+    adapter.arm(descriptor(2), SAFE);
+    adapter.write(fullscreenWrite(["\u001b[1;4Hplain moved label", ...initialRows.slice(1)]));
+    const replacement = fullscreenWrite(initialRows).replace("\u001b[?2026h", "\u001b[?2026h\u001b[2J");
+    adapter.arm(descriptor(3), SAFE);
+    adapter.write(replacement);
+    expect(adapter.lastDecision.reason).toBe("suppressed-redundant-clear");
+    expect(terminal.writes.at(-1)).not.toContain("\u001b[2J");
+    expect(adapter.hyperlinkCleanupPending).toBe(false);
+  });
+
+  it("does not clear a linked transcript for stable dock-only typing", () => {
+    const { adapter, terminal } = initialized();
+    adapter.arm(descriptor(2), SAFE);
+    adapter.write(fullscreenWrite(["https://example.test", ...initialRows.slice(1)]));
+    const input = fullscreenWrite(["edited"], 7);
+    adapter.arm(descriptor(3), SAFE);
+    adapter.write(input);
+    expect(terminal.writes.at(-1)).toBe(input);
+    expect(adapter.hyperlinkCleanupPending).toBe(false);
+  });
+
+  it("keeps a stable dock link outside the shifted transcript from blocking regional movement", () => {
+    const terminal = new RecordingTerminal();
+    const adapter = new DamageAwareTerminalAdapter(terminal, { regionalScroll: true, inspectHyperlinks: readVisibleHyperlinks });
+    adapter.arm(descriptor(1), SAFE);
+    adapter.write(fullscreenWrite([...initialRows.slice(0, 6), "D:/work/package.json", "footer"]));
+    adapter.arm(descriptor(2, 1, true), SAFE);
+    adapter.write(fullscreenWrite(["B", "C", "D", "E", "F", "G", "D:/work/package.json", "footer"]));
+    expect(adapter.lastDecision).toMatchObject({ reason: "transformed", paintedRows: [6, 7, 8] });
+    expect(terminal.writes.at(-1)).toContain("\u001b[1;6r\u001b[1;1H\u001b[1S\u001b[r");
+    expect(terminal.writes.at(-1)).not.toContain("\u001b[2J");
+  });
+
+  it("rejects regional movement over a cached link omitted from the incoming differential", () => {
+    const { adapter, terminal } = initialized();
+    adapter.arm(descriptor(2), SAFE);
+    adapter.write(fullscreenWrite(["https://example.test"], 2));
+    const partial = fullscreenWrite(["B"]);
+    adapter.arm(descriptor(3, 1, true), SAFE);
+    adapter.write(partial);
+    expect(terminal.writes.at(-1)).toBe(partial);
+    expect(adapter.lastDecision.reason).toBe("unsafe-terminal-content");
+  });
+
+  it("coalesces cleanup with the latest arm and never forwards an obsolete frame", () => {
+    const { adapter, terminal } = initialized();
+    adapter.requestHyperlinkCleanup();
+    adapter.arm(descriptor(2), SAFE);
+    adapter.arm(descriptor(3), SAFE);
+    adapter.write(fullscreenWrite(["newest"]));
+    expect(terminal.writes.at(-1)).toContain("newest");
+    expect(adapter.hyperlinkCleanupPending).toBe(false);
+    const count = terminal.writes.length;
+    adapter.requestHyperlinkCleanup();
+    adapter.arm(descriptor(2), SAFE);
+    adapter.write(fullscreenWrite(["obsolete"]));
+    expect(terminal.writes).toHaveLength(count);
+    expect(adapter.hyperlinkCleanupPending).toBe(true);
+  });
+
+  it("does not acknowledge a newer cleanup requested while forwarding a frame", () => {
+    const { adapter, terminal } = initialized();
+    adapter.requestHyperlinkCleanup();
+    terminal.onWrite = () => { terminal.onWrite = undefined; adapter.requestHyperlinkCleanup(); };
+    adapter.arm(descriptor(2), SAFE);
+    adapter.write(fullscreenWrite(["newest"]));
+    expect(adapter.hyperlinkCleanupPending).toBe(true);
+    adapter.arm(descriptor(3), SAFE);
+    adapter.write(fullscreenWrite([], 1));
+    expect(terminal.writes.at(-1)).toContain("\u001b[2J");
+    expect(adapter.hyperlinkCleanupPending).toBe(false);
+  });
+
+  it("preserves unknown writes, requests one deferred full frame, and retains pending cleanup", async () => {
+    const terminal = new RecordingTerminal();
+    const recover = vi.fn();
+    const adapter = new DamageAwareTerminalAdapter(terminal, { regionalScroll: true, inspectHyperlinks: readVisibleHyperlinks, onHyperlinkCleanupRequired: recover });
+    adapter.arm(descriptor(1), SAFE);
+    adapter.write(fullscreenWrite(["https://example.test", ...initialRows.slice(1)]));
+    const unknown = "\u001b_Gunsupported-image\u001b\\";
+    adapter.arm(descriptor(2), SAFE);
+    adapter.write(unknown);
+    expect(terminal.writes.at(-1)).toBe(unknown);
+    expect(adapter.hyperlinkCleanupPending).toBe(true);
+    expect(recover).not.toHaveBeenCalled();
+    await Promise.resolve();
+    expect(recover).toHaveBeenCalledTimes(1);
+    adapter.arm(descriptor(3), SAFE);
+    adapter.write(unknown);
+    await Promise.resolve();
+    expect(recover).toHaveBeenCalledTimes(1);
+    adapter.arm(descriptor(4), SAFE);
+    adapter.write(fullscreenWrite(initialRows));
+    expect(terminal.writes.at(-1)).toContain("\u001b[2J");
+    expect(adapter.hyperlinkCleanupPending).toBe(false);
+  });
+
+  it("keeps link cleanup across resize but cancels deferred recovery on stop", async () => {
+    const terminal = new RecordingTerminal();
+    const recover = vi.fn();
+    const adapter = new DamageAwareTerminalAdapter(terminal, { regionalScroll: true, inspectHyperlinks: readVisibleHyperlinks, onHyperlinkCleanupRequired: recover });
+    adapter.start(() => {}, () => {});
+    adapter.arm(descriptor(1), SAFE);
+    adapter.write(fullscreenWrite(["https://example.test", ...initialRows.slice(1)]));
+    terminal.columns = 41;
+    terminal.onResize?.();
+    expect(adapter.hyperlinkCleanupPending).toBe(true);
+    adapter.arm({ ...descriptor(2), width: 41 }, SAFE);
+    adapter.write(fullscreenWrite(initialRows));
+    expect(terminal.writes.at(-1)).toContain("\u001b[2J");
+    expect(adapter.hyperlinkCleanupPending).toBe(false);
+    adapter.requestHyperlinkCleanup();
+    adapter.write("unknown paint");
+    adapter.stop();
+    await Promise.resolve();
+    expect(recover).not.toHaveBeenCalled();
+    expect(adapter.hyperlinkCleanupPending).toBe(false);
+    adapter.arm({ ...descriptor(1), width: 41 }, SAFE);
+    adapter.write(fullscreenWrite(initialRows));
+    expect(adapter.lastDecision.reason).not.toBe("stale-frame");
+  });
+
+  it("does not invalidate the presented row cache for clipboard/title controls", () => {
+    const { adapter, terminal } = initialized();
+    adapter.write("\u001b]52;c;YWJj\u0007");
+    adapter.write("\u001b]2;fixture\u0007");
+    adapter.requestHyperlinkCleanup();
+    adapter.arm(descriptor(2), SAFE);
+    adapter.write(fullscreenWrite(["edited"], 7));
+    expect(adapter.lastDecision.reason).toBe("hyperlink-cleanup");
+    expect(terminal.writes.at(-1)).toContain("\u001b[1;1H\u001b[2KA");
   });
 
   it("fails closed for unsupported region scrolling and geometry mismatch", () => {
@@ -204,7 +444,7 @@ describe("A1-owned damage-aware terminal adapter", () => {
     expect(ready.adapter.lastDecision.reason).toBe("stale-frame");
 
     const terminal = new RecordingTerminal();
-    const cold = new DamageAwareTerminalAdapter(terminal, { regionalScroll: true });
+    const cold = new DamageAwareTerminalAdapter(terminal, { regionalScroll: true, inspectHyperlinks: readVisibleHyperlinks });
     cold.arm(descriptor(1, 1, true), SAFE);
     cold.write(broad);
     expect(cold.lastDecision.reason).toBe("incomplete-prior-frame");

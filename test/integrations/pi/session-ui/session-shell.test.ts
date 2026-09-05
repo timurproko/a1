@@ -21,7 +21,7 @@ import {
   type OwnedUiSessionShellOptions,
 } from "../../../../src/integrations/pi/session-ui/index.js";
 import { TestPresentationTerminal } from "../../../features/owned-ui/neutral-port-doubles.js";
-import { replayTerminalBackgroundCells } from "../../../support/rendering/terminal-paint-evidence.js";
+import { classifyTerminalPaint, replayTerminalBackgroundCells } from "../../../support/rendering/terminal-paint-evidence.js";
 import type { OwnedUiViewportSettings, OwnedUiViewportSettingsPort } from "../../../../src/contracts/owned-ui/index.js";
 
 class Session {
@@ -649,6 +649,162 @@ describe("OwnedUiSessionShell", () => {
     await shell.dispose();
   });
 
+  it.each(["wheel", "keyboard", "scrollbar"] as const)("preserves a complete same-frame hyperlink cleanup during %s navigation", async navigation => {
+    await withPinnedHyperlinks(async () => {
+      for (const mode of ["explicit", "auto-detected"] as const) {
+        const label = mode === "explicit" ? "hover-label" : "file:///C:/work/ghost-source.ts";
+        const source = mode === "explicit" ? `[${label}](https://example.test/target)` : `\`${label}\``;
+        const { terminal, shell } = await fixture([{
+          role: "assistant", content: [{ type: "text", text: [source, ...Array.from({ length: 140 }, (_, index) => `plain row ${index}`)].join("\n\n") }], timestamp: 1,
+        }], [], true);
+        try {
+          terminal.resize(192, 54);
+          shell.root.setViewportConfig({ scrollbarAppearance: "always", scrollbarStyle: "thin", scrollbarSpeed: "normal" });
+          shell.runtime.renderNow();
+          terminal.input("\u001b[1;1H");
+          shell.runtime.renderNow();
+          const initial = shell.root.render(192);
+          const row = initial.findIndex(line => stripTerminalSequences(line).includes(label));
+          expect(row).toBeGreaterThanOrEqual(0);
+          const column = stripTerminalSequences(initial[row]!).indexOf(label);
+          if (mode === "auto-detected") expect(getPinnedPiTuiLinkAtColumn(initial[row]!, column)).toBeUndefined();
+          terminal.input(`\u001b[<35;${column + 2};${row + 1}M`);
+          shell.runtime.renderNow();
+          const before = terminal.writes.length;
+          if (navigation === "wheel") terminal.input("\u001b[<65;5;3M");
+          else if (navigation === "keyboard") terminal.input("\u001b[1;1F");
+          else {
+            const bottom = shell.root.viewportFrameDescriptor()!.transcript!.rowEnd;
+            terminal.input(`\u001b[<0;192;${bottom}M\u001b[<0;192;${bottom}m`);
+          }
+          shell.runtime.renderNow();
+          const paints = terminal.writes.slice(before).filter(write => write.includes("\u001b[?2026h"));
+          const cleanups = paints.filter(write => write.includes("\u001b[2J"));
+          expect(cleanups.length).toBeGreaterThan(0);
+          for (const write of cleanups) {
+            expect(classifyTerminalPaint([{ data: write, atMs: 0 }])).toMatchObject({
+              fullScreenClears: 1, rowClears: 54, synchronizedUpdates: { begins: 1, ends: 1, balanced: true },
+            });
+          }
+          expect(shell.root.render(192).some(line => stripTerminalSequences(line).includes(label))).toBe(false);
+          expect(cleanups.at(-1)).not.toContain("https://example.test/target");
+        } finally { await shell.dispose(); }
+      }
+    });
+  });
+
+  it("cleans a link covered by a downstream overlay and restores its actual target on close", async () => {
+    await withPinnedHyperlinks(async () => {
+      const { terminal, shell } = await fixture([{
+        role: "assistant", content: [{ type: "text", text: "[hover-label](https://example.test/target)" }], timestamp: 1,
+      }], [], true);
+      try {
+        terminal.resize(192, 54);
+        shell.runtime.renderNow();
+        const before = terminal.writes.length;
+        const overlay = shell.runtime.showOverlay({
+          render: width => Array.from({ length: 50 }, () => "covered".padEnd(width)), invalidate() {},
+        }, { anchor: "top-left", width: 192 });
+        shell.runtime.renderNow();
+        const cleanup = terminal.writes.slice(before).find(write => write.includes("\u001b[2J"));
+        expect(cleanup).toBeDefined();
+        expect(cleanup).toContain("covered");
+        expect(cleanup).not.toContain("https://example.test/target");
+        overlay.hide();
+        shell.runtime.renderNow();
+        expect(terminal.writes.at(-1)).toContain("https://example.test/target");
+      } finally { await shell.dispose(); }
+    });
+  });
+
+  it("coalesces followed streaming into a latest-state cleanup without waiting for mouse motion", async () => {
+    const { engine, adapter, terminal, shell } = await fixture([], [], true);
+    const assistant = (text: string) => ({ role: "assistant", content: [{ type: "text", text }], stopReason: "pending", timestamp: 5 });
+    try {
+      terminal.resize(192, 54);
+      const first = "https://example.test/streaming";
+      engine.session.emit({ type: "message_start", message: assistant(first) });
+      await adapter.flushEvents();
+      shell.runtime.renderNow();
+      const before = terminal.writes.length;
+      const tail = Array.from({ length: 90 }, (_, index) => `latest row ${index}`).join("\n\n");
+      engine.session.emit({ type: "message_update", message: assistant(`${first}\n\n${tail}`), assistantMessageEvent: { delta: `\n\n${tail}` } });
+      await adapter.flushEvents();
+      shell.runtime.renderNow();
+      const changed = terminal.writes.slice(before);
+      expect(changed.some(write => write.includes("\u001b[2J") && write.includes("latest row 89"))).toBe(true);
+      expect(shell.root.render(192).join("\n")).not.toContain(first);
+      const settled = terminal.writes.length;
+      await nextImmediate();
+      expect(terminal.writes.slice(settled).some(write => write.includes(first))).toBe(false);
+    } finally { await shell.dispose(); }
+  });
+
+  it.each([[20, false], [500, false], [20, true], [500, true]] as const)(
+    "keeps dock input bounded with %i settled paragraphs (linked=%s)", async (paragraphs, linked) => {
+      const scheduler = new InputImmediateScheduler();
+      const content = [...Array.from({ length: paragraphs }, (_, index) => `settled paragraph ${index}`),
+        linked ? "https://example.test/visible-tail" : "plain visible tail"].join("\n\n");
+      const { terminal, shell } = await fixture([{
+        role: "assistant", content: [{ type: "text", text: content }], timestamp: 1,
+      }], [], true, undefined, undefined, undefined, { scheduler });
+      try {
+        terminal.resize(192, 54);
+        shell.runtime.renderNow();
+        await nextImmediate();
+        const compositions = shell.root.viewportCompositionEvidence();
+        const blocks = shell.root.transcriptRenderCount();
+        const before = terminal.writes.length;
+        terminal.input("a"); terminal.input("b"); terminal.input("c");
+        scheduler.flush();
+        await nextImmediate();
+        expect(shell.root.editor.getText()).toBe("abc");
+        expect(shell.root.transcriptRenderCount()).toBe(blocks);
+        expect(shell.root.viewportCompositionEvidence()).toEqual({ full: compositions.full, dockOnly: compositions.dockOnly + 1 });
+        const frames = terminal.writes.slice(before).filter(write => write.includes("\u001b[?2026h"));
+        expect(frames.some(write => write.includes("\u001b[2J"))).toBe(false);
+        const dockStart = shell.root.viewportFrameDescriptor()!.dock!.rowStart;
+        for (const write of frames) {
+          const painted = classifyTerminalPaint([{ data: write, atMs: 0 }]).addressedRowWrites;
+          expect(painted.every(row => row >= dockStart)).toBe(true);
+        }
+      } finally { await shell.dispose(); }
+    },
+  );
+
+  it("preserves semantic link copy and cleanup through selection edge auto-scroll and release", async () => {
+    const url = "https://example.test/source";
+    const { terminal, shell } = await fixture(Array.from({ length: 40 }, (_, index) => ({
+      role: "assistant", content: [{ type: "text", text: `selection row ${index} ${url}` }], timestamp: index + 1,
+    })), [], true);
+    try {
+      terminal.resize(100, 20);
+      shell.runtime.renderNow();
+      terminal.input("\u001b[<0;5;3M");
+      terminal.input("\u001b[<32;5;1M");
+      shell.runtime.renderNow();
+      const before = shell.root.viewportFrameDescriptor()!.nextDocumentRange.start;
+      await new Promise(resolve => setTimeout(resolve, 75));
+      shell.runtime.renderNow();
+      expect(shell.root.viewportFrameDescriptor()!.nextDocumentRange.start).toBeLessThan(before);
+      expect(shell.root.hasActiveSelection()).toBe(true);
+      const releaseStart = terminal.writes.length;
+      terminal.input("\u001b[<0;5;1m");
+      shell.runtime.renderNow();
+      const release = terminal.writes.slice(releaseStart).find(write => write.includes("\u001b[2J"));
+      expect(release).toContain(`\u001b]8;;${url}\u001b\\`);
+      expect(release).not.toContain("\uFE0E");
+      terminal.input("\u0003");
+      const copyWrite = terminal.writes.findLast(write => write.startsWith("\u001b]52;c;"));
+      expect(copyWrite).toBeDefined();
+      const copied = Buffer.from(copyWrite!.slice("\u001b]52;c;".length, -1), "base64").toString("utf8");
+      expect(copied).toContain(url);
+      expect(copied).toContain("selection row");
+      expect(copied).not.toContain("\u001b");
+      expect(copied).not.toContain("\uFE0E");
+    } finally { await shell.dispose(); }
+  });
+
   it("wraps ordinary transcript content through the rail overlay column", async () => {
     const word = "x".repeat(60);
     const { terminal, shell } = await fixture([
@@ -1036,8 +1192,11 @@ describe("OwnedUiSessionShell", () => {
     await nextImmediate();
     shell.runtime.renderNow();
     const chipDeletionWrites = terminal.writes.slice(writesBeforeChipDelete);
-    // Platform: exact row overwrites clear stale native-link cells without blanking the screen.
-    expect(chipDeletionWrites.some(write => write.includes("\u001b[2J"))).toBe(false);
+    // Platform: removing the last chip must preserve its hover cleanup, with
+    // the clear and complete current content in one synchronized transaction.
+    const cleanupWrites = chipDeletionWrites.filter(write => write.includes("\u001b[2J"));
+    expect(cleanupWrites.length).toBeGreaterThan(0);
+    expect(cleanupWrites.every(write => write.startsWith("\u001b[?2026h") && write.endsWith("\u001b[?2026l"))).toBe(true);
     expect(chipDeletionWrites.some(write => write.includes("\u001b[2K"))).toBe(true);
     expect(shell.root.editor.getText()).toBe("");
     terminal.input("\u001a");
