@@ -78,6 +78,8 @@ export interface TranscriptViewportHitRegions {
   } | null;
   readonly sticky: { readonly row: number; readonly target: number; readonly width: number } | null;
   readonly bottom: { readonly row: number; readonly columnStart: number; readonly columnEnd: number } | null;
+  /** Transient non-selectable document-tail rows currently visible in the viewport. */
+  readonly transientTail: readonly number[];
 }
 
 export interface TranscriptViewportFrameDescriptor {
@@ -567,6 +569,10 @@ export class TranscriptViewport {
       },
       sticky: stickyActive ? { row: 1, target: governing.firstRow, width: contentWidth } : null,
       bottom: bottomHit,
+      transientTail: Array.from(
+        { length: Math.max(0, Math.min(input.documentRows.length, this.#scrollTop + viewportHeight) - Math.max(this.#scrollTop, this.#selectableDocumentRowCount)) },
+        (_row, index) => Math.max(this.#scrollTop, this.#selectableDocumentRowCount) - this.#scrollTop + index + 1,
+      ),
     };
     const frame: TranscriptViewportFrame = {
       rows: frameRows,
