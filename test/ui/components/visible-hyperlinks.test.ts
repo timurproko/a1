@@ -47,7 +47,7 @@ describe("visible hyperlink geometry and host candidates", () => {
   it("does not double-count an explicit URL or classify ordinary sentence punctuation", () => {
     expect(readVisibleHyperlinks(`${open("target")}https://example.test/path${CLOSE}`).ranges).toHaveLength(1);
     expect(readVisibleHyperlinks("Plain words, a sentence. More prose!").ranges).toEqual([]);
-    expect(readVisibleHyperlinks("$0.000 (sub) 0.0%/22k version 0.84.2").ranges).toEqual([]);
+    expect(readVisibleHyperlinks("$0.000 (sub) 0.0%/22k version 0.84.2 Elapsed 0.0s").ranges).toEqual([]);
   });
 
   it.each([

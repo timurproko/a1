@@ -21,7 +21,7 @@ const LINK = /^\u001b\]8;[^;\u0007\u001b]*;([^\u0007\u001b]*)(?:\u0007|\u001b\\)
 const SGR = /^\u001b\[[\d;:]*m$/u;
 // Platform: this is a conservative cleanup detector, NOT a link-activation
 // parser. Hosts recognize URLs, domains and file-like labels without OSC 8.
-const CANDIDATE = /(?:[a-z][a-z\d+.-]*:\/\/[^\s<>"']+|www\.[^\s<>"']+|(?:[a-z]:[\\/]|\.{1,2}[\\/])[^\s<>"']+|[\p{L}\p{N}_-]+(?:\.[\p{L}\p{N}_-]*\p{L}[\p{L}\p{N}_-]*)+(?:[\\/][^\s<>"']+)?)/giu;
+const CANDIDATE = /(?:[a-z][a-z\d+.-]*:\/\/[^\s<>"']+|www\.[^\s<>"']+|(?:[a-z]:[\\/]|\.{1,2}[\\/])[^\s<>"']+|[\p{L}\p{N}_-]+(?:\.\p{L}[\p{L}\p{N}_-]+)+(?:[\\/][^\s<>"']+)?)/giu;
 
 /**
  * Reads final visible row geometry without decorating text. Candidate ranges
