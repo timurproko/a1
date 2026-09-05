@@ -24,24 +24,33 @@ const MODEL_REFRESH_TIMEOUT_MS = 15_000;
  */
 export function createPiPackagesPort(input: AgentPackagesPortInput): AgentPackagesPort {
   const { profileRoot, cwd } = input;
-  const settingsManager = SettingsManager.create(cwd, profileRoot, { projectTrusted: false });
-  const packageManager = new DefaultPackageManager({ cwd, agentDir: profileRoot, settingsManager });
-  packageManager.setProgressCallback(event => {
-    if (event.type !== "start" || !event.message) return;
-    input.onProgress?.({ operation: operationFor(event.action), message: event.message });
-  });
+  // Compatibility: model-only refresh bypasses package settings and their diagnostics, as Pi does.
+  let packageManager: DefaultPackageManager | undefined;
+  const manager = (): DefaultPackageManager => {
+    if (packageManager) return packageManager;
+    const settingsManager = SettingsManager.create(cwd, profileRoot, { projectTrusted: false });
+    for (const { scope, error } of settingsManager.drainErrors()) {
+      input.onDiagnostic?.({
+        message: `Warning (package command, ${scope} settings): ${error.message}`,
+        ...(error.stack ? { detail: error.stack } : {}),
+      });
+    }
+    packageManager = new DefaultPackageManager({ cwd, agentDir: profileRoot, settingsManager });
+    packageManager.setProgressCallback(event => {
+      if (event.type !== "start") return;
+      input.onProgress?.({ operation: operationFor(event.action), message: String(event.message) });
+    });
+    return packageManager;
+  };
 
   const configured = (): readonly AgentPackageDescriptor[] =>
-    packageManager.listConfiguredPackages()
+    manager().listConfiguredPackages()
       .filter(entry => entry.scope === "user")
       .map(entry => Object.freeze({
         source: entry.source,
         installedPath: entry.installedPath ?? null,
         filtered: entry.filtered,
       }));
-
-  const isConfigured = (source: string): boolean =>
-    configured().some(entry => entry.source === source || entry.source.startsWith(`${source}@`));
 
   return Object.freeze({
     capabilities: Object.freeze({ install: true, remove: true, update: true, refreshModels: true }),
@@ -53,14 +62,14 @@ export function createPiPackagesPort(input: AgentPackagesPortInput): AgentPackag
 
     async install(source: string): Promise<AgentPackageOutcome> {
       return await attempt("install", source, async () => {
-        await packageManager.installAndPersist(source);
+        await manager().installAndPersist(source);
         return agentPackageOutcome("install", "completed", null, source, configured());
       });
     },
 
     async remove(source: string): Promise<AgentPackageOutcome> {
       return await attempt("remove", source, async () => {
-        const removed = await packageManager.removeAndPersist(source);
+        const removed = await manager().removeAndPersist(source);
         if (!removed) return agentPackageOutcome("remove", "not-found", null, source);
         return agentPackageOutcome("remove", "completed", null, source, configured());
       });
@@ -68,10 +77,8 @@ export function createPiPackagesPort(input: AgentPackagesPortInput): AgentPackag
 
     async update(source?: string): Promise<AgentPackageOutcome> {
       return await attempt("update", source ?? null, async () => {
-        // Rationale: asking first keeps "that package is not installed here" a structural
-        // answer rather than a string a caller would have to recognize.
-        if (source !== undefined && !isConfigured(source)) return agentPackageOutcome("update", "not-found", null, source);
-        await packageManager.update(source);
+        // Compatibility: Pi owns source identity and its contextual no-match suggestions.
+        await manager().update(source);
         return agentPackageOutcome("update", "completed", null, source ?? null, configured());
       });
     },
@@ -93,7 +100,9 @@ async function attempt(
   try {
     return await run();
   } catch (error) {
-    return agentPackageOutcome(operation, "failed", describe(error), source);
+    const detail = error instanceof Error ? error.message : operation === "refresh-models"
+      ? "Unknown model catalog refresh error" : "Unknown package command error";
+    return agentPackageOutcome(operation, "failed", detail, source);
   }
 }
 
@@ -108,9 +117,10 @@ async function refreshModelCatalogs(profileRoot: string): Promise<void> {
       signal: controller.signal,
     });
     const result = await modelRuntime.refresh({ allowNetwork: true, force: true, signal: controller.signal });
-    if (result.aborted) throw new Error(`model catalog refresh timed out after ${MODEL_REFRESH_TIMEOUT_MS}ms`);
+    if (result.aborted) throw new Error("Model catalog refresh timed out.");
     if (result.errors.size > 0) {
-      throw new Error(Array.from(result.errors, ([provider, error]) => `${provider}: ${error.message}`).join("; "));
+      const details = Array.from(result.errors, ([provider, error]) => `${provider}: ${error.message}`).join("; ");
+      throw new Error(`Could not refresh model catalogs: ${details}`);
     }
   } finally {
     clearTimeout(timeout);
@@ -121,10 +131,4 @@ function operationFor(action: "install" | "remove" | "update" | "clone" | "pull"
   if (action === "install") return "install";
   if (action === "remove") return "remove";
   return "update";
-}
-
-function describe(error: unknown): string {
-  const message = (error instanceof Error ? error.message : String(error)).replace(/\s+/g, " ").trim();
-  if (message.length === 0) return "unknown package failure";
-  return message.length > 600 ? `${message.slice(0, 597)}...` : message;
 }

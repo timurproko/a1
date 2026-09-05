@@ -16,17 +16,17 @@ Task accounting remains cumulative across milestones. A task that spans more tha
 
 ## 2. Correct model-refresh and package operation output
 
-- [ ] 2.1 Remove the model-refresh rendering exception for both CLI aliases; verify exact green `Model catalogs refreshed` plus one newline, empty stderr, and exit zero in color-enabled and color-disabled transcript cases.
-- [ ] 2.2 Match pinned refresh timeout, ordered provider-error details, runtime exceptions, and non-Error fallback; verify red stderr, exit one, no success summary, alias equivalence, and preservation of multiline/long details.
-- [ ] 2.3 Delegate single-package update identity matching and missing-target errors to the public package manager; verify equivalent source spellings, no-match suggestions, and the different remove-versus-update error prefixes against pinned output.
-- [ ] 2.4 Preserve complete package error messages and pinned non-Error fallback without whitespace normalization or truncation; verify messages containing repeated whitespace, newlines, and more than 600 characters remain exact.
-- [ ] 2.5 Add typed user-scope settings-diagnostic reporting before operation progress; verify yellow warning/dim secondary-detail order, corresponding operation behavior, unchanged inherited child output, and absence of project-settings/trust access.
+- [x] 2.1 Remove the model-refresh rendering exception for both CLI aliases; verify exact green `Model catalogs refreshed` plus one newline, empty stderr, and exit zero in color-enabled and color-disabled transcript cases.
+- [x] 2.2 Match pinned refresh timeout, ordered provider-error details, runtime exceptions, and non-Error fallback; verify red stderr, exit one, no success summary, alias equivalence, and preservation of multiline/long details.
+- [x] 2.3 Delegate single-package update identity matching and missing-target errors to the public package manager; verify equivalent source spellings, no-match suggestions, and the different remove-versus-update error prefixes against pinned output.
+- [x] 2.4 Preserve complete package error messages and pinned non-Error fallback without whitespace normalization or truncation; verify messages containing repeated whitespace, newlines, and more than 600 characters remain exact.
+- [x] 2.5 Add typed user-scope settings-diagnostic reporting before operation progress; verify yellow warning/dim secondary-detail order, corresponding operation behavior, unchanged inherited child output, and absence of project-settings/trust access.
 
 ## 3. Correct focused syntax and help presentation
 
-- [ ] 3.1 Separate recognized package syntax failures from formatting and render pinned red diagnostic/dim guidance lines; verify missing sources, genuinely unknown options, extra arguments, canonical uninstall/remove wording, and retained syntax exit status two.
-- [ ] 3.2 Implement explicit `-h`/`--help` for supported package verbs using pinned help typography projected onto A1's supported grammar; verify all five verb spellings, help precedence, exit zero, and zero profile preparation or operation dispatch.
-- [ ] 3.3 Preserve command-surface boundaries; verify unknown commands remain silent, A1-only update selectors and pinned-Pi/profile/local-scope restrictions retain their focused diagnostics, no failure dumps full help, and no unsupported operation or option is advertised.
+- [x] 3.1 Separate recognized package syntax failures from formatting and render pinned red diagnostic/dim guidance lines; verify missing sources, genuinely unknown options, extra arguments, canonical uninstall/remove wording, and retained syntax exit status two.
+- [x] 3.2 Implement explicit `-h`/`--help` for supported package verbs using pinned help typography projected onto A1's supported grammar; verify all five verb spellings, help precedence, exit zero, and zero profile preparation or operation dispatch.
+- [x] 3.3 Preserve command-surface boundaries; verify unknown commands remain silent, A1-only update selectors and pinned-Pi/profile/local-scope restrictions retain their focused diagnostics, no failure dumps full help, and no unsupported operation or option is advertised.
 
 ## 4. Correct interactive outcome semantics
 
@@ -48,7 +48,7 @@ Task accounting remains cumulative across milestones. A task that spans more tha
 
 ## 6. Validate the integrated parity contract
 
-- [ ] 6.1 Complete the independent CLI transcript matrix across success, errors, diagnostics, help, and color settings; verify stdout/stderr, literal ANSI/newlines, operation exits, and the sole documented numeric syntax-exit exception.
+- [x] 6.1 Complete the independent CLI transcript matrix across success, errors, diagnostics, help, and color settings; verify stdout/stderr, literal ANSI/newlines, operation exits, and the sole documented numeric syntax-exit exception.
 - [ ] 6.2 Complete the independent interactive message-cell matrix across all inventoried outcomes, relevant themes, ordinary/narrow widths, both padding values, and state transitions; verify negative/mutation cases reject wrong punctuation, severity, style, missing rows, wrapping, and overbroad normalization, and label matching fatal-command output separately from the declared process-lifecycle exception.
 - [ ] 6.3 Update applicable source provenance and integrate focused coverage with the repository's existing required validation selection; verify architecture/public-boundary checks and required CI evidence for each focused implementation slice without introducing a second runtime or a disconnected parity inventory.
 - [ ] 6.4 Verify integration invariants across CLI and interactive routes: isolated A1 package/model profile, no CLI supervisor/UI launch, preserved child output, unchanged A1 self-update/version behavior, declared UI replacements/customizations, and continued A1 session ownership after recoverable fatal-command failures; record required CI results, accepted lifecycle exceptions, and any remaining gaps.

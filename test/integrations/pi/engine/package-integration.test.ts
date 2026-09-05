@@ -67,12 +67,40 @@ describe("official Pi package integration", () => {
     expect(existsSync(resolve(cwd, ".pi"))).toBe(false);
   });
 
-  it("reports a source that is not installed here as not found rather than as a failure", async () => {
+  it("preserves the distinct pinned remove and update missing-source outcomes", async () => {
     const { profileRoot, cwd } = await profile();
     const port = createPiPackagesPort({ profileRoot, cwd });
 
     expect((await port.remove("npm:not-installed")).status).toBe("not-found");
-    expect((await port.update("npm:not-installed")).status).toBe("not-found");
+    expect(await port.update("npm:not-installed")).toMatchObject({
+      status: "failed", detail: "No matching package found for npm:not-installed",
+    });
+  });
+
+  it("delegates equivalent update identities and suggestions to Pi's package manager", async () => {
+    const { profileRoot, cwd } = await profile();
+    await writeFile(resolve(profileRoot, "settings.json"), `${JSON.stringify({ packages: ["npm:@fixture/example@1.2.3"] }, null, 2)}\n`);
+    const port = createPiPackagesPort({ profileRoot, cwd });
+
+    expect(await port.update("npm:@fixture/example")).toMatchObject({
+      status: "completed", source: "npm:@fixture/example",
+    });
+    expect(await port.update("@fixture/example@1.2.3")).toMatchObject({
+      status: "failed",
+      detail: "No matching package found for @fixture/example@1.2.3. Did you mean npm:@fixture/example@1.2.3?",
+    });
+  });
+
+  it("preserves long multiline package-manager error details", async () => {
+    const { profileRoot, cwd } = await profile();
+    const source = `./missing  package\n${"detail ".repeat(100)}`;
+    const port = createPiPackagesPort({ profileRoot, cwd });
+
+    const outcome = await port.install(source);
+    expect(outcome.status).toBe("failed");
+    expect(outcome.detail).toContain("missing  package\n");
+    expect(outcome.detail?.length).toBeGreaterThan(600);
+    expect(outcome.detail).not.toContain("...");
   });
 
   it("reports an unusable source as a failure with the reason and changes nothing", async () => {

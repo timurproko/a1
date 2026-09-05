@@ -52,10 +52,17 @@ export interface AgentPackagesPort {
   refreshModels(): Promise<AgentPackageOutcome>;
 }
 
+/** Recoverable operation diagnostics retain the engine's visible detail and order. */
+export interface AgentPackageDiagnostic {
+  readonly message: string;
+  readonly detail?: string;
+}
+
 export interface AgentPackagesPortInput {
   readonly profileRoot: string;
   readonly cwd: string;
   readonly onProgress?: (progress: AgentPackageProgress) => void;
+  readonly onDiagnostic?: (diagnostic: AgentPackageDiagnostic) => void;
 }
 
 export function assertAgentPackagesPort(port: AgentPackagesPort): void {
