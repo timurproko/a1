@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { evaluateRenderingBudgets } from "./rendering-budgets.js";
-import type { RenderingMatrixCheckpoint, RenderingMatrixResult } from "./rendering-matrix.js";
-import type { TerminalPaintClassification } from "./terminal-paint-evidence.js";
+import { evaluateRenderingBudgets } from "../../../support/rendering/rendering-budgets.js";
+import type { RenderingMatrixCheckpoint, RenderingMatrixResult } from "../../../support/rendering/rendering-matrix.js";
+import type { TerminalPaintClassification } from "../../../support/rendering/terminal-paint-evidence.js";
 
 function paint(overrides: Partial<TerminalPaintClassification> = {}): TerminalPaintClassification {
   return {
