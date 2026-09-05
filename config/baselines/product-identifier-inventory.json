@@ -11,17 +11,17 @@
   "externalIdentityIdentifiers": [
     {
       "path": "bin/guardian.js",
-      "line": 10,
+      "line": 11,
       "identifier": "A1_RELEASE_ROOT"
     },
     {
       "path": "bin/guardian.js",
-      "line": 11,
+      "line": 12,
       "identifier": "A1_LAUNCH_PROFILE"
     },
     {
       "path": "bin/ui.js",
-      "line": 27,
+      "line": 21,
       "identifier": "A1_LAUNCH_PROFILE"
     },
     {
@@ -36,27 +36,27 @@
     },
     {
       "path": "scripts/development/start-local.mjs",
-      "line": 22,
+      "line": 26,
       "identifier": "A1_LAUNCH_PROFILE"
     },
     {
       "path": "scripts/development/start-local.mjs",
-      "line": 26,
+      "line": 30,
       "identifier": "A1_CONFIG_DIR"
     },
     {
       "path": "scripts/development/start-local.mjs",
-      "line": 27,
+      "line": 31,
       "identifier": "A1_DATA_DIR"
     },
     {
       "path": "scripts/development/start-local.mjs",
-      "line": 28,
+      "line": 32,
       "identifier": "A1_RUNTIME_DIR"
     },
     {
       "path": "scripts/development/start-local.mjs",
-      "line": 29,
+      "line": 33,
       "identifier": "A1_DATABASE_PATH"
     },
     {
@@ -176,22 +176,27 @@
     },
     {
       "path": "test/features/launch/development-launch.test.ts",
-      "line": 119,
+      "line": 110,
+      "identifier": "A1_PROFILE_HOME"
+    },
+    {
+      "path": "test/features/launch/development-launch.test.ts",
+      "line": 133,
       "identifier": "A1_CONFIG_DIR"
     },
     {
       "path": "test/features/launch/development-launch.test.ts",
-      "line": 120,
+      "line": 134,
       "identifier": "A1_CONFIG_DIR"
     },
     {
       "path": "test/features/launch/development-launch.test.ts",
-      "line": 121,
+      "line": 135,
       "identifier": "A1_CONFIG_DIR"
     },
     {
       "path": "test/features/launch/development-launch.test.ts",
-      "line": 122,
+      "line": 136,
       "identifier": "A1_CONFIG_DIR"
     },
     {
@@ -206,12 +211,12 @@
     },
     {
       "path": "test/foundation/launch-guardian/launch-guardian.test.ts",
-      "line": 116,
+      "line": 158,
       "identifier": "A1_ENDPOINT"
     },
     {
       "path": "test/foundation/launch-guardian/launch-guardian.test.ts",
-      "line": 116,
+      "line": 158,
       "identifier": "A1_RELEASE_ID"
     },
     {
@@ -373,6 +378,36 @@
       "path": "test/foundation/release/release-gc.test.ts",
       "line": 448,
       "identifier": "A1_RELEASE_CLEANUP_RUN_ID"
+    },
+    {
+      "path": "test/foundation/release/session-resume.integration.test.ts",
+      "line": 32,
+      "identifier": "A1_PROFILE_HOME"
+    },
+    {
+      "path": "test/foundation/release/session-resume.integration.test.ts",
+      "line": 34,
+      "identifier": "A1_DATA_DIR"
+    },
+    {
+      "path": "test/foundation/release/session-resume.integration.test.ts",
+      "line": 34,
+      "identifier": "A1_RUNTIME_DIR"
+    },
+    {
+      "path": "test/foundation/release/session-resume.integration.test.ts",
+      "line": 35,
+      "identifier": "A1_CONFIG_DIR"
+    },
+    {
+      "path": "test/foundation/release/session-resume.integration.test.ts",
+      "line": 35,
+      "identifier": "A1_DATABASE_PATH"
+    },
+    {
+      "path": "test/foundation/release/session-resume.integration.test.ts",
+      "line": 172,
+      "identifier": "A1_STARTUP_TRACE"
     },
     {
       "path": "test/foundation/release/update-live-cohort.test.ts",

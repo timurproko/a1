@@ -101,6 +101,7 @@ describe("validation suite ownership", () => {
     expect(suites.scopes["architecture"]!.commands?.map(command => command.id)).toEqual(["architecture"]);
     expect(suites.scopes["package-smoke"]!.tests).toEqual([
       "test/foundation/release/package-surface.test.ts",
+      "test/foundation/release/session-resume.integration.test.ts",
     ]);
     expect(suites.scopes["package-install"]!.tests).toEqual([
       "test/foundation/release/package-install.integration.test.ts",

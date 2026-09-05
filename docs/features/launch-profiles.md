@@ -4,7 +4,8 @@
 
 | Command | Purpose | Pi user profile |
 |---|---|---|
-| `a1` | A1-owned Pi-compatible UI | `~/.a1/agent` |
+| `a1` | Fresh A1-owned Pi-compatible UI session | `~/.a1/agent` |
+| `a1 --session <path\|id>` | Resume a persisted A1 session | `~/.a1/agent` (or explicitly selected storage) |
 | `a1 pi` | Pi-compatible comparison surface using the ordinary Pi profile | ordinary `~/.pi/agent` |
 
 `a1 pi` is a development instrument for comparing A1 against pinned Pi. Prerelease builds — what `a1 update --develop` or `a1 update --develop <number>` installs — expose it. A release build does not recognize the launch form. Repository development can run the comparison directly with `npm start:pi`.
@@ -29,6 +30,21 @@ npm/
 ```
 
 Run Pi’s normal `/login` independently in each profile that needs stored authentication. Provider credentials supplied through supported environment variables remain available to Pi, but profile authentication files never fall back to another root automatically.
+
+## Resume a session
+
+After a conversation has been persisted, exit A1 and run the command it prints from the original project directory:
+
+```sh
+a1 --session <id>
+a1 --session-dir '/path/to/session store' --session <id>
+```
+
+`--session` also accepts a `.jsonl` file path; `--session-dir` may come before or after it. Explicit storage overrides `PI_CODING_AGENT_SESSION_DIR`, which overrides default storage. IDs are searched in the current project before other projects within the A1 store. A cross-project ID match asks before creating a fork with a new identity; an explicit file resumes directly using its stored working directory. Missing or invalid targets fail rather than create an empty replacement.
+
+Resume uses the shipped Pi's public restoration behavior, including the compaction format it writes. It sends no model prompt by itself and does not recover, convert, or modify an unrelated conversation. Bare `a1` remains a fresh launch. Pi picker/continue CLI aliases and `a1 pi --session` are not supported by this repair; in-UI `/resume` is unchanged.
+
+Regression evidence creates disposable sessions through Pi 0.84.2, then executes the emitted command through the packed public entry, bootstrap, guardian, and owned UI. Default/custom storage, Windows Git Bash quoting, supervisor restart, failure cleanup, and simultaneous distinct selections are covered in `test/foundation/release/session-resume.integration.test.ts`. CI runs it in the resource-sensitive `package-smoke` scope, not the fast remainder. Unsupported synthetic retained-tail certification is separate deferred work.
 
 ## Pi comparison profile
 

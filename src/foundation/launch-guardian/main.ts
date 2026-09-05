@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { PRODUCT_IDENTITY } from "../../product-identity.js";
 import { resolve } from "node:path";
 import type { LaunchInstanceOutcome, LaunchInstanceStopIntent, LaunchInstanceStopReason, LaunchProfileId, NativeProcessIdentity, SupervisorCommand } from "../lifecycle/index.js";
-import { assertLaunchProfileId } from "../lifecycle/index.js";
+import { assertLaunchProfileId, sessionSelectionArguments, type SessionSelection } from "../lifecycle/index.js";
 import {
   closeVerifiedContainment,
   LinuxNativeProcessInspector,
@@ -31,6 +31,7 @@ export interface LaunchGuardianOptions {
   readonly profileId: LaunchProfileId;
   readonly releaseRoot: string;
   readonly uiEntry: string;
+  readonly sessionSelection?: SessionSelection;
   readonly environment?: NodeJS.ProcessEnv;
   readonly cwd?: string;
   readonly helperPath?: string;
@@ -42,6 +43,8 @@ export interface LaunchGuardianOptions {
 
 export async function runLaunchGuardian(options: LaunchGuardianOptions): Promise<number> {
   assertLaunchProfileId(options.profileId);
+  const sessionArgs = sessionSelectionArguments(options.sessionSelection);
+  if (sessionArgs.length > 0 && options.profileId !== "a1") throw new Error("session selection requires the normal A1 profile");
   const environment = { ...(options.environment ?? process.env) };
   const paths = resolveProductPaths(environment);
   const instanceId = randomUUID();
@@ -79,7 +82,7 @@ export async function runLaunchGuardian(options: LaunchGuardianOptions): Promise
 
     let handle;
     try {
-      handle = await containment.spawn(process.execPath, [options.uiEntry], {
+      handle = await containment.spawn(process.execPath, [options.uiEntry, ...sessionArgs], {
         cwd: options.cwd ?? process.cwd(),
         environment: environmentEntries(environment),
         ...(environment.TERM ? { terminalType: environment.TERM } : {}),

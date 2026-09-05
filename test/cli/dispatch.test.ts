@@ -42,6 +42,23 @@ describe("A1 CLI dispatch", () => {
     expect(parseCliCommand(arguments_, PRERELEASE)).toEqual(expected);
   });
 
+  it.each([PRERELEASE, RELEASE])("dispatches explicit session selection in either option order (%j)", async capabilities => {
+    for (const arguments_ of [
+      ["--session", "saved-id"],
+      ["--session-dir", "D:/session's store", "--session", "saved-id"],
+      ["--session", "saved-id", "--session-dir", "D:/session's store"],
+    ]) {
+      const commands = handlers();
+      const sessionSelection = { target: "saved-id", ...(arguments_.length === 2 ? {} : { sessionDir: "D:/session's store" }) };
+      expect(parseCliCommand(arguments_, capabilities)).toEqual({ kind: "launch", profileId: "a1", sessionSelection });
+      expect(await dispatchCli(arguments_, commands, output(), capabilities)).toBe(0);
+      expect(commands.launch).toHaveBeenCalledExactlyOnceWith({ kind: "interactive", profileId: "a1", sessionSelection });
+      expect(commands.update).not.toHaveBeenCalled();
+      expect(cliHelp(capabilities)).toContain("--session <path|id>");
+      expect(cliHelp(capabilities)).toContain("--session-dir <dir> --session <path|id>");
+    }
+  });
+
   it("gives aliases the same typed requests", () => {
     expect(parseCliCommand(["pi", "uninstall", "npm:x"], PRERELEASE)).toEqual(parseCliCommand(["pi", "remove", "npm:x"], PRERELEASE));
     expect(parseCliCommand(["pi", "update", "--models"], PRERELEASE)).toEqual(parseCliCommand(["update", "--models"], PRERELEASE));
@@ -91,6 +108,7 @@ describe("A1 CLI dispatch", () => {
   });
 
   it.each([
+    ["--resume"], ["-r"], ["--continue"], ["-c"], ["resume"], ["pi", "--session", "saved-id"],
     ["unknown"],
     ["sdjjhd"],
     ["version"],
@@ -123,6 +141,12 @@ describe("A1 CLI dispatch", () => {
   });
 
   it.each([
+    ["--session"], ["--session", ""], ["--session", "   "], ["--session", "bad\u0000id"],
+    ["--session-dir", "store"], ["--session-dir"],
+    ["--session", "one", "--session", "two"],
+    ["--session", "one", "--session-dir", "a", "--session-dir", "b"],
+    ["--session", "--session-dir", "store"], ["--session", "one", "extra"],
+    ["--session", "one", "--unknown", "value"],
     ["update", "--develop", "0"],
     ["update", "--develop", "0.1.8"],
     ["update", "--develop", "7eabe9e"],

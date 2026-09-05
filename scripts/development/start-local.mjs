@@ -17,12 +17,16 @@ const { checkoutId, instanceId, developmentRoot, environment } = resolveDevelopm
 
 const launchArguments = process.argv.slice(2);
 const inspectedArguments = launchArguments[0] === "--print-environment" ? launchArguments.slice(1) : launchArguments;
-const directProfile = directLaunchProfile(inspectedArguments);
+const { parseCliCommand, cliCapabilities } = await import("../../dist/cli/index.js");
+const { sessionSelectionArguments } = await import("../../dist/foundation/lifecycle/index.js");
+const command = parseCliCommand(inspectedArguments, cliCapabilities(release.version));
+const directProfile = command.kind === "launch" ? command.profileId : null;
+const childArguments = command.kind === "launch" ? sessionSelectionArguments(command.sessionSelection) : inspectedArguments;
 const prepared = directProfile === null ? null : await prepareDirectProfile(directProfile, environment);
 const childEnvironment = prepared === null ? environment : { ...prepared.environment, A1_LAUNCH_PROFILE: directProfile };
 
 if (launchArguments[0] === "--print-environment") {
-  process.stdout.write(`${JSON.stringify({ checkoutId, instanceId, releaseId: release.releaseId, developmentRoot, launchArguments: inspectedArguments, directProfile, profileConfigurationRoot: prepared?.configurationRoot ?? null, environment: {
+  process.stdout.write(`${JSON.stringify({ checkoutId, instanceId, releaseId: release.releaseId, developmentRoot, launchArguments: inspectedArguments, childArguments, directProfile, profileConfigurationRoot: prepared?.configurationRoot ?? null, environment: {
     A1_CONFIG_DIR: childEnvironment.A1_CONFIG_DIR,
     A1_DATA_DIR: childEnvironment.A1_DATA_DIR,
     A1_RUNTIME_DIR: childEnvironment.A1_RUNTIME_DIR,
@@ -31,7 +35,6 @@ if (launchArguments[0] === "--print-environment") {
   } }, null, 2)}\n`);
 } else {
   const entry = directProfile === null ? identity.artifacts.cliEntry : identity.artifacts.uiEntry;
-  const childArguments = directProfile === null ? launchArguments : [];
   const child = spawn(process.execPath, [resolve(packageRoot, entry), ...childArguments], {
     cwd: process.cwd(),
     env: childEnvironment,
@@ -47,12 +50,6 @@ if (launchArguments[0] === "--print-environment") {
   });
 }
 
-function directLaunchProfile(arguments_) {
-  if (arguments_.length === 0) return "a1";
-  if (arguments_.length === 1 && arguments_[0] === "pi") return arguments_[0];
-  return null;
-}
-
 async function prepareDirectProfile(profileId, sourceEnvironment) {
   const { interactiveLaunchIntent, prepareInteractiveLaunch } = await import("../../dist/features/launch/index.js");
   return await prepareInteractiveLaunch(interactiveLaunchIntent(profileId), sourceEnvironment);
@@ -65,7 +62,7 @@ async function deriveDevelopmentReleaseIdentity(root) {
   for (const entry of manifest.files ?? []) {
     await collectDevelopmentFileIdentity(root, entry, digest);
   }
-  return { releaseId: `${manifest.version}-${digest.digest("hex").slice(0, 20)}` };
+  return { version: manifest.version, releaseId: `${manifest.version}-${digest.digest("hex").slice(0, 20)}` };
 }
 
 async function collectDevelopmentFileIdentity(root, path, digest) {

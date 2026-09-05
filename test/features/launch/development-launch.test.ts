@@ -105,6 +105,20 @@ describe("repository-local development launch", () => {
     }
   });
 
+  it("forwards resume arguments intact through the development launcher and keeps later bare launches fresh", async () => {
+    const profileHome = await mkdtemp(resolve(tmpdir(), "a1-development-resume-"));
+    const env = { ...process.env, A1_PROFILE_HOME: profileHome, PI_SESSION_ID: "stale", PI_SESSION_FILE: "stale.jsonl" };
+    const args = ["--session-dir", "D:/session's store", "--session", "D:\\session files\\saved.jsonl"];
+    try {
+      const selected = await execute(process.execPath, ["scripts/development/start-local.mjs", "--print-environment", ...args], { env });
+      expect(JSON.parse(selected.stdout)).toMatchObject({ directProfile: "a1", childArguments: args });
+      const fresh = await execute(process.execPath, ["scripts/development/start-local.mjs", "--print-environment"], { env });
+      expect(JSON.parse(fresh.stdout)).toMatchObject({ directProfile: "a1", childArguments: [] });
+    } finally {
+      await rm(profileHome, { recursive: true, force: true });
+    }
+  });
+
   it("returns silently for an unsupported non-profile development command", async () => {
     const result = await execute(process.execPath, ["scripts/development/start-local.mjs", "not-an-a1-command"]);
     expect(result).toMatchObject({ stdout: "", stderr: "" });

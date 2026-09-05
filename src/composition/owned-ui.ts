@@ -1,9 +1,10 @@
-import { resolveProductPaths } from "../foundation/lifecycle/index.js";
+import { resolveProductPaths, type SessionSelection } from "../foundation/lifecycle/index.js";
 import { applyConfiguredPiTheme, getAvailablePiThemes } from "../integrations/pi/components/index.js";
 import {
   createPiEngineAdapter,
   type PiEngineAdapter,
   type PiProjectTrustPreflightPrompt,
+  type PiSessionForkPrompt,
 } from "../integrations/pi/engine/index.js";
 import { OwnedUiSessionShell } from "../integrations/pi/session-ui/index.js";
 import { OwnedUiSettingsSession, OwnedUiSettingsStore } from "../ui/settings/index.js";
@@ -16,8 +17,10 @@ export interface OwnedUiCompositionOptions {
   readonly cwd?: string;
   readonly terminal?: PresentationTerminalPort;
   readonly createPiAdapter?: () => Promise<PiEngineAdapter>;
-  /** Exact persisted session selected by the narrow `--session` launch form. */
+  /** Explicit file selection retained for SDK callers. Public CLI uses sessionSelection. */
   readonly sessionPath?: string;
+  readonly sessionSelection?: SessionSelection;
+  readonly sessionForkPrompt?: PiSessionForkPrompt;
   /**
    * A1 profile whose settings this session reads and writes. Omitted keeps the
    * session settings-free, which is what the pinned comparison paths use.
@@ -50,6 +53,8 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
       availableThemes: () => getAvailablePiThemes().map(theme => theme.name),
       settingsProductMode: options.ownedSurfaces === "off" ? "comparison" : "bare",
       ...(options.sessionPath === undefined ? {} : { sessionPath: options.sessionPath }),
+      ...(options.sessionSelection === undefined ? {} : { sessionSelection: options.sessionSelection }),
+      ...(options.sessionForkPrompt === undefined ? {} : { sessionForkPrompt: options.sessionForkPrompt }),
       ...(options.projectTrustPrompt === undefined ? {} : { projectTrustPrompt: options.projectTrustPrompt }),
     });
   const ownedSurfaces = options.ownedSurfaces !== "off";
@@ -71,7 +76,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
   };
   const shell = new OwnedUiSessionShell({
     backend: adapter,
-    cwd,
+    cwd: adapter.cwd,
     ...(options.terminal === undefined ? {} : { terminal: createPiTerminalBridge(options.terminal) }),
     ...(routeHost === null ? {} : { routeHost }),
     ...(ownedSurfaces ? { sessionLayout: "custom-viewport" as const } : {}),

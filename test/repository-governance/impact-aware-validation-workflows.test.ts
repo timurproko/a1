@@ -26,6 +26,19 @@ describe("impact-aware validation workflows", () => {
     expect(rendering).toContain("scope=rendering-smoke");
   });
 
+  it("gates resume restoration and packaged launch evidence outside the fast remainder", async () => {
+    const workflow = await readFile(".github/workflows/ci.yml", "utf8");
+    const suites = JSON.parse(await readFile("config/validation-suites.json", "utf8"));
+    const path = "test/foundation/release/session-resume.integration.test.ts";
+    expect(suites.tiers.fast.exclude).toContain(path);
+    expect(suites.scopes["package-smoke"]).toMatchObject({ requiresBuild: true, consumesPackage: true });
+    expect(suites.scopes["package-smoke"].tests).toContain(path);
+    const ordinary = workflow.slice(workflow.indexOf("\n  validate:"), workflow.indexOf("\n  rendering:"));
+    expect(ordinary).toContain("run-validation-tier.mjs pi-engine-conformance package-smoke");
+    expect(ordinary).toContain('VALIDATION_BUILD_READY: "1"');
+    expect(ordinary).not.toContain("continue-on-error");
+  });
+
   it("runs one full documentation review outside release platform matrices", async () => {
     const [release, regression] = await Promise.all([
       readFile(".github/workflows/release.yml", "utf8"),
