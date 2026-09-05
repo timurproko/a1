@@ -90,14 +90,14 @@ describe("A1 package commands", () => {
       request: { verb: "install", source: "npm:pi-mcp-adapter" },
       outcome: agentPackageOutcome("install", "completed", null, "npm:pi-mcp-adapter"),
       progress: "Installing npm:pi-mcp-adapter...",
-      expected: `${transcriptStyle.dim("Installing npm:pi-mcp-adapter...")}\n${transcriptStyle.green("Installed npm:pi-mcp-adapter")}\n`,
+      expected: `${transcriptStyle.dim("Installing npm:pi-mcp-adapter...\n")}${transcriptStyle.green("Installed npm:pi-mcp-adapter")}\n`,
     },
     {
       name: "remove and uninstall",
       request: { verb: "remove", source: "npm:pi-mcp-adapter" },
       outcome: agentPackageOutcome("remove", "completed", null, "npm:pi-mcp-adapter"),
       progress: "Removing npm:pi-mcp-adapter...",
-      expected: `${transcriptStyle.dim("Removing npm:pi-mcp-adapter...")}\n${transcriptStyle.green("Removed npm:pi-mcp-adapter")}\n`,
+      expected: `${transcriptStyle.dim("Removing npm:pi-mcp-adapter...\n")}${transcriptStyle.green("Removed npm:pi-mcp-adapter")}\n`,
     },
     {
       name: "update every package",
@@ -171,6 +171,58 @@ describe("A1 package commands", () => {
     expect(harness.code).toBe(1);
     expect(harness.error).toBe(`${transcriptStyle.red("Error: npm could not be run")}\n`);
     expect(harness.out).toBe("");
+  });
+
+  it("uses Pi's package fallback without normalizing visible error details", async () => {
+    const profileHome = await home();
+    const fallback = await run(
+      { verb: "install", source: "npm:pi-mcp-adapter" },
+      agentPackageOutcome("install", "failed", null, "npm:pi-mcp-adapter"),
+      profileHome,
+    );
+    const detail = `first  line\n  ${"detail ".repeat(100)}`;
+    const preserved = await run(
+      { verb: "install", source: "npm:pi-mcp-adapter" },
+      agentPackageOutcome("install", "failed", detail, "npm:pi-mcp-adapter"),
+      profileHome,
+    );
+
+    expect(fallback.error).toBe(`${transcriptStyle.red("Error: Unknown package command error")}\n`);
+    expect(preserved.error).toBe(`${transcriptStyle.red(`Error: ${detail}`)}\n`);
+    expect(preserved.error.length).toBeGreaterThan(600);
+  });
+
+  it("reports typed settings diagnostics before progress and completion", async () => {
+    const profileHome = await home();
+    const events: string[] = [];
+    const code = await runPackageCommand({ verb: "list", source: null }, {
+      createPort: input => ({
+        capabilities: { install: true, remove: true, update: true, refreshModels: true },
+        profileRoot: input.profileRoot,
+        list: async () => {
+          input.onDiagnostic?.({ message: "Warning (package command, global settings): invalid JSON", detail: "SyntaxError: detail" });
+          input.onProgress?.({ operation: "list", message: "Listing packages..." });
+          return agentPackageOutcome("list", "completed");
+        },
+        install: async () => agentPackageOutcome("install", "completed"),
+        remove: async () => agentPackageOutcome("remove", "completed"),
+        update: async () => agentPackageOutcome("update", "completed"),
+        refreshModels: async () => agentPackageOutcome("refresh-models", "completed"),
+      }),
+      cwd: profileHome,
+      environment: { A1_PROFILE_HOME: profileHome },
+      stdout: message => events.push(`stdout:${message}`),
+      stderr: message => events.push(`stderr:${message}`),
+      style: transcriptStyle,
+    });
+
+    expect(code).toBe(0);
+    expect(events).toEqual([
+      `stderr:${transcriptStyle.yellow("Warning (package command, global settings): invalid JSON")}\n`,
+      `stderr:${transcriptStyle.dim("SyntaxError: detail")}\n`,
+      `stdout:${transcriptStyle.dim("Listing packages...\n")}`,
+      `stdout:${transcriptStyle.dim("No packages installed.")}\n`,
+    ]);
   });
 
   it("distinguishes a source that is not installed here", async () => {
