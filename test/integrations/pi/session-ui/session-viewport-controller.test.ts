@@ -80,6 +80,65 @@ describe("session viewport interaction controller", () => {
     expect(frame(target)[0]).toBe("row-15");
   });
 
+  it.each(["\u001b[1;2B"])("routes supported Shift+Down input %j from the last prompt to the bottom", data => {
+    const renders: (boolean | undefined)[] = [];
+    let draft = "keep this draft";
+    const target = new SessionViewportController({
+      enabled: true,
+      editor: editor({ getText: () => draft, setText: text => { draft = text; } }),
+      requestRender: force => renders.push(force),
+    });
+    const input = {
+      documentRows: Array.from({ length: 30 }, (_, index) => `row-${index}`),
+      dockRows: [], width: 20, height: 5,
+      promptAnchors: [
+        { id: "one", firstRow: 1, lastRow: 1, sourceRow: "❯ one" },
+        { id: "two", firstRow: 20, lastRow: 20, sourceRow: "❯ two" },
+      ],
+    };
+    try {
+      target.compose(input);
+      target.handlePreInput("\u001b[1;2A");
+      expect(target.compose(input).scrollTop).toBe(20);
+      renders.length = 0;
+      expect(target.handlePreInput(data)).toEqual({ data: "", consumed: true });
+      expect(renders).toEqual([undefined]);
+      const bottom = target.compose(input);
+      expect(bottom.scrollTop).toBe(bottom.maxScroll);
+      expect(bottom.followingEnd).toBe(true);
+      expect(draft).toBe("keep this draft");
+      renders.length = 0;
+      expect(target.handlePreInput(data)).toEqual({ data: "", consumed: true });
+      expect(renders).toEqual([]);
+    } finally {
+      target.clearPointerState();
+    }
+  });
+
+  it.each([
+    { enabled: true, allowNavigation: false },
+    { enabled: false, allowNavigation: true },
+  ])("preserves Shift+Down ownership with %j", ({ enabled, allowNavigation }) => {
+    const target = new SessionViewportController({ enabled, editor: editor(), requestRender() {} });
+    const input = {
+      documentRows: Array.from({ length: 30 }, (_, index) => `row-${index}`),
+      dockRows: [], width: 20, height: 5,
+      promptAnchors: [{ id: "one", firstRow: 1, lastRow: 1, sourceRow: "❯ one" }],
+    };
+    try {
+      target.compose(input);
+      if (enabled) target.handlePreInput("home");
+      const before = target.compose(input);
+      const data = "\u001b[1;2B";
+      expect(target.handlePreInput(data, allowNavigation)).toEqual({ data, consumed: false });
+      const after = target.compose(input);
+      expect(after.scrollTop).toBe(before.scrollTop);
+      expect(after.followingEnd).toBe(before.followingEnd);
+    } finally {
+      target.clearPointerState();
+    }
+  });
+
   it("forces one repaint when native hyperlink hover leaves or moves under a stationary pointer", () => {
     const renders: (boolean | undefined)[] = [];
     const target = new SessionViewportController({

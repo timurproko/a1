@@ -313,7 +313,7 @@ export class TranscriptViewport {
     return target >= 0 && this.scrollTo(destination, now);
   }
 
-  /** Jumps to the next submitted prompt after the prompt at the current stop. */
+  /** Jumps to the next submitted prompt, or resumes following at the bottom. */
   scrollToNextPrompt(now = Date.now()): boolean {
     if (this.#promptAnchors.length === 0) return false;
     const earliest = Math.min(...this.#promptAnchors.map(anchor => anchor.firstRow));
@@ -324,7 +324,7 @@ export class TranscriptViewport {
     for (const anchor of this.#promptAnchors) {
       if (anchor.firstRow > after && anchor.firstRow < target) target = anchor.firstRow;
     }
-    return Number.isFinite(target) && this.scrollTo(target, now);
+    return Number.isFinite(target) ? this.scrollTo(target, now) : this.scrollToEnd(now);
   }
 
   reset(): void {
