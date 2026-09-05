@@ -12,5 +12,5 @@
 
 ## 3. Integration and acceptance
 
-- [ ] 3.1 Submit the implementation in its separate code pull request citing this accepted specification and verify required CI checks pass, including focused viewport/shell regressions; record check results without treating automated results as physical-terminal acceptance.
-- [ ] 3.2 Provide the exact built candidate and build-first `./scripts/dev` handoff, and obtain user confirmation that repeated stationary-cursor hide/show cycles hover immediately while moving outside removes hover and click-to-bottom still works; record the candidate commit, terminal geometry, and acceptance result before requesting authorization to merge.
+- [x] 3.1 Submit the implementation in its separate code pull request citing this accepted specification and verify required CI checks pass, including focused viewport/shell regressions; record check results without treating automated results as physical-terminal acceptance.
+- [x] 3.2 Provide the exact built candidate and build-first `./scripts/dev` handoff, and obtain user confirmation that repeated stationary-cursor hide/show cycles hover immediately while moving outside removes hover and click-to-bottom still works; record the candidate commit, terminal geometry, and acceptance result before requesting authorization to merge.
