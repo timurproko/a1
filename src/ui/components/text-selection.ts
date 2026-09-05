@@ -68,38 +68,16 @@ export function orderedTextSelection(selection: TextSelection | undefined): Orde
       ...(selection.throughFinalColumn ? { throughFinalColumn: true } : {}),
     };
   }
-  if (selection.cell) {
-    const anchorFirst = comparePoints(anchor, head) <= 0;
-    const first = anchorFirst ? anchor : head;
-    const last = anchorFirst ? head : anchor;
-    return {
-      start: { line: first.line, column: pointBefore(first) },
-      end: { line: last.line, column: pointAfter(last) },
-      ...(selection.throughFinalColumn ? { throughFinalColumn: true } : {}),
-    };
-  }
-  if (selection.dragged !== true) return undefined;
+  if (!selection.cell && selection.dragged !== true) return undefined;
 
-  const direction = comparePoints(anchor, head);
-  if (direction === 0) return undefined;
-  if (sameGrapheme(anchor, head)) {
-    return {
-      start: { line: anchor.line, column: pointBefore(anchor) },
-      end: { line: anchor.line, column: pointAfter(anchor) },
-    };
-  }
-  const ordered = direction < 0
-    ? {
-        start: { line: anchor.line, column: pointBefore(anchor) },
-        end: { line: head.line, column: pointBefore(head) },
-      }
-    : {
-        start: { line: head.line, column: pointAfter(head) },
-        end: { line: anchor.line, column: pointAfter(anchor) },
-      };
-  if (ordered.start.line === ordered.end.line && ordered.start.column >= ordered.end.column) return undefined;
+  // Invariant: an accepted drag includes both endpoint graphemes, even after returning
+  // to its anchor. Only an unextended point press is empty; paint and copy stay half-open.
+  const anchorFirst = comparePoints(anchor, head) <= 0;
+  const first = anchorFirst ? anchor : head;
+  const last = anchorFirst ? head : anchor;
   return {
-    ...ordered,
+    start: { line: first.line, column: pointBefore(first) },
+    end: { line: last.line, column: pointAfter(last) },
     ...(selection.throughFinalColumn ? { throughFinalColumn: true } : {}),
   };
 }
@@ -281,10 +259,6 @@ function pointBefore(point: TextSelectionPoint): number {
 
 function pointAfter(point: TextSelectionPoint): number {
   return point.to ?? Math.max(0, point.column);
-}
-
-function sameGrapheme(left: TextSelectionPoint, right: TextSelectionPoint): boolean {
-  return left.line === right.line && pointBefore(left) === pointBefore(right) && pointAfter(left) === pointAfter(right);
 }
 
 function comparePoints(left: TextSelectionPoint, right: TextSelectionPoint): number {
