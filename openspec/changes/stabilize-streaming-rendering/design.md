@@ -6,7 +6,7 @@ The comparison explains why `pi` and `a1 pi` look alike while bare `a1` does not
 
 All three paths use Pi's `AssistantMessageComponent`, Markdown renderer, theme, and 16 ms render scheduler. The material divergence is after semantic rendering. Pi regular mode tracks a growing document and updates a changed range near its tail. Bare A1 computes a terminal-height window. When one wrapped row is appended while following the end, every old visible transcript row moves to a different screen index. Pi TUI's alternate-screen differential compares rows by screen index, so it emits cursor-position, erase-line, and full-row writes for most of the transcript viewport even though nearly every row is unchanged content at a one-row offset. Synchronized-output markers reduce exposure on supporting terminals but do not reduce damage and cannot protect terminals that ignore the mode.
 
-A second discontinuity is in the custom root's fit calculation: queued and working rows are docked while content fits, then appended to the document tail after overflow. Crossing that threshold changes document length and dock height together. Existing tests prove final rows, differential updates in simple fixed-index cases, block caching, and event-loop responsiveness. They do not replay terminal writes into a cell model, count shifted stable rows, compare equivalent independent producers, or inspect intermediate paint states.
+A second discontinuity existed in the custom root's fit calculation when transient rows changed ownership at overflow. The accepted `scroll-working-status-with-transcript` contract resolves that boundary by keeping queued and other dock rows docked while live working rows always occupy a transient, non-selectable scrollable tail. Existing tests prove final rows, differential updates in simple fixed-index cases, block caching, and event-loop responsiveness. They do not replay terminal writes into a cell model, count shifted stable rows, compare equivalent independent producers, or inspect intermediate paint states.
 
 The architecture still forbids stock `InteractiveMode` construction, private-field inspection, deep imports, prototype patches, and edits under `node_modules`. Any renderer improvement must arrive through a documented public Pi TUI contract in a pinned package or through an A1-owned public abstraction with equivalent provenance and conformance.
 
@@ -16,7 +16,7 @@ The architecture still forbids stock `InteractiveMode` construction, private-fie
 
 - Separate transcript-component parity, terminal-mode effects, custom viewport composition, and physical paint behavior in repeatable evidence.
 - Reduce ordinary followed streaming from viewport-sized line rewrites to bounded transcript-region movement plus actual row damage.
-- Keep all transient status rows in one dock ownership model.
+- Keep queued and editor-adjacent surfaces in one dock ownership model and live working rows in one transient scrollable-tail model.
 - Preserve immediate input rendering and exact final semantic state while reducing superseded stream frames.
 - Make the regression fail deterministically before physical acceptance.
 
@@ -82,13 +82,13 @@ Alternative considered: accept arbitrary terminal-byte rewriting. Rejected in fa
 
 Alternative considered: simply reduce the frame rate. Rejected as the sole fix because fewer viewport-sized erase/repaint operations can still flicker and remain needlessly expensive.
 
-### 4. Keep all prompt-adjacent transient surfaces in the dock
+### 4. Keep dock and transient-tail ownership stable across overflow
 
-The root will stop moving queued and working rows into the transcript document after overflow. The dock always owns queued input, working status, widgets, active input, and footer in one order. Transcript height is always terminal height minus the current dock height. Detached transcript selection and copy therefore never include transient chrome.
+The root will stop changing transient ownership at the fit boundary. The dock always owns queued input, non-working status, widgets, active input, and footer in one order. Live working and extension-working rows always occupy a transient, non-selectable tail after semantic transcript rows. Transcript height remains terminal height minus current dock height; the live tail contributes to scroll extent but not transcript selection or copy.
 
-This is already the model declared by the custom viewport specification and removes the threshold where document length and dock ownership change simultaneously.
+This is the model declared by the accepted `scroll-working-status-with-transcript` specification. It removes the threshold ownership discontinuity while allowing readers to scroll a live working indicator out of view without moving the editor or footer.
 
-Alternative considered: preserve the migration but hide it with a forced redraw. Rejected because it retains the geometry discontinuity and makes paint stability worse.
+Alternative considered: keep working rows docked solely for geometry stability. Rejected because stable tail ownership provides the same fit-boundary invariant while satisfying the newer accepted viewport behavior. Alternative considered: hide working rows whenever detached. Rejected because visibility must follow actual scrolling and clipping, not the detach flag.
 
 ### 5. Add a shell-level stream presentation coalescer above the runtime scheduler
 
@@ -115,14 +115,14 @@ Manual comparison will use the repository's color-preserving `./scripts/dev` and
 - **[Scroll-region operations vary across terminals]** → Gate by declared capability, replay the unsupported path, restore margins in the same write, and fall back to unchanged Pi differential painting when safe regional scrolling is unavailable.
 - **[OSC 8 links, selection paint, sticky rows, overlays, or images make a shift unsafe]** → Mark those frames non-shiftable unless the descriptor proves the complete affected region; use the existing differential fallback and focused fixtures.
 - **[A 30 fps stream cadence feels laggy]** → Keep input immediate, flush completion immediately, measure first-paint and final-paint latency, and adjust the interval from evidence without changing the spec.
-- **[Stable dock ownership reduces transcript height while working]** → This matches the declared pinned-dock contract; cover tiny terminals, multiline status, queued input, and extension widgets explicitly.
+- **[The live working tail changes scroll extent while active]** → Preserve detached valid positions, clamp only when required, keep semantic selection bounds unchanged, and cover tiny terminals, multiline status, queued input, and extension widgets explicitly.
 - **[Independent producers are difficult to synchronize]** → Drive deterministic recorded session/model events and compare named checkpoints rather than wall-clock token timestamps.
 - **[Headless replay differs from a physical terminal]** → Test both synchronization interpretations and require exact-artifact manual acceptance after automation.
 
 ## Migration Plan
 
 1. Add the independent capture/replay harness and baseline workloads without changing production rendering; retain a failing artifact that reproduces the broad-row rewrite and dock transition.
-2. Make repeated evidence runs deterministic, derive findings from captured checkpoints, stabilize dock ownership, and add semantic frame descriptors behind the bare-A1 custom-viewport composition only.
+2. Make repeated evidence runs deterministic, derive findings from captured checkpoints, stabilize dock and transient-tail ownership, and add semantic frame descriptors behind the bare-A1 custom-viewport composition only.
 3. Add the A1-owned public-terminal adapter, pin conformance to the installed Pi package identity and one-write grammar, and enable regional shift rendering only for proven safe frames.
 4. Add stream presentation coalescing and completion/input preemption.
 5. Run focused deterministic gates, then CI, then exact-artifact physical comparison through `./scripts/dev` and `./scripts/dev pi`.
