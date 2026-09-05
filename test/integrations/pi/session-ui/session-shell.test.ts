@@ -19,6 +19,7 @@ import {
   type OwnedUiSessionShellOptions,
 } from "../../../../src/integrations/pi/session-ui/index.js";
 import { TestPresentationTerminal } from "../../../features/owned-ui/neutral-port-doubles.js";
+import { replayTerminalBackgroundCells } from "../../../support/rendering/terminal-paint-evidence.js";
 import type { OwnedUiViewportSettings, OwnedUiViewportSettingsPort } from "../../../../src/contracts/owned-ui/index.js";
 
 class Session {
@@ -709,25 +710,108 @@ describe("OwnedUiSessionShell", () => {
     expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from("Selectable assistant words").toString("base64")}\u0007`);
   });
 
-  it("selects and copies one transcript character with the smallest drag", async () => {
+  it.each([1, -1])("selects and copies adjacent transcript characters at 192x54 in direction %i", async direction => {
     const messages = [
       { role: "assistant", content: [{ type: "text", text: "One character" }], timestamp: Date.now() },
     ];
     const { terminal, shell } = await fixture(messages, [], true);
-    terminal.resize(60, 12);
-    const frame = shell.root.render(60).map(row => stripTerminalSequences(row));
+    terminal.resize(192, 54);
+    const frame = shell.root.render(192).map(row => stripTerminalSequences(row));
     const rowIndex = frame.findIndex(row => row.includes("One character"));
     const column = (frame[rowIndex] ?? "").indexOf("character") + 1;
     const row = rowIndex + 1;
 
     terminal.input(`\u001b[<0;${column};${row}M`);
-    terminal.input(`\u001b[<32;${column + 1};${row}M`);
-    terminal.input(`\u001b[<0;${column + 1};${row}m`);
-    const selected = shell.root.render(60)[rowIndex] ?? "";
+    terminal.input(`\u001b[<32;${column + direction};${row}M`);
+    terminal.input(`\u001b[<0;${column + direction};${row}m`);
+    const selected = shell.root.render(192)[rowIndex] ?? "";
     expect(selected).toContain("\u001b[48;2;38;79;120m");
     terminal.input("\u0003");
-    expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from("c").toString("base64")}\u0007`);
+    expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from(direction === 1 ? "ch" : " c").toString("base64")}\u0007`);
     await shell.dispose();
+  });
+
+  it.each([1, -1])("paints return-to-anchor reversal without deselection at 192x54 (direction=%i)", async direction => {
+    const { terminal, shell } = await fixture([
+      { role: "assistant", content: [{ type: "text", text: "abcde" }], timestamp: 1 },
+    ], [], true);
+    try {
+      terminal.resize(192, 54);
+      shell.runtime.renderNow();
+      const frame = shell.root.render(192).map(row => stripTerminalSequences(row));
+      const rowIndex = frame.findIndex(row => row.includes("abcde"));
+      expect(rowIndex).toBeGreaterThanOrEqual(0);
+      const column = frame[rowIndex]!.indexOf("abcde") + 3;
+      const row = rowIndex + 1;
+      const selectedCells = async () => (await replayTerminalBackgroundCells(
+        terminal.writes.map((data, atMs) => ({ data, atMs })),
+        { columns: 192, rows: 54 },
+      )).filter(cell => cell.mode === "rgb" && cell.color === 0x264f78)
+        .map(cell => ({ row: cell.row, column: cell.column }));
+
+      terminal.input(`\u001b[<0;${column};${row}M`);
+      shell.runtime.renderNow();
+      expect(await selectedCells()).toEqual([]);
+      for (const offset of [direction, 0, -direction, 0, 0]) {
+        // Protocol: preserve the held selection through no-button motion reports as well.
+        terminal.input(`\u001b[<35;${column + offset};${row}M`);
+        shell.runtime.renderNow();
+        expect(shell.root.hasActiveSelection()).toBe(true);
+        expect(await selectedCells()).toEqual(Array.from({ length: Math.abs(offset) + 1 }, (_, index) => ({
+          row, column: column + Math.min(0, offset) + index,
+        })));
+      }
+      terminal.input(`\u001b[<0;${column};${row}m`);
+      shell.runtime.renderNow();
+      expect(await selectedCells()).toEqual([{ row, column }]);
+      terminal.input("\u0003");
+      shell.runtime.renderNow();
+      expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from("c").toString("base64")}\u0007`);
+      expect(shell.root.hasActiveSelection()).toBe(false);
+      expect(await selectedCells()).toEqual([]);
+    } finally {
+      await shell.dispose();
+    }
+  });
+
+  it.each([false, true])("paints and copies both multiline block endpoints at 192x54 (reverse=%s)", async reverse => {
+    const { terminal, shell } = await fixture([
+      { role: "assistant", content: [{ type: "text", text: "```\nabcd\nefgh\n```" }], timestamp: 1 },
+    ], [], true);
+    try {
+      terminal.resize(192, 54);
+      shell.runtime.renderNow();
+      const frame = shell.root.render(192).map(row => stripTerminalSequences(row));
+      const firstRow = frame.findIndex(row => row.trim() === "abcd") + 1;
+      const lastRow = frame.findIndex(row => row.trim() === "efgh") + 1;
+      expect(firstRow).toBeGreaterThan(0);
+      expect(lastRow).toBe(firstRow + 1);
+      const firstColumn = frame[firstRow - 1]!.indexOf("abcd") + 1;
+      const lastColumn = frame[lastRow - 1]!.indexOf("efgh") + 4;
+      const start = reverse ? [lastColumn, lastRow] : [firstColumn, firstRow];
+      const end = reverse ? [firstColumn, firstRow] : [lastColumn, lastRow];
+      terminal.input(`\u001b[<0;${start[0]};${start[1]}M`);
+      terminal.input(`\u001b[<32;${end[0]};${end[1]}M`);
+      terminal.input(`\u001b[<0;${end[0]};${end[1]}m`);
+      shell.runtime.renderNow();
+      const cells = (await replayTerminalBackgroundCells(
+        terminal.writes.map((data, atMs) => ({ data, atMs })),
+        { columns: 192, rows: 54 },
+      )).filter(cell => cell.mode === "rgb" && cell.color === 0x264f78)
+        .map(cell => ({ row: cell.row, column: cell.column }));
+      expect(cells).toEqual([
+        ...Array.from({ length: 193 - firstColumn }, (_, index) => ({ row: firstRow, column: firstColumn + index })),
+        ...Array.from({ length: lastColumn }, (_, index) => ({ row: lastRow, column: index + 1 })),
+      ]);
+      terminal.input("\u0003");
+      const clipboardWrite = terminal.writes.findLast(write => write.startsWith("\u001b]52;c;"));
+      expect(clipboardWrite).toBeDefined();
+      // Invariant: preserve the code renderer's source-row indentation, but not viewport right padding.
+      expect(Buffer.from(clipboardWrite!.slice(7, -1), "base64").toString("utf8")).toBe("abcd\n   efgh");
+      expect(shell.root.hasActiveSelection()).toBe(false);
+    } finally {
+      await shell.dispose();
+    }
   });
 
   it("keeps Ctrl+Home/End and A1 editing aliases in Pi's editor", async () => {
