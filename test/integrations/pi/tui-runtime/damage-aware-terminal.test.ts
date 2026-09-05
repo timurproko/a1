@@ -257,6 +257,18 @@ describe("A1-owned damage-aware terminal adapter", () => {
     expect(inspect).toHaveBeenCalledWith("edited");
   });
 
+  it("does not treat a replay-unsafe link-free row as hyperlink cleanup", () => {
+    const { adapter, terminal } = initialized();
+    adapter.arm(descriptor(2), SAFE);
+    adapter.write(fullscreenWrite(["\u001b[1;4Hplain moved label", ...initialRows.slice(1)]));
+    const replacement = fullscreenWrite(initialRows).replace("\u001b[?2026h", "\u001b[?2026h\u001b[2J");
+    adapter.arm(descriptor(3), SAFE);
+    adapter.write(replacement);
+    expect(adapter.lastDecision.reason).toBe("suppressed-redundant-clear");
+    expect(terminal.writes.at(-1)).not.toContain("\u001b[2J");
+    expect(adapter.hyperlinkCleanupPending).toBe(false);
+  });
+
   it("does not clear a linked transcript for stable dock-only typing", () => {
     const { adapter, terminal } = initialized();
     adapter.arm(descriptor(2), SAFE);

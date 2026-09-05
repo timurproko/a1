@@ -163,7 +163,7 @@ export class DamageAwareTerminalAdapter implements PiTuiTerminalPort {
         if (previous === undefined || this.#rows.get(row.row) === row.content
           || (previous.replaySafe && previous.ranges.length === 0)) continue;
         const next = this.options.inspectHyperlinks(row.content);
-        if (!previous.replaySafe || (previous.ranges.length > 0 && previous.signature !== next.signature)) {
+        if (previous.ranges.length > 0 && previous.signature !== next.signature) {
           this.requestHyperlinkCleanup();
           break;
         }
@@ -247,7 +247,7 @@ export class DamageAwareTerminalAdapter implements PiTuiTerminalPort {
     }
     if (parsed === null) return { ...base, reason: "grammar-mismatch" };
     if (parsed.structuralPrefix.length > 0 || hasUnsafeTerminalContent(parsed, this.options.inspectHyperlinks)
-      || this.#hasLinkRisk(descriptor.transcript)) {
+      || this.#hasLinkRisk(descriptor.transcript) || this.#hasUnsafeRows(descriptor.transcript)) {
       return { ...base, reason: "unsafe-terminal-content" };
     }
 
@@ -315,7 +315,14 @@ export class DamageAwareTerminalAdapter implements PiTuiTerminalPort {
   #hasLinkRisk(region?: { readonly rowStart: number; readonly rowEnd: number }): boolean {
     for (const [row, state] of this.#links) {
       if (region !== undefined && (row < region.rowStart || row > region.rowEnd)) continue;
-      if (!state.replaySafe || state.ranges.length > 0) return true;
+      if (state.ranges.length > 0) return true;
+    }
+    return false;
+  }
+
+  #hasUnsafeRows(region: { readonly rowStart: number; readonly rowEnd: number }): boolean {
+    for (const [row, state] of this.#links) {
+      if (row >= region.rowStart && row <= region.rowEnd && !state.replaySafe) return true;
     }
     return false;
   }
