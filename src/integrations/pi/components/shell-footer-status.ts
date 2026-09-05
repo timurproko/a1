@@ -19,6 +19,7 @@ import {
   ensureTheme,
   type PiShellViewComponentPort,
   type PiShellStatusPort,
+  type PiShellStatusPlacement,
   type PiShellQueuedInputPort,
   type PiShellHeaderPort,
   type PiShellResourceSection,
@@ -101,17 +102,23 @@ export function createPiShellStatus(
   const statusUi = createTuiFacade(runtime ?? { getColumns: () => 80, getRows: () => 24, requestRender() {} });
   let workingOverride: string | undefined;
   let outputPad: 0 | 1 = PINNED_PI_LAYOUT.outputPad;
-  let component = statusComponent(view, statusUi, workingOverride, outputPad, formatProgressStatus);
-  let signature = statusSignature(view, workingOverride, outputPad);
+  let placement: PiShellStatusPlacement = statusPlacement(view, workingOverride);
+  let component = statusComponent(view, statusUi, workingOverride, outputPad, formatProgressStatus, placement);
+  let signature = statusSignature(view, workingOverride, outputPad, placement);
   const rebuild = () => {
-    const nextSignature = statusSignature(view, workingOverride, outputPad);
+    const nextPlacement = statusPlacement(view, workingOverride);
+    const nextSignature = statusSignature(view, workingOverride, outputPad, nextPlacement);
     if (nextSignature === signature) return;
     if (component !== undefined && "dispose" in component && typeof component.dispose === "function") component.dispose();
+    placement = nextPlacement;
     signature = nextSignature;
-    component = statusComponent(view, statusUi, workingOverride, outputPad, formatProgressStatus);
+    component = statusComponent(view, statusUi, workingOverride, outputPad, formatProgressStatus, placement);
   };
   return {
     render: width => component?.render(width) ?? [],
+    renderDock: width => placement === "dock" ? component?.render(width) ?? [] : [],
+    renderLive: width => placement === "live" ? component?.render(width) ?? [] : [],
+    placement: () => placement,
     invalidate: () => component?.invalidate(),
     update(next) {
       view = next;
@@ -159,27 +166,42 @@ export function createPiQueuedInputStatus(
 }
 
 
+function statusPlacement(view: OwnedUiSessionViewModel, workingOverride: string | undefined): PiShellStatusPlacement {
+  // Invariant: live spinner placement follows semantic lifecycle, not text. An extension
+  // override is visible only when its lifecycle is busy, so a stale override cannot spin
+  // after completion or make an idle informational status scrollable.
+  if (view.lifecycle === "busy") return "live";
+  if (view.lifecycle === "failed") return "dock";
+  return view.status.workingMessage === null ? "hidden" : "dock";
+}
+
 function statusComponent(
   view: OwnedUiSessionViewModel,
   ui: TUI,
   workingOverride: string | undefined,
   outputPad: 0 | 1,
   formatProgressStatus: (message: string) => string,
+  placement: PiShellStatusPlacement,
 ): Component | undefined {
-  if (view.lifecycle === "busy") {
+  if (placement === "live") {
     return new WorkingStatusIndicator(ui, formatProgressStatus(workingOverride ?? view.status.workingMessage ?? "Working"));
   }
-  if (view.lifecycle === "failed") {
-    return new Text(piTheme().fg("error", view.status.diagnostics.at(-1) ?? "Session failed"), outputPad, 0);
-  }
-  if (view.status.workingMessage !== null) {
-    return new Text(piTheme().fg("muted", view.status.workingMessage), outputPad, 0);
+  if (placement === "dock") {
+    if (view.lifecycle === "failed") {
+      return new Text(piTheme().fg("error", view.status.diagnostics.at(-1) ?? "Session failed"), outputPad, 0);
+    }
+    return new Text(piTheme().fg("muted", view.status.workingMessage!), outputPad, 0);
   }
   return undefined;
 }
 
-function statusSignature(view: OwnedUiSessionViewModel, workingOverride: string | undefined, outputPad: 0 | 1): string {
-  return `${outputPad}\u0000${view.lifecycle}\u0000${workingOverride ?? ""}\u0000${view.status.workingMessage ?? ""}\u0000${view.status.diagnostics.at(-1) ?? ""}`;
+function statusSignature(
+  view: OwnedUiSessionViewModel,
+  workingOverride: string | undefined,
+  outputPad: 0 | 1,
+  placement: PiShellStatusPlacement,
+): string {
+  return `${placement}\u0000${outputPad}\u0000${view.lifecycle}\u0000${workingOverride ?? ""}\u0000${view.status.workingMessage ?? ""}\u0000${view.status.diagnostics.at(-1) ?? ""}`;
 }
 
 function queuedInputText(
