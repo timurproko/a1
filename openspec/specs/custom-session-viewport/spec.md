@@ -14,9 +14,9 @@ Bare A1 SHALL run the custom session viewport in fullscreen mode regardless of P
 - **AND** the settings screen SHALL not offer a TUI mode row
 
 ### Requirement: The transcript occupies a bounded viewport above a pinned dock
-Bare A1 SHALL render the session transcript inside the terminal rows above a bottom dock. The dock SHALL contain the existing queued-input surface, working status, above-editor widgets, active input surface, below-editor widgets, and footer in their existing relative order. Docking SHALL change placement only: this milestone SHALL NOT change the content, style, lifecycle, or extension contribution rules of those surfaces.
+Bare A1 SHALL render the session transcript and its transient working-status tail inside the terminal rows above a bottom dock. The dock SHALL contain the existing queued-input surface, non-working status messages, above-editor widgets, active input surface, below-editor widgets, and footer in their existing relative order. The live working-status surface SHALL belong to the scrollable tail rather than the dock. This declared bare-A1 layout difference SHALL change placement only, preserving the content, style, lifecycle, and extension contribution rules of these surfaces.
 
-The complete frame SHALL remain within the current terminal width and height. A changing editor, widget, status, footer, or terminal size SHALL cause the transcript viewport to be reallocated rather than allowing the dock to scroll away.
+The complete frame SHALL remain within the current terminal width and height. A changing editor, dock widget, queued-input surface, footer, or terminal size SHALL cause the transcript viewport to be reallocated rather than allowing the dock to scroll away. A working-status height change SHALL change scrollable tail extent, not dock allocation.
 
 #### Scenario: Launch with built-in startup help and resources
 - **WHEN** bare A1 first renders the custom viewport
@@ -24,9 +24,9 @@ The complete frame SHALL remain within the current terminal width and height. A 
 - **AND** pinned comparison profiles SHALL retain their existing startup presentation
 
 #### Scenario: Transcript exceeds the terminal
-- **WHEN** transcript content is taller than the rows available above the dock
-- **THEN** only the transcript viewport SHALL scroll
-- **AND** the active input surface, working status where present, and footer SHALL remain at the bottom in their existing order
+- **WHEN** transcript content and its live working-status tail are taller than the rows available above the dock
+- **THEN** only the transcript viewport, including the working-status tail, SHALL scroll
+- **AND** the active input surface and footer SHALL remain at the bottom in their existing order
 
 #### Scenario: Dock height changes
 - **WHEN** the editor wraps, a queued-input row or widget appears, a selector replaces the editor, or the footer changes height
@@ -37,16 +37,17 @@ The complete frame SHALL remain within the current terminal width and height. A 
 - **WHEN** the reader submits steering messages during an active run
 - **THEN** Pi's accepted current steering message SHALL appear through its normal user-message event
 - **AND** later pending messages SHALL render as `Steering:` rows followed by `↳ Alt+Up to edit all queued messages`
-- **AND** the pending rows SHALL remain immediately before `Working` in Pi's existing order while the queue is nonempty
+- **AND** those pending rows SHALL remain in the pinned dock ahead of the above-editor widgets and input surface while the queue is nonempty
+- **AND** the working-status tail SHALL scroll independently of those pending rows
 
 #### Scenario: Status rendering is unchanged
-- **WHEN** the working status or footer is rendered inside the dock
+- **WHEN** the working status is rendered in the scrollable tail or the footer is rendered inside the dock
 - **THEN** its text, color, spacing, animation, extension statuses, and lifecycle SHALL be the same as before this customization
 
 #### Scenario: Resize the terminal
 - **WHEN** the terminal width or height changes
 - **THEN** the frame SHALL be recomputed within the new dimensions
-- **AND** the dock SHALL remain pinned while transcript wrapping, viewport height, scrollbar geometry, and hit regions update to the new size
+- **AND** the dock SHALL remain pinned while transcript and working-status wrapping, viewport height, scrollbar geometry, and hit regions update to the new size
 
 ### Requirement: Transcript scrolling has explicit follow and detached states
 The viewport SHALL begin by following the end of the transcript. A scroll away from the end SHALL detach the viewport and preserve the visible transcript position while new content is appended. Reaching the end, submitting a prompt, or activating the scroll-to-bottom control SHALL restore end following. Scrolling SHALL clamp at the first and last transcript rows without wrapping.
@@ -76,6 +77,8 @@ The viewport SHALL begin by following the end of the transcript. A scroll away f
 ### Requirement: A detached viewport exposes a scroll-to-bottom control
 When overflowing transcript content is detached from its end, the viewport SHALL draw one scroll-to-bottom control floating over the final visible transcript row. The control SHALL NOT consume a row or move transcript text outside the viewport. It SHALL have normal and pointed-at presentation states, SHALL activate only from its own hit region, and SHALL disappear as soon as end following resumes or content ceases to overflow.
 
+The visible control SHALL use its pointed-at presentation exactly when the latest known terminal pointer position is inside its current hit region. The first frame that reveals the control or changes its hit region SHALL reflect that position without requiring a new mouse-motion report. Coordinate-bearing mouse reports delivered to viewport pointer handling, including wheel, press, release, and motion reports, SHALL update the known pointer position without changing existing event ownership or activation rules. Hiding the control SHALL NOT discard that position; the existing pointer-state reset and session teardown lifecycle SHALL clear it. With no known pointer position, the control SHALL use its normal presentation.
+
 #### Scenario: Detach from overflowing content
 - **WHEN** the transcript overflows and the reader scrolls away from its end
 - **THEN** one scroll-to-bottom control SHALL appear at the bottom of the transcript viewport
@@ -93,6 +96,34 @@ When overflowing transcript content is detached from its end, the viewport SHALL
 #### Scenario: Content fits
 - **WHEN** all transcript content fits above the dock
 - **THEN** no scroll-to-bottom control SHALL be drawn
+
+#### Scenario: Reveal beneath a stationary cursor
+- **WHEN** the reader scrolls to the end so the control disappears and then scrolls away without moving the cursor from a position inside the control's reappearing hit region
+- **THEN** the first frame showing the control SHALL use its pointed-at presentation
+- **AND** repeated hide-and-reveal cycles SHALL behave identically without an intervening mouse-motion report
+
+#### Scenario: Wheel coordinates establish the cursor position
+- **WHEN** no mouse-motion report has established a position and a wheel report detaches the viewport with coordinates inside the newly visible control
+- **THEN** that first visible frame SHALL use the pointed-at presentation
+- **AND** the wheel report SHALL only scroll rather than activate the control
+
+#### Scenario: Update position while the control is hidden
+- **WHEN** the control is hidden, a coordinate-bearing mouse report updates the cursor to a position outside its next hit region, and scrolling or keyboard navigation subsequently reveals it
+- **THEN** the control SHALL use its normal presentation rather than retaining an earlier hover state
+
+#### Scenario: Reveal through keyboard navigation
+- **WHEN** keyboard navigation reveals the control and the latest known cursor position lies inside its current hit region
+- **THEN** the first visible frame SHALL use its pointed-at presentation without an additional mouse report
+
+#### Scenario: Recompute hover when the hit region changes
+- **WHEN** terminal size, dock allocation, or the new-message label changes the visible control's hit region without mouse movement
+- **THEN** the same frame SHALL use pointed-at presentation if the latest known cursor position is inside the new region and normal presentation otherwise
+- **AND** a stale hit region SHALL NOT determine hover or subsequent activation
+
+#### Scenario: No known cursor position after reset
+- **WHEN** the viewport has received no pointer position or its pointer state has been reset and the control is shown before another coordinate-bearing mouse report
+- **THEN** the control SHALL use its normal presentation
+- **AND** pointer coordinates from a previous session SHALL NOT restore hover
 
 ### Requirement: Submitted prompts carry their source timestamp
 A submitted user prompt SHALL render its source timestamp as local 24-hour `HH:mm` time, right-aligned on the prompt's first row when the row has enough width for the prompt prefix, useful prompt content, a separating margin, and the timestamp. Continuation rows SHALL align beneath the prompt text rather than beneath the prompt prefix. The timestamp is transcript metadata; the live input surface SHALL NOT gain a clock or timestamp from this milestone.
@@ -200,9 +231,9 @@ The viewport SHALL claim wheel events used to scroll its transcript and pointer 
 - **AND** auto-scroll SHALL stop on release, re-entry, reset, or the document boundary
 
 #### Scenario: Begin a drag on dock chrome
-- **WHEN** a left-button sequence begins on working status, an input prompt row, a widget, or the footer
+- **WHEN** a left-button sequence begins on the transient working-status tail, an input prompt row, a widget, or the footer outside a viewport control hit region
 - **THEN** the complete sequence SHALL be consumed without creating transcript or fullscreen selection
-- **AND** none of those dock rows SHALL receive selection painting
+- **AND** neither the working-status tail nor dock chrome SHALL receive transcript selection painting
 
 #### Scenario: A modal surface owns input
 - **WHEN** a selector, dialog, overlay, or replacement input owns an event that is not addressed to a visible viewport control
@@ -353,3 +384,52 @@ Selection acceptance SHALL include deterministic component, shell, and terminal-
 - **WHEN** the exact candidate still visibly trails the pointer or cannot select one grapheme despite automated checks passing
 - **THEN** selection acceptance SHALL fail
 - **AND** the code change SHALL remain unmerged until corrected and revalidated
+
+### Requirement: Working status is a transient scrollable tail
+Bare A1 SHALL place its live working-status surface, including status-owned blank spacing and retry, compaction, or extension working replacements, after the current transcript content inside the scrollable viewport. It SHALL have this ownership whether content fits or overflows. It SHALL NOT be pinned, duplicated in the dock, converted into persisted conversation content, counted as a completed assistant message, or treated as a submitted prompt. Only viewport-visible status rows SHALL be painted; scrolling away SHALL NOT terminate the underlying work or stop its lifecycle updates.
+
+The tail SHALL contribute to scroll extent, scrollbar geometry, and end-following navigation while present. While detached, new transcript output and status animation or replacement SHALL preserve the current transcript position unless the new extent requires clamping to a valid scroll position. Removing the tail SHALL remove its status-owned spacing and leave no stale copy. Idle informational and failure messages SHALL retain their existing placement; only live working-state presentation SHALL move to this tail. The pinned `a1 pi` route SHALL retain its existing presentation and behavior.
+
+#### Scenario: Scroll the active indicator out of view
+- **WHEN** a long transcript is following its tail with `Working...` visible and the reader scrolls toward older content
+- **THEN** the indicator SHALL move with the scrollable content and disappear once its rows leave the viewport
+- **AND** no pinned copy or reserved dock space for the working status SHALL remain
+- **AND** the editor and footer SHALL stay pinned
+
+#### Scenario: Return to active work
+- **WHEN** the reader scrolls to the end, presses End, or activates jump-to-bottom while work remains active
+- **THEN** the viewport SHALL follow the complete current tail, including the working status
+- **AND** the status SHALL be visible to the extent allowed by the viewport height
+- **AND** the jump-to-bottom control SHALL disappear as following resumes
+
+#### Scenario: Cross the fit boundary
+- **WHEN** growing or shrinking transcript content causes the transcript plus working-status tail to cross the fit/overflow boundary
+- **THEN** the status SHALL remain in the scrollable tail without moving between dock and transcript regions
+- **AND** every frame SHALL paint exactly the visible portion of that one status surface, without a duplicate or a dropped visible status
+- **AND** the editor/footer position SHALL NOT change solely because of that boundary crossing
+
+#### Scenario: Update status while detached
+- **WHEN** working animation ticks, the status is replaced by retry, compaction, or extension working content, or the status changes height while the reader is detached
+- **THEN** the reader's transcript position SHALL remain unchanged whenever it is still a valid scroll position
+- **AND** the newest status SHALL appear at the tail if the reader returns while it remains active
+- **AND** an off-screen status update SHALL NOT paint a pinned indicator over the visible transcript or dock
+
+#### Scenario: Finish work while detached
+- **WHEN** the lifecycle removes the working status while the reader is away from the tail
+- **THEN** the status and its owned spacing SHALL disappear from scroll extent without leaving historical or pinned remnants
+- **AND** the viewport SHALL preserve the current transcript position when valid, otherwise clamp to the new end and resume following there
+- **AND** returning to the end SHALL NOT resurrect the finished indicator
+
+#### Scenario: Copy near the live tail
+- **WHEN** a transcript selection is extended into or across visible working-status rows and copied
+- **THEN** copied content SHALL include only selected transcript content, excluding the status text, spinner, and status-owned blank spacing
+- **AND** no transcript highlight SHALL be applied to the status rows
+
+#### Scenario: Keep queue and editor behavior independent
+- **WHEN** pending input, widgets, a replacement input, or a footer update is present while the working status scrolls out of view
+- **THEN** those dock surfaces SHALL retain their established lifecycle, focus, and input handling
+- **AND** queued input SHALL remain docked rather than following the working status into the scrollable tail
+
+#### Scenario: Reset or replace the session
+- **WHEN** a session is reset, replaced, or disposed while a working-status tail is visible or off-screen
+- **THEN** no status rows, status-owned scroll extent, pointer suppression, or stale status painting from that session SHALL survive into the next session
