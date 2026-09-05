@@ -61,6 +61,8 @@ export interface TranscriptViewportFrameInput {
    * notification rows cannot make the control jump vertically.
    */
   readonly bottomControlRow?: number;
+  /** Latest reported one-based terminal coordinates; bottom hover uses this frame's hit region. */
+  readonly pointerPosition?: { readonly column: number; readonly row: number };
   readonly now?: number;
   readonly theme?: TranscriptViewportTheme;
 }
@@ -144,7 +146,6 @@ export class TranscriptViewport {
   #railHovered = false;
   #railDragging = false;
   #stickyHovered = false;
-  #bottomHovered = false;
   #selection: TextSelection | undefined;
   #selectionClick: TextSelectionClick | undefined;
   #selectionRevision = 0;
@@ -191,7 +192,6 @@ export class TranscriptViewport {
   setRailHovered(hovered: boolean): void { this.#railHovered = hovered; }
   setRailDragging(dragging: boolean): void { this.#railDragging = dragging; }
   setStickyHovered(hovered: boolean): void { this.#stickyHovered = hovered; }
-  setBottomHovered(hovered: boolean): void { this.#bottomHovered = hovered; }
 
   get selectionActive(): boolean { return this.#selection?.selecting === true; }
   get hasSelection(): boolean { return orderedTextSelection(this.#selection) !== undefined; }
@@ -353,7 +353,6 @@ export class TranscriptViewport {
     this.#railHovered = false;
     this.#railDragging = false;
     this.#stickyHovered = false;
-    this.#bottomHovered = false;
   }
 
   compose(input: TranscriptViewportFrameInput): TranscriptViewportFrame {
@@ -501,13 +500,17 @@ export class TranscriptViewport {
         const fallbackRow = Math.max(0, viewportHeight - 1);
         const row = clamp(input.bottomControlRow ?? fallbackRow, 0, frameRows.length - 1);
         const left = Math.floor((contentWidth - labelWidth) / 2);
+        bottomHit = { row: row + 1, columnStart: left + 1, columnEnd: left + labelWidth };
+        // Invariant: appearance and hit testing share current geometry, even when no mouse moves.
+        const pointer = input.pointerPosition;
+        const bottomHovered = pointer !== undefined && pointer.row === bottomHit.row
+          && pointer.column >= bottomHit.columnStart && pointer.column <= bottomHit.columnEnd;
         frameRows[row] = overlaySpan(
           padRowPreservingBackground(frameRows[row] ?? "", width),
           left,
           left + labelWidth,
-          `${CONTROL_STYLE_RESET}${theme.bottomControl(label, this.#bottomHovered)}`,
+          `${CONTROL_STYLE_RESET}${theme.bottomControl(label, bottomHovered)}`,
         );
-        bottomHit = { row: row + 1, columnStart: left + 1, columnEnd: left + labelWidth };
       }
     }
 
