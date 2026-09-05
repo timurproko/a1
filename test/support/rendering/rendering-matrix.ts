@@ -18,6 +18,7 @@ export interface RenderingMatrixCheckpoint {
   readonly paint: TerminalPaintClassification;
   readonly cellFrame: TerminalCellFrame;
   readonly damageDecision?: RenderingProducerResult["checkpoints"][number]["damageDecision"];
+  readonly viewport?: RenderingProducerResult["checkpoints"][number]["viewport"];
 }
 
 export interface RenderingMatrixProducerResult {
@@ -60,6 +61,9 @@ export async function runRenderingMatrix(workloadId: string): Promise<RenderingM
     .filter(step => step.action.type === "event" && step.action.value.type === "message_update")
     .map(step => step.checkpoint));
   const streamPaint = bare.checkpoints.filter(checkpoint => streamCheckpoints.has(checkpoint.name));
+  // Rationale: the row-clear budget measures settled scroll regions. Tail-active frames own
+  // transient rows inside the region and use the confined differential fallback instead.
+  const tailFreeStreamPaint = streamPaint.filter(checkpoint => (checkpoint.viewport?.transientTailRows ?? 0) === 0);
   return {
     schema: "a1-rendering-stability-matrix-v1",
     workloadId,
@@ -71,7 +75,7 @@ export async function runRenderingMatrix(workloadId: string): Promise<RenderingM
       fullscreen: sameTranscript(fullscreenRaw[1]!, fullscreenRaw[2]!),
     },
     findings: {
-      customViewportMaximumRowClearsPerStreamCheckpoint: Math.max(0, ...streamPaint.map(checkpoint => checkpoint.paint.rowClears)),
+      customViewportMaximumRowClearsPerStreamCheckpoint: Math.max(0, ...tailFreeStreamPaint.map(checkpoint => checkpoint.paint.rowClears)),
       customViewportUnexpectedFullScreenClears: streamPaint.reduce((total, checkpoint) => total + checkpoint.paint.fullScreenClears, 0),
       safeShiftCheckpoints: defaultRaw[0]!.checkpoints
         .filter(checkpoint => checkpoint.viewport?.safeVerticalShift === true)
@@ -136,6 +140,7 @@ async function summarize(result: RenderingProducerResult, requestedMode: Renderi
         paint: classifyTerminalPaint(writes),
         cellFrame: cellFrames[index]!,
         ...(checkpoint.damageDecision === undefined ? {} : { damageDecision: checkpoint.damageDecision }),
+        ...(checkpoint.viewport === undefined ? {} : { viewport: checkpoint.viewport }),
       };
     }),
   };

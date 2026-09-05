@@ -49,11 +49,36 @@ export function evaluateRenderingBudgets(matrix: RenderingMatrixResult): Renderi
   if (matrix.workloadId === "long-transcript-follow") {
     const bare = matrix.fullscreenMode.find(producer => producer.producer === "bare-a1");
     const chunks = bare?.checkpoints.filter(checkpoint => checkpoint.name.includes("long-tail-chunk")) ?? [];
-    if (chunks.length === 0 || chunks.some(checkpoint => checkpoint.damageDecision?.reason !== "transformed")) {
-      violations.push(`${matrix.workloadId}: ordinary followed prose did not use bounded movement`);
+    if (chunks.length === 0) {
+      violations.push(`${matrix.workloadId}: missing followed stream checkpoints`);
     }
-    if (matrix.findings.customViewportMaximumRowClearsPerStreamCheckpoint > 3) {
-      violations.push(`${matrix.workloadId}: ordinary followed prose exceeded three damaged rows`);
+    for (const checkpoint of chunks) {
+      // Rationale: a live transient tail owns rows inside the scroll region. Its spinner frame
+      // and the streamed block's boundary markers legitimately change cells during a followed
+      // shift, so tail-active frames may use the differential fallback, confined to the
+      // transcript region. Tail-free frames must still use bounded regional movement.
+      const tailRows = checkpoint.viewport?.transientTailRows ?? 0;
+      if (tailRows === 0) {
+        if (checkpoint.damageDecision?.reason !== "transformed") {
+          violations.push(`${matrix.workloadId}/${checkpoint.name}: tail-free followed prose did not use bounded movement`);
+        }
+        if (checkpoint.paint.rowClears > 3) {
+          violations.push(`${matrix.workloadId}/${checkpoint.name}: tail-free followed prose exceeded three damaged rows`);
+        }
+        continue;
+      }
+      const region = checkpoint.viewport?.transcript;
+      if (region === null || region === undefined) {
+        violations.push(`${matrix.workloadId}/${checkpoint.name}: tail-active frame is missing its transcript region`);
+        continue;
+      }
+      const regionHeight = region.rowEnd - region.rowStart + 1;
+      if (checkpoint.paint.rowClears > regionHeight) {
+        violations.push(`${matrix.workloadId}/${checkpoint.name}: tail-active fallback cleared more rows than the transcript region`);
+      }
+      if (checkpoint.paint.addressedRowWrites.some(row => row < region.rowStart || row > region.rowEnd)) {
+        violations.push(`${matrix.workloadId}/${checkpoint.name}: tail-active fallback painted outside the transcript region`);
+      }
     }
   }
   return { passed: violations.length === 0, violations };

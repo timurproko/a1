@@ -542,6 +542,11 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     return this.#viewportController.frame?.descriptor ?? null;
   }
 
+  /** Visible rows of the transient working-status tail, for rendering evidence. */
+  viewportTransientTailRowCount(): number {
+    return this.#viewportController.frame?.hits.transientTail.length ?? 0;
+  }
+
   hasActiveSelection(): boolean {
     return this.#viewportController.hasSelection || this.editor.hasSelection();
   }
