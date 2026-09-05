@@ -39,75 +39,120 @@ describe("text selection", () => {
     expect(fourth.kind).toBe("point");
   });
 
-  it("uses the pointer-near boundary across ANSI-styled rows", () => {
+  it("includes the pointer endpoint across ANSI-styled rows", () => {
     const pressed = pressTextSelection({ line: 0, column: 2, contentWidth: 20, lineText: "\u001b[31malpha\u001b[39m", now: 1_000 });
     const extended = extendTextSelection(pressed.selection, { line: 1, column: 3 });
     const released = orderedTextSelection(releaseTextSelection(extended));
-    expect(released).toMatchObject({ start: { line: 0, column: 1 }, end: { line: 1, column: 2 } });
-    expect(textSelectionText(released!, ["\u001b[31malpha\u001b[39m", "beta"])).toBe("lpha\nbe");
+    expect(released).toMatchObject({ start: { line: 0, column: 1 }, end: { line: 1, column: 3 } });
+    expect(textSelectionText(released!, ["\u001b[31malpha\u001b[39m", "beta"])).toBe("lpha\nbet");
   });
 
-  it("selects exactly one grapheme with the smallest forward or reverse drag", () => {
-    const forwardPress = pressTextSelection({ line: 0, column: 2, contentWidth: 4, lineText: "abcd", now: 1_000 });
-    const forward = orderedTextSelection(releaseTextSelection(extendTextSelection(
-      forwardPress.selection,
-      textSelectionPointAt(0, 3, "abcd"),
-    )));
-    expect(forward).toMatchObject({ start: { line: 0, column: 1 }, end: { line: 0, column: 2 } });
-    expect(textSelectionText(forward!, ["abcd"])).toBe("b");
-
-    const reversePress = pressTextSelection({ line: 0, column: 2, contentWidth: 4, lineText: "abcd", now: 2_000 });
-    const reverse = orderedTextSelection(releaseTextSelection(extendTextSelection(
-      reversePress.selection,
-      textSelectionPointAt(0, 1, "abcd"),
-    )));
-    expect(reverse).toEqual(forward);
-    expect(textSelectionText(reverse!, ["abcd"])).toBe("b");
+  it.each([
+    [3, 2, "bc"],
+    [3, 4, "cd"],
+    [2, 3, "bc"],
+    [4, 3, "cd"],
+  ] as const)("includes both adjacent cells from %i to %i", (anchor, head, expected) => {
+    const pressed = pressTextSelection({ line: 0, column: anchor, contentWidth: 5, lineText: "abcde", now: 1_000 });
+    const selection = extendTextSelection(pressed.selection, textSelectionPointAt(0, head, "abcde"));
+    const ordered = orderedTextSelection(releaseTextSelection(selection))!;
+    expect(ordered).toEqual({
+      start: { line: 0, column: Math.min(anchor, head) - 1 },
+      end: { line: 0, column: Math.max(anchor, head) },
+    });
+    expect(textSelectionText(ordered, ["abcde"])).toBe(expected);
   });
 
-  it("keeps an unextended press empty and preserves the active end across reversal", () => {
+  it("keeps an unextended press empty, including repeated reports at the press cell", () => {
     const pressed = pressTextSelection({ line: 0, column: 3, contentWidth: 5, lineText: "abcde", now: 1_000 });
-    expect(orderedTextSelection(releaseTextSelection(pressed.selection))).toBeUndefined();
+    let selection = pressed.selection;
+    for (let report = 0; report < 3; report += 1) {
+      selection = extendTextSelection(selection, textSelectionPointAt(0, 3, "abcde"));
+      expect(selection).toBe(pressed.selection);
+      expect(orderedTextSelection(selection)).toBeUndefined();
+    }
+    expect(releaseTextSelection(selection)).toBeUndefined();
+  });
 
+  it.each([
+    [[2, "bc"], [3, "c"], [4, "cd"], [3, "c"]],
+    [[4, "cd"], [3, "c"], [2, "bc"], [3, "c"]],
+  ] as const)("retains the anchor through a reversal sequence %j", (...steps) => {
+    const pressed = pressTextSelection({ line: 0, column: 3, contentWidth: 5, lineText: "abcde", now: 1_000 });
+    let selection = pressed.selection;
+    for (const [column, expected] of steps) {
+      selection = extendTextSelection(selection, textSelectionPointAt(0, column, "abcde"));
+      expect(selection?.anchor).toBe(pressed.selection?.anchor);
+      expect(selection?.head.column).toBe(column);
+      expect(textSelectionText(orderedTextSelection(selection)!, ["abcde"])).toBe(expected);
+      expect(extendTextSelection(selection, textSelectionPointAt(0, column, "abcde"))).toBe(selection);
+    }
+    const released = releaseTextSelection(selection);
+    expect(released).toMatchObject({ selecting: false, dragged: true });
+    expect(orderedTextSelection(released)).toEqual({ start: { line: 0, column: 2 }, end: { line: 0, column: 3 } });
+    expect(textSelectionText(orderedTextSelection(released)!, ["abcde"])).toBe("c");
+    expect(extendTextSelection(released, textSelectionPointAt(0, 5, "abcde"))).toBe(released);
+  });
+
+  it("preserves the moving endpoint when reversing without reporting the anchor cell", () => {
+    const pressed = pressTextSelection({ line: 0, column: 3, contentWidth: 5, lineText: "abcde", now: 1_000 });
     const forward = extendTextSelection(pressed.selection, textSelectionPointAt(0, 5, "abcde"));
-    expect(textSelectionText(orderedTextSelection(forward)!, ["abcde"])).toBe("cd");
+    expect(textSelectionText(orderedTextSelection(forward)!, ["abcde"])).toBe("cde");
     const reversed = extendTextSelection(forward, textSelectionPointAt(0, 1, "abcde"));
     expect(reversed?.head.column).toBe(1);
-    expect(textSelectionText(orderedTextSelection(reversed)!, ["abcde"])).toBe("bc");
+    expect(textSelectionText(orderedTextSelection(reversed)!, ["abcde"])).toBe("abc");
   });
 
-  it("keeps wide and combining graphemes atomic for paint and copy bounds", () => {
-    const widePress = pressTextSelection({ line: 0, column: 1, contentWidth: 3, lineText: "界a", now: 1_000 });
-    const wide = orderedTextSelection(releaseTextSelection(extendTextSelection(
-      widePress.selection,
-      textSelectionPointAt(0, 3, "界a"),
-    )));
-    expect(wide).toMatchObject({ start: { line: 0, column: 0 }, end: { line: 0, column: 2 } });
-    expect(textSelectionText(wide!, ["界a"])).toBe("界");
-
-    const combinedText = "e\u0301x";
-    const combinedPress = pressTextSelection({ line: 0, column: 1, contentWidth: 2, lineText: combinedText, now: 2_000 });
-    const combined = orderedTextSelection(releaseTextSelection(extendTextSelection(
-      combinedPress.selection,
-      textSelectionPointAt(0, 2, combinedText),
-    )));
-    expect(combined).toMatchObject({ start: { line: 0, column: 0 }, end: { line: 0, column: 1 } });
-    expect(textSelectionText(combined!, [combinedText])).toBe("e\u0301");
+  it.each([
+    ["界", 2],
+    ["e\u0301", 1],
+    ["👩‍💻", 2],
+  ] as const)("keeps %s atomic at either inclusive endpoint and on return", (grapheme, width) => {
+    const text = `a${grapheme}z`;
+    for (const anchor of [2, width + 1]) {
+      const pressed = pressTextSelection({ line: 0, column: anchor, contentWidth: width + 2, lineText: text, now: 1_000 });
+      let selection = pressed.selection;
+      for (const [column, from, to, expected] of [
+        [1, 0, width + 1, `a${grapheme}`],
+        [anchor, 1, width + 1, grapheme],
+        [width + 2, 1, width + 2, `${grapheme}z`],
+        [anchor, 1, width + 1, grapheme],
+      ] as const) {
+        selection = extendTextSelection(selection, textSelectionPointAt(0, column, text));
+        const ordered = orderedTextSelection(selection)!;
+        expect(ordered).toEqual({ start: { line: 0, column: from }, end: { line: 0, column: to } });
+        expect(textSelectionText(ordered, [text])).toBe(expected);
+      }
+      expect(textSelectionText(orderedTextSelection(releaseTextSelection(selection))!, [text])).toBe(grapheme);
+    }
   });
 
-  it("normalizes equivalent forward and reverse multiline ranges", () => {
+  it.each([[1, 2], [2, 1]] as const)("selects one wide grapheme with distinct intra-grapheme motion %i to %i", (anchor, head) => {
+    const pressed = pressTextSelection({ line: 0, column: anchor, contentWidth: 3, lineText: "界a", now: 1_000 });
+    const selection = extendTextSelection(pressed.selection, textSelectionPointAt(0, head, "界a"));
+    const ordered = orderedTextSelection(releaseTextSelection(selection))!;
+    expect(ordered).toEqual({ start: { line: 0, column: 0 }, end: { line: 0, column: 2 } });
+    expect(textSelectionText(ordered, ["界a"])).toBe("界");
+  });
+
+  it.each([
+    [2, 3, "bcd\nefg"],
+    [1, 4, "abcd\nefgh"],
+  ] as const)("normalizes inclusive multiline endpoints %i and %i in either direction", (first, last, expected) => {
     const rows = ["abcd", "efgh"];
-    const forwardPress = pressTextSelection({ line: 0, column: 2, contentWidth: 4, lineText: rows[0]!, now: 1_000 });
+    const forwardPress = pressTextSelection({ line: 0, column: first, contentWidth: 4, lineText: rows[0]!, now: 1_000 });
     const forward = orderedTextSelection(releaseTextSelection(extendTextSelection(
       forwardPress.selection,
-      textSelectionPointAt(1, 3, rows[1]!),
+      textSelectionPointAt(1, last, rows[1]!),
     )))!;
-    const reversePress = pressTextSelection({ line: 1, column: 2, contentWidth: 4, lineText: rows[1]!, now: 2_000 });
+    const reversePress = pressTextSelection({ line: 1, column: last, contentWidth: 4, lineText: rows[1]!, now: 2_000 });
     const reverse = orderedTextSelection(releaseTextSelection(extendTextSelection(
       reversePress.selection,
-      textSelectionPointAt(0, 1, rows[0]!),
+      textSelectionPointAt(0, first, rows[0]!),
     )))!;
-    expect(textSelectionText(forward, rows)).toBe("bcd\nef");
-    expect(textSelectionText(reverse, rows)).toBe("bcd\nef");
+    expect(forward).toEqual({ start: { line: 0, column: first - 1 }, end: { line: 1, column: last } });
+    expect(reverse).toEqual(forward);
+    expect(textSelectionText(forward, rows)).toBe(expected);
+    expect(textSelectionText(reverse, rows)).toBe(expected);
   });
 });

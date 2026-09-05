@@ -288,6 +288,92 @@ describe("transcript viewport", () => {
     expect(ranges).toContainEqual([1, 10]);
   });
 
+  it.each([false, true])("includes multiline boundary cells and source edges (reverse=%s)", reverse => {
+    for (const scrollbarAppearance of ["always", "hidden"] as const) {
+      for (const [first, last, expected] of [[2, 3, "bcd\nefgh\nijk"], [1, 4, "abcd\nefgh\nijkl"]] as const) {
+        const viewport = new TranscriptViewport();
+        viewport.setConfig({ scrollbarAppearance, scrollbarStyle: "thin" });
+        const theme = {
+          track: (text: string) => text,
+          thumb: (text: string) => text,
+          sticky: (text: string) => text,
+          quietSticky: (text: string) => text,
+          bottomControl: (text: string) => text,
+          selection: (line: string, from: number, to: number) => backgroundSgrSpan(line, from, to, "\u001b[45m"),
+        };
+        const input = {
+          documentRows: ["abcd", "efgh", "ijkl"], dockRows: ["dock"], promptAnchors: [],
+          width: 10, height: 4, now: 100, theme,
+        };
+        viewport.compose(input);
+        viewport.pressSelection(reverse ? last : first, reverse ? 3 : 1, 101);
+        viewport.extendSelection(reverse ? first : last, reverse ? 1 : 3, 102, false);
+        viewport.releaseSelection();
+        const selected = viewport.compose({ ...input, now: 103 });
+        expect(viewport.selectedText()).toBe(expected);
+        expect(selected.rows[0]).toBe(backgroundSgrSpan("abcd      ", first - 1, 10, "\u001b[45m"));
+        expect(selected.rows[1]).toBe(backgroundSgrSpan("efgh      ", 0, 10, "\u001b[45m"));
+        expect(selected.rows[2]).toBe(backgroundSgrSpan("ijkl      ", 0, last, "\u001b[45m"));
+        expect(selected.rows[3]).not.toContain("\u001b[45m");
+        expect(viewport.pressSelection(1, 4, 1_000)).toBe(false);
+      }
+    }
+  });
+
+  it("retains a one-cell range across reversal, release, and row-cache reuse", () => {
+    const viewport = new TranscriptViewport();
+    const input = { documentRows: ["abcde", "unchanged"], dockRows: [], promptAnchors: [], width: 12, height: 2, now: 100 };
+    viewport.compose(input);
+    viewport.pressSelection(3, 1, 101);
+    expect(viewport.hasSelection).toBe(false);
+    const seen = new Set<string>();
+    for (const [column, expected] of [[2, "bc"], [3, "c"], [4, "cd"], [3, "c"]] as const) {
+      viewport.extendSelection(column, 1, 102, false);
+      const frame = viewport.compose(input);
+      expect(viewport.hasSelection).toBe(true);
+      expect(viewport.selectedText()).toBe(expected);
+      expect(frame.descriptor.selectionDamagedRows).toEqual([1]);
+      expect(frame.selectionDamage.recomputedRows).toEqual(seen.has(expected) ? [] : [1]);
+      expect(frame.selectionDamage.reusedRows).toContain(2);
+      seen.add(expected);
+    }
+    viewport.releaseSelection();
+    const released = viewport.compose(input);
+    expect(viewport.selectedText()).toBe("c");
+    expect(released.selectionDamage.recomputedRows).toEqual([]);
+    viewport.clearSelection();
+    expect(viewport.selectedText()).toBeNull();
+  });
+
+  it("copies source rows rather than pinned prompt, timestamp, bottom control, or dock copies", () => {
+    const viewport = new TranscriptViewport();
+    viewport.setConfig(ALWAYS);
+    const input = {
+      documentRows: ["❯ prompt                     11:45", ...rows(9)],
+      promptAnchors: [{ id: "prompt", firstRow: 0, lastRow: 0, sourceRow: "❯ prompt                     11:45" }],
+      dockRows: ["DOCK"], width: 40, height: 5, now: 100,
+    };
+    viewport.compose(input);
+    viewport.scrollTo(2, 101);
+    const detached = viewport.compose({ ...input, now: 102 });
+    expect(detached.hits.sticky).not.toBeNull();
+    expect(detached.hits.bottom).not.toBeNull();
+    expect(stripAnsi(detached.rows[0]!)).toContain("prompt");
+    expect(stripAnsi(detached.rows[3]!)).toContain("Jump to bottom");
+    viewport.pressSelection(1, 2, 103);
+    viewport.extendSelection(40, 4, 104, false);
+    viewport.releaseSelection();
+    expect(viewport.selectedText()).toBe("row 2\nrow 3\nrow 4");
+
+    viewport.clearSelection();
+    viewport.scrollTo(0, 105);
+    viewport.compose({ ...input, now: 106 });
+    viewport.pressSelection(3, 1, 1_000);
+    viewport.extendSelection(40, 1, 1_001, false);
+    viewport.releaseSelection();
+    expect(viewport.selectedText()).toBe("prompt");
+  });
+
   it("keeps paint-only row transforms out of transcript copying", () => {
     const viewport = new TranscriptViewport();
     const source = "https://example.com/exact";
@@ -411,6 +497,7 @@ describe("transcript viewport", () => {
     const selected = viewport.compose({ documentRows: rows(10), dockRows: [], promptAnchors: [], width: 10, height: 5, now: 103, theme });
     const thumbRow = selected.rows[3] ?? "";
     expect(selectionEnds).toContain(10);
+    expect(viewport.selectedText()).toBe("row 7\nrow 8\nrow 9");
     expect(stripAnsi(thumbRow).at(-1)).toBe("│");
     expect(thumbRow).toContain("\u001b[32m│");
   });

@@ -166,7 +166,34 @@ describe("session viewport interaction controller", () => {
 
     target.handlePreInput("\u001b[<0;5;1m");
     const copied = target.handlePreInput("\u0003");
-    expect(copied).toMatchObject({ consumed: true, copyText: "row-" });
+    expect(copied).toMatchObject({ consumed: true, copyText: "row-0" });
+  });
+
+  it("keeps the anchor selected through no-button reversal and clears only after copying", () => {
+    const target = new SessionViewportController({ enabled: true, editor: editor(), requestRender() {} });
+    const theme = {
+      track: (text: string) => text,
+      thumb: (text: string) => text,
+      sticky: (text: string) => text,
+      quietSticky: (text: string) => text,
+      bottomControl: (text: string) => text,
+      selection: (line: string, from: number, to: number) => backgroundSgrSpan(line, from, to),
+    };
+    const input = { documentRows: ["abcde"], dockRows: [], promptAnchors: [], width: 10, height: 1, theme };
+    target.compose(input);
+    target.handlePreInput("\u001b[<0;3;1M", true, 1_000);
+    for (const [column, from, to] of [[2, 1, 3], [3, 2, 3], [4, 2, 4], [3, 2, 3]] as const) {
+      expect(target.handlePreInput(`\u001b[<35;${column};1M`, true, 1_001).consumed).toBe(true);
+      const selected = target.compose(input);
+      expect(target.hasSelection).toBe(true);
+      expect(selected.rows[0]).toBe(backgroundSgrSpan("abcde     ", from, to));
+    }
+    target.handlePreInput("\u001b[<0;3;1m", true, 1_002);
+    expect(target.hasSelection).toBe(true);
+    expect(target.handlePreInput("\u0003")).toMatchObject({ consumed: true, copyText: "c" });
+    expect(target.hasSelection).toBe(false);
+    expect(target.handlePreInput("\u0003")).toEqual({ data: "\u0003", consumed: false });
+    target.clearPointerState();
   });
 
   it("requests one latest-state follow-up when selection changes during composition", () => {
