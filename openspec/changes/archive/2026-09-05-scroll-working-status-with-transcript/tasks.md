@@ -18,5 +18,5 @@
 
 ## 4. Integration and acceptance
 
-- [ ] 4.1 Submit implementation in a separate code pull request citing this accepted change and the reconciled streaming-rendering plan; verify required CI, strict OpenSpec validation, focused session-shell/viewport tests, rendering validation, and documentation governance all pass, and record results without treating automation as physical-terminal acceptance.
-- [ ] 4.2 Provide the exact built candidate and build-first `./scripts/dev` handoff, and obtain user confirmation that a live working indicator scrolls fully out with older transcript content, returns at the tail while active, disappears cleanly on completion, and leaves queued input/editor/footer pinned; record commit, terminal geometry, and acceptance before requesting merge authorization.
+- [x] 4.1 Submit implementation in a separate code pull request citing this accepted change and the reconciled streaming-rendering plan; verify required CI, strict OpenSpec validation, focused session-shell/viewport tests, rendering validation, and documentation governance all pass, and record results without treating automation as physical-terminal acceptance.
+- [x] 4.2 Provide the exact built candidate and build-first `./scripts/dev` handoff, and obtain user confirmation that a live working indicator scrolls fully out with older transcript content, returns at the tail while active, disappears cleanly on completion, and leaves queued input/editor/footer pinned; record commit, terminal geometry, and acceptance before requesting merge authorization.
