@@ -1,6 +1,6 @@
 ## Context
 
-See `proposal.md` for motivation and availability. This is a dependency-compatibility prerequisite, not another implementation of the CLI resume repair. Design is required because selecting a corrected Pi package affects typed engine APIs, context reconstruction, presentation inputs, and exact-package certification.
+See `proposal.md` for motivation and availability. This is deferred independent dependency-compatibility work, not a prerequisite or another implementation of the CLI resume repair. The approved scope clarification leaves this capability unimplemented and uncertified while allowing future-session resume parity with the existing pin to proceed. Design is required because selecting a corrected Pi package affects typed engine APIs, context reconstruction, presentation inputs, and exact-package certification.
 
 ### Evidence and its limits
 
@@ -22,8 +22,8 @@ Package inspection is planning/provenance tooling only. Production must not read
 **Goals:**
 - Preserve the documented retained checkpoint semantics without duplicating Pi's compaction engine in A1.
 - Establish artifact-level proof before any dependency change is accepted.
-- Keep the independent CLI repair's existing message-preservation acceptance meaningful.
-- Produce an explicit blocker, not a guessed fix, when upstream cannot yet supply the capability.
+- Keep retained-tail certification distinct from the CLI repair's same-pin create/exit/resume acceptance.
+- Produce an explicit blocker for this additional capability, not for ordinary same-pin resume, when upstream cannot yet supply it.
 
 **Non-Goals:**
 - Patching `node_modules`, subclass/prototype interception of concrete Pi internals, or private imports.
@@ -71,11 +71,13 @@ Cover initial open, `switchSession`, public tree navigation, and fork/clone path
 
 Runtime capability validation must fail before conversation use, while candidate certification must prevent a known-broken package from being released as compatible. A1's normal fresh/legacy-session behavior is not replaced with an automatic conversion or a new rendering path.
 
-### 5. Keep the CLI dependency relationship explicit
+### 5. Keep the CLI repair independent
 
-`fix-cli-session-resume` remains responsible for grammar, instance-scoped target forwarding, cwd/trust initialization, hints, and installed-entry tests. Its partially implemented worktree is retained unchanged while this proposal is prepared. This compatibility change neither marks its tasks done nor merges its local implementation.
+`fix-cli-session-resume` remains responsible for grammar, instance-scoped target forwarding, cwd/trust initialization, hints, and installed-entry tests. Its partially implemented worktree is retained unchanged by this planning update. Neither change's tasks become complete merely because their relationship is clarified.
 
-After the corrected dependency change passes acceptance and integrates, resume the CLI stream against that accepted integration state. Re-run its retained-tail restoration fixture with the original history-preservation expectation; do not change the assertion to match summary-only output. Its installed-command round trip must still pass independently. Existing no-upgrade language in the CLI design means that stream does not itself own dependency adoption; this separate accepted stream supplies the prerequisite.
+The user's approved goal is future create/persist → exit → resume using the shipped Pi's actual behavior; recovery of the current personal conversation is not requested. The CLI stream may proceed using its accepted pin and newly persisted uncompacted/supported-compaction fixtures, independent of this deferred work. Its implementation should replace the unsupported retained-tail acceptance case with evidence of that approved same-pin lifecycle, not turn summary-only output into a passing assertion of retained-tail correctness. Preserve the upstream defect as a separate finding.
+
+No retained-tail upgrade, conversion, reconstruction, or new rejection subsystem is required by the CLI repair. If this independent compatibility change is explicitly resumed later, its original lossless retained-tail expectations still apply. A future certified dependency must also preserve the ordinary CLI resume regression evidence, but the CLI repair need not wait for that future adoption.
 
 ## Validation Matrix
 
@@ -93,7 +95,7 @@ Tests use disposable home/profile/release/control state and synthetic fixtures. 
 
 ## Risks / Trade-offs
 
-- [No corrected upstream artifact exists yet] -> Treat availability as an external blocking prerequisite; do not describe complete planning as a runnable fix.
+- [No corrected upstream artifact exists yet] -> Treat availability as an external blocker for this deferred capability only; do not block the independently scoped CLI repair or describe complete planning as a runnable fix.
 - [Upstream release contains unrelated breaking changes] -> Reject it unless the scoped compatibility gates pass without silently expanding product changes.
 - [Documentation and declarations can drift from emitted JavaScript] -> Gate the actual published package and retain independent expected payloads.
 - [A fixture retains messages both in the tail and older tree entries] -> Include retained-only messages and conflicting dual-format data to expose loss/duplication.
@@ -102,9 +104,9 @@ Tests use disposable home/profile/release/control state and synthetic fixtures. 
 
 ## Migration Plan
 
-1. Prepare the upstream reproduction and compatibility corpus after implementation is explicitly requested. External upstream modifications/publication require their own authorized stream.
+1. Leave this work deferred unless its implementation is separately explicitly requested. Then prepare the upstream reproduction and compatibility corpus. External upstream modifications/publication require their own authorized stream.
 2. Wait for a corrected public package; record the exact artifact and qualifying evidence. If none exists, stop with dependency adoption blocked.
 3. Evaluate the candidate in isolation; update A1's pin and narrowly required integration in a separate code PR only after all required gates and user acceptance.
-4. Rebase/continue the independently accepted CLI repair against that integrated dependency, preserving its retained-history assertions and installed-entry acceptance.
+4. Re-run the then-current ordinary CLI resume regression evidence against the new dependency, alongside this capability's retained-tail tests. The independently accepted CLI repair can integrate earlier using its unchanged pin; it is not waiting on these migration steps.
 
 No stored-session migration is required or authorized. Rollback uses normal ownership-safe A1 replacement and never edits retained session data. If the selected older runtime lacks this capability, retained-tail sessions are unavailable rather than safely resumable; upgrading to a certified runtime remains the recovery path.

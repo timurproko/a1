@@ -1,3 +1,5 @@
+Approved scope: future create/persist → exit → resume using the shipped Pi's actual behavior. Recovery of the user's current conversation and unsupported retained-tail certification are excluded. `certify-pi-retained-tail-compatibility` is deferred and does not gate these tasks. No implementation completion is implied by this planning revision.
+
 ## 1. Public selection contract
 
 - [ ] 1.1 Add the typed optional normal-A1 session selection and parse both supported option orders; verify parser tests select an interactive A1 intent with the original target/directory values.
@@ -20,18 +22,18 @@
 ## 4. Runtime restoration and exit behavior
 
 - [ ] 4.1 Open existing targets without unconditional cwd override and initialize runtime/trust/services from the manager's effective cwd; verify explicit foreign-project files use their stored cwd, missing cwd fails clearly, and untrusted project resources do not execute before trust resolution.
-- [ ] 4.2 Pass the resolved manager through the existing runtime factory and render restored state before prompt acceptance; verify session ID/file, active branch, legacy and retained-tail compaction fixtures, saved model/thinking state and normal model fallback without any automatic model prompt.
+- [ ] 4.2 Pass the resolved manager through the existing runtime factory and render restored state before prompt acceptance; verify session ID/file, active branch, uncompacted and compacted sessions newly persisted through the same pinned public APIs, saved model/thinking state and normal model fallback without any automatic model prompt. Compare restored context with direct same-pin reopening plus independent expected markers/order; do not gate this task on unsupported synthetic retained-tail behavior.
 - [ ] 4.3 Propagate expected startup failures and cancellation outcomes through the guardian to the public command; verify concise shell diagnostics, correct exit status, terminal restoration where applicable, and no leaked instance-owned processes.
 - [ ] 4.4 Connect normal-A1 exit hints to the supported public grammar and suppress hints for unpersisted sessions; verify both exit-output modes preserve compact IDs, custom-directory quoting, styling, and cleanup order.
 
 ## 5. Connected regression evidence
 
-- [ ] 5.1 Create disposable isolated profile/session fixtures and packaged-entry round-trip coverage using the real production launch transport; verify an emitted default-directory hint restores the intended ID and recognizable conversation/context instead of merely invoking a stubbed handler.
+- [ ] 5.1 Create fresh disposable sessions through the pinned public persistence APIs in isolated profiles, including its supported compaction format, and add packaged-entry round-trip coverage using the real production launch transport; verify create/persist → normal-A1 exit → emitted default-directory hint → resume restores the intended ID and recognizable conversation/context instead of merely invoking a stubbed handler. Record the pin and generate summaries offline; no existing personal session is required.
 - [ ] 5.2 Add the corresponding custom-directory round trip and Windows Git Bash shell-quoting coverage for spaces/apostrophes; verify one original directory argument reaches the runtime and the expected session reopens through the public packaged entry.
 - [ ] 5.3 Cover packaged-entry negative resolution and distinct simultaneous resume invocations; verify nonzero failure/no accidental files for invalid targets and independent session identity/cleanup for concurrent valid targets, with isolated home/release/control state and no live credentials or model network calls.
 - [ ] 5.4 Ensure applicable CI selection includes the parser, transport, Pi restoration, and packaged-entry evidence in their appropriate resource scopes; verify required CI checks pass without converting expensive integration evidence into an unconditional fast-suite workload.
 
 ## 6. Acceptance evidence
 
-- [ ] 6.1 Provide the runnable implementation's exact build-first `./scripts/dev --session ...` handoff using a disposable saved-session fixture, then exercise the emitted hint through the installed candidate; verify the user reports the original conversation and session identity are restored, including custom storage on Windows Git Bash.
-- [ ] 6.2 Record implementation commit, applicable CI results, normal-profile acceptance, and explicit excluded aliases/comparison behavior; verify the acceptance record distinguishes the completed resume repair from broader Pi CLI parity before requesting completion/archive.
+- [ ] 6.1 Provide the runnable implementation's exact build-first `./scripts/dev --session ...` handoff using a newly persisted disposable session and an explicit create/exit/resume procedure, then exercise the emitted hint through the installed candidate; verify the user reports that test conversation and session identity are restored, including custom storage on Windows Git Bash. Do not request recovery or modification of the user's current conversation.
+- [ ] 6.2 Record implementation commit, applicable CI results, normal-profile acceptance, pinned-Pi restoration evidence, and explicit excluded aliases/comparison behavior; verify the acceptance record distinguishes the completed resume repair from broader Pi CLI parity and deferred retained-tail certification before requesting completion/archive.
