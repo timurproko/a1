@@ -30,14 +30,14 @@ Task accounting remains cumulative across milestones. A task that spans more tha
 
 ## 4. Correct interactive outcome semantics
 
-- [ ] 4.1 Represent route-specific message severity and multi-message outcomes explicitly through existing owned workflow boundaries; verify warning/status/error selection and partial-success ordering do not depend on parsing message prefixes, and fatal `/new`, `/resume`, and `/import` outcomes return A1's recoverable failed result without false success or terminal shutdown.
-- [ ] 4.2 Match API-key and OAuth completion labels, actual selected-model clauses, and credential-path messages; verify empty-model and already-selected-model fixtures against pinned sequences without inventing successful selection.
-- [ ] 4.3 Match authentication selection/synchronization failures and post-login catalog timeout/failure warnings; verify truthful partial success, lifecycle-safe delayed delivery, and no credential values in output/evidence.
-- [ ] 4.4 Match logout empty state, ordinary success, failure, and credential-removed/local-sync-failed context; verify stored OAuth/API-key cases separately from environment or models.json authentication.
-- [ ] 4.5 Correct fork/clone empty states to pinned dim statuses and preserve successful/cancelled behavior; verify empty and populated session cases against pinned output.
-- [ ] 4.6 Preserve import error context through confirmation and missing-cwd recovery; verify usage, success, error, declined confirmation, and extension cancellation messages or silence against pinned behavior, while keeping the owning A1 session active after a fatal import failure as the declared lifecycle exception.
-- [ ] 4.7 Correct share viewer URL construction and retain two-line success output; verify the default `https://pi.dev/session/#<id>`, `PI_SHARE_VIEWER_URL` override semantics, multiline wrapping, and absence of the obsolete URL.
-- [ ] 4.8 Match share failures and cancellation through owned process/lifecycle handling; verify gh absent, gh unauthenticated, export failure, gist failure, malformed output, cancellation, cleanup, and suppressed late success using deterministic fixtures.
+- [x] 4.1 Represent route-specific message severity and multi-message outcomes explicitly through existing owned workflow boundaries; verify warning/status/error selection and partial-success ordering do not depend on parsing message prefixes, and fatal `/new`, `/resume`, and `/import` outcomes return A1's recoverable failed result without false success or terminal shutdown.
+- [x] 4.2 Match API-key and OAuth completion labels, actual selected-model clauses, and credential-path messages; verify empty-model and already-selected-model fixtures against pinned sequences without inventing successful selection.
+- [x] 4.3 Match authentication selection/synchronization failures and post-login catalog timeout/failure warnings; verify truthful partial success, lifecycle-safe delayed delivery, and no credential values in output/evidence.
+- [x] 4.4 Match logout empty state, ordinary success, failure, and credential-removed/local-sync-failed context; verify stored OAuth/API-key cases separately from environment or models.json authentication.
+- [x] 4.5 Correct fork/clone empty states to pinned dim statuses and preserve successful/cancelled behavior; verify empty and populated session cases against pinned output.
+- [x] 4.6 Preserve import error context through confirmation and missing-cwd recovery; verify usage, success, error, declined confirmation, and extension cancellation messages or silence against pinned behavior, while keeping the owning A1 session active after a fatal import failure as the declared lifecycle exception.
+- [x] 4.7 Correct share viewer URL construction and retain two-line success output; verify the default `https://pi.dev/session/#<id>`, `PI_SHARE_VIEWER_URL` override semantics, multiline wrapping, and absence of the obsolete URL.
+- [x] 4.8 Match share failures and cancellation through owned process/lifecycle handling; verify gh absent, gh unauthenticated, export failure, gist failure, malformed output, cancellation, cleanup, and suppressed late success using deterministic fixtures.
 - [ ] 4.9 Close remaining message differences found in the supported-command inventory, including command-owned model refresh and no-message branches; verify every entry is independently evidenced or has a predeclared contextual exception, without adding unsupported commands or rewriting matching structured presenters.
 
 ## 5. Correct interactive message geometry

@@ -389,6 +389,10 @@ export class OwnedUiSessionShell {
       startLogin: request => this.#startWorkflowLogin(request),
       prompt: request => this.#requestWorkflowInput(request),
       notify: event => this.#notifyWorkflowLogin(event),
+      publish: message => {
+        this.root.appendWorkflowMessage(message);
+        this.runtime.requestRender();
+      },
       finishLogin: () => this.#finishWorkflowLogin(),
     });
     this.root.editor.setAutocompleteCommands(this.backend.workflowAutocompleteCommands());
@@ -645,7 +649,7 @@ export class OwnedUiSessionShell {
     return handle;
   }
 
-  showModelSelector(): void {
+  showModelSelector(initialSearchInput?: string): void {
     const context = this.backend.pinnedModelSelectorContext();
     const close = () => {
       this.root.setInputSurface(null);
@@ -658,6 +662,7 @@ export class OwnedUiSessionShell {
         getRows: () => this.runtime.viewport().rows,
         requestRender: () => this.runtime.requestRender(),
       },
+      ...(initialSearchInput === undefined ? {} : { initialSearchInput }),
       onSelect: model => {
         close();
         void this.runWorkflow({ command: "model", argument: "", selection: modelReference(model) });
@@ -671,7 +676,7 @@ export class OwnedUiSessionShell {
   showForkSelector(): void {
     const options = this.backend.pinnedForkOptions();
     if (options.length === 0) {
-      this.root.appendWorkflowResult({ command: "fork", outcome: "failed", message: "No user messages available to fork from" });
+      this.root.appendWorkflowResult({ command: "fork", outcome: "completed", message: "No messages to fork from", messageKind: "status" });
       this.runtime.requestRender();
       return;
     }
@@ -688,9 +693,20 @@ export class OwnedUiSessionShell {
   }
 
   async showLogoutSelector(): Promise<void> {
-    const options = await this.backend.pinnedLogoutOptions();
+    let options;
+    try {
+      options = await this.backend.pinnedLogoutOptions();
+    } catch (error) {
+      this.root.appendWorkflowResult({
+        command: "logout",
+        outcome: "failed",
+        message: `Could not read stored credentials: ${error instanceof Error ? error.message : String(error)}`,
+      });
+      this.runtime.requestRender();
+      return;
+    }
     if (options.length === 0) {
-      this.root.appendWorkflowStatus("No authenticated providers available.");
+      this.root.appendWorkflowStatus("No stored credentials to remove. /logout only removes credentials saved by /login; environment variables and models.json config are unchanged.");
       this.runtime.requestRender();
       return;
     }
@@ -916,10 +932,6 @@ export class OwnedUiSessionShell {
       await this.showLogoutSelector();
       return { outcome: "completed", diagnostic: null };
     }
-    if (request.command === "import" && request.confirmed === undefined && request.argument.trim().length > 0) {
-      const confirmed = await this.#extensionBridge.context.confirm("Import session", `Replace current session with ${request.argument.trim()}?`);
-      return this.runWorkflow({ ...request, confirmed: confirmed === true });
-    }
     if (request.command === "tree" && request.selection === undefined && request.confirmed === undefined && request.argument.trim().length === 0) {
       this.showTreeSelector();
       return { outcome: "completed", diagnostic: null };
@@ -928,31 +940,46 @@ export class OwnedUiSessionShell {
       this.root.resetExtensionUi();
       this.root.resetWorkflowPresentation();
     }
-    const operationSurface = request.command === "share"
+    const shareSurface = request.command === "share"
       ? createPiShellOperationLoader({
           getColumns: () => this.runtime.viewport().columns,
           getRows: () => this.runtime.viewport().rows,
           requestRender: () => this.runtime.requestRender(),
         }, "Creating gist...")
-      : request.command === "reload"
-        ? createPiShellReloadBox()
-        : undefined;
+      : undefined;
+    const operationSurface = shareSurface ?? (request.command === "reload" ? createPiShellReloadBox() : undefined);
     if (operationSurface) {
       this.root.setInputSurface(operationSurface);
       this.runtime.requestRender();
     }
     let result: PiWorkflowResult;
     try {
-      result = await this.backend.executeWorkflow(request);
+      result = await this.backend.executeWorkflow(shareSurface === undefined ? request : { ...request, signal: shareSurface.signal });
     } finally {
       if (operationSurface) {
         this.root.setInputSurface(null);
         this.runtime.requestRender();
       }
     }
+    if (result.outcome === "requires-selection" && request.command === "model") {
+      if (result.messages !== undefined) {
+        for (const message of result.messages) this.root.appendWorkflowMessage(message);
+      }
+      this.showModelSelector((result.detail ?? request.argument.trim()) || undefined);
+      return { outcome: "completed", diagnostic: null };
+    }
     if (result.outcome === "requires-confirmation" && request.command === "resume") {
       const confirmed = await this.#extensionBridge.context.confirm("Session cwd not found", result.message);
       return this.runWorkflow({ ...request, confirmed: confirmed === true });
+    }
+    if (result.outcome === "requires-confirmation" && request.command === "import") {
+      const recoveringCwd = result.detail !== undefined;
+      const confirmed = await this.#extensionBridge.context.confirm(recoveringCwd ? "Session cwd not found" : "Import session", result.message);
+      return this.runWorkflow({
+        ...request,
+        confirmed: confirmed === true,
+        ...(confirmed === true && result.detail ? { cwdOverride: result.detail } : {}),
+      });
     }
     if (result.outcome === "requires-selection" || result.outcome === "requires-confirmation") {
       this.root.appendWorkflowResult({ command: request.command, outcome: "failed", message: `Owned controller missing for ${request.command}` });

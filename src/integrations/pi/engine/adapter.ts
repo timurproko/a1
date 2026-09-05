@@ -10,6 +10,7 @@ import { PRODUCT_IDENTITY } from "../../../product-identity.js";
 import { configureOwnedHttpDispatcher } from "./http-dispatcher.js";
 import {
   copyToClipboard,
+  CredentialSynchronizationError,
   DefaultPackageManager,
   getAgentDir,
   ProjectTrustStore,
@@ -58,6 +59,7 @@ import {
   type PiWorkflowHost,
   type PiWorkflowInteractionHost,
   type PiWorkflowLoginNotification,
+  type PiWorkflowMessage,
   type PiWorkflowOption,
   type PiWorkflowRequest,
   type PiWorkflowResult,
@@ -81,6 +83,51 @@ const execFileAsync = promisify(execFile);
 // input and makes an in-progress mouse selection appear frozen.
 const EVENT_DELIVERY_BATCH = 1;
 const TOOL_UPDATE_COALESCE_MS = 50;
+const AUTH_REFRESH_TIMEOUT_MS = 15_000;
+
+// Provenance: Pi 0.84.2 core/model-resolver.ts defaultModelPerProvider.
+const PINNED_DEFAULT_MODEL_BY_PROVIDER: Readonly<Record<string, string>> = Object.freeze({
+  "amazon-bedrock": "us.anthropic.claude-opus-4-6-v1",
+  "ant-ling": "Ring-2.6-1T",
+  anthropic: "claude-opus-4-8",
+  openai: "gpt-5.5",
+  "azure-openai-responses": "gpt-5.4",
+  "openai-codex": "gpt-5.5",
+  radius: "auto",
+  nvidia: "nvidia/nemotron-3-super-120b-a12b",
+  deepseek: "deepseek-v4-pro",
+  google: "gemini-3.1-pro-preview",
+  "google-vertex": "gemini-3.1-pro-preview",
+  "github-copilot": "gpt-5.4",
+  openrouter: "moonshotai/kimi-k2.6",
+  "vercel-ai-gateway": "zai/glm-5.1",
+  xai: "grok-4.5",
+  groq: "openai/gpt-oss-120b",
+  cerebras: "zai-glm-4.7",
+  zai: "glm-5.1",
+  "zai-coding-cn": "glm-5.1",
+  mistral: "devstral-medium-latest",
+  minimax: "MiniMax-M2.7",
+  "minimax-cn": "MiniMax-M2.7",
+  moonshotai: "kimi-k2.6",
+  "moonshotai-cn": "kimi-k2.6",
+  huggingface: "moonshotai/Kimi-K2.6",
+  fireworks: "accounts/fireworks/models/kimi-k2p6",
+  together: "moonshotai/Kimi-K2.6",
+  baseten: "zai-org/GLM-5.2",
+  opencode: "kimi-k2.6",
+  "opencode-go": "kimi-k2.6",
+  "kimi-coding": "kimi-for-coding",
+  "cloudflare-workers-ai": "@cf/moonshotai/kimi-k2.6",
+  "cloudflare-ai-gateway": "workers-ai/@cf/moonshotai/kimi-k2.6",
+  "qwen-token-plan": "qwen3.7-max",
+  "qwen-token-plan-cn": "qwen3.7-max",
+  "qwen-token-plan-individual": "qwen3.8-max",
+  xiaomi: "mimo-v2.5-pro",
+  "xiaomi-token-plan-cn": "mimo-v2.5-pro",
+  "xiaomi-token-plan-ams": "mimo-v2.5-pro",
+  "xiaomi-token-plan-sgp": "mimo-v2.5-pro",
+});
 
 export interface PiEngineRuntimeFactoryInput {
   readonly cwd: string;
@@ -685,13 +732,18 @@ export class PiEngineAdapter {
       const session = this.#requireWorkflowSession();
       const result = await requireCapability(session.cycleModel, "cycleModel").call(session, direction);
       if (!isRecord(result) || !isRecord(result.model)) {
-        return workflowResult("model", "cancelled", "No other model is available");
+        const scoped = Array.isArray(session.scopedModels) && session.scopedModels.length > 0;
+        return workflowResult("model", "completed", scoped ? "Only one model in scope" : "Only one model available", undefined, "status");
       }
       const model = readModel(result.model);
       if (model) this.#activeModel = model;
       if (result.thinkingLevel !== undefined) this.#thinkingLevel = readThinkingLevel(result.thinkingLevel);
       this.#emitView();
-      return workflowResult("model", "completed", model ? `Selected model ${model.providerId}/${model.modelId}` : "Selected model");
+      const modelName = stringProperty(result.model, "name") ?? stringProperty(result.model, "id") ?? "model";
+      const reasoning = result.model.reasoning === true;
+      const thinking = this.#thinkingLevel;
+      const suffix = reasoning && thinking !== "off" ? ` (thinking: ${thinking})` : "";
+      return workflowResult("model", "completed", `Switched to ${modelName}${suffix}`, undefined, "status");
     } catch (error) {
       return workflowResult("model", "failed", error instanceof Error ? error.message : String(error));
     }
@@ -1102,7 +1154,13 @@ export class PiEngineAdapter {
       const message = error instanceof Error ? error.message : String(error);
       const contextualMessage = request.command === "export"
         ? `Failed to export session: ${message}`
-        : request.command === "reload" ? `Reload failed: ${message}` : message;
+        : request.command === "import"
+          ? `Failed to import session: ${message}`
+          : request.command === "new"
+            ? `Failed to create session: ${message}`
+            : request.command === "resume"
+              ? `Failed to resume session: ${message}`
+              : request.command === "reload" ? `Reload failed: ${message}` : message;
       return workflowResult(request.command, "failed", contextualMessage);
     }
   }
@@ -1222,14 +1280,57 @@ export class PiEngineAdapter {
       case "model": {
         const reference = selection ?? argument;
         if (!reference) return workflowResult(request.command, "failed", "Model requires the owned model controller");
-        const [providerId, modelId] = reference.split("/", 2);
-        if (!providerId || !modelId) return workflowResult(request.command, "failed", "Model requires provider/model");
-        const model = runtime.services.modelRuntime.getModel(providerId, modelId);
-        if (!model) return workflowResult(request.command, "failed", `Model is unavailable: ${reference}`);
+        const scopedModels = Array.isArray(session.scopedModels)
+          ? session.scopedModels.map(item => item.model)
+          : [];
+        let availableModels = scopedModels.length > 0
+          ? scopedModels
+          : [...(runtime.services.modelRuntime.getAvailableSnapshot?.() ?? [])];
+        let model = findExactWorkflowModel(reference, availableModels);
+        const messages: PiWorkflowMessage[] = [];
+        if (model === undefined && scopedModels.length === 0) {
+          messages.push({ kind: "status", message: "Refreshing model catalogs…" });
+          const controller = new AbortController();
+          let timedOut = false;
+          const timeout = setTimeout(() => {
+            timedOut = true;
+            controller.abort();
+          }, AUTH_REFRESH_TIMEOUT_MS);
+          try {
+            const refreshed = await runtime.services.modelRuntime.refresh?.({ signal: controller.signal });
+            if (isRecord(refreshed) && refreshed.aborted === true && timedOut) {
+              messages.push({ kind: "warning", message: "Model refresh timed out; searching cached models." });
+            } else if (isRecord(refreshed) && refreshed.errors instanceof Map && refreshed.errors.size > 0) {
+              messages.push({ kind: "warning", message: `Could not refresh ${[...refreshed.errors.keys()].join(", ")}; searching cached models.` });
+            }
+          } catch (error) {
+            messages.push({
+              kind: "warning",
+              message: timedOut
+                ? "Model refresh timed out; searching cached models."
+                : `Could not refresh model catalogs: ${error instanceof Error ? error.message : String(error)}`,
+            });
+          } finally {
+            clearTimeout(timeout);
+          }
+          availableModels = [...(runtime.services.modelRuntime.getAvailableSnapshot?.() ?? [])];
+          model = findExactWorkflowModel(reference, availableModels);
+        }
+        if (model === undefined) {
+          return {
+            ...workflowResult(request.command, "requires-selection", "Select a model", reference, "silent"),
+            ...(messages.length === 0 ? {} : { messages: Object.freeze(messages) }),
+          };
+        }
         await session.setModel(model);
+        const providerId = stringProperty(model, "provider") ?? "unknown";
+        const modelId = stringProperty(model, "id") ?? reference;
         this.#activeModel = { providerId, modelId, displayName: stringProperty(model, "name") ?? modelId };
         this.#emitView();
-        return workflowResult(request.command, "completed", `Model: ${modelId}`);
+        const resultMessage: PiWorkflowMessage = { kind: "status", message: `Model: ${modelId}` };
+        return messages.length === 0
+          ? workflowResult(request.command, "completed", resultMessage.message)
+          : workflowResult(request.command, "completed", resultMessage.message, undefined, "status", [...messages, resultMessage]);
       }
       case "scoped-models": {
         if (!selection) return workflowResult(request.command, "failed", "Scoped models requires the owned scoped-model controller");
@@ -1252,24 +1353,64 @@ export class PiEngineAdapter {
         if (request.confirmed === undefined) {
           return workflowConfirmation(request.command, `Replace current session with ${path}?`);
         }
-        if (!request.confirmed) return workflowResult(request.command, "cancelled", "Import cancelled");
-        const result = await requireCapability(runtime.importFromJsonl, "importFromJsonl").call(runtime, path);
-        if (isRecord(result) && result.cancelled === true) return workflowResult(request.command, "cancelled", "Import cancelled");
-        return workflowResult(request.command, "completed", `Session imported from: ${path}`);
+        if (!request.confirmed) return workflowResult(request.command, "cancelled", "Import cancelled", undefined, "status");
+        try {
+          const result = await requireCapability(runtime.importFromJsonl, "importFromJsonl").call(runtime, path, request.cwdOverride);
+          if (isRecord(result) && result.cancelled === true) return workflowResult(request.command, "cancelled", "Import cancelled", undefined, "status");
+          return workflowResult(request.command, "completed", `Session imported from: ${path}`);
+        } catch (error) {
+          const issue = isRecord(error) && isRecord(error.issue) ? error.issue : undefined;
+          const fallbackCwd = issue === undefined ? undefined : stringProperty(issue, "fallbackCwd");
+          if (fallbackCwd !== undefined && request.cwdOverride === undefined) {
+            const sessionCwd = stringProperty(issue, "sessionCwd") ?? "the session working directory";
+            return workflowConfirmation(
+              request.command,
+              `cwd from session file does not exist\n${sessionCwd}\n\ncontinue in current cwd\n${fallbackCwd}`,
+              fallbackCwd,
+            );
+          }
+          throw error;
+        }
       }
       case "share": {
-        const auth = await this.#workflowHost.runCommand("gh", ["auth", "status"]).catch(error => {
-          throw new Error(`GitHub CLI is unavailable or not logged in: ${error instanceof Error ? error.message : String(error)}`);
-        });
-        if (auth.stderr && !auth.stdout) throw new Error(auth.stderr.trim());
+        const signal = request.signal;
+        if (signal?.aborted) return workflowResult(request.command, "cancelled", "Share cancelled", undefined, "status");
+        let auth: { readonly stdout: string; readonly stderr: string };
+        try {
+          auth = await this.#workflowHost.runCommand("gh", ["auth", "status"], signal === undefined ? undefined : { signal });
+        } catch (error) {
+          if (signal?.aborted || isAbortError(error)) return workflowResult(request.command, "cancelled", "Share cancelled", undefined, "status");
+          const message = commandMissing(error)
+            ? "GitHub CLI (gh) is not installed. Install it from https://cli.github.com/"
+            : "GitHub CLI is not logged in. Run 'gh auth login' first.";
+          return workflowResult(request.command, "failed", message);
+        }
+        if (auth.stderr && !auth.stdout) {
+          return workflowResult(request.command, "failed", "GitHub CLI is not logged in. Run 'gh auth login' first.");
+        }
         const temporary = join(tmpdir(), `${PRODUCT_IDENTITY.filesystem.temporaryPrefix}pi-session-${process.pid}.html`);
         try {
-          await requireCapability(session.exportToHtml, "exportToHtml").call(session, temporary);
-          const gist = await this.#workflowHost.runCommand("gh", ["gist", "create", "--public=false", temporary]);
+          try {
+            await requireCapability(session.exportToHtml, "exportToHtml").call(session, temporary);
+          } catch (error) {
+            return workflowResult(request.command, "failed", `Failed to export session: ${errorMessage(error, "Unknown error")}`);
+          }
+          if (signal?.aborted) return workflowResult(request.command, "cancelled", "Share cancelled", undefined, "status");
+          let gist: { readonly stdout: string; readonly stderr: string };
+          try {
+            gist = await this.#workflowHost.runCommand("gh", ["gist", "create", "--public=false", temporary], signal === undefined ? undefined : { signal });
+          } catch (error) {
+            if (signal?.aborted || isAbortError(error)) return workflowResult(request.command, "cancelled", "Share cancelled", undefined, "status");
+            return workflowResult(request.command, "failed", `Failed to create gist: ${errorMessage(error, "Unknown error")}`);
+          }
+          if (signal?.aborted) return workflowResult(request.command, "cancelled", "Share cancelled", undefined, "status");
+          if (gist.stderr && !gist.stdout) {
+            return workflowResult(request.command, "failed", `Failed to create gist: ${gist.stderr.trim() || "Unknown error"}`);
+          }
           const gistUrl = gist.stdout.trim();
           const gistId = gistUrl.split("/").at(-1);
-          if (!gistId) throw new Error("Failed to parse gist ID from gh output");
-          return workflowResult(request.command, "completed", `Share URL: https://pi.gptscript.ai/gist/${gistId}`, gistUrl);
+          if (!gistId) return workflowResult(request.command, "failed", "Failed to parse gist ID from gh output");
+          return workflowResult(request.command, "completed", `Share URL: ${shareViewerUrl(gistId)}`, gistUrl);
         } finally {
           await rm(temporary, { force: true });
         }
@@ -1286,7 +1427,7 @@ export class PiEngineAdapter {
           const current = manager?.getSessionName();
           return typeof current === "string"
             ? workflowResult(request.command, "completed", `Session name: ${current}`)
-            : workflowResult(request.command, "failed", "Usage: /name <name>");
+            : workflowResult(request.command, "failed", "Usage: /name <name>", undefined, "warning");
         }
         requireCapability(session.setSessionName, "setSessionName").call(session, argument);
         const normalized = manager?.getSessionName();
@@ -1321,15 +1462,15 @@ export class PiEngineAdapter {
       case "fork": {
         if (!selection) return workflowResult(request.command, "failed", "Fork requires the owned user-message controller");
         const result = await requireCapability(runtime.fork, "fork").call(runtime, selection, { position: "before" });
-        if (isRecord(result) && result.cancelled === true) return workflowResult(request.command, "cancelled", "Fork cancelled");
+        if (isRecord(result) && result.cancelled === true) return workflowResult(request.command, "cancelled", "Fork cancelled", undefined, "silent");
         return workflowResult(request.command, "completed", "Forked to new session");
       }
       case "clone": {
         const manager = session.sessionManager;
         const leaf = manager?.getLeafId?.();
-        if (typeof leaf !== "string") return workflowResult(request.command, "failed", "No session position is available to clone");
+        if (typeof leaf !== "string") return workflowResult(request.command, "completed", "Nothing to clone yet", undefined, "status");
         const result = await requireCapability(runtime.fork, "fork").call(runtime, leaf, { position: "at" });
-        if (isRecord(result) && result.cancelled === true) return workflowResult(request.command, "cancelled", "Clone cancelled");
+        if (isRecord(result) && result.cancelled === true) return workflowResult(request.command, "cancelled", "Clone cancelled", undefined, "silent");
         return workflowResult(request.command, "completed", "Cloned to new session");
       }
       case "tree": {
@@ -1341,8 +1482,8 @@ export class PiEngineAdapter {
               summarize: request.treeSummary.summarize,
               ...(request.treeSummary.customInstructions === undefined ? {} : { customInstructions: request.treeSummary.customInstructions }),
             });
-        if (isRecord(result) && result.aborted === true) return workflowResult(request.command, "cancelled", "Branch summarization cancelled");
-        if (isRecord(result) && result.cancelled === true) return workflowResult(request.command, "cancelled", "Navigation cancelled");
+        if (isRecord(result) && result.aborted === true) return workflowResult(request.command, "cancelled", "Branch summarization cancelled", undefined, "status");
+        if (isRecord(result) && result.cancelled === true) return workflowResult(request.command, "cancelled", "Navigation cancelled", undefined, "status");
         return workflowResult(request.command, "completed", "Navigated to selected point");
       }
       case "trust": {
@@ -1375,6 +1516,7 @@ export class PiEngineAdapter {
         const authType = authTypeValue === "api_key" ? "api_key" as const : "oauth" as const;
         const provider = modelRuntime.getProvider?.(providerId);
         const providerName = stringProperty(provider, "name") ?? providerId;
+        const previousModel = session.model;
         this.#workflowInteraction.startLogin?.({ providerId, providerName, authType });
         try {
           await requireCapability(modelRuntime.login, "login").call(modelRuntime, providerId, authType, {
@@ -1409,22 +1551,37 @@ export class PiEngineAdapter {
             },
           });
         } catch (error) {
-          if (error instanceof Error && error.message === "Login cancelled") return workflowResult(request.command, "cancelled", "Login cancelled");
-          throw error;
+          if (error instanceof Error && error.message === "Login cancelled") {
+            return workflowResult(request.command, "cancelled", "Login cancelled", undefined, "silent");
+          }
+          const detail = error instanceof Error ? error.message : String(error);
+          const actionLabel = authType === "api_key" ? `Saved API key for ${providerName}` : `Logged in to ${providerName}`;
+          const message = error instanceof CredentialSynchronizationError
+            ? `${actionLabel}, but local model state could not be synchronized: ${detail}`
+            : authType === "api_key"
+              ? `Failed to save API key for ${providerName}: ${detail}`
+              : `Failed to login to ${providerName}: ${detail}`;
+          return workflowResult(request.command, "failed", message);
         } finally {
           this.#workflowInteraction.finishLogin?.();
         }
-        this.#reconcileActiveModelAvailability();
-        this.#emitView();
-        return workflowResult(request.command, "completed", `Logged in to ${providerName}. Credentials saved to ${join(this.#agentDir, "auth.json")}`);
+        return await this.#completeProviderAuthentication(providerId, providerName, authType, previousModel);
       }
       case "logout": {
         if (!selection) return workflowResult(request.command, "failed", "Logout requires the owned authentication controller");
         const [credentialType = "oauth", providerId = selection] = selection.includes(":") ? selection.split(":", 2) : ["oauth", selection];
         const modelRuntime = runtime.services.modelRuntime;
-        await requireCapability(modelRuntime.logout, "logout").call(modelRuntime, providerId, { signal: AbortSignal.timeout(15_000) });
         const provider = modelRuntime.getProvider?.(providerId);
         const providerName = stringProperty(provider, "name") ?? providerId;
+        try {
+          await requireCapability(modelRuntime.logout, "logout").call(modelRuntime, providerId, { signal: AbortSignal.timeout(15_000) });
+        } catch (error) {
+          const detail = error instanceof Error ? error.message : String(error);
+          const message = error instanceof CredentialSynchronizationError
+            ? `Credentials removed for ${providerName}, but local model state could not be synchronized: ${detail}`
+            : `Logout failed: ${detail}`;
+          return workflowResult(request.command, "failed", message);
+        }
         this.#reconcileActiveModelAvailability();
         this.#emitView();
         return workflowResult(
@@ -1437,19 +1594,29 @@ export class PiEngineAdapter {
       }
       case "new": {
         const result = await runtime.newSession();
-        if (isRecord(result) && result.cancelled === true) return workflowResult(request.command, "cancelled", "New session cancelled");
-        return workflowResult(request.command, "completed", "✓ New session started");
+        if (isRecord(result) && result.cancelled === true) return workflowResult(request.command, "cancelled", "New session cancelled", undefined, "silent");
+        return workflowResult(request.command, "completed", "✓ New session started", undefined, "accent");
       }
       case "compact": {
-        await session.compact(argument || undefined);
-        return workflowResult(request.command, "completed", "Compaction requested");
+        try {
+          await session.compact(argument || undefined);
+          return workflowResult(request.command, "completed", "Compaction requested", undefined, "silent");
+        } catch (error) {
+          return workflowResult(
+            request.command,
+            "failed",
+            error instanceof Error ? error.message : String(error),
+            undefined,
+            "silent",
+          );
+        }
       }
       case "resume": {
         if (!selection && !argument) return workflowResult(request.command, "failed", "Resume requires the owned session controller");
         const sessionPath = selection ?? argument;
         try {
           const result = await runtime.switchSession(sessionPath);
-          if (isRecord(result) && result.cancelled === true) return workflowResult(request.command, "cancelled", "Resume cancelled");
+          if (isRecord(result) && result.cancelled === true) return workflowResult(request.command, "cancelled", "Resume cancelled", undefined, "silent");
           return workflowResult(request.command, "completed", "Resumed session");
         } catch (error) {
           const issue = isRecord(error) && isRecord(error.issue) ? error.issue : undefined;
@@ -1459,15 +1626,15 @@ export class PiEngineAdapter {
             const sessionCwd = stringProperty(issue, "sessionCwd") ?? "the session working directory";
             return workflowConfirmation(request.command, `cwd from session file does not exist\n${sessionCwd}\n\ncontinue in current cwd\n${fallbackCwd}`);
           }
-          if (!request.confirmed) return workflowResult(request.command, "cancelled", "Resume cancelled");
+          if (!request.confirmed) return workflowResult(request.command, "cancelled", "Resume cancelled", undefined, "status");
           const result = await runtime.switchSession(sessionPath, { cwdOverride: fallbackCwd });
-          if (isRecord(result) && result.cancelled === true) return workflowResult(request.command, "cancelled", "Resume cancelled");
+          if (isRecord(result) && result.cancelled === true) return workflowResult(request.command, "cancelled", "Resume cancelled", undefined, "silent");
           return workflowResult(request.command, "completed", "Resumed session in current cwd");
         }
       }
       case "reload": {
-        if (session.isStreaming) return workflowResult(request.command, "failed", "Wait for the current response to finish before reloading.");
-        if (session.isCompacting) return workflowResult(request.command, "failed", "Wait for compaction to finish before reloading.");
+        if (session.isStreaming) return workflowResult(request.command, "failed", "Wait for the current response to finish before reloading.", undefined, "warning");
+        if (session.isCompacting) return workflowResult(request.command, "failed", "Wait for compaction to finish before reloading.", undefined, "warning");
         await requireCapability(session.reload, "reload").call(session);
         await this.#bindExtensionUiToSession();
         return workflowResult(request.command, "completed", "Reloaded keybindings, extensions, skills, prompts, themes, and context files");
@@ -1487,6 +1654,89 @@ export class PiEngineAdapter {
       case "dementedelves":
         return workflowResult(request.command, "completed", "Demented elves announcement");
     }
+  }
+
+  async #completeProviderAuthentication(
+    providerId: string,
+    providerName: string,
+    authType: "oauth" | "api_key",
+    previousModel: unknown,
+  ): Promise<PiWorkflowResult> {
+    const session = this.#requireWorkflowSession();
+    const modelRuntime = this.#runtime?.services.modelRuntime;
+    if (!modelRuntime) throw new Error("engine runtime is unavailable");
+    const actionLabel = authType === "oauth" ? `Logged in to ${providerName}` : `Saved API key for ${providerName}`;
+    let selectedModelId: string | undefined;
+    let selectionError: string | undefined;
+    if (isUnknownModel(previousModel)) {
+      const available = modelRuntime.getAvailableSnapshot?.() ?? [];
+      const providerModels = available.filter(model => stringProperty(model, "provider") === providerId);
+      const defaultModelId = PINNED_DEFAULT_MODEL_BY_PROVIDER[providerId];
+      if (defaultModelId === undefined) {
+        selectionError = `${actionLabel}, but no default model is configured for provider "${providerId}". Use /model to select a model.`;
+      } else if (providerModels.length === 0) {
+        selectionError = `${actionLabel}, but no models are available for that provider. Use /model to select a model.`;
+      } else {
+        const selectedModel = providerModels.find(model => stringProperty(model, "id") === defaultModelId);
+        if (selectedModel === undefined) {
+          selectionError = `${actionLabel}, but its default model "${defaultModelId}" is not available. Use /model to select a model.`;
+        } else {
+          try {
+            await session.setModel(selectedModel);
+            selectedModelId = stringProperty(selectedModel, "id") ?? defaultModelId;
+            this.#activeModel = {
+              providerId,
+              modelId: selectedModelId,
+              displayName: stringProperty(selectedModel, "name") ?? selectedModelId,
+            };
+          } catch (error) {
+            selectionError = `${actionLabel}, but selecting its default model failed: ${error instanceof Error ? error.message : String(error)}. Use /model to select a model.`;
+          }
+        }
+      }
+    }
+    this.#reconcileActiveModelAvailability();
+    this.#emitView();
+    const status = `${actionLabel}.${selectedModelId ? ` Selected ${selectedModelId}.` : ""} Credentials saved to ${join(this.#agentDir, "auth.json")}`;
+    const messages: PiWorkflowMessage[] = [
+      { kind: "status", message: status },
+      ...(selectionError === undefined ? [] : [{ kind: "error" as const, message: selectionError }]),
+    ];
+    this.#scheduleAuthenticatedProviderRefresh(providerId, actionLabel);
+    return workflowResult("login", "completed", status, undefined, "status", messages);
+  }
+
+  #scheduleAuthenticatedProviderRefresh(providerId: string, actionLabel: string): void {
+    const runtime = this.#runtime;
+    const refresh = runtime?.services.modelRuntime.refresh;
+    if (!runtime || typeof refresh !== "function") return;
+    const generation = this.#sessionGeneration;
+    const publish = this.#workflowInteraction.publish;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), AUTH_REFRESH_TIMEOUT_MS);
+    // Compatibility: post-authentication refresh starts on the next turn so its notices follow the saved-credential status.
+    void new Promise<void>(resolve => setTimeout(resolve, 0))
+      .then(() => refresh.call(runtime.services.modelRuntime, { providers: [providerId], signal: controller.signal }))
+      .then(result => {
+        if (this.#disposed || this.#sessionGeneration !== generation) return;
+        if (isRecord(result) && result.aborted === true) {
+          publish?.({ kind: "warning", message: `${actionLabel}, but its model catalog refresh timed out; using cached models.` });
+        } else if (isRecord(result) && result.errors instanceof Map && result.errors.size > 0) {
+          publish?.({ kind: "warning", message: `${actionLabel}, but its model catalog could not be refreshed; using cached models.` });
+        }
+        this.#reconcileActiveModelAvailability();
+        this.#emitView();
+      })
+      .catch(error => {
+        if (this.#disposed || this.#sessionGeneration !== generation) return;
+        publish?.({
+          kind: "warning",
+          message: controller.signal.aborted
+            ? `${actionLabel}, but its model catalog refresh timed out; using cached models.`
+            : `${actionLabel}, but its model catalog could not be refreshed: ${error instanceof Error ? error.message : String(error)}`,
+        });
+      })
+      .finally(() => clearTimeout(timeout));
   }
 
   #requireWorkflowSession(): PiSessionApi {
@@ -2603,8 +2853,8 @@ function pinnedCacheWaste(
 function defaultWorkflowHost(): PiWorkflowHost {
   return {
     copyText: copyToClipboard,
-    async runCommand(command, arguments_) {
-      const result = await execFileAsync(command, [...arguments_], { encoding: "utf8" });
+    async runCommand(command, arguments_, options) {
+      const result = await execFileAsync(command, [...arguments_], { encoding: "utf8", signal: options?.signal });
       return { stdout: result.stdout, stderr: result.stderr };
     },
     readChangelog: async () => "No changelog entries found.",
@@ -2643,21 +2893,48 @@ function workflowResult(
   outcome: PiWorkflowResult["outcome"],
   message: string,
   detail?: string,
+  messageKind?: PiWorkflowResult["messageKind"],
+  messages?: readonly PiWorkflowMessage[],
 ): PiWorkflowResult {
-  return { command, outcome, message, ...(detail === undefined ? {} : { detail }) };
+  return {
+    command,
+    outcome,
+    message,
+    ...(detail === undefined ? {} : { detail }),
+    ...(messageKind === undefined ? {} : { messageKind }),
+    ...(messages === undefined ? {} : { messages: Object.freeze([...messages]) }),
+  };
 }
 
-function workflowConfirmation(command: PiWorkflowRequest["command"], message: string): PiWorkflowResult {
+function workflowConfirmation(command: PiWorkflowRequest["command"], message: string, detail?: string): PiWorkflowResult {
   return {
     command,
     outcome: "requires-confirmation",
     message,
+    ...(detail === undefined ? {} : { detail }),
     selectorTitle: "Confirm",
     options: [
       { id: "yes", label: "Yes" },
       { id: "no", label: "No" },
     ],
   };
+}
+
+function errorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback;
+}
+
+function commandMissing(error: unknown): boolean {
+  return isRecord(error) && error.code === "ENOENT";
+}
+
+function isAbortError(error: unknown): boolean {
+  return isRecord(error) && (error.name === "AbortError" || error.code === "ABORT_ERR");
+}
+
+function shareViewerUrl(gistId: string): string {
+  const baseUrl = process.env.PI_SHARE_VIEWER_URL || "https://pi.dev/session/";
+  return `${baseUrl}#${gistId}`;
 }
 
 function workflowOptions(value: unknown, idKey: string, labelKey: string): readonly PiWorkflowOption[] {
@@ -2884,6 +3161,25 @@ function stringProperty(value: unknown, key: string): string | undefined {
   if (!isRecord(value)) return undefined;
   const item = value[key];
   return typeof item === "string" && item.length > 0 ? item : undefined;
+}
+
+function isUnknownModel(value: unknown): boolean {
+  return isRecord(value)
+    && value.provider === "unknown"
+    && value.id === "unknown"
+    && value.api === "unknown";
+}
+
+function findExactWorkflowModel<T>(reference: string, models: readonly T[]): T | undefined {
+  const normalized = reference.trim().toLowerCase();
+  const canonical = models.filter(model => {
+    const provider = stringProperty(model, "provider");
+    const id = stringProperty(model, "id");
+    return provider !== undefined && id !== undefined && `${provider}/${id}`.toLowerCase() === normalized;
+  });
+  if (canonical.length === 1) return canonical[0];
+  const bare = models.filter(model => stringProperty(model, "id")?.toLowerCase() === normalized);
+  return bare.length === 1 ? bare[0] : undefined;
 }
 
 /**

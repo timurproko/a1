@@ -126,6 +126,10 @@ export interface PiWorkflowRequest {
   readonly argument: string;
   readonly selection?: string;
   readonly confirmed?: boolean;
+  /** Recovery cwd selected after an import/resume source cwd is unavailable. */
+  readonly cwdOverride?: string;
+  /** Cancellation for an owned operation surface such as `/share`. */
+  readonly signal?: AbortSignal;
   readonly treeSummary?: {
     readonly summarize: boolean;
     readonly customInstructions?: string;
@@ -160,10 +164,21 @@ export interface PiSessionInfoPresentation {
 
 export type PiWorkflowPresentation = PiSessionInfoPresentation;
 
+export type PiWorkflowMessageKind = "status" | "warning" | "error" | "accent" | "silent";
+
+export interface PiWorkflowMessage {
+  readonly kind: Exclude<PiWorkflowMessageKind, "silent">;
+  readonly message: string;
+}
+
 export interface PiWorkflowResult {
   readonly command: PiWorkflowRoute;
   readonly outcome: PiWorkflowOutcome;
   readonly message: string;
+  /** Explicit presentation semantics; never inferred from message prefixes. */
+  readonly messageKind?: PiWorkflowMessageKind;
+  /** Ordered messages for truthful partial-success outcomes. */
+  readonly messages?: readonly PiWorkflowMessage[];
   readonly detail?: string;
   readonly selectorTitle?: string;
   readonly options?: readonly PiWorkflowOption[];
@@ -201,12 +216,14 @@ export interface PiWorkflowInteractionHost {
   startLogin?(request: PiWorkflowLoginStart): void;
   prompt(request: PiWorkflowInteractionRequest): Promise<string | null>;
   notify(event: PiWorkflowLoginNotification): void;
+  /** Deliver a post-login status or warning after the authentication dialog closes. */
+  publish?(message: PiWorkflowMessage): void;
   finishLogin?(): void;
 }
 
 export interface PiWorkflowHost {
   copyText(text: string): Promise<void>;
-  runCommand(command: string, arguments_: readonly string[]): Promise<{ readonly stdout: string; readonly stderr: string }>;
+  runCommand(command: string, arguments_: readonly string[], options?: { readonly signal?: AbortSignal }): Promise<{ readonly stdout: string; readonly stderr: string }>;
   readChangelog(): Promise<string>;
 }
 
