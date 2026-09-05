@@ -167,6 +167,18 @@ describe("A1-owned damage-aware terminal adapter", () => {
     expect(ready.terminal.writes.at(-1)).toBe(forced);
   });
 
+  it("suppresses an unrelated forced clear when every link occurrence is unchanged", () => {
+    const { adapter, terminal } = initialized();
+    const linked = ["https://example.test", ...initialRows.slice(1)];
+    adapter.arm(descriptor(2), SAFE);
+    adapter.write(fullscreenWrite(linked));
+    const forced = fullscreenWrite(linked).replace("\u001b[?2026h", "\u001b[?2026h\u001b[2J");
+    adapter.arm(descriptor(3), SAFE);
+    adapter.write(forced);
+    expect(adapter.lastDecision.reason).toBe("suppressed-redundant-clear");
+    expect(terminal.writes.at(-1)).not.toContain("\u001b[2J");
+  });
+
   it("preserves a forced cleanup when the last visible hyperlink disappears", () => {
     const { adapter, terminal } = initialized();
     const link = "\u001b]8;;https://example.test/full\u0007long linked label\u001b]8;;\u0007";
@@ -278,6 +290,18 @@ describe("A1-owned damage-aware terminal adapter", () => {
     adapter.write(input);
     expect(terminal.writes.at(-1)).toBe(input);
     expect(adapter.hyperlinkCleanupPending).toBe(false);
+  });
+
+  it("keeps a stable dock link outside the shifted transcript from blocking regional movement", () => {
+    const terminal = new RecordingTerminal();
+    const adapter = new DamageAwareTerminalAdapter(terminal, { regionalScroll: true, inspectHyperlinks: readVisibleHyperlinks });
+    adapter.arm(descriptor(1), SAFE);
+    adapter.write(fullscreenWrite([...initialRows.slice(0, 6), "D:/work/package.json", "footer"]));
+    adapter.arm(descriptor(2, 1, true), SAFE);
+    adapter.write(fullscreenWrite(["B", "C", "D", "E", "F", "G", "D:/work/package.json", "footer"]));
+    expect(adapter.lastDecision).toMatchObject({ reason: "transformed", paintedRows: [6, 7, 8] });
+    expect(terminal.writes.at(-1)).toContain("\u001b[1;6r\u001b[1;1H\u001b[1S\u001b[r");
+    expect(terminal.writes.at(-1)).not.toContain("\u001b[2J");
   });
 
   it("rejects regional movement over a cached link omitted from the incoming differential", () => {

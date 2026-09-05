@@ -19,6 +19,7 @@ export interface VisibleHyperlinkRow {
 const TOKENS = /\u001b\[[0-?]*[ -/]*[@-~]|\u001b\][^\u0007\u001b]*(?:\u0007|\u001b\\)|[^\u001b]+|\u001b/gu;
 const LINK = /^\u001b\]8;[^;\u0007\u001b]*;([^\u0007\u001b]*)(?:\u0007|\u001b\\)$/u;
 const SGR = /^\u001b\[[\d;:]*m$/u;
+const SEMANTIC_ZONE = /^\u001b\]133;[ABC](?:\u0007|\u001b\\)$/u;
 // Platform: this is a conservative cleanup detector, NOT a link-activation
 // parser. Hosts recognize URLs, domains and file-like labels without OSC 8.
 const CANDIDATE = /(?:[a-z][a-z\d+.-]*:\/\/[^\s<>"']+|www\.[^\s<>"']+|(?:[a-z]:[\\/]|\.{1,2}[\\/])[^\s<>"']+|[\p{L}\p{N}_-]+(?:\.\p{L}[\p{L}\p{N}_-]+)+(?:[\\/][^\s<>"']+)?)/giu;
@@ -49,7 +50,7 @@ export function readVisibleHyperlinks(
       if (link !== null) {
         finish();
         if (link[1]) active = { from: column, target: link[1] };
-      } else if (!SGR.test(token)) replaySafe = false;
+      } else if (!SGR.test(token) && !SEMANTIC_ZONE.test(token)) replaySafe = false;
     } else {
       if (/[\u0000-\u001f\u007f]/u.test(token)) replaySafe = false;
       plain += token;

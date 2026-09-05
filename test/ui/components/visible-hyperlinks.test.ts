@@ -50,6 +50,10 @@ describe("visible hyperlink geometry and host candidates", () => {
     expect(readVisibleHyperlinks("$0.000 (sub) 0.0%/22k version 0.84.2 Elapsed 0.0s").ranges).toEqual([]);
   });
 
+  it.each(["A", "B", "C"])("allows supported OSC 133 zone %s without inventing a link", zone => {
+    expect(readVisibleHyperlinks(`${ESC}]133;${zone}\u0007plain`)).toMatchObject({ replaySafe: true, ranges: [] });
+  });
+
   it.each([
     `${open("target")}unclosed`, `${ESC}]8;;unterminated`, `${ESC}[2Jplain`,
     `${ESC}_Gimage${ESC}\\`, `${ESC}[1;4Hrow move`, "raw\nnewline",

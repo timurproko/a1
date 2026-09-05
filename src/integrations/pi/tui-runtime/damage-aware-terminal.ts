@@ -225,8 +225,7 @@ export class DamageAwareTerminalAdapter implements PiTuiTerminalPort {
     if (parsed !== null && parsed.structuralPrefix === "\u001b[2J"
       && this.#cacheWidth === descriptor.width && this.#cacheHeight === descriptor.height
       && descriptor.width === this.columns && descriptor.height === this.rows
-      && !this.#hasLinkRisk()
-      && hasCompleteScreenRows(parsed.rows, descriptor.height) && !hasUnsafeTerminalContent(parsed, this.options.inspectHyperlinks)) {
+      && hasCompleteScreenRows(parsed.rows, descriptor.height) && this.#hasSameHyperlinkState(parsed.rows)) {
       return {
         frameId: descriptor.frameId,
         transformed: true,
@@ -246,7 +245,8 @@ export class DamageAwareTerminalAdapter implements PiTuiTerminalPort {
       return { ...base, reason: "geometry-mismatch" };
     }
     if (parsed === null) return { ...base, reason: "grammar-mismatch" };
-    if (parsed.structuralPrefix.length > 0 || hasUnsafeTerminalContent(parsed, this.options.inspectHyperlinks)
+    if (parsed.structuralPrefix.length > 0
+      || hasUnsafeTerminalContent(parsed, this.options.inspectHyperlinks, descriptor.transcript)
       || this.#hasLinkRisk(descriptor.transcript) || this.#hasUnsafeRows(descriptor.transcript)) {
       return { ...base, reason: "unsafe-terminal-content" };
     }
@@ -310,6 +310,14 @@ export class DamageAwareTerminalAdapter implements PiTuiTerminalPort {
       if (this.#rows.get(row.row) !== row.content) this.#links.set(row.row, this.options.inspectHyperlinks(row.content));
       this.#rows.set(row.row, row.content);
     }
+  }
+
+  #hasSameHyperlinkState(rows: readonly ParsedRow[]): boolean {
+    return rows.every(row => {
+      const previous = this.#links.get(row.row);
+      const next = row.content === this.#rows.get(row.row) ? previous : this.options.inspectHyperlinks(row.content);
+      return next?.replaySafe === true && (previous?.signature ?? "") === next.signature;
+    });
   }
 
   #hasLinkRisk(region?: { readonly rowStart: number; readonly rowEnd: number }): boolean {
@@ -393,10 +401,15 @@ function parsePinnedFullscreenWrite(data: string): ParsedFullscreenWrite | null 
   return { structuralPrefix, rows, cursorSuffix: data.slice(suffix.index) };
 }
 
-function hasUnsafeTerminalContent(parsed: ParsedFullscreenWrite, inspect: DamageAwareTerminalOptions["inspectHyperlinks"]): boolean {
+function hasUnsafeTerminalContent(
+  parsed: ParsedFullscreenWrite,
+  inspect: DamageAwareTerminalOptions["inspectHyperlinks"],
+  linkRegion?: { readonly rowStart: number; readonly rowEnd: number },
+): boolean {
   const data = parsed.rows.map(row => row.content).join("");
   if (data.includes("\u001b_G") || data.includes("\u001bPq") || data.includes("\u001b[2J")) return true;
   return parsed.rows.some(row => {
+    if (linkRegion !== undefined && (row.row < linkRegion.rowStart || row.row > linkRegion.rowEnd)) return false;
     const state = inspect(row.content);
     return !state.replaySafe || state.ranges.length > 0;
   });
