@@ -243,7 +243,7 @@ async function captureReadyLaunch(
     }
     throw new Error(`exact ${profileId} launch did not become input-ready within 15000ms: ${stderr}`);
   } finally {
-    // Ctrl+D is the documented empty-editor exit. Ctrl+C only clears the editor,
+    // Rationale: Ctrl+D is the empty-editor exit. Ctrl+C only clears the editor,
     // so forcing the wrapper tree immediately afterward can strand the supervisor's
     // launch instance in uncertain reconciliation on Defender-enabled Windows.
     child.stdin?.write("\u0004");
