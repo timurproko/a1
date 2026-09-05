@@ -206,8 +206,100 @@ describe("transcript viewport", () => {
     expect(viewport.scrollTop).toBe(10);
     expect(viewport.scrollToNextPrompt(106)).toBe(true);
     expect(viewport.scrollTop).toBe(20);
-    expect(viewport.scrollToNextPrompt(107)).toBe(false);
-    expect(viewport.scrollTop).toBe(20);
+    expect(viewport.scrollToNextPrompt(107)).toBe(true);
+    expect(viewport.scrollTop).toBe(25);
+    expect(viewport.followingEnd).toBe(true);
+    expect(viewport.scrollToNextPrompt(108)).toBe(false);
+    expect(viewport.scrollTop).toBe(25);
+    expect(viewport.followingEnd).toBe(true);
+
+    for (const destination of [20, 10, 0]) {
+      expect(viewport.scrollToPreviousPrompt(109)).toBe(true);
+      expect(viewport.scrollTop).toBe(destination);
+    }
+    expect(viewport.scrollToPreviousPrompt(110)).toBe(false);
+    for (const destination of [10, 20, 25]) {
+      expect(viewport.scrollToNextPrompt(111)).toBe(true);
+      expect(viewport.scrollTop).toBe(destination);
+    }
+    expect(viewport.followingEnd).toBe(true);
+  });
+
+  it.each([0, 12])("jumps to the bottom from a single prompt or its response at row %i", position => {
+    const viewport = new TranscriptViewport();
+    viewport.compose({
+      documentRows: rows(20), dockRows: ["dock"], width: 36, height: 6, now: 100,
+      promptAnchors: [{ id: "one", firstRow: 1, lastRow: 1, sourceRow: "❯ one" }],
+    });
+    viewport.scrollTo(position, 101);
+    expect(viewport.followingEnd).toBe(false);
+    expect(viewport.scrollToNextPrompt(102)).toBe(true);
+    expect(viewport.scrollTop).toBe(15);
+    expect(viewport.followingEnd).toBe(true);
+  });
+
+  it.each([0, 15])("leaves navigation without prompt anchors unchanged at row %i", position => {
+    const viewport = new TranscriptViewport();
+    viewport.compose({ documentRows: rows(20), dockRows: ["dock"], promptAnchors: [], width: 36, height: 6, now: 100 });
+    viewport.scrollTo(position, 101);
+    const following = viewport.followingEnd;
+    expect(viewport.scrollToNextPrompt(102)).toBe(false);
+    expect(viewport.scrollTop).toBe(position);
+    expect(viewport.followingEnd).toBe(following);
+  });
+
+  it.each([4, 12])("keeps fitting and clamped prompt destinations at the bottom with %i rows", length => {
+    const viewport = new TranscriptViewport();
+    viewport.compose({
+      documentRows: rows(length), dockRows: ["dock"], width: 36, height: 6, now: 100,
+      promptAnchors: [
+        { id: "one", firstRow: 1, lastRow: 1, sourceRow: "❯ one" },
+        { id: "two", firstRow: length - 1, lastRow: length - 1, sourceRow: "❯ two" },
+      ],
+    });
+    viewport.scrollTo(0, 101);
+    for (let press = 0; press < 3; press += 1) {
+      viewport.scrollToNextPrompt(102 + press);
+      expect(viewport.scrollTop).toBe(Math.max(0, length - 5));
+      expect(viewport.followingEnd).toBe(true);
+    }
+  });
+
+  it("matches End state and continued following after the last prompt with pending messages", () => {
+    const nextPrompt = new TranscriptViewport();
+    const end = new TranscriptViewport();
+    const input = {
+      documentRows: rows(30), dockRows: ["dock"], width: 36, height: 6, now: 100,
+      promptAnchors: [
+        { id: "one", firstRow: 1, lastRow: 1, sourceRow: "❯ one" },
+        { id: "two", firstRow: 20, lastRow: 20, sourceRow: "❯ two" },
+      ],
+    };
+    for (const viewport of [nextPrompt, end]) {
+      viewport.setConfig(ALWAYS);
+      viewport.compose(input);
+      viewport.scrollTo(20, 101);
+      expect(viewport.noteNewMessage()).toBe(true);
+      expect(viewport.noteNewMessage()).toBe(true);
+      expect(viewport.newMessages).toBe(2);
+      expect(viewport.compose({ ...input, now: 102 }).followingEnd).toBe(false);
+    }
+
+    expect(nextPrompt.scrollToNextPrompt(103)).toBe(end.scrollToEnd(103));
+    for (const viewport of [nextPrompt, end]) {
+      expect(viewport.scrollTop).toBe(viewport.maxScroll);
+      expect(viewport.followingEnd).toBe(true);
+      expect(viewport.newMessages).toBe(0);
+    }
+    expect(nextPrompt.compose({ ...input, now: 104 })).toEqual(end.compose({ ...input, now: 104 }));
+    const grown = { ...input, documentRows: rows(35), now: 105 };
+    const followed = nextPrompt.compose(grown);
+    expect(followed).toEqual(end.compose(grown));
+    expect(followed.scrollTop).toBe(followed.maxScroll);
+    expect(followed.followingEnd).toBe(true);
+    expect(followed.hits.bottom).toBeNull();
+    expect(nextPrompt.noteNewMessage()).toBe(false);
+    expect(nextPrompt.newMessages).toBe(0);
   });
 
   it("pins the semantic source prompt prominently, then quiets it after all continuations leave", () => {
