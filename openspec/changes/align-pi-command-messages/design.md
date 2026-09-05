@@ -16,6 +16,7 @@ Current source findings:
 | Authentication messages | `src/integrations/pi/engine/adapter.ts`, `session-ui/session-shell.ts` | API-key success uses OAuth label; empty logout and contextual failures differ; outcome-dependent messages are incomplete. Trace and correct. |
 | Fork/clone empty states | Same interactive owners | Errors replace pinned dim statuses. Correct. |
 | Import/share | Engine workflow adapter | Import errors lose context; share errors differ and viewer URL uses the obsolete `pi.gptscript.ai/gist/` base. Correct. |
+| Fatal `/new`, `/resume`, and `/import` outcomes | Workflow/session lifecycle | Pinned Pi prints the contextual error, stops its terminal, and exits one; A1 returns a recoverable failed workflow result and keeps its owning session active. Match the visible message semantics and retain A1's lifecycle as an explicit contextual exception. |
 | Ordinary result presentation | `session-ui/session-shell-root.ts`, `components/shell-presenters-info.ts` | Status presenter already uses wrapped dim text; errors/warnings/name/debug/new cases include raw fixed-indentation rows. Preserve correct statuses and correct route-specific geometry. |
 | `/new` | Shell-root result presenter | Text/color match; vertical padding differs from pinned `Text(..., 1, 1)` plus spacer. Correct. |
 | Remaining supported routes | Workflow list/controllers/presenters | Many normal success paths already match; inventory all outcomes before asserting completeness. |
@@ -33,7 +34,7 @@ The initial audit is source evidence, not exhaustive physical-terminal certifica
 - No dependency upgrade, installed-Pi patch, stock interactive-root construction, private deep import, transparent CLI relay, or alternate runtime.
 - No new package operations, project-local package/trust support, `config`, `--extension` alias, general Pi CLI flags, or newly discovered interactive commands. Explicit help for existing package verbs is the only newly accepted informational syntax.
 - No changes to A1 self-update/version policy, unknown-command no-ops, profile storage ownership, declared settings replacement, viewport customization, or bare-A1 spinner punctuation.
-- No broad authentication/session redesign. Controller changes are limited to faithfully performing and reporting the existing supported command outcomes; missing supporting behavior must not be replaced with a fabricated message.
+- No broad authentication/session redesign. Controller changes are limited to faithfully performing and reporting the existing supported command outcomes; missing supporting behavior must not be replaced with a fabricated message. In particular, this change does not adopt Pi's process-owning terminal shutdown or exit propagation for fatal `/new`, `/resume`, and `/import` outcomes; exact lifecycle parity requires a separate OpenSpec change.
 
 ## Decisions
 
@@ -43,7 +44,7 @@ Use a per-command outcome inventory keyed by pinned source branch and A1 route. 
 
 The CLI matrix includes both model-refresh aliases, install/remove/uninstall/list, updates of all packages and one source, operational/settings diagnostics, and explicit help/syntax cases. The interactive matrix includes every name in the existing supported workflow and hidden-command lists: settings, model, scoped-models, export, import, share, copy, name, session, changelog, hotkeys, fork, clone, tree, trust, login, logout, new, compact, resume, reload, quit, debug, arminsayshi, and dementedelves. Include command-owned selectors' refresh/empty/cancel states; discovered unsupported commands are noted, not implemented.
 
-Approved substitutions are actual A1 profile/session/cwd/runtime values and executable invocations in guidance. Preserve existing declarations for owned UI replacements/layout; no whole-message whitelist or ANSI stripping. Numeric package syntax exit status remains A1's two, while operation failure is one and help/success is zero: this request is for wording/style, not a silent process-contract change.
+Approved substitutions are actual A1 profile/session/cwd/runtime values and executable invocations in guidance. Preserve existing declarations for owned UI replacements/layout; no whole-message whitelist or ANSI stripping. Numeric package syntax exit status remains A1's two, while operation failure is one and help/success is zero: this request is for wording/style, not a silent process-contract change. For fatal `/new`, `/resume`, and `/import` outcomes, compare the emitted text, severity, context, ordering, and absence of false success, but record A1's recoverable failed result and continuing session as an explicit lifecycle exception rather than claiming shutdown/exit parity.
 
 Alternative rejected: comparing complete `a1 --help` with `pi --help`, or routing commands through Pi's main entry. Both would falsely imply support for Pi operations that A1 intentionally forbids.
 
@@ -68,6 +69,8 @@ Alternative rejected: blindly replacing `pi` with `a1 pi` in stock full help or 
 ### 4. Preserve workflow outcomes and sequences before rendering
 
 Use the existing owned workflow/controller boundaries to carry semantic status/warning/error and route-specific presentations; extend their typed results only where a single completed/failed string cannot represent the pinned sequence. Do not infer severity from message prefixes such as `Wait for` or `Usage:`. A successful credential write followed by a failed model selection is not one generic failure or unconditional success.
+
+Fatal `/new`, `/resume`, and `/import` failures retain the same visible Pi-compatible error semantics through those boundaries, but they return A1's recoverable failed workflow result instead of stopping the terminal or propagating process exit one. Evidence must identify that lifecycle difference explicitly and must not treat a matching message as proof of process behavior. If exact shutdown/exit parity is desired later, specify it independently with its own lifecycle, cancellation, persistence, and host-process acceptance criteria.
 
 Authentication should use pinned auth-type labels, selected-model clauses, local-state synchronization errors, and background catalog warnings tied to truthful public runtime results. Keep warning delivery bound to the current controller/session lifecycle. Preserve API-key/environment separation and never include credential values in messages or evidence.
 
@@ -102,7 +105,8 @@ Do not equate controlled ANSI tests with physical color certification. The scree
 - [Synthetic-only fixtures hide upstream drift] -> Independent pinned producer plus source branch provenance, not A1-generated expected strings; re-check the pin when implementation starts.
 - [Terminal palette or viewport differences mask fixes] -> Separate Chalk CLI tests from themed UI cell comparisons and declared layout differences; retain physical review.
 - [Adjacent active changes touch the same shell/presenters] -> Rebase the accepted implementation plan against current integration state and keep declaration/provenance changes narrowly scoped.
+- [One implementation PR becomes too broad to review safely] -> Deliver focused CLI/package and interactive/presenter PRs against the same accepted change, keep task and evidence accounting cumulative, and leave the OpenSpec change active until integrated acceptance is complete.
 
 ## Migration Plan
 
-No configuration or persisted-data migration is required. The visible output correction intentionally removes A1-specific model-refresh summaries and makes supported explicit package help succeed; existing operation and syntax exit-code contracts otherwise remain intact. Specification approval precedes a separate implementation change. After code validation, compare the exact runnable artifact in the terminal before acceptance. If a correction regresses command behavior or lifecycle, revert the affected implementation commit and reopen its inventory outcomes; never restore a false parity claim by normalizing the difference away.
+No configuration or persisted-data migration is required. The visible output correction intentionally removes A1-specific model-refresh summaries and makes supported explicit package help succeed; existing operation and syntax exit-code contracts otherwise remain intact. Specification approval precedes focused implementation changes: first establish the CLI/package slice on current integration, then deliver interactive outcome and presenter slices while maintaining one cumulative inventory and acceptance contract. The OpenSpec change remains active until all required slices are integrated and accepted. After code validation, compare each exact runnable artifact in the terminal before accepting that slice. If a correction regresses command behavior or lifecycle, revert the affected implementation commit and reopen its inventory outcomes; never restore a false parity claim by normalizing the difference away.
