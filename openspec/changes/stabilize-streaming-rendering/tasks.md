@@ -7,7 +7,7 @@
 
 ## 2. Stabilize Custom Viewport Geometry
 
-- [ ] 2.1 Keep queued input, working/extension status, widgets, active input, and footer in one dock region for fitting, overflowing, and detached frames; verify custom-viewport tests cover boundary crossing, queue appearance/removal, no duplication/omission, selection exclusion, and unchanged pinned-profile rows.
+- [ ] 2.1 Keep queued input, non-working status, widgets, active input, and footer in one dock region while live working/extension-working status remains in one transient non-selectable scrollable tail for fitting, overflowing, and detached frames; verify custom-viewport tests cover boundary crossing, queue appearance/removal, scrolling the live status out of view, no duplication/omission, selection exclusion, and unchanged pinned-profile rows.
 - [ ] 2.2 Extend the neutral viewport frame result with transcript/dock rectangles, prior and next document ranges, follow state, and safe vertical-shift metadata; verify unit tests cover no shift, one/many-row shifts, detached output, legitimate Markdown reflow, resize, tiny terminals, sticky prompts, selection, overlays, and reset.
 - [ ] 2.3 Prove the frame descriptor derives only from owned semantic layout state and does not inspect ANSI text, Pi private state, or component constructors; verify architecture and malformed-descriptor tests reject forbidden or inconsistent metadata.
 

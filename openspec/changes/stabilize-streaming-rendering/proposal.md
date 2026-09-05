@@ -1,13 +1,13 @@
 ## Why
 
-Bare `a1` shows visible instability while assistant content streams, including flicker that is not present in vanilla Pi or the pinned `a1 pi` comparison. The three paths reuse the same Pi transcript components, but bare A1 alone forces the custom fullscreen viewport: as follow-tail advances, its position-based screen diff can clear and rewrite most transcript rows for one newly wrapped row, and its transient dock can also change ownership at the fit/overflow boundary. Existing parity and responsiveness tests verify content and event cost, not terminal paint stability, so this regression is currently invisible to automation.
+Bare `a1` shows visible instability while assistant content streams, including flicker that is not present in vanilla Pi or the pinned `a1 pi` comparison. The three paths reuse the same Pi transcript components, but bare A1 alone forces the custom fullscreen viewport: as follow-tail advances, its position-based screen diff can clear and rewrite most transcript rows for one newly wrapped row, and its transient surfaces also need stable ownership across the fit/overflow boundary. Existing parity and responsiveness tests verify content and event cost, not terminal paint stability, so this regression is currently invisible to automation.
 
 ## What Changes
 
 - Add an equivalent-state rendering analysis that captures semantic frames and raw terminal writes from bare `a1`, `a1 pi`, and untouched pinned Pi at the same geometry, mode, theme, transcript, and deterministic stream cadence.
 - Classify every paint by cause and measure frame cadence, cleared/rewritten rows, bytes, full redraws, viewport shifts, stable-row rewrites, and dock geometry changes, with bounded artifacts suitable for diagnosing terminal-visible flicker.
 - Make follow-tail streaming damage-aware through an A1-owned presentation adapter over Pi's public terminal boundary, so ordinary text growth does not repaint stable transcript rows merely because the viewport advanced by one row; use bounded terminal-region movement and avoid whole-screen clears outside declared structural cases.
-- Keep transient queued/working rows in one stable ownership region across the fit-to-overflow transition so streaming does not produce a one-frame dock/document jump.
+- Keep queued input and the editor/footer group stably docked while live working/extension-working rows remain in one transient scrollable-tail region across the fit-to-overflow transition, so streaming does not produce a one-frame ownership jump.
 - Coalesce presentation to a deliberate streaming cadence while preserving immediate input feedback, final content, status animation, and the existing per-block engine update path.
 - Add deterministic regression gates and exact-artifact manual comparison for sustained prose, Markdown reflow, thinking, tools, fit/overflow crossing, long transcripts, resize, detached scrolling, and terminals with and without synchronized-update support.
 - Preserve `a1 pi` and untouched Pi as independent comparison producers; do not change their profile, rendering policy, or visible output.
