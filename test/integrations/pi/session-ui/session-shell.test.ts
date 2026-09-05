@@ -1258,14 +1258,15 @@ describe("OwnedUiSessionShell", () => {
   it("uses Home/End for transcript boundaries and Shift+Up/Down between prompts", async () => {
     const messages = ["one", "two", "three"].flatMap((prompt, index) => [
       { role: "user", content: [{ type: "text", text: prompt }], timestamp: Date.now() + index * 2 },
-      { role: "assistant", content: [{ type: "text", text: `reply-${prompt}-1\nreply-${prompt}-2\nreply-${prompt}-3\nreply-${prompt}-4\nreply-${prompt}-5` }], timestamp: Date.now() + index * 2 + 1 },
+      { role: "assistant", content: [{ type: "text", text: Array.from({ length: 15 }, (_, row) => `reply-${prompt}-${row + 1}`).join("\n") }], timestamp: Date.now() + index * 2 + 1 },
     ]);
     const { terminal, shell } = await fixture(messages, [], true);
     terminal.resize(60, 12);
+    shell.root.editor.setText("keep this draft");
+    shell.root.setViewportConfig({ scrollbarAppearance: "always", scrollbarStyle: "thin", scrollbarSpeed: "normal" });
     const rows = () => shell.root.render(60).map(row => stripTerminalSequences(row));
     const top = () => rows()[0] ?? "";
-
-    shell.root.render(60);
+    const bottomRows = rows();
     terminal.input("\u001b[1;1H");
     expect(top().trim()).toBe("");
     expect(rows()[1]).toContain("❯ one");
@@ -1276,10 +1277,19 @@ describe("OwnedUiSessionShell", () => {
     terminal.input("\u001b[1;2B");
     await nextImmediate();
     expect(top()).toContain("❯ three");
+    expect(rows()).not.toEqual(bottomRows);
     terminal.input("\u001b[1;2B");
     await nextImmediate();
-    expect(top()).toContain("❯ three");
+    expect(rows()).toEqual(bottomRows);
+    expect(shell.root.editor.getText()).toBe("keep this draft");
+    terminal.input("\u001b[1;2B");
+    await nextImmediate();
+    expect(rows()).toEqual(bottomRows);
 
+    terminal.input("\u001b[1;2A");
+    await nextImmediate();
+    expect(top()).toContain("❯ three");
+    expect(rows()).not.toEqual(bottomRows);
     terminal.input("\u001b[1;2A");
     await nextImmediate();
     expect(top()).toContain("❯ two");
@@ -1293,7 +1303,8 @@ describe("OwnedUiSessionShell", () => {
     expect(rows()[1]).toContain("❯ one");
 
     terminal.input("\u001b[1;1F");
-    expect(top()).toContain("❯ three");
+    expect(rows()).toEqual(bottomRows);
+    expect(shell.root.editor.getText()).toBe("keep this draft");
 
     await shell.dispose();
   });
