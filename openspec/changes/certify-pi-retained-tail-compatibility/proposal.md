@@ -1,6 +1,10 @@
 ## Why
 
-Implementation of `fix-cli-session-resume` exposed a separate upstream compatibility defect: Pi 0.84.2 documents `retainedTail` compaction checkpoints but silently omits their messages when rebuilding context. The resume repair cannot meet its accepted history-restoration requirement by merely reconnecting the launcher, and the newer published Pi packages inspected so far do not fix that defect.
+Implementation of `fix-cli-session-resume` exposed a separate upstream compatibility defect: Pi 0.84.2 documents `retainedTail` compaction checkpoints but silently omits their messages when rebuilding context. The newer published Pi packages inspected so far do not fix that defect. The user subsequently clarified and approved that the CLI repair targets future sessions using the pinned Pi's actual behavior, not recovery of their current conversation or support beyond that pin.
+
+## Scope Status
+
+Deferred independent compatibility work, not a prerequisite for `fix-cli-session-resume`. No tasks are complete and no retained-tail capability is certified. This scope clarification removes the earlier CLI blocker relationship without changing the evidence of the upstream defect or weakening the independent certification contract. Implementation of this deferred work requires a separate explicit request.
 
 ## What Changes
 
@@ -9,7 +13,7 @@ Implementation of `fix-cli-session-resume` exposed a separate upstream compatibi
 - Add an independent behavioral compatibility gate that catches disagreement between documentation, declarations, and shipped runtime behavior; version numbers and exported function names alone do not prove support.
 - Adapt only the A1 integration needed to consume the corrected public behavior, and ensure the agent context and owned transcript agree. Reject malformed or unsupported retained checkpoints rather than silently drop messages, reconstruct from guesses, or submit a prompt with incomplete context.
 - Certify the candidate against existing API, extension, settings, TUI/module identity, packaging, and session lifecycle contracts without automatically synchronizing unrelated upstream UI changes.
-- Record this as a prerequisite of the already accepted `fix-cli-session-resume` implementation. That stream continues to own CLI parsing/forwarding and exit-hint round trips; this stream owns dependency compatibility only.
+- Keep this separate from `fix-cli-session-resume`, which owns CLI parsing/forwarding and create/exit/resume parity with its current Pi pin. This deferred stream owns additional retained-tail dependency compatibility only; its upstream availability gate does not block the CLI repair.
 
 No production dependency patching, prototype mutation, private Pi imports, A1-owned compaction engine, in-place session conversion, or unverified upgrade is authorized.
 
@@ -32,4 +36,4 @@ No production dependency patching, prototype mutation, private Pi imports, A1-ow
 
 ## Current Availability
 
-On 2026-09-05, a direct reproduction against Pi 0.84.2 returned only the compaction summary for a checkpoint containing a retained user message. Published `dist/core/session-manager.js` from 0.84.3, 0.84.4, and 0.85.0 still lacks retained-tail handling; inspected upstream main source does too. No passing candidate is selected. Planning can complete, but dependency adoption and the blocked CLI restoration task must wait for a corrected published candidate and its certification.
+On 2026-09-05, a direct reproduction against Pi 0.84.2 returned only the compaction summary for a checkpoint containing a retained user message. Published `dist/core/session-manager.js` from 0.84.3, 0.84.4, and 0.85.0 still lacks retained-tail handling; inspected upstream main source does too. No passing candidate is selected. Dependency adoption for this retained-tail capability must wait for a corrected published candidate and its certification. The CLI restoration task instead uses its approved same-pin create/exit/resume acceptance and need not wait.
