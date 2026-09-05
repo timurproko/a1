@@ -55,6 +55,7 @@ async function runOwned(
       shell.view().transcript,
       shell.root.viewportFrameDescriptor(),
       shell.damagePresentationDecision(),
+      shell.root.viewportTransientTailRowCount(),
     ));
     for (const step of steps) {
       terminal.setClock(step.atMs, step.checkpoint);
@@ -70,6 +71,7 @@ async function runOwned(
         shell.view().transcript,
         shell.root.viewportFrameDescriptor(),
         shell.damagePresentationDecision(),
+        shell.root.viewportTransientTailRowCount(),
       ));
     }
     return {
@@ -269,6 +271,7 @@ function ownedCheckpoint(
   transcript: readonly { kind: string; status: string; text: string }[],
   descriptor: TranscriptViewportFrameDescriptor | null,
   damageDecision: RenderingProducerCheckpoint["damageDecision"] | null,
+  transientTailRows: number,
 ): RenderingProducerCheckpoint {
   return {
     name,
@@ -287,6 +290,7 @@ function ownedCheckpoint(
         verticalShiftRows: descriptor.verticalShiftRows,
         safeVerticalShift: descriptor.safeVerticalShift,
         cause: descriptor.cause,
+        transientTailRows,
       },
     }),
   };
@@ -298,7 +302,7 @@ function pinnedCheckpoint(
   terminal: RecordingTerminal,
   transcript: readonly { kind: string; status: string; text: string }[],
 ): RenderingProducerCheckpoint {
-  return ownedCheckpoint(name, atMs, terminal, transcript, null, null);
+  return ownedCheckpoint(name, atMs, terminal, transcript, null, null, 0);
 }
 
 async function readRequest(): Promise<RenderingProducerRequest> {

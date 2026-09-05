@@ -343,7 +343,10 @@ describe("Pi shell public component adapters", () => {
         status: { ...candidate.status, workingMessage: message, badges: ["busy"] },
       }, canonicalProgressStatus);
       try {
-        expect(stripTerminalSequences(status.render(80).join("\n"))).toContain(expected);
+        expect(status.placement()).toBe("live");
+        expect(status.renderDock(80)).toEqual([]);
+        expect(stripTerminalSequences(status.renderLive(80).join("\n"))).toContain(expected);
+        expect(status.render(80)).toEqual(status.renderLive(80));
       } finally {
         status.dispose?.();
       }
@@ -362,13 +365,53 @@ describe("Pi shell public component adapters", () => {
         ["Legacy extension......", "Legacy extension..."],
       ] as const) {
         extension.setWorkingOverride(message);
-        const rendered = stripTerminalSequences(extension.render(80).join("\n"));
+        const rendered = stripTerminalSequences(extension.renderLive(80).join("\n"));
+        expect(extension.placement()).toBe("live");
         expect(rendered).toContain(expected);
         expect(rendered).not.toContain("…");
         expect(rendered).not.toContain("....");
       }
     } finally {
       extension.dispose?.();
+    }
+  });
+
+  it("keeps extension working overrides semantic and never scrollable after completion", () => {
+    const candidate = view();
+    const status = createPiShellStatus({
+      ...candidate,
+      lifecycle: "busy",
+      status: { ...candidate.status, workingMessage: "Working", badges: ["busy"] },
+    }, canonicalProgressStatus);
+    try {
+      status.setWorkingOverride("Indexing sources");
+      expect(status.placement()).toBe("live");
+      expect(stripTerminalSequences(status.renderLive(80).join("\n"))).toContain("Indexing sources...");
+      expect(status.renderDock(80)).toEqual([]);
+
+      const hiddenOverride = view();
+      status.update(hiddenOverride);
+      expect(status.placement()).toBe("hidden");
+      expect(status.renderLive(80)).toEqual([]);
+      expect(status.renderDock(80)).toEqual([]);
+
+      const plain = { ...hiddenOverride, status: { ...hiddenOverride.status, workingMessage: "Plain status…" } };
+      status.update(plain);
+      expect(status.placement()).toBe("dock");
+      expect(status.renderLive(80)).toEqual([]);
+      expect(stripTerminalSequences(status.renderDock(80).join("\n")).trim()).toBe("Plain status…");
+
+      const failed = {
+        ...plain,
+        lifecycle: "failed" as const,
+        status: { ...plain.status, workingMessage: null, diagnostics: ["Failure…"] },
+      };
+      status.update(failed);
+      expect(status.placement()).toBe("dock");
+      expect(status.renderLive(80)).toEqual([]);
+      expect(stripTerminalSequences(status.renderDock(80).join("\n")).trim()).toBe("Failure…");
+    } finally {
+      status.dispose?.();
     }
   });
 
@@ -402,8 +445,13 @@ describe("Pi shell public component adapters", () => {
       status: { ...candidate.status, workingMessage: "Plain status…" },
     }, untouched);
     try {
-      expect(stripTerminalSequences(failed.render(80).join("\n")).trim()).toBe("Failure…");
-      expect(stripTerminalSequences(nonSpinner.render(80).join("\n")).trim()).toBe("Plain status…");
+      expect(failed.placement()).toBe("dock");
+      expect(failed.renderLive(80)).toEqual([]);
+      expect(nonSpinner.placement()).toBe("dock");
+      expect(nonSpinner.renderLive(80)).toEqual([]);
+      expect(createPiShellStatus(view(), canonicalProgressStatus).placement()).toBe("hidden");
+      expect(stripTerminalSequences(failed.renderDock(80).join("\n")).trim()).toBe("Failure…");
+      expect(stripTerminalSequences(nonSpinner.renderDock(80).join("\n")).trim()).toBe("Plain status…");
       expect(untouched).not.toHaveBeenCalled();
     } finally {
       failed.dispose?.();

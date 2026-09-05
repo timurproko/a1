@@ -76,9 +76,15 @@ export interface PiShellViewComponentPort extends PiShellComponentPort {
   update(view: OwnedUiSessionViewModel): void;
 }
 
+export type PiShellStatusPlacement = "live" | "dock" | "hidden";
+
 export interface PiShellStatusPort extends PiShellViewComponentPort {
   setWorkingOverride(message: string | undefined): void;
   setOutputPad(padding: 0 | 1): void;
+  /** Semantic row placement; callers must not inspect rendered text. */
+  placement(): PiShellStatusPlacement;
+  renderDock(width: number): readonly string[];
+  renderLive(width: number): readonly string[];
 }
 
 export interface PiShellQueuedInputPort extends PiShellComponentPort {

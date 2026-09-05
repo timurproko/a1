@@ -42,6 +42,8 @@ export interface RenderingProducerCheckpoint {
     readonly verticalShiftRows: number;
     readonly safeVerticalShift: boolean;
     readonly cause: string;
+    /** Visible transient-tail rows occupying the scroll region at this checkpoint. */
+    readonly transientTailRows: number;
   };
 }
 

@@ -118,6 +118,84 @@ describe("session viewport interaction controller", () => {
     }
   });
 
+  it("owns a whole drag begun on transient tail chrome without creating a selection", () => {
+    const { target, input, compose } = hoverFixture();
+    try {
+      const tailed = { ...input, documentRows: [...input.documentRows, "", " Working..."], selectableDocumentRowCount: 30 };
+      const followed = target.compose(tailed);
+      expect(followed.hits.transientTail).toEqual([6, 7]);
+      expect(target.handlePreInput("\u001b[<0;5;6M").consumed).toBe(true);
+      expect(target.handlePreInput("\u001b[<32;5;3M").consumed).toBe(true);
+      expect(target.handlePreInput("\u001b[<0;5;3m").consumed).toBe(true);
+      const selected = target.compose(tailed);
+      expect(target.hasSelection).toBe(false);
+      expect(selected.rows[6]).toContain("Working...");
+      expect(selected.rows[6]).not.toContain("\u001b[48;2;38;79;120m");
+    } finally {
+      target.clearPointerState();
+    }
+  });
+
+  it("keeps wheel scrolling over the transient tail while suppressing selection", () => {
+    const { target, input, compose } = hoverFixture();
+    try {
+      const tailed = { ...input, documentRows: [...input.documentRows, "", " Working..."], selectableDocumentRowCount: 30 };
+      const followed = target.compose(tailed);
+      expect(followed.hits.transientTail).toEqual([6, 7]);
+      const before = followed.scrollTop;
+      expect(target.handlePreInput("\u001b[<64;5;6M").consumed).toBe(true);
+      expect(target.compose(tailed).scrollTop).toBeLessThan(before);
+      expect(target.compose(tailed).hits.transientTail).toEqual([]);
+      target.handlePreInput("\u001b[<65;5;1M");
+      const again = target.compose(tailed);
+      expect(again.hits.transientTail).toEqual([6, 7]);
+      target.handlePreInput("\u001b[<0;5;7M");
+      target.handlePreInput("\u001b[<32;5;4M");
+      target.handlePreInput("\u001b[<0;5;4m");
+      expect(target.hasSelection).toBe(false);
+    } finally {
+      target.clearPointerState();
+    }
+  });
+
+  it("clamps selection and copy at the semantic end of a transient tail", () => {
+    const { target, input, compose } = hoverFixture();
+    try {
+      const tailed = { ...input, documentRows: [...input.documentRows, "", " Working..."], selectableDocumentRowCount: 30 };
+      compose();
+      target.handlePreInput("\u001b[<0;4;2M");
+      target.handlePreInput("\u001b[<32;4;7M");
+      target.handlePreInput("\u001b[<0;4;7m");
+      const copied = target.handlePreInput("\u0003");
+      expect(copied.consumed).toBe(true);
+      expect(copied.copyText).not.toContain("Working");
+      expect(copied.copyText).toContain("row-25");
+    } finally {
+      target.clearPointerState();
+    }
+  });
+
+  it("keeps jump-to-bottom controls ahead of transient-tail suppression", () => {
+    const { target, input, compose } = hoverFixture();
+    try {
+      const tailed = { ...input, documentRows: [...input.documentRows, "", "", " Working..."], selectableDocumentRowCount: 30 };
+      target.handlePreInput("\u001b[<64;30;2M");
+      const detached = target.compose(tailed);
+      const hit = detached.hits.bottom!;
+      expect(detached.hits.transientTail).toEqual([]);
+      expect(hit.row).toBe(7);
+      target.handlePreInput(`\u001b[<0;${hit.columnStart};${hit.row}M`);
+      target.handlePreInput(`\u001b[<0;${hit.columnStart};${hit.row}m`);
+      const followed = target.compose(tailed);
+      expect(followed.followingEnd).toBe(true);
+      expect(followed.hits.transientTail).toEqual([5, 6, 7]);
+      expect(followed.rows[6]).toContain("Working...");
+      expect(target.hasSelection).toBe(false);
+    } finally {
+      target.clearPointerState();
+    }
+  });
+
   it("uses moved control geometry for hover and clicks, not the previous hit region", () => {
     const { target, input, compose } = hoverFixture();
     try {
