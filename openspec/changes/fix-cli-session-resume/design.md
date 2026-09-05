@@ -8,7 +8,7 @@ See `proposal.md` for motivation and scope. Read-only investigation against inst
 - `createPiRuntimeIntegration()` calls `SessionManager.open(options.sessionPath, sessionDir, options.cwd)`: it neither resolves IDs nor allows the header cwd to determine initial services.
 - `formatSessionResumeCommand()` prints an ID, optionally preceded by `--session-dir`. Current tests assert the string without dispatching it through the installed launcher.
 - Pi's CLI `resolveSessionPath()` separates paths from IDs, lists local then global sessions, and prompts before forking a globally matched ID into the current project. ID resolution is CLI policy, not behavior of `SessionManager.open()`. The latter can prepare a new session at a nonexistent explicit path.
-- The user's affected file had a v3 header, 1,232 message entries and three compactions with no malformed JSON lines. Personal file contents and identifiers are not fixtures for this change.
+- Investigation also found a documentation/runtime mismatch for synthetic `retainedTail` checkpoints. That is an upstream capability gap, not a demonstrated failure to resume sessions written by this Pi pin. The user clarified that recovery of their current conversation is not requested; acceptance concerns future create/exit/resume use.
 
 Design is required because CLI grammar, immutable launch transport, Pi startup, trust/cwd binding, and integration evidence all participate.
 
@@ -18,7 +18,7 @@ Design is required because CLI grammar, immutable launch transport, Pi startup, 
 - One explicit selection contract from public CLI to the existing owned composition, with no profile-global resume state.
 - Public Pi API reuse for session listing/opening/forking and context reconstruction; A1 owns only the missing CLI policy and transport.
 - A session selection failure must not masquerade as a successful launch or create an unintended conversation.
-- Regression evidence must detect each originally disconnected boundary.
+- Regression evidence must detect each originally disconnected boundary and prove a newly persisted session resumes with the same context the pinned Pi restores directly.
 
 **Non-Goals:**
 - Importing Pi's CLI main module, delegating rendering to Pi's CLI, or upgrading Pi.
@@ -26,6 +26,11 @@ Design is required because CLI grammar, immutable launch transport, Pi startup, 
 - Redesigning `/resume`, session selectors, or the comparison profile's CLI/hints.
 - New locking semantics for simultaneous writers to the same saved session; independent launch tests use distinct sessions.
 - General CLI compatibility or a new automatic-resume default. See the proposal's excluded aliases.
+- Recovery/modification of the user's current conversation, forward-format support beyond the pin, or an A1 retained-tail reconstruction/rejection subsystem. Existing compatible saved sessions remain selectable; they are not rejected merely because they predate the fix.
+
+### Approved scope clarification
+
+The user's approval narrows restoration acceptance to the shipped Pi's actual behavior for sessions created through that same version. It supersedes the previous requirement to pass an unsupported synthetic retained-tail fixture before shipping the CLI repair. `certify-pi-retained-tail-compatibility` is deferred independent work, not a dependency of this change. Its finding remains valid, but neither an upstream fix nor a Pi upgrade is needed to implement this scope. Do not claim this clarification fixes or certifies the unsupported format.
 
 ## Decisions
 
@@ -61,7 +66,7 @@ A1 deliberately narrows Pi's explicit-path creation behavior for this resume com
 
 Do not unconditionally pass `options.cwd` as `SessionManager.open`'s override for an existing file. Derive the initial runtime cwd from the opened manager; use that cwd to resolve trust, resources, tools, and model services. Explicit missing-cwd targets fail before project resource execution rather than silently adopting the launching directory. This is separate from the existing in-UI `/resume` recovery prompt, which is not changed.
 
-Pass the opened/forked manager into `createAgentSessionRuntime` and the existing runtime factory. Pi remains responsible for active-branch context, retained-tail/legacy compaction compatibility, saved model/thinking restoration, and normal unavailable-model fallback. The shell must render the restored snapshot before input is accepted; resume never submits a model prompt by itself.
+Pass the opened/forked manager into `createAgentSessionRuntime` and the existing runtime factory. Pi remains responsible for active-branch context, the compaction formats it actually writes and restores, saved model/thinking restoration, and normal unavailable-model fallback. A1 must introduce no additional context loss relative to direct reopening through the same pin. Unsupported synthetic retained-tail restoration is not this change's acceptance gate. The shell must render the restored snapshot before input is accepted; resume never submits a model prompt by itself.
 
 Opening a session under current cwd to avoid trust questions was rejected: it would restore the conversation but silently attach its tools and resources to a different project.
 
@@ -73,16 +78,16 @@ The advertised command continues to use compact IDs and existing dim-prefix styl
 
 ### 6. Validate behavior at connected boundaries
 
-Use isolated fixture profiles, existing test harnesses, and disposable v3 session files with recognizable conversation markers, saved model/thinking state, and compaction entries. No personal data, actual model request, or live user supervisor is required.
+Use isolated fixture profiles, existing test harnesses, and disposable sessions newly persisted through the pinned public session APIs, with recognizable conversation markers, saved model/thinking state, and compaction checkpoints in the format that pin writes. Generate compacted fixtures through its public persistence API with a synthetic summary and valid retained-entry references, not a live summarization/model call. Include both uncompacted and compacted sessions. Record the exact Pi version and compare A1's reopened context to direct public-API reopening under the same pin, with independent marker/order and identity assertions so an empty context cannot pass merely by matching another empty result. No personal data, actual model request, or live user supervisor is required.
 
 | Boundary | Required evidence |
 | --- | --- |
 | CLI | Both option orders; help; malformed options; bare launch; unaffected maintenance and unsupported words |
 | Transport | Same target/directory through bootstrap, guardian entry and contained argv; retry/handoff; Windows spaces/apostrophes; distinct concurrent invocations; no inherited stale selection |
 | Pi resolution | Path classification, relative paths, local exact/prefix precedence, global confirmation/fork/cancel, ambiguous pinned ordering, custom/env/default directories, profile isolation |
-| Restoration | Same ID/file for direct resume; fork gets new identity and preserves source; messages and active compaction context restored; saved model/thinking fallback; effective cwd and trust ordering |
+| Restoration | Newly written same-pin uncompacted and compacted sessions; same ID/file for direct resume; fork gets new identity and preserves source; active context matches direct Pi reopening and independent marker/order expectations; saved model/thinking fallback; effective cwd and trust ordering |
 | Failure | Unknown ID; missing/empty/unreadable/invalid file; missing cwd; no accidental ID-named file or empty replacement; shell exit status and cleanup |
-| End to end | Execute the emitted hint via the packaged public entry and real production launch transport, observe restored UI/session state, exit cleanly; default and custom storage |
+| End to end | Create/persist a fresh disposable session with the pin, exit normal A1 to obtain its hint, execute it via the packaged public entry and real production launch transport, observe restored UI/session state, exit cleanly; default and custom storage |
 
 Keep fast parser/transport tests distinct from resource-sensitive exact-package evidence. A packaged-entry test must not replace the launch handler with a successful stub, bypass bootstrap with `bin/ui.js`, or stop at command formatting. Use controlled offline runtime resources/fixtures within the existing harness to avoid model calls while retaining actual session loading. Windows Git Bash evidence verifies user-shell quoting separately from A1's shell-free internal argv forwarding.
 
@@ -93,7 +98,8 @@ Keep fast parser/transport tests distinct from resource-sensitive exact-package 
 - [Pi permits new explicit-path sessions] -> Guard resume targets, test negative cases and races, and never treat an unresolved ID as a filename.
 - [Cross-project restore changes effective resource roots] -> Select cwd before trust/services and test an untrusted project without executing its resources early.
 - [Prefix selection can be surprising] -> Preserve the pin's ordering for compatibility; emitted hints use full session IDs and therefore avoid ordinary prefix ambiguity.
-- [Long compacted sessions expose rendering/restoration regressions] -> Include compacted fixtures and inspect identity/context, not only whether the UI opened.
+- [Long compacted sessions expose rendering/restoration regressions] -> Include same-pin compacted fixtures and inspect identity/context, not only whether the UI opened.
+- [Documentation promises a format the pin does not implement] -> Bound this repair to verified same-pin behavior; preserve the separate retained-tail finding without treating it as proof about the user's session or a prerequisite for ordinary resume.
 - [Comparison-profile hints remain outside this repair] -> Make that scope explicit; do not claim general A1/Pi CLI parity from normal-profile evidence.
 - [Cold-start/guardian changes may land concurrently] -> Rebase the subsequent implementation onto accepted integration state and rerun metadata-transport coverage without changing release ownership semantics.
 

@@ -1,5 +1,7 @@
 import type { AgentSessionRuntime } from "@earendil-works/pi-coding-agent";
-import { readFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { CURSOR_MARKER, stripTerminalSequences, visibleWidth } from "@earendil-works/pi-tui";
 import {
   getCapabilities as getPinnedPiTuiCapabilities,
@@ -294,7 +296,11 @@ describe("OwnedUiSessionShell", () => {
     expect(bytes.slice(bytes.lastIndexOf("\x1b[?1049l"))).not.toContain("\x1b[?1049h");
   });
 
-  it("prints styled transcript and a dim compact resume hint only after restoration", async () => {
+  it("prints styled transcript and a dim compact resume hint only after restoration", async ({ onTestFinished }) => {
+    const directory = await mkdtemp(join(tmpdir(), "a1-hint-"));
+    onTestFinished(() => rm(directory, { recursive: true, force: true }));
+    const path = join(directory, "raw-session-file.jsonl");
+    await writeFile(path, "persisted session fixture");
     const { shell, engine, terminal } = await fixture([
       { role: "user", content: [{ type: "text", text: "styled exit user" }], timestamp: 1 },
       { role: "assistant", content: [{ type: "text", text: "styled exit answer" }], stopReason: "stop", timestamp: 2 },
@@ -302,7 +308,7 @@ describe("OwnedUiSessionShell", () => {
     Object.assign(engine.session, {
       sessionManager: {
         isPersisted: () => true,
-        getSessionFile: () => "D:/default/sessions/raw-session-file.jsonl",
+        getSessionFile: () => path,
         getSessionId: () => "compact-id",
         getSessionDir: () => "D:/default/sessions",
         usesDefaultSessionDir: () => true,
@@ -401,6 +407,92 @@ describe("OwnedUiSessionShell", () => {
 
     await shell.dispose();
     expect(terminal.writes.some(write => write.includes("[?1003l"))).toBe(true);
+  });
+
+  it("hovers the first reappearing bottom-control frame beneath a stationary cursor", async () => {
+    const messages = Array.from({ length: 20 }, (_, index) => ({
+      role: "assistant", content: [{ type: "text", text: `reply ${index}` }], timestamp: Date.now() + index,
+    }));
+    const { terminal, shell } = await fixture(messages, [], true);
+    try {
+      terminal.resize(60, 12);
+      shell.root.render(60);
+      const row = shell.root.viewportFrameDescriptor()!.transcript!.rowEnd;
+      const label = " Jump to bottom (End) ";
+      const expectControl = (hovered: boolean) => {
+        const frame = shell.root.render(60);
+        const control = frame.find(line => stripTerminalSequences(line).includes(label));
+        expect(control).toContain(piTheme().bg(hovered ? "selectedBg" : "toolPendingBg", piTheme().fg("text", label)));
+      };
+      const expectHidden = () => expect(shell.root.render(60).some(line => stripTerminalSequences(line).includes(label))).toBe(false);
+
+      // Invariant: no motion report precedes the first wheel or any of these hide/reveal cycles.
+      for (let cycle = 0; cycle < 3; cycle += 1) {
+        terminal.input(`\u001b[<64;30;${row}M`);
+        expectControl(true);
+        expect(shell.root.viewportFrameDescriptor()!.followingEnd).toBe(false);
+        terminal.input(`\u001b[<65;30;${row}M`);
+        expectHidden();
+      }
+      terminal.input("\u001b[1;1H");
+      await nextImmediate();
+      expectControl(true);
+      terminal.input(`\u001b[<0;30;${row}M`);
+      expectHidden();
+      terminal.input(`\u001b[<0;30;${row}m`);
+      // Invariant: an unclaimed non-motion report while hidden replaces the remembered position.
+      terminal.input(`\u001b[<1;1;${row}M`);
+      terminal.input("\u001b[1;1H");
+      await nextImmediate();
+      expectControl(false);
+      terminal.input(`\u001b[<0;1;${row}M`);
+      terminal.input(`\u001b[<0;1;${row}m`);
+      expectControl(false);
+      expect(shell.root.viewportFrameDescriptor()!.followingEnd).toBe(false);
+
+      // Invariant: hover updates must survive the next same-height dock-only presentation.
+      terminal.input(`\u001b[<35;30;${row}M`);
+      expectControl(true);
+      const before = shell.root.viewportCompositionEvidence();
+      terminal.input("x");
+      await nextImmediate();
+      expect(shell.root.viewportCompositionEvidence().dockOnly).toBeGreaterThan(before.dockOnly);
+      expectControl(true);
+      terminal.input(`\u001b[<35;1;${row}M`);
+      expectControl(false);
+    } finally {
+      await shell.dispose();
+    }
+  });
+
+  it("reconciles bottom hover with dock movement and terminal resize without new pointer reports", async () => {
+    const messages = Array.from({ length: 20 }, (_, index) => ({
+      role: "assistant", content: [{ type: "text", text: `reply ${index}` }], timestamp: Date.now() + index,
+    }));
+    const { terminal, shell } = await fixture(messages, [], true);
+    try {
+      terminal.resize(60, 16);
+      shell.root.render(60);
+      const row = shell.root.viewportFrameDescriptor()!.transcript!.rowEnd;
+      const label = " Jump to bottom (End) ";
+      const expectControl = (width: number, hovered: boolean) => {
+        const frame = shell.root.render(width);
+        const control = frame.find(line => stripTerminalSequences(line).includes(label));
+        expect(control).toContain(piTheme().bg(hovered ? "selectedBg" : "toolPendingBg", piTheme().fg("text", label)));
+      };
+      terminal.input(`\u001b[<64;30;${row}M`);
+      expectControl(60, true);
+      shell.root.editor.setText("one\ntwo\nthree");
+      expectControl(60, false);
+      shell.root.editor.setText("");
+      expectControl(60, true);
+      terminal.resize(100, 16);
+      expectControl(100, false);
+      terminal.resize(60, 16);
+      expectControl(60, true);
+    } finally {
+      await shell.dispose();
+    }
   });
 
   it("keeps the reserved rail cell as one blank after a fitting prompt timestamp", async () => {
@@ -1417,14 +1509,15 @@ describe("OwnedUiSessionShell", () => {
   it("uses Home/End for transcript boundaries and Shift+Up/Down between prompts", async () => {
     const messages = ["one", "two", "three"].flatMap((prompt, index) => [
       { role: "user", content: [{ type: "text", text: prompt }], timestamp: Date.now() + index * 2 },
-      { role: "assistant", content: [{ type: "text", text: `reply-${prompt}-1\nreply-${prompt}-2\nreply-${prompt}-3\nreply-${prompt}-4\nreply-${prompt}-5` }], timestamp: Date.now() + index * 2 + 1 },
+      { role: "assistant", content: [{ type: "text", text: Array.from({ length: 15 }, (_, row) => `reply-${prompt}-${row + 1}`).join("\n") }], timestamp: Date.now() + index * 2 + 1 },
     ]);
     const { terminal, shell } = await fixture(messages, [], true);
     terminal.resize(60, 12);
+    shell.root.editor.setText("keep this draft");
+    shell.root.setViewportConfig({ scrollbarAppearance: "always", scrollbarStyle: "thin", scrollbarSpeed: "normal" });
     const rows = () => shell.root.render(60).map(row => stripTerminalSequences(row));
     const top = () => rows()[0] ?? "";
-
-    shell.root.render(60);
+    const bottomRows = rows();
     terminal.input("\u001b[1;1H");
     expect(top().trim()).toBe("");
     expect(rows()[1]).toContain("❯ one");
@@ -1435,10 +1528,19 @@ describe("OwnedUiSessionShell", () => {
     terminal.input("\u001b[1;2B");
     await nextImmediate();
     expect(top()).toContain("❯ three");
+    expect(rows()).not.toEqual(bottomRows);
     terminal.input("\u001b[1;2B");
     await nextImmediate();
-    expect(top()).toContain("❯ three");
+    expect(rows()).toEqual(bottomRows);
+    expect(shell.root.editor.getText()).toBe("keep this draft");
+    terminal.input("\u001b[1;2B");
+    await nextImmediate();
+    expect(rows()).toEqual(bottomRows);
 
+    terminal.input("\u001b[1;2A");
+    await nextImmediate();
+    expect(top()).toContain("❯ three");
+    expect(rows()).not.toEqual(bottomRows);
     terminal.input("\u001b[1;2A");
     await nextImmediate();
     expect(top()).toContain("❯ two");
@@ -1452,7 +1554,8 @@ describe("OwnedUiSessionShell", () => {
     expect(rows()[1]).toContain("❯ one");
 
     terminal.input("\u001b[1;1F");
-    expect(top()).toContain("❯ three");
+    expect(rows()).toEqual(bottomRows);
+    expect(shell.root.editor.getText()).toBe("keep this draft");
 
     await shell.dispose();
   });

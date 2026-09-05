@@ -33,6 +33,7 @@
         "test/integrations/pi/tui-runtime/input-responsiveness-smoke.test.ts",
         "test/integrations/pi/tui-runtime/input-producer.test.ts",
         "test/foundation/release/package-surface.test.ts",
+        "test/foundation/release/session-resume.integration.test.ts",
         "test/foundation/release/package-install.integration.test.ts",
         "test/foundation/release/update-performance.integration.test.ts",
         "test/foundation/release/update-transition.integration.test.ts",
@@ -153,7 +154,8 @@
       "requiresBuild": true,
       "consumesPackage": true,
       "tests": [
-        "test/foundation/release/package-surface.test.ts"
+        "test/foundation/release/package-surface.test.ts",
+        "test/foundation/release/session-resume.integration.test.ts"
       ]
     },
     "package-install": {

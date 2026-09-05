@@ -39,7 +39,105 @@ function frame(controller: SessionViewportController, length = 20): readonly str
   }).rows.map(row => stripAnsi(row).trimEnd());
 }
 
+function hoverFixture() {
+  const renders: (boolean | undefined)[] = [];
+  const target = new SessionViewportController({ enabled: true, editor: editor(), requestRender: force => renders.push(force) });
+  const input = {
+    documentRows: Array.from({ length: 30 }, (_, index) => `row-${index}`),
+    dockRows: ["dock"], promptAnchors: [], width: 40, height: 8,
+    theme: {
+      track: (text: string) => text,
+      thumb: (text: string) => text,
+      sticky: (text: string) => text,
+      quietSticky: (text: string) => text,
+      bottomControl: (text: string, hovered: boolean) => `\u001b[${hovered ? 46 : 45}m${text}\u001b[49m`,
+      selection: (text: string) => text,
+    },
+  };
+  const compose = () => target.compose(input);
+  compose();
+  return { target, input, compose, renders };
+}
+
 describe("session viewport interaction controller", () => {
+  it.each([
+    ["motion", "35", "M", false], ["press", "1", "M", false],
+    ["release", "0", "m", false], ["wheel-up", "64", "M", true], ["wheel-down", "65", "M", true],
+  ])("tracks %s coordinates while hidden without changing report ownership", (_kind, button, suffix, consumed) => {
+    const { target, compose } = hoverFixture();
+    try {
+      const inside = `\u001b[<${button};20;7${suffix}`;
+      expect(target.handlePreInput(inside).consumed).toBe(consumed);
+      target.handlePreInput("home");
+      expect(compose().rows[6]).toContain("\u001b[46m");
+      target.handlePreInput("end");
+      expect(compose().hits.bottom).toBeNull();
+      target.handlePreInput(`\u001b[<${button};1;7${suffix}`);
+      target.handlePreInput("home");
+      expect(compose().rows[6]).toContain("\u001b[45m");
+    } finally {
+      target.clearPointerState();
+    }
+  });
+
+  it.each(["reset", "clearPointerState"] as const)("clears bottom hover through %s and preserves unknown-position styling", lifecycle => {
+    const { target, compose } = hoverFixture();
+    try {
+      target.handlePreInput("home");
+      expect(compose().rows[6]).toContain("\u001b[45m");
+      target.handlePreInput("\u001b[<35;20;7M");
+      expect(compose().rows[6]).toContain("\u001b[46m");
+      target[lifecycle]();
+      compose();
+      target.handlePreInput("home");
+      expect(compose().rows[6]).toContain("\u001b[45m");
+    } finally {
+      target.clearPointerState();
+    }
+  });
+
+  it("invalidates presentation on unclaimed hover transitions without forced or follow-up renders", () => {
+    const { target, compose, renders } = hoverFixture();
+    try {
+      target.handlePreInput("home");
+      compose();
+      for (const [column, hovered] of [[20, true], [1, false]] as const) {
+        renders.length = 0;
+        const before = target.presentationRevision;
+        const data = `\u001b[<1;${column};7M`;
+        expect(target.handlePreInput(data, false)).toEqual({ data, consumed: false });
+        expect(target.presentationRevision).toBe(before + 1);
+        expect(renders).toEqual([false]);
+        expect(compose().rows[6]).toContain(`\u001b[${hovered ? 46 : 45}m`);
+        expect(renders).toEqual([false]);
+        target.handlePreInput(data, false);
+        expect(renders).toEqual([false]);
+      }
+    } finally {
+      target.clearPointerState();
+    }
+  });
+
+  it("uses moved control geometry for hover and clicks, not the previous hit region", () => {
+    const { target, input, compose } = hoverFixture();
+    try {
+      target.handlePreInput("home");
+      compose();
+      target.handlePreInput("\u001b[<35;20;7M");
+      expect(compose().rows[6]).toContain("\u001b[46m");
+      const moved = target.compose({ ...input, dockRows: ["extra", "dock"] });
+      expect(moved.hits.bottom!.row).toBe(6);
+      expect(moved.rows[5]).toContain("\u001b[45m");
+      target.handlePreInput("\u001b[<0;20;7M");
+      target.handlePreInput("\u001b[<0;20;7m");
+      expect(target.compose({ ...input, dockRows: ["extra", "dock"] }).followingEnd).toBe(false);
+      target.handlePreInput("\u001b[<0;20;6M");
+      expect(target.compose({ ...input, dockRows: ["extra", "dock"] }).hits.bottom).toBeNull();
+    } finally {
+      target.clearPointerState();
+    }
+  });
+
   it("does not claim input when the custom viewport is disabled", () => {
     const target = new SessionViewportController({ enabled: false, editor: editor(), requestRender() {} });
     expect(target.handlePreInput("home")).toEqual({ data: "home", consumed: false });
@@ -78,6 +176,65 @@ describe("session viewport interaction controller", () => {
     expect(frame(target)[0]).toBe("row-0");
     expect(target.handlePreInput("end", true, 1_002)).toEqual({ data: "", consumed: true });
     expect(frame(target)[0]).toBe("row-15");
+  });
+
+  it.each(["\u001b[1;2B"])("routes supported Shift+Down input %j from the last prompt to the bottom", data => {
+    const renders: (boolean | undefined)[] = [];
+    let draft = "keep this draft";
+    const target = new SessionViewportController({
+      enabled: true,
+      editor: editor({ getText: () => draft, setText: text => { draft = text; } }),
+      requestRender: force => renders.push(force),
+    });
+    const input = {
+      documentRows: Array.from({ length: 30 }, (_, index) => `row-${index}`),
+      dockRows: [], width: 20, height: 5,
+      promptAnchors: [
+        { id: "one", firstRow: 1, lastRow: 1, sourceRow: "❯ one" },
+        { id: "two", firstRow: 20, lastRow: 20, sourceRow: "❯ two" },
+      ],
+    };
+    try {
+      target.compose(input);
+      target.handlePreInput("\u001b[1;2A");
+      expect(target.compose(input).scrollTop).toBe(20);
+      renders.length = 0;
+      expect(target.handlePreInput(data)).toEqual({ data: "", consumed: true });
+      expect(renders).toEqual([undefined]);
+      const bottom = target.compose(input);
+      expect(bottom.scrollTop).toBe(bottom.maxScroll);
+      expect(bottom.followingEnd).toBe(true);
+      expect(draft).toBe("keep this draft");
+      renders.length = 0;
+      expect(target.handlePreInput(data)).toEqual({ data: "", consumed: true });
+      expect(renders).toEqual([]);
+    } finally {
+      target.clearPointerState();
+    }
+  });
+
+  it.each([
+    { enabled: true, allowNavigation: false },
+    { enabled: false, allowNavigation: true },
+  ])("preserves Shift+Down ownership with %j", ({ enabled, allowNavigation }) => {
+    const target = new SessionViewportController({ enabled, editor: editor(), requestRender() {} });
+    const input = {
+      documentRows: Array.from({ length: 30 }, (_, index) => `row-${index}`),
+      dockRows: [], width: 20, height: 5,
+      promptAnchors: [{ id: "one", firstRow: 1, lastRow: 1, sourceRow: "❯ one" }],
+    };
+    try {
+      target.compose(input);
+      if (enabled) target.handlePreInput("home");
+      const before = target.compose(input);
+      const data = "\u001b[1;2B";
+      expect(target.handlePreInput(data, allowNavigation)).toEqual({ data, consumed: false });
+      const after = target.compose(input);
+      expect(after.scrollTop).toBe(before.scrollTop);
+      expect(after.followingEnd).toBe(before.followingEnd);
+    } finally {
+      target.clearPointerState();
+    }
   });
 
   it("forces one repaint when native hyperlink hover leaves or moves under a stationary pointer", () => {
@@ -154,6 +311,24 @@ describe("session viewport interaction controller", () => {
     target.handlePreInput("\u001b[<35;4;2M");
     expect(cleanups).toBe(2);
     target.clearPointerState();
+  });
+
+  it("cleans up native hyperlink hover when a non-motion report relocates the pointer", () => {
+    const { target, input, renders } = hoverFixture();
+    try {
+      const linked = "\u001b]8;;https://example.com\u001b\\link\u001b]8;;\u001b\\";
+      const plain = { ...input, documentRows: [linked, "plain"] };
+      target.compose(plain);
+      target.handlePreInput("\u001b[<35;2;1M");
+      renders.length = 0;
+      const data = "\u001b[<1;2;2M";
+      expect(target.handlePreInput(data)).toEqual({ data, consumed: false });
+      expect(renders).toEqual([true]);
+      target.compose(plain);
+      expect(renders).toEqual([true]);
+    } finally {
+      target.clearPointerState();
+    }
   });
 
   it("routes editor pointer input only through the declared editor frame", () => {

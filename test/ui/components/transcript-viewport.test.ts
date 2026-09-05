@@ -206,8 +206,100 @@ describe("transcript viewport", () => {
     expect(viewport.scrollTop).toBe(10);
     expect(viewport.scrollToNextPrompt(106)).toBe(true);
     expect(viewport.scrollTop).toBe(20);
-    expect(viewport.scrollToNextPrompt(107)).toBe(false);
-    expect(viewport.scrollTop).toBe(20);
+    expect(viewport.scrollToNextPrompt(107)).toBe(true);
+    expect(viewport.scrollTop).toBe(25);
+    expect(viewport.followingEnd).toBe(true);
+    expect(viewport.scrollToNextPrompt(108)).toBe(false);
+    expect(viewport.scrollTop).toBe(25);
+    expect(viewport.followingEnd).toBe(true);
+
+    for (const destination of [20, 10, 0]) {
+      expect(viewport.scrollToPreviousPrompt(109)).toBe(true);
+      expect(viewport.scrollTop).toBe(destination);
+    }
+    expect(viewport.scrollToPreviousPrompt(110)).toBe(false);
+    for (const destination of [10, 20, 25]) {
+      expect(viewport.scrollToNextPrompt(111)).toBe(true);
+      expect(viewport.scrollTop).toBe(destination);
+    }
+    expect(viewport.followingEnd).toBe(true);
+  });
+
+  it.each([0, 12])("jumps to the bottom from a single prompt or its response at row %i", position => {
+    const viewport = new TranscriptViewport();
+    viewport.compose({
+      documentRows: rows(20), dockRows: ["dock"], width: 36, height: 6, now: 100,
+      promptAnchors: [{ id: "one", firstRow: 1, lastRow: 1, sourceRow: "❯ one" }],
+    });
+    viewport.scrollTo(position, 101);
+    expect(viewport.followingEnd).toBe(false);
+    expect(viewport.scrollToNextPrompt(102)).toBe(true);
+    expect(viewport.scrollTop).toBe(15);
+    expect(viewport.followingEnd).toBe(true);
+  });
+
+  it.each([0, 15])("leaves navigation without prompt anchors unchanged at row %i", position => {
+    const viewport = new TranscriptViewport();
+    viewport.compose({ documentRows: rows(20), dockRows: ["dock"], promptAnchors: [], width: 36, height: 6, now: 100 });
+    viewport.scrollTo(position, 101);
+    const following = viewport.followingEnd;
+    expect(viewport.scrollToNextPrompt(102)).toBe(false);
+    expect(viewport.scrollTop).toBe(position);
+    expect(viewport.followingEnd).toBe(following);
+  });
+
+  it.each([4, 12])("keeps fitting and clamped prompt destinations at the bottom with %i rows", length => {
+    const viewport = new TranscriptViewport();
+    viewport.compose({
+      documentRows: rows(length), dockRows: ["dock"], width: 36, height: 6, now: 100,
+      promptAnchors: [
+        { id: "one", firstRow: 1, lastRow: 1, sourceRow: "❯ one" },
+        { id: "two", firstRow: length - 1, lastRow: length - 1, sourceRow: "❯ two" },
+      ],
+    });
+    viewport.scrollTo(0, 101);
+    for (let press = 0; press < 3; press += 1) {
+      viewport.scrollToNextPrompt(102 + press);
+      expect(viewport.scrollTop).toBe(Math.max(0, length - 5));
+      expect(viewport.followingEnd).toBe(true);
+    }
+  });
+
+  it("matches End state and continued following after the last prompt with pending messages", () => {
+    const nextPrompt = new TranscriptViewport();
+    const end = new TranscriptViewport();
+    const input = {
+      documentRows: rows(30), dockRows: ["dock"], width: 36, height: 6, now: 100,
+      promptAnchors: [
+        { id: "one", firstRow: 1, lastRow: 1, sourceRow: "❯ one" },
+        { id: "two", firstRow: 20, lastRow: 20, sourceRow: "❯ two" },
+      ],
+    };
+    for (const viewport of [nextPrompt, end]) {
+      viewport.setConfig(ALWAYS);
+      viewport.compose(input);
+      viewport.scrollTo(20, 101);
+      expect(viewport.noteNewMessage()).toBe(true);
+      expect(viewport.noteNewMessage()).toBe(true);
+      expect(viewport.newMessages).toBe(2);
+      expect(viewport.compose({ ...input, now: 102 }).followingEnd).toBe(false);
+    }
+
+    expect(nextPrompt.scrollToNextPrompt(103)).toBe(end.scrollToEnd(103));
+    for (const viewport of [nextPrompt, end]) {
+      expect(viewport.scrollTop).toBe(viewport.maxScroll);
+      expect(viewport.followingEnd).toBe(true);
+      expect(viewport.newMessages).toBe(0);
+    }
+    expect(nextPrompt.compose({ ...input, now: 104 })).toEqual(end.compose({ ...input, now: 104 }));
+    const grown = { ...input, documentRows: rows(35), now: 105 };
+    const followed = nextPrompt.compose(grown);
+    expect(followed).toEqual(end.compose(grown));
+    expect(followed.scrollTop).toBe(followed.maxScroll);
+    expect(followed.followingEnd).toBe(true);
+    expect(followed.hits.bottom).toBeNull();
+    expect(nextPrompt.noteNewMessage()).toBe(false);
+    expect(nextPrompt.newMessages).toBe(0);
   });
 
   it("pins the semantic source prompt prominently, then quiets it after all continuations leave", () => {
@@ -414,10 +506,71 @@ describe("transcript viewport", () => {
     expect(normal.rows[(normal.hits.bottom?.row ?? 1) - 1]).toContain("\u001b]8;;\u001b\\\u001b[0m\u001b[45m");
 
     viewport.setStickyHovered(true);
-    viewport.setBottomHovered(true);
-    const hovered = viewport.compose({ documentRows: rows(12), dockRows: ["dock"], promptAnchors: anchors, width: 40, height: 6, now: 103, theme });
+    const pointerPosition = { column: normal.hits.bottom!.columnStart, row: normal.hits.bottom!.row };
+    const hovered = viewport.compose({ documentRows: rows(12), dockRows: ["dock"], promptAnchors: anchors, width: 40, height: 6, now: 103, theme, pointerPosition });
     expect(hovered.rows[0]).toContain("\u001b[46m");
     expect(hovered.rows[(hovered.hits.bottom?.row ?? 1) - 1]).toContain("\u001b[46m");
+  });
+
+  it("derives bottom hover from current geometry in one frame, including boundaries and absent positions", () => {
+    const viewport = new TranscriptViewport();
+    const painted: boolean[] = [];
+    const theme = {
+      track: (text: string) => text,
+      thumb: (text: string) => text,
+      sticky: (text: string) => text,
+      quietSticky: (text: string) => text,
+      bottomControl: (text: string, hovered: boolean) => {
+        painted.push(hovered);
+        return `\u001b[${hovered ? 46 : 45}m${text}\u001b[49m`;
+      },
+      selection: (text: string) => text,
+    };
+    const input = { documentRows: rows(30), dockRows: ["dock"], promptAnchors: [], width: 40, height: 8, theme };
+    viewport.compose(input);
+    viewport.scrollTo(0);
+    const normal = viewport.compose(input);
+    const hit = normal.hits.bottom!;
+    for (const [column, row, hovered] of [
+      [hit.columnStart, hit.row, true], [hit.columnEnd, hit.row, true],
+      [hit.columnStart - 1, hit.row, false], [hit.columnEnd + 1, hit.row, false],
+      [hit.columnStart, hit.row - 1, false], [hit.columnStart, hit.row + 1, false],
+    ] as const) {
+      painted.length = 0;
+      const frame = viewport.compose({ ...input, pointerPosition: { column, row } });
+      expect(painted).toEqual([hovered]);
+      expect(frame.rows[hit.row - 1]).toContain(`\u001b[${hovered ? 46 : 45}m`);
+      expect(frame.hits.bottom).toEqual(hit);
+    }
+    const pointerPosition = { column: hit.columnStart, row: hit.row };
+    for (const changed of [
+      { width: 80 }, { height: 9 }, { dockRows: ["extra", "dock"] }, { bottomControlRow: 2 },
+    ]) {
+      painted.length = 0;
+      const moved = viewport.compose({ ...input, ...changed, pointerPosition });
+      expect(moved.hits.bottom).not.toEqual(hit);
+      expect(painted).toEqual([false]);
+      painted.length = 0;
+      viewport.compose({ ...input, pointerPosition });
+      expect(painted).toEqual([true]);
+    }
+    // Invariant: a growing message-count label expands beneath the unchanged pointer.
+    const beside = { column: hit.columnStart - 1, row: hit.row };
+    viewport.compose({ ...input, pointerPosition: beside });
+    expect(painted.at(-1)).toBe(false);
+    for (let count = 0; count < 100; count += 1) viewport.noteNewMessage();
+    painted.length = 0;
+    const counted = viewport.compose({ ...input, pointerPosition: beside });
+    expect(counted.hits.bottom!.columnStart).toBeLessThanOrEqual(beside.column);
+    expect(painted).toEqual([true]);
+    painted.length = 0;
+    viewport.compose(input);
+    expect(painted).toEqual([false]);
+    for (const changed of [{ width: 10 }, { documentRows: rows(2) }]) {
+      painted.length = 0;
+      expect(viewport.compose({ ...input, ...changed, pointerPosition }).hits.bottom).toBeNull();
+      expect(painted).toEqual([]);
+    }
   });
 
   it("keeps edge motion from adding scroll rows outside the cadence timer", () => {

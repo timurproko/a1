@@ -1,5 +1,7 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
+import { existsSync } from "node:fs";
+import type { PiSessionForkPrompt, PiSessionSelection } from "./session-selection.js";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -85,6 +87,8 @@ export interface PiEngineRuntimeFactoryInput {
   readonly agentDir: string;
   readonly sessionId: string;
   readonly sessionPath?: string;
+  readonly sessionSelection?: PiSessionSelection;
+  readonly sessionForkPrompt?: PiSessionForkPrompt;
   readonly projectTrustPrompt?: PiProjectTrustPreflightPrompt;
 }
 
@@ -190,6 +194,8 @@ export interface PiEngineAdapterOptions {
   readonly agentDir?: string;
   readonly sessionId?: string;
   readonly sessionPath?: string;
+  readonly sessionSelection?: PiSessionSelection;
+  readonly sessionForkPrompt?: PiSessionForkPrompt;
   readonly createRuntime?: PiEngineRuntimeFactory;
   readonly workflowHost?: PiWorkflowHost;
   /**
@@ -223,10 +229,12 @@ const DEFAULT_SURFACE: OwnedUiTerminalSurface = {
 export class PiEngineAdapter {
   readonly #runtimeFactory: PiEngineRuntimeFactory;
   readonly #checkPackageUpdates: (settingsManager: PiServicesApi["settingsManager"]) => Promise<readonly string[]>;
-  readonly #cwd: string;
+  #cwd: string;
   readonly #agentDir: string;
   readonly #sessionId: string;
   readonly #sessionPath: string | undefined;
+  readonly #sessionSelection: PiSessionSelection | undefined;
+  readonly #sessionForkPrompt: PiSessionForkPrompt | undefined;
   readonly #workflowHost: PiWorkflowHost;
   #workflowInteraction: PiWorkflowInteractionHost;
   readonly #listeners = new Set<(event: OwnedUiEvent) => void>();
@@ -290,6 +298,8 @@ export class PiEngineAdapter {
     this.#agentDir = options.agentDir ?? getAgentDir();
     this.#sessionId = options.sessionId ?? "owned-session-1";
     this.#sessionPath = options.sessionPath;
+    this.#sessionSelection = options.sessionSelection;
+    this.#sessionForkPrompt = options.sessionForkPrompt;
     this.#runtimeFactory = options.createRuntime ?? createDefaultPiRuntime;
     this.#checkPackageUpdates = options.checkPackageUpdates
       ?? (options.createRuntime
@@ -314,6 +324,10 @@ export class PiEngineAdapter {
     return this.#sessionGeneration;
   }
 
+  get cwd(): string {
+    return this.#runtime?.cwd ?? this.#cwd;
+  }
+
   get agentDir(): string {
     return this.#agentDir;
   }
@@ -335,7 +349,7 @@ export class PiEngineAdapter {
       || typeof manager.getSessionDir !== "function"
       || typeof manager.usesDefaultSessionDir !== "function"
       || manager.isPersisted() !== true
-      || this.currentSessionFile() === null) return null;
+      || !existsSync(this.currentSessionFile() ?? "")) return null;
     const sessionId = manager.getSessionId();
     const sessionDir = manager.getSessionDir();
     if (!sessionId || !sessionDir) return null;
@@ -353,6 +367,8 @@ export class PiEngineAdapter {
       agentDir: this.#agentDir,
       sessionId: this.#sessionId,
       ...(this.#sessionPath === undefined ? {} : { sessionPath: this.#sessionPath }),
+      ...(this.#sessionSelection === undefined ? {} : { sessionSelection: this.#sessionSelection }),
+      ...(this.#sessionForkPrompt === undefined ? {} : { sessionForkPrompt: this.#sessionForkPrompt }),
       ...(this.#projectTrustPrompt === undefined ? {} : { projectTrustPrompt: this.#projectTrustPrompt }),
     }).catch(error => {
       this.#lifecycle = "failed";
@@ -360,6 +376,7 @@ export class PiEngineAdapter {
       throw error;
     });
     this.#runtime = runtime;
+    this.#cwd = runtime.cwd ?? this.#cwd;
     this.#gitBranch = await readGitBranch(this.#cwd);
     this.#terminal = {
       ...this.#terminal,
@@ -2450,6 +2467,8 @@ async function createDefaultPiRuntime(input: PiEngineRuntimeFactoryInput): Promi
     cwd: input.cwd,
     agentDir: input.agentDir,
     ...(input.sessionPath === undefined ? {} : { sessionPath: input.sessionPath }),
+    ...(input.sessionSelection === undefined ? {} : { sessionSelection: input.sessionSelection }),
+    ...(input.sessionForkPrompt === undefined ? {} : { sessionForkPrompt: input.sessionForkPrompt }),
     ...(input.projectTrustPrompt === undefined ? {} : { projectTrustPrompt: input.projectTrustPrompt }),
   });
 }

@@ -15,35 +15,33 @@ assertSinglePiTuiModuleAtLaunch(fileURLToPath(new URL("..", import.meta.url)), m
 
 const { runSelectedInteractiveRuntime } = await import("../dist/features/launch/index.js");
 
-const launchArgs = process.argv.slice(2);
-let sessionPath;
-if (launchArgs.length > 0) {
-  if (launchArgs.length !== 2 || launchArgs[0] !== "--session" || launchArgs[1].trim().length === 0) {
-    throw new Error("Usage: a1 [--session <session-file>]");
-  }
-  sessionPath = launchArgs[1];
-}
-
-runSelectedInteractiveRuntime(process.env.A1_LAUNCH_PROFILE ?? "a1", {
-  ownedUi: async (profileId, ownedSurfaces) => {
-    const [{ createConsoleProjectTrustPrompt, runOwnedUi }, { composeOwnedUi }] = await Promise.all([
-      import("../dist/features/owned-ui/index.js"),
-      import("../dist/composition/index.js"),
-    ]);
-    await startup.markStartupPhase(process.env, "ui-modules-loaded");
-    const { application, settings } = await composeOwnedUi({
-      cwd: process.cwd(),
-      profileId,
-      ownedSurfaces,
-      projectTrustPrompt: createConsoleProjectTrustPrompt(),
-      ...(sessionPath === undefined ? {} : { sessionPath }),
-    });
-    return await runOwnedUi({ application, ...(settings === null ? {} : { settings }) });
-  },
+const { parseSessionSelection } = await import("../dist/foundation/lifecycle/index.js");
+Promise.resolve().then(() => {
+  const sessionSelection = parseSessionSelection(process.argv.slice(2));
+  const profile = process.env.A1_LAUNCH_PROFILE ?? "a1";
+  if (sessionSelection && profile !== "a1") throw new Error("session selection requires the normal A1 profile");
+  return runSelectedInteractiveRuntime(profile, {
+    ownedUi: async (profileId, ownedSurfaces) => {
+      const [{ createConsoleProjectTrustPrompt, createConsoleSessionForkPrompt, runOwnedUi }, { composeOwnedUi }] = await Promise.all([
+        import("../dist/features/owned-ui/index.js"),
+        import("../dist/composition/index.js"),
+      ]);
+      await startup.markStartupPhase(process.env, "ui-modules-loaded");
+      const { application, settings } = await composeOwnedUi({
+        cwd: process.cwd(),
+        profileId,
+        ownedSurfaces,
+        projectTrustPrompt: createConsoleProjectTrustPrompt(),
+        sessionForkPrompt: createConsoleSessionForkPrompt(),
+        ...(sessionSelection === undefined ? {} : { sessionSelection }),
+      });
+      return await runOwnedUi({ application, ...(settings === null ? {} : { settings }) });
+    },
+  });
 }).then(
   code => { process.exitCode = code; },
   error => {
-    console.error(error instanceof Error ? error.stack ?? error.message : String(error));
-    process.exitCode = 1;
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exitCode = error?.name === "PiSessionSelectionError" ? error.exitCode : 1;
   },
 );
