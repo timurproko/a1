@@ -34,6 +34,7 @@ import {
   type PiWorkflowInteractionRequest,
   type PiWorkflowLoginNotification,
   type PiWorkflowLoginStart,
+  type PiWorkflowMessage,
   type PiWorkflowRequest,
   type PiWorkflowResult,
   type PiWorkflowRoute,
@@ -776,7 +777,24 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.#lastWorkflowStatusId = id;
   }
 
+  appendWorkflowMessage(message: PiWorkflowMessage): void {
+    if (message.kind === "status") {
+      this.appendWorkflowStatus(message.message);
+      return;
+    }
+    this.#lastWorkflowStatusId = undefined;
+    const prefix = message.kind === "warning" ? "Warning" : message.kind === "error" ? "Error" : undefined;
+    const color = message.kind === "accent" ? "accent" : message.kind;
+    const text = prefix === undefined ? message.message : `${prefix}: ${message.message}`;
+    this.#appendAnchoredWorkflowComponent(() => ["", ` ${piTheme().fg(color, text)}`]);
+  }
+
   appendWorkflowResult(result: PiWorkflowResult): void {
+    if (result.messages !== undefined) {
+      for (const message of result.messages) this.appendWorkflowMessage(message);
+      return;
+    }
+    if (result.messageKind === "silent" || (result.outcome === "cancelled" && result.messageKind === undefined)) return;
     if (result.command === "reload" && result.outcome === "completed") {
       this.appendWorkflowStatus(result.message);
       return;
@@ -800,18 +818,15 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       return;
     }
     if (result.outcome === "failed") {
-      this.#lastWorkflowStatusId = undefined;
-      const warning = (result.command === "name" && result.message.startsWith("Usage:"))
-        || (result.command === "reload" && result.message.startsWith("Wait for "));
-      const prefix = warning ? "Warning" : "Error";
-      const color = warning ? "warning" : "error";
-      this.#appendAnchoredWorkflowComponent(() => ["", ` ${piTheme().fg(color, `${prefix}: ${result.message}`)}`]);
+      this.appendWorkflowMessage({
+        kind: result.messageKind === "warning" ? "warning" : "error",
+        message: result.message,
+      });
       return;
     }
     if (result.outcome === "completed" && (result.command === "quit" || result.command === "compact")) return;
     if (result.command === "new" && result.outcome === "completed") {
-      this.#lastWorkflowStatusId = undefined;
-      this.#appendAnchoredWorkflowComponent(() => ["", ` ${piTheme().fg("accent", result.message)}`]);
+      this.appendWorkflowMessage({ kind: "accent", message: result.message });
       return;
     }
     if (result.command === "name" && result.outcome === "completed") {

@@ -2180,6 +2180,23 @@ describe("OwnedUiSessionShell", () => {
     await shell.dispose();
   });
 
+  it("renders empty fork and logout outcomes as pinned statuses", async () => {
+    const { adapter, shell } = await fixture();
+    vi.spyOn(adapter, "pinnedForkOptions").mockReturnValue([]);
+    vi.spyOn(adapter, "pinnedLogoutOptions").mockResolvedValue([]);
+
+    shell.showForkSelector();
+    const forkFrame = stripTerminalSequences(shell.root.render(100).join("\n"));
+    expect(forkFrame).toContain("No messages to fork from");
+    expect(forkFrame).not.toContain("Error: No messages to fork from");
+
+    await shell.showLogoutSelector();
+    const logoutFrame = stripTerminalSequences(shell.root.render(200).join("\n"));
+    expect(logoutFrame).toContain("No stored credentials to remove. /logout only removes credentials saved by /login; environment variables and models.json config are unchanged.");
+    expect(logoutFrame).not.toContain("No authenticated providers available.");
+    await shell.dispose();
+  });
+
   it("nests login authentication type and provider selection with pinned cancellation", async () => {
     const { adapter, terminal, shell } = await fixture();
     vi.spyOn(adapter, "pinnedLoginOptions").mockImplementation(authType => [{
@@ -2249,6 +2266,29 @@ describe("OwnedUiSessionShell", () => {
     await new Promise(resolve => setTimeout(resolve, 0));
     expect(engine.calls).toContain("login-method:device");
     expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Logged in to OpenAI Codex");
+    await shell.dispose();
+  });
+
+  it("opens the model selector with the original search after a command-owned refresh misses", async () => {
+    const { adapter, shell } = await fixture();
+    vi.spyOn(adapter, "executeWorkflow").mockResolvedValue({
+      command: "model",
+      outcome: "requires-selection",
+      message: "Select a model",
+      detail: "openai/missing",
+      messageKind: "silent",
+      messages: [
+        { kind: "status", message: "Refreshing model catalogs…" },
+        { kind: "warning", message: "Could not refresh openai; searching cached models." },
+      ],
+    });
+    const show = vi.spyOn(shell, "showModelSelector");
+
+    await shell.runWorkflow({ command: "model", argument: "openai/missing" });
+    expect(show).toHaveBeenCalledWith("openai/missing");
+    const frame = stripTerminalSequences(shell.root.render(100).join("\n"));
+    expect(frame).toContain("Warning: Could not refresh openai; searching cached models.");
+    expect(frame).not.toContain("Owned controller missing for model");
     await shell.dispose();
   });
 
@@ -2343,6 +2383,25 @@ describe("OwnedUiSessionShell", () => {
 
     shell.restoreQueuedInput();
     expect(shell.root.editor.getText()).toBe("queued steer\nqueued follow");
+    await shell.dispose();
+  });
+
+  it("cancels the share operation through its loader without rendering late success", async () => {
+    const { adapter, terminal, shell } = await fixture();
+    const execute = vi.spyOn(adapter, "executeWorkflow").mockImplementation(async request => {
+      if (request.command !== "share" || !request.signal) return { command: request.command, outcome: "completed", message: "done" };
+      await new Promise<void>(resolve => request.signal?.addEventListener("abort", () => resolve(), { once: true }));
+      return { command: "share", outcome: "cancelled", message: "Share cancelled", messageKind: "status" };
+    });
+
+    const share = shell.runWorkflow({ command: "share", argument: "" });
+    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Creating gist...");
+    terminal.input("\x1b");
+    await share;
+    const frame = stripTerminalSequences(shell.root.render(100).join("\n"));
+    expect(execute.mock.calls[0]?.[0].signal?.aborted).toBe(true);
+    expect(frame).toContain("Share cancelled");
+    expect(frame).not.toContain("Share URL:");
     await shell.dispose();
   });
 
@@ -2501,6 +2560,32 @@ describe("OwnedUiSessionShell", () => {
     await shell.dispose();
   });
 
+  it("renders explicit ordered partial-success messages without prefix inference", async () => {
+    const { shell } = await fixture();
+    shell.root.appendWorkflowResult({
+      command: "login",
+      outcome: "completed",
+      message: "Saved API key for OpenAI Codex",
+      messages: [
+        { kind: "status", message: "Saved API key for OpenAI Codex. Credentials saved to D:/auth.json" },
+        { kind: "error", message: "Saved API key for OpenAI Codex, but no models are available for that provider. Use /model to select a model." },
+      ],
+    });
+    shell.root.appendWorkflowResult({
+      command: "name",
+      outcome: "failed",
+      message: "Usage: /name <name>",
+      messageKind: "warning",
+    });
+    shell.root.appendWorkflowResult({ command: "fork", outcome: "cancelled", message: "Fork cancelled", messageKind: "silent" });
+
+    const frame = stripTerminalSequences(shell.root.render(100).join("\n"));
+    expect(frame.indexOf("Saved API key for OpenAI Codex. Credentials saved")).toBeLessThan(frame.indexOf("Error: Saved API key"));
+    expect(frame).toContain("Warning: Usage: /name <name>");
+    expect(frame).not.toContain("Fork cancelled");
+    await shell.dispose();
+  });
+
   it("renders changelog, errors, and reload through pinned route-specific presentation", async () => {
     const { shell } = await fixture();
     shell.root.appendWorkflowResult({
@@ -2549,7 +2634,9 @@ describe("OwnedUiSessionShell", () => {
   it("uses the pinned confirmation surface without committing on cancel", async () => {
     const { adapter, terminal, shell } = await fixture();
     const workflow = vi.spyOn(adapter, "executeWorkflow")
-      .mockResolvedValueOnce({ command: "import", outcome: "cancelled", message: "Import cancelled" })
+      .mockResolvedValueOnce({ command: "import", outcome: "requires-confirmation", message: "Replace current session with fixture.jsonl?" })
+      .mockResolvedValueOnce({ command: "import", outcome: "cancelled", message: "Import cancelled", messageKind: "status" })
+      .mockResolvedValueOnce({ command: "import", outcome: "requires-confirmation", message: "Replace current session with fixture.jsonl?" })
       .mockResolvedValueOnce({ command: "import", outcome: "completed", message: "Session imported" });
 
     const cancelled = shell.runWorkflow({ command: "import", argument: "fixture.jsonl" });
@@ -2558,13 +2645,44 @@ describe("OwnedUiSessionShell", () => {
     expect(shell.root.render(80).join("\n")).toContain("Replace current session");
     terminal.input("\x1b");
     await cancelled;
-    expect(workflow).toHaveBeenNthCalledWith(1, { command: "import", argument: "fixture.jsonl", confirmed: false });
+    expect(workflow).toHaveBeenNthCalledWith(1, { command: "import", argument: "fixture.jsonl" });
+    expect(workflow).toHaveBeenNthCalledWith(2, { command: "import", argument: "fixture.jsonl", confirmed: false });
 
     const confirmed = shell.runWorkflow({ command: "import", argument: "fixture.jsonl" });
     await new Promise(resolve => setTimeout(resolve, 0));
     terminal.input("\r");
     await confirmed;
-    expect(workflow).toHaveBeenNthCalledWith(2, { command: "import", argument: "fixture.jsonl", confirmed: true });
+    expect(workflow).toHaveBeenNthCalledWith(3, { command: "import", argument: "fixture.jsonl" });
+    expect(workflow).toHaveBeenNthCalledWith(4, { command: "import", argument: "fixture.jsonl", confirmed: true });
+    await shell.dispose();
+  });
+
+  it("continues import through the missing-cwd recovery confirmation", async () => {
+    const { adapter, terminal, shell } = await fixture();
+    const workflow = vi.spyOn(adapter, "executeWorkflow")
+      .mockResolvedValueOnce({ command: "import", outcome: "requires-confirmation", message: "Replace current session with fixture.jsonl?" })
+      .mockResolvedValueOnce({
+        command: "import",
+        outcome: "requires-confirmation",
+        message: "cwd from session file does not exist\nD:/missing\n\ncontinue in current cwd\nD:/work",
+        detail: "D:/work",
+      })
+      .mockResolvedValueOnce({ command: "import", outcome: "completed", message: "Session imported from: fixture.jsonl" });
+
+    const operation = shell.runWorkflow({ command: "import", argument: "fixture.jsonl" });
+    await new Promise(resolve => setTimeout(resolve, 0));
+    terminal.input("\r");
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Session cwd not found");
+    terminal.input("\r");
+    await operation;
+    expect(workflow).toHaveBeenNthCalledWith(3, {
+      command: "import",
+      argument: "fixture.jsonl",
+      confirmed: true,
+      cwdOverride: "D:/work",
+    });
+    expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Session imported from: fixture.jsonl");
     await shell.dispose();
   });
 
