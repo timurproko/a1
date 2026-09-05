@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { CohortStateStore, emptyState, planProtectedReleases, RELEASE_COHORT_SCHEMA } from "../../../src/foundation/release/index.js";
-import type { MaterializedRelease } from "../../../src/foundation/release/index.js";
+import type { CohortState, MaterializedRelease } from "../../../src/foundation/release/index.js";
 
 const roots: string[] = [];
 afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))));
@@ -71,19 +71,36 @@ describe("atomic release references", () => {
     roots.push(root);
     const store = new CohortStateStore(root);
     const releases = Array.from({ length: 40 }, (_, index) => release(`1.0.${index}`, String(index + 1)));
-    for (const candidate of releases) {
-      await store.recordCandidate(candidate);
-      await store.approve(candidate.releaseId, `${candidate.releaseId}.json`);
-      await store.activate(candidate.releaseId);
-    }
-    await store.setRetention(releases.map(candidate => candidate.releaseId));
-    const legacyState = JSON.parse(await readFile(store.path, "utf8")) as { cleanup?: unknown };
-    delete legacyState.cleanup;
-    await writeFile(store.path, JSON.stringify(legacyState));
     const active = releases[39]!;
     const rollback = releases[38]!;
     const live = releases[7]!;
     const held = releases[11]!;
+    const timestamp = new Date(0).toISOString();
+    // Performance: seed the legacy snapshot once instead of replaying 121 durable updates;
+    // candidate, approval, and activation transitions have dedicated coverage above.
+    const legacyState = {
+      schema: RELEASE_COHORT_SCHEMA,
+      revision: 121,
+      releases: Object.fromEntries(releases.map(candidate => [candidate.releaseId, {
+        releaseId: candidate.releaseId,
+        releaseRoot: candidate.releaseRoot,
+        packageVersion: candidate.packageVersion,
+        contentDigest: candidate.contentDigest,
+        approval: "approved" as const,
+        materializedAt: timestamp,
+        certifiedAt: timestamp,
+        diagnosticsPath: `${candidate.releaseId}.json`,
+      }])),
+      references: {
+        active: active.releaseId,
+        pending: null,
+        approved: active.releaseId,
+        rollback: rollback.releaseId,
+        retention: releases.map(candidate => candidate.releaseId),
+      },
+      activation: { state: "idle", reason: null, blockerGenerationIds: [], updatedAt: timestamp },
+    } satisfies Omit<CohortState, "cleanup">;
+    await writeFile(store.path, JSON.stringify(legacyState));
 
     const reconciled = await store.reconcileRetention(() => ({
       liveReleaseIds: [live.releaseId],
@@ -95,6 +112,8 @@ describe("atomic release references", () => {
     expect(Object.keys(reconciled.state.releases).sort()).toEqual(reconciled.plan.retainedReleaseIds);
     expect(Object.keys(reconciled.state.cleanup.pending)).toHaveLength(36);
     expect(reconciled.state.references.retention).toEqual(reconciled.plan.retainedReleaseIds);
+    expect(reconciled.state.revision).toBe(legacyState.revision + 1);
+    expect(JSON.parse(await readFile(store.path, "utf8"))).toEqual(reconciled.state);
   });
 
   it("produces deterministic protection and rejects unknown typed holds", () => {
