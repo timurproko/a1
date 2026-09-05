@@ -5,7 +5,7 @@ import { platform } from "node:os";
 import { resolve } from "node:path";
 import { selectCohortLaunch, type OwnershipProbe } from "./cohort-selection.js";
 import { CohortStateStore, type SupervisorEndpointMetadata } from "./cohort-state.js";
-import { assertLaunchProfileId, resolveCohortEndpoint, resolveProductPaths, type LaunchProfileId } from "../lifecycle/index.js";
+import { assertLaunchProfileId, resolveCohortEndpoint, resolveProductPaths, sessionSelectionArguments, type SessionSelection, type LaunchProfileId } from "../lifecycle/index.js";
 import { encodeFrame, LineFrameDecoder } from "../protocol/index.js";
 import { cleanupProvenIdleOwner, processIsAlive } from "./process-cleanup.js";
 import { sweepDeadEndpoints } from "./endpoints.js";
@@ -17,7 +17,7 @@ import { markStartupPhase } from "../startup/index.js";
 
 export interface BootstrapOptions {
   readonly packageRoot: string;
-  readonly launchIntent?: { readonly kind: "interactive"; readonly profileId: LaunchProfileId };
+  readonly launchIntent?: { readonly kind: "interactive"; readonly profileId: LaunchProfileId; readonly sessionSelection?: SessionSelection };
   readonly environment?: NodeJS.ProcessEnv;
   readonly output?: Pick<NodeJS.WriteStream, "write">;
   /**
@@ -39,6 +39,8 @@ export async function runBootstrap(options: BootstrapOptions): Promise<number> {
   await markStartupPhase(environment, "bootstrap-start");
   const launchProfileId = options.launchIntent?.profileId ?? "a1";
   assertLaunchProfileId(launchProfileId);
+  const sessionArgs = sessionSelectionArguments(options.launchIntent?.sessionSelection);
+  if (sessionArgs.length > 0 && launchProfileId !== "a1") throw new Error("session selection requires the normal A1 profile");
   environment[PRODUCT_IDENTITY.environment.launchProfile] = launchProfileId;
   const output = options.output ?? process.stderr;
   const paths = resolveProductPaths(environment);
@@ -82,7 +84,7 @@ export async function runBootstrap(options: BootstrapOptions): Promise<number> {
       && endpoint.contentDigest === active.contentDigest;
     if (endpointMatches && probe === "live-verified") {
       const retained = await readCertifiedReleaseManifest(active, resolve(paths.dataDir, "releases"));
-      return await launchUi(retained, environment);
+      return await launchUi(retained, environment, sessionArgs);
     }
     if (endpoint === null || probe === "dead") {
       if (endpoint) await removeEndpointArtifacts(endpointPaths.endpointMetadataPath, endpointPaths.endpoint);
@@ -101,7 +103,7 @@ export async function runBootstrap(options: BootstrapOptions): Promise<number> {
       await startSupervisor(retained, environment);
       await waitForVerifiedEndpoint(retainedPaths.endpointMetadataPath, retained, 8_000);
       await markStartupPhase(environment, "replacement-supervisor-ready");
-      return await launchUi(retained, environment);
+      return await launchUi(retained, environment, sessionArgs);
     }
   }
 
@@ -160,7 +162,7 @@ export async function runBootstrap(options: BootstrapOptions): Promise<number> {
     if (decision.recordPending && endpoint) {
       await stateStore.blockPending("candidate activation deferred by live non-resumable instances", endpoint.ownership.nonResumableInstanceIds);
     }
-    const code = await launchUi(retained, environment);
+    const code = await launchUi(retained, environment, sessionArgs);
     if (decision.recordPending) await activatePendingAfterBlockerExit(candidate, stateStore, paths, environment);
     return code;
   }
@@ -199,7 +201,7 @@ export async function runBootstrap(options: BootstrapOptions): Promise<number> {
 
   await startSupervisor(selected, environment);
   await waitForVerifiedEndpoint(resolveCohortEndpoint(paths, selected.releaseId, environment).endpointMetadataPath, selected, 8_000);
-  return await launchUi(selected, environment);
+  return await launchUi(selected, environment, sessionArgs);
 }
 
 async function readInstalledVersion(packageRoot: string): Promise<string> {
@@ -241,11 +243,11 @@ export async function startSupervisor(release: MaterializedRelease, environment:
   child.unref();
 }
 
-async function launchUi(release: MaterializedRelease, environment: NodeJS.ProcessEnv): Promise<number> {
+async function launchUi(release: MaterializedRelease, environment: NodeJS.ProcessEnv, sessionArgs: readonly string[]): Promise<number> {
   await markStartupPhase(environment, "bootstrap-selected");
   const entry = await resolveReleaseEntryPoint(release, "bin/guardian.js");
   return await new Promise<number>((resolvePromise, rejectPromise) => {
-    const child = spawn(process.execPath, [entry], {
+    const child = spawn(process.execPath, [entry, ...sessionArgs], {
       env: releaseEnvironment(environment, release),
       stdio: "inherit",
       windowsHide: false,

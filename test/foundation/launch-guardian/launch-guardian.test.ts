@@ -8,6 +8,8 @@ import type {
   SupervisorSnapshot,
 } from "../../../src/foundation/lifecycle/index.js";
 import { runLaunchGuardian } from "../../../src/foundation/launch-guardian/index.js";
+import { parseSessionSelection, sessionSelectionArguments } from "../../../src/foundation/lifecycle/index.js";
+import { dispatchCli, cliCapabilities } from "../../../src/cli/index.js";
 import type { NativeProcessInspector, ProcessContainment } from "../../../src/foundation/process-containment/index.js";
 
 const guardianIdentity = { pid: 8000, startIdentity: "8000:guardian" };
@@ -45,6 +47,46 @@ describe("launch guardian", () => {
     expect(control.commands[1]).toMatchObject({ rootIdentity, containmentIdentity: fixture.containment.identity });
     expect(fixture.containment.close).toHaveBeenCalledOnce();
     expect(control.close).toHaveBeenCalledOnce();
+  });
+
+  it("preserves validated CLI selection through guardian argv for distinct simultaneous invocations", async () => {
+    const fixtures = [0, 1].map(() => ({ control: new FakeControl(), ...containmentFixture(Promise.resolve({ kind: "exited", exitCode: 0 })) }));
+    await Promise.all(fixtures.map(async (fixture, index) => {
+      const args = ["--session-dir", `D:/session's store ${index}`, "--session", `D:\\sessions\\saved ${index}.jsonl`];
+      await dispatchCli(args, {
+        launch: async intent => {
+          // Protocol: model the plain argv serialization at the guardian process entry.
+          const sessionSelection = parseSessionSelection(sessionSelectionArguments(intent.sessionSelection));
+          return runLaunchGuardian({ ...options(fixture.control, fixture.containment, fixture.inspector), profileId: intent.profileId, ...(sessionSelection === undefined ? {} : { sessionSelection }) });
+        },
+        version: async () => { throw new Error("unexpected version"); },
+        update: async () => { throw new Error("unexpected update"); },
+        packages: async () => { throw new Error("unexpected packages"); },
+      }, { stdout() {}, stderr() {} }, cliCapabilities("0.1.8-dev"));
+      expect(fixture.containment.spawn).toHaveBeenCalledWith(process.execPath, ["D:/release/bin/ui.js", ...args], expect.anything());
+      expect(fixture.containment.close).toHaveBeenCalledOnce();
+    }));
+    const ids = fixtures.map(fixture => fixture.control.commands.find(command => command.type === "create-launch-instance")?.instanceId);
+    expect(ids[0]).toBeDefined();
+    expect(ids[1]).toBeDefined();
+    expect(ids[0]).not.toBe(ids[1]);
+  });
+
+  it("does not infer a fresh launch selection from inherited active-session metadata", async () => {
+    const control = new FakeControl();
+    const fixture = containmentFixture(Promise.resolve({ kind: "exited", exitCode: 0 }));
+    await runLaunchGuardian({
+      ...options(control, fixture.containment, fixture.inspector), profileId: "a1",
+      environment: { PI_SESSION_ID: "stale", PI_SESSION_FILE: "stale.jsonl" },
+    });
+    expect(fixture.containment.spawn).toHaveBeenCalledWith(process.execPath, ["D:/release/bin/ui.js"], expect.anything());
+  });
+
+  it("rejects invalid internal selections before starting control infrastructure", async () => {
+    const control = new FakeControl();
+    const fixture = containmentFixture(Promise.resolve({ kind: "exited", exitCode: 0 }));
+    await expect(runLaunchGuardian({ ...options(control, fixture.containment, fixture.inspector), profileId: "a1", sessionSelection: { target: "" } })).rejects.toThrow("nonempty");
+    expect(control.connect).not.toHaveBeenCalled();
   });
 
   it("preserves the selected runtime exit code without synthetic terminal output", async () => {

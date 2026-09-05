@@ -1,5 +1,7 @@
 import type { AgentSessionRuntime } from "@earendil-works/pi-coding-agent";
-import { readFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { CURSOR_MARKER, stripTerminalSequences, visibleWidth } from "@earendil-works/pi-tui";
 import {
   getCapabilities as getPinnedPiTuiCapabilities,
@@ -294,7 +296,11 @@ describe("OwnedUiSessionShell", () => {
     expect(bytes.slice(bytes.lastIndexOf("\x1b[?1049l"))).not.toContain("\x1b[?1049h");
   });
 
-  it("prints styled transcript and a dim compact resume hint only after restoration", async () => {
+  it("prints styled transcript and a dim compact resume hint only after restoration", async ({ onTestFinished }) => {
+    const directory = await mkdtemp(join(tmpdir(), "a1-hint-"));
+    onTestFinished(() => rm(directory, { recursive: true, force: true }));
+    const path = join(directory, "raw-session-file.jsonl");
+    await writeFile(path, "persisted session fixture");
     const { shell, engine, terminal } = await fixture([
       { role: "user", content: [{ type: "text", text: "styled exit user" }], timestamp: 1 },
       { role: "assistant", content: [{ type: "text", text: "styled exit answer" }], stopReason: "stop", timestamp: 2 },
@@ -302,7 +308,7 @@ describe("OwnedUiSessionShell", () => {
     Object.assign(engine.session, {
       sessionManager: {
         isPersisted: () => true,
-        getSessionFile: () => "D:/default/sessions/raw-session-file.jsonl",
+        getSessionFile: () => path,
         getSessionId: () => "compact-id",
         getSessionDir: () => "D:/default/sessions",
         usesDefaultSessionDir: () => true,
