@@ -1,6 +1,6 @@
 ## Purpose
 
-Defines reliable selection and restoration of persisted A1 sessions through the public CLI and the resume command printed when the normal A1 UI exits.
+Defines reliable selection and restoration of persisted A1 sessions through the public CLI and the resume command printed when the normal A1 UI exits. Acceptance targets future sessions created with the shipped Pi version and its actual restoration behavior, not recovery of the user's current conversation or support for formats beyond that pin.
 
 ## ADDED Requirements
 
@@ -66,11 +66,15 @@ When only a cross-project ID match is found, A1 SHALL identify the source projec
 - **THEN** A1 SHALL resume that file and ID using its stored cwd rather than silently binding its tools to the invoking directory
 
 ### Requirement: Resume restores persisted agent context without accidental session creation
-For an existing local-ID or explicit-file target, A1 SHALL restore the persisted session identity, active conversation branch, compaction context, and saved model/thinking state under pinned Pi's normal model fallback rules. The UI SHALL present restored conversation content before accepting a new prompt. Project trust and cwd-bound resources SHALL be resolved for the effective resumed cwd before project resources execute. A missing effective cwd SHALL fail with a focused diagnostic rather than silently substitute another directory. Missing IDs, missing or empty files, unreadable files, and files rejected as invalid sessions SHALL produce a focused nonzero failure without opening a fresh conversation, overwriting the target, or creating a file named after the supplied ID. A1 SHALL NOT submit an automatic model prompt merely to resume.
+For an existing local-ID or explicit-file target supported by the pinned Pi, A1 SHALL restore the persisted session identity, active conversation branch, compaction context, and saved model/thinking state under that pin's actual restoration behavior and normal model fallback rules. Sessions newly written by the same pin, including its supported compaction format, SHALL be covered. A1 SHALL introduce no additional context loss relative to direct reopening with the same pin. This change SHALL NOT require a dependency upgrade, recovery of the user's current conversation, or certification/reconstruction of an unsupported retained-tail format. The UI SHALL present restored conversation content before accepting a new prompt. Project trust and cwd-bound resources SHALL be resolved for the effective resumed cwd before project resources execute. A missing effective cwd SHALL fail with a focused diagnostic rather than silently substitute another directory. Missing IDs, missing or empty files, unreadable files, and files rejected as invalid sessions SHALL produce a focused nonzero failure without opening a fresh conversation, overwriting the target, or creating a file named after the supplied ID. A1 SHALL NOT submit an automatic model prompt merely to resume.
 
 #### Scenario: Resume a compacted session
-- **WHEN** a selected session contains messages, a compaction checkpoint, and later messages
-- **THEN** the restored UI and agent context SHALL reflect the persisted active branch and checkpoint under pinned Pi semantics, retaining the session ID and saved model/thinking state subject to normal fallback
+- **WHEN** a newly persisted session created through the pinned public APIs contains messages, a compaction checkpoint in that pin's supported format, and later messages
+- **THEN** the restored UI and agent context SHALL reflect the same active branch and checkpoint context as direct Pi reopening, retaining the session ID and saved model/thinking state subject to normal fallback
+
+#### Scenario: Resume a newly created uncompacted session
+- **WHEN** a fresh A1 session has persisted conversation messages, exits, and is selected again through its emitted command
+- **THEN** A1 SHALL restore that conversation and identity before accepting another prompt, without requiring recovery of any earlier personal session
 
 #### Scenario: Resume into an untrusted project
 - **WHEN** an explicit session file resolves to a cwd whose project trust has not been established
@@ -85,10 +89,10 @@ For an existing local-ID or explicit-file target, A1 SHALL restore the persisted
 - **THEN** A1 SHALL report the failure, exit nonzero, preserve existing session data, and create neither a replacement session nor an ID-named file
 
 ### Requirement: Installed-entry evidence proves the resume path
-Automated regression evidence SHALL exercise normal A1's public installed entry and production launch transport against disposable session fixtures, not only an internal UI entry or a formatted string. Evidence SHALL cover default and custom directories, argument quoting, restored session identity/context, negative target resolution, and independent invocations. Tests SHALL isolate home/profile/release/control state and SHALL NOT depend on personal session files, credentials, network model calls, or an already-running user supervisor.
+Automated regression evidence SHALL exercise normal A1's public installed entry and production launch transport against fresh disposable sessions persisted through that build's pinned public Pi APIs, not only an internal UI entry or a formatted string. Evidence SHALL cover a create/persist → exit → resume lifecycle for uncompacted and supported compacted history, record the Pi version, and compare context with direct same-pin reopening plus independent expected conversation markers/order. Unsupported synthetic retained-tail behavior SHALL NOT be a prerequisite for this CLI parity evidence or be reported as certified by it. Evidence SHALL cover default and custom directories, argument quoting, restored session identity/context, negative target resolution, and independent invocations. Tests SHALL isolate home/profile/release/control state and SHALL NOT depend on personal session files, credentials, network model calls, or an already-running user supervisor.
 
 #### Scenario: Execute the emitted hint through the installed entry
-- **WHEN** an isolated persisted session exits and its emitted command is executed through the packaged A1 entry
+- **WHEN** a newly created isolated session is persisted using the pin, exits normal A1, and its emitted command is executed through the packaged A1 entry
 - **THEN** the resulting UI SHALL restore that session's identity and conversation context through the real launch chain
 
 #### Scenario: Windows custom-directory round trip

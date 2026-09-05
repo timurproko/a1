@@ -2,6 +2,10 @@
 
 Defines lossless restoration of persisted Pi compaction checkpoints and explicit compatibility failures so A1 never continues a conversation with silently omitted retained context.
 
+## Scope
+
+This is the contract for the deferred additional retained-tail capability, not a claim about the current pin or a prerequisite for the ordinary CLI resume repair. The requirements remain acceptance gates for that independent capability if its implementation is requested. `fix-cli-session-resume` instead verifies future sessions against its pinned Pi's actual behavior and does not implement this capability or its rejection subsystem.
+
 ## ADDED Requirements
 
 ### Requirement: A retained checkpoint restores its materialized message tail
