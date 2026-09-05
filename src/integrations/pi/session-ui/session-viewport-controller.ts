@@ -99,10 +99,13 @@ export class SessionViewportController {
     this.#editorPointerFrame = frame;
   }
 
-  compose(input: TranscriptViewportFrameInput): TranscriptViewportFrame {
+  compose(input: Omit<TranscriptViewportFrameInput, "pointerPosition">): TranscriptViewportFrame {
     this.#viewport.setConfig(this.#config);
     const selectionRevision = this.#viewport.selectionRevision;
-    const frame = this.#viewport.compose(input);
+    const frame = this.#viewport.compose({
+      ...input,
+      ...(this.#pointerPosition === undefined ? {} : { pointerPosition: this.#pointerPosition }),
+    });
     // Concurrency: if selection changed during composition, this frame truthfully carries
     // the older revision and exactly one ordinary follow-up render publishes the latest.
     if (this.#viewport.selectionRevision !== selectionRevision
@@ -242,20 +245,27 @@ export class SessionViewportController {
       const overBottom = hits.bottom !== null && event.row === hits.bottom.row
         && event.column >= hits.bottom.columnStart && event.column <= hits.bottom.columnEnd;
 
-      if (event.kind === "motion") {
-        this.#pointerPosition = { column: event.column, row: event.row };
-        if (!this.#viewport.selectionActive && !this.#editorPointerSelecting) {
-          const nextHyperlink = this.#hyperlinkKeyAt(frame, event.column, event.row);
-          if (this.#hoveredHyperlinkKey !== undefined && nextHyperlink !== this.#hoveredHyperlinkKey) {
-            // Platform: a forced redraw overwrites Windows Terminal's cached solid hover
-            // underline exactly once when the pointer leaves or changes links.
-            forceRepaint = true;
-          }
-          this.#hoveredHyperlinkKey = nextHyperlink;
+      const previousPointer = this.#pointerPosition;
+      const wasOverBottom = hits.bottom !== null && previousPointer !== undefined
+        && previousPointer.row === hits.bottom.row
+        && previousPointer.column >= hits.bottom.columnStart && previousPointer.column <= hits.bottom.columnEnd;
+      // Invariant: every report locates the pointer, independently of which surface owns the action.
+      // Keep this location while the control is hidden; composition resolves its next hit region.
+      this.#pointerPosition = { column: event.column, row: event.row };
+      repaint ||= wasOverBottom !== overBottom;
+      if (!this.#viewport.selectionActive && !this.#editorPointerSelecting) {
+        const nextHyperlink = this.#hyperlinkKeyAt(frame, event.column, event.row);
+        if (this.#hoveredHyperlinkKey !== undefined && nextHyperlink !== this.#hoveredHyperlinkKey) {
+          // Platform: overwrite Windows Terminal's cached native-hover underline exactly once.
+          forceRepaint = true;
+          repaint = true;
         }
+        this.#hoveredHyperlinkKey = nextHyperlink;
+      }
+
+      if (event.kind === "motion") {
         this.#viewport.setRailHovered(overRail);
         this.#viewport.setStickyHovered(overSticky);
-        this.#viewport.setBottomHovered(overBottom);
         repaint = true;
         if (this.#editor.ownsPointer() && this.#editorPointerFrame !== undefined) {
           this.#editor.handlePointer({

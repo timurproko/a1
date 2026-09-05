@@ -506,10 +506,71 @@ describe("transcript viewport", () => {
     expect(normal.rows[(normal.hits.bottom?.row ?? 1) - 1]).toContain("\u001b]8;;\u001b\\\u001b[0m\u001b[45m");
 
     viewport.setStickyHovered(true);
-    viewport.setBottomHovered(true);
-    const hovered = viewport.compose({ documentRows: rows(12), dockRows: ["dock"], promptAnchors: anchors, width: 40, height: 6, now: 103, theme });
+    const pointerPosition = { column: normal.hits.bottom!.columnStart, row: normal.hits.bottom!.row };
+    const hovered = viewport.compose({ documentRows: rows(12), dockRows: ["dock"], promptAnchors: anchors, width: 40, height: 6, now: 103, theme, pointerPosition });
     expect(hovered.rows[0]).toContain("\u001b[46m");
     expect(hovered.rows[(hovered.hits.bottom?.row ?? 1) - 1]).toContain("\u001b[46m");
+  });
+
+  it("derives bottom hover from current geometry in one frame, including boundaries and absent positions", () => {
+    const viewport = new TranscriptViewport();
+    const painted: boolean[] = [];
+    const theme = {
+      track: (text: string) => text,
+      thumb: (text: string) => text,
+      sticky: (text: string) => text,
+      quietSticky: (text: string) => text,
+      bottomControl: (text: string, hovered: boolean) => {
+        painted.push(hovered);
+        return `\u001b[${hovered ? 46 : 45}m${text}\u001b[49m`;
+      },
+      selection: (text: string) => text,
+    };
+    const input = { documentRows: rows(30), dockRows: ["dock"], promptAnchors: [], width: 40, height: 8, theme };
+    viewport.compose(input);
+    viewport.scrollTo(0);
+    const normal = viewport.compose(input);
+    const hit = normal.hits.bottom!;
+    for (const [column, row, hovered] of [
+      [hit.columnStart, hit.row, true], [hit.columnEnd, hit.row, true],
+      [hit.columnStart - 1, hit.row, false], [hit.columnEnd + 1, hit.row, false],
+      [hit.columnStart, hit.row - 1, false], [hit.columnStart, hit.row + 1, false],
+    ] as const) {
+      painted.length = 0;
+      const frame = viewport.compose({ ...input, pointerPosition: { column, row } });
+      expect(painted).toEqual([hovered]);
+      expect(frame.rows[hit.row - 1]).toContain(`\u001b[${hovered ? 46 : 45}m`);
+      expect(frame.hits.bottom).toEqual(hit);
+    }
+    const pointerPosition = { column: hit.columnStart, row: hit.row };
+    for (const changed of [
+      { width: 80 }, { height: 9 }, { dockRows: ["extra", "dock"] }, { bottomControlRow: 2 },
+    ]) {
+      painted.length = 0;
+      const moved = viewport.compose({ ...input, ...changed, pointerPosition });
+      expect(moved.hits.bottom).not.toEqual(hit);
+      expect(painted).toEqual([false]);
+      painted.length = 0;
+      viewport.compose({ ...input, pointerPosition });
+      expect(painted).toEqual([true]);
+    }
+    // A growing message-count label expands beneath the unchanged pointer.
+    const beside = { column: hit.columnStart - 1, row: hit.row };
+    viewport.compose({ ...input, pointerPosition: beside });
+    expect(painted.at(-1)).toBe(false);
+    for (let count = 0; count < 100; count += 1) viewport.noteNewMessage();
+    painted.length = 0;
+    const counted = viewport.compose({ ...input, pointerPosition: beside });
+    expect(counted.hits.bottom!.columnStart).toBeLessThanOrEqual(beside.column);
+    expect(painted).toEqual([true]);
+    painted.length = 0;
+    viewport.compose(input);
+    expect(painted).toEqual([false]);
+    for (const changed of [{ width: 10 }, { documentRows: rows(2) }]) {
+      painted.length = 0;
+      expect(viewport.compose({ ...input, ...changed, pointerPosition }).hits.bottom).toBeNull();
+      expect(painted).toEqual([]);
+    }
   });
 
   it("keeps edge motion from adding scroll rows outside the cadence timer", () => {
