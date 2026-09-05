@@ -3,6 +3,8 @@
 ### Requirement: Command outcome messages retain pinned wording and severity
 Every existing supported Pi-backed command SHALL reproduce pinned Pi's user-visible messages for equivalent success, failure, warning, empty, progress, and cancellation states. Parity SHALL include whether a message is emitted at all, its literal wording and punctuation, contextual prefixes, links, severity, and order. Existing declared A1 route replacements and layout/progress customizations SHALL remain explicit exceptions only within their declared scope; they SHALL NOT justify changing unrelated command-result messages. Actual selected-profile paths and truthful runtime values SHALL remain contextual data, not copied values from another profile.
 
+For fatal `/new`, `/resume`, and `/import` outcomes, A1 SHALL preserve Pi-compatible visible error semantics but SHALL retain its recoverable workflow/session contract: the route returns a failed result and the owning A1 session remains active rather than stopping the terminal or propagating Pi's process exit. This lifecycle difference SHALL be recorded as an explicit contextual exception and SHALL NOT be presented as process-behavior parity.
+
 #### Scenario: Login saves an API key
 - **WHEN** a supported provider login successfully stores an API key
 - **THEN** the success label SHALL be `Saved API key for <provider>` rather than `Logged in to <provider>`
@@ -35,6 +37,12 @@ Every existing supported Pi-backed command SHALL reproduce pinned Pi's user-visi
 - **THEN** the error SHALL preserve Pi's `Failed to import session: <detail>` context
 - **AND** usage, declined confirmation, extension cancellation, and successful import SHALL retain their distinct pinned messages or silence
 
+#### Scenario: A fatal command outcome remains recoverable in A1
+- **WHEN** `/new`, `/resume`, or `/import` reaches an outcome for which pinned Pi stops its terminal and exits one
+- **THEN** A1 SHALL emit the equivalent contextual error with the pinned wording, severity, and order and SHALL NOT emit a false success
+- **AND** A1 SHALL return its recoverable failed workflow result and keep the owning session active
+- **AND** acceptance evidence SHALL label shutdown and process-exit behavior as an explicit contextual exception rather than claim lifecycle parity
+
 #### Scenario: Share succeeds
 - **WHEN** `/share` successfully creates a secret gist
 - **THEN** A1 SHALL emit dim `Share URL: <viewer URL>` followed by `Gist: <gist URL>` with Pi's line break and ordering
@@ -51,7 +59,7 @@ Every existing supported Pi-backed command SHALL reproduce pinned Pi's user-visi
 - **AND** operation-specific silent completion or cancellation SHALL remain silent where pinned Pi is silent
 
 ### Requirement: Command messages preserve terminal geometry and lifetime
-Command-result status, warning, error, named-session text, structured information, and new-session notices SHALL preserve pinned semantic styling, wrapping, output padding, blank rows, chronological placement, consecutive-status coalescing, and component lifetime at equivalent terminal dimensions and settings. Multiline output SHALL occupy separately tracked rendered rows. The existing declared A1 viewport and settings replacements SHALL remain intact; parity SHALL compare message components and behavior within those declarations and the uncustomized pinned route independently.
+Command-result status, warning, error, named-session text, structured information, and new-session notices SHALL preserve pinned semantic styling, wrapping, output padding, blank rows, chronological placement, consecutive-status coalescing, and rendered-component lifetime at equivalent terminal dimensions and settings. Rendered-component lifetime governs message placement and replacement, not host-process termination or terminal shutdown. Multiline output SHALL occupy separately tracked rendered rows. The existing declared A1 viewport and settings replacements SHALL remain intact; parity SHALL compare message components and behavior within those declarations and the uncustomized pinned route independently.
 
 #### Scenario: A command emits a long or multiline error
 - **WHEN** the error text exceeds the available width or contains embedded newlines
@@ -92,5 +100,5 @@ Command-message acceptance SHALL maintain a source-traced inventory of the curre
 - **AND** a plain-text match with different styling or geometry SHALL fail
 
 #### Scenario: Missing or contradictory evidence
-- **WHEN** a producer fails, a covered outcome lacks evidence, or physical review contradicts an automated parity claim
-- **THEN** the affected command outcome SHALL remain unaccepted rather than being marked complete based on a success-only fixture
+- **WHEN** a producer fails, a covered outcome lacks evidence, physical review contradicts an automated parity claim, or fatal-command evidence conflates matching output with process lifecycle parity
+- **THEN** the affected command outcome SHALL remain unaccepted rather than being marked complete based on a success-only fixture or an undisclosed lifecycle difference
