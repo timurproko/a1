@@ -45,6 +45,8 @@ export class SessionViewportController {
   #dragGrabOffset: number | null = null;
   // Invariant: a left-button sequence begun in dock chrome remains owned by the dock.
   #dockPointerSuppressed = false;
+  // Invariant: a left-button sequence begun in non-selectable transcript tail chrome is held there.
+  #tailPointerSuppressed = false;
   // Invariant: editor selection remains true only while its left button is held.
   #editorPointerSelecting = false;
   // Invariant: pointer routing uses the most recently composed editor rows.
@@ -168,6 +170,7 @@ export class SessionViewportController {
     this.#clearActivityTimer();
     this.#dragGrabOffset = null;
     this.#dockPointerSuppressed = false;
+    this.#tailPointerSuppressed = false;
     this.#editorPointerSelecting = false;
     this.#editorPointerFrame = undefined;
     this.#pointerPosition = undefined;
@@ -276,7 +279,7 @@ export class SessionViewportController {
           });
           return true;
         }
-        if (this.#dockPointerSuppressed) return true;
+        if (this.#dockPointerSuppressed || this.#tailPointerSuppressed) return true;
         if (this.#viewport.selectionActive) {
           this.#viewport.extendSelection(event.column, event.row, now, false);
           this.#updateSelectionAutoScroll(event.column, event.row, hits.viewportHeight);
@@ -356,7 +359,12 @@ export class SessionViewportController {
           return true;
         }
         if (event.row >= 1 && event.row <= hits.viewportHeight && event.column <= frame.contentWidth) {
-          this.#viewport.pressSelection(event.column, event.row, now);
+          if (!this.#viewport.pressSelection(event.column, event.row, now)) {
+            // Invariant: a full drag begun on transient tail rows cannot become transcript selection.
+            if (hits.transientTail.includes(event.row)) this.#tailPointerSuppressed = true;
+            repaint = true;
+            return this.#tailPointerSuppressed;
+          }
           repaint = true;
           return true;
         }
@@ -392,6 +400,10 @@ export class SessionViewportController {
         }
         if (this.#dockPointerSuppressed) {
           this.#dockPointerSuppressed = false;
+          return true;
+        }
+        if (this.#tailPointerSuppressed) {
+          this.#tailPointerSuppressed = false;
           return true;
         }
       }
