@@ -109,9 +109,7 @@ describe("session viewport interaction controller", () => {
     expect(renders).toContain(true);
   });
 
-  // Rationale: known failure tracked by fix-ghost-link-underlines task 2.2. Remove .fails
-  // with the repair; an unexpected pass deliberately fails this baseline test.
-  it.fails("requests cleanup when the same hovered target changes its column bounds", () => {
+  it("requests cleanup when the same hovered target changes its column bounds", () => {
     const renders: (boolean | undefined)[] = [];
     const target = new SessionViewportController({
       enabled: true,
@@ -130,6 +128,31 @@ describe("session viewport interaction controller", () => {
     // underline's cells outside [2, 6) now need explicit cleanup.
     compose(`  ${link("link")}`);
     expect(renders).toContain(true);
+    target.clearPointerState();
+  });
+
+  it.each([
+    "https://example.test/long-path",
+    "\u001b]8;;https://example.test\u0007long label\u001b]8;;\u0007",
+  ])("keeps motion inside one occurrence cheap and latches cleanup on leave: %s", linked => {
+    const renders: (boolean | undefined)[] = [];
+    let cleanups = 0;
+    const target = new SessionViewportController({
+      enabled: true, editor: editor(), requestRender: force => renders.push(force),
+      requestHyperlinkCleanup: () => { cleanups += 1; },
+    });
+    target.compose({ documentRows: [linked, "plain"], dockRows: [], promptAnchors: [], width: 80, height: 2 });
+    target.handlePreInput("\u001b[<35;2;1M");
+    target.handlePreInput("\u001b[<35;3;1M");
+    expect(cleanups).toBe(0);
+    expect(renders).not.toContain(true);
+    target.compose({ documentRows: [linked.replaceAll("example.test", "changed.test"), "plain"], dockRows: [], promptAnchors: [], width: 80, height: 2 });
+    expect(cleanups).toBe(1);
+    target.handlePreInput("\u001b[<35;3;2M");
+    expect(cleanups).toBe(2);
+    expect(renders).toContain(true);
+    target.handlePreInput("\u001b[<35;4;2M");
+    expect(cleanups).toBe(2);
     target.clearPointerState();
   });
 

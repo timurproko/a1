@@ -2,9 +2,9 @@ import { execFileSync } from "node:child_process";
 import { readFileSync, rmSync } from "node:fs";
 import { dirname } from "node:path";
 import { describe, expect, it } from "vitest";
-import { hyperlinkTargetAtColumn } from "../../../src/ui/components/spans.js";
-import { displayWidth } from "../../../src/ui/components/text.js";
-import { ghostLinkDocument, ghostLinkPlainRows, ghostLinkScreen, ghostLinkWrite } from "./ghost-link-fixture.js";
+import { hyperlinkTargetAtColumn } from "../../../../src/ui/components/spans.js";
+import { displayWidth } from "../../../../src/ui/components/text.js";
+import { ghostLinkDocument, ghostLinkPlainRows, ghostLinkScreen, ghostLinkWrite } from "../../../support/rendering/ghost-link-fixture.js";
 
 const FILE_TARGET = "file:///C:/work/package.json";
 const CLOSE_LINK = "\u001b]8;;\u001b\\";

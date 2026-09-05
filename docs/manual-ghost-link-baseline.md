@@ -14,7 +14,9 @@ The user reports that in **mode 2 (auto-detected)**, wheel scrolling moves the h
 
 The clean `f3613bb` run at 123 columns by 29 rows (`run-smbQ70/trace.jsonl`) records `ghost: true` in auto-detected mode after a downward wheel scroll at scroll position 9. The immediately preceding frame, 214, contains no explicit OSC 8 target opens, and the adapter reports `suppressed-redundant-clear`; its forwarded write has no full-screen clear. This confirms an auto-detection reproduction but does not prove that restoring the clear will fix it. The recorded one-shot `f` comparisons were in explicit mode, with no observation establishing their effect on the auto-detected case. Terminal version and the precise host detection setting remain unrecorded.
 
-The persistent-clear comparison below avoids asking the user to press `f` before the short-lived artifact disappears. It changes the diagnostic write path only; production behavior and terminal settings remain unchanged.
+The persistent-clear comparison below avoids asking the user to press `f` before the short-lived artifact disappears. It changes the diagnostic write path only; production behavior and terminal settings remain unchanged. The user reports that **CLEAR:ON helps** for the confirmed mode-2 case. This supports preserving the complete clear in the production repair, but does not by itself prove the artifact is completely absent in the built A1 candidate.
+
+The test host is Windows Terminal `1.24.2607.10001`, determined from the running executable after the comparison. Its settings file contains no explicit global, profile-default, or per-profile `experimental.detectURLs` override; therefore the effective host default applies. The fixture geometry was 123 by 29. Explicit-mode reproduction remains unconfirmed and is recorded as unknown rather than assumed clean.
 
 ## Run in Windows Terminal / Git Bash
 
@@ -70,4 +72,4 @@ For noninteractive protocol evidence:
 
 Capture mode always records `physical-result: not-observed`. Final text, closed OSC 8 sequences, and a preserved clear cannot prove that Windows Terminal discarded its hover overlay. A clean probe also does not disprove the original A1 screenshot: the complete UI pipeline still needs review.
 
-Baseline task 1.2 remains incomplete: the mode-2 failure is recorded, but host facts and the persistent-clear comparison are still missing. The remaining production repair and exact-candidate acceptance tasks remain open. If the preserved-clear control still ghosts, that is evidence to investigate before assuming clear preservation alone is sufficient.
+Baseline task 1.2 remains incomplete: the mode-2 failure, host facts, and a helpful persistent-clear comparison are recorded, but explicit-mode and fully-clean control outcomes have not been confirmed. The remaining production repair and exact-candidate acceptance tasks remain open. If the preserved-clear control still ghosts, that is evidence to investigate before assuming clear preservation alone is sufficient.

@@ -1,7 +1,7 @@
 import type { OwnedUiViewportSettings } from "../../../contracts/owned-ui/index.js";
 import {
   TranscriptViewport,
-  hyperlinkTargetAtColumn,
+  readVisibleHyperlinks,
   routeMouseInput,
   scrollForTrackPage,
   scrollForThumbRow,
@@ -16,6 +16,7 @@ export interface SessionViewportControllerOptions {
   readonly enabled: boolean;
   readonly editor: PiShellEditorPort;
   readonly requestRender: (force?: boolean) => void;
+  readonly requestHyperlinkCleanup?: () => void;
   /** Whether mutable editor URL chips need an immediate forced repaint on deletion. */
   readonly hasEditorLinks?: () => boolean;
 }
@@ -36,6 +37,7 @@ export class SessionViewportController {
   readonly #editor: PiShellEditorPort;
   readonly #requestRender: (force?: boolean) => void;
   readonly #hasEditorLinks: () => boolean;
+  readonly #requestHyperlinkCleanup: () => void;
   readonly #viewport = new TranscriptViewport();
   #config: OwnedUiViewportSettings = {
     scrollbarAppearance: "auto",
@@ -65,6 +67,7 @@ export class SessionViewportController {
       options.requestRender(force);
     };
     this.#hasEditorLinks = options.hasEditorLinks ?? (() => false);
+    this.#requestHyperlinkCleanup = options.requestHyperlinkCleanup ?? (() => {});
   }
 
   get config(): OwnedUiViewportSettings {
@@ -115,6 +118,7 @@ export class SessionViewportController {
       if (this.#hoveredHyperlinkKey !== undefined && next !== this.#hoveredHyperlinkKey) {
         // Platform: Windows Terminal can leave its solid native-hover underline behind
         // when a following viewport moves the link away from a stationary pointer.
+        this.#requestHyperlinkCleanup();
         this.#requestRender(true);
       }
       this.#hoveredHyperlinkKey = next;
@@ -185,7 +189,10 @@ export class SessionViewportController {
       return { data: "", consumed: true };
     }
     // Platform: URL chip deletion must overwrite terminal link cells in the same frame.
-    if (EDITOR_LINK_DELETION_INPUTS.has(data) && this.#hasEditorLinks()) this.#requestRender(true);
+    if (EDITOR_LINK_DELETION_INPUTS.has(data) && this.#hasEditorLinks()) {
+      this.#requestHyperlinkCleanup();
+      this.#requestRender(true);
+    }
     if (this.#viewport.frame === null) return { data, consumed: false };
     if (data === "\u0003") {
       if (this.#editor.hasSelection()) {
@@ -249,6 +256,7 @@ export class SessionViewportController {
           if (this.#hoveredHyperlinkKey !== undefined && nextHyperlink !== this.#hoveredHyperlinkKey) {
             // Platform: a forced redraw overwrites Windows Terminal's cached solid hover
             // underline exactly once when the pointer leaves or changes links.
+            this.#requestHyperlinkCleanup();
             forceRepaint = true;
           }
           this.#hoveredHyperlinkKey = nextHyperlink;
@@ -397,8 +405,9 @@ export class SessionViewportController {
 
   #hyperlinkKeyAt(frame: TranscriptViewportFrame, column: number, row: number): string | undefined {
     if (row < 1 || row > frame.rows.length || column < 1) return undefined;
-    const target = hyperlinkTargetAtColumn(frame.rows[row - 1] ?? "", column - 1);
-    return target === undefined ? undefined : `${row}\u0000${target}`;
+    const range = readVisibleHyperlinks(frame.rows[row - 1] ?? "").ranges
+      .find(candidate => column - 1 >= candidate.from && column - 1 < candidate.to);
+    return range === undefined ? undefined : JSON.stringify([row, range]);
   }
 
   #updateSelectionAutoScroll(column: number, row: number, viewportHeight: number): void {

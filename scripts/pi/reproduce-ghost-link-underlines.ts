@@ -5,6 +5,7 @@ import { pathToFileURL } from "node:url";
 import { DamageAwareTerminalAdapter } from "../../src/integrations/pi/tui-runtime/damage-aware-terminal.js";
 import type { PiTuiTerminalPort } from "../../src/integrations/pi/tui-runtime/contracts.js";
 import { routeMouseInput } from "../../src/ui/components/mouse.js";
+import { readVisibleHyperlinks } from "../../src/ui/components/visible-hyperlinks.js";
 import {
   ghostLinkDocument,
   ghostLinkScreen,
@@ -54,7 +55,7 @@ async function main(): Promise<void> {
   const start = performance.now();
   const record = (value: object) => writeSync(fd, `${JSON.stringify({ atMs: performance.now() - start, ...value })}\n`);
   const terminal = new ProbeTerminal(interactive, record);
-  const adapter = new DamageAwareTerminalAdapter(terminal, { regionalScroll: true });
+  const adapter = new DamageAwareTerminalAdapter(terminal, { regionalScroll: true, inspectHyperlinks: readVisibleHyperlinks });
   let mode: GhostLinkFixtureMode = process.argv.includes("--auto") ? "auto-detected" : "explicit";
   let preserveClears = process.argv.includes("--preserve-clears");
   let blank = false;
