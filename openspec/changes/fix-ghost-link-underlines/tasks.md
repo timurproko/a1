@@ -1,6 +1,6 @@
 ## 1. Establish reproducible link-cleanup evidence
 
-- [ ] 1.1 Convert the analysis probes into regressions for a linked frame followed by a forced link-free frame and for same-row/same-target bounds changes under a stationary pointer; verify they expose the current missing clear and missing cleanup transition before applying the repair.
+- [x] 1.1 Convert the analysis probes into regressions for a linked frame followed by a forced link-free frame and for same-row/same-target bounds changes under a stationary pointer; verify they expose the current missing clear and missing cleanup transition before applying the repair.
 - [ ] 1.2 Add a deterministic reproduction fixture containing long OSC 8 file and URL links, duplicate targets, wrapped links, blank rows, and separate auto-detected URL/file-like tool text; record a Windows Terminal baseline with terminal version, geometry, settings, raw writes, and visible symptom, explicitly marking cases that do not reproduce.
 - [ ] 1.3 Audit final row clipping, overlays, and reset boundaries for leaked OSC 8 targets or SGR underline state; verify captured sequences distinguish cell metadata, SGR attributes, and host-only hover decoration rather than treating the screenshot as a proven root cause.
 

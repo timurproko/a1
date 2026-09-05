@@ -164,6 +164,23 @@ describe("A1-owned damage-aware terminal adapter", () => {
     expect(ready.terminal.writes.at(-1)).toBe(forced);
   });
 
+  // Rationale: known failure tracked by fix-ghost-link-underlines task 3.2. Remove .fails
+  // with the repair; this preserves the red regression during baseline review.
+  it.fails("preserves a forced cleanup when the last visible hyperlink disappears", () => {
+    const { adapter, terminal } = initialized();
+    const link = "\u001b]8;;https://example.test/full\u0007long linked label\u001b]8;;\u0007";
+    adapter.arm(descriptor(2), SAFE);
+    adapter.write(fullscreenWrite([link, ...initialRows.slice(1)]));
+    const replacement = fullscreenWrite(["", ...initialRows.slice(1)])
+      .replace("\u001b[?2026h", "\u001b[?2026h\u001b[2J");
+    adapter.arm(descriptor(3), SAFE);
+    adapter.write(replacement);
+
+    // Invariant: safety depends on the previously presented link, not just
+    // the link-free replacement. Row clears cannot stand in for this cleanup.
+    expect(terminal.writes.at(-1)).toBe(replacement);
+  });
+
   it("fails closed for unsupported region scrolling and geometry mismatch", () => {
     const unsupported = initialized({ regionalScroll: false });
     const broad = fullscreenWrite(["B", "C", "D", "E", "F", "G"]);

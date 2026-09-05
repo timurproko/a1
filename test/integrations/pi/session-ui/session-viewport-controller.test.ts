@@ -109,6 +109,30 @@ describe("session viewport interaction controller", () => {
     expect(renders).toContain(true);
   });
 
+  // Rationale: known failure tracked by fix-ghost-link-underlines task 2.2. Remove .fails
+  // with the repair; an unexpected pass deliberately fails this baseline test.
+  it.fails("requests cleanup when the same hovered target changes its column bounds", () => {
+    const renders: (boolean | undefined)[] = [];
+    const target = new SessionViewportController({
+      enabled: true,
+      editor: editor(),
+      requestRender: force => renders.push(force),
+    });
+    const link = (label: string) => `\u001b]8;;https://example.test/full\u001b\\${label}\u001b]8;;\u001b\\`;
+    const compose = (row: string) => target.compose({
+      documentRows: [row, "plain"], dockRows: [], promptAnchors: [], width: 40, height: 2,
+    });
+    compose(link("long link"));
+    target.handlePreInput("\u001b[<35;3;1M");
+    renders.length = 0;
+
+    // Invariant: column 3 still hits the same URL on row 1, but the old
+    // underline's cells outside [2, 6) now need explicit cleanup.
+    compose(`  ${link("link")}`);
+    expect(renders).toContain(true);
+    target.clearPointerState();
+  });
+
   it("routes editor pointer input only through the declared editor frame", () => {
     const events: PiShellEditorPointerEvent[] = [];
     let ownsPointer = false;

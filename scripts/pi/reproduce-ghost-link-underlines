@@ -1,0 +1,5 @@
+#!/bin/sh
+# Standalone terminal protocol probe, not an interactive A1/Pi launch.
+# Exec from the shell preserves VT colours under Windows Git Bash.
+cd "$(dirname "$0")/../.." || exit 1
+exec node --import tsx scripts/pi/reproduce-ghost-link-underlines.ts "$@"
