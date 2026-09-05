@@ -45,20 +45,38 @@ describe("ghost link baseline fixture", () => {
     expect([...write.matchAll(/\u001b\[2K/gu)]).toHaveLength(24);
   });
 
-  it("captures before/after bytes and explicitly withholds a physical verdict", () => {
+  it.each([false, true])("captures persistent-clear comparisons (initially preserved: %s) without a physical verdict", initiallyPreserved => {
     const output = execFileSync(process.execPath, [
       "--import", "tsx", "scripts/pi/reproduce-ghost-link-underlines.ts", "--capture",
+      ...(initiallyPreserved ? ["--auto", "--preserve-clears"] : []),
     ], { encoding: "utf8", timeout: 15_000 });
     const path = /Trace saved: ([^\r\n]+)/u.exec(output)?.[1];
     expect(path).toBeDefined();
     try {
       const entries = readFileSync(path!, "utf8").trim().split("\n")
         .map(line => JSON.parse(line) as Record<string, unknown>);
-      expect(entries[0]).toMatchObject({ type: "metadata", interactive: false, columns: 192, rows: 54 });
-      expect(entries.filter(entry => entry.type === "frame-request")).toHaveLength(7);
-      expect(entries.some(entry => entry.type === "frame-request" && entry.mode === "auto-detected")).toBe(true);
-      expect(entries.some(entry => entry.type === "frame-request" && entry.bypass === true)).toBe(true);
-      expect(entries.filter(entry => entry.type === "terminal-write")).toHaveLength(7);
+      expect(entries[0]).toMatchObject({
+        type: "metadata", formatVersion: 2, interactive: false, columns: 192, rows: 54,
+        mode: initiallyPreserved ? "auto-detected" : "explicit", preserveClears: initiallyPreserved,
+      });
+      const frames = entries.filter(entry => entry.type === "frame-request");
+      expect(frames).toHaveLength(13);
+      expect(frames.some(frame => frame.mode === "auto-detected")).toBe(true);
+      for (const frame of frames) {
+        expect(frame.bypass).toBe(frame.preserveClears === true || frame.action === "f");
+        if (frame.bypass) {
+          const forwarded = entries[entries.indexOf(frame) + 1];
+          expect(forwarded).toMatchObject({ type: "terminal-write", data: frame.data });
+          expect(String(forwarded?.data).startsWith("\u001b[?2026h\u001b[2J")).toBe(true);
+        }
+      }
+      const toggled = frames.filter(frame => frame.action === "p");
+      expect(toggled.map(frame => frame.preserveClears)).toEqual([!initiallyPreserved, initiallyPreserved]);
+      const wheelDown = frames[9]!;
+      const wheelUp = frames[10]!;
+      expect(wheelDown).toMatchObject({ action: "j", scrollTop: 3, preserveClears: !initiallyPreserved });
+      expect(wheelUp).toMatchObject({ action: "k", scrollTop: 0, preserveClears: !initiallyPreserved });
+      expect(entries.filter(entry => entry.type === "terminal-write")).toHaveLength(13);
       expect(entries.at(-1)).toMatchObject({ type: "physical-result", result: "not-observed" });
       expect(entries.some(entry => entry.type === "human-observation")).toBe(false);
     } finally {

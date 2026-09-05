@@ -8,6 +8,14 @@ Two executable regressions reproduce the code gaps: the damage adapter removes a
 
 The standalone protocol fixture drives the **real A1 damage adapter** with the pinned complete-row write grammar. It does not launch A1, Pi, or an agent and does not simulate their complete rendering/input pipeline. In particular it cannot establish shell overlay, selection, or streaming acceptance. It separates emitted-byte evidence from the host's native-hover decoration so those later tests do not mistake a passing controller assertion for a fixed visual bug.
 
+## Confirmed physical baseline
+
+The user reports that in **mode 2 (auto-detected)**, wheel scrolling moves the hovered link upward while its underline remains under the stationary pointer briefly, then disappears. That transient trail is a failure, not successful cleanup.
+
+The clean `f3613bb` run at 123 columns by 29 rows (`run-smbQ70/trace.jsonl`) records `ghost: true` in auto-detected mode after a downward wheel scroll at scroll position 9. The immediately preceding frame, 214, contains no explicit OSC 8 target opens, and the adapter reports `suppressed-redundant-clear`; its forwarded write has no full-screen clear. This confirms an auto-detection reproduction but does not prove that restoring the clear will fix it. The recorded one-shot `f` comparisons were in explicit mode, with no observation establishing their effect on the auto-detected case. Terminal version and the precise host detection setting remain unrecorded.
+
+The persistent-clear comparison below avoids asking the user to press `f` before the short-lived artifact disappears. It changes the diagnostic write path only; production behavior and terminal settings remain unchanged.
+
 ## Run in Windows Terminal / Git Bash
 
 From the implementation checkout, with dependencies installed:
@@ -25,6 +33,18 @@ Optional host facts can be recorded explicitly; use the actual version from Wind
 ```
 
 Missing facts are recorded as `unknown`, not inferred. Use a terminal wide enough to display the controls (192 columns by 54 rows is a useful comparison geometry).
+
+## Persistent clear comparison for the confirmed auto-detection case
+
+```sh
+./scripts/pi/reproduce-ghost-link-underlines --auto --preserve-clears
+```
+
+This starts directly in mode 2 with **CLEAR:ON**. Every frame, including every wheel-scroll frame, sends the requested complete synchronized clear-and-repaint directly to the terminal. It is a labelled control experiment, not an implemented A1 fix.
+
+Hover a link and scroll with the wheel while keeping the pointer stationary. Record **y** if any underline trail remains, even if it disappears shortly afterward; record **n** only if this case stays clean. Press **p** to switch to **CLEAR:OFF**, restore the same content position with **r**, and compare the same gesture through the existing adapter. **p** persists across subsequent scrolls, mode changes, and resets. The status row always shows its state. Press **q** to exit.
+
+Trace format 2 records `preserveClears` and actual `bypass` state separately on frames and observations. If the trail survives CLEAR:ON, merely preserving the full clear is insufficient for this reproduced host behavior; further diagnosis is required before choosing the production cleanup strategy.
 
 ## Observe and record
 
@@ -50,4 +70,4 @@ For noninteractive protocol evidence:
 
 Capture mode always records `physical-result: not-observed`. Final text, closed OSC 8 sequences, and a preserved clear cannot prove that Windows Terminal discarded its hover overlay. A clean probe also does not disprove the original A1 screenshot: the complete UI pipeline still needs review.
 
-Baseline task 1.2 remains incomplete until physical observations and host facts are recorded. The remaining production repair and exact-candidate acceptance tasks remain open. If the preserved-clear control still ghosts, that is evidence to investigate before assuming clear preservation alone is sufficient.
+Baseline task 1.2 remains incomplete: the mode-2 failure is recorded, but host facts and the persistent-clear comparison are still missing. The remaining production repair and exact-candidate acceptance tasks remain open. If the preserved-clear control still ghosts, that is evidence to investigate before assuming clear preservation alone is sufficient.

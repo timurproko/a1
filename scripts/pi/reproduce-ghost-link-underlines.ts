@@ -55,23 +55,25 @@ async function main(): Promise<void> {
   const record = (value: object) => writeSync(fd, `${JSON.stringify({ atMs: performance.now() - start, ...value })}\n`);
   const terminal = new ProbeTerminal(interactive, record);
   const adapter = new DamageAwareTerminalAdapter(terminal, { regionalScroll: true });
-  let mode: GhostLinkFixtureMode = "explicit";
+  let mode: GhostLinkFixtureMode = process.argv.includes("--auto") ? "auto-detected" : "explicit";
+  let preserveClears = process.argv.includes("--preserve-clears");
   let blank = false;
   let short = false;
   let scrollTop = 0;
   let frameId = 0;
   let previousAction = "initial";
+  let previousBypass = false;
   let finish = () => {};
   const fileTarget = pathToFileURL(resolve("package.json")).href;
-  const render = (action: string, bypass = false) => {
+  const render = (action: string, bypass = preserveClears) => {
     const width = terminal.columns;
     const height = terminal.rows;
     const document = ghostLinkDocument(width, mode, fileTarget, short);
     scrollTop = Math.max(0, Math.min(scrollTop, Math.max(0, document.length - (height - 2))));
-    const status = `${mode} | ${blank ? "blank replacement" : short ? "short label" : "original labels"} | scroll ${scrollTop} | ${action}`;
+    const status = `${mode} | CLEAR:${preserveClears ? "ON" : "OFF"} (p toggles) | ${blank ? "blank" : short ? "short" : "original"} | scroll ${scrollTop} | ${action}`;
     const rows = ghostLinkScreen(document, width, height, scrollTop, blank, status);
     const input = ghostLinkWrite(rows, true);
-    record({ type: "frame-request", frameId: ++frameId, mode, blank, short, scrollTop, width, height, action, bypass, data: input });
+    record({ type: "frame-request", frameId: ++frameId, mode, preserveClears, blank, short, scrollTop, width, height, action, bypass, data: input });
     if (bypass) {
       // Protocol: restart the adapter cache after a direct host clear. The
       // bypass is labelled and must never be mistaken for production behavior.
@@ -88,23 +90,25 @@ async function main(): Promise<void> {
       record({ type: "damage-decision", ...adapter.lastDecision });
     }
     previousAction = action;
+    previousBypass = bypass;
   };
   const key = (data: string) => {
     if (data === "q" || data === "\u0003") { finish(); return; }
     if (data === "y" || data === "n") {
-      record({ type: "human-observation", mode, blank, short, scrollTop, action: previousAction, ghost: data === "y" });
+      record({ type: "human-observation", mode, preserveClears, bypass: previousBypass, blank, short, scrollTop, action: previousAction, ghost: data === "y" });
       render(data === "y" ? "recorded GHOST" : "recorded CLEAN");
       return;
     }
     if (data === "1" || data === "2" || data === "r") {
       if (data !== "r") mode = data === "1" ? "explicit" : "auto-detected";
       blank = false; short = false; scrollTop = 0;
-    } else if (data === "x") blank = true;
+    } else if (data === "p") preserveClears = !preserveClears;
+    else if (data === "x") blank = true;
     else if (data === "b") { short = !short; blank = false; }
     else if (data === "j" || data === "\u001b[B") scrollTop += 3;
     else if (data === "k" || data === "\u001b[A") scrollTop -= 3;
     else if (data !== "f") return;
-    render(data, data === "f");
+    render(data, data === "f" || preserveClears);
   };
   const input = (data: string) => {
     record({ type: "input", data });
@@ -122,7 +126,7 @@ async function main(): Promise<void> {
   let entered = false;
   try {
     record({
-      type: "metadata", formatVersion: 1, interactive,
+      type: "metadata", formatVersion: 2, interactive, mode, preserveClears,
       commit: execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(),
       dirty: execFileSync("git", ["status", "--porcelain"], { encoding: "utf8" }).trim(),
       terminalVersion: option("--terminal-version") ?? "unknown",
@@ -147,7 +151,9 @@ async function main(): Promise<void> {
       await done;
     } else {
       render("initial");
-      for (const command of ["b", "x", "f", "2", "j", "x"]) key(command);
+      // Protocol: compare persistent clear states with actual wheel reports,
+      // not a one-shot clear after the transient hover artifact already faded.
+      for (const command of ["b", "x", "f", "2", "j", "x", "p", "r", "\u001b[<65;8;3M", "\u001b[<64;8;3M", "p", "j"]) input(command);
       record({ type: "physical-result", result: "not-observed" });
     }
   } finally {
