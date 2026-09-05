@@ -10,15 +10,18 @@ describe("full rendering stability gate", () => {
   it("captures every workload once and preserves product-facing matrix contracts", async () => {
     const captured = await captureRenderingGate(workloadIds);
     expect(captured.structure).toEqual({ workloadCaptures: 8, deliberateRepeatCaptures: 0, producerLaunches: 48 });
-    for (const [workloadId, matrix] of captured.matrices) {
+    const violations: string[] = [];
+    for (const matrix of captured.matrices.values()) {
       const budget = evaluateRenderingBudgets(matrix);
-      expect(budget.violations, workloadId).toEqual([]);
-      expect(budget.passed).toBe(true);
+      violations.push(...budget.violations);
       for (const mode of [matrix.defaultMode, matrix.fullscreenMode]) {
         expect(new Set(mode.map(result => result.processId)).size).toBe(3);
         expect(mode.map(result => result.state.profileId)).toEqual(["a1", "pi", "pi"]);
       }
     }
+    // Rationale: capture is the expensive part. Aggregate every workload's
+    // budget diagnostics so one CI invocation exposes all regressions.
+    expect(violations).toEqual([]);
 
     const prose = captured.matrices.get("streamed-prose")!;
     expect(prose.defaultMode.map(entry => [entry.producer, entry.requestedMode, entry.effectiveMode])).toEqual([

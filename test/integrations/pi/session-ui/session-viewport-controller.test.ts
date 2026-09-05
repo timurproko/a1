@@ -266,6 +266,53 @@ describe("session viewport interaction controller", () => {
     expect(renders).toContain(true);
   });
 
+  it("requests cleanup when the same hovered target changes its column bounds", () => {
+    const renders: (boolean | undefined)[] = [];
+    const target = new SessionViewportController({
+      enabled: true,
+      editor: editor(),
+      requestRender: force => renders.push(force),
+    });
+    const link = (label: string) => `\u001b]8;;https://example.test/full\u001b\\${label}\u001b]8;;\u001b\\`;
+    const compose = (row: string) => target.compose({
+      documentRows: [row, "plain"], dockRows: [], promptAnchors: [], width: 40, height: 2,
+    });
+    compose(link("long link"));
+    target.handlePreInput("\u001b[<35;3;1M");
+    renders.length = 0;
+
+    // Invariant: column 3 still hits the same URL on row 1, but the old
+    // underline's cells outside [2, 6) now need explicit cleanup.
+    compose(`  ${link("link")}`);
+    expect(renders).toContain(true);
+    target.clearPointerState();
+  });
+
+  it.each([
+    "https://example.test/long-path",
+    "\u001b]8;;https://example.test\u0007long label\u001b]8;;\u0007",
+  ])("keeps motion inside one occurrence cheap and latches cleanup on leave: %s", linked => {
+    const renders: (boolean | undefined)[] = [];
+    let cleanups = 0;
+    const target = new SessionViewportController({
+      enabled: true, editor: editor(), requestRender: force => renders.push(force),
+      requestHyperlinkCleanup: () => { cleanups += 1; },
+    });
+    target.compose({ documentRows: [linked, "plain"], dockRows: [], promptAnchors: [], width: 80, height: 2 });
+    target.handlePreInput("\u001b[<35;2;1M");
+    target.handlePreInput("\u001b[<35;3;1M");
+    expect(cleanups).toBe(0);
+    expect(renders).not.toContain(true);
+    target.compose({ documentRows: [linked.replaceAll("example.test", "changed.test"), "plain"], dockRows: [], promptAnchors: [], width: 80, height: 2 });
+    expect(cleanups).toBe(1);
+    target.handlePreInput("\u001b[<35;3;2M");
+    expect(cleanups).toBe(2);
+    expect(renders).toContain(true);
+    target.handlePreInput("\u001b[<35;4;2M");
+    expect(cleanups).toBe(2);
+    target.clearPointerState();
+  });
+
   it("cleans up native hyperlink hover when a non-motion report relocates the pointer", () => {
     const { target, input, renders } = hoverFixture();
     try {

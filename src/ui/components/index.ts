@@ -11,6 +11,7 @@ export * from "./revision.js";
 export * from "./scrollbar.js";
 export * from "./shortcuts.js";
 export * from "./spans.js";
+export * from "./visible-hyperlinks.js";
 export * from "./status-line.js";
 export * from "./submitted-prompt.js";
 export * from "./stepper.js";

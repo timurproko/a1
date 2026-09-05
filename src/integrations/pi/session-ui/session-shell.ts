@@ -7,7 +7,7 @@ import type {
   OwnedUiThinkingLevel,
 } from "../../../contracts/owned-ui/index.js";
 import type { UiRouteHost } from "../../../ui/apps/index.js";
-import { MOUSE_TRACKING_OFF, MOUSE_TRACKING_ON, parseMouseInput } from "../../../ui/components/index.js";
+import { MOUSE_TRACKING_OFF, MOUSE_TRACKING_ON, parseMouseInput, readVisibleHyperlinks } from "../../../ui/components/index.js";
 import {
   PINNED_PI_HIDDEN_COMMAND_NAMES,
   PINNED_PI_WORKFLOW_COMMAND_NAMES,
@@ -164,6 +164,7 @@ export class OwnedUiSessionShell {
       getColumns: () => runtime?.viewport().columns ?? options.terminal?.columns ?? 80,
       getRows: () => runtime?.viewport().rows ?? options.terminal?.rows ?? 24,
       requestRender: force => runtime?.requestRender(force),
+      requestHyperlinkCleanup: () => damageTerminal?.requestHyperlinkCleanup(),
       onViewportFrame: frame => damageTerminal?.arm(frame.descriptor, {
         overlayActive: runtime?.hasOverlay() ?? false,
         selectionActive: this.root.hasActiveSelection(),
@@ -227,7 +228,9 @@ export class OwnedUiSessionShell {
         decorateTerminal: (terminal: PiTuiTerminalPort) => {
           damageTerminal = new DamageAwareTerminalAdapter(terminal, {
             regionalScroll: process.env.TERM !== "dumb",
+            inspectHyperlinks: readVisibleHyperlinks,
             onResize: () => streamPresentation?.noteImmediatePresentation(),
+            onHyperlinkCleanupRequired: () => runtime?.requestRender(true),
           });
           return damageTerminal;
         },
