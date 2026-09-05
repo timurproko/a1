@@ -60,6 +60,20 @@ Trace format 2 records `preserveClears` and actual `bypass` state separately on 
 
 The fixture does not implement link activation. The host may still handle its normal hyperlink gestures; the explicit file target is this checkout's `package.json`, and web targets use the reserved `example.invalid` domain.
 
+## Built A1 candidate
+
+The implementation branch `fix/ghost-link-underlines` now carries the production repair. Build it, launch the color-preserving repository entry, produce output containing web URLs, file paths, and linked file labels, and test all of the following while leaving the pointer stationary over a link:
+
+- wheel-scroll the link upward and downward;
+- use Home/End, Shift+Up/Down, the scrollbar, and followed streaming output;
+- resize or reflow the terminal so the link changes row or width;
+- select linked content, edge-auto-scroll, release, and copy;
+- let linked content leave the viewport and hover the resulting plain and blank cells.
+
+Expected: the underline moves with current link cells and never remains under the pointer, even briefly; current links remain clickable and retain their colors; copied text is unchanged; no blank intermediate screen is visible. The implementation limits complete cleanup frames to transitions involving visible explicit or conservative host-detected link candidates. Stable dock typing and motion within one unchanged link retain bounded differential paint.
+
+Known gaps before acceptance: the exact built candidate still needs physical Windows Terminal review; explicit-mode baseline behavior was not confirmed; required code CI has not yet been recorded; and user acceptance remains open.
+
 ## Evidence and limitations
 
 Each run creates its own ignored `.artifacts/ghost-link-baseline/run-*/trace.jsonl`. It records checkout commit and dirty status, supplied host facts, geometry, requested writes, actual forwarded writes, adapter decisions, probe input, and explicit human observations. It captures only the synthetic fixture, not an agent conversation. Review local file targets before sharing the trace.

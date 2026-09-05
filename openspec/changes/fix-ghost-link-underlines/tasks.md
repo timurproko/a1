@@ -27,6 +27,6 @@
 
 ## 5. Validate the physical symptom and record acceptance
 
-- [ ] 5.1 Deliver the exact built candidate and a focused reproduction handoff using the color-preserving development entry; verify the handoff identifies worktree, commit, commands, fixture steps, expected behavior, and remaining evidence gaps.
+- [x] 5.1 Deliver the exact built candidate and a focused reproduction handoff using the color-preserving development entry; verify the handoff identifies worktree, commit, commands, fixture steps, expected behavior, and remaining evidence gaps.
 - [ ] 5.2 Obtain Windows Terminal review of stationary-pointer scrolling, last-link removal, repeated same-target links, reflow/resize, tool-output auto-detection, and selection/release; record candidate identity, host version, geometry, settings, clickable-link preservation, and absence or presence of ghost underlines on unrelated text and blank rows.
 - [ ] 5.3 Record explicit user acceptance only after the original physical symptom is absent and required automated evidence passes; leave acceptance incomplete and document renewed diagnosis if any explicit-link or auto-detected reproduction still ghosts, without weakening the specification or silently changing the link-rendering model.
