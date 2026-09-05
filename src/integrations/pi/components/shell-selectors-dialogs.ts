@@ -336,12 +336,17 @@ export function createPiShellEarendilAnnouncement(): PiShellComponentPort {
   return componentPort(new EarendilAnnouncementComponent());
 }
 
+export interface PiShellOperationLoaderPort extends PiShellComponentPort {
+  readonly signal: AbortSignal;
+}
+
 export function createPiShellOperationLoader(
   runtime: Pick<PiShellEditorOptions, "getColumns" | "getRows" | "requestRender">,
   message: string,
-): PiShellComponentPort {
+): PiShellOperationLoaderPort {
   ensureTheme();
-  return componentPort(new BorderedLoader(createTuiFacade(runtime), piTheme(), message));
+  const loader = new BorderedLoader(createTuiFacade(runtime), piTheme(), message, { cancellable: true });
+  return { ...componentPort(loader), signal: loader.signal };
 }
 
 export function createPiShellReloadBox(): PiShellComponentPort {

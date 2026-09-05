@@ -1,8 +1,8 @@
-import type { AgentSessionRuntime } from "@earendil-works/pi-coding-agent";
+import { CredentialSynchronizationError, type AgentSessionRuntime } from "@earendil-works/pi-coding-agent";
 import { readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   createPiEngineAdapter,
   PI_SETTING_EFFECTS,
@@ -28,11 +28,15 @@ class WorkflowSession {
   readonly messages: readonly unknown[] = [];
   readonly calls: string[] = [];
   reloadFails = false;
+  setModelFails = false;
+  leafId: string | undefined = "entry-2";
+  exportFails = false;
+  cycleResult: unknown = { model: { provider: "anthropic", id: "claude", name: "Claude" }, thinkingLevel: "high" };
   readonly sessionManager = {
     getCwd: () => "D:/work",
     getSessionDir: () => "D:/sessions",
     getSessionName: () => "Fixture",
-    getLeafId: () => "entry-2",
+    getLeafId: () => this.leafId,
     getEntries: () => [{ id: "entry-1", type: "message" }, { id: "entry-2", type: "message" }],
   };
   #listeners = new Set<(event: unknown) => void>();
@@ -45,13 +49,17 @@ class WorkflowSession {
   abortRetry(): void { this.calls.push("abortRetry"); }
   abortCompaction(): void { this.calls.push("abortCompaction"); }
   async compact(instructions?: string): Promise<void> { this.calls.push(`compact:${instructions ?? ""}`); }
-  async setModel(model: unknown): Promise<void> { this.model = model; this.calls.push("setModel"); }
+  async setModel(model: unknown): Promise<void> {
+    if (this.setModelFails) throw new Error("selection failed");
+    this.model = model;
+    this.calls.push("setModel");
+  }
   setThinkingLevel(level: unknown): void { this.thinkingLevel = level; }
   setSteeringMode(mode: unknown): void { this.steeringMode = mode; }
   setFollowUpMode(mode: unknown): void { this.followUpMode = mode; }
   dispose(): void {}
   setScopedModels(models: readonly unknown[]): void { this.calls.push(`scoped:${models.length}`); }
-  async cycleModel(): Promise<unknown> { return { model: { provider: "anthropic", id: "claude", name: "Claude" }, thinkingLevel: "high" }; }
+  async cycleModel(): Promise<unknown> { return this.cycleResult; }
   cycleThinkingLevel(): string { this.thinkingLevel = "high"; return "high"; }
   async executeBash(command: string, _chunk: unknown, options: { excludeFromContext: boolean }): Promise<unknown> {
     this.calls.push(`bash:${command}:${options.excludeFromContext}`);
@@ -60,7 +68,10 @@ class WorkflowSession {
   abortBash(): void { this.calls.push("abortBash"); }
   clearQueue(): unknown { return { steering: ["steer"], followUp: ["follow"] }; }
   exportToJsonl(path?: string): string { return path ?? "session.jsonl"; }
-  async exportToHtml(path?: string): Promise<string> { return path ?? "session.html"; }
+  async exportToHtml(path?: string): Promise<string> {
+    if (this.exportFails) throw new Error("export exploded");
+    return path ?? "session.html";
+  }
   getLastAssistantText(): string { return "last answer"; }
   setSessionName(name: string): void { this.calls.push(`name:${name}`); }
   getSessionStats(): unknown { return { sessionId: this.sessionId, totalMessages: 2 }; }
@@ -77,7 +88,16 @@ class WorkflowRuntime {
   newCancelled = false;
   loginPrompt = false;
   loginSelect = false;
+  loginError: unknown;
+  logoutError: unknown;
+  modelRefreshError: unknown;
+  modelRefreshResult: unknown = { aborted: false, errors: new Map() };
+  modelRefreshModels: Array<{ provider: string; id: string; name: string }> | undefined;
+  newFails = false;
+  resumeFails = false;
   resumeMissingCwd = false;
+  importMissingCwd = false;
+  importFails = false;
   readonly calls: string[] = [];
   readonly settingsValues = new Map<string, unknown>([
     ["CompactionEnabled", true], ["ShowImages", true], ["ImageWidthCells", 40], ["ImageAutoResize", true],
@@ -105,7 +125,7 @@ class WorkflowRuntime {
     ["openai", { configured: true, source: "stored" }],
   ]);
   readonly credentialTypes = new Map<string, "oauth" | "api_key">([["openai", "oauth"]]);
-  readonly allModels = [{ provider: "openai", id: "gpt-5", name: "GPT-5" }];
+  allModels = [{ provider: "openai", id: "gpt-5", name: "GPT-5" }];
   readonly modelRuntime = {
     getModel: (provider: string, id: string) => provider === "openai" && id === "missing" ? undefined : this.allModels.find(model => model.provider === provider && model.id === id),
     getAvailableSnapshot: () => this.allModels.filter(model => this.providerAuthStatus.get(model.provider)?.configured === true),
@@ -115,6 +135,7 @@ class WorkflowRuntime {
     listCredentials: async () => [...this.credentialTypes].map(([providerId, type]) => ({ providerId, type })),
     getProvider: (providerId: string) => providerId === "openai" ? { id: providerId, name: "OpenAI Codex" } : undefined,
     login: async (provider: string, type: "oauth" | "api_key", interaction: { prompt(input: unknown): Promise<string>; notify(event: unknown): void }) => {
+      if (this.loginError) throw this.loginError;
       if (this.loginSelect) {
         interaction.notify({ type: "auth_url", url: "https://example.test/auth", instructions: "Continue in browser" });
         await interaction.prompt({
@@ -130,8 +151,14 @@ class WorkflowRuntime {
       return { type };
     },
     logout: async (provider: string) => {
+      if (this.logoutError) throw this.logoutError;
       this.providerAuthStatus.set(provider, { configured: false });
       this.credentialTypes.delete(provider);
+    },
+    refresh: async () => {
+      if (this.modelRefreshError) throw this.modelRefreshError;
+      if (this.modelRefreshModels) this.allModels = this.modelRefreshModels;
+      return this.modelRefreshResult;
     },
   };
   readonly resourceLoader = {
@@ -146,9 +173,14 @@ class WorkflowRuntime {
   readonly diagnostics = [];
   setRebindSession(): void {}
   async listSessions(): Promise<readonly unknown[]> { return [{ path: "D:/sessions/one.jsonl", id: "one", firstMessage: "First", messageCount: 2, modified: new Date(0) }]; }
-  async newSession(): Promise<unknown> { this.calls.push("new"); return { cancelled: this.newCancelled }; }
+  async newSession(): Promise<unknown> {
+    this.calls.push("new");
+    if (this.newFails) throw new Error("new exploded");
+    return { cancelled: this.newCancelled };
+  }
   async switchSession(path: string, options?: { cwdOverride?: string }): Promise<unknown> {
     this.calls.push(`resume:${path}${options?.cwdOverride ? `:${options.cwdOverride}` : ""}`);
+    if (this.resumeFails) throw new Error("resume exploded");
     if (this.resumeMissingCwd && options?.cwdOverride === undefined) {
       throw Object.assign(new Error("missing cwd"), {
         issue: { sessionCwd: "D:/missing", fallbackCwd: "D:/work" },
@@ -157,7 +189,14 @@ class WorkflowRuntime {
     return { cancelled: false };
   }
   async fork(id: string): Promise<unknown> { this.calls.push(`fork:${id}`); return { cancelled: false }; }
-  async importFromJsonl(path: string): Promise<unknown> { this.calls.push(`import:${path}`); return { cancelled: false }; }
+  async importFromJsonl(path: string, cwdOverride?: string): Promise<unknown> {
+    this.calls.push(`import:${path}${cwdOverride ? `:${cwdOverride}` : ""}`);
+    if (this.importMissingCwd && cwdOverride === undefined) {
+      throw Object.assign(new Error("missing cwd"), { issue: { sessionCwd: "D:/missing", fallbackCwd: "D:/work" } });
+    }
+    if (this.importFails) throw new Error("import exploded");
+    return { cancelled: false };
+  }
   async dispose(): Promise<void> { this.calls.push("dispose"); }
 }
 
@@ -360,13 +399,48 @@ describe("pinned Pi command and input workflows", () => {
     ]));
     await expect(adapter.executeBashWorkflow("pwd", false)).resolves.toMatchObject({ output: "bash output", excludeFromContext: false });
     await expect(adapter.executeBashWorkflow("pwd", true)).resolves.toMatchObject({ excludeFromContext: true });
-    await expect(adapter.cycleModelWorkflow("forward")).resolves.toMatchObject({ outcome: "completed" });
+    await expect(adapter.cycleModelWorkflow("forward")).resolves.toMatchObject({ outcome: "completed", message: "Switched to Claude" });
+    runtime.session.cycleResult = undefined;
+    await expect(adapter.cycleModelWorkflow("forward")).resolves.toMatchObject({ outcome: "completed", message: "Only one model available" });
     expect(adapter.clearQueuedWorkflows()).toEqual(["steer", "follow"]);
     adapter.abortBashWorkflow();
     await expect(adapter.executeWorkflow({ command: "copy", argument: "" })).resolves.toMatchObject({ outcome: "failed", message: "clipboard denied" });
     runtime.session.reloadFails = true;
     await expect(adapter.executeWorkflow({ command: "reload", argument: "" })).resolves.toMatchObject({ outcome: "failed", message: "Reload failed: reload exploded" });
-    await expect(adapter.executeWorkflow({ command: "model", argument: "openai/missing" })).resolves.toMatchObject({ outcome: "failed" });
+    await expect(adapter.executeWorkflow({ command: "model", argument: "openai/missing" })).resolves.toMatchObject({
+      outcome: "requires-selection",
+      detail: "openai/missing",
+      messages: [{ kind: "status", message: "Refreshing model catalogs…" }],
+    });
+  });
+
+  it("matches cached and command-owned refreshed model selection outcomes", async () => {
+    const { adapter, runtime } = await fixture();
+    await expect(adapter.executeWorkflow({ command: "model", argument: "gpt-5" })).resolves.toMatchObject({
+      outcome: "completed", message: "Model: gpt-5",
+    });
+
+    runtime.modelRefreshModels = [{ provider: "openai", id: "gpt-5.5", name: "GPT-5.5" }];
+    await expect(adapter.executeWorkflow({ command: "model", argument: "openai/gpt-5.5" })).resolves.toMatchObject({
+      outcome: "completed",
+      message: "Model: gpt-5.5",
+      messages: [
+        { kind: "status", message: "Refreshing model catalogs…" },
+        { kind: "status", message: "Model: gpt-5.5" },
+      ],
+    });
+
+    runtime.modelRefreshModels = undefined;
+    runtime.modelRefreshResult = { aborted: false, errors: new Map([["openai", new Error("offline")]]) };
+    await expect(adapter.executeWorkflow({ command: "model", argument: "openai/missing" })).resolves.toMatchObject({
+      outcome: "requires-selection",
+      detail: "openai/missing",
+      messages: [
+        { kind: "status", message: "Refreshing model catalogs…" },
+        { kind: "warning", message: "Could not refresh openai; searching cached models." },
+      ],
+    });
+    await adapter.dispose();
   });
 
   it("preserves authoritative provider authentication status beside available models", async () => {
@@ -548,6 +622,241 @@ describe("pinned Pi command and input workflows", () => {
     adapter.setWorkflowInteractionHost({ prompt: async () => null, notify() {} });
     runtime.loginSelect = false;
     runtime.loginPrompt = true;
-    await expect(adapter.executeWorkflow({ command: "login", argument: "api_key:openai" })).resolves.toMatchObject({ outcome: "cancelled" });
+    await expect(adapter.executeWorkflow({ command: "login", argument: "api_key:openai" })).resolves.toMatchObject({ outcome: "cancelled", messageKind: "silent" });
+  });
+
+  it("reports authentication labels, model selection, partial failures, and delayed catalog warnings", async () => {
+    const { adapter, runtime } = await fixture();
+    runtime.providerAuthStatus.set("openai", { configured: false });
+    runtime.credentialTypes.delete("openai");
+
+    const apiKey = await adapter.executeWorkflow({ command: "login", argument: "api_key:openai" });
+    expect(apiKey).toMatchObject({
+      outcome: "completed",
+      message: expect.stringMatching(/^Saved API key for OpenAI Codex\. Credentials saved to .+auth\.json$/),
+      messages: [{ kind: "status", message: expect.stringMatching(/^Saved API key for OpenAI Codex\./) }],
+    });
+
+    runtime.session.model = { provider: "unknown", id: "unknown", api: "unknown" };
+    runtime.allModels = [{ provider: "openai", id: "gpt-5.5", name: "GPT-5.5" }];
+    const selected = await adapter.executeWorkflow({ command: "login", argument: "oauth:openai" });
+    expect(selected.message).toMatch(/^Logged in to OpenAI Codex\. Selected gpt-5\.5\. Credentials saved to .+auth\.json$/);
+    expect(runtime.session.calls).toContain("setModel");
+
+    runtime.session.model = { provider: "unknown", id: "unknown", api: "unknown" };
+    runtime.session.setModelFails = true;
+    const selectionFailure = await adapter.executeWorkflow({ command: "login", argument: "oauth:openai" });
+    expect(selectionFailure.messages).toEqual([
+      { kind: "status", message: expect.stringMatching(/^Logged in to OpenAI Codex\. Credentials saved to .+auth\.json$/) },
+      { kind: "error", message: "Logged in to OpenAI Codex, but selecting its default model failed: selection failed. Use /model to select a model." },
+    ]);
+
+    runtime.session.setModelFails = false;
+    runtime.session.model = { provider: "unknown", id: "unknown", api: "unknown" };
+    runtime.allModels = [];
+    const unavailable = await adapter.executeWorkflow({ command: "login", argument: "oauth:openai" });
+    expect(unavailable.messages).toEqual([
+      { kind: "status", message: expect.stringMatching(/^Logged in to OpenAI Codex\. Credentials saved to .+auth\.json$/) },
+      { kind: "error", message: "Logged in to OpenAI Codex, but no models are available for that provider. Use /model to select a model." },
+    ]);
+
+    const warnings: unknown[] = [];
+    adapter.setWorkflowInteractionHost({
+      prompt: async () => "credential",
+      notify() {},
+      publish: message => warnings.push(message),
+    });
+    runtime.modelRefreshResult = { aborted: true, errors: new Map() };
+    await adapter.executeWorkflow({ command: "login", argument: "oauth:openai" });
+    await vi.waitFor(() => expect(warnings).toContainEqual({
+      kind: "warning",
+      message: "Logged in to OpenAI Codex, but its model catalog refresh timed out; using cached models.",
+    }));
+
+    runtime.modelRefreshResult = { aborted: false, errors: new Map([["openai", new Error("catalog denied")]]) };
+    await adapter.executeWorkflow({ command: "login", argument: "oauth:openai" });
+    await vi.waitFor(() => expect(warnings).toContainEqual({
+      kind: "warning",
+      message: "Logged in to OpenAI Codex, but its model catalog could not be refreshed; using cached models.",
+    }));
+
+    runtime.modelRefreshError = new Error("refresh exploded");
+    await adapter.executeWorkflow({ command: "login", argument: "oauth:openai" });
+    await vi.waitFor(() => expect(warnings).toContainEqual({
+      kind: "warning",
+      message: "Logged in to OpenAI Codex, but its model catalog could not be refreshed: refresh exploded",
+    }));
+    await adapter.dispose();
+  });
+
+  it("suppresses delayed authentication warnings after the adapter lifecycle ends", async () => {
+    const { adapter, runtime } = await fixture();
+    let resolveRefresh: ((value: unknown) => void) | undefined;
+    runtime.modelRefreshResult = new Promise(resolve => { resolveRefresh = resolve; });
+    const published: unknown[] = [];
+    adapter.setWorkflowInteractionHost({
+      prompt: async () => "credential",
+      notify() {},
+      publish: message => published.push(message),
+    });
+
+    await adapter.executeWorkflow({ command: "login", argument: "oauth:openai" });
+    await new Promise(resolve => setTimeout(resolve, 5));
+    await adapter.dispose();
+    resolveRefresh?.({ aborted: true, errors: new Map() });
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(published).toEqual([]);
+  });
+
+  it("preserves contextual authentication synchronization and logout failures", async () => {
+    const { adapter, runtime } = await fixture();
+    runtime.loginError = new CredentialSynchronizationError("openai", "login", undefined, { cause: new Error("sync") });
+    await expect(adapter.executeWorkflow({ command: "login", argument: "api_key:openai" })).resolves.toMatchObject({
+      outcome: "failed",
+      message: expect.stringMatching(/^Saved API key for OpenAI Codex, but local model state could not be synchronized:/),
+    });
+
+    runtime.loginError = new Error("credential rejected");
+    await expect(adapter.executeWorkflow({ command: "login", argument: "api_key:openai" })).resolves.toMatchObject({
+      outcome: "failed", message: "Failed to save API key for OpenAI Codex: credential rejected",
+    });
+    await expect(adapter.executeWorkflow({ command: "login", argument: "oauth:openai" })).resolves.toMatchObject({
+      outcome: "failed", message: "Failed to login to OpenAI Codex: credential rejected",
+    });
+
+    runtime.loginError = undefined;
+    runtime.logoutError = new Error("credential store denied");
+    await expect(adapter.executeWorkflow({ command: "logout", argument: "", selection: "oauth:openai" })).resolves.toMatchObject({
+      outcome: "failed", message: "Logout failed: credential store denied",
+    });
+    runtime.logoutError = new CredentialSynchronizationError("openai", "logout", undefined, { cause: new Error("sync") });
+    await expect(adapter.executeWorkflow({ command: "logout", argument: "", selection: "oauth:openai" })).resolves.toMatchObject({
+      outcome: "failed",
+      message: expect.stringMatching(/^Credentials removed for OpenAI Codex, but local model state could not be synchronized:/),
+    });
+    await adapter.dispose();
+  });
+
+  it("keeps fatal new, resume, and import outcomes recoverable without false success", async () => {
+    const { adapter, runtime } = await fixture();
+    runtime.newFails = true;
+    await expect(adapter.executeWorkflow({ command: "new", argument: "" })).resolves.toMatchObject({
+      outcome: "failed", message: "Failed to create session: new exploded",
+    });
+    runtime.resumeFails = true;
+    await expect(adapter.executeWorkflow({ command: "resume", argument: "session.jsonl" })).resolves.toMatchObject({
+      outcome: "failed", message: "Failed to resume session: resume exploded",
+    });
+    runtime.importFails = true;
+    await expect(adapter.executeWorkflow({ command: "import", argument: "session.jsonl", confirmed: true })).resolves.toMatchObject({
+      outcome: "failed", message: "Failed to import session: import exploded",
+    });
+    expect(adapter.view().lifecycle).not.toBe("stopped");
+    await adapter.dispose();
+  });
+
+  it("preserves import context and recovers a missing cwd without terminating the session", async () => {
+    const { adapter, runtime } = await fixture();
+    runtime.importMissingCwd = true;
+    await expect(adapter.executeWorkflow({ command: "import", argument: "session.jsonl", confirmed: true })).resolves.toMatchObject({
+      outcome: "requires-confirmation",
+      message: "cwd from session file does not exist\nD:/missing\n\ncontinue in current cwd\nD:/work",
+      detail: "D:/work",
+    });
+    await expect(adapter.executeWorkflow({
+      command: "import", argument: "session.jsonl", confirmed: true, cwdOverride: "D:/work",
+    })).resolves.toMatchObject({ outcome: "completed", message: "Session imported from: session.jsonl" });
+    expect(runtime.calls).toContain("import:session.jsonl:D:/work");
+
+    runtime.importFails = true;
+    await expect(adapter.executeWorkflow({
+      command: "import", argument: "broken.jsonl", confirmed: true, cwdOverride: "D:/work",
+    })).resolves.toMatchObject({ outcome: "failed", message: "Failed to import session: import exploded" });
+    expect(adapter.view().lifecycle).not.toBe("stopped");
+    await adapter.dispose();
+  });
+
+  it("matches share URLs, failures, and cancellation without leaking a late success", async () => {
+    const originalViewer = process.env.PI_SHARE_VIEWER_URL;
+    try {
+      delete process.env.PI_SHARE_VIEWER_URL;
+      let temporarySharePath: string | undefined;
+      const standard = await fixture(host({ runCommand: async (_command, args) => {
+        if (args[0] === "gist") {
+          temporarySharePath = args.at(-1);
+          return { stdout: "https://gist.github.com/user/abc123\n", stderr: "" };
+        }
+        return { stdout: "logged in", stderr: "" };
+      } }));
+      await expect(standard.adapter.executeWorkflow({ command: "share", argument: "" })).resolves.toMatchObject({
+        outcome: "completed",
+        message: "Share URL: https://pi.dev/session/#abc123",
+        detail: "https://gist.github.com/user/abc123",
+      });
+      expect(temporarySharePath).toBeDefined();
+      await expect(readFile(temporarySharePath!)).rejects.toThrow();
+      await standard.adapter.dispose();
+
+      process.env.PI_SHARE_VIEWER_URL = "https://viewer.example/session/";
+      const overridden = await fixture();
+      await expect(overridden.adapter.executeWorkflow({ command: "share", argument: "" })).resolves.toMatchObject({
+        outcome: "completed", message: "Share URL: https://viewer.example/session/#abc123",
+      });
+      await overridden.adapter.dispose();
+
+      const missing = await fixture(host({ runCommand: async () => { throw Object.assign(new Error("spawn gh ENOENT"), { code: "ENOENT" }); } }));
+      await expect(missing.adapter.executeWorkflow({ command: "share", argument: "" })).resolves.toMatchObject({
+        outcome: "failed", message: "GitHub CLI (gh) is not installed. Install it from https://cli.github.com/",
+      });
+      await missing.adapter.dispose();
+
+      const unauthenticated = await fixture(host({ runCommand: async () => { throw Object.assign(new Error("not logged in"), { code: 1 }); } }));
+      await expect(unauthenticated.adapter.executeWorkflow({ command: "share", argument: "" })).resolves.toMatchObject({
+        outcome: "failed", message: "GitHub CLI is not logged in. Run 'gh auth login' first.",
+      });
+      await unauthenticated.adapter.dispose();
+
+      const exportFailure = await fixture(host(), runtime => { runtime.session.exportFails = true; });
+      await expect(exportFailure.adapter.executeWorkflow({ command: "share", argument: "" })).resolves.toMatchObject({
+        outcome: "failed", message: "Failed to export session: export exploded",
+      });
+      await exportFailure.adapter.dispose();
+
+      const gistFailure = await fixture(host({ runCommand: async (_command, args) => args[0] === "gist"
+        ? { stdout: "", stderr: "gist denied\n" }
+        : { stdout: "logged in", stderr: "" } }));
+      await expect(gistFailure.adapter.executeWorkflow({ command: "share", argument: "" })).resolves.toMatchObject({
+        outcome: "failed", message: "Failed to create gist: gist denied",
+      });
+      await gistFailure.adapter.dispose();
+
+      const malformed = await fixture(host({ runCommand: async (_command, args) => args[0] === "gist"
+        ? { stdout: "", stderr: "" }
+        : { stdout: "logged in", stderr: "" } }));
+      await expect(malformed.adapter.executeWorkflow({ command: "share", argument: "" })).resolves.toMatchObject({
+        outcome: "failed", message: "Failed to parse gist ID from gh output",
+      });
+      await malformed.adapter.dispose();
+
+      const cancelled = await fixture();
+      const controller = new AbortController();
+      controller.abort();
+      await expect(cancelled.adapter.executeWorkflow({ command: "share", argument: "", signal: controller.signal })).resolves.toMatchObject({
+        outcome: "cancelled", message: "Share cancelled", messageKind: "status",
+      });
+      await cancelled.adapter.dispose();
+    } finally {
+      if (originalViewer === undefined) delete process.env.PI_SHARE_VIEWER_URL;
+      else process.env.PI_SHARE_VIEWER_URL = originalViewer;
+    }
+  });
+
+  it("uses status rather than error semantics for empty clone", async () => {
+    const { adapter, runtime } = await fixture();
+    runtime.session.leafId = undefined;
+    await expect(adapter.executeWorkflow({ command: "clone", argument: "" })).resolves.toMatchObject({
+      outcome: "completed", message: "Nothing to clone yet", messageKind: "status",
+    });
+    await adapter.dispose();
   });
 });
