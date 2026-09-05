@@ -67,12 +67,14 @@ describe("official Pi package integration", () => {
     expect(existsSync(resolve(cwd, ".pi"))).toBe(false);
   });
 
-  it("reports a source that is not installed here as not found rather than as a failure", async () => {
+  it("preserves the distinct pinned remove and update missing-source outcomes", async () => {
     const { profileRoot, cwd } = await profile();
     const port = createPiPackagesPort({ profileRoot, cwd });
 
     expect((await port.remove("npm:not-installed")).status).toBe("not-found");
-    expect((await port.update("npm:not-installed")).status).toBe("not-found");
+    expect(await port.update("npm:not-installed")).toMatchObject({
+      status: "failed", detail: "No matching package found for npm:not-installed",
+    });
   });
 
   it("reports an unusable source as a failure with the reason and changes nothing", async () => {

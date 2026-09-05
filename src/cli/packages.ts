@@ -21,6 +21,7 @@ export interface PackageCommandStyle {
   readonly bold: (message: string) => string;
   readonly green: (message: string) => string;
   readonly red: (message: string) => string;
+  readonly yellow: (message: string) => string;
 }
 
 export interface PackageCommandEnvironment {
@@ -58,11 +59,15 @@ export async function runPackageCommand(
   const port = environment.createPort({
     profileRoot,
     cwd,
-    onProgress: progress => stdout(`${style.dim(progress.message)}\n`),
+    onProgress: progress => stdout(style.dim(`${progress.message}\n`)),
+    onDiagnostic: diagnostic => {
+      stderr(`${style.yellow(diagnostic.message)}\n`);
+      if (diagnostic.detail) stderr(`${style.dim(diagnostic.detail)}\n`);
+    },
   });
 
   const outcome = await runVerb(port, request);
-  const rendered = renderPackageOutcome(outcome, profileRoot, style);
+  const rendered = renderPackageOutcome(outcome, style);
   (outcome.status === "completed" ? stdout : stderr)(rendered);
   return outcome.status === "completed" ? 0 : 1;
 }
@@ -77,24 +82,18 @@ async function runVerb(port: AgentPackagesPort, request: PackageCommandRequest):
 
 export function renderPackageOutcome(
   outcome: AgentPackageOutcome,
-  profileRoot: string,
   style: PackageCommandStyle = chalk,
 ): string {
-  // Compatibility: model refresh remains an A1 top-level command. The `a1 pi` compatibility
-  // transcript applies to package operations only.
-  if (outcome.operation === "refresh-models") {
-    if (outcome.status === "failed") {
-      return `${PRODUCT_TEXT.diagnostic(`could not ${describeOperation(outcome.operation)}: ${outcome.detail ?? "unknown failure"}`)}\n`;
-    }
-    return `${PRODUCT_TEXT.displayName} refreshed the model catalogs in ${profileRoot}.\n`;
-  }
   if (outcome.status === "failed") {
-    return `${style.red(`Error: ${outcome.detail ?? "Unknown package command error"}`)}\n`;
+    const fallback = outcome.operation === "refresh-models" ? "Unknown model catalog refresh error" : "Unknown package command error";
+    return `${style.red(`Error: ${outcome.detail ?? fallback}`)}\n`;
   }
   if (outcome.status === "not-found") {
     return `${style.red(`No matching package found for ${outcome.source ?? "that source"}`)}\n`;
   }
   switch (outcome.operation) {
+    case "refresh-models":
+      return `${style.green("Model catalogs refreshed")}\n`;
     case "install":
       return `${style.green(`Installed ${outcome.source}`)}\n`;
     case "remove":
@@ -114,12 +113,6 @@ function renderPackageList(outcome: AgentPackageOutcome, style: PackageCommandSt
     if (entry.installedPath !== null) lines.push(style.dim(`    ${entry.installedPath}`));
   }
   return `${lines.join("\n")}\n`;
-}
-
-function describeOperation(operation: AgentPackageOutcome["operation"]): string {
-  if (operation === "refresh-models") return "refresh the model catalogs";
-  if (operation === "list") return "list installed packages";
-  return `${operation} the package`;
 }
 
 function message(error: unknown): string {

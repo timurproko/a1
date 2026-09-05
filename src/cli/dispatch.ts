@@ -1,6 +1,7 @@
 import { interactiveLaunchIntent, type InteractiveLaunchIntent, type LaunchProfileId } from "../features/launch/index.js";
 import type { CliCapabilities } from "./capabilities.js";
 import type { PackageCommandRequest } from "./packages.js";
+import { packageCommandHelp, renderPackageSyntax, type PackageCliVerb, type PackageSyntaxDiagnostic } from "./package-messages.js";
 import { PRODUCT_TEXT } from "../product-identity.js";
 
 export type UpdateChannel = "stable" | "next";
@@ -80,6 +81,14 @@ export async function dispatchCli(
     output.stdout(cliHelp(capabilities));
     return 0;
   }
+  if (command.kind === "package-help") {
+    output.stdout(packageCommandHelp(command.verb));
+    return 0;
+  }
+  if (command.kind === "package-error") {
+    output.stderr(renderPackageSyntax(command.diagnostic));
+    return 2;
+  }
   if (command.kind === "error") {
     output.stderr(`${command.message}\n`);
     return 2;
@@ -93,6 +102,8 @@ export async function dispatchCli(
 export type CliCommand =
   | { readonly kind: "noop" }
   | { readonly kind: "help" }
+  | { readonly kind: "package-help"; readonly verb: PackageCliVerb }
+  | { readonly kind: "package-error"; readonly diagnostic: PackageSyntaxDiagnostic }
   | { readonly kind: "launch"; readonly profileId: LaunchProfileId }
   | { readonly kind: "version" }
   | { readonly kind: "update"; readonly channel: UpdateChannel; readonly target?: string }
@@ -161,22 +172,46 @@ function updateGrammarError(detail: string): CliCommand {
 
 function parsePiPackageCommand(arguments_: readonly string[]): CliCommand {
   const [verb, ...rest] = arguments_;
+  if ((verb === "install" || verb === "remove" || verb === "uninstall" || verb === "list" || verb === "update")
+    && rest.some(value => value === "--help" || value === "-h")) {
+    return { kind: "package-help", verb: verb === "uninstall" ? "remove" : verb };
+  }
   if (verb === "install" || verb === "remove" || verb === "uninstall") {
     return parseSourceCommand(verb === "install" ? "install" : "remove", rest);
   }
-  if (verb === "list") return withoutArguments(rest, { kind: "packages", request: { verb: "list", source: null } });
+  if (verb === "list") {
+    const flag = rest.find(argument => argument.startsWith("-"));
+    if (flag !== undefined) return packageOptionError(flag, "list");
+    if (rest[0] !== undefined) return packageSyntax({ verb: "list", kind: "unexpected-argument", value: rest[0] });
+    return { kind: "packages", request: { verb: "list", source: null } };
+  }
   if (verb === "update") return parsePiPackageUpdate(rest);
   return { kind: "noop" };
 }
 
 function parsePiPackageUpdate(rest: readonly string[]): CliCommand {
   if (rest.length === 0) return pinnedPiUpdateError();
-  if (rest.length > 1) return { kind: "error", message: PRODUCT_TEXT.diagnostic("pi update accepts one target.") };
+  if (rest.length > 1) {
+    const unknown = rest.find(value => value.startsWith("-") && !["--extensions", "--models", "--self", "--all"].includes(value));
+    if (unknown !== undefined) return packageOptionError(unknown, "update");
+    if (rest.includes("--self") || rest.includes("--all") || rest.includes("self") || rest.includes("pi")) return pinnedPiUpdateError();
+    if (rest.every(value => value === rest[0]) && rest[0]?.startsWith("-")) {
+      return { kind: "error", message: PRODUCT_TEXT.diagnostic("pi update accepts one target.") };
+    }
+    const sources = rest.filter(value => !value.startsWith("-"));
+    if (sources[1] !== undefined) return packageSyntax({ verb: "update", kind: "unexpected-argument", value: sources[1] });
+    const message = rest.includes("--models")
+      ? rest.includes("--extensions")
+        ? "--models cannot be combined with --self, --extensions, --all, or --extension"
+        : "--models cannot be combined with a positional source"
+      : "positional update targets cannot be combined with --self, --extensions, or --all";
+    return packageSyntax({ verb: "update", kind: "conflict", message });
+  }
   const [target] = rest;
   if (target === "--extensions") return { kind: "packages", request: { verb: "update", source: null } };
   if (target === "--models") return { kind: "packages", request: { verb: "refresh-models", source: null } };
   if (target === "--self" || target === "--all" || target === "self" || target === "pi") return pinnedPiUpdateError();
-  if (target === undefined || target.startsWith("-")) return unknownOption(target ?? "", "pi update");
+  if (target === undefined || target.startsWith("-")) return packageOptionError(target ?? "", "update");
   return { kind: "packages", request: { verb: "update", source: target } };
 }
 
@@ -195,13 +230,25 @@ function pinnedPiUpdateError(): CliCommand {
 
 function parseSourceCommand(verb: "install" | "remove", rest: readonly string[]): CliCommand {
   const flag = rest.find(argument => argument.startsWith("-"));
-  if (flag !== undefined) return unknownOption(flag, `pi ${verb}`);
-  if (rest.length === 0) return { kind: "error", message: PRODUCT_TEXT.diagnostic(`${verb} requires a package source.`) };
-  if (rest.length > 1) return { kind: "error", message: PRODUCT_TEXT.diagnostic(`${verb} accepts one package source.`) };
-  const [source] = rest;
-  if (source === undefined) return { kind: "error", message: PRODUCT_TEXT.diagnostic(`${verb} requires a package source.`) };
+  if (flag !== undefined) return packageOptionError(flag, verb);
+  const [source, extra] = rest;
+  if (extra !== undefined) return packageSyntax({ verb, kind: "unexpected-argument", value: extra });
+  if (source === undefined) return packageSyntax({ verb, kind: "missing-source" });
   if (PROFILE_WORDS.has(source)) return profileRejection(verb);
   return { kind: "packages", request: { verb, source } };
+}
+
+function packageSyntax(diagnostic: PackageSyntaxDiagnostic): CliCommand {
+  return { kind: "package-error", diagnostic };
+}
+
+function packageOptionError(option: string, verb: PackageCliVerb): CliCommand {
+  if (option.startsWith("--profile") || option === "-l" || option === "--local") return profileRejection(verb);
+  // Compatibility: these recognized Pi flags remain outside A1's supported subset.
+  if (["--extension", "--approve", "--no-approve", "-a", "-na", "--force"].includes(option)) {
+    return unknownOption(option, `pi ${verb}`);
+  }
+  return packageSyntax({ verb, kind: "unknown-option", value: option });
 }
 
 function withoutArguments(rest: readonly string[], command: CliCommand): CliCommand {

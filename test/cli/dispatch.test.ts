@@ -42,6 +42,20 @@ describe("A1 CLI dispatch", () => {
     expect(parseCliCommand(arguments_, PRERELEASE)).toEqual(expected);
   });
 
+  it.each(["install", "remove", "uninstall", "list", "update"])("shows focused %s help before syntax checks without dispatch", async verb => {
+    for (const flag of ["--help", "-h"]) {
+      const commands = handlers();
+      const transcript = output();
+      expect(await dispatchCli(["pi", verb, "--unknown", flag], commands, transcript, PRERELEASE)).toBe(0);
+      const help = transcript.stdout.mock.calls[0]?.[0] ?? "";
+      expect(help).toContain("Usage:");
+      expect(help).toContain(`a1 pi ${verb === "uninstall" ? "remove" : verb}`);
+      expect(help).not.toMatch(/--local|--approve|--self|--all|--extension\s|pi config|\[-l\]/);
+      expect(transcript.stderr).not.toHaveBeenCalled();
+      expectNoHandler(commands);
+    }
+  });
+
   it("gives aliases the same typed requests", () => {
     expect(parseCliCommand(["pi", "uninstall", "npm:x"], PRERELEASE)).toEqual(parseCliCommand(["pi", "remove", "npm:x"], PRERELEASE));
     expect(parseCliCommand(["pi", "update", "--models"], PRERELEASE)).toEqual(parseCliCommand(["update", "--models"], PRERELEASE));
@@ -140,12 +154,15 @@ describe("A1 CLI dispatch", () => {
     ["pi", "install", "-l", "npm:one"],
     ["pi", "update", "npm:one", "npm:two"],
     ["pi", "update", "--extension"],
+    ["pi", "update", "--models", "--models"],
+    ["pi", "update", "--extensions", "--extensions"],
   ])("rejects malformed recognized grammar %j without help or dispatch", async (...arguments_) => {
     const commands = handlers();
     const transcript = output();
     expect(await dispatchCli(arguments_, commands, transcript, PRERELEASE)).toBe(2);
     expect(transcript.stderr).toHaveBeenCalledOnce();
-    expect(transcript.stderr.mock.calls[0]?.[0]).not.toContain("Usage:");
+    // Compatibility: focused usage is permitted; full application/command help is not.
+    expect(transcript.stderr.mock.calls[0]?.[0]).not.toMatch(/Common:|Examples:|Short forms:/);
     expect(transcript.stdout).not.toHaveBeenCalled();
     expectNoHandler(commands);
     expect(JSON.stringify(parseCliCommand(arguments_, PRERELEASE))).not.toMatch(/shell|cmd\.exe|sh -c/i);

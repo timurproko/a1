@@ -90,14 +90,14 @@ describe("A1 package commands", () => {
       request: { verb: "install", source: "npm:pi-mcp-adapter" },
       outcome: agentPackageOutcome("install", "completed", null, "npm:pi-mcp-adapter"),
       progress: "Installing npm:pi-mcp-adapter...",
-      expected: `${transcriptStyle.dim("Installing npm:pi-mcp-adapter...")}\n${transcriptStyle.green("Installed npm:pi-mcp-adapter")}\n`,
+      expected: `${transcriptStyle.dim("Installing npm:pi-mcp-adapter...\n")}${transcriptStyle.green("Installed npm:pi-mcp-adapter")}\n`,
     },
     {
       name: "remove and uninstall",
       request: { verb: "remove", source: "npm:pi-mcp-adapter" },
       outcome: agentPackageOutcome("remove", "completed", null, "npm:pi-mcp-adapter"),
       progress: "Removing npm:pi-mcp-adapter...",
-      expected: `${transcriptStyle.dim("Removing npm:pi-mcp-adapter...")}\n${transcriptStyle.green("Removed npm:pi-mcp-adapter")}\n`,
+      expected: `${transcriptStyle.dim("Removing npm:pi-mcp-adapter...\n")}${transcriptStyle.green("Removed npm:pi-mcp-adapter")}\n`,
     },
     {
       name: "update every package",

@@ -1,3 +1,9 @@
+## Implementation checkpoint
+
+The first implementation slice corrects model-refresh output, package error preservation/identity delegation, settings diagnostics, and focused syntax/help. The CLI-focused tests pass; unchecked tasks remain open where their full verification is not yet present. No interactive changes are included in this slice.
+
+Interactive work is paused for scope clarification: pinned `InteractiveMode.handleFatalRuntimeError` prints the contextual error, stops with transcript restoration, and exits with status one. `/new`, `/resume`, and non-recoverable `/import` failures use that path, whereas A1's `executeWorkflow` returns a recoverable failed result. Outcome-complete parity therefore reaches session shutdown/exit propagation, beyond the design's message-presentation focus and no-broad-session-redesign boundary. No exception to these outcomes has been accepted; the maintainer must confirm that lifecycle work belongs in scope before it proceeds.
+
 ## 1. Establish the command-outcome baseline
 
 - [ ] 1.1 Reconfirm the certified Pi package/source version and inventory every supported CLI and interactive command message branch, including hidden routes and selector-owned states; verify each entry has a pinned source reference, A1 owner, outcome/severity, and acceptance case or declared exception.
@@ -6,17 +12,17 @@
 
 ## 2. Correct model-refresh and package operation output
 
-- [ ] 2.1 Remove the model-refresh rendering exception for both CLI aliases; verify exact green `Model catalogs refreshed` plus one newline, empty stderr, and exit zero in color-enabled and color-disabled transcript cases.
-- [ ] 2.2 Match pinned refresh timeout, ordered provider-error details, runtime exceptions, and non-Error fallback; verify red stderr, exit one, no success summary, alias equivalence, and preservation of multiline/long details.
+- [x] 2.1 Remove the model-refresh rendering exception for both CLI aliases; verify exact green `Model catalogs refreshed` plus one newline, empty stderr, and exit zero in color-enabled and color-disabled transcript cases.
+- [x] 2.2 Match pinned refresh timeout, ordered provider-error details, runtime exceptions, and non-Error fallback; verify red stderr, exit one, no success summary, alias equivalence, and preservation of multiline/long details.
 - [ ] 2.3 Delegate single-package update identity matching and missing-target errors to the public package manager; verify equivalent source spellings, no-match suggestions, and the different remove-versus-update error prefixes against pinned output.
 - [ ] 2.4 Preserve complete package error messages and pinned non-Error fallback without whitespace normalization or truncation; verify messages containing repeated whitespace, newlines, and more than 600 characters remain exact.
 - [ ] 2.5 Add typed user-scope settings-diagnostic reporting before operation progress; verify yellow warning/dim secondary-detail order, corresponding operation behavior, unchanged inherited child output, and absence of project-settings/trust access.
 
 ## 3. Correct focused syntax and help presentation
 
-- [ ] 3.1 Separate recognized package syntax failures from formatting and render pinned red diagnostic/dim guidance lines; verify missing sources, genuinely unknown options, extra arguments, canonical uninstall/remove wording, and retained syntax exit status two.
-- [ ] 3.2 Implement explicit `-h`/`--help` for supported package verbs using pinned help typography projected onto A1's supported grammar; verify all five verb spellings, help precedence, exit zero, and zero profile preparation or operation dispatch.
-- [ ] 3.3 Preserve command-surface boundaries; verify unknown commands remain silent, A1-only update selectors and pinned-Pi/profile/local-scope restrictions retain their focused diagnostics, no failure dumps full help, and no unsupported operation or option is advertised.
+- [x] 3.1 Separate recognized package syntax failures from formatting and render pinned red diagnostic/dim guidance lines; verify missing sources, genuinely unknown options, extra arguments, canonical uninstall/remove wording, and retained syntax exit status two.
+- [x] 3.2 Implement explicit `-h`/`--help` for supported package verbs using pinned help typography projected onto A1's supported grammar; verify all five verb spellings, help precedence, exit zero, and zero profile preparation or operation dispatch.
+- [x] 3.3 Preserve command-surface boundaries; verify unknown commands remain silent, A1-only update selectors and pinned-Pi/profile/local-scope restrictions retain their focused diagnostics, no failure dumps full help, and no unsupported operation or option is advertised.
 
 ## 4. Correct interactive outcome semantics
 
