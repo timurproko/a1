@@ -426,7 +426,7 @@ describe("OwnedUiSessionShell", () => {
       };
       const expectHidden = () => expect(shell.root.render(60).some(line => stripTerminalSequences(line).includes(label))).toBe(false);
 
-      // No motion report precedes the first wheel or any of these hide/reveal cycles.
+      // Invariant: no motion report precedes the first wheel or any of these hide/reveal cycles.
       for (let cycle = 0; cycle < 3; cycle += 1) {
         terminal.input(`\u001b[<64;30;${row}M`);
         expectControl(true);
@@ -440,7 +440,7 @@ describe("OwnedUiSessionShell", () => {
       terminal.input(`\u001b[<0;30;${row}M`);
       expectHidden();
       terminal.input(`\u001b[<0;30;${row}m`);
-      // An unclaimed non-motion report while hidden replaces the remembered position.
+      // Invariant: an unclaimed non-motion report while hidden replaces the remembered position.
       terminal.input(`\u001b[<1;1;${row}M`);
       terminal.input("\u001b[1;1H");
       await nextImmediate();
@@ -450,7 +450,7 @@ describe("OwnedUiSessionShell", () => {
       expectControl(false);
       expect(shell.root.viewportFrameDescriptor()!.followingEnd).toBe(false);
 
-      // Hover updates must survive the next same-height dock-only presentation.
+      // Invariant: hover updates must survive the next same-height dock-only presentation.
       terminal.input(`\u001b[<35;30;${row}M`);
       expectControl(true);
       const before = shell.root.viewportCompositionEvidence();

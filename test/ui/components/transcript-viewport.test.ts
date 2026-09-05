@@ -554,7 +554,7 @@ describe("transcript viewport", () => {
       viewport.compose({ ...input, pointerPosition });
       expect(painted).toEqual([true]);
     }
-    // A growing message-count label expands beneath the unchanged pointer.
+    // Invariant: a growing message-count label expands beneath the unchanged pointer.
     const beside = { column: hit.columnStart - 1, row: hit.row };
     viewport.compose({ ...input, pointerPosition: beside });
     expect(painted.at(-1)).toBe(false);
