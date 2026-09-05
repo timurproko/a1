@@ -1,4 +1,4 @@
-import { interactiveLaunchIntent, type InteractiveLaunchIntent, type LaunchProfileId } from "../features/launch/index.js";
+import { interactiveLaunchIntent, parseSessionSelection, type InteractiveLaunchIntent, type LaunchProfileId, type SessionSelection } from "../features/launch/index.js";
 import type { CliCapabilities } from "./capabilities.js";
 import type { PackageCommandRequest } from "./packages.js";
 import { PRODUCT_TEXT } from "../product-identity.js";
@@ -20,6 +20,8 @@ export interface CliOutput {
 export function cliUsage(capabilities: CliCapabilities): string {
   return PRODUCT_TEXT.usage([
     "",
+    "--session <path|id>",
+    "--session-dir <dir> --session <path|id>",
     ...(capabilities.developmentComparison ? ["pi"] : []),
     "--help",
     "-h",
@@ -43,6 +45,8 @@ export function cliHelp(capabilities: CliCapabilities): string {
   return [
     "Common:",
     `  ${command}`,
+    `  ${command} --session <path|id>`,
+    `  ${command} --session-dir <dir> --session <path|id>`,
     ...(capabilities.developmentComparison ? [`  ${command} pi`] : []),
     `  ${command} --help`,
     `  ${command} -h`,
@@ -84,7 +88,7 @@ export async function dispatchCli(
     output.stderr(`${command.message}\n`);
     return 2;
   }
-  if (command.kind === "launch") return await handlers.launch(interactiveLaunchIntent(command.profileId));
+  if (command.kind === "launch") return await handlers.launch(interactiveLaunchIntent(command.profileId, command.sessionSelection));
   if (command.kind === "version") return await handlers.version();
   if (command.kind === "packages") return await handlers.packages(command.request);
   return await handlers.update(command.channel, command.target);
@@ -93,7 +97,7 @@ export async function dispatchCli(
 export type CliCommand =
   | { readonly kind: "noop" }
   | { readonly kind: "help" }
-  | { readonly kind: "launch"; readonly profileId: LaunchProfileId }
+  | { readonly kind: "launch"; readonly profileId: LaunchProfileId; readonly sessionSelection?: SessionSelection }
   | { readonly kind: "version" }
   | { readonly kind: "update"; readonly channel: UpdateChannel; readonly target?: string }
   | { readonly kind: "packages"; readonly request: PackageCommandRequest }
@@ -103,6 +107,14 @@ export function parseCliCommand(arguments_: readonly string[], capabilities: Cli
   if (arguments_.length === 0) return { kind: "launch", profileId: "a1" };
   const [command, ...rest] = arguments_;
 
+  if (command === "--session" || command === "--session-dir") {
+    try {
+      const sessionSelection = parseSessionSelection(arguments_);
+      return { kind: "launch", profileId: "a1", ...(sessionSelection === undefined ? {} : { sessionSelection }) };
+    } catch (error) {
+      return { kind: "error", message: PRODUCT_TEXT.diagnostic(`could not parse session launch: ${error instanceof Error ? error.message : String(error)}`) };
+    }
+  }
   if (command === "--help" || command === "-h") return withoutArguments(rest, { kind: "help" });
   if (command === "--version" || command === "-v") return withoutArguments(rest, { kind: "version" });
   if (command === "pi") {

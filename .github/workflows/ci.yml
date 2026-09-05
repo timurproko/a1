@@ -197,6 +197,19 @@ jobs:
           A1_PROCESS_GUARDIAN_PATH: ${{ github.workspace }}\native\process-guardian\target\debug\process-guardian.exe
           A1_RUN_PROCESS_CONTAINMENT_INTEGRATION: "1"
         run: node scripts/release/run-validation-tier.mjs --result .artifacts/validation/outcomes.json
+      - name: Verify Pi restoration and exact-package resume separately from fast tests
+        shell: bash
+        env:
+          VALIDATION_BUILD_READY: "1"
+        run: node scripts/release/run-validation-tier.mjs pi-engine-conformance package-smoke --result .artifacts/validation/resume-integration.json
+      - name: Upload resume integration evidence
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: development-resume-integration
+          path: .artifacts/validation/resume-integration.json
+          if-no-files-found: warn
+          retention-days: 14
       - name: Add ordinary timing summary
         if: always()
         shell: bash

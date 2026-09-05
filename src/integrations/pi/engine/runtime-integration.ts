@@ -15,6 +15,7 @@ import {
   resolvePiProjectTrustPreflight,
   type PiProjectTrustPreflightPrompt,
 } from "./project-trust-preflight.js";
+import { openSelectedPiSession, resolveSessionArgumentPath, type PiSessionForkPrompt, type PiSessionSelection } from "./session-selection.js";
 import { markStartupPhase } from "../../../foundation/startup/index.js";
 
 export interface PiRuntimeIntegrationOptions {
@@ -22,6 +23,8 @@ export interface PiRuntimeIntegrationOptions {
   readonly agentDir: string;
   readonly sessionDir?: string;
   readonly sessionPath?: string;
+  readonly sessionSelection?: PiSessionSelection;
+  readonly sessionForkPrompt?: PiSessionForkPrompt;
   readonly projectTrustPrompt?: PiProjectTrustPreflightPrompt;
   readonly preflightDependencies?: PiRuntimePreflightDependencies;
 }
@@ -104,10 +107,16 @@ export async function createPiRuntimeServicesAfterTrust(
 }
 
 export async function createPiRuntimeIntegration(options: PiRuntimeIntegrationOptions): Promise<AgentSessionRuntime> {
-  const sessionDir = options.sessionDir ?? process.env.PI_CODING_AGENT_SESSION_DIR;
-  const sessionManager = options.sessionPath === undefined
+  const directory = options.sessionDir ?? process.env.PI_CODING_AGENT_SESSION_DIR;
+  const sessionDir = directory === undefined ? undefined : resolveSessionArgumentPath(directory, options.cwd);
+  const selection = options.sessionSelection ?? (options.sessionPath === undefined ? undefined : { target: resolveSessionArgumentPath(options.sessionPath, options.cwd) });
+  const sessionManager = selection === undefined
     ? SessionManager.create(options.cwd, sessionDir)
-    : SessionManager.open(options.sessionPath, sessionDir, options.cwd);
+    : await openSelectedPiSession({
+      cwd: options.cwd, selection,
+      ...(sessionDir === undefined ? {} : { sessionDir }),
+      ...(options.sessionForkPrompt === undefined ? {} : { forkPrompt: options.sessionForkPrompt }),
+    });
   const createRuntime: CreateAgentSessionRuntimeFactory = async ({
     cwd,
     sessionManager: targetSessionManager,
@@ -140,7 +149,7 @@ export async function createPiRuntimeIntegration(options: PiRuntimeIntegrationOp
     };
   };
   return createAgentSessionRuntime(createRuntime, {
-    cwd: options.cwd,
+    cwd: sessionManager.getCwd(),
     agentDir: options.agentDir,
     sessionManager,
   });
