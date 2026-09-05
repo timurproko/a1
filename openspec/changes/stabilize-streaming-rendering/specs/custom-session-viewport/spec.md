@@ -38,21 +38,23 @@ Updates arriving within one presentation interval SHALL be coalesced into the ne
 - **THEN** its visible feedback SHALL use the runtime's immediate input path
 - **AND** a later streaming frame SHALL be recomputed from current state rather than overwrite that feedback with an obsolete frame
 
-### Requirement: Transient dock ownership is stable across overflow
-Queued-input rows, working status, extension working content, active input, widgets, and footer SHALL retain one dock ownership and relative order while a run crosses from fitting content to overflowing content or back. The fit/overflow boundary SHALL only change the number and source range of transcript rows; it SHALL NOT move a transient row between document history and dock, duplicate it, omit it for an intermediate frame, or move the stable editor/footer group.
+### Requirement: Transient surface ownership is stable across overflow
+Queued-input rows, non-working status, widgets, active input, and footer SHALL retain one dock ownership and relative order while a run crosses from fitting content to overflowing content or back. Live working and extension-working rows SHALL retain one non-selectable scrollable-tail ownership after semantic transcript content across the same transition. The fit/overflow boundary SHALL NOT move a transient row between these regions, duplicate or omit it for an intermediate frame, or move the stable editor/footer group.
 
 #### Scenario: Cross from fitting to overflowing while working
-- **WHEN** a streamed row causes the transcript plus working status to exceed the rows above the dock
-- **THEN** the working status SHALL remain in its existing dock region and order
-- **AND** only transcript allocation and follow position SHALL change
-- **AND** no frame SHALL show the status twice or not at all
+- **WHEN** a streamed row causes the transcript plus live working tail to exceed the rows above the dock
+- **THEN** the working status SHALL remain in its scrollable-tail region and order
+- **AND** queued input and the editor/footer group SHALL remain in the dock
+- **AND** only scroll extent, transcript allocation, and follow position SHALL change
+- **AND** no frame SHALL show the status twice or omit its visible portion
 
 #### Scenario: Queue input at the fit boundary
 - **WHEN** a queued-input row appears while streamed content is at the fit/overflow boundary
-- **THEN** the queued row and working status SHALL remain in their declared dock order
-- **AND** the transcript viewport SHALL surrender the required rows without moving either transient into transcript history
+- **THEN** the queued row SHALL remain in its declared dock order and the working status SHALL remain in the scrollable tail
+- **AND** the transcript viewport SHALL surrender the required dock rows without moving either transient into semantic transcript history
 
 #### Scenario: Detach while the run continues
 - **WHEN** the reader detaches from the end while queued or working rows are present
-- **THEN** those rows SHALL remain dock content according to their lifecycle
-- **AND** transcript scrolling SHALL not scroll them away or count them as selectable transcript rows
+- **THEN** queued rows SHALL remain dock content and working rows SHALL remain transient scrollable-tail content according to their lifecycles
+- **AND** transcript scrolling SHALL be able to scroll the working rows out of view
+- **AND** neither surface SHALL count as selectable transcript content
