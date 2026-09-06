@@ -7,7 +7,7 @@ import { createPiShellEditor, type PiShellEditorPort } from "../../../../src/int
 const CTRL_HOME = "\u001b[1;5H";
 const CTRL_LEFT = "\u001b[1;5D";
 const CTRL_RIGHT = "\u001b[1;5C";
-const CTRL_BACKSPACE = "\b";
+const CTRL_BACKSPACE = "\u001b[127;5u";
 const CTRL_DELETE = "\u001b[3;5~";
 const LEFT = "\u001b[D";
 const BACKSPACE = "\u007f";

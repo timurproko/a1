@@ -11,4 +11,4 @@
 ## 3. Validation and acceptance
 
 - [ ] 3.1 Run the focused editor/component/session-shell tests and typecheck, then push the implementation PR and verify its required CI check passes
-- [ ] 3.2 In Windows Terminal, launch the implementation worktree through `./scripts/dev` and confirm the example `D:/Git/a1/.worktrees/prevent-windows-nul-artifacts-impl` moves and deletes as one word with Ctrl actions while unmodified arrows and deletion remain character-based
+- [x] 3.2 In Windows Terminal, launch the implementation worktree through `./scripts/dev` and confirm the example `D:/Git/a1/.worktrees/prevent-windows-nul-artifacts-impl` moves and deletes as one word with Ctrl actions while unmodified arrows and deletion remain character-based
