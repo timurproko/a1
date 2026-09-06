@@ -45,6 +45,34 @@ describe("Unix process guardian", () => {
     }
   }, 20_000);
 
+  macIt.each([
+    { mode: "normal", expectedExit: 0, expectsMarker: true },
+    { mode: "signaled", expectedExit: 143, expectsMarker: true },
+    { mode: "status-failure", expectedExit: 2, expectsMarker: false },
+  ])("transfers and restores pseudo-terminal foreground ownership ($mode)", async ({ mode, expectedExit, expectsMarker }) => {
+    const root = await mkdtemp(resolve(tmpdir(), "a1-darwin-pty-"));
+    roots.push(root);
+    const helper = process.env.A1_PROCESS_GUARDIAN_PATH ?? resolve("native/process-guardian/target/debug/process-guardian");
+    const marker = resolve(root, "child.json");
+    const resultPath = resolve(root, "result.json");
+    const statusPath = resolve(root, "status.json");
+    const fixture = resolve("test/fixtures/process-containment/darwin-pty.py");
+    const execution = await run("python3", [fixture, helper, marker, resultPath, statusPath, mode]);
+    expect(execution.exitCode, execution.stderr).toBe(0);
+    const result = JSON.parse(await readFile(resultPath, "utf8")) as {
+      guardianPid: number; initialForeground: number; restoredForeground: number; exitCode: number;
+    };
+    expect(result.exitCode).toBe(expectedExit);
+    expect(result.initialForeground).toBe(result.guardianPid);
+    expect(result.restoredForeground).toBe(result.guardianPid);
+    if (expectsMarker) {
+      const child = JSON.parse(await readFile(marker, "utf8")) as { pid: number; processGroup: number; foregroundGroup: number };
+      expect(child.processGroup).toBe(child.pid);
+      expect(child.foregroundGroup).toBe(child.processGroup);
+      expect(child.processGroup).not.toBe(result.guardianPid);
+    }
+  }, 20_000);
+
   macIt("reports a stable native start identity for a live Darwin process", async () => {
     const helper = process.env.A1_PROCESS_GUARDIAN_PATH ?? resolve("native/process-guardian/target/debug/process-guardian");
     const first = await run(helper, ["--inspect-pid", String(process.pid)]);

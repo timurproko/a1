@@ -331,7 +331,12 @@
     },
     {
       "path": "test/foundation/process-containment/unix-process-group.integration.test.ts",
-      "line": 49,
+      "line": 55,
+      "identifier": "A1_PROCESS_GUARDIAN_PATH"
+    },
+    {
+      "path": "test/foundation/process-containment/unix-process-group.integration.test.ts",
+      "line": 77,
       "identifier": "A1_PROCESS_GUARDIAN_PATH"
     },
     {

@@ -34,7 +34,11 @@ pub(super) fn run(invocation: Invocation) -> Result<u8, String> {
         .spawn()
         .map_err(|error| format!("cannot create contained runtime: {error}"))?;
     let process_group = child.id() as i32;
-    transfer_foreground(process_group)?;
+    if let Err(error) = transfer_foreground(process_group) {
+        stop_group(process_group);
+        restore_foreground(original_foreground_group)?;
+        return Err(error);
+    }
     let start_identity = inspect_process_start(child.id())?.ok_or_else(|| {
         "contained process exited before its start identity was observed".to_owned()
     })?;
@@ -47,7 +51,7 @@ pub(super) fn run(invocation: Invocation) -> Result<u8, String> {
         &containment_token,
     ) {
         stop_group(process_group);
-        restore_foreground(original_foreground_group);
+        restore_foreground(original_foreground_group)?;
         return Err(error);
     }
 
@@ -60,14 +64,14 @@ pub(super) fn run(invocation: Invocation) -> Result<u8, String> {
         }
         if !process_exists(invocation.parent_pid as i32) {
             stop_group(process_group);
-            restore_foreground(original_foreground_group);
+            restore_foreground(original_foreground_group)?;
             return Ok(143);
         }
         thread::sleep(POLL_INTERVAL);
     };
 
     stop_group(process_group);
-    restore_foreground(original_foreground_group);
+    restore_foreground(original_foreground_group)?;
     let code = status
         .code()
         .unwrap_or_else(|| 128 + status.signal().unwrap_or(libc::SIGTERM));
@@ -171,10 +175,14 @@ fn transfer_foreground(process_group: i32) -> Result<(), String> {
     Ok(())
 }
 
-fn restore_foreground(process_group: Option<i32>) {
-    if let Some(process_group) = process_group {
-        unsafe {
-            libc::tcsetpgrp(libc::STDIN_FILENO, process_group);
-        }
+fn restore_foreground(process_group: Option<i32>) -> Result<(), String> {
+    if let Some(process_group) = process_group
+        && unsafe { libc::tcsetpgrp(libc::STDIN_FILENO, process_group) } != 0
+    {
+        return Err(format!(
+            "cannot restore the inherited terminal foreground group: {}",
+            std::io::Error::last_os_error()
+        ));
     }
+    Ok(())
 }
