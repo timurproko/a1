@@ -1,6 +1,6 @@
 ## 1. Planning Reconciliation
 
-- [ ] 1.1 Update the active `stabilize-streaming-rendering` proposal, design, custom-viewport delta, and tasks in a separate OpenSpec-only change so pending steering has transient viewport ownership and fitting working status uses bottom alignment; verify both changes pass `openspec validate --strict` with no contradictory queue, dock, or fit-boundary clauses.
+- [x] 1.1 Update the active `stabilize-streaming-rendering` proposal, design, custom-viewport delta, and tasks in a separate OpenSpec-only change so pending steering has transient viewport ownership and fitting working status uses bottom alignment; verify both changes pass `openspec validate --strict` with no contradictory queue, dock, or fit-boundary clauses.
 
 ## 2. Transient Viewport Composition
 

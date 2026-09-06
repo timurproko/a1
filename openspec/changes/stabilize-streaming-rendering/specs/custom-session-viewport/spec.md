@@ -39,22 +39,23 @@ Updates arriving within one presentation interval SHALL be coalesced into the ne
 - **AND** a later streaming frame SHALL be recomputed from current state rather than overwrite that feedback with an obsolete frame
 
 ### Requirement: Transient surface ownership is stable across overflow
-Queued-input rows, non-working status, widgets, active input, and footer SHALL retain one dock ownership and relative order while a run crosses from fitting content to overflowing content or back. Live working and extension-working rows SHALL retain one non-selectable scrollable-tail ownership after semantic transcript content across the same transition. The fit/overflow boundary SHALL NOT move a transient row between these regions, duplicate or omit it for an intermediate frame, or move the stable editor/footer group.
+Pending steering rows and their edit hint, live working rows, and extension-working rows SHALL retain one non-persistent, non-selectable viewport ownership after semantic transcript content while a run crosses from fitting content to overflowing content or back. Non-working status, widgets, active input, and footer SHALL retain one dock ownership and relative order. While all viewport content fits, unused viewport rows SHALL precede a present live status so it remains immediately above the dock without moving earlier transcript or steering rows. At overflow that alignment gap SHALL be zero. The fit/overflow boundary SHALL NOT move a transient row between viewport and dock, duplicate or omit it for an intermediate frame, or move the stable editor/footer group.
 
 #### Scenario: Cross from fitting to overflowing while working
-- **WHEN** a streamed row causes the transcript plus live working tail to exceed the rows above the dock
-- **THEN** the working status SHALL remain in its scrollable-tail region and order
-- **AND** queued input and the editor/footer group SHALL remain in the dock
-- **AND** only scroll extent, transcript allocation, and follow position SHALL change
-- **AND** no frame SHALL show the status twice or omit its visible portion
+- **WHEN** streamed rows consume the unused alignment space and then cause semantic transcript, pending steering, and live working rows to exceed the rows above the dock
+- **THEN** the one working status SHALL remain in its transient viewport region and order
+- **AND** the fitting alignment gap SHALL shrink to zero before ordinary end-following movement begins
+- **AND** pending steering SHALL remain before the status in transient viewport content while the editor/footer group remains in the dock
+- **AND** no frame SHALL show the status twice, omit its visible portion, or move it before actual overflow
 
 #### Scenario: Queue input at the fit boundary
 - **WHEN** a queued-input row appears while streamed content is at the fit/overflow boundary
-- **THEN** the queued row SHALL remain in its declared dock order and the working status SHALL remain in the scrollable tail
-- **AND** the transcript viewport SHALL surrender the required dock rows without moving either transient into semantic transcript history
+- **THEN** the queued row SHALL appear after semantic transcript content and before any working status without entering the dock
+- **AND** it SHALL contribute to transient viewport extent without becoming semantic transcript history
+- **AND** unchanged input, widget, and footer rows SHALL remain at their existing dock coordinates
 
 #### Scenario: Detach while the run continues
-- **WHEN** the reader detaches from the end while queued or working rows are present
-- **THEN** queued rows SHALL remain dock content and working rows SHALL remain transient scrollable-tail content according to their lifecycles
-- **AND** transcript scrolling SHALL be able to scroll the working rows out of view
-- **AND** neither surface SHALL count as selectable transcript content
+- **WHEN** the reader detaches from the end while pending steering or working rows are present
+- **THEN** both surfaces SHALL remain transient viewport content according to their lifecycles
+- **AND** transcript scrolling SHALL be able to scroll both surfaces out of view according to their actual positions
+- **AND** neither surface nor fitting alignment rows SHALL count as selectable transcript content
