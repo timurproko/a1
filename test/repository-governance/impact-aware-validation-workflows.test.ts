@@ -30,6 +30,7 @@ describe("impact-aware validation workflows", () => {
     const workflow = await readFile(".github/workflows/ci.yml", "utf8");
     const startup = workflow.slice(workflow.indexOf("\n  startup:"), workflow.indexOf("\n  rendering:"));
     expect(startup).toContain("node: [22, 24]");
+    expect(startup).toContain("max-parallel: 1");
     expect(startup).toContain("Set-MpPreference -DisableRealtimeMonitoring $false");
     expect(startup).toContain("run-validation-tier.mjs package-install");
     expect(startup).toContain("STARTUP_PERFORMANCE_RESULT:");
