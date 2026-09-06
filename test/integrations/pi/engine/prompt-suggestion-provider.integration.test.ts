@@ -1,15 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { createPiEngineAdapter } from "../../../../src/integrations/pi/engine/index.js";
 
-const enabled = process.env.A1_PROMPT_SUGGESTION_PROVIDER_TEST === "1"
-  && typeof process.env.A1_PROMPT_SUGGESTION_AGENT_DIR === "string";
+const enabled = process.env.RUN_PROMPT_SUGGESTION_PROVIDER_TEST === "1"
+  && typeof process.env.PROMPT_SUGGESTION_AGENT_DIR === "string";
 
 /** Credential-gated diagnostic; default validation collects this file but never contacts a provider. */
 describe.skipIf(!enabled)("contextual prompt suggestion real-provider probe", () => {
   it("uses the selected model through a bounded tool-free request without changing session content", async () => {
     const adapter = await createPiEngineAdapter({
       cwd: process.cwd(),
-      agentDir: process.env.A1_PROMPT_SUGGESTION_AGENT_DIR!,
+      agentDir: process.env.PROMPT_SUGGESTION_AGENT_DIR!,
       settingsProductMode: "bare",
     });
     try {
