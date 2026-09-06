@@ -21,6 +21,7 @@ import {
   verifyDependencyLayer,
   type DependencyLayerOperationEvent,
   type DependencyLayerReference,
+  type ReadCertifiedDependencyLayerOptions,
   type RuntimePayloadInventory,
 } from "./dependency-layer.js";
 
@@ -58,6 +59,9 @@ export interface CertifiedReleaseRecord {
   readonly packageVersion?: string;
   readonly contentDigest: string;
 }
+
+/** Process-authority compatibility controls for metadata-only release loading. */
+export type ReadCertifiedReleaseManifestOptions = ReadCertifiedDependencyLayerOptions;
 
 export async function materializeRelease(packageRoot: string, dataDir: string, options: MaterializeReleaseOptions = {}): Promise<MaterializedRelease> {
   const payload = await discoverReleasePayload(packageRoot, {
@@ -157,6 +161,7 @@ export async function readMaterializedRelease(releaseRoot: string, selectedStore
 export async function readCertifiedReleaseManifest(
   record: CertifiedReleaseRecord,
   selectedStoreRoot: string,
+  options: ReadCertifiedReleaseManifestOptions = {},
 ): Promise<MaterializedRelease> {
   const canonical = await realpath(record.releaseRoot);
   const canonicalStoreRoot = await realpath(selectedStoreRoot);
@@ -168,7 +173,7 @@ export async function readCertifiedReleaseManifest(
     throw new Error(`certified release record differs from manifest for ${canonical}`);
   }
   if (canonical.split(sep).at(-1) !== manifest.releaseId) throw new Error(`release directory does not match identity ${manifest.releaseId}`);
-  await verifyReleaseDependencies(canonical, canonicalStoreRoot, manifest.dependencyLayers ?? [], false);
+  await verifyReleaseDependencies(canonical, canonicalStoreRoot, manifest.dependencyLayers ?? [], false, {}, options);
   return { ...manifest, releaseRoot: canonical };
 }
 
@@ -223,6 +228,7 @@ async function verifyReleaseDependencies(
   references: readonly DependencyLayerReference[],
   fullVerification: boolean,
   options: VerifyMaterializedReleaseOptions = {},
+  certificationOptions: ReadCertifiedDependencyLayerOptions = {},
 ): Promise<void> {
   if (references.length === 0) return;
   if (references.length !== 1) throw new Error("release currently supports exactly one dependency layer");
@@ -230,7 +236,7 @@ async function verifyReleaseDependencies(
   const reference = references[0]!;
   const layer = fullVerification
     ? await verifyDependencyLayer(dataDir, reference, event => options.onOperation?.({ operation: event.operation, path: event.path, bytes: event.bytes }))
-    : await readCertifiedDependencyLayer(dataDir, reference.layerId, reference);
+    : await readCertifiedDependencyLayer(dataDir, reference.layerId, reference, certificationOptions);
   const binding = resolveWithin(releaseRoot, reference.binding);
   const metadata = await lstat(binding);
   if (!metadata.isSymbolicLink()) throw new Error(`release dependency binding is not managed: ${binding}`);

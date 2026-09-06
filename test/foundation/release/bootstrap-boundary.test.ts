@@ -59,6 +59,19 @@ describe("mutable bootstrap boundary", () => {
     expect(start).toBeGreaterThan(supervisorStart);
   });
 
+  it("upgrades the preceding updater's certification before publishing supervisor readiness", async () => {
+    const supervisor = await readFile(resolve(repository, "src/foundation/supervision/main.ts"), "utf8");
+    const certifiedRead = supervisor.indexOf("await readCertifiedReleaseManifest");
+    const migrationOptIn = supervisor.indexOf("allowLegacyParentCertification: true", certifiedRead);
+    const certificationRecord = supervisor.indexOf("await recordParentCertifiedRelease", migrationOptIn);
+    const endpointListen = supervisor.indexOf("await server.listen()", certificationRecord);
+
+    expect(certifiedRead).toBeGreaterThan(0);
+    expect(migrationOptIn).toBeGreaterThan(certifiedRead);
+    expect(certificationRecord).toBeGreaterThan(migrationOptIn);
+    expect(endpointListen).toBeGreaterThan(certificationRecord);
+  });
+
   it("keeps launch and update activation progress out of the user-facing terminal", async () => {
     const [bootstrap, update] = await Promise.all([
       readFile(resolve(repository, "src/foundation/release/bootstrap.ts"), "utf8"),

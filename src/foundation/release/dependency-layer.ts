@@ -51,6 +51,11 @@ export interface DependencyLayerOperationEvent {
   readonly bytes: number;
 }
 
+export interface ReadCertifiedDependencyLayerOptions {
+  /** Accept and replace certification written by the immediately preceding updater format. */
+  readonly allowLegacyParentCertification?: boolean;
+}
+
 export interface SelectedRuntimePayload {
   readonly paths: readonly string[];
   readonly inventory: RuntimePayloadInventory;
@@ -338,6 +343,7 @@ export async function readCertifiedDependencyLayer(
   dataDir: string,
   layerId: string,
   expected?: Pick<DependencyLayerIdentity, "layerId" | "contentDigest">,
+  options: ReadCertifiedDependencyLayerOptions = {},
 ): Promise<Omit<MaterializedDependencyLayer, "reused">> {
   const layersRoot = await realpath(resolve(dataDir, "dependency-layers"));
   const layerRoot = await realpath(resolveWithin(layersRoot, layerId));
@@ -346,14 +352,22 @@ export async function readCertifiedDependencyLayer(
   if (!metadata.isDirectory() || metadata.isSymbolicLink()) throw new Error(`dependency layer is not a managed non-link directory: ${layerId}`);
   const manifest = JSON.parse(await readFile(resolve(layerRoot, DEPENDENCY_LAYER_MANIFEST), "utf8")) as DependencyLayerIdentity;
   validateLayerManifest(manifest);
-  const certification = JSON.parse(await readFile(certificationPath(dataDir, layerId), "utf8")) as Record<string, unknown>;
-  if (certification.schema !== PRODUCT_IDENTITY.evidence.dependencyLayerCertificationSchema || certification.layerId !== manifest.layerId || certification.contentDigest !== manifest.contentDigest
-    || certification.platform !== process.platform || certification.platformPolicy !== immutablePlatformPolicy()) {
-    throw new Error(`dependency layer certification differs from manifest: ${layerId}`);
-  }
   if (expected && (expected.layerId !== manifest.layerId || expected.contentDigest !== manifest.contentDigest)) {
     throw new Error(`dependency layer identity mismatch: ${layerId}`);
   }
+  const certification = JSON.parse(await readFile(certificationPath(dataDir, layerId), "utf8")) as Record<string, unknown>;
+  const identityMatches = certification.schema === PRODUCT_IDENTITY.evidence.dependencyLayerCertificationSchema
+    && certification.layerId === manifest.layerId && certification.contentDigest === manifest.contentDigest;
+  const currentPlatformEvidence = certification.platform === process.platform && certification.platformPolicy === immutablePlatformPolicy();
+  // Compatibility: the updater that introduced layers certified these exact identities but did
+  // not record platform fields. Only an authenticated parent-started supervisor opts into this
+  // transition; durable/reuse readers remain strict and cannot treat the legacy marker as authority.
+  const legacyParentCertification = options.allowLegacyParentCertification === true
+    && certification.platform === undefined && certification.platformPolicy === undefined;
+  if (!identityMatches || (!currentPlatformEvidence && !legacyParentCertification)) {
+    throw new Error(`dependency layer certification differs from manifest: ${layerId}`);
+  }
+  if (legacyParentCertification) await writeLayerCertification(dataDir, manifest);
   return { ...manifest, layerRoot };
 }
 
