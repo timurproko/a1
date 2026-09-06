@@ -19,6 +19,7 @@ import { resolveProductPaths } from "../lifecycle/index.js";
 import { RELEASE_MANIFEST_FILENAME } from "./release-store.js";
 import { DEPENDENCY_LAYER_MANIFEST, dependencyLayerCertificationPath } from "./dependency-layer.js";
 import { UpdateTransactionStore, type UpdateTransaction } from "./update-transaction.js";
+import { cleanupUpdateRecoveryCapsules } from "./update-recovery.js";
 import { PRODUCT_IDENTITY } from "../../product-identity.js";
 import { collectCompileCaches, startupCompileCachePath } from "../startup/index.js";
 
@@ -181,6 +182,7 @@ export async function runBoundedReleaseCleanup(
   }
   if (!activeTransaction && hasTime()) {
     await collectCompileCaches(dataDir, await protectedCompileCachePaths(dataDir, await store.read())).catch(() => {});
+    await cleanupUpdateRecoveryCapsules(dataDir).catch(() => {});
   }
 
   const remaining = Object.keys((await store.read()).cleanup.pending).length;

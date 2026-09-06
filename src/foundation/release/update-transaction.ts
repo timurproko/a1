@@ -15,6 +15,15 @@ export type UpdateTransactionPhase =
   | "active-reference-committed"
   | "supervisor-verified";
 
+export interface UpdateRecoveryState {
+  readonly capsulePath: string;
+  readonly status: "prepared" | "running" | "package-installed" | "recovery-launcher";
+  readonly guardianPid: number | null;
+  readonly guardianStartIdentity: string | null;
+  readonly cancellationRequested: boolean;
+  readonly launcherDisposition: "pending" | "target" | "recovery" | "unavailable";
+}
+
 export interface UpdateTransaction {
   readonly schema: typeof UPDATE_JOURNAL_SCHEMA;
   readonly transactionId: string;
@@ -25,6 +34,7 @@ export interface UpdateTransaction {
   readonly phase: UpdateTransactionPhase;
   readonly status: "active" | "completed" | "rolled-back" | "failed";
   readonly error: string | null;
+  readonly recovery?: UpdateRecoveryState;
   readonly startedAt: string;
   readonly updatedAt: string;
 }
@@ -72,6 +82,11 @@ export class UpdateTransactionStore {
     return await this.#write({ ...current, phase, updatedAt: new Date().toISOString() });
   }
 
+  async setRecovery(recovery: UpdateRecoveryState): Promise<UpdateTransaction> {
+    const current = await this.#requiredActive();
+    return await this.#write({ ...current, recovery, updatedAt: new Date().toISOString() });
+  }
+
   async finish(status: "completed" | "rolled-back" | "failed", error: string | null = null): Promise<UpdateTransaction> {
     const current = await this.read();
     if (!current) throw new Error(`no ${PRODUCT_TEXT.displayName} update transaction is recorded`);
@@ -111,7 +126,15 @@ function phaseOrder(phase: UpdateTransactionPhase): number {
 function validate(value: UpdateTransaction): void {
   if (value.schema !== UPDATE_JOURNAL_SCHEMA || typeof value.transactionId !== "string" || !["stable", "next"].includes(value.channel)
     || typeof value.targetVersion !== "string" || typeof value.packageRoot !== "string" || typeof value.startedAt !== "string"
-    || typeof value.updatedAt !== "string" || phaseOrder(value.phase) < 0 || !["active", "completed", "rolled-back", "failed"].includes(value.status)) {
+    || typeof value.updatedAt !== "string" || phaseOrder(value.phase) < 0 || !["active", "completed", "rolled-back", "failed"].includes(value.status)
+    || (value.recovery !== undefined && !validRecovery(value.recovery))) {
     throw new Error(`invalid ${PRODUCT_TEXT.displayName} update transaction journal`);
   }
+}
+
+function validRecovery(value: UpdateRecoveryState): boolean {
+  return typeof value.capsulePath === "string" && ["prepared", "running", "package-installed", "recovery-launcher"].includes(value.status)
+    && (value.guardianPid === null || Number.isSafeInteger(value.guardianPid) && value.guardianPid > 0)
+    && (value.guardianStartIdentity === null || typeof value.guardianStartIdentity === "string")
+    && typeof value.cancellationRequested === "boolean" && ["pending", "target", "recovery", "unavailable"].includes(value.launcherDisposition);
 }

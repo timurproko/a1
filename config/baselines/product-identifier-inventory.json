@@ -361,37 +361,37 @@
     },
     {
       "path": "test/foundation/release/package-install.integration.test.ts",
-      "line": 105,
+      "line": 178,
       "identifier": "A1_DATA_DIR"
     },
     {
       "path": "test/foundation/release/package-install.integration.test.ts",
-      "line": 106,
+      "line": 179,
       "identifier": "A1_RUNTIME_DIR"
     },
     {
       "path": "test/foundation/release/package-install.integration.test.ts",
-      "line": 107,
+      "line": 180,
       "identifier": "A1_RELEASE_CLEANUP_RUN_ID"
     },
     {
       "path": "test/foundation/release/package-install.integration.test.ts",
-      "line": 108,
+      "line": 181,
       "identifier": "A1_RELEASE_CLEANUP_HOLDS"
     },
     {
       "path": "test/foundation/release/package-install.integration.test.ts",
-      "line": 166,
+      "line": 239,
       "identifier": "A1_DATA_DIR"
     },
     {
       "path": "test/foundation/release/package-install.integration.test.ts",
-      "line": 167,
+      "line": 240,
       "identifier": "A1_RUNTIME_DIR"
     },
     {
       "path": "test/foundation/release/package-install.integration.test.ts",
-      "line": 168,
+      "line": 241,
       "identifier": "A1_RELEASE_CLEANUP_RUN_ID"
     },
     {
@@ -458,6 +458,16 @@
       "path": "test/foundation/release/update-live-cohort.test.ts",
       "line": 54,
       "identifier": "A1_DATABASE_PATH"
+    },
+    {
+      "path": "test/foundation/release/update-recovery.test.ts",
+      "line": 343,
+      "identifier": "A1_TEST_CANCEL_AFTER"
+    },
+    {
+      "path": "test/foundation/release/update-recovery.test.ts",
+      "line": 344,
+      "identifier": "A1_TEST_REMOVAL_MARKER"
     },
     {
       "path": "test/foundation/release/update-transition.integration.test.ts",

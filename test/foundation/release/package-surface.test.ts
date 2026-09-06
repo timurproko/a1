@@ -32,7 +32,7 @@ describe("exact packed npm command surface", () => {
       "bin/release-cleanup.js",
       "bin/guardian.js",
       "bin/ui.js",
-      "bin/supervisor.js", "bin/warmup.js", "dist/runtime-payload-inventory.json",
+      "bin/supervisor.js", "bin/update-recovery.js", "bin/warmup.js", "dist/runtime-payload-inventory.json",
       "dist/product-identity.js",
       "dist/product-identity.json",
       "dist/product-identity.d.ts",
