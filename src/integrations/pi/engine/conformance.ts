@@ -11,6 +11,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { OWNED_UI_CONTRACT_VERSION } from "../../../contracts/owned-ui/index.js";
 import { PRODUCT_IDENTITY } from "../../../product-identity.js";
+import { createWindowsNulCleanupExtension } from "./windows-filesystem-hygiene.js";
 
 export interface PiCapabilityConformanceResult {
   readonly capability: string;
@@ -24,7 +25,7 @@ export const REQUIRED_PI_CAPABILITY_OPERATIONS = Object.freeze({
   "commands-events": ["prompt", "steer", "followUp", "abort", "compact", "setModel", "setThinkingLevel", "subscribe", "dispose"],
   "models-authentication": ["models.list", "models.refresh", "auth.status", "auth.login", "auth.logout", "auth.cancel"],
   settings: ["settings.read", "settings.write", "settings.flush"],
-  "resources-extensions": ["resources.discover", "extensions.bind", "extensions.reload", "renderers.invoke"],
+  "resources-extensions": ["resources.discover", "extensions.inline", "extensions.bind", "extensions.reload", "renderers.invoke"],
   workflows: ["workflow.route", "workflow.validate", "workflow.diagnostics"],
   disposal: ["subscription.dispose", "session.dispose", "services.cleanup"],
 } as const);
@@ -82,11 +83,17 @@ export async function runPiUpgradeConformance(): Promise<PiUpgradeConformanceRep
         refreshOnCreate: false,
         allowModelNetwork: false,
       });
+      const cleanupExtension = createWindowsNulCleanupExtension({ platform: "win32" });
+      if (cleanupExtension === null) throw new Error("Windows NUL cleanup extension is unavailable");
       services = await createAgentSessionServices({
         cwd: root,
         agentDir: join(root, "agent"),
         modelRuntime,
+        resourceLoaderOptions: { extensionFactories: [cleanupExtension] },
       });
+      if (!services.resourceLoader.getExtensions().extensions.some(extension => extension.path === "<inline:windows-nul-file-cleanup>")) {
+        throw new Error("named inline extension factory was not loaded");
+      }
     } catch (error) {
       throw new PiUpgradeConformanceError("services", error);
     }

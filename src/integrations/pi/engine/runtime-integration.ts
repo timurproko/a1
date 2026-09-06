@@ -17,6 +17,7 @@ import {
 } from "./project-trust-preflight.js";
 import { openSelectedPiSession, resolveSessionArgumentPath, type PiSessionForkPrompt, type PiSessionSelection } from "./session-selection.js";
 import { markStartupPhase } from "../../../foundation/startup/index.js";
+import { createWindowsNulCleanupExtension } from "./windows-filesystem-hygiene.js";
 
 export interface PiRuntimeIntegrationOptions {
   readonly cwd: string;
@@ -100,7 +101,15 @@ export async function createPiRuntimeServicesAfterTrust(
   });
   const settingsManager = createSettingsManager(options.cwd, options.agentDir, trust.trusted);
   await markStartupPhase(process.env, "settings-loaded");
-  const services = await createServices({ cwd: options.cwd, agentDir: options.agentDir, settingsManager });
+  const cleanupExtension = createWindowsNulCleanupExtension();
+  const services = await createServices({
+    cwd: options.cwd,
+    agentDir: options.agentDir,
+    settingsManager,
+    ...(cleanupExtension === null ? {} : {
+      resourceLoaderOptions: { extensionFactories: [cleanupExtension] },
+    }),
+  });
   await markStartupPhase(process.env, "pi-services");
   await markStartupPhase(process.env, "resource-discovery");
   return { services, trust };

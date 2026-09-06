@@ -22,6 +22,8 @@ describe("Pi public upgrade conformance", () => {
       "settings", "resources-extensions", "workflows", "disposal",
     ]);
     expect(report.capabilities.every(result => result.passed && result.operations.length > 0)).toBe(true);
+    expect(report.capabilities.find(result => result.capability === "resources-extensions")?.operations)
+      .toContain("extensions.inline");
   });
 
   it("reports the failing stage in an adapter-owned error", () => {
