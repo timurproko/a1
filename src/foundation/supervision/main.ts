@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { appendFileSync, mkdirSync } from "node:fs";
 import { resolve } from "node:path";
-import { assertImmutableExecutionRoot, CohortStateStore, readCertifiedReleaseManifest } from "../release/index.js";
+import { assertImmutableExecutionRoot, CohortStateStore, readCertifiedReleaseManifest, recordParentCertifiedRelease } from "../release/index.js";
 import { publishSupervisorStartupResult, supervisorStartupFailure, supervisorStartupReady, supervisorStartupResultPath } from "../lifecycle/index.js";
 import { ControlStore } from "../storage/index.js";
 import { resolveCohortEndpoint, resolveProductPaths } from "./paths.js";
@@ -28,7 +28,11 @@ export async function runSupervisor(arguments_: readonly string[] = []): Promise
     const release = await readCertifiedReleaseManifest(
       { releaseRoot, releaseId, contentDigest },
       resolve(paths.dataDir, "releases"),
+      { allowLegacyParentCertification: true },
     );
+    // Compatibility: an older updater may have written release evidence before restart seals
+    // existed, even when its layer certification has already been upgraded by a retry.
+    await recordParentCertifiedRelease(release, paths.dataDir);
     stage = "immutable-root";
     await assertImmutableExecutionRoot(release, paths.dataDir);
     // Protocol: one endpoint per cohort: a superseded cohort keeps serving what it already has while the

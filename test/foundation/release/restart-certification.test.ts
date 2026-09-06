@@ -5,8 +5,10 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   certifyMaterializedRelease,
   materializeRelease,
+  readCertifiedReleaseManifest,
   readMaterializedRelease,
   readRestartCertifiedRelease,
+  recordParentCertifiedRelease,
   restartSealDigest,
   RELEASE_MANIFEST_FILENAME,
   UpdateTransactionStore,
@@ -93,6 +95,38 @@ describe("durable restart certification", () => {
     await expect(readRestartCertifiedRelease(fixture.record, fixture.dataDir)).rejects.toThrow(/no durable restart seal/);
     const verified = await readMaterializedRelease(fixture.release.releaseRoot);
     await certifyMaterializedRelease(verified, fixture.dataDir);
+    await expect(readRestartCertifiedRelease(fixture.record, fixture.dataDir)).resolves.toMatchObject({ releaseId: fixture.release.releaseId });
+  });
+
+  it("upgrades certification written by the immediately preceding updater before supervisor readiness", async () => {
+    const fixture = await certifiedFixture(1);
+    const layer = fixture.release.dependencyLayers![0]!;
+    const layerCertificationPath = resolve(fixture.dataDir, `dependency-layer-certification-${layer.layerId}.json`);
+    const currentLayerCertification = JSON.parse(await readFile(layerCertificationPath, "utf8")) as Record<string, unknown>;
+    const { platform: _platform, platformPolicy: _platformPolicy, ...legacyLayerCertification } = currentLayerCertification;
+    await chmod(layerCertificationPath, 0o600);
+    await writeFile(layerCertificationPath, JSON.stringify({ ...legacyLayerCertification, contentDigest: "f".repeat(64) }));
+    await expect(readCertifiedReleaseManifest(fixture.release, resolve(fixture.dataDir, "releases"), { allowLegacyParentCertification: true }))
+      .rejects.toThrow(/dependency layer certification differs/);
+    await writeFile(layerCertificationPath, JSON.stringify(legacyLayerCertification));
+    const currentReleaseCertification = JSON.parse(await readFile(fixture.record.diagnosticsPath, "utf8")) as Record<string, unknown>;
+    const { restartSeal: _restartSeal, ...legacyReleaseCertification } = currentReleaseCertification;
+    await chmod(fixture.record.diagnosticsPath, 0o600);
+    await writeFile(fixture.record.diagnosticsPath, JSON.stringify(legacyReleaseCertification));
+
+    await expect(readCertifiedReleaseManifest(fixture.release, resolve(fixture.dataDir, "releases")))
+      .rejects.toThrow(/dependency layer certification differs/);
+    const trusted = await readCertifiedReleaseManifest(fixture.release, resolve(fixture.dataDir, "releases"), {
+      allowLegacyParentCertification: true,
+    });
+    await recordParentCertifiedRelease(trusted, fixture.dataDir);
+
+    await expect(readFile(layerCertificationPath, "utf8").then(JSON.parse)).resolves.toMatchObject({
+      layerId: layer.layerId,
+      contentDigest: layer.contentDigest,
+      platform: process.platform,
+      platformPolicy: immutablePlatformPolicy(),
+    });
     await expect(readRestartCertifiedRelease(fixture.record, fixture.dataDir)).resolves.toMatchObject({ releaseId: fixture.release.releaseId });
   });
 

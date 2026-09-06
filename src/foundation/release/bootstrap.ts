@@ -220,6 +220,11 @@ export async function certifyMaterializedRelease(
   if (!consumeMaterializationProof(release)) {
     await verifyMaterializedRelease(release.releaseRoot, release, resolve(dataDir, "releases"), verification);
   }
+  return await recordParentCertifiedRelease(release, dataDir);
+}
+
+/** Persist current-format evidence after an authenticated parent has certified the exact release. */
+export async function recordParentCertifiedRelease(release: MaterializedRelease, dataDir: string): Promise<string> {
   const path = resolve(dataDir, `certification-${release.releaseId}.json`);
   const restartSeal = await createRestartSeal(release, dataDir);
   await chmod(path, 0o600).catch(() => {});
