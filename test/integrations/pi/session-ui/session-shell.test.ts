@@ -857,7 +857,7 @@ describe("OwnedUiSessionShell", () => {
     }
   });
 
-  it("keeps Pi's queued steering order in the dock while the detached working tail scrolls", async () => {
+  it("keeps Pi's queued steering order in the transient tail and scrolls it with Working", async () => {
     const messages = Array.from({ length: 18 }, (_, index) => ({
       role: "assistant",
       content: [{ type: "text", text: `queue-transcript-${index}` }],
@@ -875,32 +875,37 @@ describe("OwnedUiSessionShell", () => {
       const second = rows.findIndex(row => row.includes("Steering: second"));
       const hint = rows.findIndex(row => row.includes("Alt+Up to edit all queued messages"));
       const working = rows.findIndex(row => row.includes("Working"));
-      const transcriptEnd = shell.root.viewportFrameDescriptor()!.transcript!.rowEnd - 1;
-      expect(first).toBeGreaterThan(transcriptEnd);
+      const viewportEnd = shell.root.viewportFrameDescriptor()!.transcript!.rowEnd - 1;
+      expect(first).toBeGreaterThanOrEqual(0);
       expect(second).toBeGreaterThan(first);
       expect(hint).toBeGreaterThan(second);
-      expect(working).toBeLessThanOrEqual(transcriptEnd);
+      expect(working).toBeGreaterThan(hint);
+      expect(working).toBe(viewportEnd);
 
-      terminal.input("\u001b[<64;30;1M");
+      for (let index = 0; index < 6; index += 1) terminal.input("\u001b[<64;30;1M");
       const detached = shell.root.render(60).map(row => stripTerminalSequences(row));
-      expect(detached.some(row => row.includes("Steering: first"))).toBe(true);
-      expect(detached.some(row => row.includes("Steering: second"))).toBe(true);
-      expect(detached.some(row => row.includes("Alt+Up to edit all queued messages"))).toBe(true);
+      expect(detached.some(row => row.includes("Steering: first"))).toBe(false);
+      expect(detached.some(row => row.includes("Steering: second"))).toBe(false);
+      expect(detached.some(row => row.includes("Alt+Up to edit all queued messages"))).toBe(false);
       expect(detached.some(row => row.includes("Working"))).toBe(false);
       expect(detached.some(row => row.includes("Jump to bottom (End)"))).toBe(true);
-      terminal.input("\u001b[<65;30;1M");
-      expect(shell.root.render(60).some(row => stripTerminalSequences(row).includes("Working"))).toBe(true);
+      terminal.input("\u001b[1;1F");
+      const followed = shell.root.render(60).map(row => stripTerminalSequences(row));
+      expect(followed.some(row => row.includes("Steering: first"))).toBe(true);
+      expect(followed.some(row => row.includes("Working"))).toBe(true);
     } finally {
       await shell.dispose();
     }
   });
 
-  it("keeps dock row identity stable while queued streaming crosses the fit boundary", async () => {
+  it("keeps Working bottom-aligned while fitting and keeps true dock rows stable at overflow", async () => {
     const { engine, terminal, shell } = await fixture([
       { role: "assistant", content: [{ type: "text", text: "fitting transcript" }], timestamp: 1 },
     ], [], true);
     try {
       terminal.resize(60, 18);
+      const settledRows = shell.root.render(60).map(row => stripTerminalSequences(row));
+      const settledTranscriptRow = settledRows.findIndex(row => row.includes("fitting transcript"));
       engine.session.emit({ type: "agent_start" });
       engine.session.emit({ type: "queue_update", steering: ["stable queue"], followUp: [] });
       await shell.backend.flushEvents();
@@ -913,15 +918,28 @@ describe("OwnedUiSessionShell", () => {
           queue: rows.findIndex(row => row.includes("Steering: stable queue")),
           hint: rows.findIndex(row => row.includes("Alt+Up to edit all queued messages")),
           working: rows.findIndex(row => row.includes("Working")),
-          transcriptEnd: descriptor.transcript!.rowEnd - 1,
+          viewportEnd: descriptor.transcript!.rowEnd - 1,
           dockStart: descriptor.dock!.rowStart - 1,
+          alignmentGap: descriptor.transientAlignmentGapRows,
         };
       };
       const fitting = positions();
-      expect(fitting.working).toBeLessThan(fitting.transcriptEnd);
-      expect(fitting.queue).toBeGreaterThan(fitting.transcriptEnd);
+      expect(fitting.rows.findIndex(row => row.includes("fitting transcript"))).toBe(settledTranscriptRow);
+      expect(fitting.queue).toBeGreaterThanOrEqual(0);
       expect(fitting.hint).toBeGreaterThan(fitting.queue);
-      expect(fitting.hint).toBeGreaterThanOrEqual(fitting.dockStart);
+      expect(fitting.working).toBe(fitting.viewportEnd);
+      expect(fitting.working).toBeLessThan(fitting.dockStart);
+      expect(fitting.alignmentGap).toBeGreaterThan(0);
+
+      engine.session.emit({
+        type: "message_start",
+        message: { role: "assistant", content: [{ type: "text", text: "another fitting row" }], timestamp: 2 },
+      });
+      await shell.backend.flushEvents();
+      const grownButFitting = positions();
+      expect(grownButFitting.working).toBe(fitting.working);
+      expect(grownButFitting.dockStart).toBe(fitting.dockStart);
+      expect(grownButFitting.alignmentGap).toBeLessThan(fitting.alignmentGap);
 
       for (let index = 0; index < 16; index += 1) {
         engine.session.emit({
@@ -931,10 +949,11 @@ describe("OwnedUiSessionShell", () => {
       }
       await shell.backend.flushEvents();
       const overflowing = positions();
-      expect(overflowing.queue).toBe(fitting.queue);
-      expect(overflowing.hint).toBe(fitting.hint);
       expect(overflowing.dockStart).toBe(fitting.dockStart);
-      expect(overflowing.working).toBeLessThanOrEqual(overflowing.transcriptEnd);
+      expect(overflowing.alignmentGap).toBe(0);
+      expect(overflowing.working).toBe(overflowing.viewportEnd);
+      expect(overflowing.queue).toBeGreaterThanOrEqual(0);
+      expect(overflowing.hint).toBeGreaterThan(overflowing.queue);
       expect(overflowing.rows.filter(row => row.includes("Steering: stable queue"))).toHaveLength(1);
       expect(overflowing.rows.filter(row => row.includes("Working"))).toHaveLength(1);
 
@@ -943,6 +962,7 @@ describe("OwnedUiSessionShell", () => {
       const cleared = positions();
       expect(cleared.queue).toBe(-1);
       expect(cleared.hint).toBe(-1);
+      expect(cleared.working).toBe(cleared.viewportEnd);
       expect(cleared.rows.filter(row => row.includes("Working"))).toHaveLength(1);
     } finally {
       await shell.dispose();

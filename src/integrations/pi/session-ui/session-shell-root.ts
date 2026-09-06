@@ -199,19 +199,17 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   #dockInputCandidate = false;
   #dockInputSnapshot: {
     readonly documentRows: readonly string[];
-    readonly statusSignature: string | undefined;
+    readonly transientSignature: string;
     readonly promptAnchors: readonly TranscriptPromptAnchor[];
     readonly inputSurface: PiShellComponentPort;
     readonly viewportRevision: number;
     readonly selectionRevision: number;
   } | undefined;
-  #dockInputStatusSignature: string | undefined;
   #visibleViewportSnapshot: {
     readonly width: number;
     readonly height: number;
     readonly documentRows: readonly string[];
-    readonly statusSignature: string | undefined;
-    readonly dockInputStatusSignature: string | undefined;
+    readonly transientSignature: string;
     readonly promptAnchors: readonly TranscriptPromptAnchor[];
     readonly dockLength: number;
     readonly inputSurface: PiShellComponentPort;
@@ -470,14 +468,18 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     // intentional final gutter after their right-aligned timestamp.
     const documentWidth = width;
     const document = this.#renderDocumentLayout(documentWidth);
+    const steeringRows = this.#renderQueued(width);
     const statusRows = this.#renderStatus(width);
-    const statusSignature = statusRows.length === 0 ? undefined : `${statusRows.length}\u0000${statusRows.join("\u0000")}`;
+    const transientSignature = transientRowsSignature(steeringRows, statusRows);
     const snapshot = this.#visibleViewportSnapshot;
     const dockInputCandidate = this.#dockInputCandidate;
     const dockInputSnapshot = dockInputCandidate ? this.#dockInputSnapshot : undefined;
-    const dockInputStatusSignature = dockInputCandidate ? this.#dockInputStatusSignature : statusSignature;
-    // Invariant: queued rows stay docked while live Working rows form one scrollable tail.
-    const scrollRows = [...document.rows, ...statusRows];
+    const dockInputTransientSignature = dockInputCandidate
+      ? dockInputSnapshot?.transientSignature ?? transientSignature
+      : transientSignature;
+    // Invariant: pending Steering and live Working rows share one non-selectable
+    // viewport tail; only non-working status, widgets, input, and footer stay docked.
+    const scrollRows = [...document.rows, ...steeringRows, ...statusRows];
     const dockRows = dock.rows;
     const selectableDocumentRowCount = document.rows.length;
     const dockStartRow = height - dockRows.length + 1;
@@ -494,7 +496,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       && snapshot.width === width
       && snapshot.height === height
       && snapshot.documentRows === (dockInputSnapshot?.documentRows ?? scrollRows)
-      && snapshot.statusSignature === dockInputStatusSignature
+      && snapshot.transientSignature === dockInputTransientSignature
       && snapshot.promptAnchors === (dockInputSnapshot?.promptAnchors ?? document.promptAnchors)
       && snapshot.dockLength === dockRows.length
       && snapshot.inputSurface === (dockInputSnapshot?.inputSurface ?? this.#inputSurface)
@@ -502,24 +504,25 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       && snapshot.selectionRevision === (dockInputSnapshot?.selectionRevision ?? this.#viewportController.selectionRevision)
       ? this.#viewportController.composeDockOnly(dockRows, width, height)
       : null;
-    // Performance: a still-active spinner can tick before its first delayed presentation.
-    // Its newest tail signature is recomputed below and therefore cannot hide that change.
-    if (frame !== null && dockInputStatusSignature !== statusSignature) frame = null;
+    // Performance: a spinner tick or queue update can race the input-triggered
+    // render. Recompute the complete transient signature before reusing rows.
+    if (frame !== null && dockInputTransientSignature !== transientSignature) frame = null;
     if (frame === null) {
       frame = this.#viewportController.compose({
         documentRows: scrollRows,
         ...(this.#viewportController.transcriptPointerSelecting
           ? { paintDocumentRow: heldNativeHyperlinkStyle }
           : {}),
-        // Invariant: selection and copying stop at the real document tail; live Working
-        // rows remain transient presentation chrome at every fit boundary.
+        // Invariant: selection and copying stop at the real document tail; Steering,
+        // fitting alignment, and live Working remain transient presentation chrome.
         selectableDocumentRowCount,
+        bottomAlignedTailRowCount: statusRows.length,
         dockRows,
         promptAnchors: document.promptAnchors,
         width,
         height,
-        // Invariant: the control belongs immediately above the complete dock,
-        // never on top of a queued or Working row.
+        // Invariant: the control belongs immediately above the complete dock and
+        // floats over transient viewport content rather than consuming a dock row.
         bottomControlRow: Math.max(0, height - Math.min(height, dockRows.length) - 1),
         theme: this.#viewportTheme,
       });
@@ -529,8 +532,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       width,
       height,
       documentRows: scrollRows,
-      statusSignature,
-      dockInputStatusSignature,
+      transientSignature,
       promptAnchors: document.promptAnchors,
       dockLength: dockRows.length,
       inputSurface: this.#inputSurface,
@@ -545,7 +547,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     return this.#viewportController.frame?.descriptor ?? null;
   }
 
-  /** Visible rows of the transient working-status tail, for rendering evidence. */
+  /** Visible non-selectable Steering, alignment, and Working rows, for rendering evidence. */
   viewportTransientTailRowCount(): number {
     return this.#viewportController.frame?.hits.transientTail.length ?? 0;
   }
@@ -591,7 +593,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     readonly editorOffset: number;
     readonly inputRows: number;
   } {
-    const queued = this.#view.editor.queuedSubmissions.length === 0 ? [] : this.#queued.render(width);
+    const queued = this.#customViewport ? [] : this.#renderQueued(width);
     const statusRows = this.#customViewport ? this.#status.renderDock(width) : this.#renderStatus(width);
     const transientRows = [...queued, ...statusRows];
     const aboveWidgets = this.#renderWidgets("aboveEditor", width);
@@ -604,6 +606,10 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       editorOffset: transientRows.length + aboveWidgets.length,
       inputRows: input.length,
     };
+  }
+
+  #renderQueued(width: number): readonly string[] {
+    return this.#view.editor.queuedSubmissions.length === 0 ? [] : this.#queued.render(width);
   }
 
   layoutRoot(): PiTuiLayoutNode {
@@ -1044,14 +1050,15 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
 
   #captureDockInputSnapshot(): void {
     const width = Math.max(1, this.#componentRuntime.getColumns());
+    const steeringRows = this.#renderQueued(width);
     const statusRows = this.#renderStatus(width);
-    this.#dockInputStatusSignature = statusRows.length === 0 ? undefined : `${statusRows.length}\u0000${statusRows.join("\u0000")}`;
+    const transientSignature = transientRowsSignature(steeringRows, statusRows);
     const snapshot = this.#visibleViewportSnapshot;
     this.#dockInputSnapshot = snapshot === undefined
       ? undefined
       : {
           documentRows: snapshot.documentRows,
-          statusSignature: this.#dockInputStatusSignature,
+          transientSignature,
           promptAnchors: snapshot.promptAnchors,
           inputSurface: this.#inputSurface,
           viewportRevision: this.#viewportController.presentationRevision,
@@ -1087,7 +1094,6 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.#visibleViewportSnapshot = undefined;
     this.#dockInputCandidate = false;
     this.#dockInputSnapshot = undefined;
-    this.#dockInputStatusSignature = undefined;
     if (this.#inputSurface !== this.editor) this.#inputSurface.dispose?.();
     this.#extensionHeader?.dispose?.();
     this.#extensionFooter?.dispose?.();
@@ -1427,4 +1433,11 @@ function normalizeResourcePath(path: string): string {
 function isPackageExtensionSource(sourceInfo: OwnedPiExtensionSourceSummary | null): sourceInfo is OwnedPiExtensionSourceSummary {
   const source = sourceInfo?.source ?? "";
   return source.startsWith("npm:") || source.startsWith("git:");
+}
+
+function transientRowsSignature(
+  steeringRows: readonly string[],
+  statusRows: readonly string[],
+): string {
+  return `${steeringRows.length}\u0000${steeringRows.join("\u0000")}\u0001${statusRows.length}\u0000${statusRows.join("\u0000")}`;
 }
