@@ -98,13 +98,28 @@ export function readPackedEntries(tarball) {
     const sizeSource = readTarString(header.subarray(124, 136)).trim();
     const size = Number.parseInt(sizeSource || "0", 8);
     if (!Number.isSafeInteger(size) || size < 0) throw new Error("candidate tarball has an invalid entry size");
+    const mode = Number.parseInt(readTarString(header.subarray(100, 108)).trim() || "0", 8);
+    if (!Number.isSafeInteger(mode) || mode < 0) throw new Error("candidate tarball has an invalid entry mode");
     const contentStart = offset + 512;
     const contentEnd = contentStart + size;
     if (contentEnd > archive.length) throw new Error("candidate tarball entry is truncated");
-    entries.push({ path, content: Buffer.from(archive.subarray(contentStart, contentEnd)), type: String.fromCharCode(header[156] || 48) });
+    entries.push({ path, content: Buffer.from(archive.subarray(contentStart, contentEnd)), type: String.fromCharCode(header[156] || 48), mode });
     offset = contentStart + Math.ceil(size / 512) * 512;
   }
   return entries;
+}
+
+export function guardianBinaryReference(manifestPath, content) {
+  const manifest = JSON.parse(content.toString("utf8"));
+  if (manifest?.schema !== "a1-process-guardian-artifact-v1" || manifest.protocolVersion !== 1) return null;
+  const artifact = manifest.artifact;
+  if (typeof manifest.platform !== "string" || typeof manifest.architecture !== "string"
+    || typeof artifact?.filename !== "string" || artifact.filename.includes("/") || artifact.filename.includes("..")
+    || !/^[a-f0-9]{64}$/.test(artifact?.sha256 ?? "") || !Number.isSafeInteger(artifact?.size)) {
+    throw new Error(`guardian manifest ${manifestPath} is malformed`);
+  }
+  const directory = manifestPath.slice(0, manifestPath.lastIndexOf("/"));
+  return { binaryPath: `${directory}/${artifact.filename}`, sha256: artifact.sha256, size: artifact.size };
 }
 
 function validateEvidenceShape(evidence) {

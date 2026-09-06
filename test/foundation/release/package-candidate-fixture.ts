@@ -1,4 +1,4 @@
-import { access, mkdir, mkdtemp, readFile, symlink, writeFile } from "node:fs/promises";
+import { access, chmod, mkdir, mkdtemp, readFile, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { readPackedEntries, readPackedManifest } from "../../../scripts/governance/candidate-evidence.mjs";
@@ -22,6 +22,9 @@ export async function extractValidationCandidate(bytes: Buffer) {
     if (!output.startsWith(`${packageRoot}\\`) && !output.startsWith(`${packageRoot}/`)) throw new Error(`unsafe package output path: ${entry.path}`);
     await mkdir(dirname(output), { recursive: true });
     await writeFile(output, entry.content);
+    // Compatibility: npm installation restores recorded executable permission on payload
+    // files; mirror that so packaged validation exercises the shipped posix modes.
+    if ((entry.mode & 0o111) !== 0) await chmod(output, 0o755);
   }
   await symlink(resolve("node_modules"), resolve(packageRoot, "node_modules"), "junction");
   return { root, packageRoot };
