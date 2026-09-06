@@ -433,7 +433,22 @@ export class OwnedUiSessionShell {
         this.#promptSuggestions?.invalidate();
         this.root.resumeViewportFollowing();
       }
-      if (event.type === "assistant-message-completed") this.root.noteCompletedAssistantMessage();
+      if (event.type === "assistant-message-completed") {
+        this.root.noteCompletedAssistantMessage();
+        if (event.model !== null) {
+          this.#promptSuggestions?.consider({
+            sessionId: event.sessionId,
+            sessionGeneration: event.sessionGeneration,
+            runSequence: event.runSequence,
+            responseSequence: event.responseSequence,
+            model: event.model,
+          }, event.successful
+            && event.stopReason === "stop"
+            && !event.toolContinuation
+            && event.assistantMessageCount >= 2
+            && this.root.canPreparePromptSuggestion());
+        }
+      }
       const semanticOnly = event.type === "agent-run-started" || event.type === "assistant-message-completed";
       const view = event.type === "transcript-block" && this.#sessionGeneration === this.backend.sessionGeneration
         ? this.#syncBlock(event.block)
@@ -448,12 +463,13 @@ export class OwnedUiSessionShell {
         this.#promptSuggestions?.invalidate();
       }
       if (event.type === "agent-run-settled" && event.model !== null) {
-        this.#promptSuggestions?.consider({
+        this.#promptSuggestions?.settle({
           sessionId: event.sessionId,
           sessionGeneration: event.sessionGeneration,
           runSequence: event.runSequence,
+          responseSequence: event.responseSequence,
           model: event.model,
-        }, event.successful && event.assistantMessageCount >= 2);
+        });
       }
       if (view.lifecycle === "ready" && this.#compactionQueue.length > 0) void this.#flushCompactionQueue();
       if (event.type === "session-lifecycle" && event.lifecycle === "stopped") this.#resolveStopped?.();

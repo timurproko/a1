@@ -141,21 +141,35 @@ describe("owned UI command, event, and snapshot contracts", () => {
       sessionId: "session-1",
       sessionGeneration: 2,
       runSequence: 4,
+      responseSequence: 5,
       model: { providerId: "openai", modelId: "gpt-5", displayName: "GPT-5" },
     };
     expect(() => assertOwnedUiEvent(event({
       type: "agent-run-settled",
       sessionGeneration: 2,
       runSequence: 4,
+      responseSequence: 5,
       model: identity.model,
       assistantMessageCount: 2,
       successful: true,
     }))).not.toThrow();
     expect(() => assertOwnedUiPromptSuggestionRequest({ identity, signal: new AbortController().signal })).not.toThrow();
     expect(() => assertOwnedUiPromptSuggestionResult({ identity, text: "run the tests" })).not.toThrow();
+    expect(() => assertOwnedUiPromptSuggestionState({ status: "prepared", identity, text: "run the tests" })).not.toThrow();
     expect(() => assertOwnedUiPromptSuggestionState({ status: "available", identity, text: "run the tests" })).not.toThrow();
     expect(() => assertOwnedUiPromptSuggestionResult({ identity, text: "x".repeat(100) })).toThrow(/suggestion text/);
-    expect(() => assertOwnedUiPromptSuggestionState({ status: "generating", identity: { ...identity, runSequence: -1 } })).toThrow(/run sequence/);
+    expect(() => assertOwnedUiPromptSuggestionState({ status: "generating", identity: { ...identity, runSequence: -1 }, settled: false })).toThrow(/run sequence/);
+    expect(() => assertOwnedUiEvent(event({
+      type: "assistant-message-completed",
+      sessionGeneration: 2,
+      runSequence: 4,
+      responseSequence: 5,
+      model: identity.model,
+      assistantMessageCount: 2,
+      successful: true,
+      stopReason: "stop",
+      toolContinuation: false,
+    }))).not.toThrow();
   });
 
   it("accepts every versioned customization slot", () => {

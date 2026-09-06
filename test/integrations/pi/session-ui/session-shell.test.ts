@@ -220,7 +220,7 @@ async function nextImmediate(): Promise<void> {
 }
 
 describe("OwnedUiSessionShell", () => {
-  it("shows a settled-run suggestion as grey prompt text and requires Tab before Enter", async () => {
+  it("prefetches before settlement, reveals atomically at settlement, and requires Tab before Enter", async () => {
     const messages = [
       { role: "user", content: "fix it", timestamp: 1 },
       { role: "assistant", content: [{ type: "text", text: "First answer" }], stopReason: "stop", timestamp: 2 },
@@ -230,26 +230,29 @@ describe("OwnedUiSessionShell", () => {
     const calls: string[] = [];
     const generator: OwnedUiPromptSuggestionGeneratorPort = {
       generate: async request => {
-        calls.push(`suggest:${request.identity.runSequence}`);
+        calls.push(`suggest:${request.identity.runSequence}:${request.identity.responseSequence}`);
         return { identity: request.identity, text: "go ahead and merge it" };
       },
     };
-    const active = new Set<(enabled: boolean) => void>();
     const target = await fixture(messages, [], true, undefined, undefined, undefined, undefined, {
       generator,
       enabled: () => true,
-      onChange: listener => { active.add(listener); return () => active.delete(listener); },
+      onChange: () => () => {},
     });
     target.engine.session.emit({ type: "agent_start" });
-    target.engine.session.emit({ type: "agent_settled" });
+    target.engine.session.emit({ type: "message_end", message: messages.at(-1) });
     await target.adapter.flushEvents();
     await nextImmediate();
+    expect(calls).toEqual(["suggest:1:1"]);
+    expect(stripTerminalSequences(target.shell.root.editor.render(60).join("\n"))).not.toContain("go ahead and merge it");
 
+    target.engine.session.emit({ type: "agent_settled" });
+    await target.adapter.flushEvents();
     const ghost = target.shell.root.editor.render(60).join("\n");
     expect(stripTerminalSequences(ghost)).toContain("❯ go ahead and merge it");
     expect(ghost).toContain("\u001b[2m");
     expect(target.shell.root.editor.getText()).toBe("");
-    expect(calls).toEqual(["suggest:1"]);
+    expect(target.adapter.view().status.workingMessage).toBeNull();
 
     target.shell.root.editor.handleInput?.("\r");
     expect(target.engine.session.calls.filter(call => call.startsWith("prompt:"))).toEqual([]);
@@ -262,39 +265,62 @@ describe("OwnedUiSessionShell", () => {
     await target.shell.dispose();
   });
 
+  it("reveals a still-current suggestion immediately when its result arrives after settlement", async () => {
+    const messages = [
+      { role: "assistant", content: [{ type: "text", text: "First" }], stopReason: "stop" },
+      { role: "assistant", content: [{ type: "text", text: "Second" }], stopReason: "stop" },
+    ];
+    let finish: ((text: string) => void) | undefined;
+    const generator: OwnedUiPromptSuggestionGeneratorPort = {
+      generate: request => new Promise(resolve => { finish = text => resolve({ identity: request.identity, text }); }),
+    };
+    const target = await fixture(messages, [], true, undefined, undefined, undefined, undefined, {
+      generator, enabled: () => true, onChange: () => () => {},
+    });
+    target.engine.session.emit({ type: "agent_start" });
+    target.engine.session.emit({ type: "message_end", message: messages.at(-1) });
+    target.engine.session.emit({ type: "agent_settled" });
+    await target.adapter.flushEvents();
+    expect(stripTerminalSequences(target.shell.root.editor.render(50).join("\n"))).not.toContain("run the tests");
+    finish?.("run the tests");
+    await nextImmediate();
+    expect(stripTerminalSequences(target.shell.root.editor.render(50).join("\n"))).toContain("❯ run the tests");
+    await target.shell.dispose();
+  });
+
   it("applies the prompt-suggestion setting live without generating retroactively", async () => {
     const messages = [
       { role: "assistant", content: [{ type: "text", text: "First" }], stopReason: "stop" },
       { role: "assistant", content: [{ type: "text", text: "Second" }], stopReason: "stop" },
     ];
-    let enabled = true;
     let settingListener: ((value: boolean) => void) | undefined;
     const generator: OwnedUiPromptSuggestionGeneratorPort = {
       generate: vi.fn(async request => ({ identity: request.identity, text: "run the tests" })),
     };
     const target = await fixture(messages, [], true, undefined, undefined, undefined, undefined, {
       generator,
-      enabled: () => enabled,
+      enabled: () => true,
       onChange: listener => { settingListener = listener; return () => { settingListener = undefined; }; },
     });
     target.engine.session.emit({ type: "agent_start" });
+    target.engine.session.emit({ type: "message_end", message: messages.at(-1) });
     target.engine.session.emit({ type: "agent_settled" });
     await target.adapter.flushEvents();
     await nextImmediate();
     expect(stripTerminalSequences(target.shell.root.editor.render(50).join("\n"))).toContain("run the tests");
 
-    enabled = false;
     settingListener?.(false);
     expect(stripTerminalSequences(target.shell.root.editor.render(50).join("\n"))).not.toContain("run the tests");
     target.engine.session.emit({ type: "agent_start" });
+    target.engine.session.emit({ type: "message_end", message: messages.at(-1) });
     target.engine.session.emit({ type: "agent_settled" });
     await target.adapter.flushEvents();
     expect(generator.generate).toHaveBeenCalledTimes(1);
 
-    enabled = true;
     settingListener?.(true);
     expect(generator.generate).toHaveBeenCalledTimes(1);
     target.engine.session.emit({ type: "agent_start" });
+    target.engine.session.emit({ type: "message_end", message: messages.at(-1) });
     target.engine.session.emit({ type: "agent_settled" });
     await target.adapter.flushEvents();
     await nextImmediate();
@@ -311,11 +337,10 @@ describe("OwnedUiSessionShell", () => {
       generate: vi.fn(async request => ({ identity: request.identity, text: "run the tests" })),
     };
     const target = await fixture(messages, [], false, undefined, undefined, undefined, undefined, {
-      generator,
-      enabled: () => true,
-      onChange: () => () => {},
+      generator, enabled: () => true, onChange: () => () => {},
     });
     target.engine.session.emit({ type: "agent_start" });
+    target.engine.session.emit({ type: "message_end", message: messages.at(-1) });
     target.engine.session.emit({ type: "agent_settled" });
     await target.adapter.flushEvents();
     expect(generator.generate).not.toHaveBeenCalled();
@@ -323,7 +348,7 @@ describe("OwnedUiSessionShell", () => {
     await target.shell.dispose();
   });
 
-  it("cancels pending suggestion work on typing and suppresses it behind replacement input", async () => {
+  it("cancels pending suggestion work on typing and suppresses tool continuations and replacement input", async () => {
     const messages = [
       { role: "assistant", content: [{ type: "text", text: "First" }], stopReason: "stop" },
       { role: "assistant", content: [{ type: "text", text: "Second" }], stopReason: "stop" },
@@ -339,7 +364,7 @@ describe("OwnedUiSessionShell", () => {
     const suggestionOptions = { generator, enabled: () => true, onChange: () => () => {} };
     const typing = await fixture(messages, [], true, undefined, undefined, undefined, undefined, suggestionOptions);
     typing.engine.session.emit({ type: "agent_start" });
-    typing.engine.session.emit({ type: "agent_settled" });
+    typing.engine.session.emit({ type: "message_end", message: messages.at(-1) });
     await typing.adapter.flushEvents();
     typing.shell.root.editor.handleInput?.("x");
     expect(observedSignal?.aborted).toBe(true);
@@ -353,16 +378,34 @@ describe("OwnedUiSessionShell", () => {
       generate: vi.fn(async request => ({ identity: request.identity, text: "run the tests" })),
     };
     const blocked = await fixture(messages, [], true, undefined, undefined, undefined, undefined, {
-      generator: blockedGenerator,
-      enabled: () => true,
-      onChange: () => () => {},
+      generator: blockedGenerator, enabled: () => true, onChange: () => () => {},
     });
     blocked.shell.root.setInputSurface({ render: () => ["replacement"], invalidate() {}, handleInput() {} });
     blocked.engine.session.emit({ type: "agent_start" });
+    blocked.engine.session.emit({ type: "message_end", message: messages.at(-1) });
     blocked.engine.session.emit({ type: "agent_settled" });
     await blocked.adapter.flushEvents();
     expect(blockedGenerator.generate).not.toHaveBeenCalled();
     await blocked.shell.dispose();
+
+    const toolGenerator: OwnedUiPromptSuggestionGeneratorPort = {
+      generate: vi.fn(async request => ({ identity: request.identity, text: "continue" })),
+    };
+    const tools = await fixture(messages, [], true, undefined, undefined, undefined, undefined, {
+      generator: toolGenerator, enabled: () => true, onChange: () => () => {},
+    });
+    tools.engine.session.emit({ type: "agent_start" });
+    tools.engine.session.emit({
+      type: "message_end",
+      message: {
+        role: "assistant",
+        content: [{ type: "text", text: "Checking" }, { type: "toolCall", id: "tool-1", name: "read", arguments: {} }],
+        stopReason: "toolUse",
+      },
+    });
+    await tools.adapter.flushEvents();
+    expect(toolGenerator.generate).not.toHaveBeenCalled();
+    await tools.shell.dispose();
   });
 
   it("coordinates rapid bare-A1 editor input into one latest-state dock frame while pinned input stays synchronous", async () => {

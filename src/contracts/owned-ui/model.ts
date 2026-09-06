@@ -40,6 +40,7 @@ export interface OwnedUiPromptSuggestionIdentity {
   readonly sessionId: OwnedUiSessionId;
   readonly sessionGeneration: number;
   readonly runSequence: number;
+  readonly responseSequence: number;
   readonly model: OwnedUiModelInfo;
 }
 
@@ -55,7 +56,8 @@ export interface OwnedUiPromptSuggestionResult {
 
 export type OwnedUiPromptSuggestionState =
   | { readonly status: "idle" }
-  | { readonly status: "generating"; readonly identity: OwnedUiPromptSuggestionIdentity }
+  | { readonly status: "generating"; readonly identity: OwnedUiPromptSuggestionIdentity; readonly settled: boolean }
+  | { readonly status: "prepared"; readonly identity: OwnedUiPromptSuggestionIdentity; readonly text: string }
   | { readonly status: "available"; readonly identity: OwnedUiPromptSuggestionIdentity; readonly text: string };
 
 export interface OwnedUiPromptSuggestionGeneratorPort {
@@ -306,6 +308,14 @@ export type OwnedUiEvent =
     readonly type: "assistant-message-completed";
     readonly sessionId: OwnedUiSessionId;
     readonly sequence: number;
+    readonly sessionGeneration: number;
+    readonly runSequence: number;
+    readonly responseSequence: number;
+    readonly model: OwnedUiModelInfo | null;
+    readonly assistantMessageCount: number;
+    readonly successful: boolean;
+    readonly stopReason: string | null;
+    readonly toolContinuation: boolean;
   }
   | {
     /** A fresh agent run has started, used by follow-mode surfaces. */
@@ -320,6 +330,7 @@ export type OwnedUiEvent =
     readonly sequence: number;
     readonly sessionGeneration: number;
     readonly runSequence: number;
+    readonly responseSequence: number;
     readonly model: OwnedUiModelInfo | null;
     readonly assistantMessageCount: number;
     readonly successful: boolean;

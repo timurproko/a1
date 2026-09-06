@@ -138,11 +138,21 @@ export function assertOwnedUiEvent(event: OwnedUiEvent): void {
       assertOwnedUiTranscriptBlock(event.block);
       return;
     case "assistant-message-completed":
+      assertNonNegativeInteger(event.sessionGeneration, "owned-UI assistant response session generation");
+      assertNonNegativeInteger(event.runSequence, "owned-UI assistant response run sequence");
+      assertNonNegativeInteger(event.responseSequence, "owned-UI assistant response sequence");
+      assertNonNegativeInteger(event.assistantMessageCount, "owned-UI assistant response count");
+      if (event.model !== null) assertOwnedUiModelInfo(event.model);
+      if (typeof event.successful !== "boolean") throw new TypeError("owned-UI assistant response success state is invalid");
+      assertOptionalText(event.stopReason, "owned-UI assistant response stop reason", MAX_LABEL_LENGTH);
+      if (typeof event.toolContinuation !== "boolean") throw new TypeError("owned-UI assistant response tool-continuation state is invalid");
+      return;
     case "agent-run-started":
       return;
     case "agent-run-settled":
       assertNonNegativeInteger(event.sessionGeneration, "owned-UI settlement session generation");
       assertNonNegativeInteger(event.runSequence, "owned-UI settlement run sequence");
+      assertNonNegativeInteger(event.responseSequence, "owned-UI settlement response sequence");
       assertNonNegativeInteger(event.assistantMessageCount, "owned-UI settlement assistant message count");
       if (event.model !== null) assertOwnedUiModelInfo(event.model);
       if (typeof event.successful !== "boolean") throw new TypeError("owned-UI settlement success state is invalid");
@@ -184,6 +194,7 @@ export function assertOwnedUiPromptSuggestionIdentity(identity: OwnedUiPromptSug
   assertId(identity.sessionId, "prompt-suggestion session id");
   assertNonNegativeInteger(identity.sessionGeneration, "prompt-suggestion session generation");
   assertNonNegativeInteger(identity.runSequence, "prompt-suggestion run sequence");
+  assertNonNegativeInteger(identity.responseSequence, "prompt-suggestion response sequence");
   assertOwnedUiModelInfo(identity.model);
 }
 
@@ -203,11 +214,14 @@ export function assertOwnedUiPromptSuggestionResult(result: OwnedUiPromptSuggest
 
 export function assertOwnedUiPromptSuggestionState(state: OwnedUiPromptSuggestionState): void {
   if (state.status === "idle") return;
-  if (state.status !== "generating" && state.status !== "available") {
+  if (state.status !== "generating" && state.status !== "prepared" && state.status !== "available") {
     throw new TypeError("prompt-suggestion state is invalid");
   }
   assertOwnedUiPromptSuggestionIdentity(state.identity);
-  if (state.status === "available") assertPromptSuggestionText(state.text, false);
+  if (state.status === "generating" && typeof state.settled !== "boolean") {
+    throw new TypeError("prompt-suggestion settlement state is invalid");
+  }
+  if (state.status === "prepared" || state.status === "available") assertPromptSuggestionText(state.text, false);
 }
 
 export function assertOwnedUiSessionViewModel(view: OwnedUiSessionViewModel): void {

@@ -21,7 +21,7 @@ export interface ContextualPromptSuggestionControllerOptions {
   readonly timeoutMs?: number;
 }
 
-/** Owns transient generation identity so late provider results can never become current UI. */
+/** Prefetches one candidate, holds it invisibly, and publishes only after matching settlement. */
 export class ContextualPromptSuggestionController {
   #state: OwnedUiPromptSuggestionState = { status: "idle" };
   #epoch = 0;
@@ -49,11 +49,11 @@ export class ContextualPromptSuggestionController {
     if (key === this.#lastConsidered) return;
     this.#lastConsidered = key;
     this.invalidate();
-    if (!this.#enabled || this.#disposed || !eligible || !this.options.surface.canPresent(identity)) return;
+    if (!this.#enabled || this.#disposed || !eligible) return;
     const epoch = this.#epoch;
     const abort = new AbortController();
     this.#abort = abort;
-    this.#state = { status: "generating", identity };
+    this.#state = { status: "generating", identity, settled: false };
     const timeout = setTimeout(() => {
       abort.abort();
       if (this.#epoch === epoch && this.#state.status === "generating") {
@@ -63,12 +63,25 @@ export class ContextualPromptSuggestionController {
     }, this.#timeoutMs);
     timeout.unref?.();
     void this.options.generator.generate({ identity, signal: abort.signal })
-      .then(result => this.#publish(epoch, identity, result))
+      .then(result => this.#receive(epoch, identity, result))
       .catch(() => this.#fail(epoch))
       .finally(() => {
         clearTimeout(timeout);
         if (this.#epoch === epoch) this.#abort = null;
       });
+  }
+
+  settle(identity: OwnedUiPromptSuggestionIdentity): void {
+    if (this.#disposed || !this.#enabled || this.#state.status === "idle") return;
+    if (!samePromptSuggestionIdentity(this.#state.identity, identity)) {
+      this.invalidate();
+      return;
+    }
+    if (this.#state.status === "generating") {
+      this.#state = { ...this.#state, settled: true };
+      return;
+    }
+    if (this.#state.status === "prepared") this.#show(identity, this.#state.text);
   }
 
   accept(): void {
@@ -102,15 +115,25 @@ export class ContextualPromptSuggestionController {
     this.#state = { status: "idle" };
   }
 
-  #publish(epoch: number, identity: OwnedUiPromptSuggestionIdentity, result: OwnedUiPromptSuggestionResult): void {
+  #receive(epoch: number, identity: OwnedUiPromptSuggestionIdentity, result: OwnedUiPromptSuggestionResult): void {
     assertOwnedUiPromptSuggestionResult(result);
     if (this.#disposed || !this.#enabled || this.#epoch !== epoch || this.#state.status !== "generating") return;
-    if (!samePromptSuggestionIdentity(identity, result.identity) || !this.options.surface.canPresent(identity)) {
+    if (!samePromptSuggestionIdentity(identity, result.identity)) {
       this.invalidate();
       return;
     }
     const text = normalizePromptSuggestionCandidate(result.text);
-    if (text === null || !this.options.surface.present(text)) {
+    if (text === null) {
+      this.#fail(epoch);
+      return;
+    }
+    this.#abort = null;
+    if (this.#state.settled) this.#show(identity, text);
+    else this.#state = { status: "prepared", identity, text };
+  }
+
+  #show(identity: OwnedUiPromptSuggestionIdentity, text: string): void {
+    if (!this.options.surface.canPresent(identity) || !this.options.surface.present(text)) {
       this.invalidate();
       return;
     }
@@ -126,10 +149,11 @@ export function samePromptSuggestionIdentity(
   return left.sessionId === right.sessionId
     && left.sessionGeneration === right.sessionGeneration
     && left.runSequence === right.runSequence
+    && left.responseSequence === right.responseSequence
     && left.model.providerId === right.model.providerId
     && left.model.modelId === right.model.modelId;
 }
 
 function identityKey(identity: OwnedUiPromptSuggestionIdentity): string {
-  return `${identity.sessionId}\0${identity.sessionGeneration}\0${identity.runSequence}\0${identity.model.providerId}\0${identity.model.modelId}`;
+  return `${identity.sessionId}\0${identity.sessionGeneration}\0${identity.runSequence}\0${identity.responseSequence}\0${identity.model.providerId}\0${identity.model.modelId}`;
 }

@@ -12,6 +12,7 @@ const IDENTITY: OwnedUiPromptSuggestionIdentity = {
   sessionId: "session-1",
   sessionGeneration: 2,
   runSequence: 3,
+  responseSequence: 4,
   model: { providerId: "openai", modelId: "gpt-5", displayName: "GPT-5" },
 };
 
@@ -73,19 +74,35 @@ describe("contextual prompt suggestion candidates", () => {
 });
 
 describe("ContextualPromptSuggestionController", () => {
-  it("publishes one current result and clears it on invalidation", async () => {
+  it("holds an early result privately and publishes it at matching settlement", async () => {
     const pending = deferredGenerator();
     const target = surface();
     const controller = new ContextualPromptSuggestionController({ generator: pending.generator, surface: target.port, enabled: true });
     controller.consider(IDENTITY, true);
-    expect(controller.state.status).toBe("generating");
+    expect(controller.state).toEqual({ status: "generating", identity: IDENTITY, settled: false });
     pending.resolve({ identity: IDENTITY, text: "go ahead and merge it" });
     await tick();
+    expect(controller.state).toEqual({ status: "prepared", identity: IDENTITY, text: "go ahead and merge it" });
+    expect(target.text()).toBeNull();
+    controller.settle(IDENTITY);
     expect(controller.state.status).toBe("available");
     expect(target.text()).toBe("go ahead and merge it");
     controller.invalidate();
     expect(controller.state).toEqual({ status: "idle" });
     expect(target.text()).toBeNull();
+  });
+
+  it("publishes immediately when a current result arrives after settlement", async () => {
+    const pending = deferredGenerator();
+    const target = surface();
+    const controller = new ContextualPromptSuggestionController({ generator: pending.generator, surface: target.port, enabled: true });
+    controller.consider(IDENTITY, true);
+    controller.settle(IDENTITY);
+    expect(controller.state).toEqual({ status: "generating", identity: IDENTITY, settled: true });
+    pending.resolve({ identity: IDENTITY, text: "run the tests" });
+    await tick();
+    expect(controller.state.status).toBe("available");
+    expect(target.text()).toBe("run the tests");
   });
 
   it("aborts and discards a stale result", async () => {
@@ -115,6 +132,9 @@ describe("ContextualPromptSuggestionController", () => {
     target.setEligible(false);
     second.resolve({ identity: IDENTITY, text: "run the tests" });
     await tick();
+    expect(next.state.status).toBe("prepared");
+    next.settle(IDENTITY);
+    expect(next.state).toEqual({ status: "idle" });
     expect(target.text()).toBeNull();
   });
 

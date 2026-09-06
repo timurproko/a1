@@ -437,11 +437,16 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     return this.#promptChips.prepareSubmission(text);
   }
 
-  canPresentPromptSuggestion(): boolean {
+  canPreparePromptSuggestion(): boolean {
     return this.usesDefaultInputSurface()
-      && this.#view.lifecycle === "ready"
       && this.#view.dialog === null
       && this.#view.overlay === null
+      && this.editor.getText().length === 0;
+  }
+
+  canPresentPromptSuggestion(): boolean {
+    return this.canPreparePromptSuggestion()
+      && this.#view.lifecycle === "ready"
       && this.editor.canPresentPromptSuggestion();
   }
 

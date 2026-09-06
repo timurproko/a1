@@ -22,6 +22,7 @@ describe.skipIf(!enabled)("contextual prompt suggestion real-provider probe", ()
           sessionId: adapter.sessionId,
           sessionGeneration: adapter.sessionGeneration,
           runSequence: 0,
+          responseSequence: 0,
           model: model!,
         },
         signal: AbortSignal.timeout(20_000),

@@ -331,20 +331,31 @@ describe("Pi engine adapter", () => {
     expect(adapter.view().thinkingLevel).toBe("high");
   });
 
-  it("maps lifecycle and queued-input engine events into owned UI events", async () => {
-    const runtime = new FakeRuntime(new FakeSession("pi-session-1"));
+  it("maps completing-response, settlement, and queued-input engine events in order", async () => {
+    const session = new FakeSession("pi-session-1");
+    const messages = [
+      { role: "assistant", content: [{ type: "text", text: "First" }], stopReason: "stop" },
+      { role: "assistant", content: [{ type: "text", text: "Second" }], stopReason: "stop" },
+    ];
+    session.setMessages(messages);
+    const runtime = new FakeRuntime(session);
     const { adapter, events } = await adapterWithRuntime(runtime);
-    const session = runtime.session as FakeSession;
 
     session.emit({ type: "agent_start" });
     session.emit({ type: "queue_update", steering: ["steer"], followUp: ["later"] });
+    session.emit({ type: "message_end", message: messages.at(-1) });
     session.emit({ type: "agent_settled" });
     await adapter.flushEvents();
 
     expect(events.filter(event => event.type === "agent-run-started")).toHaveLength(1);
-    expect(events.filter(event => event.type === "agent-run-settled")).toHaveLength(1);
-    expect(events.findIndex(event => event.type === "session-view" && event.view.lifecycle === "ready"))
-      .toBeLessThan(events.findIndex(event => event.type === "agent-run-settled"));
+    expect(events.filter(event => event.type === "agent-run-settled")).toEqual([
+      expect.objectContaining({ runSequence: 1, responseSequence: 1, assistantMessageCount: 2, successful: true }),
+    ]);
+    const responseIndex = events.findIndex(event => event.type === "assistant-message-completed");
+    const readyIndex = events.findIndex((event, index) => index > responseIndex && event.type === "session-view" && event.view.lifecycle === "ready");
+    const settledIndex = events.findIndex(event => event.type === "agent-run-settled");
+    expect(responseIndex).toBeLessThan(readyIndex);
+    expect(readyIndex).toBeLessThan(settledIndex);
     expect(events.some(event => event.type === "session-lifecycle" && event.lifecycle === "busy")).toBe(true);
     expect(events.some(event => event.type === "session-lifecycle" && event.lifecycle === "ready")).toBe(true);
     expect(adapter.view().editor.queuedSubmissions).toEqual(["steer", "later"]);
@@ -364,6 +375,7 @@ describe("Pi engine adapter", () => {
       sessionId: adapter.sessionId,
       sessionGeneration: adapter.sessionGeneration,
       runSequence: 0,
+      responseSequence: 0,
       model: adapter.view().activeModel!,
     };
     await expect(adapter.generate({ identity, signal: new AbortController().signal })).resolves.toEqual({
@@ -389,6 +401,7 @@ describe("Pi engine adapter", () => {
       sessionId: adapter.sessionId,
       sessionGeneration: adapter.sessionGeneration,
       runSequence: 0,
+      responseSequence: 0,
       model: adapter.view().activeModel!,
     };
     await expect(adapter.generate({ identity: { ...identity, runSequence: 99 }, signal: new AbortController().signal }))
@@ -497,6 +510,7 @@ describe("Pi engine adapter", () => {
     const message = {
       role: "assistant",
       content: [{ type: "text", text: "Hello" }],
+      stopReason: "stop",
       timestamp: 10,
     };
 
@@ -513,7 +527,16 @@ describe("Pi engine adapter", () => {
     expect(transcript.find(block => block.kind === "assistant")).toMatchObject({ text: "Hello world", status: "finalized" });
     expect(transcript.find(block => block.kind === "tool-result")).toMatchObject({ status: "finalized", text: "passed" });
     expect(events.filter(event => event.type === "transcript-block").length).toBeGreaterThanOrEqual(5);
-    expect(events.filter(event => event.type === "assistant-message-completed")).toHaveLength(1);
+    expect(events.filter(event => event.type === "assistant-message-completed")).toEqual([
+      expect.objectContaining({
+        sessionGeneration: adapter.sessionGeneration,
+        runSequence: 0,
+        responseSequence: 1,
+        successful: true,
+        stopReason: "stop",
+        toolContinuation: false,
+      }),
+    ]);
     session.emit({ type: "message_start" });
     expect(adapter.view().transcript).toHaveLength(transcript.length);
   });

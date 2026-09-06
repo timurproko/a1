@@ -1,7 +1,7 @@
 ## 1. Contract and lifecycle boundaries
 
-- [ ] 1.1 Add vendor-neutral suggestion request/result/state ports, enrich completed-assistant events with response/run identity and terminal-stop metadata, and add an `agent-run-settled` event; verify owned-contract validation rejects malformed, oversized, or mismatched identities.
-- [ ] 1.2 Emit an eligible completed-response boundary before settlement only for successful terminal text responses without tool continuation, and emit final-run settlement after authoritative transcript reconciliation; verify focused adapter event-order and continuation tests.
+- [x] 1.1 Add vendor-neutral suggestion request/result/state ports, enrich completed-assistant events with response/run identity and terminal-stop metadata, and add an `agent-run-settled` event; verify owned-contract validation rejects malformed, oversized, or mismatched identities.
+- [x] 1.2 Emit an eligible completed-response boundary before settlement only for successful terminal text responses without tool continuation, and emit final-run settlement after authoritative transcript reconciliation; verify focused adapter event-order and continuation tests.
 - [x] 1.3 Extend Pi capability conformance for the public authenticated simple-completion operation used by suggestions and verify an incompatible or missing operation fails closed at the integration boundary.
 
 ## 2. Suggestion generation
@@ -18,10 +18,10 @@
 
 ## 4. Race-safe suggestion controller
 
-- [ ] 4.1 Implement the `idle`/`generating`/`prepared`/`available` controller with session generation, run sequence, assistant-response sequence, model identity, request epoch, settlement state, and abort ownership; verify only the newest fully matching result can publish.
-- [ ] 4.2 Start generation at the earliest eligible successful terminal assistant-response boundary for enabled interactive bare A1 with at least two assistant messages, an active model, and no permission/modal/replacement input; verify incomplete, failed, tool-continuing, and otherwise suppressed states produce zero requests.
-- [ ] 4.3 Clear or invalidate pending, prepared, and visible suggestions on later assistant/tool continuation, typing, paste, acceptance, submission, clear, interruption, retry/compaction/new run, model change, session new/resume/import/fork/clone, feature disable, and shell disposal; verify deterministic late-result races for each lifecycle class.
-- [ ] 4.4 Hold an early valid result without painting until its matching run settles, publish it in the settlement presentation when eligible, publish a slower current result immediately after settlement without artificial delay, and discard it when the editor is no longer eligible; verify hidden or stale results never reappear later.
+- [x] 4.1 Implement the `idle`/`generating`/`prepared`/`available` controller with session generation, run sequence, assistant-response sequence, model identity, request epoch, settlement state, and abort ownership; verify only the newest fully matching result can publish.
+- [x] 4.2 Start generation at the earliest eligible successful terminal assistant-response boundary for enabled interactive bare A1 with at least two assistant messages, an active model, and no permission/modal/replacement input; verify incomplete, failed, tool-continuing, and otherwise suppressed states produce zero requests.
+- [x] 4.3 Clear or invalidate pending, prepared, and visible suggestions on later assistant/tool continuation, typing, paste, acceptance, submission, clear, interruption, retry/compaction/new run, model change, session new/resume/import/fork/clone, feature disable, and shell disposal; verify deterministic late-result races for each lifecycle class.
+- [x] 4.4 Hold an early valid result without painting until its matching run settles, publish it in the settlement presentation when eligible, publish a slower current result immediately after settlement without artificial delay, and discard it when the editor is no longer eligible; verify hidden or stale results never reappear later.
 
 ## 5. Prompt rendering and interaction
 
@@ -34,8 +34,8 @@
 
 ## 6. Integrated behavior and evidence
 
-- [ ] 6.1 Add deterministic end-to-end shell fixtures covering final response → concurrent background request → prepared result → settlement-time grey `❯` plus complete quiet suggestion → Tab → normal white text with caret at end → Enter → one prompt, plus settlement-before-result; verify one primary request and at most one suggestion request.
-- [ ] 6.2 Add integration cases for explicit approval, obvious non-approval follow-up, no suggestion, filtering, draft-preservation, autocomplete priority, modal/extension-editor ownership, tool or assistant continuation, model switch, session replacement, and disposal; verify no case leaks suggestion instructions or output into transcript/history and no working/status row remains for suggestion generation.
+- [x] 6.1 Add deterministic end-to-end shell fixtures covering final response → concurrent background request → prepared result → settlement-time grey `❯` plus complete quiet suggestion → Tab → normal white text with caret at end → Enter → one prompt, plus settlement-before-result; verify one primary request and at most one suggestion request.
+- [x] 6.2 Add integration cases for explicit approval, obvious non-approval follow-up, no suggestion, filtering, draft-preservation, autocomplete priority, modal/extension-editor ownership, tool or assistant continuation, model switch, session replacement, and disposal; verify no case leaks suggestion instructions or output into transcript/history and no working/status row remains for suggestion generation.
 - [x] 6.3 Add comparison-route and non-interactive regression coverage proving `a1 pi` and unsupported modes retain their existing editor rendering, key routing, request count, and session behavior.
 - [x] 6.4 Add a credential-gated real-provider probe that uses the selected model without tools and reports bounded request/timing evidence while redacting prompt content and credentials; verify it is excluded from default local validation.
 - [ ] 6.5 Run focused contract, settings, adapter, editor, shell, architecture, and documentation tests during implementation, then push and verify all required CI checks without running the prohibited broad local suites.

@@ -335,6 +335,7 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
   #droppedEventCount = 0;
   #agentRunActive = false;
   #agentRunSequence = 0;
+  #assistantResponseSequence = 0;
   #statusKind: "working" | "retry" | "compaction" | null = null;
   #sessionCommands: PiSessionCommandIntegration | undefined;
   #gitBranch: string | null = null;
@@ -425,6 +426,7 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
       || identity.sessionId !== this.#sessionId
       || identity.sessionGeneration !== this.#sessionGeneration
       || identity.runSequence !== this.#agentRunSequence
+      || identity.responseSequence !== this.#assistantResponseSequence
       || activeModel === null
       || identity.model.providerId !== activeModel.providerId
       || identity.model.modelId !== activeModel.modelId) {
@@ -2043,6 +2045,8 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
     this.#status = { ...this.#status, workingMessage: null, badges: [] };
     this.#statusKind = null;
     this.#agentRunActive = false;
+    this.#agentRunSequence = 0;
+    this.#assistantResponseSequence = 0;
     this.#activeModel = readModel(session.model);
     this.#reconcileActiveModelAvailability();
     this.#thinkingLevel = readThinkingLevel(session.thinkingLevel);
@@ -2177,7 +2181,26 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
         // finalization is intentionally not a substitute: rebuilds, retries,
         // thinking parts, and tool rows can all finalize independently.
         if (isRecord(event.message) && event.message.role === "assistant") {
-          this.#emitEvent({ type: "assistant-message-completed" });
+          this.#assistantResponseSequence += 1;
+          const content = Array.isArray(event.message.content) ? event.message.content : [];
+          const stopReason = stringValue(event.message.stopReason) ?? null;
+          const toolContinuation = stopReason === "toolUse"
+            || content.some(item => isRecord(item) && item.type === "toolCall");
+          const successful = stringValue(event.message.errorMessage) === undefined
+            && stopReason !== "error"
+            && stopReason !== "aborted"
+            && textFromContent(content).trim().length > 0;
+          this.#emitEvent({
+            type: "assistant-message-completed",
+            sessionGeneration: this.#sessionGeneration,
+            runSequence: this.#agentRunSequence,
+            responseSequence: this.#assistantResponseSequence,
+            model: this.#activeModel,
+            assistantMessageCount: this.#transcript.filter(block => block.kind === "assistant").length,
+            successful,
+            stopReason,
+            toolContinuation,
+          });
         }
         return;
       case "turn_end":
@@ -2227,6 +2250,7 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
             type: "agent-run-settled",
             sessionGeneration: this.#sessionGeneration,
             runSequence: this.#agentRunSequence,
+            responseSequence: this.#assistantResponseSequence,
             model: this.#activeModel,
             assistantMessageCount: assistants.length,
             successful,
