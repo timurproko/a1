@@ -1,3 +1,5 @@
+> **Status: postponed.** No implementation tasks are complete on `develop`; all tasks remain deferred until the maintainer explicitly resumes this change. Draft implementation PR #274 was closed without merge.
+
 ## 1. Package Roles and Compatibility Contract
 
 - [ ] 1.1 Define generated launcher and runtime package-role manifests with independent package/version/digest identity, and verify malformed, swapped, or missing roles fail validation
