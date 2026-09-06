@@ -131,7 +131,8 @@ describe("the settings screen", () => {
     expect(lines.join("\n")).not.toContain("fixture reason must stay hidden");
     expect(lines.some(line => line.includes("Scrollbar style") && line.includes("thin"))).toBe(true);
     expect(lines.some(line => line.includes("Speed") && line.includes("normal"))).toBe(true);
-    expect(lines.some(line => line.trim() === "A1")).toBe(false);
+    expect(lines.some(line => line.trim() === "A1")).toBe(true);
+    expect(lines.some(line => line.includes("Prompt suggestions") && line.includes("yes"))).toBe(true);
     expect(lines.join("\n")).not.toContain("(default)");
     expect(lines.join("\n")).not.toContain("When the session transcript scrollbar is visible.");
   });
@@ -267,7 +268,7 @@ describe("the settings screen", () => {
     target.onMouse?.({ kind: "wheel-down", button: 0, row: 1, column: 70 }, HOST);
     const lines = target.render({ width: 80, height: 13 }, HOST).map(line => line.replace(STYLE, "").trimEnd());
     const searchRow = lines.findIndex(line => line.includes("search settings"));
-    expect(lines[searchRow - 2]).toContain("Output padding");
+    expect(lines[searchRow - 2]).toContain("Thinking level");
   });
 
   it("restores the opening blank row when Home returns to the beginning during search", async () => {
@@ -460,11 +461,11 @@ describe("the input row and status line behind the screen", () => {
     const normal = await visibleAfterWheel("normal");
     const fast = await visibleAfterWheel("fast");
     const high = await visibleAfterWheel("high");
-    expect(normal).toContain("Agent");
-    expect(normal).not.toContain("Thinking level");
-    expect(fast).toContain("Thinking level");
-    expect(fast).not.toContain("Output padding");
-    expect(high).toContain("Output padding");
+    expect(normal).toContain("A1");
+    expect(normal).not.toContain("Agent");
+    expect(fast).toContain("Agent");
+    expect(fast).not.toContain("Editor padding");
+    expect(high).toContain("Thinking level");
     expect(new Set([normal, fast, high]).size).toBe(3);
   });
 
@@ -475,7 +476,7 @@ describe("the input row and status line behind the screen", () => {
     target.render({ width: 80, height: 3 }, HOST);
     target.onMouse?.({ kind: "wheel-down", button: 0, row: 1, column: 70 }, HOST);
     const visible = target.render({ width: 80, height: 3 }, HOST).map(line => line.replace(STYLE, "")).join("\n");
-    expect(visible).toContain("Warnings");
+    expect(visible).toContain("Prompt suggestions");
   });
 
   it("reports a failed write instead of the hint", async () => {

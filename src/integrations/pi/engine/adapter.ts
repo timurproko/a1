@@ -27,14 +27,21 @@ import {
   OWNED_UI_EXTENSION_RENDER_CALLBACKS,
   OWNED_UI_EXTENSION_UI_CALLBACKS,
   OWNED_UI_EXTENSION_UI_PROPERTIES,
+  CONTEXTUAL_PROMPT_SUGGESTION_INSTRUCTION,
   assertOwnedUiCommand,
   assertOwnedUiExtensionUiPort,
+  assertOwnedUiPromptSuggestionRequest,
+  assertOwnedUiPromptSuggestionResult,
   assertOwnedUiSnapshot,
+  normalizePromptSuggestionCandidate,
   type OwnedUiCommand,
   type OwnedUiCommandOutcome,
   type OwnedUiDiagnostics,
   type OwnedUiEditorState,
   type OwnedUiImageAttachment,
+  type OwnedUiPromptSuggestionGeneratorPort,
+  type OwnedUiPromptSuggestionRequest,
+  type OwnedUiPromptSuggestionResult,
   type OwnedUiTranscriptImageReference,
   type OwnedUiEvent,
   type OwnedUiExtensionUiPort,
@@ -273,7 +280,7 @@ const DEFAULT_SURFACE: OwnedUiTerminalSurface = {
 };
 
 /** Owns the pinned Pi session lifecycle and translates its events into the neutral agent-engine contract. */
-export class PiEngineAdapter {
+export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
   readonly #runtimeFactory: PiEngineRuntimeFactory;
   readonly #checkPackageUpdates: (settingsManager: PiServicesApi["settingsManager"]) => Promise<readonly string[]>;
   #cwd: string;
@@ -327,6 +334,8 @@ export class PiEngineAdapter {
   #eventQueueProcessing: Promise<void> | undefined;
   #droppedEventCount = 0;
   #agentRunActive = false;
+  #agentRunSequence = 0;
+  #assistantResponseSequence = 0;
   #statusKind: "working" | "retry" | "compaction" | null = null;
   #sessionCommands: PiSessionCommandIntegration | undefined;
   #gitBranch: string | null = null;
@@ -405,6 +414,73 @@ export class PiEngineAdapter {
 
   get disposed(): boolean {
     return this.#disposed;
+  }
+
+  async generate(request: OwnedUiPromptSuggestionRequest): Promise<OwnedUiPromptSuggestionResult> {
+    assertOwnedUiPromptSuggestionRequest(request);
+    const identity = request.identity;
+    const session = this.#session;
+    const runtime = this.#runtime;
+    const activeModel = this.#activeModel;
+    if (this.#disposed || session === undefined || runtime === undefined || request.signal.aborted
+      || identity.sessionId !== this.#sessionId
+      || identity.sessionGeneration !== this.#sessionGeneration
+      || identity.runSequence !== this.#agentRunSequence
+      || identity.responseSequence !== this.#assistantResponseSequence
+      || activeModel === null
+      || identity.model.providerId !== activeModel.providerId
+      || identity.model.modelId !== activeModel.modelId) {
+      return { identity, text: null };
+    }
+
+    const model = session.model;
+    const agentState = session.agent.state;
+    if (model === undefined || typeof runtime.services.modelRuntime.completeSimple !== "function") {
+      return { identity, text: null };
+    }
+    const messages = agentState.messages.filter(message =>
+      message.role === "user" || message.role === "assistant" || message.role === "toolResult",
+    );
+    const reasoning = session.thinkingLevel === "minimal"
+      || session.thinkingLevel === "low"
+      || session.thinkingLevel === "medium"
+      || session.thinkingLevel === "high"
+      || session.thinkingLevel === "xhigh"
+      || session.thinkingLevel === "max"
+      ? session.thinkingLevel
+      : undefined;
+    const response = await runtime.services.modelRuntime.completeSimple(model, {
+      systemPrompt: agentState.systemPrompt,
+      messages: [
+        ...messages,
+        { role: "user", content: CONTEXTUAL_PROMPT_SUGGESTION_INSTRUCTION, timestamp: Date.now() },
+      ],
+      tools: agentState.tools,
+    }, {
+      signal: request.signal,
+      ...(reasoning === undefined ? {} : { reasoning }),
+    });
+    if (isRecord(response)
+      && (stringValue(response.errorMessage) !== undefined
+        || stringValue(response.stopReason) === "error"
+        || stringValue(response.stopReason) === "aborted")) {
+      const result = { identity, text: null };
+      assertOwnedUiPromptSuggestionResult(result);
+      return result;
+    }
+    const content = Array.isArray(response.content) ? response.content : [];
+    if (content.some(block => isRecord(block) && block.type === "toolCall")) {
+      const result = { identity, text: null };
+      assertOwnedUiPromptSuggestionResult(result);
+      return result;
+    }
+    const textBlock = content.find(block => isRecord(block) && block.type === "text" && typeof block.text === "string");
+    const result: OwnedUiPromptSuggestionResult = {
+      identity,
+      text: normalizePromptSuggestionCandidate(isRecord(textBlock) && typeof textBlock.text === "string" ? textBlock.text : null),
+    };
+    assertOwnedUiPromptSuggestionResult(result);
+    return result;
   }
 
   async start(): Promise<OwnedUiSessionViewModel> {
@@ -1969,6 +2045,8 @@ export class PiEngineAdapter {
     this.#status = { ...this.#status, workingMessage: null, badges: [] };
     this.#statusKind = null;
     this.#agentRunActive = false;
+    this.#agentRunSequence = 0;
+    this.#assistantResponseSequence = 0;
     this.#activeModel = readModel(session.model);
     this.#reconcileActiveModelAvailability();
     this.#thinkingLevel = readThinkingLevel(session.thinkingLevel);
@@ -2076,6 +2154,7 @@ export class PiEngineAdapter {
     switch (event.type) {
       case "agent_start":
         this.#agentRunActive = true;
+        this.#agentRunSequence += 1;
         this.#emitEvent({ type: "agent-run-started" });
         this.#enterWorkState("working", "Working");
         return;
@@ -2102,7 +2181,26 @@ export class PiEngineAdapter {
         // finalization is intentionally not a substitute: rebuilds, retries,
         // thinking parts, and tool rows can all finalize independently.
         if (isRecord(event.message) && event.message.role === "assistant") {
-          this.#emitEvent({ type: "assistant-message-completed" });
+          this.#assistantResponseSequence += 1;
+          const content = Array.isArray(event.message.content) ? event.message.content : [];
+          const stopReason = stringValue(event.message.stopReason) ?? null;
+          const toolContinuation = stopReason === "toolUse"
+            || content.some(item => isRecord(item) && item.type === "toolCall");
+          const successful = stringValue(event.message.errorMessage) === undefined
+            && stopReason !== "error"
+            && stopReason !== "aborted"
+            && textFromContent(content).trim().length > 0;
+          this.#emitEvent({
+            type: "assistant-message-completed",
+            sessionGeneration: this.#sessionGeneration,
+            runSequence: this.#agentRunSequence,
+            responseSequence: this.#assistantResponseSequence,
+            model: this.#activeModel,
+            assistantMessageCount: this.#transcript.filter(block => block.kind === "assistant").length,
+            successful,
+            stopReason,
+            toolContinuation,
+          });
         }
         return;
       case "turn_end":
@@ -2141,6 +2239,23 @@ export class PiEngineAdapter {
           this.#leaveWorkStates();
         }
         this.#emitView();
+        if (event.type === "agent_settled") {
+          const assistants = finalMessages.filter(message => isRecord(message) && message.role === "assistant");
+          const lastAssistant = assistants.at(-1);
+          const successful = lastAssistant !== undefined
+            && stringValue(lastAssistant.errorMessage) === undefined
+            && stringValue(lastAssistant.stopReason) !== "error"
+            && stringValue(lastAssistant.stopReason) !== "aborted";
+          this.#emitEvent({
+            type: "agent-run-settled",
+            sessionGeneration: this.#sessionGeneration,
+            runSequence: this.#agentRunSequence,
+            responseSequence: this.#assistantResponseSequence,
+            model: this.#activeModel,
+            assistantMessageCount: assistants.length,
+            successful,
+          });
+        }
         return;
       }
       case "queue_update": {
@@ -2593,6 +2708,7 @@ export class PiEngineAdapter {
       | Omit<Extract<OwnedUiEvent, { type: "transcript-block" }>, "sessionId" | "sequence">
       | Omit<Extract<OwnedUiEvent, { type: "assistant-message-completed" }>, "sessionId" | "sequence">
       | Omit<Extract<OwnedUiEvent, { type: "agent-run-started" }>, "sessionId" | "sequence">
+      | Omit<Extract<OwnedUiEvent, { type: "agent-run-settled" }>, "sessionId" | "sequence">
       | Omit<Extract<OwnedUiEvent, { type: "editor-state" }>, "sessionId" | "sequence">
       | Omit<Extract<OwnedUiEvent, { type: "status" }>, "sessionId" | "sequence">
       | Omit<Extract<OwnedUiEvent, { type: "command-outcome" }>, "sessionId" | "sequence">
@@ -2693,6 +2809,7 @@ export class PiEngineAdapter {
       | Omit<Extract<OwnedUiEvent, { type: "transcript-block" }>, "sessionId" | "sequence">
       | Omit<Extract<OwnedUiEvent, { type: "assistant-message-completed" }>, "sessionId" | "sequence">
       | Omit<Extract<OwnedUiEvent, { type: "agent-run-started" }>, "sessionId" | "sequence">
+      | Omit<Extract<OwnedUiEvent, { type: "agent-run-settled" }>, "sessionId" | "sequence">
       | Omit<Extract<OwnedUiEvent, { type: "editor-state" }>, "sessionId" | "sequence">
       | Omit<Extract<OwnedUiEvent, { type: "status" }>, "sessionId" | "sequence">
       | Omit<Extract<OwnedUiEvent, { type: "command-outcome" }>, "sessionId" | "sequence">

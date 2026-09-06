@@ -1,6 +1,10 @@
-import { Text, stripTerminalSequences } from "@earendil-works/pi-tui";
+import { Text, stripTerminalSequences, visibleWidth } from "@earendil-works/pi-tui";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import type { OwnedUiDialog, OwnedUiSessionViewModel, OwnedUiTranscriptBlock } from "../../../../src/contracts/owned-ui/index.js";
+import { PROMPT_GLYPH, caretCell, faint } from "../../../../src/ui/components/index.js";
 import {
   createPiShellDialog,
   createPiShellEditor,
@@ -23,6 +27,8 @@ import {
 function block(kind: OwnedUiTranscriptBlock["kind"], text: string, payload: unknown = {}): OwnedUiTranscriptBlock {
   return { id: `${kind}-1`, kind, status: "finalized", revision: 1, title: kind.startsWith("tool") ? "read" : null, text, payload };
 }
+
+const PROMPT_PRESENTATION = { prefix: PROMPT_GLYPH, styleSuggestion: faint, styleSuggestionCaret: caretCell };
 
 function canonicalProgressStatus(message: string): string {
   return `${message.replace(/(?:…|\.+)$/u, "")}...`;
@@ -76,6 +82,109 @@ describe("Pi shell public component adapters", () => {
     editor.handleInput?.("\r");
     expect(submit).toHaveBeenCalledWith("hello");
     expect(editor.render(40).length).toBeGreaterThan(0);
+  });
+
+  it("renders and accepts a bare-A1 contextual suggestion without changing or submitting empty text", () => {
+    const submit = vi.fn();
+    const accepted = vi.fn();
+    const editor = createPiShellEditor({
+      getColumns: () => 80,
+      getRows: () => 24,
+      requestRender() {},
+      onSubmit: submit,
+      onPromptSuggestionAccepted: accepted,
+      keybindingProfile: "a1",
+      promptPresentation: PROMPT_PRESENTATION,
+    });
+    editor.setFocused?.(true);
+    editor.setPromptSuggestion("go ahead and merge it");
+    const ghost = editor.render(40).join("\n");
+    expect(stripTerminalSequences(ghost)).toContain("❯ go ahead and merge it");
+    expect(ghost).toContain("\u001b[38;2;154;160;166m❯\u001b[39m");
+    expect(ghost).toContain("\u001b[2m");
+    expect(editor.getText()).toBe("");
+
+    editor.handleInput?.("\r");
+    expect(submit).not.toHaveBeenCalled();
+    expect(editor.getText()).toBe("");
+
+    editor.handleInput?.("\t");
+    expect(editor.getText()).toBe("go ahead and merge it");
+    expect(accepted).toHaveBeenCalledWith("go ahead and merge it");
+    const ordinary = editor.render(40).join("\n");
+    expect(stripTerminalSequences(ordinary)).toContain("❯ go ahead and merge it");
+    expect(ordinary).not.toContain("\u001b[2mgo ahead and merge it");
+    editor.handleInput?.("\r");
+    expect(submit).toHaveBeenCalledOnce();
+    expect(submit).toHaveBeenCalledWith("go ahead and merge it");
+  });
+
+  it("wraps Unicode suggestion text within the prompt glyph's remaining width", () => {
+    const editor = createPiShellEditor({
+      getColumns: () => 12,
+      getRows: () => 24,
+      requestRender() {},
+      onSubmit() {},
+      keybindingProfile: "a1",
+      promptPresentation: PROMPT_PRESENTATION,
+    });
+    editor.setFocused?.(true);
+    editor.setPromptSuggestion("review 日本語 output");
+    const rows = editor.render(12);
+    expect(rows.every(row => visibleWidth(row) <= 12)).toBe(true);
+    expect(stripTerminalSequences(rows.join("\n"))).toContain("❯ review");
+    expect(editor.getText()).toBe("");
+  });
+
+  it("uses the configured Tab action rather than a raw Tab byte", async () => {
+    const agentDir = await mkdtemp(join(tmpdir(), "a1-prompt-suggestion-bindings-"));
+    try {
+      await writeFile(join(agentDir, "keybindings.json"), JSON.stringify({ "tui.input.tab": "ctrl+r" }));
+      const editor = createPiShellEditor({
+        getColumns: () => 80,
+        getRows: () => 24,
+        requestRender() {},
+        onSubmit() {},
+        keybindingProfile: "a1",
+        promptPresentation: PROMPT_PRESENTATION,
+        agentDir,
+      });
+      editor.setFocused?.(true);
+      editor.setPromptSuggestion("run the tests");
+      editor.handleInput?.("\t");
+      expect(editor.getText()).toBe("");
+      editor.handleInput?.("\u0012");
+      expect(editor.getText()).toBe("run the tests");
+    } finally {
+      await rm(agentDir, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps contextual suggestions out of comparison editor rows", () => {
+    const editor = createPiShellEditor({ getColumns: () => 80, getRows: () => 24, requestRender() {}, onSubmit() {} });
+    editor.setFocused?.(true);
+    editor.setPromptSuggestion("run the tests");
+    expect(stripTerminalSequences(editor.render(40).join("\n"))).not.toContain("run the tests");
+    expect(stripTerminalSequences(editor.render(40).join("\n"))).not.toContain("❯");
+  });
+
+  it("gives autocomplete precedence over contextual suggestion Tab acceptance", async () => {
+    const editor = createPiShellEditor({
+      getColumns: () => 80,
+      getRows: () => 24,
+      requestRender() {},
+      onSubmit() {},
+      keybindingProfile: "a1",
+      promptPresentation: PROMPT_PRESENTATION,
+      cwd: "D:/work",
+    });
+    editor.setFocused?.(true);
+    editor.setPromptSuggestion("run the tests");
+    editor.handleInput?.("/");
+    await new Promise(resolve => setTimeout(resolve, 0));
+    editor.handleInput?.("\t");
+    expect(editor.getText()).toMatch(/^\/[a-z-]+/);
+    expect(editor.getText()).not.toBe("run the tests");
   });
 
   it("browses pinned prompt history while preserving drafts, duplicates, and multiline movement", () => {

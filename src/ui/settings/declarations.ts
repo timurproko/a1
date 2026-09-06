@@ -1,4 +1,4 @@
-export const OWNED_UI_SETTINGS_VERSION = 3;
+export const OWNED_UI_SETTINGS_VERSION = 4;
 
 export type OwnedUiSettingValue = string | number | boolean;
 
@@ -48,6 +48,14 @@ export const OWNED_UI_SETTING_DECLARATIONS: readonly OwnedUiSettingDeclaration[]
     application: "live",
     defaultValue: "normal",
     allowedValues: Object.freeze(["normal", "fast", "high"]),
+  }),
+  Object.freeze({
+    id: "promptSuggestions",
+    label: "Prompt suggestions",
+    description: "Predict likely next prompts with one additional background request using the selected model.",
+    application: "live",
+    defaultValue: true,
+    allowedValues: Object.freeze([true, false]),
   }),
 ] satisfies readonly OwnedUiSettingDeclaration[]);
 

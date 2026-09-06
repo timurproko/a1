@@ -3,10 +3,12 @@ import type {
   OwnedUiCommand,
   OwnedUiDialog,
   OwnedUiImageAttachment,
+  OwnedUiPromptSuggestionIdentity,
   OwnedUiSessionViewModel,
   OwnedUiThinkingLevel,
 } from "../../../contracts/owned-ui/index.js";
 import type { UiRouteHost } from "../../../ui/apps/index.js";
+import { ContextualPromptSuggestionController } from "./prompt-suggestion-controller.js";
 import { MOUSE_TRACKING_OFF, MOUSE_TRACKING_ON, parseMouseInput, readVisibleHyperlinks } from "../../../ui/components/index.js";
 import {
   PINNED_PI_HIDDEN_COMMAND_NAMES,
@@ -113,6 +115,8 @@ export class OwnedUiSessionShell {
   readonly #cwd: string;
   readonly #listeners = new Set<(view: OwnedUiSessionViewModel) => void>();
   readonly #unsubscribe: () => void;
+  readonly #unsubscribePromptSuggestions: () => void;
+  readonly #promptSuggestions: ContextualPromptSuggestionController | null;
   readonly #extensionBridge: PiExtensionUiBridge;
   readonly #stopped: Promise<void>;
   #resolveStopped: (() => void) | undefined;
@@ -145,10 +149,12 @@ export class OwnedUiSessionShell {
   #lastEscapeTime = 0;
   #activeLoginDialog: PiShellLoginDialogPort | undefined;
   #sessionGeneration: number;
+  #suggestionModelKey: string;
 
   constructor(options: OwnedUiSessionShellOptions) {
     this.backend = options.backend;
     this.#sessionGeneration = this.backend.sessionGeneration;
+    this.#suggestionModelKey = modelKey(this.backend.view());
     this.#cwd = options.cwd;
     this.#routeHost = options.routeHost ?? null;
     this.#customViewport = options.sessionLayout === "custom-viewport";
@@ -160,6 +166,7 @@ export class OwnedUiSessionShell {
     let damageTerminal: DamageAwareTerminalAdapter | undefined;
     let streamPresentation: StreamPresentationCoalescer | undefined;
     let pendingClipboardWrite: Promise<void> = Promise.resolve();
+    let promptSuggestionController: ContextualPromptSuggestionController | null = null;
     this.root = new OwnedUiSessionShellRoot(this.backend.view(), options.cwd, {
       getColumns: () => runtime?.viewport().columns ?? options.terminal?.columns ?? 80,
       getRows: () => runtime?.viewport().rows ?? options.terminal?.rows ?? 24,
@@ -185,6 +192,9 @@ export class OwnedUiSessionShell {
       onMessageCopy: () => { void this.runWorkflow({ command: "copy", argument: "" }); },
       onFollowUp: () => { void this.queueFollowUp(); },
       onDequeue: () => this.restoreQueuedInput(),
+      onEditorChange: () => promptSuggestionController?.invalidate(),
+      onPromptSuggestionAccepted: () => promptSuggestionController?.accept(),
+      onInputSurfaceChanged: () => promptSuggestionController?.invalidate(),
       onCopyText: text => {
         runtime?.writeControl(`\u001b]52;c;${Buffer.from(text, "utf8").toString("base64")}\u0007`);
         const write = options.clipboard === undefined
@@ -268,6 +278,25 @@ export class OwnedUiSessionShell {
           options.streamPresentation.scheduler,
         );
     this.#streamPresentation = streamPresentation;
+    const promptSuggestionOptions = this.#customViewport ? options.promptSuggestions : undefined;
+    promptSuggestionController = promptSuggestionOptions === undefined ? null : new ContextualPromptSuggestionController({
+      generator: promptSuggestionOptions.generator,
+      enabled: promptSuggestionOptions.enabled(),
+      surface: {
+        canPresent: identity => this.#canPresentPromptSuggestion(identity),
+        present: text => {
+          if (!this.root.canPresentPromptSuggestion()) return false;
+          this.root.setPromptSuggestion(text);
+          return true;
+        },
+        clear: () => this.root.setPromptSuggestion(null),
+        requestRender: () => this.runtime.requestRender(),
+      },
+    });
+    this.#promptSuggestions = promptSuggestionController;
+    this.#unsubscribePromptSuggestions = promptSuggestionOptions === undefined
+      ? () => {}
+      : promptSuggestionOptions.onChange(enabled => this.#promptSuggestions?.setEnabled(enabled));
     const initialPiSettings = this.backend.pinnedSettingsSnapshot();
     this.runtime.setHardwareCursor(initialPiSettings.showHardwareCursor);
     this.runtime.setClearOnShrink(initialPiSettings.clearOnShrink);
@@ -400,13 +429,48 @@ export class OwnedUiSessionShell {
       // Performance: a streamed chunk names one block, and touching only that block is what keeps the
       // cost of a chunk the same in a long session as in a new one. Everything else
       // resynchronizes the view, which is cheap next to re-reading the transcript.
-      if (event.type === "agent-run-started") this.root.resumeViewportFollowing();
-      if (event.type === "assistant-message-completed") this.root.noteCompletedAssistantMessage();
+      if (event.type === "agent-run-started") {
+        this.#promptSuggestions?.invalidate();
+        this.root.resumeViewportFollowing();
+      }
+      if (event.type === "assistant-message-completed") {
+        this.root.noteCompletedAssistantMessage();
+        if (event.model !== null) {
+          this.#promptSuggestions?.consider({
+            sessionId: event.sessionId,
+            sessionGeneration: event.sessionGeneration,
+            runSequence: event.runSequence,
+            responseSequence: event.responseSequence,
+            model: event.model,
+          }, event.successful
+            && event.stopReason === "stop"
+            && !event.toolContinuation
+            && event.assistantMessageCount >= 2
+            && this.root.canPreparePromptSuggestion());
+        }
+      }
       const semanticOnly = event.type === "agent-run-started" || event.type === "assistant-message-completed";
       const view = event.type === "transcript-block" && this.#sessionGeneration === this.backend.sessionGeneration
         ? this.#syncBlock(event.block)
         : semanticOnly ? this.view() : this.#syncView();
       this.#syncTerminalProgress(view);
+      const currentModelKey = modelKey(view);
+      if (this.backend.sessionGeneration !== this.#sessionGeneration || currentModelKey !== this.#suggestionModelKey) {
+        this.#promptSuggestions?.invalidate();
+        this.#suggestionModelKey = currentModelKey;
+      }
+      if (event.type === "status" && /^(Retrying|Compacting)/.test(event.status.workingMessage ?? "")) {
+        this.#promptSuggestions?.invalidate();
+      }
+      if (event.type === "agent-run-settled" && event.model !== null) {
+        this.#promptSuggestions?.settle({
+          sessionId: event.sessionId,
+          sessionGeneration: event.sessionGeneration,
+          runSequence: event.runSequence,
+          responseSequence: event.responseSequence,
+          model: event.model,
+        });
+      }
       if (view.lifecycle === "ready" && this.#compactionQueue.length > 0) void this.#flushCompactionQueue();
       if (event.type === "session-lifecycle" && event.lifecycle === "stopped") this.#resolveStopped?.();
     });
@@ -415,6 +479,15 @@ export class OwnedUiSessionShell {
 
   view(): OwnedUiSessionViewModel {
     return this.backend.view();
+  }
+
+  #canPresentPromptSuggestion(identity: OwnedUiPromptSuggestionIdentity): boolean {
+    const view = this.view();
+    return !this.#disposed
+      && identity.sessionId === view.sessionId
+      && identity.sessionGeneration === this.backend.sessionGeneration
+      && modelKey(view) === `${identity.model.providerId}/${identity.model.modelId}`
+      && this.root.canPresentPromptSuggestion();
   }
 
   damagePresentationDecision(): PiTuiDamageDecision | null {
@@ -442,6 +515,7 @@ export class OwnedUiSessionShell {
   }
 
   async submit(text: string): Promise<AdapterCommandResult> {
+    this.#promptSuggestions?.invalidate();
     const displayInput = text.trim();
     if (!displayInput) return { outcome: "completed", diagnostic: null };
     if (displayInput.startsWith("/")) return this.#slashCommand(displayInput);
@@ -495,6 +569,7 @@ export class OwnedUiSessionShell {
   }
 
   async clearOrExit(now = Date.now()): Promise<AdapterCommandResult> {
+    this.#promptSuggestions?.invalidate();
     if (now - this.#lastClearTime < 500) return this.shutdown();
     this.root.editor.setText("");
     this.#lastClearTime = now;
@@ -503,6 +578,7 @@ export class OwnedUiSessionShell {
   }
 
   async interrupt(now = Date.now()): Promise<AdapterCommandResult> {
+    this.#promptSuggestions?.invalidate();
     if (this.view().lifecycle === "busy") return this.abort();
     if (this.root.editor.getText().trim().length > 0) {
       this.root.editor.setText("");
@@ -529,18 +605,22 @@ export class OwnedUiSessionShell {
   }
 
   async retry(): Promise<AdapterCommandResult> {
+    this.#promptSuggestions?.invalidate();
     return this.#execute(this.#simple("retry"));
   }
 
   async compact(): Promise<AdapterCommandResult> {
+    this.#promptSuggestions?.invalidate();
     return this.#execute(this.#simple("compact"));
   }
 
   async newSession(): Promise<AdapterCommandResult> {
+    this.#promptSuggestions?.invalidate();
     return this.#execute(this.#simple("new-session"));
   }
 
   async resumeSession(sessionPath: string): Promise<AdapterCommandResult> {
+    this.#promptSuggestions?.invalidate();
     return this.#execute({
       type: "resume-session",
       correlationId: this.#correlation("resume"),
@@ -550,6 +630,7 @@ export class OwnedUiSessionShell {
   }
 
   async setModel(providerId: string, modelId: string): Promise<AdapterCommandResult> {
+    this.#promptSuggestions?.invalidate();
     return this.#execute({
       type: "set-model",
       correlationId: this.#correlation("model"),
@@ -1116,6 +1197,8 @@ export class OwnedUiSessionShell {
     this.#setPointerReporting(false, true);
     this.#removeViewportPreInput();
     this.#streamPresentation.dispose();
+    this.#promptSuggestions?.dispose();
+    this.#unsubscribePromptSuggestions();
     this.#unsubscribeSettings();
     const exitMode = this.backend.disposed
       ? this.#fullscreenExitOutput
@@ -1165,6 +1248,7 @@ export class OwnedUiSessionShell {
     this.#streamPresentation.noteImmediatePresentation();
     const view = this.view();
     if (this.backend.sessionGeneration !== this.#sessionGeneration) {
+      this.#promptSuggestions?.invalidate();
       this.#sessionGeneration = this.backend.sessionGeneration;
       this.#activeLoginDialog = undefined;
       this.#extensionBridge.reset();
@@ -1485,6 +1569,10 @@ function modelReference(model: unknown): string {
 
 function rejected(diagnostic: string): AdapterCommandResult {
   return { outcome: "rejected", diagnostic };
+}
+
+function modelKey(view: OwnedUiSessionViewModel): string {
+  return view.activeModel === null ? "" : `${view.activeModel.providerId}/${view.activeModel.modelId}`;
 }
 
 function workflowAdapterResult(result: PiWorkflowResult): AdapterCommandResult {

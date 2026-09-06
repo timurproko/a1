@@ -1,6 +1,7 @@
 import type {
   OwnedUiCommand,
   OwnedUiDialog,
+  OwnedUiPromptSuggestionGeneratorPort,
   OwnedUiSessionViewModel,
   OwnedUiThinkingLevel,
   OwnedUiViewportSettings,
@@ -8,9 +9,12 @@ import type {
 } from "../../../contracts/owned-ui/index.js";
 import type { UiRouteHost } from "../../../ui/apps/index.js";
 import {
+  PROMPT_GLYPH,
   backgroundSgrSpan,
+  caretCell,
   composeSubmittedPromptRows,
   displayWidth,
+  faint,
   formatSubmittedPromptTime,
   heldNativeHyperlinkStyle,
   hyperlinkSgrSpan,
@@ -142,6 +146,11 @@ export interface OwnedUiSessionShellOptions {
     readonly scheduler?: StreamPresentationScheduler;
   };
   /** Optional deterministic seam for keyboard scheduling and phase evidence. */
+  readonly promptSuggestions?: {
+    readonly generator: OwnedUiPromptSuggestionGeneratorPort;
+    readonly enabled: () => boolean;
+    readonly onChange: (listener: (enabled: boolean) => void) => () => void;
+  };
   readonly inputPresentation?: {
     readonly scheduler?: PiTuiInputCoordinationScheduler;
     readonly onEvent?: (event: PiTuiInputDiagnosticsEvent) => void;
@@ -178,6 +187,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   readonly #viewportController: SessionViewportController;
   readonly #viewportTheme: TranscriptViewportTheme;
   readonly #onViewportFrame: ((frame: TranscriptViewportFrame) => void) | undefined;
+  readonly #onInputSurfaceChanged: (() => void) | undefined;
   readonly #componentRuntime: {
     readonly getColumns: () => number;
     readonly getRows: () => number;
@@ -247,6 +257,9 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       readonly onMessageCopy?: () => void;
       readonly onFollowUp?: () => void;
       readonly onDequeue?: () => void;
+      readonly onEditorChange?: (text: string) => void;
+      readonly onPromptSuggestionAccepted?: (text: string) => void;
+      readonly onInputSurfaceChanged?: () => void;
       readonly onCopyText?: (text: string) => void;
       readonly readClipboardContent?: () => Promise<PiShellClipboardContent | null>;
     },
@@ -273,6 +286,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.#imageAssets = imageAssets;
     this.#componentRuntime = handlers;
     this.#onViewportFrame = handlers.onViewportFrame;
+    this.#onInputSurfaceChanged = handlers.onInputSurfaceChanged;
     this.#dockInputReuseEnabled = handlers.enableDockInputReuse ?? true;
     this.header = createPiShellHeader(startup);
     this.resources = createPiShellLoadedResources(startup.resources ?? [], startup.expanded ?? false);
@@ -330,6 +344,15 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       cwd,
       ...(agentDir === undefined ? {} : { agentDir }),
       onToolsExpand: () => this.#setToolsExpanded(!this.#toolsExpanded),
+      ...(this.#customViewport ? {
+        promptPresentation: {
+          prefix: PROMPT_GLYPH,
+          styleSuggestion: faint,
+          styleSuggestionCaret: caretCell,
+        },
+      } : {}),
+      ...(handlers.onEditorChange === undefined ? {} : { onChange: handlers.onEditorChange }),
+      ...(handlers.onPromptSuggestionAccepted === undefined ? {} : { onPromptSuggestionAccepted: handlers.onPromptSuggestionAccepted }),
     });
     this.#viewportController = new SessionViewportController({
       enabled: this.#customViewport,
@@ -412,6 +435,23 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
 
   preparePromptSubmission(text: string): PreparedPrompt {
     return this.#promptChips.prepareSubmission(text);
+  }
+
+  canPreparePromptSuggestion(): boolean {
+    return this.usesDefaultInputSurface()
+      && this.#view.dialog === null
+      && this.#view.overlay === null
+      && this.editor.getText().length === 0;
+  }
+
+  canPresentPromptSuggestion(): boolean {
+    return this.canPreparePromptSuggestion()
+      && this.#view.lifecycle === "ready"
+      && this.editor.canPresentPromptSuggestion();
+  }
+
+  setPromptSuggestion(text: string | null): void {
+    this.editor.setPromptSuggestion(text);
   }
 
   update(view: OwnedUiSessionViewModel): void {
@@ -1032,6 +1072,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     if (disposePrevious && this.#inputSurface !== this.editor) this.#inputSurface.dispose?.();
     this.#inputSurface = next;
     this.#inputSurfaceCoordination = nextCoordination;
+    this.#onInputSurfaceChanged?.();
     this.#inputSurface.setFocused?.(true);
     this.invalidate();
   }
