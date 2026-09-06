@@ -1,3 +1,7 @@
+## Status
+
+**Postponed on 2026-09-06.** The maintainer chose to retain the simpler cancellation shielding and detached recovery guardian from `preserve-launcher-on-update-cancel`. Draft implementation PR #274 was closed without merge; no stable-launcher implementation is present on `develop`. Resume this change only if reboot-safe launcher availability or isolation from arbitrary global-package corruption becomes a firm requirement.
+
 ## Why
 
 The current `a1` command is generated from the same globally installed package that self-update replaces, so npm can remove the user's only recovery entry point during package mutation. The recovery guardian makes ordinary cancellation safe, but a separately stable launcher is required for the stronger UX guarantee that `a1` remains callable across core-package corruption, process loss, and reboot.
