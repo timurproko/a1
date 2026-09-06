@@ -15,8 +15,11 @@ if mode == "signaled":
 time.sleep(0.2)
 '''
 
+initial_path = result_path + ".initial"
 guardian_pid, master = pty.fork()
 if guardian_pid == 0:
+    with open(initial_path, "w", encoding="utf-8") as stream:
+        json.dump({"guardianPid": os.getpid(), "initialForeground": os.tcgetpgrp(0)}, stream)
     selected_status = status_path if mode != "status-failure" else os.path.join(status_path, "missing", "status.json")
     arguments = [
         helper,
@@ -27,8 +30,9 @@ if guardian_pid == 0:
     ]
     os.execv(helper, arguments)
 
-initial_foreground = os.tcgetpgrp(master)
 _, wait_status = os.waitpid(guardian_pid, 0)
+with open(initial_path, "r", encoding="utf-8") as stream:
+    initial = json.load(stream)
 try:
     restored_foreground = os.tcgetpgrp(master)
 except OSError:
@@ -36,7 +40,7 @@ except OSError:
 with open(result_path, "w", encoding="utf-8") as stream:
     json.dump({
         "guardianPid": guardian_pid,
-        "initialForeground": initial_foreground,
+        "initialForeground": initial["initialForeground"],
         "restoredForeground": restored_foreground,
         "exitCode": os.waitstatus_to_exitcode(wait_status),
     }, stream)

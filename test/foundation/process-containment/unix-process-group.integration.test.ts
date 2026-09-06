@@ -64,7 +64,7 @@ describe("Unix process guardian", () => {
     };
     expect(result.exitCode).toBe(expectedExit);
     expect(result.initialForeground).toBe(result.guardianPid);
-    // Darwin reports 0 after the controlling session leader exits; a nonzero value must
+    // Platform: Darwin reports 0 after the controlling session leader exits; a nonzero value must
     // still name the restored guardian group. The guardian propagates restoration errors.
     expect([0, result.guardianPid]).toContain(result.restoredForeground);
     if (expectsMarker) {
