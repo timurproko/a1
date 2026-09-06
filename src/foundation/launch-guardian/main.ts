@@ -5,6 +5,7 @@ import type { LaunchInstanceOutcome, LaunchInstanceStopIntent, LaunchInstanceSto
 import { assertLaunchProfileId, sessionSelectionArguments, type SessionSelection } from "../lifecycle/index.js";
 import {
   closeVerifiedContainment,
+  DarwinNativeProcessInspector,
   LinuxNativeProcessInspector,
   NativeGuardianContainment,
   resolveProcessGuardianPath,
@@ -148,6 +149,7 @@ export async function runLaunchGuardian(options: LaunchGuardianOptions): Promise
 function platformInspector(helperPath: string): NativeProcessInspector {
   if (process.platform === "win32") return new WindowsNativeProcessInspector(helperPath);
   if (process.platform === "linux") return new LinuxNativeProcessInspector();
+  if (process.platform === "darwin") return new DarwinNativeProcessInspector(helperPath);
   throw diagnosticError(`launch-instance process containment is unsupported on ${process.platform}`, "CONTAINMENT_UNSUPPORTED");
 }
 

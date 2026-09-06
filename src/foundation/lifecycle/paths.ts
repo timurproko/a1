@@ -13,6 +13,8 @@ export interface ProductPaths {
   /** The metadata written by releases that predate cohort-scoped identity. */
   readonly endpointMetadataPath: string;
   readonly endpointsDir: string;
+  /** A short, A1-managed socket directory when the host imposes a small Unix-path limit. */
+  readonly endpointDirectory?: string | null;
   readonly supervisorLogPath: string;
 }
 
@@ -44,7 +46,7 @@ export function resolveCohortEndpoint(
   const token = createHash("sha256").update(releaseId).digest("hex").slice(0, 16);
   const endpoint = hostPlatform === "win32"
     ? `${paths.endpoint}-${token}`
-    : path.join(paths.runtimeDir, `${token}-${PRODUCT_IDENTITY.endpoint.unixSocketFilename}`);
+    : path.join(paths.endpointDirectory ?? paths.runtimeDir, `${token}-${PRODUCT_IDENTITY.endpoint.unixSocketFilename}`);
   return { endpoint, endpointMetadataPath: path.join(paths.endpointsDir, `${token}.json`) };
 }
 
@@ -76,10 +78,16 @@ export function resolveProductPaths(
         ? path.join(environment.XDG_RUNTIME_DIR, PRODUCT_IDENTITY.state.unixControlDirectory)
         : path.join(dataDir, "runtime")));
   const namespace = createHash("sha256").update(runtimeDir.toLowerCase()).digest("hex").slice(0, 20);
+  // Platform: Darwin limits Unix-domain socket paths to roughly 104 bytes. Runtime roots
+  // under /var/folders can exceed that before the cohort suffix is added, so only socket
+  // files use a short owned namespace while metadata remains under the selected runtime.
+  const endpointDirectory = !endpointOverride && hostPlatform === "darwin"
+    ? posix.join("/tmp", `${PRODUCT_IDENTITY.state.unixControlDirectory}-${namespace}`)
+    : null;
   const endpoint = endpointOverride
     ?? (windows
       ? `\\\\.\\pipe\\${PRODUCT_IDENTITY.endpoint.windowsPipeStem}-${namespace}`
-      : path.join(runtimeDir, PRODUCT_IDENTITY.endpoint.unixSocketFilename));
+      : path.join(endpointDirectory ?? runtimeDir, PRODUCT_IDENTITY.endpoint.unixSocketFilename));
   return {
     configDir,
     dataDir,
@@ -88,6 +96,7 @@ export function resolveProductPaths(
     endpoint,
     endpointMetadataPath: path.join(runtimeDir, PRODUCT_IDENTITY.endpoint.metadataFilename),
     endpointsDir: path.join(runtimeDir, "endpoints"),
+    endpointDirectory,
     supervisorLogPath: path.join(runtimeDir, PRODUCT_IDENTITY.endpoint.supervisorLogFilename),
   };
 }

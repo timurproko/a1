@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, rename, rm, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdir, rename, rm, writeFile } from "node:fs/promises";
 import { createConnection, createServer, type Server, type Socket } from "node:net";
 import { platform } from "node:os";
+import { dirname } from "node:path";
 import {
   assertLaunchInstanceOutcome,
   assertNativeProcessIdentity,
@@ -76,6 +77,7 @@ export class SupervisorServer {
     await mkdir(this.paths.runtimeDir, { recursive: true, mode: 0o700 });
     await mkdir(this.paths.endpointsDir, { recursive: true, mode: 0o700 });
     if (platform() !== "win32") {
+      if (this.paths.endpointDirectory) await ensureManagedEndpointDirectory(dirname(this.paths.endpoint));
       if (await endpointIsLive(this.paths.endpoint)) throw new Error(PRODUCT_TEXT.diagnostic(`supervisor already owns ${this.paths.endpoint}`));
       await rm(this.paths.endpoint, { force: true });
     }
@@ -481,6 +483,15 @@ function sameContainmentIdentity(left: { provider: string; token: string } | nul
 
 function isMessageType(value: unknown, type: string): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && "type" in value && value.type === type;
+}
+
+async function ensureManagedEndpointDirectory(path: string): Promise<void> {
+  await mkdir(path, { recursive: true, mode: 0o700 });
+  const metadata = await lstat(path);
+  if (!metadata.isDirectory() || metadata.isSymbolicLink()) throw new Error(`managed endpoint path is not a directory: ${path}`);
+  const currentUser = process.getuid?.();
+  if (currentUser !== undefined && metadata.uid !== currentUser) throw new Error(`managed endpoint directory has another owner: ${path}`);
+  await chmod(path, 0o700);
 }
 
 async function endpointIsLive(endpoint: string): Promise<boolean> {

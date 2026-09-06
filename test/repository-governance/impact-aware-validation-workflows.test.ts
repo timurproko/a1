@@ -39,6 +39,27 @@ describe("impact-aware validation workflows", () => {
     expect(ordinary).not.toContain("continue-on-error");
   });
 
+  it("requires macOS native containment and packaged startup evidence", async () => {
+    const [workflow, guardian, build, launch, startupTest] = await Promise.all([
+      readFile(".github/workflows/ci.yml", "utf8"),
+      readFile("native/process-guardian/src/darwin.rs", "utf8"),
+      readFile("scripts/development/build-process-guardian.mjs", "utf8"),
+      readFile("src/foundation/launch-guardian/main.ts", "utf8"),
+      readFile("test/foundation/release/supervisor-startup.test.ts", "utf8"),
+    ]);
+    const containment = workflow.slice(workflow.indexOf("\n  containment:"), workflow.indexOf("\n  required:"));
+    expect(containment).toContain("os: macos-15");
+    expect(containment).toContain("A1_RUN_PROCESS_CONTAINMENT_INTEGRATION");
+    expect(containment).toContain("test/foundation/process-containment");
+    expect(containment).toContain("if: matrix.os == 'macos-15'");
+    expect(containment).toContain("run-validation-tier.mjs package-smoke");
+    expect(guardian).toContain("darwin-process-group");
+    expect(guardian).toContain("proc_pidinfo");
+    expect(build).toContain('capability: "supported"');
+    expect(launch).toContain("DarwinNativeProcessInspector");
+    expect(startupTest).toContain("surfaces a matching startup failure before the endpoint timeout");
+  });
+
   it("runs one full documentation review outside release platform matrices", async () => {
     const [release, regression] = await Promise.all([
       readFile(".github/workflows/release.yml", "utf8"),

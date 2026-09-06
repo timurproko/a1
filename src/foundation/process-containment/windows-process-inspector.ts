@@ -17,6 +17,7 @@ export class WindowsNativeProcessInspector implements NativeProcessInspector {
   constructor(
     readonly helperPath: string,
     private readonly runner: InspectorCommandRunner = defaultRunner,
+    private readonly identityPrefix = "windows-filetime:",
   ) {
     if (!helperPath || helperPath.includes("\0")) throw new TypeError("process guardian helper path is invalid");
   }
@@ -35,7 +36,7 @@ export class WindowsNativeProcessInspector implements NativeProcessInspector {
     } catch {
       throw Object.assign(new Error("process guardian returned malformed identity data"), { code: "PROCESS_INSPECTION_INVALID" });
     }
-    if (!isIdentity(value) || value.pid !== pid || !value.startIdentity.startsWith("windows-filetime:")) {
+    if (!isIdentity(value) || value.pid !== pid || !value.startIdentity.startsWith(this.identityPrefix)) {
       throw Object.assign(new Error("process guardian returned mismatched identity data"), { code: "PROCESS_INSPECTION_INVALID" });
     }
     return value;

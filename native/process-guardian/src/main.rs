@@ -3,6 +3,8 @@ use std::fs;
 use std::path::Path;
 use std::process::ExitCode;
 
+#[cfg(target_os = "macos")]
+mod darwin;
 #[cfg(target_os = "linux")]
 mod linux;
 #[cfg(windows)]
@@ -41,15 +43,13 @@ fn run(arguments: Vec<String>) -> Result<u8, String> {
         }
         #[cfg(windows)]
         {
-            return match windows::inspect_process_start(pid)? {
-                Some(start_identity) => {
-                    println!("{{\"pid\":{pid},\"startIdentity\":\"{start_identity}\"}}");
-                    Ok(0)
-                }
-                None => Ok(3),
-            };
+            return print_process_identity(pid, windows::inspect_process_start(pid)?);
         }
-        #[cfg(not(windows))]
+        #[cfg(target_os = "macos")]
+        {
+            return print_process_identity(pid, darwin::inspect_process_start(pid)?);
+        }
+        #[cfg(not(any(windows, target_os = "macos")))]
         {
             return Err(format!("process inspection is not implemented for {}", env::consts::OS));
         }
@@ -64,13 +64,27 @@ fn run(arguments: Vec<String>) -> Result<u8, String> {
     {
         return linux::run(invocation);
     }
-    #[cfg(not(any(windows, target_os = "linux")))]
+    #[cfg(target_os = "macos")]
+    {
+        return darwin::run(invocation);
+    }
+    #[cfg(not(any(windows, target_os = "linux", target_os = "macos")))]
     {
         let _ = invocation;
         Err(format!(
             "CONTAINMENT_UNSUPPORTED: process containment is not certified for {}",
             env::consts::OS
         ))
+    }
+}
+
+fn print_process_identity(pid: u32, start_identity: Option<String>) -> Result<u8, String> {
+    match start_identity {
+        Some(start_identity) => {
+            println!("{{\"pid\":{pid},\"startIdentity\":\"{start_identity}\"}}");
+            Ok(0)
+        }
+        None => Ok(3),
     }
 }
 

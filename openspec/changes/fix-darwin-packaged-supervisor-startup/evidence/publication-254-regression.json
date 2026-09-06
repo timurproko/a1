@@ -1,0 +1,43 @@
+{
+  "schema": "a1-darwin-publication-regression-v1",
+  "capturedAt": "2026-09-06",
+  "releaseRun": {
+    "id": 34022380161,
+    "url": "https://github.com/timurproko/a1/actions/runs/34022380161",
+    "event": "workflow_dispatch",
+    "conclusion": "failure",
+    "sourceCommit": "4e7901f3e0105ae5de6c54be49dc2728677a3f74",
+    "packageVersion": "0.1.8-dev.254",
+    "registryVersionExistedAtPlan": false,
+    "registryVersionExistsAfterRun": false
+  },
+  "jobs": {
+    "plan": { "id": 101457202007, "name": "Resolve numbered publication", "conclusion": "success" },
+    "package": { "id": 101457402434, "name": "Obtain exact package 0.1.8-dev.254", "conclusion": "success" },
+    "validation": [
+      { "id": 101457555294, "name": "Validate win32-node24", "conclusion": "success" },
+      { "id": 101457555303, "name": "Validate win32-node22", "conclusion": "failure", "diagnosis": "warm a1 pi startup was 3453ms against the 3000ms budget" },
+      { "id": 101457555322, "name": "Validate linux-node24", "conclusion": "success", "diagnosis": "packed guardian executed without the prior EACCES failure" },
+      { "id": 101457555332, "name": "Validate darwin-node24", "conclusion": "failure", "diagnosis": "all packaged session-resume cases timed out waiting for supervisor endpoint metadata" }
+    ],
+    "publish": { "id": 101458446542, "name": "Publish ${{ needs.plan.outputs.version }} to npm ${{ needs.plan.outputs.channel }}", "conclusion": "skipped", "started": false },
+    "result": { "id": 101458445827, "name": "Publication result", "conclusion": "failure" }
+  },
+  "classification": {
+    "guardianExecutableRepair": "proven on linux-node24",
+    "darwinBlocker": "correlated reproduction on PR #258 identified endpoint-listen EINVAL for an overlong Unix-domain socket path under the macOS /var/folders runtime root",
+    "windowsNode22Blocker": "separate warm-start performance failure",
+    "npmAuthenticationReached": false,
+    "npmRegistryUploadReached": false,
+    "publisherCorrectlyFailedClosed": true,
+    "diagnosticReproduction": {
+      "pullRequest": 258,
+      "workflowRun": 34025055502,
+      "job": 101464478764,
+      "stage": "endpoint-listen",
+      "code": "EINVAL",
+      "path": "/var/folders/.../a1-validation-package-*/runtime/<cohort>-supervisor.sock",
+      "correction": "derive Darwin socket files beneath a short owner-checked /tmp namespace while retaining metadata in the selected runtime root"
+    }
+  }
+}

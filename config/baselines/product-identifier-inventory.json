@@ -300,6 +300,16 @@
       "identifier": "A1_RUNTIME_DIR"
     },
     {
+      "path": "test/foundation/lifecycle/paths.test.ts",
+      "line": 116,
+      "identifier": "A1_RUNTIME_DIR"
+    },
+    {
+      "path": "test/foundation/lifecycle/paths.test.ts",
+      "line": 120,
+      "identifier": "A1_RUNTIME_DIR"
+    },
+    {
       "path": "test/foundation/native-host-protocol/protocol.test.ts",
       "line": 33,
       "identifier": "A1_TERMINAL_SESSION_ID"
@@ -321,7 +331,12 @@
     },
     {
       "path": "test/foundation/process-containment/unix-process-group.integration.test.ts",
-      "line": 49,
+      "line": 55,
+      "identifier": "A1_PROCESS_GUARDIAN_PATH"
+    },
+    {
+      "path": "test/foundation/process-containment/unix-process-group.integration.test.ts",
+      "line": 79,
       "identifier": "A1_PROCESS_GUARDIAN_PATH"
     },
     {
