@@ -316,6 +316,14 @@ jobs:
           A1_PROCESS_GUARDIAN_PATH: ${{ github.workspace }}/native/process-guardian/target/debug/${{ matrix.binary }}
           A1_RUN_PROCESS_CONTAINMENT_INTEGRATION: "1"
         run: npx vitest run test/foundation/process-containment --testTimeout=30000
+      - name: Validate packaged macOS supervision and containment
+        if: matrix.os == 'macos-15'
+        shell: bash
+        env:
+          A1_CONFIG_DIR: ${{ runner.temp }}/a1-development-config
+          A1_DATA_DIR: ${{ runner.temp }}/a1-development-data
+          A1_RUNTIME_DIR: ${{ runner.temp }}/a1-development-runtime
+        run: node scripts/release/run-validation-tier.mjs package-smoke
 
   required:
     name: Development validation required

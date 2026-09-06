@@ -44,7 +44,7 @@ const manifest = {
   crateVersion,
   platform,
   architecture,
-  capability: platform === "darwin" ? "unsupported" : "supported",
+  capability: "supported",
   builtAt: new Date().toISOString(),
   artifact: {
     filename: basename(target),

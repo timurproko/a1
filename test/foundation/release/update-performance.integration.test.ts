@@ -53,9 +53,9 @@ describe("packaged update activation performance", () => {
       await state.recordCandidate(release);
       await state.approve(release.releaseId, diagnostics);
       await state.activate(release.releaseId);
-      await startSupervisor(release, environment);
+      const startup = await startSupervisor(release, environment);
       const cohort = resolveCohortEndpoint(resolveProductPaths(environment), release.releaseId, environment);
-      await waitForVerifiedEndpoint(cohort.endpointMetadataPath, release, 8_000);
+      await waitForVerifiedEndpoint(cohort.endpointMetadataPath, release, 8_000, startup);
 
       const durationMs = performance.now() - startedAt;
       const counts = operationCounts(operations);

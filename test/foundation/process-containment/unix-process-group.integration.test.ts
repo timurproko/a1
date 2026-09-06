@@ -10,12 +10,12 @@ afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, { recursi
 
 const hasConfiguredGuardian = process.env.A1_RUN_PROCESS_CONTAINMENT_INTEGRATION === "1"
   && Boolean(process.env.A1_PROCESS_GUARDIAN_PATH);
-const linuxIt = process.platform === "linux" && hasConfiguredGuardian ? it : it.skip;
+const unixIt = (process.platform === "linux" || process.platform === "darwin") && hasConfiguredGuardian ? it : it.skip;
 const macIt = process.platform === "darwin" && hasConfiguredGuardian ? it : it.skip;
 
 describe("Unix process guardian", () => {
-  linuxIt("closes its isolated runtime process group while preserving an unrelated sibling", async () => {
-    const root = await mkdtemp(resolve(tmpdir(), "a1-linux-containment-"));
+  unixIt("closes its isolated runtime process group while preserving an unrelated sibling", async () => {
+    const root = await mkdtemp(resolve(tmpdir(), "a1-unix-containment-"));
     roots.push(root);
     const statePath = resolve(root, "tree.json");
     const statusPath = resolve(root, "guardian-status.json");
@@ -45,17 +45,47 @@ describe("Unix process guardian", () => {
     }
   }, 20_000);
 
-  macIt("fails before runtime startup when exact containment is not certified", async () => {
+  macIt.each([
+    { mode: "normal", expectedExit: 0, expectsMarker: true },
+    { mode: "signaled", expectedExit: 143, expectsMarker: true },
+    { mode: "status-failure", expectedExit: 2, expectsMarker: false },
+  ])("transfers and restores pseudo-terminal foreground ownership ($mode)", async ({ mode, expectedExit, expectsMarker }) => {
+    const root = await mkdtemp(resolve(tmpdir(), "a1-darwin-pty-"));
+    roots.push(root);
     const helper = process.env.A1_PROCESS_GUARDIAN_PATH ?? resolve("native/process-guardian/target/debug/process-guardian");
-    const marker = resolve(await mkdtemp(resolve(tmpdir(), "a1-mac-containment-")), "started");
-    roots.push(resolve(marker, ".."));
-    const result = await run(helper, [
-      "--parent-pid", String(process.pid), "--instance", randomUUID(), "--status-file", `${marker}.status`, "--",
-      process.execPath, "-e", `require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'started')`,
-    ]);
-    expect(result.exitCode).toBe(2);
-    expect(result.stderr).toContain("CONTAINMENT_UNSUPPORTED");
-    await expect(readFile(marker, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+    const marker = resolve(root, "child.json");
+    const resultPath = resolve(root, "result.json");
+    const statusPath = resolve(root, "status.json");
+    const fixture = resolve("test/fixtures/process-containment/darwin-pty.py");
+    const execution = await run("python3", [fixture, helper, marker, resultPath, statusPath, mode]);
+    expect(execution.exitCode, execution.stderr).toBe(0);
+    const result = JSON.parse(await readFile(resultPath, "utf8")) as {
+      guardianPid: number; initialForeground: number; restoredForeground: number; exitCode: number;
+    };
+    expect(result.exitCode).toBe(expectedExit);
+    expect(result.initialForeground).toBe(result.guardianPid);
+    // Platform: Darwin reports 0 after the controlling session leader exits; a nonzero value must
+    // still name the restored guardian group. The guardian propagates restoration errors.
+    expect([0, result.guardianPid]).toContain(result.restoredForeground);
+    if (expectsMarker) {
+      const child = JSON.parse(await readFile(marker, "utf8")) as { pid: number; processGroup: number; foregroundGroup: number };
+      expect(child.processGroup).toBe(child.pid);
+      expect(child.foregroundGroup).toBe(child.processGroup);
+      expect(child.processGroup).not.toBe(result.guardianPid);
+    }
+  }, 20_000);
+
+  macIt("reports a stable native start identity for a live Darwin process", async () => {
+    const helper = process.env.A1_PROCESS_GUARDIAN_PATH ?? resolve("native/process-guardian/target/debug/process-guardian");
+    const first = await run(helper, ["--inspect-pid", String(process.pid)]);
+    const second = await run(helper, ["--inspect-pid", String(process.pid)]);
+    expect(first.exitCode).toBe(0);
+    expect(second.exitCode).toBe(0);
+    const firstIdentity = JSON.parse(first.stdout) as { pid: number; startIdentity: string };
+    const secondIdentity = JSON.parse(second.stdout) as { pid: number; startIdentity: string };
+    expect(firstIdentity).toEqual(secondIdentity);
+    expect(firstIdentity.pid).toBe(process.pid);
+    expect(firstIdentity.startIdentity).toMatch(/^darwin-proc-start:\d+:\d+$/);
   });
 });
 
@@ -94,11 +124,11 @@ function safeKill(pid: number | undefined, signal: NodeJS.Signals): void {
   }
 }
 
-async function run(executable: string, arguments_: readonly string[]): Promise<{ exitCode: number; stderr: string }> {
+async function run(executable: string, arguments_: readonly string[]): Promise<{ exitCode: number; stdout: string; stderr: string }> {
   return await new Promise(resolvePromise => {
-    execFile(executable, [...arguments_], (error, _stdout, stderr) => {
+    execFile(executable, [...arguments_], (error, stdout, stderr) => {
       const exitCode = error && "code" in error && typeof error.code === "number" ? error.code : error ? 1 : 0;
-      resolvePromise({ exitCode, stderr });
+      resolvePromise({ exitCode, stdout, stderr });
     });
   });
 }

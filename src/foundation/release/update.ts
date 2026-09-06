@@ -262,8 +262,8 @@ export function createUpdateLifecycleCoordinator(
       onWarmup?.("started");
       await warmMaterializedRelease(candidate, environment);
       onWarmup?.("completed");
-      await startSupervisor(candidate, environment);
-      await waitForVerifiedEndpoint(resolveCohortEndpoint(paths, candidate.releaseId, environment).endpointMetadataPath, candidate, 8_000);
+      const startup = await startSupervisor(candidate, environment);
+      await waitForVerifiedEndpoint(resolveCohortEndpoint(paths, candidate.releaseId, environment).endpointMetadataPath, candidate, 8_000, startup);
     },
   };
 }
@@ -633,8 +633,8 @@ async function rollbackPriorCohort(dataDir: string, environment: NodeJS.ProcessE
   const paths = resolveProductPaths(environment);
   // Invariant: rollback re-points the active reference and starts the prior cohort on its own endpoint;
   // a cohort that survived the update keeps serving the work it already had.
-  await startSupervisor(release, environment);
-  await waitForVerifiedEndpoint(resolveCohortEndpoint(paths, release.releaseId, environment).endpointMetadataPath, release, 8_000);
+  const startup = await startSupervisor(release, environment);
+  await waitForVerifiedEndpoint(resolveCohortEndpoint(paths, release.releaseId, environment).endpointMetadataPath, release, 8_000, startup);
   return "rolled back";
 }
 

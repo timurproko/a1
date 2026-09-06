@@ -1,4 +1,4 @@
-import { accessSync, constants, existsSync, statSync } from "node:fs";
+import { accessSync, constants, existsSync, realpathSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { resolve } from "node:path";
 import { SessionManager, type SessionInfo } from "@earendil-works/pi-coding-agent";
@@ -45,8 +45,12 @@ export async function openSelectedPiSession(options: SessionSelectionOptions): P
       path = resolveSessionArgumentPath(target, cwd);
     } else {
       const local = matchSession(await sessions.list(cwd, sessionDir), target);
-      global = local ? undefined : matchSession(await sessions.listAll(sessionDir), target);
-      const matched = local ?? global;
+      const globalMatch = local ? undefined : matchSession(await sessions.listAll(sessionDir), target);
+      // Compatibility: macOS may expose one temporary directory as /var to one process
+      // and /private/var to another. Physical path identity must not turn that alias into
+      // a cross-project fork prompt.
+      global = globalMatch && !sameProjectDirectory(globalMatch.cwd, cwd) ? globalMatch : undefined;
+      const matched = local ?? globalMatch;
       if (!matched) throw new PiSessionSelectionError(`No session found matching '${target}'`);
       path = matched.path;
     }
@@ -68,6 +72,16 @@ export async function openSelectedPiSession(options: SessionSelectionOptions): P
   } catch (error) {
     if (error instanceof PiSessionSelectionError) throw error;
     throw new PiSessionSelectionError(`Could not resume session: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+function sameProjectDirectory(left: string, right: string): boolean {
+  try {
+    const first = realpathSync.native(resolve(left));
+    const second = realpathSync.native(resolve(right));
+    return process.platform === "win32" ? first.toLowerCase() === second.toLowerCase() : first === second;
+  } catch {
+    return resolve(left) === resolve(right);
   }
 }
 
