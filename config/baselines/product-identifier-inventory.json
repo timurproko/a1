@@ -361,37 +361,37 @@
     },
     {
       "path": "test/foundation/release/package-install.integration.test.ts",
-      "line": 178,
+      "line": 259,
       "identifier": "A1_DATA_DIR"
     },
     {
       "path": "test/foundation/release/package-install.integration.test.ts",
-      "line": 179,
+      "line": 260,
       "identifier": "A1_RUNTIME_DIR"
     },
     {
       "path": "test/foundation/release/package-install.integration.test.ts",
-      "line": 180,
+      "line": 261,
       "identifier": "A1_RELEASE_CLEANUP_RUN_ID"
     },
     {
       "path": "test/foundation/release/package-install.integration.test.ts",
-      "line": 181,
+      "line": 262,
       "identifier": "A1_RELEASE_CLEANUP_HOLDS"
     },
     {
       "path": "test/foundation/release/package-install.integration.test.ts",
-      "line": 239,
+      "line": 320,
       "identifier": "A1_DATA_DIR"
     },
     {
       "path": "test/foundation/release/package-install.integration.test.ts",
-      "line": 240,
+      "line": 321,
       "identifier": "A1_RUNTIME_DIR"
     },
     {
       "path": "test/foundation/release/package-install.integration.test.ts",
-      "line": 241,
+      "line": 322,
       "identifier": "A1_RELEASE_CLEANUP_RUN_ID"
     },
     {
