@@ -140,6 +140,87 @@ describe("clean installation of the exact candidate", () => {
     for (const launcher of launchers) await expect(readFile(launcher, "utf8")).resolves.toContain("recovery.js");
   }, 30_000);
 
+  it("keeps the exact packaged recovery guardian alive after updater loss", async () => {
+    const installedRoot = resolve(prefix, ...(process.platform === "win32" ? [] : ["lib"]), "node_modules", "@timurproko", "a1");
+    const releaseModuleUrl = pathToFileURL(resolve(installedRoot, "dist", "foundation", "release", "index.js")).href;
+    const releaseModule = await import(releaseModuleUrl) as typeof import("../../../src/foundation/release/index.js");
+    const fixtureRoot = resolve(root, "lost-updater");
+    const dataDir = resolve(fixtureRoot, "data");
+    const globalRoot = process.platform === "win32" ? resolve(fixtureRoot, "npm", "node_modules") : resolve(fixtureRoot, "prefix", "lib", "node_modules");
+    const packageRoot = resolve(globalRoot, "@timurproko", "a1");
+    const npmCli = resolve(globalRoot, "npm", "bin", "npm-cli.js");
+    const priorReleaseId = "1.0.0-bbbbbbbbbbbbbbbbbbbb";
+    const priorReleaseRoot = resolve(dataDir, "releases", priorReleaseId);
+    const launchers = releaseModule.updateLauncherPaths(globalRoot);
+    await mkdir(resolve(packageRoot, "bin"), { recursive: true });
+    await mkdir(dirname(npmCli), { recursive: true });
+    await mkdir(resolve(priorReleaseRoot, "bin"), { recursive: true });
+    await writeFile(resolve(packageRoot, "package.json"), JSON.stringify({ name: "@timurproko/a1", version: "1.0.0" }));
+    await writeFile(resolve(packageRoot, "bin", "cli.js"), "// prior package");
+    await writeFile(resolve(priorReleaseRoot, "bin", "cli.js"), "// prior immutable release");
+    await writeFile(resolve(priorReleaseRoot, ".a1-release.json"), JSON.stringify({ releaseId: priorReleaseId, contentDigest: "b".repeat(64) }));
+    for (const launcher of launchers) { await mkdir(dirname(launcher), { recursive: true }); await writeFile(launcher, "prior launcher"); }
+    await writeFile(npmCli, `
+      const { chmod, mkdir, rm, writeFile } = require("node:fs/promises");
+      const { dirname, resolve } = require("node:path");
+      const packageRoot = ${JSON.stringify(packageRoot)};
+      const launchers = ${JSON.stringify(launchers)};
+      (async () => {
+        for (const launcher of launchers) await rm(launcher, { force: true });
+        await new Promise(resolvePromise => setTimeout(resolvePromise, 1000));
+        await mkdir(resolve(packageRoot, "bin"), { recursive: true });
+        await writeFile(resolve(packageRoot, "package.json"), JSON.stringify({ name: "@timurproko/a1", version: "1.1.0" }));
+        await writeFile(resolve(packageRoot, "bin", "cli.js"), "// target");
+        for (const launcher of launchers) {
+          await mkdir(dirname(launcher), { recursive: true });
+          await writeFile(launcher, "node_modules/@timurproko/a1/bin/cli.js");
+          await chmod(launcher, 0o755);
+        }
+      })();
+    `);
+    const transaction = {
+      schema: "a1-update-journal-v1" as const,
+      transactionId: "33333333-3333-4333-8333-333333333333",
+      channel: "next" as const,
+      targetVersion: "1.1.0",
+      packageRoot,
+      priorActiveReleaseId: priorReleaseId,
+      phase: "ownership-released" as const,
+      status: "active" as const,
+      error: null,
+      startedAt: new Date(0).toISOString(),
+      updatedAt: new Date(0).toISOString(),
+    };
+    const serializable = {
+      dataDir,
+      globalRoot,
+      packageRoot,
+      transaction,
+      priorRelease: { releaseId: priorReleaseId, releaseRoot: priorReleaseRoot, contentDigest: "b".repeat(64) },
+      environment: { ...process.env, npm_execpath: npmCli },
+      timeoutMs: 30_000,
+    };
+    const prepared = await releaseModule.prepareUpdateRecoveryCapsule({ ...serializable, output: { stderr: () => {} } });
+    const script = `
+      const { runProtectedPackageReplacement } = await import(${JSON.stringify(releaseModuleUrl)});
+      await runProtectedPackageReplacement({ ...${JSON.stringify(serializable)}, output: { stderr() {} } });
+    `;
+    const updater = crossSpawn(process.execPath, ["--input-type=module", "-e", script], { cwd: root, stdio: "ignore", windowsHide: true });
+    await waitForPath(prepared.capsule.ownerPath, 10_000);
+    updater.kill("SIGKILL");
+    await new Promise(resolvePromise => updater.once("close", resolvePromise));
+    await waitForPath(prepared.capsule.resultPath, 20_000);
+
+    const result = JSON.parse(await readFile(prepared.capsule.resultPath, "utf8")) as { launcherDisposition: string };
+    expect(result.launcherDisposition).toBe("target");
+    for (const launcher of launchers) {
+      const metadata = await stat(launcher);
+      expect(metadata.isFile()).toBe(true);
+      if (process.platform !== "win32") expect(metadata.mode & 0o111).not.toBe(0);
+      await expect(readFile(launcher, "utf8")).resolves.toContain("node_modules/@timurproko/a1/bin/cli.js");
+    }
+  }, 30_000);
+
   it("materializes the published minimal inventory into one reusable dependency layer", async () => {
     const { materializeRelease } = await import("../../../src/foundation/release/index.js");
     const packageRoot = resolve(prefix, ...(process.platform === "win32" ? [] : ["lib"]), "node_modules", "@timurproko", "a1");
@@ -481,6 +562,15 @@ function runAsync(command: string, arguments_: readonly string[], cwd: string, e
     child.once("error", rejectPromise);
     child.once("close", status => resolvePromise({ status, stdout, stderr }));
   });
+}
+
+async function waitForPath(path: string, timeoutMs: number): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (await access(path).then(() => true).catch(() => false)) return;
+    await new Promise(resolvePromise => setTimeout(resolvePromise, 25));
+  }
+  throw new Error(`timed out waiting for ${path}`);
 }
 
 async function removeFixtureRoot(path: string): Promise<void> {
