@@ -1,8 +1,8 @@
 ## 1. Preserve and expose the macOS failure
 
-- [ ] 1.1 Record run `34022380161`, source `4e7901f3e0105ae5de6c54be49dc2728677a3f74`, candidate `0.1.8-dev.254`, successful Linux/Windows Node 24 outcomes, macOS supervisor-readiness timeout, Windows Node 22 budget failure, skipped publisher, and failed aggregate in structured evidence; verify every job identity and conclusion against GitHub
-- [ ] 1.2 Add a correlated one-shot supervisor startup result bound to an unguessable attempt and exact release identity, with atomic ready/failure publication, bounded sanitized fields, and retention cleanup; verify unit tests reject stale, malformed, oversized, mismatched-release, and mismatched-attempt records
-- [ ] 1.3 Make bootstrap race verified endpoint readiness, matching startup failure, and child exit within the existing bound; verify an injected pre-listen failure reports its stage/code/outcome instead of only `supervisor did not publish verified endpoint metadata`
+- [x] 1.1 Record run `34022380161`, source `4e7901f3e0105ae5de6c54be49dc2728677a3f74`, candidate `0.1.8-dev.254`, successful Linux/Windows Node 24 outcomes, macOS supervisor-readiness timeout, Windows Node 22 budget failure, skipped publisher, and failed aggregate in structured evidence; verify every job identity and conclusion against GitHub
+- [x] 1.2 Add a correlated one-shot supervisor startup result bound to an unguessable attempt and exact release identity, with atomic ready/failure publication, bounded sanitized fields, and retention cleanup; verify unit tests reject stale, malformed, oversized, mismatched-release, and mismatched-attempt records
+- [x] 1.3 Make bootstrap race verified endpoint readiness, matching startup failure, and child exit within the existing bound; verify an injected pre-listen failure reports its stage/code/outcome instead of only `supervisor did not publish verified endpoint metadata`
 - [ ] 1.4 Reproduce the exact packaged macOS failure with startup evidence, record the concrete pre-listen authority and error, and repair that authority without weakening release certification, immutable-root validation, storage, or endpoint ownership; verify focused macOS success and injected-failure tests
 
 ## 2. Certify Darwin process containment
@@ -14,7 +14,7 @@
 
 ## 3. Gate macOS before publication
 
-- [ ] 3.1 Extend macOS-focused pull-request validation to run native guardian identity/containment and correlated supervisor-startup coverage when affected boundaries change; verify validation policy tests fail if those checks are omitted or converted to skips
+- [x] 3.1 Extend macOS-focused pull-request validation to run native guardian identity/containment and correlated supervisor-startup coverage when affected boundaries change; verify validation policy tests fail if those checks are omitted or converted to skips
 - [ ] 3.2 Extend exact-package macOS evidence to preserve bounded supervisor startup diagnostics and exercise package surface, supervisor readiness, session creation/resume, concurrent cleanup, and parent-loss containment against the one candidate; verify the pre-fix `.254` path fails and the corrected candidate passes without retries
 - [ ] 3.3 Run focused native, supervision, packaged-session, validation-policy, typecheck, architecture, changed-file documentation, and strict OpenSpec validation; verify no Windows/Linux containment semantics, package manifest/lock, dependency, publisher, or unrelated file changes are included
 - [ ] 3.4 Push a fresh implementation branch and open a code pull request citing this change with auto-merge disabled; verify current-head required CI passes, provide exact commit and focused commands for maintainer review, and leave manual merge pending explicit acceptance

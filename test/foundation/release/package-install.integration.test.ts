@@ -182,10 +182,10 @@ describe("clean installation of the exact candidate", () => {
     await state.approve(release.releaseId, await certifyMaterializedRelease(release, dataDir));
     await state.activate(release.releaseId);
     await warmMaterializedRelease(release, environment);
-    await startSupervisor(release, environment);
+    const startup = await startSupervisor(release, environment);
     const paths = resolveProductPaths(environment);
     const cohort = resolveCohortEndpoint(paths, release.releaseId, environment);
-    await waitForVerifiedEndpoint(cohort.endpointMetadataPath, release, 8_000);
+    await waitForVerifiedEndpoint(cohort.endpointMetadataPath, release, 8_000, startup);
     try {
       for (const profileId of ["a1", "pi"] as const) {
         const postUpdate = await captureReadyLaunch(packageRoot, environment, profileId, "post-update");

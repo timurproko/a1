@@ -5,7 +5,7 @@ import { platform } from "node:os";
 import { resolve } from "node:path";
 import { selectCohortLaunch, type OwnershipProbe } from "./cohort-selection.js";
 import { CohortStateStore, type SupervisorEndpointMetadata } from "./cohort-state.js";
-import { assertLaunchProfileId, resolveCohortEndpoint, resolveProductPaths, sessionSelectionArguments, type SessionSelection, type LaunchProfileId } from "../lifecycle/index.js";
+import { assertLaunchProfileId, createSupervisorStartupAttempt, readSupervisorStartupResult, resolveCohortEndpoint, resolveProductPaths, sessionSelectionArguments, type SessionSelection, type LaunchProfileId, type SupervisorStartupAttemptIdentity } from "../lifecycle/index.js";
 import { encodeFrame, LineFrameDecoder } from "../protocol/index.js";
 import { cleanupProvenIdleOwner, processIsAlive } from "./process-cleanup.js";
 import { sweepDeadEndpoints } from "./endpoints.js";
@@ -100,8 +100,8 @@ export async function runBootstrap(options: BootstrapOptions): Promise<number> {
       await markStartupPhase(environment, "durable-validation-complete");
       const retainedPaths = resolveCohortEndpoint(paths, retained.releaseId, environment);
       await markStartupPhase(environment, "replacement-supervisor-start");
-      await startSupervisor(retained, environment);
-      await waitForVerifiedEndpoint(retainedPaths.endpointMetadataPath, retained, 8_000);
+      const startup = await startSupervisor(retained, environment);
+      await waitForVerifiedEndpoint(retainedPaths.endpointMetadataPath, retained, 8_000, startup);
       await markStartupPhase(environment, "replacement-supervisor-ready");
       return await launchUi(retained, environment, sessionArgs);
     }
@@ -199,8 +199,8 @@ export async function runBootstrap(options: BootstrapOptions): Promise<number> {
     selected = await readMaterializedRelease(decision.releaseRoot);
   }
 
-  await startSupervisor(selected, environment);
-  await waitForVerifiedEndpoint(resolveCohortEndpoint(paths, selected.releaseId, environment).endpointMetadataPath, selected, 8_000);
+  const startup = await startSupervisor(selected, environment);
+  await waitForVerifiedEndpoint(resolveCohortEndpoint(paths, selected.releaseId, environment).endpointMetadataPath, selected, 8_000, startup);
   return await launchUi(selected, environment, sessionArgs);
 }
 
@@ -228,9 +228,15 @@ export async function certifyMaterializedRelease(
   return path;
 }
 
-export async function startSupervisor(release: MaterializedRelease, environment: NodeJS.ProcessEnv): Promise<void> {
+export interface SupervisorStartupAttempt extends SupervisorStartupAttemptIdentity {
+  readonly childOutcome: Promise<{ readonly exitCode: number | null; readonly signal: NodeJS.Signals | null }>;
+}
+
+export async function startSupervisor(release: MaterializedRelease, environment: NodeJS.ProcessEnv): Promise<SupervisorStartupAttempt> {
   const entry = await resolveReleaseEntryPoint(release, "bin/supervisor.js");
-  const child = spawn(process.execPath, [entry], {
+  const paths = resolveProductPaths(environment);
+  const attempt = await createSupervisorStartupAttempt(paths.runtimeDir, release.releaseId);
+  const child = spawn(process.execPath, [entry, "--startup-attempt", attempt.attemptId], {
     detached: true,
     env: releaseEnvironment(environment, release),
     stdio: "ignore",
@@ -240,7 +246,11 @@ export async function startSupervisor(release: MaterializedRelease, environment:
     child.once("spawn", resolvePromise);
     child.once("error", rejectPromise);
   });
+  const childOutcome = new Promise<{ exitCode: number | null; signal: NodeJS.Signals | null }>(resolvePromise => {
+    child.once("close", (exitCode, signal) => resolvePromise({ exitCode, signal }));
+  });
   child.unref();
+  return { ...attempt, childOutcome };
 }
 
 async function launchUi(release: MaterializedRelease, environment: NodeJS.ProcessEnv, sessionArgs: readonly string[]): Promise<number> {
@@ -267,11 +277,30 @@ export function releaseEnvironment(environment: NodeJS.ProcessEnv, release: Mate
   };
 }
 
-export async function waitForVerifiedEndpoint(path: string, release: MaterializedRelease, timeoutMs: number): Promise<void> {
+export async function waitForVerifiedEndpoint(
+  path: string,
+  release: MaterializedRelease,
+  timeoutMs: number,
+  startup?: SupervisorStartupAttempt,
+): Promise<void> {
   const deadline = Date.now() + timeoutMs;
+  let childOutcome: { readonly exitCode: number | null; readonly signal: NodeJS.Signals | null } | null = null;
+  void startup?.childOutcome.then(outcome => { childOutcome = outcome; });
   while (Date.now() < deadline) {
     const metadata = await readEndpointMetadata(path);
-    if (metadata && metadata.releaseId === release.releaseId && await probeOwnership(metadata) === "live-verified") return;
+    if (metadata && metadata.releaseId === release.releaseId && await probeOwnership(metadata) === "live-verified") {
+      if (startup) await rm(startup.resultPath, { force: true });
+      return;
+    }
+    if (startup) {
+      const result = await readSupervisorStartupResult(startup.resultPath, startup.attemptId, startup.releaseId);
+      if (result?.outcome === "failure") {
+        throw Object.assign(new Error(PRODUCT_TEXT.diagnostic(`supervisor startup failed at ${result.stage}: ${result.message}`)), {
+          code: result.code ?? "SUPERVISOR_STARTUP_FAILED",
+        });
+      }
+    }
+    if (childOutcome) throw new Error(PRODUCT_TEXT.diagnostic(`supervisor exited before readiness: ${JSON.stringify(childOutcome)}`));
     await new Promise(resolvePromise => setTimeout(resolvePromise, 40));
   }
   throw new Error(PRODUCT_TEXT.diagnostic(`supervisor did not publish verified endpoint metadata within ${timeoutMs}ms`));
@@ -366,8 +395,8 @@ async function activatePendingAfterBlockerExit(
   if (!await releaseVerifiedIdleOwner(endpoint, paths.dataDir)) return;
   await removeEndpointArtifacts(paths.endpointMetadataPath, paths.endpoint);
   await stateStore.activate(candidate.releaseId);
-  await startSupervisor(candidate, environment);
-  await waitForVerifiedEndpoint(resolveCohortEndpoint(paths, candidate.releaseId, environment).endpointMetadataPath, candidate, 8_000);
+  const startup = await startSupervisor(candidate, environment);
+  await waitForVerifiedEndpoint(resolveCohortEndpoint(paths, candidate.releaseId, environment).endpointMetadataPath, candidate, 8_000, startup);
 }
 
 export async function releaseVerifiedIdleOwner(
