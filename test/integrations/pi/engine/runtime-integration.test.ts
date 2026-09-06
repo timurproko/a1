@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { createAgentSessionServices, SessionManager } from "@earendil-works/pi-coding-agent";
@@ -35,6 +35,33 @@ describe("official Pi runtime integration", () => {
 
     unbind();
     await expect(disposePiRuntimeIntegration(runtime)).resolves.toBeUndefined();
+  });
+
+  it("loads Windows NUL cleanup inline across session replacement without changing profile extensions", async () => {
+    const root = await mkdtemp(resolve(tmpdir(), "a1-pi-runtime-extensions-"));
+    roots.push(root);
+    const cwd = resolve(root, "work");
+    const agentDir = resolve(root, "agent");
+    const extensionsDir = resolve(agentDir, "extensions");
+    await Promise.all([mkdir(cwd), mkdir(extensionsDir, { recursive: true })]);
+    await writeFile(resolve(extensionsDir, "user-extension.ts"), "export default function () {}\n");
+    const runtime = await createPiRuntimeIntegration({ cwd, agentDir, sessionDir: resolve(root, "sessions") });
+
+    const expectedInlinePaths = process.platform === "win32" ? ["<inline:windows-nul-file-cleanup>"] : [];
+    const extensionPaths = () => runtime.services.resourceLoader.getExtensions().extensions.map(extension => extension.path);
+    expect(extensionPaths()).toEqual(expect.arrayContaining([
+      resolve(extensionsDir, "user-extension.ts"),
+      ...expectedInlinePaths,
+    ]));
+
+    await replacePiRuntimeSession(runtime, { kind: "new" });
+
+    expect(extensionPaths()).toEqual(expect.arrayContaining([
+      resolve(extensionsDir, "user-extension.ts"),
+      ...expectedInlinePaths,
+    ]));
+    expect(await readdir(extensionsDir)).toEqual(["user-extension.ts"]);
+    await disposePiRuntimeIntegration(runtime);
   });
 
   it("surfaces pinned Pi's model-scope warnings for unmatched patterns in the enabledModels setting", async () => {
