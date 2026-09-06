@@ -45,6 +45,24 @@ describe("durable update transaction journal", () => {
     await expect(store.read()).rejects.toThrow(/invalid A1 update transaction journal/);
   });
 
+  it("persists additive launcher-recovery state and rejects malformed dispositions", async () => {
+    const root = await mkdtemp(resolve(tmpdir(), "a1-update-recovery-journal-"));
+    roots.push(root);
+    const store = new UpdateTransactionStore(root);
+    await store.begin({ channel: "next", targetVersion: "1.2.0-dev.1", packageRoot: "/npm/a1", priorActiveReleaseId: "old" });
+    await expect(store.setRecovery({
+      capsulePath: "/data/update-recovery/transaction/capsule.json",
+      status: "running",
+      guardianPid: 42,
+      guardianStartIdentity: "42:start",
+      cancellationRequested: true,
+      launcherDisposition: "pending",
+    })).resolves.toMatchObject({ recovery: { status: "running", guardianPid: 42, cancellationRequested: true } });
+
+    await writeFile(store.path, JSON.stringify({ ...(await store.read()), recovery: { status: "unknown" } }));
+    await expect(store.read()).rejects.toThrow(/invalid A1 update transaction journal/);
+  });
+
   it("rejects a mixed target while an update remains active and retains rollback evidence", async () => {
     const root = await mkdtemp(resolve(tmpdir(), "a1-update-journal-conflict-"));
     roots.push(root);

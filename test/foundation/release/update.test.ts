@@ -289,6 +289,67 @@ describe("A1 self-update orchestration", () => {
     expect(harness.stdout.join("")).toContain("a1 updated successfully: 1.3.0");
   });
 
+  it("routes production package replacement through the protected coordinator", async () => {
+    const harness = createHarness({ responses: [success("1.3.0\n"), success(`${resolve("fixtures", "global")}\n`), success()] });
+    const packageReplacement = vi.fn(async () => ({
+      schema: "a1-update-recovery-v1" as const,
+      transactionId: "test-update",
+      outcome: "installed" as const,
+      npmExitCode: 0,
+      cancelled: false,
+      launcherDisposition: "target" as const,
+      stdout: "",
+      stderr: "",
+      completedAt: new Date(0).toISOString(),
+      recovery: {
+        capsulePath: resolve("fixtures", "data", "update-recovery", "test", "capsule.json"),
+        status: "package-installed" as const,
+        guardianPid: 42,
+        guardianStartIdentity: "42:start",
+        cancellationRequested: false,
+        launcherDisposition: "target" as const,
+      },
+    }));
+
+    await expect(runSelfUpdate({ ...harness, packageReplacement })).resolves.toBe(0);
+
+    expect(packageReplacement).toHaveBeenCalledOnce();
+    expect(harness.invocations.some(call => call.arguments[0] === "install")).toBe(false);
+    expect(harness.stdout.join("")).toContain("updated successfully: 1.3.0");
+  });
+
+  it("acknowledges cancellation only after protected replacement restores a launcher", async () => {
+    const harness = createHarness({ responses: [success("1.3.0\n"), success(`${resolve("fixtures", "global")}\n`)] });
+    const recovery = {
+      capsulePath: resolve("fixtures", "data", "update-recovery", "test", "capsule.json"),
+      status: "recovery-launcher" as const,
+      guardianPid: 42,
+      guardianStartIdentity: "42:start",
+      cancellationRequested: true,
+      launcherDisposition: "recovery" as const,
+    };
+
+    await expect(runSelfUpdate({
+      ...harness,
+      packageReplacement: async () => ({
+        schema: "a1-update-recovery-v1",
+        transactionId: "test-update",
+        outcome: "recovery-launcher",
+        npmExitCode: null,
+        cancelled: true,
+        launcherDisposition: "recovery",
+        stdout: "",
+        stderr: "",
+        completedAt: new Date(0).toISOString(),
+        recovery,
+      }),
+    })).resolves.toBe(130);
+
+    expect(harness.stdout.join("")).not.toContain("updated successfully");
+    expect(harness.stderr.join("")).toContain("update cancelled safely; the A1 launcher is available");
+    expect(harness.invocations.some(call => call.arguments[0] === "install")).toBe(false);
+  });
+
   it("fails safely when the activated startup graph cannot warm", async () => {
     const harness = createHarness({ responses: [success("1.3.0\n"), success(`${resolve("fixtures", "global")}\n`), success(), success()] });
     harness.lifecycle.activateInstalled = async (_path, _version, phase) => {

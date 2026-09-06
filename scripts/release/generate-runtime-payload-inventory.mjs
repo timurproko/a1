@@ -16,7 +16,7 @@ const declaredAssets = selected.paths.filter(path => /\.(?:json|node|wasm|css|ht
   || /(?:^|\/)LICENSE(?:\.|$)/i.test(path));
 const output = {
   schema: PRODUCT_IDENTITY.evidence.runtimePayloadSchema,
-  entryPoints: ["bin/cli.js", "bin/guardian.js", "bin/supervisor.js", "bin/ui.js", "bin/warmup.js"],
+  entryPoints: ["bin/cli.js", "bin/guardian.js", "bin/supervisor.js", "bin/ui.js", "bin/update-recovery.js", "bin/warmup.js"],
   declaredAssets,
   paths: selected.paths,
   classifications: selected.classifications,

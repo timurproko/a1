@@ -21,7 +21,8 @@ import { cleanupVerifiedOwner, processIsAlive } from "./process-cleanup.js";
 import { materializeRelease, readMaterializedRelease } from "./release-store.js";
 import { scheduleReleaseCleanup } from "./release-gc.js";
 import { warmMaterializedRelease } from "./warmup.js";
-import { UpdateTransactionStore, type UpdateTransaction, type UpdateTransactionPhase } from "./update-transaction.js";
+import { UpdateTransactionStore, type UpdateRecoveryState, type UpdateTransaction, type UpdateTransactionPhase } from "./update-transaction.js";
+import { removeUpdateRecoveryCapsule, runProtectedPackageReplacement, type ProtectedPackageReplacementResult } from "./update-recovery.js";
 
 export const PRODUCT_PACKAGE = PRODUCT_TEXT.packageName;
 export type UpdateChannel = "stable" | "next";
@@ -72,6 +73,8 @@ export interface SelfUpdateOptions {
   runner?: UpdateProcessRunner;
   lifecycle?: UpdateLifecycleCoordinator;
   transactionStore?: UpdateTransactionJournal;
+  /** Test seam for protected global package replacement. */
+  packageReplacement?: (input: UpdatePackageReplacementInput) => Promise<ProtectedPackageReplacementResult>;
   /** Test or embedding seam for post-activation release maintenance. */
   maintenance?: () => Promise<void>;
   progress?: boolean;
@@ -107,8 +110,20 @@ export interface UpdateTransactionJournal {
   read(): Promise<UpdateTransaction | null>;
   begin(input: { channel: UpdateChannel; targetVersion: string; packageRoot: string; priorActiveReleaseId: string | null }): Promise<UpdateTransaction>;
   advance(phase: UpdateTransactionPhase): Promise<UpdateTransaction>;
+  setRecovery?(recovery: UpdateRecoveryState): Promise<UpdateTransaction>;
   finish(status: "completed" | "rolled-back" | "failed", error?: string | null): Promise<UpdateTransaction>;
   clearCompleted(): Promise<void>;
+}
+
+export interface UpdatePackageReplacementInput {
+  readonly dataDir: string;
+  readonly globalRoot: string;
+  readonly packageRoot: string;
+  readonly transaction: UpdateTransaction;
+  readonly priorRelease: { readonly releaseId: string; readonly releaseRoot: string; readonly contentDigest: string };
+  readonly output: UpdateOutput;
+  readonly environment: NodeJS.ProcessEnv;
+  readonly onRecoveryState: (state: UpdateRecoveryState) => Promise<void>;
 }
 
 const defaultFileSystem: UpdateFileSystem = {
@@ -476,12 +491,24 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
     }
     // Rationale: the bar first appears here so a no-change run never flashes it.
     progress.set(3, 15);
-    const cohortState = await new CohortStateStore(paths.dataDir).read();
+    const cohortStore = new CohortStateStore(paths.dataDir);
+    let cohortState = await cohortStore.read();
+    let priorActiveReleaseId = cohortState.references.active;
+    if (options.runner === undefined && (priorActiveReleaseId === null || cohortState.releases[priorActiveReleaseId]?.approval !== "approved")) {
+      // Invariant: protected replacement needs an immutable launch authority that npm cannot rename.
+      const recoveryRelease = await materializeRelease(packageRoot, paths.dataDir);
+      await cohortStore.recordCandidate(recoveryRelease);
+      const diagnostics = await certifyMaterializedRelease(recoveryRelease, paths.dataDir);
+      await cohortStore.approve(recoveryRelease.releaseId, diagnostics);
+      await cohortStore.activate(recoveryRelease.releaseId);
+      cohortState = await cohortStore.read();
+      priorActiveReleaseId = recoveryRelease.releaseId;
+    }
     transaction = await transactionStore.begin({
       channel,
       targetVersion,
       packageRoot,
-      priorActiveReleaseId: cohortState.references.active,
+      priorActiveReleaseId,
     });
     if (phaseBefore(transaction.phase, "ownership-released")) {
       await measure("ownership-release", async () => {
@@ -493,20 +520,57 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
     progress.set(15, 70);
 
     if (phaseBefore(transaction.phase, "package-installed")) {
-      const installation = await measure("npm-install", async () => await runNpm(
-        runner,
-        ["install", "--global", "--loglevel=error", "--no-fund", "--no-audit", `${PRODUCT_PACKAGE}@${targetVersion}`],
-        true,
-        output,
-        "start the global npm installation",
-        false,
-      ));
-      if (installation.result === null) throw new UpdateFailure(installation.exitCode, "npm process failed");
-      if (installation.result.code !== 0) {
-        if (installation.result.stdout.trim().length > 0) output.stderr(`${installation.result.stdout.trimEnd()}\n`);
-        throw new UpdateFailure(unsuccessfulCode(installation.result.code), `npm exited with status ${formatExitCode(installation.result.code)}`);
+      if (options.packageReplacement || options.runner === undefined) {
+        const priorReleaseId = transaction.priorActiveReleaseId ?? priorActiveReleaseId;
+        const recordedPrior = priorReleaseId === null ? undefined : cohortState.releases[priorReleaseId];
+        if ((!recordedPrior || recordedPrior.approval !== "approved") && !options.packageReplacement) {
+          throw new Error(PRODUCT_TEXT.diagnostic("cannot protect package replacement because no approved prior release is available"));
+        }
+        const priorRelease = recordedPrior ?? {
+          releaseId: priorReleaseId ?? "injected-prior-release",
+          releaseRoot: packageRoot,
+          contentDigest: "0".repeat(64),
+        };
+        const replacementTransaction = transaction;
+        const replacement = await measure("npm-install", async () => await (options.packageReplacement ?? runProtectedPackageReplacement)({
+          dataDir: paths.dataDir,
+          globalRoot,
+          packageRoot,
+          transaction: replacementTransaction,
+          priorRelease,
+          output,
+          environment,
+          onRecoveryState: async recovery => {
+            if (transactionStore.setRecovery) transaction = await transactionStore.setRecovery(recovery) ?? transaction;
+          },
+        }));
+        if (replacement.stdout.trim().length > 0 && replacement.outcome !== "installed") output.stderr(`${replacement.stdout.trimEnd()}\n`);
+        if (replacement.stderr.trim().length > 0) output.stderr(`${replacement.stderr.trimEnd()}\n`);
+        if (replacement.outcome === "installed") transaction = await transactionStore.advance("package-installed");
+        if (replacement.cancelled) {
+          progress.clear();
+          output.stderr(`${PRODUCT_TEXT.diagnostic("update cancelled safely; the A1 launcher is available and the transaction can be resumed.")}\n`);
+          return 130;
+        }
+        if (replacement.outcome !== "installed") {
+          throw new UpdateFailure(unsuccessfulCode(replacement.npmExitCode), `npm exited with status ${formatExitCode(replacement.npmExitCode)}`);
+        }
+      } else {
+        const installation = await measure("npm-install", async () => await runNpm(
+          runner,
+          ["install", "--global", "--loglevel=error", "--no-fund", "--no-audit", `${PRODUCT_PACKAGE}@${targetVersion}`],
+          true,
+          output,
+          "start the global npm installation",
+          false,
+        ));
+        if (installation.result === null) throw new UpdateFailure(installation.exitCode, "npm process failed");
+        if (installation.result.code !== 0) {
+          if (installation.result.stdout.trim().length > 0) output.stderr(`${installation.result.stdout.trimEnd()}\n`);
+          throw new UpdateFailure(unsuccessfulCode(installation.result.code), `npm exited with status ${formatExitCode(installation.result.code)}`);
+        }
+        transaction = await transactionStore.advance("package-installed");
       }
-      transaction = await transactionStore.advance("package-installed");
     }
 
     // Compatibility: npm 12 blocks install scripts unless allowScripts covers the package, so
@@ -551,6 +615,7 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
     const transactionStartedAt = now();
     await transactionStore.advance("supervisor-verified");
     await transactionStore.finish("completed");
+    if (transaction.recovery?.capsulePath) await removeUpdateRecoveryCapsule(paths.dataDir, transaction.transactionId);
     // Invariant: successful output follows the durable cleanup disposition. Slow recursive
     // removal belongs to the detached worker started by this maintenance coordinator.
     await maintenance();
