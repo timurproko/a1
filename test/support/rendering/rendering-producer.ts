@@ -42,6 +42,10 @@ export interface RenderingProducerCheckpoint {
     readonly verticalShiftRows: number;
     readonly safeVerticalShift: boolean;
     readonly cause: string;
+    /** Complete transient suffix and fitting alignment reported by the semantic frame. */
+    readonly transientRowCount?: number;
+    readonly transientAlignmentGapRows?: number;
+    readonly bottomAlignedTailRowCount?: number;
     /** Visible transient-tail rows occupying the scroll region at this checkpoint. */
     readonly transientTailRows: number;
   };

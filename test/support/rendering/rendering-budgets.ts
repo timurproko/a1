@@ -53,10 +53,11 @@ export function evaluateRenderingBudgets(matrix: RenderingMatrixResult): Renderi
       violations.push(`${matrix.workloadId}: missing followed stream checkpoints`);
     }
     for (const checkpoint of chunks) {
-      // Rationale: a live transient tail owns rows inside the scroll region. Its spinner frame
-      // and the streamed block's boundary markers legitimately change cells during a followed
-      // shift, so tail-active frames may use the differential fallback, confined to the
-      // transcript region. Tail-free frames must still use bounded regional movement.
+      // Rationale: non-selectable transient rows (pending Steering, fitting alignment, and
+      // live status) occupy the scroll region. Spinner frames and streamed block boundaries
+      // legitimately change cells during a followed shift, so transient-active frames may use
+      // the differential fallback confined to that region. Tail-free frames still require
+      // bounded regional movement.
       const tailRows = checkpoint.viewport?.transientTailRows ?? 0;
       if (tailRows === 0) {
         if (checkpoint.damageDecision?.reason !== "transformed") {

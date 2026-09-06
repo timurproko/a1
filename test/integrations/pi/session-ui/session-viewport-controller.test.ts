@@ -121,14 +121,20 @@ describe("session viewport interaction controller", () => {
   it("owns a whole drag begun on transient tail chrome without creating a selection", () => {
     const { target, input, compose } = hoverFixture();
     try {
-      const tailed = { ...input, documentRows: [...input.documentRows, "", " Working..."], selectableDocumentRowCount: 30 };
+      const tailed = {
+        ...input,
+        documentRows: [...input.documentRows, " Steering: later", "", " Working..."],
+        selectableDocumentRowCount: 30,
+        bottomAlignedTailRowCount: 1,
+      };
       const followed = target.compose(tailed);
-      expect(followed.hits.transientTail).toEqual([6, 7]);
-      expect(target.handlePreInput("\u001b[<0;5;6M").consumed).toBe(true);
+      expect(followed.hits.transientTail).toEqual([5, 6, 7]);
+      expect(target.handlePreInput("\u001b[<0;5;5M").consumed).toBe(true);
       expect(target.handlePreInput("\u001b[<32;5;3M").consumed).toBe(true);
       expect(target.handlePreInput("\u001b[<0;5;3m").consumed).toBe(true);
       const selected = target.compose(tailed);
       expect(target.hasSelection).toBe(false);
+      expect(selected.rows[4]).toContain("Steering: later");
       expect(selected.rows[6]).toContain("Working...");
       expect(selected.rows[6]).not.toContain("\u001b[48;2;38;79;120m");
     } finally {
@@ -161,13 +167,19 @@ describe("session viewport interaction controller", () => {
   it("clamps selection and copy at the semantic end of a transient tail", () => {
     const { target, input, compose } = hoverFixture();
     try {
-      const tailed = { ...input, documentRows: [...input.documentRows, "", " Working..."], selectableDocumentRowCount: 30 };
+      const tailed = {
+        ...input,
+        documentRows: [...input.documentRows, " Steering: later", "", " Working..."],
+        selectableDocumentRowCount: 30,
+        bottomAlignedTailRowCount: 1,
+      };
       compose();
       target.handlePreInput("\u001b[<0;4;2M");
       target.handlePreInput("\u001b[<32;4;7M");
       target.handlePreInput("\u001b[<0;4;7m");
       const copied = target.handlePreInput("\u0003");
       expect(copied.consumed).toBe(true);
+      expect(copied.copyText).not.toContain("Steering");
       expect(copied.copyText).not.toContain("Working");
       expect(copied.copyText).toContain("row-25");
     } finally {
