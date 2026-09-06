@@ -41,10 +41,10 @@ const FILESYSTEM_KEYS = ["slug", "windowsDirectory", "unixDirectory", "temporary
 const STATE_KEYS = ["windowsControlDirectory", "unixControlDirectory", "developmentDirectory", "piAgentProfile", "piVanillaProfile"] as const;
 const ENDPOINT_KEYS = ["windowsPipeStem", "unixSocketFilename", "metadataFilename", "supervisorLogFilename", "databaseFilename"] as const;
 const MANIFEST_KEYS = ["releaseFilename", "packageFilename"] as const;
-const PROTOCOL_KEYS = ["namespace", "controlEnvelope", "supervisorSchema", "nativeHostSchema", "structuredAgentSchema", "controlStoreSchema", "releaseCohortSchema", "updateJournalSchema"] as const;
-const EVIDENCE_KEYS = ["nativeSpikeSchema", "terminalProvenanceSchema", "terminalProofSchema", "stableReleaseSchema", "previewReleaseSchema", "releaseCertificationSchema", "previewPlatformVerdictSchema", "piSourceLedgerSchema", "piComponentParitySchema", "piEventFrameParitySchema", "startupTraceSchema", "dependencyLayerSchema", "dependencyLayerCertificationSchema", "runtimePayloadSchema"] as const;
+const PROTOCOL_KEYS = ["namespace", "controlEnvelope", "supervisorSchema", "nativeHostSchema", "structuredAgentSchema", "controlStoreSchema", "releaseCohortSchema", "updateJournalSchema", "launcherRuntimeSchema"] as const;
+const EVIDENCE_KEYS = ["nativeSpikeSchema", "terminalProvenanceSchema", "terminalProofSchema", "stableReleaseSchema", "previewReleaseSchema", "releaseCertificationSchema", "previewPlatformVerdictSchema", "piSourceLedgerSchema", "piComponentParitySchema", "piEventFrameParitySchema", "startupTraceSchema", "dependencyLayerSchema", "dependencyLayerCertificationSchema", "runtimePayloadSchema", "packageRoleSchema"] as const;
 const ARTIFACT_KEYS = ["cliEntry", "supervisorEntry", "guardianEntry", "uiEntry", "nativeExecutable", "nativeCrate", "processGuardianExecutable", "releaseTarballStem", "diagnosticStem"] as const;
-const ROOT_KEYS = ["schema", "displayName", "commandName", "packageName", "filesystem", "environment", "state", "endpoint", "manifest", "protocol", "evidence", "artifacts"] as const;
+const ROOT_KEYS = ["schema", "displayName", "commandName", "packageName", "runtimePackageName", "filesystem", "environment", "state", "endpoint", "manifest", "protocol", "evidence", "artifacts"] as const;
 
 type StringRecord<Keys extends readonly string[]> = { readonly [Key in Keys[number]]: string };
 
@@ -53,6 +53,7 @@ export interface ProductIdentity {
   readonly displayName: string;
   readonly commandName: string;
   readonly packageName: string;
+  readonly runtimePackageName: string;
   readonly filesystem: StringRecord<typeof FILESYSTEM_KEYS>;
   readonly environment: StringRecord<typeof ENVIRONMENT_KEYS>;
   readonly state: StringRecord<typeof STATE_KEYS>;
@@ -69,6 +70,7 @@ export function validateProductIdentity(value: unknown): ProductIdentity {
   const displayName = stringValue(root.displayName, "product display name");
   const commandName = stringValue(root.commandName, "product command name");
   const packageName = stringValue(root.packageName, "product package name");
+  const runtimePackageName = stringValue(root.runtimePackageName, "runtime package name");
   const filesystem = stringObject(root.filesystem, FILESYSTEM_KEYS, "filesystem identity");
   const environment = stringObject(root.environment, ENVIRONMENT_KEYS, "environment identity");
   const state = stringObject(root.state, STATE_KEYS, "state identity");
@@ -80,6 +82,7 @@ export function validateProductIdentity(value: unknown): ProductIdentity {
 
   if (!/^[a-z][a-z0-9-]*$/.test(commandName)) throw new TypeError("product command name must be a lowercase command slug");
   if (!/^@[a-z0-9-]+\/[a-z0-9-]+$/.test(packageName)) throw new TypeError("product package name must be a lowercase scoped npm package");
+  if (!/^@[a-z0-9-]+\/[a-z0-9-]+$/.test(runtimePackageName) || runtimePackageName === packageName) throw new TypeError("runtime package name must be a distinct lowercase scoped npm package");
   if (displayName.trim() !== displayName || displayName.length === 0) throw new TypeError("product display name must be non-empty without surrounding whitespace");
   if (schema !== `${commandName}-product-identity-v1`) throw new TypeError("product identity schema must derive from the command name");
   if (filesystem.slug !== commandName || filesystem.unixDirectory !== filesystem.slug || filesystem.windowsDirectory !== filesystem.slug) {
@@ -115,6 +118,7 @@ export function validateProductIdentity(value: unknown): ProductIdentity {
     displayName,
     commandName,
     packageName,
+    runtimePackageName,
     filesystem,
     environment,
     state,

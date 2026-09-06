@@ -1,8 +1,8 @@
 ## 1. Package Roles and Compatibility Contract
 
-- [ ] 1.1 Define generated launcher and runtime package-role manifests with independent package/version/digest identity, and verify malformed, swapped, or missing roles fail validation
-- [ ] 1.2 Define launcher protocol required/optional feature negotiation and persist it in runtime release records and endpoint metadata; verify compatible additive differences pass and unavailable required features fail before runtime execution
-- [ ] 1.3 Extend product-identity governance for the public launcher and internal runtime identities while retaining obsolete-package rejection; verify repository inventory and architecture checks classify every occurrence
+- [x] 1.1 Define generated launcher and runtime package-role manifests with independent package/version/digest identity, and verify malformed, swapped, or missing roles fail validation
+- [x] 1.2 Define launcher protocol required/optional feature negotiation and persist it in runtime release records and endpoint metadata; verify compatible additive differences pass and unavailable required features fail before runtime execution
+- [x] 1.3 Extend product-identity governance for the public launcher and internal runtime identities while retaining obsolete-package rejection; verify repository inventory and architecture checks classify every occurrence
 - [ ] 1.4 Define user-facing version semantics so ordinary output reports the active runtime while explicit diagnostics include launcher package/protocol identity; verify stable, development, unavailable-channel, and compatibility-error transcripts
 
 ## 2. Dependency-Light Stable Launcher

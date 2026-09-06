@@ -3,6 +3,7 @@
   "displayName": "A1",
   "commandName": "a1",
   "packageName": "@timurproko/a1",
+  "runtimePackageName": "@timurproko/a1-runtime",
   "filesystem": {
     "slug": "a1",
     "windowsDirectory": "a1",
@@ -72,7 +73,8 @@
     "structuredAgentSchema": "a1-structured-agent-v1",
     "controlStoreSchema": "a1-control-store-v1",
     "releaseCohortSchema": "a1-release-cohort-v1",
-    "updateJournalSchema": "a1-update-journal-v1"
+    "updateJournalSchema": "a1-update-journal-v1",
+    "launcherRuntimeSchema": "a1-launcher-runtime-v1"
   },
   "evidence": {
     "nativeSpikeSchema": "a1-native-host-spike-evidence-v1",
@@ -88,7 +90,8 @@
     "startupTraceSchema": "a1-startup-trace-v1",
     "dependencyLayerSchema": "a1-dependency-layer-v1",
     "dependencyLayerCertificationSchema": "a1-dependency-layer-certification-v1",
-    "runtimePayloadSchema": "a1-runtime-payload-v1"
+    "runtimePayloadSchema": "a1-runtime-payload-v1",
+    "packageRoleSchema": "a1-package-role-v1"
   },
   "artifacts": {
     "cliEntry": "bin/cli.js",

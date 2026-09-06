@@ -7,7 +7,7 @@ describe("product identity authority", () => {
       schema: "a1-product-identity-v1",
       displayName: "A1",
       commandName: "a1",
-      packageName: "@timurproko/a1",
+      packageName: "@timurproko/a1", runtimePackageName: "@timurproko/a1-runtime",
       filesystem: { slug: "a1", windowsDirectory: "a1", unixDirectory: "a1" },
       environment: {
         configDir: "A1_CONFIG_DIR",
@@ -40,7 +40,7 @@ describe("product identity authority", () => {
     candidate.schema = "z1-product-identity-v1";
     candidate.displayName = "Z1";
     candidate.commandName = "z1";
-    candidate.packageName = "@example/z1";
+    candidate.packageName = "@example/z1"; candidate.runtimePackageName = "@example/z1-runtime";
     candidate.filesystem.slug = "z1";
     candidate.filesystem.windowsDirectory = "z1";
     candidate.filesystem.unixDirectory = "z1";
@@ -78,6 +78,7 @@ interface MutableIdentity extends Record<string, unknown> {
   displayName: string;
   commandName: string;
   packageName: string;
+  runtimePackageName: string;
   filesystem: MutableStringRecord;
   environment: MutableStringRecord;
   state: MutableStringRecord;

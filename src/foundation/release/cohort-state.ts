@@ -3,6 +3,7 @@ import { mkdir, open, readFile, rename, rm, stat } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import type { MaterializedRelease } from "./release-store.js";
 import { PRODUCT_IDENTITY } from "../../product-identity.js";
+import type { PackageRole, LauncherRuntimeCompatibility } from "./launcher-contract.js";
 
 export const RELEASE_COHORT_SCHEMA = PRODUCT_IDENTITY.protocol.releaseCohortSchema;
 const RELEASE_ID_PATTERN = /^[0-9A-Za-z.+_-]+-[a-f0-9]{20}$/;
@@ -18,6 +19,9 @@ export interface ReleaseRecord {
   readonly materializedAt: string;
   readonly certifiedAt: string | null;
   readonly diagnosticsPath: string | null;
+  /** Absent for combined releases created before the stable launcher split. */
+  readonly packageRole?: PackageRole;
+  readonly launcherCompatibility?: LauncherRuntimeCompatibility;
 }
 
 export interface ReleaseReferences {
@@ -126,6 +130,8 @@ export interface SupervisorEndpointMetadata {
   readonly requiredFeatures: readonly string[];
   readonly optionalFeatures: readonly string[];
   readonly contractDigest: string;
+  readonly packageRole?: PackageRole;
+  readonly launcherCompatibility?: LauncherRuntimeCompatibility;
 }
 
 export interface ProtectedReleaseInputs {

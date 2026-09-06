@@ -4,6 +4,7 @@ import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path
 import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
 import { mapWithConcurrency } from "./concurrency.js";
 import type { DependencyLayerReference } from "./dependency-layer.js";
+import type { PackageRole, LauncherRuntimeCompatibility } from "./launcher-contract.js";
 
 const RELEASE_FILE_IO_CONCURRENCY = 32;
 
@@ -25,6 +26,9 @@ export interface ReleaseIdentity {
   readonly files: readonly ReleaseFileIdentity[];
   /** Absent for legacy full-copy releases. */
   readonly dependencyLayers?: readonly DependencyLayerReference[];
+  /** Absent for releases created before launcher/runtime package separation. */
+  readonly packageRole?: PackageRole;
+  readonly launcherCompatibility?: LauncherRuntimeCompatibility;
 }
 
 export interface DiscoveredReleasePayload {
