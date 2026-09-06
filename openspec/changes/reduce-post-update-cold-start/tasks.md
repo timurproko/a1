@@ -58,3 +58,12 @@
 
 - [ ] 8.1 Build the exact candidate and provide update plus `a1`/`a1 pi` manual timing checks after the supervisor is stopped and after machine restart; verify the maintainer confirms the first input-ready frame is prompt, both profiles behave normally, extensions/native features still work, and old live sessions survive the update.
 - [ ] 8.2 Record accepted payload, layer-reuse, post-update/no-live-supervisor/warm timing, compatibility, and manual evidence in the change, complete or deliberately skip every remaining task, and archive the OpenSpec change only after the corrective implementation pull request is accepted and merged.
+
+## 9. Windows Node 22 Warm-Margin Correction
+
+- [ ] 9.1 Record run `34022380161`'s Windows Node 22 package-install failure, exact candidate/source, 3,453 ms warm `a1 pi` result, 3,000 ms budget, dominant `ui-modules-loaded`/`ui-entry`/`guardian-connected` phases, passing Node 24 comparison, and skipped publisher; verify job and timing evidence against GitHub
+- [ ] 9.2 Reproduce the Node 22 warm `a1 pi` path from reset exact-package, runtime, data, and compile-cache state under Defender, and compare Node 22/24 module and phase evidence; verify the reproduction does not use a failed attempt as warmup and identifies the deterministic work consuming margin
+- [ ] 9.3 Optimize or defer only work proven unnecessary before first input-ready paint in the dominant phases while preserving public Pi APIs, extension/resource behavior, compile-cache identity, terminal semantics, and the 3-second budget; verify focused exact-package tests retain all compatibility assertions
+- [ ] 9.4 Add a focused regression that exercises both supported Windows Node versions without automatic retry and fails with phase diagnostics on an injected delay; verify development sampling demonstrates reliable margin while each release-gating scenario still executes once
+- [ ] 9.5 Run focused startup, package-install, Pi-boundary, rendering compatibility, typecheck, architecture, changed-file documentation, and strict OpenSpec validation; push a fresh code pull request with auto-merge disabled and verify current-head required CI passes
+- [ ] 9.6 After explicit maintainer acceptance and manual merge, coordinate with `fix-darwin-packaged-supervisor-startup`, run `npm run develop` once from authoritative `develop`, and verify the Windows Node 22/24 warm gates pass on first attempt before publisher, aggregate, and registry acceptance are recorded

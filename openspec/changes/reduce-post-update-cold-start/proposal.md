@@ -2,9 +2,12 @@
 
 A successful update materializes the runtime under a new immutable path, after which Windows can spend tens of seconds scanning and loading the newly addressed dependency graph before the first interactive frame. The same delay recurs after restart or any loss of the live supervisor because bootstrap payload-wide re-verification discards durable certification as a launch authority. The current release contains 13,557 files and 93.1 MiB, while a measured update changed only 214 paths and left 98.42% of the payload byte-identical, so release storage and startup work should reuse certified unchanged content and load only the runtime surface needed for the selected command.
 
+Development publication run `34022380161` exposed that the implemented warm path still lacks reliable Node 22 margin: exact-package `a1 pi` warm startup took 3,453 ms against the unchanged 3,000 ms gate, dominated by `ui-modules-loaded` (1,744 ms) and `ui-entry` (1,100 ms). The publisher correctly skipped the unqualified candidate, so acceptance now requires a corrective optimization proven on the accepted Defender-enabled Windows runner without retries or a larger budget.
+
 ## What Changes
 
 - Add phase-level startup evidence covering mutable bootstrap, durable release validation, supervisor startup, guardian startup, owned-UI module loading, Pi services, resources, session creation, and first render, including separate post-update, no-live-supervisor, and warm-path acceptance budgets on Windows.
+- Use run `34022380161` as corrective evidence for the Node 22 `a1 pi` warm path, optimize the measured `ui-modules-loaded`/`ui-entry` costs until the existing 3-second gate has reliable first-attempt margin, and prohibit solving the failure with retries or budget inflation.
 - Preserve a bounded durable certification authority across supervisor loss so an unchanged approved release can restart without payload-wide reads; ambiguous, stale, or tampered evidence must fail closed or use bounded full verification before execution.
 - Split immutable release content into release-specific product files and separately certified immutable dependency layers whose stable content identity and path can be reused across updates.
 - Bind each release manifest and certification to every dependency layer it uses, preserve layers while any retained or live release references them, and collect an unreferenced layer through the bounded release-retention mechanism.
@@ -34,3 +37,4 @@ A successful update materializes the runtime under a new immutable path, after w
 - Introduces managed dependency-layer and compile-cache storage beneath A1-owned data/cache roots and a compatibility path for existing full-copy releases.
 - May require a pinned Pi release with narrower public exports or an A1 build-time facade that consumes only existing public exports; private `dist` subpath imports remain prohibited.
 - Does not change `a1` or `a1 pi` command syntax, profile ownership, session locations, extension APIs, or update channel selection.
+- Acceptance remains blocked until a fresh exact package passes the Defender-enabled Windows Node 22 warm gate on its first attempt; macOS supervisor startup is tracked separately by `fix-darwin-packaged-supervisor-startup`.
