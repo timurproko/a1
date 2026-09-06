@@ -10,13 +10,13 @@ Bare A1 already has the boundaries needed for most of this feature:
 - `PiShellEditorPort`, `OwnedEditor`, and `OwnedEditorUxInterception` provide the A1-owned seam around Pi's editor behavior.
 - `tui.input.tab` already represents configurable Tab/autocomplete acceptance.
 
-The current neutral event stream exposes `agent-run-started` and `assistant-message-completed`, but not final run settlement. `assistant-message-completed` is too early because an agent run can include multiple assistant messages and tool turns. Pi's underlying `agent_settled` event is the correct generation boundary.
+The current neutral event stream exposes `agent-run-started` and `assistant-message-completed`, but `assistant-message-completed` lacks the stop reason, tool-continuation signal, run identity, and response sequence needed for safe prefetch. Pi's underlying `agent_settled` event remains the publication boundary, while an enriched successful terminal assistant-message event is the earliest trustworthy generation boundary.
 
 The selected Pi runtime exposes its model, system prompt, messages, tools, thinking level, and authenticated `ModelRuntime`. The public model runtime can issue a simple completion against an explicit context. The suggestion path must use those public objects at the integration boundary; it must not deep-import Claude Code, Pi internals, or installed distribution files.
 
 Claude Code research was performed against `D:/Git/claude-code-source` at commit `d43bd40690853fd323758e038cb686930d53a39f`. Relevant evidence is:
 
-- `src/query/stopHooks.ts`: starts generation fire-and-forget after a main-thread turn.
+- `src/query/stopHooks.ts`: starts generation fire-and-forget at the beginning of post-response stop-hook handling, before the remaining stop hooks finish.
 - `src/services/PromptSuggestion/promptSuggestion.ts`: inherits cache-relevant parent context, disables tool execution, asks for a short user-voiced prediction, and filters results.
 - `src/utils/forkedAgent.ts`: isolates the request while retaining the parent model, system prompt, messages, tools, and thinking configuration for cache reuse.
 - `src/hooks/usePromptSuggestion.ts`: tracks shown, accepted, ignored, and cancelled lifecycle state.
@@ -29,8 +29,9 @@ This source is behavioral evidence only. No Claude implementation or prompt text
 **Goals:**
 
 - Preserve the user's selected model and conversation context while isolating suggestion inference from the main session.
+- Overlap generation with post-response run settlement so a ready suggestion appears with no avoidable delay.
 - Keep generation asynchronous, cancellable, race-safe, and invisible to the persisted transcript.
-- Represent suggestion state explicitly rather than inferring it from rendered rows.
+- Represent preparing, prepared, and visible suggestion state explicitly rather than inferring it from rendered rows.
 - Integrate with the existing editor and keybinding semantics without weakening autocomplete, extension, or responsiveness guarantees.
 - Make the extra-request behavior visible in the setting description and deterministic in tests.
 
@@ -46,17 +47,19 @@ This source is behavioral evidence only. No Claude implementation or prompt text
 
 ## Decisions
 
-### 1. Generate at final run settlement through a neutral capability
+### 1. Prefetch at a terminal assistant response and publish at run settlement
 
-Add an `agent-run-settled` semantic event to the owned event contract and emit it only for the final settlement of a run, after authoritative transcript reconciliation. Add a narrow, vendor-neutral prompt-suggestion generator port whose request includes immutable session generation, run identity, and cancellation signal and whose result contains candidate text plus request identity.
+Enrich the neutral completed-assistant event with session generation, run identity, response sequence, selected model, stop reason, assistant-message count, and whether the response requests tool continuation. Emit `agent-run-settled` only after authoritative transcript reconciliation. Add a narrow, vendor-neutral prompt-suggestion generator port whose request and result carry the immutable response identity and cancellation signal.
 
-The bare-A1 composition will provide the Pi-backed implementation and a shell-local controller will invoke it only when the feature is enabled and the ordinary editor can eventually display a suggestion. The explicit comparison path will not install the controller or call the generator.
+The bare-A1 controller starts one request as soon as a successful completed assistant response has a terminal text stop and no tool continuation. It does not require the editor to be idle at that moment because the run can still be finishing post-response work. A later assistant continuation or tool execution invalidates the candidate and may establish a newer eligible response boundary. The controller holds a completed candidate privately until the matching `agent-run-settled`, then publishes it in the same settlement presentation when the editor is eligible. If settlement wins the race, the still-current request may publish immediately on completion.
 
-This keeps model-specific context assembly at the integration boundary while allowing lifecycle and UI policy to remain independently testable. It also avoids treating `assistant-message-completed` as settlement.
+The explicit comparison path will not install the controller or call the generator. This keeps model-specific context assembly at the integration boundary while allowing lifecycle and UI policy to remain independently testable.
 
-Alternative considered: generate directly inside `PiEngineAdapter` on every `agent_settled`. Rejected because comparison or non-interactive consumers could pay for requests they never display, and presentation eligibility would leak into the engine adapter.
+Alternative considered: generate only at `agent-run-settled`. Rejected because the full model-request latency becomes visible after the user sees the run stop.
 
-Alternative considered: trigger on `assistant-message-completed`. Rejected because tool loops can produce several such events within one run.
+Alternative considered: generate from every `assistant-message-completed`. Rejected because tool-loop messages are not final; the enriched event must identify a terminal text response, and any later continuation invalidates it.
+
+Alternative considered: keep `Working...` visible until generation ends. Rejected because it falsely represents a settled primary run as active and violates the existing working-state lifecycle contract.
 
 ### 2. Use the selected model through the existing authenticated ModelRuntime
 
@@ -91,15 +94,16 @@ Alternative considered: accept any model text and truncate it. Rejected because 
 
 ### 4. Keep suggestion state transient and identity-checked
 
-Introduce a controller state machine with `idle`, `generating`, and `available` states. Each generation carries:
+Introduce a controller state machine with `idle`, `generating`, `prepared`, and `available` states. Each generation carries:
 
 - session generation;
-- settled-run sequence;
+- run sequence;
+- candidate assistant-response sequence;
 - provider/model identity;
 - monotonically increasing request epoch;
 - `AbortController`.
 
-Publishing succeeds only if all captured identities still match, the setting remains enabled, the shell has not been disposed, no newer request exists, and the ordinary editor is still empty and eligible. Every invalidating action aborts the controller and increments its epoch before changing other state, so a provider that resolves after abort still cannot publish stale text.
+A result that arrives before settlement moves to `prepared` and remains unpainted. Matching settlement moves it to `available` and publishes it immediately. Settlement that arrives first marks the request publishable, allowing a later result to move directly to `available`. Publishing succeeds only if all captured identities still match, the setting remains enabled, the shell has not been disposed, no newer response or continuation exists, and the ordinary editor is empty and eligible. Every invalidating action aborts the controller and increments its epoch before changing other state, so a provider that resolves after abort still cannot publish stale text.
 
 Acceptance atomically clears available suggestion state and inserts its text into the editor. The editor's normal submit path remains the only path that sends it. Suggestions are shell-transient and do not enter the backend view snapshot or session file.
 
@@ -111,7 +115,7 @@ Extend `PiShellEditorPort` with explicit operations to set/clear a prompt sugges
 
 The bare-A1 ordinary prompt row will reuse the shared `PROMPT_GLYPH` presentation (`❯` and its foreground style) already used by `renderInputRow` for the settings search field. The prefix is visual only: selection, caret offsets, copied text, history, autocomplete replacement ranges, and submitted text remain indexed against the editor buffer. Prompt layout reserves the glyph's display width before wrapping both typed and suggested content. Comparison profiles retain their existing editor rows.
 
-When the buffer is empty, focused, submit-enabled, in prompt mode, and autocomplete is not showing, the editor will render a source-owned empty-input suggestion branch. Its suggestion text reuses the shared settings-search placeholder treatment (`faint`/quiet styling), including the block caret over the first suggestion cell. After Tab acceptance, the same characters are rendered by the ordinary prompt-text path with normal text color and the caret immediately after the final grapheme; the grey `❯` prefix remains unchanged. The implementation will use the same border, padding, cursor marker, display-width wrapping, and theme invalidation rules as the ordinary editor and must not discover or replace placeholder cells by matching rendered strings. If the current public editor surface cannot support that branch cleanly, port the minimum coherent editor rendering unit with provenance rather than inspect private fields or patch the dependency.
+When a settled run has a publishable candidate and the buffer is empty, focused, submit-enabled, in prompt mode, and autocomplete is not showing, the editor will render the complete suggestion atomically through a source-owned empty-input suggestion branch. Its suggestion text reuses the shared settings-search placeholder treatment (`faint`/quiet styling), including the block caret over the first suggestion cell. There is no typing animation and no suggestion-generation status row. After Tab acceptance, the same characters are rendered by the ordinary prompt-text path with normal text color and the caret immediately after the final grapheme; the grey `❯` prefix remains unchanged. The implementation will use the same border, padding, cursor marker, display-width wrapping, and theme invalidation rules as the ordinary editor and must not discover or replace placeholder cells by matching rendered strings. If the current public editor surface cannot support that branch cleanly, port the minimum coherent editor rendering unit with provenance rather than inspect private fields or patch the dependency.
 
 `OwnedEditor.handleInput` will preserve this precedence:
 
@@ -128,9 +132,9 @@ Alternative considered: post-process `Editor.render()` output to replace its bla
 
 ### 6. Suppress generation and display independently
 
-Generation is skipped when disabled, non-interactive, before two assistant messages, after an errored response, without an active model, or while a permission/dialog/replacement input is active. A request already running is aborted on typing or paste, submission, clear, interruption, retry/compaction/new run, model change, session replacement, settings disable, or disposal.
+Generation is skipped when disabled, non-interactive, before two assistant messages, after an errored or incomplete response, on a tool-use stop, without an active model, or while a permission/dialog/replacement input is active. A request already running is aborted on a later assistant response, tool continuation, typing or paste, submission, clear, interruption, retry/compaction/new run, model change, session replacement, settings disable, or disposal.
 
-Display has an additional final gate: ordinary editor active and focused, prompt mode, empty semantic text, submit enabled, and no active autocomplete. A valid result that cannot pass that gate at publication time is discarded rather than retained for surprise display later.
+Display has an additional final gate: the matching run has settled, the ordinary editor is active and focused, prompt mode, empty semantic text, submit enabled, and no active autocomplete. A valid result that cannot pass that gate at publication time is discarded rather than retained for surprise display later. No timer delays a publishable complete result.
 
 This deliberately prefers predictability over delayed suggestions. It also avoids displaying leader-context text in future secondary-agent input surfaces.
 
@@ -146,13 +150,13 @@ Alternative considered: no setting. Rejected because an automatic paid/backgroun
 
 ### 8. Validate behavior at pure, integration, and physical-terminal levels
 
-Use a fake generator port to cover eligibility, filtering, cancellation, stale-result races, request count, and no-transcript mutation deterministically. Add editor-level tests for ghost rendering, display width, semantic emptiness, autocomplete priority, configurable Tab, acceptance without submission, editing, and Enter behavior. Add shell/adapter integration tests for settled-run timing, model/session replacement, settings, and tool-call rejection.
+Use a fake generator port to cover eligibility, filtering, cancellation, response/run identity, result-before-settlement and settlement-before-result races, request count, and no-transcript mutation deterministically. Add editor-level tests for atomic ghost rendering, display width, semantic emptiness, autocomplete priority, configurable Tab, acceptance without submission, editing, and Enter behavior. Add shell/adapter integration tests for pre-settlement generation, same-frame publication of prepared results, continuation invalidation, model/session replacement, settings, and tool-call rejection.
 
 A credential-gated real-provider test will prove that the selected model path can produce a suggestion without tools or transcript mutation. It must not be a default local test. Final acceptance uses the exact implementation worktree in Windows Terminal and verifies visible latency, wrapping, cancellation while typing, Tab-then-Enter, autocomplete coexistence, and `a1 pi` non-interference.
 
 ## Risks / Trade-offs
 
-- **[Additional latency and token cost]** → Run after settlement, never await it on the primary path, preserve the parent cacheable prefix, disclose the extra request in settings, and allow immediate disable.
+- **[Additional latency and token cost]** → Start at the earliest safe final-response boundary, never await it on the primary path, preserve the parent cacheable prefix, disclose the extra request in settings, and allow immediate disable.
 - **[Prompt-cache reuse varies by provider]** → Treat cache reuse as an optimization rather than correctness; preserve parent request context without claiming a guaranteed hit.
 - **[Prompt injection influences the prediction]** → Keep output inert, reject controls/formatting/tool calls, require separate acceptance and submission, and retain normal downstream permission policy.
 - **[Race publishes stale text]** → Validate session, run, model, request epoch, editor state, and setting at publication even after abort.
@@ -164,10 +168,10 @@ A credential-gated real-provider test will prove that the selected model path ca
 
 ## Migration Plan
 
-1. Add the neutral settlement event and suggestion generator/test ports without enabling generation.
+1. Add the enriched completed-response and settlement events plus suggestion generator/test ports without enabling generation.
 2. Implement and conformance-test the Pi model-runtime generator and deterministic validator.
-3. Add the controller, setting, and cancellation lifecycle while keeping presentation disabled.
-4. Add semantic editor ghost rendering and Tab acceptance for bare A1 only.
+3. Add the prefetch controller, setting, response/run cancellation lifecycle, and prepared-result handoff while keeping presentation disabled.
+4. Add atomic semantic editor ghost rendering and Tab acceptance for bare A1 only.
 5. Run focused contract, adapter, component, shell, settings, race, and architecture tests; then run CI-required validation.
 6. Perform credential-gated provider and physical Windows Terminal acceptance before merge authorization.
 

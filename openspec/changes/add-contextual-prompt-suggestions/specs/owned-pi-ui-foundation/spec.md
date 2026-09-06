@@ -14,9 +14,14 @@ Contextual prompt suggestions SHALL be classified as an A1-owned addition to the
 - **AND** the selected upstream Pi experience SHALL remain untouched
 
 #### Scenario: Type while suggestion generation is pending
-- **WHEN** keyboard input arrives while an asynchronous suggestion request is pending
+- **WHEN** keyboard input arrives while an asynchronous suggestion request is pending before or after run settlement
 - **THEN** the input SHALL retain the immediate current-state presentation guarantees
 - **AND** suggestion generation SHALL not add a pending presentation or synchronous event batch ahead of that input
+
+#### Scenario: Settle while a suggestion is prepared
+- **WHEN** background generation has prepared a valid suggestion before the agent run settles
+- **THEN** settlement SHALL clear the ordinary working state as before and make the complete suggestion eligible in the same presentation cycle
+- **AND** no retained working indicator, generation-status row, or staged text animation SHALL extend the run's visible busy state
 
 #### Scenario: Use an extension-provided editor or autocomplete provider
 - **WHEN** an extension replaces the editor or provides an active autocomplete result

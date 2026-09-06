@@ -4,10 +4,10 @@ When an agent finishes by asking for approval or leaves an obvious next step, A1
 
 ## What Changes
 
-- Generate a short likely next user prompt after eligible completed agent runs by issuing a cancellable, tool-free background request through the currently selected model and current conversation context.
+- Start a short likely-next-prompt request at the earliest trustworthy final assistant-response boundary, before full run settlement, so generation overlaps post-response cleanup while using the currently selected model and current conversation context.
 - Suppress generation or display when the interaction is not eligible, the user is already composing input, another input surface owns focus, the session is changing, or no safe and obvious next action exists.
 - Validate and filter generated text before exposing it as a suggestion, including strict length, formatting, voice, and error-output constraints.
-- Render the suggestion inside the empty bare-A1 editor using the same grey `❯` prompt glyph and quiet placeholder styling as the settings search input, without changing the editor's semantic text.
+- Keep an early result hidden until the run settles, then render the complete suggestion immediately inside the empty bare-A1 editor using the same grey `❯` prompt glyph and quiet placeholder styling as the settings search input, without a typing animation or generation-status row and without changing the editor's semantic text.
 - Let the existing configurable Tab/autocomplete action accept the ghost text into editable prompt text, switch it to the ordinary prompt text color, and move the caret to its end; require the ordinary submit action afterward rather than submitting on acceptance.
 - Cancel and clear stale suggestions on typing, submission, a new agent run, model/session replacement, interruption, or disposal, while preserving existing autocomplete precedence and comparison-profile behavior.
 - Add focused lifecycle, race, rendering, keybinding, and real-provider acceptance coverage, including explicit accounting for the extra model request.
@@ -24,5 +24,5 @@ When an agent finishes by asking for approval or leaves an obvious next step, A1
 
 - Affected areas include the owned agent-engine contract and Pi adapter, runtime service composition, session settlement handling, the owned shell/editor interception boundary, theme-driven prompt rendering, settings, and focused integration tests.
 - Suggestion generation uses the active session model and provider credentials through documented package-root/public model-runtime APIs; it is an additional inference request and must be cancellable, bounded, non-persistent, and tool-free.
-- The feature must not mutate the main session transcript, invoke tools, block turn settlement, delay input, or leak a result across session/model generations.
-- Claude Code source was used only as behavioral research: its implementation triggers a fire-and-forget fork after a completed turn, inherits the parent model and cache-relevant context, disables tools, filters the result, stores explicit lifecycle metadata, and renders the result as an empty-input placeholder. A1 will preserve its own public-API and owned-contract boundaries and intentionally require Tab acceptance before Enter submission.
+- The feature must not mutate the main session transcript, invoke tools, block turn settlement, delay input, keep the run visibly working after settlement, or leak a result across response/run/session/model generations.
+- Claude Code source was used only as behavioral research: its implementation starts a fire-and-forget fork at the beginning of post-response stop-hook handling so generation overlaps remaining settlement work, inherits the parent model and cache-relevant context, disables tools, filters the result, stores explicit lifecycle metadata, and renders the result as an empty-input placeholder. A1 will preserve its own public-API and owned-contract boundaries and intentionally require Tab acceptance before Enter submission.
