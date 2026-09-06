@@ -111,4 +111,17 @@ describe("product control paths", () => {
 
     expect(cohort).toEqual({ endpoint: "/tmp/pinned.sock", endpointMetadataPath: paths.endpointMetadataPath });
   });
+
+  it("uses a short stable socket namespace for long Darwin runtime roots", () => {
+    const environment = { A1_RUNTIME_DIR: "/var/folders/bl/very-long-runner-namespace/T/a1-validation-package-abcdef/runtime" };
+    const paths = resolveProductPaths(environment, "darwin", "/Users/runner");
+    const cohort = resolveCohortEndpoint(paths, "0.1.8-dev.254-aaaaaaaaaaaaaaaaaaaa", environment, "darwin");
+
+    expect(paths.runtimeDir).toBe(environment.A1_RUNTIME_DIR);
+    expect(paths.endpointDirectory).toMatch(/^\/tmp\/a1-[a-f0-9]{20}$/);
+    expect(paths.endpoint).toBe(`${paths.endpointDirectory}/supervisor.sock`);
+    expect(cohort.endpoint).toMatch(/^\/tmp\/a1-[a-f0-9]{20}\/[a-f0-9]{16}-supervisor\.sock$/);
+    expect(Buffer.byteLength(cohort.endpoint)).toBeLessThan(104);
+    expect(cohort.endpointMetadataPath.startsWith(paths.endpointsDir)).toBe(true);
+  });
 });
