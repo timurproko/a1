@@ -6,6 +6,8 @@ The launch fast path correctly avoids rematerialization, but the new release pat
 
 Manual acceptance of `0.1.8-dev.226` exposed a distinct retained-release path that the original implementation and gate missed. The mutable CLI started at `08:36:41.452`, while the replacement supervisor did not start until `08:37:07.831`: 26.38 seconds elapsed before UI process creation. The active release was already approved, layered, warmed, and compile-cached, but loss of the live supervisor selected complete release and layer verification. That path read and hashed 443 product files (7.04 MiB) and 5,846 dependency files (41.0 MiB) while Windows real-time antivirus protection was enabled. The exact-package performance fixture started a supervisor before labeling its next launch `post-update`, so it exercised the live-authority fast path rather than the no-live-supervisor path.
 
+Post-merge development publication run `34022380161` exposed a second acceptance gap on Windows Node 22. Package surface and all seven packaged session-resume cases passed, but `package-install.integration.test.ts` rejected the warm `a1 pi` launch at 3,453 ms against the 3,000 ms budget. Structured evidence attributes 1,744 ms to `ui-modules-loaded`, 1,100 ms to `ui-entry`, and 147 ms to `guardian-connected`. Windows Node 24 passed the same candidate, so the correction must preserve the budget and optimize or remove Node 22-sensitive work rather than normalize the failure through retries.
+
 This design depends on the accepted bounded-retention behavior from `bound-immutable-release-retention` for final layer collection. It can develop manifests, layering, and measurements independently, but must not enable shared-layer deletion before that protection model is integrated.
 
 ## Goals / Non-Goals
@@ -121,6 +123,12 @@ Startup tracing adds separate durable-validation and replacement-supervisor phas
 
 Alternative: infer restart coverage from a newly addressed post-update path. Rejected because update intentionally starts a supervisor, making its authority and cache topology different from restart.
 
+### 10. Require first-attempt Node 22 margin, not a retry-shaped pass
+
+The corrective implementation will reproduce the exact candidate under Defender-enabled Node 22, compare per-phase and module-evaluation evidence with the passing Node 24 lane, and reduce measured work in the dominant `ui-modules-loaded` and `ui-entry` phases. Candidate optimizations must preserve public Pi boundaries, extension behavior, compile-cache identity, and first-frame semantics. Focused repeated diagnostics may establish margin during development, but the release gate executes each scenario once and a failed first attempt remains a failure.
+
+Raising the 3-second budget is rejected because the accepted requirement already defines warm responsiveness and the miss has phase-attributed work to optimize. Automatic retry is rejected because it would warm filesystem, antivirus, and compile caches and report a different topology from the failed user-facing launch. Treating Node 22 as optional is rejected because it remains a supported release lane.
+
 ## Risks / Trade-offs
 
 - **[Risk] Shared-layer mutation affects several releases.** → Make layers private, atomically committed and read-only; bind complete identities; verify before activation; never link to mutable npm files.
@@ -133,6 +141,8 @@ Alternative: infer restart coverage from a newly addressed post-update path. Rej
 - **[Risk] Platform mutation evidence is unavailable, reset, wrapped, or ambiguous.** → Treat uncertainty as fast-path rejection and use a qualified bounded representation or complete verification.
 - **[Risk] A warm fixture passes while restart remains slow.** → Stop the supervisor explicitly, assert topology and payload-read counts, and retain a Defender-enabled Windows acceptance run.
 - **[Risk] Existing rollback code cannot understand layered records.** → Preserve full-copy record support and only activate the new layout with a bootstrap capable of validating both forms.
+- **[Risk] A locally repeated warm run hides the first-attempt Node 22 cost.** → Reset the exact-package fixture and owned caches for each diagnostic sample, retain per-phase evidence, and require the publication lane's single attempt to pass without retry.
+- **[Risk] Reducing eager UI work changes the first usable frame.** → Preserve the input-ready definition and rendering/extension compatibility gates; defer only work proven unnecessary before that frame.
 
 ## Migration Plan
 
@@ -148,3 +158,6 @@ Alternative: infer restart coverage from a newly addressed post-update path. Rej
 10. Qualify durable immutable-root evidence on supported platforms and implement restart seals with complete-verification fallback behind compatibility tests.
 11. Change retained-release bootstrap to use the restart seal only when every bound identity, path, dependency binding, transaction state, and immutability proof agrees; otherwise verify completely before execution.
 12. Gate both profiles with the supervisor explicitly stopped, payload-read assertions, tamper faults, and Defender-enabled Windows timing before repeating manual restart acceptance.
+13. Reproduce run `34022380161`'s Node 22 warm `a1 pi` path from a reset exact-package fixture, compare Node 22/24 phase and module evidence, and identify the deterministic work responsible for the missing margin.
+14. Optimize the dominant warm-path work without changing the 3-second budget, first-input-ready semantics, public Pi API boundary, compile-cache identity, or retry policy.
+15. Require current-head CI and one fresh post-merge development publication to pass the Windows Node 22 warm gate on its first attempt; coordinate final publication only after the separate macOS blocker is corrected.

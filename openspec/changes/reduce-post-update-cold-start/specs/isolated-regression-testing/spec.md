@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Exact-package startup performance is release-gated
-The accepted Windows release runner SHALL measure command invocation through first input-ready frame for exact packaged `a1` and `a1 pi` launches. Evidence SHALL include a newly addressed cold release path, the first launch after completed update handling, a launch of an approved active release after its supervisor has stopped, and a subsequent warm launch, with phase durations and immutable content identities.
+The accepted Windows release runner SHALL measure command invocation through first input-ready frame for exact packaged `a1` and `a1 pi` launches. Evidence SHALL include a newly addressed cold release path, the first launch after completed update handling, a launch of an approved active release after its supervisor has stopped, and a subsequent warm launch, with phase durations and immutable content identities. Each release-gating scenario SHALL execute once without automatic retry, and acceptance evidence SHALL demonstrate reliable margin on every supported Windows Node lane rather than relying on a preceding failed launch to warm the path.
 
 #### Scenario: First launch follows update
 - **WHEN** an exact packaged update activates a release whose product path has not previously launched on the worker
@@ -22,6 +22,14 @@ The accepted Windows release runner SHALL measure command invocation through fir
 #### Scenario: Startup budget regresses
 - **WHEN** bootstrap, guardian, module loading, services, resources, session creation, or first render causes either budget to be exceeded
 - **THEN** release gating SHALL fail and name the dominant measured phases
+
+#### Scenario: A retry would warm the failed path
+- **WHEN** a first Node 22 or Node 24 exact-package startup attempt exceeds its budget
+- **THEN** validation SHALL retain the failure and SHALL NOT rerun the scenario to obtain a warmed passing result
+
+#### Scenario: Supported Windows Node lanes differ
+- **WHEN** the same exact candidate passes a warm startup budget on one supported Windows Node version and fails it on another
+- **THEN** acceptance SHALL remain blocked until phase-attributed evidence shows the slower supported lane meets the unchanged budget with reliable first-attempt margin
 
 ### Requirement: Optimized runtime payload and layers are exact-package validated
 Release gates SHALL prove minimal-payload completeness, unchanged-layer reuse, changed-layer isolation, persistent compile-cache invalidation, side-effect-free warmup, full-copy rollback compatibility, extension loading, native assets, and terminal module identity against exact packed bytes.
