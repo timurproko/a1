@@ -5,7 +5,8 @@ See proposal.md — Why. The mechanics behind the failure:
 - `scripts/release/prepare-validation-package.mjs` is the single pack entry (release workflow, full-regression workflow, local validation tiers), and the release workflow's `Obtain exact package` job runs it on `windows-2025` after merging the three per-platform guardian build artifacts into `dist/native/`. Governance (`test/repository-governance/release-pipeline-policy.test.ts`) pins the workflow to pack through this script exactly once and forbids the publisher from repacking.
 - NTFS cannot represent a posix executable bit, so `npm pack` on Windows records `dist/native/<platform>-<arch>/process-guardian*` as mode 0644. Verified against the failing candidate artifact and the last published preview `0.1.8-dev.226` — both store the guardian 0644.
 - Release materialization maps source permissions onto its read-only payload policy (any execute bit → 0o500, none → 0o400), so the packed 0644 becomes a non-executable 0o400 helper, and posix containment spawns that path directly: `EACCES`.
-- Each guardian binary ships beside a per-platform `manifest.json` with schema `a1-process-guardian-artifact-v1` declaring `platform`, `architecture`, `artifact.filename`, `artifact.sha256`, and `artifact.size`. The runtime already verifies this contract (`verifyProcessGuardianArtifact`), so packing can trust it as the authority for which entries are built executables.
+- Each guardian binary ships beside a per-platform `manifest.json` with schema `a1-process-guardian-artifact-v1` declaring `platform`, `architecture`, `capability`, `artifact.filename`, `artifact.sha256`, and `artifact.size`. The runtime already verifies this contract (`verifyProcessGuardianArtifact`), so packing can trust it as the authority for which entries are built executables; executable mode does not by itself change an `unsupported` platform capability to `supported`.
+- Post-merge run `34022380161` built exact candidate `0.1.8-dev.254` from `4e7901f3e0105ae5de6c54be49dc2728677a3f74`. Package construction, Linux Node 24, and Windows Node 24 passed, proving Linux no longer fails with `EACCES`. Darwin Node 24 still timed out before supervisor endpoint publication, and Windows Node 22 later exceeded the warm `a1 pi` startup budget; the publisher skipped and aggregate failed as required. Those are independent blockers tracked in `fix-darwin-packaged-supervisor-startup` and `reduce-post-update-cold-start`.
 
 ## Goals / Non-Goals
 
@@ -18,6 +19,7 @@ See proposal.md — Why. The mechanics behind the failure:
 **Non-Goals:**
 - No change to release materialization's read-only payload policy, the containment spawn contract, or the guardian artifact manifest schema.
 - No new posix lane in pull-request CI; release validation remains the posix end-to-end gate, now backed by a host-independent surface assertion.
+- No implementation of an otherwise unsupported platform's containment provider and no change to startup performance budgets; those remain separate changes even though all must pass before publication.
 - No republication or repair of already-blocked previews (`0.1.8-dev.249`); the next merged commit derives a fresh preview number as usual.
 
 ## Decisions
@@ -37,7 +39,7 @@ Extend the existing exact package surface test — which already enumerates the 
 
 ### Keep the workflow topology unchanged
 
-The workflow keeps packing once on `windows-2025` through the pinned script; the repaired tarball flows through the existing candidate identity binding, per-platform validation, and digest-verified publish steps. Because mode repair precedes identity binding, the published bytes remain exactly the validated bytes.
+The workflow keeps packing once on `windows-2025` through the pinned script; the repaired tarball flows through the existing candidate identity binding, per-platform validation, and digest-verified publish steps. Because mode repair precedes identity binding, the published bytes remain exactly the validated bytes. Run `.254` is accepted as proof of the Linux mode repair but not as publication acceptance: the aggregate correctly remains fail closed for unrelated required-lane failures.
 
 ## Risks / Trade-offs
 
@@ -48,7 +50,7 @@ The workflow keeps packing once on `windows-2025` through the pinned script; the
 
 ## Migration Plan
 
-Merge the specification, then implement in a follow-up change. After implementation merges, re-run `npm run develop`; the next numbered preview must pass all platform lanes and publish to npm `next`. No user data, installed releases, or previously published versions are affected; already-blocked previews are superseded by the new number.
+Merge the specification, then implement in a follow-up change. The implementation merged as PR #254 and run `.254` proved the Linux executable-mode correction. Keep this change open while the separately specified Darwin supervisor/containment and Windows Node 22 startup-margin blockers are corrected; then run `npm run develop` once from the new authoritative `develop`. The new numbered preview must pass all platform lanes and publish to npm `next`. No user data, installed releases, or previously published versions are affected; already-blocked previews are superseded by the new number.
 
 ## Open Questions
 
