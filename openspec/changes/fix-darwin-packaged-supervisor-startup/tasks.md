@@ -9,15 +9,15 @@
 
 - [x] 2.1 Add Darwin native process start-identity inspection using a supported platform API and expose it through the bounded guardian inspection protocol; verify live identity stability, exited-process absence, PID-reuse discrimination, malformed PID rejection, and architecture-specific build coverage on macOS
 - [x] 2.2 Add a Darwin guardian provider that spawns without a shell, creates a dedicated process group before exec, publishes root/containment identities, monitors parent liveness, applies bounded TERM/KILL group cleanup, and reports exact root outcomes; verify native integration tests cover normal exit, descendants, owner loss, forced shutdown, and unrelated-process preservation
-- [ ] 2.3 Implement Darwin foreground-terminal transfer and restoration with the same no-terminal fallback as Linux; verify pseudo-terminal tests cover foreground ownership during launch, restoration after normal/signaled exit, and restoration after startup failure
+- [x] 2.3 Implement Darwin foreground-terminal transfer and restoration with the same no-terminal fallback as Linux; verify pseudo-terminal tests cover foreground ownership during launch, restoration after normal/signaled exit, and restoration after startup failure
 - [x] 2.4 Route Darwin launch-instance inspection and containment through the certified native provider, change the packed Darwin manifest to `supported` only after verification, and retain fail-closed rejection for missing, incompatible, unsupported, or tampered artifacts; verify TypeScript artifact/launch tests and the exact packed manifest
 
 ## 3. Gate macOS before publication
 
 - [x] 3.1 Extend macOS-focused pull-request validation to run native guardian identity/containment and correlated supervisor-startup coverage when affected boundaries change; verify validation policy tests fail if those checks are omitted or converted to skips
 - [x] 3.2 Extend exact-package macOS evidence to preserve bounded supervisor startup diagnostics and exercise package surface, supervisor readiness, session creation/resume, concurrent cleanup, and parent-loss containment against the one candidate; verify the pre-fix `.254` path fails and the corrected candidate passes without retries
-- [ ] 3.3 Run focused native, supervision, packaged-session, validation-policy, typecheck, architecture, changed-file documentation, and strict OpenSpec validation; verify no Windows/Linux containment semantics, package manifest/lock, dependency, publisher, or unrelated file changes are included
-- [ ] 3.4 Push a fresh implementation branch and open a code pull request citing this change with auto-merge disabled; verify current-head required CI passes, provide exact commit and focused commands for maintainer review, and leave manual merge pending explicit acceptance
+- [x] 3.3 Run focused native, supervision, packaged-session, validation-policy, typecheck, architecture, changed-file documentation, and strict OpenSpec validation; verify no Windows/Linux containment semantics, npm package manifest/lock, dependency, publisher, or unrelated file changes are included
+- [x] 3.4 Push a fresh implementation branch and open code PR #258 citing this change with auto-merge disabled; verify current-head required CI passes, provide exact commit and focused commands for maintainer review, and leave manual merge pending explicit acceptance
 
 ## 4. Publish and record acceptance
 
