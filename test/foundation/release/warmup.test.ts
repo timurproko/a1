@@ -12,7 +12,9 @@ afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, { recursi
 describe("side-effect-free immutable warmup", () => {
   it("keeps the shipped entry import-only and terminal/session/network free", async () => {
     const source = await readFile(resolve(repository, "bin", "warmup.js"), "utf8");
-    expect(source).toContain('import("../dist/composition/index.js")');
+    expect(source).toContain('import("../dist/composition/owned-ui.js")');
+    expect(source).toContain('import("../dist/features/owned-ui/run.js")');
+    expect(source).not.toContain('import("../dist/composition/index.js")');
     expect(source).not.toMatch(/composeOwnedUi\s*\(|createAgentSession\s*\(|fetch\s*\(|connect\s*\(|spawn\s*\(|process\.(?:stdin|stdout|stderr)/);
   });
 
