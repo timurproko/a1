@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { SessionManager, type SessionInfo } from "@earendil-works/pi-coding-agent";
@@ -67,6 +67,23 @@ describe("public CLI session selection (Pi 0.84.2 oracle)", () => {
     const forkPrompt = vi.fn(async () => false);
     await expect(openSelectedPiSession({ cwd, selection: { target: "foreign" }, forkPrompt })).rejects.toMatchObject({ exitCode: 0 });
     expect(forkPrompt).toHaveBeenCalledExactlyOnceWith({ sourceCwd: other });
+  });
+
+  it("treats canonical filesystem aliases as the same project", async () => {
+    const { root, cwd, store } = await fixture();
+    const alias = join(root, "work-alias");
+    await symlink(cwd, alias, process.platform === "win32" ? "junction" : "dir");
+    const path = join(store, "aliased.jsonl");
+    await save(path, alias, "aliased-id");
+    const sessions = api();
+    sessions.list.mockResolvedValue([]);
+    sessions.listAll.mockResolvedValue([{ id: "aliased-id", path, cwd: alias }] as SessionInfo[]);
+    const forkPrompt = vi.fn(async () => false);
+
+    const selected = await openSelectedPiSession({ cwd, selection: { target: "aliased-id", sessionDir: store }, sessions, forkPrompt });
+
+    expect(selected.getSessionId()).toBe("aliased-id");
+    expect(forkPrompt).not.toHaveBeenCalled();
   });
 
   it("uses the selected A1 profile for default lookup and never falls back to Pi", async () => {
