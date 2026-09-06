@@ -60,6 +60,13 @@ describe("pinned editor and input parity", () => {
       input("\u001b[200~line 1\n日本語\u001b[201~");
       compare("unicode editing and bracketed paste");
 
+      const windowsPath = "D:/Git/a1/.worktrees/prevent-windows-nul-artifacts-impl";
+      actual.setText(windowsPath);
+      upstream.editor.setText(windowsPath);
+      input("\u001b[1;5D");
+      input("|");
+      compare("comparison-profile path word boundaries");
+
       actual.setText("");
       upstream.editor.setText("");
       input("/m");

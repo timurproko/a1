@@ -5,6 +5,7 @@ import {
   type Editor,
 } from "#pi-tui";
 import type { KeybindingsManager } from "./upstream/adjacent/core/keybindings.js";
+import { promptPathWordRanges } from "./path-word-ranges.js";
 import type {
   PiShellClipboardContent,
   PiShellEditorTextRange,
@@ -117,6 +118,12 @@ interface EditorSegment {
   readonly isWordLike?: boolean;
 }
 
+interface SegmentationRange extends PiShellEditorTextRange {
+  readonly wordLike: boolean;
+}
+
+type WordDirection = -1 | 1;
+
 const ATOMIC_SEGMENTATION = Symbol("a1.editor.atomicSegmentation");
 const ATOMIC_SPACE_SENTINEL = "\uE000";
 
@@ -148,6 +155,7 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
   #lastClick: { time: number; line: number; col: number; count: number } | undefined;
   #redoStack: EditorSnapshot[] = [];
   #selectionRevision = 0;
+  #wordDirection: WordDirection | undefined;
   #geometry: {
     width: number;
     padding: number;
@@ -162,7 +170,7 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
     readonly keybindings: KeybindingsManager,
     readonly options: PromptSelectionUxOptions,
   ) {
-    installAtomicSegmentation(editor, options.atomicRanges);
+    installAtomicSegmentation(editor, options.atomicRanges, () => this.#wordDirection);
   }
 
   handleInput(data: string, next: () => void): void {
@@ -265,24 +273,28 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
     if (this.keybindings.matches(data, "tui.editor.cursorWordLeft")) {
       const before = this.#cursor();
       const startedWithAtomicFocus = this.#atomicFocus() !== undefined;
-      next();
+      this.#delegateWord(-1, next);
       let after = this.#cursor();
       const landedAtomic = this.#atomicRangeAt(after);
       if (!startedWithAtomicFocus && landedAtomic?.start === after.col && after.col > 0) {
         const line = editorState(this.editor).lines[after.line] ?? "";
         const previous = [...GRAPHEMES.segment(line.slice(0, after.col))].at(-1);
         if (previous !== undefined && !/^\s+$/u.test(previous.segment)) {
-          next();
+          this.#delegateWord(-1, next);
           after = this.#cursor();
         }
       }
-      if (!samePosition(before, after)) this.#moveOntoPreviousSeparator();
+      const line = editorState(this.editor).lines[after.line] ?? "";
+      const landedPath = promptPathWordRanges(line).some(range => range.start === after.col);
+      if (!samePosition(before, after) && !landedPath) this.#moveOntoPreviousSeparator();
       this.#requestRender();
       return;
     }
 
     const beforeText = this.editor.getText();
-    next();
+    const wordDirection = this.#wordDirectionFor(data);
+    if (wordDirection === undefined) next();
+    else this.#delegateWord(wordDirection, next);
     if (this.editor.getText() !== beforeText) this.#redoStack = [];
   }
 
@@ -673,6 +685,22 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
     return { text: this.editor.getText(), cursor: this.#cursor() };
   }
 
+  #wordDirectionFor(data: string): WordDirection | undefined {
+    if (this.keybindings.matches(data, "tui.editor.deleteWordBackward")) return -1;
+    if (this.keybindings.matches(data, "tui.editor.deleteWordForward")
+      || this.keybindings.matches(data, "tui.editor.cursorWordRight")) return 1;
+    return undefined;
+  }
+
+  #delegateWord(direction: WordDirection, next: () => void): void {
+    this.#wordDirection = direction;
+    try {
+      next();
+    } finally {
+      this.#wordDirection = undefined;
+    }
+  }
+
   #requestRender(): void {
     this.options.requestRender();
   }
@@ -681,6 +709,7 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
 function installAtomicSegmentation(
   editor: Editor,
   rangesForText: (text: string) => readonly PiShellEditorTextRange[],
+  wordDirection: () => WordDirection | undefined,
 ): void {
   if (Reflect.get(editor, ATOMIC_SEGMENTATION) === true) return;
   const originalValue: unknown = Reflect.get(editor, "segment");
@@ -688,7 +717,13 @@ function installAtomicSegmentation(
   const original = originalValue.bind(editor) as (text: string, mode?: unknown) => Iterable<unknown>;
   Reflect.set(editor, "segment", (text: string, mode?: unknown): Iterable<EditorSegment> => {
     const segments = [...original(text, mode)].filter(isEditorSegment);
-    const ranges = rangesForText(text);
+    const ranges: SegmentationRange[] = rangesForText(text).map(range => ({ ...range, wordLike: false }));
+    if (mode === "word") {
+      for (const range of contextualPathRanges(editor, text, wordDirection())) {
+        if (!ranges.some(existing => rangesOverlap(existing, range))) ranges.push({ ...range, wordLike: true });
+      }
+    }
+    ranges.sort((left, right) => left.start - right.start);
     if (ranges.length === 0) return segments;
     const merged: EditorSegment[] = [];
     let rangeIndex = 0;
@@ -697,10 +732,12 @@ function installAtomicSegmentation(
       const range = ranges[rangeIndex];
       if (range !== undefined && segment.index >= range.start && segment.index < range.end) {
         if (segment.index === range.start) {
+          const source = text.slice(range.start, range.end);
           merged.push({
-            segment: text.slice(range.start, range.end).replaceAll(" ", ATOMIC_SPACE_SENTINEL),
+            segment: range.wordLike ? "w".repeat(source.length) : source.replaceAll(" ", ATOMIC_SPACE_SENTINEL),
             index: range.start,
             input: text,
+            ...(range.wordLike ? { isWordLike: true } : {}),
           });
         }
         continue;
@@ -710,6 +747,30 @@ function installAtomicSegmentation(
     return merged;
   });
   Reflect.set(editor, ATOMIC_SEGMENTATION, true);
+}
+
+function contextualPathRanges(
+  editor: Editor,
+  text: string,
+  direction: WordDirection | undefined,
+): readonly PiShellEditorTextRange[] {
+  if (direction === undefined) return promptPathWordRanges(text);
+  const state = editorState(editor);
+  const line = state.lines[state.cursorLine] ?? "";
+  const offset = direction < 0 ? 0 : state.cursorCol;
+  if (text !== (direction < 0 ? line.slice(0, state.cursorCol) : line.slice(state.cursorCol))) {
+    return promptPathWordRanges(text);
+  }
+  const end = offset + text.length;
+  return promptPathWordRanges(line).flatMap(range => {
+    const start = Math.max(range.start, offset);
+    const finish = Math.min(range.end, end);
+    return finish <= start ? [] : [{ start: start - offset, end: finish - offset }];
+  });
+}
+
+function rangesOverlap(left: PiShellEditorTextRange, right: PiShellEditorTextRange): boolean {
+  return left.start < right.end && right.start < left.end;
 }
 
 function isEditorSegment(value: unknown): value is EditorSegment {
