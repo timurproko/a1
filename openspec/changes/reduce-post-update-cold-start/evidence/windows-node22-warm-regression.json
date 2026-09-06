@@ -1,0 +1,40 @@
+{
+  "schema": "a1-windows-warm-start-regression-v1",
+  "capturedAt": "2026-09-06",
+  "releaseRun": {
+    "id": 34022380161,
+    "url": "https://github.com/timurproko/a1/actions/runs/34022380161",
+    "sourceCommit": "4e7901f3e0105ae5de6c54be49dc2728677a3f74",
+    "packageVersion": "0.1.8-dev.254",
+    "conclusion": "failure",
+    "publisherConclusion": "skipped",
+    "aggregateConclusion": "failure"
+  },
+  "failingLane": {
+    "jobId": 101457555303,
+    "name": "Validate win32-node22",
+    "nodeVersion": "22",
+    "test": "test/foundation/release/package-install.integration.test.ts",
+    "scenario": "a1 pi warm",
+    "elapsedMs": 3453,
+    "budgetMs": 3000,
+    "dominantPhases": [
+      { "phase": "ui-modules-loaded", "durationMs": 1744 },
+      { "phase": "ui-entry", "durationMs": 1100 },
+      { "phase": "guardian-connected", "durationMs": 147 }
+    ]
+  },
+  "comparisonLane": {
+    "jobId": 101457555294,
+    "name": "Validate win32-node24",
+    "nodeVersion": "24",
+    "conclusion": "success"
+  },
+  "classification": {
+    "kind": "supported-node-warm-start-margin",
+    "automaticRetryPermitted": false,
+    "budgetIncreasePermitted": false,
+    "publicationBlocked": true,
+    "darwinFailureTrackedSeparately": "fix-darwin-packaged-supervisor-startup"
+  }
+}

@@ -16,6 +16,22 @@ describe("side-effect-free immutable warmup", () => {
     expect(source).not.toMatch(/composeOwnedUi\s*\(|createAgentSession\s*\(|fetch\s*\(|connect\s*\(|spawn\s*\(|process\.(?:stdin|stdout|stderr)/);
   });
 
+  it("loads the warm UI graph concurrently through narrow owned entries", async () => {
+    const source = await readFile(resolve(repository, "bin", "ui.js"), "utf8");
+    expect(source).toContain("const modules = Promise.all([");
+    for (const entry of [
+      "features/launch/runtime-selection.js",
+      "foundation/lifecycle/session-selection.js",
+      "features/owned-ui/project-trust-prompt.js",
+      "features/owned-ui/session-fork-prompt.js",
+      "features/owned-ui/run.js",
+      "composition/owned-ui.js",
+    ]) expect(source).toContain(entry);
+    expect(source).not.toContain('import("../dist/features/launch/index.js")');
+    expect(source).not.toContain('import("../dist/features/owned-ui/index.js")');
+    expect(source).not.toContain('import("../dist/composition/index.js")');
+  });
+
   it("runs the exact release entry with no attached stdio and fails on an unusable graph", async () => {
     const root = await mkdtemp(resolve(tmpdir(), "a1-warmup-"));
     roots.push(root);

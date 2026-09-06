@@ -61,7 +61,7 @@
 
 ## 9. Windows Node 22 Warm-Margin Correction
 
-- [ ] 9.1 Record run `34022380161`'s Windows Node 22 package-install failure, exact candidate/source, 3,453 ms warm `a1 pi` result, 3,000 ms budget, dominant `ui-modules-loaded`/`ui-entry`/`guardian-connected` phases, passing Node 24 comparison, and skipped publisher; verify job and timing evidence against GitHub
+- [x] 9.1 Record run `34022380161`'s Windows Node 22 package-install failure, exact candidate/source, 3,453 ms warm `a1 pi` result, 3,000 ms budget, dominant `ui-modules-loaded`/`ui-entry`/`guardian-connected` phases, passing Node 24 comparison, and skipped publisher; verify job and timing evidence against GitHub
 - [ ] 9.2 Reproduce the Node 22 warm `a1 pi` path from reset exact-package, runtime, data, and compile-cache state under Defender, and compare Node 22/24 module and phase evidence; verify the reproduction does not use a failed attempt as warmup and identifies the deterministic work consuming margin
 - [ ] 9.3 Optimize or defer only work proven unnecessary before first input-ready paint in the dominant phases while preserving public Pi APIs, extension/resource behavior, compile-cache identity, terminal semantics, and the 3-second budget; verify focused exact-package tests retain all compatibility assertions
 - [ ] 9.4 Add a focused regression that exercises both supported Windows Node versions without automatic retry and fails with phase diagnostics on an injected delay; verify development sampling demonstrates reliable margin while each release-gating scenario still executes once

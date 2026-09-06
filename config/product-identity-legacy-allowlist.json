@@ -1,6 +1,6 @@
 {
   "schema": "a1-legacy-identity-allowlist-v1",
-  "generatedAt": "2026-09-05T18:53:19.557Z",
+  "generatedAt": "2026-09-06T11:09:14.279Z",
   "inventorySchema": "a1-legacy-identity-inventory-v1",
   "occurrences": [
     {
@@ -268,15 +268,15 @@
       "reason": "explicit legacy rejection fixture"
     },
     {
-      "id": "test/foundation/release/package-install.integration.test.ts:50:70",
+      "id": "test/foundation/release/package-install.integration.test.ts:67:70",
       "value": "addone",
-      "fingerprint": "49cdf1e52ffee73098486f5d26cba1ea2b997169b1ffeefc8822d2ba3fe36521",
+      "fingerprint": "6e81da001a042a15edae2b68050fae516f0904e55ce23a1a6db3752e3dca6003",
       "reason": "explicit legacy rejection fixture"
     },
     {
-      "id": "test/foundation/release/package-install.integration.test.ts:50:85",
+      "id": "test/foundation/release/package-install.integration.test.ts:67:85",
       "value": "addone",
-      "fingerprint": "88df0be25b9e327bd8217766693f3eceb7cde28b60c49283158a960c815bda06",
+      "fingerprint": "5f68591740332281e174943879faed50f569199800eac5b7fb8748f73625d72f",
       "reason": "explicit legacy rejection fixture"
     },
     {
