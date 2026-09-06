@@ -242,12 +242,12 @@ export async function startSupervisor(release: MaterializedRelease, environment:
     stdio: "ignore",
     windowsHide: true,
   });
+  const childOutcome = new Promise<{ exitCode: number | null; signal: NodeJS.Signals | null }>(resolvePromise => {
+    child.once("close", (exitCode, signal) => resolvePromise({ exitCode, signal }));
+  });
   await new Promise<void>((resolvePromise, rejectPromise) => {
     child.once("spawn", resolvePromise);
     child.once("error", rejectPromise);
-  });
-  const childOutcome = new Promise<{ exitCode: number | null; signal: NodeJS.Signals | null }>(resolvePromise => {
-    child.once("close", (exitCode, signal) => resolvePromise({ exitCode, signal }));
   });
   child.unref();
   return { ...attempt, childOutcome };
