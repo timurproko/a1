@@ -4,31 +4,35 @@ Defines how A1 predicts a likely next user prompt after an agent run and present
 
 ## ADDED Requirements
 
-### Requirement: Eligible completed runs may produce one contextual suggestion
-When prompt suggestions are enabled, bare A1 SHALL start at most one background suggestion request after an eligible agent run settles. The request SHALL use the model selected for that completed run and enough current conversation context to predict what the user would naturally type next, rather than merely extracting a phrase from the final assistant text. It SHALL be eligible after at least two completed assistant messages and SHALL be independent of whether the assistant explicitly requested approval.
+### Requirement: Eligible completing runs may produce one contextual suggestion
+When prompt suggestions are enabled, bare A1 SHALL start at most one current background suggestion request for an eligible run at the earliest trustworthy final assistant-response boundary before that run settles. The boundary SHALL represent a successful completed text response with no indicated tool continuation. The request SHALL use the model selected for that run and enough conversation context including the completed response to predict what the user would naturally type next, rather than merely extracting a phrase from the final assistant text. It SHALL be eligible after at least two completed assistant messages and SHALL be independent of whether the assistant explicitly requested approval.
 
-The request SHALL be tool-free in effect, SHALL NOT append messages to or otherwise mutate the user's session, SHALL NOT block settlement or editor input, and SHALL treat no suggestion as a valid result. A1 SHALL NOT start suggestion generation in comparison or non-interactive modes, while the feature is disabled, while a permission or other modal input is active, after a failed assistant response, or without an active model.
+The request SHALL be tool-free in effect, SHALL NOT append messages to or otherwise mutate the user's session, SHALL NOT block settlement or editor input, and SHALL treat no suggestion as a valid result. A1 SHALL NOT start suggestion generation in comparison or non-interactive modes, while the feature is disabled, while a permission or other modal input is active, after a failed or incomplete assistant response, while tool continuation is indicated, or without an active model. If the run continues after an apparently terminal response, A1 SHALL invalidate that request before starting any replacement request.
 
-#### Scenario: Predict an explicit approval response
-- **WHEN** an eligible agent run settles after asking the user to approve a clearly stated next action
-- **THEN** A1 SHALL request a short likely user response through the model selected for that run
-- **AND** the main session SHALL become ready without waiting for that request
+#### Scenario: Predict an explicit approval response before settlement
+- **WHEN** an eligible final assistant response asks the user to approve a clearly stated next action and completes without a tool continuation
+- **THEN** A1 SHALL start a short likely-user-response request through the model selected for that run before final run settlement
+- **AND** the main session SHALL continue settling without waiting for that request
 
 #### Scenario: Predict a non-approval follow-up
-- **WHEN** an eligible agent run settles with an obvious next step that does not use explicit approval wording
-- **THEN** A1 MAY offer that likely follow-up under the same generation and filtering rules
+- **WHEN** an eligible final assistant response has an obvious next step that does not use explicit approval wording
+- **THEN** A1 MAY prepare that likely follow-up before settlement under the same generation and filtering rules
 
 #### Scenario: No obvious next input exists
 - **WHEN** the suggestion request produces no text or indicates that no natural next input is obvious
 - **THEN** A1 SHALL leave the editor without a contextual suggestion
 
 #### Scenario: Conversation is too early
-- **WHEN** an agent run settles before two assistant messages have completed in the current conversation
+- **WHEN** a final assistant response completes before two assistant messages exist in the current conversation
 - **THEN** A1 SHALL NOT start a suggestion request
 
 #### Scenario: Another interaction owns input
-- **WHEN** a permission request, dialog, overlay, selector, replacement editor, or other modal input owns the session when a run settles
+- **WHEN** a permission request, dialog, overlay, selector, replacement editor, or other modal input owns the session when a candidate response completes or the run settles
 - **THEN** A1 SHALL NOT generate or reveal a contextual prompt suggestion behind that interaction
+
+#### Scenario: Assistant continues with tools
+- **WHEN** an assistant message completes with a tool-use stop or a later continuation begins before settlement
+- **THEN** A1 SHALL not generate from that incomplete boundary or SHALL invalidate generation already made obsolete by the continuation
 
 #### Scenario: Generation fails
 - **WHEN** the background request is rejected, times out, is aborted, or returns a provider error
@@ -56,14 +60,22 @@ A generated suggestion SHALL be data only. It SHALL NOT constitute approval, per
 - **THEN** A1 SHALL still treat it only as inert ghost text until the user accepts it into the editor and separately submits it
 
 ### Requirement: The latest valid suggestion appears as editor ghost text
-A valid suggestion SHALL appear in the ordinary bare-A1 editor only while that editor is focused, empty, enabled, in prompt mode, and not showing autocomplete. The ordinary bare-A1 prompt row SHALL use the same `❯` glyph and glyph foreground style as the shared settings search input whether it is empty, showing a suggestion, or containing typed text; the glyph SHALL remain presentation-only and shall not consume a semantic editor-text offset. The suggestion SHALL use that input's quiet placeholder styling. It SHALL preserve the ordinary caret and editor geometry, wrap by terminal display width after reserving the glyph width, and remain absent from semantic editor text, selection, clipboard, history, queued input, and submitted prompts until accepted.
+A valid suggestion SHALL appear in the ordinary bare-A1 editor only after its run settles and while that editor is focused, empty, enabled, in prompt mode, and not showing autocomplete. If generation completed before settlement, A1 SHALL reveal the complete suggestion in the same presentation cycle that makes the settled editor available. A1 SHALL not progressively type the suggestion and SHALL not retain or relabel the agent's working indicator or add a generation-status row. If generation remains pending at settlement, A1 SHALL reveal the complete suggestion immediately when it becomes available without adding an artificial animation delay.
+
+The ordinary bare-A1 prompt row SHALL use the same `❯` glyph and glyph foreground style as the shared settings search input whether it is empty, showing a suggestion, or containing typed text; the glyph SHALL remain presentation-only and shall not consume a semantic editor-text offset. The suggestion SHALL use that input's quiet placeholder styling. It SHALL preserve the ordinary caret and editor geometry, wrap by terminal display width after reserving the glyph width, and remain absent from semantic editor text, selection, clipboard, history, queued input, and submitted prompts until accepted.
 
 A1 SHALL preserve autocomplete priority: an active slash-command, path, resource, or extension autocomplete result SHALL own Tab and its presentation instead of a contextual suggestion.
 
-#### Scenario: Show a suggestion in an idle empty editor
-- **WHEN** a valid current suggestion arrives while the ordinary prompt editor is focused and empty
-- **THEN** the suggestion SHALL appear after the shared grey `❯` prompt glyph using the same quiet style as the `search settings` placeholder
+#### Scenario: Suggestion is ready before settlement
+- **WHEN** an eligible suggestion finishes while its originating run is still settling and the ordinary prompt editor becomes eligible at settlement
+- **THEN** the complete suggestion SHALL appear in that settlement presentation after the shared grey `❯` prompt glyph using the same quiet style as the `search settings` placeholder
+- **AND** no typing animation, retained `Working...` state, or suggestion-generation status SHALL delay it
 - **AND** reading or copying the editor value SHALL still observe an empty value
+
+#### Scenario: Suggestion finishes after settlement
+- **WHEN** the run settles before its current suggestion request finishes and the editor remains eligible
+- **THEN** A1 SHALL show the complete suggestion as soon as the result is available
+- **AND** A1 SHALL not add an artificial reveal delay
 
 #### Scenario: Render ordinary prompt text
 - **WHEN** the ordinary bare-A1 editor is empty or contains user-entered text without a contextual suggestion
@@ -110,7 +122,7 @@ When a contextual suggestion is visible, the configured `tui.input.tab` action S
 - **THEN** A1 SHALL submit only the edited editor text and SHALL not restore or separately submit the original suggestion
 
 ### Requirement: Suggestion lifecycle rejects stale work
-A1 SHALL associate each suggestion request and result with the session generation, completed run, and model that produced it. Starting a new run, typing or pasting, accepting or submitting, clearing the editor, interrupting, changing model, replacing or clearing the session, disabling the feature, or disposing the shell SHALL abort pending generation and clear any unaccepted suggestion. A late result whose identity no longer matches current state SHALL be discarded.
+A1 SHALL associate each suggestion request and result with the session generation, run, candidate assistant-response sequence, and model that produced it. Starting or continuing a run after that candidate response, typing or pasting, accepting or submitting, clearing the editor, interrupting, changing model, replacing or clearing the session, disabling the feature, or disposing the shell SHALL abort pending generation and clear any unaccepted suggestion. A late result whose identity no longer matches current state SHALL be discarded.
 
 A newly generated current suggestion SHALL replace an older unaccepted suggestion. A suggestion SHALL not be persisted in the session transcript or restored after restart or resume.
 
