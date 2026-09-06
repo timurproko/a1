@@ -65,6 +65,12 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
   }, keybindings, {
     paddingX: PINNED_PI_LAYOUT.editorPaddingX,
     autocompleteMaxVisible: PINNED_PI_LAYOUT.autocompleteMaxVisible,
+    ...(options.keybindingProfile === "a1" && options.promptPresentation !== undefined ? {
+      promptPrefix: options.promptPresentation.prefix,
+      styleSuggestion: options.promptPresentation.styleSuggestion,
+      styleSuggestionCaret: options.promptPresentation.styleSuggestionCaret,
+      terminalRows: options.getRows,
+    } : {}),
   });
   const editorUx = options.keybindingProfile === "a1"
     ? new OwnedEditorUxInterception([
@@ -78,6 +84,7 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
           decorateRow: options.decorateEditorRow ?? (row => row),
           requestRender: options.requestRender,
           getRows: options.getRows,
+          ...(options.promptPresentation === undefined ? {} : { promptPrefixWidth: 2 }),
         }),
       ], {
         render: width => editor.render(width),
@@ -143,6 +150,9 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
   if (options.onMessageCopy !== undefined) editor.onAction("app.message.copy", options.onMessageCopy);
   if (options.onFollowUp !== undefined) editor.onAction("app.message.followUp", options.onFollowUp);
   if (options.onDequeue !== undefined) editor.onAction("app.message.dequeue", options.onDequeue);
+  if (options.onPromptSuggestionAccepted !== undefined) {
+    editor.onPromptSuggestionAccepted = options.onPromptSuggestionAccepted;
+  }
   return {
     render: width => editorUx?.render(width) ?? editor.render(width),
     activateKeybindings: () => setKeybindings(keybindings),
@@ -193,6 +203,11 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
       thinkingLevel = level;
       updateBorderColor();
     },
+    setPromptSuggestion(text) {
+      editor.setPromptSuggestion(text);
+      editor.invalidate();
+    },
+    canPresentPromptSuggestion: () => editor.canPresentPromptSuggestion(),
     hasSelection: () => editorUx?.hasSelection() ?? false,
     ownsPointer: () => editorUx?.ownsPointer() ?? false,
     handlePointer: event => editorUx?.handlePointer(event) ?? false,

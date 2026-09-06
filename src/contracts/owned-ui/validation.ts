@@ -7,6 +7,10 @@ import {
   type OwnedUiEditorState,
   type OwnedUiEvent,
   type OwnedUiOverlay,
+  type OwnedUiPromptSuggestionIdentity,
+  type OwnedUiPromptSuggestionRequest,
+  type OwnedUiPromptSuggestionResult,
+  type OwnedUiPromptSuggestionState,
   type OwnedUiSessionViewModel,
   type OwnedUiSnapshot,
   type OwnedUiStatusView,
@@ -136,6 +140,13 @@ export function assertOwnedUiEvent(event: OwnedUiEvent): void {
     case "assistant-message-completed":
     case "agent-run-started":
       return;
+    case "agent-run-settled":
+      assertNonNegativeInteger(event.sessionGeneration, "owned-UI settlement session generation");
+      assertNonNegativeInteger(event.runSequence, "owned-UI settlement run sequence");
+      assertNonNegativeInteger(event.assistantMessageCount, "owned-UI settlement assistant message count");
+      if (event.model !== null) assertOwnedUiModelInfo(event.model);
+      if (typeof event.successful !== "boolean") throw new TypeError("owned-UI settlement success state is invalid");
+      return;
     case "editor-state":
       assertOwnedUiEditorState(event.editor);
       return;
@@ -169,6 +180,36 @@ export function assertOwnedUiEvent(event: OwnedUiEvent): void {
   }
 }
 
+export function assertOwnedUiPromptSuggestionIdentity(identity: OwnedUiPromptSuggestionIdentity): void {
+  assertId(identity.sessionId, "prompt-suggestion session id");
+  assertNonNegativeInteger(identity.sessionGeneration, "prompt-suggestion session generation");
+  assertNonNegativeInteger(identity.runSequence, "prompt-suggestion run sequence");
+  assertOwnedUiModelInfo(identity.model);
+}
+
+export function assertOwnedUiPromptSuggestionRequest(request: OwnedUiPromptSuggestionRequest): void {
+  assertOwnedUiPromptSuggestionIdentity(request.identity);
+  if (typeof request.signal !== "object" || request.signal === null
+    || typeof request.signal.aborted !== "boolean"
+    || typeof request.signal.addEventListener !== "function") {
+    throw new TypeError("prompt-suggestion abort signal is invalid");
+  }
+}
+
+export function assertOwnedUiPromptSuggestionResult(result: OwnedUiPromptSuggestionResult): void {
+  assertOwnedUiPromptSuggestionIdentity(result.identity);
+  assertPromptSuggestionText(result.text, true);
+}
+
+export function assertOwnedUiPromptSuggestionState(state: OwnedUiPromptSuggestionState): void {
+  if (state.status === "idle") return;
+  if (state.status !== "generating" && state.status !== "available") {
+    throw new TypeError("prompt-suggestion state is invalid");
+  }
+  assertOwnedUiPromptSuggestionIdentity(state.identity);
+  if (state.status === "available") assertPromptSuggestionText(state.text, false);
+}
+
 export function assertOwnedUiSessionViewModel(view: OwnedUiSessionViewModel): void {
   if (view.contractVersion !== OWNED_UI_CONTRACT_VERSION) {
     throw new TypeError("unsupported owned-UI contract version");
@@ -180,9 +221,7 @@ export function assertOwnedUiSessionViewModel(view: OwnedUiSessionViewModel): vo
   assertOwnedUiStatusView(view.status);
   assertOwnedUiTerminalSurface(view.terminal);
   if (view.activeModel !== null) {
-    assertId(view.activeModel.providerId, "owned-UI provider id");
-    assertId(view.activeModel.modelId, "owned-UI model id");
-    assertBoundedText(view.activeModel.displayName, "owned-UI model display name", MAX_LABEL_LENGTH);
+    assertOwnedUiModelInfo(view.activeModel);
   }
   assertEnum(view.thinkingLevel, THINKING_LEVELS, "owned-UI thinking level");
   assertCollection(view.activeCommandIds, "owned-UI active commands", MAX_ACTIVE_COMMANDS);
@@ -340,6 +379,12 @@ export function assertOwnedUiDiagnostics(diagnostic: OwnedUiDiagnostics): void {
   if (typeof diagnostic.recoverable !== "boolean") throw new TypeError("owned-UI diagnostic recoverability is invalid");
 }
 
+function assertOwnedUiModelInfo(model: { readonly providerId: string; readonly modelId: string; readonly displayName: string }): void {
+  assertId(model.providerId, "owned-UI provider id");
+  assertId(model.modelId, "owned-UI model id");
+  assertBoundedText(model.displayName, "owned-UI model display name", MAX_LABEL_LENGTH);
+}
+
 function assertOwnedUiDialog(dialog: OwnedUiDialog): void {
   assertId(dialog.id, "owned-UI dialog id");
   assertBoundedText(dialog.title, "owned-UI dialog title", MAX_LABEL_LENGTH);
@@ -391,6 +436,13 @@ function assertPossiblyEmptyText(value: string, name: string, maximumBytes: numb
 function assertOptionalText(value: string | null, name: string, maximumBytes: number): void {
   if (value === null) return;
   assertBoundedText(value, name, maximumBytes);
+}
+
+function assertPromptSuggestionText(value: string | null, allowEmpty: boolean): void {
+  if (value === null) return;
+  if (typeof value !== "string" || value.includes("\0") || (!allowEmpty && value.length === 0) || [...value].length >= 100) {
+    throw new TypeError("prompt-suggestion text is invalid");
+  }
 }
 
 function assertCollection(value: readonly unknown[], name: string, maximum: number): void {

@@ -20,6 +20,13 @@ class FakeSession {
   isRetrying = false;
   isCompacting = false;
   readonly messages: readonly unknown[] = [];
+  readonly agent = {
+    state: {
+      systemPrompt: "You are a coding agent.",
+      messages: [] as unknown[],
+      tools: [{ name: "read", description: "Read a file", parameters: { type: "object", properties: {} } }],
+    },
+  };
   contextUsage: { tokens: number | null; contextWindow: number; percent: number | null } | undefined;
   readonly sessionManager = {
     getSessionName: () => "adapter-test",
@@ -37,6 +44,7 @@ class FakeSession {
 
   setMessages(messages: readonly unknown[]): void {
     (this as { messages: readonly unknown[] }).messages = messages;
+    this.agent.state.messages = [...messages];
   }
 
   getContextUsage(): { tokens: number | null; contextWindow: number; percent: number | null } | undefined {
@@ -109,6 +117,8 @@ class FakeSession {
 
 class FakeRuntime {
   session: FakeSession;
+  readonly suggestionCalls: Array<{ model: unknown; context: unknown; options: unknown }> = [];
+  suggestionResponse: unknown = { role: "assistant", content: [{ type: "text", text: "run the tests" }] };
   readonly services = {
     resourceLoader: {
       getPrompts: () => ({ prompts: [], diagnostics: [] }),
@@ -125,6 +135,10 @@ class FakeRuntime {
         { provider: "anthropic", id: "claude", name: "Claude" },
       ],
       isUsingSubscription: (providerId: string) => providerId === "openai",
+      completeSimple: async (model: unknown, context: unknown, options: unknown) => {
+        this.suggestionCalls.push({ model, context, options });
+        return this.suggestionResponse;
+      },
     },
     diagnostics: [{ type: "warning", message: "service warning" }],
   };
@@ -328,10 +342,62 @@ describe("Pi engine adapter", () => {
     await adapter.flushEvents();
 
     expect(events.filter(event => event.type === "agent-run-started")).toHaveLength(1);
+    expect(events.filter(event => event.type === "agent-run-settled")).toHaveLength(1);
+    expect(events.findIndex(event => event.type === "session-view" && event.view.lifecycle === "ready"))
+      .toBeLessThan(events.findIndex(event => event.type === "agent-run-settled"));
     expect(events.some(event => event.type === "session-lifecycle" && event.lifecycle === "busy")).toBe(true);
     expect(events.some(event => event.type === "session-lifecycle" && event.lifecycle === "ready")).toBe(true);
     expect(adapter.view().editor.queuedSubmissions).toEqual(["steer", "later"]);
     expect(adapter.view().status.workingMessage).toBeNull();
+  });
+
+  it("generates an isolated suggestion with the selected model and parent context", async () => {
+    const session = new FakeSession("pi-session-1");
+    session.setMessages([
+      { role: "user", content: "please fix it", timestamp: 1 },
+      { role: "assistant", content: [{ type: "text", text: "Fixed." }], stopReason: "stop", timestamp: 2 },
+    ]);
+    const runtime = new FakeRuntime(session);
+    const { adapter } = await adapterWithRuntime(runtime);
+    const before = JSON.stringify(session.messages);
+    const identity = {
+      sessionId: adapter.sessionId,
+      sessionGeneration: adapter.sessionGeneration,
+      runSequence: 0,
+      model: adapter.view().activeModel!,
+    };
+    await expect(adapter.generate({ identity, signal: new AbortController().signal })).resolves.toEqual({
+      identity,
+      text: "run the tests",
+    });
+    expect(runtime.suggestionCalls).toHaveLength(1);
+    expect(runtime.suggestionCalls[0]?.model).toBe(session.model);
+    expect(runtime.suggestionCalls[0]?.context).toMatchObject({
+      systemPrompt: "You are a coding agent.",
+      tools: session.agent.state.tools,
+    });
+    expect(JSON.stringify(session.messages)).toBe(before);
+    expect(session.calls).toEqual([]);
+  });
+
+  it("rejects stale generation identities, tool calls, and filtered text", async () => {
+    const session = new FakeSession("pi-session-1");
+    session.setMessages([{ role: "assistant", content: [{ type: "text", text: "Done" }], stopReason: "stop" }]);
+    const runtime = new FakeRuntime(session);
+    const { adapter } = await adapterWithRuntime(runtime);
+    const identity = {
+      sessionId: adapter.sessionId,
+      sessionGeneration: adapter.sessionGeneration,
+      runSequence: 0,
+      model: adapter.view().activeModel!,
+    };
+    await expect(adapter.generate({ identity: { ...identity, runSequence: 99 }, signal: new AbortController().signal }))
+      .resolves.toMatchObject({ text: null });
+    runtime.suggestionResponse = { role: "assistant", content: [{ type: "toolCall", id: "1", name: "bash", arguments: {} }] };
+    await expect(adapter.generate({ identity, signal: new AbortController().signal })).resolves.toMatchObject({ text: null });
+    runtime.suggestionResponse = { role: "assistant", content: [{ type: "text", text: "I'll do it" }] };
+    await expect(adapter.generate({ identity, signal: new AbortController().signal })).resolves.toMatchObject({ text: null });
+    expect(session.calls).toEqual([]);
   });
 
   it("rebinds subscriptions when new and resumed sessions replace the runtime session", async () => {

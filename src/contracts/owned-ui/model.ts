@@ -36,6 +36,32 @@ export interface OwnedUiModelInfo {
   readonly displayName: string;
 }
 
+export interface OwnedUiPromptSuggestionIdentity {
+  readonly sessionId: OwnedUiSessionId;
+  readonly sessionGeneration: number;
+  readonly runSequence: number;
+  readonly model: OwnedUiModelInfo;
+}
+
+export interface OwnedUiPromptSuggestionRequest {
+  readonly identity: OwnedUiPromptSuggestionIdentity;
+  readonly signal: AbortSignal;
+}
+
+export interface OwnedUiPromptSuggestionResult {
+  readonly identity: OwnedUiPromptSuggestionIdentity;
+  readonly text: string | null;
+}
+
+export type OwnedUiPromptSuggestionState =
+  | { readonly status: "idle" }
+  | { readonly status: "generating"; readonly identity: OwnedUiPromptSuggestionIdentity }
+  | { readonly status: "available"; readonly identity: OwnedUiPromptSuggestionIdentity; readonly text: string };
+
+export interface OwnedUiPromptSuggestionGeneratorPort {
+  generate(request: OwnedUiPromptSuggestionRequest): Promise<OwnedUiPromptSuggestionResult>;
+}
+
 export type OwnedUiThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh";
 
 export interface OwnedUiViewportSettings {
@@ -286,6 +312,17 @@ export type OwnedUiEvent =
     readonly type: "agent-run-started";
     readonly sessionId: OwnedUiSessionId;
     readonly sequence: number;
+  }
+  | {
+    /** The final settlement of one run, after authoritative transcript reconciliation. */
+    readonly type: "agent-run-settled";
+    readonly sessionId: OwnedUiSessionId;
+    readonly sequence: number;
+    readonly sessionGeneration: number;
+    readonly runSequence: number;
+    readonly model: OwnedUiModelInfo | null;
+    readonly assistantMessageCount: number;
+    readonly successful: boolean;
   }
   | {
     readonly type: "editor-state";
