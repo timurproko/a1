@@ -118,7 +118,7 @@ export const STREAM_RENDERING_WORKLOADS: readonly RenderingWorkload[] = Object.f
   },
   {
     id: "fit-overflow-boundary",
-    description: "Working and queued rows retain dock ownership as transcript content begins to overflow.",
+    description: "Working stays bottom-aligned while fitting, then Working and pending Steering scroll after real overflow.",
     columns: 42,
     rows: 10,
     steps: [

@@ -49,6 +49,19 @@ describe("full rendering stability gate", () => {
     expect(followed.findings.safeShiftCheckpoints.length).toBeGreaterThan(0);
     expect(followed.findings.dockGeometry.length).toBeGreaterThan(0);
 
+    const boundary = captured.matrices.get("fit-overflow-boundary")!;
+    const boundaryCheckpoints = boundary.fullscreenMode.find(entry => entry.producer === "bare-a1")!.checkpoints;
+    const fittingWorking = boundaryCheckpoints.find(checkpoint => checkpoint.name === "fit-working")!;
+    const fittingUser = boundaryCheckpoints.find(checkpoint => checkpoint.name === "fit-user")!;
+    const fittingQueued = boundaryCheckpoints.find(checkpoint => checkpoint.name === "fit-queued")!;
+    expect(fittingWorking.viewport?.transientAlignmentGapRows).toBeGreaterThan(0);
+    expect(fittingWorking.viewport?.bottomAlignedTailRowCount).toBeGreaterThan(0);
+    expect(fittingUser.viewport?.transientAlignmentGapRows).toBeLessThan(fittingWorking.viewport!.transientAlignmentGapRows!);
+    expect(fittingQueued.viewport?.dock).toEqual(fittingUser.viewport?.dock);
+    expect(fittingQueued.viewport?.transientRowCount).toBeGreaterThan(fittingUser.viewport!.transientRowCount!);
+    expect(boundaryCheckpoints.some(checkpoint => checkpoint.viewport?.transientAlignmentGapRows === 0
+      && (checkpoint.viewport?.transientRowCount ?? 0) > 0)).toBe(true);
+
     const producer = prose.defaultMode[0]!;
     const checkpoint = producer.checkpoints.find(candidate => candidate.name !== "initial")!;
     const corrupted: RenderingMatrixResult = {

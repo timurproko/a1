@@ -9,6 +9,7 @@ import {
 
 const ALWAYS = { scrollbarAppearance: "always" as const, scrollbarStyle: "thin" as const };
 const rows = (count: number) => Array.from({ length: count }, (_, index) => `row ${index}`);
+const overflowingRows = (value: readonly string[]) => value.map(row => stripAnsi(row).trimEnd());
 
 describe("transcript viewport", () => {
   it("returns an exact-height transcript-above-dock frame and leaves one line above the rail", () => {
@@ -21,6 +22,87 @@ describe("transcript viewport", () => {
     expect(stripAnsi(frame.rows[1] ?? "")).toContain("│");
     expect(frame.hits.rail).toMatchObject({ rowStart: 2, trackHeight: 3 });
     expect(frame.rows.slice(-2).map(row => row.trimEnd())).toEqual(["editor", "footer"]);
+  });
+
+  it("bottom-aligns a fitting transient status without shifting earlier rows", () => {
+    const viewport = new TranscriptViewport();
+    viewport.setConfig({ scrollbarAppearance: "hidden", scrollbarStyle: "thin" });
+    const fitting = viewport.compose({
+      documentRows: ["message", "Steering: later", "Working..."],
+      selectableDocumentRowCount: 1,
+      bottomAlignedTailRowCount: 1,
+      dockRows: ["editor"],
+      promptAnchors: [],
+      width: 30,
+      height: 7,
+      now: 100,
+    });
+
+    expect(fitting.rows.map(row => stripAnsi(row).trimEnd())).toEqual([
+      "message",
+      "Steering: later",
+      "",
+      "",
+      "",
+      "Working...",
+      "editor",
+    ]);
+    expect(fitting).toMatchObject({ scrollTop: 0, maxScroll: 0, followingEnd: true });
+    expect(fitting.descriptor).toMatchObject({
+      transientRowCount: 5,
+      transientAlignmentGapRows: 3,
+      bottomAlignedTailRowCount: 1,
+      verticalShiftRows: 0,
+      safeVerticalShift: false,
+      cause: "initial",
+    });
+    expect(fitting.hits.transientTail).toEqual([2, 3, 4, 5, 6]);
+
+    const grown = viewport.compose({
+      documentRows: ["message", "reply", "Steering: later", "Working..."],
+      selectableDocumentRowCount: 2,
+      bottomAlignedTailRowCount: 1,
+      dockRows: ["editor"],
+      promptAnchors: [],
+      width: 30,
+      height: 7,
+      now: 101,
+    });
+    expect(grown.rows.map(row => stripAnsi(row).trimEnd())).toEqual([
+      "message",
+      "reply",
+      "Steering: later",
+      "",
+      "",
+      "Working...",
+      "editor",
+    ]);
+    expect(grown.descriptor).toMatchObject({
+      transientAlignmentGapRows: 2,
+      verticalShiftRows: 0,
+      safeVerticalShift: false,
+      cause: "steady",
+    });
+
+    const overflowing = viewport.compose({
+      documentRows: ["message", "reply", "third", "fourth", "fifth", "Steering: later", "Working..."],
+      selectableDocumentRowCount: 5,
+      bottomAlignedTailRowCount: 1,
+      dockRows: ["editor"],
+      promptAnchors: [],
+      width: 30,
+      height: 7,
+      now: 102,
+    });
+    expect(overflowingRows(overflowing.rows)).toEqual(["reply", "third", "fourth", "fifth", "Steering: later", "Working...", "editor"]);
+    expect(overflowing).toMatchObject({ scrollTop: 1, maxScroll: 1, followingEnd: true });
+    expect(overflowing.descriptor).toMatchObject({
+      transientAlignmentGapRows: 0,
+      bottomAlignedTailRowCount: 1,
+      verticalShiftRows: 1,
+      safeVerticalShift: true,
+      cause: "follow-shift",
+    });
   });
 
   it("reuses established transcript rows for a same-height dock-only frame and fails closed on geometry or selection", () => {
@@ -66,6 +148,9 @@ describe("transcript viewport", () => {
       nextDocumentRange: { start: 5, end: 10 },
       previousFollowingEnd: null,
       followingEnd: true,
+      transientRowCount: 0,
+      transientAlignmentGapRows: 0,
+      bottomAlignedTailRowCount: 0,
       verticalShiftRows: 0,
       safeVerticalShift: false,
       selectionRevision: 0,
@@ -123,6 +208,9 @@ describe("transcript viewport", () => {
       nextDocumentRange: { start: 3, end: 7 },
       previousFollowingEnd: true,
       followingEnd: true,
+      transientRowCount: 0,
+      transientAlignmentGapRows: 0,
+      bottomAlignedTailRowCount: 0,
       verticalShiftRows: 1,
       safeVerticalShift: true,
       selectionRevision: 0,
@@ -133,6 +221,7 @@ describe("transcript viewport", () => {
     expect(() => assertTranscriptViewportFrameDescriptor({ ...valid, frameId: 0 })).toThrow(/identity/);
     expect(() => assertTranscriptViewportFrameDescriptor({ ...valid, transcript: { rowStart: 1, rowEnd: 5 } })).toThrow(/overlap/);
     expect(() => assertTranscriptViewportFrameDescriptor({ ...valid, verticalShiftRows: 2 })).toThrow(/disagrees/);
+    expect(() => assertTranscriptViewportFrameDescriptor({ ...valid, transientAlignmentGapRows: 1 })).toThrow(/transient geometry/);
     expect(() => assertTranscriptViewportFrameDescriptor({ ...valid, safeVerticalShift: true, followingEnd: false })).toThrow(/unsafe/);
     expect(() => assertTranscriptViewportFrameDescriptor({ ...valid, nextDocumentRange: { start: -1, end: 7 } })).toThrow(/next document range/);
     expect(() => assertTranscriptViewportFrameDescriptor({ ...valid, selectionRevision: -1 })).toThrow(/selection revision/);

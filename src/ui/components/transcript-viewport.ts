@@ -51,6 +51,8 @@ export interface TranscriptViewportFrameInput {
   readonly paintDocumentRow?: (row: string) => string;
   /** Leading document rows that participate in pointer selection and copying. */
   readonly selectableDocumentRowCount?: number;
+  /** Final transient rows to bottom-align with unused viewport space while content fits. */
+  readonly bottomAlignedTailRowCount?: number;
   readonly dockRows: readonly string[];
   readonly promptAnchors: readonly TranscriptPromptAnchor[];
   readonly width: number;
@@ -92,6 +94,12 @@ export interface TranscriptViewportFrameDescriptor {
   readonly nextDocumentRange: { readonly start: number; readonly end: number };
   readonly previousFollowingEnd: boolean | null;
   readonly followingEnd: boolean;
+  /** Complete non-selectable suffix, including pending steering, alignment, and status rows. */
+  readonly transientRowCount: number;
+  /** Flexible rows inserted before the bottom-aligned live status while content fits. */
+  readonly transientAlignmentGapRows: number;
+  /** Live status rows at the end of the transient suffix. */
+  readonly bottomAlignedTailRowCount: number;
   readonly verticalShiftRows: number;
   readonly safeVerticalShift: boolean;
   /** Monotonic interaction revision used to reject stale selection evidence. */
@@ -364,14 +372,30 @@ export class TranscriptViewport {
     const previousDescriptor = this.#frame?.descriptor ?? null;
     const dock = input.dockRows.length > height ? input.dockRows.slice(-height) : [...input.dockRows];
     const viewportHeight = Math.max(0, height - dock.length);
-    this.#maxScroll = Math.max(0, input.documentRows.length - viewportHeight);
+    const bottomAlignedTailRowCount = clamp(
+      input.bottomAlignedTailRowCount ?? 0,
+      0,
+      input.documentRows.length,
+    );
+    const transientAlignmentGapRows = bottomAlignedTailRowCount > 0
+      ? Math.max(0, viewportHeight - input.documentRows.length)
+      : 0;
+    const tailStart = input.documentRows.length - bottomAlignedTailRowCount;
+    const documentRows = transientAlignmentGapRows === 0
+      ? input.documentRows
+      : [
+          ...input.documentRows.slice(0, tailStart),
+          ...Array.from({ length: transientAlignmentGapRows }, () => ""),
+          ...input.documentRows.slice(tailStart),
+        ];
+    this.#maxScroll = Math.max(0, documentRows.length - viewportHeight);
     if (this.#followingEnd) this.#scrollTop = this.#maxScroll;
     else this.#scrollTop = clamp(this.#scrollTop, 0, this.#maxScroll);
     if (this.#scrollTop >= this.#maxScroll) this.#followingEnd = true;
     if (this.#followingEnd) this.#newMessages = 0;
 
     const geometry = scrollbarGeometry({
-      contentLength: input.documentRows.length,
+      contentLength: documentRows.length,
       viewportHeight,
       scroll: this.#scrollTop,
       // Compatibility: the session rail deliberately starts one line below the viewport top.
@@ -387,7 +411,7 @@ export class TranscriptViewport {
       now: input.now ?? Date.now(),
     });
     const contentWidth = presentation.reservesSpace ? Math.max(1, width - 1) : width;
-    this.#documentRows = input.documentRows;
+    this.#documentRows = documentRows;
     this.#selectableDocumentRowCount = clamp(
       input.selectableDocumentRowCount ?? input.documentRows.length,
       0,
@@ -403,7 +427,7 @@ export class TranscriptViewport {
     trimCache(this.#finalRowCache, cacheLimit);
     const paintId = this.#functionId(paintDocumentRow);
     const paintRecomputedRows = new Set<number>();
-    const visible = input.documentRows
+    const visible = documentRows
       .slice(this.#scrollTop, this.#scrollTop + viewportHeight)
       .map((row, index) => {
         const painted = cachedString(this.#paintedRowCache, `${paintId}\u0000${row}`, cacheLimit, () => paintDocumentRow(row));
@@ -518,7 +542,7 @@ export class TranscriptViewport {
 
     const nextDocumentRange = {
       start: this.#scrollTop,
-      end: Math.min(input.documentRows.length, this.#scrollTop + viewportHeight),
+      end: Math.min(documentRows.length, this.#scrollTop + viewportHeight),
     };
     const previousDocumentRange = previousDescriptor?.nextDocumentRange ?? null;
     const sameGeometry = previousDescriptor !== null
@@ -543,6 +567,9 @@ export class TranscriptViewport {
       nextDocumentRange,
       previousFollowingEnd: previousDescriptor?.followingEnd ?? null,
       followingEnd: this.#followingEnd,
+      transientRowCount: Math.max(0, documentRows.length - this.#selectableDocumentRowCount),
+      transientAlignmentGapRows,
+      bottomAlignedTailRowCount,
       verticalShiftRows,
       safeVerticalShift,
       selectionRevision: composingSelectionRevision,
@@ -570,7 +597,7 @@ export class TranscriptViewport {
       sticky: stickyActive ? { row: 1, target: governing.firstRow, width: contentWidth } : null,
       bottom: bottomHit,
       transientTail: Array.from(
-        { length: Math.max(0, Math.min(input.documentRows.length, this.#scrollTop + viewportHeight) - Math.max(this.#scrollTop, this.#selectableDocumentRowCount)) },
+        { length: Math.max(0, Math.min(documentRows.length, this.#scrollTop + viewportHeight) - Math.max(this.#scrollTop, this.#selectableDocumentRowCount)) },
         (_row, index) => Math.max(this.#scrollTop, this.#selectableDocumentRowCount) - this.#scrollTop + index + 1,
       ),
     };
@@ -618,6 +645,9 @@ export class TranscriptViewport {
       nextDocumentRange: previous.descriptor.nextDocumentRange,
       previousFollowingEnd: previous.followingEnd,
       followingEnd: previous.followingEnd,
+      transientRowCount: previous.descriptor.transientRowCount,
+      transientAlignmentGapRows: previous.descriptor.transientAlignmentGapRows,
+      bottomAlignedTailRowCount: previous.descriptor.bottomAlignedTailRowCount,
       verticalShiftRows: 0,
       safeVerticalShift: false,
       selectionRevision: this.#selectionRevision,
@@ -747,6 +777,12 @@ export function assertTranscriptViewportFrameDescriptor(descriptor: TranscriptVi
   }
   assertDocumentRange(descriptor.nextDocumentRange, "next");
   if (descriptor.previousDocumentRange !== null) assertDocumentRange(descriptor.previousDocumentRange, "previous");
+  if (!Number.isSafeInteger(descriptor.transientRowCount) || descriptor.transientRowCount < 0
+    || !Number.isSafeInteger(descriptor.transientAlignmentGapRows) || descriptor.transientAlignmentGapRows < 0
+    || !Number.isSafeInteger(descriptor.bottomAlignedTailRowCount) || descriptor.bottomAlignedTailRowCount < 0
+    || descriptor.transientAlignmentGapRows + descriptor.bottomAlignedTailRowCount > descriptor.transientRowCount) {
+    throw new TypeError("viewport frame descriptor transient geometry is invalid");
+  }
   if (!Number.isSafeInteger(descriptor.verticalShiftRows)) throw new TypeError("viewport frame descriptor shift is invalid");
   if (descriptor.previousDocumentRange === null && descriptor.verticalShiftRows !== 0) {
     throw new TypeError("viewport frame descriptor initial shift is invalid");
