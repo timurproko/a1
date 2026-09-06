@@ -1,0 +1,54 @@
+{
+  "schema": "a1-update-recovery-publication-v1",
+  "capturedAt": "2026-09-06",
+  "source": {
+    "implementationPullRequest": 265,
+    "platformGatePullRequest": 269,
+    "sourceCommit": "4cf2db985e788b19c183e012adfb79761c513528",
+    "workflowRun": 34038665782,
+    "workflowUrl": "https://github.com/timurproko/a1/actions/runs/34038665782",
+    "invocation": "npm run develop",
+    "invocationCount": 1
+  },
+  "candidate": {
+    "version": "0.1.8-dev.269",
+    "packageArtifact": "release-package-0.1.8-dev.269"
+  },
+  "exactPackageValidation": {
+    "windowsNode22": {
+      "jobId": 101501656171,
+      "conclusion": "success",
+      "defenderRealTimeProtection": true
+    },
+    "windowsNode24": {
+      "jobId": 101501656169,
+      "conclusion": "success",
+      "defenderRealTimeProtection": true
+    },
+    "darwinNode24": {
+      "jobId": 101501656175,
+      "conclusion": "success"
+    },
+    "linuxNode24": {
+      "jobId": 101501656300,
+      "conclusion": "success"
+    },
+    "automaticRetries": 0,
+    "covered": [
+      "platform launcher restoration after cancellation",
+      "detached guardian survival after invoking updater termination",
+      "executable Unix launcher verification",
+      "Windows shell, command, and PowerShell launcher verification",
+      "recovery evidence path tamper rejection"
+    ]
+  },
+  "publication": {
+    "publisherJobId": 101502716457,
+    "publisherConclusion": "success",
+    "aggregateJobId": 101502757507,
+    "aggregateConclusion": "success",
+    "registryTag": "next",
+    "registryVersion": "0.1.8-dev.269",
+    "registryIntegrity": "sha512-44B5ZTy0kHVSdV4MT9YBlbb3yWkjArXs3qcvuE0jBYW/WT+NYAb2Z8ORXZLNWaYpj1OfW7WVZkIBA3roUB9xeQ=="
+  }
+}
