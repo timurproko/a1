@@ -77,6 +77,19 @@ describe("deliberate publication pipeline", () => {
     expect(publish).not.toMatch(/npm ci|npm run build|prepare-validation-package/);
   });
 
+  it("packs native process guardians with host-independent executability", async () => {
+    const packScript = await readFile("scripts/release/prepare-validation-package.mjs", "utf8");
+    expect(packScript).toContain("./repair-native-executable-modes.mjs");
+    expect(packScript).toContain("repairNativeExecutableModes");
+    const repair = await readFile("scripts/release/repair-native-executable-modes.mjs", "utf8");
+    expect(repair).toContain("guardianBinaryReference");
+    expect(repair).toContain("0o755");
+    const evidence = await readFile("scripts/governance/candidate-evidence.mjs", "utf8");
+    expect(evidence).toContain("a1-process-guardian-artifact-v1");
+    const surface = await readFile("test/foundation/release/package-surface.test.ts", "utf8");
+    expect(surface).toContain("records every packed native process guardian as executable");
+  });
+
   it("keeps preview and stable registry effects separate", async () => {
     const source = await workflow();
     expect(source).toContain('channel = "next"');

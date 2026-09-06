@@ -2,6 +2,7 @@ import crossSpawn from "cross-spawn";
 import { rm } from "node:fs/promises";
 import { resolve } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { guardianBinaryReference } from "../../../scripts/governance/candidate-evidence.mjs";
 import { extractValidationCandidate, loadValidationCandidate } from "./package-candidate-fixture.js";
 
 let candidate: Awaited<ReturnType<typeof loadValidationCandidate>>;
@@ -41,6 +42,18 @@ describe("exact packed npm command surface", () => {
     ]));
     expect(paths.some(path => /addone/i.test(path))).toBe(false);
     expect(paths.some(path => path.startsWith("scripts/") || path.endsWith(".map"))).toBe(false);
+  });
+
+  it("records every packed native process guardian as executable", () => {
+    const manifests = candidate.entries.filter(entry => /^package\/dist\/native\/[^/]+\/manifest\.json$/.test(entry.path));
+    expect(manifests.length).toBeGreaterThan(0);
+    for (const manifestEntry of manifests) {
+      const reference = guardianBinaryReference(manifestEntry.path, manifestEntry.content);
+      if (!reference) throw new Error(`packed guardian manifest is foreign: ${manifestEntry.path}`);
+      const binary = candidate.entries.find(entry => entry.path === reference.binaryPath);
+      if (!binary) throw new Error(`packed guardian binary is missing: ${reference.binaryPath}`);
+      expect(binary.mode & 0o111, `${reference.binaryPath} packed with mode ${binary.mode.toString(8)}`).not.toBe(0);
+    }
   });
 
   it("launches the exact packed public entry and a1 shim with repository dependencies", () => {
