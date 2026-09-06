@@ -30,12 +30,12 @@
 
 - [x] 5.1 Add deterministic unit and integration faults for capsule commit, guardian ownership, npm exit, cancellation races, launcher verification, recovery invocation, and cleanup; verify every fault reaches one documented safe disposition
 - [x] 5.2 Add an isolated Windows exact-package matrix that interrupts before and after each observed mutation of `a1`, `a1.cmd`, and `a1.ps1`; verify all three are callable before cancellation acknowledgement and resolve through one verified disposition
-- [ ] 5.3 Add Linux and macOS exact-package interruption cases around executable-launcher replacement and updater loss; verify executable mode, canonical target, and subsequent transaction convergence
-- [ ] 5.4 Terminate the invoking updater while the detached guardian owns npm on each supported platform; verify the guardian survives, establishes the launcher postcondition, and a subsequent `a1` invocation requires no manual repair
+- [x] 5.3 Add Linux and macOS exact-package interruption cases around executable-launcher replacement and updater loss; verify executable mode, canonical target, and subsequent transaction convergence
+- [x] 5.4 Terminate the invoking updater while the detached guardian owns npm on each supported platform; verify the guardian survives, establishes the launcher postcondition, and a subsequent `a1` invocation requires no manual repair
 - [x] 5.5 Inject malformed recovery evidence and path escapes at the physical boundary; verify no changed payload executes and no file outside the canonical npm bin root is overwritten
 
 ## 6. Validation and Acceptance
 
-- [ ] 6.1 Run strict OpenSpec, typecheck, architecture, changed-file documentation, focused update/release/process tests, and exact-package cancellation gates in required CI; verify current-head checks pass without retries
+- [x] 6.1 Run strict OpenSpec, typecheck, architecture, changed-file documentation, focused update/release/process tests, and exact-package cancellation gates in required CI; verify current-head checks pass without retries
 - [ ] 6.2 Provide a packaged manual test that cancels during the npm replacement interval and verify the maintainer confirms the shell returns with `a1 --version` callable, existing sessions intact, and a rerun converging without manual installation
 - [ ] 6.3 Record accepted Windows and Unix fault evidence, launcher identities, transaction dispositions, and manual results; complete or deliberately skip every task and archive only after the implementation is accepted and merged
