@@ -785,10 +785,10 @@
       ]
     },
     {
-      "id": "test/foundation/release/package-install.integration.test.ts:50:70",
+      "id": "test/foundation/release/package-install.integration.test.ts:67:70",
       "path": "test/foundation/release/package-install.integration.test.ts",
       "locationKind": "content",
-      "line": 50,
+      "line": 67,
       "column": 70,
       "value": "addone",
       "context": "await expect(access(resolve(bin, process.platform === \"win32\" ? \"addone.cmd\" : \"addone\"))).rejects.toThrow();",
@@ -801,10 +801,10 @@
       ]
     },
     {
-      "id": "test/foundation/release/package-install.integration.test.ts:50:85",
+      "id": "test/foundation/release/package-install.integration.test.ts:67:85",
       "path": "test/foundation/release/package-install.integration.test.ts",
       "locationKind": "content",
-      "line": 50,
+      "line": 67,
       "column": 85,
       "value": "addone",
       "context": "await expect(access(resolve(bin, process.platform === \"win32\" ? \"addone.cmd\" : \"addone\"))).rejects.toThrow();",
@@ -1281,5 +1281,5 @@
       ]
     }
   ],
-  "generatedAt": "2026-09-05T18:53:19.485Z"
+  "generatedAt": "2026-09-06T11:09:14.085Z"
 }

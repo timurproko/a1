@@ -43,7 +43,7 @@
 - [x] 6.1 Extend update performance evidence with product writes, layer writes, layer reuse, payload exclusions, verification reads, warmup, and post-update launch phases; verify counters reconcile exactly with manifests and filesystem operations.
 - [x] 6.2 Add accepted-Windows release gates requiring both post-update profile launches within 5 seconds and both warm launches within 3 seconds; verify an injected delay fails with the dominant phase named.
 - [x] 6.3 Add tamper and compatibility gates for release/layer bindings, native assets, full-copy rollback, compile-cache invalidation, side-effect-free warmup, public Pi API use, and one terminal module identity; verify each fault fails at its bounded authority.
-- [ ] 6.4 Submit the implementation to required CI and verify strict OpenSpec, architecture, code-documentation, focused release/update/launch/Pi compatibility tests, and exact-package Windows evidence pass before handoff.
+- [x] 6.4 Submit the implementation to required CI and verify strict OpenSpec, architecture, code-documentation, focused release/update/launch/Pi compatibility tests, and exact-package Windows evidence pass before handoff.
 
 ## 7. Restart Certification Correction
 
@@ -52,7 +52,7 @@
 - [x] 7.3 Qualify platform-backed durable immutable-root evidence for Windows and Unix, and verify ordinary payload mutation cannot occur without changing evidence checked by restart validation; provide a complete-verification fallback where qualification is unavailable or ambiguous.
 - [x] 7.4 Commit restart seals after complete certification and consume them on the approved active-release path with no live supervisor; verify accepted restart validation performs no reads or hashes proportional to payload file count or bytes before starting the replacement supervisor.
 - [x] 7.5 Add restart-seal fault coverage for changed release records, manifests, layer identities, managed roots, dependency bindings, immutability controls, interrupted transactions, and unsupported platform evidence; verify each fault rejects the fast path before selected release content executes and safely verifies or fails.
-- [ ] 7.6 Run Defender-enabled exact-package Windows gates for both profiles with no live supervisor and require first input-ready render within 5 seconds; verify a payload-wide verification regression fails with durable validation identified as the dominant phase.
+- [x] 7.6 Run Defender-enabled exact-package Windows gates for both profiles with no live supervisor and require first input-ready render within 5 seconds; verify a payload-wide verification regression fails with durable validation identified as the dominant phase.
 
 ## 8. Manual Acceptance and Completion
 
@@ -61,9 +61,9 @@
 
 ## 9. Windows Node 22 Warm-Margin Correction
 
-- [ ] 9.1 Record run `34022380161`'s Windows Node 22 package-install failure, exact candidate/source, 3,453 ms warm `a1 pi` result, 3,000 ms budget, dominant `ui-modules-loaded`/`ui-entry`/`guardian-connected` phases, passing Node 24 comparison, and skipped publisher; verify job and timing evidence against GitHub
-- [ ] 9.2 Reproduce the Node 22 warm `a1 pi` path from reset exact-package, runtime, data, and compile-cache state under Defender, and compare Node 22/24 module and phase evidence; verify the reproduction does not use a failed attempt as warmup and identifies the deterministic work consuming margin
-- [ ] 9.3 Optimize or defer only work proven unnecessary before first input-ready paint in the dominant phases while preserving public Pi APIs, extension/resource behavior, compile-cache identity, terminal semantics, and the 3-second budget; verify focused exact-package tests retain all compatibility assertions
-- [ ] 9.4 Add a focused regression that exercises both supported Windows Node versions without automatic retry and fails with phase diagnostics on an injected delay; verify development sampling demonstrates reliable margin while each release-gating scenario still executes once
-- [ ] 9.5 Run focused startup, package-install, Pi-boundary, rendering compatibility, typecheck, architecture, changed-file documentation, and strict OpenSpec validation; push a fresh code pull request with auto-merge disabled and verify current-head required CI passes
+- [x] 9.1 Record run `34022380161`'s Windows Node 22 package-install failure, exact candidate/source, 3,453 ms warm `a1 pi` result, 3,000 ms budget, dominant `ui-modules-loaded`/`ui-entry`/`guardian-connected` phases, passing Node 24 comparison, and skipped publisher; verify job and timing evidence against GitHub
+- [x] 9.2 Reproduce the Node 22 warm `a1 pi` path from reset exact-package, runtime, data, and compile-cache state under Defender, and compare Node 22/24 module and phase evidence; verify the reproduction does not use a failed attempt as warmup and identifies the deterministic work consuming margin
+- [x] 9.3 Optimize or defer only work proven unnecessary before first input-ready paint in the dominant phases while preserving public Pi APIs, extension/resource behavior, compile-cache identity, terminal semantics, and the 3-second budget; verify focused exact-package tests retain all compatibility assertions
+- [x] 9.4 Add a focused regression that exercises both supported Windows Node versions without automatic retry and fails with phase diagnostics on an injected delay; verify development sampling demonstrates reliable margin while each release-gating scenario still executes once
+- [x] 9.5 Run focused startup, package-install, Pi-boundary, rendering compatibility, typecheck, architecture, changed-file documentation, and strict OpenSpec validation; push code PR #259 with auto-merge disabled and verify current-head required CI passes
 - [ ] 9.6 After explicit maintainer acceptance and manual merge, coordinate with `fix-darwin-packaged-supervisor-startup`, run `npm run develop` once from authoritative `develop`, and verify the Windows Node 22/24 warm gates pass on first attempt before publisher, aggregate, and registry acceptance are recorded

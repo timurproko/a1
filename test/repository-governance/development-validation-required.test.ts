@@ -9,6 +9,7 @@ const valid = {
   validateResult: "success",
   renderingResult: "skipped",
   containmentResult: "success",
+  startupResult: "success",
   docsOnly: "false",
   versionOnly: "false",
   openspecTouched: "false",
@@ -20,8 +21,8 @@ const valid = {
 
 describe("development validation aggregate", () => {
   it("accepts exact docs, version, ordinary, smoke, and full selections", () => {
-    expect(requireDevelopmentValidation({ ...valid, docsOnly: "true", docsResult: "success", validateResult: "skipped" })).toMatchObject({ mode: "docs" });
-    expect(requireDevelopmentValidation({ ...valid, versionOnly: "true", validateResult: "skipped" })).toMatchObject({ mode: "version" });
+    expect(requireDevelopmentValidation({ ...valid, docsOnly: "true", docsResult: "success", validateResult: "skipped", startupResult: "skipped" })).toMatchObject({ mode: "docs" });
+    expect(requireDevelopmentValidation({ ...valid, versionOnly: "true", validateResult: "skipped", startupResult: "skipped" })).toMatchObject({ mode: "version" });
     expect(requireDevelopmentValidation(valid)).toMatchObject({ mode: "code", renderingTier: "none" });
     expect(requireDevelopmentValidation({ ...valid, documentationRequired: "true", documentationResult: "success", renderingTier: "smoke", renderingResult: "success" })).toMatchObject({ mode: "code", renderingTier: "smoke" });
     expect(requireDevelopmentValidation({ ...valid, renderingTier: "full", renderingResult: "success" })).toMatchObject({ mode: "code", renderingTier: "full" });
@@ -32,6 +33,7 @@ describe("development validation aggregate", () => {
     ["missing classification", { changesResult: "failure" }],
     ["failed ordinary", { validateResult: "failure" }],
     ["failed containment", { containmentResult: "failure" }],
+    ["failed startup budget", { startupResult: "failure" }],
     ["missing changed documentation", { documentationRequired: "true", documentationResult: "skipped" }],
     ["unexpected changed documentation", { documentationRequired: "false", documentationResult: "success" }],
     ["missing smoke", { renderingTier: "smoke", renderingResult: "skipped" }],
