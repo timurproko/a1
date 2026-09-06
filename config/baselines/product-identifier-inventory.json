@@ -21,7 +21,7 @@
     },
     {
       "path": "bin/ui.js",
-      "line": 21,
+      "line": 35,
       "identifier": "A1_LAUNCH_PROFILE"
     },
     {
@@ -361,37 +361,37 @@
     },
     {
       "path": "test/foundation/release/package-install.integration.test.ts",
-      "line": 88,
+      "line": 105,
       "identifier": "A1_DATA_DIR"
     },
     {
       "path": "test/foundation/release/package-install.integration.test.ts",
-      "line": 89,
+      "line": 106,
       "identifier": "A1_RUNTIME_DIR"
     },
     {
       "path": "test/foundation/release/package-install.integration.test.ts",
-      "line": 90,
+      "line": 107,
       "identifier": "A1_RELEASE_CLEANUP_RUN_ID"
     },
     {
       "path": "test/foundation/release/package-install.integration.test.ts",
-      "line": 91,
+      "line": 108,
       "identifier": "A1_RELEASE_CLEANUP_HOLDS"
     },
     {
       "path": "test/foundation/release/package-install.integration.test.ts",
-      "line": 149,
+      "line": 166,
       "identifier": "A1_DATA_DIR"
     },
     {
       "path": "test/foundation/release/package-install.integration.test.ts",
-      "line": 150,
+      "line": 167,
       "identifier": "A1_RUNTIME_DIR"
     },
     {
       "path": "test/foundation/release/package-install.integration.test.ts",
-      "line": 151,
+      "line": 168,
       "identifier": "A1_RELEASE_CLEANUP_RUN_ID"
     },
     {

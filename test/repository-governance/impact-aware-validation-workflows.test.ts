@@ -9,7 +9,7 @@ describe("impact-aware validation workflows", () => {
     expect(workflow).toContain("documentation-required: ${{ steps.selection.outputs.documentation_required }}");
     expect(workflow).toContain("name: Changed-file documentation validation");
     expect(workflow).toContain("name: Rendering validation");
-    expect(workflow).toContain("needs: [changes, docs, documentation, validate, rendering, containment]");
+    expect(workflow).toContain("needs: [changes, docs, documentation, validate, startup, rendering, containment]");
     const required = workflow.slice(workflow.indexOf("\n  required:"));
     expect(required).toContain("ref: ${{ needs.changes.outputs.head-sha }}");
     expect(required).toContain("node scripts/release/require-development-validation.mjs");
@@ -18,12 +18,26 @@ describe("impact-aware validation workflows", () => {
 
   it("keeps ordinary validation free of rendering and live documentation scopes", async () => {
     const workflow = await readFile(".github/workflows/ci.yml", "utf8");
-    const ordinary = workflow.slice(workflow.indexOf("\n  validate:"), workflow.indexOf("\n  rendering:"));
+    const ordinary = workflow.slice(workflow.indexOf("\n  validate:"), workflow.indexOf("\n  startup:"));
     expect(ordinary).toContain("'[\"typecheck\",\"architecture\",\"fast\",\"dist-integration\"]'");
     expect(ordinary).not.toMatch(/rendering-(?:smoke|stability)|check-code-documentation/);
     const rendering = workflow.slice(workflow.indexOf("\n  rendering:"), workflow.indexOf("\n  containment:"));
     expect(rendering).toContain("scope=rendering-stability");
     expect(rendering).toContain("scope=rendering-smoke");
+  });
+
+  it("runs first-attempt startup budgets on every supported Windows Node version", async () => {
+    const workflow = await readFile(".github/workflows/ci.yml", "utf8");
+    const startup = workflow.slice(workflow.indexOf("\n  startup:"), workflow.indexOf("\n  rendering:"));
+    expect(startup).toContain("node: [22, 24]");
+    expect(startup).toContain("max-parallel: 1");
+    expect(startup).toContain("Set-MpPreference -DisableRealtimeMonitoring $false");
+    expect(startup).toContain("run-validation-tier.mjs package-install");
+    expect(startup).toContain("STARTUP_PERFORMANCE_RESULT:");
+    expect(startup).toContain("startup-node${{ matrix.node }}*.json");
+    expect(startup).not.toMatch(/retry|continue-on-error/);
+    const required = workflow.slice(workflow.indexOf("\n  required:"));
+    expect(required).toContain("STARTUP_RESULT: ${{ needs.startup.result }}");
   });
 
   it("gates resume restoration and packaged launch evidence outside the fast remainder", async () => {

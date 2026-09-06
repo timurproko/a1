@@ -5,6 +5,7 @@ export interface DevelopmentValidationResults {
   readonly validateResult?: string;
   readonly renderingResult?: string;
   readonly containmentResult?: string;
+  readonly startupResult?: string;
   readonly docsOnly?: string;
   readonly versionOnly?: string;
   readonly openspecTouched?: string;

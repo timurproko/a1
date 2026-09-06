@@ -1,7 +1,7 @@
 import crossSpawn from "cross-spawn";
 import { access, copyFile, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { loadValidationCandidate } from "./package-candidate-fixture.js";
@@ -10,6 +10,12 @@ const npm = process.platform === "win32" ? "npm.cmd" : "npm";
 let root = "";
 let prefix = "";
 let candidate: Awaited<ReturnType<typeof loadValidationCandidate>>;
+const startupMeasurements: Array<{
+  profileId: "a1" | "pi";
+  launchKind: "post-update" | "no-live-supervisor" | "warm";
+  elapsedMs: number;
+  phases: Array<{ phase: string; durationMs: number }>;
+}> = [];
 
 beforeAll(async () => {
   candidate = await loadValidationCandidate();
@@ -20,6 +26,17 @@ beforeAll(async () => {
 }, 600_000);
 
 afterAll(async () => {
+  const resultPath = process.env.STARTUP_PERFORMANCE_RESULT;
+  if (resultPath && startupMeasurements.length > 0) {
+    await mkdir(dirname(resolve(resultPath)), { recursive: true });
+    await writeFile(resolve(resultPath), `${JSON.stringify({
+      schema: "a1-startup-performance-evidence-v1",
+      nodeVersion: process.version,
+      candidateVersion: candidate.manifest.version,
+      automaticRetries: 0,
+      measurements: startupMeasurements,
+    }, null, 2)}\n`);
+  }
   if (root) await removeFixtureRoot(root);
 }, 15_000);
 
@@ -189,10 +206,12 @@ describe("clean installation of the exact candidate", () => {
     try {
       for (const profileId of ["a1", "pi"] as const) {
         const postUpdate = await captureReadyLaunch(packageRoot, environment, profileId, "post-update");
+        recordStartupMeasurement(profileId, "post-update", postUpdate);
         assertStartupPerformanceBudget({ profileId, launchKind: "post-update", events: postUpdate });
         await stopPackagedSupervisor(cohort.endpointMetadataPath, dataDir, releaseVerifiedIdleOwner);
 
         const restarted = await captureReadyLaunch(packageRoot, environment, profileId, "no-live-supervisor");
+        recordStartupMeasurement(profileId, "no-live-supervisor", restarted);
         assertStartupPerformanceBudget({ profileId, launchKind: "no-live-supervisor", events: restarted });
         const phases = restarted.map(event => event.phase);
         expect(phases).toEqual(expect.arrayContaining([
@@ -203,6 +222,7 @@ describe("clean installation of the exact candidate", () => {
         expect(validationComplete.fileReadOperations - validationStart.fileReadOperations).toBeLessThan(64);
 
         const warm = await captureReadyLaunch(packageRoot, environment, profileId, "warm");
+        recordStartupMeasurement(profileId, "warm", warm);
         assertStartupPerformanceBudget({ profileId, launchKind: "warm", events: warm });
       }
     } finally {
@@ -210,6 +230,21 @@ describe("clean installation of the exact candidate", () => {
     }
   }, 600_000);
 });
+
+function recordStartupMeasurement(
+  profileId: "a1" | "pi",
+  launchKind: "post-update" | "no-live-supervisor" | "warm",
+  events: readonly { phase: string; elapsedMs: number }[],
+): void {
+  const ordered = [...events].sort((left, right) => left.elapsedMs - right.elapsedMs);
+  const elapsedMs = ordered.findLast(event => event.phase === "first-input-ready-render")?.elapsedMs ?? Number.POSITIVE_INFINITY;
+  const phases = ordered.map((event, index) => ({
+    phase: event.phase,
+    durationMs: event.elapsedMs - (ordered[index - 1]?.elapsedMs ?? 0),
+  }));
+  startupMeasurements.push({ profileId, launchKind, elapsedMs, phases });
+  process.stdout.write(`[startup-budget] node=${process.version} profile=${profileId} kind=${launchKind} elapsed=${Math.round(elapsedMs)}ms\n`);
+}
 
 async function captureReadyLaunch(
   packageRoot: string,

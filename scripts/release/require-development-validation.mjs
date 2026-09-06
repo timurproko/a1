@@ -9,16 +9,19 @@ export function requireDevelopmentValidation(value) {
     requireSkipped(value.documentationResult, "changed-file documentation");
     requireSkipped(value.validateResult, "ordinary validation");
     requireSkipped(value.renderingResult, "rendering validation");
+    requireSkipped(value.startupResult, "startup budget validation");
     return { mode: "docs", openspec: value.openspecTouched === "true" };
   }
   if (value.versionOnly === "true") {
     requireSkipped(value.documentationResult, "changed-file documentation");
     requireSkipped(value.validateResult, "ordinary validation");
     requireSkipped(value.renderingResult, "rendering validation");
+    requireSkipped(value.startupResult, "startup budget validation");
     return { mode: "version" };
   }
   requireResult(value.validateResult, "ordinary validation");
   requireResult(value.containmentResult, "process containment");
+  requireResult(value.startupResult, "startup budget validation");
   if (value.documentationRequired === "true") requireResult(value.documentationResult, "changed-file documentation");
   else requireSkipped(value.documentationResult, "changed-file documentation");
   if (value.renderingTier === "none") requireSkipped(value.renderingResult, "rendering validation");
@@ -43,6 +46,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     validateResult: "VALIDATE_RESULT",
     renderingResult: "RENDERING_RESULT",
     containmentResult: "CONTAINMENT_RESULT",
+    startupResult: "STARTUP_RESULT",
     docsOnly: "DOCS_ONLY",
     versionOnly: "VERSION_ONLY",
     openspecTouched: "OPENSPEC_TOUCHED",

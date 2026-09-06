@@ -98,7 +98,7 @@ node scripts/release/report-resource-sensitive-validation.mjs --repeats 3 --outp
 
 ## Pull request integration
 
-`Development validation required` remains the merge gate for every pull request.
+`Development validation required` remains the merge gate for every pull request. For code changes, it also requires a dedicated Defender-enabled exact-package startup matrix on Windows Node 22 and 24. Each matrix lane runs the package-install startup scenarios once: a failed budget remains failed and is never retried to obtain a warmed result. Both post-update profiles must reach input-ready state within five seconds, and both warm profiles must remain within three seconds.
 Documentation auto-merge reads the complete GitHub changed-file response and arms
 squash auto-merge for an eligible pull request while required validation is pending;
 branch protection prevents integration until `Development validation required`

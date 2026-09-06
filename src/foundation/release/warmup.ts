@@ -8,7 +8,7 @@ import { PRODUCT_IDENTITY } from "../../product-identity.js";
 export async function warmMaterializedRelease(
   release: MaterializedRelease,
   environment: NodeJS.ProcessEnv,
-  timeoutMs = 15_000,
+  timeoutMs = 30_000,
 ): Promise<void> {
   const entry = resolve(release.releaseRoot, "bin", "warmup.js");
   await new Promise<void>((resolvePromise, rejectPromise) => {
