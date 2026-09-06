@@ -10,5 +10,10 @@
 ## 3. Governance and end-to-end confirmation
 
 - [x] 3.1 Align release pipeline governance coverage with the repaired pack contract (the workflow still packs exactly once through `prepare-validation-package.mjs`, the publisher still never repacks), updating or adding policy tests so they pass with the change and fail if the pack step bypasses the repair
-- [ ] 3.2 Run the repository's required validation for the implementation pull request and confirm the required check passes, including the Windows `package-smoke` lane executing the new surface assertion
-- [ ] 3.3 After the implementation merges, run `npm run develop` and confirm one newly numbered preview passes `Validate linux-node24`, `Validate darwin-node24`, `Validate win32-node22`, and `Validate win32-node24`, publishes to npm `next`, and that installing that preview on linux or darwin launches the packaged public chain with the guardian spawning successfully (no `EACCES`)
+- [x] 3.2 Run the repository's required validation for implementation PR #254 and confirm the required check passes, including the Windows `package-smoke` lane executing the new surface assertion
+- [ ] 3.3 After `fix-darwin-packaged-supervisor-startup` and the Windows Node 22 correction in `reduce-post-update-cold-start` merge, run `npm run develop` once and confirm one newly numbered preview passes `Validate linux-node24`, `Validate darwin-node24`, `Validate win32-node22`, and `Validate win32-node24`, publishes to npm `next`, and that installing that preview on supported posix platforms launches the packaged public chain without permission failure
+
+## 4. Record Post-Merge Evidence and Linked Blockers
+
+- [x] 4.1 Record run `34022380161`, source `4e7901f3e0105ae5de6c54be49dc2728677a3f74`, candidate `0.1.8-dev.254`, successful package/Linux Node 24/Windows Node 24 outcomes, absence of Linux `EACCES`, Darwin supervisor-readiness timeout, Windows Node 22 3,453 ms warm-budget failure, skipped publisher, failed aggregate, and registry absence; verify the job identities and conclusions against GitHub
+- [x] 4.2 Reconcile this change's scope so executable mode remains distinct from platform capability and startup performance; verify Darwin capability is assigned to `fix-darwin-packaged-supervisor-startup`, Node 22 margin remains in `reduce-post-update-cold-start`, and neither blocker weakens this change's completed packing requirements
