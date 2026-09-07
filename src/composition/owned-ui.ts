@@ -74,6 +74,11 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     snapshot: () => viewportSettingsSnapshot(settings),
     onChange: listener => settings.onChange(() => listener(viewportSettingsSnapshot(settings))),
   };
+  const promptSuggestions = settings === null || !ownedSurfaces ? null : {
+    generator: adapter,
+    enabled: () => settings.value("promptSuggestions") !== false,
+    onChange: (listener: (enabled: boolean) => void) => settings.onChange(() => listener(settings.value("promptSuggestions") !== false)),
+  };
   const shell = new OwnedUiSessionShell({
     backend: adapter,
     cwd: adapter.cwd,
@@ -81,6 +86,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     ...(routeHost === null ? {} : { routeHost }),
     ...(ownedSurfaces ? { sessionLayout: "custom-viewport" as const } : {}),
     ...(viewportSettings === null ? {} : { viewportSettings }),
+    ...(promptSuggestions === null ? {} : { promptSuggestions }),
   });
   const application: OwnedUiApplicationPort = {
     get disposed() { return adapter.disposed; },

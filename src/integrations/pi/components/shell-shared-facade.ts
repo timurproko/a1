@@ -59,6 +59,8 @@ export interface PiShellEditorPort extends PiShellComponentPort {
   setAutocompleteMaxVisible(maxVisible: number): void;
   addAutocompleteProvider(factory: unknown): void;
   setThinkingLevel(level: OwnedUiThinkingLevel): void;
+  setPromptSuggestion(text: string | null): void;
+  canPresentPromptSuggestion(): boolean;
   hasSelection(): boolean;
   ownsPointer(): boolean;
   handlePointer(event: PiShellEditorPointerEvent): boolean;
@@ -164,6 +166,7 @@ export interface PiShellEditorOptions {
   readonly onMessageCopy?: (() => void) | undefined;
   readonly onFollowUp?: (() => void) | undefined;
   readonly onDequeue?: (() => void) | undefined;
+  readonly onPromptSuggestionAccepted?: (text: string) => void;
   readonly onCopyText?: (text: string) => void;
   readonly readClipboardContent?: () => Promise<PiShellClipboardContent | null>;
   readonly transformPastedContent?: (content: PiShellClipboardContent) => string;
@@ -174,6 +177,11 @@ export interface PiShellEditorOptions {
   readonly cwd?: string;
   readonly agentDir?: string;
   readonly autocompleteCommands?: readonly PiShellAutocompleteCommand[];
+  readonly promptPresentation?: {
+    readonly prefix: string;
+    readonly styleSuggestion: (text: string) => string;
+    readonly styleSuggestionCaret: (text: string) => string;
+  };
 }
 
 export interface PiShellSelectorOption {
