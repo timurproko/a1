@@ -137,6 +137,8 @@ export interface PromptSelectionUxOptions {
   readonly decorateRow: (row: string, width: number) => string;
   readonly requestRender: () => void;
   readonly getRows: () => number;
+  /** Presentation-only columns reserved before semantic editor text. */
+  readonly promptPrefixWidth?: number;
 }
 
 const GRAPHEMES = new Intl.Segmenter(undefined, { granularity: "grapheme" });
@@ -302,7 +304,9 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
     const rows = next().map(row => row.replaceAll(ATOMIC_SPACE_SENTINEL, " "));
     const maxPadding = Math.max(0, Math.floor((width - 1) / 2));
     const padding = Math.min(this.editor.getPaddingX(), maxPadding);
-    const contentWidth = Math.max(1, width - padding * 2);
+    const prefixWidth = this.options.promptPrefixWidth ?? 0;
+    const innerWidth = Math.max(1, width - prefixWidth);
+    const contentWidth = Math.max(1, innerWidth - padding * 2);
     const layoutWidth = Math.max(1, contentWidth - (padding ? 0 : 1));
     const visualLines = editorVisualLineMap(this.editor, layoutWidth)
       ?? buildVisualLineMap(editorState(this.editor).lines, layoutWidth);
@@ -327,7 +331,7 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
         const to = visual.logicalLine === selection.end.line ? Math.min(selection.end.col, segmentEnd) : segmentEnd;
         if (to <= from) continue;
         const line = editorState(this.editor).lines[visual.logicalLine] ?? "";
-        const fromColumn = padding + visibleWidth(line.slice(segmentStart, from));
+        const fromColumn = prefixWidth + padding + visibleWidth(line.slice(segmentStart, from));
         const toColumn = fromColumn + visibleWidth(line.slice(from, to));
         const rendered = rows[row + 1];
         if (rendered !== undefined && toColumn > fromColumn) {
@@ -432,7 +436,7 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
     if (visual === undefined) return undefined;
     const line = editorState(this.editor).lines[visual.logicalLine] ?? "";
     const segment = line.slice(visual.startCol, visual.startCol + visual.length);
-    const displayColumn = Math.max(0, column - 1 - geometry.padding);
+    const displayColumn = Math.max(0, column - 1 - geometry.padding - (this.options.promptPrefixWidth ?? 0));
     return {
       line: visual.logicalLine,
       col: visual.startCol + indexAtDisplayWidth(segment, displayColumn),

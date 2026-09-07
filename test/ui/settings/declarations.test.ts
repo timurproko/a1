@@ -26,7 +26,16 @@ describe("owned UI setting declarations", () => {
       "scrollbarAppearance",
       "scrollbarStyle",
       "scrollbarSpeed",
+      "promptSuggestions",
     ]);
+    expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "promptSuggestions")).toMatchObject({
+      label: "Prompt suggestions",
+      application: "live",
+      defaultValue: true,
+      allowedValues: [true, false],
+    });
+    expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "promptSuggestions")?.description)
+      .toContain("additional background request using the selected model");
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "scrollbarAppearance")).toMatchObject({
       label: "Scrollbar mode",
       section: { id: "scroll", title: "Scroll" },
@@ -105,13 +114,15 @@ describe("owned UI settings migrations", () => {
   });
 
   it("migrates the former speed and appearance names", () => {
-    expect(OWNED_UI_SETTINGS_MIGRATIONS).toHaveLength(2);
+    expect(OWNED_UI_SETTINGS_MIGRATIONS).toHaveLength(3);
     expect(OWNED_UI_SETTINGS_MIGRATIONS[0]?.migrate({ scrollbarSpeed: "high", future: true }))
       .toEqual({ scrollbarSpeed: "fast", future: true });
     expect(OWNED_UI_SETTINGS_MIGRATIONS[1]?.migrate({ scrollbarAppearance: "hover", future: true }))
       .toEqual({ scrollbarAppearance: "auto", future: true });
     expect(OWNED_UI_SETTINGS_MIGRATIONS[1]?.migrate({ scrollbarAppearance: "always" }))
       .toEqual({ scrollbarAppearance: "always" });
+    expect(OWNED_UI_SETTINGS_MIGRATIONS[2]?.migrate({ future: true }))
+      .toEqual({ future: true });
   });
 
   it("rejects a list with a gap or a wrong end version", () => {

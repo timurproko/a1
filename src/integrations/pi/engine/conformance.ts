@@ -23,7 +23,7 @@ export const REQUIRED_PI_CAPABILITY_OPERATIONS = Object.freeze({
   "public-exports": ["services.create", "session.create", "runtime.create"],
   "session-lifecycle": ["session.new", "session.resume", "session.rebind", "session.dispose"],
   "commands-events": ["prompt", "steer", "followUp", "abort", "compact", "setModel", "setThinkingLevel", "subscribe", "dispose"],
-  "models-authentication": ["models.list", "models.refresh", "auth.status", "auth.login", "auth.logout", "auth.cancel"],
+  "models-authentication": ["models.list", "models.refresh", "models.completeSimple", "auth.status", "auth.login", "auth.logout", "auth.cancel"],
   settings: ["settings.read", "settings.write", "settings.flush"],
   "resources-extensions": ["resources.discover", "extensions.inline", "extensions.bind", "extensions.reload", "renderers.invoke"],
   workflows: ["workflow.route", "workflow.validate", "workflow.diagnostics"],
@@ -108,7 +108,7 @@ export async function runPiUpgradeConformance(): Promise<PiUpgradeConformanceRep
       const session = created.session;
       sessionId = session.sessionId;
       requireMethods(session, "session commands", ["prompt", "steer", "followUp", "abort", "compact", "setModel", "setThinkingLevel", "subscribe", "dispose"]);
-      requireMethods(services.modelRuntime, "models/authentication", ["getModels", "getModel", "checkAuth", "login", "logout", "refresh"]);
+      requireMethods(services.modelRuntime, "models/authentication", ["getModels", "getModel", "completeSimple", "checkAuth", "login", "logout", "refresh"]);
       requireMethods(services.settingsManager, "settings", ["getGlobalSettings", "getProjectSettings", "flush"]);
       requireMethods(services.resourceLoader, "resources/extensions", ["getExtensions", "getSkills", "getPrompts", "getThemes", "reload"]);
       const unsubscribe = session.subscribe(() => undefined);

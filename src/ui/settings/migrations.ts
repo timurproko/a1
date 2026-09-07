@@ -30,6 +30,13 @@ export const OWNED_UI_SETTINGS_MIGRATIONS: readonly OwnedUiSettingsMigration[] =
         : { ...values };
     },
   }),
+  Object.freeze({
+    to: 4,
+    description: "Introduce contextual prompt suggestions with an enabled default.",
+    migrate(values: Readonly<Record<string, unknown>>): Record<string, unknown> {
+      return { ...values };
+    },
+  }),
 ]);
 
 export function assertOwnedUiSettingsMigrations(

@@ -21,6 +21,8 @@ function editor(overrides: Partial<PiShellEditorPort> = {}): PiShellEditorPort {
     setAutocompleteMaxVisible() {},
     addAutocompleteProvider() {},
     setThinkingLevel() {},
+    setPromptSuggestion() {},
+    canPresentPromptSuggestion: () => false,
     hasSelection: () => false,
     ownsPointer: () => false,
     handlePointer: () => false,

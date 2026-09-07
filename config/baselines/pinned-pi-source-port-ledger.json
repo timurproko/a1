@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-08-27T12:27:15.569Z",
+  "recordedAt": "2026-09-06T17:48:02.885Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "914cf1472e715297caa30db4b9535d534a9eb718",
@@ -1214,7 +1214,7 @@
       "localDestination": "src/integrations/pi/components/upstream/components/owned-editor.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "A1-owned class name and synchronized A1 keybinding contract replace the nominal private upstream keybinding constructor dependency.",
+      "modifications": "A1-owned class name and synchronized A1 keybinding contract replace the nominal private upstream keybinding constructor dependency; bare A1 also adds a semantic prompt prefix and transient contextual-suggestion branch.",
       "approvedDeviations": [],
       "behaviorCategories": [
         "editor",
@@ -1234,9 +1234,11 @@
       ],
       "tests": [
         "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
-        "test/integrations/pi/components/pinned-editor-input-parity.test.ts"
+        "test/integrations/pi/components/pinned-editor-input-parity.test.ts",
+        "test/integrations/pi/components/shell-components.test.ts",
+        "test/integrations/pi/session-ui/session-shell.test.ts"
       ],
-      "localSha256": "cf199fb195544d6a61aaf52b514cdc592d6634a40100bd35a616b30f6dd11e2a"
+      "localSha256": "d24eeb11d1cbfb86d27b8ce2b7d9a79fb6847b1238f039160ca9217d4a4a9775"
     },
     {
       "id": "pi-coding-agent:src/modes/interactive/components/custom-entry",
