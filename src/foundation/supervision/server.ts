@@ -19,6 +19,46 @@ import { ControlStore } from "../storage/index.js";
 import { resolveProductPaths, type ProductPaths } from "./paths.js";
 import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
 
+const WINDOWS_METADATA_REPLACE_RETRY_DELAYS_MS = [5, 10, 20, 40, 80, 160] as const;
+
+interface EndpointMetadataCommitOperations {
+  readonly platform?: NodeJS.Platform;
+  readonly write?: typeof writeFile;
+  readonly replace?: typeof rename;
+  readonly remove?: typeof rm;
+  readonly wait?: (delayMs: number) => Promise<void>;
+}
+
+/** Atomically replaces endpoint metadata while tolerating bounded Windows reader sharing. */
+export async function commitEndpointMetadata(
+  path: string,
+  source: string,
+  operations: EndpointMetadataCommitOperations = {},
+): Promise<void> {
+  const temporary = `${path}.${process.pid}.tmp`;
+  const write = operations.write ?? writeFile;
+  const replace = operations.replace ?? rename;
+  const remove = operations.remove ?? rm;
+  const wait = operations.wait ?? (delayMs => new Promise(resolvePromise => setTimeout(resolvePromise, delayMs)));
+  let committed = false;
+  try {
+    await write(temporary, source, { mode: 0o600 });
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        await replace(temporary, path);
+        committed = true;
+        return;
+      } catch (error) {
+        const delayMs = WINDOWS_METADATA_REPLACE_RETRY_DELAYS_MS[attempt];
+        if ((operations.platform ?? platform()) !== "win32" || delayMs === undefined || !isWindowsSharingViolation(error)) throw error;
+        await wait(delayMs);
+      }
+    }
+  } finally {
+    if (!committed) await remove(temporary, { force: true }).catch(() => undefined);
+  }
+}
+
 /** Owns one release-cohort endpoint and the authenticated launch instances registered through it. */
 export class SupervisorServer {
   readonly id = randomUUID();
@@ -453,11 +493,10 @@ export class SupervisorServer {
         uncertainInstanceIds: [...this.#uncertainInstances],
       },
     };
-    const temporary = `${this.paths.endpointMetadataPath}.${process.pid}.tmp`;
-    this.#metadataWrites = this.#metadataWrites.then(async () => {
-      await writeFile(temporary, JSON.stringify(metadata, null, 2), { mode: 0o600 });
-      await rename(temporary, this.paths.endpointMetadataPath);
-    });
+    const commit = () => commitEndpointMetadata(this.paths.endpointMetadataPath, JSON.stringify(metadata, null, 2));
+    // Platform: one exhausted filesystem replacement must fail its command, but it must not
+    // poison every later ownership revision after the sharing condition has cleared.
+    this.#metadataWrites = this.#metadataWrites.then(commit, commit);
     return this.#metadataWrites;
   }
 
@@ -483,6 +522,11 @@ function sameContainmentIdentity(left: { provider: string; token: string } | nul
 
 function isMessageType(value: unknown, type: string): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && "type" in value && value.type === type;
+}
+
+function isWindowsSharingViolation(error: unknown): boolean {
+  return error instanceof Error && "code" in error
+    && (error.code === "EPERM" || error.code === "EACCES" || error.code === "EBUSY");
 }
 
 async function ensureManagedEndpointDirectory(path: string): Promise<void> {

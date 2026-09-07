@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rename, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -7,12 +7,50 @@ import { releaseVerifiedIdleOwner } from "../../../src/foundation/release/index.
 import type { SupervisorEndpointMetadata } from "../../../src/foundation/release/index.js";
 import type { MaterializedRelease } from "../../../src/foundation/release/index.js";
 import { ControlStore } from "../../../src/foundation/storage/index.js";
-import { SupervisorServer } from "../../../src/foundation/supervision/index.js";
+import { commitEndpointMetadata, SupervisorServer } from "../../../src/foundation/supervision/index.js";
 import { PRODUCT_IDENTITY } from "../../../src/product-identity.js";
 import { CONTROL_ENVELOPE } from "../../../src/foundation/protocol/index.js";
 
 const cleanupRoots: string[] = [];
 afterEach(async () => Promise.all(cleanupRoots.splice(0).map(root => rm(root, { recursive: true, force: true }))));
+
+describe("supervisor endpoint metadata publication", () => {
+  it("retries transient Windows destination sharing without exposing a partial revision", async () => {
+    const root = await mkdtemp(resolve(tmpdir(), "a1-supervisor-metadata-retry-"));
+    cleanupRoots.push(root);
+    const path = resolve(root, "supervisor.json");
+    const failures = ["EPERM", "EACCES", "EBUSY"];
+    const replace = vi.fn<typeof rename>(async (source, destination) => {
+      const code = failures.shift();
+      if (code) throw Object.assign(new Error("sharing violation"), { code });
+      await rename(source, destination);
+    });
+    const wait = vi.fn(async () => {});
+
+    await commitEndpointMetadata(path, '{"revision":2}\n', { platform: "win32", replace, wait });
+
+    expect(JSON.parse(await readFile(path, "utf8"))).toEqual({ revision: 2 });
+    expect(replace).toHaveBeenCalledTimes(4);
+    expect(wait.mock.calls).toEqual([[5], [10], [20]]);
+  });
+
+  it("fails unrelated replacement errors immediately and removes the temporary revision", async () => {
+    const root = await mkdtemp(resolve(tmpdir(), "a1-supervisor-metadata-failure-"));
+    cleanupRoots.push(root);
+    const path = resolve(root, "supervisor.json");
+    const replace = vi.fn(async () => {
+      throw Object.assign(new Error("volume is full"), { code: "ENOSPC" });
+    });
+    const wait = vi.fn(async () => {});
+
+    await expect(commitEndpointMetadata(path, "{}\n", { platform: "win32", replace, wait }))
+      .rejects.toMatchObject({ code: "ENOSPC" });
+
+    expect(replace).toHaveBeenCalledOnce();
+    expect(wait).not.toHaveBeenCalled();
+    await expect(readFile(`${path}.${process.pid}.tmp`, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+  });
+});
 
 describe("supervisor release replacement exit", () => {
   it("falls back to bounded verified idle cleanup when graceful exit exceeds its deadline", async () => {
