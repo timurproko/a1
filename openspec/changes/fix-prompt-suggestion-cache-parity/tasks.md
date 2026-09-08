@@ -1,7 +1,7 @@
 ## 1. Establish the public integration prerequisite
 
-- [ ] 1.1 Verify the implementation base contains contextual prompt suggestions and record the exact manifest/lockfile-resolved Pi family; completion evidence must distinguish that dependency set from the investigation's installed transitive versions and leave prior acceptance tasks unchanged.
-- [ ] 1.2 Inventory documented public capture, transformed-context, effective-option, extension-ordering, and isolated-completion APIs; deliver a capability matrix naming the supported seams and any missing capability. Stop before production implementation if faithful reuse requires private APIs or a dependency change.
+- [x] 1.1 Verify the implementation base contains contextual prompt suggestions and record the exact manifest/lockfile-resolved Pi family; completion evidence must distinguish that dependency set from the investigation's installed transitive versions and leave prior acceptance tasks unchanged. Evidence: `implementation-evidence.md`, section 1.
+- [x] 1.2 Inventory documented public capture, transformed-context, effective-option, extension-ordering, and isolated-completion APIs; deliver a capability matrix naming the supported seams and any missing capability. Stop before production implementation if faithful reuse requires private APIs or a dependency change. Evidence: `implementation-evidence.md`, sections 2-4; gate blocked, implementation paused.
 - [ ] 1.3 Verify native provider session/cache identity and transport isolation semantics for Anthropic and OpenAI/Codex, including busy sockets, abort, and primary-suggestion-primary continuation; document the safe public execution mode or explicit unavailable outcome for each configuration.
 
 ## 2. Add request-conformance and capability seams
