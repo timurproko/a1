@@ -1,3 +1,7 @@
+## Disposition
+
+**Abandoned; do not resume this checklist.** PR #284 was tested but rejected and closed unmerged. This file preserves the merged planning baseline's two checked audit tasks and 14 unchecked tasks; it does not import the unmerged implementation branch's progress or claim release acceptance. See [disposition.md](disposition.md). The maintainer explicitly approved archiving with unfinished tasks and without delta-spec synchronization.
+
 ## 1. Retain the completed historical audit
 
 These two tasks record the original investigation, not implementation or acceptance. The former exact-snapshot API gate and its pause are superseded by the revised proposal/design; `implementation-evidence.md` remains unchanged historical evidence. Exact transformed-request reuse and shared WebSocket optimization are deferred, not incomplete prerequisites for the work below.

@@ -1,3 +1,7 @@
+## Disposition
+
+**Abandoned on 2026-09-08; implementation not accepted or merged.** The maintainer reported no noticeable delay improvement and rejected the added complexity. Archive without synchronizing the delta specification. See [disposition.md](disposition.md) for the decision, evidence, and task accounting. The proposal below is preserved as historical context, not an active implementation plan.
+
 ## Why
 
 A1's prompt-suggestion requests drop summaries and other model-visible messages and omit settings such as custom thinking budgets and provider cache-routing identity. These are concrete, locally fixable differences that can hurt suggestion quality and cache reuse; fixing them does not require solving exact reuse of every extension-transformed provider request first.
