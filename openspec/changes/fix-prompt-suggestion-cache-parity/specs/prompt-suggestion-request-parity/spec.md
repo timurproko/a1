@@ -1,109 +1,135 @@
 ## Purpose
 
-Defines how isolated prompt-suggestion requests preserve the parent agent's model-visible context and cache-compatible configuration, and how A1 distinguishes request correctness from provider cache behavior and visible latency without exposing private session data.
+Defines the context and settings A1 preserves when reconstructing isolated prompt-suggestion requests with current public APIs, the configurations it explicitly skips, and the private evidence used to assess cache behavior and remaining latency.
 
 ## ADDED Requirements
 
-### Requirement: Suggestions preserve the actual parent request prefix
-For every supported eligible suggestion, A1 SHALL preserve the ordered model-visible context used by its originating successful assistant request, followed by that request's completed assistant response and the isolated suggestion instruction. The shared context SHALL preserve system instructions, tool definitions, included summaries and custom messages, included user-run command results, image policy, and effective supported extension transformations. A1 SHALL NOT substitute raw-role filtering, re-read a newer session state, or rerun stateful parent transformations to reconstruct the shared prefix.
+### Requirement: Supported suggestions preserve reconstructible conversation context
+For an eligible response in a supported configuration, A1 SHALL build the suggestion context from an identity-bound copy of the public session messages, system prompt, tool definitions, selected model, and relevant settings at the completed-response boundary. The ordered context SHALL retain compaction and branch summaries, model-visible custom messages, included user-run command results, and the matching completed assistant response exactly once, followed by the isolated prediction instruction. It SHALL apply the main request's supported message-conversion and image-blocking policy and SHALL NOT discard context solely because its stored role differs from user, assistant, or tool result.
 
-#### Scenario: Suggest after compaction or branch navigation
-- **WHEN** the parent request contains a model-visible compaction or branch summary
-- **THEN** the suggestion request SHALL retain the same summary content and position in its shared prefix
-- **AND** it SHALL include the matching completed assistant response exactly once
+This contract covers reconstructible public inputs, not an exact snapshot of arbitrary extension-transformed provider payloads. Unsupported transformations SHALL be handled by the explicit configuration policy below, rather than reconstructed by replaying their hooks.
 
-#### Scenario: Preserve included and excluded context
-- **WHEN** the parent request includes custom context or user-run bash results and excludes another command result or image payload
-- **THEN** the suggestion SHALL preserve the included model-visible content and the same exclusions or image placeholders
-- **AND** it SHALL NOT reintroduce excluded image bytes or command output
+#### Scenario: Preserve summaries and custom context
+- **WHEN** an eligible session contains compaction or branch summaries and model-visible custom messages
+- **THEN** the suggestion SHALL contain their converted text in conversation order
+- **AND** it SHALL include the candidate assistant response once before the prediction instruction
 
-#### Scenario: Extension transforms the parent request
-- **WHEN** a supported extension changes the parent model-visible context or cache-relevant request configuration
-- **THEN** the suggestion SHALL preserve the effective transformed shared portion
-- **AND** snapshot reuse SHALL NOT invoke that parent transformation again or duplicate its side effects
+#### Scenario: Preserve included bash and excluded content
+- **WHEN** one user-run command result is included in model context and another is excluded
+- **THEN** the suggestion SHALL retain the included result and omit the excluded result
+- **AND** entries intended only for UI or extension persistence SHALL NOT become model input
 
-### Requirement: Suggestions inherit compatible effective request configuration
-A1 SHALL use the originating request's selected provider and model, system and tool configuration, effective thinking and sampling settings, configured thinking budgets, compatible output limits, and provider cache-retention and routing policy. A1 SHALL preserve the native provider session identity where the provider uses it for cache routing or affinity. A1 SHALL NOT lower reasoning, replace the model, remove tool schemas, or introduce a suggestion-only output cap as part of this optimization. Required provider context-limit enforcement and volatile authentication/request identifiers SHALL remain provider-owned and SHALL NOT be frozen for cache matching.
+#### Scenario: Honor blocked images
+- **WHEN** image reading is disabled for the supported parent configuration
+- **THEN** the suggestion SHALL use the same image placeholders as the main path instead of sending the image bytes
+- **AND** ordinary text and enabled image content SHALL otherwise retain the public conversion semantics
 
-#### Scenario: Custom thinking budget is configured
-- **WHEN** a parent request uses a configured thinking budget different from the provider default
-- **THEN** the suggestion SHALL inherit that effective budget subject to the same provider validity rules
-- **AND** selecting the same named reasoning level without its budget SHALL fail deterministic request conformance
+#### Scenario: Public state changes after capture
+- **WHEN** the session messages or settings change after the suggestion context is copied
+- **THEN** the pending request SHALL NOT read those mutable objects to replace its captured inputs
+- **AND** a change that invalidates the originating response SHALL prevent publication
 
-#### Scenario: Provider uses an explicit prompt cache key
-- **WHEN** the main request supplies a native session-derived cache key to a supporting provider
-- **THEN** the suggestion SHALL supply the equivalent cache-routing identity rather than omit it or replace it with an unrelated UI session identifier
+### Requirement: Request-mutating extension configurations are explicitly unsupported
+A1 SHALL determine suggestion support from public loaded-extension metadata and supported provider capabilities, not from the mere presence of extensions. Active context, provider-payload, or provider-header transformation hooks whose effective changes cannot be reconstructed SHALL make suggestions unavailable for that configuration. A1 SHALL conservatively treat even an observation-only handler on one of those mutating hook surfaces as unsupported in this release. It SHALL neither invoke those hooks a second time nor send a suggestion that silently bypasses them.
 
-#### Scenario: Ordinary Anthropic settings already match
-- **WHEN** the parent and suggestion use standard messages and default compatible Anthropic settings
-- **THEN** the correction SHALL retain their matching thinking, tools, system, and output configuration
-- **AND** cache-marker placement differences alone SHALL NOT be reported as proof of a server-side cache miss
+Unavailability SHALL produce a bounded machine-readable reason distinct from a valid empty prediction, without exposing extension names, paths, or private content. Unknown metadata SHALL fail closed for that configuration. Unsupported configurations SHALL NOT prevent generation in otherwise supported sessions, block the primary agent, disable the user's persisted setting, or create a generation-status row.
 
-#### Scenario: Credentials refresh between requests
-- **WHEN** authentication changes after the parent request was captured
-- **THEN** the suggestion SHALL resolve current credentials through the authenticated provider boundary
-- **AND** it SHALL NOT replay a credential captured with the parent
+#### Scenario: No request-transforming extensions are active
+- **WHEN** an eligible configured built-in provider is used with no active request-transforming hooks
+- **THEN** A1 SHALL generate using the corrected public context and settings without requiring an upstream request-snapshot API
 
-### Requirement: Request reuse is isolated and identity checked
-The reusable parent context SHALL be transient, bounded to the current candidate request, and associated with session generation, run, response, model, and effective configuration identity. A1 SHALL invalidate it on continuation, retry, compaction, session/model/configuration replacement, cancellation, feature disable, or disposal. Suggestion execution SHALL remain independent of the parent abort controller, transcript, tool execution, mutable transport continuation state, and session usage accounting. Cancellation of the suggestion SHALL NOT abort the parent or corrupt a later primary request.
+#### Scenario: Extension only adds UI or persistent context
+- **WHEN** an extension contributes UI, tools, or persistent model-visible messages without an unsupported request-transforming hook
+- **THEN** its presence alone SHALL NOT suppress suggestions
+- **AND** its persistent context SHALL participate through ordinary public message conversion
 
-#### Scenario: Parent continues while a suggestion is being prepared
-- **WHEN** a newer assistant continuation or tool execution supersedes a captured response
-- **THEN** A1 SHALL discard the snapshot and pending candidate before a replacement becomes current
-- **AND** a late result SHALL NOT publish
+#### Scenario: Extension modifies the outgoing request
+- **WHEN** an active extension registers a context, provider-payload, or provider-header transformation hook
+- **THEN** A1 SHALL skip the suggestion with an unsupported-transformation reason
+- **AND** the primary request SHALL still run its extension hooks normally and only once
 
-#### Scenario: Provider connection is still busy
-- **WHEN** the parent connection is in use when suggestion generation starts
-- **THEN** generation SHALL use the provider's supported independent-request behavior without blocking settlement or forcing unsafe connection reuse
-- **AND** it SHALL preserve compatible cache-routing identity independently of whether the connection can be reused
+#### Scenario: Extension inventory changes or cannot be classified
+- **WHEN** extension reload or changed/unknown metadata invalidates a pending request's support classification
+- **THEN** A1 SHALL discard that pending suggestion
+- **AND** it SHALL classify later eligible responses independently instead of retaining a globally unavailable state
 
-#### Scenario: Suggestion uses a reusable connection
-- **WHEN** the provider publicly supports isolated background requests over an available reusable connection
-- **THEN** suggestion execution SHALL preserve that optimization without replacing the primary conversation's continuation state
-- **AND** aborting the suggestion SHALL leave the next main request valid
+### Requirement: Suggestions retain applicable public model and request settings
+For supported configurations, A1 SHALL retain the selected provider/model, public system prompt and tool schemas, named reasoning level, configured thinking budgets, and applicable model/default sampling, cache-retention, and output-limit policy. The authenticated runtime SHALL continue resolving current credentials and configured provider defaults. A1 SHALL NOT substitute a cheaper model, lower reasoning, remove tool schemas, add a suggestion-only output cap, or persist credentials to improve apparent latency. Provider-required context-window clamping SHALL remain authoritative.
 
-### Requirement: Faithful request capture is an explicit supported capability
-A1 SHALL negotiate and validate faithful suggestion-request reuse through documented public integration APIs. Missing or incompatible capture, transformation, or isolated-completion support SHALL produce an explicit bounded unavailable outcome at the integration boundary, with a reason that diagnostics can distinguish from a model returning no suggestion. A1 SHALL NOT deep-import dependency implementation files, inspect private state, patch installed code, bypass a configured transformation, or silently issue a lossy fallback request. The main session SHALL remain usable when this optional suggestion capability is unavailable.
+#### Scenario: Preserve a custom thinking budget
+- **WHEN** a supported parent configuration uses a custom high-reasoning budget of 4096 tokens
+- **THEN** the suggestion SHALL pass that configured budget rather than silently use the provider's default high budget
+- **AND** default configurations SHALL retain their existing matching thinking behavior
 
-#### Scenario: Public API cannot expose a faithful snapshot
-- **WHEN** the selected dependency or a configured transformation cannot support faithful isolated request reuse
-- **THEN** compatibility evidence SHALL identify the unsupported capability and operation
-- **AND** no fallback suggestion request SHALL be sent for that unsupported configuration
-- **AND** the primary agent SHALL continue normally
+#### Scenario: Keep provider defaults and validity limits
+- **WHEN** the selected model or authenticated provider configuration supplies supported sampling or cache defaults
+- **THEN** the suggestion SHALL use the same selected model and runtime policy
+- **AND** any output-limit adjustment required by the appended context SHALL respect provider validity rather than force byte equality
 
-#### Scenario: Compare the explicit vanilla profile
-- **WHEN** the user launches `a1 pi` or uses a non-interactive profile
-- **THEN** this capability SHALL NOT add suggestion requests or change the primary provider payload or extension lifecycle
+#### Scenario: Settings change during a run or pending generation
+- **WHEN** relevant model, thinking, image, or provider settings change so the response's configuration can no longer be established
+- **THEN** A1 SHALL skip or invalidate that candidate rather than generate or publish under an assumed parent configuration
+- **AND** later stable eligible responses SHALL remain supported
 
-### Requirement: Cache and latency evidence is bounded and private
-A1 SHALL provide opt-in diagnostic observation of separately correlated primary and suggestion request counts, supported provider usage counters, and monotonic lifecycle timings. Evidence SHALL distinguish capture, generation start, generation completion, settlement, presentation eligibility, actual presentation when observable, cancellation, and unavailability. Missing usage or presentation data SHALL be marked unavailable rather than synthesized as zero or inferred from a render request. Diagnostic storage SHALL be bounded and SHALL NOT record credentials, header values, prompts, suggestion text, image bytes, tool arguments/results, filesystem paths, raw provider session/cache keys, or stable hashes of private content. Ordinary conversation usage/footer state SHALL NOT absorb suggestion usage.
+#### Scenario: Credentials refresh
+- **WHEN** credentials refresh between the main request and suggestion dispatch
+- **THEN** the suggestion SHALL resolve fresh credentials through the authenticated runtime without replaying stored authorization headers
 
-#### Scenario: Observe a warm eligible turn
-- **WHEN** diagnostic observation is enabled for a primary response and its suggestion
-- **THEN** evidence SHALL separately report their available input, output, cache-read, and cache-write counters and request counts
-- **AND** it SHALL distinguish suggestion generation duration from the interval after settlement before presentation
+### Requirement: Cache routing does not share primary continuation state
+For providers supporting session-derived cache routing, A1 SHALL pass the native engine/provider session identity rather than an unrelated UI identifier. Codex suggestions SHALL use an independent SSE request with that cache-routing identity, even when the main agent uses automatic or WebSocket transport. This deliberate suggestion-only transport choice SHALL NOT change the main transport, acquire its WebSocket entry, replace its cached continuation, or clear that continuation on suggestion failure/cancellation. Other providers SHALL retain compatible public transport behavior; unsupported transport combinations SHALL return an explicit unavailable outcome rather than use private transport state.
 
-#### Scenario: Provider does not report cache usage
-- **WHEN** a successful provider response omits cache counters
-- **THEN** evidence SHALL identify those counters as unavailable rather than claiming a cache miss or full cache hit
+#### Scenario: OpenAI supports a prompt cache key
+- **WHEN** a supported OpenAI or Codex request uses a session-derived prompt cache key
+- **THEN** the suggestion SHALL include the equivalent native cache-routing identity
+- **AND** evidence SHALL NOT claim that the key guarantees a provider cache hit
 
-#### Scenario: Diagnostic capacity is reached
-- **WHEN** observation reaches its configured fixed capacity
-- **THEN** it SHALL evict or summarize older records without blocking input or accumulating unbounded session content
-- **AND** disabling observation SHALL stop collection and release retained diagnostic records
+#### Scenario: Main Codex socket is idle or busy
+- **WHEN** a Codex suggestion starts while the primary WebSocket is idle or busy
+- **THEN** the suggestion SHALL use the independent SSE path in both cases
+- **AND** the main connection's continuation state and settlement SHALL remain unaffected
 
-### Requirement: Cache optimization does not hide primary settlement latency
-The suggestion path SHALL retain the existing completed-response generation boundary and settled-editor publication gate. A prepared valid suggestion SHALL be available in the same presentation cycle as settlement. A still-current result arriving later SHALL remain eligible for immediate complete presentation under the existing editor checks. A1 SHALL NOT retain the working indicator, block settlement, introduce a reveal timer, suppress suggestions solely because of cold-cache size, or generate speculatively from incomplete streaming text in this change.
+#### Scenario: Cancel a Codex suggestion before the next primary prompt
+- **WHEN** a pending Codex suggestion fails or is cancelled and the user submits another primary prompt
+- **THEN** the next primary request SHALL remain valid and use its normal transport/continuation policy
+- **AND** no suggestion message SHALL have entered its conversation history
 
-#### Scenario: Result is prepared before settlement
+### Requirement: Correction preserves the existing suggestion lifecycle
+A1 SHALL keep the existing eligible completed-response generation boundary, one-current-request policy, deadline, cancellation, output filtering, settled-editor checks, and separate accept/submit actions. A prepared valid suggestion SHALL be available in the settlement presentation cycle; a later valid result SHALL be presented immediately when the editor remains eligible. A1 SHALL NOT retain a working indicator, wait for suggestions before settlement, add a reveal timer, speculate during streaming, or introduce a cold-context size threshold in this correction.
+
+Captured data and unaccepted results SHALL remain transient and SHALL be released on completion, invalidation, disable, or disposal. Suggestion execution SHALL NOT invoke tools, mutate persisted sessions, change primary request behavior, or add suggestion usage to ordinary session/footer totals. Comparison and non-interactive modes SHALL remain unaffected.
+
+#### Scenario: Suggestion is ready before settlement
 - **WHEN** generation completes before matching settlement and the editor is eligible
-- **THEN** the complete suggestion SHALL be included in the settlement presentation without an additional generation-status row or delay
+- **THEN** the complete suggestion SHALL join the settlement presentation without another wait or status row
 
-#### Scenario: Provider finishes after settlement
-- **WHEN** the provider completes after settlement and the editor remains eligible
-- **THEN** A1 SHALL publish the complete result without an artificial wait
-- **AND** evidence SHALL report the residual delay rather than claim zero-latency generation
+#### Scenario: Suggestion arrives late or user types
+- **WHEN** a current result arrives after settlement
+- **THEN** it SHALL appear immediately if the existing editor checks pass
+- **AND** typing or pasting before publication SHALL invalidate it without modifying the draft
 
-#### Scenario: User starts typing while generation is pending
-- **WHEN** the user enters or pastes a draft before the suggestion is presented
-- **THEN** the existing cancellation and stale-result rules SHALL discard the suggestion without modifying the draft
+#### Scenario: Run or session is superseded
+- **WHEN** continuation, tool execution, retry, compaction, session/model replacement, disable, or disposal invalidates a candidate
+- **THEN** late completion SHALL NOT publish or restore its captured context
+
+#### Scenario: Use vanilla or inspect primary accounting
+- **WHEN** `a1 pi` or a non-interactive profile runs, or the primary session's transcript and usage totals are inspected
+- **THEN** this correction SHALL not add suggestion requests to those profiles or suggestion content/usage to the primary accounting
+
+### Requirement: Basic cache and latency observations remain private and truthful
+A1 SHALL expose opt-in bounded diagnostic observations of suggestion outcome/reason, generation duration, available primary and suggestion usage counters separately, request counts at the observed inference boundary, and result availability relative to settlement when those times are known. Absent or unobservable metrics SHALL be marked unavailable rather than synthesized as cache misses, hits, or painted frames. A render request or completed prediction SHALL NOT be described as proof of actual terminal presentation.
+
+Diagnostic records SHALL NOT include credentials, headers, conversation/suggestion text, image bytes, tool arguments/results, paths, raw session/cache keys, or stable hashes of private content. Observation SHALL not block input or inference and SHALL not enable automatic remote telemetry or unbounded retention. The existing explicit provider probe SHALL distinguish deterministic request correctness from measured cache/latency improvement; terminal-visible delay remains a manual acceptance observation.
+
+#### Scenario: Inspect a supported prediction
+- **WHEN** diagnostic observation is enabled and a prediction completes
+- **THEN** evidence SHALL report available generation timing and usage separately from the parent
+- **AND** it SHALL distinguish result-before-settlement from result-after-settlement without claiming a paint timestamp
+
+#### Scenario: Provider metrics are absent
+- **WHEN** a provider or observation boundary does not expose cache usage or individual retry attempts
+- **THEN** evidence SHALL describe that limitation rather than interpreting absent counters as zero or claiming a count of unobserved network attempts
+
+#### Scenario: Observation is disabled or fails
+- **WHEN** no diagnostic observer is configured, its bounded capacity is reached, or the observer fails
+- **THEN** A1 SHALL not accumulate unbounded records or block the main session
+- **AND** disabling observation SHALL release any retained records owned by that observation
