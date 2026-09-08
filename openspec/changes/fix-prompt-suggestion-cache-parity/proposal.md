@@ -1,32 +1,35 @@
 ## Why
 
-Prompt suggestions can arrive noticeably after the agent finishes because A1 reconstructs a background request from raw session state rather than preserving the parent request's model-visible context and cache-relevant configuration. Investigation confirmed dropped context messages, missing provider session identity, and conditional thinking-budget and extension-transform mismatches; these warrant correction before changing models, reducing reasoning, or speculating from incomplete answers.
+A1's prompt-suggestion requests drop summaries and other model-visible messages and omit settings such as custom thinking budgets and provider cache-routing identity. These are concrete, locally fixable differences that can hurt suggestion quality and cache reuse; fixing them does not require solving exact reuse of every extension-transformed provider request first.
 
 ## What Changes
 
-- Introduce an identity-bound, transient parent-request snapshot behind the engine integration boundary, preserving the actual model-visible prefix, final assistant response, system prompt, tools, and compatible effective request settings.
-- Preserve compaction/branch summaries, included bash results, custom messages, image policy, and supported extension transformations instead of filtering the parent history to three raw message roles.
-- Preserve provider session/cache-routing identity, configured thinking budgets, transport policy, and other cache-relevant options without retaining credentials or sharing mutable parent execution state.
-- Require a documented public integration seam for snapshot capture and isolated completion. Explicitly report unsupported capability when faithful capture cannot be implemented; do not deep-import, patch dependencies, replay stateful hooks, or silently fall back to lossy requests.
-- Add bounded, opt-in diagnostics and deterministic provider-payload comparisons that separate prefix/configuration correctness, provider cache usage, generation latency, settlement overlap, and actual presentation delay.
-- Preserve selected-model behavior, eligibility, cancellation, one-current-request policy, tool-free execution, session isolation, same-cycle presentation of prepared results, and late-result presentation when still eligible.
+- Replace three-role filtering with the existing public message converter, retaining compaction/branch summaries, custom context, included user-run bash results, and the completed assistant response. Apply the same supported image-blocking policy as the main request.
+- Capture a transient, identity-bound copy of publicly available session inputs and relevant settings at the eligible completed-response boundary. This is a reconstructed suggestion context, not a claim to capture the exact final parent wire request.
+- Copy the selected model, system prompt, tool schemas, reasoning level, configured thinking budgets, and applicable public provider settings. Resolve credentials and provider/model defaults through the existing authenticated runtime.
+- Supply the native provider session identity for supported cache routing. For Codex suggestions, use the public independent SSE request path with that identity, deliberately foregoing primary WebSocket reuse and leaving the main transport unchanged.
+- Conservatively skip suggestions when active request-mutating extension hooks make faithful reconstruction unsupported. Report a bounded reason through the generator/diagnostic boundary; do not replay hooks, bypass their policies, or disable otherwise supported configurations globally.
+- Keep small opt-in cache/latency observations and extend the existing explicit provider probe. Measure request time and result availability relative to settlement without requiring a new terminal-paint acknowledgement or general telemetry subsystem.
+- Preserve existing generation timing, editor checks, cancellation, tool-free execution, separate accept/submit actions, and primary session/usage isolation.
 
-This change does not introduce streaming speculation, a separate suggestion model, reasoning/output-cap reductions, a cold-context suppression threshold, custom Anthropic cache-marker manipulation, or a guarantee that network-generated suggestions always finish before settlement.
+### Explicit deferrals
+
+Exact post-transformation request snapshots, arbitrary provider-payload/header rewrite reuse, and shared WebSocket continuation optimization are deferred. A new Pi API or dependency upgrade is **not a prerequisite for this revision**. A different suggestion model, lowered reasoning, suggestion-only output caps, speculative generation during streaming, cold-context suppression thresholds, and custom cache-marker manipulation remain out of scope. Zero visible delay is an objective for prepared results, not a guarantee for network-generated results.
 
 ## Capabilities
 
 ### New Capabilities
 
-- `prompt-suggestion-request-parity`: Faithful parent-request reuse for isolated suggestion inference, public capability negotiation, provider-aware routing/transport isolation, and privacy-bounded cache/latency evidence.
+- `prompt-suggestion-request-parity`: Bounded parity of reconstructible suggestion inputs and settings, explicit unsupported extension handling, safe provider cache routing, and private cache/latency evidence using existing public APIs.
 
 ### Modified Capabilities
 
-None. This capability supplements the suggestion lifecycle defined by the existing `add-contextual-prompt-suggestions` change without rewriting that still-active change or its eventual `contextual-prompt-suggestions` main specification.
+None. This capability supplements the still-active `add-contextual-prompt-suggestions` change. Its lifecycle remains unchanged except for the explicit unsupported-configuration suppression defined here; this revision does not rewrite or accept that change's outstanding work.
 
 ## Impact
 
-- Expected implementation areas: `src/integrations/pi/engine/adapter.ts`, `runtime-integration.ts`, engine conformance, neutral suggestion contracts, and suggestion-controller/shell timing observation.
-- Validation areas: engine request-conformance fixtures, suggestion lifecycle/race tests, privacy checks, the credential-gated provider probe, and physical-terminal acceptance.
-- Public API boundary: `openspec/specs/pi-api-boundary/spec.md` remains authoritative. The first implementation gate must establish a documented public snapshot/completion seam against the repository's exact dependency set. If Pi lacks one, implementation is blocked pending a separately reviewed upstream/API or A1-owned alternative; this proposal does not authorize a dependency upgrade or installed-code workaround.
-- Compatibility: only bare-A1 suggestion inference changes. Main-agent execution, extension behavior, persisted sessions, ordinary usage/footer accounting, and the explicit `a1 pi` oracle remain unchanged.
-- Prerequisite: the contextual suggestion implementation must be present in the eventual implementation base; this proposal neither accepts nor archives its outstanding manual/provider validation.
+- Expected implementation areas: `src/integrations/pi/engine/adapter.ts`, public runtime/resource/settings integration, neutral suggestion outcomes/diagnostic metadata, and existing controller invalidation seams.
+- Validation areas: focused conversion/settings/provider-payload tests, unsupported-extension and lifecycle tests, Codex transport isolation, diagnostic privacy, and the existing credential-gated provider probe.
+- `openspec/specs/pi-api-boundary/spec.md` remains authoritative. Production code uses current documented public APIs, without private-state access, method/prototype patches, dependency-file inspection, new providers, or a replacement inference pipeline.
+- Only bare-A1 suggestion behavior changes. Primary payloads, extension execution, transport choice, session persistence, ordinary usage/footer accounting, and `a1 pi` remain unchanged.
+- This revision supersedes the all-or-nothing public snapshot prerequisite from PR #281. `implementation-evidence.md` from PR #282 remains an unchanged historical audit of that original scope, including its then-valid paused status; it does not block the narrower implementation. The completed inventory tasks remain historical, not proof of implementation or acceptance.

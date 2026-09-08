@@ -1,119 +1,119 @@
 ## Context
 
-See `proposal.md` for motivation and `specs/prompt-suggestion-request-parity/spec.md` for the additional contract. The existing `add-contextual-prompt-suggestions` artifacts remain the source for eligibility, cancellation, ghost-text presentation, and acceptance/submission behavior. This design is required because the correction crosses authenticated inference, session lifecycle, extension policy, transport isolation, and diagnostics.
+See `proposal.md` for the narrowed scope and `specs/prompt-suggestion-request-parity/spec.md` for its contract. The original plan in PR #281 required an exact post-transformation request snapshot and isolated derived completion. The audit in PR #282 (`implementation-evidence.md`) established that this combined public API was not available in the selected Pi version.
 
-### Investigation baseline
+**This revision replaces that prerequisite, not the factual audit.** The audit's paused status and recommendation for an upstream API apply to the original scope. They are retained as historical evidence and no longer block the bounded reconstruction defined here. The first two completed tasks remain inventory work only. The original `add-contextual-prompt-suggestions` change's unfinished acceptance work remains unfinished.
 
-- A1 investigation started from primary source at `443620a`; this planning stream is based on `origin/develop` at `b4dc614`. `PiEngineAdapter.generate()` in `src/integrations/pi/engine/adapter.ts` filters raw agent messages to `user`, `assistant`, and `toolResult`, then calls authenticated `ModelRuntime.completeSimple()` with a signal and named reasoning level.
-- Pi source at `v0.84.2`, commit `914cf1472e715297caa30db4b9535d534a9eb718`: `packages/coding-agent/src/core/sdk.ts` supplies message conversion/image policy, context and provider hooks, native session identity, configured thinking budgets, and transport options to the main agent. `core/messages.ts` converts compaction/branch summaries, included bash results, and custom messages to model-visible content rather than dropping them.
-- Pi provider source: `packages/ai/src/api/openai-responses.ts` and `openai-codex-responses.ts` derive explicit prompt-cache routing from the session ID; Codex also uses it to select reusable connections. `anthropic-messages.ts` consumes configured thinking budgets and adds normal cache markers to system/tools and the final user message. `completeSimple()` delegates to `streamSimple().result()`; completion versus streaming is not itself a cache divergence.
-- Claude Code evidence at `D:/Git/claude-code-source`, commit `d43bd40690853fd323758e038cb686930d53a39f`: `src/query/stopHooks.ts` starts suggestion generation fire-and-forget before remaining stop hooks; `src/utils/forkedAgent.ts` preserves parent context/options and clones content-replacement decisions; `src/services/PromptSuggestion/promptSuggestion.ts` keeps tools and thinking/effort settings, skips transcript and suggestion-tail cache writes, and suppresses large cold-context requests. Its comment reports cache regressions from a historical low-effort override; this is source-reported evidence, not an A1 measurement.
-- Offline synthetic checks used installed coding-agent `0.84.2` with transitive `pi-ai`/agent-core `0.84.4`. No real credentials or provider calls were used. The relevant paths were also checked against Pi `v0.84.2`; implementation acceptance must use the repository lockfile's resolved dependency set, not assume the installed transitive versions are its authority.
+Relevant existing APIs are sufficient for the narrowed implementation: public `AgentSession` state/model/session identity, the package-root `convertToLlm` export, public settings getters and loaded-extension metadata, and authenticated `ModelRuntime.completeSimple`. The integration remains behind neutral A1 contracts; no existing agent method is replaced or patched.
 
-Offline results: four converted parent messages became one after A1's role filter; custom Anthropic `high: 4096` became default `high: 16384` for suggestions; Codex's parent `prompt_cache_key` became absent. A standard-message/default-options Anthropic fixture retained equal thinking and output limits. These establish conditional request differences, not measured server-side miss rates or guaranteed latency improvement.
+Investigation references: Pi `v0.84.2` at `914cf1472e715297caa30db4b9535d534a9eb718`, particularly `packages/coding-agent/src/core/sdk.ts`, `messages.ts`, `extensions/runner.ts`, and `packages/ai/src/api/openai-codex-responses.ts`. Claude Code at `d43bd40690853fd323758e038cb686930d53a39f` demonstrates preserving cache-compatible context/options, but its fork pipeline is not being recreated. Earlier offline payload checks used installed transitive `pi-ai`/agent-core `0.84.4`; tests for implementation must use A1's lockfile-resolved family, audited at `0.84.2`.
 
 ## Goals / Non-Goals
 
 **Goals:**
-- Make cache-compatible reuse a property of the actual parent request, not an assumption about similar raw inputs.
-- Preserve inference correctness and extension/image policy while reducing avoidable cache and connection setup costs.
-- Separate provider-independent lifecycle identity from native provider cache-routing identity.
-- Make unsupported request reuse explicit and keep performance claims measurable.
+- Correct message loss, custom-budget omission, and missing supported cache-routing identity using APIs available now.
+- Keep supported sessions generating suggestions while explicitly excluding configurations whose request transforms cannot be reconstructed.
+- Protect primary execution, image policy, credentials, and continuation state.
+- Measure the remaining request latency without adding a new telemetry or terminal-observation project.
 
 **Non-Goals:**
-- A new full agent/session or tool-execution loop for predictions.
-- Sharing credentials, parent abort signals, or mutable WebSocket continuation bookkeeping with background work.
-- Byte-identical volatile fields or an assertion that providers guarantee a cache hit from an equal prefix.
-- Altering primary request behavior to warm the suggestion cache, or mutating provider cache markers in this change.
-- Changing the existing late-result policy or hiding delays behind a retained working indicator.
+- Exact replay or fork of arbitrary final provider payload/header transformations.
+- Shared primary WebSocket connection/continuation optimization for suggestions.
+- An upstream snapshot API, dependency upgrade, new provider, or A1-owned replacement inference pipeline.
+- Changing reasoning/model selection, output limits, cold-cache eligibility, or streaming/presentation policy.
+- Guaranteeing a cache hit or a zero-delay result from an asynchronous provider.
 
 ## Decisions
 
-### 1. Gate implementation on a documented public request-reuse seam
+### 1. Reconstruct supported public inputs, not an exact wire snapshot
 
-Before production edits, establish whether the selected public Pi API can expose an immutable, post-policy parent request snapshot and execute an isolated derived completion. Required properties are ordered capture after context/image/message conversion and cache-relevant extension transformations, association with the resulting assistant response, effective option access, and safe provider-specific execution without replaying transformation hooks.
+At the existing eligible completed-assistant-response boundary, capture one private immutable copy of the current public messages, system prompt, serializable tool schemas, selected model, native session identity, and relevant public settings. Bind it to the existing session generation/run/response identity. The matching completed response is already part of the captured history; verify its association and include it exactly once before appending the prediction instruction. If the authoritative response cannot be matched, return a bounded unavailable/stale outcome rather than append it twice or use a later response.
 
-The existing public `convertToLlm` export fixes known message-role loss, but it alone does not reproduce image policy or extension transformations. Existing `context` or `before_provider_request` hooks are not assumed to be final observation points: multiple handlers, handler ordering, and stateful effects must be proven against the documented API. Reassigning an agent's internal stream function or reading installed source at runtime is not an alternative.
+Use public `convertToLlm` instead of the current three-role filter. It converts compaction/branch summaries, custom messages, and included bash execution to model-visible content, and excludes non-context entries. Apply the same image-blocking behavior as Pi's main SDK wrapper: disabled images become the supported text placeholder with the same deduplication semantics. Enabled image data is preserved under the converter's normal public representation. Keep image handling in the integration, not the shell.
 
-Conformance will expose supported/unavailable reuse with a bounded reason. Globally missing required support blocks shipping this correction; a specifically unsupported provider/extension configuration receives no suggestion request while the main session remains usable. Do not declare success by disabling suggestions for every configuration. If the public seam is absent, stop and report the exact gap for a separately reviewed public API change or owned alternative. This is a prerequisite gate, not an implicit authorization to upgrade Pi or port an entire inference pipeline.
+Capture/projection must preserve provider-relevant schema metadata without cloning executable tool functions or connecting a tool execution loop. Do not mutate `session.agent.state`, persist the prediction instruction, rerun `context` hooks, or call an agent's mutable transform function. Snapshot once per eligible response, not per streamed token; retain at most the current candidate and release it when no longer needed.
 
-Alternative rejected: patch the obvious filter and option omissions and claim full parity. That would leave extension policy and transformed context unproven.
+Record the relevant public configuration and extension inventory revision at run start and compare it at candidate preparation and result publication. Known changes during the run or while pending invalidate that candidate; later stable runs remain eligible. This guard prevents copying new thinking/image settings onto a response made under an older configuration. It is not a claim to capture every hidden provider decision.
 
-### 2. Capture once and derive the suggestion from an immutable request snapshot
+Alternative rejected: revive the exact finalized-request snapshot gate. That was the identified scope blocker and is unnecessary for these concrete corrections. Replaying transformation hooks is also rejected because stateful effects cannot be reproduced safely.
 
-Keep an integration-private snapshot of the request that produced the candidate terminal assistant response. The neutral generator contract carries identity and a validated capability/outcome, not Pi types, raw wire payloads, credentials, or a session object.
+### 2. Define a conservative, configuration-local extension policy
 
-Snapshot content comprises:
-- owning session generation, run, request/response sequence, model, and effective configuration revision;
-- the model-visible ordered message prefix after parent policies, plus its system prompt and tool schemas;
-- compatible effective provider options, including thinking configuration/budgets, model sampling defaults and overrides, output-limit policy, cache retention, native session identity, transport selection, and reproducible non-secret policy metadata;
-- sufficient provider-owned derivation information to append the completed response and prediction instruction without applying parent policies twice.
+Read the current public loaded-extension results through the runtime resource owner, using the exported extension metadata and registered handler inventory. Keep classification typed at the integration boundary, not based on guessed dependency paths, reflection, extension source parsing, or function-body inspection.
 
-Complete the snapshot only when its matching assistant response succeeds with a terminal stop. Append that response exactly once, then the isolated instruction. Never derive from a later `session.agent.state.messages` collection. A retry, context-changing compaction, or continuation supersedes the old snapshot even if the provider/model name did not change.
+Treat these active hook surfaces as unsupported for this release:
+- `context`;
+- `before_provider_request`;
+- `before_provider_headers`.
 
-Capture must not add full-history serialization or copying per streamed token. Maintain at most one retained candidate snapshot; use immutable/public request data or one bounded capture per request, and release it on completion/invalidation. Retain no extra persisted transcript.
+Presence on one of these surfaces is enough to skip; do not try to infer that a handler is observation-only, idempotent, safe for a particular provider, or irrelevant to a request. This intentionally includes payload/header loggers. Extensions that only add UI, ordinary tools, or persistent context remain supported. `before_agent_start` effects already represented in public system/messages are not themselves an exclusion. Custom provider configurations that retain the public runtime's normal context/options contract can use the same reconstruction; opaque custom request/transport behavior that cannot meet that contract is explicitly unsupported, not emulated.
 
-Alternative rejected: rerun extensions and conversion after completion. Stateful transforms may inject different data, omit different content, or cause duplicate side effects. Capturing final raw JSON alone is also insufficient unless a documented API can safely derive a new request from it.
+The generation outcome distinguishes a valid empty prediction from `unsupported-transformation`, `unsupported-provider`, `unknown-extension-metadata`, `configuration-changed`, and stale/cancelled outcomes as applicable. Reasons are enums, never extension paths, names, source, or thrown provider text. No extra UI row or persistent setting change is introduced. The existing diagnostic seam/probe can explain why a candidate was skipped.
 
-### 3. Separate cache identity from mutable execution state
+Reclassify after extension reload and for later candidates, and recheck support before publishing a pending result. Unknown inventory fails closed for the affected configuration only. Do not impose a global dependency/API prerequisite: ordinary built-in Anthropic, OpenAI Responses, and Codex configurations with inspectable metadata and no excluded hooks must remain supported and have positive tests. Missing support for an opaque custom configuration must not make those tests or the entire feature unavailable.
 
-Continue resolving credentials through `ModelRuntime` at dispatch; never store API keys, authorization headers, or authentication tokens in the reusable snapshot. Preserve the actual Pi/provider session identity, not the UI's independent session identifier. Resolve volatile request IDs and refreshed credentials anew. Cache-key values remain integration-private.
+Alternative rejected: silently bypass active hooks or replay them on the background request. Blanket suppression merely because any extension is installed would unnecessarily exclude ordinary A1 sessions.
 
-Carry the parent's effective thinking budgets and compatible request settings without a cheap-model, low-effort, removed-tools, or output-cap optimization. Provider-required context-window clamping remains authoritative after the extra response/instruction is appended; tests identify this legitimate derived-field difference rather than overriding a provider limit to force equality.
+### 3. Copy the public settings that the existing request path omits
 
-Preserve configured transport and supported cache routing without forcing a busy socket to be reused. The provider must own concurrency and connection acquisition. A derived background completion must not install its prediction as the main conversation's next continuation state. If the public transport API cannot preserve primary continuation isolation, use its documented independent-request mode while retaining supported cache routing; report reuse as unavailable, not as a cache miss. If no safe mode exists, mark that configuration unavailable.
+Use the selected public model and system/tools from the captured context and dispatch through the same authenticated `ModelRuntime`. Pass the existing reasoning level together with `SettingsManager.getThinkingBudgets()`, and preserve applicable request policy exposed through public getters. Let the unchanged model and runtime resolve model sampling defaults, provider configuration, environment/cache-retention defaults, and fresh authentication in the same way as the main path. Do not snapshot credentials, authorization headers, resolved secret environment values, or raw HTTP requests.
 
-Alternative rejected: blindly share the parent's request object, abort controller, socket entry, or previous-response identifier. Cache routing and safe continuation ownership are separate concerns.
+Use the actual Pi session ID (`session.sessionId` or its public session-manager equivalent), not the adapter's unrelated UI identity, as the provider `sessionId`. Both identities have distinct roles: the neutral identity prevents stale UI publication, while the native identity supplies supported provider cache routing.
 
-### 4. Keep the controller's generation/publication race unchanged
+Do not add a suggestion-only token cap, lower thinking, remove tools, or force output equality near the model context limit. Provider-owned serialization and context-window clamping remain authoritative after adding the instruction. Unknown extension payload overrides are outside the support envelope, not values to scrape or reconstruct.
 
-Retain generation at the existing successful completed-response boundary and publication only after matching settlement. The current `generating`, `prepared`, and `available` lifecycle already permits same-cycle publication of prepared results and immediate publication of later valid results. Extend identity invalidation to captured configuration revisions and capture disposal without changing editor semantics.
+Alternative rejected: only copy the named thinking level. The offline custom-budget example showed that `high` alone can mean 16384 tokens instead of the user's configured 4096. `completeSimple` versus `streamSimple` is not a cache discrepancy: the former awaits the latter's result.
 
-The diagnostic observer is off the critical path. It must not await I/O or inference from a settlement or render callback. Tool schemas remain available for request compatibility, but no tool executor is connected; tool-call output is rejected as before. No retries beyond the existing bounded provider/request policy are introduced solely to obtain a suggestion.
+### 4. Use independent SSE for Codex suggestions
 
-Alternative rejected: prefetch during streaming or skip every result that misses settlement. Both change established behavior and would confound evaluation of cache fixes.
+For the `openai-codex-responses` API, set suggestion `transport: "sse"` while preserving the native `sessionId`. This is an explicit, reviewed exception to inheriting the parent's transport: the main agent retains its existing `auto`, WebSocket, or SSE setting unchanged.
 
-### 5. Add opt-in, bounded metadata-only diagnostics
+Pi's Codex SSE path can send the session-derived prompt cache key without acquiring the primary WebSocket cache entry. Therefore suggestion success, failure, or cancellation must not write or clear that entry's `continuation`, even when the primary connection is idle. Do not try to borrow a busy connection, change the native ID to fake isolation, or patch continuation state after the request. Reusing the routing identity is not a guarantee of a server cache hit.
 
-Use a neutral observer/sink with a fixed-capacity in-memory buffer (128 recent request records by default); no automatic remote telemetry or disk persistence. Explicit diagnostic export uses the existing diagnostic/reporting owner with a strict allowlist. Disable releases the buffer. Observation failure never fails the primary turn.
+For other normal public provider paths, preserve compatible public transport selection. Tests must cover the built-in Anthropic and OpenAI Responses paths as well as Codex. If an opaque custom transport cannot support independent execution with the public contract, return `unsupported-provider` for that configuration; do not introduce a new inference implementation.
 
-Each record uses an ephemeral local correlation number, an operation kind (`primary` or `suggestion`), supported provider/API category, resolved package versions, bounded status/reason enums, available usage counters, and monotonic offsets. Do not export raw session/model-customization identifiers, content hashes, URLs, headers, payloads, prompts, suggestions, image data, tool data, or paths. Tests can compare full synthetic payloads in memory, but runtime diagnostics cannot contain them.
+Alternative rejected: pass the same session ID with Codex's default WebSocket/auto suggestion path. The audit showed successful requests replace the shared continuation bookkeeping. A new ID avoids that sharing but drops the intended cache-routing identity. Explicit SSE is the bounded current-API trade-off; shared WebSocket optimization is deferred.
 
-Record request capture, generation start/completion, matching settlement, publication eligibility, and confirmed presentation separately. A render request is not a paint: if the terminal/runtime cannot acknowledge presentation through a public seam, leave that timestamp unavailable and use explicit terminal acceptance evidence instead. Compute generation duration and post-settlement presentation delay only when their endpoints exist; preparation-before-settlement is a separate outcome. Missing token counters are unavailable, not zero. Keep suggestion cost/usage separate from session/footer accounting.
+### 5. Leave controller behavior intact and keep observation small
 
-The existing provider probe starts from an arbitrary session and reports elapsed time/candidate presence, not cache behavior. Replace its acceptance role with an explicitly credential-gated paired-turn experiment that first establishes a real parent request, then observes its eligible suggestion without logging content or changing the normal interactive request count.
+Retain the controller's existing generation trigger, timeout, epochs, prepared-result handoff, editor checks, and late-result behavior. Extend only the support/configuration invalidation and result metadata needed by this correction. Keep tool schemas but reject tool-call output without executing it. Preserve separate Tab acceptance and Enter submission, ordinary autocomplete priority, and disabled/comparison/non-interactive behavior.
 
-Alternative rejected: log raw request bodies for later diffing. Synthetic-only in-memory diffs and allowlisted metadata establish the needed evidence without leaking session material.
+Use an optional metadata-only observer on the existing integration/generator and test/probe path; do not add a telemetry service, new UI setting, generic export command, or a mandatory 128-record runtime buffer. With no observer, retain no diagnostic history. Any probe collector uses a fixed sample bound and drops/releases records on completion/disable; callback errors are contained and never awaited as I/O on the input or settlement path.
 
-### 6. Prove payload parity before evaluating live latency
+Observe bounded outcome/reason, an ephemeral local correlation number, generation start/completion duration, available parent/suggestion usage separately, and logical inference invocation counts. Distinguish unobserved provider retries from those counts. Use provider capability knowledge to distinguish missing counters from meaningful zero; where the library normalizes absent counters and cannot establish availability, mark them unknown rather than infer a cache miss.
 
-Deterministic conformance uses two producers: the normal supported Pi request path and A1's derived suggestion path. Do not build the expected payload with the same reconstruction helper under test. Capture synthetic requests through a public mock provider or pre-network request seam; make network use fail closed. Compare the shared model-visible prefix and cache-relevant effective settings, with a small explicit allowlist for the appended assistant/instruction tail, provider-derived limits, volatile authentication/request IDs, and provider-owned cache-marker placement. Do not normalize away summaries, budget values, tool definitions, or cache-routing keys.
+If the controller/probe observes both matching settlement and result completion, report result availability before/after settlement. This is **not terminal paint latency**. No new terminal acknowledgement API is required. Existing deterministic frame tests verify ready-result inclusion; physical-terminal review judges user-visible delay. Do not export credentials, headers, model customization secrets, session/cache IDs, prompts, suggestions, paths, images, tool content, or content hashes. Suggestion usage remains separate from session/footer accounting.
 
-Required matrix: ordinary defaults; compaction and branch summaries; included/excluded bash; custom context; images and blocked images; stateful extension transforms and payload hooks; custom budget and sampling settings; native provider session identity; Anthropic defaults and near-context-limit clamping; OpenAI/Codex idle/busy connection and continuation isolation; no-cache provider; and unavailable capability. Include a deliberate mismatch in each major dimension so the harness proves it detects the original bugs.
+Alternative rejected: block these cache-input fixes on full presentation telemetry, raw payload logging, or an extensive diagnostics UI.
 
-Keep lifecycle tests for both completion/settlement orders, configuration/model/session changes, retries/compaction, user typing, disposal, abort-after-resolution, and unchanged `a1 pi` behavior. Add diagnostic privacy/capacity/failure tests and verify one eligible additional inference, no tool execution, no transcript mutation, and separate usage accounting.
+### 6. Test the support envelope and then measure benefit
 
-Live acceptance records paired baseline/corrected samples using equivalent isolated fixture conversations and the exact locked dependencies. Include warm plain-context and summary/custom-context cases, custom-budget Anthropic where available, and OpenAI/Codex where configured. Report sample counts, request counts, cache counters, generation median/tail, presentation median/tail when observed, and unsupported data. Use independent fixture sessions and alternate baseline/corrected ordering to avoid attributing cross-run cache warming to the correction. Do not require network-dependent latency assertions in CI. If diagnostics do not show a latency/cache benefit, report that explicitly; request-correctness fixes alone do not authorize a claim that visible delay is solved. Final acceptance requires the user's assessment of the residual delay.
+Build focused synthetic comparisons from two paths: an ordinary supported Pi request producer and the corrected A1 reconstruction. Use public fake providers/request inspection with network disabled; full payload comparison is permitted only for synthetic fixtures in memory. Compare reconstructible message prefixes, system/tools, thinking budgets, and cache-routing options. Allow only named differences for the extra assistant/instruction tail, fresh volatile request/auth identifiers, provider cache markers, required context-limit clamping, and the deliberate Codex SSE transport. Do not erase the original omissions in normalization.
 
-Alternative rejected: use a single quick response or static A1-only mock as proof of warm-cache latency.
+Required positive cases: no extensions; UI-only/persistent-context extensions; compaction/branch summaries; custom messages; included/excluded bash; images enabled/blocked; default and custom thinking budgets; normal model/provider defaults; native provider cache identity. Required negative cases: each excluded hook (including a logger), unknown metadata, mid-run configuration changes, and reload while a result is pending. Verify skipped configurations issue zero suggestion requests and their main hooks still run normally once.
+
+Codex tests must establish that suggestion transport remains SSE regardless of main transport and idle/busy primary state, while the cache key remains present. Exercise primary-suggestion-primary, failure, and cancellation through a mocked public transport/provider boundary, with assertions that the primary continuation is not touched. Do not assert connection isolation solely from an A1-authored options object; exercise the pinned provider dispatch path.
+
+Retain lifecycle races, settings disable, tool rejection, no-transcript mutation, separate usage, and comparison-profile regressions. Add observer-failure, privacy, absent-counter, and bounded-probe cases. A deliberate summary/budget/cache-key omission must make conformance fail.
+
+Extend the existing credential-gated provider probe rather than create a general benchmarking subsystem. With explicit approval, establish eligible fixture turns, collect a bounded set of baseline/corrected samples in equivalent independent sessions, and report sample count, known inference counts, available cache counters, generation times, and result-versus-settlement timing where available. Alternate run order and distinguish warm-cache results from cold fixtures. No paid provider request is a default CI test. Report observed improvement, no improvement, or insufficient evidence honestly; request corrections alone do not establish that all visible delay is gone.
 
 ## Risks / Trade-offs
 
-- **[Public snapshot/isolated-completion API may be missing]** -> Treat the API inventory as the first blocking gate; name the missing capability instead of weakening public-boundary rules.
-- **[Snapshot equality does not guarantee server cache reuse]** -> Separate deterministic parity from real provider counters and timing; preserve unknown values.
-- **[Request capture retains sensitive context or costs memory]** -> Keep one transient candidate, avoid per-token copies/serialization, release on invalidation, and export only allowlisted metadata.
-- **[Stateful extensions or auth hooks cannot be safely replayed]** -> Capture effective supported policies once; re-resolve credentials through the provider and mark unsupported configurations explicitly.
-- **[Shared Codex identity interferes with continuation state]** -> Test primary-suggestion-primary and abort sequences; use only documented independent-request semantics and do not force socket reuse.
-- **[Equivalent options are not always byte-identical]** -> Keep a reviewed provider-specific difference allowlist; never erase real prefix or thinking-budget differences from evidence.
-- **[Providers vary in cache support and diagnostics]** -> Keep missing metrics and unavailable connection reuse distinct from misses or failures; do not introduce Anthropic-only eligibility thresholds for every provider.
-- **[Background request remains slow even with a warm prefix]** -> Retain truthful settlement and late publication; use evidence for any later model, speculation, suppression, or cache-marker proposal.
+- **[Some extensions lose suggestions]** -> Restrict the exclusion to named mutating hook surfaces/unknown metadata, make the reason explicit, and preserve main execution plus positive ordinary-extension tests.
+- **[Public reconstruction is not exact final-wire reuse]** -> State the support envelope and excluded transformations explicitly; do not advertise universal request parity.
+- **[Codex SSE may add HTTP setup latency]** -> Accept this bounded isolation trade-off while restoring cache routing; measure it and defer shared WebSocket optimization.
+- **[Provider context/cache policies differ]** -> Keep native runtime defaults and validity checks; compare only named fields with a reviewed difference allowlist and report unknown metrics.
+- **[Configuration changes during a run]** -> Invalidate the candidate when its supported configuration cannot be established; reconsider later stable responses rather than disabling the feature.
+- **[Observation or snapshots add overhead/privacy risk]** -> One candidate copy, no per-token history work, no retained secrets, optional metadata callbacks, and bounded probe samples.
+- **[Warm-cache inference still finishes after settlement]** -> Keep truthful settlement and immediate late publication; require manual acceptance of residual delay rather than promise zero delay.
 
 ## Migration Plan
 
-1. Recheck the exact implementation-base dependency family and contextual-suggestion prerequisite; complete the public API feasibility/conformance inventory before production implementation.
-2. Add neutral capability/outcome and diagnostic seams plus synthetic failing parity cases, without changing main inference or presentation policy.
-3. Implement the public snapshot/derived-completion boundary, full model-visible context preservation, effective option inheritance, and provider execution isolation. Stop at step 1 if the required seam is unavailable.
-4. Wire snapshot lifetime and timing to the existing controller, then complete payload, privacy, transport, cancellation, and regression coverage.
-5. Obtain CI validation and credential-gated/physical-terminal acceptance evidence; explicitly distinguish request-parity correctness from measured latency improvement.
+1. Recheck the implementation base against the repository dependency authority and the historical API inventory. Do not reopen the deferred exact-snapshot prerequisite.
+2. Implement the typed support classifier and response-bound public context conversion/image policy, with positive and unsupported-configuration tests.
+3. Pass the missing public options/native session ID and select independent Codex SSE; prove isolation against the pinned provider path.
+4. Wire configuration/support invalidation and basic optional observations into existing seams, then complete focused conformance and lifecycle coverage.
+5. Obtain required CI results and explicit provider/manual acceptance. No persisted-session migration or new upstream release is needed.
 
-No persisted-session migration is needed. Rollback can disable prompt suggestions with the existing setting or revert this implementation; it must not leave captured requests, diagnostic buffers, or background transport state alive. This planning change does not modify the existing feature's outstanding acceptance tasks or authorize its archive.
+Rollback is the existing prompt-suggestion disable setting or implementation revert. Captured context and optional probe records are disposable; primary conversation and transport state must not require repair. This revision changes only the four planning artifacts and leaves the original audit and prior feature-acceptance records intact.
