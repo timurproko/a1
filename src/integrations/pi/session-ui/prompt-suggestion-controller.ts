@@ -1,6 +1,8 @@
 import {
   assertOwnedUiPromptSuggestionResult,
   normalizePromptSuggestionCandidate,
+  observePromptSuggestion,
+  type OwnedUiPromptSuggestionObserver,
   type OwnedUiPromptSuggestionGeneratorPort,
   type OwnedUiPromptSuggestionIdentity,
   type OwnedUiPromptSuggestionResult,
@@ -19,6 +21,7 @@ export interface ContextualPromptSuggestionControllerOptions {
   readonly surface: ContextualPromptSuggestionSurface;
   readonly enabled: boolean;
   readonly timeoutMs?: number;
+  readonly observe?: OwnedUiPromptSuggestionObserver;
 }
 
 /** Prefetches one candidate, holds it invisibly, and publishes only after matching settlement. */
@@ -29,6 +32,8 @@ export class ContextualPromptSuggestionController {
   #lastConsidered = "";
   #enabled: boolean;
   #disposed = false;
+  #settledAt: number | null = null;
+  #completedAt: number | null = null;
   readonly #timeoutMs: number;
 
   constructor(readonly options: ContextualPromptSuggestionControllerOptions) {
@@ -49,7 +54,10 @@ export class ContextualPromptSuggestionController {
     if (key === this.#lastConsidered) return;
     this.#lastConsidered = key;
     this.invalidate();
-    if (!this.#enabled || this.#disposed || !eligible) return;
+    if (!this.#enabled || this.#disposed || !eligible) {
+      this.options.generator.release?.(identity);
+      return;
+    }
     const epoch = this.#epoch;
     const abort = new AbortController();
     this.#abort = abort;
@@ -57,12 +65,11 @@ export class ContextualPromptSuggestionController {
     const timeout = setTimeout(() => {
       abort.abort();
       if (this.#epoch === epoch && this.#state.status === "generating") {
-        this.#abort = null;
-        this.#state = { status: "idle" };
+        this.invalidate();
       }
     }, this.#timeoutMs);
     timeout.unref?.();
-    void this.options.generator.generate({ identity, signal: abort.signal })
+    void this.options.generator.generate({ identity, signal: abort.signal, ...(this.options.observe ? { observe: this.options.observe } : {}) })
       .then(result => this.#receive(epoch, identity, result))
       .catch(() => this.#fail(epoch))
       .finally(() => {
@@ -77,11 +84,18 @@ export class ContextualPromptSuggestionController {
       this.invalidate();
       return;
     }
+    this.#settledAt = performance.now();
+    this.#observeAvailability(identity);
     if (this.#state.status === "generating") {
       this.#state = { ...this.#state, settled: true };
       return;
     }
     if (this.#state.status === "prepared") this.#show(identity, this.#state.text);
+  }
+
+  /** Recheck external configuration on ordinary shell events, without a polling timer. */
+  refresh(): void {
+    if (this.#state.status !== "idle" && this.options.generator.isCurrent?.(this.#state.identity) === false) this.invalidate();
   }
 
   accept(): void {
@@ -100,6 +114,9 @@ export class ContextualPromptSuggestionController {
   #invalidate(clearSurface: boolean): void {
     const hadVisibleSuggestion = this.#state.status === "available";
     this.#epoch += 1;
+    if (this.#state.status !== "idle") this.options.generator.release?.(this.#state.identity);
+    this.#settledAt = null;
+    this.#completedAt = null;
     this.#abort?.abort();
     this.#abort = null;
     this.#state = { status: "idle" };
@@ -111,8 +128,7 @@ export class ContextualPromptSuggestionController {
 
   #fail(epoch: number): void {
     if (this.#epoch !== epoch) return;
-    this.#abort = null;
-    this.#state = { status: "idle" };
+    this.invalidate();
   }
 
   #receive(epoch: number, identity: OwnedUiPromptSuggestionIdentity, result: OwnedUiPromptSuggestionResult): void {
@@ -127,13 +143,21 @@ export class ContextualPromptSuggestionController {
       this.#fail(epoch);
       return;
     }
+    this.#completedAt = performance.now();
+    this.#observeAvailability(identity);
     this.#abort = null;
     if (this.#state.settled) this.#show(identity, text);
     else this.#state = { status: "prepared", identity, text };
   }
 
+  #observeAvailability(identity: OwnedUiPromptSuggestionIdentity): void {
+    if (this.#settledAt === null || this.#completedAt === null) return;
+    observePromptSuggestion(this.options.observe, { phase: "availability", sequence: identity.responseSequence,
+      resultRelativeToSettlementMs: this.#completedAt - this.#settledAt });
+  }
+
   #show(identity: OwnedUiPromptSuggestionIdentity, text: string): void {
-    if (!this.options.surface.canPresent(identity) || !this.options.surface.present(text)) {
+    if (this.options.generator.isCurrent?.(identity) === false || !this.options.surface.canPresent(identity) || !this.options.surface.present(text)) {
       this.invalidate();
       return;
     }

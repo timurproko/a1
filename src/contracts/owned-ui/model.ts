@@ -47,11 +47,43 @@ export interface OwnedUiPromptSuggestionIdentity {
 export interface OwnedUiPromptSuggestionRequest {
   readonly identity: OwnedUiPromptSuggestionIdentity;
   readonly signal: AbortSignal;
+  readonly observe?: OwnedUiPromptSuggestionObserver;
 }
+
+export const PROMPT_SUGGESTION_OUTCOMES = [
+  "candidate", "empty", "filtered", "tool-call", "failed", "cancelled", "stale",
+  "unsupported-transformation", "unsupported-provider", "unknown-extension-metadata", "configuration-changed",
+] as const;
+export type OwnedUiPromptSuggestionOutcome = typeof PROMPT_SUGGESTION_OUTCOMES[number];
+
+export interface OwnedUiPromptSuggestionUsage {
+  readonly input: number | null;
+  readonly output: number | null;
+  readonly cacheRead: number | null;
+  readonly cacheWrite: number | null;
+}
+
+/** Metadata-only observations. Times describe result availability, never terminal paint. */
+export type OwnedUiPromptSuggestionObservation = {
+  readonly phase: "generation";
+  readonly sequence: number;
+  readonly outcome: OwnedUiPromptSuggestionOutcome;
+  readonly durationMs: number;
+  readonly primaryUsage: OwnedUiPromptSuggestionUsage | null;
+  readonly suggestionUsage: OwnedUiPromptSuggestionUsage | null;
+  readonly inferenceInvocations: { readonly primary: null; readonly suggestion: 0 | 1 };
+  readonly networkAttempts: null;
+} | {
+  readonly phase: "availability";
+  readonly sequence: number;
+  readonly resultRelativeToSettlementMs: number;
+};
+export type OwnedUiPromptSuggestionObserver = (record: OwnedUiPromptSuggestionObservation) => void | Promise<void>;
 
 export interface OwnedUiPromptSuggestionResult {
   readonly identity: OwnedUiPromptSuggestionIdentity;
   readonly text: string | null;
+  readonly outcome?: OwnedUiPromptSuggestionOutcome;
 }
 
 export type OwnedUiPromptSuggestionState =
@@ -62,6 +94,9 @@ export type OwnedUiPromptSuggestionState =
 
 export interface OwnedUiPromptSuggestionGeneratorPort {
   generate(request: OwnedUiPromptSuggestionRequest): Promise<OwnedUiPromptSuggestionResult>;
+  /** Generators with mutable external configuration must guard publication and release owned state. */
+  isCurrent?(identity: OwnedUiPromptSuggestionIdentity): boolean;
+  release?(identity: OwnedUiPromptSuggestionIdentity): void;
 }
 
 export type OwnedUiThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh";

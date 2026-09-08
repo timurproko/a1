@@ -1,4 +1,4 @@
-import type { AgentSessionRuntime } from "@earendil-works/pi-coding-agent";
+import { SettingsManager, VERSION, type AgentSessionRuntime } from "@earendil-works/pi-coding-agent";
 import { describe, expect, it, vi } from "vitest";
 import {
   OWNED_UI_EXTENSION_UI_CALLBACKS,
@@ -13,7 +13,7 @@ import {
 class FakeSession {
   readonly listeners = new Set<(event: unknown) => void>();
   readonly sessionId: string;
-  model: unknown = { provider: "openai", id: "gpt-5", name: "GPT-5" };
+  model: unknown = { provider: "openai", id: "gpt-5", name: "GPT-5", api: "openai-responses" };
   thinkingLevel: unknown = "medium";
   isStreaming = false;
   readonly isIdle = true;
@@ -21,6 +21,8 @@ class FakeSession {
   isCompacting = false;
   readonly messages: readonly unknown[] = [];
   readonly agent = {
+    transport: "auto",
+    thinkingBudgets: undefined,
     state: {
       systemPrompt: "You are a coding agent.",
       messages: [] as unknown[],
@@ -120,11 +122,15 @@ class FakeRuntime {
   readonly suggestionCalls: Array<{ model: unknown; context: unknown; options: unknown }> = [];
   suggestionResponse: unknown = { role: "assistant", content: [{ type: "text", text: "run the tests" }] };
   readonly services = {
+    settingsManager: SettingsManager.inMemory({ lastChangelogVersion: VERSION }),
     resourceLoader: {
+      getExtensions: (() => { const result = { extensions: [], errors: [] }; return () => result; })(),
       getPrompts: () => ({ prompts: [], diagnostics: [] }),
       getSkills: () => ({ skills: [], diagnostics: [] }),
     },
     modelRuntime: {
+      getRegisteredNativeProvider: () => undefined,
+      getRegisteredProviderConfig: () => undefined,
       getModel(providerId: string, modelId: string): unknown {
         return providerId === "openai" && modelId === "gpt-5.1"
           ? { provider: providerId, id: modelId, name: "GPT-5.1" }
@@ -371,19 +377,22 @@ describe("Pi engine adapter", () => {
     const runtime = new FakeRuntime(session);
     const { adapter } = await adapterWithRuntime(runtime);
     const before = JSON.stringify(session.messages);
+    session.emit({ type: "agent_start" });
+    session.emit({ type: "message_end", message: session.messages.at(-1) });
     const identity = {
       sessionId: adapter.sessionId,
       sessionGeneration: adapter.sessionGeneration,
-      runSequence: 0,
-      responseSequence: 0,
+      runSequence: 1,
+      responseSequence: 1,
       model: adapter.view().activeModel!,
     };
     await expect(adapter.generate({ identity, signal: new AbortController().signal })).resolves.toEqual({
       identity,
       text: "run the tests",
+      outcome: "candidate",
     });
     expect(runtime.suggestionCalls).toHaveLength(1);
-    expect(runtime.suggestionCalls[0]?.model).toBe(session.model);
+    expect(runtime.suggestionCalls[0]?.model).toEqual(session.model);
     expect(runtime.suggestionCalls[0]?.context).toMatchObject({
       systemPrompt: "You are a coding agent.",
       tools: session.agent.state.tools,
@@ -397,11 +406,13 @@ describe("Pi engine adapter", () => {
     session.setMessages([{ role: "assistant", content: [{ type: "text", text: "Done" }], stopReason: "stop" }]);
     const runtime = new FakeRuntime(session);
     const { adapter } = await adapterWithRuntime(runtime);
+    session.emit({ type: "agent_start" });
+    session.emit({ type: "message_end", message: session.messages.at(-1) });
     const identity = {
       sessionId: adapter.sessionId,
       sessionGeneration: adapter.sessionGeneration,
-      runSequence: 0,
-      responseSequence: 0,
+      runSequence: 1,
+      responseSequence: 1,
       model: adapter.view().activeModel!,
     };
     await expect(adapter.generate({ identity: { ...identity, runSequence: 99 }, signal: new AbortController().signal }))
@@ -409,7 +420,8 @@ describe("Pi engine adapter", () => {
     runtime.suggestionResponse = { role: "assistant", content: [{ type: "toolCall", id: "1", name: "bash", arguments: {} }] };
     await expect(adapter.generate({ identity, signal: new AbortController().signal })).resolves.toMatchObject({ text: null });
     runtime.suggestionResponse = { role: "assistant", content: [{ type: "text", text: "I'll do it" }] };
-    await expect(adapter.generate({ identity, signal: new AbortController().signal })).resolves.toMatchObject({ text: null });
+    session.emit({ type: "message_end", message: session.messages.at(-1) });
+    await expect(adapter.generate({ identity: { ...identity, responseSequence: 2 }, signal: new AbortController().signal })).resolves.toMatchObject({ text: null, outcome: "filtered" });
     expect(session.calls).toEqual([]);
   });
 

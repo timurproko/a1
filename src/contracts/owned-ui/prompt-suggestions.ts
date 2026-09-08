@@ -1,3 +1,13 @@
+import type { OwnedUiPromptSuggestionObservation, OwnedUiPromptSuggestionObserver } from "./model.js";
+
+/** Optional observers run off the inference/settlement stack; their I/O is never awaited. */
+export function observePromptSuggestion(observer: OwnedUiPromptSuggestionObserver | undefined, record: OwnedUiPromptSuggestionObservation): void {
+  if (!observer) return;
+  setImmediate(() => {
+    try { void Promise.resolve(observer(record)).catch(() => {}); } catch { /* Invariant: observation cannot fail the session. */ }
+  });
+}
+
 export const CONTEXTUAL_PROMPT_SUGGESTION_INSTRUCTION = `[NEXT USER INPUT]
 Predict the one short response the user is most likely to type next.
 Use the user's recent intent and writing style. Prefer a concrete continuation such as approving an offered action, choosing an offered option, running a requested check, committing, or pushing.

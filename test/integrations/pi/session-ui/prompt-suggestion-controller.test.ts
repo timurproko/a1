@@ -5,6 +5,7 @@ import {
   type OwnedUiPromptSuggestionGeneratorPort,
   type OwnedUiPromptSuggestionIdentity,
   type OwnedUiPromptSuggestionResult,
+  type OwnedUiPromptSuggestionObservation,
 } from "../../../../src/contracts/owned-ui/index.js";
 import { ContextualPromptSuggestionController } from "../../../../src/integrations/pi/session-ui/prompt-suggestion-controller.js";
 
@@ -74,6 +75,57 @@ describe("contextual prompt suggestion candidates", () => {
 });
 
 describe("ContextualPromptSuggestionController", () => {
+  it("rechecks configuration before publishing a prepared result and releases it on disable", async () => {
+    const pending = deferredGenerator();
+    const target = surface();
+    let current = true;
+    pending.generator.isCurrent = () => current;
+    pending.generator.release = vi.fn();
+    const controller = new ContextualPromptSuggestionController({ generator: pending.generator, surface: target.port, enabled: true });
+    controller.consider(IDENTITY, true);
+    pending.resolve({ identity: IDENTITY, text: "run the tests" });
+    await tick();
+    current = false;
+    controller.settle(IDENTITY);
+    expect(target.text()).toBeNull();
+    expect(pending.generator.release).toHaveBeenCalledWith(IDENTITY);
+    controller.setEnabled(false);
+    controller.consider({ ...IDENTITY, responseSequence: 5 }, true);
+    expect(pending.generator.release).toHaveBeenCalledWith({ ...IDENTITY, responseSequence: 5 });
+    controller.dispose();
+  });
+
+  it("aborts pending generation when a configuration refresh becomes unavailable", () => {
+    const pending = deferredGenerator();
+    const controller = new ContextualPromptSuggestionController({ generator: pending.generator, surface: surface().port, enabled: true });
+    controller.consider(IDENTITY, true);
+    pending.generator.isCurrent = () => false;
+    controller.refresh();
+    expect(pending.signal()?.aborted).toBe(true);
+    expect(controller.state.status).toBe("idle");
+    controller.dispose();
+  });
+
+  it.each([true, false])("observes result availability without claiming paint; early=%s", async early => {
+    const pending = deferredGenerator();
+    const records: OwnedUiPromptSuggestionObservation[] = [];
+    const clock = vi.spyOn(performance, "now");
+    const controller = new ContextualPromptSuggestionController({ generator: pending.generator, surface: surface().port, enabled: true,
+      observe: record => { records.push(record); return new Promise<void>(() => {}); },
+    });
+    controller.consider(IDENTITY, true);
+    clock.mockReturnValue(10);
+    if (early) { pending.resolve({ identity: IDENTITY, text: "run the tests" }); await tick(); }
+    else controller.settle(IDENTITY);
+    clock.mockReturnValue(30);
+    if (early) controller.settle(IDENTITY);
+    else { pending.resolve({ identity: IDENTITY, text: "run the tests" }); await tick(); }
+    expect(controller.state.status).toBe("available");
+    await new Promise<void>(resolve => setImmediate(resolve));
+    expect(records).toEqual([{ phase: "availability", sequence: 4, resultRelativeToSettlementMs: early ? -20 : 20 }]);
+    controller.dispose(); clock.mockRestore();
+  });
+
   it("holds an early result privately and publishes it at matching settlement", async () => {
     const pending = deferredGenerator();
     const target = surface();

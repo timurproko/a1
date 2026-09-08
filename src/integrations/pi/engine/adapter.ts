@@ -27,7 +27,10 @@ import {
   OWNED_UI_EXTENSION_RENDER_CALLBACKS,
   OWNED_UI_EXTENSION_UI_CALLBACKS,
   OWNED_UI_EXTENSION_UI_PROPERTIES,
-  CONTEXTUAL_PROMPT_SUGGESTION_INSTRUCTION,
+  observePromptSuggestion,
+  type OwnedUiPromptSuggestionIdentity,
+  type OwnedUiPromptSuggestionOutcome,
+  type OwnedUiPromptSuggestionUsage,
   assertOwnedUiCommand,
   assertOwnedUiExtensionUiPort,
   assertOwnedUiPromptSuggestionRequest,
@@ -72,6 +75,7 @@ import {
   type PiWorkflowResult,
 } from "./workflows.js";
 import { createPiRuntimeIntegration } from "./runtime-integration.js";
+import { PiPromptSuggestionContext, suggestionUsage } from "./prompt-suggestion-context.js";
 import { PiSessionCommandIntegration } from "./session-integration.js";
 import { PiSettingsIntegration } from "./settings-integration.js";
 import type { PiSettingOwnerHandlers } from "./settings-effects.js";
@@ -336,6 +340,7 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
   #agentRunActive = false;
   #agentRunSequence = 0;
   #assistantResponseSequence = 0;
+  readonly #suggestionContext = new PiPromptSuggestionContext();
   #statusKind: "working" | "retry" | "compaction" | null = null;
   #sessionCommands: PiSessionCommandIntegration | undefined;
   #gitBranch: string | null = null;
@@ -418,69 +423,59 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
 
   async generate(request: OwnedUiPromptSuggestionRequest): Promise<OwnedUiPromptSuggestionResult> {
     assertOwnedUiPromptSuggestionRequest(request);
-    const identity = request.identity;
-    const session = this.#session;
-    const runtime = this.#runtime;
-    const activeModel = this.#activeModel;
-    if (this.#disposed || session === undefined || runtime === undefined || request.signal.aborted
-      || identity.sessionId !== this.#sessionId
-      || identity.sessionGeneration !== this.#sessionGeneration
-      || identity.runSequence !== this.#agentRunSequence
-      || identity.responseSequence !== this.#assistantResponseSequence
-      || activeModel === null
-      || identity.model.providerId !== activeModel.providerId
-      || identity.model.modelId !== activeModel.modelId) {
-      return { identity, text: null };
-    }
-
-    const model = session.model;
-    const agentState = session.agent.state;
-    if (model === undefined || typeof runtime.services.modelRuntime.completeSimple !== "function") {
-      return { identity, text: null };
-    }
-    const messages = agentState.messages.filter(message =>
-      message.role === "user" || message.role === "assistant" || message.role === "toolResult",
-    );
-    const reasoning = session.thinkingLevel === "minimal"
-      || session.thinkingLevel === "low"
-      || session.thinkingLevel === "medium"
-      || session.thinkingLevel === "high"
-      || session.thinkingLevel === "xhigh"
-      || session.thinkingLevel === "max"
-      ? session.thinkingLevel
-      : undefined;
-    const response = await runtime.services.modelRuntime.completeSimple(model, {
-      systemPrompt: agentState.systemPrompt,
-      messages: [
-        ...messages,
-        { role: "user", content: CONTEXTUAL_PROMPT_SUGGESTION_INSTRUCTION, timestamp: Date.now() },
-      ],
-      tools: agentState.tools,
-    }, {
-      signal: request.signal,
-      ...(reasoning === undefined ? {} : { reasoning }),
-    });
-    if (isRecord(response)
-      && (stringValue(response.errorMessage) !== undefined
-        || stringValue(response.stopReason) === "error"
-        || stringValue(response.stopReason) === "aborted")) {
-      const result = { identity, text: null };
+    const { identity, signal } = request;
+    const started = performance.now();
+    let invocations: 0 | 1 = 0;
+    let primaryUsage: OwnedUiPromptSuggestionUsage | null = null;
+    let usage: OwnedUiPromptSuggestionUsage | null = null;
+    const finish = (outcome: OwnedUiPromptSuggestionOutcome, text: string | null = null): OwnedUiPromptSuggestionResult => {
+      const result = { identity, text, outcome };
       assertOwnedUiPromptSuggestionResult(result);
+      observePromptSuggestion(request.observe, {
+        phase: "generation", sequence: identity.responseSequence, outcome, durationMs: performance.now() - started,
+        primaryUsage, suggestionUsage: usage, inferenceInvocations: { primary: null, suggestion: invocations }, networkAttempts: null,
+      });
       return result;
-    }
-    const content = Array.isArray(response.content) ? response.content : [];
-    if (content.some(block => isRecord(block) && block.type === "toolCall")) {
-      const result = { identity, text: null };
-      assertOwnedUiPromptSuggestionResult(result);
-      return result;
-    }
-    const textBlock = content.find(block => isRecord(block) && block.type === "text" && typeof block.text === "string");
-    const result: OwnedUiPromptSuggestionResult = {
-      identity,
-      text: normalizePromptSuggestionCandidate(isRecord(textBlock) && typeof textBlock.text === "string" ? textBlock.text : null),
     };
-    assertOwnedUiPromptSuggestionResult(result);
-    return result;
+    if (signal.aborted) return finish("cancelled");
+    if (!this.#matchesSuggestionIdentity(identity) || !this.#session || !this.#runtime) return finish("stale");
+    const support = this.#suggestionContext.check(this.#session, this.#runtime.services);
+    if (support !== "candidate") return finish(support);
+    const inputs = this.#suggestionContext.take();
+    if (!inputs) return finish("stale");
+    primaryUsage = inputs.primaryUsage;
+    try {
+      invocations = 1;
+      const response = await this.#runtime.services.modelRuntime.completeSimple(inputs.model, inputs.context, { ...inputs.options, signal });
+      usage = suggestionUsage(response);
+      if (signal.aborted) return finish("cancelled");
+      if (!this.#matchesSuggestionIdentity(identity)) return finish("stale");
+      const current = this.#suggestionContext.check(this.#session, this.#runtime.services);
+      if (current !== "candidate") return finish(current);
+      if (response.errorMessage !== undefined || response.stopReason === "error" || response.stopReason === "aborted") return finish("failed");
+      if (response.content.some(block => block.type === "toolCall")) return finish("tool-call");
+      const candidate = response.content.find(block => block.type === "text");
+      const text = normalizePromptSuggestionCandidate(candidate?.type === "text" ? candidate.text : null);
+      return finish(text !== null ? "candidate" : candidate?.type === "text" && candidate.text.trim() ? "filtered" : "empty", text);
+    } catch {
+      return finish(signal.aborted ? "cancelled" : "failed");
+    }
+  }
+
+  #matchesSuggestionIdentity(identity: OwnedUiPromptSuggestionIdentity): boolean {
+    return !this.#disposed && this.#settingsProductMode === "bare"
+      && identity.sessionId === this.#sessionId && identity.sessionGeneration === this.#sessionGeneration
+      && identity.runSequence === this.#agentRunSequence && identity.responseSequence === this.#assistantResponseSequence
+      && identity.model.providerId === this.#activeModel?.providerId && identity.model.modelId === this.#activeModel?.modelId;
+  }
+
+  isCurrent(identity: OwnedUiPromptSuggestionIdentity): boolean {
+    return this.#matchesSuggestionIdentity(identity) && this.#session !== undefined && this.#runtime !== undefined
+      && this.#suggestionContext.check(this.#session, this.#runtime.services) === "candidate";
+  }
+
+  release(identity: OwnedUiPromptSuggestionIdentity): void {
+    if (this.#matchesSuggestionIdentity(identity)) this.#suggestionContext.invalidate();
   }
 
   async start(): Promise<OwnedUiSessionViewModel> {
@@ -883,6 +878,7 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
         } },
         blockImages: { apply: value => {
           if (typeof value !== "boolean") throw new TypeError("Block images value is invalid");
+          this.#suggestionContext.configurationChanged();
           settings.setBlockImages(value);
         } },
         steeringMode: { apply: value => {
@@ -895,6 +891,7 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
         } },
         transport: { apply: value => {
           if (value !== "sse" && value !== "websocket" && value !== "websocket-cached" && value !== "auto") throw new TypeError("Transport is invalid");
+          this.#suggestionContext.configurationChanged();
           this.#requireWorkflowSession().agent.transport = value;
         } },
         httpIdleTimeoutMs: { apply: value => {
@@ -1320,6 +1317,7 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
   async dispose(): Promise<void> {
     if (this.#disposed) return;
     this.#disposed = true;
+    this.#suggestionContext.clear();
     if (this.#toolUpdateFlush !== null) {
       clearTimeout(this.#toolUpdateFlush);
       this.#toolUpdateFlush = null;
@@ -2047,6 +2045,7 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
     this.#agentRunActive = false;
     this.#agentRunSequence = 0;
     this.#assistantResponseSequence = 0;
+    this.#suggestionContext.clear();
     this.#activeModel = readModel(session.model);
     this.#reconcileActiveModelAvailability();
     this.#thinkingLevel = readThinkingLevel(session.thinkingLevel);
@@ -2155,10 +2154,12 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
       case "agent_start":
         this.#agentRunActive = true;
         this.#agentRunSequence += 1;
+        if (this.#session && this.#runtime && this.#settingsProductMode === "bare") this.#suggestionContext.start(this.#session, this.#runtime.services);
         this.#emitEvent({ type: "agent-run-started" });
         this.#enterWorkState("working", "Working");
         return;
       case "message_start":
+        this.#suggestionContext.invalidate();
         this.#upsertMessageBlock(event.message, "live");
         return;
       case "message_update": {
@@ -2190,6 +2191,9 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
             && stopReason !== "error"
             && stopReason !== "aborted"
             && textFromContent(content).trim().length > 0;
+          if (this.#session && this.#runtime && this.#settingsProductMode === "bare") {
+            this.#suggestionContext.capture(this.#session, this.#runtime.services, event.message);
+          }
           this.#emitEvent({
             type: "assistant-message-completed",
             sessionGeneration: this.#sessionGeneration,
@@ -2211,6 +2215,7 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
         return;
       case "tool_execution_start":
       case "tool_execution_end": {
+        this.#suggestionContext.invalidate();
         // Concurrency: the end supersedes any update still waiting on the coalescing timer.
         const toolCallId = stringValue(event.toolCallId);
         if (toolCallId !== undefined) this.#pendingToolUpdates.delete(toolCallId);
@@ -2270,18 +2275,21 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
         return;
       }
       case "auto_retry_start":
+        this.#suggestionContext.invalidate();
         this.#enterWorkState("retry", "Retrying");
         return;
       case "auto_retry_end":
         this.#endWorkState("retry");
         return;
       case "compaction_start":
+        this.#suggestionContext.invalidate();
         this.#enterWorkState("compaction", "Compacting");
         return;
       case "compaction_end":
         this.#endWorkState("compaction");
         return;
       case "thinking_level_changed":
+        this.#suggestionContext.configurationChanged();
         this.#thinkingLevel = readThinkingLevel(event.level);
         return;
       default:

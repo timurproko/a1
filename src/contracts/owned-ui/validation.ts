@@ -1,5 +1,6 @@
 import {
   OWNED_UI_CONTRACT_VERSION,
+  PROMPT_SUGGESTION_OUTCOMES,
   type OwnedUiCommand,
   type OwnedUiCustomization,
   type OwnedUiDiagnostics,
@@ -210,6 +211,8 @@ export function assertOwnedUiPromptSuggestionRequest(request: OwnedUiPromptSugge
 export function assertOwnedUiPromptSuggestionResult(result: OwnedUiPromptSuggestionResult): void {
   assertOwnedUiPromptSuggestionIdentity(result.identity);
   assertPromptSuggestionText(result.text, true);
+  if (result.outcome !== undefined && !PROMPT_SUGGESTION_OUTCOMES.includes(result.outcome)) throw new TypeError("Invalid suggestion outcome");
+  if (result.outcome !== undefined && (result.outcome === "candidate") !== (result.text !== null)) throw new TypeError("Suggestion outcome does not match text");
 }
 
 export function assertOwnedUiPromptSuggestionState(state: OwnedUiPromptSuggestionState): void {

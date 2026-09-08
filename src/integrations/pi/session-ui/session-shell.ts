@@ -471,6 +471,7 @@ export class OwnedUiSessionShell {
           model: event.model,
         });
       }
+      this.#promptSuggestions?.refresh();
       if (view.lifecycle === "ready" && this.#compactionQueue.length > 0) void this.#flushCompactionQueue();
       if (event.type === "session-lifecycle" && event.lifecycle === "stopped") this.#resolveStopped?.();
     });
