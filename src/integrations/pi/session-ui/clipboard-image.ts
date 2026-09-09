@@ -1,4 +1,5 @@
-import { assertImageEncodedSize } from "../../../contracts/owned-ui/index.js";
+import { ImageAttachmentError, MAX_IMAGE_DATA_BYTES } from "../../../contracts/owned-ui/index.js";
+import { MAX_SOURCE_IMAGE_BYTES } from "./image-source.js";
 
 export interface ClipboardImageData {
   readonly data: string;
@@ -12,14 +13,15 @@ const STANDARD_BASE64 = /^[A-Za-z0-9+/]*={0,2}$/u;
  * Clipboard adapters are untrusted at this boundary, so reject representations
  * that Node's permissive base64 decoder would otherwise partially accept.
  */
-export function canonicalizeClipboardImage(image: ClipboardImageData): ClipboardImageData | null {
-  const data = canonicalizeStandardBase64(image.data);
+export function canonicalizeClipboardImage(image: ClipboardImageData, source = false): ClipboardImageData | null {
+  const data = canonicalizeStandardBase64(image.data, source);
   return data === null ? null : { data, mimeType: image.mimeType };
 }
 
-export function canonicalizeStandardBase64(value: string): string | null {
+export function canonicalizeStandardBase64(value: string, source = false): string | null {
   if (typeof value !== "string" || value.length === 0) return null;
-  assertImageEncodedSize(value);
+  const maximum = source ? Math.ceil(MAX_SOURCE_IMAGE_BYTES / 3) * 4 : MAX_IMAGE_DATA_BYTES;
+  if (Math.ceil(value.length / 4) * 4 > maximum) throw new ImageAttachmentError(source ? "image-source-size" : "image-size");
   if (!STANDARD_BASE64.test(value)) return null;
 
   const paddingStart = value.indexOf("=");
@@ -33,6 +35,7 @@ export function canonicalizeStandardBase64(value: string): string | null {
 
   const padded = `${core}${"=".repeat(requiredPadding)}`;
   const decoded = Buffer.from(padded, "base64");
+  if (source && decoded.length > MAX_SOURCE_IMAGE_BYTES) throw new ImageAttachmentError("image-source-size");
   if (decoded.length === 0) return null;
 
   const canonical = decoded.toString("base64");

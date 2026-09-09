@@ -77,6 +77,7 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
         createPromptSelectionInterceptor(editor, keybindings, {
           copyText: options.onCopyText ?? (() => {}),
           readClipboardContent: options.readClipboardContent ?? (async () => null),
+          ...(options.beginClipboardPaste === undefined ? {} : { beginClipboardPaste: options.beginClipboardPaste }),
           transformPastedContent: options.transformPastedContent ?? (content => content.kind === "text" ? content.text : ""),
           atomicRanges: options.editorAtomicRanges ?? (() => []),
           expandCopiedText: options.expandCopiedEditorText ?? (text => text),
@@ -212,6 +213,7 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
     ownsPointer: () => editorUx?.ownsPointer() ?? false,
     handlePointer: event => editorUx?.handlePointer(event) ?? false,
     pasteClipboard: () => editorUx?.pasteClipboard() ?? false,
+    cancelPendingPastes: () => editorUx?.cancelPendingPastes(),
   };
 }
 

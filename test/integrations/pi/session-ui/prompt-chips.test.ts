@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { rm } from "node:fs/promises";
+import { screenshotPng } from "../../../fixtures/image-sources.js";
 import { PromptChipStore } from "../../../../src/integrations/pi/session-ui/prompt-chips.js";
 
 const cleanup: string[] = [];
@@ -11,6 +12,31 @@ afterEach(async () => {
 });
 
 describe("PromptChipStore", () => {
+  it("bounds pending images and still enforces the eight-image limit after preparation", async () => {
+    const store = new PromptChipStore();
+    const data = screenshotPng(4, 4).toString("base64");
+    const errors: unknown[] = [];
+    const read = async () => ({ kind: "image" as const, data, mimeType: "image/png" });
+    let draft = "";
+    const pastes = Array.from({ length: 8 }, () => {
+      const paste = store.beginPaste(draft, read, error => errors.push(error));
+      draft += paste.marker;
+      return paste;
+    });
+    try {
+      const overflow = store.beginPaste(draft, read, error => errors.push(error));
+      await overflow.result;
+      expect(errors[0]).toMatchObject({ code: "image-busy" });
+      await Promise.all(pastes.map(paste => paste.result));
+      expect(store.prepareSubmission(draft).images).toHaveLength(8);
+      const ninth = store.beginPaste(draft, read, error => errors.push(error));
+      await ninth.result;
+      expect(errors.at(-1)).toMatchObject({ code: "image-count" });
+      expect(() => store.prepareSubmission(draft + ninth.marker)).toThrow("at most 8 images");
+      expect(store.prepareSubmission(draft).images).toHaveLength(8);
+    } finally { store.dispose(); }
+  });
+
   it("turns existing files and folders into atomic chips and expands their values", async () => {
     const root = await mkdtemp(path.join(tmpdir(), "a1-prompt-chips-"));
     cleanup.push(root);
