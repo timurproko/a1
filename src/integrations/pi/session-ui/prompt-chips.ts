@@ -7,7 +7,9 @@ import type {
   PiShellEditorTextRange,
 } from "../components/index.js";
 import { canonicalizeClipboardImage } from "./clipboard-image.js";
-import { assertImageEncodedSize, assertPromptImages } from "../../../contracts/owned-ui/index.js";
+import { assertImageEncodedSize, assertPromptImages, ImageAttachmentError } from "../../../contracts/owned-ui/index.js";
+import { ImagePreparationClient, type ImagePasteJob } from "./image-preparation-client.js";
+import type { PreparedImage } from "./image-preparation.js";
 
 export interface PromptImageAttachment {
   readonly type: "image";
@@ -25,14 +27,115 @@ type PromptChip =
   | { readonly kind: "url"; readonly tag: string; readonly label: string; readonly url: string }
   | { readonly kind: "image"; readonly tag: string; readonly image: PromptImageAttachment };
 
+interface PendingPaste {
+  readonly marker: string;
+  readonly job: ImagePasteJob;
+  readonly completion: Promise<string>;
+  references: number;
+  kind: "unknown" | "image" | "text";
+  replacement?: string;
+  error?: ImageAttachmentError;
+}
+
 const CHIP_PATTERN = /\[(?:📷 [^\]]+|📁 [^\]]+|📄 [^\]]+|🖼 {1,2}[^\]]+|🔗 [^\]]+)\]/gu;
 const IMAGE_EXTENSION = /\.(?:jpe?g|png|webp|gif|bmp|tiff?)$/iu;
 const URL_PATTERN = /^https?:\/\/[^\s\u0000-\u001f\u007f]+$/iu;
 const URL_DISPLAY_LENGTH = 40;
 
-/** Owns semantic clipboard records while the prompt displays compact chips. */
+/** Owns semantic chips and bounded pending paste references; cancels background work on reset or disposal. */
 export class PromptChipStore {
   readonly #chips = new Map<string, PromptChip>();
+  readonly #pending = new Map<string, PendingPaste>();
+  #preparation = new ImagePreparationClient();
+  readonly #stopping = new Set<Promise<void>>();
+
+  beginPaste(
+    currentText: string,
+    read: (signal: AbortSignal) => Promise<PiShellClipboardContent | null>,
+    onError: (error: unknown) => void,
+  ): { marker: string; result: Promise<string> } {
+    const marker = `[📷 preparing-${randomBytes(5).toString("hex")}]`;
+    const job = this.#preparation.start(async signal => {
+      const content = await read(signal);
+      entry.kind = content?.kind === "image" ? "image" : "text";
+      if (content?.kind === "image" && this.#imageCount(currentText) >= 8) throw new ImageAttachmentError("image-count");
+      return content;
+    });
+    const entry: PendingPaste = { marker, job, references: 0, kind: "unknown", completion: job.result.then(content => {
+      if (content === null) return "";
+      if (content.kind === "image") {
+        return this.#addPreparedImage(content);
+      }
+      return this.transformPastedContent(content);
+    }).catch(error => {
+      entry.error = error instanceof ImageAttachmentError ? error : new ImageAttachmentError("image-codec");
+      if (entry.error.code !== "image-canceled" && entry.references === 0) onError(entry.error);
+      return marker.replace("preparing-", "failed-");
+    }).then(replacement => {
+      entry.replacement = replacement;
+      return replacement;
+    }) };
+    this.#pending.set(marker, entry);
+    return { marker, result: entry.completion };
+  }
+
+  hasPending(text: string): boolean {
+    return [...this.#pending.values()].some(item => text.includes(item.marker) && item.replacement === undefined);
+  }
+
+  async waitForPastes(text: string, signal: AbortSignal, readDraft: () => string = () => ""): Promise<PreparedPrompt> {
+    const entries = [...this.#pending.values()].filter(item => text.includes(item.marker));
+    for (const entry of entries) entry.references++;
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const abort = (): void => reject(new ImageAttachmentError("image-canceled"));
+        if (signal.aborted) { abort(); return; }
+        signal.addEventListener("abort", abort, { once: true });
+        void Promise.all(entries.map(item => item.completion)).then(() => {
+          signal.removeEventListener("abort", abort); resolve();
+        }, reject);
+      });
+      return this.prepareSubmission(text);
+    } finally {
+      for (const entry of entries) {
+        entry.references--;
+        if (signal.aborted && entry.references === 0 && !readDraft().includes(entry.marker)) entry.job.cancel();
+      }
+    }
+  }
+
+  reconcileDraft(text: string): void {
+    for (const entry of this.#pending.values()) {
+      if (entry.references === 0 && entry.replacement === undefined && !text.includes(entry.marker)) entry.job.cancel();
+    }
+  }
+
+  resetPastes(text: string): string {
+    let remaining = text;
+    for (const entry of this.#pending.values()) if (entry.replacement === undefined) remaining = remaining.replaceAll(entry.marker, "");
+    const stopped = this.#preparation.dispose();
+    this.#stopping.add(stopped);
+    void stopped.finally(() => this.#stopping.delete(stopped));
+    this.#preparation = new ImagePreparationClient();
+    for (const entry of this.#pending.values()) if (entry.replacement === undefined) entry.job.cancel();
+    return remaining;
+  }
+
+  async dispose(): Promise<void> { await Promise.all([this.#preparation.dispose(), ...this.#stopping]); }
+
+  #imageCount(text: string): number {
+    const regular = [...this.#chips.values()].filter(chip => chip.kind === "image" && text.includes(chip.tag)).length;
+    return regular + [...this.#pending.values()].filter(entry => entry.kind !== "text" && (text.includes(entry.marker) || text.includes(entry.marker.replace("preparing-", "failed-")))).length;
+  }
+
+  #addPreparedImage(image: PreparedImage): string {
+    const suffix = image.mimeType === "image/jpeg" ? "jpg" : image.mimeType.split("/")[1] ?? "png";
+    const tag = `[📷 screenshot-${randomBytes(5).toString("hex")}${image.transformed ? "-resized" : ""}.${suffix}]`;
+    const attachment = Object.freeze({ type: "image" as const, data: image.data, mimeType: image.mimeType });
+    assertPromptImages([attachment]);
+    this.#chips.set(tag, { kind: "image", tag, image: attachment });
+    return tag;
+  }
 
   transformPastedContent(content: PiShellClipboardContent, currentText = ""): string {
     if (content.kind === "image") {
@@ -105,10 +208,18 @@ export class PromptChipStore {
 
   #replaceResolvable(text: string, includeImages: boolean): PreparedPrompt {
     let expanded = text;
+    for (const entry of this.#pending.values()) {
+      if (!expanded.includes(entry.marker) && !expanded.includes(entry.marker.replace("preparing-", "failed-"))) continue;
+      if (includeImages && entry.error !== undefined) throw entry.error;
+      if (includeImages && entry.replacement === undefined) throw new ImageAttachmentError("image-pending");
+      if (entry.replacement !== undefined) expanded = expanded.replaceAll(entry.marker, entry.replacement);
+    }
     const images: PromptImageAttachment[] = [];
     const seenImages = new Set<string>();
-    for (const [tag, chip] of this.#chips) {
-      if (!expanded.includes(tag)) continue;
+    for (const match of expanded.matchAll(CHIP_PATTERN)) {
+      const tag = match[0];
+      const chip = this.#chips.get(tag);
+      if (chip === undefined) continue;
       if (chip.kind === "image") {
         if (includeImages && !seenImages.has(tag)) {
           images.push(chip.image);

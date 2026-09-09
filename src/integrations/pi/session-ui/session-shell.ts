@@ -90,14 +90,13 @@ import {
 } from "../tui-runtime/index.js";
 
 
-import { canonicalizeClipboardImage } from "./clipboard-image.js";
+import { runImageWorker } from "./image-preparation-client.js";
+import type { ClipboardImageData } from "./clipboard-image.js";
 import {
   STREAM_PRESENTATION_INTERVAL_MS,
   StreamPresentationCoalescer,
 } from "./stream-presentation-coalescer.js";
 import {
-  preloadSystemClipboard,
-  readSystemClipboardContent,
   writeSystemClipboardText,
 } from "./system-clipboard.js";
 import {
@@ -149,6 +148,7 @@ export class OwnedUiSessionShell {
     readonly type: "steer" | "follow-up";
     readonly images?: readonly OwnedUiImageAttachment[];
   }> = [];
+  readonly #waitingImages = new Map<string, { controller: AbortController; result: Promise<AdapterCommandResult> }>();
   #lastClearTime = 0;
   #lastEscapeTime = 0;
   #activeLoginDialog: PiShellLoginDialogPort | undefined;
@@ -162,7 +162,6 @@ export class OwnedUiSessionShell {
     this.#cwd = options.cwd;
     this.#routeHost = options.routeHost ?? null;
     this.#customViewport = options.sessionLayout === "custom-viewport";
-    if (this.#customViewport && options.clipboard === undefined) preloadSystemClipboard();
     this.#stopped = new Promise(resolve => {
       this.#resolveStopped = resolve;
     });
@@ -210,23 +209,21 @@ export class OwnedUiSessionShell {
           : options.clipboard.writeText?.(text) ?? Promise.resolve();
         pendingClipboardWrite = write.catch(() => {});
       },
-      readClipboardContent: async () => {
+      readClipboardContent: async (signal = new AbortController().signal) => {
         await pendingClipboardWrite;
-        if (options.clipboard === undefined) return readSystemClipboardContent().catch(error => {
-          if (error instanceof ImageAttachmentError) this.#reportSubmissionError(error);
-          return null;
-        });
+        if (signal.aborted) throw new ImageAttachmentError("image-canceled");
+        if (options.clipboard === undefined) return runImageWorker({ kind: "clipboard" }, signal);
         try {
-          const image = await options.clipboard.readImage?.();
+          const image = await options.clipboard.readImage?.(signal);
           if (image !== null && image !== undefined) {
-            const canonical = canonicalizeClipboardImage(image);
+            const canonical = await runImageWorker<ClipboardImageData | null>({ kind: "canonicalize", source: image }, signal);
             if (canonical !== null) return { kind: "image" as const, ...canonical };
           }
         } catch (error) {
-          if (error instanceof ImageAttachmentError) { this.#reportSubmissionError(error); return null; }
-          // Compatibility: treat an unavailable or malformed image as text-capable clipboard input.
+          if (error instanceof ImageAttachmentError) throw error;
+          // Compatibility: an unavailable native image reader can still provide clipboard text.
         }
-        const text = await options.clipboard.readText();
+        const text = await options.clipboard.readText(signal);
         return text === null ? null : { kind: "text" as const, text };
       },
     }, {
@@ -530,7 +527,40 @@ export class OwnedUiSessionShell {
   }
 
   async submit(text: string): Promise<AdapterCommandResult> {
-    return this.#guardSubmission(text, () => this.#submit(text));
+    return this.#submitWhenReady(text, () => this.#submit(text));
+  }
+
+  #submitWhenReady(draft: string, action: () => Promise<AdapterCommandResult>): Promise<AdapterCommandResult> {
+    const previous = this.#waitingImages.get(draft);
+    if (previous !== undefined) return previous.result;
+    if (!this.root.hasPendingPastes(draft)) return this.#guardSubmission(draft, action);
+    const controller = new AbortController();
+    const generation = this.backend.sessionGeneration;
+    const result = this.#guardSubmission(draft, async () => {
+      await this.root.waitForPromptPastes(draft, controller.signal);
+      if (controller.signal.aborted || this.#disposed || this.backend.sessionGeneration !== generation) return rejected("image submission canceled");
+      return action();
+    }).finally(() => {
+      this.#waitingImages.delete(draft);
+      if (!this.#disposed) this.#showWaitingImages();
+    });
+    this.#waitingImages.set(draft, { controller, result });
+    if (this.root.editor.getText() === draft) this.root.editor.setText("");
+    this.#showWaitingImages();
+    return result;
+  }
+
+  #showWaitingImages(): void {
+    const count = this.#waitingImages.size;
+    this.root.setExtensionWidget("owned-image-preparation", count === 0 ? null : {
+      render: width => [...renderPiShellStatusText(`Waiting for images (${count} submission${count === 1 ? "" : "s"}) — Esc cancels; dequeue restores`, width)],
+      invalidate: () => {},
+    }, "aboveEditor");
+    this.runtime.requestRender();
+  }
+
+  #cancelWaitingImages(): void {
+    for (const item of this.#waitingImages.values()) item.controller.abort();
   }
 
   async #submit(text: string): Promise<AdapterCommandResult> {
@@ -600,6 +630,10 @@ export class OwnedUiSessionShell {
 
   async interrupt(now = Date.now()): Promise<AdapterCommandResult> {
     this.#promptSuggestions?.invalidate();
+    if (this.#waitingImages.size > 0) {
+      this.#cancelWaitingImages();
+      return { outcome: "completed", diagnostic: null };
+    }
     if (this.view().lifecycle === "busy") return this.abort();
     if (this.root.editor.getText().trim().length > 0) {
       this.root.editor.setText("");
@@ -685,7 +719,7 @@ export class OwnedUiSessionShell {
 
   async queueFollowUp(): Promise<AdapterCommandResult> {
     const draft = this.root.editor.getText();
-    return this.#guardSubmission(draft, () => this.#queueFollowUp(draft));
+    return this.#submitWhenReady(draft, () => this.#queueFollowUp(draft));
   }
 
   async #queueFollowUp(draft: string): Promise<AdapterCommandResult> {
@@ -695,7 +729,7 @@ export class OwnedUiSessionShell {
     assertPromptImages(prepared.images);
     const text = prepared.text.trim();
     this.root.editor.addToHistory(displayInput);
-    this.root.editor.setText("");
+    if (this.root.editor.getText() === draft) this.root.editor.setText("");
     this.root.resumeViewportFollowing();
     if (this.view().status.workingMessage?.startsWith("Compacting") === true) {
       this.#compactionQueue.push({
@@ -716,7 +750,8 @@ export class OwnedUiSessionShell {
   }
 
   restoreQueuedInput(): void {
-    const queued = [...this.backend.clearQueuedWorkflows(), ...this.#compactionQueue.map(item => item.draft)];
+    const queued = [...this.#waitingImages.keys(), ...this.backend.clearQueuedWorkflows(), ...this.#compactionQueue.map(item => item.draft)];
+    this.#cancelWaitingImages();
     this.#compactionQueue = [];
     if (queued.length === 0) return;
     this.root.editor.setText(queued.join("\n"));
@@ -1221,8 +1256,11 @@ export class OwnedUiSessionShell {
   async dispose(): Promise<void> {
     if (this.#disposed) return;
     this.#disposed = true;
+    this.#cancelWaitingImages();
     const failures: unknown[] = [];
     const attempt = (action: () => void) => { try { action(); } catch (error) { failures.push(error); } };
+    let pasteCleanup = Promise.resolve();
+    attempt(() => { pasteCleanup = this.root.disposePendingPastes(); });
     attempt(() => this.root.clearViewportPointerState());
     attempt(() => this.#setPointerReporting(false, true));
     attempt(() => this.#removeViewportPreInput());
@@ -1247,6 +1285,7 @@ export class OwnedUiSessionShell {
     attempt(() => this.#extensionBridge.dispose());
     // Invariant: terminal restoration precedes any potentially stalled backend teardown.
     await this.runtime.dispose().catch(error => failures.push(error));
+    await boundedCleanup(() => pasteCleanup).catch(error => failures.push(error));
     await boundedCleanup(() => this.backend.unbindExtensionUi()).catch(error => failures.push(error));
     if (failures.length > 0) throw new AggregateError(failures, "Owned UI disposal failed");
     if (fullscreenExitText.length > 0) this.runtime.writeAfterStop(`${fullscreenExitText}\n`);
@@ -1276,6 +1315,8 @@ export class OwnedUiSessionShell {
     this.#streamPresentation.noteImmediatePresentation();
     const view = this.view();
     if (this.backend.sessionGeneration !== this.#sessionGeneration) {
+      this.#cancelWaitingImages();
+      this.root.resetPendingPastes();
       this.#promptSuggestions?.invalidate();
       this.#sessionGeneration = this.backend.sessionGeneration;
       this.#activeLoginDialog = undefined;
@@ -1570,7 +1611,10 @@ export class OwnedUiSessionShell {
   async #guardSubmission(draft: string, action: () => Promise<AdapterCommandResult>): Promise<AdapterCommandResult> {
     const revision = this.#editorRevision;
     try { return await action(); }
-    catch (error) { return this.#recoverSubmission(draft, revision, error); }
+    catch (error) {
+      if (error instanceof ImageAttachmentError && error.code === "image-canceled") return rejected("image submission canceled");
+      return this.#recoverSubmission(draft, revision, error);
+    }
   }
 
   #recoverSubmission(draft: string, revision: number, error?: unknown): AdapterCommandResult {

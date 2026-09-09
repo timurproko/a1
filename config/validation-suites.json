@@ -26,6 +26,7 @@
         "test/integrations/pi/engine/conformance.test.ts",
         "test/integrations/pi/engine/runtime-integration.test.ts",
         "test/integrations/pi/engine/session-integration.test.ts",
+        "test/integrations/pi/session-ui/image-worker-package.test.ts",
         "test/integrations/pi/tui-runtime/rendering-budgets.test.ts",
         "test/integrations/pi/tui-runtime/rendering-smoke.test.ts",
         "test/integrations/pi/tui-runtime/rendering-producer.test.ts",
@@ -108,7 +109,8 @@
       "requiresBuild": true,
       "tests": [
         "test/cli/update-cli.test.ts",
-        "test/features/launch/development-launch.test.ts"
+        "test/features/launch/development-launch.test.ts",
+        "test/integrations/pi/session-ui/image-worker-package.test.ts"
       ]
     },
     "launch-integration": {
