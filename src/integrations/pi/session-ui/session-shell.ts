@@ -1,4 +1,6 @@
 import { PRODUCT_TEXT } from "../../../product-identity.js";
+import { boundedCleanup } from "../../../foundation/terminal-cleanup/index.js";
+import { assertOwnedUiCommand, assertPromptImages, ImageAttachmentError } from "../../../contracts/owned-ui/index.js";
 import type {
   OwnedUiCommand,
   OwnedUiDialog,
@@ -125,6 +127,7 @@ export class OwnedUiSessionShell {
   readonly #routeHost: UiRouteHost | null;
   #dialogHandle: PiTuiOverlayHandle | undefined;
   #sequence = 0;
+  #editorRevision = 0;
   #started = false;
   #disposed = false;
   #pointerReporting = false;
@@ -142,6 +145,7 @@ export class OwnedUiSessionShell {
   #fullscreenExitOutput: "transcript" | "resume-hint" = "transcript";
   #compactionQueue: Array<{
     readonly text: string;
+    readonly draft: string;
     readonly type: "steer" | "follow-up";
     readonly images?: readonly OwnedUiImageAttachment[];
   }> = [];
@@ -178,7 +182,8 @@ export class OwnedUiSessionShell {
         replacementSurfaceActive: !this.root.usesDefaultInputSurface(),
       }),
       enableDockInputReuse: options.inputPresentation?.viewportReuse !== false,
-      onSubmit: text => { void this.submit(text); },
+      onSubmit: text => { void this.submit(text).catch(() => this.#reportSubmissionError()); },
+      onPasteRejected: error => this.#reportSubmissionError(error),
       onInterrupt: () => { void this.interrupt(); },
       onClear: () => { void this.clearOrExit(); },
       onExit: () => { void this.shutdown(); },
@@ -190,11 +195,14 @@ export class OwnedUiSessionShell {
         this.runtime.requestRender();
       },
       onMessageCopy: () => { void this.runWorkflow({ command: "copy", argument: "" }); },
-      onFollowUp: () => { void this.queueFollowUp(); },
+      onFollowUp: () => { void this.queueFollowUp().catch(() => this.#reportSubmissionError()); },
       onDequeue: () => this.restoreQueuedInput(),
-      onEditorChange: () => promptSuggestionController?.invalidate(),
+      onEditorChange: () => { this.#editorRevision++; promptSuggestionController?.invalidate(); },
       onPromptSuggestionAccepted: () => promptSuggestionController?.accept(),
-      onInputSurfaceChanged: () => promptSuggestionController?.invalidate(),
+      onInputSurfaceChanged: () => {
+        this.root.clearViewportPointerState();
+        promptSuggestionController?.invalidate();
+      },
       onCopyText: text => {
         runtime?.writeControl(`\u001b]52;c;${Buffer.from(text, "utf8").toString("base64")}\u0007`);
         const write = options.clipboard === undefined
@@ -204,14 +212,18 @@ export class OwnedUiSessionShell {
       },
       readClipboardContent: async () => {
         await pendingClipboardWrite;
-        if (options.clipboard === undefined) return readSystemClipboardContent();
+        if (options.clipboard === undefined) return readSystemClipboardContent().catch(error => {
+          if (error instanceof ImageAttachmentError) this.#reportSubmissionError(error);
+          return null;
+        });
         try {
           const image = await options.clipboard.readImage?.();
           if (image !== null && image !== undefined) {
             const canonical = canonicalizeClipboardImage(image);
             if (canonical !== null) return { kind: "image" as const, ...canonical };
           }
-        } catch {
+        } catch (error) {
+          if (error instanceof ImageAttachmentError) { this.#reportSubmissionError(error); return null; }
           // Compatibility: treat an unavailable or malformed image as text-capable clipboard input.
         }
         const text = await options.clipboard.readText();
@@ -327,7 +339,10 @@ export class OwnedUiSessionShell {
           // surface. Letting the transcript pre-router inspect those reports
           // steals settings value menus and numeric +/- controls before the
           // settings app can receive them.
-          if (this.runtime.hasOverlay() || !this.root.usesDefaultInputSurface()) return undefined;
+          if (this.runtime.hasOverlay() || !this.root.usesDefaultInputSurface()) {
+            if (data.includes("\u001b[<")) this.root.clearViewportPointerState();
+            return undefined;
+          }
           const routed = this.root.handleViewportPreInput(data, true);
           if (routed.copyText !== undefined) {
             this.runtime.writeControl(`\u001b]52;c;${Buffer.from(routed.copyText, "utf8").toString("base64")}\u0007`);
@@ -515,11 +530,16 @@ export class OwnedUiSessionShell {
   }
 
   async submit(text: string): Promise<AdapterCommandResult> {
+    return this.#guardSubmission(text, () => this.#submit(text));
+  }
+
+  async #submit(text: string): Promise<AdapterCommandResult> {
     this.#promptSuggestions?.invalidate();
     const displayInput = text.trim();
     if (!displayInput) return { outcome: "completed", diagnostic: null };
     if (displayInput.startsWith("/")) return this.#slashCommand(displayInput);
     const prepared = this.root.preparePromptSubmission(displayInput);
+    assertPromptImages(prepared.images);
     const input = prepared.text.trim();
     if (input.startsWith("!")) {
       const excludeFromContext = input.startsWith("!!");
@@ -549,6 +569,7 @@ export class OwnedUiSessionShell {
       this.root.editor.addToHistory(displayInput);
       this.#compactionQueue.push({
         text: input,
+        draft: displayInput,
         type: "steer",
         ...(prepared.images.length === 0 ? {} : { images: prepared.images }),
       });
@@ -565,7 +586,7 @@ export class OwnedUiSessionShell {
       sessionId: this.backend.sessionId,
       text: input,
       ...(prepared.images.length === 0 ? {} : { images: prepared.images }),
-    });
+    }, displayInput);
   }
 
   async clearOrExit(now = Date.now()): Promise<AdapterCommandResult> {
@@ -663,9 +684,15 @@ export class OwnedUiSessionShell {
   }
 
   async queueFollowUp(): Promise<AdapterCommandResult> {
-    const displayInput = this.root.editor.getText().trim();
+    const draft = this.root.editor.getText();
+    return this.#guardSubmission(draft, () => this.#queueFollowUp(draft));
+  }
+
+  async #queueFollowUp(draft: string): Promise<AdapterCommandResult> {
+    const displayInput = draft.trim();
     if (!displayInput) return rejected("nothing to queue");
     const prepared = this.root.preparePromptSubmission(displayInput);
+    assertPromptImages(prepared.images);
     const text = prepared.text.trim();
     this.root.editor.addToHistory(displayInput);
     this.root.editor.setText("");
@@ -673,6 +700,7 @@ export class OwnedUiSessionShell {
     if (this.view().status.workingMessage?.startsWith("Compacting") === true) {
       this.#compactionQueue.push({
         text,
+        draft: displayInput,
         type: "follow-up",
         ...(prepared.images.length === 0 ? {} : { images: prepared.images }),
       });
@@ -684,11 +712,11 @@ export class OwnedUiSessionShell {
       sessionId: this.backend.sessionId,
       text,
       ...(prepared.images.length === 0 ? {} : { images: prepared.images }),
-    });
+    }, displayInput);
   }
 
   restoreQueuedInput(): void {
-    const queued = [...this.backend.clearQueuedWorkflows(), ...this.#compactionQueue.map(item => item.text)];
+    const queued = [...this.backend.clearQueuedWorkflows(), ...this.#compactionQueue.map(item => item.draft)];
     this.#compactionQueue = [];
     if (queued.length === 0) return;
     this.root.editor.setText(queued.join("\n"));
@@ -1193,34 +1221,34 @@ export class OwnedUiSessionShell {
   async dispose(): Promise<void> {
     if (this.#disposed) return;
     this.#disposed = true;
-    this.root.clearViewportPointerState();
-    this.#setPointerReporting(false, true);
-    this.#removeViewportPreInput();
-    this.#streamPresentation.dispose();
-    this.#promptSuggestions?.dispose();
-    this.#unsubscribePromptSuggestions();
-    this.#unsubscribeSettings();
-    const exitMode = this.backend.disposed
-      ? this.#fullscreenExitOutput
-      : this.backend.pinnedSettingsSnapshot().fullscreenExitOutput;
-    const exitTranscript = this.root.exitTranscript(this.runtime.viewport().columns);
-    const resume = this.backend.currentSessionResumeMetadata();
-    const resumeHint = resume === null
-      ? ""
-      : `${dim("To resume this session:")} ${formatSessionResumeCommand(resume)}`;
-    const fullscreenExitText = this.runtime.mode !== "fullscreen"
-      ? ""
-      : exitMode === "resume-hint"
-        ? resumeHint
-        : [exitTranscript, resumeHint].filter(Boolean).join("\n\n");
-    this.#unbindPiSettings();
-    this.#unbindTerminalSettings();
-    this.#unbindShutdownSettings();
-    this.#unsubscribe();
-    this.#dialogHandle?.hide();
-    await this.backend.unbindExtensionUi();
-    this.#extensionBridge.dispose();
-    await this.runtime.dispose();
+    const failures: unknown[] = [];
+    const attempt = (action: () => void) => { try { action(); } catch (error) { failures.push(error); } };
+    attempt(() => this.root.clearViewportPointerState());
+    attempt(() => this.#setPointerReporting(false, true));
+    attempt(() => this.#removeViewportPreInput());
+    attempt(() => this.#streamPresentation.dispose());
+    attempt(() => this.#promptSuggestions?.dispose());
+    attempt(() => this.#unsubscribePromptSuggestions());
+    attempt(() => this.#unsubscribeSettings());
+    let fullscreenExitText = "";
+    attempt(() => {
+      const exitMode = this.backend.disposed ? this.#fullscreenExitOutput : this.backend.pinnedSettingsSnapshot().fullscreenExitOutput;
+      const exitTranscript = this.root.exitTranscript(this.runtime.viewport().columns);
+      const resume = this.backend.currentSessionResumeMetadata();
+      const resumeHint = resume === null ? "" : `${dim("To resume this session:")} ${formatSessionResumeCommand(resume)}`;
+      fullscreenExitText = this.runtime.mode !== "fullscreen" ? ""
+        : exitMode === "resume-hint" ? resumeHint : [exitTranscript, resumeHint].filter(Boolean).join("\n\n");
+    });
+    attempt(() => this.#unbindPiSettings());
+    attempt(() => this.#unbindTerminalSettings());
+    attempt(() => this.#unbindShutdownSettings());
+    attempt(() => this.#unsubscribe());
+    attempt(() => this.#dialogHandle?.hide());
+    attempt(() => this.#extensionBridge.dispose());
+    // Invariant: terminal restoration precedes any potentially stalled backend teardown.
+    await this.runtime.dispose().catch(error => failures.push(error));
+    await boundedCleanup(() => this.backend.unbindExtensionUi()).catch(error => failures.push(error));
+    if (failures.length > 0) throw new AggregateError(failures, "Owned UI disposal failed");
     if (fullscreenExitText.length > 0) this.runtime.writeAfterStop(`${fullscreenExitText}\n`);
   }
 
@@ -1515,12 +1543,52 @@ export class OwnedUiSessionShell {
         sessionId: this.backend.sessionId,
         text: item.text,
         ...(item.images === undefined ? {} : { images: item.images }),
-      });
+      }, item.draft);
     }
   }
 
-  async #execute(command: OwnedUiCommand): Promise<AdapterCommandResult> {
-    return this.backend.execute(command);
+  async #execute(command: OwnedUiCommand, draft?: string): Promise<AdapterCommandResult> {
+    if (draft === undefined) return this.backend.execute(command);
+    const revision = this.#editorRevision;
+    try {
+      assertOwnedUiCommand(command);
+    } catch (error) {
+      return this.#recoverSubmission(draft, revision, error);
+    }
+    try {
+      const result = await this.backend.execute(command);
+      if (result.outcome === "rejected") return this.#recoverSubmission(draft, revision);
+      return result;
+    } catch {
+      // Security: dispatch might already have reached the provider. Never retry automatically.
+      this.root.editor.addToHistory(draft);
+      this.#reportSubmissionError(undefined, "Submission failed; delivery is uncertain. Check the conversation before retrying. Press Up to recover the draft.");
+      return { outcome: "failed", diagnostic: "submission delivery is uncertain" };
+    }
+  }
+
+  async #guardSubmission(draft: string, action: () => Promise<AdapterCommandResult>): Promise<AdapterCommandResult> {
+    const revision = this.#editorRevision;
+    try { return await action(); }
+    catch (error) { return this.#recoverSubmission(draft, revision, error); }
+  }
+
+  #recoverSubmission(draft: string, revision: number, error?: unknown): AdapterCommandResult {
+    this.root.editor.addToHistory(draft);
+    // Concurrency: never overwrite input typed (even typed and cleared) after this submission.
+    if (revision === this.#editorRevision && this.root.editor.getText().length === 0) this.root.editor.setText(draft);
+    const message = error instanceof ImageAttachmentError ? error.message : "Submission rejected. Check the prompt and attachments.";
+    this.#reportSubmissionError(error, `${message} Press Up to recover the draft.`);
+    return rejected(message);
+  }
+
+  #reportSubmissionError(error?: unknown, message?: string): void {
+    // Security: arbitrary provider/extension error messages can contain the entire request.
+    try {
+      this.root.appendWorkflowResult({ command: "debug", outcome: "failed", message: message
+        ?? (error instanceof ImageAttachmentError ? error.message : "Submission failed. Check the prompt and try again.") });
+      this.runtime.requestRender();
+    } catch { /* Security: error presentation cannot create another rejected submission callback. */ }
   }
 
   #simple(type: "abort" | "retry" | "compact" | "shutdown" | "new-session"): OwnedUiCommand {

@@ -2,6 +2,16 @@
 
 const startup = await import("../dist/foundation/startup/index.js");
 startup.enableEnvironmentCompileCache(process.env);
+const profile = process.env.A1_LAUNCH_PROFILE ?? "a1";
+const { installFatalExit } = await import("../dist/foundation/terminal-cleanup/index.js");
+const { resolveProductPaths } = await import("../dist/foundation/lifecycle/index.js");
+const { join } = await import("node:path");
+let runningApplication;
+const fatal = profile === "a1" ? installFatalExit({
+  directory: join(resolveProductPaths().runtimeDir, "crashes"),
+  releaseId: process.env.A1_RELEASE_ID,
+  dispose: () => runningApplication?.dispose(),
+}) : undefined;
 // Performance: begin the exact launch graph together while the trace write is pending.
 // Direct owned-module entries avoid evaluating unrelated barrel exports before first paint.
 const modules = Promise.all([
@@ -32,7 +42,6 @@ assertSinglePiTuiModuleAtLaunch(fileURLToPath(new URL("..", import.meta.url)), m
 await startup.markStartupPhase(process.env, "ui-modules-loaded");
 
 const sessionSelection = parseSessionSelection(process.argv.slice(2));
-const profile = process.env.A1_LAUNCH_PROFILE ?? "a1";
 Promise.resolve().then(() => {
   if (sessionSelection && profile !== "a1") throw new Error("session selection requires the normal A1 profile");
   return runSelectedInteractiveRuntime(profile, {
@@ -45,12 +54,15 @@ Promise.resolve().then(() => {
         sessionForkPrompt: createConsoleSessionForkPrompt(),
         ...(sessionSelection === undefined ? {} : { sessionSelection }),
       });
+      runningApplication = application;
       return await runOwnedUi({ application, ...(settings === null ? {} : { settings }) });
     },
   });
 }).then(
-  code => { process.exitCode = code; },
+  code => { fatal?.remove(); process.exitCode = code; },
   error => {
+    if (fatal && error?.name !== "PiSessionSelectionError") { fatal.fail(error); return; }
+    fatal?.remove();
     console.error(error instanceof Error ? error.message : String(error));
     process.exitCode = error?.name === "PiSessionSelectionError" ? error.exitCode : 1;
   },
