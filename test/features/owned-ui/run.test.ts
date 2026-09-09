@@ -19,6 +19,14 @@ describe("owned UI run", () => {
     expect(application.calls).toEqual(["start", "flush", "dispose"]);
   });
 
+  it("retains the original failure when disposal also fails", async () => {
+    const application = new TestOwnedUiApplication();
+    const original = new TypeError("original");
+    application.flush = async () => { throw original; };
+    application.dispose = async () => { throw new Error("cleanup"); };
+    await expect(runOwnedUi({ application })).rejects.toMatchObject({ cause: original, errors: [original, expect.any(Error)] });
+  });
+
   it("does not wait when the injected application reports itself disposed", async () => {
     const application = new TestOwnedUiApplication();
     application.flush = async () => { application.calls.push("flush"); application.disposed = true; };

@@ -1,3 +1,5 @@
+import { assertImageEncodedSize } from "../../../contracts/owned-ui/index.js";
+
 export interface ClipboardImageData {
   readonly data: string;
   readonly mimeType: string;
@@ -16,7 +18,9 @@ export function canonicalizeClipboardImage(image: ClipboardImageData): Clipboard
 }
 
 export function canonicalizeStandardBase64(value: string): string | null {
-  if (value.length === 0 || !STANDARD_BASE64.test(value)) return null;
+  if (typeof value !== "string" || value.length === 0) return null;
+  assertImageEncodedSize(value);
+  if (!STANDARD_BASE64.test(value)) return null;
 
   const paddingStart = value.indexOf("=");
   const core = paddingStart < 0 ? value : value.slice(0, paddingStart);

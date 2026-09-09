@@ -62,6 +62,24 @@ function hoverFixture() {
 }
 
 describe("session viewport interaction controller", () => {
+  it("suppresses no-frame selection through content arrival while preserving keyboard bytes", () => {
+    const target = new SessionViewportController({ enabled: true, editor: editor(), requestRender() {} });
+    try {
+      expect(target.handlePreInput("x\u001b[<0;4;2M")).toEqual({ data: "x", consumed: true });
+      frame(target);
+      expect(target.handlePreInput("\u001b[<32;15;3M\u001b[<35;15;3M\u001b[<0;15;3my")).toEqual({ data: "y", consumed: true });
+      expect(target.handlePreInput("\u0003").consumed).toBe(false);
+      target.handlePreInput("\u001b[<0;1;2M");
+      target.handlePreInput("\u001b[<32;4;2M");
+      target.handlePreInput("\u001b[<0;4;2m");
+      expect(target.handlePreInput("\u0003").copyText).toBeTruthy();
+      target.reset();
+      frame(target, 0);
+      expect(target.handlePreInput("\u001b[<0;4;2M\u001b[<32;15;3M\u001b[<0;15;3m").consumed).toBe(true);
+      expect(target.handlePreInput("\u0003").consumed).toBe(false);
+    } finally { target.clearPointerState(); }
+  });
+
   it.each([
     ["motion", "35", "M", false], ["press", "1", "M", false],
     ["release", "0", "m", false], ["wheel-up", "64", "M", true], ["wheel-down", "65", "M", true],

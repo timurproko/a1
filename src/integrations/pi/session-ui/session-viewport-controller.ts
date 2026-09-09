@@ -199,7 +199,14 @@ export class SessionViewportController {
       this.#requestHyperlinkCleanup();
       this.#requestRender(true);
     }
-    if (this.#viewport.frame === null) return { data, consumed: false };
+    if (this.#viewport.frame === null) {
+      // Invariant: a not-yet-painted A1 screen is not Pi's selection surface.
+      return routeMouseInput(data, event => {
+        if (event.kind === "press" && event.button === 0) this.#tailPointerSuppressed = true;
+        if (event.kind === "release") this.#tailPointerSuppressed = false;
+        return event.kind === "motion" || event.kind === "release" || (event.kind === "press" && event.button === 0);
+      });
+    }
     if (data === "\u0003") {
       if (this.#editor.hasSelection()) {
         if (this.#viewport.clearSelection()) this.#requestRender();
@@ -323,6 +330,8 @@ export class SessionViewportController {
           return true;
         }
         if (event.button !== 0) return false;
+        this.#dockPointerSuppressed = false;
+        this.#tailPointerSuppressed = false;
         this.#stopSelectionAutoScroll();
         if (this.#viewport.clearSelection()) repaint = true;
         if (overBottom) {
@@ -368,15 +377,16 @@ export class SessionViewportController {
         }
         if (event.row >= 1 && event.row <= hits.viewportHeight && event.column <= frame.contentWidth) {
           if (!this.#viewport.pressSelection(event.column, event.row, now)) {
-            // Invariant: a full drag begun on transient tail rows cannot become transcript selection.
-            if (hits.transientTail.includes(event.row)) this.#tailPointerSuppressed = true;
+            // Invariant: empty rows and transient tail rows must never start Pi selection.
+            this.#tailPointerSuppressed = true;
             repaint = true;
-            return this.#tailPointerSuppressed;
+            return true;
           }
           repaint = true;
           return true;
         }
-        return false;
+        this.#tailPointerSuppressed = true;
+        return true;
       }
       if (event.kind === "release") {
         if (this.#editor.ownsPointer() && this.#editorPointerFrame !== undefined) {

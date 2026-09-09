@@ -247,6 +247,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       readonly requestHyperlinkCleanup?: () => void;
       readonly enableDockInputReuse?: boolean;
       readonly onSubmit: (text: string) => void;
+      readonly onPasteRejected?: (error: unknown) => void;
       readonly onInterrupt: () => void;
       readonly onClear?: () => void;
       readonly onExit: () => void;
@@ -307,7 +308,14 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
         atomic ? "\u001b[27m" : "\u001b[49m",
         piShellVisibleWidth,
       ),
-      transformPastedContent: content => this.#promptChips.transformPastedContent(content),
+      transformPastedContent: content => {
+        try {
+          return this.#promptChips.transformPastedContent(content, this.editor.getText());
+        } catch (error) {
+          handlers.onPasteRejected?.(error);
+          return "";
+        }
+      },
       editorAtomicRanges: line => this.#promptChips.atomicRanges(line),
       decorateEditorRow: (row, width) => {
         const plain = stripAnsi(row);

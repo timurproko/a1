@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
 import type { PiShellClipboardContent } from "../components/index.js";
 import { canonicalizeClipboardImage } from "./clipboard-image.js";
+import { ImageAttachmentError, MAX_IMAGE_DATA_BYTES } from "../../../contracts/owned-ui/index.js";
 
 const MAX_CLIPBOARD_BYTES = 16 * 1024 * 1024;
 
@@ -36,7 +37,8 @@ export async function readSystemClipboardContent(): Promise<PiShellClipboardCont
       }
       const image = await readSystemClipboardImage(native);
       if (image !== null) return { kind: "image", ...image };
-    } catch {
+    } catch (error) {
+      if (error instanceof ImageAttachmentError) throw error;
       // Compatibility: fall through to text and platform readers.
     }
   }
@@ -52,13 +54,15 @@ export async function readSystemClipboardImage(
   if (reader.getImageBinary !== undefined) {
     try {
       const bytes = await reader.getImageBinary();
+      if (Math.ceil(bytes.length / 3) * 4 > MAX_IMAGE_DATA_BYTES) throw new ImageAttachmentError("image-size");
       if (bytes.length > 0 && bytes.every(byte => Number.isInteger(byte) && byte >= 0 && byte <= 255)) {
         return canonicalizeClipboardImage({
           data: Buffer.from(bytes).toString("base64"),
           mimeType: "image/png",
         });
       }
-    } catch {
+    } catch (error) {
+      if (error instanceof ImageAttachmentError) throw error;
       // Compatibility: older or partially available native bindings may still expose base64.
     }
   }
@@ -69,7 +73,8 @@ export async function readSystemClipboardImage(
         data: await reader.getImageBase64(),
         mimeType: "image/png",
       });
-    } catch {
+    } catch (error) {
+      if (error instanceof ImageAttachmentError) throw error;
       // Compatibility: fall through to the caller's text path.
     }
   }

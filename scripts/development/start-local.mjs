@@ -8,6 +8,7 @@ const packageRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
 const identity = JSON.parse(await readFile(resolve(packageRoot, "src", "product-identity.json"), "utf8"));
 const canonicalRoot = await realpath(packageRoot);
 const { resolveDevelopmentLaunchEnvironment } = await import("../../dist/features/launch/index.js");
+const { restoreAfterOwnedExit } = await import("../../dist/foundation/terminal-cleanup/index.js");
 const release = await deriveDevelopmentReleaseIdentity(packageRoot);
 const { checkoutId, instanceId, developmentRoot, environment } = resolveDevelopmentLaunchEnvironment(
   canonicalRoot,
@@ -46,7 +47,7 @@ if (launchArguments[0] === "--print-environment") {
     process.exitCode = 1;
   });
   child.once("close", (code, signal) => {
-    process.exitCode = code ?? (signal ? 1 : 0);
+    process.exitCode = restoreAfterOwnedExit(directProfile === "a1", code, signal);
   });
 }
 

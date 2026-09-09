@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { restoreAfterOwnedExit } from "../terminal-cleanup/index.js";
 import { chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { connect } from "node:net";
 import { platform } from "node:os";
@@ -268,7 +269,9 @@ async function launchUi(release: MaterializedRelease, environment: NodeJS.Proces
       windowsHide: false,
     });
     child.once("error", rejectPromise);
-    child.once("close", (code, signal) => resolvePromise(code ?? (signal ? 1 : 0)));
+    child.once("close", (code, signal) => resolvePromise(restoreAfterOwnedExit(
+      environment[PRODUCT_IDENTITY.environment.launchProfile] === "a1", code, signal,
+    )));
   });
 }
 

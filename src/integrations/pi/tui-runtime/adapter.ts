@@ -13,6 +13,7 @@ import {
   type TuiAltScreenOptions,
   visibleWidth,
 } from "#pi-tui";
+import { boundedCleanup, EMERGENCY_TERMINAL_RESET } from "../../../foundation/terminal-cleanup/index.js";
 import {
   InputPresentationCoordinator,
   type PiTuiInputCoordinationTrace,
@@ -450,11 +451,12 @@ export class PiTuiRuntimeAdapter {
 
   async #stop(options: PiTuiStopOptions): Promise<void> {
     this.#state = "stopping";
-    this.#inputCoordinator?.flush();
     let failure: PiTuiRuntimeError | undefined;
+    try { this.#inputCoordinator?.dispose(false); }
+    catch (error) { failure = new PiTuiRuntimeError("restoration", error); }
     if (options.drainInput !== false) {
       try {
-        await this.#terminal.drainInput(options.drainMaxMs, options.drainIdleMs);
+        await boundedCleanup(() => this.#terminal.drainInput(options.drainMaxMs, options.drainIdleMs));
       } catch (error) {
         failure = new PiTuiRuntimeError("input-drain", error);
       }
@@ -606,6 +608,7 @@ export class PiTuiRuntimeAdapter {
 
   #bestEffortTerminalRestore(): void {
     this.#clearTerminalProgress();
+    try { if (this.mode === "fullscreen") this.#terminal.write(EMERGENCY_TERMINAL_RESET); } catch {}
     try {
       this.#terminal.showCursor();
     } catch {}

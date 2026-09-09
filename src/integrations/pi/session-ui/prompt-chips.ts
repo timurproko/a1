@@ -7,6 +7,7 @@ import type {
   PiShellEditorTextRange,
 } from "../components/index.js";
 import { canonicalizeClipboardImage } from "./clipboard-image.js";
+import { assertImageEncodedSize, assertPromptImages } from "../../../contracts/owned-ui/index.js";
 
 export interface PromptImageAttachment {
   readonly type: "image";
@@ -33,10 +34,12 @@ const URL_DISPLAY_LENGTH = 40;
 export class PromptChipStore {
   readonly #chips = new Map<string, PromptChip>();
 
-  transformPastedContent(content: PiShellClipboardContent): string {
+  transformPastedContent(content: PiShellClipboardContent, currentText = ""): string {
     if (content.kind === "image") {
+      assertImageEncodedSize(content.data);
       const image = canonicalizeClipboardImage(content);
       if (image === null) return "";
+      assertPromptImages([...this.prepareSubmission(currentText).images, { type: "image", ...image }]);
       const id = randomBytes(5).toString("hex");
       const tag = `[📷 screenshot-${id}.png]`;
       this.#chips.set(tag, {

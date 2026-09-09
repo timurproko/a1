@@ -11,7 +11,7 @@ import {
 describe("project structure ownership policy", () => {
   it("declares every production and test owner with one public entry", () => {
     expect(Object.keys(PROJECT_OWNERS)).toEqual([
-      "product-identity", "cli", "composition", "launch", "workspace", "owned-ui", "startup", "lifecycle", "process-containment", "launch-guardian", "protocol", "release", "storage", "structured-agent-runtime", "native-host-protocol", "owned-ui-contracts", "ui-components", "ui-apps", "owned-ui-settings", "agent-engine-contracts", "presentation-contracts", "pi-engine-adapter", "pi-component-adapter", "pi-tui-runtime-adapter", "pi-session-ui-integration", "supervision", "workspace-contracts",
+      "product-identity", "cli", "composition", "launch", "workspace", "owned-ui", "terminal-cleanup", "startup", "lifecycle", "process-containment", "launch-guardian", "protocol", "release", "storage", "structured-agent-runtime", "native-host-protocol", "owned-ui-contracts", "ui-components", "ui-apps", "owned-ui-settings", "agent-engine-contracts", "presentation-contracts", "pi-engine-adapter", "pi-component-adapter", "pi-tui-runtime-adapter", "pi-session-ui-integration", "supervision", "workspace-contracts",
     ]);
     for (const owner of Object.values(PROJECT_OWNERS)) {
       if (owner.id === "product-identity") {
@@ -25,6 +25,19 @@ describe("project structure ownership policy", () => {
       expect(testOwnerForPath(`${owner.testRoot}/contract.test.ts`)).toBe(owner.id);
     }
     expect(testOwnerForPath("test/repository-governance/policy.test.ts")).toBe("repository-governance");
+  });
+
+  it("keeps terminal cleanup dependency-free and outside the launch guardian", () => {
+    expect(PROJECT_OWNERS["terminal-cleanup"]?.mayImport).toEqual([]);
+    expect(inspectProjectStructureImports({
+      "src/foundation/release/bootstrap.ts": "import { restoreAfterOwnedExit } from '../terminal-cleanup/index.js';",
+      "src/integrations/pi/tui-runtime/adapter.ts": "import { boundedCleanup } from '../../../foundation/terminal-cleanup/index.js';",
+    })).toEqual([]);
+    expect(inspectProjectStructureImports({
+      "src/foundation/launch-guardian/main.ts": "import { restoreAfterOwnedExit } from '../terminal-cleanup/index.js';",
+    })).toEqual([
+      "src/foundation/launch-guardian/main.ts: launch-guardian may not import terminal-cleanup (../terminal-cleanup/index.js)",
+    ]);
   });
 
   it("rejects declared owners whose source, public entry, or test root is absent", () => {
