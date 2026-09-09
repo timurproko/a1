@@ -9,6 +9,7 @@ import {
   setCapabilities as setPinnedPiTuiCapabilities,
 } from "#pi-tui";
 import { describe, expect, it, vi } from "vitest";
+import { screenshotPng } from "../../../fixtures/image-sources.js";
 import {
   createPiEngineAdapter,
   PINNED_PI_HIDDEN_COMMAND_NAMES,
@@ -220,6 +221,143 @@ async function nextImmediate(): Promise<void> {
 }
 
 describe("OwnedUiSessionShell", () => {
+  it("acknowledges paste before acquisition and waits once on Enter without replacing newer input", async () => {
+    let release!: (value: { data: string; mimeType: string }) => void;
+    const source = screenshotPng().toString("base64");
+    const read = new Promise<{ data: string; mimeType: string }>(resolve => { release = resolve; });
+    const { shell, terminal, engine } = await fixture([], [], true, undefined, { readText: async () => null, readImage: () => read });
+    try {
+      terminal.input("\u0016");
+      expect(shell.root.editor.getText()).toContain("preparing-");
+      shell.runtime.renderNow();
+      expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("preparing-");
+      terminal.input(" inspect this");
+      await nextImmediate();
+      const draft = shell.root.editor.getText();
+      terminal.input("\r");
+      const duplicate = shell.submit(draft);
+      terminal.input("newer draft");
+      expect(engine.session.promptOptions).toHaveLength(0);
+      expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("Waiting for images");
+      release({ data: source, mimeType: "image/png" });
+      expect((await duplicate).outcome).toBe("completed");
+      expect(engine.session.promptOptions).toHaveLength(1);
+      expect(engine.session.calls.find(call => call.startsWith("prompt:"))).toMatch(/screenshot-.*resized.* inspect this/u);
+      expect(shell.root.editor.getText()).toBe("newer draft");
+      expect(stripTerminalSequences(shell.root.render(100).join("\n"))).not.toContain("Waiting for images");
+    } finally { await shell.dispose(); }
+  }, 20_000);
+
+  it.each(["delete", "cancel", "session", "dispose"])("does not resurrect or dispatch a pending image after %s", async action => {
+    let release!: (value: { data: string; mimeType: string }) => void;
+    const read = new Promise<{ data: string; mimeType: string }>(resolve => { release = resolve; });
+    const { shell, terminal, engine, adapter } = await fixture([], [], true, undefined, { readText: async () => null, readImage: () => read });
+    try {
+      terminal.input("\u0016");
+      expect(shell.root.editor.getText()).toContain("preparing-");
+      await nextImmediate();
+      if (action === "delete") { terminal.input("\u0001"); terminal.input("\u007f"); }
+      if (action === "cancel") { terminal.input("\r"); await shell.interrupt(); }
+      if (action === "session") { await engine.rebindSession?.(new Session()); await adapter.flushEvents(); }
+      if (action === "dispose") await shell.dispose();
+      await nextImmediate();
+      shell.root.editor.setText("newer");
+      release({ data: screenshotPng(8, 8).toString("base64"), mimeType: "image/png" });
+      await nextImmediate(); await nextImmediate();
+      expect(shell.root.editor.getText()).toBe("newer");
+      expect(engine.session.promptOptions).toHaveLength(0);
+    } finally { await shell.dispose(); }
+  });
+
+  it("keeps image order and caret position when the second paste completes first", async () => {
+    let first!: (value: { data: string; mimeType: string }) => void;
+    const firstData = screenshotPng(8, 8).toString("base64");
+    const secondData = screenshotPng(12, 12).toString("base64");
+    const readImage = vi.fn().mockImplementationOnce(() => new Promise(resolve => { first = resolve; }))
+      .mockResolvedValueOnce({ data: secondData, mimeType: "image/png" });
+    const { shell, terminal, engine } = await fixture([], [], true, undefined, { readText: async () => null, readImage });
+    try {
+      terminal.input("\u0016"); terminal.input("\u0016"); terminal.input(" tail");
+      await vi.waitFor(() => expect(shell.root.editor.getText()).toContain("screenshot-"));
+      expect(shell.root.editor.getText()).toMatch(/^\[📷 preparing-.*\[📷 screenshot-.* tail$/u);
+      first({ data: firstData, mimeType: "image/png" });
+      await vi.waitFor(() => expect(shell.root.editor.getText()).not.toContain("preparing-"));
+      terminal.input("!");
+      await nextImmediate();
+      expect(shell.root.editor.getText()).toMatch(/ tail!$/u);
+      terminal.input("\r");
+      await nextImmediate();
+      expect(engine.session.promptOptions.at(-1)).toMatchObject({ images: [
+        { data: firstData, mimeType: "image/png" }, { data: secondData, mimeType: "image/png" },
+      ] });
+    } finally { await shell.dispose(); }
+  });
+
+  it.each(["steer", "follow-up", "compaction"])("gates pending %s images and preserves a newer draft", async mode => {
+    let release!: (value: { data: string; mimeType: string }) => void;
+    const read = new Promise<{ data: string; mimeType: string }>(resolve => { release = resolve; });
+    const { shell, terminal, engine, adapter } = await fixture([], [], true, undefined, { readText: async () => null, readImage: () => read });
+    try {
+      if (mode === "compaction") engine.session.emit({ type: "compaction_start", reason: "manual" });
+      else engine.session.emit({ type: "agent_start" });
+      await adapter.flushEvents();
+      terminal.input("\u0016");
+      const pending = mode === "follow-up" ? shell.queueFollowUp() : shell.submit(shell.root.editor.getText());
+      shell.root.editor.setText("newer");
+      expect(engine.session.promptOptions).toHaveLength(0);
+      release({ data: screenshotPng(8, 8).toString("base64"), mimeType: "image/png" });
+      await pending;
+      if (mode === "compaction") {
+        expect(engine.session.promptOptions).toHaveLength(0);
+        engine.session.emit({ type: "compaction_end", reason: "manual", result: {}, aborted: false, willRetry: false });
+        await adapter.flushEvents(); await nextImmediate();
+      }
+      expect(engine.session.promptOptions).toHaveLength(1);
+      expect(engine.session.promptOptions.at(-1)).toMatchObject({ streamingBehavior: mode === "follow-up" ? "followUp" : "steer" });
+      expect(shell.root.editor.getText()).toBe("newer");
+    } finally { await shell.dispose(); }
+  });
+
+  it("dequeues a waiting intent without canceling the image now referenced by the editor", async () => {
+    let release!: (value: { data: string; mimeType: string }) => void;
+    const read = new Promise<{ data: string; mimeType: string }>(resolve => { release = resolve; });
+    const { shell, terminal, engine } = await fixture([], [], true, undefined, { readText: async () => null, readImage: () => read });
+    try {
+      terminal.input("\u0016");
+      const draft = shell.root.editor.getText();
+      const pending = shell.submit(draft);
+      shell.restoreQueuedInput();
+      expect(shell.root.editor.getText()).toBe(`${draft}\nqueued steer\nqueued follow`);
+      release({ data: screenshotPng(8, 8).toString("base64"), mimeType: "image/png" });
+      await pending;
+      await vi.waitFor(() => expect(shell.root.preparePromptSubmission(draft).images).toHaveLength(1));
+      expect(engine.session.promptOptions).toHaveLength(0);
+      expect((await shell.submit(shell.root.editor.getText())).outcome).toBe("completed");
+      expect(engine.session.promptOptions).toHaveLength(1);
+    } finally { await shell.dispose(); }
+  });
+
+  it("keeps a failed waiting prompt recoverable and never sends its text alone", async () => {
+    let release!: (value: { data: string; mimeType: string }) => void;
+    const read = new Promise<{ data: string; mimeType: string }>(resolve => { release = resolve; });
+    const { shell, terminal, engine } = await fixture([], [], true, undefined, { readText: async () => null, readImage: () => read });
+    try {
+      terminal.input("look "); terminal.input("\u0016");
+      const draft = shell.root.editor.getText();
+      terminal.input("\r");
+      const waiting = shell.submit(draft);
+      terminal.input("new input");
+      release({ data: "AAAA".repeat(Math.ceil(20 * 1024 * 1024 / 3) + 1), mimeType: "image/png" });
+      expect((await waiting).outcome).toBe("rejected");
+      expect(engine.session.promptOptions).toHaveLength(0);
+      expect(shell.root.editor.getText()).toBe("new input");
+      expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("20 MiB");
+      shell.root.editor.setText(""); terminal.input("\u001b[A");
+      await nextImmediate();
+      expect(shell.root.editor.getText()).toBe(draft);
+    } finally { await shell.dispose(); }
+  });
+
   it("keeps an invalid image editor submission recoverable instead of rejecting its callback", async () => {
     const { shell, terminal, engine } = await fixture([], [], true);
     try {
@@ -242,8 +380,9 @@ describe("OwnedUiSessionShell", () => {
   });
 
   it("retains a real image chip and its bytes across rejection and explicit retry", async () => {
+    const data = screenshotPng(16, 16, false).toString("base64");
     const { shell, adapter, terminal, engine } = await fixture([], [], true, undefined, {
-      readText: async () => null, readImage: async () => ({ data: "aA", mimeType: "image/png" }),
+      readText: async () => null, readImage: async () => ({ data, mimeType: "image/png" }),
     });
     try {
       terminal.input("\u0016");
@@ -257,7 +396,7 @@ describe("OwnedUiSessionShell", () => {
       terminal.input("\r");
       await nextImmediate();
       expect(engine.session.promptOptions).toHaveLength(1);
-      expect(engine.session.promptOptions[0]).toMatchObject({ images: [{ type: "image", data: "aA==", mimeType: "image/png" }] });
+      expect(engine.session.promptOptions[0]).toMatchObject({ images: [{ type: "image", data, mimeType: "image/png" }] });
     } finally { await shell.dispose(); }
   });
 
@@ -319,16 +458,19 @@ describe("OwnedUiSessionShell", () => {
     } finally { await shell.dispose(); }
   });
 
-  it("rejects oversized clipboard images before inserting an unusable chip", async () => {
+  it("rejects unsafe source size with a removable failed chip and preserves surrounding input", async () => {
     const { shell, terminal } = await fixture([], [], true, undefined, {
       readText: async () => null,
-      readImage: async () => ({ data: "AAAA".repeat(2 * 1024 * 1024 + 1), mimeType: "image/png" }),
+      readImage: async () => ({ data: "AAAA".repeat(Math.ceil(20 * 1024 * 1024 / 3) + 1), mimeType: "image/png" }),
     });
     try {
       shell.root.editor.setText("keep draft");
       terminal.input("\u0016");
-      await vi.waitFor(() => expect(shell.root.render(80).join("\n")).toContain("8 MiB"));
-      expect(shell.root.editor.getText()).toBe("keep draft");
+      await vi.waitFor(() => expect(shell.root.render(80).join("\n")).toContain("20 MiB"));
+      expect(shell.root.editor.getText()).toMatch(/^keep draft\[📷 failed-/u);
+      expect((await shell.submit(shell.root.editor.getText())).outcome).toBe("rejected");
+      shell.root.editor.setText("keep draft");
+      expect((await shell.submit("keep draft")).outcome).toBe("completed");
     } finally { await shell.dispose(); }
   });
 
@@ -1706,7 +1848,7 @@ describe("OwnedUiSessionShell", () => {
     await nextImmediate();
     expect(shell.root.editor.getText()).toBe("");
 
-    const imageBytes = Buffer.from("fake-png");
+    const imageBytes = screenshotPng(16, 16, false);
     const canonicalImageData = imageBytes.toString("base64");
     clipboardImage = { data: canonicalImageData.replace(/=+$/u, ""), mimeType: "image/png" };
     shell.root.editor.setText("");

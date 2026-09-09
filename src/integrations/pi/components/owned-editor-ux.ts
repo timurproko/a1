@@ -25,6 +25,7 @@ export interface OwnedEditorUxInterceptor {
   hasSelection?(): boolean;
   ownsPointer?(): boolean;
   pasteClipboard?(): boolean;
+  cancelPendingPastes?(): void;
 }
 
 export interface OwnedEditorPointerEvent {
@@ -65,6 +66,10 @@ export class OwnedEditorUxInterception {
 
   reset(): void {
     for (const interceptor of this.interceptors) interceptor.reset();
+  }
+
+  cancelPendingPastes(): void {
+    for (const interceptor of this.interceptors) interceptor.cancelPendingPastes?.();
   }
 
   handlePointer(event: OwnedEditorPointerEvent): boolean {
@@ -130,6 +135,7 @@ const ATOMIC_SPACE_SENTINEL = "\uE000";
 export interface PromptSelectionUxOptions {
   readonly copyText: (text: string) => void;
   readonly readClipboardContent: () => Promise<PiShellClipboardContent | null>;
+  readonly beginClipboardPaste?: () => { readonly marker: string; readonly result: Promise<string> };
   readonly transformPastedContent: (content: PiShellClipboardContent) => string;
   readonly atomicRanges: (line: string) => readonly PiShellEditorTextRange[];
   readonly expandCopiedText: (text: string) => string;
@@ -157,6 +163,7 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
   #lastClick: { time: number; line: number; col: number; count: number } | undefined;
   #redoStack: EditorSnapshot[] = [];
   #selectionRevision = 0;
+  #pasteGeneration = 0;
   #wordDirection: WordDirection | undefined;
   #geometry: {
     width: number;
@@ -350,6 +357,8 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
     this.#selectionRevision += 1;
   }
 
+  cancelPendingPastes(): void { this.#pasteGeneration += 1; }
+
   hasSelection(): boolean {
     return this.#activeRange() !== undefined;
   }
@@ -499,6 +508,17 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
   }
 
   #pasteFromClipboard(): void {
+    if (this.options.beginClipboardPaste !== undefined) {
+      const generation = this.#pasteGeneration;
+      const restore = this.#orderedSelection() === undefined ? "" : this.#selectedText();
+      const paste = this.options.beginClipboardPaste();
+      if (this.#orderedSelection() !== undefined) this.#replaceSelection(paste.marker);
+      else this.editor.insertTextAtCursor(paste.marker);
+      this.#requestRender();
+      const replace = (text: string): void => { if (generation === this.#pasteGeneration) this.#replacePasteMarker(paste.marker, text || restore); };
+      void paste.result.then(replace).catch(() => replace(restore));
+      return;
+    }
     const revision = this.#selectionRevision;
     const selection = this.#orderedSelection();
     const atomicFocus = this.#atomicFocus();
@@ -519,6 +539,40 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
       this.#redoStack = [];
       this.#requestRender();
     }).catch(() => {});
+  }
+
+  #replacePasteMarker(marker: string, replacement: string): void {
+    const current = this.editor.getText();
+    const from = current.indexOf(marker);
+    if (from < 0) return;
+    const to = from + marker.length;
+    const text = normalizeInsertedText(replacement);
+    const lines = editorState(this.editor).lines;
+    const remap = (position: Position): number => {
+      const offset = positionOffset(lines, position);
+      return offset <= from ? offset : offset >= to ? offset + text.length - marker.length : from + text.length;
+    };
+    const cursor = remap(this.#cursor());
+    const selection = this.#selection === undefined ? undefined : { anchor: remap(this.#selection.anchor), head: remap(this.#selection.head) };
+    const next = current.slice(0, from) + text + current.slice(to);
+    // Compatibility: completing a paste updates its provisional undo snapshots, not the user's undo history.
+    editorState(this.editor).lines = next.split("\n");
+    const undo: unknown = Reflect.get(this.editor, "undoStack");
+    const snapshots: unknown = typeof undo === "object" && undo !== null ? Reflect.get(undo, "stack") : undefined;
+    if (Array.isArray(snapshots)) for (const snapshot of snapshots) {
+      const state: unknown = typeof snapshot === "object" && snapshot !== null ? Reflect.get(snapshot, "state") : undefined;
+      if (isEditorState(state)) replaceSnapshotMarker(state, marker, text);
+    }
+    for (const snapshot of this.#redoStack) {
+      const state = { lines: snapshot.text.split("\n"), cursorLine: snapshot.cursor.line, cursorCol: snapshot.cursor.col };
+      replaceSnapshotMarker(state, marker, text);
+      snapshot.text = state.lines.join("\n"); snapshot.cursor = { line: state.cursorLine, col: state.cursorCol };
+    }
+    this.#setCursor(positionAtOffset(next, cursor));
+    this.editor.onChange?.(this.editor.getText());
+    this.editor.invalidate();
+    if (selection !== undefined) this.#selection = { anchor: positionAtOffset(next, selection.anchor), head: positionAtOffset(next, selection.head) };
+    this.#requestRender();
   }
 
   #replaceSelection(text: string): void {
@@ -924,6 +978,17 @@ function positionAtOffset(text: string, requestedOffset: number): Position {
   const offset = clamp(requestedOffset, 0, text.length);
   const before = text.slice(0, offset).split("\n");
   return { line: before.length - 1, col: (before.at(-1) ?? "").length };
+}
+
+function replaceSnapshotMarker(state: EditorState, marker: string, replacement: string): void {
+  const text = state.lines.join("\n");
+  const from = text.indexOf(marker);
+  if (from < 0) return;
+  const cursor = positionOffset(state.lines, { line: state.cursorLine, col: state.cursorCol });
+  const offset = cursor <= from ? cursor : cursor >= from + marker.length ? cursor + replacement.length - marker.length : from + replacement.length;
+  const next = text.slice(0, from) + replacement + text.slice(from + marker.length);
+  const position = positionAtOffset(next, offset);
+  state.lines = next.split("\n"); state.cursorLine = position.line; state.cursorCol = position.col;
 }
 
 function normalizeInsertedText(text: string): string {

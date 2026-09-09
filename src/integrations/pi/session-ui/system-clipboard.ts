@@ -1,7 +1,8 @@
 import { execFile } from "node:child_process";
 import type { PiShellClipboardContent } from "../components/index.js";
 import { canonicalizeClipboardImage } from "./clipboard-image.js";
-import { ImageAttachmentError, MAX_IMAGE_DATA_BYTES } from "../../../contracts/owned-ui/index.js";
+import { ImageAttachmentError } from "../../../contracts/owned-ui/index.js";
+import { assertSourceBytes } from "./image-source.js";
 
 const MAX_CLIPBOARD_BYTES = 16 * 1024 * 1024;
 
@@ -26,13 +27,13 @@ export function preloadSystemClipboard(): void {
  * private clipboard module. Failures are deliberately non-fatal: a denied or
  * unavailable clipboard simply makes the paste action a no-op.
  */
-export async function readSystemClipboardContent(): Promise<PiShellClipboardContent | null> {
+export async function readSystemClipboardContent(signal?: AbortSignal): Promise<PiShellClipboardContent | null> {
   await pendingClipboardWrite;
   const native = await nativeClipboard();
   if (native !== null) {
     try {
       if (process.platform === "win32" && native.availableFormats().some(isFileDropFormat)) {
-        const files = await readSystemClipboardText();
+        const files = await readSystemClipboardText(signal);
         if (files !== null) return { kind: "text", text: files };
       }
       const image = await readSystemClipboardImage(native);
@@ -42,7 +43,7 @@ export async function readSystemClipboardContent(): Promise<PiShellClipboardCont
       // Compatibility: fall through to text and platform readers.
     }
   }
-  const text = await readSystemClipboardText();
+  const text = await readSystemClipboardText(signal);
   return text === null ? null : { kind: "text", text };
 }
 
@@ -54,12 +55,12 @@ export async function readSystemClipboardImage(
   if (reader.getImageBinary !== undefined) {
     try {
       const bytes = await reader.getImageBinary();
-      if (Math.ceil(bytes.length / 3) * 4 > MAX_IMAGE_DATA_BYTES) throw new ImageAttachmentError("image-size");
+      if (bytes.length > 0) assertSourceBytes(bytes.length);
       if (bytes.length > 0 && bytes.every(byte => Number.isInteger(byte) && byte >= 0 && byte <= 255)) {
         return canonicalizeClipboardImage({
           data: Buffer.from(bytes).toString("base64"),
           mimeType: "image/png",
-        });
+        }, true);
       }
     } catch (error) {
       if (error instanceof ImageAttachmentError) throw error;
@@ -72,7 +73,7 @@ export async function readSystemClipboardImage(
       return canonicalizeClipboardImage({
         data: await reader.getImageBase64(),
         mimeType: "image/png",
-      });
+      }, true);
     } catch (error) {
       if (error instanceof ImageAttachmentError) throw error;
       // Compatibility: fall through to the caller's text path.
@@ -81,7 +82,7 @@ export async function readSystemClipboardImage(
   return null;
 }
 
-export async function readSystemClipboardText(): Promise<string | null> {
+export async function readSystemClipboardText(signal?: AbortSignal): Promise<string | null> {
   // Concurrency: Ctrl+C/Ctrl+X and Ctrl+V can arrive in adjacent input turns. Serialize the
   // read behind our native write so paste never observes the previous value.
   await pendingClipboardWrite;
@@ -102,11 +103,11 @@ export async function readSystemClipboardText(): Promise<string | null> {
       "$t=Get-Clipboard -Raw -ErrorAction SilentlyContinue",
       "if ($null -ne $t -and $t.Length -gt 0) {[Console]::Out.Write($t)} else {$f=Get-Clipboard -Format FileDropList -ErrorAction SilentlyContinue; if ($f) {[Console]::Out.Write(($f | ForEach-Object {$_.FullName}) -join [Environment]::NewLine)}}",
     ].join("; ");
-    return execClipboard("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script]);
+    return execClipboard("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], signal);
   }
-  if (process.platform === "darwin") return execClipboard("pbpaste", []);
-  return (await execClipboard("wl-paste", ["--no-newline", "--type", "text"]))
-    ?? execClipboard("xclip", ["-selection", "clipboard", "-o"]);
+  if (process.platform === "darwin") return execClipboard("pbpaste", [], signal);
+  return (await execClipboard("wl-paste", ["--no-newline", "--type", "text"], signal))
+    ?? execClipboard("xclip", ["-selection", "clipboard", "-o"], signal);
 }
 
 export function writeSystemClipboardText(text: string): Promise<void> {
@@ -135,13 +136,14 @@ function isFileDropFormat(format: string): boolean {
   return /(?:filedrop|hdrop|shell idlist)/iu.test(format);
 }
 
-function execClipboard(command: string, args: readonly string[]): Promise<string | null> {
+function execClipboard(command: string, args: readonly string[], signal?: AbortSignal): Promise<string | null> {
   return new Promise(resolve => {
     execFile(command, args, {
       encoding: "utf8",
       maxBuffer: MAX_CLIPBOARD_BYTES,
       timeout: 5_000,
       windowsHide: true,
+      ...(signal === undefined ? {} : { signal }),
     }, (error, stdout) => resolve(error || stdout.length === 0 ? null : stdout));
   });
 }

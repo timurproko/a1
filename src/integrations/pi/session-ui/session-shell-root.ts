@@ -119,8 +119,8 @@ export type OwnedUiTerminalPort = PiTuiTerminalPort;
 type OwnedUiStartupOptions = PiShellHeaderOptions;
 
 export interface OwnedUiClipboardPort {
-  readText(): Promise<string | null>;
-  readImage?(): Promise<{ readonly data: string; readonly mimeType: string } | null>;
+  readText(signal?: AbortSignal): Promise<string | null>;
+  readImage?(signal?: AbortSignal): Promise<{ readonly data: string; readonly mimeType: string } | null>;
   writeText?(text: string): Promise<void>;
 }
 
@@ -262,7 +262,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       readonly onPromptSuggestionAccepted?: (text: string) => void;
       readonly onInputSurfaceChanged?: () => void;
       readonly onCopyText?: (text: string) => void;
-      readonly readClipboardContent?: () => Promise<PiShellClipboardContent | null>;
+      readonly readClipboardContent?: (signal?: AbortSignal) => Promise<PiShellClipboardContent | null>;
     },
     startup: PiShellHeaderOptions = {},
     agentDir?: string,
@@ -316,6 +316,11 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
           return "";
         }
       },
+      ...(this.#customViewport ? { beginClipboardPaste: () => this.#promptChips.beginPaste(
+        this.editor.getText(),
+        signal => handlers.readClipboardContent?.(signal) ?? Promise.resolve(null),
+        error => handlers.onPasteRejected?.(error),
+      ) } : {}),
       editorAtomicRanges: line => this.#promptChips.atomicRanges(line),
       decorateEditorRow: (row, width) => {
         const plain = stripAnsi(row);
@@ -359,7 +364,11 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
           styleSuggestionCaret: caretCell,
         },
       } : {}),
-      ...(handlers.onEditorChange === undefined ? {} : { onChange: handlers.onEditorChange }),
+      onChange: text => {
+        handlers.onEditorChange?.(text);
+        // Concurrency: Pi clears before onSubmit; capture waiting references before pruning removed chips.
+        queueMicrotask(() => this.#promptChips.reconcileDraft(this.editor.getText()));
+      },
       ...(handlers.onPromptSuggestionAccepted === undefined ? {} : { onPromptSuggestionAccepted: handlers.onPromptSuggestionAccepted }),
     });
     this.#viewportController = new SessionViewportController({
@@ -443,6 +452,22 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
 
   preparePromptSubmission(text: string): PreparedPrompt {
     return this.#promptChips.prepareSubmission(text);
+  }
+
+  hasPendingPastes(text: string): boolean { return this.#promptChips.hasPending(text); }
+
+  waitForPromptPastes(text: string, signal: AbortSignal): Promise<PreparedPrompt> {
+    return this.#promptChips.waitForPastes(text, signal, () => this.editor.getText());
+  }
+
+  resetPendingPastes(): void {
+    this.editor.cancelPendingPastes?.();
+    this.editor.setText(this.#promptChips.resetPastes(this.editor.getText()));
+  }
+
+  disposePendingPastes(): Promise<void> {
+    this.resetPendingPastes();
+    return this.#promptChips.dispose();
   }
 
   canPreparePromptSuggestion(): boolean {

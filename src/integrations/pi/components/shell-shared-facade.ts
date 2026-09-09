@@ -65,6 +65,7 @@ export interface PiShellEditorPort extends PiShellComponentPort {
   ownsPointer(): boolean;
   handlePointer(event: PiShellEditorPointerEvent): boolean;
   pasteClipboard(): boolean;
+  cancelPendingPastes?(): void;
 }
 
 export interface PiShellAutocompleteCommand {
@@ -168,7 +169,8 @@ export interface PiShellEditorOptions {
   readonly onDequeue?: (() => void) | undefined;
   readonly onPromptSuggestionAccepted?: (text: string) => void;
   readonly onCopyText?: (text: string) => void;
-  readonly readClipboardContent?: () => Promise<PiShellClipboardContent | null>;
+  readonly readClipboardContent?: (signal?: AbortSignal) => Promise<PiShellClipboardContent | null>;
+  readonly beginClipboardPaste?: () => { readonly marker: string; readonly result: Promise<string> };
   readonly transformPastedContent?: (content: PiShellClipboardContent) => string;
   readonly editorAtomicRanges?: (line: string) => readonly PiShellEditorTextRange[];
   readonly expandCopiedEditorText?: (text: string) => string;
