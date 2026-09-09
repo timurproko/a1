@@ -32,6 +32,6 @@
 ## 5. Integration and user acceptance
 
 - [ ] 5.1 Submit an implementation-only pull request citing this accepted change and obtain required CI results; verify all change-caused required failures are resolved and no installed Pi files or unrelated paths were changed.
-- [ ] 5.2 Provide the exact built worktree/commit and color-preserving `./scripts/dev` handoff; verify the checklist directly covers empty-screen dragging, valid screenshot submission, oversized-image rejection, draft correction, content selection, and continued conversation.
+- [x] 5.2 Provide the exact built worktree/commit and color-preserving `./scripts/dev` handoff; verify the checklist directly covers empty-screen dragging, valid screenshot submission, oversized-image rejection, draft correction, content selection, and continued conversation.
 - [ ] 5.3 Obtain user-run Windows Terminal/Git Bash confirmation for normal and controlled abnormal exit; verify post-exit pointer movement no longer types mouse reports, clipboard behavior is correct, and a comparison run retains pinned selection behavior.
 - [ ] 5.4 Record explicit user acceptance and merge authorization before manually merging code; verify the implementation PR is merged before creating the acceptance/spec-sync/archive follow-up and cleaning retained worktrees.
