@@ -220,6 +220,171 @@ async function nextImmediate(): Promise<void> {
 }
 
 describe("OwnedUiSessionShell", () => {
+  it("keeps an invalid image editor submission recoverable instead of rejecting its callback", async () => {
+    const { shell, terminal, engine } = await fixture([], [], true);
+    try {
+      const preparation = vi.spyOn(shell.root, "preparePromptSubmission").mockReturnValue({
+        text: "inspect screenshot",
+        images: [{ type: "image", data: "AAAA".repeat(2 * 1024 * 1024 + 1), mimeType: "image/png" }],
+      });
+      shell.root.editor.setText("inspect screenshot");
+      terminal.input("\r");
+      await nextImmediate();
+      expect(shell.root.render(80).join("\n")).toContain("8 MiB");
+      expect(shell.root.editor.getText()).toBe("inspect screenshot");
+      expect(engine.session.calls.filter(call => call.startsWith("prompt:"))).toEqual([]);
+      preparation.mockRestore();
+      shell.root.editor.setText("corrected prompt");
+      terminal.input("\r");
+      await nextImmediate();
+      expect(engine.session.calls.filter(call => call.startsWith("prompt:"))).toEqual(["prompt:corrected prompt"]);
+    } finally { await shell.dispose(); }
+  });
+
+  it("retains a real image chip and its bytes across rejection and explicit retry", async () => {
+    const { shell, adapter, terminal, engine } = await fixture([], [], true, undefined, {
+      readText: async () => null, readImage: async () => ({ data: "aA", mimeType: "image/png" }),
+    });
+    try {
+      terminal.input("\u0016");
+      await vi.waitFor(() => expect(shell.root.editor.getText()).toContain("screenshot"));
+      const draft = shell.root.editor.getText();
+      vi.spyOn(adapter, "execute").mockResolvedValueOnce({ outcome: "rejected", diagnostic: "synthetic rejection" });
+      terminal.input("\r");
+      await nextImmediate();
+      expect(shell.root.editor.getText()).toBe(draft);
+      expect(engine.session.promptOptions).toEqual([]);
+      terminal.input("\r");
+      await nextImmediate();
+      expect(engine.session.promptOptions).toHaveLength(1);
+      expect(engine.session.promptOptions[0]).toMatchObject({ images: [{ type: "image", data: "aA==", mimeType: "image/png" }] });
+    } finally { await shell.dispose(); }
+  });
+
+  it("leaves Pi fullscreen selection and copying available in the comparison profile", async () => {
+    const { shell, terminal } = await fixture([{ role: "assistant", content: [{ type: "text", text: "comparison selection\nsecond line\nthird line" }], timestamp: 1 }]);
+    try {
+      shell.runtime.switchMode("fullscreen");
+      shell.runtime.renderNow();
+      const start = terminal.writes.length;
+      terminal.input("\u001b[<0;1;2M");
+      terminal.input("\u001b[<32;15;4M");
+      shell.runtime.renderNow();
+      terminal.input("\u001b[<0;15;4m");
+      await nextImmediate();
+      shell.runtime.renderNow();
+      expect(terminal.writes.slice(start).join("")).toContain("Copied!");
+      expect(terminal.writes.slice(start).join("")).toContain("\u001b]52;c;");
+    } finally { await shell.dispose(); }
+  });
+
+  it("preserves newer editor input when a pending submission is rejected", async () => {
+    const { shell, adapter, terminal, engine } = await fixture([], [], true);
+    try {
+      let rejectSubmission!: (value: { outcome: "rejected"; diagnostic: string }) => void;
+      const execute = vi.spyOn(adapter, "execute").mockImplementationOnce(() => new Promise(resolve => { rejectSubmission = resolve; }));
+      shell.root.editor.setText("old draft");
+      terminal.input("\r");
+      terminal.input("new draft");
+      await nextImmediate();
+      rejectSubmission({ outcome: "rejected", diagnostic: "do not leak provider payload" });
+      await nextImmediate();
+      expect(shell.root.editor.getText()).toBe("new draft");
+      expect(shell.root.render(80).join("\n")).not.toContain("do not leak provider payload");
+      shell.root.editor.setText("");
+      terminal.input("\u001b[A");
+      await nextImmediate();
+      expect(shell.root.editor.getText()).toBe("old draft");
+      expect(execute).toHaveBeenCalledOnce();
+      expect(engine.session.calls.some(call => call.startsWith("prompt:"))).toBe(false);
+    } finally { await shell.dispose(); }
+  });
+
+  it.each(["throw", "reject"])("contains an unexpected %s from dispatch without automatic retry", async failure => {
+    const { shell, adapter, terminal } = await fixture([], [], true);
+    try {
+      const execute = vi.spyOn(adapter, "execute").mockImplementationOnce(() => {
+        if (failure === "throw") throw new Error("PRIVATE_REQUEST");
+        return Promise.reject(new Error("PRIVATE_REQUEST"));
+      });
+      shell.root.editor.setText("inspect");
+      terminal.input("\r");
+      await nextImmediate();
+      expect(execute).toHaveBeenCalledOnce();
+      expect(shell.root.render(80).join("\n")).toContain("uncertain");
+      expect(shell.root.render(80).join("\n")).not.toContain("PRIVATE_REQUEST");
+      terminal.input("usable");
+      await nextImmediate();
+      expect(shell.root.editor.getText()).toBe("usable");
+    } finally { await shell.dispose(); }
+  });
+
+  it("rejects oversized clipboard images before inserting an unusable chip", async () => {
+    const { shell, terminal } = await fixture([], [], true, undefined, {
+      readText: async () => null,
+      readImage: async () => ({ data: "AAAA".repeat(2 * 1024 * 1024 + 1), mimeType: "image/png" }),
+    });
+    try {
+      shell.root.editor.setText("keep draft");
+      terminal.input("\u0016");
+      await vi.waitFor(() => expect(shell.root.render(80).join("\n")).toContain("8 MiB"));
+      expect(shell.root.editor.getText()).toBe("keep draft");
+    } finally { await shell.dispose(); }
+  });
+
+  it("does not turn a suppressed drag into selection when content arrives", async () => {
+    const { shell, terminal, engine, adapter } = await fixture([], [], true);
+    try {
+      terminal.input("\u001b[<0;4;2M");
+      const message = { role: "assistant", content: [{ type: "text", text: "new selectable content" }], timestamp: 1 };
+      engine.session.emit({ type: "message_end", message });
+      await adapter.flushEvents();
+      shell.runtime.renderNow();
+      const start = terminal.writes.length;
+      terminal.input("x\u001b[<32;15;3M\u001b[<35;15;3M\u001b[<0;15;3my");
+      await nextImmediate();
+      shell.runtime.renderNow();
+      expect(shell.root.editor.getText()).toBe("xy");
+      const output = terminal.writes.slice(start).join("");
+      expect(output).not.toContain("Copied!");
+      expect(output).not.toContain("\u001b]52;c;");
+      expect(shell.root.hasActiveSelection()).toBe(false);
+    } finally { await shell.dispose(); }
+  });
+
+  it.each(["exit-render", "unbind-error", "unbind-stall"])("restores the terminal despite %s during disposal", async failure => {
+    const { shell, terminal, adapter } = await fixture([], [], true);
+    if (failure === "exit-render") vi.spyOn(shell.root, "exitTranscript").mockImplementation(() => { throw new Error("render failed"); });
+    else vi.spyOn(adapter, "unbindExtensionUi").mockImplementation(() => failure === "unbind-stall" ? new Promise(() => {}) : Promise.reject(new Error("unbind failed")));
+    await expect(shell.dispose()).rejects.toThrow("disposal failed");
+    expect(terminal.active).toBe(false);
+    expect(terminal.writes.join("")).toContain("\u001b[?1049l");
+    expect(terminal.writes.join("")).toContain("\u001b[?1003l");
+    const count = terminal.writes.length;
+    await shell.dispose();
+    expect(terminal.writes).toHaveLength(count);
+  });
+
+  it("never paints or copies Pi selection for an empty transcript drag", async () => {
+    const { shell, terminal } = await fixture([], [], true);
+    try {
+      const start = terminal.writes.length;
+      terminal.input("\u001b[<0;4;2M");
+      terminal.input("\u001b[<32;20;5M");
+      shell.runtime.renderNow();
+      terminal.input("\u001b[<0;20;5m");
+      await nextImmediate();
+      shell.runtime.renderNow();
+      const output = terminal.writes.slice(start).join("");
+      expect(output).not.toContain("Copied!");
+      expect(output).not.toContain("\u001b]52;c;");
+      expect(output).not.toContain("\u001b[7m");
+      terminal.input("still usable");
+      await nextImmediate();
+      expect(shell.root.editor.getText()).toBe("still usable");
+    } finally { await shell.dispose(); }
+  });
+
   it("prefetches before settlement, reveals atomically at settlement, and requires Tab before Enter", async () => {
     const messages = [
       { role: "user", content: "fix it", timestamp: 1 },
@@ -2824,6 +2989,27 @@ describe("OwnedUiSessionShell", () => {
     expect(engine.session.calls).toContain("prompt:steer now");
     expect(engine.session.calls).toContain("prompt:follow later");
     await shell.dispose();
+  });
+
+  it.each(["steer", "follow-up"])("rejects an invalid deferred %s once and continues valid queued work", async type => {
+    const { engine, adapter, shell } = await fixture([], [], true);
+    try {
+      engine.session.emit({ type: "compaction_start", reason: "manual" });
+      await adapter.flushEvents();
+      const attachment = { type: "image" as const, data: "aA==", mimeType: "image/png" };
+      const preparation = vi.spyOn(shell.root, "preparePromptSubmission").mockReturnValueOnce({ text: "bad later", images: [attachment] });
+      if (type === "follow-up") { shell.root.editor.setText("bad later"); await shell.queueFollowUp(); }
+      else await shell.submit("bad later");
+      preparation.mockRestore();
+      await shell.submit("good later");
+      attachment.data = "invalid!";
+      engine.session.emit({ type: "compaction_end", reason: "manual", result: {}, aborted: false, willRetry: false });
+      await adapter.flushEvents();
+      await nextImmediate();
+      expect(engine.session.calls.filter(call => call.startsWith("prompt:"))).toEqual(["prompt:good later"]);
+      expect(shell.root.editor.getText()).toBe("bad later");
+      expect(stripTerminalSequences(shell.root.render(100).join("\n")).match(/Image data is invalid/g)).toHaveLength(1);
+    } finally { await shell.dispose(); }
   });
 
   it("retains compaction-time input and restores queued steering and follow-up text", async () => {

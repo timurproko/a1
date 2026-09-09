@@ -21,8 +21,13 @@
     },
     {
       "path": "bin/ui.js",
-      "line": 35,
+      "line": 5,
       "identifier": "A1_LAUNCH_PROFILE"
+    },
+    {
+      "path": "bin/ui.js",
+      "line": 12,
+      "identifier": "A1_RELEASE_ID"
     },
     {
       "path": "scripts/development/build-process-guardian.mjs",
@@ -36,27 +41,27 @@
     },
     {
       "path": "scripts/development/start-local.mjs",
-      "line": 26,
+      "line": 27,
       "identifier": "A1_LAUNCH_PROFILE"
     },
     {
       "path": "scripts/development/start-local.mjs",
-      "line": 30,
+      "line": 31,
       "identifier": "A1_CONFIG_DIR"
     },
     {
       "path": "scripts/development/start-local.mjs",
-      "line": 31,
+      "line": 32,
       "identifier": "A1_DATA_DIR"
     },
     {
       "path": "scripts/development/start-local.mjs",
-      "line": 32,
+      "line": 33,
       "identifier": "A1_RUNTIME_DIR"
     },
     {
       "path": "scripts/development/start-local.mjs",
-      "line": 33,
+      "line": 34,
       "identifier": "A1_DATABASE_PATH"
     },
     {
