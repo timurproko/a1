@@ -768,10 +768,10 @@
       ]
     },
     {
-      "id": "test/foundation/release/cohort-state.test.ts:63:76",
+      "id": "test/foundation/release/cohort-state.test.ts:114:76",
       "path": "test/foundation/release/cohort-state.test.ts",
       "locationKind": "content",
-      "line": 63,
+      "line": 114,
       "column": 76,
       "value": "addone",
       "context": "await writeFile(store.path, JSON.stringify({ ...emptyState(), schema: \"addone-release-cohort-v1\" }));",
@@ -1281,5 +1281,5 @@
       ]
     }
   ],
-  "generatedAt": "2026-09-06T11:09:14.085Z"
+  "generatedAt": "2026-09-11T06:44:39.635Z"
 }

@@ -6,7 +6,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   CohortStateStore,
   createUpdateLifecycleCoordinator,
+  emptyState,
   planUpdateOwnership,
+  type CohortState,
   type MaterializedRelease,
 } from "../../../src/foundation/release/index.js";
 import { resolveCohortEndpoint, resolveProductPaths } from "../../../src/foundation/lifecycle/index.js";
@@ -60,23 +62,58 @@ async function liveCohort(kind: "retained" | "mutable-install") {
     : resolve(tmpdir(), `a1-live-${randomUUID().slice(0, 8)}.sock`);
   if (process.platform !== "win32") cleanupRoots.push(endpoint);
 
-  const state = new CohortStateStore(root);
-  await state.recordCandidate(release);
-  await state.approve(releaseId, resolve(root, "certification.json"));
-  await state.activate(releaseId);
+  const timestamp = new Date(0).toISOString();
+  // Performance: ownership starts from an already-active snapshot; cohort-state tests cover durable transitions.
+  const state = {
+    ...emptyState(),
+    revision: 3,
+    releases: { [releaseId]: {
+      releaseId,
+      releaseRoot,
+      packageVersion: release.packageVersion,
+      contentDigest: digest,
+      approval: "approved",
+      materializedAt: timestamp,
+      certifiedAt: timestamp,
+      diagnosticsPath: resolve(root, "certification.json"),
+    } },
+    references: { active: releaseId, pending: null, approved: releaseId, rollback: null, retention: [] },
+  } satisfies CohortState;
+  await timedPhase("seed-active-release", async () => {
+    const stateStore = new CohortStateStore(root);
+    await writeFile(stateStore.path, JSON.stringify(state));
+    expect(await stateStore.read()).toEqual(state);
+  });
 
   const terminate = vi.fn();
-  const store = new ControlStore(resolve(root, "control.sqlite3"), "boot");
-  const server = new SupervisorServer(
-    store,
-    { ...paths, endpoint, endpointMetadataPath: cohort.endpointMetadataPath },
-    release,
-    "00000000-0000-4000-8000-000000000001",
-    terminate,
-  );
+  const server = await timedPhase("create-control-store-and-supervisor", () => {
+    // Performance: these tests probe a live endpoint, not disk persistence; retain real isolated SQL state without WAL flushes.
+    const store = new ControlStore(":memory:", "boot");
+    try {
+      return new SupervisorServer(
+        store,
+        { ...paths, endpoint, endpointMetadataPath: cohort.endpointMetadataPath },
+        release,
+        "00000000-0000-4000-8000-000000000001",
+        terminate,
+      );
+    } catch (error) {
+      store.close();
+      throw error;
+    }
+  });
   servers.push(server);
-  await server.listen();
+  await timedPhase("listen-and-publish-endpoint", () => server.listen());
   return { environment, release, cohort, server, terminate };
+}
+
+async function timedPhase<T>(phase: string, operation: () => T | Promise<T>): Promise<T> {
+  const started = performance.now();
+  try {
+    return await operation();
+  } finally {
+    console.info(JSON.stringify({ fixture: "update-live-cohort", phase, durationMs: Math.round(performance.now() - started) }));
+  }
 }
 
 describe("update ownership with a live cohort", () => {
@@ -88,7 +125,7 @@ describe("update ownership with a live cohort", () => {
       stderr: () => {},
     });
 
-    const result = await coordinator.shutdownVerifiedOwners("1.3.0");
+    const result = await timedPhase("probe-and-preserve-owner", () => coordinator.shutdownVerifiedOwners("1.3.0"));
 
     expect(result.priorActiveVersion).toBe("1.2.0");
     expect(terminate).not.toHaveBeenCalled();
@@ -104,7 +141,7 @@ describe("update ownership with a live cohort", () => {
       stderr: () => {},
     });
 
-    await coordinator.shutdownVerifiedOwners("1.3.0");
+    await timedPhase("probe-and-preserve-owner", () => coordinator.shutdownVerifiedOwners("1.3.0"));
 
     // Rationale: leaving sessions running is the expected outcome; announcing it would tear the
     // update progress bar, so nothing is written.
