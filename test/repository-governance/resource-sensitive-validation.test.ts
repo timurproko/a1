@@ -1,8 +1,10 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { createTierPlan, loadValidationSuites, runTierPlan } from "../../scripts/release/validation-tier.mjs";
+
+const resourceSensitiveChange = "stabilize-resource-sensitive-validation";
 
 const resourceSensitiveTests = [
   "test/repository-governance/validation-impact.test.ts",
@@ -139,7 +141,7 @@ describe("resource-sensitive validation partition", () => {
   });
 
   it("preserves incident and repeated focused execution evidence", async () => {
-    const regression = JSON.parse(await readFile("openspec/changes/stabilize-resource-sensitive-validation/evidence/resource-sensitive-validation-regression.json", "utf8"));
+    const { regression, execution } = await readResourceSensitiveEvidence();
     expect(regression).toMatchObject({
       schema: "a1-resource-sensitive-validation-regression-v1",
       policy: { testTimeoutMs: 5000, timeoutIncreaseAllowed: false, automaticRetries: 0, fileParallelism: false },
@@ -159,7 +161,6 @@ describe("resource-sensitive validation partition", () => {
       expect(incident.excludedUnrelatedFailures.length).toBeGreaterThan(0);
     }
 
-    const execution = JSON.parse(await readFile("openspec/changes/stabilize-resource-sensitive-validation/evidence/resource-sensitive-execution.json", "utf8"));
     expect(execution).toMatchObject({
       schema: "a1-resource-sensitive-execution-v1",
       policy: { fileParallelism: false, timeoutMs: 5000, timeoutSource: "vitest-default", retries: 0, timeoutOverridePresent: false },
@@ -173,6 +174,105 @@ describe("resource-sensitive validation partition", () => {
     }
   });
 });
+
+describe("resource-sensitive evidence location", () => {
+  it.each(["2026-09-11", "2027-01-02"])("preserves both evidence records through a %s archive move", async date => {
+    const source = await readResourceSensitiveEvidence();
+    const repository = await evidenceFixture(source);
+    try {
+      expect(await readResourceSensitiveEvidence(repository)).toEqual(source);
+      const changes = join(repository, "openspec", "changes");
+      await mkdir(join(changes, "archive"));
+      await rename(join(changes, resourceSensitiveChange), join(changes, "archive", `${date}-${resourceSensitiveChange}`));
+      expect(await readResourceSensitiveEvidence(repository)).toEqual(source);
+    } finally {
+      await rm(repository, { recursive: true, force: true });
+    }
+  });
+
+  it.each([
+    { label: "missing change", locations: [] },
+    { label: "unrelated and near-match names", locations: ["archive/2026-09-11-other-change", `archive/undated-${resourceSensitiveChange}`, `archive/2026-09-11-${resourceSensitiveChange}-other`] },
+    { label: "active and archived copies", locations: [resourceSensitiveChange, `archive/2026-09-11-${resourceSensitiveChange}`] },
+    { label: "multiple archived copies", locations: [`archive/2026-09-11-${resourceSensitiveChange}`, `archive/2026-09-12-${resourceSensitiveChange}`] },
+  ])("rejects $label rather than choosing arbitrary evidence", async ({ locations }) => {
+    const repository = await mkdtemp(join(tmpdir(), "a1-evidence-location-"));
+    try {
+      const changes = join(repository, "openspec", "changes");
+      await mkdir(changes, { recursive: true });
+      for (const location of locations) await mkdir(join(changes, location), { recursive: true });
+      await expect(readResourceSensitiveEvidence(repository)).rejects.toThrow("Expected exactly one active or archived");
+    } finally {
+      await rm(repository, { recursive: true, force: true });
+    }
+  });
+
+  it.each([
+    { filename: "resource-sensitive-validation-regression.json", corrupt: false },
+    { filename: "resource-sensitive-execution.json", corrupt: false },
+    { filename: "resource-sensitive-validation-regression.json", corrupt: true },
+    { filename: "resource-sensitive-execution.json", corrupt: true },
+  ])("fails closed for invalid $filename (corrupt=$corrupt)", async ({ filename, corrupt }) => {
+    const repository = await evidenceFixture(await readResourceSensitiveEvidence());
+    try {
+      const path = join(repository, "openspec", "changes", resourceSensitiveChange, "evidence", filename);
+      if (corrupt) await writeFile(path, "{invalid JSON", "utf8");
+      else await rm(path);
+      await expect(readResourceSensitiveEvidence(repository)).rejects.toThrow(corrupt ? SyntaxError : /ENOENT/u);
+    } finally {
+      await rm(repository, { recursive: true, force: true });
+    }
+  });
+
+  it("propagates an invalid archive directory instead of ignoring it", async () => {
+    const repository = await evidenceFixture(await readResourceSensitiveEvidence());
+    try {
+      await writeFile(join(repository, "openspec", "changes", "archive"), "not a directory", "utf8");
+      await expect(readResourceSensitiveEvidence(repository)).rejects.toThrow(/ENOTDIR/u);
+    } finally {
+      await rm(repository, { recursive: true, force: true });
+    }
+  });
+});
+
+// Invariant: Select one change directory before reading either file; never mix evidence across copies.
+async function readResourceSensitiveEvidence(repository = process.cwd()) {
+  const changes = join(repository, "openspec", "changes");
+  const entries = await readdir(changes, { withFileTypes: true });
+  const candidates = entries
+    .filter(entry => entry.isDirectory() && entry.name === resourceSensitiveChange)
+    .map(entry => join(changes, entry.name));
+  if (entries.some(entry => entry.name === "archive")) {
+    const archived = await readdir(join(changes, "archive"), { withFileTypes: true });
+    for (const entry of archived) {
+      if (entry.isDirectory() && /^\d{4}-\d{2}-\d{2}-/u.test(entry.name) && entry.name.slice(11) === resourceSensitiveChange) {
+        candidates.push(join(changes, "archive", entry.name));
+      }
+    }
+  }
+  if (candidates.length !== 1) {
+    throw new Error(`Expected exactly one active or archived ${resourceSensitiveChange} directory; found ${candidates.length}: ${candidates.join(", ")}`);
+  }
+  const evidence = join(candidates[0]!, "evidence");
+  return {
+    regression: JSON.parse(await readFile(join(evidence, "resource-sensitive-validation-regression.json"), "utf8")),
+    execution: JSON.parse(await readFile(join(evidence, "resource-sensitive-execution.json"), "utf8")),
+  };
+}
+
+async function evidenceFixture(source: Awaited<ReturnType<typeof readResourceSensitiveEvidence>>) {
+  const repository = await mkdtemp(join(tmpdir(), "a1-evidence-location-"));
+  try {
+    const evidence = join(repository, "openspec", "changes", resourceSensitiveChange, "evidence");
+    await mkdir(evidence, { recursive: true });
+    await writeFile(join(evidence, "resource-sensitive-validation-regression.json"), JSON.stringify(source.regression), "utf8");
+    await writeFile(join(evidence, "resource-sensitive-execution.json"), JSON.stringify(source.execution), "utf8");
+    return repository;
+  } catch (error) {
+    await rm(repository, { recursive: true, force: true });
+    throw error;
+  }
+}
 
 async function suiteFixture(suites: any) {
   const repository = await mkdtemp(join(tmpdir(), "a1-validation-suite-"));
