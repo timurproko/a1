@@ -94,6 +94,24 @@ afterEach(() => {
 });
 
 describe("owned UI settings session", () => {
+  it("preserves multiple pending history settings through reload and unrelated live saves", async () => {
+    const store = new OwnedUiSettingsStore({ configDir: root, profileId: "a1" });
+    const session = new OwnedUiSettingsSession({ store });
+    await session.change("a1", "promptHistoryEnabled", false);
+    await session.change("a1", "promptHistoryMaxItems", 20);
+    await session.change("a1", "promptSuggestions", false);
+    await session.load();
+    expect(session.value("promptHistoryEnabled")).toBe(true);
+    expect(session.value("promptHistoryMaxItems")).toBe(100);
+    const entries = session.sections().flatMap(section => section.entries);
+    expect(entries.find(entry => entry.id === "promptHistoryEnabled")).toMatchObject({ storedValue: false, effectiveValue: true, application: "next-start" });
+    expect(entries.find(entry => entry.id === "promptHistoryMaxItems")).toMatchObject({ storedValue: 20, effectiveValue: 100 });
+    const restarted = new OwnedUiSettingsSession({ store });
+    expect(restarted.value("promptHistoryEnabled")).toBe(false);
+    expect(restarted.value("promptHistoryMaxItems")).toBe(20);
+    expect(restarted.value("promptSuggestions")).toBe(false);
+  });
+
   it("exposes resolved A1 values and engine-backed sections after load", async () => {
     const target = session(syntheticPort());
     await target.load();

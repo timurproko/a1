@@ -125,6 +125,7 @@ export interface OwnedUiClipboardPort {
 }
 
 export interface OwnedUiSessionShellOptions {
+  readonly promptHistory?: { readonly store: import("../../../contracts/owned-ui/index.js").PromptHistoryPort; readonly limit: number; readonly editor: import("../components/index.js").HistoryEditorConstructor };
   readonly backend: OwnedUiBackendPort;
   readonly cwd: string;
   readonly terminal?: OwnedUiTerminalPort;
@@ -246,6 +247,8 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       readonly onViewportFrame?: (frame: TranscriptViewportFrame) => void;
       readonly requestHyperlinkCleanup?: () => void;
       readonly enableDockInputReuse?: boolean;
+      readonly persistentHistory?: boolean;
+      readonly historyEditor?: import("../components/index.js").HistoryEditorConstructor;
       readonly onSubmit: (text: string) => void;
       readonly onPasteRejected?: (error: unknown) => void;
       readonly onInterrupt: () => void;
@@ -448,6 +451,10 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.#imageWidthCells = imageWidthCells;
     for (const component of this.#transcript.values()) component.setImagePresentation(showImages, imageWidthCells);
     this.#invalidateTranscriptPresentation();
+  }
+
+  prepareHistoryText(text: string): string {
+    return this.#promptChips.prepareHistoryText(text);
   }
 
   preparePromptSubmission(text: string): PreparedPrompt {

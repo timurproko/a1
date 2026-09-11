@@ -1,9 +1,11 @@
-import type { AgentSessionRuntime } from "@earendil-works/pi-coding-agent";
+import { memoryHistory } from "./prompt-history-fixture.js";
+import type { AgentSessionRuntime, ExtensionUIContext } from "@earendil-works/pi-coding-agent";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CURSOR_MARKER, stripTerminalSequences, visibleWidth } from "@earendil-works/pi-tui";
 import {
+  Editor,
   getCapabilities as getPinnedPiTuiCapabilities,
   getOsc8LinkAtColumn as getPinnedPiTuiLinkAtColumn,
   setCapabilities as setPinnedPiTuiCapabilities,
@@ -15,7 +17,7 @@ import {
   PINNED_PI_HIDDEN_COMMAND_NAMES,
   PINNED_PI_WORKFLOW_COMMAND_NAMES,
 } from "../../../../src/integrations/pi/engine/index.js";
-import { applyPiTheme, piTheme } from "../../../../src/integrations/pi/components/index.js";
+import { applyPiTheme, piTheme, loadHistoryEditor } from "../../../../src/integrations/pi/components/index.js";
 import {
   formatSessionResumeCommand,
   OwnedUiSessionShell,
@@ -179,6 +181,7 @@ async function fixture(
   streamPresentation?: OwnedUiSessionShellOptions["streamPresentation"],
   inputPresentation?: OwnedUiSessionShellOptions["inputPresentation"],
   promptSuggestions?: OwnedUiSessionShellOptions["promptSuggestions"],
+  promptHistory?: Omit<NonNullable<OwnedUiSessionShellOptions["promptHistory"]>, "editor">,
 ) {
   const engine = new Runtime(messages);
   engine.extensionResources = extensions;
@@ -194,6 +197,7 @@ async function fixture(
     ...(streamPresentation === undefined ? {} : { streamPresentation }),
     ...(inputPresentation === undefined ? {} : { inputPresentation }),
     ...(promptSuggestions === undefined ? {} : { promptSuggestions }),
+    ...(promptHistory === undefined ? {} : { promptHistory: { ...promptHistory, editor: await loadHistoryEditor() } }),
   });
   shell.start();
   shell.runtime.renderNow();
@@ -2685,6 +2689,90 @@ describe("OwnedUiSessionShell", () => {
     terminal.input("\x1b");
     expect(shell.root.usesDefaultInputSurface()).toBe(true);
     await shell.dispose();
+  });
+
+  it("captures eligible user input once and never persists replay or workflow navigation", async () => {
+    const history = memoryHistory();
+    const { shell, engine } = await fixture([{ role: "user", content: "loaded", timestamp: 1 }], [], true,
+      undefined, undefined, undefined, undefined, undefined, { store: history.store, limit: 100 });
+    try {
+      expect(history.store.start).toHaveBeenCalledOnce();
+      expect(history.submitted).toHaveLength(0);
+      await shell.submit("ordinary");
+      await shell.submit("!echo test");
+      await shell.submit("/skill:test arg");
+      shell.root.editor.setText("follow up"); await shell.queueFollowUp();
+      await shell.submit("/session");
+      expect(history.submitted.map(item => [item.kind, item.text])).toEqual([
+        ["prompt", "ordinary"], ["bash", "!echo test"], ["slash", "/skill:test arg"], ["follow-up", "follow up"],
+      ]);
+      expect(engine.session.calls).toContain("prompt:ordinary");
+    } finally { await shell.dispose(); }
+    expect(history.store.close).toHaveBeenCalledOnce();
+  });
+
+  it("records streaming and compaction inputs once while excluding generated backend prompts", async () => {
+    const history = memoryHistory();
+    const { shell, engine, adapter } = await fixture([], [], true, undefined, undefined, undefined, undefined, undefined,
+      { store: history.store, limit: 100 });
+    try {
+      await adapter.execute({ type: "prompt", correlationId: "generated-input", sessionId: adapter.sessionId, text: "generated input" });
+      expect(history.submitted).toHaveLength(0);
+      engine.session.emit({ type: "agent_start" }); await adapter.flushEvents();
+      await shell.submit("streaming steer");
+      engine.session.emit({ type: "compaction_start", reason: "manual" }); await adapter.flushEvents();
+      await shell.submit("queued steer");
+      shell.root.editor.setText("queued follow"); await shell.queueFollowUp();
+      expect(history.submitted.map(item => item.kind)).toEqual(["steer", "steer", "follow-up"]);
+      engine.session.emit({ type: "compaction_end", reason: "manual", result: {}, aborted: false, willRetry: false });
+      await adapter.flushEvents(); await nextImmediate();
+      expect(history.submitted).toHaveLength(3);
+      const dispatch = vi.spyOn(adapter, "execute").mockRejectedValueOnce(new Error("private provider sentinel"));
+      await shell.submit("recover me");
+      expect(history.submitted.filter(item => item.text === "recover me")).toHaveLength(1);
+      expect(stripTerminalSequences(shell.root.render(80).join("\n"))).not.toContain("private provider sentinel");
+      dispatch.mockRestore();
+    } finally { await shell.dispose(); }
+  });
+
+  it("preserves a typed draft while saved history refreshes and replacement surfaces suspend synchronization", async () => {
+    const history = memoryHistory();
+    const { shell, terminal, engine } = await fixture([], [], true, undefined, undefined, undefined, undefined, undefined,
+      { store: history.store, limit: 100 });
+    try {
+      shell.root.editor.setText("draft"); history.emit(["newest", "older"]);
+      terminal.input("\x1b[A"); terminal.input("\x1b[A");
+      await vi.waitFor(() => expect(shell.root.editor.getText()).toBe("newest"));
+      expect(stripTerminalSequences(shell.root.editor.render(80).join("\n"))).toContain("History 2/2");
+      history.emit(["remote", "newest", "older"]);
+      expect(shell.root.editor.recall?.position()).toEqual({ index: 0, total: 2 });
+      terminal.input("\x1b[B");
+      await vi.waitFor(() => expect(shell.root.editor.getText()).toBe("draft"));
+      const ui = (engine.session.extensionBindings as { uiContext: ExtensionUIContext }).uiContext;
+      ui.setEditorComponent(tui => new Editor(tui, {
+        borderColor: text => text,
+        selectList: { selectedPrefix: text => text, selectedText: text => text, description: text => text, scrollInfo: text => text, noMatch: text => text },
+      }));
+      expect(shell.root.usesDefaultInputSurface()).toBe(false);
+      history.emit(["custom-session update"]);
+      expect(shell.root.editor.recall?.position().total).toBe(3);
+      ui.setEditorComponent(undefined);
+      expect(shell.root.editor.recall?.position().total).toBe(1);
+      expect(shell.root.editor.getText()).toBe("draft");
+      expect(history.submitted).toHaveLength(0);
+    } finally { await shell.dispose(); }
+  });
+
+  it("does not initialize history for the pinned comparison editor", async () => {
+    const history = memoryHistory();
+    const { shell } = await fixture([], [], false, undefined, undefined, undefined, undefined, undefined,
+      { store: history.store, limit: 100 });
+    try {
+      expect(shell.root.editor.recall).toBeUndefined();
+      await shell.submit("local only");
+      expect(history.store.start).not.toHaveBeenCalled();
+      expect(history.submitted).toHaveLength(0);
+    } finally { await shell.dispose(); }
   });
 
   it("populates and updates current-session prompt history with pinned Up/Down draft restoration", async () => {

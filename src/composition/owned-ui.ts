@@ -1,5 +1,6 @@
+import { PromptHistoryService } from "../features/prompt-history/index.js";
 import { resolveProductPaths, type SessionSelection } from "../foundation/lifecycle/index.js";
-import { applyConfiguredPiTheme, getAvailablePiThemes } from "../integrations/pi/components/index.js";
+import { applyConfiguredPiTheme, getAvailablePiThemes, loadHistoryEditor } from "../integrations/pi/components/index.js";
 import {
   createPiEngineAdapter,
   type PiEngineAdapter,
@@ -79,6 +80,15 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     enabled: () => settings.value("promptSuggestions") !== false,
     onChange: (listener: (enabled: boolean) => void) => settings.onChange(() => listener(settings.value("promptSuggestions") !== false)),
   };
+  const historyLimit = settings?.value("promptHistoryMaxItems");
+  const promptHistory = settings === null || !ownedSurfaces || settings.value("promptHistoryEnabled") === false ? null : {
+    limit: typeof historyLimit === "number" ? historyLimit : 100,
+    store: new PromptHistoryService({
+      dataDir: resolveProductPaths().dataDir,
+      profileRoot: adapter.agentDir,
+      limit: typeof historyLimit === "number" ? historyLimit : 100,
+    }),
+  };
   const shell = new OwnedUiSessionShell({
     backend: adapter,
     cwd: adapter.cwd,
@@ -87,6 +97,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     ...(ownedSurfaces ? { sessionLayout: "custom-viewport" as const } : {}),
     ...(viewportSettings === null ? {} : { viewportSettings }),
     ...(promptSuggestions === null ? {} : { promptSuggestions }),
+    ...(promptHistory === null ? {} : { promptHistory: { ...promptHistory, editor: await loadHistoryEditor() } }),
   });
   const application: OwnedUiApplicationPort = {
     get disposed() { return adapter.disposed; },

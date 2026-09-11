@@ -2,6 +2,7 @@ import { readFile, readdir } from "node:fs/promises";
 import { extname, relative, resolve, sep } from "node:path";
 import { inspectPiFeatureBoundaryImports, inspectProjectOwnerLayout, inspectProjectStructureImports, projectOwnerForPath, testOwnerForPath } from "./project-structure-policy.mjs";
 import { inspectPiProductionBoundary } from "./pi-api-boundary-policy.mjs";
+import { PRINTABLE_HELPER_PATH, isExactPrintableHelper, readPinnedKeySource } from "./history-editor-source-policy.mjs";
 
 const rootArgument = process.argv.indexOf("--root");
 const allowPartialLayout = process.argv.includes("--allow-partial-layout");
@@ -148,7 +149,11 @@ for (const file of await walk(sourceRoot)) {
     { pattern: /\b(?:sourceFrame|frameCadence|quiescence(?:Ms|Timer|Deadline)?|adaptiveFrame|cadenceWindow)\b/i, label: "cadence-derived frame inference" },
   ];
   for (const { pattern, label } of retiredMechanisms) {
-    if (pattern.test(source)) errors.push(`${path}: ${label} is forbidden`);
+    if (!pattern.test(source)) continue;
+    // Provenance: only the exact approved editor-local source subset is exempt, never an arbitrary parser at this path.
+    if (label === "custom terminal input parser/encoder" && path === PRINTABLE_HELPER_PATH
+      && isExactPrintableHelper(source, await readPinnedKeySource())) continue;
+    errors.push(`${path}: ${label} is forbidden`);
   }
 
   if (path.startsWith("src/foundation/transparent-terminal/")) {

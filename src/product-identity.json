@@ -71,6 +71,7 @@
     "nativeHostSchema": "a1-native-host-v1",
     "structuredAgentSchema": "a1-structured-agent-v1",
     "controlStoreSchema": "a1-control-store-v1",
+    "promptHistorySchema": "a1-prompt-history-v1",
     "releaseCohortSchema": "a1-release-cohort-v1",
     "updateJournalSchema": "a1-update-journal-v1"
   },

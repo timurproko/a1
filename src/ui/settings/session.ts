@@ -47,6 +47,7 @@ export class OwnedUiSettingsSession {
   #resolution: OwnedUiSettingsResolution;
   #agentSnapshot: AgentSettingsSnapshot | null = null;
   #pending = new Map<string, OwnedUiSettingValue>();
+  readonly #restartEffective = new Map<string, OwnedUiSettingValue>();
 
   constructor(options: OwnedUiSettingsSessionOptions) {
     this.#store = options.store;
@@ -54,6 +55,9 @@ export class OwnedUiSettingsSession {
     this.#agentProvider = options.agentProvider ?? null;
     this.#hiddenAgentSettingIds = new Set(options.hiddenAgentSettingIds ?? []);
     this.#resolution = options.store.read();
+    for (const setting of this.#resolution.settings) {
+      if (setting.declaration.application === "restart") this.#restartEffective.set(setting.declaration.id, setting.value);
+    }
   }
 
   get resolution(): OwnedUiSettingsResolution {
@@ -68,11 +72,16 @@ export class OwnedUiSettingsSession {
   }
 
   sections(): readonly OwnedUiSettingsSection[] {
-    return buildOwnedUiSettingsSections({ resolution: this.#resolution, agent: this.#agentSnapshot });
+    return buildOwnedUiSettingsSections({ resolution: this.#resolution, agent: this.#agentSnapshot }).map(section => ({
+      ...section,
+      entries: section.entries.map(entry => entry.backend === "a1" && this.#restartEffective.has(entry.id)
+        ? { ...entry, effectiveValue: this.#restartEffective.get(entry.id)! }
+        : entry),
+    }));
   }
 
   value(id: string): OwnedUiSettingValue | null {
-    return this.#resolution.settings.find(setting => setting.declaration.id === id)?.value ?? null;
+    return this.#restartEffective.get(id) ?? this.#resolution.settings.find(setting => setting.declaration.id === id)?.value ?? null;
   }
 
   pendingValue(id: string): OwnedUiSettingValue | null {
@@ -113,9 +122,8 @@ export class OwnedUiSettingsSession {
     const previousSetting = previous.settings.find(setting => setting.declaration.id === id);
     if (previousSetting?.declaration.application === "restart") {
       this.#pending.set(id, value);
-      this.#resolution = previous;
       this.#notify();
-      return changed("deferred", "next-start", value as AgentJsonValue, previousSetting.value as AgentJsonValue);
+      return changed("deferred", "next-start", value as AgentJsonValue, this.#restartEffective.get(id) as AgentJsonValue);
     }
     this.#pending.delete(id);
     this.#notify();

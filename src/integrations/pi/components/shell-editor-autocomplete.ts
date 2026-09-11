@@ -5,9 +5,7 @@ import {
   setKeybindings,
   type AutocompleteProvider,
 } from "#pi-tui";
-import type {
-  OwnedUiThinkingLevel,
-} from "../../../contracts/owned-ui/index.js";
+import { PROMPT_HISTORY_EDITOR_REPLACEMENT, type OwnedUiThinkingLevel } from "../../../contracts/owned-ui/index.js";
 import { KeybindingsManager } from "./upstream/adjacent/core/keybindings.js";
 import { OwnedEditor } from "./upstream/components/owned-editor.js";
 import {
@@ -59,12 +57,17 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
     ? KeybindingsManager.createForOwnedInput(options.agentDir)
     : KeybindingsManager.create(options.agentDir);
   setKeybindings(keybindings);
-  const editor = new OwnedEditor(tui, {
+  if (options.persistentHistory === true && options.keybindingProfile === "a1" && options.historyEditor === undefined) {
+    throw new Error("Persistent history requires the loaded owned editor");
+  }
+  const EditorClass = options.keybindingProfile === "a1" && options.persistentHistory === true ? options.historyEditor! : OwnedEditor;
+  const editor = new EditorClass(tui, {
     borderColor: (value: string) => piTheme().fg("borderMuted", value),
     selectList: getSelectListTheme(),
   }, keybindings, {
     paddingX: PINNED_PI_LAYOUT.editorPaddingX,
     autocompleteMaxVisible: PINNED_PI_LAYOUT.autocompleteMaxVisible,
+    persistentHistory: options.persistentHistory === true,
     ...(options.keybindingProfile === "a1" && options.promptPresentation !== undefined ? {
       promptPrefix: options.promptPresentation.prefix,
       styleSuggestion: options.promptPresentation.styleSuggestion,
@@ -176,6 +179,7 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
       editor.insertTextAtCursor(text);
     },
     addToHistory: text => editor.addToHistory(text),
+    ...(editor.recall === undefined ? {} : { recall: editor.recall, historyReplacement: PROMPT_HISTORY_EDITOR_REPLACEMENT }),
     setSubmitEnabled: enabled => {
       editor.disableSubmit = !enabled;
     },
