@@ -1,6 +1,6 @@
 ## Status
 
-The maintainer accepted the existing suggestion behavior on 2026-09-11, then requested one adjustment before archival: show `Prompt suggestions` in the existing `Agent` settings section instead of `A1`. This amendment changes presentation grouping only. The change remains active until a separately authorized implementation moves the control and the maintainer accepts that placement; the prior feature acceptance is preserved and does not imply that the relocation is already implemented. The abandoned suggestion-cache optimization remains separate.
+Accepted for archival on 2026-09-11. The original suggestion behavior was accepted before the requested presentation-only move from A1 to Agent. That correction subsequently merged in PR #302 with all required final-head CI checks passing, and the maintainer explicitly accepted the Agent placement and requested archival. See `acceptance.md` for the exact verdict, merge/CI evidence, handoff, and evidence limits. The proposal below preserves the delivered scope; the abandoned suggestion-cache optimization remains separate.
 
 ## Why
 
