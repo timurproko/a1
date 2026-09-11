@@ -42,6 +42,8 @@ describe("profile history store", () => {
     expect(store.snapshot().entries).toHaveLength(8);
   });
 
+  // Rationale: This checks capacity after 25 FULL-synchronous 1 MiB commits, not latency.
+  // Allow slower Windows CI disks without shrinking the durable-write workload.
   it("bounds physical storage and rejects oversized files without erasing them", () => {
     const store = open();
     for (let index = 0; index < 25; index++) store.record(prompt(`bounded-${index}`, String(index).padStart(2, "0") + "x".repeat(1024 * 1024 - 2)));
@@ -53,7 +55,7 @@ describe("profile history store", () => {
     writeFileSync(excessive, "preserve"); truncateSync(excessive, 64 * 1024 * 1024 + 1);
     expect(() => open(excessive)).toThrow("capacity");
     expect(statSync(excessive).size).toBe(64 * 1024 * 1024 + 1);
-  });
+  }, 30_000);
 
   it("preserves damaged and wrong-profile stores", () => {
     const path = join(root(), "damaged.sqlite3"); writeFileSync(path, "not a database");
