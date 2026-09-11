@@ -6,7 +6,7 @@ import { createTierPlan, loadValidationSuites, runTierPlan } from "../../scripts
 
 const resourceSensitiveChange = "stabilize-resource-sensitive-validation";
 
-const resourceSensitiveTests = [
+const originalResourceSensitiveTests = [
   "test/repository-governance/validation-impact.test.ts",
   "test/repository-governance/code-documentation.test.ts",
   "test/foundation/storage/storage.test.ts",
@@ -14,6 +14,9 @@ const resourceSensitiveTests = [
   "test/foundation/release/update-live-cohort.test.ts",
   "test/features/workspace/reconciliation.test.ts",
 ];
+
+// Provenance: archived incident evidence keeps its original partition; new heavy stores join only the active partition.
+const resourceSensitiveTests = [...originalResourceSensitiveTests, "test/features/prompt-history/store.test.ts"];
 
 function invocation(plan: Awaited<ReturnType<typeof createTierPlan>>, id: string) {
   const found = plan.vitest?.invocations.find(candidate => candidate.id === id);
@@ -145,7 +148,7 @@ describe("resource-sensitive validation partition", () => {
     expect(regression).toMatchObject({
       schema: "a1-resource-sensitive-validation-regression-v1",
       policy: { testTimeoutMs: 5000, timeoutIncreaseAllowed: false, automaticRetries: 0, fileParallelism: false },
-      partition: resourceSensitiveTests,
+      partition: originalResourceSensitiveTests,
     });
     expect(regression.incidents.map((incident: any) => incident.workflowRun)).toEqual([33617331350, 33642848728, 33657859943, 33767055550]);
     expect(regression.verification).toMatchObject({
@@ -164,11 +167,11 @@ describe("resource-sensitive validation partition", () => {
     expect(execution).toMatchObject({
       schema: "a1-resource-sensitive-execution-v1",
       policy: { fileParallelism: false, timeoutMs: 5000, timeoutSource: "vitest-default", retries: 0, timeoutOverridePresent: false },
-      invocation: { id: "vitest-fast-resource-sensitive", testFiles: resourceSensitiveTests },
+      invocation: { id: "vitest-fast-resource-sensitive", testFiles: originalResourceSensitiveTests },
     });
     expect(execution.runs).toHaveLength(3);
     for (const run of execution.runs) {
-      expect(run.files.map((file: any) => file.path).sort()).toEqual([...resourceSensitiveTests].sort());
+      expect(run.files.map((file: any) => file.path).sort()).toEqual([...originalResourceSensitiveTests].sort());
       expect(run.files.every((file: any) => file.status === "passed")).toBe(true);
       expect(run.maxTestBodyDurationMs).toBeLessThan(5000);
     }

@@ -45,6 +45,15 @@ a1 pi                                   # vanilla Pi oracle: ~/.pi/agent
 Unsupported commands exit quietly without launching anything. The removed
 `update:<preview>` forms are not aliases; use `update --develop`.
 
+## Prompt history
+
+Bare A1 recalls recent unique prompts across sessions with Up/Down. History is
+stored in a separate profile-local SQLite database under A1's application-data
+root, not `~/.a1/agent` or disposable caches. `/settings` → History controls
+persistence and the 10-100-entry limit (default 100), effective on next start.
+History is unencrypted user text; images are not reattached. See
+[prompt history](docs/features/prompt-history.md) for privacy, storage, and removal.
+
 ## Extensions
 
 Pi extension packages install into A1's own profile (`~/.a1/agent`), so bare `a1`

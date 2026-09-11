@@ -275,6 +275,8 @@ jobs:
         run: node scripts/release/run-validation-tier.mjs package-install --result .artifacts/validation/startup-node${{ matrix.node }}.json
       - name: Validate background and packaged image preparation
         run: npx vitest run test/integrations/pi/session-ui/image-preparation.test.ts test/integrations/pi/session-ui/image-worker-package.test.ts --maxWorkers=1 --minWorkers=1
+      - name: Validate durable history on the selected Node runtime
+        run: npx vitest run test/features/prompt-history --maxWorkers=1 --minWorkers=1
       - name: Upload startup budget evidence
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
@@ -377,6 +379,8 @@ jobs:
         run: npx vitest run test/foundation/process-containment --testTimeout=30000
       - name: Validate background and packaged image preparation
         run: npx vitest run test/integrations/pi/session-ui/image-preparation.test.ts test/integrations/pi/session-ui/image-worker-package.test.ts --maxWorkers=1 --minWorkers=1
+      - name: Validate durable history on Unix
+        run: npx vitest run test/features/prompt-history --maxWorkers=1 --minWorkers=1
       - name: Validate packaged macOS supervision and containment
         if: matrix.os == 'macos-15'
         shell: bash

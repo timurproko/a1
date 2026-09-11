@@ -12,6 +12,19 @@ afterEach(async () => {
 });
 
 describe("PromptChipStore", () => {
+  it("serializes reusable history text and removes only registered image chips", async () => {
+    const store = new PromptChipStore();
+    try {
+      const image = store.transformPastedContent({ kind: "image", data: screenshotPng(4, 4).toString("base64"), mimeType: "image/png" });
+      const url = store.transformPastedContent({ kind: "text", text: "https://example.com/path" });
+      expect(store.prepareHistoryText(`  explain ${image}\n${url}\n[📷 literal.png]  `))
+        .toBe("explain \nhttps://example.com/path\n[📷 literal.png]");
+      expect(store.prepareHistoryText(image)).toBe("");
+      expect(store.prepareHistoryText("/skill:test\n  untouched 👩‍💻"))
+        .toBe("/skill:test\n  untouched 👩‍💻");
+    } finally { await store.dispose(); }
+  });
+
   it("bounds pending images and still enforces the eight-image limit after preparation", async () => {
     const store = new PromptChipStore();
     const data = screenshotPng(4, 4).toString("base64");

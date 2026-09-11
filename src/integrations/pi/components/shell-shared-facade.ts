@@ -12,6 +12,8 @@ import type {
   OwnedUiThinkingLevel,
   OwnedUiTranscriptBlock,
 } from "../../../contracts/owned-ui/index.js";
+import type { HistoryEditorConstructor } from "./history-editor-loader.js";
+import type { EditorRecallPort } from "./editor-interaction.js";
 import type { PresentationComponentPort } from "../../../contracts/presentation/index.js";
 import {
   KeybindingsManager,
@@ -43,6 +45,8 @@ export interface PiShellEditorPointerEvent {
 }
 
 export interface PiShellEditorPort extends PiShellComponentPort {
+  readonly recall?: EditorRecallPort;
+  readonly historyReplacement?: typeof import("../../../contracts/owned-ui/index.js").PROMPT_HISTORY_EDITOR_REPLACEMENT;
   /** Restores this editor's profile after another Pi component changed the global manager. */
   activateKeybindings(): void;
   /** Uses Pi's terminal decoder rather than assuming one terminal escape spelling. */
@@ -145,6 +149,8 @@ export interface PiShellHeaderOptions {
 }
 
 export interface PiShellEditorOptions {
+  readonly persistentHistory?: boolean;
+  readonly historyEditor?: HistoryEditorConstructor;
   /** Bare A1 adds ergonomic aliases while comparison profiles retain Pi defaults. */
   readonly keybindingProfile?: "pi" | "a1";
   readonly getColumns: () => number;

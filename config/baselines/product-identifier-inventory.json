@@ -401,17 +401,17 @@
     },
     {
       "path": "test/foundation/release/release-gc.test.ts",
-      "line": 446,
+      "line": 458,
       "identifier": "A1_DATA_DIR"
     },
     {
       "path": "test/foundation/release/release-gc.test.ts",
-      "line": 447,
+      "line": 459,
       "identifier": "A1_RUNTIME_DIR"
     },
     {
       "path": "test/foundation/release/release-gc.test.ts",
-      "line": 448,
+      "line": 460,
       "identifier": "A1_RELEASE_CLEANUP_RUN_ID"
     },
     {

@@ -95,6 +95,7 @@ describe("validation suite ownership", () => {
       "test/foundation/release/cohort-state.test.ts",
       "test/foundation/release/update-live-cohort.test.ts",
       "test/features/workspace/reconciliation.test.ts",
+      "test/features/prompt-history/store.test.ts",
     ]);
     expect(Object.keys(suites.tiers["fast"]!).filter(key => key.toLowerCase().includes("timeout"))).toEqual([]);
     expect(suites.scopes["typecheck"]!.commands?.map(command => command.id)).toEqual(["typecheck"]);

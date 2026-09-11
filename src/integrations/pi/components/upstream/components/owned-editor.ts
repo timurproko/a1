@@ -15,17 +15,36 @@ import {
   type TUI,
 } from "#pi-tui";
 import type { AppKeybinding, KeybindingsManager } from "../adjacent/core/keybindings.js";
+import type { EditorSurface } from "../../editor-interaction.js";
 
 const PROMPT_GRAPHEMES = new Intl.Segmenter(undefined, { granularity: "grapheme" });
 
 export interface OwnedEditorOptions extends EditorOptions {
+  readonly persistentHistory?: boolean;
+  readonly styleHistoryLabel?: (text: string) => string;
   readonly promptPrefix?: string;
   readonly styleSuggestion?: (text: string) => string;
   readonly styleSuggestionCaret?: (text: string) => string;
   readonly terminalRows?: () => number;
 }
 
-export class OwnedEditor extends Editor {
+export interface ShellEditorInstance extends EditorSurface {
+  readonly actionHandlers: Map<AppKeybinding, () => void>;
+  onEscape?: () => void;
+  onCtrlD?: () => void;
+  onPasteImage?: () => void;
+  onExtensionShortcut?: (data: string) => boolean;
+  onPromptSuggestionAccepted?: (text: string) => void;
+  setPromptSuggestion(text: string | null): void;
+  canPresentPromptSuggestion(): boolean;
+  onAction(action: AppKeybinding, handler: () => void): void;
+}
+
+type EditorConstructor = new (tui: TUI, theme: EditorTheme, options?: EditorOptions) => EditorSurface;
+type ShellEditorConstructor = new (tui: TUI, theme: EditorTheme, keybindings: KeybindingsManager, options?: OwnedEditorOptions) => ShellEditorInstance;
+
+export function createOwnedEditorClass(Base: EditorConstructor): ShellEditorConstructor {
+return class extends Base {
   readonly actionHandlers = new Map<AppKeybinding, () => void>();
   onEscape?: () => void;
   onCtrlD?: () => void;
@@ -162,4 +181,7 @@ export class OwnedEditor extends Editor {
       return `${index === 1 ? this.#promptPrefix : " ".repeat(prefixWidth)}${row}`;
     });
   }
+};
 }
+
+export class OwnedEditor extends createOwnedEditorClass(Editor) {}

@@ -412,6 +412,27 @@ function normalizeSourcePath(source) {
 }
 
 function reconciledSourceUnit(upstreamPath) {
+  const historyPorts = new Map([
+    ["packages/tui/src/components/editor.ts", "editor-core"],
+    ["packages/tui/src/kill-ring.ts", "kill-ring"],
+    ["packages/tui/src/undo-stack.ts", "undo-stack"],
+    ["packages/tui/src/word-navigation.ts", "word-navigation"],
+    ["packages/tui/src/utils.ts", "text-helpers"],
+    ["packages/tui/src/keys.ts", "printable-key"],
+  ]);
+  const historyName = historyPorts.get(upstreamPath);
+  if (historyName) return {
+    classification: "owned-presentation",
+    localDestination: `src/integrations/pi/components/upstream/history/${historyName}.ts`,
+    implementationStatus: "source-synchronized-port",
+    modifications: "Owned editor core or minimal editor-local helper subset; public imports, strict types, typed persistent-history hooks, and semantic border state. Public terminal runtime/exports remain shared and unchanged. See docs/architecture/history-editor-provenance.md.",
+    approvedDeviations: [{
+      id: "persistent-history-owned-editor-boundary",
+      reason: "The accepted persistent-prompt-history change owns the editor state machine rather than mutating private Pi fields; only enabled bare-A1 default-editor history is customized.",
+      upstreamBehavior: "Pinned mode preserves input, undo, paste, autocomplete, and rendering semantics; persistent mode adds atomic snapshots, v2 directional caret placement and numbering, and independent draft paste backing.",
+      acceptanceTest: "test/integrations/pi/components/history-editor-core.test.ts",
+    }],
+  };
   const ownedPorts = new Map([
     ["packages/coding-agent/src/modes/interactive/components/custom-entry.ts", "custom-entry"],
     ["packages/coding-agent/src/modes/interactive/components/daxnuts.ts", "daxnuts"],
