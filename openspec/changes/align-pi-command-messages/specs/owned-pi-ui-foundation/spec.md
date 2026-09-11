@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Command outcome messages retain pinned wording and severity
-Every existing supported Pi-backed command SHALL reproduce pinned Pi's user-visible messages for equivalent success, failure, warning, empty, progress, and cancellation states. Parity SHALL include whether a message is emitted at all, its literal wording and punctuation, contextual prefixes, links, severity, and order. Existing declared A1 route replacements and layout/progress customizations SHALL remain explicit exceptions only within their declared scope; they SHALL NOT justify changing unrelated command-result messages. Actual selected-profile paths and truthful runtime values SHALL remain contextual data, not copied values from another profile.
+Except for the named missing-GitHub-CLI diagnostic below, every existing supported Pi-backed command SHALL reproduce pinned Pi's user-visible messages for equivalent success, failure, warning, empty, progress, and cancellation states. Parity SHALL include whether a message is emitted at all, its literal wording and punctuation, contextual prefixes, links, severity, and order. Existing declared A1 route replacements and layout/progress customizations SHALL remain explicit exceptions only within their declared scope; they SHALL NOT justify changing unrelated command-result messages. Actual selected-profile paths and truthful runtime values SHALL remain contextual data, not copied values from another profile.
 
 For fatal `/new`, `/resume`, and `/import` outcomes, A1 SHALL preserve Pi-compatible visible error semantics but SHALL retain its recoverable workflow/session contract: the route returns a failed result and the owning A1 session remains active rather than stopping the terminal or propagating Pi's process exit. This lifecycle difference SHALL be recorded as an explicit contextual exception and SHALL NOT be presented as process-behavior parity.
 
@@ -48,9 +48,22 @@ For fatal `/new`, `/resume`, and `/import` outcomes, A1 SHALL preserve Pi-compat
 - **THEN** A1 SHALL emit dim `Share URL: <viewer URL>` followed by `Gist: <gist URL>` with Pi's line break and ordering
 - **AND** for the current pinned version the default viewer URL SHALL be `https://pi.dev/session/#<gist ID>` and a configured `PI_SHARE_VIEWER_URL` SHALL determine the base using pinned semantics
 
+#### Scenario: Share cannot find the GitHub CLI
+- **WHEN** the user invokes `/share` and the `gh` executable is missing or cannot be found on PATH
+- **THEN** A1 SHALL display error-colored `Error: GitHub CLI (gh) is not installed. Install it from https://cli.github.com/`
+- **AND** sharing SHALL stop before session export or gist creation, without a success link, while the current session remains usable
+- **AND** this SHALL be a named wording exception to Pi 0.84.2's misleading `Error: GitHub CLI is not logged in. Run 'gh auth login' first.` for a missing executable, not a claim of identical output
+- **AND** the exception SHALL NOT change error styling, padding, wrapping rules, or any other command outcome, and SHALL NOT apply to permission or other non-missing-executable failures
+
+#### Scenario: Share finds an unauthenticated GitHub CLI
+- **WHEN** the user invokes `/share`, `gh` is installed and found, but its authentication check fails
+- **THEN** A1 SHALL display error-colored `Error: GitHub CLI is not logged in. Run 'gh auth login' first.` exactly as pinned Pi does
+- **AND** sharing SHALL stop before session export or gist creation, without a success link, while the current session remains usable
+- **AND** A1 SHALL NOT substitute the missing-executable installation message
+
 #### Scenario: Share fails or is cancelled
-- **WHEN** the GitHub CLI is absent, is not logged in, session export fails, gist creation fails, or the user cancels creation
-- **THEN** A1 SHALL retain Pi's distinct installation/authentication guidance, export/gist error context, or `Share cancelled` status as applicable
+- **WHEN** session export fails, gist creation fails, or the user cancels creation
+- **THEN** A1 SHALL retain Pi's export/gist error context or `Share cancelled` status as applicable
 - **AND** no success link SHALL be emitted on failure or cancellation
 
 #### Scenario: Existing matching commands complete
@@ -99,6 +112,13 @@ Command-message acceptance SHALL maintain a source-traced inventory of the curre
 - **THEN** evidence SHALL compare wording, severity, semantic ANSI styling, wrapping, padding, blank rows, placement, and status transitions at narrow and ordinary widths and both supported output-padding settings
 - **AND** a plain-text match with different styling or geometry SHALL fail
 
+#### Scenario: Verify the missing-GitHub-CLI diagnostic exception
+- **WHEN** independent pinned and A1 producers exercise `/share` with the GitHub CLI executable absent
+- **THEN** evidence SHALL retain Pi 0.84.2's exact not-logged-in diagnostic and A1's exact installation diagnostic and identify this single intentional wording difference
+- **AND** each output SHALL still satisfy its error severity and presentation contract, without blanket removal of text, whitespace, or styling from comparison
+- **AND** a changed A1 installation message or application of the exception to an installed-but-unauthenticated executable or another outcome SHALL fail verification
+- **AND** all other `/share` outcomes SHALL retain their existing pinned-parity requirements
+
 #### Scenario: Missing or contradictory evidence
-- **WHEN** a producer fails, a covered outcome lacks evidence, physical review contradicts an automated parity claim, or fatal-command evidence conflates matching output with process lifecycle parity
+- **WHEN** a producer fails, a covered outcome lacks evidence, physical review contradicts an automated parity claim, fatal-command evidence conflates matching output with process lifecycle parity, or the missing-GitHub-CLI exception is applied to another outcome
 - **THEN** the affected command outcome SHALL remain unaccepted rather than being marked complete based on a success-only fixture or an undisclosed lifecycle difference
