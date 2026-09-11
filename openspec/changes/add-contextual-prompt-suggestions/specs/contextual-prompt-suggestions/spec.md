@@ -148,7 +148,9 @@ A newly generated current suggestion SHALL replace an older unaccepted suggestio
 - **THEN** the resumed editor SHALL not restore that suggestion from session history
 
 ### Requirement: Users control background suggestion requests
-Bare A1 SHALL expose a persisted A1 setting that enables or disables contextual prompt suggestions. The setting SHALL be enabled by default, SHALL disclose that enabled suggestions make an additional background request using the selected model, and SHALL take effect in the active session. Disabling it SHALL abort pending generation and clear any visible suggestion.
+Bare A1 SHALL expose the persisted A1 setting `promptSuggestions`, labeled `Prompt suggestions`, exactly once in the owned settings screen's existing `Agent` section rather than `A1`. This named presentation-grouping exception SHALL NOT transfer the setting to the engine: its persistence key, A1-owned backend, profile-local storage, default-enabled value, and live application boundary SHALL remain unchanged. The setting SHALL disclose that enabled suggestions make an additional background request using the selected model. Disabling it SHALL abort pending generation and clear any visible suggestion.
+
+The screen SHALL contain only one Agent section, preserving the relative order and capability filtering of engine-provided settings and placing this owned control after them. No duplicate suggestion control or empty A1 section SHALL remain because of the move. The owned control SHALL remain visible and editable even when engine settings are absent, unreadable, or not writable; engine-level availability SHALL NOT be misapplied to it. Other A1 controls and the `a1 pi` comparison SHALL retain their existing grouping and behavior.
 
 #### Scenario: Disable suggestions
 - **WHEN** the user disables contextual prompt suggestions
@@ -161,6 +163,34 @@ Bare A1 SHALL expose a persisted A1 setting that enables or disables contextual 
 #### Scenario: Review the setting
 - **WHEN** the user views the contextual prompt suggestion setting
 - **THEN** its description SHALL state that each eligible suggestion uses an additional background request with the selected model
+- **AND** the `Prompt suggestions` row SHALL appear in Agent, not A1
+
+#### Scenario: Present the existing Agent section
+- **WHEN** bare A1 opens settings with presentable engine settings
+- **THEN** one Agent section SHALL contain those engine settings in their existing relative order followed by the single Prompt suggestions control
+- **AND** no second Agent section, duplicate control, or now-empty A1 section SHALL be rendered
+- **AND** Scroll, History, and other controls SHALL retain their existing placement
+
+#### Scenario: Change the control from Agent
+- **WHEN** the user toggles Prompt suggestions in Agent
+- **THEN** the existing A1 profile-local setting SHALL be updated and the live suggestion behavior SHALL follow that value
+- **AND** no engine-setting write, Pi settings-file mutation, or setting-value migration SHALL occur
+
+#### Scenario: Preserve a saved opt-out
+- **WHEN** a profile already stores `promptSuggestions` as false before the control is relocated and A1 restarts
+- **THEN** the Agent control SHALL still show false and suggestion requests SHALL remain disabled
+- **AND** the move SHALL NOT reset the value to its default or copy it into engine settings
+
+#### Scenario: Engine settings cannot be presented
+- **WHEN** the engine is absent, reading its settings fails, it advertises no setting-write capability, or it supplies no presentable settings
+- **THEN** Prompt suggestions SHALL remain visible and editable in the single Agent section through its A1 backend
+- **AND** unavailable engine settings SHALL remain filtered according to their existing rules
+- **AND** section-wide unavailable or read-only presentation SHALL NOT falsely disable the owned control
+
+#### Scenario: Find and operate the moved control
+- **WHEN** the user searches for Agent or Prompt suggestions, jumps between sections, or changes the control using keyboard or pointer input
+- **THEN** the settings surface SHALL address the same single entry with its existing backend, value, shared controls, and live behavior
+- **AND** refreshing settings SHALL NOT recreate a duplicate or change the control's identity
 
 ### Requirement: Suggestion behavior is independently observable and bounded
 A1 SHALL provide deterministic test seams for suggestion generation, cancellation, request identity, and time, and SHALL verify the feature with a fake model boundary before using real provider credentials. Acceptance evidence SHALL distinguish the primary agent request from the additional suggestion request and SHALL confirm that suggestion work never invokes tools or changes persisted conversation content.

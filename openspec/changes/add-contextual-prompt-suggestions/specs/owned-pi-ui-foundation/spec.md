@@ -1,12 +1,17 @@
 ## ADDED Requirements
 
 ### Requirement: Contextual prompt suggestions are a declared bare-A1 addition
-Contextual prompt suggestions SHALL be classified as an A1-owned addition to the ordinary editor in bare A1. The addition SHALL preserve the existing transcript, dock, editor, autocomplete, extension, input-responsiveness, lifecycle, and terminal-restoration contracts except for the explicitly declared empty-editor ghost text and its acceptance behavior. The explicit `a1 pi` comparison route and untouched pinned Pi SHALL remain unchanged and SHALL not perform suggestion requests on A1's behalf.
+Contextual prompt suggestions SHALL be classified as an A1-owned addition to the ordinary editor in bare A1, with their A1-backed control presented in the existing Agent section of the owned settings replacement. The addition SHALL preserve the existing transcript, dock, editor, autocomplete, extension, input-responsiveness, lifecycle, and terminal-restoration contracts except for the explicitly declared empty-editor ghost text, its acceptance behavior, and this named settings-placement exception. The control's section SHALL NOT determine its storage backend or grant it engine-setting authority. The explicit `a1 pi` comparison route and untouched pinned Pi SHALL remain unchanged and SHALL not perform suggestion requests on A1's behalf.
 
 #### Scenario: Use contextual suggestions in bare A1
 - **WHEN** bare A1 is running and contextual suggestion requirements make a suggestion visible
 - **THEN** the owned editor SHALL present and accept the declared ghost-text addition
 - **AND** all unaffected shell surfaces and interactions SHALL retain their existing behavior
+
+#### Scenario: Group the suggestion control without transferring ownership
+- **WHEN** bare A1 presents its owned settings replacement
+- **THEN** Prompt suggestions SHALL appear only in the single Agent section while retaining its A1-owned persistence and live behavior
+- **AND** this declared placement exception SHALL NOT add it to Pi-generated settings metadata, change other controls' ownership or grouping, or expose it in the pinned comparison settings
 
 #### Scenario: Run the comparison profile
 - **WHEN** the user runs `a1 pi`

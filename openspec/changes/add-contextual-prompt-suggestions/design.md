@@ -2,6 +2,8 @@
 
 See `proposal.md` for motivation and `specs/contextual-prompt-suggestions/spec.md` for behavior.
 
+The maintainer accepted the existing feature on 2026-09-11, then requested moving `Prompt suggestions` from A1 to Agent before archival. The original generation/editor design below remains the accepted baseline. Decision 7 and the final migration steps define the remaining presentation-only correction, not a renewed cache/latency optimization.
+
 Bare A1 already has the boundaries needed for most of this feature:
 
 - `PiEngineAdapter` owns the public Pi session, model runtime, selected model, event conversion, and session-generation counter.
@@ -140,19 +142,29 @@ This deliberately prefers predictability over delayed suggestions. It also avoid
 
 Alternative considered: retain hidden suggestions until the editor becomes empty. Rejected because the suggestion may be stale by then and its sudden appearance is harder to reason about.
 
-### 7. Add one live A1 setting, enabled by default
+### 7. Keep the live A1 setting but present it in Agent
 
-Add an A1-owned boolean setting named `promptSuggestions`, defaulting to enabled. Its description explicitly says that eligible turns make one additional background request with the selected model. The settings owner applies it live to the controller: disabling aborts and clears immediately; enabling affects only later settlements.
+The existing A1-owned boolean `promptSuggestions` remains default-enabled and labeled `Prompt suggestions`. Its description continues to disclose one additional background request using the selected model. Disabling still aborts and clears immediately; enabling affects only later eligible runs. Preserve the persistence key, profile-local document, backend, and live application boundary: the correction needs no settings-format version bump or value migration, and a previously stored false value must stay false.
 
-The setting belongs to the existing A1 settings metadata/store, not Pi-generated settings metadata, because it controls a declared A1 addition. No environment-only rollout flag is required for the first implementation; rollback is available through the setting and release rollback.
+Show the control exactly once in the existing bare-A1 settings replacement's `Agent` section, after the engine-provided entries while preserving their relative order. It must no longer appear in `A1`. This is a narrow, named presentation-grouping exception for an A1-owned agent-behavior setting, not a change to Pi setting ownership or a general relocation of other controls. Scroll and History sections keep their current placement. Do not render an empty A1 section if it has no remaining controls.
 
-Alternative considered: no setting. Rejected because an automatic paid/background inference needs direct user control.
+The current declaration has no section and therefore falls into the A1 group. `src/ui/settings/sections.ts` builds owned sections and appends a separate Agent section; changing the declaration's section alone would create two sections with the same identity. Extend the existing section projection to compose one Agent group from the preserved engine entries and this declared owned contribution. Do not create a second settings registry, copy engine descriptors into A1 declarations, or special-case the settings screen's rendered rows.
+
+The entry must retain `backend: "a1"` and its stable `(backend, id)` identity. The existing session change dispatcher already routes by entry backend independently of section, so toggling the moved row must continue to write only A1 settings and notify the same live suggestion controller. No Pi settings port write, engine capability requirement, or generated-Pi metadata entry is introduced by Agent placement. Search by Agent or the control label, section jumps, pointer/keyboard activation, value-menu state, and refresh must find the one entry without changing its identity or displaying a second control.
+
+If the engine is absent, its settings read fails, write capability is unavailable, or it has no presentable descriptors, keep the owned control visible and editable in the single Agent section. Continue filtering unavailable engine controls as before; do not let section-level unavailable/read-only metadata hide or disable this independently owned control or imply that unavailable engine settings became writable.
+
+No environment-only rollout flag is required. Rollback may restore the former placement without moving stored values; disabling the setting and release rollback retain their existing semantics.
+
+Alternatives rejected: no setting removes control of paid inference; moving the value into Pi storage changes ownership and breaks existing profiles; only assigning the Agent section identity produces duplicate groups; presenting an alias in both sections leaves duplicated controls; changing every owned setting's group broadens the requested scope.
 
 ### 8. Validate behavior at pure, integration, and physical-terminal levels
 
 Use a fake generator port to cover eligibility, filtering, cancellation, response/run identity, result-before-settlement and settlement-before-result races, request count, and no-transcript mutation deterministically. Add editor-level tests for atomic ghost rendering, display width, semantic emptiness, autocomplete priority, configurable Tab, acceptance without submission, editing, and Enter behavior. Add shell/adapter integration tests for pre-settlement generation, same-frame publication of prepared results, continuation invalidation, model/session replacement, settings, and tool-call rejection.
 
-A credential-gated real-provider test will prove that the selected model path can produce a suggestion without tools or transcript mutation. It must not be a default local test. Final acceptance uses the exact implementation worktree in Windows Terminal and verifies visible latency, wrapping, cancellation while typing, Tab-then-Enter, autocomplete coexistence, and `a1 pi` non-interference.
+A credential-gated real-provider test will prove that the selected model path can produce a suggestion without tools or transcript mutation. It must not be a default local test. The original physical acceptance scope covers visible latency, wrapping, cancellation while typing, Tab-then-Enter, autocomplete coexistence, and `a1 pi` non-interference; the maintainer's 2026-09-11 feature-level acceptance is recorded in `tasks.md` without inventing a provider-probe execution or a specific tested artifact.
+
+The placement correction needs deterministic declaration/section/session and settings-surface fixtures for one Agent group, one suggestion row, no empty A1 heading, preserved engine order, stable identity/search/navigation, absent/failed/read-only engine cases, stored false values across restart, live disable/re-enable, and zero engine-setting writes. Final corrective acceptance uses the exact build-first checkout handoff to open `/settings`, find and toggle the Agent control, verify the missing A1 duplicate and retained value, and confirm no change to `a1 pi` or the accepted suggestion interactions.
 
 ## Risks / Trade-offs
 
@@ -165,6 +177,7 @@ A credential-gated real-provider test will prove that the selected model path ca
 - **[Tab conflicts with autocomplete]** → Give existing autocomplete strict precedence and use the configured action id rather than raw byte matching.
 - **[Broad suggestions feel intrusive]** → Require strict eligibility and filtering, show only in an otherwise empty prompt, discard rather than defer, and provide a live disable setting.
 - **[Hidden request usage is confused with conversation context]** → Keep it out of transcript/context accounting, document it as a separate request, and report request counts in acceptance evidence rather than pretending it is part of the main prompt.
+- **[Agent placement is mistaken for engine ownership]** → Preserve the A1 entry backend and stored key, merge sections once, test per-entry write routing and engine-unavailable cases, and keep Pi's generated inventory and comparison surface unchanged.
 
 ## Migration Plan
 
@@ -173,6 +186,8 @@ A credential-gated real-provider test will prove that the selected model path ca
 3. Add the prefetch controller, setting, response/run cancellation lifecycle, and prepared-result handoff while keeping presentation disabled.
 4. Add atomic semantic editor ghost rendering and Tab acceptance for bare A1 only.
 5. Run focused contract, adapter, component, shell, settings, race, and architecture tests; then run CI-required validation.
-6. Perform credential-gated provider and physical Windows Terminal acceptance before merge authorization.
+6. The original implementation's automated record and the maintainer's later feature acceptance are retained in `tasks.md`; acceptance recorded after merge does not invent earlier merge authorization or a credential-gated provider run.
+7. Merge this Agent-placement amendment as an OpenSpec-only PR, then begin a fresh implementation stream only after explicit authorization. Update the owned declaration/section projection and focused regression coverage without changing suggestion generation or storage ownership.
+8. Verify the correction's required CI and provide its exact build-first settings-review handoff. Keep the code PR open until the maintainer accepts the moved control and explicitly authorizes merge. Only then record final acceptance, synchronize both delta specs, and archive in a separate OpenSpec-only follow-up.
 
-Rollback is non-destructive: disable `promptSuggestions` live or revert the implementation. No persisted session migration is required because suggestions are never stored.
+Rollback is non-destructive: disable `promptSuggestions` live or revert the implementation. Neither suggestions nor this section relocation require a persisted session migration; the existing setting value remains in A1's profile-local store.
