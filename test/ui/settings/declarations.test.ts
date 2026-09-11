@@ -32,6 +32,7 @@ describe("owned UI setting declarations", () => {
     ]);
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "promptSuggestions")).toMatchObject({
       label: "Prompt suggestions",
+      section: { id: "agent", title: "Agent" },
       application: "live",
       defaultValue: true,
       allowedValues: [true, false],

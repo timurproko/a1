@@ -70,6 +70,7 @@ export const OWNED_UI_SETTING_DECLARATIONS: readonly OwnedUiSettingDeclaration[]
   Object.freeze({
     id: "promptSuggestions",
     label: "Prompt suggestions",
+    section: Object.freeze({ id: "agent", title: "Agent" }),
     description: "Predict likely next prompts with one additional background request using the selected model.",
     application: "live",
     defaultValue: true,
