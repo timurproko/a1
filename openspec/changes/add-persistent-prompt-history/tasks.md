@@ -1,3 +1,11 @@
+## 0. Source-traced editor adaptation prerequisites
+
+- [ ] 0.1 Inventory the exact editor source resolved by pinned Pi, its required non-public editor-local helper closure, and A1 collaborators that assume concrete/private Pi editor state; verify the delivered provenance/import map identifies public reusable exports, attributed owned destinations, license obligations, and typed collaborator boundaries without expanding into a terminal-runtime fork.
+- [ ] 0.2 Add the source-derived editor core and necessary helpers inside the existing Pi component owner, recording source revision, licenses, and intentional modifications in the source ledger; verify source/provenance and import gates reject drift, runtime extraction, private dependency imports, prototype mutation, or retargeting the shared terminal-package alias.
+- [ ] 0.3 Implement the owned typed history port and required local collaborator ports for snapshot installation, read-only browse observations, directional internal navigation, draft/paste restoration, undo grouping, and semantic border state; verify contract/state-machine tests cover deferred snapshot replacement, one undo boundary per browse cycle, no extra undo on each step, no text normalization or paste clearing, and no private-field casts or fabricated-key workaround.
+- [ ] 0.4 Establish independent differential fixtures for the owned core with history customization disabled against the untouched pinned editor; verify equivalent ordinary input, navigation boundaries, draft/cursor restoration, undo, paste backing/expansion, autocomplete, rendering, and submit callbacks before enabling the history replacement.
+- [ ] 0.5 Prove the adaptation integrates through typed A1 component contracts without requiring Pi's concrete editor identity; verify comparison/disabled editor factories stay unchanged and public extension shortcuts, text access, autocomplete, custom-editor mount/restore, focus, and submission fixtures retain their behavior.
+
 ## 1. Contract and ownership
 
 - [ ] 1.1 Add the neutral typed submission, snapshot, and bounded-status history port to owned-UI contracts; verify contract tests reject unclassified payloads and invalid required fields without exposing input content.
@@ -16,7 +24,7 @@
 ## 3. Settings and runtime lifecycle
 
 - [ ] 3.1 Declare the History section, `promptHistoryEnabled` and `promptHistoryMaxItems` defaults/choices/labels, and next-start metadata in the existing A1 settings system; verify declaration, invalid-value, stored/effective-state, persistence, and shared-control presentation tests.
-- [ ] 3.2 Wire the history port through composition only for enabled bare A1, using the actual launch-resolved data/profile roots; verify disabled and `a1 pi` launches never initialize the store/worker or touch history files and that settings remain profile-local.
+- [ ] 3.2 After the editor adaptation prerequisite gates pass, wire the history port and adapted default editor through composition only for enabled bare A1, using the actual launch-resolved data/profile roots; verify disabled and `a1 pi` launches retain their existing editor factory, never initialize the store/worker or touch history files, and keep settings profile-local.
 - [ ] 3.3 Initialize history after the interactive readiness path without delaying terminal input and synchronize the next-start retention setting once per new enabled store initialization; verify delayed-worker startup tests, newest-applied store limit across existing writers, and no stale-limit reassertion.
 - [ ] 3.4 Implement generation-aware disposal, bounded two-second shutdown drain, and cancellation of timers/listeners/pending reads; verify clean-exit persistence, stalled-close timeout, new-session/profile replacement, and no stale callback or leaked worker after disposal.
 - [ ] 3.5 Route corruption, permission, disk-capacity, unsupported-schema, and worker-start failures through the existing bounded failure presentation with current-session fallback; verify prompts still dispatch, stored files remain intact, and no repeated per-prompt warnings appear.
@@ -31,12 +39,12 @@
 
 ## 5. v2 recall controller and semantic presentation
 
-- [ ] 5.1 Add a focused history controller and typed editor operations for snapshot attachment, provisional local submissions, durable acknowledgment, and transcript fallback merging; verify deduplication/count bounds and both load-before-construction and construction-before-load races.
-- [ ] 5.2 Implement v2 Up-to-end/Down-to-start placement, bounded navigation, and draft restoration while retaining existing multiline/autocomplete/keybinding/selection/undo rules; verify independently authored fixtures traced to the v2 cursor tests rather than implementation-generated expectations.
+- [ ] 5.1 Add the focused session-UI snapshot coordinator for provisional local submissions, durable acknowledgment, and transcript fallback merging, consuming the established typed editor history port rather than owning a second browse index/draft; verify deduplication/count bounds and both load-before-construction and construction-before-load races without changing text, cursor, selection, undo, or paste backing.
+- [ ] 5.2 Enable v2 Up-to-end/Down-to-start placement in the owned editor history state machine, retaining bounded navigation and existing multiline/autocomplete/keybinding/selection/undo rules; verify independently authored v2 cursor fixtures plus single-undo-boundary and live-paste-draft restoration tests rather than implementation-generated expectations.
 - [ ] 5.3 Freeze entries, total, and draft during browsing and coalesce other-session refreshes for non-browsing boundaries; verify interleaved commit/load/key sequences do not skip entries, move the selection, or overwrite typed/restored drafts.
-- [ ] 5.4 Add semantic top-border history presentation with newest `total/total`, oldest `1/total`, applicable overflow information, and no extra dock rows; verify independent v2-derived fixtures for one/many entries, narrow widths, multiline scrolling, themes, and A1's prompt prefix.
-- [ ] 5.5 Preserve fresh-editor reseeding and explicitly submitted recalled/suggested input semantics; verify editor replacement, stale generations, suggestion invalidation, and no execution merely from recalling text.
-- [ ] 5.6 Declare the exact bare-A1 history replacement in customization/parity metadata without changing installed Pi or relying on private reflection/rendered-string substitution; verify unchanged `a1 pi` current-session history and all unrelated editor/viewport behavior through the independent comparison path.
+- [ ] 5.4 Connect the adapted editor's semantic top-border hook with newest `total/total`, oldest `1/total`, applicable overflow information, and no extra dock rows; verify independent v2-derived fixtures for one/many entries, narrow widths, multiline scrolling, themes, and A1's prompt prefix without rewriting finished ANSI rows.
+- [ ] 5.5 Preserve fresh-default-editor reseeding and explicitly submitted recalled/suggested input semantics; verify stale generations, suggestion invalidation, no execution merely from recall, and suspension of default-editor synchronization while an extension custom editor is mounted followed by draft-preserving reattachment on restore.
+- [ ] 5.6 Declare the exact bare-A1 source-derived editor/history replacement in customization/parity metadata without changing installed Pi or relying on private reflection/rendered-string substitution; verify unchanged comparison/disabled paths and all unrelated editor/viewport and public extension behavior through the independent comparison fixtures.
 
 ## 6. Data policy, validation, and acceptance
 

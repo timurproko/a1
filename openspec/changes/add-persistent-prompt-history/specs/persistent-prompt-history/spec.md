@@ -103,7 +103,7 @@ Durable text SHALL be limited to 1 MiB UTF-8 per entry and 8 MiB per profile in 
 - **THEN** it SHALL be skipped durably without truncation and a bounded persistence condition SHALL be reported without its content
 
 ### Requirement: Bare A1 preserves v2 history navigation
-With persistent history enabled, bare A1 SHALL offer a bounded, deduplicated recall list incorporating current-process input, saved history, and existing loaded-conversation fallback without persisting fallback reads. At history-navigation boundaries, Up toward older entries SHALL place the caret at the end of the recalled prompt; Down toward newer entries SHALL place it at the beginning. Leaving browsing SHALL restore the pre-navigation draft. Pinned multiline movement outside those boundaries, autocomplete priority, keybindings, selection, undo, and unrelated editor behavior SHALL remain intact.
+With persistent history enabled, bare A1's default editor SHALL offer a bounded, deduplicated recall list incorporating current-process input, saved history, and existing loaded-conversation fallback without persisting fallback reads. At history-navigation boundaries, Up toward older entries SHALL place the caret at the end of the recalled prompt; Down toward newer entries SHALL place it at the beginning. Leaving browsing SHALL restore the pre-navigation draft. Pinned multiline movement outside those boundaries, autocomplete priority, keybindings, selection, undo, and unrelated editor behavior SHALL remain intact.
 
 #### Scenario: Recall older multiline text
 - **WHEN** Up crosses the history boundary into an older multiline prompt
@@ -118,6 +118,17 @@ With persistent history enabled, bare A1 SHALL offer a bounded, deduplicated rec
 #### Scenario: Reach the end of history
 - **WHEN** navigation cannot move beyond the oldest entry
 - **THEN** neither selection nor caret position SHALL change and no unavailable-action message SHALL appear
+
+#### Scenario: Browse without adding an undo step for every recalled entry
+- **WHEN** the user enters history and steps through several prompts
+- **THEN** entering history SHALL preserve the source-derived single draft undo boundary
+- **AND** intermediate navigation SHALL NOT create the additional undo snapshots of ordinary programmatic text replacement
+- **AND** subsequent editing and undo SHALL retain the pinned grouping behavior apart from the explicitly declared caret placement
+
+#### Scenario: Restore a draft with live pasted content
+- **WHEN** the pre-navigation draft contains live paste markers and a nonterminal cursor position, and the user browses away and returns
+- **THEN** its text, cursor, and live paste backing SHALL be restored intact
+- **AND** history navigation SHALL NOT clear its paste store or re-normalize its contents as an ordinary set-text operation would
 
 #### Scenario: Type or submit recalled input
 - **WHEN** a prompt is recalled
@@ -149,8 +160,8 @@ History loading and cross-process refresh SHALL be asynchronous and SHALL NOT bl
 
 #### Scenario: Initial history load finishes after editing starts
 - **WHEN** loading finishes after the editor has been constructed and the user has typed a draft
-- **THEN** history SHALL be attached without replacing that draft
-- **AND** a rebuilt editor SHALL receive the most recent completed snapshot without another disk load being required
+- **THEN** history SHALL be attached without replacing that draft or changing its cursor, selection, paste backing, or undo state
+- **AND** a rebuilt default editor SHALL receive the most recent completed snapshot without another disk load being required
 
 #### Scenario: A refresh finishes after lifecycle replacement
 - **WHEN** a history read completes after disposal or a profile/session-generation change
