@@ -23,7 +23,9 @@ context: |
   - When nothing is runnable, say so briefly and do not include a manual-test block.
 
   Completion:
-  - Do not remove a worktree before its pull request merges. Because merges are squashed, confirm with `gh pr view <n> --json state`, then delete the remote branch, remove the worktree, and prune.
+  - Normally retain a worktree until its pull request merges. Because merges are squashed, confirm `MERGED` with `gh pr view <n> --json state`, then delete the remote branch, remove the worktree, and prune.
+  - Exception: when that check confirms `CLOSED` without merging, disclose that the worktree contains unmerged commits and remove that specific worktree only with the user's explicit approval, then prune. Approval to remove the worktree does not authorize deleting an unmerged remote branch. Never remove a worktree whose pull request is `OPEN` or whose state cannot be confirmed. Closed-PR cleanup is not implementation acceptance, integration, or completed-change archival.
+  - Before any worktree removal, check staged, unstaged, and untracked changes. If any exist, stop unless the user separately and explicitly approves discarding those identified changes; approval to remove unmerged committed work alone is insufficient.
   - After accepted code merges, record acceptance and archive its completed OpenSpec change in a specification-only follow-up, then clean up retained task and acceptance worktrees.
 
 operations:
