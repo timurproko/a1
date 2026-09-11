@@ -1,6 +1,6 @@
 {
   "schema": "a1-legacy-identity-allowlist-v1",
-  "generatedAt": "2026-09-06T11:09:14.279Z",
+  "generatedAt": "2026-09-11T06:44:39.704Z",
   "inventorySchema": "a1-legacy-identity-inventory-v1",
   "occurrences": [
     {
@@ -262,9 +262,9 @@
       "reason": "explicit legacy rejection fixture"
     },
     {
-      "id": "test/foundation/release/cohort-state.test.ts:63:76",
+      "id": "test/foundation/release/cohort-state.test.ts:114:76",
       "value": "addone",
-      "fingerprint": "e96aa424b413023b5bc71993b0c92de8cb2e264bbd560158b1e4d5aac8866faa",
+      "fingerprint": "865de239d5da00efb394214e5a07b81f22c1bf22c59dbcf65713b8b74af06799",
       "reason": "explicit legacy rejection fixture"
     },
     {

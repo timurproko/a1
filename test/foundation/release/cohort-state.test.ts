@@ -9,19 +9,64 @@ const roots: string[] = [];
 afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))));
 
 describe("atomic release references", () => {
-  it("persists candidate, approval, active, and rollback without appending activation history", async () => {
+  it("persists candidate, approval, and initial activation", async () => {
     const root = await mkdtemp(resolve(tmpdir(), "a1-cohort-state-"));
     roots.push(root);
     const store = new CohortStateStore(root);
     const first = release("1.0.0", "1");
-    const second = release("1.1.0", "2");
 
-    await store.recordCandidate(first);
+    const candidate = await store.recordCandidate(first);
+    expect(candidate.releases[first.releaseId]?.approval).toBe("candidate");
+    expect(candidate.references.pending).toBe(first.releaseId);
+    expect(await store.read()).toEqual(candidate);
     await expect(store.activate(first.releaseId)).rejects.toThrow(/unverified/);
-    await store.approve(first.releaseId, "first-verdict.json");
-    await store.activate(first.releaseId);
-    await store.recordCandidate(second);
-    await store.approve(second.releaseId, "second-verdict.json");
+    expect(await store.read()).toEqual(candidate);
+    const approved = await store.approve(first.releaseId, "first-verdict.json");
+    expect(approved.releases[first.releaseId]).toMatchObject({ approval: "approved", diagnosticsPath: "first-verdict.json" });
+    expect(await store.read()).toEqual(approved);
+    const activated = await store.activate(first.releaseId);
+    expect(activated.references).toEqual({ active: first.releaseId, pending: null, approved: first.releaseId, rollback: null, retention: [] });
+    expect(activated.revision).toBe(3);
+    expect(await store.read()).toEqual(activated);
+  });
+
+  it("certifies a replacement candidate without changing the active release", async () => {
+    const root = await mkdtemp(resolve(tmpdir(), "a1-cohort-replacement-"));
+    roots.push(root);
+    const store = new CohortStateStore(root);
+    const first = release("1.0.0", "1");
+    const second = release("1.1.0", "2");
+    const seed = approvedState(first, first);
+    await writeFile(store.path, JSON.stringify({
+      ...seed,
+      revision: 3,
+      references: { ...seed.references, rollback: null },
+    }));
+
+    const candidate = await store.recordCandidate(second);
+    expect(candidate.references).toEqual({ active: first.releaseId, pending: second.releaseId, approved: first.releaseId, rollback: null, retention: [] });
+    expect(candidate.releases[second.releaseId]?.approval).toBe("candidate");
+    expect(await store.read()).toEqual(candidate);
+    const approved = await store.approve(second.releaseId, "second-verdict.json");
+    expect(approved.references).toEqual({ ...candidate.references, approved: second.releaseId });
+    expect(approved.releases[second.releaseId]).toMatchObject({ approval: "approved", diagnosticsPath: "second-verdict.json" });
+    expect(approved.revision).toBe(5);
+    expect(await store.read()).toEqual(approved);
+  });
+
+  it("replaces the active release without appending activation history", async () => {
+    const root = await mkdtemp(resolve(tmpdir(), "a1-cohort-activate-"));
+    roots.push(root);
+    const store = new CohortStateStore(root);
+    const first = release("1.0.0", "1");
+    const second = release("1.1.0", "2");
+    // Performance: seed already-certified releases; the preceding test exercises their durable setup.
+    const seed = approvedState(first, second);
+    await writeFile(store.path, JSON.stringify({
+      ...seed,
+      revision: 5,
+      references: { ...seed.references, active: first.releaseId, pending: second.releaseId, rollback: null },
+    }));
     const activated = await store.activate(second.releaseId);
 
     expect(activated.references).toEqual({
@@ -31,7 +76,8 @@ describe("atomic release references", () => {
       rollback: first.releaseId,
       retention: [],
     });
-    expect((await store.read()).revision).toBe(6);
+    expect(activated.revision).toBe(6);
+    expect(await store.read()).toEqual(activated);
   });
 
   it("rolls back only to a retained approved release and protects referenced releases from collection", async () => {
@@ -40,20 +86,25 @@ describe("atomic release references", () => {
     const store = new CohortStateStore(root);
     const first = release("1.0.0", "4");
     const second = release("1.1.0", "5");
-    await store.recordCandidate(first);
-    await store.approve(first.releaseId, "first.json");
-    await store.activate(first.releaseId);
-    await store.recordCandidate(second);
-    await store.approve(second.releaseId, "second.json");
-    await store.activate(second.releaseId);
+    // Performance: rollback tests start from an independent committed snapshot, not six setup commits.
+    const seed = approvedState(first, second);
+    await writeFile(store.path, JSON.stringify(seed));
+    expect(await store.read()).toEqual(seed);
 
     await expect(store.rollback(false)).rejects.toThrow(/ownership is released/);
+    expect(await store.read()).toEqual(seed);
     const rolledBack = await store.rollback(true);
     expect(rolledBack.references).toMatchObject({ active: first.releaseId, rollback: second.releaseId });
+    expect(rolledBack.revision).toBe(7);
+    expect(await store.read()).toEqual(rolledBack);
     await expect(store.removeUnreferencedRelease(second.releaseId, [])).rejects.toThrow(/still referenced/);
+    expect(await store.read()).toEqual(rolledBack);
 
-    await store.setRetention([first.releaseId]);
+    const retained = await store.setRetention([first.releaseId]);
+    expect(retained.references.retention).toEqual([first.releaseId]);
+    expect(retained.revision).toBe(8);
     await expect(store.removeUnreferencedRelease(second.releaseId, [])).rejects.toThrow(/still referenced/);
+    expect(await store.read()).toEqual(retained);
   });
 
   it("rejects a legacy release cohort schema without migration", async () => {
@@ -138,6 +189,25 @@ describe("atomic release references", () => {
     expect((await store.read()).activation.reason).toBe("busy non-resumable foreground generation");
   });
 });
+
+function approvedState(first: MaterializedRelease, second: MaterializedRelease): CohortState {
+  const timestamp = new Date(0).toISOString();
+  return {
+    ...emptyState(),
+    revision: 6,
+    releases: Object.fromEntries([first, second].map(candidate => [candidate.releaseId, {
+      releaseId: candidate.releaseId,
+      releaseRoot: candidate.releaseRoot,
+      packageVersion: candidate.packageVersion,
+      contentDigest: candidate.contentDigest,
+      approval: "approved" as const,
+      materializedAt: timestamp,
+      certifiedAt: timestamp,
+      diagnosticsPath: `${candidate.releaseId}.json`,
+    }])),
+    references: { active: second.releaseId, pending: null, approved: second.releaseId, rollback: first.releaseId, retention: [] },
+  };
+}
 
 function release(version: string, seed: string): MaterializedRelease {
   const digest = seed.repeat(64).slice(0, 64);

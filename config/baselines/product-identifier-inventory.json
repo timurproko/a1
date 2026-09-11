@@ -446,22 +446,22 @@
     },
     {
       "path": "test/foundation/release/update-live-cohort.test.ts",
-      "line": 51,
+      "line": 53,
       "identifier": "A1_CONFIG_DIR"
     },
     {
       "path": "test/foundation/release/update-live-cohort.test.ts",
-      "line": 52,
+      "line": 54,
       "identifier": "A1_DATA_DIR"
     },
     {
       "path": "test/foundation/release/update-live-cohort.test.ts",
-      "line": 53,
+      "line": 55,
       "identifier": "A1_RUNTIME_DIR"
     },
     {
       "path": "test/foundation/release/update-live-cohort.test.ts",
-      "line": 54,
+      "line": 56,
       "identifier": "A1_DATABASE_PATH"
     },
     {
