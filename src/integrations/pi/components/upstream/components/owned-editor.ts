@@ -21,6 +21,7 @@ const PROMPT_GRAPHEMES = new Intl.Segmenter(undefined, { granularity: "grapheme"
 
 export interface OwnedEditorOptions extends EditorOptions {
   readonly persistentHistory?: boolean;
+  readonly styleHistoryLabel?: (text: string) => string;
   readonly promptPrefix?: string;
   readonly styleSuggestion?: (text: string) => string;
   readonly styleSuggestionCaret?: (text: string) => string;

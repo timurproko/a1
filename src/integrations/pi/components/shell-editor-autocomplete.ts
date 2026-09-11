@@ -68,6 +68,7 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
     paddingX: PINNED_PI_LAYOUT.editorPaddingX,
     autocompleteMaxVisible: PINNED_PI_LAYOUT.autocompleteMaxVisible,
     persistentHistory: options.persistentHistory === true,
+    styleHistoryLabel: text => piTheme().fg("dim", text),
     ...(options.keybindingProfile === "a1" && options.promptPresentation !== undefined ? {
       promptPrefix: options.promptPresentation.prefix,
       styleSuggestion: options.promptPresentation.styleSuggestion,

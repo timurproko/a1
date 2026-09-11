@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-09-11T10:50:39.886Z",
+  "recordedAt": "2026-09-11T13:10:23.418Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "914cf1472e715297caa30db4b9535d534a9eb718",
@@ -1238,7 +1238,7 @@
         "test/integrations/pi/components/shell-components.test.ts",
         "test/integrations/pi/session-ui/session-shell.test.ts"
       ],
-      "localSha256": "a05ffd4519147ef23ac6175a670bc4e9a40914dabb87711a1dba004f8e9450b2"
+      "localSha256": "c5e873f191899e9ca0b8ce507f5916fad8d465b191683efcb92cbd437ffad8fb"
     },
     {
       "id": "pi-coding-agent:src/modes/interactive/components/custom-entry",
@@ -3150,7 +3150,7 @@
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Owned editor core or minimal editor-local helper subset; public imports, strict types, typed persistent-history hooks, and semantic border state. Public terminal runtime/exports remain shared and unchanged. See docs/architecture/history-editor-provenance.md.",
-      "localSha256": "58c735cc82ff8631233521dc6cc20d2ac5b0729636b488817ae6f0d52bbdda65",
+      "localSha256": "cbd87fc380da6fdb9029849910b77d54849fc51cfc8b38b7a133f573735b3f69",
       "approvedDeviations": [
         {
           "id": "persistent-history-owned-editor-boundary",

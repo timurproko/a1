@@ -12,7 +12,8 @@ past the newest restores your draft, including its cursor and live pasted text.
 Multiline cursor movement and autocomplete keep their existing priority.
 
 The existing editor border shows `History 100/100` for the newest of 100 entries
-and `History 1/100` for the oldest. Repeated prompts move forward instead of
+and `History 1/100` for the oldest. The label uses the status bar's neutral grey
+(`dim` theme role), independently of the thinking/bash colors on the input bars. Repeated prompts move forward instead of
 creating duplicates. Other instances refresh in the background; the selected
 history and its count stay fixed until you leave that browse cycle. An
 extension-provided custom editor keeps its own behavior; the default editor is

@@ -228,6 +228,7 @@ export interface EditorTheme {
 
 export interface EditorOptions {
 	persistentHistory?: boolean;
+	styleHistoryLabel?: (text: string) => string;
 	paddingX?: number;
 	autocompleteMaxVisible?: number;
 }
@@ -344,6 +345,7 @@ export class HistoryEditorCore implements Component, Focusable {
 		reset: () => this.resetHistoryBrowsing(),
 	};
 	private persistentHistory = false;
+	private readonly styleHistoryLabel: (text: string) => string;
 	private historyPasteDraft: { pastes: Map<number, string>; counter: number } | null = null;
 	private pendingHistory: string[] | undefined;
 	onHistoryChange?: (state: { readonly index: number; readonly total: number }) => void;
@@ -404,6 +406,7 @@ export class HistoryEditorCore implements Component, Focusable {
 	constructor(tui: TUI, theme: EditorTheme, options: EditorOptions = {}) {
 		this.tui = tui;
 		this.persistentHistory = options.persistentHistory ?? false;
+		this.styleHistoryLabel = options.styleHistoryLabel ?? (text => text);
 		this.theme = theme;
 		this.borderColor = theme.borderColor;
 		const paddingX = options.paddingX ?? 0;
@@ -610,8 +613,11 @@ export class HistoryEditorCore implements Component, Focusable {
 		if (this.persistentHistory && this.historyIndex >= 0) {
 			const overflow = this.scrollOffset > 0 ? ` · ↑ ${this.scrollOffset} more` : "";
 			const label = `─── History ${this.history.length - this.historyIndex}/${this.history.length}${overflow} `;
-			const remaining = width - visibleWidth(label);
-			result.push(this.borderColor(remaining >= 0 ? label + "─".repeat(remaining) : truncateToWidth(label, width)));
+			const shown = truncateToWidth(label, width);
+			const remaining = Math.max(0, width - visibleWidth(shown));
+			result.push(this.borderColor(shown.slice(0, 4))
+				+ this.styleHistoryLabel(shown.slice(4))
+				+ this.borderColor("─".repeat(remaining)));
 		} else if (this.scrollOffset > 0) {
 			const border = createScrollBorder("↑", this.scrollOffset, width);
 			result.push(this.borderColor(border));

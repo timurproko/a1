@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { Editor, KeybindingsManager, setKeybindings, TUI_KEYBINDINGS, type AutocompleteProvider } from "#pi-tui";
+import { Editor, KeybindingsManager, setKeybindings, TUI_KEYBINDINGS, stripTerminalSequences, visibleWidth, type AutocompleteProvider } from "#pi-tui";
 import { HistoryEditorCore } from "../../../../src/integrations/pi/components/upstream/history/editor-core.js";
 import { createTuiFacade } from "../../../../src/integrations/pi/components/shell-shared-facade.js";
 
@@ -72,6 +72,25 @@ describe("typed persistent recall transitions", () => {
     editor.render(80);
     return editor;
   }
+
+  it("keeps history label style independent, live, and clipped without altering row geometry", () => {
+    let neutral = "dim";
+    const editor = new HistoryEditorCore(tui(), theme, { persistentHistory: true, styleHistoryLabel: text => `<${neutral}>${text}</${neutral}>` });
+    editor.replaceHistoryEntries(["line\n".repeat(12).trim()]);
+    editor.handleInput(older);
+    expect(editor.render(80)[0]).toContain("<dim>History 1/1 · ↑ 5 more </dim>");
+    neutral = "updated";
+    editor.invalidate();
+    expect(editor.render(80)[0]).toContain("<updated>History 1/1 · ↑ 5 more </updated>");
+
+    const plain = create();
+    plain.handleInput(older);
+    for (const width of [1, 4, 8, 12, 20, 80]) {
+      const row = plain.render(width)[0]!;
+      expect(visibleWidth(row)).toBeLessThanOrEqual(width);
+      expect(stripTerminalSequences(row)).not.toContain("undefined");
+    }
+  });
 
   it("uses v2 directional caret placement and newest=total numbering", () => {
     const editor = create();

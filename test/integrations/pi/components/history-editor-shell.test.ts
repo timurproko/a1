@@ -2,9 +2,33 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { describe, expect, it } from "vitest";
-import { createPiShellEditor, loadHistoryEditor, type PiShellEditorOptions } from "../../../../src/integrations/pi/components/index.js";
+import { createPiShellEditor, loadHistoryEditor, piTheme, type PiShellEditorOptions } from "../../../../src/integrations/pi/components/index.js";
 
 describe("history editor component boundary", () => {
+  it.each(["ordinary prompt", "!echo test"])("uses neutral status grey for history while preserving the input bars for %s", async text => {
+    const root = await mkdtemp(join(tmpdir(), "history-label-color-"));
+    try {
+      const editor = createPiShellEditor({
+        keybindingProfile: "a1", persistentHistory: true, historyEditor: await loadHistoryEditor(), agentDir: root, cwd: root,
+        getColumns: () => 80, getRows: () => 24, requestRender() {}, onSubmit() {},
+        promptPresentation: { prefix: "❯ ", styleSuggestion: value => value, styleSuggestionCaret: value => value },
+      });
+      editor.recall!.replace([text]);
+      editor.handleInput?.("\x1b[A");
+      for (const level of ["low", "high"] as const) {
+        editor.setThinkingLevel(level);
+        const rows = editor.render(80);
+        const bar = text.startsWith("!") ? piTheme().getBashModeBorderColor() : piTheme().getThinkingBorderColor(level);
+        expect(rows[0]).toContain(piTheme().fg("dim", "History 1/1 "));
+        expect(rows[0]).toContain(bar("─── "));
+        expect(rows[0]).not.toContain(bar("History 1/1 "));
+        expect(rows[rows.length - 1]).toContain(bar("─"));
+      }
+      editor.handleInput?.("\x1b[B");
+      expect(editor.render(80)[0]).not.toContain("History");
+    } finally { await rm(root, { recursive: true, force: true }); }
+  });
+
   it("preserves owned selection, paste, prefix, and public actions through typed collaborators", async () => {
     const root = await mkdtemp(join(tmpdir(), "history-editor-"));
     try {
