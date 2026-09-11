@@ -2,7 +2,7 @@
 
 See `proposal.md` for motivation and `specs/contextual-prompt-suggestions/spec.md` for behavior.
 
-The maintainer accepted the existing feature on 2026-09-11, then requested moving `Prompt suggestions` from A1 to Agent before archival. The original generation/editor design below remains the accepted baseline. Decision 7 and the final migration steps define the remaining presentation-only correction, not a renewed cache/latency optimization.
+The original feature and the subsequent Agent-placement correction are accepted for archival as recorded in `acceptance.md`. PR #302 delivered the presentation-only correction and merged with passing final-head CI; the maintainer then explicitly accepted its placement and requested this closeout. The design below preserves the original decisions and planned migration sequence as historical context, not outstanding implementation work or a renewed cache/latency optimization.
 
 Bare A1 already has the boundaries needed for most of this feature:
 
