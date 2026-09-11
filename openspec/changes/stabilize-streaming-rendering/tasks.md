@@ -1,3 +1,11 @@
+## Recorded implementation and reconciliation status
+
+[PR #193](https://github.com/timurproko/a1/pull/193) merged on 2026-09-01 at `bae6b55a5a7347317ad3c62b97c2f54537bab04d` with successful required CI. It introduced the owned damage-aware terminal adapter, 33 ms stream-presentation coalescer, and rendering capture/replay and budget coverage. Its reported baseline/candidate paint measurements are historical evidence for that candidate, not a fresh verdict on current `develop`.
+
+The checklist below was subsequently reconciled to the `restore-v2-transient-tail-layout` contract. That layout implementation [PR #266](https://github.com/timurproko/a1/pull/266) merged on 2026-09-06 at `101c4ecf8524ed8d970b756b1945ade5e199a7bb`. PR #193's original dock-owned working/steering description does not override the revised transient-viewport ownership and fitting-status alignment requirements.
+
+The 23 unchecked tasks must not be interpreted as evidence that no rendering implementation shipped. They remain unchecked in this bounded record update because mapping all revised task criteria to current code and exact-artifact evidence has not been completed. Do not blindly reimplement them or mark them complete from a merge title. The current three-producer/two-mode evidence and physical Windows Terminal verdict still require reconciliation; no manual acceptance is established here. Requirements, damage budgets, acceptance gates, and archive status are unchanged.
+
 ## 1. Build Rendering Evidence Before Changing Production Paints
 
 - [ ] 1.1 Add a bounded terminal-write classifier and headless cell-grid replayer for full-screen clears, row clears/writes, scroll regions, synchronized-update boundaries, cursor placement, bytes, and frame timing; verify focused unit tests cover synchronization honored and ignored, malformed streams, and artifact truncation.

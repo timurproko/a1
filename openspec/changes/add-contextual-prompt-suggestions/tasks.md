@@ -1,3 +1,9 @@
+## Recorded implementation and verification
+
+[PR #277](https://github.com/timurproko/a1/pull/277) merged on 2026-09-07 at `4654f0cb0b205038f9c3cef9220872ab1dbdccef`. The PR records a successful build/typecheck, 288+ focused contract/settings/adapter/component/session/composition tests, architecture and documentation checks, and strict change validation. Its final required CI checks passed, including fast validation, Windows Node 22/24 startup budgets, rendering, Linux/macOS containment, and `Development validation required`.
+
+Task 6.5 is therefore complete as an automated implementation/CI gate. Task 6.6 remains unchecked: the PR describes physical Windows Terminal validation as pending, and no explicit accepted verdict is present in the reviewed records. The credential-gated provider probe's existence is not evidence that a live-provider acceptance run occurred. Neither the merge nor this task-record reconciliation supplies manual acceptance, authorizes archiving, or changes the feature requirements.
+
 ## 1. Contract and lifecycle boundaries
 
 - [x] 1.1 Add vendor-neutral suggestion request/result/state ports, enrich completed-assistant events with response/run identity and terminal-stop metadata, and add an `agent-run-settled` event; verify owned-contract validation rejects malformed, oversized, or mismatched identities.
@@ -38,5 +44,5 @@
 - [x] 6.2 Add integration cases for explicit approval, obvious non-approval follow-up, no suggestion, filtering, draft-preservation, autocomplete priority, modal/extension-editor ownership, tool or assistant continuation, model switch, session replacement, and disposal; verify no case leaks suggestion instructions or output into transcript/history and no working/status row remains for suggestion generation.
 - [x] 6.3 Add comparison-route and non-interactive regression coverage proving `a1 pi` and unsupported modes retain their existing editor rendering, key routing, request count, and session behavior.
 - [x] 6.4 Add a credential-gated real-provider probe that uses the selected model without tools and reports bounded request/timing evidence while redacting prompt content and credentials; verify it is excluded from default local validation.
-- [ ] 6.5 Run focused contract, settings, adapter, editor, shell, architecture, and documentation tests during implementation, then push and verify all required CI checks without running the prohibited broad local suites.
+- [x] 6.5 Run focused contract, settings, adapter, editor, shell, architecture, and documentation tests during implementation, then push and verify all required CI checks without running the prohibited broad local suites.
 - [ ] 6.6 Build the exact implementation worktree and obtain user-controlled Windows Terminal acceptance for settlement-time appearance without animation or retained status, visual style, wrapping, typing cancellation, autocomplete precedence, Tab-then-Enter behavior, extra-request disclosure, and unchanged `a1 pi`; record any contradiction as reopened work before merge authorization.
