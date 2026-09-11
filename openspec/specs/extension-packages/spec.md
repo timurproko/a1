@@ -1,7 +1,7 @@
 # extension-packages Specification
 
 ## Purpose
-TBD - created by archiving change install-extension-packages. Update Purpose after archive.
+Define non-interactive extension package management for A1's own profile through the `a1 pi` command namespace. Preserve pinned Pi source grammar, command transcripts, and actionable failures while isolating other profiles and preventing independent updates of the pinned Pi runtime.
 
 ## Requirements
 
