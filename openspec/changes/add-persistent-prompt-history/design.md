@@ -7,6 +7,8 @@ Source observations informing this design:
 - `D:/Backups/pi/v2/history/index.ts` writes one JSON file per prompt and rereads/compacts the directory. Its settings file selects 100 entries; its code fallback is 10. Recall is global across working directories, deduplicates trimmed text, preserves the draft, and defers new snapshots while browsing. `core/editor/history-indicator.ts` numbers the newest entry as `total` and the oldest as 1. `history/cursor.test.ts` independently specifies older-to-end/newer-to-start caret behavior.
 - `D:/Git/claude-code-source/src/history.ts` instead uses a locked append-only JSONL file, reverse reads, and a recent 100-entry project-filtered window with current-session priority. `utils/pasteStore.ts` separately retains large pasted text. These are useful persistence references, not the desired A1 UX or source to vendor.
 - `src/integrations/pi/session-ui/session-shell.ts` already distinguishes displayed input from prepared prompt text and has multiple history insertions, including submission recovery. `session-shell-root.ts` also seeds history from the loaded transcript. Hooking every `addToHistory` call would incorrectly persist replay/recovery as new submissions.
+- The resolved pinned `@earendil-works/pi-tui` editor declaration makes `state`, `history`, `historyIndex`, `historyDraft`, `navigateHistory`, `setTextInternal`, and `scrollOffset` private. `addToHistory` can append but cannot replace a snapshot; public `setText` exits browsing, clears paste backing, normalizes text, and pushes an undo snapshot for every changed value. Pinned navigation instead captures the draft and pushes one undo snapshot on entry, then changes recalled text internally. The existing `OwnedEditor` only subclasses this closed base; the initially assumed typed history seam does not exist.
+- `bin/pi-tui.js` and the module-identity boundary intentionally resolve one Pi terminal package for A1 and extensions. Owning an editor source unit must not retarget that alias or replace the package's exported constructors. Pi's documented custom-editor factory remains a separate extension-owned lifecycle.
 - `src/foundation/lifecycle/paths.ts` already resolves `dataDir`, including `A1_DATA_DIR`, `%LOCALAPPDATA%/a1` on Windows, and `$XDG_DATA_HOME/a1` or `~/.local/share/a1` on current Unix paths. `ControlStore` uses `node:sqlite` but owns control metadata, not prompt retention.
 - The resource/data policy currently forbids arbitrary structured-payload persistence without a typed retention policy. This feature supplies only a narrow user-input recall policy; it does not authorize storing terminal content, engine messages, or credentials elsewhere.
 
@@ -25,6 +27,7 @@ Source observations informing this design:
 - No scanning all transcript files, implicit legacy import, cloud synchronization, project filter UI, search index, persistent image attachments, new daemon, or catch-all application database.
 - No automatic preservation across a moved/renamed profile root; an explicit future migration can support that case.
 - No encryption-at-rest implementation or promise that text submitted by the user cannot contain secrets.
+- No editor redesign, whole-terminal-package fork, runtime patch of installed Pi, synthetic-key workaround for private navigation, or attempt to make an arbitrary extension-supplied editor expose A1's history internals.
 
 ## Decisions
 
@@ -48,7 +51,7 @@ An AppData root follows existing product policy. `~/.a1/state` would also be coh
 
 Create a focused `src/features/prompt-history/` owner with public entry, tests, profile-key/path policy, history service, and worker/store implementation. Do not expand the control-storage owner or create a generic database abstraction for a single consumer.
 
-The neutral history submission/snapshot/status port belongs in the existing owned-UI contracts owner. Composition wires the feature into the Pi session UI only for bare A1 with persistence enabled. Pi integration interprets user input, prompt chips, and vendor session identity and sends already-classified values through that port. It neither chooses storage paths nor imports the feature's private store. The editor adapter handles vendor-specific navigation via explicit owned, typed operations, not reflection on private Pi members or global decorator patches.
+The neutral history submission/snapshot/status port belongs in the existing owned-UI contracts owner. Composition wires the feature into the Pi session UI only for bare A1 with persistence enabled. Pi integration interprets user input, prompt chips, and vendor session identity and sends already-classified values through that port. It neither chooses storage paths nor imports the feature's private store. The editor adapter exposes typed operations implemented by the source-traced owned editor described below; it does not pretend that a subclass can access pinned Pi's private navigation or use reflection/global decorator patches to do so.
 
 ```text
 resolved A1 paths/settings
@@ -60,10 +63,40 @@ resolved A1 paths/settings
      session shell <---------------+
           |
           v
-     history controller --> editor state --> semantic border renderer
+     snapshot coordinator --> typed editor history port
+                                       |
+                                       v
+                         owned editor history state machine
+                                       |
+                                       v
+                            semantic border renderer
 ```
 
-Keep browsing latches, revisions, draft state, and refresh coordination in a focused controller, not the shell render root. Use an explicit semantic border slot/property for the history indicator rather than recognizing and replacing rendered border strings. Keep the currently accepted input/editor pipeline as the sole terminal authority.
+Keep loading/merging/revision coordination in a focused session-UI coordinator, and keep browsing index, frozen entries, draft, caret, and undo transitions together in the owned editor's history state machine. The coordinator observes that machine through the typed port; it does not maintain a second authoritative index or copy of mutable editor state. Neither belongs in the shell render root. Use an explicit semantic border slot/property for the history indicator rather than recognizing and replacing rendered border strings. Keep the currently accepted input/editor pipeline as the sole terminal authority.
+
+### 2a. Own the editor core before adding history customization
+
+This is an explicit expansion of the implementation work accepted after the original proposal: port the pinned editor source, rather than merely add a subclass method to the current closed base. Keep the source-derived unit and necessary helpers inside `src/integrations/pi/components/` under its existing owner and upstream/provenance conventions. Derive the baseline from `packages/tui/src/components/editor.ts` at the selected Pi source revision (`0.84.2`, `914cf1472e715297caa30db4b9535d534a9eb718` for this change), checking it against the terminal package actually resolved by pinned Pi, not a possibly different hoisted copy.
+
+Before porting, inventory the editor's transitive imports and every current A1 collaborator that assumes a concrete Pi editor or its private members. Reuse supported public terminal utilities, keybinding authority, theme/component types, and autocomplete primitives through `#pi-tui`. If editor-local behavior such as undo storage, kill-ring operations, word navigation, segmentation, or a pure printable-character helper depends on non-public helpers, retain only the necessary attributed source-derived helper closure in the component owner. Do not fork the TUI runtime, terminal protocol/input-decoder stack, terminal renderer, package loader, or unrelated components, and do not deep-import missing helpers from an installed distribution. A small source-traced helper needed to match editor input behavior is part of this closure, not permission to create another terminal parser or keybinding authority. Adapt affected A1 selection/paste/layout collaborators through narrow typed local ports where connecting the owned editor requires it; this is not a repository-wide private-access cleanup.
+
+Record source path, source revision, license/attribution, retained helpers, owned destination, and intentional modifications in the existing source-ledger/provenance system. Source inspection or extraction belongs only to non-production provenance tooling. The shipped runtime imports checked-in/emitted owned code, never installed source maps or file hashes. A changed dependency/source authority must fail compatibility/provenance validation by name until explicitly reviewed; it must not silently overwrite the owned editor or copy in a new upstream implementation during an engine-only upgrade.
+
+First run the owned core with its history customization disabled against the untouched pinned editor using equivalent independently produced input/render fixtures. Establish equivalent navigation boundaries, text/cursor changes, draft restoration, undo grouping, paste backing, autocomplete, theme/width behavior, and submission callbacks before enabling the new history mode. Then test v2's deliberately different caret/order/counter behavior separately. A snapshot produced only by the new implementation is not a parity oracle.
+
+Add a narrow typed history port to the owned editor, with these semantic operations rather than exposed mutable private fields:
+
+- Install a validated newest-first recall snapshot without changing current text, cursor, selection, paste backing, or undo state. While browsing, retain only the latest pending snapshot and apply it after leaving browsing.
+- Observe browsing transitions and a read-only position/total presentation value so the coordinator can request refresh at safe boundaries. The editor remains the authority for deciding whether a real configured input crosses a history boundary.
+- Enter, step, and leave browsing through the source-derived navigation state machine: capture one draft/undo boundary on entry, change recalled text with explicit start/end caret placement without ordinary `setText` side effects, and restore the draft state and its live paste references on return.
+- Render history position with the owned border's semantic overflow state, not by parsing or rewriting finished ANSI rows.
+- Reset/dispose browsing with session/editor generation changes, leaving persistence coordination outside the editor.
+
+Keep whole-history replacement and per-submission capture separate: installing a snapshot or moving the caret never records a durable submission. Do not emulate these operations with repeated `setText`, fabricated keypresses, `as any`/private-state casts, type-declaration augmentation of Pi's private fields, or prototype mutation.
+
+Select the source-derived core only for the enabled bare-A1 default editor. Leave the existing pinned-based editor path selected for `a1 pi` and disabled-history launches, and do not change `#pi-tui` resolution or its exported `Editor`/`CustomEditor` identity for extensions. Keep public extension shortcut, get/set editor text, submit, autocomplete, and custom-editor factory behavior compatible. An extension-supplied custom editor remains extension-owned and is not silently replaced or patched to install this port; suspend default-editor history synchronization while it is active and reattach the latest snapshot when the existing factory lifecycle restores the default editor. Durable capture continues only at the already-classified user-submission boundary. Do not claim the separate owned implementation is constructor-identical to Pi's class or pass it into an API that requires a concrete Pi editor; adapt A1-owned consumers to declared structural ports and exercise extension interoperability explicitly.
+
+Alternatives rejected: wrapping public `setText` changes undo and paste semantics; reaching into private fields recreates the prohibited v2 patching pattern; replacing the global terminal-package alias breaks the comparison/extension identity boundary. Waiting for new upstream public hooks could work later but is not a dependency of this approved source-owned approach. The source port increases maintenance and regression surface, so its import inventory, typed seam, and baseline comparison are prerequisite tasks before storage/UI integration, not deferred cleanup.
 
 ### 3. Retain reusable user input, not engine output
 
@@ -108,7 +141,7 @@ Seed local current-conversation history through its existing read-only path, the
 
 Use the configured recall count while persistence is enabled; byte-limited durable storage can yield fewer saved entries. With persistence disabled, keep existing current-session recall behavior rather than loading saved data. No current-session-first grouping or project filtering is borrowed from Claude Code.
 
-Entering browse mode freezes the selected snapshot and captures the draft. Up toward older entries places the caret at the end of the recalled text; Down toward newer entries places it at the beginning. Returning to draft delegates normal draft restoration. Keep pinned navigation boundaries, multiline movement outside them, autocomplete priority, selection, undo, keybindings, and suggestion invalidation. Recalled text is real draft text and is never submitted automatically.
+Entering browse mode uses the owned editor's typed state machine to freeze the selected snapshot and capture the draft with one source-derived undo boundary. Up toward older entries places the caret at the end of the recalled text; Down toward newer entries places it at the beginning. Returning to draft uses the preserved internal draft state, including cursor and live paste references, rather than replaying public `setText`. Intermediate history steps and background snapshot installation do not push additional undo entries. Keep pinned navigation boundaries, multiline movement outside them, autocomplete priority, selection, undo, keybindings, and suggestion invalidation. Recalled text is real draft text and is never submitted automatically.
 
 Show `History position/total` in the editor's existing top border, with `position = total - newestFirstIndex`. Newest is `total/total`; oldest is `1/total`. Preserve the v2 overflow suffix when applicable, theme border role, and width clipping. Hide the indicator outside browsing. This must work with A1's prompt prefix and current editor layout without increasing dock height.
 
@@ -133,12 +166,13 @@ Graceful shutdown drains accepted queued writes up to its deadline. A committed 
 - [Large pastes exhaust memory or disk despite a small count] -> Enforce byte, queue, snapshot, and database/WAL thresholds and skip rather than truncate a reusable prompt.
 - [Profile aliases or relocation select another history] -> Use a documented stable path-derived profile identity; no implicit cross-profile migration.
 - [Editor history hooks include replay and recovery] -> Capture once at classified user-submission points; independently test replay, queue drains, failures, and unsubmitted suggestions.
-- [The prototype patched editor internals] -> Transfer behavior into owned typed seams and semantic presentation, not global patches, reflection, or rendered-string replacement.
+- [The pinned base exposes no safe history hooks] -> Own the attributed editor core and required helper closure, establish differential baseline parity first, and expose typed state-machine operations rather than global patches, reflection, or rendered-string replacement.
+- [An editor source port broadens maintenance and extension risk] -> Bound it to the enabled bare-A1 default editor, keep terminal-package identity/comparison/custom-editor factories unchanged, inventory and adapt concrete-type collaborators, and require provenance, public extension interoperability, and unrelated-editor regression gates.
 - [Mixed releases access one durable schema] -> Version/identity checks, transactional migrations, concurrent-open tests, and preserve-newer-schema fallback.
 
 ## Migration Plan
 
-1. Integrate this plan before implementation. Add the feature owner and neutral contract, declarations, and documentation/governance for the narrowly typed retention policy in the separate implementation stream.
+1. Integrate this revised plan before restarting implementation in a fresh stream. Establish the source-traced editor core/helper inventory, typed history/collaborator ports, and independent uncustomized parity gate first. Then add the feature owner and neutral storage contract, declarations, and documentation/governance for the narrowly typed retention policy; do not resume by patching the previously closed Pi editor base.
 2. Create schema version 1 lazily in the selected application-data root only for enabled bare-A1 runtime use. Test concurrent first creation and migration before enabling it by default.
 3. Do not inspect or import v2, `.pi`, Claude, or existing session history on disk. Existing loaded-transcript seeding remains in-memory only.
 4. Ship with default-enabled persistence and 100 entries as declared. Verify the isolated-profile and application-data override paths on Windows and supported Unix environments.
