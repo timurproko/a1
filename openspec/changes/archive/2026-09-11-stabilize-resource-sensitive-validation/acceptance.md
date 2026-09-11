@@ -44,8 +44,21 @@ Verified on 2026-09-11 from npm metadata and by downloading and hashing the regi
 - The downloaded bytes match registry integrity, and the publication job records that same expected integrity for its validated candidate and post-publication verification.
 - Observed dist-tags: `next=0.1.8-dev.290`; stable `latest=0.1.7` remains unchanged.
 
-## Archive prerequisite
+## Archive prerequisite resolved
 
-Acceptance is complete, but archiving is mechanically blocked: `test/repository-governance/resource-sensitive-validation.test.ts` reads both historical evidence JSON files from the active change directory (lines 142 and 162 at merge `8b06eeec3f613b6f438082019d2a122e004fb179`). Moving the change without adapting that consumer would cause missing-file test failures.
+Preflight originally blocked archiving because `test/repository-governance/resource-sensitive-validation.test.ts` read both historical evidence JSON files from the active change directory (lines 142 and 162 at merge `8b06eeec3f613b6f438082019d2a122e004fb179`). Acceptance was recorded separately in [PR #293](https://github.com/timurproko/a1/pull/293), merge `a9b0b212225966c39e5b01a39e6a74bbe8e7ff20`, without moving the evidence prematurely.
 
-Keep the change and its evidence in place until a separately reviewed code PR makes this consumer archive-safe while preserving every evidence assertion and failing on missing or ambiguous evidence. Do not duplicate evidence under a phantom active change or weaken the test. After that prerequisite merges, synchronize both delta specs and archive in an OpenSpec-only follow-up, then clean up retained worktrees after the archive integrates. This prerequisite does not reopen the accepted validation correction or grant acceptance to another change.
+The maintainer explicitly authorized the prerequisite fix. Test-only [PR #294](https://github.com/timurproko/a1/pull/294), head `45628d0d7d6784a7947222d3811a5bb0f65dd333`, merged on 2026-09-11 at `a576717c9accf0fb4f4a78bb3db6e62163453f66`. [CI run 34577394221](https://github.com/timurproko/a1/actions/runs/34577394221) passed all required checks, including fast validation, changed-file documentation, Windows Node 22/24 startup, and Linux/macOS containment. Its focused local validation passed 33 tests across five files, with 16 tests in the changed file, plus typecheck and architecture checks.
+
+The consumer now selects exactly one active or date-prefixed archived change directory before reading either evidence file. It retains every existing evidence assertion and rejects missing/ambiguous locations, missing/corrupt JSON, and filesystem errors. Regression tests exercise actual fixture directory moves under two different archive dates. No runtime, evidence content, timeout, or retry policy changed, and no new publication is needed for this test-only prerequisite.
+
+After that merge, the maintainer explicitly renewed the completion request: **"merged, archive it now"**. The mechanical blocker is resolved; this OpenSpec-only follow-up completes task 4.4 by synchronizing both delta specs and archiving the change with its unchanged historical evidence. Retained worktree cleanup follows integration of the archive, not merely its local creation. This disposition does not grant acceptance to another change.
+
+## Archive verification
+
+- Archived under `openspec/changes/archive/2026-09-11-stabilize-resource-sensitive-validation/`; the active directory is absent and all 15 tasks are complete.
+- Both added requirements and every delta scenario exactly match their synchronized main specs; every pre-existing main-spec paragraph and scenario is preserved.
+- Git blob comparison confirms unchanged metadata, proposal, design, both delta specs, and both historical evidence JSON files. Only acceptance and task records changed during the move.
+- `openspec validate --all --strict --no-interactive`: 45 passed, 0 failed.
+- `npx --no-install vitest run test/repository-governance/resource-sensitive-validation.test.ts`: all 16 tests passed against the actual archived evidence location (106 ms test-file duration).
+- `git diff --cached --check`: passed. No local fast/full/release tier was run. These local archive checks do not substitute for the archive PR's required CI or imply that its integration and worktree cleanup have already happened.
