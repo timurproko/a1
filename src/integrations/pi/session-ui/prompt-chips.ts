@@ -126,13 +126,18 @@ export class PromptChipStore {
   async dispose(): Promise<void> { await Promise.all([this.#preparation.dispose(), ...this.#stopping]); }
 
   #imageCount(text: string): number {
-    const regular = [...this.#chips.values()].filter(chip => chip.kind === "image" && text.includes(chip.tag)).length;
-    return regular + [...this.#pending.values()].filter(entry => entry.kind !== "text" && (text.includes(entry.marker) || text.includes(entry.marker.replace("screenshot-", "failed-")))).length;
+    const tags = new Set([...this.#chips.values()].filter(chip => chip.kind === "image" && text.includes(chip.tag)).map(chip => chip.tag));
+    for (const entry of this.#pending.values()) {
+      if (entry.kind !== "text" && (text.includes(entry.marker) || text.includes(entry.marker.replace("screenshot-", "failed-")))) {
+        // Invariant: a ready screenshot can retain its pending label but still occupies only one slot.
+        tags.add(entry.replacement ?? entry.marker);
+      }
+    }
+    return tags.size;
   }
 
   #addPreparedImage(image: PreparedImage, id: string): string {
-    const suffix = image.mimeType === "image/jpeg" ? "jpg" : image.mimeType.split("/")[1] ?? "png";
-    const tag = `[📷 screenshot-${id}${image.transformed ? "-resized" : ""}.${suffix}]`;
+    const tag = `[📷 screenshot-${id}${image.transformed ? "-resized" : ""}]`;
     const attachment = Object.freeze({ type: "image" as const, data: image.data, mimeType: image.mimeType });
     assertPromptImages([attachment]);
     this.#chips.set(tag, { kind: "image", tag, image: attachment });
@@ -146,7 +151,7 @@ export class PromptChipStore {
       if (image === null) return "";
       assertPromptImages([...this.prepareSubmission(currentText).images, { type: "image", ...image }]);
       const id = randomBytes(5).toString("hex");
-      const tag = `[📷 screenshot-${id}.png]`;
+      const tag = `[📷 screenshot-${id}]`;
       this.#chips.set(tag, {
         kind: "image",
         tag,

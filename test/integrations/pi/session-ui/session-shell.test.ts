@@ -250,7 +250,7 @@ describe("OwnedUiSessionShell", () => {
       release({ data: source, mimeType: "image/png" });
       expect((await duplicate).outcome).toBe("completed");
       expect(engine.session.promptOptions).toHaveLength(1);
-      expect(engine.session.calls.find(call => call.startsWith("prompt:"))).toMatch(/screenshot-.*resized.* inspect this/u);
+      expect(engine.session.calls.find(call => call.startsWith("prompt:"))).toBe(`prompt:${chip.slice(0, -1)}-resized] inspect this`);
       expect(shell.root.editor.getText()).toBe("newer draft");
       expect(stripTerminalSequences(shell.root.render(100).join("\n"))).not.toContain("Waiting for images");
     } finally { await shell.dispose(); }
@@ -286,12 +286,18 @@ describe("OwnedUiSessionShell", () => {
       .mockResolvedValueOnce({ data: secondData, mimeType: "image/png" });
     const { shell, terminal, engine } = await fixture([], [], true, undefined, { readText: async () => null, readImage });
     try {
-      terminal.input("\u0016"); terminal.input("\u0016"); terminal.input(" tail");
-      await vi.waitFor(() => expect(shell.root.editor.getText()).toContain(".png]"));
-      expect(shell.root.editor.getText()).toMatch(/^\[📷 screenshot-[a-f0-9]+\]\[📷 screenshot-[a-f0-9]+\.png\] tail$/u);
-      expect(shell.root.hasPendingPastes(shell.root.editor.getText())).toBe(true);
+      terminal.input("\u0016");
+      const firstChip = shell.root.editor.getText();
+      terminal.input("\u0016");
+      const secondChip = shell.root.editor.getText().slice(firstChip.length);
+      terminal.input(" tail");
+      await vi.waitFor(() => expect(shell.root.hasPendingPastes(secondChip)).toBe(false));
+      expect(shell.root.editor.getText()).toBe(`${firstChip}${secondChip} tail`);
+      expect(shell.root.hasPendingPastes(firstChip)).toBe(true);
       first({ data: firstData, mimeType: "image/png" });
-      await vi.waitFor(() => expect(shell.root.hasPendingPastes(shell.root.editor.getText())).toBe(false));
+      await vi.waitFor(() => expect(shell.root.hasPendingPastes(firstChip)).toBe(false));
+      expect(shell.root.editor.getText()).toBe(`${firstChip}${secondChip} tail`);
+      expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain(`${firstChip}${secondChip}`);
       terminal.input("!");
       await nextImmediate();
       expect(shell.root.editor.getText()).toMatch(/ tail!$/u);
@@ -398,7 +404,7 @@ describe("OwnedUiSessionShell", () => {
       terminal.input("\u0016");
       await vi.waitFor(() => expect(shell.root.hasPendingPastes(shell.root.editor.getText())).toBe(false));
       const draft = shell.root.editor.getText();
-      expect(draft).toMatch(/^\[📷 screenshot-[a-f0-9]+\.png\]$/u);
+      expect(draft).toMatch(/^\[📷 screenshot-[a-f0-9]+\]$/u);
       vi.spyOn(adapter, "execute").mockResolvedValueOnce({ outcome: "rejected", diagnostic: "synthetic rejection" });
       terminal.input("\r");
       await nextImmediate();
@@ -1864,8 +1870,10 @@ describe("OwnedUiSessionShell", () => {
     clipboardImage = { data: canonicalImageData.replace(/=+$/u, ""), mimeType: "image/png" };
     shell.root.editor.setText("");
     terminal.input("\u0016");
-    await vi.waitFor(() => expect(shell.root.editor.getText()).toMatch(/^\[📷 screenshot-[a-f0-9]+\.png\]$/u));
     const imageTag = shell.root.editor.getText();
+    expect(imageTag).toMatch(/^\[📷 screenshot-[a-f0-9]+\]$/u);
+    await vi.waitFor(() => expect(shell.root.hasPendingPastes(imageTag)).toBe(false));
+    expect(shell.root.editor.getText()).toBe(imageTag);
     terminal.input("\u001b[D");
     terminal.input("\u0003");
     await vi.waitFor(() => expect(clipboardText).toBe(imageTag));

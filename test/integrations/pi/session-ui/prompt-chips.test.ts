@@ -27,7 +27,7 @@ describe("PromptChipStore", () => {
       expect(() => store.prepareSubmission(paste.marker)).toThrow("still preparing");
       release({ kind: "image", data, mimeType: "image/png" });
       const ready = await paste.result;
-      expect(ready).toBe(`${paste.marker.slice(0, -1)}.png]`);
+      expect(ready).toBe(paste.marker);
       expect(store.hasPending(paste.marker)).toBe(false);
       expect(store.prepareSubmission(`${paste.marker} ${ready}`)).toEqual({
         text: `${ready} ${ready}`,
@@ -91,6 +91,27 @@ describe("PromptChipStore", () => {
     } finally { store.dispose(); }
   });
 
+  it("counts each extension-free screenshot once as sequential pastes become ready", async () => {
+    const store = new PromptChipStore();
+    const data = screenshotPng(4, 4).toString("base64");
+    const read = async () => ({ kind: "image" as const, data, mimeType: "image/png" });
+    const errors: unknown[] = [];
+    let draft = "";
+    try {
+      for (let count = 1; count <= 8; count++) {
+        const paste = store.beginPaste(draft, read, error => errors.push(error));
+        const ready = await paste.result;
+        expect(ready).toBe(paste.marker);
+        draft += ready;
+        expect(store.prepareSubmission(draft).images).toHaveLength(count);
+      }
+      expect(errors).toEqual([]);
+      const ninth = store.beginPaste(draft, read, error => errors.push(error));
+      await ninth.result;
+      expect(errors.at(-1)).toMatchObject({ code: "image-count" });
+    } finally { await store.dispose(); }
+  });
+
   it("turns existing files and folders into atomic chips and expands their values", async () => {
     const root = await mkdtemp(path.join(tmpdir(), "a1-prompt-chips-"));
     cleanup.push(root);
@@ -126,13 +147,13 @@ describe("PromptChipStore", () => {
     });
   });
 
-  it("keeps canonical image chips in prompt text and emits their attachment once", () => {
+  it.each(["image/png", "image/jpeg", "image/webp"])("keeps %s screenshot chips extension-free and emits their attachment once", mimeType => {
     const store = new PromptChipStore();
-    const chip = store.transformPastedContent({ kind: "image", data: "aW1hZ2U", mimeType: "image/png" });
+    const chip = store.transformPastedContent({ kind: "image", data: "aW1hZ2U", mimeType });
     const prepared = store.prepareSubmission(`${chip} ${chip}`);
-    expect(chip).toMatch(/^\[📷 screenshot-[a-f0-9]+\.png\]$/u);
+    expect(chip).toMatch(/^\[📷 screenshot-[a-f0-9]+\]$/u);
     expect(prepared.text).toBe(`${chip} ${chip}`);
-    expect(prepared.images).toEqual([{ type: "image", data: "aW1hZ2U=", mimeType: "image/png" }]);
+    expect(prepared.images).toEqual([{ type: "image", data: "aW1hZ2U=", mimeType }]);
   });
 
   it("does not create a chip for malformed image data", () => {
