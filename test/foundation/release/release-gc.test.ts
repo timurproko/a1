@@ -19,6 +19,18 @@ afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, { recursi
 const noTransaction = { read: async () => null };
 
 describe("bounded immutable release cleanup", () => {
+  it("never treats profile history databases or sidecars as release or dependency cache", async () => {
+    const fixture = await releaseFixture(3);
+    await activateAll(fixture.store, fixture.releases);
+    const history = resolve(fixture.dataDir, "history");
+    await mkdir(history, { recursive: true });
+    for (const suffix of ["", "-wal", "-shm"]) await writeFile(resolve(history, `profile.sqlite3${suffix}`), "private-history-sentinel");
+    await runBoundedReleaseCleanup(fixture.dataDir, undefined, { transactionStore: noTransaction });
+    for (const suffix of ["", "-wal", "-shm"]) {
+      expect(await readFile(resolve(history, `profile.sqlite3${suffix}`), "utf8")).toBe("private-history-sentinel");
+    }
+  });
+
   it("detaches historical releases, preserves active and rollback, and removes certification after content", async () => {
     const fixture = await releaseFixture(3);
     const [obsolete, rollback, active] = fixture.releases;

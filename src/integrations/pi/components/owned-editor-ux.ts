@@ -2,8 +2,8 @@ import {
   CURSOR_MARKER,
   decodeKittyPrintable,
   visibleWidth,
-  type Editor,
 } from "#pi-tui";
+import type { SelectionEditor as Editor } from "./editor-interaction.js";
 import type { KeybindingsManager } from "./upstream/adjacent/core/keybindings.js";
 import { promptPathWordRanges } from "./path-word-ranges.js";
 import type {
@@ -317,7 +317,7 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
     const layoutWidth = Math.max(1, contentWidth - (padding ? 0 : 1));
     const visualLines = editorVisualLineMap(this.editor, layoutWidth)
       ?? buildVisualLineMap(editorState(this.editor).lines, layoutWidth);
-    const scrollOffset = numericProperty(this.editor, "scrollOffset");
+    const scrollOffset = this.editor.interaction?.scrollOffset() ?? numericProperty(this.editor, "scrollOffset");
     const maxVisibleLines = Math.max(5, Math.floor(this.options.getRows() * 0.3));
     const textRows = Math.max(0, Math.min(visualLines.length - scrollOffset, maxVisibleLines, rows.length - 2));
     this.#geometry = { width, padding, layoutWidth, visualLines, scrollOffset, textRows };
@@ -556,12 +556,17 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
     const selection = this.#selection === undefined ? undefined : { anchor: remap(this.#selection.anchor), head: remap(this.#selection.head) };
     const next = current.slice(0, from) + text + current.slice(to);
     // Compatibility: completing a paste updates its provisional undo snapshots, not the user's undo history.
-    editorState(this.editor).lines = next.split("\n");
-    const undo: unknown = Reflect.get(this.editor, "undoStack");
-    const snapshots: unknown = typeof undo === "object" && undo !== null ? Reflect.get(undo, "stack") : undefined;
-    if (Array.isArray(snapshots)) for (const snapshot of snapshots) {
-      const state: unknown = typeof snapshot === "object" && snapshot !== null ? Reflect.get(snapshot, "state") : undefined;
-      if (isEditorState(state)) replaceSnapshotMarker(state, marker, text);
+    if (this.editor.interaction !== undefined) {
+      this.editor.interaction.replaceLines(next.split("\n"));
+      this.editor.interaction.updateUndoStates(state => replaceSnapshotMarker(state, marker, text));
+    } else {
+      editorState(this.editor).lines = next.split("\n");
+      const undo: unknown = Reflect.get(this.editor, "undoStack");
+      const snapshots: unknown = typeof undo === "object" && undo !== null ? Reflect.get(undo, "stack") : undefined;
+      if (Array.isArray(snapshots)) for (const snapshot of snapshots) {
+        const state: unknown = typeof snapshot === "object" && snapshot !== null ? Reflect.get(snapshot, "state") : undefined;
+        if (isEditorState(state)) replaceSnapshotMarker(state, marker, text);
+      }
     }
     for (const snapshot of this.#redoStack) {
       const state = { lines: snapshot.text.split("\n"), cursorLine: snapshot.cursor.line, cursorCol: snapshot.cursor.col };
@@ -692,6 +697,10 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
   }
 
   #setCursor(position: Position): void {
+    if (this.editor.interaction !== undefined) {
+      this.editor.interaction.setCursor(position.line, position.col);
+      return;
+    }
     const state = editorState(this.editor);
     const line = clamp(position.line, 0, Math.max(0, state.lines.length - 1));
     state.cursorLine = line;
@@ -706,6 +715,7 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
       : state.cursorCol >= range.start && state.cursorCol < range.end);
     if (atomic !== undefined) {
       state.cursorCol = delta < 0 ? atomic.start : atomic.end;
+      this.editor.interaction?.setCursor(state.cursorLine, state.cursorCol);
       return;
     }
     if (delta < 0) {
@@ -716,6 +726,7 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
         state.cursorLine -= 1;
         state.cursorCol = (state.lines[state.cursorLine] ?? "").length;
       }
+      this.editor.interaction?.setCursor(state.cursorLine, state.cursorCol);
       return;
     }
     if (state.cursorCol < line.length) {
@@ -724,6 +735,7 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
       state.cursorLine += 1;
       state.cursorCol = 0;
     }
+    this.editor.interaction?.setCursor(state.cursorLine, state.cursorCol);
   }
 
   #atomicRangeAt(position: Position): PiShellEditorTextRange | undefined {
@@ -769,12 +781,8 @@ function installAtomicSegmentation(
   rangesForText: (text: string) => readonly PiShellEditorTextRange[],
   wordDirection: () => WordDirection | undefined,
 ): void {
-  if (Reflect.get(editor, ATOMIC_SEGMENTATION) === true) return;
-  const originalValue: unknown = Reflect.get(editor, "segment");
-  if (typeof originalValue !== "function") return;
-  const original = originalValue.bind(editor) as (text: string, mode?: unknown) => Iterable<unknown>;
-  Reflect.set(editor, "segment", (text: string, mode?: unknown): Iterable<EditorSegment> => {
-    const segments = [...original(text, mode)].filter(isEditorSegment);
+  const transform = (text: string, mode: unknown, values: Iterable<unknown>): Iterable<EditorSegment> => {
+    const segments = [...values].filter(isEditorSegment);
     const ranges: SegmentationRange[] = rangesForText(text).map(range => ({ ...range, wordLike: false }));
     if (mode === "word") {
       for (const range of contextualPathRanges(editor, text, wordDirection())) {
@@ -803,7 +811,16 @@ function installAtomicSegmentation(
       merged.push(segment);
     }
     return merged;
-  });
+  };
+  if (editor.interaction !== undefined) {
+    editor.interaction.setSegmentTransform(transform);
+    return;
+  }
+  if (Reflect.get(editor, ATOMIC_SEGMENTATION) === true) return;
+  const originalValue: unknown = Reflect.get(editor, "segment");
+  if (typeof originalValue !== "function") return;
+  const original = originalValue.bind(editor) as (text: string, mode?: unknown) => Iterable<unknown>;
+  Reflect.set(editor, "segment", (text: string, mode?: unknown) => transform(text, mode, original(text, mode)));
   Reflect.set(editor, ATOMIC_SEGMENTATION, true);
 }
 
@@ -884,6 +901,7 @@ function sameSnapshot(left: EditorSnapshot, right: EditorSnapshot): boolean {
 }
 
 function editorState(editor: Editor): EditorState {
+  if (editor.interaction !== undefined) return editor.interaction.snapshot();
   const value: unknown = Object.getOwnPropertyDescriptor(editor, "state")?.value;
   if (!isEditorState(value)) throw new Error("Pi editor state is unavailable");
   return value;
@@ -904,6 +922,7 @@ function numericProperty(target: object, key: string): number {
 }
 
 function editorVisualLineMap(editor: Editor, width: number): VisualLine[] | undefined {
+  if (editor.interaction !== undefined) return editor.interaction.visualLines(width);
   const builder: unknown = Reflect.get(editor, "buildVisualLineMap");
   if (typeof builder !== "function") return undefined;
   const value: unknown = builder.call(editor, width);

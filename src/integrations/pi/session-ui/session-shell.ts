@@ -1,3 +1,5 @@
+import { PromptHistoryController } from "./prompt-history-controller.js";
+import type { PromptHistoryKind } from "../../../contracts/owned-ui/index.js";
 import { PRODUCT_TEXT } from "../../../product-identity.js";
 import { boundedCleanup } from "../../../foundation/terminal-cleanup/index.js";
 import { assertOwnedUiCommand, assertPromptImages, ImageAttachmentError } from "../../../contracts/owned-ui/index.js";
@@ -118,6 +120,7 @@ export class OwnedUiSessionShell {
   readonly #unsubscribe: () => void;
   readonly #unsubscribePromptSuggestions: () => void;
   readonly #promptSuggestions: ContextualPromptSuggestionController | null;
+  #promptHistory: PromptHistoryController | null = null;
   readonly #extensionBridge: PiExtensionUiBridge;
   readonly #stopped: Promise<void>;
   #resolveStopped: (() => void) | undefined;
@@ -181,6 +184,8 @@ export class OwnedUiSessionShell {
         replacementSurfaceActive: !this.root.usesDefaultInputSurface(),
       }),
       enableDockInputReuse: options.inputPresentation?.viewportReuse !== false,
+      persistentHistory: this.#customViewport && options.promptHistory !== undefined,
+      ...(options.promptHistory === undefined ? {} : { historyEditor: options.promptHistory.editor }),
       onSubmit: text => { void this.submit(text).catch(() => this.#reportSubmissionError()); },
       onPasteRejected: error => this.#reportSubmissionError(error),
       onInterrupt: () => { void this.interrupt(); },
@@ -201,6 +206,7 @@ export class OwnedUiSessionShell {
       onInputSurfaceChanged: () => {
         this.root.clearViewportPointerState();
         promptSuggestionController?.invalidate();
+        this.#promptHistory?.synchronize();
       },
       onCopyText: text => {
         runtime?.writeControl(`\u001b]52;c;${Buffer.from(text, "utf8").toString("base64")}\u0007`);
@@ -400,6 +406,17 @@ export class OwnedUiSessionShell {
         this.root.setImagePresentation(this.#showImages, this.#imageWidthCells);
       } },
     });
+    if (this.#customViewport && options.promptHistory !== undefined) {
+      this.#promptHistory = new PromptHistoryController({
+        editor: this.root.editor,
+        store: options.promptHistory.store,
+        limit: options.promptHistory.limit,
+        fallback: this.view().transcript.flatMap(block => block.kind === "user" ? [block.text] : []),
+        active: () => this.root.usesDefaultInputSurface(),
+        render: () => this.runtime.requestRender(),
+        failure: message => this.root.addExtensionNotification(message, "warning"),
+      });
+    }
     this.#extensionBridge = createPiExtensionUiBridge({
       runtime: {
         getColumns: () => this.runtime.viewport().columns,
@@ -510,6 +527,7 @@ export class OwnedUiSessionShell {
     if (this.#started) return;
     this.#started = true;
     this.runtime.start();
+    this.#promptHistory?.start();
     this.#syncTerminalProgress(this.view());
     if (this.#customViewport) this.#setPointerReporting(true);
     void this.backend.bindExtensionUi(this.#extensionBridge.context, () => { void this.shutdown(); });
@@ -563,6 +581,15 @@ export class OwnedUiSessionShell {
     for (const item of this.#waitingImages.values()) item.controller.abort();
   }
 
+  #rememberInput(text: string, kind: PromptHistoryKind): void {
+    this.root.editor.addToHistory(text);
+    if (this.#promptHistory !== null) {
+      const reusable = this.root.prepareHistoryText(text);
+      if (reusable.length === 0) this.#promptHistory.rememberRecovery(text);
+      else this.#promptHistory.capture(reusable, kind, this.#cwd, this.backend.sessionId);
+    }
+  }
+
   async #submit(text: string): Promise<AdapterCommandResult> {
     this.#promptSuggestions?.invalidate();
     const displayInput = text.trim();
@@ -575,7 +602,7 @@ export class OwnedUiSessionShell {
       const excludeFromContext = input.startsWith("!!");
       const command = input.slice(excludeFromContext ? 2 : 1).trim();
       if (command) {
-        this.root.editor.addToHistory(displayInput);
+        this.#rememberInput(displayInput, "bash");
         try {
           const result = await this.backend.executeBashWorkflow(command, excludeFromContext);
           const workflow: PiWorkflowResult = {
@@ -596,7 +623,7 @@ export class OwnedUiSessionShell {
       }
     }
     if (this.view().status.workingMessage?.startsWith("Compacting") === true) {
-      this.root.editor.addToHistory(displayInput);
+      this.#rememberInput(displayInput, "steer");
       this.#compactionQueue.push({
         text: input,
         draft: displayInput,
@@ -608,7 +635,7 @@ export class OwnedUiSessionShell {
       return { outcome: "completed", diagnostic: null };
     }
     const type = this.view().lifecycle === "busy" ? "steer" as const : "prompt" as const;
-    this.root.editor.addToHistory(displayInput);
+    this.#rememberInput(displayInput, type);
     this.root.resumeViewportFollowing();
     return this.#execute({
       type,
@@ -728,7 +755,7 @@ export class OwnedUiSessionShell {
     const prepared = this.root.preparePromptSubmission(displayInput);
     assertPromptImages(prepared.images);
     const text = prepared.text.trim();
-    this.root.editor.addToHistory(displayInput);
+    this.#rememberInput(displayInput, "follow-up");
     if (this.root.editor.getText() === draft) this.root.editor.setText("");
     this.root.resumeViewportFollowing();
     if (this.view().status.workingMessage?.startsWith("Compacting") === true) {
@@ -1260,6 +1287,8 @@ export class OwnedUiSessionShell {
     const failures: unknown[] = [];
     const attempt = (action: () => void) => { try { action(); } catch (error) { failures.push(error); } };
     let pasteCleanup = Promise.resolve();
+    let historyCleanup = Promise.resolve(true);
+    attempt(() => { historyCleanup = this.#promptHistory?.close() ?? Promise.resolve(true); });
     attempt(() => { pasteCleanup = this.root.disposePendingPastes(); });
     attempt(() => this.root.clearViewportPointerState());
     attempt(() => this.#setPointerReporting(false, true));
@@ -1285,6 +1314,8 @@ export class OwnedUiSessionShell {
     attempt(() => this.#extensionBridge.dispose());
     // Invariant: terminal restoration precedes any potentially stalled backend teardown.
     await this.runtime.dispose().catch(error => failures.push(error));
+    const historySaved = await historyCleanup.catch(() => false);
+    if (!historySaved) this.runtime.writeAfterStop("Prompt history could not finish saving before exit.\n");
     await boundedCleanup(() => pasteCleanup).catch(error => failures.push(error));
     await boundedCleanup(() => this.backend.unbindExtensionUi()).catch(error => failures.push(error));
     if (failures.length > 0) throw new AggregateError(failures, "Owned UI disposal failed");
@@ -1319,6 +1350,7 @@ export class OwnedUiSessionShell {
       this.root.resetPendingPastes();
       this.#promptSuggestions?.invalidate();
       this.#sessionGeneration = this.backend.sessionGeneration;
+      this.#promptHistory?.reset(view.transcript.flatMap(block => block.kind === "user" ? [block.text] : []));
       this.#activeLoginDialog = undefined;
       this.#extensionBridge.reset();
       // Invariant: a replaced session takes its transient viewport and owned-route state with it.
@@ -1466,7 +1498,7 @@ export class OwnedUiSessionShell {
     if (this.#routeHost?.claims(name)) return this.#openOwnedRoute(name);
     if (isWorkflowRoute(name)) return this.runWorkflow({ command: name, argument });
     // Compatibility: unknown slash input, prompt templates, skills, and extension commands remain Pi prompt input.
-    this.root.editor.addToHistory(text);
+    this.#rememberInput(text, "slash");
     this.root.resumeViewportFollowing();
     return this.#execute({
       type: this.view().lifecycle === "busy" ? "steer" : "prompt",
@@ -1603,6 +1635,7 @@ export class OwnedUiSessionShell {
     } catch {
       // Security: dispatch might already have reached the provider. Never retry automatically.
       this.root.editor.addToHistory(draft);
+      this.#promptHistory?.rememberRecovery(draft);
       this.#reportSubmissionError(undefined, "Submission failed; delivery is uncertain. Check the conversation before retrying. Press Up to recover the draft.");
       return { outcome: "failed", diagnostic: "submission delivery is uncertain" };
     }
@@ -1619,6 +1652,7 @@ export class OwnedUiSessionShell {
 
   #recoverSubmission(draft: string, revision: number, error?: unknown): AdapterCommandResult {
     this.root.editor.addToHistory(draft);
+    this.#promptHistory?.rememberRecovery(draft);
     // Concurrency: never overwrite input typed (even typed and cleared) after this submission.
     if (revision === this.#editorRevision && this.root.editor.getText().length === 0) this.root.editor.setText(draft);
     const message = error instanceof ImageAttachmentError ? error.message : "Submission rejected. Check the prompt and attachments.";

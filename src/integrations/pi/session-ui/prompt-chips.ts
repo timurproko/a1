@@ -201,6 +201,10 @@ export class PromptChipStore {
     return this.#replaceResolvable(text, false).text;
   }
 
+  prepareHistoryText(text: string): string {
+    return this.#replaceResolvable(text, false).text.replace(CHIP_PATTERN, tag => this.#chips.get(tag)?.kind === "image" ? "" : tag).trim();
+  }
+
   prepareSubmission(text: string): PreparedPrompt {
     const expanded = this.#replaceResolvable(text, true);
     return { text: expanded.text, images: expanded.images };

@@ -26,6 +26,8 @@ describe("owned UI setting declarations", () => {
       "scrollbarAppearance",
       "scrollbarStyle",
       "scrollbarSpeed",
+      "promptHistoryEnabled",
+      "promptHistoryMaxItems",
       "promptSuggestions",
     ]);
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "promptSuggestions")).toMatchObject({
@@ -56,6 +58,15 @@ describe("owned UI setting declarations", () => {
       application: "live",
       defaultValue: "normal",
       allowedValues: ["normal", "fast", "high"],
+    });
+  });
+
+  it("declares next-start persistent history controls without Pi-owned settings", () => {
+    expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "promptHistoryEnabled")).toMatchObject({
+      label: "Persistent history", section: { id: "history", title: "History" }, application: "restart", defaultValue: true, allowedValues: [true, false],
+    });
+    expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "promptHistoryMaxItems")).toMatchObject({
+      label: "History limit", section: { id: "history", title: "History" }, application: "restart", defaultValue: 100, allowedValues: [10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
     });
   });
 

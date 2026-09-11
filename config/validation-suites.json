@@ -16,7 +16,8 @@
         "test/foundation/storage/storage.test.ts",
         "test/foundation/release/cohort-state.test.ts",
         "test/foundation/release/update-live-cohort.test.ts",
-        "test/features/workspace/reconciliation.test.ts"
+        "test/features/workspace/reconciliation.test.ts",
+        "test/features/prompt-history/store.test.ts"
       ],
       "exclude": [
         "test/cli/update-cli.test.ts",
@@ -27,6 +28,7 @@
         "test/integrations/pi/engine/runtime-integration.test.ts",
         "test/integrations/pi/engine/session-integration.test.ts",
         "test/integrations/pi/session-ui/image-worker-package.test.ts",
+        "test/features/prompt-history/worker-package.test.ts",
         "test/integrations/pi/tui-runtime/rendering-budgets.test.ts",
         "test/integrations/pi/tui-runtime/rendering-smoke.test.ts",
         "test/integrations/pi/tui-runtime/rendering-producer.test.ts",
@@ -110,7 +112,8 @@
       "tests": [
         "test/cli/update-cli.test.ts",
         "test/features/launch/development-launch.test.ts",
-        "test/integrations/pi/session-ui/image-worker-package.test.ts"
+        "test/integrations/pi/session-ui/image-worker-package.test.ts",
+        "test/features/prompt-history/worker-package.test.ts"
       ]
     },
     "launch-integration": {

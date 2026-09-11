@@ -1,9 +1,9 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AgentJsonValue, AgentSettingDescriptor, AgentSettingsPort } from "../../../src/contracts/agent-engine/index.js";
-import { OWNED_UI_SETTING_DECLARATIONS, OwnedUiSettingsSession, OwnedUiSettingsStore } from "../../../src/ui/settings/index.js";
+import { OWNED_UI_SETTING_DECLARATIONS, OwnedUiSettingsSession, OwnedUiSettingsStore, type OwnedUiSettingDeclaration } from "../../../src/ui/settings/index.js";
 import { SettingsApp } from "../../../src/features/owned-ui/index.js";
 import type { AppHostServices } from "../../../src/ui/apps/index.js";
 
@@ -77,21 +77,32 @@ const HOST: AppHostServices = {
 
 let root: string;
 
+// Rationale: fixed numbered rows verify exact wheel distances independently of the product's settings inventory.
+const WHEEL_SETTINGS: readonly OwnedUiSettingDeclaration[] = [
+  { ...OWNED_UI_SETTING_DECLARATIONS.find(setting => setting.id === "scrollbarSpeed")!, section: { id: "wheel-test", title: "Wheel test" } },
+  ...Array.from({ length: 20 }, (_, index) => ({
+    id: `wheelRow${index + 1}`, label: `Wheel row ${String(index + 1).padStart(2, "0")}`,
+    section: { id: "wheel-test", title: "Wheel test" }, description: "Numbered wheel fixture.",
+    application: "live" as const, defaultValue: false, allowedValues: [false, true],
+  })),
+];
+
 async function app(
   failWrites = false,
   scrollbarSpeed?: "normal" | "fast" | "high",
-): Promise<{ app: SettingsApp; writes: { key: string; value: AgentJsonValue }[] }> {
+  declarations: readonly OwnedUiSettingDeclaration[] = OWNED_UI_SETTING_DECLARATIONS,
+): Promise<{ app: SettingsApp; session: OwnedUiSettingsSession; writes: { key: string; value: AgentJsonValue }[] }> {
   const backing = port(failWrites);
   const store = new OwnedUiSettingsStore({
     configDir: root,
     profileId: "profile",
-    declarations: OWNED_UI_SETTING_DECLARATIONS,
+    declarations,
     migrations: [],
   });
   if (scrollbarSpeed !== undefined) store.write(store.read(), "scrollbarSpeed", scrollbarSpeed);
   const session = new OwnedUiSettingsSession({ store, agent: backing.port });
   await session.load();
-  return { app: new SettingsApp(session), writes: backing.writes };
+  return { app: new SettingsApp(session), session, writes: backing.writes };
 }
 
 /** The rows the app draws, with styling escapes taken back off. */
@@ -262,13 +273,23 @@ describe("the settings screen", () => {
   it("allows the mouse wheel to reveal the final row after search reduces the list height", async () => {
     const { app: target } = await app();
     target.onInput?.("/", HOST);
-    target.render({ width: 80, height: 13 }, HOST);
-
-    // Rationale: wheel over otherwise blank list space, not over a setting row.
-    target.onMouse?.({ kind: "wheel-down", button: 0, row: 1, column: 70 }, HOST);
-    const lines = target.render({ width: 80, height: 13 }, HOST).map(line => line.replace(STYLE, "").trimEnd());
+    const render = () => target.render({ width: 80, height: 13 }, HOST).map(line => line.replace(STYLE, "").trimEnd());
+    let lines = render();
+    const visited = new Set<string>();
+    for (let step = 0; step < 20; step++) {
+      for (const label of ["Persistent history", "History limit", "Thinking level", "Output padding"]) {
+        if (lines.some(line => line.includes(label))) visited.add(label);
+      }
+      // Rationale: wheel over the whole list pane, including otherwise blank space beside rows.
+      target.onMouse?.({ kind: "wheel-down", button: 0, row: 1, column: 70 }, HOST);
+      const next = render();
+      if (next.join("\n") === lines.join("\n")) break;
+      lines = next;
+    }
     const searchRow = lines.findIndex(line => line.includes("search settings"));
-    expect(lines[searchRow - 2]).toContain("Thinking level");
+    expect(searchRow).toBeGreaterThanOrEqual(2);
+    expect(lines[searchRow - 2]).toContain("Output padding");
+    expect([...visited].sort()).toEqual(["History limit", "Output padding", "Persistent history", "Thinking level"]);
   });
 
   it("restores the opening blank row when Home returns to the beginning during search", async () => {
@@ -452,7 +473,7 @@ describe("the input row and status line behind the screen", () => {
 
   it("uses the configured live scrollbar speed for settings-list wheel movement", async () => {
     const visibleAfterWheel = async (speed: "normal" | "fast" | "high"): Promise<string> => {
-      const { app: target } = await app(false, speed);
+      const { app: target } = await app(false, speed, WHEEL_SETTINGS);
       target.render({ width: 80, height: 3 }, HOST);
       target.onMouse?.({ kind: "wheel-down", button: 0, row: 1, column: 70 }, HOST);
       return target.render({ width: 80, height: 3 }, HOST).map(line => line.replace(STYLE, "")).join("\n");
@@ -461,22 +482,22 @@ describe("the input row and status line behind the screen", () => {
     const normal = await visibleAfterWheel("normal");
     const fast = await visibleAfterWheel("fast");
     const high = await visibleAfterWheel("high");
-    expect(normal).toContain("A1");
-    expect(normal).not.toContain("Agent");
-    expect(fast).toContain("Agent");
-    expect(fast).not.toContain("Editor padding");
-    expect(high).toContain("Thinking level");
+    expect(normal).toContain("Wheel row 03");
+    expect(fast).toContain("Wheel row 06");
+    expect(high).toContain("Wheel row 09");
     expect(new Set([normal, fast, high]).size).toBe(3);
   });
 
   it("uses an accepted live speed before its source reflection settles", async () => {
-    const { app: target } = await app();
-    selectRow(target, "Speed");
-    target.onInput?.(ENTER, HOST);
+    const { app: target, session } = await app(false, "normal", WHEEL_SETTINGS);
+    const change = vi.spyOn(session, "change").mockReturnValue(new Promise(() => {}));
     target.render({ width: 80, height: 3 }, HOST);
+    target.onInput?.(ENTER, HOST);
+    expect(change).toHaveBeenCalledWith("a1", "scrollbarSpeed", "fast");
+    expect(session.value("scrollbarSpeed")).toBe("normal");
     target.onMouse?.({ kind: "wheel-down", button: 0, row: 1, column: 70 }, HOST);
     const visible = target.render({ width: 80, height: 3 }, HOST).map(line => line.replace(STYLE, "")).join("\n");
-    expect(visible).toContain("Prompt suggestions");
+    expect(visible).toContain("Wheel row 06");
   });
 
   it("reports a failed write instead of the hint", async () => {

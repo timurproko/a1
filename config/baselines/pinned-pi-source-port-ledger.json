@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-09-06T17:48:02.885Z",
+  "recordedAt": "2026-09-11T13:10:23.418Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "914cf1472e715297caa30db4b9535d534a9eb718",
@@ -38,8 +38,8 @@
     "sourceModules": 105,
     "assets": 4,
     "classifications": {
-      "public-api-reuse": 60,
-      "owned-presentation": 22,
+      "public-api-reuse": 54,
+      "owned-presentation": 28,
       "host-adaptation": 27
     },
     "requiredBehaviorIds": 29,
@@ -1238,7 +1238,7 @@
         "test/integrations/pi/components/shell-components.test.ts",
         "test/integrations/pi/session-ui/session-shell.test.ts"
       ],
-      "localSha256": "d24eeb11d1cbfb86d27b8ce2b7d9a79fb6847b1238f039160ca9217d4a4a9775"
+      "localSha256": "c5e873f191899e9ca0b8ce507f5916fad8d465b191683efcb92cbd437ffad8fb"
     },
     {
       "id": "pi-coding-agent:src/modes/interactive/components/custom-entry",
@@ -3145,12 +3145,20 @@
       "sourceMap": "components/editor.js.map",
       "lines": 2364,
       "sha256": "b2379d45aef41c4c19dcfab6c423a4242d3ab51310fe4df376a0a5e5da835845",
-      "classification": "public-api-reuse",
-      "localDestination": "src/integrations/pi/components/index.ts",
-      "implementationStatus": "available-through-pinned-package",
+      "classification": "owned-presentation",
+      "localDestination": "src/integrations/pi/components/upstream/history/editor-core.ts",
+      "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "None planned; import only from the pinned public pi-tui package root.",
-      "approvedDeviations": [],
+      "modifications": "Owned editor core or minimal editor-local helper subset; public imports, strict types, typed persistent-history hooks, and semantic border state. Public terminal runtime/exports remain shared and unchanged. See docs/architecture/history-editor-provenance.md.",
+      "localSha256": "cbd87fc380da6fdb9029849910b77d54849fc51cfc8b38b7a133f573735b3f69",
+      "approvedDeviations": [
+        {
+          "id": "persistent-history-owned-editor-boundary",
+          "reason": "The accepted persistent-prompt-history change owns the editor state machine rather than mutating private Pi fields; only enabled bare-A1 default-editor history is customized.",
+          "upstreamBehavior": "Pinned mode preserves input, undo, paste, autocomplete, and rendering semantics; persistent mode adds atomic snapshots, v2 directional caret placement and numbering, and independent draft paste backing.",
+          "acceptanceTest": "test/integrations/pi/components/history-editor-core.test.ts"
+        }
+      ],
       "behaviorCategories": [
         "editor",
         "autocomplete",
@@ -3807,12 +3815,20 @@
       "sourceMap": "keys.js.map",
       "lines": 1402,
       "sha256": "b972facce4233a4623239fc38029e28cae15d0fb326558c0c09dc02cf4345fa7",
-      "classification": "public-api-reuse",
-      "localDestination": "src/integrations/pi/components/index.ts",
-      "implementationStatus": "available-through-pinned-package",
+      "classification": "owned-presentation",
+      "localDestination": "src/integrations/pi/components/upstream/history/printable-key.ts",
+      "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "None planned; import only from the pinned public pi-tui package root.",
-      "approvedDeviations": [],
+      "modifications": "Owned editor core or minimal editor-local helper subset; public imports, strict types, typed persistent-history hooks, and semantic border state. Public terminal runtime/exports remain shared and unchanged. See docs/architecture/history-editor-provenance.md.",
+      "localSha256": "83fd87384dab614fd95d806df75a3ef6d372251cbe7dbb591169155b464eec00",
+      "approvedDeviations": [
+        {
+          "id": "persistent-history-owned-editor-boundary",
+          "reason": "The accepted persistent-prompt-history change owns the editor state machine rather than mutating private Pi fields; only enabled bare-A1 default-editor history is customized.",
+          "upstreamBehavior": "Pinned mode preserves input, undo, paste, autocomplete, and rendering semantics; persistent mode adds atomic snapshots, v2 directional caret placement and numbering, and independent draft paste backing.",
+          "acceptanceTest": "test/integrations/pi/components/history-editor-core.test.ts"
+        }
+      ],
       "behaviorCategories": [
         "editor",
         "autocomplete",
@@ -3842,12 +3858,20 @@
       "sourceMap": "kill-ring.js.map",
       "lines": 47,
       "sha256": "d829ae816560b12d2800a38db9f7278f76d9ef43d0e53e004a86add9b56c559a",
-      "classification": "public-api-reuse",
-      "localDestination": "src/integrations/pi/components/index.ts",
-      "implementationStatus": "available-through-pinned-package",
+      "classification": "owned-presentation",
+      "localDestination": "src/integrations/pi/components/upstream/history/kill-ring.ts",
+      "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "None planned; import only from the pinned public pi-tui package root.",
-      "approvedDeviations": [],
+      "modifications": "Owned editor core or minimal editor-local helper subset; public imports, strict types, typed persistent-history hooks, and semantic border state. Public terminal runtime/exports remain shared and unchanged. See docs/architecture/history-editor-provenance.md.",
+      "localSha256": "72d7f71c0193145da96ad30a41245d69ee5cb1d6c82c749f8d01c79c93e9570c",
+      "approvedDeviations": [
+        {
+          "id": "persistent-history-owned-editor-boundary",
+          "reason": "The accepted persistent-prompt-history change owns the editor state machine rather than mutating private Pi fields; only enabled bare-A1 default-editor history is customized.",
+          "upstreamBehavior": "Pinned mode preserves input, undo, paste, autocomplete, and rendering semantics; persistent mode adds atomic snapshots, v2 directional caret placement and numbering, and independent draft paste backing.",
+          "acceptanceTest": "test/integrations/pi/components/history-editor-core.test.ts"
+        }
+      ],
       "behaviorCategories": [
         "editor",
         "autocomplete",
@@ -4280,12 +4304,20 @@
       "sourceMap": "undo-stack.js.map",
       "lines": 29,
       "sha256": "1373c1e0a1e2c58ac90c93d32a9e5c1226d7f53314c77dd3d0f8ec349d2b3627",
-      "classification": "public-api-reuse",
-      "localDestination": "src/integrations/pi/components/index.ts",
-      "implementationStatus": "available-through-pinned-package",
+      "classification": "owned-presentation",
+      "localDestination": "src/integrations/pi/components/upstream/history/undo-stack.ts",
+      "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "None planned; import only from the pinned public pi-tui package root.",
-      "approvedDeviations": [],
+      "modifications": "Owned editor core or minimal editor-local helper subset; public imports, strict types, typed persistent-history hooks, and semantic border state. Public terminal runtime/exports remain shared and unchanged. See docs/architecture/history-editor-provenance.md.",
+      "localSha256": "cc03fa0d52497a52aa9d88ba449715fbe2f4f4e3e030f884b98778f3402a2f32",
+      "approvedDeviations": [
+        {
+          "id": "persistent-history-owned-editor-boundary",
+          "reason": "The accepted persistent-prompt-history change owns the editor state machine rather than mutating private Pi fields; only enabled bare-A1 default-editor history is customized.",
+          "upstreamBehavior": "Pinned mode preserves input, undo, paste, autocomplete, and rendering semantics; persistent mode adds atomic snapshots, v2 directional caret placement and numbering, and independent draft paste backing.",
+          "acceptanceTest": "test/integrations/pi/components/history-editor-core.test.ts"
+        }
+      ],
       "behaviorCategories": [
         "startup-composition",
         "stateful-components",
@@ -4318,12 +4350,20 @@
       "sourceMap": "utils.js.map",
       "lines": 1327,
       "sha256": "484ef73bee9a3a3abecf9dc24b6dfcd951f4c460cd03d9a6d18f28025486803d",
-      "classification": "public-api-reuse",
-      "localDestination": "src/integrations/pi/components/index.ts",
-      "implementationStatus": "available-through-pinned-package",
+      "classification": "owned-presentation",
+      "localDestination": "src/integrations/pi/components/upstream/history/text-helpers.ts",
+      "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "None planned; import only from the pinned public pi-tui package root.",
-      "approvedDeviations": [],
+      "modifications": "Owned editor core or minimal editor-local helper subset; public imports, strict types, typed persistent-history hooks, and semantic border state. Public terminal runtime/exports remain shared and unchanged. See docs/architecture/history-editor-provenance.md.",
+      "localSha256": "9486efee042839195ea4d1ef405664ee421b6fcb3840c22c2d3fd0e31c4098ab",
+      "approvedDeviations": [
+        {
+          "id": "persistent-history-owned-editor-boundary",
+          "reason": "The accepted persistent-prompt-history change owns the editor state machine rather than mutating private Pi fields; only enabled bare-A1 default-editor history is customized.",
+          "upstreamBehavior": "Pinned mode preserves input, undo, paste, autocomplete, and rendering semantics; persistent mode adds atomic snapshots, v2 directional caret placement and numbering, and independent draft paste backing.",
+          "acceptanceTest": "test/integrations/pi/components/history-editor-core.test.ts"
+        }
+      ],
       "behaviorCategories": [
         "keybindings",
         "resize",
@@ -4353,12 +4393,20 @@
       "sourceMap": "word-navigation.js.map",
       "lines": 118,
       "sha256": "b73e915a524926ac8881731e89026b0bc7b5b0bd465de67257af81a420465c7f",
-      "classification": "public-api-reuse",
-      "localDestination": "src/integrations/pi/components/index.ts",
-      "implementationStatus": "available-through-pinned-package",
+      "classification": "owned-presentation",
+      "localDestination": "src/integrations/pi/components/upstream/history/word-navigation.ts",
+      "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "None planned; import only from the pinned public pi-tui package root.",
-      "approvedDeviations": [],
+      "modifications": "Owned editor core or minimal editor-local helper subset; public imports, strict types, typed persistent-history hooks, and semantic border state. Public terminal runtime/exports remain shared and unchanged. See docs/architecture/history-editor-provenance.md.",
+      "localSha256": "9e03b667d8a153c7fcbbf8ac5d251feb171daa3b8de003152a403814aeec0163",
+      "approvedDeviations": [
+        {
+          "id": "persistent-history-owned-editor-boundary",
+          "reason": "The accepted persistent-prompt-history change owns the editor state machine rather than mutating private Pi fields; only enabled bare-A1 default-editor history is customized.",
+          "upstreamBehavior": "Pinned mode preserves input, undo, paste, autocomplete, and rendering semantics; persistent mode adds atomic snapshots, v2 directional caret placement and numbering, and independent draft paste backing.",
+          "acceptanceTest": "test/integrations/pi/components/history-editor-core.test.ts"
+        }
+      ],
       "behaviorCategories": [
         "editor",
         "autocomplete",
