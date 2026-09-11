@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { AgentJsonValue, AgentSettingDescriptor } from "../../../src/contracts/agent-engine/index.js";
 import {
+  OWNED_UI_SETTING_DECLARATIONS,
   buildOwnedUiSettingsSections,
   findOwnedUiSettingsEntry,
   resolveOwnedUiSettings,
@@ -66,6 +67,49 @@ const AGENT: AgentSettingsSnapshot = {
 };
 
 describe("owned UI settings sections", () => {
+  it("places the owned suggestion control once after engine entries in a single Agent group", () => {
+    const resolved = resolveOwnedUiSettings({
+      declarations: OWNED_UI_SETTING_DECLARATIONS, migrations: [],
+      document: { version: 4, values: { promptSuggestions: false } },
+    });
+    const sections = buildOwnedUiSettingsSections({ resolution: resolved, agent: AGENT });
+    expect(sections.map(section => [section.id, section.title])).toEqual([
+      ["scroll", "Scroll"], ["history", "History"], ["agent", "Agent"],
+    ]);
+    expect(sections[0]?.entries.map(entry => entry.id)).toEqual(["scrollbarAppearance", "scrollbarStyle", "scrollbarSpeed"]);
+    expect(sections[1]?.entries.map(entry => entry.id)).toEqual(["promptHistoryEnabled", "promptHistoryMaxItems"]);
+    expect(sections[2]?.entries.map(entry => [entry.backend, entry.id])).toEqual([
+      ["agent", "autoCompact"], ["agent", "thinkingLevel"], ["agent", "providerProfile"], ["a1", "promptSuggestions"],
+    ]);
+    expect(sections.flatMap(section => section.entries).filter(entry => entry.id === "promptSuggestions")).toHaveLength(1);
+    expect(findOwnedUiSettingsEntry(sections, "promptSuggestions", "a1")).toMatchObject({
+      label: "Prompt suggestions", value: false, storedValue: false, effectiveValue: false,
+      origin: "stored", backend: "a1", editable: true, application: "live", choices: [true, false],
+    });
+    expect(findOwnedUiSettingsEntry(sections, "promptSuggestions", "agent")).toBeNull();
+    expect(resolved.migrated).toBe(false);
+    expect(resolved.notices).toEqual([]);
+    expect(AGENT.descriptors.map(entry => entry.key)).toEqual(["autoCompact", "thinkingLevel", "providerProfile", "installId"]);
+  });
+
+  it.each<[string, AgentSettingsSnapshot | null]>([
+    ["absent", null],
+    ["failed", { ...AGENT, failure: "engine unavailable" }],
+    ["read-only", { ...AGENT, writeAdvertised: false }],
+    ["empty", { ...AGENT, descriptors: [] }],
+    ["unavailable controls", { ...AGENT, descriptors: [descriptor("hidden", "boolean", true, { available: false })] }],
+  ])("keeps the owned Agent control editable with %s engine settings", (_label, agent) => {
+    const sections = buildOwnedUiSettingsSections({
+      resolution: resolveOwnedUiSettings({ declarations: OWNED_UI_SETTING_DECLARATIONS, migrations: [], document: null }),
+      agent,
+    });
+    expect(sections.map(section => section.id)).toEqual(["scroll", "history", "agent"]);
+    const group = sections.find(section => section.id === "agent");
+    expect(group).toMatchObject({ title: "Agent", unavailableReason: null, readOnlyReason: null });
+    expect(group?.entries).toHaveLength(1);
+    expect(group?.entries[0]).toMatchObject({ id: "promptSuggestions", backend: "a1", value: true, editable: true, application: "live" });
+  });
+
   it("puts declared A1 settings in the A1 section with their origin", () => {
     const [owned] = buildOwnedUiSettingsSections({ resolution: resolution({ density: "compact" }), agent: AGENT });
     expect(owned?.id).toBe("a1");

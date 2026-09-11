@@ -45,6 +45,14 @@ a1 pi                                   # vanilla Pi oracle: ~/.pi/agent
 Unsupported commands exit quietly without launching anything. The removed
 `update:<preview>` forms are not aliases; use `update --develop`.
 
+## Prompt suggestions
+
+Bare A1's `/settings` → Agent → Prompt suggestions controls faint next-prompt
+predictions. It is enabled by default and uses one additional background request
+with the selected model for eligible turns. Disabling it takes effect immediately.
+Tab accepts a suggestion as editable text; Enter submits it afterward. The setting
+remains stored in A1's profile, and `a1 pi` is unchanged.
+
 ## Prompt history
 
 Bare A1 recalls recent unique prompts across sessions with Up/Down. History is

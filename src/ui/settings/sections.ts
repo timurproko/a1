@@ -83,6 +83,8 @@ export function buildOwnedUiSettingsSections(
     });
     grouped.set(section.id, group);
   }
+  const ownedAgentEntries = grouped.get(AGENT_SECTION_ID)?.entries ?? [];
+  grouped.delete(AGENT_SECTION_ID);
   const ownedSections: OwnedUiSettingsSection[] = [...grouped].map(([id, group]) => ({
     id,
     title: group.title,
@@ -91,7 +93,15 @@ export function buildOwnedUiSettingsSections(
     readOnlyReason: null,
   }));
 
-  return Object.freeze([...ownedSections, agentSection(input.agent)]);
+  const agent = agentSection(input.agent);
+  // Invariant: presentation grouping does not transfer ownership or engine availability to owned entries.
+  const combinedAgent = ownedAgentEntries.length === 0 ? agent : {
+    ...agent,
+    entries: Object.freeze([...agent.entries, ...ownedAgentEntries]),
+    unavailableReason: null,
+    readOnlyReason: null,
+  };
+  return Object.freeze([...ownedSections, combinedAgent]);
 }
 
 export function findOwnedUiSettingsEntry(

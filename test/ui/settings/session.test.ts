@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -94,6 +94,45 @@ afterEach(() => {
 });
 
 describe("owned UI settings session", () => {
+  it.each(["available", "absent", "failed", "read-only"] as const)(
+    "preserves suggestion opt-out and routes Agent-group toggles to A1 with %s engine settings",
+    async state => {
+      const port = syntheticPort({ write: state !== "read-only", failListSettings: state === "failed" });
+      const store = new OwnedUiSettingsStore({ configDir: root, profileId: "a1" });
+      expect(store.write(store.read(), "promptSuggestions", false).stored).toBe(true);
+      const before = readFileSync(store.file, "utf8");
+      const target = new OwnedUiSettingsSession({ store, agent: state === "absent" ? null : port });
+      await target.load();
+      expect(readFileSync(store.file, "utf8")).toBe(before);
+      expect(target.resolution).toMatchObject({ version: 4, migrated: false, notices: [] });
+      const group = target.sections().find(section => section.id === "agent");
+      const entry = group?.entries.find(candidate => candidate.id === "promptSuggestions");
+      expect(group).toMatchObject({ unavailableReason: null, readOnlyReason: null });
+      expect(entry).toMatchObject({ backend: "a1", value: false, effectiveValue: false, editable: true, application: "live" });
+
+      const liveValues: unknown[] = [];
+      const unsubscribe = target.onChange(session => liveValues.push(session.value("promptSuggestions")));
+      for (const value of [true, false]) {
+        expect(await target.change(entry!.backend, entry!.id, value)).toMatchObject({
+          status: "applied", applied: true, pendingRestart: false, application: "live", storedValue: value, effectiveValue: value,
+        });
+      }
+      unsubscribe();
+      expect(liveValues).toEqual([true, false]);
+      expect(port.writes).toEqual([]);
+      expect(port.flushed()).toBe(0);
+      expect(JSON.parse(readFileSync(store.file, "utf8"))).toEqual({ version: 4, values: { promptSuggestions: false } });
+      const restarted = new OwnedUiSettingsSession({ store, agent: state === "absent" ? null : port });
+      await restarted.load();
+      expect(restarted.sections().find(section => section.id === "agent")?.entries.at(-1)).toMatchObject({
+        id: "promptSuggestions", backend: "a1", value: false, effectiveValue: false,
+      });
+      expect((await restarted.change("agent", "promptSuggestions", true)).status).toBe("failed");
+      expect(restarted.value("promptSuggestions")).toBe(false);
+      expect(port.writes).toEqual([]);
+    },
+  );
+
   it("preserves multiple pending history settings through reload and unrelated live saves", async () => {
     const store = new OwnedUiSettingsStore({ configDir: root, profileId: "a1" });
     const session = new OwnedUiSettingsSession({ store });

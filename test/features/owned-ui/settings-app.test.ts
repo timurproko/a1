@@ -142,10 +142,75 @@ describe("the settings screen", () => {
     expect(lines.join("\n")).not.toContain("fixture reason must stay hidden");
     expect(lines.some(line => line.includes("Scrollbar style") && line.includes("thin"))).toBe(true);
     expect(lines.some(line => line.includes("Speed") && line.includes("normal"))).toBe(true);
-    expect(lines.some(line => line.trim() === "A1")).toBe(true);
+    expect(lines.some(line => line.trim() === "A1")).toBe(false);
+    expect(lines.filter(line => line.trim() === "Agent")).toHaveLength(1);
+    expect(lines.filter(line => line.includes("Prompt suggestions"))).toHaveLength(1);
     expect(lines.some(line => line.includes("Prompt suggestions") && line.includes("yes"))).toBe(true);
+    expect(lines.findIndex(line => line.includes("Prompt suggestions"))).toBeGreaterThan(lines.findIndex(line => line.includes("Output padding")));
     expect(lines.join("\n")).not.toContain("(default)");
     expect(lines.join("\n")).not.toContain("When the session transcript scrollbar is visible.");
+  });
+
+  it("keeps the moved control stable through section jumps, search, refresh, keyboard, and pointer changes", async () => {
+    const { app: target, session, writes } = await app();
+    screen(target);
+    target.onInput?.(`${ESC}[1;2B`, HOST);
+    target.onInput?.(`${ESC}[1;2B`, HOST);
+    expect(find(target, "Warnings").trimStart()).toMatch(/^→/);
+    selectRow(target, "Prompt suggestions");
+    target.onInput?.(ENTER, HOST);
+    await session.load();
+    expect(session.value("promptSuggestions")).toBe(false);
+    expect(find(target, "Prompt suggestions").trimStart()).toMatch(/^→.*no$/);
+    expect(writes).toEqual([]);
+
+    for (const query of ["Agent", "Prompt suggestions"]) {
+      target.onInput?.("/", HOST);
+      for (const letter of query) target.onInput?.(letter, HOST);
+      expect(screen(target).filter(line => line.trim() === "Agent")).toHaveLength(1);
+      expect(screen(target).filter(line => line.includes("Prompt suggestions") && !line.includes("❯"))).toHaveLength(1);
+      expect(find(target, "Prompt suggestions").trimStart()).toMatch(/^→/);
+      if (query === "Agent") target.onInput?.(ESC, HOST);
+    }
+    const lines = screen(target);
+    const row = lines.findIndex(line => line.includes("Prompt suggestions") && !line.includes("❯"));
+    const column = lines[row]!.lastIndexOf("no") + 1;
+    target.onMouse?.({ kind: "press", button: 0, row: row + 1, column }, HOST);
+    const menu = screen(target);
+    expect(menu.some(line => line.includes("✓ no"))).toBe(true);
+    const yesRow = menu.findIndex(line => /\byes\b/.test(line));
+    expect(yesRow).toBeGreaterThanOrEqual(0);
+    target.onMouse?.({ kind: "press", button: 0, row: yesRow + 1, column: menu[yesRow]!.indexOf("yes") + 1 }, HOST);
+    await session.load();
+    expect(session.value("promptSuggestions")).toBe(true);
+    expect(writes).toEqual([]);
+    target.onInput?.(ESC, HOST);
+    expect(find(target, "Prompt suggestions").trimStart()).toMatch(/^→.*yes$/);
+    expect(screen(target).filter(line => line.includes("Prompt suggestions"))).toHaveLength(1);
+  });
+
+  it.each(["absent", "failed", "read-only", "empty"] as const)("renders an editable Agent suggestion row with %s engine settings", async state => {
+    const backing = port();
+    const agent: AgentSettingsPort | null = state === "absent" ? null : {
+      ...backing.port,
+      capabilities: { write: state !== "read-only", flush: false },
+      async listSettings() {
+        if (state === "failed") throw new Error("engine unavailable");
+        return state === "empty" ? [] : await backing.port.listSettings();
+      },
+    };
+    const session = new OwnedUiSettingsSession({ store: new OwnedUiSettingsStore({ configDir: root, profileId: "profile" }), agent });
+    await session.load();
+    const target = new SettingsApp(session);
+    const shown = screen(target);
+    expect(shown.filter(line => line.trim() === "Agent")).toHaveLength(1);
+    expect(shown.filter(line => line.includes("Prompt suggestions"))).toHaveLength(1);
+    expect(shown.join("\n")).not.toContain("unavailable");
+    expect(shown.some(line => line.includes("Thinking level"))).toBe(false);
+    selectRow(target, "Prompt suggestions");
+    target.onInput?.(ENTER, HOST);
+    expect(session.value("promptSuggestions")).toBe(false);
+    expect(backing.writes).toEqual([]);
   });
 
   it("retains descriptions as metadata without rendering selected-entry details", async () => {
@@ -277,7 +342,7 @@ describe("the settings screen", () => {
     let lines = render();
     const visited = new Set<string>();
     for (let step = 0; step < 20; step++) {
-      for (const label of ["Persistent history", "History limit", "Thinking level", "Output padding"]) {
+      for (const label of ["Persistent history", "History limit", "Thinking level", "Output padding", "Prompt suggestions"]) {
         if (lines.some(line => line.includes(label))) visited.add(label);
       }
       // Rationale: wheel over the whole list pane, including otherwise blank space beside rows.
@@ -288,8 +353,8 @@ describe("the settings screen", () => {
     }
     const searchRow = lines.findIndex(line => line.includes("search settings"));
     expect(searchRow).toBeGreaterThanOrEqual(2);
-    expect(lines[searchRow - 2]).toContain("Output padding");
-    expect([...visited].sort()).toEqual(["History limit", "Output padding", "Persistent history", "Thinking level"]);
+    expect(lines[searchRow - 2]).toContain("Prompt suggestions");
+    expect([...visited].sort()).toEqual(["History limit", "Output padding", "Persistent history", "Prompt suggestions", "Thinking level"]);
   });
 
   it("restores the opening blank row when Home returns to the beginning during search", async () => {
@@ -314,9 +379,9 @@ describe("the settings screen", () => {
     const lines = target.render({ width: 80, height: 8 }, HOST).map(line => line.replace(STYLE, "").trimEnd());
     const searchRow = lines.findIndex(line => line.includes("search settings"));
     expect(searchRow, JSON.stringify(lines)).toBeGreaterThanOrEqual(0);
-    expect(lines.find(line => line.includes("Output padding"))?.trimStart()).toMatch(/^→/);
+    expect(lines.find(line => line.includes("Prompt suggestions"))?.trimStart()).toMatch(/^→/);
     // Invariant: the ruled search footer leaves its final result on the last body row.
-    expect(lines[searchRow - 2]).toContain("Output padding");
+    expect(lines[searchRow - 2]).toContain("Prompt suggestions");
   });
 
   it("jumps a section from the search, as the arrows move through it", async () => {
@@ -336,7 +401,7 @@ describe("the settings screen", () => {
     for (const letter of "agen") target.onInput?.(letter, HOST);
 
     const shown = screen(target);
-    for (const label of ["Warnings", "Thinking level", "Editor padding", "Output padding"]) {
+    for (const label of ["Warnings", "Thinking level", "Editor padding", "Output padding", "Prompt suggestions"]) {
       expect(shown.some(line => line.includes(label))).toBe(true);
     }
   });
