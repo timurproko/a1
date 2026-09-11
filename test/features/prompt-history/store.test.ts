@@ -7,6 +7,10 @@ import { PromptHistoryStore } from "../../../src/features/prompt-history/store.j
 import { resolvePromptHistoryPath, PromptHistoryService } from "../../../src/features/prompt-history/index.js";
 import { type PromptHistorySubmission } from "../../../src/contracts/owned-ui/index.js";
 
+// Rationale: Real FULL-synchronous SQLite correctness workloads exceeded 27 seconds on Windows CI.
+// Allow disk-time variance only here, without relaxing worker responsiveness or shutdown deadlines.
+const DURABLE_STORE_TEST_TIMEOUT_MS = 60_000;
+
 const roots: string[] = [];
 const stores: PromptHistoryStore[] = [];
 afterEach(() => { for (const store of stores.splice(0)) store.close(); for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
@@ -22,7 +26,7 @@ describe("profile history store", () => {
     expect(second.snapshot().entries.map(item => item.text)).toEqual(["A", "B"]);
     second.record(prompt("a3", "a")); first.record(prompt("a4", "A  B")); second.record(prompt("a5", "A B"));
     expect(open(path).snapshot().entries.map(item => item.text)).toEqual(["A B", "A  B", "a", "A", "B"]);
-  });
+  }, DURABLE_STORE_TEST_TIMEOUT_MS);
 
   it("applies the newly initialized limit without stale writers restoring it", () => {
     const path = join(root(), "history.sqlite3"); const first = open(path);
@@ -32,7 +36,7 @@ describe("profile history store", () => {
     expect(second.snapshot().entries).toHaveLength(10);
     expect(first.snapshot().limit).toBe(10);
     expect(open(path, 100).snapshot().entries).toHaveLength(10);
-  });
+  }, DURABLE_STORE_TEST_TIMEOUT_MS);
 
   it("prunes by bytes and refuses oversized values instead of truncating", () => {
     const store = open();
@@ -40,10 +44,8 @@ describe("profile history store", () => {
     expect(store.snapshot().entries).toHaveLength(8);
     expect(() => store.record(prompt("oversized", "x".repeat(1024 * 1024 + 1)))).toThrow("oversized");
     expect(store.snapshot().entries).toHaveLength(8);
-  });
+  }, DURABLE_STORE_TEST_TIMEOUT_MS);
 
-  // Rationale: This checks capacity after 25 FULL-synchronous 1 MiB commits, not latency.
-  // Allow slower Windows CI disks without shrinking the durable-write workload.
   it("bounds physical storage and rejects oversized files without erasing them", () => {
     const store = open();
     for (let index = 0; index < 25; index++) store.record(prompt(`bounded-${index}`, String(index).padStart(2, "0") + "x".repeat(1024 * 1024 - 2)));
@@ -55,7 +57,7 @@ describe("profile history store", () => {
     writeFileSync(excessive, "preserve"); truncateSync(excessive, 64 * 1024 * 1024 + 1);
     expect(() => open(excessive)).toThrow("capacity");
     expect(statSync(excessive).size).toBe(64 * 1024 * 1024 + 1);
-  }, 30_000);
+  }, DURABLE_STORE_TEST_TIMEOUT_MS);
 
   it("preserves damaged and wrong-profile stores", () => {
     const path = join(root(), "damaged.sqlite3"); writeFileSync(path, "not a database");
@@ -63,7 +65,7 @@ describe("profile history store", () => {
     const good = join(root(), "good.sqlite3"); open(good).record(prompt("retained"));
     expect(() => new PromptHistoryStore(good, "other-profile", 10)).toThrow("schema");
     expect(open(good).snapshot().entries[0]?.text).toBe("retained");
-  });
+  }, DURABLE_STORE_TEST_TIMEOUT_MS);
 
   it("isolates profiles and normalizes ordinary Windows path variants", () => {
     const a = resolvePromptHistoryPath("C:/data", "C:/Users/Test/.a1/agent/", "win32");
