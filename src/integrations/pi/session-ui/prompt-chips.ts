@@ -54,7 +54,9 @@ export class PromptChipStore {
     read: (signal: AbortSignal) => Promise<PiShellClipboardContent | null>,
     onError: (error: unknown) => void,
   ): { marker: string; result: Promise<string> } {
-    const marker = `[📷 preparing-${randomBytes(5).toString("hex")}]`;
+    const id = randomBytes(5).toString("hex");
+    // Rationale: acknowledge paste with its screenshot label while readiness stays in the pending state.
+    const marker = `[📷 screenshot-${id}]`;
     const job = this.#preparation.start(async signal => {
       const content = await read(signal);
       entry.kind = content?.kind === "image" ? "image" : "text";
@@ -64,13 +66,13 @@ export class PromptChipStore {
     const entry: PendingPaste = { marker, job, references: 0, kind: "unknown", completion: job.result.then(content => {
       if (content === null) return "";
       if (content.kind === "image") {
-        return this.#addPreparedImage(content);
+        return this.#addPreparedImage(content, id);
       }
       return this.transformPastedContent(content);
     }).catch(error => {
       entry.error = error instanceof ImageAttachmentError ? error : new ImageAttachmentError("image-codec");
       if (entry.error.code !== "image-canceled" && entry.references === 0) onError(entry.error);
-      return marker.replace("preparing-", "failed-");
+      return marker.replace("screenshot-", "failed-");
     }).then(replacement => {
       entry.replacement = replacement;
       return replacement;
@@ -125,12 +127,12 @@ export class PromptChipStore {
 
   #imageCount(text: string): number {
     const regular = [...this.#chips.values()].filter(chip => chip.kind === "image" && text.includes(chip.tag)).length;
-    return regular + [...this.#pending.values()].filter(entry => entry.kind !== "text" && (text.includes(entry.marker) || text.includes(entry.marker.replace("preparing-", "failed-")))).length;
+    return regular + [...this.#pending.values()].filter(entry => entry.kind !== "text" && (text.includes(entry.marker) || text.includes(entry.marker.replace("screenshot-", "failed-")))).length;
   }
 
-  #addPreparedImage(image: PreparedImage): string {
+  #addPreparedImage(image: PreparedImage, id: string): string {
     const suffix = image.mimeType === "image/jpeg" ? "jpg" : image.mimeType.split("/")[1] ?? "png";
-    const tag = `[📷 screenshot-${randomBytes(5).toString("hex")}${image.transformed ? "-resized" : ""}.${suffix}]`;
+    const tag = `[📷 screenshot-${id}${image.transformed ? "-resized" : ""}.${suffix}]`;
     const attachment = Object.freeze({ type: "image" as const, data: image.data, mimeType: image.mimeType });
     assertPromptImages([attachment]);
     this.#chips.set(tag, { kind: "image", tag, image: attachment });
@@ -213,7 +215,7 @@ export class PromptChipStore {
   #replaceResolvable(text: string, includeImages: boolean): PreparedPrompt {
     let expanded = text;
     for (const entry of this.#pending.values()) {
-      if (!expanded.includes(entry.marker) && !expanded.includes(entry.marker.replace("preparing-", "failed-"))) continue;
+      if (!expanded.includes(entry.marker) && !expanded.includes(entry.marker.replace("screenshot-", "failed-"))) continue;
       if (includeImages && entry.error !== undefined) throw entry.error;
       if (includeImages && entry.replacement === undefined) throw new ImageAttachmentError("image-pending");
       if (entry.replacement !== undefined) expanded = expanded.replaceAll(entry.marker, entry.replacement);

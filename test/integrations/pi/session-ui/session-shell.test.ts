@@ -232,9 +232,13 @@ describe("OwnedUiSessionShell", () => {
     const { shell, terminal, engine } = await fixture([], [], true, undefined, { readText: async () => null, readImage: () => read });
     try {
       terminal.input("\u0016");
-      expect(shell.root.editor.getText()).toContain("preparing-");
+      const chip = shell.root.editor.getText();
+      expect(chip).toMatch(/^\[📷 screenshot-[a-f0-9]+\]$/u);
+      expect(shell.root.hasPendingPastes(chip)).toBe(true);
       shell.runtime.renderNow();
-      expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("preparing-");
+      const frame = stripTerminalSequences(shell.root.render(100).join("\n"));
+      expect(frame).toContain(chip);
+      expect(frame).not.toContain("preparing");
       terminal.input(" inspect this");
       await nextImmediate();
       const draft = shell.root.editor.getText();
@@ -258,7 +262,8 @@ describe("OwnedUiSessionShell", () => {
     const { shell, terminal, engine, adapter } = await fixture([], [], true, undefined, { readText: async () => null, readImage: () => read });
     try {
       terminal.input("\u0016");
-      expect(shell.root.editor.getText()).toContain("preparing-");
+      expect(shell.root.editor.getText()).toMatch(/^\[📷 screenshot-[a-f0-9]+\]$/u);
+      expect(shell.root.hasPendingPastes(shell.root.editor.getText())).toBe(true);
       await nextImmediate();
       if (action === "delete") { terminal.input("\u0001"); terminal.input("\u007f"); }
       if (action === "cancel") { terminal.input("\r"); await shell.interrupt(); }
@@ -282,10 +287,11 @@ describe("OwnedUiSessionShell", () => {
     const { shell, terminal, engine } = await fixture([], [], true, undefined, { readText: async () => null, readImage });
     try {
       terminal.input("\u0016"); terminal.input("\u0016"); terminal.input(" tail");
-      await vi.waitFor(() => expect(shell.root.editor.getText()).toContain("screenshot-"));
-      expect(shell.root.editor.getText()).toMatch(/^\[📷 preparing-.*\[📷 screenshot-.* tail$/u);
+      await vi.waitFor(() => expect(shell.root.editor.getText()).toContain(".png]"));
+      expect(shell.root.editor.getText()).toMatch(/^\[📷 screenshot-[a-f0-9]+\]\[📷 screenshot-[a-f0-9]+\.png\] tail$/u);
+      expect(shell.root.hasPendingPastes(shell.root.editor.getText())).toBe(true);
       first({ data: firstData, mimeType: "image/png" });
-      await vi.waitFor(() => expect(shell.root.editor.getText()).not.toContain("preparing-"));
+      await vi.waitFor(() => expect(shell.root.hasPendingPastes(shell.root.editor.getText())).toBe(false));
       terminal.input("!");
       await nextImmediate();
       expect(shell.root.editor.getText()).toMatch(/ tail!$/u);
@@ -390,8 +396,9 @@ describe("OwnedUiSessionShell", () => {
     });
     try {
       terminal.input("\u0016");
-      await vi.waitFor(() => expect(shell.root.editor.getText()).toContain("screenshot"));
+      await vi.waitFor(() => expect(shell.root.hasPendingPastes(shell.root.editor.getText())).toBe(false));
       const draft = shell.root.editor.getText();
+      expect(draft).toMatch(/^\[📷 screenshot-[a-f0-9]+\.png\]$/u);
       vi.spyOn(adapter, "execute").mockResolvedValueOnce({ outcome: "rejected", diagnostic: "synthetic rejection" });
       terminal.input("\r");
       await nextImmediate();

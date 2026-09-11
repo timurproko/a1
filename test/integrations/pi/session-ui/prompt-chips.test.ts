@@ -12,6 +12,47 @@ afterEach(async () => {
 });
 
 describe("PromptChipStore", () => {
+  it("shows an atomic screenshot chip immediately while keeping readiness internal", async () => {
+    const store = new PromptChipStore();
+    const data = screenshotPng(4, 4).toString("base64");
+    let release!: (content: { kind: "image"; data: string; mimeType: string }) => void;
+    const errors: unknown[] = [];
+    const content = new Promise<{ kind: "image"; data: string; mimeType: string }>(resolve => { release = resolve; });
+    const paste = store.beginPaste("", () => content, error => errors.push(error));
+    try {
+      expect(paste.marker).toMatch(/^\[📷 screenshot-[a-f0-9]+\]$/u);
+      expect(paste.marker).not.toContain("preparing");
+      expect(store.atomicRanges(paste.marker)).toEqual([{ start: 0, end: paste.marker.length }]);
+      expect(store.hasPending(paste.marker)).toBe(true);
+      expect(() => store.prepareSubmission(paste.marker)).toThrow("still preparing");
+      release({ kind: "image", data, mimeType: "image/png" });
+      const ready = await paste.result;
+      expect(ready).toBe(`${paste.marker.slice(0, -1)}.png]`);
+      expect(store.hasPending(paste.marker)).toBe(false);
+      expect(store.prepareSubmission(`${paste.marker} ${ready}`)).toEqual({
+        text: `${ready} ${ready}`,
+        images: [{ type: "image", data, mimeType: "image/png" }],
+      });
+      expect(errors).toEqual([]);
+    } finally { await store.dispose(); }
+  });
+
+  it("keeps failed screenshot chips visible, unsendable, and counted toward the image limit", async () => {
+    const store = new PromptChipStore();
+    const data = screenshotPng(4, 4).toString("base64");
+    const errors: unknown[] = [];
+    const draft = Array.from({ length: 7 }, () => store.transformPastedContent({ kind: "image", data, mimeType: "image/png" })).join("");
+    try {
+      const failed = store.beginPaste(draft, async () => { throw new Error("clipboard unavailable"); }, error => errors.push(error));
+      const failedChip = await failed.result;
+      expect(failedChip).toMatch(/^\[📷 failed-[a-f0-9]+\]$/u);
+      expect(() => store.prepareSubmission(draft + failedChip)).toThrow("Image preparation is unavailable");
+      const ninth = store.beginPaste(draft + failedChip, async () => ({ kind: "image", data, mimeType: "image/png" }), error => errors.push(error));
+      await ninth.result;
+      expect(errors.at(-1)).toMatchObject({ code: "image-count" });
+    } finally { await store.dispose(); }
+  });
+
   it("serializes reusable history text and removes only registered image chips", async () => {
     const store = new PromptChipStore();
     try {
