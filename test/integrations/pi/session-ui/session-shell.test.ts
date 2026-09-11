@@ -24,7 +24,8 @@ import {
   type OwnedUiSessionShellOptions,
 } from "../../../../src/integrations/pi/session-ui/index.js";
 import { TestPresentationTerminal } from "../../../features/owned-ui/neutral-port-doubles.js";
-import { classifyTerminalPaint, replayTerminalBackgroundCells } from "../../../support/rendering/terminal-paint-evidence.js";
+import { classifyTerminalPaint, replayTerminalBackgroundCells, replayTerminalCheckpoints } from "../../../support/rendering/terminal-paint-evidence.js";
+import { withPiParityColorMode } from "../../../support/pi-terminal-capabilities.js";
 import type {
   OwnedUiPromptSuggestionGeneratorPort,
   OwnedUiViewportSettings,
@@ -915,6 +916,40 @@ describe("OwnedUiSessionShell", () => {
 
     await shell.dispose();
     expect(terminal.writes.some(write => write.includes("[?1003l"))).toBe(true);
+  });
+
+  it.each([true, false])("paints the first editor-then-hover frame with hovered=%s", async hovered => {
+    await withPiParityColorMode("truecolor", async () => {
+      applyPiTheme("dark", false, "truecolor");
+      const messages = Array.from({ length: 20 }, (_, index) => ({
+        role: "assistant", content: [{ type: "text", text: `hover-row-${index}` }], timestamp: index + 1,
+      }));
+      const scheduler = new InputImmediateScheduler();
+      const { shell, terminal } = await fixture(messages, [], true, undefined, undefined, undefined, { scheduler });
+      try {
+        terminal.resize(60, 16);
+        shell.runtime.renderNow();
+        const row = shell.root.viewportFrameDescriptor()!.transcript!.rowEnd;
+        terminal.input(`\u001b[<64;${hovered ? 1 : 30};${row}M`);
+        // Setup ends here. No diagnostic render is allowed after the interleaving.
+        await nextImmediate();
+        const before = terminal.writes.length;
+        terminal.input("x");
+        terminal.input(`\u001b[<35;${hovered ? 30 : 1};${row}M`);
+        await nextImmediate();
+        const firstPaint = terminal.writes.findIndex((write, index) => index >= before && write.includes("\u001b[?2026h"));
+        expect(firstPaint).toBeGreaterThanOrEqual(before);
+        const writes = terminal.writes.slice(0, firstPaint + 1).map((data, atMs) => ({ data, atMs }));
+        const cells = await replayTerminalBackgroundCells(writes, { columns: 60, rows: 16 });
+        // Oracle: the pinned dark truecolor palette, not the production hover predicate.
+        expect(cells.find(cell => cell.row === row && cell.column === 30)).toMatchObject({
+          mode: "rgb", color: hovered ? 0x3a3a4a : 0x282832,
+        });
+        const [painted] = await replayTerminalCheckpoints(writes, [{ columns: 60, rows: 16, writeEnd: writes.length }]);
+        expect(painted!.rows.slice(row).some(line => line.includes("x"))).toBe(true);
+        expect(shell.root.editor.getText()).toBe("x");
+      } finally { await shell.dispose(); }
+    }, { hyperlinks: false });
   });
 
   it("hovers the first reappearing bottom-control frame beneath a stationary cursor", async () => {

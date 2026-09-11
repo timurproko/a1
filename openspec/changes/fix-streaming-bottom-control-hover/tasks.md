@@ -1,7 +1,7 @@
 ## 1. Preserve the Failure and Establish Separate Evidence Cases
 
-- [ ] 1.1 Reproduce the editor-then-hover race on the implementation base with an overflowing 60-by-16 owned shell; retain a deterministic regression that fails on the first composed frame for both hover entry and exit before the fix, and record the tested revision rather than treating the exploratory installed-release probe as a CI result.
-- [ ] 1.2 Add the corresponding runtime-input scheduling fixture with initial setup rendered only once; verify it inspects the first emitted terminal presentation without an extra `root.render` or `renderNow`, fails on stale background styling, and also checks the newest editor cells.
+- [x] 1.1 Reproduce the editor-then-hover race on the implementation base with an overflowing 60-by-16 owned shell; retain a deterministic regression that fails on the first composed frame for both hover entry and exit before the fix, and record the tested revision rather than treating the exploratory installed-release probe as a CI result.
+- [x] 1.2 Add the corresponding runtime-input scheduling fixture with initial setup rendered only once; verify it inspects the first emitted terminal presentation without an extra `root.render` or `renderNow`, fails on stale background styling, and also checks the newest editor cells.
 - [ ] 1.3 Define a separate wheel-and-hover streaming workload containing no editor input; verify its event manifest covers assistant and tool updates, spinner overlap, hover entry/exit, stationary hide/reveal, and a no-stream control, and reports its result independently of the cache-race case.
 
 ## 2. Make Dock Reuse and Frame Provenance Current
