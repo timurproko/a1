@@ -5,7 +5,7 @@ describe("product identity authority", () => {
   it("loads the exact A1 identity as a deeply immutable value", () => {
     expect(PRODUCT_IDENTITY).toMatchObject({
       schema: "a1-product-identity-v1",
-      displayName: "A1",
+      displayName: "a1",
       commandName: "a1",
       packageName: "@timurproko/a1",
       filesystem: { slug: "a1", windowsDirectory: "a1", unixDirectory: "a1" },

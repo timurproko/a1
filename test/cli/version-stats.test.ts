@@ -75,7 +75,7 @@ describe("version stats", () => {
     expect(code).toBe(0);
     expect(harness.stdout.join("")).toBe("Current: 1.1.0-dev.2\nDevelop: unavailable\nRelease: unavailable\n");
     expect(harness.stderr).toHaveLength(1);
-    expect(harness.stderr[0]).toContain("A1 could not resolve npm dist-tags");
+    expect(harness.stderr[0]).toContain("a1 could not resolve npm dist-tags");
     expect(harness.stderr[0]).toContain(expected);
   });
 
@@ -94,7 +94,7 @@ describe("version stats", () => {
     expect(code).toBe(0);
     expect(harness.stdout.join("")).toContain("Develop: unavailable\nRelease: unavailable");
     expect(harness.stderr).toHaveLength(1);
-    expect(harness.stderr[0]).toContain("A1 could not resolve npm dist-tags");
+    expect(harness.stderr[0]).toContain("a1 could not resolve npm dist-tags");
     expect(harness.stderr[0]).toContain(expected);
   });
 

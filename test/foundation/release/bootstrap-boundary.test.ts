@@ -37,7 +37,7 @@ describe("mutable bootstrap boundary", () => {
   it("reuses an authenticated active cohort before deriving mutable package content", async () => {
     const bootstrap = await readFile(resolve(repository, "src/foundation/release/bootstrap.ts"), "utf8");
     const reuse = bootstrap.indexOf("await readCertifiedReleaseManifest");
-    const materialization = bootstrap.indexOf("const candidate = await materializeRelease");
+    const materialization = bootstrap.indexOf("candidate = await materializeRelease");
     expect(reuse).toBeGreaterThan(0);
     expect(materialization).toBeGreaterThan(reuse);
     expect(bootstrap).toContain('probe === "live-verified"');

@@ -77,7 +77,7 @@ describe("immutable release materialization", () => {
     const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as Record<string, unknown>;
     await chmod(manifestPath, 0o600);
     await writeFile(manifestPath, JSON.stringify({ ...manifest, packageName: "@timurproko/addone" }));
-    await expect(readMaterializedRelease(release.releaseRoot)).rejects.toThrow(/A1 release manifest metadata is invalid/);
+    await expect(readMaterializedRelease(release.releaseRoot)).rejects.toThrow(/a1 release manifest metadata is invalid/);
   });
 
   it("does not read a legacy-named release manifest", async () => {

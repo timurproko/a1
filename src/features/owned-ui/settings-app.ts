@@ -716,7 +716,7 @@ export class SettingsApp implements UiApp {
     const open = this.#structured;
     if (open !== null) return this.#dialogLines(open, width, theme);
 
-    const hint = this.#interruptArmed ? "press ctrl+c again to exit A1" : SETTINGS_SHORTCUTS.hint(SCOPE);
+    const hint = this.#interruptArmed ? "press ctrl+c again to exit a1" : SETTINGS_SHORTCUTS.hint(SCOPE);
     const status = renderStatusLine({ hint, report: this.#notice }, width, theme);
     const input = this.#filter;
     if (input === null) return [status];

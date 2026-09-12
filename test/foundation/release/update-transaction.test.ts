@@ -42,7 +42,7 @@ describe("durable update transaction journal", () => {
     }));
 
     expect(UPDATE_JOURNAL_SCHEMA).toBe("a1-update-journal-v1");
-    await expect(store.read()).rejects.toThrow(/invalid A1 update transaction journal/);
+    await expect(store.read()).rejects.toThrow(/invalid a1 update transaction journal/);
   });
 
   it("persists additive launcher-recovery state and rejects malformed dispositions", async () => {
@@ -60,7 +60,7 @@ describe("durable update transaction journal", () => {
     })).resolves.toMatchObject({ recovery: { status: "running", guardianPid: 42, cancellationRequested: true } });
 
     await writeFile(store.path, JSON.stringify({ ...(await store.read()), recovery: { status: "unknown" } }));
-    await expect(store.read()).rejects.toThrow(/invalid A1 update transaction journal/);
+    await expect(store.read()).rejects.toThrow(/invalid a1 update transaction journal/);
   });
 
   it("rejects a mixed target while an update remains active and retains rollback evidence", async () => {
@@ -68,7 +68,7 @@ describe("durable update transaction journal", () => {
     roots.push(root);
     const store = new UpdateTransactionStore(root);
     await store.begin({ channel: "stable", targetVersion: "1.2.0", packageRoot: "/npm/a1", priorActiveReleaseId: "old" });
-    await expect(store.begin({ channel: "next", targetVersion: "1.3.0-dev.0", packageRoot: "/npm/a1", priorActiveReleaseId: "old" })).rejects.toThrow(/A1 has unfinished update/);
+    await expect(store.begin({ channel: "next", targetVersion: "1.3.0-dev.0", packageRoot: "/npm/a1", priorActiveReleaseId: "old" })).rejects.toThrow(/a1 has unfinished update/);
     const rolledBack = await store.finish("rolled-back", "candidate supervisor failed");
     expect(rolledBack).toMatchObject({ status: "rolled-back", priorActiveReleaseId: "old", error: "candidate supervisor failed" });
   });

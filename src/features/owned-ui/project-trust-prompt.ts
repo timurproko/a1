@@ -60,7 +60,7 @@ export function createConsoleProjectTrustPrompt(
         `${BOLD}${ACCENT}Trust project folder?${RESET_FG}${RESET_BOLD}`,
         cwd,
         "",
-        "This allows A1 to load project settings and resources, install missing project packages, and execute project extensions.",
+        "This allows a1 to load project settings and resources, install missing project packages, and execute project extensions.",
         "",
         optionRow("Trust", selected === 0),
         optionRow("Do not trust", selected === 1),

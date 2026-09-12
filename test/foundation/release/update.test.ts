@@ -346,7 +346,7 @@ describe("A1 self-update orchestration", () => {
     })).resolves.toBe(130);
 
     expect(harness.stdout.join("")).not.toContain("updated successfully");
-    expect(harness.stderr.join("")).toContain("update cancelled safely; the A1 launcher is available");
+    expect(harness.stderr.join("")).toContain("update cancelled safely; the launcher is available");
     expect(harness.invocations.some(call => call.arguments[0] === "install")).toBe(false);
   });
 

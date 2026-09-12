@@ -11,7 +11,7 @@ describe("interactive runtime selection", () => {
   });
 
   it("rejects an invalid profile", () => {
-    expect(() => selectInteractiveRuntime("ui")).toThrow(/A1 launch profile is invalid/);
+    expect(() => selectInteractiveRuntime("ui")).toThrow(/a1 launch profile is invalid/);
   });
 
   it.each([

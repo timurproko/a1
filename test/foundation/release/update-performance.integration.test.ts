@@ -101,7 +101,7 @@ describe("packaged update activation performance", () => {
     const source = await readFile(resolve(repository, "src/foundation/release/bootstrap.ts"), "utf8");
     expect(source).not.toContain("onProgress:");
     expect(source).not.toMatch(/installing .* files/);
-    expect(source.indexOf("await readCertifiedReleaseManifest")).toBeLessThan(source.indexOf("const candidate = await materializeRelease"));
+    expect(source.indexOf("await readCertifiedReleaseManifest")).toBeLessThan(source.indexOf("candidate = await materializeRelease"));
   });
 });
 
