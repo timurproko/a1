@@ -252,11 +252,12 @@ export function createPiShellTreeSelector(options: {
   readonly onSelect: (id: string) => void;
   readonly onCancel: () => void;
   readonly onLabelChange: (entryId: string, label: string | undefined) => void;
+  readonly onCopy?: (text: string | undefined) => void;
   readonly initialSelectedId?: string;
   readonly initialFilterMode?: "default" | "no-tools" | "user-only" | "labeled-only" | "all";
 }): PiShellComponentPort {
   ensureTheme();
-  return componentPort(new TreeSelectorComponent(
+  const selector = new TreeSelectorComponent(
     [...options.tree] as SessionTreeNode[],
     options.currentLeafId,
     options.terminalHeight,
@@ -265,7 +266,9 @@ export function createPiShellTreeSelector(options: {
     options.onLabelChange,
     options.initialSelectedId,
     options.initialFilterMode,
-  ));
+  );
+  if (options.onCopy) selector.onCopy = options.onCopy;
+  return componentPort(selector);
 }
 
 export function createPiShellUserMessageSelector(
@@ -301,9 +304,10 @@ export function createPiShellLoginDialog(
   providerId: string,
   onComplete: (success: boolean, message?: string) => void,
   providerName?: string,
+  title?: string,
 ): PiShellLoginDialogPort {
   ensureTheme();
-  const dialog = new LoginDialogComponent(createTuiFacade(runtime), providerId, onComplete, providerName);
+  const dialog = new LoginDialogComponent(createTuiFacade(runtime), providerId, onComplete, providerName, title);
   return {
     ...componentPort(dialog),
     showAuth: (url, instructions) => dialog.showAuth(url, instructions),
@@ -375,6 +379,7 @@ export function createPiShellAuthProviderSelector(
   providers: readonly PiShellAuthProviderOption[],
   onSelect: (id: string) => void,
   onCancel: () => void,
+  initialSearchInput?: string,
 ): PiShellComponentPort {
   ensureTheme();
   const selector = new OAuthSelectorComponent(mode, providers.map(provider => ({
@@ -385,7 +390,7 @@ export function createPiShellAuthProviderSelector(
   })), (providerId, authType) => {
     const selected = providers.find(provider => provider.providerId === providerId && provider.authType === authType);
     if (selected) onSelect(selected.id);
-  }, onCancel);
+  }, onCancel, initialSearchInput);
   return componentPort(selector);
 }
 

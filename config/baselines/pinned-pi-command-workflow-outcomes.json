@@ -247,5 +247,88 @@
     "onFullscreenScrollbarChange",
     "onWarningsChange",
     "onCancel"
-  ]
+  ],
+  "commandMessageParity": {
+    "change": "align-pi-command-messages",
+    "recordedAt": "2026-09-12",
+    "pinnedVersion": "0.84.2",
+    "source": "packages/coding-agent/src/modes/interactive/interactive-mode.ts",
+    "sourceMap": "modes/interactive/interactive-mode.js.map",
+    "caseSource": "test/integrations/pi/session-ui/command-outcome-cases.ts",
+    "producer": "test/integrations/pi/session-ui/command-outcome-worker.mjs",
+    "test": "test/integrations/pi/session-ui/command-outcome-parity.test.ts",
+    "controllers": ["src/integrations/pi/engine/adapter.ts", "src/integrations/pi/session-ui/session-shell.ts"],
+    "presenters": ["src/integrations/pi/session-ui/session-shell-root.ts", "src/integrations/pi/components/shell-presenters-info.ts", "src/integrations/pi/components/shell-selectors-dialogs.ts"],
+    "matrix": { "themes": ["dark", "light"], "colorModes": ["truecolor", "256color"], "outputPadding": [0, 1], "widths": [80, 28] },
+    "assertions": ["literal styled rows", "separately tracked multiline rows", "selector messages and input ownership", "pre-completion refresh presentation", "failed and successful command lifecycle", "temporary share-file cleanup", "no export or gist after failed preflight", "failure and producer-deadline rejection"],
+    "routes": {
+      "arminsayshi": { "methods": ["handleArminSaysHi"], "conditions": ["success"] },
+      "changelog": { "methods": ["handleChangelogCommand", "getChangelogForDisplay"], "conditions": ["success"] },
+      "clone": { "methods": ["handleCloneCommand"], "conditions": ["empty", "success", "cancelled", "failure", "non-error"] },
+      "compact": { "methods": ["handleCompactCommand"], "conditions": ["success", "failure"] },
+      "copy": { "methods": ["handleCopyCommand"], "conditions": ["empty", "success", "failure", "non-error"] },
+      "debug": { "methods": ["handleDebugCommand"], "conditions": ["success"] },
+      "dementedelves": { "methods": ["handleDementedDelves"], "conditions": ["success"] },
+      "export": { "methods": ["handleExportCommand", "getPathCommandArgument"], "conditions": ["success", "failure", "non-error", "jsonl"] },
+      "fork": { "methods": ["showUserMessageSelector"], "conditions": ["empty", "success", "failure", "non-error", "extension-cancelled", "cancelled"] },
+      "hotkeys": { "methods": ["handleHotkeysCommand", "getAppKeyDisplay", "getEditorKeyDisplay", "handleReloadCommand"], "conditions": ["success", "extensions", "custom-bindings", "disk-change", "reload-bindings"] },
+      "import": { "methods": ["handleImportCommand", "promptForMissingSessionCwd", "handleFatalRuntimeError"], "conditions": ["usage", "success", "declined", "cancelled", "failure", "non-error", "missing-cwd-success", "missing-cwd-declined", "missing-cwd-cancelled"] },
+      "login": { "methods": ["handleLoginCommand", "showLoginAuthTypeSelector", "showLoginProviderSelector", "startProviderLogin", "showLoginDialog", "showApiKeyLoginDialog", "showAmbientAuthDialog", "completeProviderAuthentication"], "conditions": ["success", "failure", "non-error", "cancelled", "sync-failure", "unknown-model", "no-models", "default-unavailable", "selection-failure", "refresh-failure", "refresh-error", "refresh-aborted", "no-default-provider", "ambient", "empty"] },
+      "logout": { "methods": ["showOAuthSelector", "getLogoutProviderOptions"], "conditions": ["empty", "read-failure", "success", "api-key", "failure", "non-error", "sync-failure", "cancelled"] },
+      "model": { "methods": ["handleModelCommand", "findExactModelMatch", "showModelSelector"], "conditions": ["success", "selection-failure", "open", "no-models", "refresh-success", "refresh-failure", "refresh-error", "refresh-timeout", "scoped"] },
+      "name": { "methods": ["handleNameCommand"], "conditions": ["empty", "current", "success", "normalized"] },
+      "new": { "methods": ["handleClearCommand", "handleFatalRuntimeError"], "conditions": ["success", "cancelled", "failure", "non-error"] },
+      "quit": { "methods": ["shutdown"], "conditions": ["success"] },
+      "reload": { "methods": ["handleReloadCommand"], "conditions": ["success", "failure", "non-error", "streaming", "compacting", "model-config-error"] },
+      "resume": { "methods": ["showSessionSelector", "handleResumeSession", "promptForMissingSessionCwd", "handleFatalRuntimeError"], "conditions": ["success", "cancelled", "failure", "non-error", "missing-cwd-success", "missing-cwd-declined", "missing-cwd-cancelled"] },
+      "scoped-models": { "methods": ["showModelsSelector"], "conditions": ["open", "refresh-failure", "refresh-error", "refresh-timeout", "persist", "cancelled"] },
+      "session": { "methods": ["handleSessionCommand"], "conditions": ["success"] },
+      "settings": { "methods": ["showSettingsSelector"], "conditions": ["open", "cancelled"], "additionalEvidence": ["test/features/owned-ui/settings-app.test.ts", "test/features/owned-ui/pinned-settings-presentation-parity.test.ts", "test/integrations/pi/engine/workflows.test.ts"], "declaration": "owned settings replacement; existing callback and shared-control evidence remains authoritative for the declared replacement" },
+      "share": { "methods": ["handleShareCommand"], "conditions": ["missing", "unauthenticated", "permission", "auth-stderr", "export-failure", "gist-failure", "gist-empty-failure", "gist-signal", "gist-spawn-failure", "gist-non-error", "malformed", "malformed-stderr", "cancelled", "success"] },
+      "tree": { "methods": ["showTreeSelector"], "conditions": ["empty", "success", "failure", "non-error", "cancelled", "aborted", "copy-success", "copy-failure", "copy-empty", "already", "selector-cancelled"] },
+      "trust": { "methods": ["showTrustSelector"], "conditions": ["open", "success", "cancelled"] }
+    },
+    "interactiveExceptions": [
+      {
+        "id": "share-missing-gh",
+        "caseIds": ["share/missing"],
+        "pinnedMessage": "Error: GitHub CLI is not logged in. Run 'gh auth login' first.",
+        "ownedMessage": "Error: GitHub CLI (gh) is not installed. Install it from https://cli.github.com/",
+        "assertion": "Native null-status ENOENT and owned rejection, exact diagnostic pair and pinned error geometry, no export/upload, no permission/authentication or blanket normalization exception",
+        "authority": "https://github.com/timurproko/a1/pull/305"
+      },
+      {
+        "id": "recoverable-session-command",
+        "caseIds": ["new/failure", "new/non-error", "resume/failure", "resume/non-error", "import/failure", "import/non-error"],
+        "assertion": "Identical visible errors; pinned stop/exit one is observed separately from A1's retained active session",
+        "authority": "https://github.com/timurproko/a1/pull/248"
+      }
+    ],
+    "geometryEvidence": {
+      "caseSource": "test/integrations/pi/session-ui/command-message-fixture.ts",
+      "test": "test/integrations/pi/session-ui/command-message-parity.test.ts",
+      "methods": ["showStatus", "showError", "showWarning", "handleClearCommand", "handleNameCommand", "handleDebugCommand"],
+      "assertions": ["normal/narrow/resize-back", "intervening content/error/warning", "consecutive-status replacement", "modal close and draft preservation", "negative punctuation/style/whitespace/row mutations"]
+    },
+    "cliEvidence": {
+      "test": "test/cli/package-message-parity.test.ts",
+      "producer": "test/cli/pinned-package-message-worker.mjs",
+      "source": "packages/coding-agent/src/package-manager-cli.ts",
+      "sourceMap": "package-manager-cli.js.map",
+      "routes": ["a1 update --models", "a1 pi update --models", "a1 pi install", "a1 pi remove", "a1 pi uninstall", "a1 pi list", "a1 pi update --extensions", "a1 pi update <source>"],
+      "outcomes": ["success", "timeout", "provider errors", "runtime and non-Error failures", "missing or equivalent package identity", "progress and inherited child output", "explicit supported-subset help", "syntax diagnostics", "user-settings diagnostics before operation"],
+      "declaredDifferences": ["supported A1 invocation/grammar and user scope", "numeric syntax exit status two instead of one", "truthful settings diagnostic stack callsites"],
+      "colorLevels": [0, 1]
+    },
+    "supportingEvidence": [
+      "test/integrations/pi/engine/changelog.test.ts",
+      "test/integrations/pi/engine/command-resources.test.ts",
+      "test/foundation/release/package-surface.test.ts",
+      "test/integrations/pi/engine/workflows.test.ts",
+      "test/integrations/pi/engine/workflow-controllers.test.ts",
+      "test/integrations/pi/session-ui/session-shell.test.ts",
+      "test/repository-governance/pinned-pi-behavior-inventory.test.ts"
+    ],
+    "manualAcceptance": "Separate OpenSpec acceptance required; these automated captures do not claim physical acceptance"
+  }
 }

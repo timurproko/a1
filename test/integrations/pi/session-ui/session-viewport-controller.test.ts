@@ -8,6 +8,8 @@ function editor(overrides: Partial<PiShellEditorPort> = {}): PiShellEditorPort {
     render: () => [],
     invalidate() {},
     activateKeybindings() {},
+    keybindingConfig: () => ({}),
+    reloadKeybindings() {},
     matchesTerminalKey: (data, key) => data === key,
     getText: () => "",
     setText() {},

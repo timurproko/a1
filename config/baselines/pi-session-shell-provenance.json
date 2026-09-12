@@ -71,12 +71,18 @@
       "behavior": "complete advertised and hidden command routing, prompt/template/skill input, model and thinking controls, settings callbacks, session selectors and replacement, authentication, import/export/share/copy, bash, queued input, reload, diagnostics and shutdown",
       "copiedFiles": [],
       "copiedLines": false,
-      "modifications": "Controller behavior was reimplemented as an AddOne-owned exhaustive state machine over public AgentSession, AgentSessionRuntime, SettingsManager, ModelRuntime, SessionManager and clipboard APIs; external command and clipboard effects are host-injected for deterministic conformance.",
+      "modifications": "Controller behavior was reimplemented as an AddOne-owned exhaustive state machine over public AgentSession, AgentSessionRuntime, SettingsManager, ModelRuntime, SessionManager and clipboard APIs; external command and clipboard effects are host-injected for deterministic conformance. Command-message corrections preserve error/status geometry, live refresh presentation, provider search and ambient setup, tree-copy feedback, profile/extension hotkeys, published changelog content, and failed-reload history. The cumulative outcome inventory separately records the accepted missing-gh wording and recoverable fatal-session lifecycle exceptions; all other captured command outcomes retain literal styled-row comparisons.",
       "independentEvidence": "config/baselines/pinned-pi-command-workflow-outcomes.json",
       "coverage": [
         "test/integrations/pi/engine/workflows.test.ts",
         "test/integrations/pi/session-ui/session-shell.test.ts",
-        "test/integrations/pi/components/shell-components.test.ts"
+        "test/integrations/pi/components/shell-components.test.ts",
+        "test/integrations/pi/session-ui/command-message-inventory.test.ts",
+        "test/integrations/pi/session-ui/command-message-parity.test.ts",
+        "test/integrations/pi/session-ui/command-outcome-parity.test.ts",
+        "test/integrations/pi/engine/changelog.test.ts",
+        "test/integrations/pi/engine/command-resources.test.ts",
+        "test/foundation/release/package-surface.test.ts"
       ]
     },
     {

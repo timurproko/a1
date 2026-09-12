@@ -17,7 +17,9 @@
         "test/foundation/release/cohort-state.test.ts",
         "test/foundation/release/update-live-cohort.test.ts",
         "test/features/workspace/reconciliation.test.ts",
-        "test/features/prompt-history/store.test.ts"
+        "test/features/prompt-history/store.test.ts",
+        "test/integrations/pi/session-ui/command-message-parity.test.ts",
+        "test/integrations/pi/session-ui/command-outcome-parity.test.ts"
       ],
       "exclude": [
         "test/cli/update-cli.test.ts",

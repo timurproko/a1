@@ -8,6 +8,7 @@ import { dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { PRODUCT_IDENTITY } from "../../../product-identity.js";
 import { configureOwnedHttpDispatcher } from "./http-dispatcher.js";
+import { readPinnedCommandChangelog } from "./changelog.js";
 import {
   copyToClipboard,
   CredentialSynchronizationError,
@@ -530,8 +531,15 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
   async #announceChangelog(settingsManager: PiServicesApi["settingsManager"]): Promise<void> {
     if (!settingsManager || typeof settingsManager.getLastChangelogVersion !== "function"
       || typeof settingsManager.setLastChangelogVersion !== "function") return;
-    if (settingsManager.getLastChangelogVersion() === VERSION) return;
-    const markdown = await this.#workflowHost.readChangelog().catch(() => "");
+    if ((this.#session?.messages.length ?? 0) > 0) return;
+    const lastVersion = settingsManager.getLastChangelogVersion();
+    if (lastVersion === VERSION) return;
+    if (!lastVersion) {
+      settingsManager.setLastChangelogVersion(VERSION);
+      await settingsManager.flush();
+      return;
+    }
+    const markdown = await this.#workflowHost.readChangelog(lastVersion).catch(() => "");
     if (markdown.trim().length > 0) {
       this.#addDiagnostic(
         "info",
@@ -539,9 +547,9 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
         markdown,
         true,
       );
+      settingsManager.setLastChangelogVersion(VERSION);
+      await settingsManager.flush();
     }
-    settingsManager.setLastChangelogVersion(VERSION);
-    await settingsManager.flush();
   }
 
   async #announcePackageUpdates(settingsManager: PiServicesApi["settingsManager"]): Promise<void> {
@@ -1101,6 +1109,16 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
     return { title: `Select authentication method for ${providerName}:`, options };
   }
 
+  pinnedAmbientAuthentication(selection: string): { readonly providerId: string; readonly providerName: string; readonly title: string; readonly message: string } | null {
+    if (!selection.startsWith("api_key:")) return null;
+    const providerId = selection.slice("api_key:".length);
+    const provider = this.#runtime?.services.modelRuntime.getProvider?.(providerId);
+    const method = dynamicObject(dynamicObject(provider, "auth"), "apiKey");
+    if (!method || typeof method.login === "function") return null;
+    const providerName = stringProperty(provider, "name") ?? providerId;
+    return { providerId, providerName, title: `${providerName} setup`, message: `${stringProperty(method, "name") ?? "Authentication"} is configured outside pi.` };
+  }
+
   pinnedLogoutOptions(): Promise<readonly PiAuthenticationProviderOption[]> {
     return this.#logoutOptions();
   }
@@ -1186,8 +1204,17 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
     return this.#requireWorkflowSession().extensionRunner?.getMessageRenderer?.(customType);
   }
 
+  pinnedShortcutDescriptions(bindings: Parameters<AgentSession["extensionRunner"]["getShortcuts"]>[0]): readonly { readonly key: string; readonly description: string }[] {
+    const shortcuts = this.#requireWorkflowSession().extensionRunner?.getShortcuts?.(bindings);
+    return shortcuts === undefined ? [] : [...shortcuts].map(([key, shortcut]) => ({ key, description: shortcut.description ?? shortcut.extensionPath }));
+  }
+
   pinnedToolDefinition(toolName: string): unknown {
     return this.#requireWorkflowSession().extensionRunner?.getToolDefinition?.(toolName);
+  }
+
+  async copyWorkflowText(text: string): Promise<void> {
+    await this.#workflowHost.copyText(text);
   }
 
   clearQueuedWorkflows(): readonly string[] {
@@ -1223,13 +1250,20 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
     }
   }
 
+  reloadBlockedResult(): PiWorkflowResult | null {
+    const session = this.#requireWorkflowSession();
+    if (session.isStreaming) return workflowResult("reload", "failed", "Wait for the current response to finish before reloading.", undefined, "warning");
+    if (session.isCompacting) return workflowResult("reload", "failed", "Wait for compaction to finish before reloading.", undefined, "warning");
+    return null;
+  }
+
   async executeWorkflow(request: PiWorkflowRequest): Promise<PiWorkflowResult> {
     try {
       return await this.#performWorkflow(request);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       const contextualMessage = request.command === "export"
-        ? `Failed to export session: ${message}`
+        ? `Failed to export session: ${errorMessage(error, "Unknown error")}`
         : request.command === "import"
           ? `Failed to import session: ${message}`
           : request.command === "new"
@@ -1364,8 +1398,15 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
           : [...(runtime.services.modelRuntime.getAvailableSnapshot?.() ?? [])];
         let model = findExactWorkflowModel(reference, availableModels);
         const messages: PiWorkflowMessage[] = [];
+        const generation = this.#sessionGeneration;
+        const current = () => !this.#disposed && generation === this.#sessionGeneration;
+        const publish = (message: PiWorkflowMessage) => {
+          if (!current()) return;
+          if (this.#workflowInteraction.publish) this.#workflowInteraction.publish(message);
+          else messages.push(message);
+        };
         if (model === undefined && scopedModels.length === 0) {
-          messages.push({ kind: "status", message: "Refreshing model catalogs…" });
+          publish({ kind: "status", message: "Refreshing model catalogs…" });
           const controller = new AbortController();
           let timedOut = false;
           const timeout = setTimeout(() => {
@@ -1375,12 +1416,12 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
           try {
             const refreshed = await runtime.services.modelRuntime.refresh?.({ signal: controller.signal });
             if (isRecord(refreshed) && refreshed.aborted === true && timedOut) {
-              messages.push({ kind: "warning", message: "Model refresh timed out; searching cached models." });
+              publish({ kind: "warning", message: "Model refresh timed out; searching cached models." });
             } else if (isRecord(refreshed) && refreshed.errors instanceof Map && refreshed.errors.size > 0) {
-              messages.push({ kind: "warning", message: `Could not refresh ${[...refreshed.errors.keys()].join(", ")}; searching cached models.` });
+              publish({ kind: "warning", message: `Could not refresh ${[...refreshed.errors.keys()].join(", ")}; searching cached models.` });
             }
           } catch (error) {
-            messages.push({
+            publish({
               kind: "warning",
               message: timedOut
                 ? "Model refresh timed out; searching cached models."
@@ -1392,13 +1433,21 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
           availableModels = [...(runtime.services.modelRuntime.getAvailableSnapshot?.() ?? [])];
           model = findExactWorkflowModel(reference, availableModels);
         }
+        if (!current()) return workflowResult(request.command, "cancelled", "Model selection cancelled", undefined, "silent");
         if (model === undefined) {
           return {
             ...workflowResult(request.command, "requires-selection", "Select a model", reference, "silent"),
             ...(messages.length === 0 ? {} : { messages: Object.freeze(messages) }),
           };
         }
-        await session.setModel(model);
+        try {
+          await session.setModel(model);
+        } catch (error) {
+          if (!current()) return workflowResult(request.command, "cancelled", "Model selection cancelled", undefined, "silent");
+          const failure: PiWorkflowMessage = { kind: "error", message: error instanceof Error ? error.message : String(error) };
+          return workflowResult(request.command, "failed", failure.message, undefined, "error", messages.length === 0 ? undefined : [...messages, failure]);
+        }
+        if (!current()) return workflowResult(request.command, "cancelled", "Model selection cancelled", undefined, "silent");
         const providerId = stringProperty(model, "provider") ?? "unknown";
         const modelId = stringProperty(model, "id") ?? reference;
         this.#activeModel = { providerId, modelId, displayName: stringProperty(model, "name") ?? modelId };
@@ -1451,18 +1500,14 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
       case "share": {
         const signal = request.signal;
         if (signal?.aborted) return workflowResult(request.command, "cancelled", "Share cancelled", undefined, "status");
-        let auth: { readonly stdout: string; readonly stderr: string };
         try {
-          auth = await this.#workflowHost.runCommand("gh", ["auth", "status"], signal === undefined ? undefined : { signal });
+          await this.#workflowHost.runCommand("gh", ["auth", "status"], signal === undefined ? undefined : { signal });
         } catch (error) {
           if (signal?.aborted || isAbortError(error)) return workflowResult(request.command, "cancelled", "Share cancelled", undefined, "status");
           const message = commandMissing(error)
             ? "GitHub CLI (gh) is not installed. Install it from https://cli.github.com/"
             : "GitHub CLI is not logged in. Run 'gh auth login' first.";
           return workflowResult(request.command, "failed", message);
-        }
-        if (auth.stderr && !auth.stdout) {
-          return workflowResult(request.command, "failed", "GitHub CLI is not logged in. Run 'gh auth login' first.");
         }
         const temporary = join(tmpdir(), `${PRODUCT_IDENTITY.filesystem.temporaryPrefix}pi-session-${process.pid}.html`);
         try {
@@ -1477,12 +1522,9 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
             gist = await this.#workflowHost.runCommand("gh", ["gist", "create", "--public=false", temporary], signal === undefined ? undefined : { signal });
           } catch (error) {
             if (signal?.aborted || isAbortError(error)) return workflowResult(request.command, "cancelled", "Share cancelled", undefined, "status");
-            return workflowResult(request.command, "failed", `Failed to create gist: ${errorMessage(error, "Unknown error")}`);
+            return workflowResult(request.command, "failed", `Failed to create gist: ${shareCommandFailureDetail(error)}`);
           }
           if (signal?.aborted) return workflowResult(request.command, "cancelled", "Share cancelled", undefined, "status");
-          if (gist.stderr && !gist.stdout) {
-            return workflowResult(request.command, "failed", `Failed to create gist: ${gist.stderr.trim() || "Unknown error"}`);
-          }
           const gistUrl = gist.stdout.trim();
           const gistId = gistUrl.split("/").at(-1);
           if (!gistId) return workflowResult(request.command, "failed", "Failed to parse gist ID from gh output");
@@ -1709,11 +1751,16 @@ export class PiEngineAdapter implements OwnedUiPromptSuggestionGeneratorPort {
         }
       }
       case "reload": {
-        if (session.isStreaming) return workflowResult(request.command, "failed", "Wait for the current response to finish before reloading.", undefined, "warning");
-        if (session.isCompacting) return workflowResult(request.command, "failed", "Wait for compaction to finish before reloading.", undefined, "warning");
+        const blocked = this.reloadBlockedResult();
+        if (blocked) return blocked;
         await requireCapability(session.reload, "reload").call(session);
         await this.#bindExtensionUiToSession();
-        return workflowResult(request.command, "completed", "Reloaded keybindings, extensions, skills, prompts, themes, and context files");
+        const message = "Reloaded keybindings, extensions, skills, prompts, themes, and context files";
+        const modelError = runtime.services.modelRuntime.getError?.();
+        return workflowResult(request.command, "completed", message, undefined, "status", modelError ? [
+          { kind: "error", message: `models.json error: ${modelError}` },
+          { kind: "status", message },
+        ] : undefined);
       }
       case "quit": {
         await this.dispose();
@@ -2974,7 +3021,7 @@ function defaultWorkflowHost(): PiWorkflowHost {
       const result = await execFileAsync(command, [...arguments_], { encoding: "utf8", signal: options?.signal });
       return { stdout: result.stdout, stderr: result.stderr };
     },
-    readChangelog: async () => "No changelog entries found.",
+    readChangelog: readPinnedCommandChangelog,
   };
 }
 
@@ -3039,6 +3086,14 @@ function workflowConfirmation(command: PiWorkflowRequest["command"], message: st
 
 function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;
+}
+
+function shareCommandFailureDetail(error: unknown): string {
+  // Compatibility: Pi reports a failed child's stderr, not execFile's command wrapper.
+  if (isRecord(error) && (typeof error.code === "number" || typeof error.signal === "string") && typeof error.stderr === "string") {
+    return error.stderr.trim() || "Unknown error";
+  }
+  return errorMessage(error, "Unknown error");
 }
 
 function commandMissing(error: unknown): boolean {

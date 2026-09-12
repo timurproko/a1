@@ -261,6 +261,30 @@ describe("pinned Pi command and input workflows", () => {
     }
   });
 
+  it("keeps full changelog reads on demand and bounds startup notices to unseen releases", async () => {
+    const readChangelog = vi.fn(async (_since?: string) => "## 0.84.2\nNew release fixture");
+    const fresh = await fixture(host({ readChangelog }));
+    expect(readChangelog).not.toHaveBeenCalled();
+    expect(fresh.adapter.view().diagnostics.some(item => item.code.startsWith("changelog-"))).toBe(false);
+    await fresh.adapter.executeWorkflow({ command: "changelog", argument: "" });
+    expect(readChangelog).toHaveBeenCalledWith();
+    await fresh.adapter.dispose();
+
+    readChangelog.mockClear();
+    const update = await fixture(host({ readChangelog }), runtime => runtime.settingsValues.set("LastChangelogVersion", "0.84.1"));
+    expect(readChangelog).toHaveBeenCalledWith("0.84.1");
+    expect(update.adapter.view().diagnostics).toContainEqual(expect.objectContaining({ code: "changelog-expanded", message: "## 0.84.2\nNew release fixture" }));
+    await update.adapter.dispose();
+
+    readChangelog.mockClear();
+    const resumed = await fixture(host({ readChangelog }), runtime => {
+      runtime.settingsValues.set("LastChangelogVersion", "0.84.1");
+      Object.defineProperty(runtime.session, "messages", { value: [{ role: "user", content: "resumed fixture", timestamp: 1 }] });
+    });
+    expect(readChangelog).not.toHaveBeenCalled();
+    await resumed.adapter.dispose();
+  });
+
   it("routes every advertised and hidden command to a successful operation or selector continuation", async () => {
     const { adapter } = await fixture();
     for (const command of PINNED_PI_WORKFLOW_COMMAND_NAMES) {
@@ -438,6 +462,35 @@ describe("pinned Pi command and input workflows", () => {
       messages: [
         { kind: "status", message: "Refreshing model catalogs…" },
         { kind: "warning", message: "Could not refresh openai; searching cached models." },
+      ],
+    });
+    await adapter.dispose();
+  });
+
+  it("publishes model refresh progress before completion and discards late results after disposal", async () => {
+    const { adapter, runtime } = await fixture();
+    let finish!: (value: unknown) => void;
+    runtime.modelRefreshResult = new Promise(resolve => { finish = resolve; });
+    runtime.modelRefreshModels = [{ provider: "openai", id: "gpt-6", name: "GPT-6" }];
+    const published: unknown[] = [];
+    adapter.setWorkflowInteractionHost({ prompt: async () => null, notify() {}, publish: message => published.push(message) });
+    const pending = adapter.executeWorkflow({ command: "model", argument: "openai/gpt-6" });
+    expect(published).toEqual([{ kind: "status", message: "Refreshing model catalogs…" }]);
+    await adapter.dispose();
+    finish({ aborted: false, errors: new Map([["openai", new Error("late warning")]]) });
+    await expect(pending).resolves.toMatchObject({ outcome: "cancelled", messageKind: "silent" });
+    expect(published).toEqual([{ kind: "status", message: "Refreshing model catalogs…" }]);
+    expect(runtime.session.calls).not.toContain("setModel");
+  });
+
+  it("retains buffered refresh messages when subsequent model selection fails", async () => {
+    const { adapter, runtime } = await fixture();
+    runtime.modelRefreshModels = [{ provider: "openai", id: "gpt-6", name: "GPT-6" }];
+    runtime.session.setModelFails = true;
+    await expect(adapter.executeWorkflow({ command: "model", argument: "openai/gpt-6" })).resolves.toMatchObject({
+      outcome: "failed", message: "selection failed", messages: [
+        { kind: "status", message: "Refreshing model catalogs…" },
+        { kind: "error", message: "selection failed" },
       ],
     });
     await adapter.dispose();
@@ -822,9 +875,10 @@ describe("pinned Pi command and input workflows", () => {
       });
       await exportFailure.adapter.dispose();
 
-      const gistFailure = await fixture(host({ runCommand: async (_command, args) => args[0] === "gist"
-        ? { stdout: "", stderr: "gist denied\n" }
-        : { stdout: "logged in", stderr: "" } }));
+      const gistFailure = await fixture(host({ runCommand: async (_command, args) => {
+        if (args[0] === "gist") throw Object.assign(new Error("Command failed: gh gist create\ngist denied"), { code: 1, stderr: "gist denied\n" });
+        return { stdout: "logged in", stderr: "" };
+      } }));
       await expect(gistFailure.adapter.executeWorkflow({ command: "share", argument: "" })).resolves.toMatchObject({
         outcome: "failed", message: "Failed to create gist: gist denied",
       });
