@@ -151,6 +151,7 @@ describe("transcript viewport", () => {
       transientRowCount: 0,
       transientAlignmentGapRows: 0,
       bottomAlignedTailRowCount: 0,
+      liveTailRows: 0,
       verticalShiftRows: 0,
       safeVerticalShift: false,
       selectionRevision: 0,
@@ -211,6 +212,7 @@ describe("transcript viewport", () => {
       transientRowCount: 0,
       transientAlignmentGapRows: 0,
       bottomAlignedTailRowCount: 0,
+      liveTailRows: 0,
       verticalShiftRows: 1,
       safeVerticalShift: true,
       selectionRevision: 0,
@@ -865,5 +867,30 @@ describe("transcript viewport", () => {
     const hidden = viewport.compose({ documentRows: rows(10), dockRows: ["dock"], promptAnchors: [], width: 20, height: 5, now: 152 });
     expect(hidden.contentWidth).toBe(20);
     expect(hidden.hits.rail).toBeNull();
+  });
+
+  it("reports the visible live tail owned by the streaming block", () => {
+    const viewport = new TranscriptViewport();
+    const base = { dockRows: ["editor", "footer"], promptAnchors: [], width: 30, height: 8 } as const;
+    const none = viewport.compose({ ...base, documentRows: rows(10), now: 100 });
+    expect(none.descriptor).toMatchObject({ liveTailRows: 0 });
+
+    // Invariant: a live block starting at document row 7 owns the final three rows here.
+    const partly = viewport.compose({ ...base, documentRows: rows(10), liveTailStartRow: 7, now: 101 });
+    expect(partly.descriptor.liveTailRows).toBe(3);
+
+    // Invariant: only rows the window shows count; earlier live rows scrolled away.
+    const scrolled = viewport.compose({ ...base, documentRows: rows(20), liveTailStartRow: 2, now: 102 });
+    expect(scrolled.descriptor.liveTailRows).toBe(scrolled.descriptor.nextDocumentRange.end - scrolled.descriptor.nextDocumentRange.start);
+
+    // Invariant: transient rows are presentation chrome, outside the selectable live tail.
+    const transient = viewport.compose({
+      ...base,
+      documentRows: [...rows(10), "Working..."],
+      selectableDocumentRowCount: 10,
+      liveTailStartRow: 8,
+      now: 103,
+    });
+    expect(transient.descriptor.liveTailRows).toBe(2);
   });
 });

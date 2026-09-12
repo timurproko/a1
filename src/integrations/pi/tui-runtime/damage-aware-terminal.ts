@@ -8,6 +8,12 @@ export interface PiTuiDamageFrameDescriptor {
   readonly height: number;
   readonly transcript: { readonly rowStart: number; readonly rowEnd: number } | null;
   readonly dock: { readonly rowStart: number; readonly rowEnd: number } | null;
+  /**
+   * Visible rows owned by the block that is currently streaming. A live block repaints
+   * every row it owns when it reflows, so the allowed damage follows the declared tail
+   * instead of assuming a one-row tail.
+   */
+  readonly liveTailRows?: number;
   readonly verticalShiftRows: number;
   readonly safeVerticalShift: boolean;
   readonly cause: string;
@@ -47,6 +53,7 @@ export interface DamageAwareTerminalOptions {
   /** The shell supplies visible-row analysis; the terminal layer owns no UI parser. */
   readonly inspectHyperlinks: (content: string) => {
     readonly ranges: readonly unknown[];
+    readonly hasExplicitLink: boolean;
     readonly signature: string;
     readonly replaySafe: boolean;
     readonly width: number;
@@ -274,10 +281,11 @@ export class DamageAwareTerminalAdapter implements PiTuiTerminalPort {
     for (const row of parsed.rows) {
       if (descriptor.dock !== null && row.row >= descriptor.dock.rowStart && row.row <= descriptor.dock.rowEnd) painted.add(row.row);
     }
-    // Rationale: ordinary followed prose may change one active tail source row, expose
-    // the shifted suffix, and restyle one sticky boundary row. Larger changes indicate
-    // Markdown/theme/overlay reflow and fail closed.
-    if (painted.size > descriptor.verticalShiftRows + 2 + countDockRows(parsed.rows, descriptor.dock)) {
+    // Rationale: a followed frame may repaint the live tail it declares, expose the shifted
+    // suffix, and restyle one sticky boundary row. A frame that declares no tail keeps the
+    // historical one-row allowance. Anything beyond that reaches settled rows and fails closed.
+    const liveTailRows = Math.max(1, descriptor.liveTailRows ?? 1);
+    if (painted.size > descriptor.verticalShiftRows + liveTailRows + 1 + countDockRows(parsed.rows, descriptor.dock)) {
       return { ...base, reason: "excessive-real-damage" };
     }
     return {
@@ -323,7 +331,7 @@ export class DamageAwareTerminalAdapter implements PiTuiTerminalPort {
   #hasLinkRisk(region?: { readonly rowStart: number; readonly rowEnd: number }): boolean {
     for (const [row, state] of this.#links) {
       if (region !== undefined && (row < region.rowStart || row > region.rowEnd)) continue;
-      if (state.ranges.length > 0) return true;
+      if (state.hasExplicitLink || state.ranges.length > 0) return true;
     }
     return false;
   }
@@ -411,7 +419,7 @@ function hasUnsafeTerminalContent(
   return parsed.rows.some(row => {
     if (linkRegion !== undefined && (row.row < linkRegion.rowStart || row.row > linkRegion.rowEnd)) return false;
     const state = inspect(row.content);
-    return !state.replaySafe || state.ranges.length > 0;
+    return !state.replaySafe || state.hasExplicitLink || state.ranges.length > 0;
   });
 }
 

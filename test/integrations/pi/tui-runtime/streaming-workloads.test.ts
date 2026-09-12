@@ -5,6 +5,9 @@ import { STREAM_RENDERING_WORKLOADS } from "../../../support/rendering/streaming
 const REQUIRED_WORKLOADS = [
   "streamed-prose",
   "incomplete-markdown",
+  "streamed-code-block",
+  "link-bearing-prose",
+  "tall-live-tail",
   "streamed-thinking",
   "streamed-tool-output",
   "fit-overflow-boundary",

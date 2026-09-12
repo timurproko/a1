@@ -51,6 +51,12 @@ export interface TranscriptViewportFrameInput {
   readonly paintDocumentRow?: (row: string) => string;
   /** Leading document rows that participate in pointer selection and copying. */
   readonly selectableDocumentRowCount?: number;
+  /**
+   * First document row owned by the block that is currently streaming, if any. Rows from
+   * here to the end of the selectable document reflow together whenever that block
+   * re-renders, so the frame can declare how much damage is legitimately its own.
+   */
+  readonly liveTailStartRow?: number;
   /** Final transient rows to bottom-align with unused viewport space while content fits. */
   readonly bottomAlignedTailRowCount?: number;
   readonly dockRows: readonly string[];
@@ -100,6 +106,8 @@ export interface TranscriptViewportFrameDescriptor {
   readonly transientAlignmentGapRows: number;
   /** Live status rows at the end of the transient suffix. */
   readonly bottomAlignedTailRowCount: number;
+  /** Visible rows owned by the currently streaming transcript block. */
+  readonly liveTailRows: number;
   readonly verticalShiftRows: number;
   readonly safeVerticalShift: boolean;
   /** Monotonic interaction revision used to reject stale selection evidence. */
@@ -570,6 +578,12 @@ export class TranscriptViewport {
       transientRowCount: Math.max(0, documentRows.length - this.#selectableDocumentRowCount),
       transientAlignmentGapRows,
       bottomAlignedTailRowCount,
+      liveTailRows: visibleLiveTailRows(
+        input.liveTailStartRow,
+        this.#selectableDocumentRowCount,
+        this.#scrollTop,
+        viewportHeight,
+      ),
       verticalShiftRows,
       safeVerticalShift,
       selectionRevision: composingSelectionRevision,
@@ -648,6 +662,7 @@ export class TranscriptViewport {
       transientRowCount: previous.descriptor.transientRowCount,
       transientAlignmentGapRows: previous.descriptor.transientAlignmentGapRows,
       bottomAlignedTailRowCount: previous.descriptor.bottomAlignedTailRowCount,
+      liveTailRows: previous.descriptor.liveTailRows,
       verticalShiftRows: 0,
       safeVerticalShift: false,
       selectionRevision: this.#selectionRevision,
@@ -746,6 +761,23 @@ function trimCache(cache: Map<string, string>, limit: number): void {
   while (cache.size > limit) cache.delete(cache.keys().next().value!);
 }
 
+/**
+ * Rows of the streaming block that the visible window actually shows. Gap insertion happens
+ * after the selectable document, so live-block indices need no adjustment here.
+ */
+function visibleLiveTailRows(
+  liveTailStartRow: number | undefined,
+  selectableDocumentRowCount: number,
+  scrollTop: number,
+  viewportHeight: number,
+): number {
+  if (liveTailStartRow === undefined || !Number.isSafeInteger(liveTailStartRow)) return 0;
+  const start = clamp(liveTailStartRow, 0, selectableDocumentRowCount);
+  const visibleStart = Math.max(start, scrollTop);
+  const visibleEnd = Math.min(selectableDocumentRowCount, scrollTop + viewportHeight);
+  return Math.max(0, visibleEnd - visibleStart);
+}
+
 function governingPrompt(anchors: readonly TranscriptPromptAnchor[], scrollTop: number): TranscriptPromptAnchor | null {
   let result: TranscriptPromptAnchor | null = null;
   for (const anchor of anchors) {
@@ -782,6 +814,13 @@ export function assertTranscriptViewportFrameDescriptor(descriptor: TranscriptVi
     || !Number.isSafeInteger(descriptor.bottomAlignedTailRowCount) || descriptor.bottomAlignedTailRowCount < 0
     || descriptor.transientAlignmentGapRows + descriptor.bottomAlignedTailRowCount > descriptor.transientRowCount) {
     throw new TypeError("viewport frame descriptor transient geometry is invalid");
+  }
+  const transcriptHeight = descriptor.transcript === null
+    ? 0
+    : descriptor.transcript.rowEnd - descriptor.transcript.rowStart + 1;
+  if (!Number.isSafeInteger(descriptor.liveTailRows) || descriptor.liveTailRows < 0
+    || descriptor.liveTailRows > transcriptHeight) {
+    throw new TypeError("viewport frame descriptor live tail is invalid");
   }
   if (!Number.isSafeInteger(descriptor.verticalShiftRows)) throw new TypeError("viewport frame descriptor shift is invalid");
   if (descriptor.previousDocumentRange === null && descriptor.verticalShiftRows !== 0) {

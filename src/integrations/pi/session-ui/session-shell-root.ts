@@ -175,7 +175,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   readonly #blocksById = new Map<string, OwnedUiSessionViewModel["transcript"][number]>();
   readonly #renderedRows = new Map<string, Map<number, { readonly revision: number; readonly rows: readonly string[] }>>();
   // Performance: document layouts are shared by wheel, rail, jump, and selection frames.
-  readonly #documentLayouts = new Map<number, { readonly rows: readonly string[]; readonly promptAnchors: readonly TranscriptPromptAnchor[] }>();
+  readonly #documentLayouts = new Map<number, { readonly rows: readonly string[]; readonly promptAnchors: readonly TranscriptPromptAnchor[]; readonly liveTailStartRow: number | undefined }>();
   readonly #themeUnsubscribe: () => void;
   #transcriptOrder: string[] = [];
   #view: OwnedUiSessionViewModel;
@@ -593,6 +593,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
         // Invariant: selection and copying stop at the real document tail; Steering,
         // fitting alignment, and live Working remain transient presentation chrome.
         selectableDocumentRowCount,
+        ...(document.liveTailStartRow === undefined ? {} : { liveTailStartRow: document.liveTailStartRow }),
         bottomAlignedTailRowCount: statusRows.length,
         dockRows,
         promptAnchors: document.promptAnchors,
@@ -766,7 +767,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     return this.#renderDocumentLayout(width).rows;
   }
 
-  #renderDocumentLayout(width: number): { readonly rows: readonly string[]; readonly promptAnchors: readonly TranscriptPromptAnchor[] } {
+  #renderDocumentLayout(width: number): { readonly rows: readonly string[]; readonly promptAnchors: readonly TranscriptPromptAnchor[]; readonly liveTailStartRow: number | undefined } {
     // Performance: extension headers may animate independently of transcript revisions, so
     // only the stable built-in document participates in this frame cache.
     const cached = this.#extensionHeader === null ? this.#documentLayouts.get(width) : undefined;
@@ -786,6 +787,10 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       ...resourceRows,
     ];
     const promptAnchors: TranscriptPromptAnchor[] = [];
+    // Rationale: a block that is still streaming re-renders every row it owns, so the frame
+    // reports where its rows begin. Damage-aware painting uses that to tell a live block's
+    // own reflow apart from a repaint that reaches settled rows.
+    let liveTailStartRow: number | undefined;
     for (let index = 0; index < this.#transcriptOrder.length; index += 1) {
       const id = this.#transcriptOrder[index]!;
       const block = this.#blocksById.get(id);
@@ -805,6 +810,9 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
         else if (index > 0) rows.push("");
       }
       const firstRow = rows.length;
+      if (liveTailStartRow === undefined && block !== undefined && block.status !== "finalized") {
+        liveTailStartRow = firstRow;
+      }
       rows.push(...blockRows);
       if (block?.kind === "user" && blockRows[0] !== undefined) {
         promptAnchors.push({
@@ -840,7 +848,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
           text: diagnostic.message,
           payload: {},
         }, width, this.#cwd)));
-    const layout = { rows: Object.freeze(rows), promptAnchors: Object.freeze(promptAnchors) };
+    const layout = { rows: Object.freeze(rows), promptAnchors: Object.freeze(promptAnchors), liveTailStartRow };
     if (this.#extensionHeader === null) {
       this.#documentLayouts.set(width, layout);
       // Performance: the custom viewport commonly probes full width and reserved-rail width.

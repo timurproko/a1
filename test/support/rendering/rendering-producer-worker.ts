@@ -293,6 +293,7 @@ function ownedCheckpoint(
         transientRowCount: descriptor.transientRowCount,
         transientAlignmentGapRows: descriptor.transientAlignmentGapRows,
         bottomAlignedTailRowCount: descriptor.bottomAlignedTailRowCount,
+        liveTailRows: descriptor.liveTailRows,
         transientTailRows,
       },
     }),

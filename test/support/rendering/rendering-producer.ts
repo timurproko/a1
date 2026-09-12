@@ -46,6 +46,8 @@ export interface RenderingProducerCheckpoint {
     readonly transientRowCount?: number;
     readonly transientAlignmentGapRows?: number;
     readonly bottomAlignedTailRowCount?: number;
+    /** Visible rows owned by the streaming block, which bound the frame's allowed damage. */
+    readonly liveTailRows?: number;
     /** Visible transient-tail rows occupying the scroll region at this checkpoint. */
     readonly transientTailRows: number;
   };
