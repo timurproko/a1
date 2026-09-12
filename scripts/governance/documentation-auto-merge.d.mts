@@ -22,4 +22,5 @@ export function planDocumentationAutoMerge(input: {
   readonly validation: DocumentationValidationState;
   readonly autoMergeArmed: boolean;
   readonly mergeableState: string | null | undefined;
+  readonly mergeable: boolean | null | undefined;
 }): DocumentationAutoMergeAction;
