@@ -2,6 +2,24 @@ import { appendFile, readFile } from "node:fs/promises";
 import { classifyDocumentationAutoMerge, planDocumentationAutoMerge } from "./documentation-auto-merge.mjs";
 import { executeMergedBranchCleanup } from "./execute-merged-branch-cleanup.mjs";
 
+class GitHubGraphQLError extends Error {
+  constructor(status, body) {
+    super(`GitHub GraphQL failed (${status}): ${JSON.stringify(body)?.slice(0, 1000)}`);
+    this.status = status;
+    this.errors = body?.errors;
+  }
+
+  get isUnstableAutoMergeRejection() {
+    return this.status >= 200 && this.status < 300
+      && Array.isArray(this.errors) && this.errors.length > 0
+      && this.errors.every(error => error?.type === "UNPROCESSABLE"
+        && Array.isArray(error.path) && error.path.length === 1
+        && error.path[0] === "enablePullRequestAutoMerge"
+        && typeof error.message === "string"
+        && /^Pull request (?:Pull request )?is in unstable status\.?$/.test(error.message));
+  }
+}
+
 const token = process.env.GITHUB_TOKEN;
 const eventPath = process.env.GITHUB_EVENT_PATH;
 const repositoryName = process.env.GITHUB_REPOSITORY;
@@ -42,12 +60,83 @@ if (event.workflow_run && !context.validationComplete) {
 }
 
 async function processPullRequest(number, run) {
-  let pull = await rest(`/repos/${owner}/${repository}/pulls/${number}`);
-  if (pull.state !== "open") {
-    if (pull.merged === true) return await reconcileDocumentationBranch(pull);
-    return await summary(`PR #${number}: closed without merge; no action.`);
-  }
+  const attempts = boundedPollingNumber("A1_AUTO_MERGE_POLL_ATTEMPTS", process.env.A1_AUTO_MERGE_POLL_ATTEMPTS, 30);
+  const delayMs = boundedPollingNumber("A1_AUTO_MERGE_POLL_MS", process.env.A1_AUTO_MERGE_POLL_MS, 2000);
+  let expectedHead;
+  let expectedId;
+  let reason = "waiting for mergeability";
+  // Concurrency: every retry re-reads identity AND the complete diff, never just merge state.
+  for (let attempt = 0; attempt <= attempts; attempt += 1) {
+    if (attempt > 0 && delayMs > 0) await new Promise(resolve => setTimeout(resolve, delayMs));
+    const pull = await readPullRequest(number);
+    expectedHead ??= pull.head.sha;
+    expectedId ??= pull.node_id;
+    const sameHead = pull.head.sha === expectedHead && pull.node_id === expectedId;
+    if (pull.state !== "open") {
+      if (pull.merged === true && sameHead) {
+        await summary(`PR #${number}: already merged at expected head ${expectedHead}.`);
+        return await reconcileDocumentationBranch(pull);
+      }
+      return await summary(`PR #${number}: closed without merge of the expected head; no branch mutation.`);
+    }
+    if (!await isTrustedEligible(pull)) return;
+    if (!sameHead) return await summary(`PR #${number}: head or identity changed during reconciliation; deferred.`);
 
+    const validationMatchesHead = run.validationComplete && run.validatedHeadSha === pull.head?.sha;
+    const validation = validationMatchesHead
+      ? run.validationSucceeded ? "success" : "failure"
+      : "pending";
+    const action = planDocumentationAutoMerge({
+      validation,
+      autoMergeArmed: Boolean(pull.auto_merge),
+      mergeableState: pull.mergeable_state,
+      mergeable: pull.mergeable,
+    });
+    if (action === "merge") return await mergeValidatedHead(pull);
+    if (validation === "failure") {
+      return await summary(`PR #${number}: current-head Development validation failed; no integration.`);
+    }
+    if (action === "unchanged" && validation === "pending") {
+      return await summary(`PR #${number}: squash auto-merge is already armed; waiting for current-head validation.`);
+    }
+    reason = pull.mergeable !== true || !["clean", "unstable"].includes(pull.mergeable_state)
+      ? `waiting for mergeability (${pull.mergeable_state ?? "unknown"}, mergeable=${pull.mergeable ?? "unknown"})`
+      : "waiting for successful current-head validation";
+    if (action === "arm" && attempt < attempts) {
+      try {
+        await graph(`mutation EnableDocumentationAutoMerge($pullRequestId: ID!) {
+          enablePullRequestAutoMerge(input: { pullRequestId: $pullRequestId, mergeMethod: SQUASH }) {
+            pullRequest { number }
+          }
+        }`, { pullRequestId: pull.node_id }, "enablePullRequestAutoMerge", number);
+        await summary(`PR #${number}: exact documentation allowlist; squash auto-merge armed behind required validation.`);
+        if (validation === "pending") return;
+        // Invariant: token-authored integration still needs synchronous branch cleanup.
+      } catch (error) {
+        if (!(error instanceof GitHubGraphQLError) || !error.isUnstableAutoMergeRejection) throw error;
+        await summary(`PR #${number}: unstable-status arming rejection; refreshing eligibility and validation.`);
+      }
+      continue;
+    }
+    if (pull.mergeable === false || pull.mergeable_state === "dirty") break;
+    if (validation === "pending" && pull.mergeable === true
+      && ["clean", "unstable"].includes(pull.mergeable_state)) break;
+  }
+  await summary(`PR #${number}: deferred; ${reason}.`);
+}
+
+async function readPullRequest(number) {
+  const pull = await rest(`/repos/${owner}/${repository}/pulls/${number}`);
+  if (pull?.number !== number || typeof pull.node_id !== "string" || !pull.node_id
+    || !["open", "closed"].includes(pull.state) || typeof pull.draft !== "boolean"
+    || typeof pull.head?.sha !== "string" || !/^[a-f0-9]{40}$/i.test(pull.head.sha)) {
+    throw new Error(`GitHub returned malformed PR #${number} metadata`);
+  }
+  return pull;
+}
+
+async function isTrustedEligible(pull) {
+  const number = pull.number;
   let files;
   try {
     files = await changedFiles(number);
@@ -68,78 +157,36 @@ async function processPullRequest(number, run) {
           : `the base branch is ${pull.base?.ref ?? "unknown"}, not develop`
       : classification.reason;
     await disableIfArmed(pull, reason);
-    return await summary(`PR #${number}: auto-merge not eligible — ${reason}.`);
+    await summary(`PR #${number}: auto-merge not eligible — ${reason}.`);
+    return false;
   }
+  return true;
+}
 
-  const validationMatchesHead = run.validationComplete && run.validatedHeadSha === pull.head?.sha;
-  const validation = validationMatchesHead
-    ? run.validationSucceeded ? "success" : "failure"
-    : "pending";
-  if (validation === "success" && pull.auto_merge) {
-    pull = await awaitAutomaticIntegration(number, pull);
-    if (pull.state !== "open") {
-      if (pull.merged === true) return await reconcileDocumentationBranch(pull);
-      return await summary(`PR #${number}: closed without merge while awaiting automatic integration; no branch mutation.`);
-    }
-    if (pull.head?.sha !== run.validatedHeadSha) {
-      return await summary(`PR #${number}: head changed while awaiting automatic integration; no branch mutation.`);
-    }
-  }
-
-  const action = planDocumentationAutoMerge({
-    validation,
-    autoMergeArmed: Boolean(pull.auto_merge),
-    mergeableState: pull.mergeable_state,
-  });
-
-  if (action === "unchanged") {
-    return await summary(`PR #${number}: eligible and squash auto-merge is already armed.`);
-  }
-  if (action === "wait") {
-    return await summary(`PR #${number}: eligible but current-head Development validation failed; auto-merge remains unchanged.`);
-  }
-  if (action === "merge") {
+async function mergeValidatedHead(pull) {
+  const number = pull.number;
+  try {
     const result = await rest(`/repos/${owner}/${repository}/pulls/${number}/merge`, {
       method: "PUT",
       body: { sha: pull.head.sha, merge_method: "squash" },
     });
-    if (result?.merged !== true) throw new Error(`GitHub did not merge eligible clean PR #${number}: ${JSON.stringify(result)}`);
-    await summary(`PR #${number}: current head passed validation and is clean; squash-merged with expected head SHA.`);
-    return await reconcileDocumentationBranch({ ...pull, state: "closed", merged: true, merged_at: new Date().toISOString() });
+    if (result?.merged !== true) throw new Error(`GitHub did not merge PR #${number}: ${JSON.stringify(result)?.slice(0, 1000)}`);
+  } catch (error) {
+    const current = await readPullRequest(number);
+    // Concurrency: only another actor's confirmed merge of THIS decision's head can authorize cleanup.
+    if (current.state !== "closed" || current.merged !== true || current.node_id !== pull.node_id
+      || current.head.sha !== pull.head.sha) throw error;
+    await summary(`PR #${number}: already merged at expected head ${pull.head.sha}.`);
+    return await reconcileDocumentationBranch(current);
   }
-
-  await graph(`mutation EnableDocumentationAutoMerge($pullRequestId: ID!) {
-    enablePullRequestAutoMerge(input: { pullRequestId: $pullRequestId, mergeMethod: SQUASH }) {
-      pullRequest { number }
-    }
-  }`, { pullRequestId: pull.node_id });
-  await summary(`PR #${number}: exact documentation allowlist; squash auto-merge armed behind required validation.`);
+  await summary(`PR #${number}: current head passed validation (${pull.mergeable_state}); squash-merged with expected head SHA ${pull.head.sha}.`);
+  return await reconcileDocumentationBranch({ ...pull, state: "closed", merged: true, merged_at: new Date().toISOString() });
 }
 
-async function awaitAutomaticIntegration(number, initial) {
-  const expectedSha = initial.head?.sha;
-  let pull = initial;
-  const attempts = Number(process.env.A1_AUTO_MERGE_POLL_ATTEMPTS ?? 30);
-  const delayMs = Number(process.env.A1_AUTO_MERGE_POLL_MS ?? 2000);
-  for (let attempt = 0; attempt < attempts; attempt += 1) {
-    if (pull.state !== "open" || pull.head?.sha !== expectedSha) return pull;
-    if (pull.mergeable_state === "clean") {
-      try {
-        const result = await rest(`/repos/${owner}/${repository}/pulls/${number}/merge`, {
-          method: "PUT",
-          body: { sha: expectedSha, merge_method: "squash" },
-        });
-        if (result?.merged === true) return { ...pull, state: "closed", merged: true, merged_at: new Date().toISOString() };
-      } catch (error) {
-        pull = await rest(`/repos/${owner}/${repository}/pulls/${number}`);
-        if (pull.merged === true) return pull;
-        throw error;
-      }
-    }
-    if (delayMs > 0) await new Promise(resolve => setTimeout(resolve, delayMs));
-    pull = await rest(`/repos/${owner}/${repository}/pulls/${number}`);
-  }
-  return pull;
+function boundedPollingNumber(name, input, maximum) {
+  const value = Number(input ?? maximum);
+  if (!Number.isInteger(value) || value < 0 || value > maximum) throw new Error(`Invalid ${name}: expected 0..${maximum}`);
+  return value;
 }
 
 async function reconcileDocumentationBranch(pull) {
@@ -171,7 +218,7 @@ async function disableIfArmed(pull, reason) {
     disablePullRequestAutoMerge(input: { pullRequestId: $pullRequestId }) {
       pullRequest { number }
     }
-  }`, { pullRequestId: pull.node_id });
+  }`, { pullRequestId: pull.node_id }, "disablePullRequestAutoMerge", pull.number);
   await summary(`PR #${pull.number}: disabled auto-merge — ${reason}.`);
 }
 
@@ -191,14 +238,17 @@ async function request(path, options = {}) {
   return { status: response.status, body: text ? JSON.parse(text) : undefined };
 }
 
-async function graph(query, variables) {
+async function graph(query, variables, mutation, number) {
   const response = await fetch(graphqlUrl, {
     method: "POST",
     headers: { ...headers(), "content-type": "application/json" },
     body: JSON.stringify({ query, variables }),
   });
   const body = await response.json();
-  if (!response.ok || body.errors?.length) throw new Error(`GitHub GraphQL failed: ${JSON.stringify(body.errors ?? body)}`);
+  if (!response.ok || (body?.errors != null && (!Array.isArray(body.errors) || body.errors.length > 0))
+    || body?.data?.[mutation]?.pullRequest?.number !== number) {
+    throw new GitHubGraphQLError(response.status, body);
+  }
   return body.data;
 }
 
