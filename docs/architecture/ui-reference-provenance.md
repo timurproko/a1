@@ -47,6 +47,23 @@ its own `core` facade layer; A1 is a product, so the port adapts imports and kee
 
 ## Deliberate differences
 
+- **Above-prompt autocomplete.** The accepted `show-autocomplete-above-prompt` change
+  moves the existing default-editor completion block above the prompt in bare A1.
+  `src/integrations/pi/components/upstream/components/owned-editor.ts` exposes its
+  border-inclusive body height using the existing atomic-aware layout boundary;
+  `shell-editor-autocomplete.ts` moves rows only after prefix/selection decoration.
+  The accepted background refinement (#341) shades those same rows using the existing
+  theme `toolPendingBg` surface, with cell-aware trailing padding and SGR containment
+  in `theme.ts`. There is no new top line or decorative row; foreground styles remain
+  unchanged. Full-width background attributes and cleanup are covered by terminal replay.
+  The session shell uses the resulting body offset for pointer routing. Neither
+  editor implementation, history mode, menu sizing, completion state, nor installed
+  Pi package changes. `a1 pi` remains below-prompt and byte-identical to the independently
+  run pinned editor in `test/integrations/pi/components/pinned-editor-input-parity.test.ts`.
+  Placement and whole-menu ANSI evidence is in `editor-autocomplete-placement.test.ts`;
+  shell checkpoint replay covers final cells, cursor rows, resizing, detached/streaming
+  transcripts, widgets, pointer selection, and extension-editor restoration. Physical
+  acceptance of the exact build remains required before merging the implementation.
 - **Owned in-session routes are overlays.** The A1 UI reference owns its surface and can switch screens; A1 renders in-session owned routes through the pinned Pi TUI as full-viewport overlays. The pre-resource trust selector is separate and uses a bounded alternate startup surface solely so every completion path can restore the untouched parent terminal before engine activation or a fail-closed diagnostic.
 - **Colour is a port, not an import.** The reference takes a Pi `Theme` directly. A1 defines
   `UiTheme` so the component layer never imports a Pi adapter and can be rendered plainly in

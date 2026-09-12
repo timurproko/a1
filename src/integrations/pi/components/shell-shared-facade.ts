@@ -41,11 +41,20 @@ export interface PiShellEditorPointerEvent {
   readonly kind: "press" | "motion" | "release";
   readonly button: number;
   readonly column: number;
-  /** One-based row relative to the top of the editor component. */
+  /** One-based row relative to the top border of the editor body, excluding its menu. */
   readonly row: number;
 }
 
+export interface PiShellEditorBodyGeometry {
+  /** Zero-based body offset in the most recently rendered component rows. */
+  readonly rowOffset: number;
+  /** Border-inclusive body height, excluding autocomplete. */
+  readonly rowCount: number;
+}
+
 export interface PiShellEditorPort extends PiShellComponentPort {
+  /** Present only for the owned above-prompt autocomplete presentation. */
+  bodyGeometry?(): PiShellEditorBodyGeometry;
   readonly recall?: EditorRecallPort;
   readonly historyReplacement?: typeof import("../../../contracts/owned-ui/index.js").PROMPT_HISTORY_EDITOR_REPLACEMENT;
   /** Restores this editor's profile after another Pi component changed the global manager. */
