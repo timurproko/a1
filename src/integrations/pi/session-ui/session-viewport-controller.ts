@@ -96,6 +96,11 @@ export class SessionViewportController {
     return this.#presentationRevision;
   }
 
+  /** Latest reported coordinates; exposed without rendering for frame provenance and evidence. */
+  get pointerPosition(): { readonly column: number; readonly row: number } | undefined {
+    return this.#pointerPosition;
+  }
+
   get frame(): TranscriptViewportFrame | null {
     return this.#viewport.frame;
   }
