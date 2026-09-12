@@ -15,6 +15,7 @@ import { scheduleReleaseCleanup } from "./release-gc.js";
 import { createRestartSeal, readRestartCertifiedRelease, releaseCertificationDocument } from "./restart-certification.js";
 import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
 import { markStartupPhase } from "../startup/index.js";
+import { assertCurrentLaunchContract, readLaunchContext, withLaunchContext } from "../launch-context/index.js";
 
 export interface BootstrapOptions {
   readonly packageRoot: string;
@@ -36,19 +37,20 @@ export interface BootstrapOptions {
 }
 
 export async function runBootstrap(options: BootstrapOptions): Promise<number> {
-  const environment = { ...(options.environment ?? process.env) };
+  const environment = withLaunchContext(options.environment ?? process.env, { launchProfile: options.launchIntent?.profileId ?? "a1" });
   await markStartupPhase(environment, "bootstrap-start");
   const launchProfileId = options.launchIntent?.profileId ?? "a1";
   assertLaunchProfileId(launchProfileId);
   const sessionArgs = sessionSelectionArguments(options.launchIntent?.sessionSelection);
   if (sessionArgs.length > 0 && launchProfileId !== "a1") throw new Error("session selection requires the normal A1 profile");
-  environment[PRODUCT_IDENTITY.environment.launchProfile] = launchProfileId;
   const output = options.output ?? process.stderr;
   const paths = resolveProductPaths(environment);
   await mkdir(paths.runtimeDir, { recursive: true, mode: 0o700 });
 
   const stateStore = new CohortStateStore(paths.dataDir);
   let state = await stateStore.read();
+  const activeRecord = state.references.active === null ? undefined : state.releases[state.references.active];
+  if (activeRecord) assertCurrentLaunchContract(activeRecord);
   // Invariant: records left by cohorts whose processes are gone say nothing about ownership, and there
   // can now be several of them. Clearing them first keeps the decision below about what is
   // actually running.
@@ -218,6 +220,7 @@ export async function certifyMaterializedRelease(
   dataDir: string,
   verification: VerifyMaterializedReleaseOptions = {},
 ): Promise<string> {
+  assertCurrentLaunchContract(release);
   if (!consumeMaterializationProof(release)) {
     await verifyMaterializedRelease(release.releaseRoot, release, resolve(dataDir, "releases"), verification);
   }
@@ -226,6 +229,7 @@ export async function certifyMaterializedRelease(
 
 /** Persist current-format evidence after an authenticated parent has certified the exact release. */
 export async function recordParentCertifiedRelease(release: MaterializedRelease, dataDir: string): Promise<string> {
+  assertCurrentLaunchContract(release);
   const path = resolve(dataDir, `certification-${release.releaseId}.json`);
   const restartSeal = await createRestartSeal(release, dataDir);
   await chmod(path, 0o600).catch(() => {});
@@ -264,25 +268,26 @@ async function launchUi(release: MaterializedRelease, environment: NodeJS.Proces
   const entry = await resolveReleaseEntryPoint(release, "bin/guardian.js");
   return await new Promise<number>((resolvePromise, rejectPromise) => {
     const child = spawn(process.execPath, [entry, ...sessionArgs], {
-      env: releaseEnvironment(environment, release),
+      env: releaseEnvironment(environment, release, readLaunchContext(environment, "profile").launchProfile),
       stdio: "inherit",
       windowsHide: false,
     });
     child.once("error", rejectPromise);
     child.once("close", (code, signal) => resolvePromise(restoreAfterOwnedExit(
-      environment[PRODUCT_IDENTITY.environment.launchProfile] === "a1", code, signal,
+      readLaunchContext(environment).launchProfile === "a1", code, signal,
     )));
   });
 }
 
-export function releaseEnvironment(environment: NodeJS.ProcessEnv, release: MaterializedRelease): NodeJS.ProcessEnv {
-  return {
-    ...environment,
-    [PRODUCT_IDENTITY.environment.releaseId]: release.releaseId,
-    [PRODUCT_IDENTITY.environment.releaseLayers]: (release.dependencyLayers ?? []).map(layer => layer.layerId).join(","),
-    [PRODUCT_IDENTITY.environment.releaseRoot]: release.releaseRoot,
-    [PRODUCT_IDENTITY.environment.releaseDigest]: release.contentDigest,
-  };
+export function releaseEnvironment(environment: NodeJS.ProcessEnv, release: MaterializedRelease, profile?: LaunchProfileId): NodeJS.ProcessEnv {
+  assertCurrentLaunchContract(release);
+  return withLaunchContext(environment, {
+    releaseId: release.releaseId,
+    releaseLayers: (release.dependencyLayers ?? []).map(layer => layer.layerId).join(","),
+    releaseRoot: release.releaseRoot,
+    releaseDigest: release.contentDigest,
+    ...(profile === undefined ? {} : { launchProfile: profile }),
+  });
 }
 
 export async function waitForVerifiedEndpoint(

@@ -1,4 +1,5 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -51,11 +52,12 @@ async function fakeRelease(root: string, source: string): Promise<MaterializedRe
   const digest = "a".repeat(64);
   return {
     packageName: "@timurproko/a1",
+    launchContract: "neutral-launch-v1",
     packageVersion: "1.0.0",
     packageRoot: root,
-    releaseRoot: root,
+    releaseRoot: await realpath(root),
     releaseId: `1.0.0-${digest.slice(0, 20)}`,
     contentDigest: digest,
-    files: [],
+    files: [{ path: "bin/warmup.js", bytes: Buffer.byteLength(source), sha256: createHash("sha256").update(source).digest("hex"), executable: false }],
   };
 }

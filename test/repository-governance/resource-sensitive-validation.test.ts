@@ -17,7 +17,10 @@ const originalResourceSensitiveTests = [
 
 // Provenance: archived incident evidence keeps its original partition; new storage and isolated-producer workloads join only the active partition.
 const resourceSensitiveTests = [
-  ...originalResourceSensitiveTests,
+  ...originalResourceSensitiveTests.slice(0, 1),
+  "test/repository-governance/naming-selection.test.ts",
+  "test/foundation/launch-context/cutover.test.ts",
+  ...originalResourceSensitiveTests.slice(1),
   "test/features/prompt-history/store.test.ts",
   "test/integrations/pi/session-ui/command-message-parity.test.ts",
   "test/integrations/pi/session-ui/command-outcome-parity.test.ts",

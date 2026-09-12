@@ -4,6 +4,7 @@ import { dirname, extname, posix, resolve } from "node:path";
 import { promisify } from "node:util";
 import ts from "typescript";
 import { classifyCodeDocumentationSource, normalizeCodeDocumentationPath } from "../governance/code-documentation-policy.mjs";
+import { selectNamingImpact } from "../governance/naming-source-policy.mjs";
 
 const execFileAsync = promisify(execFile);
 const SOURCE_EXTENSIONS = [".ts", ".tsx", ".mts", ".cts", ".js", ".mjs", ".cjs", ".json"];
@@ -62,7 +63,7 @@ export function parseNameStatusZ(value) {
 }
 
 export async function collectCommitChanges(repository, base, head) {
-  const { stdout } = await git(repository, ["diff", "--name-status", "-z", "--find-renames", "--find-copies-harder", base, head], "buffer");
+  const { stdout } = await git(repository, ["diff", "--name-status", "-z", "--find-renames", "--find-copies", "--find-copies-harder", base, head], "buffer");
   return parseNameStatusZ(stdout);
 }
 
@@ -111,6 +112,7 @@ export async function selectValidationImpact(options = {}) {
     openspecTouched,
     ordinaryScopes: docsOnly || versionOnly ? [] : ["typecheck", "architecture", "fast", "dist-integration"],
     rendering,
+    naming: selectNamingImpact(changes),
     documentation: { required: documentationPaths.length > 0, paths: documentationPaths },
     timing: { classifierMs: Math.max(0, Date.now() - startedAt) },
   };
@@ -135,6 +137,7 @@ export function assertValidationImpact(value) {
     throw new TypeError("validation impact documentation paths are invalid or unbounded");
   }
   if (value.documentation.required !== (value.documentation.paths.length > 0)) throw new TypeError("validation impact documentation requirement disagrees with paths");
+  if (JSON.stringify(value.naming) !== JSON.stringify(selectNamingImpact(value.changes))) throw new TypeError("naming impact differs from the complete change");
   if (!Array.isArray(value.ordinaryScopes) || value.ordinaryScopes.some(scope => typeof scope !== "string")) throw new TypeError("validation impact ordinary scopes are invalid");
   if (!Number.isSafeInteger(value.timing?.classifierMs) || value.timing.classifierMs < 0) throw new TypeError("validation impact timing is invalid");
   return value;
@@ -227,7 +230,10 @@ function mergeChanges(committed, worktree) {
 }
 
 async function resolveSelectionBase(repository, requested, head) {
-  if (requested && await isCommitishAvailable(repository, requested)) return await mergeBase(repository, requested, head);
+  if (requested) {
+    if (!await isCommitishAvailable(repository, requested)) throw new Error("requested validation base is unavailable");
+    return await mergeBase(repository, requested, head);
+  }
   if (await isCommitishAvailable(repository, "origin/develop")) return await mergeBase(repository, "origin/develop", head);
   try {
     const { stdout } = await git(repository, ["rev-parse", `${head}^`], "utf8");

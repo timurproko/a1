@@ -90,7 +90,7 @@ jobs:
           VALIDATION_BUILD_READY: "1"
           VALIDATION_DOCUMENTATION_FULL_READY: "1"
           VALIDATION_CANDIDATE_TARBALL: ${{ github.workspace }}/.artifacts/validation/package/candidate.tgz
-          A1_RELEASE_RUNNER_LABEL: github-${{ matrix.os }}-node${{ matrix.node }}-full-regression
+          RELEASE_RUNNER_LABEL: github-${{ matrix.os }}-node${{ matrix.node }}-full-regression
           A1_CONFIG_DIR: ${{ runner.temp }}/a1-full-config
           A1_DATA_DIR: ${{ runner.temp }}/a1-full-data
           A1_RUNTIME_DIR: ${{ runner.temp }}/a1-full-runtime

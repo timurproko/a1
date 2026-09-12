@@ -148,7 +148,7 @@ async function spawnOwnedProcess() {
 async function fixturePackage(root: string, version: string, payload: string): Promise<string> {
   const packageRoot = resolve(root, `package-${version}`);
   await mkdir(resolve(packageRoot, "dist"), { recursive: true });
-  await writeFile(resolve(packageRoot, "package.json"), JSON.stringify({ name: "@timurproko/a1", version, files: ["dist"] }));
+  await writeFile(resolve(packageRoot, "package.json"), JSON.stringify({ name: "@timurproko/a1", privateLaunchContract: "neutral-launch-v1", version, files: ["dist"] }));
   await writeFile(resolve(packageRoot, "dist/app.js"), payload);
   return packageRoot;
 }

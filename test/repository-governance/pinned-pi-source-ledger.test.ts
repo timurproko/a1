@@ -30,7 +30,7 @@ async function runFixture(
   return spawnSync(process.execPath, [checker, ...arguments_], {
     cwd: process.cwd(),
     encoding: "utf8",
-    env: { ...process.env, A1_PI_SOURCE_LEDGER_PATH: path, ...environment },
+    env: { ...process.env, SOURCE_LEDGER_PATH: path, ...environment },
   });
 }
 
@@ -112,7 +112,7 @@ describe("pinned Pi source ledger governance", () => {
     const root = await mkdtemp(resolve(tmpdir(), "a1-pi-deep-import-"));
     temporaryRoots.push(root);
     await writeFile(resolve(root, "forbidden.ts"), "export { InteractiveMode } from '@earendil-works/pi-coding-agent/dist/modes/index.js';\n");
-    const result = await runFixture(() => {}, { A1_PI_SOURCE_SCAN_ROOT: root });
+    const result = await runFixture(() => {}, { SOURCE_LEDGER_SCAN_ROOT: root });
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("forbidden deep Pi import");
   });
@@ -122,7 +122,7 @@ describe("pinned Pi source ledger governance", () => {
     temporaryRoots.push(root);
     await mkdir(resolve(root, "components"), { recursive: true });
     await writeFile(resolve(root, "components", "rogue.ts"), "export {};\n");
-    const result = await runFixture(() => {}, { A1_PI_PORT_ROOT: root });
+    const result = await runFixture(() => {}, { SOURCE_LEDGER_PORT_ROOT: root });
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("undocumented owned source file");
   });

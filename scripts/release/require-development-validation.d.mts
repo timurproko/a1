@@ -1,6 +1,9 @@
 export interface DevelopmentValidationResults {
   readonly changesResult?: string;
   readonly docsResult?: string;
+  readonly namingResult?: string;
+  readonly namingRequired?: string | undefined;
+  readonly namingHead?: string;
   readonly documentationResult?: string;
   readonly validateResult?: string;
   readonly renderingResult?: string;

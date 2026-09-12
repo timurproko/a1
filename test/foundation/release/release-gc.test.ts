@@ -441,7 +441,7 @@ async function releaseFixture(count: number) {
   for (let index = 0; index < count; index += 1) {
     const packageRoot = resolve(root, `package-${index}`);
     await mkdir(resolve(packageRoot, "dist"), { recursive: true });
-    await writeFile(resolve(packageRoot, "package.json"), JSON.stringify({ name: "@timurproko/a1", version: `1.0.${index}`, files: ["dist"] }));
+    await writeFile(resolve(packageRoot, "package.json"), JSON.stringify({ name: "@timurproko/a1", privateLaunchContract: "neutral-launch-v1", version: `1.0.${index}`, files: ["dist"] }));
     await writeFile(resolve(packageRoot, "dist", "app.js"), `export default ${index};`);
     releases.push(await materializeRelease(packageRoot, dataDir));
   }
@@ -463,7 +463,7 @@ function cleanupEnvironment(dataDir: string, runId: string): NodeJS.ProcessEnv {
     ...process.env,
     A1_DATA_DIR: dataDir,
     A1_RUNTIME_DIR: resolve(dataDir, "runtime"),
-    A1_RELEASE_CLEANUP_RUN_ID: runId,
+    RELEASE_CLEANUP_RUN_ID: runId,
   };
 }
 

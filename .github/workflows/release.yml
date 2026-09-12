@@ -408,7 +408,7 @@ jobs:
           VALIDATION_BUILD_READY: "1"
           VALIDATION_DOCUMENTATION_FULL_READY: ${{ needs.documentation.result == 'success' && '1' || '0' }}
           VALIDATION_CANDIDATE_TARBALL: ${{ github.workspace }}/.artifacts/release/candidate.tgz
-          A1_RELEASE_RUNNER_LABEL: github-${{ matrix.platform }}-${{ needs.plan.outputs.mode }}
+          RELEASE_RUNNER_LABEL: github-${{ matrix.platform }}-${{ needs.plan.outputs.mode }}
           A1_CONFIG_DIR: ${{ runner.temp }}/a1-release-config
           A1_DATA_DIR: ${{ runner.temp }}/a1-release-data
           A1_RUNTIME_DIR: ${{ runner.temp }}/a1-release-runtime

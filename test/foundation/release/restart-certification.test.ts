@@ -159,6 +159,7 @@ async function certifiedFixture(extraFiles: number) {
   await mkdir(resolve(packageRoot, "node_modules", "fixture-dependency"), { recursive: true });
   await writeFile(resolve(packageRoot, "package.json"), JSON.stringify({
     name: "@timurproko/a1",
+    privateLaunchContract: "neutral-launch-v1",
     version: "2.0.0",
     files: ["bin", "dist"],
     dependencies: { "fixture-dependency": "1.0.0" },

@@ -304,10 +304,11 @@ async function recoveryFixture(mode: "success" | "slow-success" | "wait" | "stag
   await mkdir(resolve(packageRoot, "bin"), { recursive: true });
   await mkdir(dirname(npmCli), { recursive: true });
   await mkdir(resolve(priorReleaseRoot, "bin"), { recursive: true });
-  await writeFile(resolve(packageRoot, "package.json"), JSON.stringify({ name: "@timurproko/a1", version: "1.0.0" }));
+  await writeFile(resolve(packageRoot, "package.json"), JSON.stringify({ name: "@timurproko/a1", privateLaunchContract: "neutral-launch-v1", version: "1.0.0" }));
   await writeFile(resolve(packageRoot, "bin", "cli.js"), "// old");
   await writeFile(resolve(priorReleaseRoot, "bin", "cli.js"), "// prior");
   await writeFile(resolve(priorReleaseRoot, ".a1-release.json"), JSON.stringify({
+    launchContract: "neutral-launch-v1",
     releaseId: "1.0.0-aaaaaaaaaaaaaaaaaaaa",
     contentDigest: "a".repeat(64),
   }));
@@ -340,8 +341,8 @@ async function recoveryFixture(mode: "success" | "slow-success" | "wait" | "stag
       environment: {
         ...process.env,
         npm_execpath: npmCli,
-        A1_TEST_CANCEL_AFTER: String(cancelAfter),
-        A1_TEST_REMOVAL_MARKER: resolve(root, "removed.marker"),
+        RECOVERY_TEST_CANCEL_AFTER: String(cancelAfter),
+        RECOVERY_TEST_REMOVAL_MARKER: resolve(root, "removed.marker"),
       },
       timeoutMs: 10_000,
     },
@@ -357,15 +358,15 @@ function fakeNpmSource(mode: "success" | "slow-success" | "wait" | "staged-wait"
     (async () => {
       for (let index = 0; index < launchers.length; index += 1) {
         await rm(launchers[index], { force: true });
-        if (${JSON.stringify(mode)} === "staged-wait" && index === Number(process.env.A1_TEST_CANCEL_AFTER)) {
-          await writeFile(process.env.A1_TEST_REMOVAL_MARKER, String(index));
+        if (${JSON.stringify(mode)} === "staged-wait" && index === Number(process.env.RECOVERY_TEST_CANCEL_AFTER)) {
+          await writeFile(process.env.RECOVERY_TEST_REMOVAL_MARKER, String(index));
           await new Promise(resolvePromise => setTimeout(resolvePromise, 10000));
         }
       }
       ${mode === "wait" ? "await new Promise(resolvePromise => setTimeout(resolvePromise, 10000));" : mode === "fail" ? "console.error('injected npm failure'); process.exitCode = 7;" : mode === "staged-wait" ? "" : `
       ${mode === "slow-success" ? "await new Promise(resolvePromise => setTimeout(resolvePromise, 1000));" : ""}
       await mkdir(resolve(packageRoot, "bin"), { recursive: true });
-      await writeFile(resolve(packageRoot, "package.json"), JSON.stringify({ name: "@timurproko/a1", version: "1.1.0" }));
+      await writeFile(resolve(packageRoot, "package.json"), JSON.stringify({ name: "@timurproko/a1", privateLaunchContract: "neutral-launch-v1", version: "1.1.0" }));
       await writeFile(resolve(packageRoot, "bin", "cli.js"), "// target");
       for (const launcher of launchers) {
         await mkdir(dirname(launcher), { recursive: true });

@@ -581,8 +581,8 @@ async function runManager(
         GITHUB_REPOSITORY: "owner/repository",
         GITHUB_API_URL: `http://127.0.0.1:${address.port}`,
         GITHUB_GRAPHQL_URL: `http://127.0.0.1:${address.port}/graphql`,
-        A1_AUTO_MERGE_POLL_ATTEMPTS: "3",
-        A1_AUTO_MERGE_POLL_MS: "0",
+        DOCS_AUTO_MERGE_POLL_ATTEMPTS: "3",
+        DOCS_AUTO_MERGE_POLL_MS: "0",
       },
     });
     return { requests, stdout: result.stdout, stderr: result.stderr, exitCode: 0 };

@@ -28,8 +28,8 @@ const DEFAULT_LIMITS: ReleaseCleanupLimits = { maxItems: 8, maxDurationMs: 2_000
 const DEFAULT_WORKER_DURATION_MS = 10 * 60 * 1_000;
 const DEFAULT_NO_PROGRESS_BATCHES = 5;
 const DEFAULT_RETRY_DELAY_MS = 500;
-const WORKER_HOLDS_ENV = "A1_RELEASE_CLEANUP_HOLDS";
-const WORKER_RUN_ID_ENV = "A1_RELEASE_CLEANUP_RUN_ID";
+const WORKER_HOLDS_ENV = "RELEASE_CLEANUP_HOLDS";
+const WORKER_RUN_ID_ENV = "RELEASE_CLEANUP_RUN_ID";
 const WORKER_LEASE_FILENAME = "release-cleanup-worker.lock";
 
 export interface ReleaseCleanupLimits {

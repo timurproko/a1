@@ -12,6 +12,8 @@
       "includeRoot": "test",
       "resourceSensitiveTests": [
         "test/repository-governance/validation-impact.test.ts",
+        "test/repository-governance/naming-selection.test.ts",
+        "test/foundation/launch-context/cutover.test.ts",
         "test/repository-governance/code-documentation.test.ts",
         "test/foundation/storage/storage.test.ts",
         "test/foundation/release/cohort-state.test.ts",
@@ -52,6 +54,7 @@
         "architecture",
         "fast",
         "documentation-full",
+        "naming-full",
         "rendering-stability",
         "dist-integration",
         "launch-integration",
@@ -76,6 +79,12 @@
       "kind": "commands",
       "commands": [
         { "id": "architecture", "executable": "npm", "arguments": ["run", "check:architecture"] }
+      ]
+    },
+    "naming-full": {
+      "kind": "commands",
+      "commands": [
+        { "id": "internal-naming-full", "executable": "npm", "arguments": ["run", "check:names"] }
       ]
     },
     "documentation-changed": {

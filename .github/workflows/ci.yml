@@ -25,6 +25,8 @@ jobs:
       openspec-touched: ${{ steps.selection.outputs.openspec_touched }}
       rendering-tier: ${{ steps.selection.outputs.rendering_tier }}
       documentation-required: ${{ steps.selection.outputs.documentation_required }}
+      naming-required: ${{ steps.selection.outputs.naming_required }}
+      naming-mode: ${{ steps.selection.outputs.naming_mode }}
       head-sha: ${{ steps.selection.outputs.head_sha }}
     steps:
       - name: Check out head
@@ -66,6 +68,8 @@ jobs:
           console.log(`openspec_touched=${value.openspecTouched}`);
           console.log(`rendering_tier=${value.rendering.tier}`);
           console.log(`documentation_required=${value.documentation.required}`);
+          console.log(`naming_required=${value.naming.required}`);
+          console.log(`naming_mode=${value.naming.mode}`);
           console.log(`head_sha=${value.head}`);
           NODE
           node --input-type=module <<'NODE' >> "$GITHUB_STEP_SUMMARY"
@@ -108,6 +112,54 @@ jobs:
       - name: Validate OpenSpec artifacts strictly
         if: needs.changes.outputs.openspec-touched == 'true'
         run: npx --yes @fission-ai/openspec@1.8.0 validate --all --strict --no-interactive
+
+  naming:
+    name: Internal naming validation
+    needs: changes
+    if: needs.changes.outputs.naming-required == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      head-sha: ${{ steps.evidence.outputs.head_sha }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ needs.changes.outputs.head-sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: development-validation-impact
+          path: .artifacts/validation
+      - name: Validate complete new and changed inputs
+        run: node scripts/governance/product-identifier-policy.mjs --check --selection .artifacts/validation/impact.json --result .artifacts/validation/naming.json
+      - name: Exercise policy regression tests
+        if: needs.changes.outputs.naming-mode == 'full'
+        run: npx vitest run test/repository-governance/naming-inspection.test.ts test/repository-governance/naming-selection.test.ts --maxWorkers=1 --minWorkers=1
+      - name: Bind successful evidence to its head
+        id: evidence
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE' >> "$GITHUB_OUTPUT"
+          import { readFile, appendFile } from "node:fs/promises";
+          const result = JSON.parse(await readFile(".artifacts/validation/naming.json", "utf8"));
+          if (!result.passed) throw new Error("naming validation did not pass");
+          console.log(`head_sha=${result.head}`);
+          await appendFile(process.env.GITHUB_STEP_SUMMARY, `Naming: **${result.mode}**; inspected **${result.inspectedPaths.length}** files; **${result.internalIdentifiers.length}** violations; **${result.durationMs}ms**. Head: ${result.head}\n`);
+          NODE
+      - name: Upload naming evidence
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: development-naming-validation
+          path: .artifacts/validation/naming.json
+          if-no-files-found: warn
+          retention-days: 14
 
   documentation:
     name: Changed-file documentation validation
@@ -163,7 +215,7 @@ jobs:
     steps:
       - name: Start ordinary timing
         shell: bash
-        run: echo "A1_JOB_STARTED_MS=$(node -e 'process.stdout.write(String(Date.now()))')" >> "$GITHUB_ENV"
+        run: echo "VALIDATION_JOB_STARTED_MS=$(node -e 'process.stdout.write(String(Date.now()))')" >> "$GITHUB_ENV"
       - name: Preserve repository bytes during checkout
         shell: bash
         run: git config --global core.autocrlf false
@@ -195,13 +247,13 @@ jobs:
           A1_DATA_DIR: ${{ runner.temp }}\a1-ci-data
           A1_RUNTIME_DIR: ${{ runner.temp }}\a1-ci-runtime
           A1_PROCESS_GUARDIAN_PATH: ${{ github.workspace }}\native\process-guardian\target\debug\process-guardian.exe
-          A1_RUN_PROCESS_CONTAINMENT_INTEGRATION: "1"
+          RUN_PROCESS_CONTAINMENT_INTEGRATION: "1"
         run: node scripts/release/run-validation-tier.mjs --result .artifacts/validation/outcomes.json
       - name: Verify Pi restoration and exact-package resume separately from fast tests
         shell: bash
         env:
           VALIDATION_BUILD_READY: "1"
-        run: node scripts/release/run-validation-tier.mjs pi-engine-conformance package-smoke --result .artifacts/validation/resume-integration.json
+        run: node scripts/release/run-validation-tier.mjs pi-engine-conformance package-smoke release-update --result .artifacts/validation/resume-integration.json
       - name: Upload resume integration evidence
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
@@ -218,7 +270,7 @@ jobs:
             node --input-type=module <<'NODE' >> "$GITHUB_STEP_SUMMARY"
           import { readFile } from "node:fs/promises";
           const result = JSON.parse(await readFile(".artifacts/validation/outcomes.json", "utf8"));
-          const setup = Math.max(0, result.startedAt - Number(process.env.A1_JOB_STARTED_MS));
+          const setup = Math.max(0, result.startedAt - Number(process.env.VALIDATION_JOB_STARTED_MS));
           console.log(`Setup: **${(setup / 1000).toFixed(2)}s**; repository gates: **${((result.completedAt - result.startedAt) / 1000).toFixed(2)}s**\n`);
           console.log("| Gate | Seconds | Result |\n| --- | ---: | --- |");
           for (const outcome of result.outcomes) console.log(`| ${outcome.id} | ${(outcome.durationMs / 1000).toFixed(2)} | ${outcome.exitCode === 0 ? outcome.skipped ?? "passed" : "failed"} |`);
@@ -295,7 +347,7 @@ jobs:
     steps:
       - name: Start rendering timing
         shell: bash
-        run: echo "A1_RENDERING_JOB_STARTED_MS=$(node -e 'process.stdout.write(String(Date.now()))')" >> "$GITHUB_ENV"
+        run: echo "RENDERING_JOB_STARTED_MS=$(node -e 'process.stdout.write(String(Date.now()))')" >> "$GITHUB_ENV"
       - name: Preserve repository bytes during checkout
         shell: bash
         run: git config --global core.autocrlf false
@@ -326,7 +378,7 @@ jobs:
           const result = JSON.parse(await readFile(".artifacts/validation/rendering.json", "utf8"));
           const scope = result.selected.find(value => value.startsWith("rendering-"));
           const structure = result.structuralEvidence?.[scope] ?? {};
-          const setup = Math.max(0, result.startedAt - Number(process.env.A1_RENDERING_JOB_STARTED_MS));
+          const setup = Math.max(0, result.startedAt - Number(process.env.RENDERING_JOB_STARTED_MS));
           console.log(`Rendering scope: **${scope}**; setup: **${(setup / 1000).toFixed(2)}s**; repository gate time: **${((result.completedAt - result.startedAt) / 1000).toFixed(2)}s**.`);
           console.log(`Workload captures: **${structure.workloadCaptures ?? 0}**; deliberate repeats: **${structure.deliberateRepeatCaptures ?? 0}**; producer launches: **${structure.totalProducerLaunches ?? 0}**.`);
           NODE
@@ -375,14 +427,15 @@ jobs:
       - shell: bash
         env:
           A1_PROCESS_GUARDIAN_PATH: ${{ github.workspace }}/native/process-guardian/target/debug/${{ matrix.binary }}
-          A1_RUN_PROCESS_CONTAINMENT_INTEGRATION: "1"
+          RUN_PROCESS_CONTAINMENT_INTEGRATION: "1"
         run: npx vitest run test/foundation/process-containment --testTimeout=30000
       - name: Validate background and packaged image preparation
         run: npx vitest run test/integrations/pi/session-ui/image-preparation.test.ts test/integrations/pi/session-ui/image-worker-package.test.ts --maxWorkers=1 --minWorkers=1
       - name: Validate durable history on Unix
         run: npx vitest run test/features/prompt-history --maxWorkers=1 --minWorkers=1
-      - name: Validate packaged macOS supervision and containment
-        if: matrix.os == 'macos-15'
+      - name: Validate the current private contract on Unix
+        run: npx vitest run test/foundation/launch-context test/foundation/release/update-transition.integration.test.ts --maxWorkers=1 --minWorkers=1
+      - name: Validate packaged Unix supervision and containment
         shell: bash
         env:
           A1_CONFIG_DIR: ${{ runner.temp }}/a1-development-config
@@ -393,7 +446,7 @@ jobs:
   required:
     name: Development validation required
     if: always() && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
-    needs: [changes, docs, documentation, validate, startup, rendering, containment]
+    needs: [changes, docs, naming, documentation, validate, startup, rendering, containment]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -406,6 +459,9 @@ jobs:
         env:
           CHANGES_RESULT: ${{ needs.changes.result }}
           DOCS_RESULT: ${{ needs.docs.result }}
+          NAMING_RESULT: ${{ needs.naming.result }}
+          NAMING_REQUIRED: ${{ needs.changes.outputs.naming-required }}
+          NAMING_HEAD: ${{ needs.naming.outputs.head-sha }}
           DOCUMENTATION_RESULT: ${{ needs.documentation.result }}
           VALIDATE_RESULT: ${{ needs.validate.result }}
           RENDERING_RESULT: ${{ needs.rendering.result }}

@@ -9,7 +9,7 @@ describe("impact-aware validation workflows", () => {
     expect(workflow).toContain("documentation-required: ${{ steps.selection.outputs.documentation_required }}");
     expect(workflow).toContain("name: Changed-file documentation validation");
     expect(workflow).toContain("name: Rendering validation");
-    expect(workflow).toContain("needs: [changes, docs, documentation, validate, startup, rendering, containment]");
+    expect(workflow).toContain("needs: [changes, docs, naming, documentation, validate, startup, rendering, containment]");
     const required = workflow.slice(workflow.indexOf("\n  required:"));
     expect(required).toContain("ref: ${{ needs.changes.outputs.head-sha }}");
     expect(required).toContain("node scripts/release/require-development-validation.mjs");
@@ -63,9 +63,12 @@ describe("impact-aware validation workflows", () => {
     ]);
     const containment = workflow.slice(workflow.indexOf("\n  containment:"), workflow.indexOf("\n  required:"));
     expect(containment).toContain("os: macos-15");
-    expect(containment).toContain("A1_RUN_PROCESS_CONTAINMENT_INTEGRATION");
+    expect(containment).toContain("RUN_PROCESS_CONTAINMENT_INTEGRATION");
     expect(containment).toContain("test/foundation/process-containment");
-    expect(containment).toContain("if: matrix.os == 'macos-15'");
+    expect(containment).toContain("os: ubuntu-24.04");
+    expect(containment).toContain("Validate packaged Unix supervision and containment");
+    expect(containment).toContain("test/foundation/launch-context");
+    expect(containment).not.toContain("if: matrix.os == 'macos-15'");
     expect(containment).toContain("run-validation-tier.mjs package-smoke");
     expect(guardian).toContain("darwin-process-group");
     expect(guardian).toContain("proc_pidinfo");

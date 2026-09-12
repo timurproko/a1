@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it } from "vitest";
 const roots: string[] = [];
 afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))));
 
-const hasConfiguredGuardian = process.env.A1_RUN_PROCESS_CONTAINMENT_INTEGRATION === "1"
+const hasConfiguredGuardian = process.env.RUN_PROCESS_CONTAINMENT_INTEGRATION === "1"
   && Boolean(process.env.A1_PROCESS_GUARDIAN_PATH);
 const unixIt = (process.platform === "linux" || process.platform === "darwin") && hasConfiguredGuardian ? it : it.skip;
 const macIt = process.platform === "darwin" && hasConfiguredGuardian ? it : it.skip;

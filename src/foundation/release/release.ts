@@ -22,6 +22,7 @@ export interface ReleaseIdentity {
   readonly contentDigest: string;
   readonly releaseId: string;
   readonly packageRoot: string;
+  readonly launchContract?: string;
   readonly files: readonly ReleaseFileIdentity[];
   /** Absent for legacy full-copy releases. */
   readonly dependencyLayers?: readonly DependencyLayerReference[];
@@ -31,6 +32,7 @@ export interface DiscoveredReleasePayload {
   readonly packageRoot: string;
   readonly packageVersion: string;
   readonly paths: readonly string[];
+  readonly launchContract?: string;
   /** Package manifests already read to discover the dependency closure. */
   readonly cachedFiles: ReadonlyMap<string, Buffer>;
 }
@@ -41,6 +43,7 @@ interface PackageManifest {
   readonly files?: unknown;
   readonly dependencies?: unknown;
   readonly optionalDependencies?: unknown;
+  readonly privateLaunchContract?: unknown;
 }
 
 export interface DiscoverReleasePayloadOptions {
@@ -76,6 +79,7 @@ export async function discoverReleasePayload(
     packageRoot: canonicalRoot,
     packageVersion: manifest.version,
     paths: [...paths].sort(),
+    ...(typeof manifest.privateLaunchContract === "string" ? { launchContract: manifest.privateLaunchContract } : {}),
     cachedFiles,
   };
 }
@@ -94,7 +98,7 @@ export async function deriveReleaseIdentity(packageRoot: string): Promise<Releas
     const bytes = payload.cachedFiles.get(path) ?? await readFile(absolute);
     return releaseFileIdentity(path, bytes, (metadata.mode & 0o111) !== 0);
   });
-  return createReleaseIdentity(payload.packageRoot, payload.packageVersion, files);
+  return createReleaseIdentity(payload.packageRoot, payload.packageVersion, files, [], payload.launchContract);
 }
 
 export function createReleaseIdentity(
@@ -102,8 +106,11 @@ export function createReleaseIdentity(
   packageVersion: string,
   files: readonly ReleaseFileIdentity[],
   dependencyLayers: readonly DependencyLayerReference[] = [],
+  launchContract?: string,
 ): ReleaseIdentity {
-  const productDigest = digestManifestFiles(files);
+  const fileDigest = digestManifestFiles(files);
+  const productDigest = launchContract === undefined ? fileDigest
+    : createHash("sha256").update(`launch-contract\0${launchContract}\0${fileDigest}`).digest("hex");
   const contentDigest = dependencyLayers.length === 0
     ? productDigest
     : createHash("sha256")
@@ -116,6 +123,7 @@ export function createReleaseIdentity(
     contentDigest,
     releaseId: `${packageVersion}-${contentDigest.slice(0, 20)}`,
     packageRoot,
+    ...(launchContract === undefined ? {} : { launchContract }),
     files: [...files].sort(compareReleaseFiles),
     ...(dependencyLayers.length === 0 ? {} : { dependencyLayers: [...dependencyLayers] }),
   };
